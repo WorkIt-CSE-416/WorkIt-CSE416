@@ -7,6 +7,20 @@ which feed the timeline, the Calendar and Home's Interviewing
 number. Nothing that reads Gmail is built. Every other decision below is a
 proposal; the open questions are at the end.
 
+**Archived (KAN-428, 2026-10-28).** The team set reading Gmail aside as a
+future feature: Google's verification and the yearly CASA assessment
+(below, "Google's rules") cost money the team does not have, and students
+can track applications by hand with the stage menu and Add Event. Without
+a source of emails every student saw an empty Inbox promising a Gmail
+connection, so the Inbox, its sidebar row, the Emails tab, the Tracker's
+"emails need a look" line and Gmail's row in Settings are hidden behind
+one switch, `INBOX_LIVE` in `frontend/src/app/(seeker)/inbox/live.ts`, and
+`/inbox` goes to the Applications Tracker. The screens, `read_at` and the
+API's email routes stay built; set the switch to true to bring them back.
+A cheaper source to weigh first: a forwarding address on `workitjobs.ai`
+(Cloudflare Email Routing to a Worker, free), which needs no Gmail access
+and no verification.
+
 ## Goal
 
 A student connects Gmail once. From then on, WorkIt finds the emails about
@@ -155,7 +169,7 @@ Google's policy requires that we honour that.
 ### 6. Without Gmail
 
 A student can add an interview, assessment deadline, offer or rejection by
-hand on any application, from **Add Event** in the detail panel, and can
+hand on any application, from **Create Event** in the detail panel, and can
 set any stage from the stage menu. This uses the same table and fills the
 Calendar for students who never connect Gmail. It ships first (build
 order, step 1).
@@ -309,7 +323,7 @@ a message again from Gmail if the student asks to see it.
 The screens draw an event as `tracker.ts` already drew one
 (`ApplicationEvent`, mapped in `applications/tracked.ts`): `interview`,
 `offer` and `rejection` keep their names, `assessment` is a `deadline`,
-and `other` (Add Event's Follow-Up) and `confirmation` are a `follow-up`.
+and `other` (Create Event's Follow-Up) and `confirmation` are a `follow-up`.
 
 **An event moves its application forward, never back** (`advance` in
 `queries/tracker.py`): an interview to Interviewing, an offer to Offer, a
@@ -327,7 +341,7 @@ Every route checks that the caller owns `{id}`. Built in step 1
 |---|---|---|
 | PUT | `/applicants/{id}/applications/{job_id}/stage` | The stage menu: applied, interviewing, offer or rejected, any direction; an undated application gets today |
 | GET | `/applicants/{id}/events` | Every accepted event, soonest first; the tracker joins them by `job_id` |
-| POST | `/applicants/{id}/applications/{job_id}/events` | Add Event; answers the event and the stage after it |
+| POST | `/applicants/{id}/applications/{job_id}/events` | Create Event; answers the event and the stage after it |
 | DELETE | `/applicants/{id}/events/{event_id}` | The stage stays |
 
 Built in step 2 (the Inbox's routes, which need no Google):
@@ -437,7 +451,7 @@ Under the $200 a month budget.
 
 1. **Built: the stages and events by hand.** Migration `a7d3e5f1c2b4`
    (the three stages, `application_events`); the stage menu and
-   Interviews & Dates with Add Event and Delete on an application's page;
+   Interviews & Dates with Create Event and Delete on an application's page;
    the timeline, the Calendar (back in the sidebar) and Home's
    Interviewing number read them. Useful without Gmail. The migration is
    merged to `main` in its own PR and applied by the user before the

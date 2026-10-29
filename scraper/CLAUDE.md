@@ -617,6 +617,13 @@ its careers site links. **Raise `logos.VERSION` with any new place to find a log
 or website**, or boards already stored as having none never get it. Read
 `docs/logos.md` before changing how a logo or website is found.
 
+**The feed's `company_domain` is what the Jobs page draws the logo from**
+(Brandfetch, KAN-442): `logos.company_domain`, worked out as the feed is
+written, from `checked_websites.csv` first, else the favicon's website, cut to
+the company's registered domain and never a hiring vendor's. A row goes into
+`checked_websites.csv` only after its checks (`docs/logos.md`, Checked
+websites): a script for the site and its name, a person for every failure.
+
 ## The page
 
 One self-contained HTML table (`# · Position Title · Date · Apply · Work Model

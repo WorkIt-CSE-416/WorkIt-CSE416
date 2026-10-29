@@ -1,9 +1,10 @@
-// The marks Next Thing That Needs You leaves on the page (KAN-369): a ring
-// around the field it lands on, for a few seconds, and a small dot on that
-// field while it still needs the student (failed, waiting, flagged), gone once
-// it is resolved. They sit in their own shadow host above the page, in
-// WorkIt's tokens, and never take a click. batch-tab.js's show() calls them,
-// as window.WIA.marks. Loaded after lib-status.js and tokens.js.
+// The mark Next Thing That Needs You leaves on the page (KAN-369): a ring
+// around the field it lands on, for a few seconds. It sits in its own shadow
+// host above the page, in WorkIt's tokens, and never takes a click.
+// batch-tab.js's show() and primary.js call it, as window.WIA.marks. Loaded
+// after tokens.js. The orange dot that stayed on a field while it needed the
+// student is gone (KAN-424): its amber didn't match the panel's red box and
+// read as a stray blot on the employer's form; the panel lists what is left.
 window.WIA = window.WIA || {};
 
 (function () {
@@ -15,8 +16,6 @@ window.WIA = window.WIA || {};
   let host = null;
   let root = null;
   let ring = null; // { el, field }
-  /** @type {Map<string, { el: HTMLElement, field: Element, needs: () => boolean }>} */
-  const dots = new Map();
   let frame = 0;
 
   function mount() {
@@ -37,19 +36,15 @@ window.WIA = window.WIA || {};
         position: fixed; box-sizing: border-box; border: 2px solid var(--color-brand); border-radius: var(--radius-card);
         box-shadow: 0 0 0 4px var(--color-brand-tint);
       }
-      .dot {
-        position: fixed; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%;
-        background: var(--color-warning-strong); border: 2px solid var(--color-panel);
-      }
     `;
     root.appendChild(style);
     document.documentElement.appendChild(host);
   }
 
-  /** Keeps each mark on its field while any is shown (the page scrolls, or redraws around it). */
+  /** Keeps the ring on its field while it is shown (the page scrolls, or redraws around it). */
   function track() {
     frame = 0;
-    if (!ring && !dots.size) return;
+    if (!ring) return;
     if (host && !host.isConnected) document.documentElement.appendChild(host);
     if (ring) {
       const box = ring.field.getBoundingClientRect();
@@ -57,11 +52,6 @@ window.WIA = window.WIA || {};
         top: `${box.top - RING_GAP}px`, left: `${box.left - RING_GAP}px`,
         width: `${box.width + 2 * RING_GAP}px`, height: `${box.height + 2 * RING_GAP}px`,
       });
-    }
-    for (const { el, field } of dots.values()) {
-      const box = field.getBoundingClientRect();
-      el.hidden = !field.isConnected;
-      Object.assign(el.style, { top: `${box.top - 5}px`, left: `${box.right - 5}px` });
     }
     frame = requestAnimationFrame(track);
   }
@@ -83,26 +73,5 @@ window.WIA = window.WIA || {};
     start();
   }
 
-  /** Puts a dot on `field` (the row `key`'s) until `needs()` says it no longer needs the student. */
-  function dot(key, field, needs) {
-    if (!needs()) return;
-    mount();
-    dots.get(key)?.el.remove();
-    const el = Object.assign(document.createElement("div"), { className: "dot" });
-    el.dataset.key = key;
-    root.appendChild(el);
-    dots.set(key, { el, field, needs });
-    track();
-    start();
-  }
-
-  window.WIA.status.subscribe(() => {
-    for (const [key, mark] of dots) {
-      if (mark.needs()) continue;
-      mark.el.remove();
-      dots.delete(key);
-    }
-  });
-
-  window.WIA.marks = { ring: ringField, dot };
+  window.WIA.marks = { ring: ringField };
 })();

@@ -59,6 +59,10 @@ async function arcWith(script: string): Promise<{ form: Page; api: FakeApi; form
   await sendFromWebapp(webappPage, { type: "run/open" });
   await expect.poll(() => api.stages.get("job-0"), { timeout: 60_000 }).toBe("needs_you");
   const form = loaded.context.pages().find((p) => p.url() === forms.url(ARC))!;
+  // A failed field's card shows on the row the student opened (KAN-424): closed, it is its reason alone.
+  await expect(rowOf(form, "first_name").locator(".reason")).toBeVisible();
+  await expect(rowOf(form, "first_name").locator(".row-card")).toHaveCount(0);
+  await rowOf(form, "first_name").locator(".label").click();
   return { form, api, forms };
 }
 
@@ -89,26 +93,25 @@ test("Keep the page's takes what the page shows as the student's, quoting the si
   // The site already turned the answer down: WorkIt doesn't fight it.
   await expect(card.getByRole("button", { name: "Put mine back" })).toHaveCount(0);
 
+  // The test's script sets "Pat" outside the form's React state, which puts its own back once opening the row
+  // focuses the field: so Keep is checked to leave the field as it is, whatever it shows.
+  const shown = await form.locator("#first_name").inputValue();
   await card.getByRole("button", { name: "Keep the page's" }).click();
 
   await expect(rowOf(form, "first_name").locator(".row-card")).toHaveCount(0);
   await expect(rowOf(form, "first_name").locator(".source")).toHaveText("You");
-  await expect(form.locator("#first_name")).toHaveValue("Pat");
+  await expect(form.locator("#first_name")).toHaveValue(shown);
   await expect.poll(() => api.stages.get("job-0")).toBe("queued"); // the tab is Ready again
   expect(forms.submissions).toEqual([]);
 });
 
-test("Next Thing rings the field it lands on for a few seconds and leaves a dot on it until it is fixed", async () => {
+test("Next Thing rings the field it lands on for a few seconds and leaves no dot on it", async () => {
   const { form } = await arcWith(DROPS_FIRST_NAME);
   const marks = form.locator("#workit-marks-host");
   await pressNextThing(loaded, form.locator("#workit-autofiller-overlay-host"));
 
   await expect(marks.locator(".ring")).toBeVisible();
-  await expect(marks.locator('.dot[data-key="first_name"]')).toBeVisible();
   await expect(marks.locator(".ring")).toHaveCount(0, { timeout: 5_000 });
-  await expect(marks.locator('.dot[data-key="first_name"]')).toBeVisible();
-
-  await form.evaluate(() => window.dispatchEvent(new Event("workit-test-stop-dropping")));
-  await rowOf(form, "first_name").getByRole("button", { name: "Put mine back" }).click();
-  await expect(marks.locator('.dot[data-key="first_name"]')).toHaveCount(0);
+  // The field still needs the student, and the page carries no mark of it (KAN-424): the panel says it.
+  await expect(marks.locator(".dot")).toHaveCount(0);
 });

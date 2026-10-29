@@ -10,6 +10,7 @@ import { getMatches } from "./data";
 import { SectionCard } from "./section-card";
 import { LIST } from "./top-matches-frame";
 import { TopMatchesList, type TopMatchRow } from "./top-matches-list";
+import { jobLogo } from "@/lib/job-logo";
 
 /**
  * Top Matches, under the headline numbers (KAN-342): the seeker's best-scoring
@@ -93,7 +94,7 @@ export async function TopMatches({
     id: job.id,
     title: job.title,
     company: job.company,
-    logoUrl: job.logo_url,
+    logoUrl: jobLogo(job),
     applyUrl: job.apply_url,
     match: job.match ?? null,
     posted: job.posted_at ? formatPosted(job.posted_at) : null,

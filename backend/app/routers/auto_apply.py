@@ -26,10 +26,12 @@ GET  /applicants/{id}/applications?stage=queued&stage=needs_you
      ?scored=true adds `match`, the Jobs page's score, and its `highlights`
      to each open one
      (the Applications page; null while the experience bank is empty).
-GET  /applicants/{id}/applications/next?skip=<job id>&skip=...
+GET  /applicants/{id}/applications/next?skip=<job id>&skip=...&only=<job id>...
      What the extension fills next: the oldest queued application whose job
      posting is open, or null when none is left. ?skip= leaves out the jobs
-     batch apply already has open in its tabs (KAN-370).
+     batch apply already has open in its tabs (KAN-370); ?only= counts just
+     those jobs (the ones the student picked in Up Next), needs_you ones too,
+     so a form whose tab was closed opens again.
 GET  /applicants/{id}/applications/{job_id}
      The application for one job posting, as the list has it. 404 when the
      applicant has none.
@@ -90,11 +92,16 @@ DELETE /applicants/{id}/applications/{job_id}/answers?name=
      with no application.
 POST /applicants/{id}/applications/{job_id}/review/keep     {"name"}
 POST /applicants/{id}/applications/{job_id}/review/rewrite  {"name"}
+POST /applicants/{id}/applications/{job_id}/review/redo     {"name", "steer"?}
      The tab's flag card (KAN-369) on an answer the pre-submit review
      flagged: keep it as it stands (no later review flags that text again),
      or send it back to the student's Claude (the answer is cleared, and
      get_next_application hands the question out with the flag). 204; 422
      when that answer isn't flagged, or (rewrite) is the student's own.
+     redo (KAN-424): any answer the student's Claude wrote, flagged or not,
+     sent back for another version, with `steer`, how to change it ("Make
+     it shorter.", or their words), handed to Claude as the rewrite's
+     reason. 422 for the student's own words or a question with no answer.
 GET  /applicants/{id}/applications/{job_id}/answer-bank
      The answers saved on the student's other applications that this one's
      form may reuse, {question wording: {"answer", "own"}} (pipeline.answer_bank:
@@ -223,12 +230,14 @@ async def list_applications(
 async def next_application(
     applicant_id: uuid.UUID,
     skip: list[uuid.UUID] = Query([]),
+    only: list[uuid.UUID] = Query([]),
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> Application | None:
-    """The next application to fill, past the jobs in `skip`, or null."""
+    """The next application to fill, past the jobs in `skip` and among those
+    in `only` when given, or null."""
     assert_applicant_owns(account, applicant_id)
-    return await pipeline.next_application(db, applicant_id, skip)
+    return await pipeline.next_application(db, applicant_id, skip, only)
 
 
 # After /applications/next: a job id is a UUID, so "next" would match this
@@ -342,16 +351,20 @@ async def written_answers(
 async def answer_flag(
     applicant_id: uuid.UUID,
     job_id: uuid.UUID,
-    action: Literal["keep", "rewrite"],
+    action: Literal["keep", "rewrite", "redo"],
     body: FlagAnswer,
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> Response:
     """The batch tab's flag card (KAN-369): the student keeps a flagged answer
-    as it stands, or sends it back to their Claude to rewrite."""
+    as it stands, or sends it back to their Claude to rewrite. Its Rewrite
+    (KAN-424, `redo`): any answer their Claude wrote, for another version."""
     assert_applicant_owns(account, applicant_id)
     try:
-        await (pipeline.keep if action == "keep" else pipeline.rewrite)(db, applicant_id, job_id, body.name)
+        if action == "redo":
+            await pipeline.redo(db, applicant_id, job_id, body.name, body.steer)
+        else:
+            await (pipeline.keep if action == "keep" else pipeline.rewrite)(db, applicant_id, job_id, body.name)
     except pipeline.Refused as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)

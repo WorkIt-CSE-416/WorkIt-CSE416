@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import type { JobListing } from "../../listings";
 import { TailorBack } from "./tailor-back";
 import { TAILOR_STEPS, type TailorStep } from "./tailor-steps";
+import { jobLogo } from "@/lib/job-logo";
 
 /**
  * A pick step's top under its `TailorBar`: the step's title, the job it
@@ -56,7 +57,7 @@ export function TailorJobLine({ job, className }: { job: JobListing; className?:
     >
       <CompanyLogo
         name={job.company}
-        src={job.logo_url}
+        src={jobLogo(job)}
         className="text-caption rounded-control size-5 shrink-0"
       />
       <span className="truncate">

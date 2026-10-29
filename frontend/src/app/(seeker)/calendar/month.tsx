@@ -9,35 +9,66 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import Link from "next/link";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 import { ShallowLink } from "@/components/shallow-routing";
 import { cn } from "@/lib/cn";
 
 import type { TrackerEvent } from "../tracker";
-import { dayKey, longDay, lookOf, shortTime } from "./entries";
+import { dayKey, isTimed, KIND_LABEL, longDay, lookOf, timeOf } from "./entries";
+import { EventEntry } from "./event-card";
+
+/** A chip's height with the gap under it, and what a day spends before its
+ *  first chip (its padding, its number, the gap under it), in px: what
+ *  `useFit` divides a week's row by. */
+const CHIP = 24;
+const DAY_TOP = 44;
 
 /**
- * A month as a grid of day tiles, Sunday first: each day its own light grey
- * rounded tile with gaps between them rather than one ruled table, its number
- * top left and its entries under it as small chips in their kind's stage
- * tint. Weekday names run above in small uppercase. Today's tile is white,
- * outlined in the brand, with its number in a brand disc. Days outside the
- * month are fainter tiles and still show their entries, so a week that
- * straddles two months reads whole.
+ * How many chips a day has room for, Google Calendar's way: the weeks share
+ * the page's height (./page.tsx), so a day's room is its row's height, read
+ * off the grid as it resizes. A short window shows fewer chips a day and
+ * folds the rest into "+N more", never a scrollbar. One at least, so a day
+ * with entries always shows one or its count.
+ */
+function useFit(grid: RefObject<HTMLOListElement | null>, weeks: number) {
+  const [fit, setFit] = useState(3);
+  useEffect(() => {
+    const node = grid.current;
+    if (!node) return;
+    const observer = new ResizeObserver(() => {
+      const row = node.clientHeight / weeks;
+      setFit(Math.max(1, Math.floor((row - DAY_TOP) / CHIP)));
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [grid, weeks]);
+  return fit;
+}
+
+/**
+ * A month as one ruled table, Sunday first (KAN-429): white days divided by
+ * hairlines (the grid's 1px gaps over --color-border-subtle), the weekday
+ * names in a grey band above, days outside the month on grey with faint
+ * numbers, and today's number in a brand disc. It was a wall of separate
+ * grey rounded tiles, which read as buttons and blurred the month's edges.
  *
- * A CHIP NAMES THE COMPANY, not the entry, and carries no time. Its colour
- * already says what kind of thing it is (an amber interview, a green offer, a
- * grey deadline, per the legend), so the words go to whose it is: "CloudSync"
- * rather than "2 PM Technical Interview", and never a bare "Applied" that
- * says nothing about where. The title and time are in the chip's tooltip and
+ * A CHIP SAYS WHAT IT IS AND WHOSE, as Google Calendar's month does: an
+ * all-day entry (Apply By, a closing day, Applied) is a filled bar in its
+ * stage tint with its kind's glyph; a timed one (an interview) is a dot in
+ * its colour, its time and the company, unfilled ("● 2 PM Acme"), so a
+ * month tells appointments from dates at a glance (isTimed). Every chip was
+ * a lavender pill with the company alone, so an interview and an applied
+ * day looked the same. The kind's name and the title are in its tooltip and
  * accessible name, and in full in the Week and the Agenda.
  *
- * A day shows two chips and "+N more", which opens that day in the Agenda; a
- * busy day must not stretch its whole week. Its number opens the day in the
- * Agenda too, both in place (ShallowLink), since the Agenda is drawn here
- * from the same entries. A chip opens its application's detail panel, which
- * the server draws, so it is a real link.
+ * THE WEEKS SHARE THE PAGE'S HEIGHT (KAN-429), so the month fits the screen
+ * and the page never scrolls: a day shows as many chips as its row has room
+ * for (`useFit`) and "+N more", which opens the week that holds the day. A
+ * day never stretches its week; it grew rows of 112px before, so a month ran
+ * past the fold. Its number opens that week too, both in place
+ * (ShallowLink), since the Week is drawn here from the same entries. A chip
+ * opens its event card (./event-card.tsx).
  *
  * Below @3xl/main a 7-column grid has about 45px a day, too little for any
  * words, so each day shows its entries as dots instead (aria-hidden: the
@@ -61,35 +92,48 @@ export function Month({
     start: startOfWeek(startOfMonth(anchor)),
     end: endOfWeek(endOfMonth(anchor)),
   });
+  const weeks = days.length / 7;
+  const grid = useRef<HTMLOListElement>(null);
+  const fit = useFit(grid, weeks);
 
   return (
-    <div className="mt-3">
-      <div aria-hidden="true" className="grid grid-cols-7 gap-1.5 @3xl/main:gap-2">
+    <div className="border-border-subtle rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
+      <div
+        aria-hidden="true"
+        className="bg-surface border-border-subtle grid shrink-0 grid-cols-7 border-b"
+      >
         {days.slice(0, 7).map((day) => (
-          <span key={dayKey(day)} className="text-caption text-ink-meta py-1 text-center uppercase">
+          <span
+            key={dayKey(day)}
+            className="text-caption text-ink-meta py-2 text-center font-semibold uppercase"
+          >
             {format(day, "EEE")}
           </span>
         ))}
       </div>
 
-      <ol className="mt-1 grid grid-cols-7 gap-1.5 @3xl/main:gap-2">
+      {/* The weeks share the height left, five or six rows as the month
+          needs (Google Calendar's month); a day never grows its row. */}
+      <ol
+        ref={grid}
+        className="bg-border-subtle grid min-h-0 flex-1 grid-cols-7 gap-px"
+        style={{ gridTemplateRows: `repeat(${weeks}, minmax(0, 1fr))` }}
+      >
         {days.map((day) => {
           const key = dayKey(day);
           const entries = byDay.get(key) ?? [];
           const inMonth = isSameMonth(day, anchor);
           const isToday = key === today;
           const count = entries.length;
+          // Every entry when they all fit; else one less, for "+N more".
+          const shown = count <= fit ? count : Math.max(fit - 1, 0);
 
           return (
             <li
               key={key}
               className={cn(
-                "rounded-card min-h-16 min-w-0 p-1.5 @3xl/main:min-h-24 @3xl/main:p-2",
-                isToday
-                  ? "bg-panel ring-brand ring-[1.5px] ring-inset"
-                  : inMonth
-                    ? "bg-app"
-                    : "bg-app/50",
+                "min-h-0 min-w-0 overflow-hidden p-1.5 @3xl/main:p-2",
+                inMonth ? "bg-panel" : "bg-app",
               )}
             >
               <ShallowLink
@@ -97,7 +141,7 @@ export function Month({
                 aria-label={`${format(day, "EEEE, MMMM d")}, ${count === 0 ? "nothing scheduled" : count === 1 ? "1 entry" : `${count} entries`}`}
                 aria-current={isToday ? "date" : undefined}
                 className={cn(
-                  "text-note focus-visible:ring-brand-ring inline-flex size-6 items-center justify-center rounded-full font-semibold transition-[background-color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-90",
+                  "text-note focus-visible:ring-brand-ring inline-flex size-6 items-center justify-center rounded-full font-semibold tabular-nums transition-[background-color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-90",
                   isToday
                     ? "bg-brand text-on-brand hover:bg-brand-hover"
                     : inMonth
@@ -120,41 +164,59 @@ export function Month({
                 </div>
               )}
 
-              {/* Wide: two chips, then the rest as a count. */}
+              {/* Wide: as many chips as the day has room for, then the
+                  rest as a count. */}
               {count > 0 && (
-                <ul className="mt-1.5 hidden flex-col gap-1 @3xl/main:flex">
-                  {entries.slice(0, 2).map((event) => {
+                <ul className="mt-1 hidden flex-col gap-1 @3xl/main:flex">
+                  {entries.slice(0, shown).map((event) => {
                     const look = lookOf(event.kind);
-                    const time = shortTime(event.at);
+                    const { Icon } = look;
+                    const time = timeOf(event);
+                    const timed = isTimed(event);
 
                     return (
                       <li key={event.id} className="min-w-0">
-                        <Link
-                          href={openHref(event.applicationId)}
-                          scroll={false}
-                          title={`${event.title} · ${event.company}${time ? ` · ${time}` : ""}`}
+                        <EventEntry
+                          event={event}
+                          openHref={openHref}
+                          title={`${KIND_LABEL[event.kind]} · ${event.company}${time ? ` · ${time}` : ""}`}
                           className={cn(
-                            "text-meta focus-visible:ring-brand-ring ease-glide block truncate rounded-md px-1.5 py-0.5 font-medium transition-[filter,transform] duration-150 hover:brightness-95 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.96]",
-                            look.tint,
-                            look.onTint,
+                            "text-meta focus-visible:ring-brand-ring ease-glide flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-medium transition-[filter,background-color,transform] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.96]",
+                            timed
+                              ? "text-ink hover:bg-hover"
+                              : cn(look.tint, look.onTint, "hover:brightness-95"),
                           )}
                         >
-                          {event.company}
+                          {timed ? (
+                            <span
+                              aria-hidden="true"
+                              className={cn("size-2 shrink-0 rounded-full", look.fill)}
+                            />
+                          ) : (
+                            <Icon aria-hidden className="size-3 shrink-0" />
+                          )}
+                          <span className="truncate">
+                            {time && (
+                              <span className={cn("tabular-nums", timed && "text-ink-meta")}>
+                                {time}{" "}
+                              </span>
+                            )}
+                            {event.company}
+                          </span>
                           <span className="sr-only">
                             , {event.title}, {event.role}, {longDay(event.at)}
-                            {time && `, ${time}`}
                           </span>
-                        </Link>
+                        </EventEntry>
                       </li>
                     );
                   })}
-                  {count > 2 && (
+                  {count > shown && (
                     <li>
                       <ShallowLink
                         href={dayHref(key)}
-                        className="text-meta text-ink-meta hover:text-ink focus-visible:ring-brand-ring rounded-xs px-1.5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+                        className="text-meta text-ink-meta hover:text-ink focus-visible:ring-brand-ring rounded-xs px-1.5 font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
                       >
-                        +{count - 2} more
+                        +{count - shown} more
                       </ShallowLink>
                     </li>
                   )}

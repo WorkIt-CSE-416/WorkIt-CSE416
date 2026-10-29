@@ -63,6 +63,8 @@ async function filledArc() {
   await expect.poll(() => api.stages.get("job-0"), { timeout: 60_000 }).toBe("needs_you");
   const form = loaded.context.pages().find((p) => p.url() === forms.url(ARC))!;
   const host = form.locator("#workit-autofiller-overlay-host");
+  // Its card and Report this show on the opened row only (KAN-424).
+  await host.locator('[data-key="first_name"] .label').click();
   await expect(host.locator('[data-key="first_name"] .row-card')).toBeVisible();
   return { api, forms, form, host };
 }
@@ -135,6 +137,8 @@ test("A field the student edits after WorkIt filled it offers Report this, and a
 
   // The student types their own last name over WorkIt's.
   await form.locator("#last_name").fill("Quinn");
+  // Report this shows on the opened row (KAN-424): the student presses the row of the field they changed.
+  await host.locator('[data-key="last_name"] .label').click();
   const edited = host.locator('[data-key="last_name"] [data-report-trigger="edited"]');
   await expect(edited).toBeVisible({ timeout: 10_000 });
   await edited.click();

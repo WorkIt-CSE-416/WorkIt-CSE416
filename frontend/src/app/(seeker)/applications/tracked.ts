@@ -12,6 +12,7 @@ import { getApplications, type Application as Stored } from "../auto-apply/appli
 import { formatJobType, formatPlaces, formatSalary, formatWorkStyle } from "../jobs/format";
 import type { JobListing, ListingSalaryPeriod } from "../jobs/listings";
 import type { Application, ApplicationEvent } from "../tracker";
+import { jobLogo } from "@/lib/job-logo";
 
 /** The stages the tracker lists: saved, applied and every stage after it
  *  (KAN-413). Queued, needs-you and skipped are auto apply's, on its page. */
@@ -64,6 +65,7 @@ type StoredEvent = {
   kind: "confirmation" | "assessment" | "interview" | "offer" | "rejection" | "other";
   title: string;
   at: string | null;
+  ends_at?: string | null;
   on_day: string | null;
   note: string | null;
   meeting_url: string | null;
@@ -71,13 +73,14 @@ type StoredEvent = {
   created_at: string;
 };
 
-/** The tracker's kind for each of the API's: an assessment is a deadline
- *  (its due date), and anything else a follow-up, Applied's violet. */
+/** The tracker's kind for each of the API's: an assessment keeps its own
+ *  (KAN-429; it was folded into a deadline with closing dates), and
+ *  anything else is a follow-up, Applied's violet. */
 const KIND: Record<StoredEvent["kind"], ApplicationEvent["kind"]> = {
   interview: "interview",
   offer: "offer",
   rejection: "rejection",
-  assessment: "deadline",
+  assessment: "assessment",
   other: "follow-up",
   confirmation: "follow-up",
 };
@@ -106,6 +109,7 @@ function toEvent(event: StoredEvent): ApplicationEvent {
     kind: KIND[event.kind],
     title: event.title,
     at: event.at ?? event.on_day ?? "",
+    endsAt: event.ends_at ?? null,
     note: event.note,
     meetingUrl: event.meeting_url,
     source: event.source,
@@ -255,7 +259,17 @@ function payPerYearOf(job: JobListing) {
 
 /** One stored application as a tracker card, with the resume it sent. */
 function toApplication(
-  { job, stage, added_at, applied_at, open, match, highlights }: Stored<Tracked>,
+  {
+    job,
+    stage,
+    added_at,
+    applied_at,
+    apply_by,
+    closes_at,
+    open,
+    match,
+    highlights,
+  }: Stored<Tracked>,
   sent: SentResume | null,
   events: ApplicationEvent[],
 ) {
@@ -263,7 +277,7 @@ function toApplication(
     id: job.id,
     role: job.title,
     company: job.company,
-    logoUrl: job.logo_url,
+    logoUrl: jobLogo(job),
     // A closed posting's page is gone, so its card links nowhere.
     jobHref: open ? `/jobs/${encodeURIComponent(job.id)}` : undefined,
     stage,
@@ -283,6 +297,8 @@ function toApplication(
     highlights: highlights ?? [],
     savedOn: added_at,
     appliedOn: applied_at,
+    applyBy: apply_by ?? null,
+    closesAt: closes_at ?? null,
     events,
   } satisfies Application;
 }

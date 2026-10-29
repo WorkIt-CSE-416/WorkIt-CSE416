@@ -9,6 +9,7 @@ import {
   TermChips,
   YesNoChips,
 } from "@/components/answer-fields";
+import { DateField } from "@/components/date-field";
 import { ANSWER_GROUP_ICON, PencilIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -153,19 +154,21 @@ export function ApplicationAnswers({
 
             <Group icon="startWindow" title="Start Window">
               <div className="grid gap-3">
-                <TextField
+                {/* WorkIt's own date picker, never the browser's
+                    (docs/design.md, Components). */}
+                <DateField
                   id="answers-earliest_start"
                   label="Earliest Start"
-                  type="date"
                   value={draft.earliest_start ?? ""}
-                  onChange={(e) => set({ earliest_start: e.target.value || null })}
+                  onValueChange={(value) => set({ earliest_start: value || null })}
+                  clearable
                 />
-                <TextField
+                <DateField
                   id="answers-latest_end"
                   label="Latest End"
-                  type="date"
                   value={draft.latest_end ?? ""}
-                  onChange={(e) => set({ latest_end: e.target.value || null })}
+                  onValueChange={(value) => set({ latest_end: value || null })}
+                  clearable
                 />
               </div>
               <Question id="answers-terms-label" label="Terms you can work">

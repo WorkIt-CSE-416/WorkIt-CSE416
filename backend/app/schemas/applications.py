@@ -80,6 +80,13 @@ class Application(BaseModel):
     # When it was queued (or marked applied): the queue's order.
     added_at: datetime.datetime
     applied_at: datetime.datetime | None
+    # The student's own day to apply by (KAN-429), the Calendar's Apply by;
+    # null while none is set.
+    apply_by: datetime.date | None = None
+    # When the job posting stops taking applications, where it says
+    # (KAN-429, the Calendar's Application Closes): a company's own job sets
+    # it; a scraped one rarely publishes one.
+    closes_at: datetime.datetime | None = None
     # The sent resume it went out with (KAN-267): job_applications'
     # `sent_resume_id`, null when none was sent or it was since deleted.
     sent_resume: SentResumeResponse | None = None
@@ -222,11 +229,15 @@ class WrittenAnswer(WrittenQuestion):
 
 class FlagAnswer(BaseModel):
     """POST .../review/keep and .../review/rewrite: the flagged answer the
-    student keeps, or sends back to their Claude (KAN-369)."""
+    student keeps, or sends back to their Claude (KAN-369). POST
+    .../review/redo: any answer their Claude wrote, sent back for another
+    version (KAN-424), with how to change it (`steer`: "Make it shorter.",
+    or their own words), if they said."""
 
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=200)
+    steer: str | None = Field(default=None, max_length=300)
 
 
 class OwnAnswer(BaseModel):

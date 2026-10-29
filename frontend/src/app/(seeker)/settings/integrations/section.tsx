@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 
+import { INBOX_LIVE } from "../../inbox/live";
 import { SettingRow } from "../setting-row";
 
 /** The apps a student can connect, each with what it does for them in one
@@ -17,12 +18,19 @@ const APPS: {
   Icon: ComponentType<{ className?: string }>;
   line: string;
 }[] = [
-  {
-    key: "gmail",
-    name: "Gmail",
-    Icon: GmailIcon,
-    line: "Moves your applications along when employers reply. Read-only.",
-  },
+  // Archived with the Inbox until WorkIt has a source of emails (KAN-428,
+  // ../../inbox/live.ts): a Gmail row promised a connection that does not
+  // exist.
+  ...(INBOX_LIVE
+    ? [
+        {
+          key: "gmail",
+          name: "Gmail",
+          Icon: GmailIcon,
+          line: "Moves your applications along when employers reply. Read-only.",
+        },
+      ]
+    : []),
   {
     key: "google-calendar",
     name: "Google Calendar",

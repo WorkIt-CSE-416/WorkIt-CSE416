@@ -44,9 +44,9 @@ one's code and the API on the other's.
   Workers" template, scoped to the WorkIt account and the `workitjobs.ai`
   zone) and `CLOUDFLARE_ACCOUNT_ID`, which wrangler reads from the env.
 - **The API's runtime values are one secret, `CF_API_SECRETS_JSON`**: a JSON
-  object of every variable the API reads in production, copied from Vercel's
-  production env. The job pipes it to `wrangler secret bulk` **before** the
-  deploy: the image rollout restarts the containers with the secrets of that
+  object of every variable the API reads in production (first copied from
+  Vercel's production env, before Vercel was retired). The job pipes it to
+  `wrangler secret bulk` **before** the deploy: the image rollout restarts the containers with the secrets of that
   moment, and a secrets-only version restarts none, so set after, the new
   values reach no container until each sleeps (found 2026-10-21). `secret
   bulk` never deletes a secret, so a key dropped from the JSON keeps its old
@@ -55,9 +55,11 @@ one's code and the API on the other's.
   shipped as the database URL and keys. To change one value, rewrite the whole JSON
   (`gh secret set CF_API_SECRETS_JSON < file.json`); never put a value in the
   workflow. `DIRECT_URL` never goes in it: migrations stay a local step.
-- **`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are repo
-  variables, not secrets**: Next inlines them at build time and both are public
-  by design. Setting them as Worker secrets would do nothing.
+- **`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
+  `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID` (KAN-442) are repo variables, not
+  secrets**: Next inlines them at build time and all are public by design.
+  Setting them as Worker secrets would do nothing. Without the Brandfetch
+  one, every company logo falls back to what the scraper found.
 - **A new Worker's first deploy needs `scripts/ensure-worker.sh`.** For a
   Worker that does not exist yet, Cloudflare answers wrangler's secrets lookup
   with "No access to the specified resource" rather than "not found" when the

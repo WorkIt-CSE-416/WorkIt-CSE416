@@ -21,6 +21,7 @@ import {
 } from "../../tracker";
 import { Timeline } from "../timeline";
 import { SentResumeRow } from "../view-resume";
+import { ApplyBy } from "./apply-by";
 import { StageMenu, TrackerEvents } from "./tracker-controls";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -168,6 +169,16 @@ export function YourApplication({
               )}
               {app.resume ? <>Sent {app.resume}</> : "No resume sent through WorkIt"}
             </p>
+
+            {/* Before it goes in, the student's own day to apply by
+                (KAN-429), which the Calendar shows. */}
+            {!app.appliedOn && (
+              <ApplyBy
+                jobId={app.id}
+                applyBy={app.applyBy ?? null}
+                closesAt={app.closesAt ?? null}
+              />
+            )}
 
             <Timeline steps={timeline(app, sent, now)} horizontal className="mt-5" />
 

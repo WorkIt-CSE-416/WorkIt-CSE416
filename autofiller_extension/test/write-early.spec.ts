@@ -93,3 +93,20 @@ test("a one-off choice goes to the student's Claude with its options", async () 
   // A question written in words carries no options.
   expect(questions.find((q: any) => q.label === GOALS)).toEqual({ name: expect.any(String), label: GOALS, required: true, max_length: null });
 });
+
+test("a ?gh_jid= careers link opens Greenhouse's form for the job when the site's board shows it there", async () => {
+  // Stripe's link lands on the job's description, its form a page further behind Apply (live, 2026-10-28):
+  // a batch tab opened on it filled nothing. The board named as the site is, its job shown on that site, is the form.
+  const API = "https://boards-api.greenhouse.io/v1/boards";
+  const shownOn = (absolute_url: string) => async (url: string) => {
+    if (url === `${API}/stripe/jobs/8130876`) return JSON.stringify({ id: 8130876, absolute_url });
+    throw new Error(`${url} answered 404`);
+  };
+  const link = "https://stripe.com/jobs/search?gh_jid=8130876";
+  expect(await formFor(link, shownOn(link))).toBe("https://job-boards.greenhouse.io/embed/job_app?for=stripe&token=8130876");
+  // A board of that name whose job is shown on another site isn't this company's: the link opens as it is.
+  expect(await formFor(link, shownOn("https://example.com/jobs?gh_jid=8130876"))).toBe(link);
+  // No board of that name: as it is, for the careers page's own embed frame (embedded-forms.js).
+  const elsewhere = "https://careers.example-co.com/open-roles?gh_jid=4567";
+  expect(await formFor(elsewhere, shownOn(link))).toBe(elsewhere);
+});

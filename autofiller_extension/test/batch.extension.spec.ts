@@ -80,6 +80,38 @@ test("fills a batch five tabs at a time into the Ready and Needs you groups", as
   expect(forms.submissions).toEqual([]);
 });
 
+test("jobs picked in Up Next open alone, close on run/close and reopen when picked again; a run/open with no picks opens the rest", async () => {
+  test.setTimeout(120_000);
+  const names = ["greenhouse-arc", "greenhouse-purestorage", "greenhouse-anduril"];
+  const forms = new SavedForms(names);
+  // Real job ids: run/open takes only UUIDs.
+  const id = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
+  const api = new FakeApi().queue(...names.map((name, n) => ({ id: id(n), apply_url: forms.url(name) })));
+  const { webappPage, before } = await start(api, forms);
+  const opened = async () => (await tabs(loaded.worker)).filter((t) => !before.has(t.id)).map((t) => t.url);
+
+  // The second job, one the queue doesn't hold, and something that isn't a job id: only the second opens.
+  const answer = await sendFromWebapp(webappPage, { type: "run/open", jobIds: [id(1), id(9), "../me"] });
+  expect(answer).toMatchObject({ ok: true, opened: true, jobIds: [id(1)] });
+  await expect.poll(opened).toEqual([forms.url("greenhouse-purestorage")]);
+  await expect.poll(() => api.stages.get(id(1)), { timeout: 60_000 }).toBe("needs_you");
+  // Its fill finished and freed a slot: a batch of picks still opens nothing else.
+  expect(await opened()).toHaveLength(1);
+
+  // run/close (Up Next's Remove, before it skips the job) closes its tab and the application keeps its stage;
+  // picked again, it reopens and fills.
+  expect(await sendFromWebapp(webappPage, { type: "run/close", jobId: id(1) })).toMatchObject({ ok: true, closed: true });
+  await expect.poll(opened).toEqual([]);
+  expect(api.stages.get(id(1))).toBe("needs_you");
+  expect(await sendFromWebapp(webappPage, { type: "run/open", jobIds: [id(1)] })).toMatchObject({ ok: true, opened: true, jobIds: [id(1)] });
+  await expect.poll(opened).toEqual([forms.url("greenhouse-purestorage")]);
+
+  // A run/open with no picks (the popup's Start Auto Apply) opens the rest of the queue too.
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  await expect.poll(async () => (await opened()).sort()).toEqual(names.map((name) => forms.url(name)).sort());
+  expect(forms.submissions).toEqual([]);
+});
+
 test("run/open asks for the next applications before any part of the profile, so the profile never holds up a tab's opening", async () => {
   // Over HTTP/1.1 (a local API) Chrome keeps six connections a host: the profile's seven parts asked first left
   // applications/next waiting one round trip (the speed harness, 150 ms API: every tab opened 150 ms later).
@@ -393,6 +425,8 @@ test("a field that silently rejects its answer is flagged, and its tab needs you
 
   const form = loaded.context.pages().find((p) => p.url() === forms.url("greenhouse-arc"))!;
   const row = form.locator('#workit-autofiller-overlay-host [data-key="first_name"]');
+  // Its card shows once the student opens the row (KAN-424).
+  await row.locator(".label").click();
   await expect(row.locator(".row-card")).toContainText("We put Test; the page shows (empty).");
   expect(forms.submissions).toEqual([]);
 });

@@ -15,6 +15,7 @@ import { hasApplied } from "../../applied";
 import type { Application as Stored } from "../../auto-apply/applications";
 import { BackLink } from "../../back-link";
 import { SEEKER_GUTTER } from "../../gutter";
+import { INBOX_LIVE } from "../../inbox/live";
 import { JobActionBar } from "../../jobs/[jobId]/action-bar";
 import {
   JOB_PAGE_WIDTH,
@@ -122,7 +123,8 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
     tracker,
     // About the Role alone on its tab, so no Key Requirements read.
     loadJobView(jobId, { descriptionOnly: true, application: known }),
-    getEmailsOnce(),
+    // No emails are read while the Inbox is archived (KAN-428).
+    INBOX_LIVE ? getEmailsOnce() : { emails: null },
   ]);
   const { job } = view;
 
@@ -176,17 +178,19 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
       <TabPanes
         application={<YourApplication app={app} job={job} sent={view.sent} now={getNow()} />}
         emails={
-          <EmailsTab
-            emails={emails?.filter((email) => email.jobId === app.id) ?? null}
-            job={{
-              id: app.id,
-              role: app.role,
-              company: app.company,
-              logoUrl: app.logoUrl,
-              stage: app.stage,
-              appliedOn: app.appliedOn,
-            }}
-          />
+          INBOX_LIVE && (
+            <EmailsTab
+              emails={emails?.filter((email) => email.jobId === app.id) ?? null}
+              job={{
+                id: app.id,
+                role: app.role,
+                company: app.company,
+                logoUrl: app.logoUrl,
+                stage: app.stage,
+                appliedOn: app.appliedOn,
+              }}
+            />
+          )
         }
         job={
           job ? (

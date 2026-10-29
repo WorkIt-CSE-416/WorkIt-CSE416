@@ -30,6 +30,11 @@ function box(form: Page, name: string) {
   return form.locator(`[data-field-path="${name}"] textarea`);
 }
 
+/** The waiting box's head (KAN-424): Write with Claude and the Written Answers link, once for its rows. */
+function waitingNote(form: Page) {
+  return form.locator('.box[data-box="waiting"] .box-note');
+}
+
 /** The overlay's text for one row, by its label. */
 function row(form: Page, label: string) {
   return form.locator(".row", { hasText: label });
@@ -52,9 +57,9 @@ test("an answer the student's Claude saves fills into its open tab", async () =>
     { name: expect.any(String), label: "What are some AI specific technologies you are comfortable with?", required: true, max_length: null, answer: null },
   ]);
   const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(HARVEY)))!;
-  await expect(row(form, WHY)).toContainText("Waiting for your Claude");
+  await expect(row(form, WHY)).toHaveAttribute("data-mark", "waiting");
   // A student without Claude is pointed at Written Answers, on the webapp they signed in on.
-  await expect(row(form, WHY).getByRole("link", { name: "Written Answers" })).toHaveAttribute(
+  await expect(waitingNote(form).getByRole("link", { name: "Written Answers" })).toHaveAttribute(
     "href",
     "http://localhost:3000/auto-apply/answers",
   );
@@ -66,7 +71,7 @@ test("an answer the student's Claude saves fills into its open tab", async () =>
 
   // Within one poll (10 seconds), the answer is in the form, read back by the engine.
   await expect(box(form, name)).toHaveValue(ANSWER, { timeout: 20_000 });
-  await expect(row(form, WHY)).not.toContainText("Waiting for your Claude");
+  await expect(row(form, WHY)).not.toHaveAttribute("data-mark", "waiting");
   // Labelled as Claude's (KAN-375's source labels).
   await expect(row(form, WHY).locator(".source")).toHaveText("Claude");
   expect(forms.submissions).toEqual([]);
@@ -80,7 +85,7 @@ test("a fact the student's Claude asks for shows on its row until the student an
   await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(3);
   const name = api.written.get("job-0")![0].name;
   const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(HARVEY)))!;
-  await expect(row(form, WHY)).toContainText("Waiting for your Claude");
+  await expect(row(form, WHY)).toHaveAttribute("data-mark", "waiting");
 
   // Their Claude found nothing of the student's to back a required slot, so it asked (save_fact_question).
   api.askFact("job-0", name, "Essay fact: What drew you to legal tools?", "Software Intern, Acme");
@@ -89,11 +94,11 @@ test("a fact the student's Claude asks for shows on its row until the student an
   await expect(row(form, WHY)).toContainText("Your Claude needs a fact from you first: What drew you to legal tools?", {
     timeout: 20_000,
   });
-  await expect(row(form, WHY).getByRole("link", { name: "Written Answers" })).toBeVisible();
+  await expect(waitingNote(form).getByRole("link", { name: "Written Answers" })).toBeVisible();
 
   // The student answered on Written Answers: the question is their Claude's again, and its answer fills.
   api.askFact("job-0", name, null);
-  await expect(row(form, WHY)).toContainText("Waiting for your Claude", { timeout: 20_000 });
+  await expect(row(form, WHY)).toHaveAttribute("data-mark", "waiting", { timeout: 20_000 });
   api.saveAnswer("job-0", name, ANSWER);
   await expect(box(form, name)).toHaveValue(ANSWER, { timeout: 20_000 });
   expect(forms.submissions).toEqual([]);
@@ -108,10 +113,10 @@ test("the student's own answer is kept when their Claude's arrives later", async
   const name = api.written.get("job-0")![0].name;
   const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(HARVEY)))!;
 
-  await expect(row(form, WHY)).toContainText("Waiting for your Claude");
+  await expect(row(form, WHY)).toHaveAttribute("data-mark", "waiting");
   await box(form, name).fill("My own words.");
   // The engine read the student's answer back: the row no longer waits.
-  await expect(row(form, WHY)).not.toContainText("Waiting for your Claude");
+  await expect(row(form, WHY)).not.toHaveAttribute("data-mark", "waiting");
   api.saveAnswer("job-0", name, ANSWER);
   // Past the next poll: the tab saw the saved answer and left the student's.
   await form.waitForTimeout(12_000);
@@ -132,14 +137,14 @@ test("a follow-up its parent's answer from Claude doesn't call for stops waiting
   await expect.poll(() => api.written.get("job-0")?.map((q) => q.label), { timeout: 60_000 }).toEqual(expect.arrayContaining([PARENT, FOLLOW_UP]));
   // The extension opens the saved link without its "?embed=true".
   const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(AMPLIFY).split("?")[0]))!;
-  await expect(row(form, FOLLOW_UP)).toContainText("Waiting for your Claude");
+  await expect(row(form, FOLLOW_UP)).toHaveAttribute("data-mark", "waiting");
 
   const parent = api.written.get("job-0")!.find((q) => q.label === PARENT)!;
   api.saveAnswer("job-0", parent.name, "No");
 
   // Within one poll the parent is filled, and the follow-up it rules out no longer waits, left blank.
   await expect(row(form, PARENT).locator(".source")).toHaveText("Claude", { timeout: 20_000 });
-  await expect(row(form, FOLLOW_UP)).not.toContainText("Waiting for your Claude");
+  await expect(row(form, FOLLOW_UP)).not.toHaveAttribute("data-mark", "waiting");
   await expect(row(form, FOLLOW_UP)).toContainText("Not needed");
   expect(forms.submissions).toEqual([]);
 });
@@ -152,7 +157,7 @@ test("the student's words typed into a form are saved with a notice: Review open
   await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(3);
   const name = api.written.get("job-0")![0].name;
   const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(HARVEY)))!;
-  await expect(row(form, WHY)).toContainText("Waiting for your Claude");
+  await expect(row(form, WHY)).toHaveAttribute("data-mark", "waiting");
 
   // Saved as they type, with no question first, and the panel says so once.
   await box(form, name).fill("My own words.");
@@ -187,7 +192,7 @@ test("an answer the student's Claude saves in the first minute fills within seco
   await start(api, forms);
   await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(3);
   const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(HARVEY)))!;
-  await expect(row(form, WHY)).toContainText("Waiting for your Claude");
+  await expect(row(form, WHY)).toHaveAttribute("data-mark", "waiting");
 
   // Saved just after the tab sent its questions: the tab asks again within ANSWER_POLL_SOON (2 s), not ANSWER_POLL (10 s).
   const name = api.written.get("job-0")![0].name;

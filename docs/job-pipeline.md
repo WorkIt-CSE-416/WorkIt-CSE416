@@ -101,7 +101,7 @@ Workday is different in three ways worth knowing:
 |---|---|
 | **Read over several runs** | Reading every Workday company job board whole takes about 22,000 requests (they hold about 430,000 job postings), far more than one run can make politely. So each run reads them for 12 minutes, starting with the ones read longest ago, and the rest wait their turn. The first run read 439 of them, so each is read about every 12 hours, and a new Workday job posting can take that long to appear (a closed one stays as long) |
 | **Some are skipped** | 141 whose `robots.txt` asks crawlers to stay off that careers site (Caterpillar, Citi, CACI, eBay), and 20 too big to read whole: over 5,000 job postings (Accenture, Walmart, Target, CVS), or capped at 2,000 by Workday with no filter to split them by (Airbus, Sysco) |
-| **Logos from the company's website** | Workday's careers-page images are wide banners, so a card shows the icon of the website the careers site links as its home page or privacy policy. About 3 in 10 link neither, and those cards show the company's initials |
+| **Logos from the company's website** | Workday's careers-page images are wide banners, so a card's logo comes from the website the careers site links as its home page or privacy policy, through Brandfetch (KAN-442). About 3 in 10 link neither; the biggest of those have a checked website in `scraper/checked_websites.csv`, and the rest show the company's initials |
 
 The GitHub lists are only used as a phone book. Every job posting itself is
 read from the company's own job board, so we get job postings the lists never
@@ -130,9 +130,16 @@ other hiring systems finish inside it (about 3 minutes without Workday).
 
 **A company's logo is read once per company job board**, from the board's own
 page: the image the company uploaded there, or else the icon of the company's
-website when the board names it (`scraper/docs/logos.md`). A card with neither
-shows the company's initials. A board found with no logo is read again only when
-the logo reader learns a new place to look.
+website when the board names it (`scraper/docs/logos.md`). A board found with no
+logo is read again only when the logo reader learns a new place to look.
+
+**The card draws the logo from Brandfetch by the company's website** (KAN-442).
+The feed carries each job's `company_domain`: the website its board names, cut
+to the company's own domain (`careers.gevernova.com` becomes `gevernova.com`),
+or one a script checked and a person reviewed (`scraper/checked_websites.csv`,
+which also covers boards that name none). The browser loads Brandfetch's sharp
+square icon; where Brandfetch has none, the card falls back to the board's own
+image or favicon, and then to the company's initials.
 
 **A job posting only disappears after two complete reads of its company job
 board in a row without it.** One was enough until 2026-10-27, and one bad
@@ -470,7 +477,7 @@ browser can't restore your place by itself. The app does it instead:
 | A Workday job posting can take about 12 hours to appear, or to leave | Its company job boards are read whole, about every fourth run each, within a 12-minute share of each run | An arrival scan of every company job board's newest page each run, once `metrics.json` shows Workday lists its newest job postings first (`scraper/docs/coverage.md`) |
 | The biggest Workday company job boards are skipped | Over 5,000 job postings, or capped at 2,000 with no filter to split them (Accenture, Walmart, Target, Airbus): 20 company job boards | Read a giant one over several runs, or split a capped one by two filters |
 | About 3 in 10 Workday cards have no logo | Workday's careers-page images are wide banners, so only the website a careers site links is used, and some link none | Find a square image Workday serves |
-| Some Greenhouse and Lever cards have no logo (139 jobs on 2026-10-19, mostly Greenhouse) | The company job board has no uploaded image and names no website we can trust (Arc, MEMX, Muon Space), or names one whose name does not match the company (Graviton: gravitontrading.com) | A person confirms the website and adds it to `logos.CHECKED_WEBSITES` |
+| Some Greenhouse and Lever cards have no logo (139 jobs on 2026-10-19, mostly Greenhouse) | The company job board has no uploaded image and names no website we can trust (Arc, MEMX, Muon Space), or names one whose name does not match the company (Graviton: gravitontrading.com) | Add the website to `scraper/checked_websites.csv` after the checks in `scraper/docs/logos.md` |
 | Recruitee cards have no logo | Its logo sits inside a 1 MB board page, for the one company job board we read | Read it there if more Recruitee companies arrive |
 | A place abroad reads as the posting wrote it ("Toronto, Ontario, Canada") | The label only rewrites US cities | Extend the label to other countries if it matters |
 | Every country but the US is "Other" | Only the US is in the countries table | Add countries in a migration (the resolver needs no change) |

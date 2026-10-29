@@ -46,6 +46,7 @@ window.WIA = window.WIA || {};
 
       --radius-control: 8px;
       --radius-card: 10px;
+      --radius-shell: 20px;
       --shadow-lift: 0 2px 4px rgb(18 26 40 / 0.04), 0 10px 24px rgb(18 26 40 / 0.08);
 
       --font-weight-normal: 450;

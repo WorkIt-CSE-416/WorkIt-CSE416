@@ -115,6 +115,8 @@ def _applications(applicant_id: uuid.UUID) -> Select:
             Job_Application.stage.label("stage"),
             Job_Application.created_at.label("added_at"),
             Job_Application.applied_at.label("applied_at"),
+            Job_Application.apply_by.label("apply_by"),
+            Job_Post.closes_at.label("closes_at"),
             LISTED.label("open"),
             Sent_Resume,
         )
@@ -130,6 +132,8 @@ def _to_application(row) -> Application:
         stage=row.stage,
         added_at=row.added_at,
         applied_at=row.applied_at,
+        apply_by=row.apply_by,
+        closes_at=row.closes_at,
         open=row.open,
         sent_resume=SentResumeResponse.from_row(row.Sent_Resume) if row.Sent_Resume else None,
     )
@@ -176,16 +180,23 @@ async def fetch_application(
 
 
 async def fetch_next_application(
-    db: AsyncSession, applicant_id: uuid.UUID, skip: Sequence[uuid.UUID] = ()
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    skip: Sequence[uuid.UUID] = (),
+    only: Sequence[uuid.UUID] = (),
 ) -> Application | None:
     """The oldest queued application whose job posting is still open, or
     None when nothing is left to fill. A closed one is passed over: its page
-    is gone. So is each job in `skip`: batch apply's tabs already open."""
-    query = _applications(applicant_id).where(
-        Job_Application.stage == application_stage.queued, LISTED
-    )
+    is gone. So is each job in `skip`: batch apply's tabs already open. With
+    `only`, just those jobs count: the ones the student picked in Up Next,
+    which may be needs_you too (a form filled before whose tab was closed:
+    Up Next's Reopen)."""
+    stages = (application_stage.queued, application_stage.needs_you) if only else (application_stage.queued,)
+    query = _applications(applicant_id).where(Job_Application.stage.in_(stages), LISTED)
     if skip:
         query = query.where(Job_Application.job_id.not_in(skip))
+    if only:
+        query = query.where(Job_Application.job_id.in_(only))
     row = (
         await db.execute(
             query.order_by(Job_Application.created_at, Job_Application.job_id).limit(1)

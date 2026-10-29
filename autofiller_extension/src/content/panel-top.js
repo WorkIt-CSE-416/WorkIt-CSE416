@@ -1,10 +1,11 @@
 // The panel's top (KAN-395), in the shell's slots (panel.js):
 //
-// - "batch-line": in a batch tab, "Batch · 3 of 5 ready · Next tab →"
-//   (Next tab goes to the batch's next other tab that needs the student),
-//   kept up to date as the batch's tabs change; on Workday, a line with the
-//   step shown, "Step 3 of 6 · My Experience", read off Workday's step bar.
-// - "job-card": the tab's job, trimmed (logo when known, title, then company, place and pay on one line)
+// - "batch-line": on Workday only, the step shown, "Step 3 of 6 · My
+//   Experience", read off Workday's step bar. A batch's own count
+//   ("Batch · 0 of 1 ready · Next tab →") is gone (KAN-424): it took the
+//   panel's first line to say what the tabs already show. Next job → after
+//   a submit (panel-states.js) still goes to the tab that needs the student.
+// - "job-card": the tab's job in a card (logo when known, title, then company, place and pay on one line)
 //   with its Match score as a ring and its band, and "You applied on Oct 25"
 //   when WorkIt has the application as applied (background panel-top.js).
 //
@@ -22,20 +23,24 @@ window.WIA = window.WIA || {};
   const { send } = window.WIA.ui;
 
   const CSS = `
-    [data-slot="batch-line"] { display: flex; flex-direction: column; gap: 2px; }
-    [data-slot="batch-line"] .line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-    [data-slot="batch-line"] button {
-      all: unset; cursor: pointer; font-weight: 600; color: var(--color-ink); border-radius: var(--radius-control); padding: 0 2px;
-    }
-    [data-slot="batch-line"] button:hover { text-decoration: underline; }
-    [data-slot="batch-line"] button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
     [data-slot="batch-line"] .step { color: var(--color-ink-muted); }
-    /* The job card, trimmed (KAN-424): no box of its own and no letter square, since the page already names
-     * the job. The title, then the company and its place and pay on one line, and the Match score small. */
-    [data-slot="job-card"] .job { display: flex; align-items: center; gap: 8px; }
-    [data-slot="job-card"] .job-logo { flex: none; width: 24px; height: 24px; border-radius: 6px; object-fit: contain; }
+    /* The job card (KAN-424): a card like the rows' boxes, now the panel is white. The logo in a 40 px tile,
+     * the title on up to two lines, then the company and its place and pay on one line, and the Match ring. */
+    [data-slot="job-card"] .job { display: flex; align-items: center; gap: 10px; }
+    /* A job WorkIt has opens its job page on WorkIt: the whole card is the link. */
+    [data-slot="job-card"] .job[role="link"] { cursor: pointer; margin: -12px; padding: 12px; border-radius: var(--radius-card); }
+    [data-slot="job-card"] .job[role="link"]:hover { background: var(--color-hover); }
+    [data-slot="job-card"] .job[role="link"]:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
+    [data-slot="job-card"] .job[role="link"] + * { margin-top: 18px; }
+    [data-slot="job-card"] .job-logo {
+      flex: none; box-sizing: border-box; width: 40px; height: 40px; padding: 4px;
+      border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); object-fit: contain;
+    }
     [data-slot="job-card"] .job-text { flex: 1; min-width: 0; }
-    [data-slot="job-card"] .job-title { font-size: var(--text-label); line-height: var(--text-label--line-height); font-weight: 600; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    [data-slot="job-card"] .job-title {
+      font-size: var(--text-body); line-height: var(--text-body--line-height); font-weight: 600; color: var(--color-ink);
+      overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    }
     [data-slot="job-card"] .job-line { font-size: var(--text-note); color: var(--color-ink-meta); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     [data-slot="job-card"] .job-company { color: var(--color-ink-muted); font-weight: 500; }
     [data-slot="job-card"] .track { margin-top: 6px; }
@@ -129,6 +134,14 @@ window.WIA = window.WIA || {};
     }
     row.append(text);
     if (typeof job.match === "number") row.append(ring(job.match));
+    if (job.id) {
+      row.setAttribute("role", "link");
+      row.tabIndex = 0;
+      row.title = "Open this job on WorkIt";
+      const open = window.WIA.ui.trusted(() => send({ type: "panel/open-job" }));
+      row.addEventListener("click", open);
+      row.addEventListener("keydown", (event) => event.key === "Enter" && open(event));
+    }
     const parts = [row];
     if (job.appliedAt) parts.push(el("div", "applied", `You applied on ${dayOf(job.appliedAt)}`));
     else parts.push(trackLine(place));
@@ -178,34 +191,14 @@ window.WIA = window.WIA || {};
 
   window.WIA.panelTop.refresh = () => void drawJob();
 
-  // The batch line's parts: the batch's (from the background) and Workday's step (from the page).
-  let batch = null;
+  // The line's one part: Workday's step (from the page).
   let step = "";
 
   function paintLine() {
     const place = panel.slot("batch-line");
     if (!place) return;
-    const lines = [];
-    if (batch) {
-      const line = el("div", "line", `Batch · ${batch.ready} of ${batch.total} ready`);
-      if (batch.next) {
-        const next = el("button", "", "Next tab →");
-        next.type = "button";
-        next.addEventListener("click", window.WIA.ui.trusted(() => send({ type: "panel/next-tab" })));
-        line.append(" · ", next);
-      }
-      lines.push(line);
-    }
-    if (step) lines.push(el("div", "line step", step));
-    place.replaceChildren(...lines);
-    place.hidden = !lines.length;
-  }
-
-  async function refreshBatch() {
-    const answer = await send({ type: "panel/batch-line" });
-    batch = answer?.line ?? null;
-    paintLine();
-    return answer;
+    place.replaceChildren(...(step ? [el("div", "line step", step)] : []));
+    place.hidden = !step;
   }
 
   /** "Step 3 of 6 · My Experience", from Workday's step bar ("" when it shows none). */
@@ -237,12 +230,8 @@ window.WIA = window.WIA || {};
   panel.onBuilt(() => {
     panel.addCss(CSS);
     void drawJob();
-    void refreshBatch().then((answer) => {
+    void send({ type: "panel/batch-line" }).then((answer) => {
       if (answer?.site === "workday") watchWorkday();
-    });
-    // A batch tab's state changes as its tabs fill and the student answers (batch-store.js keeps it here).
-    chrome.storage?.onChanged?.addListener?.((changes, area) => {
-      if (area === "local" && changes.workit_batch) void refreshBatch();
     });
   });
 })();

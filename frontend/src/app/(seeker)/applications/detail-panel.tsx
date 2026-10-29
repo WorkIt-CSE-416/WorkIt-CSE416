@@ -85,7 +85,7 @@ export function DetailPanel({
     >
       {/* Full width on a phone, 448px from sm. The vendored widths are set
           under data-[side=right], so the overrides have to be too. */}
-      <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
+      <SheetContent className="gap-0 p-0 data-[side=right]:sm:max-w-md">
         <SheetHeader className="border-border-subtle gap-0 border-b p-5 pr-12">
           <div className="flex items-start gap-3">
             {tile}

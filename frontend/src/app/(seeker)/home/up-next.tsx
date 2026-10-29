@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 
 import { DayLink, When } from "../local-time";
-import { KIND_STAGE, STAGE_COLOR, STAGE_ICON } from "../stage-colors";
+import { KIND_ICON, KIND_STAGE, STAGE_COLOR } from "../stage-colors";
 import type { UpNextItem } from "./data";
 import { SectionHeader } from "./section-header";
 import { SectionCard } from "./section-card";
@@ -40,7 +40,7 @@ export function UpNext({ items, className }: { items: UpNextItem[]; className?: 
       <ul className="mt-3 flex flex-col">
         {items.map((item, i) => {
           const key = KIND_STAGE[item.kind];
-          const Icon = STAGE_ICON[key];
+          const Icon = KIND_ICON[item.kind];
 
           return (
             <li

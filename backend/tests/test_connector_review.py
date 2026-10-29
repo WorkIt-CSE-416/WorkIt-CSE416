@@ -178,3 +178,26 @@ async def test_rewrite_with_claude_hands_the_answer_back_with_the_reason(running
         task = (await client.call_tool("get_review_task", {})).structured_content
     assert task["job_id"] == job
     assert (await _tab_posts(me, job, "rewrite", {"name": "question_8"})).status_code == 422  # not flagged
+
+
+async def test_rewrite_hands_any_claude_answer_back_with_what_the_student_asked(running, applicant, database):  # noqa: F811
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _tab_asks(me, job, WHY, PROUD)
+    async with claude(applicant) as client:
+        await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": WHY_ACME, **WRITTEN}, {"name": "question_8", "answer": PROJECT, **WRITTEN}]})
+
+    # Not flagged: the batch tab's Rewrite still sends it back, with the student's steer.
+    sent = await _tab_posts(me, job, "redo", {"name": "question_7", "steer": "Make it shorter."})
+    assert sent.status_code == 204, sent.text
+    assert [r["answer"] for r in await _tab_asks(me, job)] == [None, PROJECT]
+    async with claude(applicant) as client:
+        nxt = (await client.call_tool("get_next_application", {})).structured_content
+    assert nxt["job_id"] == job
+    assert [(q["name"], q["rewrite"]) for q in nxt["questions"]] == [
+        ("question_7", {"reason": "The student asked for another version: Make it shorter.", "quote": None, "answer": WHY_ACME})]
+
+    # No steer: a plain request. A question with no answer can't be sent back.
+    plain = await _tab_posts(me, job, "redo", {"name": "question_8"})
+    assert plain.status_code == 204, plain.text
+    assert (await _tab_posts(me, job, "redo", {"name": "question_7"})).status_code == 422
