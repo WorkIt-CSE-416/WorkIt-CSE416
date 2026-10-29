@@ -1379,6 +1379,12 @@ removed at cutover, not before. Until then a change must work on both.
   it (why a scraped job closed) follows in its own PR, whose dry-run scrape
   check and every scheduled import fail on a database without it; and the
   model maps it, so a company job's insert fails there too.
+- **Apply `d9b579e66623` (`job_postings.company_domain`, KAN-442) as soon
+  as it merges.** It only adds a nullable column and a CHECK every row
+  meets, and no code maps it yet, so it is safe for every deploy. The
+  scraper, import and Jobs page change that writes and reads it follows in
+  its own PR, whose dry-run scrape check and every scheduled import fail on
+  a database without it.
 - **Batch apply's migrations (KAN-369, `d1a7c3e5f902` through
   `f4a8c1d6e273`) are on main ahead of their code**, so they can be applied
   before the deploy that maps them. The models map
