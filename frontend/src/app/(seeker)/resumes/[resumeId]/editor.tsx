@@ -7,11 +7,22 @@ import {
   ArrowUpIcon,
   CloudSlashIcon,
   EyeSlashIcon,
+  MagnifyingGlassMinusIcon,
+  MagnifyingGlassPlusIcon,
   ScissorsIcon,
   WarningIcon,
 } from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
-import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Suspense,
+  use,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 
 import { ChevronDownIcon } from "@/components/icons";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
@@ -36,6 +47,7 @@ import {
   type RenderedPdf,
 } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
+import { EDITOR_ZOOM_KEY, readLocalDraft, writeLocalDraft } from "@/lib/local-drafts";
 
 import {
   DownloadMenu,
@@ -129,6 +141,42 @@ const SAVE_AFTER_MS = 700;
 const PAGE_WIDTH = 612;
 const RIGHT_EDGE = 576;
 const pt = (points: number) => `${(points / PAGE_WIDTH) * 100}cqw`;
+
+/** The zoom steps, in percent of the page's printed size: 100% is 8.5in
+ *  at 96 CSS px an inch (816px), as a browser's PDF viewer draws it. The
+ *  page never grows past its column, so a high step on a narrow screen
+ *  stops at the column's width. Each page draws again at its new width
+ *  (`PageCanvas`), so text stays sharp at every step. */
+const ZOOMS = [50, 75, 90, 100, 125, 150];
+const DEFAULT_ZOOM = 100;
+const zoomWidth = (zoom: number) => `${(816 * zoom) / 100}px`;
+
+/** The page's zoom, kept per browser (`EDITOR_ZOOM_KEY`). The server and
+ *  hydration draw the default, then the browser's own step. */
+const zoomListeners = new Set<() => void>();
+// The pick this tab made, so the zoom still moves when storage refuses it
+let pickedZoom: number | null = null;
+function readZoom() {
+  if (pickedZoom != null) return pickedZoom;
+  const kept = readLocalDraft<number>(EDITOR_ZOOM_KEY);
+  return kept && ZOOMS.includes(kept) ? kept : DEFAULT_ZOOM;
+}
+function useZoom() {
+  const zoom = useSyncExternalStore(
+    (listener) => {
+      zoomListeners.add(listener);
+      return () => zoomListeners.delete(listener);
+    },
+    readZoom,
+    () => DEFAULT_ZOOM,
+  );
+  const set = (to: number) => {
+    pickedZoom = to;
+    writeLocalDraft(EDITOR_ZOOM_KEY, to);
+    zoomListeners.forEach((listener) => listener());
+  };
+  return [zoom, set] as const;
+}
 
 // Latin Modern Roman, the face Tectonic sets Jake's Resume in (GUST Font
 // License), subset to Latin; loaded on the editor page only
@@ -329,6 +377,7 @@ export function Editor({
   // Suggestions panel, the original resume, or nothing, when the page
   // takes the room
   const [side, setSide] = useState<"suggestions" | "original" | null>("suggestions");
+  const [zoom, setZoom] = useZoom();
   // The column beside the page, the panel or the original, sized to the
   // window from wherever its top is
   const fitPanel = useFitToWindow();
@@ -970,6 +1019,7 @@ export function Editor({
       onClose={() => select(null)}
       onFit={fit}
       onUndoFit={undoFit}
+      zoom={<Zoom zoom={zoom} onZoom={setZoom} />}
     />
   );
   const reviewTools: ReviewTools | null = reviewing && {
@@ -1003,6 +1053,8 @@ export function Editor({
         <div
           ref={pages}
           data-keeps-selection
+          className="mx-auto w-full"
+          style={{ maxWidth: zoomWidth(zoom) }}
           onPointerDownCapture={(e) => {
             const origin = e.currentTarget.getBoundingClientRect();
             pressed.current = { x: e.clientX - origin.left, y: e.clientY - origin.top };
@@ -1145,6 +1197,7 @@ function Bar({
   onClose,
   onFit,
   onUndoFit,
+  zoom,
 }: {
   line: Line | null;
   box: RenderBox | undefined;
@@ -1162,6 +1215,7 @@ function Bar({
   onClose: () => void;
   onFit: () => void;
   onUndoFit: () => void;
+  zoom: ReactNode;
 }) {
   return (
     <SlimBar
@@ -1172,6 +1226,7 @@ function Bar({
       download={download}
       onFit={onFit}
       onUndoFit={onUndoFit}
+      zoom={zoom}
       editing={
         line &&
         box && (
@@ -1267,6 +1322,7 @@ function SlimBar({
   onFit,
   onUndoFit,
   editing,
+  zoom,
 }: {
   rendered: RenderedPdf | null;
   saving: boolean;
@@ -1277,6 +1333,8 @@ function SlimBar({
   onUndoFit: () => void;
   /** The open line's label and actions, or nothing while idle. */
   editing: ReactNode;
+  /** The page's zoom control (`Zoom`), on the editor's own page only. */
+  zoom?: ReactNode;
 }) {
   const status = (
     <span className="text-note text-ink-meta pr-1" aria-live="polite">
@@ -1297,6 +1355,7 @@ function SlimBar({
         {editing}
         <div className="ml-auto flex items-center gap-2">
           {status}
+          {zoom}
           <span className="text-note text-ink-meta">
             <kbd className="bg-ink/5 rounded-xs px-1 font-sans">Esc</kbd> when done
           </span>
@@ -1322,10 +1381,56 @@ function SlimBar({
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {status}
+        {zoom}
         {/* Secondary: Finish, in the row above, is the review's one filled
             button. In the brand fill too, the two competed */}
         <DownloadMenu download={download} />
       </div>
+    </div>
+  );
+}
+
+/** Zoom out, the zoom as a menu of its steps, and zoom in, as a PDF
+ *  viewer has them. After KAN-421 widened every seeker page to 1440px,
+ *  the page filled its column and took most of the screen; it now opens
+ *  at 100% and the student picks. */
+function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) => void }) {
+  const at = ZOOMS.indexOf(zoom);
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Zoom out"
+        title="Zoom out"
+        disabled={at <= 0}
+        onClick={() => onZoom(ZOOMS[at - 1])}
+      >
+        <MagnifyingGlassMinusIcon aria-hidden />
+      </Button>
+      <select
+        aria-label="Zoom"
+        value={zoom}
+        onChange={(e) => onZoom(Number(e.target.value))}
+        className="text-note text-ink-muted hover:bg-ink/5 h-7 cursor-pointer appearance-none rounded-md bg-transparent px-1.5 text-center font-medium tabular-nums"
+      >
+        {ZOOMS.map((step) => (
+          <option key={step} value={step}>
+            {step}%
+          </option>
+        ))}
+      </select>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Zoom in"
+        title="Zoom in"
+        disabled={at >= ZOOMS.length - 1}
+        onClick={() => onZoom(ZOOMS[at + 1])}
+      >
+        <MagnifyingGlassPlusIcon aria-hidden />
+      </Button>
+      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
     </div>
   );
 }

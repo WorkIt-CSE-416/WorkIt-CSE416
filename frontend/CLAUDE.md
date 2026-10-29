@@ -1617,6 +1617,13 @@ the KAN-296 cutover.
   PDF whose boxes are on screen: `PdfPages` keeps the boxes that came
   with the PDF it shows, so a new PDF's boxes never clear lines of the
   old drawing. Desktop only: the phone types in a sheet.
+- **The editor's page has a zoom** (`Zoom` on the slim bar, both pages):
+  steps of the page's printed size, 100% being 816px (8.5in at 96px an
+  inch), capped by its column, kept per browser through
+  `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`). The page filled its column
+  until then, and KAN-421's 1440px pages made it take most of the screen.
+  The overlay and click targets are in `cqw` of each page, so they follow
+  any width.
 - **Tailor's review is the resume editor with props, not a fork**
   (`(seeker)/resumes/[resumeId]/editor.tsx`), and both pages draw one
   editor design (KAN-411): the title row (`heading`, `ResumeTitle`
