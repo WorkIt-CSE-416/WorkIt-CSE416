@@ -11,7 +11,7 @@ import type { ComponentType, ReactNode } from "react";
 
 import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo } from "@/components/company-logo";
-import { ClockIcon, PencilIcon, SortIcon, SparkleIcon } from "@/components/icons";
+import { ClockIcon, SortIcon, SparkleIcon } from "@/components/icons";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import {
@@ -31,7 +31,6 @@ import { STAGE_ICON } from "../stage-colors";
 import type { RunStage } from "./actions";
 import type { Application } from "./applications";
 import type { Sort, StatusFilter } from "./query";
-import { RowMenu } from "./row-menu";
 
 type Glyph = ComponentType<{ className?: string }>;
 
@@ -75,17 +74,6 @@ export type ActivityItem = {
    *  GET .../written-questions); Up Next's chip links them. */
   questions?: number;
 };
-
-/**
- * Whether an Up Next row needs the student before it can go out (KAN-424):
- * its posting closed, its fill couldn't finish, or it would go with no
- * resume. Up Next lists these first, under Needs You (./up-next.tsx). A row
- * whose questions wait to be written is still Ready: the student's Claude
- * writes them, and the chip says so.
- */
-export function needsYou(item: ActivityItem): boolean {
-  return Boolean(item.closed) || item.status === "failed" || item.resume == null;
-}
 
 /** Each stored stage's status, and the line it needs under its badge. */
 const STAGE_ROW: Record<RunStage, { status: ActivityStatus; detail: string | null }> = {
@@ -281,45 +269,30 @@ const COLUMNS: { id: string; label: string; sort?: Sort; hint?: string; width?: 
     hint: "Sort by date applied, latest first",
     width: "w-30",
   },
-  { id: "action", label: "Actions", width: "w-16" },
 ];
 
-/** Up Next's columns (variant "queue"): the resume each job will go out
- *  with in place of Date Applied, which a queued job never has, and no
- *  sorting, since the queue's order is the order the extension takes. */
-const QUEUE_COLUMNS: typeof COLUMNS = [
-  { id: "role", label: "Role" },
-  { id: "status", label: "Status", width: "w-48" },
-  { id: "resume", label: "Resume", width: "w-56" },
-  { id: "match", label: "Match", width: "w-26" },
-  { id: "added", label: "Date Added", width: "w-30" },
-  { id: "action", label: "Actions", width: "w-16" },
-];
-
-const TH = "px-4 text-note text-ink-meta font-medium";
-const TD = "px-4 py-3 text-note text-ink";
+export const TH = "px-4 text-note text-ink-meta font-medium";
+export const TD = "px-4 py-3 text-note text-ink";
 /** Every column but Role is centred, heading and cell (asked for
  *  2026-10-20): each holds one short value under its heading. */
-const CENTER = "text-center";
+export const CENTER = "text-center";
 /** Role is frozen at the left while the rest scrolls, from 672px of page up,
  *  as on the Applications list (applications/list.tsx says why not below). */
-const FROZEN =
+export const FROZEN =
   "z-1 bg-panel @2xl/main:sticky @2xl/main:left-0 @2xl/main:shadow-[1px_0_0_var(--color-border-subtle)]";
 
 /**
  * Live Activity's table (KAN-285): one row per job posting, in one white
  * card with 12px grey headings and rules between rows, the Applications
  * list's frame (applications/list.tsx). Columns: Role (the logo, then the
- * role over its company), Status, Match, Date Added, Date Applied, and
- * Actions at the right end.
+ * role over its company), Status, Match, Date Added and Date Applied. It
+ * lists applied and skipped jobs only (History, archived for now:
+ * ./page.tsx); Up Next has its own table (./queue-table.tsx), which shares
+ * this one's frame (TH, TD, CENTER, FROZEN).
  *
  * Every column but Role is centred. A row with an `href` (its job posting
  * is still open) opens it on a click anywhere (components/clickable-row.tsx);
- * the role is its link. Actions is a narrow column of icon buttons, to save
- * width: a queued row's cross takes it out of the queue
- * (./remove-from-queue.tsx), and the row open in the extension's tab has a
- * window glyph that goes to that tab; the row leaves clicks on a button to
- * the button.
+ * the role is its link.
  *
  * A heading sorts the table (`onSort`), each one way, as the Applications
  * list's headings do; the sort in force says so in aria-sort and its chevron.
@@ -333,18 +306,12 @@ export function ActivityTable({
   items,
   sort,
   onSort,
-  variant = "history",
-  onResume,
 }: {
   items: ActivityItem[];
   sort: Sort;
   onSort: (sort: Sort) => void;
-  /** "queue": Up Next's columns (QUEUE_COLUMNS); "history": the rest. */
-  variant?: "queue" | "history";
-  /** Up Next's resume cell is a button that opens this row's resume picker. */
-  onResume?: (item: ActivityItem) => void;
 }) {
-  const columns = variant === "queue" ? QUEUE_COLUMNS : COLUMNS;
+  const columns = COLUMNS;
   return (
     <Card padding="none" className="mt-3 overflow-hidden">
       <Table className="min-w-[54rem] table-fixed">
@@ -389,7 +356,7 @@ export function ActivityTable({
         <TableBody>
           {items.map((item, i) => (
             <Reflow key={item.id}>
-              <Row item={item} index={i} variant={variant} onResume={onResume} />
+              <Row item={item} index={i} />
             </Reflow>
           ))}
         </TableBody>
@@ -398,17 +365,7 @@ export function ActivityTable({
   );
 }
 
-function Row({
-  item,
-  index,
-  variant,
-  onResume,
-}: {
-  item: ActivityItem;
-  index: number;
-  variant: "queue" | "history";
-  onResume?: (item: ActivityItem) => void;
-}) {
+function Row({ item, index }: { item: ActivityItem; index: number }) {
   const status = STATUS[item.status];
   const cells: ReactNode = (
     <>
@@ -441,60 +398,30 @@ function Row({
       </TableCell>
 
       <TableCell className={cn(TD, CENTER, "overflow-hidden")}>
-        {variant === "queue" ? (
-          <QueueChip item={item} />
-        ) : (
-          <>
-            <div className="flex items-center justify-center gap-2">
-              {IN_FLIGHT.includes(item.status) && (
+        <>
+          <div className="flex items-center justify-center gap-2">
+            {IN_FLIGHT.includes(item.status) && (
+              <span
+                aria-hidden="true"
+                className={cn("relative size-1.5 shrink-0 rounded-full", status.dot)}
+              >
                 <span
-                  aria-hidden="true"
-                  className={cn("relative size-1.5 shrink-0 rounded-full", status.dot)}
-                >
-                  <span
-                    className={cn("animate-status-ping absolute inset-0 rounded-full", status.dot)}
-                  />
-                </span>
-              )}
-              <Badge tone={status.tone}>
-                <status.Icon aria-hidden className="mr-1 size-3.5 shrink-0" />
-                {status.label}
-              </Badge>
-            </div>
-            {item.detail && (
-              <p className="text-note text-ink-meta mt-1 truncate" title={item.detail}>
-                {item.detail}
-              </p>
-            )}
-          </>
-        )}
-      </TableCell>
-
-      {variant === "queue" && (
-        <TableCell className={cn(TD, CENTER, "overflow-hidden py-0")}>
-          {onResume ? (
-            // A button, so the row's own click (it opens the job) leaves it
-            // alone (components/clickable-row.tsx).
-            <button
-              type="button"
-              onClick={() => onResume(item)}
-              title={item.resume ? `${item.resume}: change resume` : "Choose a resume"}
-              className="text-note hover:text-brand hover:border-brand-ring focus-visible:ring-brand-ring border-border-subtle inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
-            >
-              <span className={cn("truncate", item.resume ? "text-ink" : "text-ink-meta")}>
-                {item.resume ?? "Choose a resume"}
+                  className={cn("animate-status-ping absolute inset-0 rounded-full", status.dot)}
+                />
               </span>
-              <PencilIcon aria-hidden className="text-ink-meta size-3.5 shrink-0" />
-            </button>
-          ) : item.resume ? (
-            <span className="block truncate" title={item.resume}>
-              {item.resume}
-            </span>
-          ) : (
-            <span className="text-ink-meta">No resume</span>
+            )}
+            <Badge tone={status.tone}>
+              <status.Icon aria-hidden className="mr-1 size-3.5 shrink-0" />
+              {status.label}
+            </Badge>
+          </div>
+          {item.detail && (
+            <p className="text-note text-ink-meta mt-1 truncate" title={item.detail}>
+              {item.detail}
+            </p>
           )}
-        </TableCell>
-      )}
+        </>
+      </TableCell>
 
       <TableCell className={cn(TD, CENTER)}>
         {item.match != null ? (
@@ -512,14 +439,8 @@ function Row({
         <LocalDate at={item.addedAt} />
       </TableCell>
 
-      {variant === "history" && (
-        <TableCell className={cn(TD, CENTER, !item.appliedAt && "text-ink-meta")}>
-          {item.appliedAt ? <LocalDate at={item.appliedAt} /> : "Not yet"}
-        </TableCell>
-      )}
-
-      <TableCell className={cn(TD, CENTER, "py-0")}>
-        {item.status !== "applied" && item.status !== "skipped" && <RowMenu item={item} />}
+      <TableCell className={cn(TD, CENTER, !item.appliedAt && "text-ink-meta")}>
+        {item.appliedAt ? <LocalDate at={item.appliedAt} /> : "Not yet"}
       </TableCell>
     </>
   );
@@ -571,79 +492,4 @@ function SortButton({
       />
     </button>
   );
-}
-
-/**
- * Up Next's Status cell (KAN-424): one chip only where the row is not
- * simply waiting its turn, most urgent first. Every row read "Queued"
- * before, the table being the queue, with the one fact that mattered
- * ("Job posting closed") as gray text under it.
- *
- *   Posting Closed        danger   it can't go out; the ⋯ menu removes it
- *   Couldn't Finish       warning  the fill left fields; finish it on its page
- *   No Resume             danger   nothing to attach; the Resume cell picks one
- *   Working in Browser    advanced open in a batch tab now, with its ringing dot
- *   2 Questions to Write  warning  a link to Written Answers; their Claude may
- *                                  write them first
- *   Ready                 inert    nothing owed
- */
-function QueueChip({ item }: { item: ActivityItem }) {
-  if (item.closed) {
-    return (
-      <Badge tone="danger">
-        <WarningIcon aria-hidden className="mr-1 size-3.5 shrink-0" />
-        Posting Closed
-      </Badge>
-    );
-  }
-  if (item.status === "failed") {
-    return (
-      <span title="Finish it on the job's page">
-        <Badge tone="warning">
-          <WarningIcon aria-hidden className="mr-1 size-3.5 shrink-0" />
-          Couldn&apos;t Finish
-        </Badge>
-      </span>
-    );
-  }
-  if (item.resume == null) {
-    return (
-      <Badge tone="danger">
-        <WarningIcon aria-hidden className="mr-1 size-3.5 shrink-0" />
-        No Resume
-      </Badge>
-    );
-  }
-  if (IN_FLIGHT.includes(item.status)) {
-    const status = STATUS[item.status];
-    return (
-      <div className="flex items-center justify-center gap-2">
-        <span
-          aria-hidden="true"
-          className={cn("relative size-1.5 shrink-0 rounded-full", status.dot)}
-        >
-          <span className={cn("animate-status-ping absolute inset-0 rounded-full", status.dot)} />
-        </span>
-        <Badge tone={status.tone}>
-          <status.Icon aria-hidden className="mr-1 size-3.5 shrink-0" />
-          {status.label}
-        </Badge>
-      </div>
-    );
-  }
-  if (item.questions) {
-    return (
-      // A link, so the row's own click (it opens the job) leaves it alone (components/clickable-row.tsx).
-      <Link
-        href="/auto-apply/answers"
-        className="focus-visible:ring-brand-ring inline-flex rounded-full hover:underline focus-visible:ring-2 focus-visible:outline-none"
-      >
-        <Badge tone="warning">
-          <PencilLineIcon aria-hidden className="mr-1 size-3.5 shrink-0" />
-          {item.questions} {item.questions === 1 ? "Question" : "Questions"} to Write
-        </Badge>
-      </Link>
-    );
-  }
-  return <Badge tone="inert">Ready</Badge>;
 }

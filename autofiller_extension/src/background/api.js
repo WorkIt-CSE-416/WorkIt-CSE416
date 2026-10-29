@@ -515,13 +515,15 @@ export function warmProfile() {
 /**
  * GET .../applications/next — the oldest queued application whose job
  * posting is open (its `job.form_url`, else `job.apply_url`, is the page
- * to open), past the jobs in `skip` (those batch apply has opened), or
- * null when none is left.
+ * to open), past the jobs in `skip` (those batch apply has opened), among
+ * `only` when given (the jobs the student picked in Up Next), or null when
+ * none is left.
  * @param {string} applicantId
  * @param {string[]} [skip]
+ * @param {string[]} [only]
  */
-export async function nextApplication(applicantId, skip = []) {
-  const query = new URLSearchParams(skip.map((id) => ["skip", id])).toString();
+export async function nextApplication(applicantId, skip = [], only = []) {
+  const query = new URLSearchParams([...skip.map((id) => ["skip", id]), ...only.map((id) => ["only", id])]).toString();
   return apiFetch(`/applicants/${applicantId}/applications/next${query ? `?${query}` : ""}`);
 }
 

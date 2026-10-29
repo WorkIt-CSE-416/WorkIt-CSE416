@@ -263,7 +263,10 @@ export class FakeApi {
 
     if (route === "/applications/next" && method === "GET") {
       const skip = new Set(url.searchParams.getAll("skip"));
-      const next = [...this.stages].find(([id, stage]) => stage === "queued" && !skip.has(id));
+      const only = new Set(url.searchParams.getAll("only"));
+      // ?only= (Up Next's picks) hands out needs_you ones too: a form whose tab was closed opens again.
+      const open = (stage: string) => stage === "queued" || (only.size > 0 && stage === "needs_you");
+      const next = [...this.stages].find(([id, stage]) => open(stage) && !skip.has(id) && (!only.size || only.has(id)));
       if (next) this.events.push(`next:${next[0]}`);
       return { json: next ? this.application(next[0]) : null };
     }

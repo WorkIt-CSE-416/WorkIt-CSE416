@@ -14,16 +14,14 @@ import { AutoApplyPanel } from "./auto-apply-panel";
  * (../home/loading.tsx says why only the slow pages have one).
  *
  * The page's own frame: the width, then the real heading block
- * (./auto-apply-panel.tsx), so the title, its line and both buttons sit
- * exactly where the page puts them. Start stays off until the page knows
- * there is a resume, as it is off without one; Manage Resumes already
- * works. Then Up Next's heading, Add Jobs as a bar, and the queue's card
+ * (./auto-apply-panel.tsx), so the title and its line sit exactly where
+ * the page puts them. Then Up Next's heading, Add Jobs as a bar, and the queue's card
  * with rows in a row's shape.
  */
 export default function AutoApplyLoading() {
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <AutoApplyPanel hasResume={false} summary={null}>
+      <AutoApplyPanel summary={null}>
         <section aria-labelledby="up-next" aria-busy="true" className="mt-8">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <SectionHeading id="up-next">Up Next</SectionHeading>

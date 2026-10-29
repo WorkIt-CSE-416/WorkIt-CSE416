@@ -13,7 +13,7 @@ import {
 } from "./api.js";
 import {
   batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, unmarkSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
-  showBatchTab, skipTab, closeClosedTab, startBatch, startPractice, submitPractice,
+  showBatchTab, closeBatchTab, skipTab, closeClosedTab, startBatch, startPractice, submitPractice,
 } from "./batch.js";
 import { popupPage, reportTab, requestTabSystem, saveTabJob, webappOrigin } from "./panel-states.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
@@ -713,19 +713,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // signed-in user's resume data just by asking. `run/open` (start or top up
 // the batch, batch.js) takes no URL for the same reason: the links come
 // from the API; it gets the sender only to open the tabs in the window that
-// asked. The other two only say which job postings the batch's tabs show,
-// and switch to one of them (`jobId` picks among the batch's own tabs only).
+// asked. The other three only say which job postings the batch's tabs show,
+// switch to one of them, or close one (Up Next's Remove); `jobId`
+// picks among the batch's own tabs only.
 // Onboarding's practice batch (KAN-378) takes links, but only to WorkIt's own
 // practice forms on the asking page's site (batch.js, `startPractice`).
+/** Up Next's picked jobs from `run/open`: job ids only (UUIDs), at most 100; anything else counts as none. */
+function pickedJobs(ids) {
+  if (!Array.isArray(ids)) return [];
+  return ids.filter((id) => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)).slice(0, 100);
+}
+
 const RUNNER_MESSAGES = {
   "run/open": async (message, sender) => {
-    const opened = await startBatch(sender);
+    const opened = await startBatch(sender, pickedJobs(message.jobIds));
     // Not awaited: the webapp hears once the tabs open; the queue's other questions are read meanwhile (KAN-379).
     if (opened.opened) writeEarly({ fetchText, today: today() }).catch((error) => console.warn("[batch] questions not read early:", error.message));
     return opened;
   },
   "run/status": () => batchStatus(),
   "run/show": (message) => showBatchTab(message),
+  "run/close": (message) => closeBatchTab(message),
   "practice/open": (message, sender) => startPractice(sender, message),
   "practice/status": () => practiceStatus(),
   // The webapp's Settings > Connected Apps: opens the Workday Sign-Up page, which keeps its password in this browser.

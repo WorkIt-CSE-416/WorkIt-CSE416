@@ -3,20 +3,18 @@ import type { Metadata } from "next";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
-import { claudeConnectorLink } from "@/lib/claude-connector";
 import { cn } from "@/lib/cn";
-import { getClaudeConnected } from "@/lib/connector-actions";
 import { listResumes } from "@/lib/resume-actions";
 
 import { SEEKER_GUTTER } from "../gutter";
 import { RememberFeed } from "../jobs/[jobId]/page-actions";
-import { activityOf, needsYou } from "./activity-list";
+import { activityOf } from "./activity-list";
 import { getApplications, getRunApplications } from "./applications";
 import { getWrittenQuestions } from "./answers/questions";
 import { AutoApplyPanel } from "./auto-apply-panel";
 import type { SavedJob } from "./add-jobs-dialog";
 import { SetupStrip } from "./setup-strip";
-import { UpNext } from "./up-next";
+import { QueueSummary, UpNext } from "./up-next";
 
 export const metadata: Metadata = {
   title: "Auto Apply",
@@ -28,8 +26,8 @@ export const metadata: Metadata = {
  * pipeline it grows into is `auto-apply/architecture.md` at the repo root:
  * match, pick the resume, fill the form with the extension, record.
  *
- * JOBS FIRST (KAN-359). The heading block, with Manage Resumes and Start
- * Auto Apply at its top right (./auto-apply-panel.tsx), then:
+ * JOBS FIRST (KAN-359). The heading block, with no button at its top right
+ * (./auto-apply-panel.tsx), then:
  *
  *   Up Next    the queue in the order the extension takes it, each job
  *              with the resume it will go out with, which a click on it
@@ -46,16 +44,20 @@ export const metadata: Metadata = {
  * variant (./activity-list.tsx) are as they were.
  *
  * THE SETUP STRIP (KAN-424, ./setup-strip.tsx), over Up Next, only while
- * something a batch needs is missing: the extension, a default resume, the
- * student's Claude (GET .../connector, here). It replaced the header's Add
- * to Claude, and the Written Questions Waiting card (KAN-385), which
- * counted the questions without saying whose: each Up Next row now counts
- * its own (`questions`, from GET .../written-questions) in a chip that
- * links to Written Answers (./answers/page.tsx). A failed read of either
- * leaves its part out: Up Next says when the API is down.
+ * the Chrome extension is missing: Auto Apply needs nothing else. A
+ * default resume and the student's Claude are optional, so the rows carry
+ * them: No Resume, and a chip counting a row's written questions
+ * (`questions`, from GET .../written-questions) that links to Written
+ * Answers (./answers/page.tsx), which offers Connect Claude. The strip
+ * replaced the header's Add to Claude, and the Written Questions Waiting
+ * card (KAN-385), which counted the questions without saying whose. A
+ * failed read of the questions leaves the chips out: Up Next says when the
+ * API is down.
  *
- * THE HEADER'S LINE says where the queue stands ("2 ready to apply · 1
- * needs you"), by the rule Up Next groups its rows with (`needsYou`).
+ * THE HEADER'S LINE says where the queue stands ("3 in progress · 2
+ * queued"), in Up Next's group names, counted in the browser
+ * (./up-next.tsx, QueueSummary): a job open in a tab is In Progress, and
+ * only the extension knows which are.
  *
  * It opened with a Resume List of every resume until KAN-359; the page is
  * about which jobs go out, so jobs lead it.
@@ -74,18 +76,16 @@ export const metadata: Metadata = {
  * SidebarInset is already the <main>.
  */
 export default async function AutoApplyPage() {
-  const [run, saved, built, uploaded, written, claude] = await Promise.all([
+  const [run, saved, built, uploaded, written] = await Promise.all([
     getRunApplications(),
     getApplications(["saved"] as const, { scored: true }),
     listBuiltResumes(),
     listResumes(),
     getWrittenQuestions(),
-    getClaudeConnected(),
   ]);
   const toWriteBy = new Map(
     (written.data ?? []).map((posting) => [posting.job_id, posting.questions.length]),
   );
-  const toWrite = [...toWriteBy.values()].reduce((n, count) => n + count, 0);
 
   const builtList = built.data ?? [];
   const uploadedList = (uploaded.resumes ?? []).filter((resume) => resume.storage_path);
@@ -128,15 +128,11 @@ export default async function AutoApplyPage() {
     : [];
   // Up Next: queued jobs and needs-you ones, which wait on the seeker too.
   const queue = items.filter((item) => item.status === "queued" || item.status === "failed");
-  const waiting = queue.filter(needsYou).length;
-  const ready = queue.length - waiting;
-  // Each part only when it counts something: "0 ready to apply" read as a fault.
-  const summary = queue.length
-    ? [
-        ...(ready ? [`${ready} ready to apply`] : []),
-        ...(waiting ? [`${waiting} ${waiting === 1 ? "needs" : "need"} you`] : []),
-      ].join(" · ")
-    : null;
+  const summary = queue.length ? (
+    <QueueSummary
+      jobs={queue.map((item) => ({ id: item.id, started: item.status === "failed" }))}
+    />
+  ) : null;
 
   const savedJobs: SavedJob[] = (saved.applications ?? []).map(({ job, match }) => ({
     id: job.id,
@@ -151,7 +147,7 @@ export default async function AutoApplyPage() {
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* So a queued job's page goes back here, not to the feed. */}
       <RememberFeed />
-      <AutoApplyPanel hasResume={builtList.length + uploadedList.length > 0} summary={summary}>
+      <AutoApplyPanel summary={summary}>
         {run.error != null ? (
           <EmptyState
             Icon={CloudSlashIcon}
@@ -163,12 +159,7 @@ export default async function AutoApplyPage() {
           </EmptyState>
         ) : (
           <>
-            <SetupStrip
-              hasDefaultResume={Boolean(defaultBuilt || defaultUpload)}
-              claude={claude.added}
-              claudeLink={claudeConnectorLink()}
-              questions={toWrite}
-            />
+            <SetupStrip />
             <UpNext items={queue} saved={savedJobs} />
           </>
         )}
