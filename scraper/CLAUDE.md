@@ -543,6 +543,13 @@ catalog against the ledger, and the scraper and publisher must call
 `discovery_review.validate_catalog` before consuming/publishing it. This prevents
 a ledger-only rejection merged between daily runs from becoming an active board.
 Reconsideration requires a deliberate ledger-entry removal.
+
+**To retire a board on main, delete its row and add
+`"ats/token": {"decision": "rejected"}` to `discovery-review.json`** in the
+same commit (create the file if it is absent). Deleting the row alone is not
+enough: the ledger rejects only boards discovery proposed, so a deleted main
+row is proposed again on the next run that finds it. Nothing else in the entry
+is required. Dead boards need no retiring: they rest by themselves (above).
 `discovery-review.md` is generated from that ledger and must not be hand-edited.
 Evidence includes source/company, ATS/token, posting count, and validation time;
 it is not proof of ownership. There is no company allowlist or trust manifest.
