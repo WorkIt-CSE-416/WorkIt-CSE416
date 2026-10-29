@@ -16,7 +16,7 @@ test.afterEach(() => loaded?.close());
 const hostOf = (page: Page) => page.locator("#workit-autofiller-overlay-host");
 const mainButton = (page: Page) => hostOf(page).locator('[data-slot="primary"] .primary-button').first();
 
-test("after a fill on the student's own tab: Close and ⋯ in the header, the red box, tabs on top, Answer 1 of N at the bottom", async () => {
+test("after a fill on the student's own tab: Close and ⋯ in the header, the red box, no tab strip, Answer 1 of N at the bottom", async () => {
   test.setTimeout(120_000);
   const forms = new SavedForms([ANDURIL]);
   loaded = await loadExtension([new FakeApi().handler, webapp, forms.handler]);
@@ -31,7 +31,9 @@ test("after a fill on the student's own tab: Close and ⋯ in the header, the re
   // The header: WorkIt, ⋯ and Close; nothing else to press there.
   const header = host.locator(".header");
   await expect(header.getByRole("img", { name: "WorkIt" })).toBeVisible();
-  await expect(header.getByRole("button")).toHaveText(["⋯", "×"]);
+  await expect(header.getByRole("button")).toHaveCount(2);
+  await expect(header.getByRole("button").first()).toHaveAccessibleName("More");
+  await expect(header.getByRole("button").last()).toHaveAccessibleName("Close");
   await expect(header.getByRole("button", { name: "Close" })).toBeVisible();
 
   // The red box's count, and the button's N is the same rule's (lib-status.js).
@@ -46,19 +48,19 @@ test("after a fill on the student's own tab: Close and ⋯ in the header, the re
   await page.keyboard.press("Escape");
   await expect(host.getByRole("menuitem")).toHaveCount(0);
 
-  // Tabs on top and the button at the bottom stay where they are while the list scrolls.
-  const tabs = host.getByRole("tablist");
-  const before = { tabs: (await tabs.boundingBox())!.y, button: (await mainButton(page).boundingBox())!.y };
+  // The header on top and the button at the bottom stay where they are while the list scrolls. No tab strip (KAN-424).
+  await expect(host.locator(".tabs")).toBeHidden();
+  const card = host.locator(".header");
+  const before = { card: (await card.boundingBox())!.y, button: (await mainButton(page).boundingBox())!.y };
   await host.locator(".scroll").evaluate((el) => el.scrollBy(0, 400));
-  expect((await tabs.boundingBox())!.y).toBe(before.tabs);
+  expect((await card.boundingBox())!.y).toBe(before.card);
   expect((await mainButton(page).boundingBox())!.y).toBe(before.button);
   expect(before.button + 60).toBeGreaterThan(page.viewportSize()!.height - 60);
 
-  // Settings from the menu: the tabs stay on top.
+  // Settings from the menu, then Back to the list.
   await (await menuItem(host, "Settings")).click();
   await expect(host.locator('[data-slot="settings"]')).toBeVisible();
-  await expect(tabs).toBeVisible();
-  await host.getByRole("tab", { name: "Autofill" }).click();
+  await host.locator('[data-slot="settings"]').getByRole("button", { name: "Back" }).click();
   await expect(host.locator('[data-slot="settings"]')).toBeHidden();
   await expect(host.locator('.box[data-box="needs-you"]')).toBeVisible();
   expect(forms.submissions).toEqual([]);
@@ -78,7 +80,9 @@ test("a batch tab's ⋯ menu holds I submitted this and Skip; the header has nei
   const host = hostOf(form);
   await expect(mainButton(form)).toContainText(/^Answer \d+ of \d+$/, { timeout: 30_000 });
 
-  await expect(host.locator(".header").getByRole("button")).toHaveText(["⋯", "×"]);
+  await expect(host.locator(".header").getByRole("button")).toHaveCount(2);
+  await expect(host.locator(".header").getByRole("button", { name: "More" })).toBeVisible();
+  await expect(host.locator(".header").getByRole("button", { name: "Close" })).toBeVisible();
   await host.getByRole("button", { name: "More" }).click();
   await expect(host.getByRole("menuitem")).toHaveText(["I submitted this", "Skip", "Fill Again", "Report a problem", "Settings"]);
   // A click the page's own script makes on the menu does nothing (trusted()).

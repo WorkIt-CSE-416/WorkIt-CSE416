@@ -229,11 +229,15 @@ class WrittenAnswer(WrittenQuestion):
 
 class FlagAnswer(BaseModel):
     """POST .../review/keep and .../review/rewrite: the flagged answer the
-    student keeps, or sends back to their Claude (KAN-369)."""
+    student keeps, or sends back to their Claude (KAN-369). POST
+    .../review/redo: any answer their Claude wrote, sent back for another
+    version (KAN-424), with how to change it (`steer`: "Make it shorter.",
+    or their own words), if they said."""
 
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=200)
+    steer: str | None = Field(default=None, max_length=300)
 
 
 class OwnAnswer(BaseModel):

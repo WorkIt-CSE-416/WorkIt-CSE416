@@ -191,6 +191,31 @@ async def rewrite(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, 
     await db.commit()
 
 
+async def redo(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str, steer: str | None) -> None:
+    """The student asks their Claude for another version of an answer it
+    wrote, flagged or not (the batch tab's Rewrite, KAN-424), with how to
+    change it (`steer`), if they said. As rewrite: the answer is cleared, so
+    get_next_application hands the question out again with the request as
+    its `rewrite`. Refused for the student's own words, and for a question
+    with no answer yet."""
+    await open_application(db, applicant_id, job_id)
+    review, rows = await fetch_review(db, applicant_id, job_id)
+    for answer, own in rows:
+        if answer.name != name or answer.answer is None:
+            continue
+        if own:
+            raise Refused("That answer is your own words. Edit it in the form.")
+        ask = steer.strip() if steer else ""
+        reason = f"The student asked for another version: {ask}" if ask else "The student asked for another version."
+        sent = {"reason": reason, "quote": None, "answer": answer.answer}
+        review = review or {}
+        await set_answer_review(db, applicant_id, job_id, {**review, "rewrite": {**review.get("rewrite", {}), name: sent}})
+        await drop_written(db, applicant_id, job_id, [name])
+        await db.commit()
+        return
+    raise Refused("That question has no answer to rewrite.")
+
+
 async def rewrites(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> dict[str, dict]:
     """The answers the student sent back to their Claude, by question name:
     the flag's reason, its quote and the answer it was about."""

@@ -44,11 +44,7 @@ window.WIA = window.WIA || {};
     else uploads.delete(name);
   }
 
-  // The Answers tab (answers-tab.js) shows the same preview: both redraw.
-  const redraw = () => {
-    window.WIA.overlay?.refresh();
-    window.WIA.answersTab?.refresh();
-  };
+  const redraw = () => window.WIA.overlay?.refresh();
 
   /** Copies `text`; a page whose clipboard is refused gets the older copy command. */
   async function copy(text) {

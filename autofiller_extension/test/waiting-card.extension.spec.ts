@@ -1,6 +1,6 @@
-// The waiting card (KAN-369): a batch tab's row waiting for the student's Claude carries a card with how long
-// it has waited, Write with Claude, a paste box that saves through the Written Answers paste route (the same
-// checks as Claude's; backend/app/routers/pasted_answers.py, faked in fake-api.ts) and Write it myself.
+// The waiting card (KAN-369): a batch tab's row waiting for the student's Claude, once the student opens it
+// (KAN-424), carries a paste box that saves through the Written Answers paste route (the same checks as
+// Claude's; backend/app/routers/pasted_answers.py, faked in fake-api.ts); Write with Claude is the box's head.
 // Next Thing That Needs You visits rows waiting on Claude after everything else, and an answer that just
 // arrived from Claude stays in the walk until the student has seen it once. Lumen's practice form, queued as a
 // real application, asks one written question; Arc's saved Greenhouse form has a name box that drops its answer.
@@ -38,8 +38,14 @@ async function openLumen(api: FakeApi, handlers: Handler[] = []) {
   await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(1);
   const name = api.written.get("job-0")![0].name;
   const form = loaded.context.pages().find((p) => p.url() === LUMEN)!;
-  const card = panelOf(form).locator(`[data-key="${name}"] .waiting`);
-  await expect(card).toBeVisible({ timeout: 30_000 });
+  const row = panelOf(form).locator(`.row[data-key="${name}"]`);
+  await expect(row).toHaveAttribute("data-mark", "waiting", { timeout: 30_000 });
+  // Closed, the row is its question alone: no card, no sentence of its own (the box's head says it once).
+  await expect(row.locator(".waiting")).toHaveCount(0);
+  await expect(row.locator(".reason")).toHaveCount(0);
+  await row.locator(".label").click();
+  const card = row.locator(".waiting");
+  await expect(card).toBeVisible();
   return { name, form, card };
 }
 
@@ -47,7 +53,7 @@ test("an answer pasted in the waiting card is saved through WorkIt's checks and 
   test.setTimeout(120_000);
   const api = new FakeApi().queue({ id: "job-0", apply_url: LUMEN });
   const { name, form, card } = await openLumen(api);
-  await expect(card.locator("[data-waited]")).toHaveText(/^Waiting (under a minute|\d+ min)$/);
+  await expect(panelOf(form).locator('.box[data-box="waiting"] .box-note').getByRole("link", { name: "Write with Claude" })).toBeVisible();
   await expect(panelOf(form).locator('.box[data-box="waiting"] .box-head')).toHaveText("1 Waiting on Your Claude");
   await expect(panelOf(form).locator('.row[data-key][data-mark="waiting"]')).toHaveCount(1);
 

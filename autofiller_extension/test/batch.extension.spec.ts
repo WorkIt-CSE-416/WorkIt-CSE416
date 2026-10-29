@@ -393,6 +393,8 @@ test("a field that silently rejects its answer is flagged, and its tab needs you
 
   const form = loaded.context.pages().find((p) => p.url() === forms.url("greenhouse-arc"))!;
   const row = form.locator('#workit-autofiller-overlay-host [data-key="first_name"]');
+  // Its card shows once the student opens the row (KAN-424).
+  await row.locator(".label").click();
   await expect(row.locator(".row-card")).toContainText("We put Test; the page shows (empty).");
   expect(forms.submissions).toEqual([]);
 });

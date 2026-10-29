@@ -37,6 +37,8 @@ window.WIA = window.WIA || {};
 
   // The collapsed groups (filled, optional left empty, the form isn't asking now), each opened by the student for the page's life.
   const opened = new Set();
+  // The boxes (red, amber, blue) the student folded: open by default, since they hold what is theirs to do.
+  const folded = new Set();
   // A red row's reason when WorkIt simply had no answer (content-script.js): its box's title says it once instead.
   const NO_ANSWER = "WorkIt has no answer for this. Answer it yourself.";
   // What the Plan fills each entry's naming field with (its profile entry's company or school), by row key.
@@ -223,7 +225,8 @@ window.WIA = window.WIA || {};
   /**
    * Once the fill is done (KAN-424), the list reads by what the student must
    * do, most urgent first: a red box of what needs their answer, an amber
-   * box of guesses to check, what waits on their Claude, then everything
+   * box of guesses to check, what waits on their Claude, the written answers
+   * filled (to read before Submit), then everything
    * settled folded into one line each: filled, optional left empty, and the
    * questions the form isn't asking now. Each box and line counts with
    * lib-status.js's rules, so they agree with the button.
@@ -245,23 +248,35 @@ window.WIA = window.WIA || {};
       const n = status.needsYouCount();
       nodes.push(box("needs-you", `${n} ${n === 1 ? "Needs" : "Need"} Your Answer`, needs));
     }
-    const check = by("check");
+    // A written question's filled answer goes in the Written Answers box below, even one just in that the student
+    // hasn't seen (lib-status.js toCheck): it keeps its ? mark there, and the amber box holds only guesses.
+    const isWritten = (node) => Boolean(window.WIA.writtenRow?.has(node.dataset.key));
+    const check = by("check").filter((node) => !isWritten(node));
     if (check.length) {
-      const n = fieldsOnly.filter((f) => !status.needsYou(f) && status.toCheck(f)).length;
+      const n = fieldsOnly.filter((f) => !status.needsYou(f) && status.toCheck(f) && !window.WIA.writtenRow?.has(f.key)).length;
       nodes.push(box("check", `${n} ${n === 1 ? "Guess" : "Guesses"} to Check`, check));
     }
     const waiting = by("waiting");
     if (waiting.length) {
       const n = fieldsOnly.filter((f) => markOf(f) === "waiting").length;
-      nodes.push(box("waiting", `${n} Waiting on Your Claude`, waiting));
+      const head = box("waiting", `${n} Waiting on Your Claude`, waiting);
+      const note = waitingNote(fields);
+      note.hidden = folded.has("waiting");
+      head.querySelector(".box-head").after(note);
+      nodes.push(head);
     }
-    // Anything else still open (a row filling again) stays in plain view, and so do two kinds of filled row: one
-    // the student is working with (the one they pressed, or a guess Looks right made theirs, whose card keeps its
-    // Undo in sight), and a written answer WorkIt filled (a cover letter, an essay), which they read before Submit.
+    // Anything else still open (a row filling again) stays in plain view, and so does a filled row the student is
+    // working with (the one they pressed, or a guess Looks right made theirs, whose card keeps its Undo in sight),
+    // or one with See cover letter outside the written questions.
+    // The written answers now filled (card-written.js, KAN-424): a box of their own, open, each with its answer's
+    // first lines, since a recruiter reads them and the student should before Submit. It took the Answers tab's place.
+    const written = items.filter((i) => isWritten(i.node) && ["filled", "check"].includes(i.node.dataset.mark)).map((i) => i.node);
+    if (written.length) nodes.push(box("written", `${written.length} Written ${written.length === 1 ? "Answer" : "Answers"}`, written));
     nodes.push(...by("filling"));
     const inUse = (node) => node.matches("[data-current], [data-open]") || Boolean(node.querySelector(".row-card, .letter-toggle"));
-    nodes.push(...by("filled").filter(inUse));
-    const filled = by("filled").filter((node) => !inUse(node));
+    const plain = by("filled").filter((node) => !isWritten(node));
+    nodes.push(...plain.filter(inUse));
+    const filled = plain.filter((node) => !inUse(node));
     const count = filled.reduce((n, node) => n + (node.matches(".row[data-key]") ? 1 : node.querySelectorAll('.row.sub[data-key][data-mark="filled"]').length), 0);
     if (filled.length) nodes.push(group("filled", `${count} Filled`, filled));
     const empty = by("empty");
@@ -270,11 +285,43 @@ window.WIA = window.WIA || {};
     return nodes;
   }
 
-  /** A titled box of rows that ask something of the student: red, amber or blue by its kind. */
+  /**
+   * What the waiting box's rows used to say each (KAN-424): Write with
+   * Claude (overlay.js's, which copies the trigger too), and where to paste
+   * answers instead, the Written Answers page when the tab has its link.
+   */
+  function waitingNote(fields) {
+    const note = Object.assign(document.createElement("div"), { className: "box-note" });
+    const start = window.WIA.overlay?.startClaude?.();
+    if (start) note.append(start);
+    const link = fields.find((f) => f.status === "needs_generation" && f.link)?.link;
+    const rest = Object.assign(document.createElement("p"), { textContent: "Or press a question to paste or type its answer" });
+    if (link) rest.append(", or use ", Object.assign(document.createElement("a"), { href: link.href, textContent: link.text, target: "_blank", rel: "noreferrer" }));
+    rest.append(".");
+    note.append(rest);
+    return note;
+  }
+
+  /**
+   * A titled box of rows that ask something of the student: red, amber or
+   * blue by its kind. Its title folds it, as the Filled line does, for the
+   * page's life; folded, it keeps the row the student is on in view.
+   */
   function box(kind, title, rows) {
     const el = Object.assign(document.createElement("section"), { className: "box" });
     el.dataset.box = kind;
-    el.append(Object.assign(document.createElement("h3"), { className: "box-head", textContent: title }), ...rows);
+    const shut = folded.has(kind);
+    const toggle = Object.assign(document.createElement("button"), { type: "button", className: "box-toggle", textContent: title });
+    toggle.setAttribute("aria-expanded", String(!shut));
+    toggle.addEventListener("click", () => {
+      if (folded.has(kind)) folded.delete(kind);
+      else folded.add(kind);
+      window.WIA.overlay?.refresh?.();
+    });
+    const head = Object.assign(document.createElement("h3"), { className: "box-head" });
+    head.append(toggle);
+    for (const r of rows) r.hidden = shut && !r.matches("[data-current], [data-open]");
+    el.append(head, ...rows);
     return el;
   }
 
@@ -335,13 +382,26 @@ window.WIA = window.WIA || {};
     .row.sub .dot { width: 12px; height: 12px; margin-top: 3px; }
     /* What needs the student, in a box per kind (settledNodes): red, amber, blue. */
     .box { margin: 8px 0 0; border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; }
-    .box-head { margin: 0; padding: 8px 12px; font-size: var(--text-note); font-weight: 600; }
+    .box-head { margin: 0; font-size: var(--text-note); font-weight: 600; }
+    button.box-toggle { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+    button.box-toggle:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
+    button.box-toggle::after {
+      content: ""; margin-left: auto; width: 6px; height: 6px;
+      border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-135deg);
+    }
+    button.box-toggle[aria-expanded="false"]::after { transform: rotate(45deg); }
+    .box > [hidden] { display: none; }
     .box[data-box="needs-you"] { border-color: var(--color-danger); }
     .box[data-box="needs-you"] .box-head { background: var(--color-danger-tint); color: var(--color-danger); }
     .box[data-box="check"] { border-color: var(--color-warning); }
     .box[data-box="check"] .box-head { background: var(--color-warning-tint); color: var(--color-warning-strong); }
     .box[data-box="check"] .row[data-guessed] { background: none; }
     .box[data-box="waiting"] .box-head { color: var(--color-advanced); }
+    .box[data-box="written"] .box-head { color: var(--color-ink); }
+    .box-note { padding: 0 12px 8px; font-size: var(--text-note); color: var(--color-ink-meta); }
+    .box-note .start { margin: 0 0 4px; }
+    .box-note p { margin: 0; }
+    .box-note p a { color: var(--color-brand-ink); text-decoration: underline; }
     .box > .row + .row, .box > .row + .entries, .box > .entries + .row { border-top: 1px solid var(--color-border); }
     .group { margin: 8px 0 0; border: 1px solid var(--color-border); border-radius: var(--radius-card); }
     .group:last-child { margin-bottom: 8px; }
