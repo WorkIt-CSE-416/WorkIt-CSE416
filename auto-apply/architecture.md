@@ -1120,8 +1120,8 @@ the batch tab that asked for it.
 **Where it runs.** Inside the API (`backend/app/connector/`), on the
 official MCP Python SDK (`MCPServer`, Streamable HTTP, stateless, JSON
 answers), at `<api>/mcp`. No second service. The SDK's session manager runs
-in the API's lifespan (`app/main.py`); Vercel runs FastAPI lifespans, and
-so does uvicorn in the container. `CONNECTOR_API_URL` and
+in the API's lifespan (`app/main.py`), which uvicorn runs in the
+production container. `CONNECTOR_API_URL` and
 `CONNECTOR_WEB_URL` (`app/config.py`) say where the API and the webapp are
 reached from outside; production sets both.
 

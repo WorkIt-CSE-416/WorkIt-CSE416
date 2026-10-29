@@ -12,6 +12,7 @@ import { getApplications, type Application as Stored } from "../auto-apply/appli
 import { formatJobType, formatPlaces, formatSalary, formatWorkStyle } from "../jobs/format";
 import type { JobListing, ListingSalaryPeriod } from "../jobs/listings";
 import type { Application, ApplicationEvent } from "../tracker";
+import { jobLogo } from "@/lib/job-logo";
 
 /** The stages the tracker lists: saved, applied and every stage after it
  *  (KAN-413). Queued, needs-you and skipped are auto apply's, on its page. */
@@ -276,7 +277,7 @@ function toApplication(
     id: job.id,
     role: job.title,
     company: job.company,
-    logoUrl: job.logo_url,
+    logoUrl: jobLogo(job),
     // A closed posting's page is gone, so its card links nowhere.
     jobHref: open ? `/jobs/${encodeURIComponent(job.id)}` : undefined,
     stage,

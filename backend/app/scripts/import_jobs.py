@@ -110,12 +110,12 @@ _tags = Job_Role_Tag.__table__
 
 # The columns the feed owns, compared to decide whether a known job changed.
 _FEED_COLUMNS = (
-    "title", "company_name", "company_logo_url", "description",
+    "title", "company_name", "company_logo_url", "company_domain", "description",
     "experience_level", "work_style", "location_raw", "location_label", "posted_at",
     "job_type", "min_years_experience", "start_term", "sponsorship",
     "salary", "salary_min", "salary_max", "salary_currency", "salary_period",
 )
-# asyncpg allows 32,767 parameters a statement; a row here binds 20.
+# asyncpg allows 32,767 parameters a statement; a row here binds 21.
 _CHUNK = 1000
 # Closing more than this share of the published scraped jobs in one run is
 # refused without --allow-mass-close.
@@ -256,6 +256,7 @@ def prepare(
             "title": listing.title,
             "company_name": listing.company,
             "company_logo_url": listing.logo_url,
+            "company_domain": listing.company_domain,
             # Scout reads it; the job cards don't. Absent from feeds written
             # before the scraper captured descriptions.
             "description": listing.description,

@@ -41,6 +41,7 @@ ROW = SimpleNamespace(
     location_label="Mountain View, CA",
     posted_at=datetime.datetime(2026, 10, 6, 2, 42, 6, tzinfo=datetime.UTC),
     company_logo_url=None,
+    company_domain=None,
     job_type=dto.job_type.internship,
     min_years_experience=None,
     start_term="Summer 2027",
@@ -91,6 +92,7 @@ def test_row_becomes_the_feed_shape():
         # The same string feed.json carried, so the frontend's dates don't move.
         "posted_at": "2026-10-06T02:42:06+00:00",
         "logo_url": None,
+        "company_domain": None,
         "description": "ROS nodes.",
         "job_type": dto.job_type.internship,
         "salary": None,

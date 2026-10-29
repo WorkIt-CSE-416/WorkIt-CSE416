@@ -44,6 +44,7 @@ def test_row_shape(resolver, role_resolver):
         "title": "SWE Intern",
         "company_name": "Acme",
         "company_logo_url": None,
+        "company_domain": None,
         "description": None,
         "experience_level": dto.experience_level.student,
         "work_style": dto.work_style.onsite,
@@ -179,3 +180,11 @@ def test_a_feed_from_before_kan_233_is_refused():
     # writing a value migration B is about to remove.
     with pytest.raises(ValidationError):
         listing("https://x/1", experience_level="internship")
+
+
+def test_company_domain_is_carried_to_its_column(resolver, role_resolver):
+    # KAN-442: the scraper's website for the logo, written as the feed gives it.
+    prepared = prepare(
+        [listing("https://x/1", company_domain="goldmansachs.com")], resolver, role_resolver
+    )
+    assert prepared.rows[0]["company_domain"] == "goldmansachs.com"

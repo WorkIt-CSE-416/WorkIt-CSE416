@@ -63,8 +63,13 @@ class JobListing(BaseModel):
     # defaults to None there.
     location_label: str | None = None
     posted_at: str | None
-    # The logo the company uploaded to its job board; None when it has none.
+    # The logo the company uploaded to its job board, or its website's favicon;
+    # None when it has none. The Jobs page's fallback since KAN-442.
     logo_url: str | None
+    # The employer's own registered domain ("goldmansachs.com"), which the Jobs
+    # page draws the logo from (Brandfetch); None when the scraper found no
+    # website. Defaulted so a feed.json from before KAN-442 still parses.
+    company_domain: str | None = None
     # Plain text, capped by the scraper. Scout reads it; GET /jobs leaves it out
     # (the cards never show it). Defaulted so a feed.json written before the
     # scraper captured descriptions still parses.

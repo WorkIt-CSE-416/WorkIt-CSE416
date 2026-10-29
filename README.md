@@ -33,7 +33,7 @@ Databases:
 ```
 ## Deployment 
 ```bash 
-https://workit-web-gamma.vercel.app/jobs
+https://workitjobs.ai/jobs
 ```
 
 ## Local Development 

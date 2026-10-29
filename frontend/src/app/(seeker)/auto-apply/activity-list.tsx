@@ -31,6 +31,7 @@ import { STAGE_ICON } from "../stage-colors";
 import type { RunStage } from "./actions";
 import type { Application } from "./applications";
 import type { Sort, StatusFilter } from "./query";
+import { jobLogo, type LogoSrc } from "@/lib/job-logo";
 
 type Glyph = ComponentType<{ className?: string }>;
 
@@ -48,7 +49,7 @@ export type ActivityItem = {
   role: string;
   company: string;
   /** The job posting's logo URL; its initials when null. */
-  logoUrl: string | null;
+  logoUrl: LogoSrc;
   status: ActivityStatus;
   /** A line under the status, only where it says more than the badge: what
    *  went wrong, where the job is open, or that its posting closed. */
@@ -91,7 +92,7 @@ export function activityOf(application: Application<RunStage>): ActivityItem {
     id: job.id,
     role: job.title,
     company: job.company,
-    logoUrl: job.logo_url,
+    logoUrl: jobLogo(job),
     status,
     // A closed one waits on nothing: its page is gone.
     detail: open ? detail : "Job posting closed",
