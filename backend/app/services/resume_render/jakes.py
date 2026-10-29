@@ -92,7 +92,10 @@ def _entry(entry: ViewEntry, marks: bool, printed: Printed) -> list[str]:
     rows = []
     for item_id, kind, text in items:
         body = _marked(item_id, kind, escape(text), text, marks, printed)
-        rows.append(rf"\resumeItem{{{body}}}")
+        # \ignorespaces swallows the space Jake's \resumeItem puts after its
+        # argument ("{#1 \vspace{-2pt}}"): when a bullet's last line is
+        # full, TeX broke at that space and printed an empty line after it
+        rows.append(rf"\resumeItem{{{body}\ignorespaces}}")
     return [line, r"\resumeItemListStart", *rows, r"\resumeItemListEnd"]
 
 

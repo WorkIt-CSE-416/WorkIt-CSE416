@@ -115,6 +115,13 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   service-role key.
 - **An empty itemize is a LaTeX error**, so a bullet list opens only around
   bullets.
+- **Every `\resumeItem` argument ends in `\ignorespaces`** (KAN-391). Jake's
+  macro puts a space after its argument (`{#1 \vspace{-2pt}}`); when a
+  bullet's last line was full, TeX broke at that space and printed an
+  empty line after the bullet, 14.9 pt where bullets sit 2.9 pt apart, in
+  Overleaf too. `\ignorespaces` swallows the space, so `jakes.tex` stays
+  byte for byte. A new template whose macros leave a space before a
+  `\vspace` needs the same.
 - **Position markers never move the page.** `MARKS` (in `__init__`) goes at
   the start of the body, after `\begin{document}`, so the preamble stays
   byte for byte; `mark(id, kind, latex)` wraps each line. `\pdfsavepos`
