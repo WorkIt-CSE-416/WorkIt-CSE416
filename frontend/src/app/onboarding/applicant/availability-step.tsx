@@ -1,6 +1,6 @@
 import { ScreenerCard, TermChips, YesNoChips } from "@/components/answer-fields";
 import { ANSWER_GROUP_ICON } from "@/components/icons";
-import { TextField } from "@/components/ui/text-field";
+import { DateField } from "@/components/date-field";
 import { AVAILABILITY, type AutofillAnswers } from "@/lib/autofill-answers";
 
 import { Field, fieldId } from "./role-step";
@@ -45,12 +45,14 @@ export function AvailabilityStep({
       >
         <div className="grid gap-4">
           <div className="max-w-xs">
-            <TextField
+            {/* WorkIt's own date picker, never the browser's
+                (docs/design.md, Components). */}
+            <DateField
               id="onboarding-earliest_start"
               label="Earliest Start"
-              type="date"
               value={answers.earliest_start ?? ""}
-              onChange={(e) => set({ earliest_start: e.target.value || null })}
+              onValueChange={(value) => set({ earliest_start: value || null })}
+              clearable
             />
           </div>
           <TermChips

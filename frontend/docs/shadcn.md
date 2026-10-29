@@ -142,6 +142,18 @@ rare element that must look like a button without being one) are still exported.
 `buttonVariants` is exported too, as the cva function shadcn components import —
 note it skips the per-variant default size and always uses `default`.
 
+#### Sheet is forked: no blur, and a right panel floats
+
+`src/components/shadcn/sheet.tsx` is edited in place, on purpose (KAN-429).
+Its overlay dims the page (`bg-black/10`) but no longer blurs it: a blurred
+page behind a panel read as broken. A panel from the right floats, inset
+12px from the window's edges, with `rounded-shell` corners, a full border
+and `shadow-lift`, where shadcn's stuck to the edge, full height and
+square. The application detail panel (`(seeker)/applications/detail-panel.tsx`)
+is the one today; a new right-side sheet gets the look for free. **Re-running
+`shadcn add sheet` undoes both**: diff the file after any `add`, and keep
+the fork's note at the top of `SheetOverlay`.
+
 #### The other exception: Select is wrapped, not replaced
 
 `src/components/ui/select.tsx` is a third shape, and worth knowing about before

@@ -1,3 +1,9 @@
+import {
+  ArrowBendUpRightIcon,
+  ClipboardTextIcon,
+  FlagIcon,
+  HourglassMediumIcon,
+} from "@phosphor-icons/react/ssr";
 import type { ComponentType } from "react";
 
 import {
@@ -117,21 +123,42 @@ export const STAGE_COLOR: Record<
 /**
  * Which stage's colour and glyph each kind of dated entry wears, on every
  * screen that lists them: Home's Up Next, the detail panel's
- * timeline, the Calendar. An interview is Interviewing's amber calendar
- * wherever it appears, and the day an application went in is Applied's violet
- * briefcase. A deadline is a saved job's closing date, so it is Saved's grey
- * bookmark, not danger red: red means rejected. A follow-up is a nudge on
- * something already sent, so it is Applied's violet too. A rejection is
- * Rejected's red.
+ * timeline, the Calendar. An interview is Interviewing's amber wherever it
+ * appears, and so is an assessment, a round of the same process; the day an
+ * application went in is Applied's violet. A student's own Apply by is
+ * violet too, the step toward applied (KAN-429). A posting's closing date
+ * is Saved's grey, not danger red: red means rejected. A follow-up is a
+ * nudge on something already sent, so it is Applied's violet. A rejection
+ * is Rejected's red. Kinds that share a colour differ by glyph (KIND_ICON).
  *
  * It maps kinds, not the application's own stage, so an offer-stage job's
  * past interviews still read as interviews.
  */
 export const KIND_STAGE: Record<EventKind, StageKey> = {
   applied: "applied",
+  "apply-by": "applied",
+  closes: "saved",
   interview: "interviewing",
+  assessment: "interviewing",
   offer: "offer",
-  deadline: "saved",
-  "follow-up": "applied",
   rejection: "rejected",
+  "follow-up": "applied",
+};
+
+/**
+ * Each kind's glyph, wherever an entry is drawn (the Calendar, Home's Up
+ * Next, an application's timeline and its Interviews & Dates), so two kinds
+ * in one stage's colour still read apart (KAN-429): Applied's briefcase and
+ * Apply by's flag, an interview's calendar and an assessment's clipboard. A
+ * kind with a stage of its own keeps that stage's glyph.
+ */
+export const KIND_ICON: Record<EventKind, ComponentType<{ className?: string }>> = {
+  applied: STAGE_ICON.applied,
+  "apply-by": FlagIcon,
+  closes: HourglassMediumIcon,
+  interview: STAGE_ICON.interviewing,
+  assessment: ClipboardTextIcon,
+  offer: STAGE_ICON.offer,
+  rejection: STAGE_ICON.rejected,
+  "follow-up": ArrowBendUpRightIcon,
 };

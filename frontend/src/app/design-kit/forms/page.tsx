@@ -5,7 +5,15 @@ import { SearchField } from "@/components/ui/search-field";
 import { TextField } from "@/components/ui/text-field";
 
 import { SECTIONS } from "../data";
-import { ResumeUploadSpecimen, SegmentedSpecimen, SelectFieldSpecimen } from "../interactive";
+import { TextAreaField } from "@/components/text-area-field";
+
+import {
+  DateFieldSpecimen,
+  GlyphSelectSpecimen,
+  ResumeUploadSpecimen,
+  SegmentedSpecimen,
+  SelectFieldSpecimen,
+} from "../interactive";
 import { KitPage, Row } from "../specimen";
 
 export const metadata = { title: SECTIONS.forms.title };
@@ -41,6 +49,20 @@ export default function FormsPage() {
         </Row>
         <Row name="<SelectField>" role="Label wired by aria-labelledby, WorkIt's field height">
           <SelectFieldSpecimen />
+        </Row>
+        <Row
+          name="<SelectField> with glyphs"
+          role="An option's Icon and colour, or a leading logo, drawn as the filters draw them"
+        >
+          <GlyphSelectSpecimen />
+        </Row>
+        <Row name="<DateField>" role="WorkIt's calendar in a popover, never the browser's picker">
+          <DateFieldSpecimen />
+        </Row>
+        <Row name="<TextAreaField>" role="A multi-line box drawn as <TextField> is">
+          <div className="w-72">
+            <TextAreaField id="dk-note" label="Note" rows={2} />
+          </div>
         </Row>
         <Row name="<ResumeUpload>" role="Dropzone and file preview; the caller does the upload">
           <ResumeUploadSpecimen />

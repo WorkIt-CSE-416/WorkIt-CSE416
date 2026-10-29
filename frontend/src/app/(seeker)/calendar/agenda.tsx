@@ -1,14 +1,14 @@
 "use client";
 
 import { addDays, eachDayOfInterval, format } from "date-fns";
-import Link from "next/link";
 
 import { CalendarIcon } from "@/components/icons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 import type { TrackerEvent } from "../tracker";
-import { dayKey, longDay, lookOf, shortTime } from "./entries";
+import { dayKey, longDay, lookOf, timeOf } from "./entries";
+import { EventEntry } from "./event-card";
 
 /** How many days the Agenda shows, from its first: two weeks, the span a
  *  search plans in. Its arrows move by the same. */
@@ -46,7 +46,8 @@ export function Agenda({
   }
 
   return (
-    <ol className="mt-3 flex flex-col gap-5">
+    // Scrolls inside the page's height, as Google Calendar's Schedule does.
+    <ol className="mt-4 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain pr-1">
       {days.map((day) => {
         const key = dayKey(day);
 
@@ -64,13 +65,14 @@ export function Agenda({
 
                 return (
                   <li key={event.id}>
-                    <Link
-                      href={openHref(event.applicationId)}
-                      scroll={false}
+                    <EventEntry
+                      event={event}
+                      openHref={openHref}
+                      side="bottom"
                       className="group/agenda bg-app hover:bg-hover rounded-card focus-visible:ring-brand-ring ease-glide flex items-center gap-3 px-3 py-2.5 transition-[background-color,transform] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.99]"
                     >
                       <span className="text-note text-ink-meta w-16 shrink-0">
-                        {shortTime(event.at) ?? "All Day"}
+                        {timeOf(event) ?? "All Day"}
                       </span>
                       <span
                         aria-hidden="true"
@@ -90,7 +92,7 @@ export function Agenda({
                         </span>
                         <span className="sr-only">, {longDay(event.at)}</span>
                       </span>
-                    </Link>
+                    </EventEntry>
                   </li>
                 );
               })}

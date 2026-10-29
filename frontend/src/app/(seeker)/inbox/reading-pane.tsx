@@ -23,7 +23,7 @@ import { useHydrated, When } from "../local-time";
 import { STAGE_COLOR, STAGE_LABEL, type StageKey } from "../stage-colors";
 import { isAllDay } from "../tracker";
 import { SenderAvatar, type EmailJob } from "./email-row";
-import { PickApplication } from "./pick-application";
+import { PickApplication } from "../applications/pick-application";
 
 /**
  * The Inbox's reading pane (KAN-413): one email, laid out as Gmail lays out
@@ -149,7 +149,7 @@ const RANK: Record<StageKey, number> = {
  * the application stood nor which company it was.
  *
  * An email that matched no job asks for one first, with Choose Application:
- * a view of the Applications Tracker in a modal (./pick-application.tsx),
+ * a view of the Applications Tracker in a modal (../applications/pick-application.tsx),
  * not a dropdown, so each application shows where it stands. Once one is
  * picked the banner shows it, with Change, and its before and after. One the tracker matched to a job the Inbox
  * does not list (a queued one: the Inbox lists the tracker's jobs) keeps its
@@ -241,6 +241,7 @@ function Decision({ email, job, jobs }: { email: Email; job?: EmailJob; jobs: Em
             open={choosing}
             jobs={jobs}
             picked={pick}
+            description="Pick the application this email is about."
             onPick={(id) => {
               setPick(id);
               setChoosing(false);

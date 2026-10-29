@@ -115,6 +115,8 @@ def _applications(applicant_id: uuid.UUID) -> Select:
             Job_Application.stage.label("stage"),
             Job_Application.created_at.label("added_at"),
             Job_Application.applied_at.label("applied_at"),
+            Job_Application.apply_by.label("apply_by"),
+            Job_Post.closes_at.label("closes_at"),
             LISTED.label("open"),
             Sent_Resume,
         )
@@ -130,6 +132,8 @@ def _to_application(row) -> Application:
         stage=row.stage,
         added_at=row.added_at,
         applied_at=row.applied_at,
+        apply_by=row.apply_by,
+        closes_at=row.closes_at,
         open=row.open,
         sent_resume=SentResumeResponse.from_row(row.Sent_Resume) if row.Sent_Resume else None,
     )

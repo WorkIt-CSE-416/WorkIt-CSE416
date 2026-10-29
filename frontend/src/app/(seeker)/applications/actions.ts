@@ -4,7 +4,7 @@ import { applicantCall, encodeId } from "@/lib/applicant-call";
 
 /**
  * The Applications Tracker's own writes (KAN-413), through the API's routes
- * (backend/app/routers/tracker.py): the stage menu, Add Event and an
+ * (backend/app/routers/tracker.py): the stage menu, Create Event and an
  * event's Delete, on an application's page. Every export of a "use server"
  * file is a public POST endpoint: these take a job or event id and the
  * fields, and the applicant is always the session's own. The caller
@@ -16,7 +16,7 @@ import { applicantCall, encodeId } from "@/lib/applicant-call";
  *  bookmark or the queue. */
 export type PickableStage = "applied" | "interviewing" | "offer" | "rejected";
 
-/** Add Event's kinds, as the API names them. A confirmation only comes from
+/** Create Event's kinds, as the API names them. A confirmation only comes from
  *  an email, so it is not one. */
 export type NewEventKind = "interview" | "assessment" | "offer" | "rejection" | "other";
 
@@ -27,6 +27,8 @@ export type NewEvent = {
   at: string | null;
   /** "YYYY-MM-DD", for something due on a day. */
   onDay: string | null;
+  /** An ISO instant after `at`, for a timed event's end (KAN-429). */
+  endsAt?: string | null;
   note: string;
   meetingUrl: string;
 };
@@ -45,7 +47,7 @@ export async function setApplicationStage(jobId: string, stage: PickableStage) {
   });
 }
 
-/** Add Event (POST .../applications/{job_id}/events). An interview, offer
+/** Create Event (POST .../applications/{job_id}/events). An interview, offer
  *  or rejection moves the application forward; the API says so and the
  *  refreshed page shows it. */
 export async function addApplicationEvent(jobId: string, event: NewEvent) {
@@ -55,6 +57,7 @@ export async function addApplicationEvent(jobId: string, event: NewEvent) {
       kind: event.kind,
       title: event.title,
       at: event.at,
+      ends_at: event.endsAt ?? null,
       on_day: event.onDay,
       note: event.note || null,
       meeting_url: event.meetingUrl || null,
@@ -73,7 +76,7 @@ export async function deleteApplicationEvent(eventId: string) {
 
 /** An update's Accept (POST .../events/{event_id}/accept): it goes on the
  *  tracker, on `jobId` when given (an unmatched email's pick) else on the
- *  application it matched, which it moves forward as Add Event does. */
+ *  application it matched, which it moves forward as Create Event does. */
 export async function acceptUpdate(eventId: string, jobId: string | null) {
   return send(`/events/${encodeId(eventId)}/accept`, {
     method: "POST",
@@ -94,5 +97,15 @@ export async function markEmailsRead(eventIds: string[], read: boolean) {
   return send("/emails/read", {
     method: "PUT",
     body: JSON.stringify({ ids: eventIds, read }),
+  });
+}
+
+/** A saved job's Apply by (PUT .../applications/{job_id}/apply-by,
+ *  KAN-429): the student's own day to apply by, "YYYY-MM-DD", or null to
+ *  clear it. */
+export async function setApplyBy(jobId: string, applyBy: string | null) {
+  return send(`/applications/${encodeId(jobId)}/apply-by`, {
+    method: "PUT",
+    body: JSON.stringify({ apply_by: applyBy }),
   });
 }

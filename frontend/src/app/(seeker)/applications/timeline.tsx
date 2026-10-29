@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 
 import { When } from "../local-time";
-import { KIND_STAGE, STAGE_COLOR, STAGE_ICON, type StageKey } from "../stage-colors";
+import { KIND_ICON, KIND_STAGE, STAGE_COLOR, STAGE_ICON, type StageKey } from "../stage-colors";
 import type { TimelineStep } from "../tracker";
 
 /**
@@ -99,7 +99,12 @@ function Step({
 }) {
   const stage: StageKey =
     step.kind === "saved" ? "saved" : step.kind === "sent" ? "applied" : KIND_STAGE[step.kind];
-  const Glyph = step.kind === "sent" ? FileIcon : STAGE_ICON[stage];
+  const Glyph =
+    step.kind === "sent"
+      ? FileIcon
+      : step.kind === "saved"
+        ? STAGE_ICON.saved
+        : KIND_ICON[step.kind];
   const filled = step.state !== "later";
   const next = step.state === "next";
 

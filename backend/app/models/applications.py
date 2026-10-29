@@ -8,6 +8,7 @@ import uuid
 
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -56,6 +57,11 @@ class Job_Application(Base):
     # read}, "flags": {name: why it needs the student}}. NULL until one is
     # saved. A flag holds only while its answer is still the one read.
     answer_review: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
+    # The student's own day to apply by (KAN-429), which the Calendar shows
+    # as Apply by: usually earlier than the posting's closes_at, which most
+    # scraped postings never publish. A date, not an instant, so it is the
+    # same day in every zone. NULL while none is set
+    apply_by: Mapped[datetime.date | None] = mapped_column(Date)
 
     __table_args__ = (
         # the primary key serves "this applicant's jobs" (the feed's filter);

@@ -8,12 +8,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FIELD_CONTROL, FIELD_LABEL, RequiredMark } from "@/components/ui/text-field";
+import { OptionLabel, type FacetOption } from "@/components/field-facet";
 import { cn } from "@/lib/cn";
 
 /* Promoted from app/company/jobs/new/fields.tsx the day signup's company-size
  * picker became a second consumer. */
 
-export type SelectOption = string | { value: string; label: string };
+/** An option may carry a glyph in its own colour (`Icon`, `iconClassName`),
+ *  drawn by the filter dropdowns' `OptionLabel` in the list and on the
+ *  closed field alike, so a pick of a stage or an event kind wears the
+ *  glyph and colour it has everywhere else (KAN-429). */
+export type SelectOption = string | FacetOption;
 
 type SelectFieldProps = {
   id: string;
@@ -41,6 +46,8 @@ type SelectFieldProps = {
   invalid?: boolean;
   /** The id of the message that explains the field, usually its error. */
   describedBy?: string;
+  /** Greys the field and takes no pick (Create Event's times under All Day). */
+  disabled?: boolean;
   className?: string;
 };
 
@@ -74,11 +81,13 @@ export function SelectField({
   required,
   invalid,
   describedBy,
+  disabled,
   className,
 }: SelectFieldProps) {
   const items = options.map((option) =>
     typeof option === "string" ? { value: option, label: option } : option,
   );
+  const glyphs = items.some((item) => item.Icon);
 
   return (
     <div className={cn("flex flex-col gap-1", className)}>
@@ -96,6 +105,7 @@ export function SelectField({
         name={name}
         value={value}
         onValueChange={(next) => onValueChange(next ?? "")}
+        disabled={disabled}
       >
         {/* THE HEIGHT OVERRIDE IS WRITTEN TWICE, and the duplicate is the
             whole point. FIELD_CONTROL has no height — it is sized by its
@@ -134,13 +144,33 @@ export function SelectField({
             "focus-visible:aria-invalid:ring-brand-ring aria-invalid:ring-0 focus-visible:aria-invalid:ring-[3px]",
           )}
         >
-          <SelectValue placeholder={placeholder} />
+          {glyphs ? (
+            <SelectValue>
+              {(picked: string | null) => {
+                const item = items.find((option) => option.value === picked);
+                return item ? (
+                  <OptionLabel option={item} />
+                ) : (
+                  <span className="text-ink-meta">{placeholder}</span>
+                );
+              }}
+            </SelectValue>
+          ) : (
+            <SelectValue placeholder={placeholder} />
+          )}
         </SelectTrigger>
 
-        <SelectContent>
+        {/* A list with glyphs stays the field's width and each row cuts a
+            long name with an ellipsis: the vendored row's text does not
+            shrink, and a list of long names grew past the dialog's edge. */}
+        <SelectContent className={cn(glyphs && "max-w-(--anchor-width)")}>
           {items.map((item) => (
-            <SelectItem key={item.value} value={item.value}>
-              {item.label}
+            <SelectItem
+              key={item.value}
+              value={item.value}
+              className={cn(glyphs && "*:first:min-w-0 *:first:shrink")}
+            >
+              {glyphs ? <OptionLabel option={item} /> : item.label}
             </SelectItem>
           ))}
         </SelectContent>

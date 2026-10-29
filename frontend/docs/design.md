@@ -298,6 +298,47 @@ thumb. An icon option is a rendered element, not a component, since a server
 page passes the options. Build a new segmented choice from it rather than
 styling a ToggleGroup by hand.
 
+**No field opens the browser's own picker** (KAN-429). A native
+`<input type="date">` or `type="time"` opens the OS's chrome (a blue grid of
+hours, a system calendar) in none of WorkIt's type or colours. A date is
+`components/date-field.tsx`, WorkIt's Calendar in a Popover, with Clear in
+the popover for an optional one; a time is a `<SelectField>` of quarter
+hours, as Google Calendar offers (Create Event's Start and End, the End
+list naming each choice's length); a multi-line box is
+`components/text-area-field.tsx`. **A pick that has a glyph wears it**: a
+`<SelectField>` option takes the filter dropdowns' `Icon` and
+`iconClassName`, and draws them
+with `OptionLabel` in the list and on the closed field, so a stage or an
+event kind looks the same in a form as in the Tracker's Status filter and
+the Calendar's Type filter. A list with glyphs stays its field's width and
+cuts a long name with an ellipsis. Create Event shipped first with native
+date and time inputs and plain text lists for Type and Application, which
+broke both rules. My Profile's Start Window and onboarding's Availability
+step moved to `DateField` with it; no native date or time input is left in
+`src`, so a search for `type="date"` or `type="time"` finds a regression.
+
+**An application or a resume is never picked from a dropdown** (KAN-429).
+An application is picked in Choose Application
+(`(seeker)/applications/pick-application.tsx`): the Tracker's rows (logo,
+role and company, the stage's pill, the day it went in) in a modal with a
+search, opened from a Choose Application button and shown once picked as
+its logo, role, company and Change. The Inbox opens it.
+
+**Never a dialog over a dialog** (KAN-429). Where a pick belongs to a
+dialog already open, that dialog shows the pick as a step of its own: its
+body swaps to the picker, its title and line say what the step asks, a
+Back arrow beside the title returns once there is something to return
+to, and a pick returns by itself. Create Event does this with
+`ApplicationTable`, Choose Application's body; from the Calendar it opens
+on that step, since every event is on an application. The form stays
+mounted, hidden, under the step, so what was typed survives it. Choose
+Application opened as a second dialog over Create Event at first, which
+read as a page laid over a page with only its own close as a way back. A
+resume is picked in the grouped list every resume dialog shares
+(`ResumeLists`, `(seeker)/jobs/resume-picker.tsx`). A dropdown of "Company
+· Role" lines hid where each application stood and cut long titles short;
+Create Event's first version had one.
+
 `src/components/ui` and `src/components/shadcn` are not interchangeable. The
 first is hand-written from the mockups and is what screens should import. The
 second is vendored by `npx shadcn@latest add` for the interactive primitives we
@@ -336,6 +377,26 @@ and Download, Done and Hide all but vanished into them (KAN-258); put
 secondary buttons on white (a card, a sheet, the editor's slim bar on
 `--color-panel`) or on a tint (the phone editor's bars take
 `--color-brand-tint`).
+
+**A filter over a page's items is a dropdown** (`components/field-facet.tsx`,
+`FieldFacet`): a small secondary button with the field's glyph and name,
+tinted while it holds a pick, over checkbox rows, each option in its own
+glyph and colour where it has one, and a cross beside the row to clear it.
+None picked shows everything. The Applications Tracker's filter row, the
+Inbox's Status, Live Activity's Status and the Calendar's Type all draw it,
+so filtering looks and works the same on every page. Never a row of chips
+for this: the Calendar drew one for a draft (KAN-429) and the Inbox before
+it (KAN-413), and each broke the pattern the rest of the app had set, and
+grew a line with every option. Chips stay for a choice made in place on a
+screen built around it (onboarding's steps, the Jobs page's search chips).
+
+**A panel from the right floats, and nothing behind it blurs** (KAN-429,
+the forked `components/shadcn/sheet.tsx`): inset 12px from the window's
+edges, with `rounded-shell` corners, a full border and `shadow-lift`, over
+a light dim of the page that stays sharp. It was a full-height square slab
+against the window's edge over a blurred page, which read as a different
+app from the rounded cards around it, and the blur hid what the panel was
+about. The application detail panel (the Calendar's) is the one today.
 
 **A button is a rounded rectangle; a pill is a chip** (KAN-251). A button
 acts (saves, opens, sends, goes somewhere); a chip is a choice made in

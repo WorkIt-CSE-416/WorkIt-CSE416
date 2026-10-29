@@ -1142,7 +1142,22 @@ the KAN-296 cutover.
   model updates `/privacy` in the same change, with `LEGAL_UPDATED`.
 - **The Calendar is back** (KAN-413): events added on an application's
   page give it something to show, so `src/proxy.ts` no longer sends
-  `/calendar` to Home and its sidebar row is restored. **The
+  `/calendar` to Home and its sidebar row is restored. KAN-429 redid it
+  after Google Calendar (Week as a time grid with a folding all-day row,
+  Month and Agenda, a Type filter dropdown, the full page width, and a
+  page that fits the screen and never scrolls: Month's weeks share the
+  height and the other views scroll inside) and its
+  dates, with an event's end time (`ends_at`): a student's own Apply By and the posting's
+  closing date for a job not applied to, and assessments as their own
+  kind; saved dates stay off it, and so do emails that only confirm or
+  update (`onCalendar`). Its toolbar's Create Event puts an event on an
+  application the student picks. An entry opens its own card, one layout for
+  every kind, beside it and inside the window (`calendar/event-card.tsx`),
+  and the application's timeline only from the card's View Application
+  (`docs/screens.md`, Calendar). **A kind's
+  look is one map**: `KIND_STAGE` for its colour and `KIND_ICON` for its
+  glyph, in `(seeker)/stage-colors.ts`, read by the Calendar, Up Next, the
+  timeline and Interviews & Dates alike; a new kind joins both. **The
   Home's Next Up, Up Next and Waiting are still archived** (KAN-261),
   their code kept; `docs/screens.md`, Seeker Home, says how to bring
   them back, which the email tracker's build order lists next
@@ -1277,7 +1292,8 @@ the KAN-296 cutover.
   `/applications/[jobId]` (KAN-256), not a side panel. **Interviewing, Offer
   and Rejected, and dated events, are stored** (KAN-413,
   `../docs/email_tracker.md`): the application's page has the stage menu
-  and Interviews & Dates with Add Event (`applications/[jobId]/tracker-controls.tsx`,
+  and Interviews & Dates with Create Event (`applications/[jobId]/tracker-controls.tsx`,
+  the dialog in `applications/create-event.tsx`, which the Calendar's toolbar opens too,
   over `applications/actions.ts`), and the tracker's read joins the events
   from `GET .../events` (`applications/tracked.ts`); a failed read of
   either shows an error, never stand-in cards. **A stage past applied is

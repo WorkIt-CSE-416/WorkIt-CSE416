@@ -511,3 +511,77 @@ async def test_marking_read_is_all_or_none_and_only_the_students_emails(student,
     body = {"ids": [added["event"]["id"]], "read": True}
     assert (await client.put(f"/applicants/{me}/emails/read", json=body)).status_code == 404
     assert (await client.put(f"/applicants/{me}/emails/read", json={"ids": [], "read": True})).status_code == 422
+
+
+# --- Apply by (KAN-429) ---
+
+
+async def _listed(client, me, job) -> dict:
+    rows = (await client.get(f"/applicants/{me}/applications")).json()
+    return next(row for row in rows if row["job"]["id"] == job)
+
+
+async def test_a_saved_job_takes_its_own_apply_by_and_clears_it(student, database):
+    client, me = student
+    job = await _seed_posting(database)
+    await client.post(f"/jobs/{job}/saved")
+    assert (await _listed(client, me, job))["apply_by"] is None
+
+    res = await client.put(f"/applicants/{me}/applications/{job}/apply-by", json={"apply_by": "2026-11-10"})
+    assert res.status_code == 204
+    assert (await _listed(client, me, job))["apply_by"] == "2026-11-10"
+
+    await client.put(f"/applicants/{me}/applications/{job}/apply-by", json={"apply_by": None})
+    assert (await _listed(client, me, job))["apply_by"] is None
+
+
+async def test_the_list_carries_the_postings_closing_date(student, database):
+    client, me = student
+    job = await _seed_posting(database)
+    async with database() as session:
+        await session.execute(
+            text("UPDATE job_postings SET closes_at = '2026-12-01T23:59:00Z' WHERE id = :j"),
+            {"j": job},
+        )
+        await session.commit()
+    await client.post(f"/jobs/{job}/saved")
+    assert (await _listed(client, me, job))["closes_at"].startswith("2026-12-01T23:59")
+
+
+async def test_apply_by_for_a_job_with_no_application_is_404(student, database):
+    client, me = student
+    job = await _seed_posting(database)
+    body = {"apply_by": "2026-11-10"}
+    assert (await client.put(f"/applicants/{me}/applications/{job}/apply-by", json=body)).status_code == 404
+    bad = await client.put(f"/applicants/{me}/applications/{job}/apply-by", json={"apply_by": "soon"})
+    assert bad.status_code == 422
+
+
+# --- An event's end (KAN-429) ---
+
+
+async def test_an_interview_keeps_its_end_time(student, database):
+    client, me = student
+    job = await _applied(client, database)
+    body = {**INTERVIEW, "ends_at": "2026-11-04T20:30:00Z"}
+    res = await client.post(f"/applicants/{me}/applications/{job}/events", json=body)
+    assert res.status_code == 201
+    assert res.json()["event"]["ends_at"].startswith("2026-11-04T20:30")
+    listed = (await client.get(f"/applicants/{me}/events")).json()
+    assert listed[0]["ends_at"].startswith("2026-11-04T20:30")
+    # One with no end has none
+    await client.post(f"/applicants/{me}/applications/{job}/events", json=INTERVIEW)
+    assert [e["ends_at"] for e in (await client.get(f"/applicants/{me}/events")).json()].count(None) == 1
+
+
+@pytest.mark.parametrize("body", [
+    {**INTERVIEW, "ends_at": "2026-11-04T18:00:00Z"},  # before the start
+    {**INTERVIEW, "ends_at": "2026-11-04T19:00:00Z"},  # at the start
+    {**INTERVIEW, "ends_at": "2026-11-04T20:00:00"},  # no zone
+    {"kind": "assessment", "title": "Due", "on_day": "2026-11-03", "ends_at": "2026-11-03T20:00:00Z"},
+])
+async def test_an_end_must_follow_a_timed_start(student, database, body):
+    client, me = student
+    job = await _applied(client, database)
+    res = await client.post(f"/applicants/{me}/applications/{job}/events", json=body)
+    assert res.status_code == 422

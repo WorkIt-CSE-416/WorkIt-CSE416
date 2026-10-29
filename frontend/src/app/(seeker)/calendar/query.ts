@@ -10,7 +10,11 @@
  * Every other page links in through `calendarHref`: a card's next step opens
  * its week, an Up Next row its day in the Agenda.
  */
-export const CALENDAR_VIEWS = ["month", "week", "agenda"] as const;
+/** Google Calendar's views, in its order (KAN-429): Week a time grid,
+ *  Month a month, Agenda two weeks as a list. No Day view: a search's
+ *  entries are points in a week, not a day's schedule, so a lone day's grid
+ *  was mostly empty hours; an old ?view=day opens the default. */
+export const CALENDAR_VIEWS = ["week", "month", "agenda"] as const;
 export type CalendarView = (typeof CALENDAR_VIEWS)[number];
 export const DEFAULT_CALENDAR_VIEW: CalendarView = "month";
 
@@ -25,6 +29,8 @@ export type CalendarQuery = {
   /** The day the view is anchored on, or null for the viewer's today. */
   date: string | null;
   app: string | null;
+  /** The sample week (./demo.ts), in local development only. */
+  demo: boolean;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -50,15 +56,17 @@ export function parseCalendarQuery(params: SearchParams): CalendarQuery {
       : DEFAULT_CALENDAR_VIEW,
     date: parseDay(first(params.date)),
     app: first(params.app) || null,
+    demo: first(params.demo) === "1",
   };
 }
 
 /** The Calendar's URL for these choices, leaving the defaults out. */
-export function calendarHref({ view, date, app }: Partial<CalendarQuery> = {}) {
+export function calendarHref({ view, date, app, demo }: Partial<CalendarQuery> = {}) {
   const params = new URLSearchParams();
   if (view && view !== DEFAULT_CALENDAR_VIEW) params.set("view", view);
   if (date) params.set("date", date);
   if (app) params.set("app", app);
+  if (demo) params.set("demo", "1");
 
   const search = params.toString();
   return search ? `/calendar?${search}` : "/calendar";

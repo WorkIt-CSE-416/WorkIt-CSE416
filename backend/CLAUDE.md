@@ -1105,7 +1105,12 @@ Find files with a directory listing; these are the rules for where code goes.
   update's `POST .../events/{event_id}/accept` and `.../dismiss`), and
   the Inbox's `GET .../emails` (every email, every status) and its
   `PUT .../emails/read` (KAN-427, Mark as Read and Unread, all or none;
-  `read_at` keeps the first read, and Accept and dismiss set it too). An
+  `read_at` keeps the first read, and Accept and dismiss set it too), and
+  a saved job's `PUT .../applications/{job_id}/apply-by` (KAN-429, the
+  student's own day to apply by, null to clear; the application list
+  sends it as `apply_by` beside the posting's `closes_at`). Add Event
+  takes an `ends_at` after `at` (KAN-429, the Calendar's time grid; a
+  CHECK keeps it after the start and only on a timed event). An
   event moves its application forward only (`advance`, Accept too). **An
   email files itself unless it would move the stage or matched no job**
   (`needs_review`, `file_email`, the Gmail reader's entry point); a stage past
@@ -1349,6 +1354,14 @@ removed at cutover, not before. Until then a change must work on both.
   either way: their applied-job filter names only the stages before applied
   (`dto.BEFORE_APPLIED`, the models' CLAUDE.md). Merge the migration to
   `main` in its own PR first, then apply it, then test the branch.
+- **Apply `7b59d19d13a8` (`job_applications.apply_by`) and `0d8dd3b7d8fd`
+  (`application_events.ends_at`), KAN-429's two, before the deploy that
+  maps them.** The models select each column with every row, so deployed
+  first, the Applications Tracker, the Calendar, Home, every
+  application's events and auto apply's queue answer 500. They only add a
+  nullable date, a nullable timestamp and a CHECK every row meets, so
+  applying them early is safe. They go to `main` in their own PR first,
+  then are applied, then KAN-429 merges.
 - **Apply `dc36d2d2321c` (`application_events.read_at`, KAN-427) before
   the deploy that maps it.** The model selects the column with every event
   row, so deployed first, the Inbox, the Calendar and every application's
