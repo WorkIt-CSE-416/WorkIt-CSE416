@@ -94,6 +94,11 @@ Built so far (option A, the typed line only):
 - **Moves show at once:** two neighbours' strips of the page trade places
   until the PDF lands. Hide, show and wording switches show nothing until
   then.
+- **Undo and Redo work like any edit:** each step keeps the state and
+  PDF on both sides, so going back or forward shows at once and only the
+  save goes; an older step, past the newest 10 that keep their PDFs,
+  renders like a new edit. 25 steps, in the tab's memory (both numbers
+  are first guesses, to tune in `history.ts`).
 - **Measured from a laptop against the shared database:** one round trip
   about 66 ms, loading a resume's view 560 to 730 ms, a compile 410 to
   500 ms (2026-10-28). A line went from about 2.7 to 3.5 s (save, then

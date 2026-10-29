@@ -73,6 +73,7 @@ import {
   type Line,
 } from "./model";
 import { keepFitUndo, readFitUndo } from "./fit-undo";
+import { hideAgain, push, reverseChoices, reverseLine, type Edit, type Step } from "./history";
 import {
   afterStrips,
   boxKey,
@@ -260,6 +261,10 @@ async function renderEdit(
  *  renders an edit without reading the resume (KAN-391). */
 type Printed = Pick<ResumeCopy, "identity" | "template" | "file_name">;
 
+/** What a request's copy is built from: the bank, the choices and what the
+ *  last PDF printed (KAN-391). An Undo step keeps one on each side. */
+type Held = { bank: Bank; choices: Choices; printed: Printed | null };
+
 function printedBy(pdf: RenderedPdf): Printed | null {
   return pdf.identity
     ? { identity: pdf.identity, template: pdf.template, file_name: pdf.file_name }
@@ -308,6 +313,7 @@ export function Editor({
   const [rendered, setRendered] = useState<RenderedPdf | null>(null);
   const adopt = useCallback((first: RenderedPdf) => {
     held.current.printed ??= printedBy(first);
+    lastPdf.current ??= first;
     setRendered((current) => current ?? first);
   }, []);
   // The first render failed: the page area says so, and the phone's bar
@@ -320,17 +326,34 @@ export function Editor({
   }, []);
   const [bank, setBank] = useState(initialBank);
   const [header, setHeader] = useState(initialHeader);
+  // The header as saved, for an Undo of a link: the page prints a link
+  // without "https://" or "www.", so its reverse needs the stored URL
+  const headerNow = useRef(initialHeader);
+  useEffect(() => {
+    headerNow.current = header;
+  });
   const [choices, setChoices] = useState(initialChoices);
   // What the next request's copy is built from (KAN-391): the bank and
   // choices as the newest answer left them, with the changes on their way
   // merged in, and the header the newest PDF printed. A ref, so a request
   // that waited for the one before reads what that one left, before React
   // has drawn it.
-  const held = useRef<{ bank: Bank; choices: Choices; printed: Printed | null }>({
+  const held = useRef<Held>({
     bank: initialBank,
     choices: initialChoices,
     printed: null,
   });
+  // Undo and Redo (./history.ts): the steps, kept in this tab's memory
+  const undos = useRef<Step<Held, RenderedPdf>[]>([]);
+  const redos = useRef<Step<Held, RenderedPdf>[]>([]);
+  const [steps, setSteps] = useState({ undo: 0, redo: 0 });
+  const countSteps = useCallback(
+    () => setSteps({ undo: undos.current.length, redo: redos.current.length }),
+    [],
+  );
+  // The newest PDF any render answered, which a step keeps for an instant
+  // Undo; newer than `rendered` while a newer request owns the page
+  const lastPdf = useRef<RenderedPdf | null>(null);
   // The choices as the API last answered them, and the changes sent since
   const confirmed = useRef(initialChoices);
   const unanswered = useRef(new Map<string, ChoicesUpdate>());
@@ -467,6 +490,54 @@ export function Editor({
       : undefined;
   }, []);
 
+  /** The choices with the typed wordings saved since (`withWording`). */
+  const worded = useCallback((answer: Choices) => {
+    let next = answer;
+    for (const [bullet, saved] of wordings.current)
+      next = withWording(next, bullet, saved.variant_id, saved.text);
+    return next;
+  }, []);
+
+  /** The editor's state as the last answer left it, without the changes
+   *  still on their way: a step's side (./history.ts). */
+  const settled = useCallback(
+    (): Held => ({
+      bank: held.current.bank,
+      choices: worded(confirmed.current),
+      printed: held.current.printed,
+    }),
+    [worded],
+  );
+
+  /** Records a new step for an edit; a new edit ends what Redo could do. */
+  const record = useCallback(
+    (redo: Edit): Step<Held, RenderedPdf> => {
+      const step: Step<Held, RenderedPdf> = {
+        undo: null,
+        redo,
+        before: null,
+        after: null,
+        pdfBefore: null,
+        pdfAfter: null,
+      };
+      push(undos.current, step);
+      redos.current = [];
+      countSteps();
+      return step;
+    },
+    [countSteps],
+  );
+
+  /** Drops a step whose edit was refused: there is nothing to undo. */
+  const forget = useCallback(
+    (step: Step<Held, RenderedPdf>) => {
+      undos.current = undos.current.filter((s) => s !== step);
+      redos.current = redos.current.filter((s) => s !== step);
+      countSteps();
+    },
+    [countSteps],
+  );
+
   /**
    * Puts the saved resume back after a save failed (KAN-391): once every
    * save sent before has answered, the bank, the choices and a PDF read
@@ -485,6 +556,11 @@ export function Editor({
         unanswered.current.clear();
         wordings.current.clear();
         onTheirWay.current.clear();
+        // The steps described edits the database no longer holds
+        undos.current = [];
+        redos.current = [];
+        countSteps();
+        if (pdf.data) lastPdf.current = pdf.data;
         if (bankRead.data) {
           held.current.bank = bankRead.data;
           setBank(bankRead.data);
@@ -501,11 +577,43 @@ export function Editor({
         );
       });
     },
-    [begin, enqueue, keepChoices, keepRendered, resumeId],
+    [begin, countSteps, enqueue, keepChoices, keepRendered, resumeId],
   );
 
+  /** Saves a typed line, in the save queue. The answer's bullet variant and
+   *  profile go into the editor's state; a failure other than a refusal
+   *  puts the saved resume back. */
+  const sendLine = useCallback(
+    (line: { item_id: string; kind: string; text: string }, source?: ResumeCopy) =>
+      queueSave(async () => {
+        const { data, error, status } = await saveLine(resumeId, line, source);
+        if (data && line.kind === "bullet") {
+          wordings.current.set(line.item_id, { variant_id: data.variant_id, text: line.text });
+          keepChoices(confirmed.current);
+        }
+        if (data?.profile) setHeader(data.profile);
+        if (!data && status !== 404 && status !== 422) reload(error);
+      }),
+    [keepChoices, queueSave, reload, resumeId],
+  );
+
+  /** Saves choice changes, in the save queue. */
+  const sendChoices = useCallback(
+    (changes: ChoicesUpdate) =>
+      queueSave(async () => {
+        const { error, status } = await updateChoices(resumeId, changes);
+        if (error && status !== 404 && status !== 422) reload(error);
+      }),
+    [queueSave, reload, resumeId],
+  );
+
+  /** `record: false` for an Undo or Redo sent as an edit (`travel`). */
   const apply = useCallback(
-    async (changes: ChoicesUpdate, revertedTarget?: RevertTarget) => {
+    async (changes: ChoicesUpdate, revertedTarget?: RevertTarget, recorded = true) => {
+      // Its reverse is read before the change shows
+      const step = recorded ? record({ changes }) : null;
+      if (step)
+        step.undo = { changes: reverseChoices(held.current.bank, held.current.choices, changes) };
       // A wording picked from the bar or the assistant replaces what was
       // typed, so the field shows the picked wording, not the old draft
       if (changes.bullets?.some((b) => "variant_id" in b)) {
@@ -524,19 +632,27 @@ export function Editor({
       if (swap) setSwaps((s) => [...s, { ...swap, id }]);
       // The save goes now, beside the render; a refusal is the render's to
       // show, and any other failure puts the saved resume back
-      queueSave(async () => {
-        const { error, status } = await updateChoices(resumeId, changes);
-        if (error && status !== 404 && status !== 422) reload(error);
-      });
+      sendChoices(changes);
       return enqueue(async () => {
         const current = begin();
         started.current = performance.now();
+        if (step) {
+          step.before = settled();
+          step.pdfBefore = lastPdf.current;
+        }
         const { data, error } = await renderEdit(resumeId, { changes }, copy());
         unanswered.current.delete(id);
         answered(id);
         // Refused: the change and its swap leave the page
         keepChoices(data?.choices ?? confirmed.current);
         if (!data) setSwaps((s) => s.filter((x) => x.id !== id));
+        if (data) {
+          lastPdf.current = data.render;
+          if (step) {
+            step.after = settled();
+            step.pdfAfter = data.render;
+          }
+        } else if (step) forget(step);
         if (!current()) return;
         setSaving(false);
         if (!data) return setError(error);
@@ -553,7 +669,19 @@ export function Editor({
         keepRendered(data.render);
       });
     },
-    [begin, copy, enqueue, keepChoices, keepRendered, queueSave, reload, resumeId, setReview],
+    [
+      begin,
+      copy,
+      enqueue,
+      forget,
+      keepChoices,
+      keepRendered,
+      record,
+      resumeId,
+      sendChoices,
+      setReview,
+      settled,
+    ],
   );
 
   /** One typed line (KAN-391): the save and the render go side by side.
@@ -561,22 +689,30 @@ export function Editor({
    *  (a GPA's number, a link's https://); the save answers a bullet's
    *  variant id and the profile after a header field. */
   const saveText = useCallback(
-    (item_id: string, kind: string, text: string) => {
+    (item_id: string, kind: string, text: string, recorded = true) => {
       const key = `${item_id}.${kind}`;
       sent(key);
-      const source = copy();
-      queueSave(async () => {
-        const { data, error, status } = await saveLine(resumeId, { item_id, kind, text }, source);
-        if (data && kind === "bullet") {
-          wordings.current.set(item_id, { variant_id: data.variant_id, text });
-          keepChoices(confirmed.current);
-        }
-        if (data?.profile) setHeader(data.profile);
-        if (!data && status !== 404 && status !== 422) reload(error);
-      });
+      const step = recorded ? record({ line: { item_id, kind, text } }) : null;
+      sendLine({ item_id, kind, text }, copy());
       return enqueue(async () => {
         const current = begin();
         started.current = performance.now();
+        if (step) {
+          // Read once every edit before it has answered: the line's wording,
+          // stored link or printed text as it stands now
+          const before = settled();
+          step.undo = reverseLine(
+            before.bank,
+            before.choices,
+            { item_id, kind },
+            lastPdf.current?.boxes.find((b) => boxKey(b) === key)?.text,
+            item_id === HEADER && (LINK_FIELDS as readonly string[]).includes(kind)
+              ? (headerNow.current[kind as HeaderField] ?? null)
+              : undefined,
+          );
+          step.before = before;
+          step.pdfBefore = lastPdf.current;
+        }
         const { data, error } = await renderEdit(
           resumeId,
           { line: { item_id, kind, text } },
@@ -599,6 +735,13 @@ export function Editor({
           setBank(held.current.bank);
         }
         if (data?.choices) keepChoices(data.choices);
+        if (data) {
+          lastPdf.current = data.render;
+          if (step) {
+            step.after = settled();
+            step.pdfAfter = data.render;
+          }
+        } else if (step) forget(step);
         if (!current()) return;
         setSaving(false);
         if (!data) return setError(error);
@@ -611,7 +754,20 @@ export function Editor({
         keepRendered(data.render);
       });
     },
-    [begin, copy, drop, enqueue, keepChoices, keepRendered, queueSave, reload, resumeId, setReview],
+    [
+      begin,
+      copy,
+      drop,
+      enqueue,
+      forget,
+      keepChoices,
+      keepRendered,
+      record,
+      resumeId,
+      sendLine,
+      setReview,
+      settled,
+    ],
   );
 
   /** Adds a header field the profile lacks, which has no line to click. */
@@ -660,6 +816,88 @@ export function Editor({
     return () => window.removeEventListener("keydown", clear);
   }, [select]);
 
+  /** The page as a step left it: its state and its PDF, at once. */
+  const restore = useCallback(
+    (state: Held, pdf: RenderedPdf) => {
+      begin();
+      setSaving(false);
+      unanswered.current.clear();
+      onTheirWay.current.clear();
+      held.current = { ...state };
+      setBank(state.bank);
+      keepChoices(state.choices);
+      setSwaps([]);
+      setDrafts({});
+      lastPdf.current = pdf;
+      keepRendered(pdf);
+    },
+    [begin, keepChoices, keepRendered],
+  );
+
+  /**
+   * Undo (`back`) or Redo (./history.ts). It waits for every render before
+   * it, so the step's state is whole. When the step kept the state and PDF
+   * on its other side, the page goes back to them at once and only the
+   * save goes, with a copy of what the database holds, which the save
+   * checks a typed entry field against. Otherwise the edit goes as any
+   * other, its line drawn over the page until its PDF lands. An open line
+   * is saved first, so Undo then takes back what was just typed.
+   */
+  const travel = useCallback(
+    (back: boolean) => {
+      select(null);
+      void enqueue(async () => {
+        const from = back ? undos : redos;
+        const step = from.current.pop();
+        if (!step) return countSteps();
+        (back ? redos : undos).current.push(step);
+        countSteps();
+        const edit = back ? step.undo : step.redo;
+        const state = back ? step.before : step.after;
+        const pdf = back ? step.pdfBefore : step.pdfAfter;
+        const saved = back ? step.after : step.before;
+        if (!edit) return;
+        if (state && pdf && saved?.printed) {
+          restore(state, pdf);
+          const source = {
+            entries: saved.bank.entries,
+            skills: saved.bank.skills,
+            choices: saved.choices,
+            ...saved.printed,
+          };
+          if ("changes" in edit) sendChoices(edit.changes);
+          else sendLine(edit.line, source);
+          return;
+        }
+        if ("changes" in edit) {
+          void apply(edit.changes, undefined, false);
+        } else {
+          const { item_id, kind, text } = edit.line;
+          if (!(LINK_FIELDS as readonly string[]).includes(kind))
+            setDrafts((d) => ({ ...d, [`${item_id}.${kind}`]: text }));
+          void saveText(item_id, kind, text, false);
+        }
+      });
+    },
+    [apply, countSteps, enqueue, restore, saveText, select, sendChoices, sendLine],
+  );
+
+  // Cmd+Z (Ctrl+Z) undoes, Shift+Cmd+Z or Ctrl+Y redoes; inside a field the
+  // field's own text undo runs instead
+  useEffect(() => {
+    if (phone) return;
+    const keys = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      if ((event.target as Element).closest?.("input, textarea, [contenteditable='true']")) return;
+      const key = event.key.toLowerCase();
+      if (key !== "z" && key !== "y") return;
+      event.preventDefault();
+      travel(key === "z" && !event.shiftKey);
+    };
+    window.addEventListener("keydown", keys);
+    return () => window.removeEventListener("keydown", keys);
+  }, [phone, travel]);
+
   // On a desktop, a press outside the page, the bar and the assistant (each
   // marked KEEPS_SELECTION) saves the line and clears the selection. The
   // assistant keeps it: it acts on the selected line. The phone editor
@@ -685,16 +923,33 @@ export function Editor({
       await saves.current;
       const current = begin();
       started.current = performance.now();
+      const before = settled();
+      const pdfBefore = lastPdf.current;
       const { data, error } = await fitToOnePage(resumeId);
       if (!current()) return;
       if (!data) {
         setSaving(false);
         return setError(error);
       }
+      lastPdf.current = data.render;
       keepRendered(data.render);
-      rememberFitUndo(data.undo.bullets?.length || data.undo.entries?.length ? data.undo : null);
+      const hid = data.undo.bullets?.length || data.undo.entries?.length;
+      rememberFitUndo(hid ? data.undo : null);
       const fresh = await getChoices(resumeId);
       if (fresh.data) keepChoices(fresh.data);
+      // Fit is one step: its Undo shows what it hid, its Redo hides it again
+      if (hid && fresh.data) {
+        push(undos.current, {
+          undo: { changes: data.undo },
+          redo: { changes: hideAgain(data.undo) },
+          before,
+          after: settled(),
+          pdfBefore,
+          pdfAfter: data.render,
+        });
+        redos.current = [];
+        countSteps();
+      }
       if (current()) setSaving(false);
     });
   }
@@ -1114,6 +1369,12 @@ export function Editor({
       onFit={fit}
       onUndoFit={undoFit}
       zoom={<Zoom zoom={zoom} onZoom={setZoom} />}
+      history={{
+        canUndo: steps.undo > 0,
+        canRedo: steps.redo > 0,
+        onUndo: () => travel(true),
+        onRedo: () => travel(false),
+      }}
     />
   );
   const reviewTools: ReviewTools | null = reviewing && {
@@ -1300,6 +1561,7 @@ function Bar({
   onFit,
   onUndoFit,
   zoom,
+  history,
 }: {
   line: Line | null;
   box: RenderBox | undefined;
@@ -1318,6 +1580,7 @@ function Bar({
   onFit: () => void;
   onUndoFit: () => void;
   zoom: ReactNode;
+  history: HistoryTools;
 }) {
   return (
     <SlimBar
@@ -1329,6 +1592,7 @@ function Bar({
       onFit={onFit}
       onUndoFit={onUndoFit}
       zoom={zoom}
+      history={history}
       editing={
         line &&
         box && (
@@ -1369,18 +1633,41 @@ type ReviewTools = {
 const SLIM_BAR =
   "bg-panel/95 ring-border-subtle sticky top-2 z-20 flex min-h-10 flex-wrap items-center gap-2 rounded-xl px-2 py-1 ring-1 backdrop-blur";
 
+/** The editor's Undo and Redo (./history.ts), for the slim bar. */
+type HistoryTools = {
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+};
+
 /**
- * Undo and Redo, first on the slim bar in both its states. UI only for now
- * (2026-10-26): the editor keeps no history yet, so both stay disabled
- * until it does. Undo Fit stays its own button after a fit.
+ * Undo and Redo, first on the slim bar in both its states (KAN-391: until
+ * then disabled, UI only). Each goes back or forward one step of
+ * `HISTORY_STEPS`; Cmd+Z and Shift+Cmd+Z do the same off a field. Undo Fit
+ * stays its own button after a fit.
  */
-function History() {
+function History({ tools }: { tools?: HistoryTools }) {
   return (
     <div className="flex shrink-0 items-center gap-0.5">
-      <Button variant="ghost" size="icon-sm" aria-label="Undo" title="Undo" disabled>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Undo"
+        title="Undo"
+        disabled={!tools?.canUndo}
+        onClick={tools?.onUndo}
+      >
         <ArrowUUpLeftIcon aria-hidden />
       </Button>
-      <Button variant="ghost" size="icon-sm" aria-label="Redo" title="Redo" disabled>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Redo"
+        title="Redo"
+        disabled={!tools?.canRedo}
+        onClick={tools?.onRedo}
+      >
         <ArrowUUpRightIcon aria-hidden />
       </Button>
       <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
@@ -1425,6 +1712,7 @@ function SlimBar({
   onUndoFit,
   editing,
   zoom,
+  history,
 }: {
   rendered: RenderedPdf | null;
   saving: boolean;
@@ -1437,6 +1725,7 @@ function SlimBar({
   editing: ReactNode;
   /** The page's zoom control (`Zoom`), on the editor's own page only. */
   zoom?: ReactNode;
+  history?: HistoryTools;
 }) {
   const status = (
     <span className="text-note text-ink-meta pr-1" aria-live="polite">
@@ -1453,7 +1742,7 @@ function SlimBar({
           if ((e.target as HTMLElement).closest("button")) e.preventDefault();
         }}
       >
-        <History />
+        <History tools={history} />
         {editing}
         <div className="ml-auto flex items-center gap-2">
           {status}
@@ -1467,7 +1756,7 @@ function SlimBar({
   }
   return (
     <div data-keeps-selection className={SLIM_BAR}>
-      <History />
+      <History tools={history} />
       {rendered && rendered.page_count > 1 && (
         <PagesChip
           pages={rendered.page_count}

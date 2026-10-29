@@ -31,7 +31,9 @@ them). Notes the scripts don't say:
   `npm ci` in a `node:22` container before pushing.
 - `typecheck` runs `next typegen` first because `LayoutProps`/`PageProps` are
   generated route types that do not exist on a fresh clone; bare `tsc` fails.
-- **Tests are Node's own runner** (`node --test`, Node 24 strips the types),
+- **Tests are Node's own runner** (`node --test`, Node 24 strips the types;
+  on Node 22 add `--experimental-strip-types`, or every test fails with
+  "Unknown file extension .ts"),
   for pure modules only: `npm test`, or one file with
   `node --test src/lib/autofill-answers.test.ts`. A test sits beside its
   module as `<name>.test.ts` and imports it with the `.ts` extension
@@ -1617,6 +1619,23 @@ the KAN-296 cutover.
   swap is kept by item, not by position, so a PDF that lands before its
   own still shows it, and one the page already shows draws nothing.
   "Saved, N ms" times the render.
+- **Undo and Redo live in the tab's memory, never in browser storage**
+  (KAN-391, `(seeker)/resumes/[resumeId]/history.ts`, tested with
+  `node --test`). Each edit records a step: the edit and its reverse,
+  read from the editor's copy before it (a move's old positions, an old
+  `shown`, an old wording, a typed line's printed text, or a header
+  link's stored URL, since the page prints it without "https://"), and
+  the state and PDF on each side once its render lands. Undo or Redo
+  waits for the renders before it, then, with both sides kept, puts the
+  page back at once and only saves; otherwise it sends the edit as any
+  other. A refused edit's step is dropped, and a failed save's reload
+  clears them all. **`HISTORY_STEPS` (25) and `PDF_STEPS` (10, the newest
+  steps that keep their PDFs, about 110 KB each) are first guesses: tune
+  them in `history.ts` once students use it.** In storage a step would
+  outlive the database it describes (another tab's edit, a reload).
+  Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
+  own text undo runs. An open line is saved first, so Undo takes back
+  what was just typed.
 - **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
   text is kept per line (`drafts`, by box key) and drawn over the line
   until the PDF that prints it has painted: the selected line as its
