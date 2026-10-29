@@ -14,6 +14,8 @@ import type { ReactNode } from "react";
 
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
 
+import { INBOX_LIVE } from "./inbox/live";
+
 /**
  * The seeker shell's left panel, the rail (see RAIL in
  * @/components/app-sidebar): the hunt itself, the sections a job seeker
@@ -89,7 +91,9 @@ const GROUPS: SidebarNavGroup[] = [
       },
       // KAN-413: replies to applications, after the tools that send them.
       // No count badge: one was built and taken out as out of place.
-      { href: "/inbox", label: "Inbox", Icon: TrayIcon },
+      // Archived with the Inbox until WorkIt has a source of emails
+      // (KAN-428, ./inbox/live.ts).
+      ...(INBOX_LIVE ? [{ href: "/inbox", label: "Inbox", Icon: TrayIcon }] : []),
       // Back since KAN-413: interviews, assessments and offers are stored.
       { href: "/calendar", label: "Calendar", Icon: CalendarDotsIcon },
       { href: "/profile", label: "My Profile", short: "Profile", Icon: UserCircleIcon },

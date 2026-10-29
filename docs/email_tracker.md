@@ -7,6 +7,20 @@ which feed the timeline, the Calendar and Home's Interviewing
 number. Nothing that reads Gmail is built. Every other decision below is a
 proposal; the open questions are at the end.
 
+**Archived (KAN-428, 2026-10-28).** The team set reading Gmail aside as a
+future feature: Google's verification and the yearly CASA assessment
+(below, "Google's rules") cost money the team does not have, and students
+can track applications by hand with the stage menu and Add Event. Without
+a source of emails every student saw an empty Inbox promising a Gmail
+connection, so the Inbox, its sidebar row, the Emails tab, the Tracker's
+"emails need a look" line and Gmail's row in Settings are hidden behind
+one switch, `INBOX_LIVE` in `frontend/src/app/(seeker)/inbox/live.ts`, and
+`/inbox` goes to the Applications Tracker. The screens, `read_at` and the
+API's email routes stay built; set the switch to true to bring them back.
+A cheaper source to weigh first: a forwarding address on `workitjobs.ai`
+(Cloudflare Email Routing to a Worker, free), which needs no Gmail access
+and no verification.
+
 ## Goal
 
 A student connects Gmail once. From then on, WorkIt finds the emails about

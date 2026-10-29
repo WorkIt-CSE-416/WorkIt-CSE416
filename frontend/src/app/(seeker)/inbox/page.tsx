@@ -1,5 +1,6 @@
 import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { MailIcon } from "@/components/icons";
@@ -9,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { getEmailsOnce, getTracker } from "../applications/data";
 import { SEEKER_GUTTER } from "../gutter";
 import { Inbox } from "./inbox";
+import { INBOX_LIVE } from "./live";
 
 export const metadata: Metadata = {
   title: "Inbox",
@@ -32,6 +34,9 @@ export const metadata: Metadata = {
  * so the whole page scrolled and took the filters with it.
  */
 export default async function InboxPage() {
+  // Archived (KAN-428, ./live.ts): an old link or bookmark lands on the
+  // Applications Tracker, where students track their applications by hand.
+  if (!INBOX_LIVE) redirect("/applications");
   const [{ emails, error: emailsError }, { applications, error: trackerError }] = await Promise.all(
     [getEmailsOnce(), getTracker()],
   );

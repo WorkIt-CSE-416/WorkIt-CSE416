@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
+import { INBOX_LIVE } from "../inbox/live";
 import { getTracker, getUpdatesOnce } from "./data";
 import { ClearFiltersLink, FilterBar } from "./filter-bar";
 import { ApplicationsGrid } from "./grid";
@@ -54,7 +55,11 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   // The side panel's old links (Home's Next Up, a bookmark) open
   // the application's own page instead (KAN-256).
   if (query.app) redirect(applicationHref(query.app));
-  const [{ applications, error }, updates] = await Promise.all([getTracker(), getUpdatesOnce()]);
+  const [{ applications, error }, updates] = await Promise.all([
+    getTracker(),
+    // No emails are read while the Inbox is archived (KAN-428).
+    INBOX_LIVE ? getUpdatesOnce() : null,
+  ]);
   const waiting = updates?.length ?? 0;
   const all = applications ?? [];
 
@@ -80,7 +85,8 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
 
       {/* EMAILS THAT NEED A LOOK (KAN-413): one line, only while some
           wait. The emails themselves live on their own page, /inbox: a
-          table of them stacked on this list read as a second copy of it. */}
+          table of them stacked on this list read as a second copy of it.
+          Off while the Inbox is archived (KAN-428, ../inbox/live.ts). */}
       {waiting > 0 && (
         <Link
           href="/inbox"

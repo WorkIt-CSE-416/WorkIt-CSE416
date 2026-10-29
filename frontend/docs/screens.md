@@ -1020,6 +1020,12 @@ an application sent 47 hours ago read as waiting 1 day.
 
 ## Inbox (`/inbox`)
 
+**Archived (KAN-428).** Hidden behind `INBOX_LIVE` (`inbox/live.ts`) until
+WorkIt has a source of emails: no sidebar row, no Emails tab, no Tracker
+notice and no Gmail row in Settings, and `/inbox` redirects to
+`/applications`. Everything below is the Inbox as it stands, for the day
+the switch goes back on.
+
 KAN-413, `../../docs/email_tracker.md`. Every email about the student's
 applications, a sidebar row after Applications Tracker (Tray glyph, no
 count badge), laid out as a mailbox: one filter dropdown over a list

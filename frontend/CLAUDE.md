@@ -1284,7 +1284,12 @@ the KAN-296 cutover.
   still applied**: every "did they apply?" check is `hasApplied` in
   `(seeker)/applied.ts`, never `stage === "applied"` (the job cards' Applied
   button, Save's toast, Auto Apply's button, Top Matches' rows). The
-  Home's Interviewing number counts the interviewing stage. **Emails
+  Home's Interviewing number counts the interviewing stage. **The Inbox
+  is archived** (KAN-428): `INBOX_LIVE` in `(seeker)/inbox/live.ts` hides
+  its sidebar row, `/inbox` (which goes to the Applications Tracker), the
+  Emails tab, the Tracker's notice and Gmail's Settings row, and those
+  pages read no emails, until WorkIt has a source of emails
+  (`docs/email_tracker.md`, "Archived"). Turned on, **emails
   live on their own page, the Inbox** (`(seeker)/inbox/`, KAN-413): a
   list beside a reading pane over `GET .../emails` (`getEmailsOnce`), with
   each application's Emails tab drawing the same rows. The page is the
