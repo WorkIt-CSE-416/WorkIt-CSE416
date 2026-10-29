@@ -110,6 +110,9 @@ parts are `model` (Board, Page, Job, Provider, the errors), `fetch` (requests,
    - its board page has a square logo: `logo_page` and `logo_pattern`, and the
      image host in `frontend/next.config.ts` (see Logos). If it names only the
      company's website: `logo_page` and a rule in `logos.extract` (Workday).
+   - it names a board's company on a page robots.txt allows: `name_url` and
+     `read_name`, and its board page in `discovery_channels.POOL_PAGES`, so
+     open-jobs' pool boards on it can be proposed (ADR 0007).
 3. Its name and domain in `hiringSystems` in
    `frontend/src/app/(landing)/data.ts`: the landing page lists the hiring
    systems WorkIt reads, and that list must match `PROVIDERS`.

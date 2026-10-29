@@ -53,6 +53,13 @@ def job_url(ats: str, token: str, job_id: str) -> str:
     return template.format(token=token, job_id=job_id, **_parts(ats, token))
 
 
+def name_url(ats: str, token: str) -> str:
+    """The page naming a board's company; only for a provider with a `name_url`."""
+    template = PROVIDERS[ats].name_url
+    assert template is not None, f"{ats} names no company"
+    return template.format(token=token, **_parts(ats, token))
+
+
 def describe(job: Job) -> Job:
     """`job` with its own page read; only for a provider with a `describe`."""
     reader = PROVIDERS[job.ats].describe

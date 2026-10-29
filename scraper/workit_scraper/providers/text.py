@@ -4,6 +4,7 @@ the work model and places its fields name."""
 from __future__ import annotations
 
 import html
+import json
 import re
 from collections.abc import Iterable
 from html.parser import HTMLParser
@@ -176,3 +177,27 @@ def _places(places: Iterable[str | None]) -> str | None:
     """Several places as one location, as Greenhouse boards write them
     ("Stamford, CT; New York, NY"); the backend's resolver splits on ";"."""
     return "; ".join(dict.fromkeys(place for place in places if place)) or None
+
+
+def json_name(text: str) -> str | None:
+    """The `name` an account's JSON gives its company: Greenhouse's board, Workable's
+    account (`Provider.read_name`)."""
+    payload = json.loads(text)
+    name = payload.get("name") if isinstance(payload, dict) else None
+    if not isinstance(name, str):
+        return None
+    return " ".join(name.split()) or None
+
+
+_TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
+
+
+def title_name(text: str, suffix: str = "") -> str | None:
+    """The company a board page's <title> names: Lever's is the name alone, Ashby's
+    the name and `suffix` (" Jobs"). A title without the suffix names no one -- an
+    unknown Ashby board's is "Jobs" alone."""
+    match = _TITLE.search(text)
+    title = " ".join(html.unescape(match[1]).split()) if match else ""
+    if suffix:
+        title = title.removesuffix(suffix) if title.endswith(suffix) else ""
+    return title.strip() or None
