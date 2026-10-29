@@ -427,3 +427,51 @@ async def test_another_students_bullet_cannot_be_typed(student, database):
     resume_id = await _generate(client, me)
     res = await _type(client, me, resume_id, str(uuid.uuid4()), "bullet", "Anything")
     assert res.status_code == 404
+
+
+async def test_a_typed_title_shows_in_the_same_answers_pdf_and_saves_to_the_bank(student):
+    # The PDF compiles from the change made in memory, beside the write
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    intern = _entry(await _bank(client, me), "Software Intern")["id"]
+
+    res = await _type(client, me, resume_id, intern, "title", "Software Engineering Intern")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert _box(body["render"], "title", intern)["text"] == "Software Engineering Intern"
+    assert body["entry"]["title"] == "Software Engineering Intern"
+    assert _entry(await _bank(client, me), "Software Engineering Intern")["id"] == intern
+
+
+async def test_a_typed_name_splits_into_its_parts_and_prints_at_once(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+
+    res = await _type(client, me, resume_id, "header", "full_name", "Samantha J Seeker")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert _box(body["render"], "full_name")["text"] == "Samantha J Seeker"
+    profile = body["profile"]
+    assert (profile["first_name"], profile["middle_name"], profile["last_name"]) == ("Samantha", "J", "Seeker")
+
+
+async def test_a_failed_compile_answers_503_and_still_keeps_the_typed_line(student, monkeypatch):
+    from app.routers import built_resumes
+    from app.services.resume_render import TectonicUnavailable
+
+    def broken(*args):
+        raise TectonicUnavailable("no tectonic")
+
+    monkeypatch.setattr(built_resumes, "render", broken)
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    intern = _entry(await _bank(client, me), "Software Intern")["id"]
+
+    res = await _type(client, me, resume_id, intern, "location", "Boston, MA")
+    assert res.status_code == 503
+    assert _entry(await _bank(client, me), "Software Intern")["location"] == "Boston, MA"

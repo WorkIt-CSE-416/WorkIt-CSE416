@@ -86,6 +86,7 @@ from app.deps import owned_applicant
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
+from app.schemas.bank import EntryResponse
 from app.schemas.built_resume import (
     BuiltResumeCreate,
     BuiltResumeRename,
@@ -115,6 +116,7 @@ from app.services.resume_render import (
     render,
 )
 from app.services.resume_render.word import render_docx
+from app.services.resume_view import build_view
 from app.services.usage import Feature, count_use, uses_left
 
 logger = logging.getLogger(__name__)
@@ -321,55 +323,88 @@ async def save_line(
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
 ) -> LineSaveResponse:
+    # The PDF compiles while the change is written: the bank, choices and
+    # header are read once, the change is made to them in memory, the
+    # compile starts from that view, and the write, the commit and the
+    # answer's own reads run beside Tectonic. A save then a render read the
+    # bank three times and compiled only after the commit (KAN-391).
     resume = await _owned(session, applicant_id, resume_id)
-    header = body.item_id == HEADER
     try:
         line = resume_lines.parse(body.kind, body.text)
-        if (line.target == "header") != header:
+        if (line.target == "header") != (body.item_id == HEADER):
             raise resume_lines.LineError("This line is not typed here.")
-        if line.target == "header":
-            profile = await _save_header(session, applicant_id, line.changes)
-        elif line.target == "bullet":
-            await service.update_choices(
-                session, applicant_id, resume_id, bullets=[{"bullet_id": body.item_id, **line.changes}]
-            )
+        held = await bank.load_bank(session, applicant_id, local_to=[resume_id])
+        choices = await service.load_choices(session, resume_id)
+        identity = await _identity(session, applicant_id)
+        if line.target == "bullet":
+            choices = service.with_wording(held, choices, body.item_id, line.changes["text"])
+        elif line.target == "entry":
+            row = next((e.row for e in held.entries if e.row.id == body.item_id), None)
+            if row is None:
+                raise NotFound
+            bank.edit_entry(row, line.changes)
         else:
-            entry = await bank.update_entry(session, applicant_id, body.item_id, line.changes)
+            profile = _edit_header(await session.get(Applicant_Profile, applicant_id), line.changes)
+            identity = await _identity(session, applicant_id)
     except resume_lines.LineError as exc:
         raise HTTPException(422, str(exc))
     except ValidationError as exc:
         raise RequestValidationError(exc.errors(include_url=False, include_context=False))
     except NotFound:
         raise HTTPException(404, "Resume or bank item not found")
+
+    compile_ = asyncio.create_task(_render(build_view(held, choices), identity, resume.template))
+    try:
+        choices_after, entry = await _write_line(session, applicant_id, resume_id, body, line)
+    except BaseException:
+        # The compile's thread finishes on its own; nothing waits for it
+        compile_.cancel()
+        raise
+    return LineSaveResponse(
+        render=_render_response(await compile_, resume.name),
+        choices=choices_after,
+        entry=entry,
+        profile=ApplicantProfileResponse.model_validate(profile) if line.target == "header" else None,
+    )
+
+
+async def _write_line(
+    session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID, body: LineSave, line: resume_lines.Line
+) -> tuple[ChoicesResponse | None, EntryResponse | None]:
+    """The typed line's write and commit, then what the answer reports
+    besides the render: the choices after a bullet, the entry after an
+    entry field."""
+    entry = None
+    try:
+        if line.target == "bullet":
+            await service.update_choices(
+                session, applicant_id, resume_id, bullets=[{"bullet_id": body.item_id, **line.changes}]
+            )
+        elif line.target == "entry":
+            entry = await bank.update_entry(session, applicant_id, body.item_id, line.changes)
+        else:
+            await session.flush()
+    except NotFound:
+        raise HTTPException(404, "Resume or bank item not found")
     await _commit(session, "Failed to save the resume")
-
-    _, view = await service.load_view(session, applicant_id, resume_id)
-    rendered = await _render(view, await _identity(session, applicant_id), resume.template)
-    response = LineSaveResponse(render=_render_response(rendered, resume.name))
-    if line.target == "header":
-        response.profile = ApplicantProfileResponse.model_validate(profile)
-    elif line.target == "bullet":
-        response.choices = await service.choices_response(session, resume_id)
-    else:
-        response.entry = bank.entry_response(entry)
-    return response
+    if line.target == "bullet":
+        return await service.choices_response(session, resume_id), None
+    return None, bank.entry_response(entry) if entry is not None else None
 
 
-async def _save_header(session: AsyncSession, applicant_id: uuid.UUID, changes: dict) -> Applicant_Profile:
-    """A header field to the profile, checked as My Profile's PATCH checks
-    it; a name typed whole is split into its parts there too
-    (routers/profiles.py)."""
-    ApplicantProfileUpdate.model_validate(changes)
-    profile = await session.get(Applicant_Profile, applicant_id)
+def _edit_header(profile: Applicant_Profile | None, changes: dict) -> Applicant_Profile:
+    """A header field on the profile, in memory, checked as My Profile's
+    PATCH checks it; a name typed whole is split into its parts there too
+    (routers/profiles.py). Saved by the next flush."""
     if profile is None:
         raise NotFound
+    ApplicantProfileUpdate.model_validate(changes)
     for field, value in changes.items():
         if field == "full_name":
             for column, part in name_columns(value).items():
                 setattr(profile, column, part)
         else:
             setattr(profile, field, value)
-    await session.flush()
     return profile
 
 

@@ -249,18 +249,26 @@ async def update_entry(
     entry_id: uuid.UUID,
     changes: Mapping[str, object],
 ) -> Entry:
-    """Apply a partial edit. The merged entry is checked whole through
-    EntryFields, so it raises pydantic's ValidationError when the result
-    would not be a valid entry; the section cannot change."""
+    """Apply a partial edit (`edit_entry`) and save it."""
     row = await _entry_row(session, applicant_id, entry_id)
-    current = {name: getattr(row, name) for name in EntryFields.model_fields}
-    merged = EntryFields.model_validate({**current, **changes, "section": row.section})
-    for name, value in merged.model_dump().items():
-        setattr(row, name, value)
+    edit_entry(row, changes)
     await clear_embedding(session, applicant_id)
     await session.flush()
     await session.refresh(row)
     return await get_entry(session, applicant_id, entry_id)
+
+
+def edit_entry(row: Bank_Entry, changes: Mapping[str, object]) -> None:
+    """A partial edit on a loaded row, in memory: saved by the session's
+    next flush. The merged entry is checked whole through EntryFields, so it
+    raises pydantic's ValidationError when the result would not be a valid
+    entry; the section cannot change. The editor's line route edits the row
+    its bank already holds, so the PDF compiles before the write
+    (routers/built_resumes.py, `save_line`)."""
+    current = {name: getattr(row, name) for name in EntryFields.model_fields}
+    merged = EntryFields.model_validate({**current, **changes, "section": row.section})
+    for name, value in merged.model_dump().items():
+        setattr(row, name, value)
 
 
 async def delete_entry(session: AsyncSession, applicant_id: uuid.UUID, entry_id: uuid.UUID) -> None:

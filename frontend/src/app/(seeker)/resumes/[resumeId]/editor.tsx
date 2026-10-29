@@ -223,9 +223,23 @@ export function Editor({
   const [header, setHeader] = useState(initialHeader);
   const [choices, setChoices] = useState(initialChoices);
   const [selected, setSelected] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
-  // How many lines the open textarea shows, for the live page's shift
-  const [fieldLines, setFieldLines] = useState<number | null>(null);
+  // Typed text by box key (KAN-391): the selected line's, and each line
+  // left before the PDF that prints it has painted. The page draws it over
+  // the line until then, so leaving a line never shows its old text.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // How many lines each wrapping draft shows, for the live page's shift
+  const [draftLines, setDraftLines] = useState<Record<string, number>>({});
+  // The lines whose save is on its way: their drafts stay until it lands
+  const onTheirWay = useRef(new Set<string>());
+  // The selected line as of now, for a save that lands after it changed
+  const selectedNow = useRef<string | null>(null);
+  const drop = useCallback(
+    (key: string) =>
+      setDrafts((d) =>
+        key in d ? Object.fromEntries(Object.entries(d).filter(([k]) => k !== key)) : d,
+      ),
+    [],
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
@@ -304,7 +318,8 @@ export function Editor({
       if (changes.bullets?.some((b) => "variant_id" in b)) {
         if (timer.current) clearTimeout(timer.current);
         pending.current = null;
-        setDraft(null);
+        const picked = new Set(changes.bullets.map((b) => `${b.bullet_id}.bullet`));
+        setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([k]) => !picked.has(k))));
       }
       const current = begin();
       const { data, error } = await updateChoices(resumeId, changes);
@@ -333,9 +348,15 @@ export function Editor({
    *  reads the text and answers what it changed. */
   const saveText = useCallback(
     async (item_id: string, kind: string, text: string) => {
+      const key = `${item_id}.${kind}`;
+      onTheirWay.current.add(key);
       const current = begin();
       started.current = performance.now();
       const { data, error } = await saveLine(resumeId, { item_id, kind, text });
+      onTheirWay.current.delete(key);
+      // Refused: the page shows what is saved, unless the student is still
+      // on the line to fix it
+      if (!data && key !== selectedNow.current) drop(key);
       // The entry or profile the line changed is kept even when a newer
       // request owns the page: that request answers only its own change
       const entry = data?.entry;
@@ -360,7 +381,7 @@ export function Editor({
       }
       setRendered(data.render);
     },
-    [begin, resumeId, setReview],
+    [begin, drop, resumeId, setReview],
   );
 
   /** Adds a header field the profile lacks, which has no line to click. */
@@ -399,13 +420,15 @@ export function Editor({
 
   const select = useCallback(
     (key: string | null) => {
+      const left = selectedNow.current;
       flush();
-      setDraft(null);
-      setFieldLines(null);
+      // A line left unchanged has nothing on its way to wait for
+      if (left && left !== key && !onTheirWay.current.has(left)) drop(left);
       placed.current = null;
+      selectedNow.current = key;
       setSelected(key);
     },
-    [flush],
+    [drop, flush],
   );
 
   useEffect(() => {
@@ -434,7 +457,7 @@ export function Editor({
   });
 
   function type(key: string, text: string) {
-    setDraft({ key, text });
+    setDrafts((d) => ({ ...d, [key]: text }));
     pending.current = { key, text };
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => latestFlush.current(true), SAVE_AFTER_MS);
@@ -482,13 +505,86 @@ export function Editor({
   // what the PDF prints, the page under it moves by the lines it gained or
   // lost. When the next PDF lands with that text, the shift is 0 again;
   // where TeX wraps the same text otherwise, the page jumps then.
-  const changed = box && draft?.key === selected && draft.text.trim() !== box.text;
-  const shift =
-    changed && fieldLines && WRAPS.has(box.kind) ? (fieldLines - boxLines(box)) * WRAPPED_LINE : 0;
+  const overlaid = [
+    ...(line && typed(line) && selected ? [selected] : []),
+    ...Object.keys(drafts).filter((k) => k !== selected),
+  ];
+  // What the page under an overlaid line moves by, against the box of the
+  // PDF on screen: the lines its typed text gained or lost, 0 once that PDF
+  // prints the text
+  const shiftOf = (target: RenderBox) => {
+    const text = drafts[boxKey(target)];
+    const lines = draftLines[boxKey(target)];
+    if (text === undefined || !lines || !WRAPS.has(target.kind) || text.trim() === target.text) {
+      return 0;
+    }
+    return (lines - boxLines(target)) * WRAPPED_LINE;
+  };
 
   /** The text a typed line's field opens on: what the line prints. */
   function startText(line: Line, target: RenderBox) {
     return typed(line) ? target.text : null;
+  }
+
+  /** Keeps `draftLines` current for a wrapping line's field or text: it
+   *  grows with its text, so its height says how many lines it wraps to. */
+  function measure(key: string, kind: string, element: HTMLElement | null) {
+    if (!element || !WRAPS.has(kind)) return;
+    const observer = new ResizeObserver(() => {
+      const height = parseFloat(getComputedStyle(element).lineHeight);
+      const lines = Math.round(element.offsetHeight / height);
+      if (height > 0) setDraftLines((d) => (d[key] === lines ? d : { ...d, [key]: lines }));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }
+
+  /** Jake's type for a box's line, as the field and the read-only text set it. */
+  function lineLook(target: RenderBox) {
+    const of = lineOf(bank, target);
+    const look = typeOf(
+      target.kind,
+      of?.kind === "entry" || of?.kind === "bullet" ? of.entry.section : null,
+    );
+    return {
+      className: cn(
+        latinModern.className,
+        // A negative margin puts the side padding outside the text, so the
+        // text lands on the PDF's own glyphs
+        "bg-panel text-ink -mx-[0.4cqw] block px-[0.4cqw]",
+        look.bold && "font-bold",
+        look.italic && "italic",
+      ),
+      style: {
+        fontSize: pt(look.size),
+        lineHeight: pt(look.size * LINE_HEIGHT),
+        // Puts the text's baseline on the PDF's
+        marginTop: pt(boxAscent(target.kind) - FIELD_BASELINE * look.size),
+        ...(WRAPS.has(target.kind)
+          ? { width: `calc(${pt(RIGHT_EDGE - target.x0)} + 0.8cqw)` }
+          : { minWidth: pt(40) }),
+      },
+    };
+  }
+
+  /** What the page draws over an overlaid line: the selected line's field,
+   *  or a line's typed text while the PDF that prints it is on its way. */
+  function overlay(target: RenderBox) {
+    const key = boxKey(target);
+    if (key === selected) return field(target);
+    const text = drafts[key];
+    if (text === undefined) return null;
+    const look = lineLook(target);
+    return (
+      <div
+        ref={(element) => measure(key, target.kind, element)}
+        aria-hidden
+        className={cn(look.className, "break-words whitespace-pre-wrap")}
+        style={look.style}
+      >
+        {text}
+      </div>
+    );
   }
 
   /** Focuses a field once per selection, with the caret where the press
@@ -510,24 +606,13 @@ export function Editor({
     const start = line && startText(line, target);
     if (start == null || !line) return null;
     const key = boxKey(target);
-    const look = typeOf(
-      target.kind,
-      line.kind === "entry" || line.kind === "bullet" ? line.entry.section : null,
-    );
+    const look = lineLook(target);
     const common = {
       ref: (element: HTMLInputElement | HTMLTextAreaElement | null) => {
         focusAt(key, element);
-        if (!element || !WRAPS.has(target.kind)) return;
-        // The textarea grows with its text (field-sizing), so its height
-        // says how many lines the typed text wraps to
-        const observer = new ResizeObserver(() => {
-          const height = parseFloat(getComputedStyle(element).lineHeight);
-          if (height > 0) setFieldLines(Math.round(element.offsetHeight / height));
-        });
-        observer.observe(element);
-        return () => observer.disconnect();
+        return measure(key, target.kind, element);
       },
-      value: draft?.key === key ? draft.text : start,
+      value: drafts[key] ?? start,
       "aria-label": kindLabel(target.kind),
       onBlur: () => flush(),
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -539,35 +624,27 @@ export function Editor({
         select(null);
       },
       className: cn(
-        latinModern.className,
-        // A negative margin puts the side padding outside the text, so the
-        // text lands on the PDF's own glyphs. The ring alone outlines it: a
-        // shadow read as a soft second edge under the line. 1.5px: at 2px
-        // the user found it too thick over the page's fine type.
-        "bg-panel text-ink ring-brand -mx-[0.4cqw] block resize-none overflow-hidden rounded-[2px] px-[0.4cqw] ring-[1.5px] outline-none",
+        look.className,
+        // The ring alone outlines it: a shadow read as a soft second edge
+        // under the line. 1.5px: at 2px the user found it too thick over
+        // the page's fine type.
+        "ring-brand resize-none overflow-hidden rounded-[2px] ring-[1.5px] outline-none",
         "field-sizing-content",
-        look.bold && "font-bold",
-        look.italic && "italic",
       ),
+      style: look.style,
     };
-    const size = {
-      fontSize: pt(look.size),
-      lineHeight: pt(look.size * LINE_HEIGHT),
-      // Puts the field's baseline on the PDF's
-      marginTop: pt(boxAscent(target.kind) - FIELD_BASELINE * look.size),
-    };
-    return WRAPS.has(target.kind) ? (
-      <textarea
-        {...common}
-        rows={1}
-        style={{ ...size, width: `calc(${pt(RIGHT_EDGE - target.x0)} + 0.8cqw)` }}
-      />
-    ) : (
-      <input {...common} style={{ ...size, minWidth: pt(40) }} />
-    );
+    return WRAPS.has(target.kind) ? <textarea {...common} rows={1} /> : <input {...common} />;
   }
 
+  /** Called when every page of a new PDF has painted: a line whose save
+   *  has landed is now printed by the page itself, so its typed text goes. */
   const drawn = () => {
+    setDrafts((d) => {
+      const kept = Object.entries(d).filter(
+        ([k]) => k === selectedNow.current || onTheirWay.current.has(k),
+      );
+      return kept.length === Object.keys(d).length ? d : Object.fromEntries(kept);
+    });
     if (started.current == null) return;
     setElapsed(Math.round(performance.now() - started.current));
     started.current = null;
@@ -718,7 +795,7 @@ export function Editor({
           selected={selected}
           line={line}
           box={box}
-          text={start == null ? null : draft?.key === selected ? draft.text : start}
+          text={start == null ? null : (drafts[selected!] ?? start)}
           saving={saving}
           elapsed={elapsed}
           error={error}
@@ -821,8 +898,9 @@ export function Editor({
               boxes={pdf.boxes}
               selected={selected}
               onSelect={onLine}
-              field={field}
-              shift={shift}
+              overlay={overlay}
+              overlaid={overlaid}
+              shiftOf={shiftOf}
               onDrawn={drawn}
               placeholder={<PageSkeleton />}
               marks={marks}

@@ -356,8 +356,18 @@ Find files with a directory listing; these are the rules for where code goes.
   and `kind` with the text as typed. `services/resume_lines.py` (pure)
   decides what it changes: a bullet the resume's own wording (through
   `update_choices`), an entry field the bank (`bank.update_entry`), a
-  header field the profile, checked as My Profile's PATCH checks it. The
-  route commits, then renders, and answers the render with what changed.
+  header field the profile, checked as My Profile's PATCH checks it.
+  **The compile runs beside the write**: the route reads the bank, the
+  choices and the header once, makes the change to them in memory
+  (`bank.edit_entry`, `built_resumes.with_wording`, the profile row), starts
+  Tectonic on that view, then writes, commits and reads its answer's
+  choices while it compiles. A change the checks refuse (422, 404) is
+  refused before the compile starts. A write that fails cancels the wait
+  on the compile; a compile that fails after the commit answers 503 and
+  the line stays saved, as a save then a render did. Until then the route
+  read the bank three times and compiled only after the commit: measured
+  from a laptop, 9 reads of about 66 ms each and a 0.6 s connection sat
+  before every 0.4 s compile (2026-10-28).
   The rules for typed text (a GPA is a number, the label typed back is
   dropped, a link gets `https://`) live there and nowhere in the browser:
   until KAN-391 `model.ts` held them, and a GPA it could not read was

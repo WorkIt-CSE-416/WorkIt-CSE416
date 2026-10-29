@@ -433,6 +433,19 @@ async def load_view(
 _UNSET = object()
 
 
+def with_wording(bank: Bank, choices: Choices, bullet_id: uuid.UUID, wording: str) -> Choices:
+    """`choices` with a bullet showing typed wording, in memory, as
+    `update_choices` will save it: the original typed back shows the
+    original. The editor's line route builds the view from it, so the PDF
+    compiles while the write runs. NotFound for a bullet outside `bank`."""
+    original = next((b.text for e in bank.entries for b in e.bullets if b.id == bullet_id), None)
+    if original is None:
+        raise NotFound
+    shown = choices.bullets.get(bullet_id) or BulletChoice(position=len(choices.bullets))
+    text = None if wording == original.strip() else wording
+    return dataclasses.replace(choices, bullets={**choices.bullets, bullet_id: dataclasses.replace(shown, text=text)})
+
+
 async def _type_wording(
     session: AsyncSession, resume_id: uuid.UUID, bullet_id: uuid.UUID, original: str, wording: str
 ) -> uuid.UUID | None:

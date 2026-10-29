@@ -1470,15 +1470,22 @@ the KAN-296 cutover.
   700 ms pause leaves an emptied line waiting, since the student is likely
   retyping it and an empty title or bullet is refused; leaving the line
   sends it. "Saved, N ms" now times the save and the render together.
-- **The live page, step 1** (KAN-391, `../docs/live_page.md`): while a
-  wrapping line (a bullet, coursework, honors) is typed in, `PdfPages`
+- **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
+  text is kept per line (`drafts`, by box key) and drawn over the line
+  until the PDF that prints it has painted: the selected line as its
+  field, a line already left as read-only text in the same type. A draft
+  goes when every page of a new PDF has painted (`drawn`) and its save is
+  no longer on its way, or at once when its save is refused and the
+  student has left the line. Until then, leaving a line showed its old
+  text for the whole save and compile. For each drawn line `PdfPages`
   clears the line's glyphs and moves everything below it on its page,
-  click targets too, by the lines the textarea gained or lost
-  (`shift`, from a `ResizeObserver` on the field). The canvas is composed
-  from the last pdf.js drawing (`compose` in `pdf-pages.tsx`), so a shift
-  never draws the PDF again. The shift is 0 once the PDF prints the typed
-  text; where TeX wraps it otherwise, the page jumps then. Desktop only:
-  the phone types in a sheet.
+  click targets too, by the lines its text gained or lost (`shiftOf`,
+  measured by a `ResizeObserver`); several such moves add up down the
+  page. The canvas is composed from the last pdf.js drawing (`compose`),
+  so a move never draws the PDF again, and only onto the drawing of the
+  PDF whose boxes are on screen: `PdfPages` keeps the boxes that came
+  with the PDF it shows, so a new PDF's boxes never clear lines of the
+  old drawing. Desktop only: the phone types in a sheet.
 - **Tailor's review is the resume editor with props, not a fork**
   (`(seeker)/resumes/[resumeId]/editor.tsx`), and both pages draw one
   editor design (KAN-411): the title row (`heading`, `ResumeTitle`

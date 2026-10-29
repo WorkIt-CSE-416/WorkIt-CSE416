@@ -73,6 +73,15 @@ Built so far (option A, the typed line only):
   editor's canvas clears the line and moves the rest of its page by the
   lines the field gained or lost, click targets too. The page break and
   the page count still wait for the PDF.
+- **Leaving a line keeps its typed text on the page** until the PDF that
+  prints it has painted. The first build dropped it on leaving, and the
+  old line showed for the whole save and compile.
+- **The compile runs beside the write:** the line route reads once,
+  makes the change in memory and starts Tectonic before it writes.
+  Measured from a laptop against the shared database (2026-10-28): one
+  round trip about 66 ms, loading a resume's view 560 to 730 ms, a
+  compile 410 to 500 ms; a line save went from about 2.7 to 3.5 s to
+  about 2.3 s. Most of that wait was the database, not Tectonic.
 
 Still open for step 1:
 
@@ -82,6 +91,11 @@ Still open for step 1:
   once the PDF lands), to see whether the browser wraps close enough to
   TeX.
 - A line split across a page break moves only its first page.
+- Two lines saved within a second of each other: the second answer's PDF
+  can be built before the first line's write commits, and then shows
+  the first line's old text until the next save.
+- The time on the deployed API, where a round trip is 8 to 30 ms and
+  connections stay open: not measured yet.
 
 ## Step 2, under consideration: edit in place on a page Typst draws
 
