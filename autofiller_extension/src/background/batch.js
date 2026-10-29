@@ -48,6 +48,13 @@
 // student submitted are kept in the batch itself (`practice`), and a tab
 // that reaches the job's /thanks page is submitted (background.js).
 // Starting a real batch ends a practice one.
+//
+// PICKED JOBS GO FIRST (Up Next's checkboxes). `run/open` may name the jobs
+// the student picked: they open before the rest of the queue (`picked`,
+// asked of the API with ?only=), and a batch started from picks opens only
+// those (`pickedOnly`). Start Auto Apply, which names none, opens the whole
+// queue again. The ids only filter the API's queue: the links still come
+// from the API, never the message.
 
 import { tabResume } from "./resume-tab.js";
 import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume } from "./api.js";
@@ -76,14 +83,16 @@ const FORM_TIMEOUT_MS = 10_000;
  * Start Auto Apply and a job card's Auto Apply (`run/open`): starts the
  * batch in the window of the WorkIt tab that asked, or tops up the one
  * running, and answers once the tabs have opened, not filled. The job
- * links always come from the API, never the message.
+ * links always come from the API, never the message. `picked`: the jobs
+ * the student picked in Up Next, which open first (see PICKED JOBS GO FIRST).
  * @param {chrome.runtime.MessageSender} sender
+ * @param {string[]} [picked]
  * @returns {Promise<
  *   | { opened: true, jobId: string, jobIds: string[], url: string, fill: "started" | "kept" }
  *   | { opened: false, reason: "queue_empty" | "signed_out" }
  * >}
  */
-export async function startBatch(sender) {
+export async function startBatch(sender, picked = []) {
   // No profile warm-up here: asked before the tabs open, its seven parts took Chrome's six connections to a
   // local (HTTP/1.1) API and held applications/next one round trip. writeEarly asks for it as the tabs open.
   let account;
@@ -99,6 +108,13 @@ export async function startBatch(sender) {
     if (batch && !batch.practice) await resume(batch, windowId);
     // A batch with no tab left has ended, and a practice one ends here: the next one starts afresh.
     if (!batch || batch.practice || !Object.keys(batch.tabs).length) batch = { windowId, tabs: {}, opened: [], groups: {} };
+    if (picked.length) {
+      if (!Object.keys(batch.tabs).length) batch.pickedOnly = true;
+      batch.picked = [...new Set([...(batch.picked ?? []), ...picked])];
+    } else {
+      delete batch.picked;
+      delete batch.pickedOnly;
+    }
     const before = Object.keys(batch.tabs).length;
     await topUp(batch, account.id);
     const open = Object.values(batch.tabs);
@@ -172,6 +188,24 @@ async function resume(batch, windowId) {
 }
 
 /**
+ * The next application a batch opens: a job the student picked first, then
+ * the queue's next, unless the batch opens only picks. A pick the API no
+ * longer hands out (closed, or not queued) ends the picks.
+ * @param {Batch} batch
+ * @param {string} applicantId
+ * @param {string[]} skip
+ */
+async function nextToOpen(batch, applicantId, skip) {
+  const picked = (batch.picked ?? []).filter((id) => !skip.includes(id));
+  if (picked.length) {
+    const application = await nextApplication(applicantId, skip, picked);
+    if (application) return application;
+    batch.picked = [];
+  }
+  return batch.pickedOnly ? null : nextApplication(applicantId, skip);
+}
+
+/**
  * Opens the next queued applications until WINDOW tabs are filling or the
  * queue is empty. Each tab opens hidden beside the others, kept from being
  * discarded, and its fill starts once it loads (not awaited here). Each
@@ -202,7 +236,7 @@ async function topUp(batch, applicantId) {
       }
       const application = batch.practice
         ? nextPractice(batch)
-        : await nextApplication(applicantId, [...batch.opened, ...batch.held.map((h) => h.jobId)]);
+        : await nextToOpen(batch, applicantId, [...batch.opened, ...batch.held.map((h) => h.jobId)]);
       if (!application) break;
       const jobId = application.job.id;
       const jobType = application.job.job_type ?? null;
@@ -590,6 +624,24 @@ export async function showBatchTab(message) {
   const tab = await chrome.tabs.update(Number(id), { active: true });
   await chrome.windows.update(tab.windowId, { focused: true });
   return { shown: true };
+}
+
+/**
+ * Up Next's Remove on a row open in a tab (`run/close`): closes the batch's tab that shows
+ * `jobId`. The close is Chrome's own, so forgetTab takes the tab out of the
+ * batch and a filling one frees its place for the next, as when the
+ * student closes it. The application keeps its stage: a queued one waits
+ * again, a needs_you one shows Needs You. `jobId` picks among the batch's own
+ * tabs only.
+ * @param {{ jobId?: string }} message
+ * @returns {Promise<{ closed: boolean }>}
+ */
+export async function closeBatchTab(message) {
+  const batch = await liveBatch();
+  const [id] = Object.entries(batch?.tabs ?? {}).find(([, t]) => t.jobId === message?.jobId) ?? [];
+  if (id === undefined) return { closed: false };
+  await chrome.tabs.remove(Number(id));
+  return { closed: true };
 }
 
 /**

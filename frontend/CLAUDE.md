@@ -1338,14 +1338,33 @@ the KAN-296 cutover.
   That dialog is the one place several jobs are queued at once. Up Next's
   resume picker stores a job's resume as the sent resume its application
   names; the extension does not read it yet (`docs/screens.md`, Auto
-  Apply). **Up Next orders its rows by one rule** (KAN-424): `needsYou` in
-  `auto-apply/activity-list.tsx` (a closed posting, a fill that couldn't
-  finish, no resume) puts those rows first in its one table, and the
-  header's count line reads the same rule, so change it there. A row's
-  rarer actions go in its ⋯ menu (`auto-apply/row-menu.tsx`), worded,
-  never as bare icon buttons beside each other, and the page's setup
-  steps go in the setup banner's Configure dialog, which hides once they
-  are done, never as header buttons that stay. A table row that opens
+  Apply). **Up Next groups its rows by whether WorkIt has started each job**
+  (`auto-apply/queue-table.tsx`, `groupOf`): In Progress (open in a tab,
+  with the extension's live tab state, `useBrowserTabs`, or closed)
+  and Queued; never a group per tab state, or a job jumps groups as its
+  tab opens and closes. The header's count line (`QueueSummary`) uses the
+  same rule, so change them together. **A row's
+  status is one item, never a second line or an action beside it**: the
+  most urgent of Posting Closed, its written questions, its tab's state
+  or Needs You, and a click on it goes where the job is finished (its
+  tab, opened again if closed). A missing resume shows in the Resume
+  cell, never as a status. Layers of text there (a state, an action link,
+  a questions line) read as clutter. Never a column of its own for the action,
+  and its rarer actions go in its ⋯ menu (`auto-apply/row-menu.tsx`),
+  worded, the same three on every row (Change Resume, I Already Applied,
+  Remove From Queue), never as bare icon buttons beside each other.
+  Remove works on every row (`remove` in `up-next.tsx`: closes its tab,
+  dequeues a queued job, skips a started one whose tab is closed). **Several rows at once
+  go through Up Next's select boxes**: while any row is picked, the
+  heading's right end shows the count, Remove and Auto Apply in place of
+  Add Jobs, and Select All unpicks them, as the Inbox's does; keep the
+  bar to those two actions. Auto Apply sends the
+  picked ids with no tab open with `run/open`, so the extension
+  opens them first and nothing else in a new batch. A select box's click
+  stops in its cell, or the row opens the job posting. The setup banner shows only what Auto Apply can't run
+  without (the Chrome extension) and hides once it is there; an optional
+  step (a default resume, the Claude MCP) shows on the rows it helps,
+  never as a banner step or a header button that stays. A table row that opens
   nothing carries no `group/row`, or its frozen cell tints alone on hover.
   **Written Answers (`/auto-apply/answers`, KAN-385) saves through the
   connector's own save** (`PUT .../written-answers`, which runs WorkIt's

@@ -457,7 +457,10 @@ page that never loaded or took no fill) is **failed**: in Needs you too,
 but its own state. The student reviews
 each tab and presses the employer's own Submit; nothing here submits.
 `run/status` answers which job postings the batch's tabs show (`jobIds`)
-and each tab's state (`jobs`), and `run/show` switches to one (`jobId`).
+and each tab's state (`jobs`), which Up Next reads as each row's live
+status; `run/show` switches to one (`jobId`), and `run/close` closes one
+(Up Next's Remove on a row open in a tab, before it dequeues or skips the job; the application keeps
+its stage, so a queued one waits again and a needs_you one shows Needs You).
 
 `batch.js` is the batch itself (opening, topping up, groups, states,
 resume after a restart, the practice batch); background.js imports each
@@ -503,9 +506,14 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   passes on its own").
 
 - **The URLs always come from the API, never the message.** `run/open`
-  carries no body: a page on an allowed origin that could hand the worker
-  a URL could make it open any site. `run/show`'s `jobId` only picks among
-  the batch's own tabs.
+  carries no URL: a page on an allowed origin that could hand the worker
+  a URL could make it open any site. Its one field, `jobIds`, is the jobs
+  the student picked in Up Next (UUIDs only, at most 100; anything else is
+  dropped): it only filters the API's queue (`?only=`). Picked jobs open
+  before the rest, and a batch started from picks opens nothing else
+  (`picked`, `pickedOnly`); a `run/open` with no `jobIds` (Start Auto
+  Apply, the popup) opens the whole queue again. `run/show`'s `jobId` only
+  picks among the batch's own tabs.
 - **Never a job board** (KAN-376; GLOSSARY.md, "Job board"). A tab opens
   `job.form_url`, the employer's form the API names (a LinkedIn or Indeed
   posting is queued only through the form its text names, and refused
@@ -515,7 +523,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   passes over it and leaves its stage alone.
 - **The API keeps the queue, its order and each application's stage.**
   The next tab's job is `GET .../applications/next?skip=...`, skipping every
-  job this batch opened; a tab's state is `PUT .../applications/{job}/fill`
+  job this batch opened (and `&only=...` while picked jobs wait); a tab's state is `PUT .../applications/{job}/fill`
   (`needs_you`, or `ready`, which moves the stage back to `queued`: the
   application waits for the student's submit). Tab states map onto the
   stage column: queued, filling and ready are `queued`; needs_you is

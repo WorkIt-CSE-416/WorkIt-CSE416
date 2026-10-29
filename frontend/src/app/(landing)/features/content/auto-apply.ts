@@ -25,8 +25,8 @@ const content: FeatureContent = {
   sections: [
     {
       eyebrow: "Queue",
-      title: "Start with your best matches",
-      body: "Start Auto Apply queues ten of your best-matched jobs that you have not applied to. Or add one job from its own Auto Apply button.",
+      title: "Pick the jobs to fill",
+      body: "Queue a job from its own Auto Apply button, or add several from your saved jobs. Then pick the ones to fill and press Auto Apply.",
     },
     {
       eyebrow: "Fill",
@@ -53,7 +53,7 @@ const content: FeatureContent = {
     title: "From your matches to filled applications",
     steps: [
       { title: "Add the extension", body: "Add the WorkIt extension to Chrome." },
-      { title: "Start Auto Apply", body: "WorkIt queues ten of your best matches." },
+      { title: "Queue your jobs", body: "Add jobs to Auto Apply, then pick the ones to fill." },
       { title: "Check each one", body: "The extension fills one application at a time." },
       { title: "Click Submit", body: "You send every application yourself." },
     ],

@@ -61,7 +61,10 @@ export default function McpDocsPage() {
 
         <h2>Use It</h2>
         <ol>
-          <li>Start Auto Apply in WorkIt. The extension fills your applications in tabs.</li>
+          <li>
+            In WorkIt, pick jobs in Up Next and press Auto Apply. The extension fills your
+            applications in tabs.
+          </li>
           <li>
             In Claude, run WorkIt&apos;s prompt <strong>Write my WorkIt answers</strong>. Claude writes and saves the answers for up to 5 applications, then asks
             you to start a new chat for the next ones.

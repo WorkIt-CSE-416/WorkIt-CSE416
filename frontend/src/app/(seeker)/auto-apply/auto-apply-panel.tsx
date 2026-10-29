@@ -1,165 +1,38 @@
-"use client";
-
-import { PauseIcon, PlayIcon } from "@phosphor-icons/react/ssr";
-import { LightningRoundedIcon } from "@/components/custom-icons";
-import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition, type ReactNode } from "react";
-
-import { Button } from "@/components/ui/button";
-import { openNextApplication } from "@/lib/autofill-extension";
-import { cn } from "@/lib/cn";
-
-import { startBatch } from "./actions";
-import { openedNote } from "./opened-note";
-
-/** Whether auto apply is on: never started, running, or paused after a run. */
-export type RunState = "idle" | "running" | "paused";
-
-/** The run button by state. The brand fill marks the action that starts
- *  work, so Pause steps back to the bordered neutral and Resume is the brand
- *  fill again. */
-const RUN_BUTTON: Record<
-  RunState,
-  { label: string; variant: "default" | "secondary"; Icon: typeof LightningRoundedIcon }
-> = {
-  idle: { label: "Start Auto Apply", variant: "default", Icon: LightningRoundedIcon },
-  running: { label: "Pause Auto Apply", variant: "secondary", Icon: PauseIcon },
-  paused: { label: "Resume Auto Apply", variant: "default", Icon: PlayIcon },
-};
+import type { ReactNode } from "react";
 
 /**
- * The Auto Apply page's heading with its one action, the run button, and
- * under the title the queue in a line ("2 ready to apply · 1 needs you",
- * `summary`, worked out on the server). `children` is the page's sections,
- * the setup strip and Up Next, drawn on the server (./page.tsx) and passed
- * through, since this half is a client component.
+ * The Auto Apply page's heading: the title and, under it, the queue in a
+ * line ("3 in progress · 2 queued", `summary`, counted in the browser by
+ * ./up-next.tsx's QueueSummary). `children` is the page's sections, the setup strip and Up Next
+ * (./page.tsx).
  *
- * ONE ACTION (KAN-424). Manage Resumes and Add to Claude sat here beside
- * the run button until KAN-424, three bordered buttons of one weight for a
- * page with one action. Each queued row now shows and changes its own
- * resume, and the setup strip (./setup-strip.tsx) offers a default resume
- * and Add to Claude only while one is missing, so neither stays on the page
- * once done. The header says where the queue stands instead.
- *
- * THE RUN BUTTON SITS IN THE PAGE'S HEADER (KAN-285), at the top right. It
- * is sm (36px), a header action's size (docs/design.md), and as wide as its
- * widest label, so Start becoming Pause shifts nothing. Its label is the
- * run's state: Pause while it runs, Resume while paused. It sat beside the
- * Resume List until KAN-285, stretched by the list's grid to the list's
- * whole height; lg in the header then still read larger than the app's
- * other primary buttons, and a Not Started / Live / Paused word beside it
- * only repeated the label, so both went (asked for 2026-10-20). On a
- * phone it drops under the title at full width. It is off until there is a
- * resume (`hasResume`, read on the server), and while a batch is queueing. The note on what happened sits under the header.
- *
- * START QUEUES A BATCH, THEN OPENS THE FIRST APPLICATION. From idle, the
- * button asks the API for the seeker's best matches (./actions, startBatch:
- * 10, leaving out every job they already have an application for) and
- * refreshes the route so the list shows them. Then it asks the extension's
- * runner to open the oldest queued application's apply_url in a background
- * tab beside this one (openNextApplication), and says what happened
- * (./opened-note.ts); Live Activity marks it Working in Browser. The click
- * waits for the queueing only: the tab opens after it settles, as on the
- * job card (./auto-apply-button.tsx), so the button never waits on a page
- * load. Nothing fills the form yet, and Pause and Resume only move this state
- * (`auto-apply/architecture.md`, "The run"). The state is the page's own,
- * so a return visit starts idle, and Start queues another batch.
+ * NO BUTTON IN THE HEADER. Start Auto Apply sat at its top right until it
+ * was dropped (asked for 2026-10-29): the app's page headers hold a view
+ * switcher there, not a primary action. It queued the seeker's 10 best
+ * matches (POST .../auto-apply/batches) and then opened the queue; its
+ * Pause and Resume only moved a state of its own. Jobs now join the queue
+ * from their own Auto Apply button or Up Next's Add Jobs, and open from Up
+ * Next, where the student picks them and presses Auto Apply (./up-next.tsx).
+ * Before it, Manage Resumes and Add to Claude sat here too (KAN-424): each
+ * queued row shows and changes its own resume, and the setup strip
+ * (./setup-strip.tsx) offers what a batch still needs.
  */
 export function AutoApplyPanel({
-  hasResume,
   summary,
   children,
 }: {
-  /** The seeker has at least one resume: Start is off without one. */
-  hasResume: boolean;
   /** The queue in a line, or null with nothing queued: the page's own line shows then. */
-  summary: string | null;
+  summary: ReactNode;
   children: ReactNode;
 }) {
-  const router = useRouter();
-  const [run, setRun] = useState<RunState>("idle");
-  const [note, setNote] = useState<{ text: string; error: boolean } | null>(null);
-  const [pending, start] = useTransition();
-  // One batch at a time: `pending` disables the button a render late, so a
-  // fast double click on Start queued two batches.
-  const queueing = useRef(false);
-
-  /** Not awaited: `run/open` answers only once the tab's page loads (up
-   *  to 30 seconds), and inside the transition that kept Start disabled and
-   *  held back the refreshed list. The note gains the result when it lands. */
-  async function openInBrowser(queued: string) {
-    const opened = await openNextApplication();
-    setNote({
-      text: `${queued} ${openedNote(opened)}`,
-      error: !opened.opened && opened.reason !== "queue_empty",
-    });
-  }
-
-  function toggle() {
-    if (run !== "idle") {
-      setRun(run === "running" ? "paused" : "running");
-      return;
-    }
-    if (queueing.current) return;
-    queueing.current = true;
-    start(async () => {
-      try {
-        const result = await startBatch();
-        if (result.error != null) {
-          setNote({ text: result.error, error: true });
-          return;
-        }
-        setRun("running");
-        router.refresh();
-        const queued =
-          result.queued === 0
-            ? "No new matches to queue."
-            : `Queued ${result.queued} ${result.queued === 1 ? "job" : "jobs"}.`;
-        setNote({ text: queued, error: false });
-        void openInBrowser(queued);
-      } finally {
-        queueing.current = false;
-      }
-    });
-  }
-
-  const button = RUN_BUTTON[run];
-
   return (
     <>
-      <div className="flex flex-col gap-4 @2xl/main:flex-row @2xl/main:items-start @2xl/main:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-heading text-ink">Auto Apply</h1>
-          <p className="text-body text-ink-meta mt-1">
-            {summary ?? "Apply to the jobs that match you, with your resume filled in for you."}
-          </p>
-        </div>
-
-        <div className="flex shrink-0 flex-col gap-2 @md/main:flex-row">
-          <Button
-            variant={button.variant}
-            size="sm"
-            disabled={!hasResume || pending}
-            onClick={toggle}
-            className="@2xl/main:w-44"
-          >
-            <button.Icon aria-hidden />
-            {button.label}
-          </Button>
-        </div>
-      </div>
-
-      {note && (
-        <p
-          role={note.error ? "alert" : "status"}
-          className={cn(
-            "text-body mt-3 @2xl/main:text-right",
-            note.error ? "text-danger" : "text-ink-meta",
-          )}
-        >
-          {note.text}
+      <div className="min-w-0">
+        <h1 className="text-heading text-ink">Auto Apply</h1>
+        <p className="text-body text-ink-meta mt-1">
+          {summary ?? "Apply to the jobs that match you, with your resume filled in for you."}
         </p>
-      )}
+      </div>
 
       {children}
     </>

@@ -20,9 +20,12 @@ const BATCH_KEY = "workit_batch";
  *   groups: { ready?: number, needs_you?: number },
  *   practice?: { jobs: { jobId: string, url: string }[], submitted: string[] },
  *   writing?: string[], wroteWithClaude?: boolean,
+ *   picked?: string[], pickedOnly?: boolean,
  * }} Batch
  * `writing`: the tabs (ids) still waiting for the student's Claude to write;
  * `wroteWithClaude`: an answer it wrote has filled in (KAN-387, the samples ask).
+ * `picked`: the jobs the student picked in Up Next, opened first;
+ * `pickedOnly`: the batch started from picks, so it opens nothing else (batch.js).
  */
 
 // One change to the batch at a time: two tabs finishing together would
