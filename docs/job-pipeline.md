@@ -153,12 +153,18 @@ run. One we never read is just reported.
 
 ### 3.1 Which job postings are kept
 
-A title must pass two checks (KAN-172):
+A title must pass one check: it must be **early career**. Every field is kept
+since KAN-430, because WorkIt is for college students of every major.
 
 | Check | Passes | Fails |
 |---|---|---|
 | **Early career** | intern, co-op, working student, Summer Analyst, new grad, graduate, entry level, junior, university, campus, apprentice | anything senior, staff, principal, director, VP; a manager or lead unless it is also junior or an intern; a recruiter *for* a university or campus |
-| **In one of twelve categories** | see the table below | a title naming none of them, or naming first a field we hold off on: law and compliance, consulting, teaching, the arts, public policy, customer support |
+
+The field then gives the job posting its **category**: one of the twelve in
+the table below, one of the six fields held off until KAN-430 (`law`,
+`consulting`, `support`, `arts`, `policy`, `education`), or `other` for a
+title that names no field ("Engineering Intern") or a trade, operator, medical
+or hotel job.
 
 Each kept job posting gets **one category, or two** for the engineering jobs
 that are two at once: a machine learning, AI or data engineer is Data and
@@ -185,7 +191,9 @@ under the five categories that came before (KAN-171), from the same 101,000 job
 postings. Edge cases: firmware and embedded count as Hardware, "Quantitative
 Developer" counts as Quant, a recruiter of engineers is HR, an electrical engineer
 for buildings and power systems is Other Engineering, and a bare "Engineering
-Intern" names no discipline, so it is dropped.
+Intern" names no discipline, so it is `other` (dropped until KAN-430). The
+counts above are from before KAN-430, which added about 41% more job postings
+(`scraper/docs/categories.md`).
 
 ### 3.2 Reading the facts
 
