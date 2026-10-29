@@ -64,12 +64,12 @@ class TestClassify:
         tags = classify("Systems Research Engineer Intern - GPU Programming")
         assert tags == ("intern", "data_ai", "data_ai/ml")
 
-    def test_engineer_alone_is_not_a_signal(self):
+    def test_engineer_alone_names_no_field(self):
         # Wade Trim is a civil firm, Decagon a software one: nothing in either title
-        # tells them apart, so neither is kept.
-        assert classify("Engineer Summer Intern - #3036") == ()
-        assert classify("Engineering Intern (Summer 2027)") == ()
-        assert classify("Harness Design Engineer Intern (Winter 2027)") == ()
+        # tells them apart, so both are kept as other (KAN-430), never engineering.
+        assert first("Engineer Summer Intern - #3036") == "other"
+        assert first("Engineering Intern (Summer 2027)") == "other"
+        assert first("Harness Design Engineer Intern (Winter 2027)") == "other"
 
     def test_named_software_specialisms_still_qualify(self):
         for title in (
@@ -100,9 +100,9 @@ class TestClassify:
     def test_rejects_empty_title(self):
         assert classify("") == ()
 
-    def test_the_categories_are_twelve(self):
-        # The scraper's own keep-or-drop categories; the backend's roles are
-        # its job_roles list since KAN-155.
+    def test_the_categories(self):
+        # The scraper's own categories, every field since KAN-430; the backend's
+        # roles are its job_roles list since KAN-155.
         assert [tag.value for tag in CATEGORY_TAGS] == [
             "software",
             "data_ai",
@@ -116,6 +116,13 @@ class TestClassify:
             "sales",
             "hr",
             "design",
+            "law",
+            "consulting",
+            "support",
+            "arts",
+            "policy",
+            "education",
+            "other",
         ]
         specialties = {tag.value for tag in Tag if "/" in tag.value}
         assert specialties == {
@@ -396,7 +403,7 @@ class TestCategories:
         assert first(title) == "software"  # Agoda
         # One partnership is a program, not a sales team (the title's dash is an
         # em dash, as posted).
-        assert classify("Bluestaq Graduate Research Scholar \u2014 NDSU Partnership") == ()
+        assert first("Bluestaq Graduate Research Scholar \u2014 NDSU Partnership") == "other"
 
     def test_hr(self):
         for title in (
@@ -413,38 +420,40 @@ class TestCategories:
         assert first("Forward Deployed Engineer Intern (HR Technology)") == "software"
         assert first("Emerging Talent - Electrical Engineering Internship") == "hardware"  # VAST
 
-    def test_held_off_disciplines_are_not_kept(self):
-        # Law, consulting, teaching, the arts, policy and support are not among the
-        # twelve (KAN-172), and a title naming one first is dropped.
-        for title in (
-            "Legal Intern",  # Sezzle
-            "Corporate Compliance Intern (Winter/January 2027, 12 Months)",  # Geotab
-            "Associate Consultant - Entry-Level Technology Consulting",  # Veeva
-            "Teen Health Education Internship",  # HealthCorps
-            "Illustrator, Intern",  # Duolingo
-            "Policy Intern",  # Coinbase
-            "Customer Success Intern",  # Tanium
-            "Technical Support Engineer - University Graduate 2027",  # Verkada
-            "Hardware Support Internship - Summer 2027",  # RF-SMART
+    def test_the_fields_held_off_until_kan_430_are_kept(self):
+        # Law, consulting, teaching, the arts, policy and support were dropped under
+        # KAN-172; each is its own category now.
+        for title, category in (
+            ("Legal Intern", "law"),  # Sezzle
+            ("Corporate Compliance Intern (Winter/January 2027, 12 Months)", "law"),  # Geotab
+            ("Associate Consultant - Entry-Level Technology Consulting", "consulting"),  # Veeva
+            ("Teen Health Education Internship", "education"),  # HealthCorps
+            ("Illustrator, Intern", "arts"),  # Duolingo
+            ("Policy Intern", "policy"),  # Coinbase
+            ("Customer Success Intern", "support"),  # Tanium
+            ("Technical Support Engineer - University Graduate 2027", "support"),  # Verkada
+            ("Hardware Support Internship - Summer 2027", "support"),  # RF-SMART
         ):
-            assert classify(title) == (), title
+            assert first(title) == category, title
 
     def test_a_consultant_who_names_data_keeps_that_job(self):
         assert first("Data Analyst Consultant Intern (H/F)") == "data_ai"  # Fifty-Five
 
-    def test_trades_operators_and_kitchens_are_never_ours(self):
-        assert classify("Electrical Apprentice") == ()
-        assert classify("Electronics Test and Assembly Technician (Entry-Level)") == ()
-        assert classify("Robotics Data Operator Intern") == ()
-        assert classify("Internship for Train Operations - F&B (Malaysian Students Only)") == ()
+    def test_trades_operators_and_kitchens_are_kept_as_other(self):
+        # Dropped until KAN-430. Kept now, but never filed under the hardware or
+        # engineering their words suggest.
+        assert classify("Electrical Apprentice") == ("new-grad", "other")
+        assert first("Electronics Test and Assembly Technician (Entry-Level)") == "other"
+        assert first("Robotics Data Operator Intern") == "other"
+        assert first("Internship for Train Operations - F&B (Malaysian Students Only)") == "other"
 
     def test_words_that_look_like_a_discipline_but_are_not(self):
         # Palantir's civil liberties, DRW's UK year in industry, Ginkgo's lab
         # scientist and Astera Labs' office facilities.
         assert first("Privacy and Civil Liberties Software Engineer, Internship") == "software"
         assert first("Software Developer Intern - Industrial Placement") == "software"
-        assert classify("Automation Scientist Intern, RAC Operations") == ()
-        assert classify("Facilities Intern") == ()
+        assert first("Automation Scientist Intern, RAC Operations") == "other"
+        assert first("Facilities Intern") == "other"
         assert first("Mission Operations Internship - Summer 2027") == "engineering"  # Varda
 
 
@@ -460,7 +469,7 @@ class TestSpecialties:
             assert classify(title)[1:] == ("software", "software/security"), title
 
     def test_physical_security_is_not_computer_security(self):
-        assert classify("Physical Security Specialist (PhySS) – Junior") == ()  # CGS Federal
+        assert first("Physical Security Specialist (PhySS) – Junior") == "other"  # CGS Federal
 
     def test_data_and_ai(self):
         assert classify("Research Scientist Intern")[2:] == ("data_ai/ml",)
@@ -637,17 +646,17 @@ class TestWideningStep:
     def test_each_title_counts_under_the_first_step_that_would_keep_it(self):
         for title, step in (
             ("Software Engineer Intern", "kept"),
-            ("Legal Intern", "held_field"),  # Sezzle
-            ("Technical Support Engineer - University Graduate 2027", "held_field"),  # Verkada
-            ("Engineering Intern", "no_field"),  # Decagon
+            ("Legal Intern", "kept"),  # Sezzle
+            ("Technical Support Engineer - University Graduate 2027", "kept"),  # Verkada
+            ("Engineering Intern", "kept"),  # Decagon
             # Recruits for a program; no stage of the person's own.
             ("Campus Recruiter, Machine Learning and Quantitative Research", "no_stage"),
             ("Senior Software Engineer", "senior"),
             ("Junior/Senior or Staff Software Engineer, Inference / Compute", "senior"),
-            ("Electronics Test and Assembly Technician", "outside"),  # Silvus: `NEVER`
+            ("Electronics Test and Assembly Technician", "no_stage"),  # Silvus
             (
                 "Advocate Camp Counselor for children w/disabilities, JCC Sports Camp, Summer",
-                "outside",
+                "no_stage",
             ),
         ):
             assert widening_step(title) == step, title

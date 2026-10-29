@@ -297,16 +297,23 @@ scraper. Every string in `tests/test_shortlist.py` was observed on a live board;
 add cases the same way, from a title you saw, including ones that must be
 rejected. Tag names are the `Tag` enum, which the page's filter chips read.
 
+- **The stage decides what is kept; the field only files it (KAN-430).** An
+  early-career title in any field is kept, because the page is for college
+  students of every major. Law, consulting, support, the arts, policy and
+  teaching, held off until then, are categories of their own; a title naming
+  no field, or a trade, operator, medical or hotel job (`OUTSIDE_FIELDS`, the
+  old never list), is `other`.
 - **`engineer` alone is not a signal**, and reinstating it is the tempting
   mistake: Wade Trim's "Engineer Summer Intern" is civil, Decagon's
   "Engineering Intern" software, and nothing in either title tells them apart.
+  Both are `other`, never `engineering`.
 - `\bintern\b` must not fire on "Internal Applications". `SENIOR` beats the
   stage: "Junior/Senior or Staff Software Engineer" is not a new-grad role.
-- **Twelve categories, up to two a role, plus specialties (KAN-172).** The
-  first discipline a title names is its category (`CATEGORIES`, first match
-  wins), and that order is the decision. Read `docs/categories.md` before
-  changing a category, specialty, the stage or their order: it has the order's
-  reasoning, what is held off, and the measurements.
+- **Nineteen categories, up to two a role, plus specialties (KAN-172,
+  KAN-430).** The first discipline a title names is its category
+  (`CATEGORIES`, first match wins), and that order is the decision. Read
+  `docs/categories.md` before changing a category, specialty, the stage or
+  their order: it has the order's reasoning and the measurements.
 - **A new role key is a change to `Tag` alone.** Since KAN-155 the backend
   ignores the feed's `roles`: it tags each job from its title with its own
   `job_roles` list (`backend/app/services/role_resolver.py`). The categories
@@ -646,8 +653,9 @@ the design they serve and its next steps):
 
 - **`widening`**: every posting scanned, under the first step of a wider
   shortlist that would keep it (`shortlist.widening_step`: `kept`,
-  `held_field`, `no_field`, `no_stage`, `senior`, `outside`), so the size of
-  each step is known before anyone takes it. A run scans only what it reads, so
+  `no_stage`, `senior`), so the size of each step is known before anyone
+  takes it. `held_field` and `no_field` were taken by KAN-430, and `outside`
+  went with them: every field is kept, so only the level is left to widen. A run scans only what it reads, so
   compare steps with each other. Each distinct title is read once: the rules
   cost about 50 microseconds a title.
 - **`newest_first`, `not_newest_first`, `order_unclear`** for each provider that

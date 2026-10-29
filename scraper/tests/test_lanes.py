@@ -381,16 +381,10 @@ class TestWidening:
             job(b, "2", title="Legal Intern"),
             job(b, "3", title="Senior Software Engineer"),
             job(b, "4", title="Senior Software Engineer"),
+            job(b, "5", title="Data Analyst"),
         ]
         steps = run.widening(scanned)
-        assert steps == {
-            "kept": 1,
-            "held_field": 1,
-            "no_field": 0,
-            "no_stage": 0,
-            "senior": 2,
-            "outside": 0,
-        }
+        assert steps == {"kept": 2, "no_stage": 1, "senior": 2}
         path = tmp_path / "metrics.json"
         run.write_metrics(RunStats(), [], {}, MONDAY, path, steps=steps, missed=2)
         written = json.loads(path.read_text(encoding="utf-8"))
