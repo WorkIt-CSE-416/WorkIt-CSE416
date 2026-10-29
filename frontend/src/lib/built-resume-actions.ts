@@ -70,16 +70,21 @@ export type RenderedPdf = {
   missing_characters: string[];
   boxes: RenderBox[];
   identity: IdentityCopy | null;
+  /** The resume's template id, sent back in the editor's copy. */
+  template: string;
 };
 
 /** The editor's copy of what its PDF is built from (schemas `ResumeCopy`,
- *  KAN-391): with it, an edit's PDF compiles at once, with no database
- *  read first. It shapes only the PDF sent back. */
+ *  KAN-391): with it, an edit's PDF compiles with no database read at all,
+ *  the template and file name taken from the last render. It shapes only
+ *  the PDF sent back. */
 export type ResumeCopy = {
   entries: BankEntry[];
   skills: Skill[];
   choices: Choices;
   identity: IdentityCopy;
+  template: string;
+  file_name: string;
 };
 
 const id = encodeId;
@@ -188,12 +193,15 @@ export async function getChoices(resumeId: string): Promise<Result<Choices>> {
   return call<Choices>(`/${id(resumeId)}/choices`);
 }
 
-/** Every change in one request, saved together; returns the choices after. */
+/** Every change in one request, saved together and answered with nothing
+ *  (`?read_back=false`, KAN-391): the API writes with no read first when
+ *  every change finds its row, and the editor renders through `renderEdit`,
+ *  so it needs nothing back. */
 export async function updateChoices(
   resumeId: string,
   changes: ChoicesUpdate,
-): Promise<Result<Choices>> {
-  return call<Choices>(`/${id(resumeId)}/choices`, {
+): Promise<Result<null>> {
+  return call<null>(`/${id(resumeId)}/choices?read_back=false`, {
     method: "PATCH",
     body: JSON.stringify(changes),
   });

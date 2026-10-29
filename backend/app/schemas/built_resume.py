@@ -95,6 +95,8 @@ class RenderResponse(BaseModel):
     missing_characters: list[str]
     boxes: list[RenderBox]
     identity: IdentityCopy | None = None
+    # The resume's template id, which the editor sends back in its copy
+    template: str = "jakes"
 
 
 class EntryChoiceResponse(BaseModel):
@@ -198,6 +200,9 @@ class ResumeCopy(BaseModel):
     skills: list[SkillResponse] = Field(max_length=1000)
     choices: ChoicesResponse
     identity: IdentityCopy
+    # From the last render, so a render of the copy reads no resume row
+    template: str = Field("jakes", max_length=40)
+    file_name: str = Field("Resume.pdf", max_length=200)
 
 
 class LineEdit(BaseModel):
@@ -231,11 +236,12 @@ class LineSaved(BaseModel):
 class EditRender(BaseModel):
     """An edit to render, never saved: a typed line (`line`) or a choice
     change (`changes`, the choices PATCH body), exactly one, made to the
-    editor's copy (`source`) in memory."""
+    editor's copy (`source`, required: the render reads no database) in
+    memory."""
 
     line: LineEdit | None = None
     changes: ChoicesUpdate | None = None
-    source: ResumeCopy | None = None
+    source: ResumeCopy
 
     @model_validator(mode="after")
     def _one_edit(self) -> "EditRender":

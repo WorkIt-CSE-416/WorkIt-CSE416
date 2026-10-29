@@ -27,6 +27,7 @@ resume answers `NotFound`), and flushes but never commits.
 """
 
 import dataclasses
+import json
 import re
 import uuid
 from collections.abc import Awaitable, Callable
@@ -419,6 +420,98 @@ async def update_choices(
     await session.flush()
     if entries or bullets or skills:
         await touch(session, resume_id)
+
+
+# The editor's choice changes in one statement, no read first (KAN-391):
+# each change updates its existing row on the applicant's resume (a null
+# field keeps its value, as in `update_choices`), an entry changed brings
+# its row-less bullets (shown, after their siblings, in bank order), a
+# switch is checked to be a wording the resume can show, and the resume is
+# marked edited. It answers how many rows each table updated, so the caller
+# can tell when a change found no row.
+_WRITE_CHOICES = text("""
+WITH owner AS (
+    SELECT id FROM built_resumes WHERE id = CAST(:resume_id AS uuid) AND applicant_id = CAST(:applicant_id AS uuid)
+), ec AS (
+    SELECT * FROM jsonb_to_recordset(CAST(:entries AS jsonb))
+        AS c(entry_id uuid, shown boolean, position integer, show_gpa boolean, show_coursework boolean)
+), bc AS (
+    SELECT * FROM jsonb_to_recordset(CAST(:bullets AS jsonb))
+        AS c(bullet_id uuid, shown boolean, position integer, switch boolean, variant_id uuid)
+), sc AS (
+    SELECT * FROM jsonb_to_recordset(CAST(:skills AS jsonb)) AS c(skill_id uuid, shown boolean, position integer)
+), e AS (
+    UPDATE built_resume_entries r SET
+        shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position),
+        show_gpa = coalesce(c.show_gpa, r.show_gpa), show_coursework = coalesce(c.show_coursework, r.show_coursework)
+    FROM ec c
+    WHERE r.built_resume_id IN (SELECT id FROM owner) AND r.entry_id = c.entry_id
+    RETURNING r.entry_id
+), b AS (
+    UPDATE built_resume_bullets r SET
+        shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position),
+        variant_id = CASE WHEN c.switch THEN c.variant_id ELSE r.variant_id END
+    FROM bc c
+    WHERE r.built_resume_id IN (SELECT id FROM owner) AND r.bullet_id = c.bullet_id
+      AND (c.switch IS NOT TRUE OR c.variant_id IS NULL OR EXISTS (
+          SELECT 1 FROM bank_bullet_variants v
+          WHERE v.id = c.variant_id AND v.bullet_id = r.bullet_id
+            AND (v.built_resume_id IS NULL OR v.built_resume_id = r.built_resume_id)))
+    RETURNING r.bullet_id
+), s AS (
+    UPDATE built_resume_skills r SET
+        shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position)
+    FROM sc c
+    WHERE r.built_resume_id IN (SELECT id FROM owner) AND r.skill_id = c.skill_id
+    RETURNING r.skill_id
+), brought AS (
+    INSERT INTO built_resume_bullets (built_resume_id, bullet_id, shown, position)
+    SELECT o.id, bb.id, true,
+        coalesce((SELECT max(r.position) FROM built_resume_bullets r JOIN bank_bullets sib ON sib.id = r.bullet_id
+                  WHERE r.built_resume_id = o.id AND sib.entry_id = bb.entry_id), -1)
+        + row_number() OVER (PARTITION BY bb.entry_id ORDER BY bb.position, bb.created_at)
+    FROM owner o JOIN bank_bullets bb ON bb.entry_id IN (SELECT entry_id FROM e)
+    WHERE NOT EXISTS (SELECT 1 FROM built_resume_bullets r WHERE r.built_resume_id = o.id AND r.bullet_id = bb.id)
+    ON CONFLICT DO NOTHING
+), touched AS (
+    UPDATE built_resumes SET updated_at = now() WHERE id IN (SELECT id FROM owner)
+)
+SELECT (SELECT count(*) FROM e), (SELECT count(*) FROM b), (SELECT count(*) FROM s)
+""")
+
+
+async def save_choices(
+    session: AsyncSession,
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    entries: list[dict] = (),
+    bullets: list[dict] = (),
+    skills: list[dict] = (),
+) -> None:
+    """`update_choices`, written with no read first when it can be (KAN-391):
+    moves, hides, shows, toggles and wording switches on items that already
+    have a row on the resume are one statement (`_WRITE_CHOICES`). A change
+    that finds no row (an item put back from the tray that never had one,
+    another applicant's item, a wording the resume cannot show) or that
+    types wording falls back to `update_choices`, which reads, makes the
+    rows and raises NotFound; the fast statement's writes are the same sets
+    again there, and the caller's rollback drops both on a refusal."""
+    if not (entries or bullets or skills):
+        # Nothing to write, but the caller may read the choices back: the
+        # resume must still be the applicant's
+        await get_resume(session, applicant_id, resume_id)
+        return
+    if any("text" in c for c in bullets):
+        await update_choices(session, applicant_id, resume_id, entries, bullets, skills)
+        return
+    switched = [{**c, "switch": "variant_id" in c} for c in bullets]
+    found = (await session.execute(_WRITE_CHOICES, {
+        "applicant_id": str(applicant_id), "resume_id": str(resume_id),
+        "entries": json.dumps(list(entries), default=str), "bullets": json.dumps(switched, default=str),
+        "skills": json.dumps(list(skills), default=str),
+    })).one()
+    if tuple(found) != (len(entries), len(bullets), len(skills)):
+        await update_choices(session, applicant_id, resume_id, entries, bullets, skills)
 
 
 async def load_view(

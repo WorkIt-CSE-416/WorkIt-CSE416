@@ -1578,8 +1578,11 @@ the KAN-296 cutover.
 - **The editor sends a typed line as typed, and the API reads it**
   (KAN-391, `saveLine`, `PUT .../built-resumes/{rid}/lines`). The field
   opens on the box's own printed text (`RenderBox.text`), and a line is
-  sent only when the student leaves it (a click away, Enter, Escape,
-  another line) and the typed text differs from it. Nothing goes while
+  sent only when the student leaves it (a click away, on the paper off
+  every line too, Enter, Escape, another line) and the typed text differs
+  from it. The page keeps the selection for its lines, so a press on it
+  that lands on no line box, field or button closes the line itself:
+  without it only Enter or Escape left a line. Nothing goes while
   they type: a 700 ms pause saved half a line, then the line again once
   it was done. Never put a rule for typed text (GPA parsing, a label typed
   back, `https://` on a link) back in the browser: `model.ts` held them
@@ -1588,12 +1591,14 @@ the KAN-296 cutover.
   the other** (KAN-391): typed lines, moves, hides, put-backs and wording
   switches render through `renderEdit` (`POST .../render`, from the
   editor's copy, no database read) and save through `saveLine` or
-  `updateChoices` (writes only). **The render goes through a route
+  `updateChoices` (writes only; `?read_back=false`). **The render goes through a route
   handler, `app/api/resume-edit`**, never a server action: Next runs one
   client's actions one at a time, and as two actions the render waited
   behind the save. Renders run one at a time (`enqueue`), and each carries
-  the editor's copy of the bank, choices and printed header (`ResumeCopy`,
-  built from the `held` ref); the render's answer (the choices, the entry,
+  the editor's copy of the bank, choices, printed header, template and
+  file name (`ResumeCopy`, built from the `held` ref; the last three from
+  the last render, `printedBy`), so the API renders with no database
+  read; the render's answer (the choices, the entry,
   the header it printed) goes into `held`, even when a newer request owns
   the page, so the next copy holds every edit before it. Saves run one at
   a time in their own queue (`queueSave`); a typed bullet's save answers

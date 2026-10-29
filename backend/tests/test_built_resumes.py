@@ -12,7 +12,9 @@ import httpx
 import pytest
 from sqlalchemy import text
 
-from app.deps import get_current_account
+from fastapi import HTTPException
+
+from app.deps import get_current_account, token_applicant
 from app.main import app
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
@@ -41,6 +43,15 @@ def _sign_in(applicant_id: uuid.UUID) -> None:
         account_type=AccountType.APPLICANT,
         onboarding_completed=True,
     )
+
+    # The render's token-only check (deps.token_applicant), as the token would
+    def token(applicant_id: uuid.UUID) -> uuid.UUID:
+        if applicant_id != signed_in:
+            raise HTTPException(403, "Forbidden")
+        return applicant_id
+
+    signed_in = applicant_id
+    app.dependency_overrides[token_applicant] = token
 
 
 @pytest.fixture

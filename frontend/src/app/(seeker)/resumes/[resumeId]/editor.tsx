@@ -42,7 +42,6 @@ import {
   type Choices,
   type ChoicesUpdate,
   type EditRendered,
-  type IdentityCopy,
   type ResumeCopy,
   type RenderBox,
   type RenderedPdf,
@@ -256,6 +255,17 @@ async function renderEdit(
   }
 }
 
+/** What the last PDF printed beside the resume's own content: its header,
+ *  its template and its file name, sent back in every copy, so the API
+ *  renders an edit without reading the resume (KAN-391). */
+type Printed = Pick<ResumeCopy, "identity" | "template" | "file_name">;
+
+function printedBy(pdf: RenderedPdf): Printed | null {
+  return pdf.identity
+    ? { identity: pdf.identity, template: pdf.template, file_name: pdf.file_name }
+    : null;
+}
+
 function splitKey(key: string) {
   const dot = key.lastIndexOf(".");
   return { item_id: key.slice(0, dot), kind: key.slice(dot + 1) };
@@ -297,7 +307,7 @@ export function Editor({
   // Null until the first render lands (FirstRenderPane hands it over).
   const [rendered, setRendered] = useState<RenderedPdf | null>(null);
   const adopt = useCallback((first: RenderedPdf) => {
-    held.current.identity ??= first.identity;
+    held.current.printed ??= printedBy(first);
     setRendered((current) => current ?? first);
   }, []);
   // The first render failed: the page area says so, and the phone's bar
@@ -316,10 +326,10 @@ export function Editor({
   // merged in, and the header the newest PDF printed. A ref, so a request
   // that waited for the one before reads what that one left, before React
   // has drawn it.
-  const held = useRef<{ bank: Bank; choices: Choices; identity: IdentityCopy | null }>({
+  const held = useRef<{ bank: Bank; choices: Choices; printed: Printed | null }>({
     bank: initialBank,
     choices: initialChoices,
-    identity: null,
+    printed: null,
   });
   // The choices as the API last answered them, and the changes sent since
   const confirmed = useRef(initialChoices);
@@ -445,14 +455,16 @@ export function Editor({
   }, []);
 
   const keepRendered = useCallback((next: RenderedPdf) => {
-    if (next.identity) held.current.identity = next.identity;
+    if (next.identity) held.current.printed = printedBy(next);
     setRendered(next);
   }, []);
 
   /** The copy each request carries, or none before the first PDF. */
   const copy = useCallback((): ResumeCopy | undefined => {
-    const { bank, choices, identity } = held.current;
-    return identity ? { entries: bank.entries, skills: bank.skills, choices, identity } : undefined;
+    const { bank, choices, printed } = held.current;
+    return printed
+      ? { entries: bank.entries, skills: bank.skills, choices, ...printed }
+      : undefined;
   }, []);
 
   /**
@@ -1140,6 +1152,14 @@ export function Editor({
           onPointerDownCapture={(e) => {
             const origin = e.currentTarget.getBoundingClientRect();
             pressed.current = { x: e.clientX - origin.left, y: e.clientY - origin.top };
+          }}
+          // A press on the paper off every line saves the open line and
+          // closes it, as a press off the page does: the page keeps the
+          // selection for its lines, so until then only Enter or Escape
+          // left a line once it was open. A line's own target opens that
+          // line, and the field and the margin dots keep it
+          onPointerDown={(e) => {
+            if (!(e.target as Element).closest("[data-box], input, textarea, button")) select(null);
           }}
         >
           {pdfPane((pdf) => (

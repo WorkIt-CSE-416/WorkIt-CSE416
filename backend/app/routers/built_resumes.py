@@ -35,15 +35,21 @@ GET    /applicants/{id}/built-resumes/{rid}/choices -> ChoicesResponse
        GPA and coursework toggles. A bank item with no row is not on it.
 PATCH  /applicants/{id}/built-resumes/{rid}/choices ChoicesUpdate -> ChoicesResponse
        The editor's hide, show, move and toggles, all saved together. An
-       item with no row gets one. 404 for an item outside the bank.
+       item with no row gets one. 404 for an item outside the bank. Written
+       in one statement with no read first when every change finds its row
+       (KAN-391); `?read_back=false` answers 204 instead of the choices, so
+       the save reads nothing.
 POST   /applicants/{id}/built-resumes/{rid}/render EditRender -> EditRendered
        The editor's edit rendered, never saved (KAN-391): a typed `line`
        ({item_id, kind, text}) or choice `changes` (the PATCH .../choices
-       body), made in memory to the editor's copy (`source`, ResumeCopy),
-       so only the resume's row is read. Answers the render and what the
-       edit changed in the copy (`choices`, `entry`; the header is
-       `render.identity`). 422 for text the save would refuse, 404 for an
-       item outside the copy, 503 like render.
+       body), made in memory to the editor's copy (`source`, ResumeCopy,
+       required, with the template and file name of the last render). Reads
+       no database: the token is checked by its signature alone
+       (deps.token_applicant), and nothing of the resume is read. Answers
+       the render and what the edit changed in the copy (`choices`,
+       `entry`; the header is `render.identity`). 422 for text the save
+       would refuse or an unknown template, 404 for an item outside the
+       copy, 503 like render.
 PUT    /applicants/{id}/built-resumes/{rid}/lines  LineSave -> LineSaved
        One typed line saved, with no read first (KAN-391): one statement
        per kind, whose WHERE checks ownership. The API reads the text
@@ -93,7 +99,7 @@ from sqlalchemy.orm import undefer
 from workit_scout.llm import LLM, ScoutUnavailable
 
 from app.db import get_session
-from app.deps import owned_applicant
+from app.deps import owned_applicant, token_applicant
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
@@ -254,7 +260,7 @@ async def render_pdf(
     except NotFound:
         raise HTTPException(404, "Resume not found")
     identity = await _identity(session, applicant_id)
-    return _render_response(await _render(view, identity, resume.template), resume.name, identity)
+    return _render_response(await _render(view, identity, resume.template), resume.name, identity, resume.template)
 
 
 RENDER_FAILED = "The PDF could not be made. Try again, or download the Word file."
@@ -268,7 +274,9 @@ async def _render(view, identity: HeaderIdentity, template: str) -> Rendered:
         raise HTTPException(503, RENDER_FAILED) from exc
 
 
-def _render_response(rendered: Rendered, name: str, identity: HeaderIdentity) -> RenderResponse:
+def _render_response(
+    rendered: Rendered, name: str, identity: HeaderIdentity, template: str
+) -> RenderResponse:
     return RenderResponse(
         pdf=base64.b64encode(rendered.pdf).decode("ascii"),
         file_name=service.file_name(name, "pdf"),
@@ -277,6 +285,7 @@ def _render_response(rendered: Rendered, name: str, identity: HeaderIdentity) ->
         missing_characters=list(rendered.missing_characters),
         boxes=[RenderBox(**vars(box)) for box in rendered.boxes],
         identity=identity_copy(identity),
+        template=template,
     )
 
 
@@ -297,7 +306,7 @@ async def fit(
     return FitResponse(
         hidden=[c.id for c in cuts if c.kind == "bullet"],
         undo=ChoicesUpdate(**service.fit_changes(cuts, hide=False)),
-        render=_render_response(rendered, resume.name, identity),
+        render=_render_response(rendered, resume.name, identity, resume.template),
     )
 
 
@@ -311,15 +320,20 @@ async def get_choices(
     return await service.choices_response(session, resume_id)
 
 
-@router.patch("/{resume_id}/choices", response_model=ChoicesResponse)
+@router.patch("/{resume_id}/choices", response_model=ChoicesResponse | None)
 async def update_choices(
     body: ChoicesUpdate,
     resume_id: uuid.UUID,
+    read_back: bool = True,
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
-) -> ChoicesResponse:
+) -> ChoicesResponse | Response:
+    # Written with no read first when every change finds its row
+    # (`service.save_choices`, KAN-391). The editor asks `read_back=false`:
+    # it renders through POST .../render and needs nothing back, so the
+    # save stays writes only
     try:
-        await service.update_choices(
+        await service.save_choices(
             session, applicant_id, resume_id,
             entries=[c.model_dump(exclude_unset=True) for c in body.entries],
             bullets=[c.model_dump(exclude_unset=True) for c in body.bullets],
@@ -328,6 +342,8 @@ async def update_choices(
     except NotFound:
         raise HTTPException(404, "Resume or bank item not found")
     await _commit(session, "Failed to save the resume")
+    if not read_back:
+        return Response(status_code=204)
     return await service.choices_response(session, resume_id)
 
 
@@ -335,20 +351,18 @@ async def update_choices(
 async def render_edit(
     body: EditRender,
     resume_id: uuid.UUID,
-    applicant_id: uuid.UUID = Depends(owned_applicant),
-    session: AsyncSession = Depends(get_session),
+    applicant_id: uuid.UUID = Depends(token_applicant),
 ) -> EditRendered:
     # The editor's edit, rendered and never saved (KAN-391): made in memory
-    # to its copy, so nothing is read but the resume's row; the save goes
-    # separately (PUT .../lines, PATCH .../choices) and the editor does not
-    # wait for it. A save then a render read the bank three times and
-    # compiled only after the commit.
-    resume = await _owned(session, applicant_id, resume_id)
-    held, choices, identity = await _held(session, applicant_id, resume_id, body.source)
-    if body.source is not None:
-        variants = body.source.choices.variants
-    else:
-        variants = (await service.choices_response(session, resume_id)).variants
+    # to its copy and compiled, with no database at all. The token is
+    # checked without a read (`token_applicant`), and nothing of the resume
+    # is read: the copy carries its template and file name, and the PDF
+    # prints only what the student sent, so the path's resume needs no
+    # ownership check here. The save goes separately and writes with its
+    # own check (PUT .../lines, PATCH .../choices).
+    source = body.source
+    held, choices, identity = resume_copy.from_copy(source)
+    variants = source.choices.variants
     entry = None
     after = choices
     try:
@@ -374,9 +388,14 @@ async def render_edit(
         raise RequestValidationError(exc.errors(include_url=False, include_context=False))
     except NotFound:
         raise HTTPException(404, "Resume or bank item not found")
-    rendered = await _render(build_view(held, after), identity, resume.template)
+    try:
+        rendered = await _render(build_view(held, after), identity, source.template)
+    except ValueError:
+        raise HTTPException(422, "Unknown template")
+    response = _render_response(rendered, "", identity, source.template)
     return EditRendered(
-        render=_render_response(rendered, resume.name, identity),
+        # The copy's file name, from the last render: the name is not read
+        render=response.model_copy(update={"file_name": source.file_name}),
         choices=service.choices_out(after, variants) if after is not choices else None,
         entry=entry,
     )
@@ -387,15 +406,6 @@ def _parse(line) -> resume_lines.Line:
     if (parsed.target == "header") != (line.item_id == HEADER):
         raise resume_lines.LineError("This line is not typed here.")
     return parsed
-
-
-async def _held(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID, source):
-    """What the edit's PDF is built from: the editor's copy, or the
-    database's bank, choices and header."""
-    if source is not None:
-        return resume_copy.from_copy(source)
-    held = await bank.load_bank(session, applicant_id, local_to=[resume_id])
-    return held, await service.load_choices(session, resume_id), await _identity(session, applicant_id)
 
 
 def _with_header(identity: HeaderIdentity, changes: dict) -> HeaderIdentity:

@@ -9,7 +9,7 @@ import uuid
 import httpx
 import pytest
 
-from app.deps import get_current_account
+from app.deps import get_current_account, token_applicant
 from app.main import app
 from tests.test_built_resumes import (
     _another,
@@ -35,6 +35,7 @@ async def student(database):
             yield client, f"/applicants/{applicant_id}"
     finally:
         app.dependency_overrides.pop(get_current_account, None)
+        app.dependency_overrides.pop(token_applicant, None)
 
 
 async def _bank(client, me):
@@ -341,11 +342,14 @@ async def _type(client, me, resume_id, item_id, kind, text, source=None):
 
 
 async def _render_line(client, me, resume_id, item_id, kind, text, source=None):
+    # A render always sends a copy: it reads no database
+    source = source or await _copy(client, me, resume_id)
     return await client.post(f"{me}/built-resumes/{resume_id}/render", json={
         "line": {"item_id": item_id, "kind": kind, "text": text}, "source": source})
 
 
 async def _render_changes(client, me, resume_id, changes, source=None):
+    source = source or await _copy(client, me, resume_id)
     return await client.post(f"{me}/built-resumes/{resume_id}/render",
                              json={"changes": changes, "source": source})
 
@@ -541,7 +545,10 @@ async def test_a_save_never_compiles(student, monkeypatch):
 async def _copy(client, me, resume_id):
     bank = (await client.get(f"{me}/bank", params={"built_resume_id": resume_id})).json()
     choices = (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()
-    identity = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["identity"]
+    # The header the last render printed; a plain one where Tectonic is
+    # missing, for the tests whose edits are refused before any compile
+    rendered = await client.get(f"{me}/built-resumes/{resume_id}/render")
+    identity = rendered.json()["identity"] if rendered.status_code == 200 else {"name": "Sam Seeker"}
     return {"entries": bank["entries"], "skills": bank["skills"], "choices": choices, "identity": identity}
 
 
@@ -609,7 +616,7 @@ async def test_a_typed_header_field_with_a_copy_prints_at_once(student):
     assert render["identity"]["links"][0] == ["linkedin_url", "https://linkedin.com/in/sam"]
 
 
-async def test_moving_bullets_renders_with_or_without_a_copy(student):
+async def test_moving_bullets_renders_from_the_copy(student):
     _tectonic_or_skip()
     client, me = student
     await _fill_bank(client, me)
@@ -617,7 +624,7 @@ async def test_moving_bullets_renders_with_or_without_a_copy(student):
     first, second = (b["id"] for b in _entry(await _bank(client, me), "Software Intern")["bullets"])
     move = {"bullets": [{"bullet_id": second, "position": 0}, {"bullet_id": first, "position": 1}]}
 
-    for source in (None, await _copy(client, me, resume_id)):
+    for source in (await _copy(client, me, resume_id),):
         res = await _render_changes(client, me, resume_id, move, source)
         assert res.status_code == 200, res.text
         body = res.json()
@@ -653,6 +660,10 @@ async def test_a_render_takes_one_edit(student):
     await _fill_bank(client, me)
     resume_id = await _generate(client, me)
     res = await client.post(f"{me}/built-resumes/{resume_id}/render", json={})
+    assert res.status_code == 422
+    # A copy is required: the render reads no database
+    line = {"item_id": str(uuid.uuid4()), "kind": "title", "text": "Intern"}
+    res = await client.post(f"{me}/built-resumes/{resume_id}/render", json={"line": line})
     assert res.status_code == 422
 
 
@@ -692,3 +703,98 @@ async def test_the_pdf_built_in_memory_matches_the_saved_resume(student):
     assert [(b["item_id"], b["kind"], b["text"]) for b in res.json()["render"]["boxes"]] == [
         (b["item_id"], b["kind"], b["text"]) for b in after["boxes"]]
     assert "Served 200 customers a day" in _order(after, "bullet")
+
+
+# The choices save with no read first (KAN-391, `save_choices`)
+
+async def test_a_choices_save_without_read_back_answers_nothing_and_saves(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    first, second = (b["id"] for b in _entry(await _bank(client, me), "Software Intern")["bullets"])
+    move = {"bullets": [{"bullet_id": second, "position": 0}, {"bullet_id": first, "position": 1}]}
+
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices", params={"read_back": "false"}, json=move)
+    assert res.status_code == 204, res.text
+    lines = await _lines(client, me, resume_id)
+    assert lines.index("Wrote the billing service's tests") < lines.index("Cut page load time by 30%")
+
+
+async def test_a_changed_entry_brings_its_new_bullets_as_the_render_does(student):
+    # A bullet added to the bank after Generate has no row; changing its
+    # entry brings it, last in the entry, in the statement and in memory alike
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    intern = _entry(await _bank(client, me), "Software Intern")["id"]
+    res = await client.post(f"{me}/bank/entries/{intern}/bullets", json={"text": "Paired with designers weekly"})
+    assert res.status_code in (200, 201), res.text
+    changes = {"entries": [{"entry_id": intern, "show_gpa": True}]}
+
+    rendered = await _render_changes(client, me, resume_id, changes, await _copy(client, me, resume_id))
+    assert rendered.status_code == 200, rendered.text
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices", params={"read_back": "false"}, json=changes)
+    assert res.status_code == 204, res.text
+    after = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert _order(rendered.json()["render"], "bullet") == _order(after, "bullet")
+    assert _order(after, "bullet")[2] == "Paired with designers weekly"
+
+
+async def test_a_choices_save_that_finds_no_row_is_refused_whole(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    first = _entry(await _bank(client, me), "Software Intern")["bullets"][0]["id"]
+    before = (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices", params={"read_back": "false"}, json={
+        "bullets": [{"bullet_id": first, "shown": False}, {"bullet_id": str(uuid.uuid4()), "shown": False}]})
+    assert res.status_code == 404
+    assert (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json() == before
+
+
+async def test_a_render_reads_no_database(student):
+    # With every database session refused, the render of a copy still answers
+    _tectonic_or_skip()
+    from app.db import get_session
+
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+    intern = _entry(await _bank(client, me), "Software Intern")["id"]
+
+    async def no_database():
+        raise AssertionError("the render opened a database session")
+        yield
+
+    app.dependency_overrides[get_session] = no_database
+    try:
+        res = await _render_line(client, me, resume_id, intern, "title", "Engineering Intern", copy)
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+    assert res.status_code == 200, res.text
+    assert _box(res.json()["render"], "title", intern)["text"] == "Engineering Intern"
+    assert res.json()["render"]["template"] == "jakes"
+
+
+async def test_a_render_of_an_unknown_template_answers_422(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+    copy["template"] = "nope"
+    intern = _entry(await _bank(client, me), "Software Intern")["id"]
+    res = await _render_line(client, me, resume_id, intern, "title", "Engineering Intern", copy)
+    assert res.status_code == 422
+
+
+async def test_a_render_takes_the_token_of_the_paths_applicant_only(student, database):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+    other = f"/applicants/{uuid.uuid4()}"
+    res = await client.post(f"{other}/built-resumes/{resume_id}/render", json={
+        "changes": {"bullets": []}, "source": copy})
+    assert res.status_code == 403

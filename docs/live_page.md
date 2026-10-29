@@ -79,12 +79,15 @@ Built so far (option A, the typed line only):
   prints it has painted. The first build dropped it on leaving, and the
   old line showed for the whole save and compile.
 - **Each edit is a render and a save, side by side:** `POST .../render`
-  compiles the edit from the editor's copy of the bank, choices and
-  printed header, reading no database, and `PUT .../lines` (or `PATCH
+  compiles the edit from the editor's copy of the bank, choices, printed
+  header, template and file name, reading no database (its token is
+  checked by signature alone), and `PUT .../lines` (or `PATCH
   .../choices`) saves it. Neither waits for the other. Renders go one at
   a time, so each copy holds the edits before it.
-- **A typed line's save is one write, no read:** one statement per kind
-  of line, with the ownership check in its WHERE.
+- **A save is one write, no read:** one statement per kind of line, and
+  one for a move, hide, show, toggle or wording switch on items already
+  on the resume, each with the ownership check in its WHERE. An item put
+  back from the tray that never had a row still reads first.
 - **A failed save puts the saved resume back:** the editor reads the bank
   and choices again, renders from the database and says the change was
   not saved.
@@ -95,10 +98,12 @@ Built so far (option A, the typed line only):
   about 66 ms, loading a resume's view 560 to 730 ms, a compile 410 to
   500 ms (2026-10-28). A line went from about 2.7 to 3.5 s (save, then
   render) to about 2.3 s (one request, compile beside the write), then to
-  about 1.8 s (render and save apart, 2026-10-29). The render's request
-  waited 1.7 s on the server: the compile, the sign-in check and the
-  resume's row, each read over a new connection, since the local API
-  keeps none open (`DB_POOL_SIZE` 0).
+  about 1.8 s (render and save apart), then to about 0.7 s (the render
+  reading no database, 2026-10-29). Before that last step the render's
+  request waited 1.7 s on the server, most of it the sign-in check's and
+  the resume's rows, each read over a new connection, since the local API
+  keeps none open (`DB_POOL_SIZE` 0); now it waits 0.55 to 0.66 s, most of
+  it the compile.
 
 Still open for step 1:
 
@@ -108,11 +113,6 @@ Still open for step 1:
   once the PDF lands), to see whether the browser wraps close enough to
   TeX.
 - A line split across a page break moves only its first page.
-- The render still reads twice: the sign-in check's profile row and the
-  resume's row. Reading the template and name from the copy would leave
-  only the sign-in check.
-- A choice change's save (`PATCH .../choices`) still reads the bank and
-  the choice rows before it writes.
 - A line the student is still on when the tab closes is not saved.
 - Hide, show and a wording switch show nothing until the PDF lands.
 - The time on the deployed API, where a round trip is 8 to 30 ms and
