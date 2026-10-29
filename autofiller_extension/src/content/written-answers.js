@@ -411,7 +411,6 @@ window.WIA = window.WIA || {};
     async function rewrite(name) {
       const row = status.summary().fields.find((r) => r.key === name);
       if (!row?.flag || !claudeFill || rewriting.has(name)) return;
-      status.flag(name, row.flag, { quote: row.flagQuote, hard: row.flagHard, rewriting: true });
       await awaitRewrite(name, row);
     }
 
@@ -457,10 +456,14 @@ window.WIA = window.WIA || {};
       return null;
     }
 
-    /** The row waits for its new answer from the student's Claude, asked every ANSWER_POLL ms, and fills it. */
+    /**
+     * The row waits for its new answer from the student's Claude, asked every ANSWER_POLL ms, and fills it. A
+     * flagged row keeps its flag (set after the status, which clears it), so the tab still needs the student.
+     */
     async function awaitRewrite(name, row) {
       rewriting.set(name, row.shows);
       status.setStatus(name, "needs_generation", WAIT_FOR_CLAUDE, row.shows, undefined, undefined, true);
+      if (row.flag) status.flag(name, row.flag, { quote: row.flagQuote, hard: row.flagHard, rewriting: true });
       try {
         const since = Date.now();
         while (rowStatus(name) === "needs_generation") {
