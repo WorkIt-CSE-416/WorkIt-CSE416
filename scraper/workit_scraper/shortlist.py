@@ -1003,7 +1003,10 @@ def classify_with_description(title: str, description: str | None) -> tuple[Tag,
     found = categories(title)
     # A title naming no specific field ("Specialist") is `other`; when the only
     # evidence is the description's experience level, that is too vague to keep.
-    if not found or found[0] is Tag.OTHER:
+    # HR is blocked for the same reason as in `classify`: a recruiter whose title
+    # has no personal stage word ("University Recruiter") recruits for a program,
+    # not fills one.
+    if not found or found[0] is Tag.OTHER or found[0] is Tag.HR:
         return ()
     return (Tag.NEW_GRAD, *found)
 

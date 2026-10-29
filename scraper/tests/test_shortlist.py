@@ -647,7 +647,7 @@ class TestPick:
         assert [role.new for role in roles] == [False]
 
     def test_drops_everything_that_does_not_classify(self):
-        assert roles_of([job("Senior Software Engineer"), job("Customer Support Intern")]) == []
+        assert roles_of([job("Senior Software Engineer"), job("Credit Analyst")]) == []
 
     def test_a_roles_keys_are_its_categories_then_its_specialties(self):
         (role,) = roles_of([job("Machine Learning Engineering Intern")])
@@ -730,7 +730,14 @@ class TestClassifyWithDescription:
 
     def test_no_experience_required(self):
         desc = "No experience required. We will train you."
-        assert classify_with_description("Recruiter", desc) == ("new-grad", "hr")
+        assert classify_with_description("Account Executive", desc) == ("new-grad", "sales")
+
+    def test_hr_blocked_from_description_fallback(self):
+        # A recruiter with no stage word in the title could recruit for a program,
+        # not fill one; the description alone cannot tell them apart.
+        desc = "No experience required."
+        assert classify_with_description("Recruiter", desc) == ()
+        assert classify_with_description("University Recruiter", desc) == ()
 
     def test_no_prior_experience_needed(self):
         desc = "No prior experience needed for this role."
