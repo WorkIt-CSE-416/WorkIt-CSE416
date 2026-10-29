@@ -499,6 +499,15 @@ scraper standard-library-only.
 - Search URLs without company attribution remain `needs_company` in the report.
   Do not turn their slugs or search snippets into company names: every downstream
   card trusts boards.csv. Supply a verified URL and company through the CLI.
+- **The one exception is the open-jobs pool** (`--channel openjobs`, ADR 0007,
+  proposed, not yet agreed by the team): open-jobs' frozen list of boards, which
+  names none. A pool board is proposed only when it lists a posting
+  `shortlist.pick` keeps, under the name its own hiring system gives it
+  (`Provider.read_name`); one its system does not name stays `needs_company`.
+  Its `--pool-limit` and `--pool-offset` are its own, apart from `--limit`'s
+  20 a day, and the review marks a tenth of each run's pool boards, at least
+  five, for a person to check (`discovery_review.sampled`). Never name a pool
+  board from anything else: a slug, a page's other text, a search result.
 - Candidate URLs must match an actual provider host, not an embedded URL in a
   query/path or a lookalike hostname. Preserve Oracle token case and Lever region.
   `board_keys` matches from the host over the path and the query, since Jibe

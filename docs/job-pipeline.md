@@ -63,8 +63,8 @@ its company job boards, so we keep our own list.
 | | |
 |---|---|
 | **The list** | `scraper/boards.csv`: about 3,830 company job boards (table below) |
-| **Where it comes from** | `build_boards.py` reads the apply links in public GitHub internship lists (SimplifyJobs and vanshb03, Summer 2027) and pulls out each company job board's name, plus a few added by hand |
-| **How often it's refreshed** | At the start of every scheduled run, every 3 hours (KAN-167), so new companies and new job postings arrive together |
+| **Where it comes from** | Daily discovery (`scraper/docs/discovery.md`) reads the apply links in public GitHub internship lists and Hacker News hiring threads, and open-jobs' frozen list of company job boards (ADR 0007), then proposes new ones in a pull request a person reviews. `build_boards.py` is the older importer, run by hand |
+| **How often it's refreshed** | When a person merges the discovery pull request. The 3-hour scrape reads only the `boards.csv` on main |
 | **Slug** | A company job board's name in its address, like `stripe` in `boards.greenhouse.io/stripe` |
 
 How the refresh behaves:

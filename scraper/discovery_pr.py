@@ -24,6 +24,10 @@ CATALOG = "scraper/boards.csv"
 LEDGER = "scraper/discovery-review.json"
 REVIEW = "scraper/discovery-review.md"
 FILES = (CATALOG, LEDGER, REVIEW)
+#: open-jobs pool boards read per day: ~15,700 boards, so one pass in about 16
+#: days, and a pool board without an early-career posting is asked again then.
+#: The 2026-10-29 sample read about 0.4 seconds a board, so ~7 minutes a run.
+POOL_LIMIT = 1000
 
 
 def command(args: list[str], cwd: Path) -> str:
@@ -226,12 +230,18 @@ def run(root: Path, repository: str, *, publishing: bool = False) -> int:
                     "curated",
                     "--channel",
                     "hn",
+                    "--channel",
+                    "openjobs",
                     "--months",
                     "1",
                     "--limit",
                     "20",
                     "--offset",
                     str(now.date().toordinal() * 20),
+                    "--pool-limit",
+                    str(POOL_LIMIT),
+                    "--pool-offset",
+                    str(now.date().toordinal() * POOL_LIMIT),
                     "--boards",
                     str(worktree / CATALOG),
                     "--exclude",

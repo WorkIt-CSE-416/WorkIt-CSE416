@@ -14,11 +14,12 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from workit_scraper import web
-from workit_scraper.board_read import ReadStatus, read_board
+from workit_scraper import shortlist, web
+from workit_scraper.board_read import ReadStatus, read_board, reported_name
 from workit_scraper.catalog import BOARDS_CSV, add_boards, load_boards, same_file
 from workit_scraper.discovery_channels import (
     CHANNELS,
+    OPEN_JOBS,
     DiscoveryError,
     Evidence,
     SourceFailure,
@@ -26,7 +27,7 @@ from workit_scraper.discovery_channels import (
     validate_options,
 )
 from workit_scraper.polite import Robots
-from workit_scraper.providers import Board
+from workit_scraper.providers import Board, Job, name_url
 from workit_scraper.providers.urls import board_keys as board_keys
 
 
@@ -38,6 +39,12 @@ class Candidate:
     evidence: list[Evidence] = field(default_factory=list)
     status: str = "pending"
     postings: int | None = None
+    #: A pool board's titles the shortlist keeps, the reason it is proposed.
+    kept: list[str] = field(default_factory=list)
+
+
+#: Kept titles recorded per pool board: enough for a reviewer to see why.
+KEPT_SHOWN = 5
 
 
 def candidates(evidence: list[Evidence]) -> list[Candidate]:
@@ -53,16 +60,54 @@ def candidates(evidence: list[Evidence]) -> list[Candidate]:
     return list(found.values())
 
 
-def validate(row: Candidate, robots: Robots) -> None:
-    result = read_board(Board(row.ats, row.token, row.companies[0]), robots)
+def _read(row: Candidate, board: Board, robots: Robots) -> list[Job] | None:
+    """Read the board into `row`'s status and posting count; its jobs when complete."""
+    result = read_board(board, robots)
     if result.status is ReadStatus.OK:
         row.status, row.postings = "validated", len(result.jobs)
-    elif result.status is ReadStatus.MISSING:
+        return result.jobs
+    if result.status is ReadStatus.MISSING:
         row.status = "not_found"
     elif result.reason == "robots.txt":
         row.status = "robots_disallowed"
     else:
         row.status = f"unread:{result.reason}"
+    return None
+
+
+def validate(row: Candidate, robots: Robots) -> None:
+    _read(row, Board(row.ats, row.token, row.companies[0]), robots)
+
+
+def pooled(row: Candidate) -> bool:
+    """An open-jobs pool board no other source named."""
+    return not row.companies and any(item.source == OPEN_JOBS for item in row.evidence)
+
+
+def validate_pooled(row: Candidate, robots: Robots) -> None:
+    """A pool board is proposed only when it lists a posting the shortlist keeps,
+    under the name its hiring system gives it (docs/adr/0007-trust-the-hiring-systems-name.md)."""
+    board = Board(row.ats, row.token, row.token)
+    jobs = _read(row, board, robots)
+    if jobs is None:
+        return
+    row.kept = [role.title for role in shortlist.pick(jobs, is_new=lambda _: False)][:KEPT_SHOWN]
+    if not row.kept:
+        row.status = "no_early_career"
+        return
+    name = reported_name(board, robots)
+    if name is None:
+        row.status = "needs_company"
+        return
+    row.companies = [name]
+    row.evidence.append(Evidence(row.evidence[0].url, name, name_url(row.ats, row.token)))
+
+
+def rotated(rows: list[Candidate], offset: int) -> list[Candidate]:
+    if not rows:
+        return rows
+    offset %= len(rows)
+    return rows[offset:] + rows[:offset]
 
 
 def positive(value: str) -> int:
@@ -117,6 +162,18 @@ def main(argv: list[str] | None = None) -> int:
         help="rotate eligible candidates before applying the validation limit",
     )
     parser.add_argument(
+        "--pool-limit",
+        type=nonnegative,
+        default=0,
+        help="maximum open-jobs pool boards to read (--channel openjobs)",
+    )
+    parser.add_argument(
+        "--pool-offset",
+        type=nonnegative,
+        default=0,
+        help="rotate the pool before applying --pool-limit",
+    )
+    parser.add_argument(
         "--exclude", type=Path, help="review ledger; rejected boards are skipped before validation"
     )
     parser.add_argument("--boards", type=Path, default=BOARDS_CSV)
@@ -169,23 +226,28 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{failure.channel}: {failure.source}: {failure.error}")
     rows = candidates(evidence)
     known = {(b.ats, b.token) for b in load_boards(args.boards)} if args.boards.exists() else set()
-    eligible = []
+    eligible, pool = [], []
     for row in rows:
         if (row.ats, row.token) in known:
             row.status = "already_known"
         elif f"{row.ats}/{row.token}" in rejected:
             row.status = "rejected"
+        elif pooled(row):
+            row.status = "deferred"
+            pool.append(row)
         elif len(row.companies) != 1:
             row.status = "needs_company" if not row.companies else "conflicting_companies"
         else:
             row.status = "deferred"
             eligible.append(row)
-    if eligible:
-        offset = args.offset % len(eligible)
-        eligible = eligible[offset:] + eligible[:offset]
-    for row in eligible[: args.limit]:
+    for row in rotated(eligible, args.offset)[: args.limit]:
         validate(row, robots)
         print(f"{row.ats}/{row.token}: {row.status}")
+    # Most pool boards list no early-career posting, so only proposals are printed.
+    for row in rotated(pool, args.pool_offset)[: args.pool_limit]:
+        validate_pooled(row, robots)
+        if row.status == "validated":
+            print(f"{row.ats}/{row.token}: pool, named {row.companies[0]!r}")
     print(
         "Boards: "
         + ", ".join(
