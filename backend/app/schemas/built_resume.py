@@ -4,9 +4,9 @@ import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints
 
-from app.schemas.bank import EntryResponse
+from app.schemas.bank import EntryResponse, SkillResponse
 from app.schemas.profile import ApplicantProfileResponse
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
@@ -68,6 +68,18 @@ class RenderBox(BaseModel):
     text: str = ""
 
 
+class IdentityCopy(BaseModel):
+    """The header a PDF printed (resume_render.HeaderIdentity): sent with
+    every render, so the editor can send it back in its `ResumeCopy`.
+    `links` are (profile column, URL) pairs in print order."""
+
+    name: str
+    email: str | None = None
+    phone: str | None = None
+    links: list[tuple[str, str]] = []
+    us_citizen: bool = False
+
+
 class RenderResponse(BaseModel):
     """The rendered PDF, base64, with what the student is warned about
     before download and the editor's boxes, in page order."""
@@ -82,6 +94,7 @@ class RenderResponse(BaseModel):
     lines_over: int
     missing_characters: list[str]
     boxes: list[RenderBox]
+    identity: IdentityCopy | None = None
 
 
 class EntryChoiceResponse(BaseModel):
@@ -171,6 +184,21 @@ class ChoicesUpdate(BaseModel):
     skills: list[SkillChoiceUpdate] = []
 
 
+class ResumeCopy(BaseModel):
+    """The editor's copy of what its PDF is built from (KAN-391): the bank
+    as GET /bank sent it (the resume's own skills included), the choices as
+    the choices routes send them, and the header the last render printed.
+    With it, an edit's PDF compiles at once, from the copy with the edit
+    made, while the database is written: no read comes first. It shapes
+    only the PDF sent back to the student who sent it; every write, and
+    every download, Apply and sent resume, reads the database."""
+
+    entries: list[EntryResponse] = Field(max_length=500)
+    skills: list[SkillResponse] = Field(max_length=1000)
+    choices: ChoicesResponse
+    identity: IdentityCopy
+
+
 class LineSave(BaseModel):
     """One line typed in the editor (KAN-391): the clicked box's `item_id`
     and `kind`, and the text as typed. The API decides what it changes
@@ -179,6 +207,7 @@ class LineSave(BaseModel):
     item_id: UUID | Literal["header"]
     kind: str
     text: Annotated[str, StringConstraints(max_length=2000)]
+    source: ResumeCopy | None = None
 
 
 class LineSaveResponse(BaseModel):
@@ -191,6 +220,19 @@ class LineSaveResponse(BaseModel):
     choices: ChoicesResponse | None = None
     entry: EntryResponse | None = None
     profile: ApplicantProfileResponse | None = None
+
+
+class ChoicesSave(BaseModel):
+    """The editor's hide, show, move, toggles and wording switches, with
+    its copy (KAN-391): saved and rendered in one request."""
+
+    changes: ChoicesUpdate
+    source: ResumeCopy | None = None
+
+
+class ChoicesSaved(BaseModel):
+    render: RenderResponse
+    choices: ChoicesResponse
 
 
 class FitResponse(BaseModel):

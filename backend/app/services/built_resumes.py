@@ -433,17 +433,66 @@ async def load_view(
 _UNSET = object()
 
 
-def with_wording(bank: Bank, choices: Choices, bullet_id: uuid.UUID, wording: str) -> Choices:
-    """`choices` with a bullet showing typed wording, in memory, as
-    `update_choices` will save it: the original typed back shows the
-    original. The editor's line route builds the view from it, so the PDF
-    compiles while the write runs. NotFound for a bullet outside `bank`."""
-    original = next((b.text for e in bank.entries for b in e.bullets if b.id == bullet_id), None)
-    if original is None:
+def apply_choices(
+    bank,
+    choices: Choices,
+    entries: list[dict] = (),
+    bullets: list[dict] = (),
+    skills: list[dict] = (),
+    variant_text: dict[uuid.UUID, str] | None = None,
+) -> Choices:
+    """`choices` after `update_choices` would save these changes, in memory:
+    the same fields, the same new rows at the end of their siblings, an
+    entry bringing its row-less bullets, typed wording and the original
+    typed back. A switch to a variant shows `variant_text[variant_id]`. The
+    editor's edit route builds the PDF's view from it, so the compile runs
+    while the write does (KAN-391). NotFound, before anything, for an item
+    outside `bank` or a variant outside `variant_text`. The dicts are
+    read, never changed."""
+    variant_text = variant_text or {}
+    entry_of = {b.id: e.row.id for e in bank.entries for b in e.bullets}
+    original = {b.id: b.text for e in bank.entries for b in e.bullets}
+    section_of = {e.row.id: str(e.row.section) for e in bank.entries}
+    bullets_of = {e.row.id: [b.id for b in e.bullets] for e in bank.entries}
+    skill_ids = {s.id for s in bank.skills}
+    if (any(c["entry_id"] not in section_of for c in entries)
+            or any(c["bullet_id"] not in entry_of for c in bullets)
+            or any(c["skill_id"] not in skill_ids for c in skills)
+            or any(c.get("variant_id") not in (None, *variant_text) for c in bullets)):
         raise NotFound
-    shown = choices.bullets.get(bullet_id) or BulletChoice(position=len(choices.bullets))
-    text = None if wording == original.strip() else wording
-    return dataclasses.replace(choices, bullets={**choices.bullets, bullet_id: dataclasses.replace(shown, text=text)})
+    found = {"entries": dict(choices.entries), "bullets": dict(choices.bullets), "skills": dict(choices.skills)}
+    made = {"entries": EntryChoice, "bullets": BulletChoice, "skills": SkillChoice}
+
+    def row(kind: str, item_id: uuid.UUID, siblings) -> object:
+        store = found[kind]
+        if item_id not in store:
+            used = [c.position for i, c in store.items() if i in siblings]
+            store[item_id] = made[kind](shown=True, position=max(used, default=-1) + 1)
+        return store[item_id]
+
+    def changed(target, change: dict, key: str):
+        fields = {k: v for k, v in change.items() if k not in (key, "text", "variant_id") and v is not None}
+        return dataclasses.replace(target, **fields)
+
+    for change in entries:
+        entry_id = change["entry_id"]
+        siblings = {i for i, s in section_of.items() if s == section_of[entry_id]}
+        found["entries"][entry_id] = changed(row("entries", entry_id, siblings), change, "entry_id")
+        for bullet_id in bullets_of[entry_id]:
+            row("bullets", bullet_id, set(bullets_of[entry_id]))
+    for change in bullets:
+        bullet_id = change["bullet_id"]
+        target = changed(row("bullets", bullet_id, set(bullets_of[entry_of[bullet_id]])), change, "bullet_id")
+        if change.get("text") is not None:
+            wording = change["text"]
+            target = dataclasses.replace(target, text=None if wording == original[bullet_id].strip() else wording)
+        elif "variant_id" in change:
+            switch = change["variant_id"]
+            target = dataclasses.replace(target, variant_id=switch, text=variant_text.get(switch))
+        found["bullets"][bullet_id] = target
+    for change in skills:
+        found["skills"][change["skill_id"]] = changed(row("skills", change["skill_id"], skill_ids), change, "skill_id")
+    return Choices(found["entries"], found["bullets"], found["skills"])
 
 
 async def _type_wording(

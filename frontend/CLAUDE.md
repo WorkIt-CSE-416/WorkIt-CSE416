@@ -1470,6 +1470,22 @@ the KAN-296 cutover.
   700 ms pause leaves an emptied line waiting, since the student is likely
   retyping it and an empty title or bullet is refused; leaving the line
   sends it. "Saved, N ms" now times the save and the render together.
+- **The editor's requests run one at a time, each with a copy**
+  (KAN-391): typed lines, moves, hides, put-backs, wording switches and
+  Fit go through one queue (`enqueue`), and each request carries the
+  editor's copy of the bank, choices and printed header (`ResumeCopy`,
+  built from the `held` ref), so the API compiles with no database read
+  first. The queue is what keeps the copy true: a copy built while an
+  earlier edit was on its way would print that edit's old text. Every
+  answer's bank entry and choices go into `held` even when a newer request
+  owns the page. A choice change's plain fields (shown, position, the
+  toggles) go into the choices at once (`mergeChoices`) and are merged
+  again over each answer until their own lands, so a second quick move
+  computes from the first. A move of two neighbours shows at once as their
+  strips of the page trading places (`swapOf`, `swapsOn`, `Strip` in
+  `pdf-pages.tsx`): a swap is kept by item, not by position, so a PDF
+  that lands before its own still shows it, and one the page already
+  shows draws nothing.
 - **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
   text is kept per line (`drafts`, by box key) and drawn over the line
   until the PDF that prints it has painted: the selected line as its

@@ -357,17 +357,29 @@ Find files with a directory listing; these are the rules for where code goes.
   decides what it changes: a bullet the resume's own wording (through
   `update_choices`), an entry field the bank (`bank.update_entry`), a
   header field the profile, checked as My Profile's PATCH checks it.
-  **The compile runs beside the write**: the route reads the bank, the
-  choices and the header once, makes the change to them in memory
-  (`bank.edit_entry`, `built_resumes.with_wording`, the profile row), starts
-  Tectonic on that view, then writes, commits and reads its answer's
-  choices while it compiles. A change the checks refuse (422, 404) is
+  **The compile runs beside the write**: the route takes the bank, the
+  choices and the header from the editor's copy (`source`, a
+  `ResumeCopy`, read by `services/resume_copy.py`) or, without one, reads
+  them once; makes the change to them in memory (`bank.edit_entry`,
+  `built_resumes.apply_choices`, the header); starts Tectonic on that
+  view; then writes, commits and reads its answer's choices while it
+  compiles. **The copy shapes only the PDF sent back**: every write checks
+  the database as before, and downloads, Apply and sent resumes never read
+  a copy. Every render answers the header it printed (`identity`), which
+  the editor sends back in its copy, since the browser does not hold the
+  contact email or the citizenship answer. A change the checks refuse (422, 404) is
   refused before the compile starts. A write that fails cancels the wait
   on the compile; a compile that fails after the commit answers 503 and
   the line stays saved, as a save then a render did. Until then the route
   read the bank three times and compiled only after the commit: measured
   from a laptop, 9 reads of about 66 ms each and a 0.6 s connection sat
-  before every 0.4 s compile (2026-10-28).
+  before every 0.4 s compile (2026-10-28). **Hide, show, move, the toggles
+  and wording switches take the same path**: `PATCH
+  .../choices/render` (`ChoicesSave`: `changes` and `source`).
+  `apply_choices` mirrors `update_choices` field for field, new rows and
+  all; change one and the other together, or the PDF shows what was not
+  saved. `test_the_pdf_built_in_memory_matches_the_saved_resume` checks
+  them against each other.
   The rules for typed text (a GPA is a number, the label typed back is
   dropped, a link gets `https://`) live there and nowhere in the browser:
   until KAN-391 `model.ts` held them, and a GPA it could not read was

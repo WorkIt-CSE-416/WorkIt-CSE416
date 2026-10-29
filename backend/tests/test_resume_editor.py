@@ -475,3 +475,149 @@ async def test_a_failed_compile_answers_503_and_still_keeps_the_typed_line(stude
     res = await _type(client, me, resume_id, intern, "location", "Boston, MA")
     assert res.status_code == 503
     assert _entry(await _bank(client, me), "Software Intern")["location"] == "Boston, MA"
+
+
+# The editor's copy (`source`, KAN-391): the PDF compiles from it, no read first
+
+async def _copy(client, me, resume_id):
+    bank = (await client.get(f"{me}/bank", params={"built_resume_id": resume_id})).json()
+    choices = (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()
+    identity = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["identity"]
+    return {"entries": bank["entries"], "skills": bank["skills"], "choices": choices, "identity": identity}
+
+
+def _order(render, kind):
+    return [b["text"] for b in render["boxes"] if b["kind"] == kind]
+
+
+async def test_every_render_says_what_header_it_printed(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    identity = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["identity"]
+    assert identity["name"] == "Sam Seeker"
+    assert identity["phone"] == "555-010-2030"
+    assert identity["links"] == [["github_url", "https://github.com/samseeker"]]
+
+
+async def test_a_typed_line_with_a_copy_compiles_from_the_copy_and_saves_to_the_database(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+    # The copy says the tutor job is at a center the database does not know:
+    # the PDF prints the copy, so no read came first
+    tutor = next(e for e in copy["entries"] if e["title"] == "Tutor")
+    tutor["organization"] = "Copy Center"
+    intern = _entry(await _bank(client, me), "Software Intern")["id"]
+
+    res = await client.put(f"{me}/built-resumes/{resume_id}/lines", json={
+        "item_id": intern, "kind": "title", "text": "Engineering Intern", "source": copy})
+    assert res.status_code == 200, res.text
+    render = res.json()["render"]
+    assert _box(render, "title", intern)["text"] == "Engineering Intern"
+    assert _box(render, "organization", tutor["id"])["text"] == "Copy Center"
+    bank = await _bank(client, me)
+    assert _entry(bank, "Engineering Intern")["id"] == intern
+    assert _entry(bank, "Tutor")["organization"] == "Campus Center"
+
+
+async def test_a_typed_header_field_with_a_copy_prints_at_once(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+
+    res = await client.put(f"{me}/built-resumes/{resume_id}/lines", json={
+        "item_id": "header", "kind": "linkedin_url", "text": "linkedin.com/in/sam", "source": copy})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert _box(body["render"], "linkedin_url")["text"] == "linkedin.com/in/sam"
+    assert body["render"]["identity"]["links"][0] == ["linkedin_url", "https://linkedin.com/in/sam"]
+    assert body["profile"]["linkedin_url"] == "https://linkedin.com/in/sam"
+
+
+async def test_moving_bullets_saves_and_renders_in_one_request(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    first, second = (b["id"] for b in _entry(await _bank(client, me), "Software Intern")["bullets"])
+    move = {"bullets": [{"bullet_id": second, "position": 0}, {"bullet_id": first, "position": 1}]}
+
+    for source in (None, await _copy(client, me, resume_id)):
+        res = await client.patch(f"{me}/built-resumes/{resume_id}/choices/render",
+                                 json={"changes": move, "source": source})
+        assert res.status_code == 200, res.text
+        body = res.json()
+        bullets = _order(body["render"], "bullet")
+        assert bullets.index("Wrote the billing service's tests") < bullets.index("Cut page load time by 30%")
+        assert {c["bullet_id"]: c["position"] for c in body["choices"]["bullets"]}[second] == 0
+    lines = await _lines(client, me, resume_id)
+    assert lines.index("Wrote the billing service's tests") < lines.index("Cut page load time by 30%")
+
+
+async def test_hiding_and_switching_wording_with_a_copy_print_at_once(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    bullet = _entry(await _bank(client, me), "Software Intern")["bullets"][0]["id"]
+    await _type(client, me, resume_id, bullet, "bullet", "Cut page load time by 35%")
+    copy = await _copy(client, me, resume_id)
+
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices/render", json={
+        "changes": {"bullets": [{"bullet_id": bullet, "variant_id": None}]}, "source": copy})
+    assert res.status_code == 200, res.text
+    assert _box(res.json()["render"], "bullet", bullet)["text"] == "Cut page load time by 30%"
+
+    copy["choices"] = res.json()["choices"]
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices/render", json={
+        "changes": {"bullets": [{"bullet_id": bullet, "shown": False}]}, "source": copy})
+    assert res.status_code == 200, res.text
+    assert bullet not in {b["item_id"] for b in res.json()["render"]["boxes"]}
+    assert "Cut page load time by 30%" not in await _lines(client, me, resume_id)
+
+
+async def test_a_choice_for_an_item_outside_the_bank_answers_404_and_saves_nothing(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    before = (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices/render", json={
+        "changes": {"bullets": [{"bullet_id": str(uuid.uuid4()), "shown": False}]}})
+    assert res.status_code == 404
+    assert (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json() == before
+
+
+async def test_the_pdf_built_in_memory_matches_the_saved_resume(student):
+    # apply_choices mirrors update_choices: the answer's PDF, made before
+    # the write, prints what a render read from the database prints after
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    res = await client.post(f"{me}/bank/entries", json={
+        "section": "experience", "title": "Barista", "organization": "Cafe",
+        "start_month": "2026-06", "end_kind": "present", "bullets": ["Served 200 customers a day"]})
+    barista = res.json()["id"]
+    bank = await _bank(client, me)
+    tutor, intern = _entry(bank, "Tutor")["id"], _entry(bank, "Software Intern")["id"]
+    school = _entry(bank, "Stony Brook University")["id"]
+    docker = next(s["id"] for s in bank["skills"] if s["name"] == "Docker")
+    changes = {
+        "entries": [{"entry_id": tutor, "position": 0}, {"entry_id": intern, "position": 1},
+                    {"entry_id": barista}, {"entry_id": school, "show_gpa": False}],
+        "skills": [{"skill_id": docker, "shown": False}],
+    }
+
+    res = await client.patch(f"{me}/built-resumes/{resume_id}/choices/render",
+                             json={"changes": changes, "source": await _copy(client, me, resume_id)})
+    assert res.status_code == 200, res.text
+    after = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert [(b["item_id"], b["kind"], b["text"]) for b in res.json()["render"]["boxes"]] == [
+        (b["item_id"], b["kind"], b["text"]) for b in after["boxes"]]
+    assert "Served 200 customers a day" in _order(after, "bullet")

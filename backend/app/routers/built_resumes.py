@@ -43,8 +43,12 @@ PUT    /applicants/{id}/built-resumes/{rid}/lines  LineSave -> LineSaveResponse
        resume's wording, an entry field changes the bank, a header field
        the profile. 422 {detail} for text it cannot save (an empty title, a
        GPA that is not a number, a kind not typed here), 404 for an item
-       outside the bank. The save is committed before the render, so a 503
-       still keeps it, as a save then a render did.
+       outside the bank. The PDF compiles beside the write, from the
+       editor's copy (`source`, ResumeCopy) when sent, with no read first;
+       a compile that fails after the commit answers 503 and keeps the save.
+PATCH  /applicants/{id}/built-resumes/{rid}/choices/render ChoicesSave -> ChoicesSaved
+       The choices PATCH (`changes`) and a render in one request, the
+       compile beside the write as for a typed line; `source` as there.
 POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, undo, render}
        Fit to One Page: hides coursework, bullets and whole entries, least
        useful first (resume_view.fit_order), and renders again until the
@@ -70,6 +74,7 @@ GET    /applicants/{id}/built-resumes/{rid}/keyword-match?job_posting_id=
 
 import asyncio
 import base64
+import dataclasses
 import logging
 import uuid
 
@@ -92,6 +97,8 @@ from app.schemas.built_resume import (
     BuiltResumeRename,
     BuiltResumeResponse,
     ChoicesResponse,
+    ChoicesSave,
+    ChoicesSaved,
     ChoicesUpdate,
     FitResponse,
     LineSave,
@@ -101,12 +108,13 @@ from app.schemas.built_resume import (
 )
 from app.schemas.keywords import KeywordMatchResponse
 from app.schemas.profile import ApplicantProfileResponse, ApplicantProfileUpdate
-from app.services import bank, keywords, postings, resume_lines
+from app.services import bank, keywords, postings, resume_copy, resume_lines
 from app.services import built_resumes as service
 from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound
 from app.services.models import get_small_llm
 from app.services.names import name_columns
+from app.services.resume_copy import identity_copy
 from app.services.resume_render import (
     HEADER,
     HeaderIdentity,
@@ -240,7 +248,7 @@ async def render_pdf(
     except NotFound:
         raise HTTPException(404, "Resume not found")
     identity = await _identity(session, applicant_id)
-    return _render_response(await _render(view, identity, resume.template), resume.name)
+    return _render_response(await _render(view, identity, resume.template), resume.name, identity)
 
 
 RENDER_FAILED = "The PDF could not be made. Try again, or download the Word file."
@@ -254,7 +262,7 @@ async def _render(view, identity: HeaderIdentity, template: str) -> Rendered:
         raise HTTPException(503, RENDER_FAILED) from exc
 
 
-def _render_response(rendered: Rendered, name: str) -> RenderResponse:
+def _render_response(rendered: Rendered, name: str, identity: HeaderIdentity) -> RenderResponse:
     return RenderResponse(
         pdf=base64.b64encode(rendered.pdf).decode("ascii"),
         file_name=service.file_name(name, "pdf"),
@@ -262,6 +270,7 @@ def _render_response(rendered: Rendered, name: str) -> RenderResponse:
         lines_over=rendered.lines_over,
         missing_characters=list(rendered.missing_characters),
         boxes=[RenderBox(**vars(box)) for box in rendered.boxes],
+        identity=identity_copy(identity),
     )
 
 
@@ -282,7 +291,7 @@ async def fit(
     return FitResponse(
         hidden=[c.id for c in cuts if c.kind == "bullet"],
         undo=ChoicesUpdate(**service.fit_changes(cuts, hide=False)),
-        render=_render_response(rendered, resume.name),
+        render=_render_response(rendered, resume.name, identity),
     )
 
 
@@ -323,29 +332,27 @@ async def save_line(
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
 ) -> LineSaveResponse:
-    # The PDF compiles while the change is written: the bank, choices and
-    # header are read once, the change is made to them in memory, the
-    # compile starts from that view, and the write, the commit and the
-    # answer's own reads run beside Tectonic. A save then a render read the
-    # bank three times and compiled only after the commit (KAN-391).
+    # The PDF compiles while the change is written: from the editor's copy
+    # when it sends one (no read first), else from the bank, choices and
+    # header read once; the change is made to them in memory, the compile
+    # starts from that view, and the write, the commit and the answer's own
+    # reads run beside Tectonic. A save then a render read the bank three
+    # times and compiled only after the commit (KAN-391).
     resume = await _owned(session, applicant_id, resume_id)
     try:
         line = resume_lines.parse(body.kind, body.text)
         if (line.target == "header") != (body.item_id == HEADER):
             raise resume_lines.LineError("This line is not typed here.")
-        held = await bank.load_bank(session, applicant_id, local_to=[resume_id])
-        choices = await service.load_choices(session, resume_id)
-        identity = await _identity(session, applicant_id)
+        held, choices, identity = await _held(session, applicant_id, resume_id, body.source)
         if line.target == "bullet":
-            choices = service.with_wording(held, choices, body.item_id, line.changes["text"])
+            choices = service.apply_choices(held, choices, bullets=[{"bullet_id": body.item_id, **line.changes}])
         elif line.target == "entry":
             row = next((e.row for e in held.entries if e.row.id == body.item_id), None)
             if row is None:
                 raise NotFound
             bank.edit_entry(row, line.changes)
         else:
-            profile = _edit_header(await session.get(Applicant_Profile, applicant_id), line.changes)
-            identity = await _identity(session, applicant_id)
+            identity = _with_header(identity, line.changes)
     except resume_lines.LineError as exc:
         raise HTTPException(422, str(exc))
     except ValidationError as exc:
@@ -355,26 +362,50 @@ async def save_line(
 
     compile_ = asyncio.create_task(_render(build_view(held, choices), identity, resume.template))
     try:
-        choices_after, entry = await _write_line(session, applicant_id, resume_id, body, line)
+        choices_after, entry, profile = await _write_line(session, applicant_id, resume_id, body, line)
     except BaseException:
         # The compile's thread finishes on its own; nothing waits for it
         compile_.cancel()
         raise
     return LineSaveResponse(
-        render=_render_response(await compile_, resume.name),
+        render=_render_response(await compile_, resume.name, identity),
         choices=choices_after,
         entry=entry,
-        profile=ApplicantProfileResponse.model_validate(profile) if line.target == "header" else None,
+        profile=profile,
     )
+
+
+async def _held(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID, source):
+    """What the edit's PDF is built from: the editor's copy, or the
+    database's bank, choices and header."""
+    if source is not None:
+        return resume_copy.from_copy(source)
+    held = await bank.load_bank(session, applicant_id, local_to=[resume_id])
+    return held, await service.load_choices(session, resume_id), await _identity(session, applicant_id)
+
+
+def _with_header(identity: HeaderIdentity, changes: dict) -> HeaderIdentity:
+    """The header after a typed header field, in memory, checked as My
+    Profile's PATCH checks it."""
+    ApplicantProfileUpdate.model_validate(changes)
+    field, value = next(iter(changes.items()))
+    if field == "full_name":
+        return dataclasses.replace(identity, name=name_columns(value)["full_name"])
+    if field == "phone_number":
+        return dataclasses.replace(identity, phone=value)
+    links = dict(identity.links)
+    links[field] = value
+    order = ("linkedin_url", "github_url", "portfolio_url", "other_url")
+    return dataclasses.replace(identity, links=tuple((f, links[f]) for f in order if links.get(f)))
 
 
 async def _write_line(
     session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID, body: LineSave, line: resume_lines.Line
-) -> tuple[ChoicesResponse | None, EntryResponse | None]:
+) -> tuple[ChoicesResponse | None, EntryResponse | None, ApplicantProfileResponse | None]:
     """The typed line's write and commit, then what the answer reports
     besides the render: the choices after a bullet, the entry after an
-    entry field."""
-    entry = None
+    entry field, the profile after a header field."""
+    entry = profile = None
     try:
         if line.target == "bullet":
             await service.update_choices(
@@ -383,13 +414,16 @@ async def _write_line(
         elif line.target == "entry":
             entry = await bank.update_entry(session, applicant_id, body.item_id, line.changes)
         else:
+            profile = _edit_header(await session.get(Applicant_Profile, applicant_id), line.changes)
             await session.flush()
     except NotFound:
         raise HTTPException(404, "Resume or bank item not found")
     await _commit(session, "Failed to save the resume")
     if line.target == "bullet":
-        return await service.choices_response(session, resume_id), None
-    return None, bank.entry_response(entry) if entry is not None else None
+        return await service.choices_response(session, resume_id), None, None
+    if line.target == "header":
+        return None, None, ApplicantProfileResponse.model_validate(profile)
+    return None, bank.entry_response(entry), None
 
 
 def _edit_header(profile: Applicant_Profile | None, changes: dict) -> Applicant_Profile:
@@ -406,6 +440,46 @@ def _edit_header(profile: Applicant_Profile | None, changes: dict) -> Applicant_
         else:
             setattr(profile, field, value)
     return profile
+
+
+@router.patch("/{resume_id}/choices/render", response_model=ChoicesSaved)
+async def save_choices(
+    body: ChoicesSave,
+    resume_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> ChoicesSaved:
+    # The choices PATCH and a render in one request, the compile beside the
+    # write, as a typed line's (save_line, KAN-391)
+    resume = await _owned(session, applicant_id, resume_id)
+    changes = {
+        kind: [c.model_dump(exclude_unset=True) for c in getattr(body.changes, kind)]
+        for kind in ("entries", "bullets", "skills")
+    }
+    held, choices, identity = await _held(session, applicant_id, resume_id, body.source)
+    if body.source is not None:
+        texts = {v.id: v.text for v in body.source.choices.variants}
+    else:
+        texts = {v.id: v.text for v in await service.list_variants(session, resume_id, list(choices.bullets))}
+    try:
+        after = service.apply_choices(held, choices, **changes, variant_text=texts)
+    except NotFound:
+        raise HTTPException(404, "Resume or bank item not found")
+
+    compile_ = asyncio.create_task(_render(build_view(held, after), identity, resume.template))
+    try:
+        try:
+            await service.update_choices(
+                session, applicant_id, resume_id, **{k: [dict(c) for c in v] for k, v in changes.items()}
+            )
+        except NotFound:
+            raise HTTPException(404, "Resume or bank item not found")
+        await _commit(session, "Failed to save the resume")
+        saved = await service.choices_response(session, resume_id)
+    except BaseException:
+        compile_.cancel()
+        raise
+    return ChoicesSaved(render=_render_response(await compile_, resume.name, identity), choices=saved)
 
 
 @router.get("/{resume_id}/docx")

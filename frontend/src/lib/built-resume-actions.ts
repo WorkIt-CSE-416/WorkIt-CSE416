@@ -1,7 +1,7 @@
 "use server";
 
 import { applicantCall, encodeId, type Result } from "@/lib/applicant-call";
-import type { BankEntry } from "@/lib/bank-actions";
+import type { BankEntry, Skill } from "@/lib/bank-actions";
 import type { ApplicantProfile } from "@/lib/profile-actions";
 
 /**
@@ -48,6 +48,16 @@ export type RenderBox = {
   text: string;
 };
 
+/** The header a PDF printed (schemas `IdentityCopy`): the editor sends it
+ *  back in its copy. */
+export type IdentityCopy = {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  links: [string, string][];
+  us_citizen: boolean;
+};
+
 /** The PDF, base64, what the student is warned about before saving it, and
  *  the editor's click targets. */
 export type RenderedPdf = {
@@ -59,6 +69,17 @@ export type RenderedPdf = {
   lines_over: number;
   missing_characters: string[];
   boxes: RenderBox[];
+  identity: IdentityCopy | null;
+};
+
+/** The editor's copy of what its PDF is built from (schemas `ResumeCopy`,
+ *  KAN-391): with it, an edit's PDF compiles at once, with no database
+ *  read first. It shapes only the PDF sent back. */
+export type ResumeCopy = {
+  entries: BankEntry[];
+  skills: Skill[];
+  choices: Choices;
+  identity: IdentityCopy;
 };
 
 const id = encodeId;
@@ -194,10 +215,24 @@ export type LineSaved = {
 export async function saveLine(
   resumeId: string,
   line: { item_id: string; kind: string; text: string },
+  source?: ResumeCopy,
 ): Promise<Result<LineSaved>> {
   return call<LineSaved>(`/${id(resumeId)}/lines`, {
     method: "PUT",
-    body: JSON.stringify(line),
+    body: JSON.stringify({ ...line, source }),
+  });
+}
+
+/** The choices PATCH and a render in one request (KAN-391): hide, show,
+ *  move, toggles and wording switches; the choices after, and the PDF. */
+export async function saveChoices(
+  resumeId: string,
+  changes: ChoicesUpdate,
+  source?: ResumeCopy,
+): Promise<Result<{ render: RenderedPdf; choices: Choices }>> {
+  return call(`/${id(resumeId)}/choices/render`, {
+    method: "PATCH",
+    body: JSON.stringify({ changes, source }),
   });
 }
 

@@ -26,10 +26,12 @@ import {
   fitToOnePage,
   getChoices,
   renderResumePdf,
+  saveChoices,
   saveLine,
-  updateChoices,
   type Choices,
   type ChoicesUpdate,
+  type IdentityCopy,
+  type ResumeCopy,
   type RenderBox,
   type RenderedPdf,
 } from "@/lib/built-resume-actions";
@@ -47,14 +49,25 @@ import {
   HEADER,
   LINK_FIELDS,
   lineOf,
+  mergeChoices,
   move,
+  swapOf,
   typed,
+  type Swap,
   type Header,
   type HeaderField,
   type Line,
 } from "./model";
 import { keepFitUndo, readFitUndo } from "./fit-undo";
-import { boxKey, kindLabel, loadPdfjs, PageSkeleton, PdfPages } from "./pdf-pages";
+import {
+  afterStrips,
+  boxKey,
+  kindLabel,
+  loadPdfjs,
+  PageSkeleton,
+  PdfPages,
+  type Strip,
+} from "./pdf-pages";
 import { PhoneEditor, usePhone } from "./phone";
 import {
   cardsOf,
@@ -210,7 +223,10 @@ export function Editor({
 }) {
   // Null until the first render lands (FirstRenderPane hands it over).
   const [rendered, setRendered] = useState<RenderedPdf | null>(null);
-  const adopt = useCallback((first: RenderedPdf) => setRendered((current) => current ?? first), []);
+  const adopt = useCallback((first: RenderedPdf) => {
+    held.current.identity ??= first.identity;
+    setRendered((current) => current ?? first);
+  }, []);
   // The first render failed: the page area says so, and the phone's bar
   // stops offering "Click a line", since there is no line to click.
   const [firstFailed, setFirstFailed] = useState(false);
@@ -222,6 +238,26 @@ export function Editor({
   const [bank, setBank] = useState(initialBank);
   const [header, setHeader] = useState(initialHeader);
   const [choices, setChoices] = useState(initialChoices);
+  // What the next request's copy is built from (KAN-391): the bank and
+  // choices as the newest answer left them, with the changes on their way
+  // merged in, and the header the newest PDF printed. A ref, so a request
+  // that waited for the one before reads what that one left, before React
+  // has drawn it.
+  const held = useRef<{ bank: Bank; choices: Choices; identity: IdentityCopy | null }>({
+    bank: initialBank,
+    choices: initialChoices,
+    identity: null,
+  });
+  // The choices as the API last answered them, and the changes sent since
+  const confirmed = useRef(initialChoices);
+  const unanswered = useRef(new Map<string, ChoicesUpdate>());
+  const changeCount = useRef(0);
+  // The editor's requests run one at a time, so each copy holds every
+  // edit before it; a copy built while an earlier edit was on its way would
+  // print that edit's old text
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  // The moves on their way, shown on the page at once (./pdf-pages.tsx)
+  const [swaps, setSwaps] = useState<(Swap & { id: string })[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   // Typed text by box key (KAN-391): the selected line's, and each line
   // left before the PDF that prints it has painted. The page draws it over
@@ -229,8 +265,15 @@ export function Editor({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   // How many lines each wrapping draft shows, for the live page's shift
   const [draftLines, setDraftLines] = useState<Record<string, number>>({});
-  // The lines whose save is on its way: their drafts stay until it lands
-  const onTheirWay = useRef(new Set<string>());
+  // What is on its way, by line key or change id, counted: a line's draft
+  // and a move's swap stay until the PDF after it lands
+  const onTheirWay = useRef(new Map<string, number>());
+  const sent = (key: string) => onTheirWay.current.set(key, (onTheirWay.current.get(key) ?? 0) + 1);
+  const answered = (key: string) => {
+    const left = (onTheirWay.current.get(key) ?? 1) - 1;
+    if (left > 0) onTheirWay.current.set(key, left);
+    else onTheirWay.current.delete(key);
+  };
   // The selected line as of now, for a save that lands after it changed
   const selectedNow = useRef<string | null>(null);
   const drop = useCallback(
@@ -299,17 +342,32 @@ export function Editor({
     return () => request === latest.current;
   }, []);
 
-  const renderAgain = useCallback(
-    async (current: () => boolean) => {
-      started.current = performance.now();
-      const { data, error } = await renderResumePdf(resumeId);
-      if (!current()) return; // a newer request owns the page
-      setSaving(false);
-      if (!data) return setError(error);
-      setRendered(data);
-    },
-    [resumeId],
-  );
+  /** Runs a request after every request before it has answered. */
+  const enqueue = useCallback(<T,>(job: () => Promise<T>): Promise<T> => {
+    const run = queue.current.then(job);
+    queue.current = run.catch(() => undefined);
+    return run;
+  }, []);
+
+  /** The choices an answer gave, with the changes still on their way. */
+  const keepChoices = useCallback((answer: Choices) => {
+    confirmed.current = answer;
+    let next = answer;
+    for (const changes of unanswered.current.values()) next = mergeChoices(next, changes);
+    held.current.choices = next;
+    setChoices(next);
+  }, []);
+
+  const keepRendered = useCallback((next: RenderedPdf) => {
+    if (next.identity) held.current.identity = next.identity;
+    setRendered(next);
+  }, []);
+
+  /** The copy each request carries, or none before the first PDF. */
+  const copy = useCallback((): ResumeCopy | undefined => {
+    const { bank, choices, identity } = held.current;
+    return identity ? { entries: bank.entries, skills: bank.skills, choices, identity } : undefined;
+  }, []);
 
   const apply = useCallback(
     async (changes: ChoicesUpdate, revertedTarget?: RevertTarget) => {
@@ -321,67 +379,83 @@ export function Editor({
         const picked = new Set(changes.bullets.map((b) => `${b.bullet_id}.bullet`));
         setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([k]) => !picked.has(k))));
       }
-      const current = begin();
-      const { data, error } = await updateChoices(resumeId, changes);
-      if (!current()) return;
-      if (!data) {
+      // The change shows at once: its plain fields in the choices, and a
+      // move as two neighbours trading places on the page
+      const id = `change:${++changeCount.current}`;
+      const swap = swapOf(held.current.bank, held.current.choices, changes);
+      unanswered.current.set(id, changes);
+      keepChoices(confirmed.current);
+      sent(id);
+      if (swap) setSwaps((s) => [...s, { ...swap, id }]);
+      return enqueue(async () => {
+        const current = begin();
+        started.current = performance.now();
+        const { data, error } = await saveChoices(resumeId, changes, copy());
+        unanswered.current.delete(id);
+        answered(id);
+        // Refused: the change and its swap leave the page
+        keepChoices(data?.choices ?? confirmed.current);
+        if (!data) setSwaps((s) => s.filter((x) => x.id !== id));
+        if (!current()) return;
         setSaving(false);
-        return setError(error);
-      }
-      setChoices(data);
-      // A change to an item Tailor changed (a revert included) drops its mark
-      const waiting = latestReview.current;
-      if (waiting) {
-        setReview({
-          ...waiting,
-          edits: revertedTarget
-            ? reverted(waiting.edits, revertedTarget, data)
-            : untouched(waiting.edits, changes),
-        });
-      }
-      await renderAgain(current);
+        if (!data) return setError(error);
+        // A change to an item Tailor changed (a revert included) drops its mark
+        const waiting = latestReview.current;
+        if (waiting) {
+          setReview({
+            ...waiting,
+            edits: revertedTarget
+              ? reverted(waiting.edits, revertedTarget, data.choices)
+              : untouched(waiting.edits, changes),
+          });
+        }
+        keepRendered(data.render);
+      });
     },
-    [begin, resumeId, renderAgain, setReview],
+    [begin, copy, enqueue, keepChoices, keepRendered, resumeId, setReview],
   );
 
   /** Saves one typed line and renders, in one request (KAN-391). The API
    *  reads the text and answers what it changed. */
   const saveText = useCallback(
-    async (item_id: string, kind: string, text: string) => {
+    (item_id: string, kind: string, text: string) => {
       const key = `${item_id}.${kind}`;
-      onTheirWay.current.add(key);
-      const current = begin();
-      started.current = performance.now();
-      const { data, error } = await saveLine(resumeId, { item_id, kind, text });
-      onTheirWay.current.delete(key);
-      // Refused: the page shows what is saved, unless the student is still
-      // on the line to fix it
-      if (!data && key !== selectedNow.current) drop(key);
-      // The entry or profile the line changed is kept even when a newer
-      // request owns the page: that request answers only its own change
-      const entry = data?.entry;
-      if (entry) {
-        setBank((b) => ({
-          ...b,
-          entries: b.entries.map((e) =>
-            e.id === entry.id ? { ...entry, resume_ids: e.resume_ids } : e,
-          ),
-        }));
-      }
-      if (data?.profile) setHeader(data.profile);
-      if (!current()) return;
-      setSaving(false);
-      if (!data) return setError(error);
-      if (data.choices) {
-        setChoices(data.choices);
-        // A typed bullet Tailor changed drops its mark
-        const waiting = latestReview.current;
-        const changes = { bullets: [{ bullet_id: item_id, text }] };
-        if (waiting) setReview({ ...waiting, edits: untouched(waiting.edits, changes) });
-      }
-      setRendered(data.render);
+      sent(key);
+      return enqueue(async () => {
+        const current = begin();
+        started.current = performance.now();
+        const { data, error } = await saveLine(resumeId, { item_id, kind, text }, copy());
+        answered(key);
+        // Refused: the page shows what is saved, unless the student is
+        // still on the line to fix it
+        if (!data && key !== selectedNow.current) drop(key);
+        // What the line changed is kept even when a newer request owns the
+        // page: the next request's copy needs it
+        const entry = data?.entry;
+        if (entry) {
+          held.current.bank = {
+            ...held.current.bank,
+            entries: held.current.bank.entries.map((e) =>
+              e.id === entry.id ? { ...entry, resume_ids: e.resume_ids } : e,
+            ),
+          };
+          setBank(held.current.bank);
+        }
+        if (data?.profile) setHeader(data.profile);
+        if (data?.choices) keepChoices(data.choices);
+        if (!current()) return;
+        setSaving(false);
+        if (!data) return setError(error);
+        if (data.choices) {
+          // A typed bullet Tailor changed drops its mark
+          const waiting = latestReview.current;
+          const changes = { bullets: [{ bullet_id: item_id, text }] };
+          if (waiting) setReview({ ...waiting, edits: untouched(waiting.edits, changes) });
+        }
+        keepRendered(data.render);
+      });
     },
-    [begin, drop, resumeId, setReview],
+    [begin, copy, drop, enqueue, keepChoices, keepRendered, resumeId, setReview],
   );
 
   /** Adds a header field the profile lacks, which has no line to click. */
@@ -463,22 +537,23 @@ export function Editor({
     timer.current = setTimeout(() => latestFlush.current(true), SAVE_AFTER_MS);
   }
 
-  async function fit() {
+  function fit() {
     select(null);
-    const current = begin();
-    started.current = performance.now();
-    const { data, error } = await fitToOnePage(resumeId);
-    if (!current()) return;
-    if (!data) {
-      setSaving(false);
-      return setError(error);
-    }
-    setRendered(data.render);
-    rememberFitUndo(data.undo.bullets?.length || data.undo.entries?.length ? data.undo : null);
-    const fresh = await getChoices(resumeId);
-    if (!current()) return;
-    setSaving(false);
-    if (fresh.data) setChoices(fresh.data);
+    return enqueue(async () => {
+      const current = begin();
+      started.current = performance.now();
+      const { data, error } = await fitToOnePage(resumeId);
+      if (!current()) return;
+      if (!data) {
+        setSaving(false);
+        return setError(error);
+      }
+      keepRendered(data.render);
+      rememberFitUndo(data.undo.bullets?.length || data.undo.entries?.length ? data.undo : null);
+      const fresh = await getChoices(resumeId);
+      if (fresh.data) keepChoices(fresh.data);
+      if (current()) setSaving(false);
+    });
   }
 
   function rememberFitUndo(undo: ChoicesUpdate | null) {
@@ -519,6 +594,42 @@ export function Editor({
       return 0;
     }
     return (lines - boxLines(target)) * WRAPPED_LINE;
+  };
+
+  // The moves on their way as strips of the page on screen, each against
+  // the page after the ones before: a bullet is its box, an entry its
+  // fields' and bullets' boxes. A swap the page already shows (`a` no
+  // longer above `b`), or one across a page break, is left out.
+  const swapsOn = (boxes: RenderBox[]) => {
+    const strips: Strip[] = [];
+    let placed = boxes;
+    const regionOf = (kind: Swap["kind"], id: string) => {
+      const bullets = new Set(
+        kind === "entry" ? bank.entries.find((e) => e.id === id)?.bullets.map((b) => b.id) : [],
+      );
+      const own = placed.filter((b) =>
+        kind === "bullet"
+          ? b.kind === "bullet" && b.item_id === id
+          : (b.item_id === id && b.kind !== "bullet") ||
+            (b.kind === "bullet" && bullets.has(b.item_id)),
+      );
+      if (!own.length || own.some((b) => b.page !== own[0].page)) return null;
+      if (kind === "bullet" && own.length !== 1) return null;
+      return {
+        page: own[0].page,
+        top: Math.min(...own.map((b) => b.y0)),
+        bottom: Math.max(...own.map((b) => b.y1)),
+      };
+    };
+    for (const swap of swaps) {
+      const a = regionOf(swap.kind, swap.a);
+      const b = regionOf(swap.kind, swap.b);
+      if (!a || !b || a.page !== b.page || a.bottom > b.top) continue;
+      const strip: Strip = { page: a.page, a: [a.top, a.bottom], b: [b.top, b.bottom] };
+      strips.push(strip);
+      placed = placed.map((x) => afterStrips(x, [strip]));
+    }
+    return strips;
   };
 
   /** The text a typed line's field opens on: what the line prints. */
@@ -644,6 +755,10 @@ export function Editor({
         ([k]) => k === selectedNow.current || onTheirWay.current.has(k),
       );
       return kept.length === Object.keys(d).length ? d : Object.fromEntries(kept);
+    });
+    setSwaps((s) => {
+      const kept = s.filter((x) => onTheirWay.current.has(x.id));
+      return kept.length === s.length ? s : kept;
     });
     if (started.current == null) return;
     setElapsed(Math.round(performance.now() - started.current));
@@ -783,6 +898,7 @@ export function Editor({
               selected={selected}
               onSelect={onLine}
               onDrawn={drawn}
+              swaps={swapsOn}
               placeholder={<PageSkeleton />}
               marks={marks}
               focus={focus}
@@ -901,6 +1017,7 @@ export function Editor({
               overlay={overlay}
               overlaid={overlaid}
               shiftOf={shiftOf}
+              swaps={swapsOn}
               onDrawn={drawn}
               placeholder={<PageSkeleton />}
               marks={marks}

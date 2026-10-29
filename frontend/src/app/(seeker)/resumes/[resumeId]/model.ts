@@ -121,6 +121,85 @@ export function move(bank: Bank, choices: Choices, line: Line, by: -1 | 1): Choi
     : { entries: order.map((entry_id, position) => ({ entry_id, position })) };
 }
 
+/** The choices with a change's plain fields (shown, position, the GPA
+ *  and coursework toggles) set at once, for rows the resume already has
+ *  (KAN-391): a second move computes from the first, and the copy sent
+ *  with the next request holds it. Wording and new rows wait for the API,
+ *  whose answer replaces these. */
+export function mergeChoices(choices: Choices, changes: ChoicesUpdate): Choices {
+  const plain = <T extends object>(row: T, change: object) => ({
+    ...row,
+    ...Object.fromEntries(
+      Object.entries(change).filter(
+        ([k, v]) =>
+          v !== undefined && ["shown", "position", "show_gpa", "show_coursework"].includes(k),
+      ),
+    ),
+  });
+  const entries = new Map(changes.entries?.map((c) => [c.entry_id, c]));
+  const bullets = new Map(changes.bullets?.map((c) => [c.bullet_id, c]));
+  const skills = new Map(changes.skills?.map((c) => [c.skill_id, c]));
+  return {
+    ...choices,
+    entries: choices.entries.map((r) =>
+      entries.has(r.entry_id) ? plain(r, entries.get(r.entry_id)!) : r,
+    ),
+    bullets: choices.bullets.map((r) =>
+      bullets.has(r.bullet_id) ? plain(r, bullets.get(r.bullet_id)!) : r,
+    ),
+    skills: choices.skills.map((r) =>
+      skills.has(r.skill_id) ? plain(r, skills.get(r.skill_id)!) : r,
+    ),
+  };
+}
+
+/** Two neighbours a change swaps: an entry within its section, or a
+ *  bullet within its entry, `a` the one above before the change. Null for
+ *  any other change. The page shows the swap at once (KAN-391). */
+export type Swap = { kind: "entry" | "bullet"; a: string; b: string };
+
+export function swapOf(bank: Bank, choices: Choices, changes: ChoicesUpdate): Swap | null {
+  const renumber = (list: { position?: number | null }[] | undefined) =>
+    list &&
+    list.length >= 2 &&
+    list.every((c) => Object.keys(c).length === 2 && c.position != null);
+  const swapped = (before: string[], after: string[]): [string, string] | null => {
+    const at = before.findIndex((id, i) => id !== after[i]);
+    if (at < 0 || at + 1 >= before.length) return null;
+    const same = before.every((id, i) =>
+      i === at ? after[i + 1] === id : i === at + 1 ? after[i - 1] === id : after[i] === id,
+    );
+    return same ? [before[at], before[at + 1]] : null;
+  };
+  if (renumber(changes.bullets) && !changes.entries?.length && !changes.skills?.length) {
+    const ids = changes.bullets!.map((c) => c.bullet_id);
+    const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === ids[0]));
+    if (!entry) return null;
+    const before = ordered(entry.bullets, (id) => choices.bullets.find((c) => c.bullet_id === id));
+    const after = [...changes.bullets!].sort((x, y) => x.position! - y.position!);
+    const pair = swapped(
+      before.map((b) => b.id),
+      after.map((c) => c.bullet_id),
+    );
+    return pair && { kind: "bullet", a: pair[0], b: pair[1] };
+  }
+  if (renumber(changes.entries) && !changes.bullets?.length && !changes.skills?.length) {
+    const first = bank.entries.find((e) => e.id === changes.entries![0].entry_id);
+    if (!first) return null;
+    const before = ordered(
+      bank.entries.filter((e) => e.section === first.section),
+      (id) => choices.entries.find((c) => c.entry_id === id),
+    );
+    const after = [...changes.entries!].sort((x, y) => x.position! - y.position!);
+    const pair = swapped(
+      before.map((e) => e.id),
+      after.map((c) => c.entry_id),
+    );
+    return pair && { kind: "entry", a: pair[0], b: pair[1] };
+  }
+  return null;
+}
+
 export type TrayItem =
   | { kind: "entry"; entry: BankEntry }
   | { kind: "bullet"; entry: BankEntry; bullet: Bullet; text: string }

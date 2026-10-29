@@ -76,6 +76,13 @@ Built so far (option A, the typed line only):
 - **Leaving a line keeps its typed text on the page** until the PDF that
   prints it has painted. The first build dropped it on leaving, and the
   old line showed for the whole save and compile.
+- **No read before the compile:** the editor sends its copy of the bank,
+  choices and printed header with each edit, and the API compiles from it
+  while it writes. Edits go one at a time, so each copy holds the edits
+  before it.
+- **Moves show at once:** two neighbours' strips of the page trade places
+  until the PDF lands. Hide, show and wording switches use the same one
+  request but show nothing until then.
 - **The compile runs beside the write:** the line route reads once,
   makes the change in memory and starts Tectonic before it writes.
   Measured from a laptop against the shared database (2026-10-28): one
@@ -91,9 +98,12 @@ Still open for step 1:
   once the PDF lands), to see whether the browser wraps close enough to
   TeX.
 - A line split across a page break moves only its first page.
-- Two lines saved within a second of each other: the second answer's PDF
-  can be built before the first line's write commits, and then shows
-  the first line's old text until the next save.
+- The answer still waits for the write and its commit as well as the
+  compile. From a laptop the write is the longer of the two (about 13
+  round trips of 66 ms and a 0.6 s connection), so a save still reads
+  about 2.2 s there. Deployed, the write should be the shorter. Streaming
+  the PDF first and the saved choices after would remove that wait.
+- Hide, show and a wording switch show nothing until the PDF lands.
 - The time on the deployed API, where a round trip is 8 to 30 ms and
   connections stay open: not measured yet.
 

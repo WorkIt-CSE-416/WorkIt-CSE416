@@ -25,7 +25,8 @@ import type { Mark } from "./tailor-review";
  * points its text grew or shrank, click targets too, so the
  * page reflows as the student types. The boxes drawn are the ones that
  * came with the PDF on screen, so a new PDF's boxes never land on the old
- * page. On Tailor's review, `dots` puts a small
+ * page. `swaps` shows a move before its PDF lands: two neighbours' strips
+ * of the page trade places, under any overlaid line. On Tailor's review, `dots` puts a small
  * brand dot in the page's left margin beside each changed line; `marks`
  * highlights the lines of the card in focus or open, in the colour of its
  * change type, and `focus` brings the first of them into view
@@ -158,6 +159,7 @@ export function PdfPages({
   overlay,
   overlaid = [],
   shiftOf,
+  swaps,
   placeholder,
   marks,
   focus,
@@ -178,6 +180,9 @@ export function PdfPages({
   /** Points an overlaid line's text is taller (or, below 0, shorter) than
    *  its box on the PDF on screen: what the page under it moves by. */
   shiftOf?: (box: RenderBox) => number;
+  /** The moves on their way, as strips of the page on screen that trade
+   *  places, in order, each against the page after the ones before. */
+  swaps?: (boxes: RenderBox[]) => Strip[];
   /** Shown until pdf.js has read the PDF: the editor's PageSkeleton, so
    *  its skeleton holds until the canvas. A line of text by default. */
   placeholder?: ReactNode;
@@ -194,7 +199,9 @@ export function PdfPages({
     sizes: Size[];
     boxes: RenderBox[];
   } | null>(null);
-  const shown = doc?.boxes ?? [];
+  // The boxes of the PDF on screen, where the moves on their way put them
+  const strips = swaps?.(doc?.boxes ?? []) ?? [];
+  const shown = (doc?.boxes ?? []).map((box) => afterStrips(box, strips));
   // Each overlaid line's first box, top to bottom, with what it moves by
   const lives = overlaid
     .map((key) => shown.find((b) => boxKey(b) === key))
@@ -273,6 +280,7 @@ export function PdfPages({
             page={i + 1}
             size={size}
             lives={lives.filter((l) => l.page === i + 1)}
+            strips={strips.filter((s) => s.page === i + 1)}
             onPainted={() => {
               painted.current.add(i);
               if (painted.current.size === doc.sizes.length) drawn.current?.();
@@ -390,11 +398,60 @@ function MarginDots({
  *  moves. */
 type Live = Pick<RenderBox, "x0" | "y0" | "x1" | "y1"> & { by: number };
 
-/** The page's drawing onto the shown canvas: as drawn, or with each
- *  overlaid line (`lives`, top to bottom) cleared and everything under it
- *  moved by its `by`, the moves adding up down the page. The paper is
- *  white in either theme, as pdf.js paints it. */
-function compose(shown: HTMLCanvasElement, drawn: HTMLCanvasElement, lives: Live[], scale: number) {
+/** Two neighbours on one page, `a` above `b`, as their tops and bottoms in
+ *  PDF points: a move on its way trades their strips of the page. */
+export type Strip = { page: number; a: [number, number]; b: [number, number] };
+
+/** Where a box sits once these strips have traded places, in order. */
+export function afterStrips<T extends RenderBox>(box: T, strips: Strip[]): T {
+  let { y0, y1 } = box;
+  for (const { page, a, b } of strips) {
+    if (page !== box.page) continue;
+    const by =
+      y0 >= a[0] - 0.5 && y1 <= a[1] + 0.5
+        ? b[1] - a[1]
+        : y0 >= b[0] - 0.5 && y1 <= b[1] + 0.5
+          ? a[0] - b[0]
+          : 0;
+    y0 += by;
+    y1 += by;
+  }
+  return { ...box, y0, y1 };
+}
+
+/** The drawing with each strip pair traded, in order: `b` moves up to `a`'s
+ *  top, then the gap that sat between them, then `a`. */
+function traded(drawn: HTMLCanvasElement, strips: Strip[], scale: number) {
+  let current = drawn;
+  for (const strip of strips) {
+    const [a0, a1, b0, b1] = [...strip.a, ...strip.b].map((v) => Math.round(v * scale));
+    const next = document.createElement("canvas");
+    next.width = current.width;
+    next.height = current.height;
+    const context = next.getContext("2d")!;
+    context.drawImage(current, 0, 0);
+    context.fillStyle = "#fff";
+    context.fillRect(0, a0, next.width, b1 - a0);
+    context.drawImage(current, 0, b0, next.width, b1 - b0, 0, a0, next.width, b1 - b0);
+    context.drawImage(current, 0, a0, next.width, a1 - a0, 0, a0 + b1 - a1, next.width, a1 - a0);
+    current = next;
+  }
+  return current;
+}
+
+/** The page's drawing onto the shown canvas: as drawn, with the moves on
+ *  their way traded (`strips`), then each overlaid line (`lives`, top to
+ *  bottom) cleared and everything under it moved by its `by`, the moves
+ *  adding up down the page. The paper is white in either theme, as pdf.js
+ *  paints it. */
+function compose(
+  shown: HTMLCanvasElement,
+  pdfDrawn: HTMLCanvasElement,
+  strips: Strip[],
+  lives: Live[],
+  scale: number,
+) {
+  const drawn = strips.length ? traded(pdfDrawn, strips, scale) : pdfDrawn;
   shown.width = drawn.width;
   shown.height = drawn.height;
   const context = shown.getContext("2d")!;
@@ -426,26 +483,28 @@ function PageCanvas({
   page,
   size,
   lives,
+  strips,
   onPainted,
 }: {
   pdf: PDFDocumentProxy;
   page: number;
   size: Size;
   lives: Live[];
+  strips: Strip[];
   onPainted: () => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const drawnCanvas = useRef<{ pdf: PDFDocumentProxy; canvas: HTMLCanvasElement } | null>(null);
-  const latestLives = useRef(lives);
-  const livesKey = JSON.stringify(lives.map((l) => [l.x0, l.y0, l.x1, l.y1, l.by]));
+  const latest = useRef({ lives, strips });
+  const layoutKey = JSON.stringify([lives.map((l) => [l.x0, l.y0, l.x1, l.y1, l.by]), strips]);
   useEffect(() => {
-    latestLives.current = lives;
+    latest.current = { lives, strips };
     const shown = canvas.current;
     const drawn = drawnCanvas.current;
     if (shown && drawn?.pdf === pdf) {
-      compose(shown, drawn.canvas, lives, drawn.canvas.width / size.width);
+      compose(shown, drawn.canvas, strips, lives, drawn.canvas.width / size.width);
     }
-  }, [livesKey, pdf, size.width]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [layoutKey, pdf, size.width]); // eslint-disable-line react-hooks/exhaustive-deps
   const painted = useRef(onPainted);
   useEffect(() => {
     painted.current = onPainted;
@@ -472,7 +531,13 @@ function PageCanvas({
         task = proxy.render({ canvas: hidden, viewport });
         await task.promise;
         drawnCanvas.current = { pdf, canvas: hidden };
-        compose(element!, hidden, latestLives.current, hidden.width / size.width);
+        compose(
+          element!,
+          hidden,
+          latest.current.strips,
+          latest.current.lives,
+          hidden.width / size.width,
+        );
       } catch {
         return; // cancelled by a newer draw, or the document was replaced
       }
