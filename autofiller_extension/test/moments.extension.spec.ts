@@ -111,9 +111,9 @@ test("a batch's first question for Claude shows the add-Claude step, once, with 
   await expect(add).toHaveAttribute("href", "http://localhost:3000/connect/claude/add");
   await expect(add).toHaveAttribute("target", "_blank");
   // Claude asks before each write tool call until the student allows it for good.
-  await expect(step).toContainText('choose "Always allow"');
+  await expect(step).toContainText("Add WorkIt to your Claude once.");
   // The question still waits for Claude, and the step says what to do once it is added.
-  await expect(row(tabs[0], WHY)).toContainText("Waiting for your Claude");
+  await expect(row(tabs[0], WHY)).toHaveAttribute("data-mark", "waiting");
   await step.locator("button[data-dismiss]").click();
   await expect(step).toHaveCount(0);
   expect(forms.submissions).toEqual([]);
@@ -131,7 +131,7 @@ test("a student who already added the connector never sees the add-Claude step",
   await expect.poll(() => api.calls.some((c) => c.endsWith("/connector")), { timeout: 20_000 }).toBe(true);
   await tab.waitForTimeout(2_000);
   await expect(tab.locator(".add-claude")).toHaveCount(0);
-  await expect(row(tab, WHY)).toContainText("Waiting for your Claude");
+  await expect(row(tab, WHY)).toHaveAttribute("data-mark", "waiting");
 });
 
 const ANSWER = "I want to build legal tools that lawyers trust, and my internship taught me how to ship them.";

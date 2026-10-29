@@ -456,9 +456,9 @@
     if (prepared?.site === "smartrecruiters" && (await window.WIA.smartRecruitersNext?.(prepared))) prepared = (await fillShown()) ?? prepared;
     if (prepared) await flagEmptyRequired(prepared);
     if (prepared) window.WIA.failedCard.use(fixesOf(prepared));
-    if (prepared) window.WIA.resumeTab?.use(fixesOf(prepared));
+    if (prepared) window.WIA.resumeCard?.use(fixesOf(prepared));
     overlay.mount(panel);
-    if (prepared) window.WIA.answersTab?.use(prepared);
+    if (prepared) window.WIA.writtenRow?.use(prepared);
     window.WIA.phase = prepared ? "filled" : "stopped";
     overlay.refresh(); // the checklist settles: red, then amber, first (groups.js)
     window.WIA.running = false;
@@ -549,8 +549,8 @@
       ? (toReview.on() ? toReview.REVIEW_NOTE : "This is the last step. Check the whole application, then submit it yourself.")
       : `Check this step, then press ${workday.nextLabel}. WorkIt fills the next step when it shows.`, false, true);
     window.WIA.failedCard.use(fixesOf(prepared));
-    window.WIA.answersTab?.use(prepared);
-    window.WIA.resumeTab?.use(fixesOf(prepared));
+    window.WIA.writtenRow?.use(prepared);
+    window.WIA.resumeCard?.use(fixesOf(prepared));
     writing.offer(prepared);
     offerSelfId(prepared);
     const stopEdits = watchEdits(prepared);

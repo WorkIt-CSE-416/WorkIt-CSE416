@@ -112,7 +112,37 @@ export function formUrl(url) {
  * @param {(url: string) => Promise<string>} [fetchText] a GET (the engine asks Greenhouse only GETs)
  */
 export async function formFor(url, fetchText = getText) {
-  return engine.greenhouseForm(formUrl(url), fetchText);
+  return (await boardForm(url, fetchText)) ?? engine.greenhouseForm(formUrl(url), fetchText);
+}
+
+/**
+ * Greenhouse's embedded form for a `?gh_jid=` link on a company's own site,
+ * when the company's Greenhouse board is named as its site is (stripe.com's
+ * is `stripe`) and the Job Board API says the job is shown on that site.
+ * Such a link may land on a page with no form at all: Stripe's sends it to
+ * the job's description, and the form is a page further, behind Apply
+ * (live, 2026-10-28), so the batch tab filled nothing. Any other link, or a
+ * failed read, is null, and the link opens as it is (embedded-forms.js).
+ * @param {string} url
+ * @param {(url: string) => Promise<string>} fetchText
+ */
+async function boardForm(url, fetchText) {
+  let link;
+  try {
+    link = new URL(url);
+  } catch {
+    return null;
+  }
+  const id = link.searchParams.get("gh_jid") ?? "";
+  if (jobOf(url) || /(^|\.)greenhouse\.io$/.test(link.hostname) || !/^\d+$/.test(id)) return null;
+  const board = link.hostname.split(".").at(-2);
+  try {
+    const job = JSON.parse(await fetchText(`https://boards-api.greenhouse.io/v1/boards/${board}/jobs/${id}`));
+    if (new URL(job.absolute_url).hostname !== link.hostname) return null;
+    return `https://job-boards.greenhouse.io/embed/job_app?for=${board}&token=${id}`;
+  } catch {
+    return null;
+  }
 }
 
 async function getText(url) {

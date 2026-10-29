@@ -254,7 +254,12 @@ Find files with a directory listing; these are the rules for where code goes.
   A flag may quote its sentence and mark a wrong company; the tab's flag
   card answers it with `keep` (recorded as `kept`, never flagged again as
   it stands) or `rewrite` (the answer cleared, the flag kept as `rewrite`
-  for `get_next_application` to hand over with the question).
+  for `get_next_application` to hand over with the question). `redo`
+  (KAN-424, `POST .../review/redo {"name", "steer"?}`) is the tab's
+  Rewrite on any answer their Claude wrote, flagged or not: the same
+  clear-and-hand-back, with the student's steer as the reason ("The
+  student asked for another version: Make it shorter."); refused for the
+  student's own words and a question with no answer.
   Re-exported the same way; tests: `tests/test_connector_review.py`. A
   question asked in words (kind NULL, "text" to the connector) is
   `models/written_answers.is_text`, for a value or, given the column, in

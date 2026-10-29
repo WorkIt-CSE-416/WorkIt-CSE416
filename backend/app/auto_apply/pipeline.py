@@ -39,6 +39,7 @@ from app.auto_apply.review import (  # noqa: F401 (re-exported: callers name the
     answer_version,
     keep,
     next_to_review,
+    redo,
     reviewed_answers,
     rewrite,
     rewrites,

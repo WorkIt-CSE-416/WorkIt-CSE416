@@ -64,7 +64,7 @@ const popupOf = (page: Page) =>
 const popupsOfOtherPages = () =>
   loaded.worker.evaluate(async () => Promise.all((await chrome.tabs.query({})).filter((t) => !t.url).map((t) => chrome.action.getPopup({ tabId: t.id! }))));
 
-test("a batch tab's panel opens docked right, full height, over the page, with its rows", async () => {
+test("a batch tab's panel opens floating 8px in from the right, top and bottom, over the page, with its rows", async () => {
   test.setTimeout(120_000);
   const { api, forms } = await start();
   const form = await batchTab(api, forms);
@@ -75,9 +75,9 @@ test("a batch tab's panel opens docked right, full height, over the page, with i
   const box = (await panelOf(form).boundingBox())!;
   expect(box.width).toBeGreaterThanOrEqual(370);
   expect(box.width).toBeLessThanOrEqual(390);
-  expect(Math.round(box.x + box.width)).toBe(view.width);
-  expect(box.y).toBe(0);
-  expect(Math.round(box.height)).toBe(view.height);
+  expect(Math.round(box.x + box.width)).toBe(view.width - 8);
+  expect(box.y).toBe(8);
+  expect(Math.round(box.height)).toBe(view.height - 16);
   await expect(hostOf(form).locator(`[data-key="${HEARD}"]`)).toBeVisible();
   // Over the page: the page keeps its whole width.
   expect(await form.evaluate(() => Math.round(document.body.getBoundingClientRect().width + parseFloat(getComputedStyle(document.body).marginLeft) * 2))).toBe(

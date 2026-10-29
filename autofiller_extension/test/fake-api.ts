@@ -88,8 +88,8 @@ export class FakeApi {
     }
   }
 
-  /** The tabs' flag cards' answers (POST .../review/keep|rewrite, review.py), in order. */
-  readonly flagAnswers: { jobId: string; action: string; name: string }[] = [];
+  /** The tabs' flag cards' answers (POST .../review/keep|rewrite, review.py), and Rewrite's (redo, with its steer), in order. */
+  readonly flagAnswers: { jobId: string; action: string; name: string; steer?: string }[] = [];
 
   /** The student's autofill answers (GET and PATCH .../autofill-answers), STUDENT's unless `profile` names others. */
   readonly answers: Record<string, string | null>;
@@ -112,6 +112,10 @@ export class FakeApi {
    * against any posting (.../keyword-match), as keywords. */
   readonly builtResumes: { id: string; name: string; job_posting_id: string | null; is_default?: boolean; pdf: string;
     match?: { matched: string[]; missing: string[] } }[] = [];
+
+  /** The résumés uploaded from the panel (POST .../resumes, multipart), by the file's name; the file's bytes are the
+   * whole request body. A file named as STUDENT's resume is a duplicate (the route's 409, naming that resume). */
+  readonly uploads: { id: string; filename: string }[] = [];
 
   /** Whether the student's Claude has signed in to WorkIt's connector (GET .../connector). */
   connectorAdded = false;
@@ -215,7 +219,19 @@ export class FakeApi {
       }
       return { json: this.answers };
     }
-    if (route === "/resumes") return { json: [{ id: RESUME_ID, is_default: true, original_filename: STUDENT.resume.filename }] };
+    if (route === "/resumes" && method === "POST") {
+      const filename = /filename="([^"]+)"/.exec(body.toString("latin1"))?.[1] ?? "resume.pdf";
+      if (filename === STUDENT.resume.filename) return { status: 409, json: { detail: { message: `Duplicate Resume found: ${filename}`, resume_id: RESUME_ID } } };
+      const id = `00000000-0000-0000-0000-00000000up${String(this.uploads.length).padStart(2, "0")}`;
+      this.uploads.push({ id, filename });
+      return { json: { id, original_filename: filename, is_default: false } };
+    }
+    if (route === "/resumes") {
+      return { json: [{ id: RESUME_ID, is_default: true, original_filename: STUDENT.resume.filename }, ...this.uploads.map((u) => ({ id: u.id, is_default: false, original_filename: u.filename }))] };
+    }
+    if (this.uploads.some((u) => route === `/resumes/${u.id}/bytes`)) {
+      return { headers: { "content-type": "application/pdf" }, body: Buffer.from(STUDENT.resume.base64, "base64") };
+    }
     if (route === `/resumes/${RESUME_ID}/bytes`) return { headers: { "content-type": "application/pdf" }, body: Buffer.from(STUDENT.resume.base64, "base64") };
     if (route === "/built-resumes") {
       return { json: this.builtResumes.map(({ pdf: _pdf, match: _match, ...r }) => ({ template: "classic", is_default: false, ...r })) };
@@ -281,12 +297,13 @@ export class FakeApi {
       return { status: 204 };
     }
     // The flag card (review.py keep / rewrite): Keep clears the flag; Rewrite with Claude clears the answer for Claude.
-    const flagged = /^\/applications\/([^/]+)\/review\/(keep|rewrite)$/.exec(route);
+    // A written answer's Rewrite (redo, KAN-424): any answer, flagged or not, cleared for Claude with the steer.
+    const flagged = /^\/applications\/([^/]+)\/review\/(keep|rewrite|redo)$/.exec(route);
     if (flagged && method === "POST") {
-      const { name } = JSON.parse(body.toString());
+      const { name, steer } = JSON.parse(body.toString());
       const question = this.written.get(flagged[1])?.find((q) => q.name === name);
       if (!question?.answer) return { status: 422, json: { detail: "That answer isn't flagged." } };
-      this.flagAnswers.push({ jobId: flagged[1], action: flagged[2], name });
+      this.flagAnswers.push({ jobId: flagged[1], action: flagged[2], name, ...(steer ? { steer } : {}) });
       if (flagged[2] === "keep") Object.assign(question, { flag: null, flag_quote: null, flag_hard: false });
       else Object.assign(question, { answer: null, reviewed: false, flag: null, flag_quote: null, flag_hard: false });
       return { status: 204, body: "" };

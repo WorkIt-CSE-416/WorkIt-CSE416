@@ -31,7 +31,9 @@ test("after a fill on the student's own tab: Close and ⋯ in the header, the re
   // The header: WorkIt, ⋯ and Close; nothing else to press there.
   const header = host.locator(".header");
   await expect(header.getByRole("img", { name: "WorkIt" })).toBeVisible();
-  await expect(header.getByRole("button")).toHaveText(["⋯", "×"]);
+  await expect(header.getByRole("button")).toHaveCount(2);
+  await expect(header.getByRole("button").first()).toHaveAccessibleName("More");
+  await expect(header.getByRole("button").last()).toHaveAccessibleName("Close");
   await expect(header.getByRole("button", { name: "Close" })).toBeVisible();
 
   // The red box's count, and the button's N is the same rule's (lib-status.js).
@@ -78,7 +80,9 @@ test("a batch tab's ⋯ menu holds I submitted this and Skip; the header has nei
   const host = hostOf(form);
   await expect(mainButton(form)).toContainText(/^Answer \d+ of \d+$/, { timeout: 30_000 });
 
-  await expect(host.locator(".header").getByRole("button")).toHaveText(["⋯", "×"]);
+  await expect(host.locator(".header").getByRole("button")).toHaveCount(2);
+  await expect(host.locator(".header").getByRole("button", { name: "More" })).toBeVisible();
+  await expect(host.locator(".header").getByRole("button", { name: "Close" })).toBeVisible();
   await host.getByRole("button", { name: "More" }).click();
   await expect(host.getByRole("menuitem")).toHaveText(["I submitted this", "Skip", "Fill Again", "Report a problem", "Settings"]);
   // A click the page's own script makes on the menu does nothing (trusted()).

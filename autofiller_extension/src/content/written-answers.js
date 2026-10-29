@@ -411,9 +411,56 @@ window.WIA = window.WIA || {};
     async function rewrite(name) {
       const row = status.summary().fields.find((r) => r.key === name);
       if (!row?.flag || !claudeFill || rewriting.has(name)) return;
+      status.flag(name, row.flag, { quote: row.flagQuote, hard: row.flagHard, rewriting: true });
+      await awaitRewrite(name, row);
+    }
+
+    // The answers sent back with Rewrite (KAN-424), by field: the text it had, which Undo puts back.
+    const previous = new Map();
+
+    /** Whether `name`'s answer can go back to the student's Claude: one it wrote, filled, unflagged, in a batch tab. */
+    function canRewrite(name) {
+      const row = status.summary().fields.find((r) => r.key === name);
+      return Boolean(claudeFill && row && row.status === "filled" && row.source === "claude" && !row.flag && !rewriting.has(name));
+    }
+
+    /**
+     * A written answer's Rewrite (KAN-424, overlay.js): any answer the
+     * student's Claude wrote goes back to it for another version, with how
+     * to change it (`steer`), and the row waits for the new one as the flag
+     * card's Rewrite does. The answer it had is kept for Undo. Returns an
+     * error's words, or null.
+     */
+    async function redo(name, steer) {
+      const row = status.summary().fields.find((r) => r.key === name);
+      if (!canRewrite(name)) return "WorkIt can't rewrite this answer.";
+      const reply = await send({ type: "batch/redo", name: name.slice(0, FIELD_NAME_MAX), steer: steer ?? "" }).catch((error) => ({ ok: false, error: error.message }));
+      if (!reply?.ok) return `WorkIt couldn't send it back: ${reply?.error ?? "no answer"}`;
+      previous.set(name, row.shows);
+      void awaitRewrite(name, row);
+      return null;
+    }
+
+    /**
+     * Undo after Rewrite: the answer it had goes back in the field and is
+     * saved as the application's again (the paste route), so their Claude
+     * isn't handed the question. Returns an error's words, or null.
+     */
+    async function undo(name) {
+      const text = previous.get(name);
+      if (typeof text !== "string" || !claudeFill) return "WorkIt has no earlier answer to put back.";
+      const reply = await send({ type: "batch/paste", name: name.slice(0, FIELD_NAME_MAX), answer: text.slice(0, ANSWER_MAX) }).catch((error) => ({ ok: false, error: error.message }));
+      if (!reply?.ok || !reply.saved) return `WorkIt couldn't put it back: ${reply?.error ?? "no answer"}`;
+      previous.delete(name);
+      rewriting.delete(name);
+      await fillWritten(claudeFill, name, text, "claude");
+      return null;
+    }
+
+    /** The row waits for its new answer from the student's Claude, asked every ANSWER_POLL ms, and fills it. */
+    async function awaitRewrite(name, row) {
       rewriting.set(name, row.shows);
       status.setStatus(name, "needs_generation", WAIT_FOR_CLAUDE, row.shows, undefined, undefined, true);
-      status.flag(name, row.flag, { quote: row.flagQuote, hard: row.flagHard, rewriting: true });
       try {
         const since = Date.now();
         while (rowStatus(name) === "needs_generation") {
@@ -436,6 +483,10 @@ window.WIA = window.WIA || {};
       adopt,
       edited,
       rewrite,
+      redo,
+      undo,
+      canRewrite,
+      canUndo: (name) => previous.has(name),
       // Whether WorkIt is filling a written answer now: the typing is its own, not the student's.
       busy: () => fillingWritten > 0,
     };

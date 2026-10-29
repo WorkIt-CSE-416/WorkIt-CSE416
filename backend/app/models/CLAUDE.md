@@ -1253,7 +1253,12 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   NULL until the student's Claude saves one. A snapshot, not a status: a
   flag counts only while its row's answer equals the one read, so no write
   path of `written_answers` has to clear it. JSONB on the application, not
-  a column per question: it is written whole, once per review.
+  a column per question: it is written whole, once per review. Its
+  `rewrite` map (`{name: {reason, quote, answer}}`) holds the answers sent
+  back to the student's Claude: the flag card's Rewrite with Claude, and
+  since KAN-424 the batch tab's Rewrite on any answer their Claude wrote
+  (`review.redo`), whose reason is the student's steer ("The student asked
+  for another version: Make it shorter."). No column changed for it.
 - **`connector_clients`, `connector_requests` and `connector_tokens` belong
   to `app/connector/oauth.py`**, the one writer. Tokens and codes are kept
   as sha256 only; a row's `grant_id` ties an access token to its refresh

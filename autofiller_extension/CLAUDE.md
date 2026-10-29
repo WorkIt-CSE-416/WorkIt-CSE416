@@ -588,7 +588,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   Manually a moment after, and it loads `/apply/applyManually`, then
   Create Account/Sign In (NVIDIA's social-first, with Sign in with email).
 - **Workday Sign-Up (KAN-369).** The extension's options page
-  (`src/options/`, opened from the popup's Workday Sign-Up button) lets the
+  (`src/options/`, opened from the panel's Settings) lets the
   student set one registration email (prefilled from their WorkIt profile,
   `profile/get`) and one password for every company's Workday, as Jobright's
   "Sign-up Information" does. A live checklist (12+ characters, upper, lower,
@@ -738,6 +738,10 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   the new answer is filled when it lands (`writtenAnswers().rewrite`, via
   `window.WIA.writing`). **Edit myself** focuses the field with the
   sentence selected; an edit that leaves the sentence in keeps the flag.
+  **Rewrite on any answer their Claude wrote** (KAN-424, card-written.js,
+  flagged or not): `batch/redo` → `POST .../review/redo` with `steer`,
+  the same clear-and-hand-back path with the student's request as the
+  reason (written-answers.js `redo`, `undo`).
   A wrong-company flag (`flag_hard`) is drawn in the danger colour; like
   every flag it keeps the tab out of Ready and in the walk until resolved.
   A hidden tab's timers slow to about once a minute after five minutes, so
@@ -769,8 +773,10 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   tab's "Waiting for your Claude" line ends in a link to that page, on the
   webapp origin the student signed in on (`batch/answers-page`, a row's
   `link` in lib-status.js), so a student without Claude knows where to go.
-  Test: `test/paste.extension.spec.ts`, Lumen's practice form queued as a
-  real application (its one written question is all that needs the
+  Since KAN-424 that line is said once, under the "Waiting on Your
+  Claude" box's head (groups.js `waitingNote`, with Write with Claude),
+  not on each of its rows. Test: `test/paste.extension.spec.ts`, Lumen's
+  practice form queued as a real application (its one written question is all that needs the
   student, so the filled answer moves the tab to Ready; Harvey's other
   questions keep it in Needs you).
   **The same row has Write with Claude** (a row's `claude` in
@@ -783,21 +789,24 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   title (`backend/app/connector/prompt.py` TITLE); every line that names
   it uses that constant. Never put the student's data in the link: it
   lands in browser history. Test: `test/claude-start.extension.spec.ts`.
-- **A row waiting for the student's Claude carries the waiting card**
-  (KAN-369, `src/content/card-waiting.js`, `window.WIA.waitingCard`, a row
-  card; the overlay asks it for each such row's card). It shows how
-  long the row has waited on this page ("Waiting 4 min"), Write with
-  Claude, a paste box and Write it myself (the walk's `show`: scrolls to
-  and focuses the field; what the student types there is theirs, as
-  before). Save answer sends `batch/paste` → `PUT .../applications/{job}/written-answers`,
+- **The opened row waiting for the student's Claude carries the waiting
+  card** (KAN-369, KAN-424, `src/content/card-waiting.js`,
+  `window.WIA.waitingCard`, a row card; the overlay asks it for the row
+  the student pressed). Pressing the row already took them to the field,
+  where what they type is theirs; the card is a paste box. Until KAN-424
+  every waiting row carried a card with "Waiting 4 min", Write with
+  Claude, the box and Write it myself: five waiting questions were five
+  paste boxes, and the red box above them scrolled out of sight. Write
+  with Claude is now the waiting box's head, once; a flagged answer sent
+  back to their Claude (Rewrite), which stays in the red box, keeps it on
+  its row. Save answer sends `batch/paste` → `PUT .../applications/{job}/written-answers`,
   the Written Answers page's route, so a pasted answer passes the same
   checks as Claude's (saved by="student", not own); a 422's reasons for
   that question (`ApiError.reasons`) show in the card under the box, and
   the draft stays. A saved one fills at once (source "pasted"); the next
   poll finds the row filled and leaves it. Cards are kept by key across
   renders, and render puts the focus back, so a draft survives other
-  rows changing. The panel's summary counts these rows apart ("N waiting
-  on Claude"). Tests: `test/waiting-card.extension.spec.ts`.
+  rows changing. Tests: `test/waiting-card.extension.spec.ts`.
 - **Writing starts when jobs are queued, and a question is answered once**
   (KAN-379). On `run/open`, once the tabs have opened, `write-early.js`'s
   `writeEarly` reads every queued job the batch hasn't opened with
@@ -914,17 +923,18 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   extension switches tabs on its own, and only on the student's press.
 - **Where the walk lands, the page is marked** (KAN-369, `marks.js`,
   `window.WIA.marks`): the field scrolls to the middle and gets a ring in
-  the brand colour for 3 seconds, and a small orange dot
-  (`--color-warning-strong`) that stays on it while its row still needs the
-  student (failed, waiting, flagged), gone once resolved. Both sit in their
-  own shadow host (`#workit-marks-host`), whose root is closed as the
-  panel's is, follow the field each frame while shown, and never take a click. A guess, shown once, gets the ring only.
+  the brand colour for 3 seconds, in its own shadow host
+  (`#workit-marks-host`), whose root is closed as the panel's is; it
+  follows the field each frame while shown and never takes a click. **No
+  dot stays on the field** (KAN-424): an orange dot used to sit on a field
+  while its row needed the student, but its amber didn't match the panel's
+  red box and read as a stray blot on the employer's form; the panel's
+  boxes say what is left.
 - **A panel row takes the student to its field** (KAN-369, `overlay.js`'s
   `jump`): pressing a field's row (any row but a note; Enter on its label
   too) runs the walk's own `show(key)` (`batch-tab.js`, as
   `window.WIA.showField`, made for every fill, batch or popup): the field
-  scrolls to the middle, takes focus and gets the ring (and the dot while
-  it needs the student), and the row is marked current. A press on a
+  scrolls to the middle, takes focus and gets the ring, and the row is marked current. A press on a
   button, link or box inside the row, or anywhere in its row card, keeps
   its own behaviour. A field the page doesn't show gets "WorkIt can't find
   this field on the page." under its row for a few seconds; on Workday one
@@ -942,7 +952,10 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   last fill's rows: `overlay.js`, injected again, unmounts the one before
   it first.
 - **A failed field gets a card** (KAN-369, `card-failed.js`, in the shared
-  row card `row-card.js`): "We put X; the page shows Y.", why in plain words
+  row card `row-card.js`), shown on the row the student opened (pressed,
+  or the button's "Answer 1 of N" took them to), KAN-424; a closed failed
+  row shows its reason alone. The card is still made for every failed row
+  (it reads what the page shows as it is made, below): "We put X; the page shows Y.", why in plain words
   ("This field ended up empty on the page.", "This dropdown never committed
   a choice.", "The site rejected this value.", "The page changed it."), and
   the site's own error quoted when the page marked the field
@@ -1064,9 +1077,17 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   recorded), and a closed posting's "Looks like you got lost" page is a
   closed job. Until the engine's Waymo Filler both of Waymo's careers
   hosts were left out (hosts.py's former `SKIP_EMBEDDING`).
+- **A `?gh_jid=` link opens Greenhouse's own form when its board is
+  the site's name** (KAN-424, `engine.js`'s `formFor`): stripe.com's
+  link is board `stripe`, and when the Job Board API's job under that
+  board is shown on the link's own host, the tab opens
+  `job-boards.greenhouse.io/embed/job_app?for=<board>&token=<id>`. Stripe's
+  link lands on the job's description, its form a page further behind
+  Apply, so a batch tab opened on it found no form and filled nothing
+  (live, 2026-10-28). Any other `?gh_jid=` link opens as below.
 - **A careers page that embeds Greenhouse is filled in its iframe**
   (KAN-369). A `?gh_jid=` link on a company's own site (hosts.py takes
-  them all) opens as it is, and the fill runs in
+  them all) whose board isn't the site's name opens as it is, and the fill runs in
   the page's `*.greenhouse.io/embed/job_app` frame only
   (`embedded-forms.js`; `injectFill`'s and `formShows`'s `frameId`). The
   extension has no host permission for the company's page: Chrome redacts
@@ -1180,6 +1201,11 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   the page's, not the panel's) and after a refill (the engine keeps its
   first watch and key, whose listener stays). Tests:
   `test/submit-detect.extension.spec.ts`.
+- **A live check** (KAN-424): `loadExtension(handlers, { live: true })`
+  fakes only localhost (the API and webapp), so a test file run by hand
+  can open a real posting in a batch tab with the fake student's profile
+  and read what the form shows. It never submits; never commit one that
+  runs in CI. This is how Stripe's form-less link was found.
 - **Tests** (`test/batch.extension.spec.ts`; KAN-373's resume, Skip,
   Workday slot and sign-in in `test/batch-sessions.extension.spec.ts`,
   with fake Workday tenants and sign-in pages in `fake-job-systems.ts`;
@@ -1322,8 +1348,9 @@ My Profile instead.
   `/connect/claude/add`, which redirects to Claude's Add Custom Connector
   dialog: the install link is built only in
   `frontend/src/lib/claude-connector.ts`, from the API's address, which the
-  extension doesn't keep. The step tells the student to choose "Always
-  allow" for each of WorkIt's tools, so a run doesn't stop at every save.
+  extension doesn't keep. The step is one sentence ("Add WorkIt to your
+  Claude once. Its answers then fill in here.", KAN-424); the webapp's
+  Connect Claude page tells the student to choose "Always allow".
   A practice batch never shows it (its essays stay the student's).
 - **Writing samples, once the first written batch is.** A batch tab that
   sends its questions is `writing` (`batch.js`'s `setWriting`, kept in the
@@ -1446,7 +1473,9 @@ the host alone, no account in the row. The rest are older:
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
 /applicants/{id}/bank`, `GET /applicants/{id}/preferences`, `GET
-/applicants/{id}/autofill-answers`, `GET /applicants/{id}/resumes`, `GET
+/applicants/{id}/autofill-answers`, `GET /applicants/{id}/resumes`, `POST
+/applicants/{id}/resumes` (Upload Resume on the Resume/CV row's card,
+KAN-424, the Resumes page's own upload), `GET
 /applicants/{id}/built-resumes` (plus `.../built-resumes/{id}/render`), and
 batch apply's `GET /applicants/{id}/applications/next`. All were already
 reachable with a Bearer token before the extension called them. Two routes
@@ -1701,24 +1730,30 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
 ## The panel's shell (KAN-394): one docked panel, slots to plug into
 
 The extension's on-page UI is one panel, `src/content/panel.js`
-(`window.WIA.panel`): 380 px wide, fixed to the right edge, full height
-with its own scroll, over the page (the page is never resized), in a
+(`window.WIA.panel`): 380 px wide, floating 8 px in from the top, right and bottom
+edges with `--radius-shell` (20 px) corners, with its own scroll, over the page (the page is never resized), in a
 shadow root on `#workit-autofiller-overlay-host`, so the employer's styles
 can't reach it. **The root is closed**: the page's scripts get null from
 `host.shadowRoot` and see none of its text or buttons; the extension's own
 files reach it through `window.WIA.panel.root` in their isolated world.
 **Every panel action that changes something answers only the student's own
 click** (`event.isTrusted`, through `ui.js`'s `trusted`, which `button()`
-and row-card buttons use): Disconnect Claude, Send report, Use this, Tailor,
+and row-card buttons use): Disconnect Claude, Send report, a Choose a Resume row, Upload Resume, the job card, Tailor,
 Fill Again, Next job / Next tab, Looks right, Keep, Rewrite, Save answer,
 Stop and Skip, Skip this job, I submitted this, I didn't submit this,
-the essay banner's Generate, the self-ID Save. The marks' root (`marks.js`, the ring and dot) is closed too. Tests: the test copies of the extension
+the essay banner's Generate, the self-ID Save. The marks' root (`marks.js`, the ring) is closed too. Tests: the test copies of the extension
 (`loaded-extension.ts` `openPanel`, over `CLOSED_ROOT_FILES`: panel.js and marks.js) open both roots, since Playwright's
 locators can't reach a closed one; `loadExtension(..., { closedPanel: true })`
 keeps them closed (`test/panel-closed.extension.spec.ts`). There is no bottom-right card any more, and the toolbar
-popup has no fill controls. The header is white, with WorkIt's logo as the
-webapp draws it (the figure violet, the word ink); otherwise purple is kept
-for the primary action.
+popup has no fill controls. The whole panel is white, the body as well as
+the header (a gray body made every card read as a gray slab); its cards keep
+their borders. The header holds WorkIt's logo as the webapp draws it (the
+figure violet, the word ink), then ⋯ and Close, each a bare 18 px
+Phosphor glyph (DotsThree, X) in a 32 px target named by its
+`aria-label`, with no outline (a circle border read as odd; hover shows the
+round target). Text glyphs sat off their line and read too small. Purple is
+otherwise kept for the primary action. The Claude moment card is rounded like
+the boxes under it.
 
 **Slots.** panel.js draws only the frame; every other file plugs into a
 slot by name, `panel.slot(name)`, and adds its styles with
@@ -1727,10 +1762,10 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | Slot | What goes there | Today |
 |---|---|---|
 | `header-actions` | buttons beside ⋯ and Close (kept empty: actions go in the ⋯ menu) | none |
-| `batch-line` | the batch line ("Batch · 3 of 5 ready · Next tab →", Workday's step) | panel-top.js |
+| `batch-line` | Workday's step line only ("Step 3 of 6 · My Experience") | panel-top.js |
 | `job-card` | the job card (title, company, Match score) | panel-top.js |
 | `primary` | the one big button, fixed at the panel's bottom; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page / Fill this step (launcher.js), then primary.js: "Next: N need you", Review and submit, Go to Save and Continue, Fill Again's question |
-| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, essay banner, moment cards, parts and rows; `tab:resume`: resume-tab.js (KAN-399); `tab:answers`: answers-tab.js (KAN-400), a placeholder until a fill |
+| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`, the only one (KAN-424): overlay.js's summary, essay banner, moment cards, parts and rows |
 | `settings` | the settings view, shown by the ⋯ menu's Settings in place of the tab's body (`panel.showSettings`; `panel.onView(hook)` hears it open) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
 | `report` | Report a problem, shown in place of the tab's body; open it with `window.WIA.reportCard.open({ trigger, field })` | report.js: the preview, Which field is wrong?, the note, Exactly what WorkIt sends, Send report, Back |
 
@@ -1751,21 +1786,17 @@ that changes something passes its `onPress` through `ui.trusted`. Tests
 open it with `menuItem(host, name)` (test/loaded-extension.ts).
 `test/panel-controls.extension.spec.ts` covers the frame.
 
-**Tabs (KAN-397).** The shell makes three: Autofill, Resume and Answers
-(spelled as the webapp spells it, no accents). **The strip is the
-webapp's segmented control** (KAN-424; `frontend/src/components/ui/
-segmented-control.tsx`, its sm size, copied since no build can import
-it): a pill track of 5% ink, equal-width options, and a white thumb that
-glides to the chosen one in 300 ms (`--index` and `--count` on `.tabs`,
-set by `selectTab`; it jumps under reduced motion). Change the two
-together. Resume and Answers hold a one-line placeholder (`.tab-placeholder`) until
-their tickets fill them: `panel.slot("tab:resume").replaceChildren(...)`
-(`addTab` with an existing id returns its body). The tab the student
-presses is kept in the page's `sessionStorage` (`workit-panel-tab`), so
-it lasts while the browser tab is open, across page loads and Workday
-steps; `addTab` shows it again once that tab exists. A page that refuses
-storage keeps the choice until it goes. `selectTab` from code doesn't
-keep it.
+**One view (KAN-424).** The shell makes one tab, Autofill, so the strip
+(the webapp's segmented control, `.tabs`, which `addTab` shows from two)
+stays hidden. The Resume tab (KAN-399) and the Answers tab (KAN-400) are
+gone: a student rarely switches résumés mid-fill, and a written answer is
+a field like the rest, only one that asks more of them. The résumé's
+actions are the Resume/CV row's card (resume-card.js, "The résumé's card"
+below) and the written answers a box in the list (card-written.js,
+"Written answers in the list"). Keyword match and Tailor for this job
+left the panel: the job card links to the job's page on WorkIt, which has
+both. `addTab`, `showTab` and the strip's styles stay for a later tab;
+the chosen tab is still kept in `sessionStorage` (`workit-panel-tab`).
 
 `batch-line`, `job-card` and `settings` are cards hidden while empty: a
 file that fills one sets `hidden = false`. A file loaded before the shell
@@ -1815,7 +1846,9 @@ one); with no batch, "Auto Apply", "3 jobs queued." and **Start Auto
 Apply** (`popup/start`: the webapp's own `run/open`, so the batch opens
 as from the Auto Apply page); with an empty queue, **Find Jobs** (the
 Jobs page). A queue that can't be read shows nothing rather than "empty".
-Then Open WorkIt and, as a quiet link, Workday Sign-Up. The three answer
+Then Open WorkIt, as a quiet link. **No Workday Sign-Up** (KAN-424): on
+every page the popup's link read as "sign in to Workday"; it lives in the
+panel's Settings and the website's Settings > Connected Apps. The three answer
 only the popup's own page (`fromPopup`: the sender's URL is the
 extension's popup.html; a content script's is its job page), so a page's
 script can't open a batch or switch tabs. Tests:
@@ -2016,32 +2049,34 @@ batch tab's I submitted this and Skip, Fill Again) and Close. `src/content/panel
 after panel.js everywhere panel.js is (manifest, `CONTENT_SCRIPT_FILES`,
 background.js `SHELL_FILES`):
 
-- **Batch line** (`batch-line`): in a batch tab, "Batch · R of N ready ·
-  Next tab →", N the batch's open tabs and R those in state ready
-  (background `panel/batch-line`, panel-top.js in background/). Next tab
-  shows only while another tab needs the student (needs_you or failed); it
-  goes to the next one after this tab, round from the first
-  (`panel/next-tab`). The line follows the batch: the content script
-  re-asks whenever `workit_batch` changes in chrome.storage.local. On
-  Workday a second line, "Step 3 of 6 · My Experience", is read off
-  Workday's step bar (`progressBarActiveStep`) and kept up as the steps
-  load, in batch tabs and out.
+- **Step line** (`batch-line`): on Workday only, "Step 3 of 6 · My
+  Experience", read off Workday's step bar (`progressBarActiveStep`) and
+  kept up as the steps load, in batch tabs and out; hidden everywhere else.
+  **No batch count (KAN-424):** "Batch · R of N ready · Next tab →" took
+  the panel's first line to say what the batch's tabs already show, so it
+  is gone. The background still answers `panel/batch-line` (the site, and
+  for the Sent card whether another tab needs the student), and Next job →
+  on the Sent card still goes there (`panel/next-tab`).
 - **Job card** (`job-card`, `panel/job`): WorkIt's own posting when the
   student has an application for it (a batch tab's by its job id, any other
   tab's by the Fill engine's jobOf identity of the page against the
   posting's form_url / apply_url), from `GET .../applications?scored=true`
-  (read once per 30 s for all tabs). **Trimmed (KAN-424)**, since the page
-  already names the job: no box of its own and no letter square; the logo
-  when the API has one (24 px; gone if the page won't load it), the title,
-  then one line of company, place (`location_label`) and pay ("$45–$55 an
+  (read once per 30 s for all tabs). A card like the rows' boxes (the
+  panel is white, so the border sets it apart), with no letter square: the
+  logo when the API has one (in a 40 px tile; gone if the page won't load
+  it), the title on up to two lines, then one line of company, place (`location_label`) and pay ("$45–$55 an
   hour"), and the Match score as a small ring
   (purple) with its band (Strong Match at 80,
   as frontend/src/lib/match.ts), and "You applied on Oct 25" at the applied
   stage. No application, or signed out: the engine's `jobNames` read gives
-  title and company only. No score: no ring.
+  title and company only. No score: no ring. **A job WorkIt has is a link**
+  (KAN-424): the whole card (`.job[role=link]`, Enter too) opens its job
+  page on WorkIt, `/jobs/{job}` on the origin the student signed in on
+  (`panel/open-job`, background resume-tab.js `openJob`), in a new tab. A
+  job known only from the page's own names isn't.
 
-Tests: `test/panel-header.extension.spec.ts` (a batch's line, card, ring and
-Next tab; an own tab's header, Report placeholder and applied card; a
+Tests: `test/panel-header.extension.spec.ts` (a batch tab's card and ring
+with no batch count; an own tab's header, Report placeholder and applied card; a
 Workday tab's step line).
 
 ## Report a problem (KAN-403, fix reports KAN-369): a preview, then Send
@@ -2112,7 +2147,9 @@ phones once more and refuses any other key (422). Tests:
 nowhere in the card or the request, and the request equals the preview).
 
 **Report this, at the moment it goes wrong.** `window.WIA.report.rowAction(field)`
-gives each checklist row its button (overlay.js puts it under the row):
+gives each checklist row its button, which overlay.js puts under the
+opened row only (and the fill's `_error` note), KAN-424, so a list of red
+rows isn't a list of Report buttons:
 **Report this** on a field that failed read-back (trigger `readback`) or
 with an engine error (`error`), on a field the student edited after
 WorkIt filled it (`edited`: a filled row that turns the student's, heard
@@ -2169,8 +2206,12 @@ head `.section-head`). Notes (content-script.js's) stand above them.
   page order: a red box, "2 Need Your Answer" (`.box[data-box="needs-you"]`,
   counted by `needsYouCount()`, as the button), whose rows drop WorkIt's
   "has no answer for this" reason since the title says it; an amber box,
-  "1 Guess to Check"; a blue one, "1 Waiting on Your Claude"; then folded
-  lines (`.group[data-group]`, a press opens one for the page's life):
+  "1 Guess to Check"; a blue one, "1 Waiting on Your Claude". **Each box's
+  title folds it** (`button.box-toggle` inside `.box-head`, a chevron as
+  the Filled line has): open by default, folded for the page's life once
+  pressed, and a folded box keeps the row the student is on (`data-current`,
+  `data-open`) in sight so Answer 1 of N never lands on a hidden row. Then
+  folded lines (`.group[data-group]`, a press opens one for the page's life):
   "20 Filled", "2 Optional Left Empty" and "1 Not Asked Right Now" (the
   required questions the form isn't asking now). **A filled row the
   student is working with stays in sight** above the folded line: the one
@@ -2202,41 +2243,55 @@ spinning when the progress first says 0%, then red and amber first;
 Coinbase with two made-up jobs: Work Experience and Education nested, titled
 Globex, Initech and the school; `CHECKLIST_SHOTS=<dir>` saves screenshots),
 `test/panel-tabs.extension.spec.ts` (the marks on Anduril, Looks right and
-Undo turning the guess green and back, the three tabs), the waiting mark in
+Undo turning the guess green and back, no tab strip), the waiting mark in
 `test/waiting-card.extension.spec.ts`.
 
-## The Answers tab (KAN-400)
+## Written answers in the list (KAN-424; the Answers tab, KAN-400, before it)
 
-`src/content/answers-tab.js` (`window.WIA.answersTab`, loaded after
-letter-preview.js in `CONTENT_SCRIPT_FILES`) fills `tab:answers` once a
-page (or a Workday step) is filled: content-script.js calls
-`answersTab.use(prepared)`, and the tab follows lib-status.js's rows from
-then on (it subscribes; it keeps no rows of its own). Its questions: the
-ones written or waiting to be written (`prepared.written`), the ones left
-for the student to write (`rows.written`), the ones a saved answer filled
-in words (`plan.banked`, text boxes), and any cover letter field (label or
-name "cover letter"). Each row shows its label (a press goes to the field,
-`WIA.showField`) and where its answer came from, from the row's status and
-`source`: **Waiting for your Claude**, **Written by your Claude**,
-**Pasted**, **Yours**, Written with AI (the essay route), Saved Answer,
-Guessed, Not written yet, Needs you, Left empty. **See answer** is
-letter-preview.js's toggle and preview (`render(field, { any: true })`:
-any filled row, the student's own answers too), the same open state as the
-Autofill tab's, so both redraw. **Write with Claude** (overlay.js's
-`startClaude`) heads the tab only while a row waits for the student's
-Claude. A form with no cover letter field ends with a "Cover letter · No
-cover letter field" row ("on this step" on Workday, which fills a step at
-a time). Before a fill the shell's placeholder stays. **A form with
-nothing written** (no question in words, none a saved answer filled in
-words, no cover letter field) **has no Answers tab** (KAN-424,
-`panel.showTab("answers", false)`): the strip shows Autofill and Resume,
-the thumb counts only the shown options, and a hidden tab that was chosen
-gives way to the first shown. On Workday each step decides again.
+`src/content/card-written.js` (`window.WIA.writtenRow`, loaded after
+letter-preview.js in `CONTENT_SCRIPT_FILES`) knows the fill's written
+questions: content-script.js calls `writtenRow.use(prepared)` once a page
+(or a Workday step) is filled. They are the ones written or waiting to be
+written (`prepared.written`), the ones left for the student to write
+(`rows.written`), the ones a saved answer filled in words (`plan.banked`,
+text boxes), and any cover letter field (label or name "cover letter").
+
+- **The Written Answers box** (groups.js `settledNodes`,
+  `.box[data-box="written"]`, "2 Written Answers"): every one of them now
+  filled, after the waiting box and before the folded lines. It is open
+  and never folds into Filled, since a recruiter reads these answers and
+  the student should before Submit; its title folds it like any box. An
+  answer just in that the student hasn't seen (lib-status.js `toCheck`)
+  stays here with its ? mark, so the amber box holds only guesses. A
+  waiting one stays in the blue box, a flagged one in the red.
+- **Each row** (overlay.js row, `writtenRow.parts`): the question, who
+  wrote it (the source pill shows on these rows even closed: Claude, You,
+  Pasted, Saved Answer), the answer's first three lines
+  (`.written-preview`, the field's text as the engine read it back), and
+  See answer (letter-preview.js) for all of it with Copy and Edit myself.
+- **Rewrite** (a round ArrowsClockwise icon, `aria-label` "Rewrite") on an
+  answer the student's Claude wrote, filled and unflagged, in a batch tab
+  (written-answers.js `canRewrite`): it opens a card, "How should your
+  Claude change it?", with **Shorter**, **More specific** and **More
+  formal**, which send at once, and a box for their own words (Enter or
+  **Rewrite** sends it; **Cancel** or Escape shuts it). It goes through
+  `batch/redo` to `POST .../review/redo` with `steer` (backend review.py
+  `redo`): the answer is cleared and handed to their Claude again with the
+  request as its `rewrite` reason, the flag card's own path, so the row
+  waits in the blue box until the new answer lands. Not offered on the
+  student's own words, a pasted or saved answer, or the essay route's.
+- **Undo rewrite**, under the row while it waits and after the new answer
+  lands: the answer it had goes back into the field and is saved again
+  through the paste route (`batch/paste`), so their Claude isn't handed the
+  question; an error stays under the row.
 
 Tests: `test/panel-answers.extension.spec.ts` (Lumen's practice question
-waiting, then written by the student's Claude, with Write with Claude only
-while it waits and See answer the form's text; Yours; Pasted; Workable's
-cover letter box listed, no "No cover letter field").
+written by the student's Claude, in Written Answers with its first lines;
+Rewrite's steers, Shorter sent, the row waiting, Undo rewrite; the
+student's own words as You with no Rewrite; a typed steer; Workable's
+cover letter waiting). `fake-api.ts` records each `redo` and its steer in
+`flagAnswers`.
+
 ## The panel's settings (KAN-402): Claude, auto-open, report, Workday
 
 `src/content/panel-settings.js` fills the `settings` slot (loaded after
@@ -2270,46 +2325,59 @@ Disconnect and Add to Claude; auto-open off keeps a batch tab's panel
 closed; the gear and Back, Report, Workday Sign-Up opening the options
 page and no password field in the panel).
 
-## The Resume tab (KAN-399)
+## The résumé's card (KAN-399; on the Resume/CV row since KAN-424)
 
-`src/content/resume-tab.js` (loaded after panel-top.js wherever it is)
-fills `tab:resume` from `src/background/resume-tab.js` (`resume/tab`,
-`resume/file`, `resume/choose`, `resume/keywords`, `resume/tailor`):
+`src/content/resume-card.js` (`window.WIA.resumeCard`, loaded after
+panel-top.js wherever it is: manifest, `CONTENT_SCRIPT_FILES`,
+background.js `SHELL_FILES`) draws the card of the opened Resume/CV row
+(overlay.js asks `resumeCard.card(field)` before any other card, on the
+opened row only), from `src/background/resume-tab.js` (`resume/tab`,
+`resume/file`, `resume/choose`, `resume/upload`). The row is the file field
+the attached résumé went into, or a file field labelled résumé or CV
+(`isResume`, from the fill's Plan that content-script.js hands over with
+`resumeCard.use(fixesOf(prepared))`). It used to be a tab of its own,
+which read as a step every application needed.
 
-- **Attached**: the file this form gets, by its file name and kind
-  (Uploaded file, Built in WorkIt, Tailored for this job), with
-  **Preview** (the file, from the background, opens as a blob in a new tab).
-- **Keyword match** (GLOSSARY): a built résumé's "3 of 5 keywords" with the
-  matched ("On your résumé") and missing ones, exactly as `GET
-  .../built-resumes/{id}/keyword-match?job_posting_id=` gives them. A
-  posting read for the first time spends one of the day's Tailor uses, so
-  nothing is spent silently: the match shows by itself only for a job whose
-  keywords WorkIt read before (`keywords_read_jobs` in chrome.storage.local,
-  background `keywordsFor`); for any other the tab shows **Check keyword
-  match (uses 1 Tailor run today)**, and only that press reads it. (The
-  backend has no read that never extracts, so a posting the webapp already
-  read still shows the button once.) An uploaded file has none
-  ("Keyword match is for résumés built in WorkIt").
-- **Tailor for this job** opens the website's `/jobs/{job}/tailor` on the
-  origin the student signed in on. Only for a job WorkIt has an
-  application for (`applicationForTab`, panel-top.js's lookup).
-- **Switch résumé**: every upload, the base built résumés and the one
-  tailored for this job, each with **Use this**. A switch keeps the file
+- **Attached**: "Attached · Uploaded file" (or Built in WorkIt, Tailored
+  for this job), the file's name, **Change** and **Preview** (the file,
+  from the background, opens as a blob in a new tab).
+- **None attached**: "No resume attached to this application yet." with
+  **Upload Resume** (primary) and **Choose Resume** (when the student has
+  any). A form whose résumé field is required puts this row in the red
+  box, so Answer 1 of N lands on it.
+- **Choose a Resume** (Change, Choose Resume): a dialog over the whole
+  panel (absolute in `.panel`, backdrop of 30% ink; Close, Escape or a
+  press outside shuts it, and a repaint keeps it open), listing the
+  attached résumé first, marked Attached, then every upload, the base
+  built résumés and the one tailored for this job, each row one button, as
+  the Resumes page's table lists them; and **Upload a New Resume** under
+  the list. A switch keeps the file
   for the tab (`resume_by_tab` in chrome.storage.session, dropped when the
   tab closes), saves it as the application's sent resume when the
   application is open (`PUT .../applications/{job}/resume`, the Auto Apply
   page's own choice), and fills the form's résumé field again alone
-  through the Fill engine (content-script.js hands each fill's Plan over,
-  `resumeTab.use(fixesOf(prepared))`, the failed card's fill-one-field).
+  through the Fill engine (the failed card's fill-one-field), and the row
+  takes the result.
   Every later Plan in the tab attaches the switched file
   (background.js `withTabResume`), so a reload or Workday's next step keeps
   it, and `markSubmitted` records it as sent. Greenhouse replaces an
   attached file by pressing its Remove file first (engine, greenhouse.ts
   `upload`).
+- **Upload Resume**: a file input (PDF or DOCX, as the API takes) in the
+  panel's shadow root; the file goes to the background as base64, which
+  posts it as multipart to `POST .../resumes` (api.js `uploadResume`; its
+  FormData body drops the JSON content type), the Resumes page's own upload,
+  so it lands on their Resumes and reads into their Experiences. Then the
+  form switches to it as above (background `uploadAndChoose`). A file they
+  uploaded before (the route's 409 names it, `ApiError.resumeId`) is used,
+  not saved twice: "You uploaded this resume before, so WorkIt used that
+  one." The sixth upload's limit and an unreadable file say the route's
+  own words.
 
-Tests: `test/panel-resume.extension.spec.ts` (the attached file, Preview,
-the others and Tailor; a switch saved, attached on the form, and its
-Keyword match). `fake-api.ts` has `builtResumes` (render, keyword-match).
+Tests: `test/panel-resume.extension.spec.ts` (the Resume/CV row's card:
+the attached file, Preview, Choose a Resume; a pick saved and attached on
+the form; Upload a New Resume, and a duplicate used). `fake-api.ts` has
+`builtResumes` (render) and `uploads` (POST .../resumes).
 
 ## The overlay: honest per-field results
 

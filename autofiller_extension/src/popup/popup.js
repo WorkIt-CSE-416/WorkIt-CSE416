@@ -62,7 +62,9 @@ function batchLine({ total, filling, ready, needs }) {
  * background/popup-home.js), with the one next step as its button: during
  * a batch, the batch's status and Go to Next Job (the tab that needs them,
  * else a ready one); with no batch, the queue and Start Auto Apply; with an
- * empty queue, Find Jobs. Then Open WorkIt and Workday Sign-Up.
+ * empty queue, Find Jobs. Then Open WorkIt, as a quiet link. Workday
+ * Sign-Up is not here (KAN-424): it read as "sign in to Workday" on every
+ * page; it lives in the panel's Settings and the website's Settings.
  */
 function renderSignedIn(profile) {
   const template = document.getElementById("signed-in-template");
@@ -78,8 +80,6 @@ function renderSignedIn(profile) {
     chrome.tabs.create({ url: `${base}/auto-apply` });
     window.close();
   });
-  // The one email and password for every company's Workday (src/options/), kept only in this browser.
-  root.querySelector("#workday-signup-button").addEventListener("click", () => chrome.runtime.openOptionsPage());
 }
 
 /** The popup's home: what the student is doing, and its next step (popup/home). */

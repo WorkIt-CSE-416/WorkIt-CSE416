@@ -90,11 +90,16 @@ DELETE /applicants/{id}/applications/{job_id}/answers?name=
      with no application.
 POST /applicants/{id}/applications/{job_id}/review/keep     {"name"}
 POST /applicants/{id}/applications/{job_id}/review/rewrite  {"name"}
+POST /applicants/{id}/applications/{job_id}/review/redo     {"name", "steer"?}
      The tab's flag card (KAN-369) on an answer the pre-submit review
      flagged: keep it as it stands (no later review flags that text again),
      or send it back to the student's Claude (the answer is cleared, and
      get_next_application hands the question out with the flag). 204; 422
      when that answer isn't flagged, or (rewrite) is the student's own.
+     redo (KAN-424): any answer the student's Claude wrote, flagged or not,
+     sent back for another version, with `steer`, how to change it ("Make
+     it shorter.", or their words), handed to Claude as the rewrite's
+     reason. 422 for the student's own words or a question with no answer.
 GET  /applicants/{id}/applications/{job_id}/answer-bank
      The answers saved on the student's other applications that this one's
      form may reuse, {question wording: {"answer", "own"}} (pipeline.answer_bank:
@@ -342,16 +347,20 @@ async def written_answers(
 async def answer_flag(
     applicant_id: uuid.UUID,
     job_id: uuid.UUID,
-    action: Literal["keep", "rewrite"],
+    action: Literal["keep", "rewrite", "redo"],
     body: FlagAnswer,
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> Response:
     """The batch tab's flag card (KAN-369): the student keeps a flagged answer
-    as it stands, or sends it back to their Claude to rewrite."""
+    as it stands, or sends it back to their Claude to rewrite. Its Rewrite
+    (KAN-424, `redo`): any answer their Claude wrote, for another version."""
     assert_applicant_owns(account, applicant_id)
     try:
-        await (pipeline.keep if action == "keep" else pipeline.rewrite)(db, applicant_id, job_id, body.name)
+        if action == "redo":
+            await pipeline.redo(db, applicant_id, job_id, body.name, body.steer)
+        else:
+            await (pipeline.keep if action == "keep" else pipeline.rewrite)(db, applicant_id, job_id, body.name)
     except pipeline.Refused as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)

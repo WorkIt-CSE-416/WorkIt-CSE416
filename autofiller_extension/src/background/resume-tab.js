@@ -1,6 +1,7 @@
-// The panel's Résumé tab (KAN-399; content/resume-tab.js draws it): which
-// résumé a tab's form gets, the others the student may switch to, a built
-// résumé's Keyword match against the job, and WorkIt's Tailor for the job.
+// The résumé a tab's form gets (KAN-399; content/resume-card.js draws it on
+// the Resume/CV row's card, KAN-424): the attached one, the others the
+// student may switch to, an upload from the panel, and the job's page on
+// WorkIt for the job card. Keyword match and Tailor live on that page now.
 //
 // THE ATTACHED RÉSUMÉ is the profile's (My Profile's default), unless the
 // student switched this tab to another: that choice is kept per tab in
@@ -16,7 +17,7 @@
 // résumé or tailored for this job (a résumé tailored for another job is
 // left out).
 
-import { ApiError, builtResumeFile, builtResumes, getAutofillProfile, keywordMatch, me, recordSentResume, uploadedResumeFile, uploadedResumes } from "./api.js";
+import { ApiError, builtResumeFile, builtResumes, getAutofillProfile, me, recordSentResume, uploadResume, uploadedResumeFile, uploadedResumes } from "./api.js";
 import { getSession } from "./auth.js";
 import { applicationForTab } from "./panel-top.js";
 
@@ -115,39 +116,33 @@ export async function chooseResume({ tabId, url, key }) {
   return { file: { filename: file.filename, mimeType: file.mimeType, base64: file.base64 } };
 }
 
-// The jobs whose keywords WorkIt already read here (chrome.storage.local): the backend caches a posting's
-// keywords on its first read, which spends one of the day's Tailor uses, so a later read spends nothing.
-const KEYWORDS_READ = "keywords_read_jobs";
-
 /**
- * A built résumé's Keyword match against the tab's job: `matched` and
- * `missing` keywords, or a plain reason. A job read here before is read at
- * once; any other answers `unread` unless `spend` (the student pressed Check
- * keyword match, since the read may spend a Tailor use).
+ * Upload Resume: the file the student picked in the panel goes to their
+ * Resumes (as the Resumes page's upload does) and this tab switches to it.
+ * A file they already uploaded isn't saved twice: the tab uses that one.
  */
-export async function keywordsFor({ tabId, url, key, spend = false }) {
-  const [kind, id] = (key ?? "").split(":");
-  if (kind !== "built") return { none: true };
+export async function uploadAndChoose({ tabId, url, file }) {
   const account = await me();
-  const jobId = (await applicationForTab({ tabId, url }))?.job?.id;
-  if (!jobId) return { none: true };
-  const read = (await chrome.storage.local.get(KEYWORDS_READ))[KEYWORDS_READ] ?? [];
-  if (!spend && !read.includes(jobId)) return { unread: true };
+  let id;
+  let already = false;
   try {
-    const match = await keywordMatch(account.id, id, jobId);
-    if (!read.includes(jobId)) await chrome.storage.local.set({ [KEYWORDS_READ]: [...read, jobId].slice(-500) });
-    const words = (list) => (list ?? []).map((k) => k.keyword);
-    return { matched: words(match.matched), missing: words(match.missing) };
+    id = (await uploadResume(account.id, file)).id;
   } catch (error) {
-    return { error: error instanceof ApiError && error.status < 500 ? error.message : "WorkIt couldn't read this job's keywords. Try again." };
+    if (!(error instanceof ApiError) || !error.resumeId) {
+      return { error: error instanceof ApiError && error.status < 500 ? error.message : "WorkIt couldn't upload the resume. Try again." };
+    }
+    id = error.resumeId;
+    already = true;
   }
+  const chosen = await chooseResume({ tabId, url, key: `uploaded:${id}` });
+  return already && !chosen.error ? { ...chosen, already } : chosen;
 }
 
-/** Opens WorkIt's Tailor for the tab's job, on the site the student signed in on. */
-export async function openTailor({ tabId, url }) {
+/** Opens the tab's job on WorkIt (its job page), on the site the student signed in on. */
+export async function openJob({ tabId, url }) {
   const session = await getSession();
   const jobId = (await applicationForTab({ tabId, url }))?.job?.id;
   if (!session || !jobId) return { error: "WorkIt doesn't have this job yet." };
-  await chrome.tabs.create({ url: `${session.web_origin}/jobs/${encodeURIComponent(jobId)}/tailor`, openerTabId: tabId });
+  await chrome.tabs.create({ url: `${session.web_origin}/jobs/${encodeURIComponent(jobId)}`, openerTabId: tabId });
   return {};
 }

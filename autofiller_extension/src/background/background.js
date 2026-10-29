@@ -20,7 +20,7 @@ import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage 
 import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
 import { batchLine, jobForTab, showNextTab } from "./panel-top.js";
-import { attachedFile, chooseResume, keywordsFor, openTailor, resumeTab, withTabResume } from "./resume-tab.js";
+import { attachedFile, chooseResume, openJob, resumeTab, uploadAndChoose, withTabResume } from "./resume-tab.js";
 import { addClaude, autoOpen, disconnectClaude, readSettings, setAutoOpen } from "./panel-settings.js";
 import { previewReport, sendPreviewed } from "./report.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
@@ -274,6 +274,16 @@ async function handleMessage(message, sender) {
       return {};
     }
 
+    // A written answer's Rewrite (KAN-424, overlay.js): another version from the student's Claude, with how to change it.
+    case "batch/redo": {
+      const jobId = await jobInTab(sender.tab.id);
+      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const { id } = await me();
+      const steer = typeof message.steer === "string" ? message.steer.trim().slice(0, 300) : "";
+      await answerFlag(id, jobId, "redo", message.name, steer || undefined);
+      return {};
+    }
+
     // An answer the student pasted in a waiting row's card (KAN-369, card-waiting.js): saved through the
     // Written Answers page's route, so it passes the same checks. A refusal is an answer, not an error:
     // its reasons show in the card. The job is the batch's own for that tab, never the message's.
@@ -440,17 +450,17 @@ async function handleMessage(message, sender) {
       return { line: await batchLine(sender.tab.id), site: jobOf(sender.url ?? "")?.site ?? null };
     case "panel/next-tab":
       return showNextTab(sender.tab.id);
-    // The panel's Résumé tab (resume-tab.js, KAN-399).
+    // The Resume/CV row's card (content resume-card.js; background resume-tab.js, KAN-399, KAN-424).
     case "resume/tab":
       return resumeTab({ tabId: sender.tab.id, url: sender.url ?? "" });
     case "resume/file":
       return { file: await attachedFile(sender.tab.id) };
     case "resume/choose":
       return chooseResume({ tabId: sender.tab.id, url: sender.url ?? "", key: message.key });
-    case "resume/keywords":
-      return keywordsFor({ tabId: sender.tab.id, url: sender.url ?? "", key: message.key, spend: message.spend === true });
-    case "resume/tailor":
-      return openTailor({ tabId: sender.tab.id, url: sender.url ?? "" });
+    case "resume/upload":
+      return uploadAndChoose({ tabId: sender.tab.id, url: sender.url ?? "", file: message.file });
+    case "panel/open-job":
+      return openJob({ tabId: sender.tab.id, url: sender.url ?? "" });
     // Report a problem (report.js, KAN-403): what the card previews, and its Send.
     // The draft is the card's (its values already out); the background keeps the allowed parts and keeps them for Send.
     case "report/preview":
@@ -631,7 +641,7 @@ async function panelSite(url, change) {
 }
 
 // What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
-const SHELL_FILES = ["src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-tab.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js"];
+const SHELL_FILES = ["src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-card.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js"];
 
 /** Opens the panel's shell in the tab's top frame, as the toolbar icon does on a job page with no edge tab yet
  * (`inject`: its files first; an allowed site's were just injected with the launcher). */

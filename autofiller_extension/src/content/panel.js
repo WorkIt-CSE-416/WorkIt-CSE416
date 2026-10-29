@@ -34,12 +34,13 @@ window.WIA = window.WIA || {};
 
   const SHELL_CSS = `
     :host { all: initial; }
+    /* Floats 8px in from the page's edges, its corners the webapp's large-surface radius. */
     .panel {
-      position: fixed; top: 0; right: 0; z-index: 2147483647; box-sizing: border-box;
-      width: 380px; height: 100vh; display: flex; flex-direction: column;
+      position: fixed; top: 8px; right: 8px; bottom: 8px; z-index: 2147483647; box-sizing: border-box;
+      width: 380px; display: flex; flex-direction: column; overflow: hidden;
       font: var(--font-weight-normal) var(--text-label) / var(--text-label--line-height) var(--font-sans);
-      background: var(--color-well); color: var(--color-ink);
-      border-left: 1px solid var(--color-border); box-shadow: var(--shadow-lift);
+      background: var(--color-panel); color: var(--color-ink);
+      border: 1px solid var(--color-border); border-radius: var(--radius-shell); box-shadow: var(--shadow-lift);
     }
     .panel[hidden], [data-slot][hidden], .tab[hidden], .edge[hidden], .menu[hidden], .tabs[hidden] { display: none; }
     .header {
@@ -49,14 +50,20 @@ window.WIA = window.WIA || {};
     .brand { display: flex; align-items: center; color: var(--color-ink); }
     .brand svg { height: 20px; width: auto; display: block; }
     .brand .figure { color: var(--color-brand); }
-    .header-actions, [data-slot="header-actions"] { display: flex; align-items: center; gap: 4px; }
+    .header-actions, [data-slot="header-actions"] { display: flex; align-items: center; gap: 6px; }
     .header button {
       all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500; color: var(--color-ink-muted);
       padding: 4px 8px; border-radius: var(--radius-control); white-space: nowrap;
     }
     .header button:hover { background: var(--color-hover); }
     .header button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
-    .header button[data-collapse], .header button[data-more-menu] { font-size: var(--text-body); padding: 2px 8px; }
+    /* ⋯ and Close: a bare 18 px Phosphor glyph centred in a 32 px target (a text glyph sat off its line);
+     * no outline, which read as odd, so only hover shows the round target. */
+    .header button[data-collapse], .header button[data-more-menu] {
+      display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; box-sizing: border-box;
+      border-radius: 9999px; color: var(--color-ink);
+    }
+    .header button[data-collapse] svg, .header button[data-more-menu] svg { width: 18px; height: 18px; display: block; fill: currentColor; }
     .header button[aria-expanded="true"] { background: var(--color-hover); }
     .top { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 0; }
     .scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; }
@@ -72,7 +79,7 @@ window.WIA = window.WIA || {};
     .panel-menu button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
     .card { background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-card); }
     [data-slot="batch-line"] { padding: 6px 10px; font-size: var(--text-note); color: var(--color-ink-meta); }
-    [data-slot="job-card"] { padding: 4px 4px 0; border: 0; background: none; }
+    [data-slot="job-card"] { padding: 12px; }
     [data-slot="primary"] { display: flex; flex-direction: column; gap: 6px; }
     [data-slot="primary"]:empty { display: none; }
     .primary-button {
@@ -174,8 +181,8 @@ window.WIA = window.WIA || {};
         <span class="brand">${LOGO}</span>
         <span class="header-actions">
           <span data-slot="header-actions"></span>
-          <button type="button" data-more-menu aria-label="More" aria-haspopup="menu" aria-expanded="false" title="More">⋯</button>
-          <button type="button" data-collapse data-close aria-label="Close" title="Close (Alt+W opens it again)">×</button>
+          <button type="button" data-more-menu aria-label="More" aria-haspopup="menu" aria-expanded="false" title="More"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128Zm56-12a12,12,0,1,0,12,12A12,12,0,0,0,196,116ZM60,116a12,12,0,1,0,12,12A12,12,0,0,0,60,116Z"/></svg></button>
+          <button type="button" data-collapse data-close aria-label="Close" title="Close (Alt+W opens it again)"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg></button>
         </span>
       </div>
       <div class="panel-menu" role="menu" aria-label="More" hidden></div>
@@ -231,12 +238,10 @@ window.WIA = window.WIA || {};
     draggable(edge);
 
     root.append(panel, edge, menu);
+    // One view (KAN-424): Autofill holds everything. The Resume and Answers tabs are gone: the résumé's actions are
+    // the Resume/CV row's card (resume-tab.js) and written answers a box in the list (card-written.js), so with one
+    // tab the strip stays hidden (addTab shows it from two).
     addTab({ id: "autofill", label: "Autofill" });
-    // Resume and Answers hold a placeholder until their own files fill them (replaceChildren).
-    for (const [id, label, text] of [
-      ["resume", "Resume", "The resume this form gets will show here."],
-      ["answers", "Answers", "This job's written answers will show here."],
-    ]) addTab({ id, label }).replaceChildren(Object.assign(document.createElement("p"), { className: "tab-placeholder", textContent: text }));
     document.documentElement.appendChild(host);
     keepAttached();
     loadFont().catch(() => {});
