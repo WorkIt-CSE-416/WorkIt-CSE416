@@ -1629,7 +1629,7 @@ the KAN-296 cutover.
   waits for the renders before it, then, with both sides kept, puts the
   page back at once and only saves; otherwise it sends the edit as any
   other. A refused edit's step is dropped, and a failed save's reload
-  clears them all. **`HISTORY_STEPS` (25) and `PDF_STEPS` (10, the newest
+  clears them all. **`HISTORY_STEPS` (25) and `PDF_STEPS` (7, the newest
   steps that keep their PDFs, about 110 KB each) are first guesses: tune
   them in `history.ts` once students use it.** In storage a step would
   outlive the database it describes (another tab's edit, a reload).
@@ -1651,7 +1651,18 @@ the KAN-296 cutover.
   so a move never draws the PDF again, and only onto the drawing of the
   PDF whose boxes are on screen: `PdfPages` keeps the boxes that came
   with the PDF it shows, so a new PDF's boxes never clear lines of the
-  old drawing. Desktop only: the phone types in a sheet.
+  old drawing. **A line left is still editable while its PDF is on its
+  way**: its typed text carries the line's `data-box` and reopens the
+  line on a click, with what was typed; until then the text took the
+  click and the press closed the line. A line reopened and left as it was
+  sends nothing again (`lastSent`). Desktop only: the phone types in a
+  sheet.
+- **A bullet offers two wordings: Original and This Resume's Wording**
+  (`LineActions`): the one the resume shows, Tailor's on a tailored
+  resume, else the one typed on it. Each of Tailor's other wordings was a
+  "Tailored N" button until the user found them noise (2026-10-29); they
+  stay in `bank_bullet_variants`, and the API still accepts a switch to
+  any wording the resume can show.
 - **The editor's page has a zoom** (`Zoom` on the slim bar, both pages):
   steps of the page's printed size, 100% being 816px (8.5in at 96px an
   inch), opening at 125% (1020px), capped by its column, kept per browser through

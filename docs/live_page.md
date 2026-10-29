@@ -96,7 +96,7 @@ Built so far (option A, the typed line only):
   then.
 - **Undo and Redo work like any edit:** each step keeps the state and
   PDF on both sides, so going back or forward shows at once and only the
-  save goes; an older step, past the newest 10 that keep their PDFs,
+  save goes; an older step, past the newest 7 that keep their PDFs,
   renders like a new edit. 25 steps, in the tab's memory (both numbers
   are first guesses, to tune in `history.ts`).
 - **Measured from a laptop against the shared database:** one round trip

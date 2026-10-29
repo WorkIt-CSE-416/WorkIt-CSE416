@@ -22,7 +22,7 @@ import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
 export const HISTORY_STEPS = 25;
 /** How many of the newest steps keep their PDFs for an instant Undo or
  *  Redo; older ones still undo, through a render. Tunable as above. */
-export const PDF_STEPS = 10;
+export const PDF_STEPS = 7;
 
 /** An edit as the editor sends it: choice changes or a typed line. */
 export type Edit =

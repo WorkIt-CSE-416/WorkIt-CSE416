@@ -385,6 +385,9 @@ export function Editor({
   };
   // The selected line as of now, for a save that lands after it changed
   const selectedNow = useRef<string | null>(null);
+  // The text last sent for each line, so a line reopened and left as it
+  // was while its PDF is on its way is not sent twice
+  const lastSent = useRef(new Map<string, string>());
   const drop = useCallback(
     (key: string) =>
       setDrafts((d) =>
@@ -692,6 +695,7 @@ export function Editor({
     (item_id: string, kind: string, text: string, recorded = true) => {
       const key = `${item_id}.${kind}`;
       sent(key);
+      lastSent.current.set(key, text);
       const step = recorded ? record({ line: { item_id, kind, text } }) : null;
       sendLine({ item_id, kind, text }, copy());
       return enqueue(async () => {
@@ -776,12 +780,15 @@ export function Editor({
     [saveText],
   );
 
-  /** Saves typed text when it differs from what the line prints. */
+  /** Saves typed text when it differs from what the line prints, and from
+   *  what was last sent for it: a line reopened while its PDF is on its
+   *  way and left as it was sends nothing again. */
   const save = useCallback(
     async (typed: Draft) => {
       const shown = rendered?.boxes.find((b) => boxKey(b) === typed.key)?.text;
       const text = typed.text.trim();
       if (shown === undefined || text === shown) return;
+      if (onTheirWay.current.has(typed.key) && lastSent.current.get(typed.key) === text) return;
       const { item_id, kind } = splitKey(typed.key);
       await saveText(item_id, kind, text);
     },
@@ -1084,11 +1091,16 @@ export function Editor({
     const text = drafts[key];
     if (text === undefined) return null;
     const look = lineLook(target);
+    // A click on the text reopens the line with what was typed, while its
+    // PDF is still on its way: the text sits over the line's own target,
+    // and the press closed the line instead (`data-box` keeps it a line's)
     return (
       <div
         ref={(element) => measure(key, target.kind, element)}
         aria-hidden
-        className={cn(look.className, "break-words whitespace-pre-wrap")}
+        data-box={key}
+        onClick={() => onLine(key)}
+        className={cn(look.className, "cursor-text break-words whitespace-pre-wrap")}
         style={look.style}
       >
         {text}
@@ -1990,8 +2002,12 @@ function LineActions({
   if (line.kind === "bullet") {
     const id = line.bullet.id;
     const current = choices.bullets.find((c) => c.bullet_id === id)?.variant_id ?? null;
-    const versions = choices.variants.filter((v) => v.bullet_id === id);
-    let tailored = 0;
+    // Two choices only: the bank's original, or this resume's own wording,
+    // which is the one it shows (Tailor's, on a tailored resume) or else
+    // the one typed on it. Tailor's other wordings were each a "Tailored N"
+    // button until the user found them noise (2026-10-29)
+    const own = current ?? choices.variants.find((v) => v.bullet_id === id && v.local)?.id;
+    const versions = choices.variants.filter((v) => v.id === own);
     return (
       <>
         {movesFirst && moves}
@@ -2006,8 +2022,7 @@ function LineActions({
         {versions.length > 0 &&
           [null, ...versions].map((v) => {
             const on = current === (v?.id ?? null);
-            const label =
-              v == null ? "Original" : v.local ? "This Resume's Wording" : `Tailored ${++tailored}`;
+            const label = v == null ? "Original" : "This Resume's Wording";
             return (
               <Button
                 key={v?.id ?? "original"}
