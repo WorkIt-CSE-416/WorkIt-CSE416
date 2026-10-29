@@ -25,6 +25,7 @@ import { ApplyButton } from "./apply-button";
 import type { JobListing } from "./listings";
 import { MatchRail } from "./match-rail";
 import { SaveJobButton } from "./save-job-button";
+import { jobLogo } from "@/lib/job-logo";
 
 /* The live feed's card, and the two states that stand in for a list of them.
  * Shared by /jobs and /search, so a role found by searching is the same card,
@@ -94,7 +95,7 @@ export function ListingCard({
     <JobPostingCard
       job={{
         company: job.company,
-        logoUrl: job.logo_url,
+        logoUrl: jobLogo(job),
         title: job.title,
         titleHref: `/jobs/${job.id}`,
         timing: job.posted_at ? formatPosted(job.posted_at) : NOT_LISTED,

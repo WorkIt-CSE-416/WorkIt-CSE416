@@ -50,6 +50,13 @@ class TestRow:
         assert feed_row(role())["logo_url"] == LOGO
         assert feed_row(role(board_key="lever/nologo"))["logo_url"] is None
 
+    def test_company_domain_comes_from_the_boards_website(self) -> None:
+        # An uploaded logo names no website; a favicon does.
+        assert feed_row(role())["company_domain"] is None
+        favicon = "https://www.google.com/s2/favicons?domain=careers.gevernova.com&sz=128"
+        row = feed.row(role(board_key="workday/x"), {"workday/x": favicon})
+        assert (row["logo_url"], row["company_domain"]) == (favicon, "gevernova.com")
+
     def test_labels_become_the_schemas_enum_values(self) -> None:
         row = feed_row(role())
         assert row["work_style"] == "onsite"

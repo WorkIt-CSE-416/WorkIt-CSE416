@@ -55,9 +55,11 @@ one's code and the API on the other's.
   shipped as the database URL and keys. To change one value, rewrite the whole JSON
   (`gh secret set CF_API_SECRETS_JSON < file.json`); never put a value in the
   workflow. `DIRECT_URL` never goes in it: migrations stay a local step.
-- **`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are repo
-  variables, not secrets**: Next inlines them at build time and both are public
-  by design. Setting them as Worker secrets would do nothing.
+- **`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
+  `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID` (KAN-442) are repo variables, not
+  secrets**: Next inlines them at build time and all are public by design.
+  Setting them as Worker secrets would do nothing. Without the Brandfetch
+  one, every company logo falls back to what the scraper found.
 - **A new Worker's first deploy needs `scripts/ensure-worker.sh`.** For a
   Worker that does not exist yet, Cloudflare answers wrangler's secrets lookup
   with "No access to the specified resource" rather than "not found" when the

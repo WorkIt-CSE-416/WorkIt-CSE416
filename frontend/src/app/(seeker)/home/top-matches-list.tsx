@@ -21,6 +21,7 @@ import { ApplyButton } from "../jobs/apply-button";
 import { SaveJobButton } from "../jobs/save-job-button";
 import { TopMatchLink } from "./top-match-link";
 import { LIST } from "./top-matches-frame";
+import type { LogoSrc } from "@/lib/job-logo";
 
 /** One Top Matches row, as ./top-matches.tsx reads it: plain data, so it can
  *  cross into this client component. `posted` is already words. */
@@ -28,7 +29,7 @@ export type TopMatchRow = {
   id: string;
   title: string;
   company: string;
-  logoUrl: string | null;
+  logoUrl: LogoSrc;
   applyUrl: string;
   match: number | null;
   posted: string | null;

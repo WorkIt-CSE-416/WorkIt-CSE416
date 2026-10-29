@@ -1537,6 +1537,23 @@ the KAN-296 cutover.
   reports the load once the browser has decoded it, which a hidden browser
   tab (the Browser pane when it is not shown) can hold back, so check it
   with the page visible.
+- **A job's logo is a list of sources, best first** (KAN-442,
+  `lib/job-logo.ts`'s `jobLogo`): Brandfetch's icon by the employer's own
+  website (`company_domain`), then what the scraper found (the logo uploaded
+  to the job board, or the website's Google favicon, often 16 to 32px), then
+  the initials. `CompanyLogo` shows the first source that loads; Brandfetch
+  answers 404 for a company it lacks (`fallback/404`), never its made-up
+  lettermark. Every job tile takes `jobLogo(job)`, never `job.logo_url`
+  alone, or it keeps the favicon. **Brandfetch loads straight from the
+  browser** (`unoptimized`): its terms allow hotlinking only, with the page's
+  Referer, and refuse a server fetching the image, which the optimizer does
+  on Vercel; so its host is not in `remotePatterns`. The client ID is
+  `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID` (public by design; free plan, about 1M
+  logo loads a month), set in `.env.local`, Vercel and the repo's variables
+  for the Cloudflare build (`../.github/CLAUDE.md`); without it every tile
+  falls back to the scraper's logo. `jobLogo` is in `lib/`, not beside
+  `CompanyLogo`, because server modules build a job's sources too and cannot
+  call a function a `"use client"` file exports.
 - **`src/react-canary.d.ts`** loads React's canary types (`<ViewTransition>`,
   `addTransitionType`): the App Router runs React canary and `@types/react`'s
   stable entry lacks them.

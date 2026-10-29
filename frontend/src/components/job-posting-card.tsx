@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
 import { cn } from "@/lib/cn";
+import type { LogoSrc } from "@/lib/job-logo";
 
 /**
  * The job posting card a seeker sees on their Jobs feed, in the layout it had
@@ -139,7 +140,7 @@ const FACT_NAME = {
 export type JobPostingCardData = {
   company: string;
   /** The company's logo; omit (or null) for its initials instead. */
-  logoUrl?: string | null;
+  logoUrl?: LogoSrc;
   /** Omit to render the company name in the same ink without a real `<a>`
    *  under it — the composer's preview has nowhere to send a click that
    *  wouldn't abandon the draft being edited. */
