@@ -10,9 +10,8 @@ import uuid
 
 import httpx
 import pytest
-from sqlalchemy import text
-
 from fastapi import HTTPException
+from sqlalchemy import text
 
 from app.deps import get_current_account, token_applicant
 from app.main import app
