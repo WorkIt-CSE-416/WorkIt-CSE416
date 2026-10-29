@@ -1546,12 +1546,12 @@ the KAN-296 cutover.
   lettermark. Every job tile takes `jobLogo(job)`, never `job.logo_url`
   alone, or it keeps the favicon. **Brandfetch loads straight from the
   browser** (`unoptimized`): its terms allow hotlinking only, with the page's
-  Referer, and refuse a server fetching the image, which the optimizer does
-  on Vercel; so its host is not in `remotePatterns`. The client ID is
-  `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID` (public by design; free plan, about 1M
-  logo loads a month), set in `.env.local`, Vercel and the repo's variables
-  for the Cloudflare build (`../.github/CLAUDE.md`); without it every tile
-  falls back to the scraper's logo. `jobLogo` is in `lib/`, not beside
+  Referer, and refuse a server fetching the image, which the `next/image`
+  optimizer does wherever it is on; so its host is not in `remotePatterns`.
+  The client ID is `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID` (public by design; free
+  plan, about 1M logo loads a month), set in `.env.local` and in the repo's
+  variables, which the Cloudflare build reads (`../.github/CLAUDE.md`);
+  without it every tile falls back to the scraper's logo. `jobLogo` is in `lib/`, not beside
   `CompanyLogo`, because server modules build a job's sources too and cannot
   call a function a `"use client"` file exports.
 - **`src/react-canary.d.ts`** loads React's canary types (`<ViewTransition>`,

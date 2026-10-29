@@ -28,7 +28,7 @@ const SQUARE = { min: 0.8, max: 1.25 };
  *
  * BRANDFETCH LOADS STRAIGHT FROM THE BROWSER (`unoptimized`). Its terms allow
  * hotlinking only, with the page's Referer, and refuse a server fetching the
- * image, which is what the `next/image` optimizer does on Vercel.
+ * image, which is what the `next/image` optimizer does wherever it is on.
  */
 export function CompanyLogo({
   name,
