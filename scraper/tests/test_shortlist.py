@@ -175,6 +175,22 @@ class TestStage:
             "finance",
         )  # National Life
 
+    def test_a_named_program_is_new_grad(self):
+        assert classify("2027 Analyst Program") == ("new-grad", "business")
+        assert classify("Engineering Program") == ("new-grad", "other")
+        assert classify("Talent Program") == ("new-grad", "other")
+        assert classify("Management Development Program") == ("new-grad", "other")
+        assert classify("Technology Program Associate") == ("new-grad", "other")
+        assert classify("Sales Development Program") == ("new-grad", "sales")
+        assert classify("Engineering Talent") == ("new-grad", "other")
+        assert classify("Emerging Talent - Data Science") == ("new-grad", "data_ai", "data_ai/data_science")
+        # British spelling.
+        assert classify("Graduate Programme - Finance") == ("new-grad", "finance")
+        # "Program Manager" is a real title, not a named program: LEADS blocks it.
+        assert classify("Program Manager") == ()
+        # "Program Director" is senior.
+        assert classify("Senior Program Director") == ()
+
     def test_a_working_student_is_an_intern(self):
         assert classify("Trader Assistant (Working Student)") == ("intern", "quant")  # IMC
         assert classify("Working Student -- Software Engineer: Munich") == (

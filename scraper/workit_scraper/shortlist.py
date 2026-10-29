@@ -126,7 +126,7 @@ INTERN = rx(
 # year-round analyst nor JCC's "Summer Day Camp" counselors count.
 SUMMER_ANALYST = re.compile(r"^(?=.*\bsummer\b)(?=.*\banalysts?\b)", re.I)
 NEW_GRAD = rx(
-    r"\bnew ?grad(?:uate)?\b",
+    r"\bnew ?grad(?:uate)?s?\b",
     r"\bgraduate\b",
     r"\bentry[- ]level\b",
     r"\bjunior\b",
@@ -134,6 +134,7 @@ NEW_GRAD = rx(
     # Omnicom Health's "Trainee Account Executive", Crest Industries' "Fabrication
     # Trainee" (KAN-430: every trainee in a 110-board sample was entry level).
     r"\btrainees?\b",
+    r"\bfellowships?\b",
 )
 # These say a role is for students or graduates as often as they say who a
 # recruiter recruits ("University Recruiter") or where a job is (below). A
@@ -144,7 +145,19 @@ PROGRAM = rx(
     r"\buniversity\b",
     r"\bcampus\b",
     r"\bearly[- ]career\b",
-    r"\brotational programs?\b",
+    r"\bemerging talent\b",
+    r"\brotational program(?:me)?s?\b",
+    # "<Discipline> Program/Programme/Talent": a named graduate or rotational
+    # program. Goldman's "2027 Analyst Program", GE's "Engineering Development
+    # Programme", Unilever's "Management Development Program", Deloitte's
+    # "Engineering Talent". AUDIENCE already strips titles where the word precedes
+    # a management role ("Campus Programme Manager"), and SENIOR and LEADS block
+    # directors and managers of the program itself.
+    r"\b(?:analyst|associate|engineer(?:ing)?|technology|tech|consulting|talent"
+    r"|leadership|manage(?:ment|r)|development|sales|finance|marketing|business"
+    r"|operations) (?:program(?:me)?s?|talent)\b",
+    # "<Any word> Development Program/Programme".
+    r"\b\w+ development program(?:me)?s?\b",
 )
 # Who a role recruits or serves, not who fills it: Stripe's "University Recruiter",
 # Jane Street's "Campus Recruiter, Machine Learning and Quantitative Research",
@@ -156,11 +169,11 @@ PROGRAM = rx(
 AUDIENCE = re.compile(
     r"\b(?:university|campus|early[- ]careers?|early talent)(?:\s*&\s*\w+)?\s+(?:recruit\w*"
     r"(?!\s+20\d\d)|relations|talent|engagement|outreach|partnerships?|ambassadors?|events?"
-    r"|hiring|lead|programs?\s+(?:manager|lead|coordinator|specialist|partner))\b"
+    r"|hiring|lead|program(?:me)?s?\s+(?:manager|lead|coordinator|specialist|partner))\b"
     # Canonical's "Graduate Talent Scientist" is a graduate; its "Talent Scientist -
     # Graduate Lead" leads the graduates.
     r"|\b(?:graduate|intern(?:ship)?s?|student)\s+(?:recruit\w*|relations|outreach|hiring|lead"
-    r"|ambassadors?|programs?\s+(?:manager|lead|coordinator|specialist|partner))\b",
+    r"|ambassadors?|program(?:me)?s?\s+(?:manager|lead|coordinator|specialist|partner))\b",
     re.I,
 )
 # A place, not a stage: Brooks's "Retail Sales Associate, University Village",
@@ -950,8 +963,8 @@ def classify(title: str) -> tuple[Tag, ...]:
 # A title with no stage word ("Software Engineer", "Data Analyst") can still be
 # early career if the description states a low experience requirement. Only
 # useful for providers that send the description with the board listing (Ashby,
-# Lever, Recruitee); the rest have no description until a kept posting's page is
-# read, so this adds zero HTTP.
+# Lever, Recruitee, TikTok, Jibe, SuccessFactors); the rest have no description
+# until a kept posting's page is read, so this adds zero HTTP.
 
 EARLY_EXPERIENCE = re.compile(
     r"(?:"
