@@ -1,0 +1,1384 @@
+{
+  "icims/americas-cookmedical": {
+    "ats": "icims",
+    "companies": [
+      "Cook Group"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Cook Group",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://americas-cookmedical.icims.com/jobs/18178/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cook Group",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://americas-cookmedical.icims.com/jobs/19270/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cook Group",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://americas-cookmedical.icims.com/jobs/19426/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cook Group",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://americas-cookmedical.icims.com/jobs/19412/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cook Group",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://americas-cookmedical.icims.com/jobs/19550/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 89,
+    "status": "validated",
+    "token": "americas-cookmedical",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-americas": {
+    "ats": "icims",
+    "companies": [
+      "Atlassian"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Atlassian",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-americas.icims.com/jobs/21017/mba-product-marketing-intern---platform%2c-2026-summer-u.s/job"
+      },
+      {
+        "company": "Atlassian",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-americas.icims.com/jobs/26266/software-engineer-intern%2c-2027-summer-u.s./job"
+      },
+      {
+        "company": "Atlassian",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-americas.icims.com/jobs/26274/product-management-intern%2c-2027-summer-u.s./job"
+      }
+    ],
+    "postings": 180,
+    "status": "validated",
+    "token": "careers-americas",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-benjaminmoore": {
+    "ats": "icims",
+    "companies": [
+      "Benjamin Moore"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Benjamin Moore",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-benjaminmoore.icims.com/jobs/2311/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Benjamin Moore",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-benjaminmoore.icims.com/jobs/2300/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Benjamin Moore",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-benjaminmoore.icims.com/jobs/2488/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 46,
+    "status": "validated",
+    "token": "careers-benjaminmoore",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-calamp": {
+    "ats": "icims",
+    "companies": [
+      "CalAmp"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "CalAmp",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-calamp.icims.com/jobs/4326/intern%2c-engineer-software---carlsbad%2c-ca-%28summer-2026%29/job"
+      },
+      {
+        "company": "CalAmp",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-calamp.icims.com/jobs/4349/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 0,
+    "status": "validated",
+    "token": "careers-calamp",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-cotiviti": {
+    "ats": "icims",
+    "companies": [
+      "Cotiviti"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/18706/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/18817/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/18803/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/18432/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/18929/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/18804/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19007/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19075/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/18971/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/18676/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/18950/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/18972/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19214/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19386/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19416/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19341/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19531/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19480/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/20321/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/20183/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/20383/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/18785/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/18853/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19081/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19263/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19203/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19527/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Cotiviti",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-cotiviti.icims.com/jobs/19318/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 79,
+    "status": "validated",
+    "token": "careers-cotiviti",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-kinaxis": {
+    "ats": "icims",
+    "companies": [
+      "Kinaxis"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34446/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34493/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34701/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34704/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34763/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34702/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34766/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34800/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34764/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34700/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34699/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34899/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34962/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/34832/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/35297/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/35329/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/35343/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/35320/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/35349/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/35378/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/35377/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/35372/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Kinaxis",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-kinaxis.icims.com/jobs/35465/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 113,
+    "status": "validated",
+    "token": "careers-kinaxis",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-lmi": {
+    "ats": "icims",
+    "companies": [
+      "LMI"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/13807/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/13505/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/13863/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/13868/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/14031/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/13752/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/13752/junior-data-scientist/job"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/13822/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/13822/junior-data-scientist---clearance-required/job"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/13901/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/14309/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/14313/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/14396/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/14418/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "LMI",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-lmi.icims.com/jobs/14673/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 220,
+    "status": "validated",
+    "token": "careers-lmi",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-otterproducts": {
+    "ats": "icims",
+    "companies": [
+      "Otter Products"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Otter Products",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-otterproducts.icims.com/jobs/6855/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Otter Products",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-otterproducts.icims.com/jobs/6912/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 1,
+    "status": "validated",
+    "token": "careers-otterproducts",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-persistentsystems": {
+    "ats": "icims",
+    "companies": [
+      "Persistent Systems"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Persistent Systems",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-persistentsystems.icims.com/jobs/2191/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Persistent Systems",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-persistentsystems.icims.com/jobs/2258/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Persistent Systems",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-persistentsystems.icims.com/jobs/2270/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Persistent Systems",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-persistentsystems.icims.com/jobs/2272/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Persistent Systems",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-persistentsystems.icims.com/jobs/2187/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Persistent Systems",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-persistentsystems.icims.com/jobs/2186/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 23,
+    "status": "validated",
+    "token": "careers-persistentsystems",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-riversideresearch": {
+    "ats": "icims",
+    "companies": [
+      "Riverside Research"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4111/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4156/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4155/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4155/ai-ml-intern/job"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4164/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4309/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4334/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4146/junior-research-scientist---security-engineering/job"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4127/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4137/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4185/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4331/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4351/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Riverside Research",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-riversideresearch.icims.com/jobs/4381/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 47,
+    "status": "validated",
+    "token": "careers-riversideresearch",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-slco": {
+    "ats": "icims",
+    "companies": [
+      "Salt Lake County"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Salt Lake County",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-slco.icims.com/jobs/40588/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Salt Lake County",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-slco.icims.com/jobs/40651/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Salt Lake County",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-slco.icims.com/jobs/41411/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 80,
+    "status": "validated",
+    "token": "careers-slco",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-stellantsystems": {
+    "ats": "icims",
+    "companies": [
+      "Stellant Systems"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Stellant Systems",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-stellantsystems.icims.com/jobs/2081/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Stellant Systems",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-stellantsystems.icims.com/jobs/2037/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Stellant Systems",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-stellantsystems.icims.com/jobs/2030/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 61,
+    "status": "validated",
+    "token": "careers-stellantsystems",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-urbanscience": {
+    "ats": "icims",
+    "companies": [
+      "Urban Science"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Urban Science",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-urbanscience.icims.com/jobs/5145/software-engineering-intern--summer-2026--detroit%2c-mi/job"
+      },
+      {
+        "company": "Urban Science",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-urbanscience.icims.com/jobs/5169/software-engineering-intern--summer-2026---detroit%2c-mi/job"
+      },
+      {
+        "company": "Urban Science",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-urbanscience.icims.com/jobs/5219/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Urban Science",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-urbanscience.icims.com/jobs/5181/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Urban Science",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-urbanscience.icims.com/jobs/5215/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Urban Science",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-urbanscience.icims.com/jobs/5218/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Urban Science",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-urbanscience.icims.com/jobs/5216/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Urban Science",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-urbanscience.icims.com/jobs/5220/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 9,
+    "status": "validated",
+    "token": "careers-urbanscience",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-walterpmoore": {
+    "ats": "icims",
+    "companies": [
+      "Walter P Moore"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Walter P Moore",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-walterpmoore.icims.com/jobs/4046/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Walter P Moore",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careers-walterpmoore.icims.com/jobs/4125/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 205,
+    "status": "validated",
+    "token": "careers-walterpmoore",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careersus-shure": {
+    "ats": "icims",
+    "companies": [
+      "Shure"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4701/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4966/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4960/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4985/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/5027/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4955/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4967/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4971/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/5021/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4982/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4995/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4979/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/5029/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4976/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/5006/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4965/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/5020/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4996/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/5007/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/5018/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4968/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4990/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4973/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4964/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/5024/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/5017/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4957/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/5002/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/5028/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4956/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/5013/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Shure",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careersus-shure.icims.com/jobs/4720/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 90,
+    "status": "validated",
+    "token": "careersus-shure",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/external-canoncareers": {
+    "ats": "icims",
+    "companies": [
+      "Canon"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34091/software-imaging-intern/job"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34090/software-intern/job"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34092/software-intern/job"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34087/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34091/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34090/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34073/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34092/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34101/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34331/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34383/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34338/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34504/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34488/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34518/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34513/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34493/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34449/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34631/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34581/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34301/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34062/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34722/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34728/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/33713/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34394/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34076/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34568/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34622/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34762/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34733/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34808/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34811/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34752/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34627/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Canon",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://external-canoncareers.icims.com/jobs/34847/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 233,
+    "status": "validated",
+    "token": "external-canoncareers",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/staff-emory": {
+    "ats": "icims",
+    "companies": [
+      "Emory University"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Emory University",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://staff-emory.icims.com/jobs/163156/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Emory University",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://staff-emory.icims.com/jobs/172196/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Emory University",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://staff-emory.icims.com/jobs/162101/ai-scientist-engineer-i--school-of-medicine%2c-bmi-admin/job"
+      },
+      {
+        "company": "Emory University",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://staff-emory.icims.com/jobs/163615/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Emory University",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://staff-emory.icims.com/jobs/168802/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Emory University",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://staff-emory.icims.com/jobs/168806/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Emory University",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://staff-emory.icims.com/jobs/172914/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 318,
+    "status": "validated",
+    "token": "staff-emory",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "lever/eu/cirrus": {
+    "ats": "lever",
+    "companies": [
+      "Cirrus Logic"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/103a6cd2-74ef-495f-ab73-9a56dab653cd/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/645ceaf8-5734-4c69-9047-04bb0a400fe4/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/85ca886a-381b-46d4-b0ad-49db426a1209/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/3671d9f4-0389-42e6-af0e-68a95ebeb45d/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/970d9205-90ba-4caf-848c-b78684dbd6c7/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/44d85e51-10bf-44d7-b0dc-2d177cf6e858/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/a0ee59a9-cfce-410a-b182-459a5da9ba95/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/95f2af3d-6153-4bf4-aae7-4932769fb84b/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/08d5aa55-2c11-4bab-896c-555067005e73/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/3d6df577-91f6-4b58-9e7f-c982e49ff515/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/8ad92ca2-1f67-4a86-a5cf-12b7b2981960/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/285c6096-5bc0-438e-abc6-b9768891167d/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/f85c944c-d437-4685-9f04-c7b79ae65ecb/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/46a841b3-e3ce-4c78-b010-0e9cfe9e0f8e/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/0af920c1-6ecb-447f-9b22-3eda6b8d4ed8/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/2ca7b254-5c91-4a4e-9ba8-d05c8604eca2/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/f8d30ab0-8c95-4c83-8188-fb45a2cfc9ec/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/c71a6365-31c7-4ba1-bdc4-9f2df1fc483e/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/0310fbd1-a2a8-4c0f-a842-86e05ae7d98e/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/89813bb2-94fb-42f6-aec2-03154cfde027/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/df033a94-155f-427f-a178-88bd18c3d5ec/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/61ae5eb1-94c8-4aba-9f2a-7968facbf18e/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/b0eeba19-9950-4e6b-a709-037e271a71fd/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/8a27643f-35d8-44f2-b8f3-2318a3d26d4d/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/533c9938-3d35-48a6-b08b-1dd1675d2bdf/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/f00a0311-831f-42cd-a0e8-802fe1866516/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/21ace8b0-4a6f-45fa-9299-cf72e1c51340/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/badf4f30-b4ba-41d8-96e2-b250057c6542/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/74bcfa31-ecdb-4f82-8f8a-f6025cfd4852/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/d6b84759-90ba-4bf4-89e3-b04f9e0640a9/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/b205cbfe-34b2-44a2-b3f5-061780572081/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/1979da07-33fb-4dc8-af01-9f12bc9d7b29/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/12cd627f-7c7c-4737-b1e9-22edc752e35e/apply"
+      },
+      {
+        "company": "Cirrus Logic",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://jobs.eu.lever.co/cirrus/b4334931-aee2-40d9-a82e-ae6fb644cab0/apply"
+      }
+    ],
+    "postings": 124,
+    "status": "validated",
+    "token": "eu/cirrus",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "rippling/usare": {
+    "ats": "rippling",
+    "companies": [
+      "American Rare Earths"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "American Rare Earths",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
+        "url": "https://ats.rippling.com/usare/jobs/8db9bb37-aa5f-40e0-96ac-d1c4ca796aeb"
+      }
+    ],
+    "postings": 12,
+    "status": "validated",
+    "token": "usare",
+    "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  }
+}
