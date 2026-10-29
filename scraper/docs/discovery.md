@@ -14,6 +14,14 @@ supply leads; no search API credentials are needed. The validation limit is 20,
 with a UTC-day offset that rotates through candidates rather than repeatedly
 checking only the first ones.
 
+**The repository must let GitHub Actions open pull requests** (Settings →
+Actions → General → Workflow permissions → "Allow GitHub Actions to create and
+approve pull requests"). With it off, the first scheduled run (2026-10-29)
+pushed `codex/board-discovery-after-0` and then failed at `gh pr create` with
+"GitHub Actions is not permitted to create or approve pull requests", so no PR
+appeared. A PR opened with `github.token` also starts no other workflow, so CI
+does not run on it until a person pushes to the branch or closes and reopens it.
+
 The workflow maintains **one rolling PR**. Validated candidates become proposed
 rows in `scraper/boards.csv`, accompanied by `scraper/discovery-review.json`
 (the durable decision and evidence ledger) and generated

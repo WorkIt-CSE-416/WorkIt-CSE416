@@ -511,7 +511,9 @@ scraper standard-library-only.
 - Common Crawl is excluded under the robots restriction recorded in CLAUDE.md.
   Unsupported ATS URLs are reported; adding readers is a separate provider change.
 
-Usage and credentials: `docs/discovery.md`.
+Usage and credentials: `docs/discovery.md`. How open-jobs and freehire find
+their boards, what WorkIt took from them and the 500-board pool sample:
+`docs/research-open-jobs-freehire.md`.
 
 Shared boundaries: `providers/urls.py` owns board URL recognition for both
 commands; `board_read.py` owns the robots/pacing/read result; `catalog.py` owns
