@@ -36,19 +36,24 @@ GET    /applicants/{id}/built-resumes/{rid}/choices -> ChoicesResponse
 PATCH  /applicants/{id}/built-resumes/{rid}/choices ChoicesUpdate -> ChoicesResponse
        The editor's hide, show, move and toggles, all saved together. An
        item with no row gets one. 404 for an item outside the bank.
-PUT    /applicants/{id}/built-resumes/{rid}/lines  LineSave -> LineSaveResponse
-       One line typed in the editor (KAN-391): saves it, then renders, in
-       one request. {item_id, kind, text} names the clicked box; the API
-       reads the text (services/resume_lines.py): a bullet becomes this
-       resume's wording, an entry field changes the bank, a header field
-       the profile. 422 {detail} for text it cannot save (an empty title, a
-       GPA that is not a number, a kind not typed here), 404 for an item
-       outside the bank. The PDF compiles beside the write, from the
-       editor's copy (`source`, ResumeCopy) when sent, with no read first;
-       a compile that fails after the commit answers 503 and keeps the save.
-PATCH  /applicants/{id}/built-resumes/{rid}/choices/render ChoicesSave -> ChoicesSaved
-       The choices PATCH (`changes`) and a render in one request, the
-       compile beside the write as for a typed line; `source` as there.
+POST   /applicants/{id}/built-resumes/{rid}/render EditRender -> EditRendered
+       The editor's edit rendered, never saved (KAN-391): a typed `line`
+       ({item_id, kind, text}) or choice `changes` (the PATCH .../choices
+       body), made in memory to the editor's copy (`source`, ResumeCopy),
+       so only the resume's row is read. Answers the render and what the
+       edit changed in the copy (`choices`, `entry`; the header is
+       `render.identity`). 422 for text the save would refuse, 404 for an
+       item outside the copy, 503 like render.
+PUT    /applicants/{id}/built-resumes/{rid}/lines  LineSave -> LineSaved
+       One typed line saved, with no read first (KAN-391): one statement
+       per kind, whose WHERE checks ownership. The API reads the text
+       (services/resume_lines.py): a bullet becomes this resume's wording
+       (`variant_id` answered, null when the original is typed back), an
+       entry field changes the bank, checked whole against `source`'s copy
+       of the entry (read when none is sent), a header field the profile
+       (`profile` answered). 422 {detail} for text it cannot save (an
+       empty title, a GPA that is not a number, a kind not typed here),
+       404 for an item that is not the applicant's.
 POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, undo, render}
        Fit to One Page: hides coursework, bullets and whole entries, least
        useful first (resume_view.fit_order), and renders again until the
@@ -81,6 +86,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
+from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
@@ -97,12 +103,12 @@ from app.schemas.built_resume import (
     BuiltResumeRename,
     BuiltResumeResponse,
     ChoicesResponse,
-    ChoicesSave,
-    ChoicesSaved,
     ChoicesUpdate,
+    EditRender,
+    EditRendered,
     FitResponse,
     LineSave,
-    LineSaveResponse,
+    LineSaved,
     RenderBox,
     RenderResponse,
 )
@@ -325,54 +331,62 @@ async def update_choices(
     return await service.choices_response(session, resume_id)
 
 
-@router.put("/{resume_id}/lines", response_model=LineSaveResponse)
-async def save_line(
-    body: LineSave,
+@router.post("/{resume_id}/render", response_model=EditRendered)
+async def render_edit(
+    body: EditRender,
     resume_id: uuid.UUID,
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
-) -> LineSaveResponse:
-    # The PDF compiles while the change is written: from the editor's copy
-    # when it sends one (no read first), else from the bank, choices and
-    # header read once; the change is made to them in memory, the compile
-    # starts from that view, and the write, the commit and the answer's own
-    # reads run beside Tectonic. A save then a render read the bank three
-    # times and compiled only after the commit (KAN-391).
+) -> EditRendered:
+    # The editor's edit, rendered and never saved (KAN-391): made in memory
+    # to its copy, so nothing is read but the resume's row; the save goes
+    # separately (PUT .../lines, PATCH .../choices) and the editor does not
+    # wait for it. A save then a render read the bank three times and
+    # compiled only after the commit.
     resume = await _owned(session, applicant_id, resume_id)
+    held, choices, identity = await _held(session, applicant_id, resume_id, body.source)
+    if body.source is not None:
+        variants = body.source.choices.variants
+    else:
+        variants = (await service.choices_response(session, resume_id)).variants
+    entry = None
+    after = choices
     try:
-        line = resume_lines.parse(body.kind, body.text)
-        if (line.target == "header") != (body.item_id == HEADER):
-            raise resume_lines.LineError("This line is not typed here.")
-        held, choices, identity = await _held(session, applicant_id, resume_id, body.source)
-        if line.target == "bullet":
-            choices = service.apply_choices(held, choices, bullets=[{"bullet_id": body.item_id, **line.changes}])
-        elif line.target == "entry":
-            row = next((e.row for e in held.entries if e.row.id == body.item_id), None)
-            if row is None:
-                raise NotFound
-            bank.edit_entry(row, line.changes)
+        if body.line is not None:
+            line = _parse(body.line)
+            if line.target == "bullet":
+                after = service.apply_choices(held, choices, bullets=[{"bullet_id": body.line.item_id, **line.changes}])
+            elif line.target == "entry":
+                found = next((e for e in held.entries if e.row.id == body.line.item_id), None)
+                if found is None:
+                    raise NotFound
+                bank.edit_entry(found.row, line.changes)
+                entry = EntryResponse.model_validate({**bank.entry_fields(found.row), "id": found.row.id})
+            else:
+                identity = _with_header(identity, line.changes)
         else:
-            identity = _with_header(identity, line.changes)
+            changes = {kind: [c.model_dump(exclude_unset=True) for c in getattr(body.changes, kind)]
+                       for kind in ("entries", "bullets", "skills")}
+            after = service.apply_choices(held, choices, **changes, variant_text={v.id: v.text for v in variants})
     except resume_lines.LineError as exc:
         raise HTTPException(422, str(exc))
     except ValidationError as exc:
         raise RequestValidationError(exc.errors(include_url=False, include_context=False))
     except NotFound:
         raise HTTPException(404, "Resume or bank item not found")
-
-    compile_ = asyncio.create_task(_render(build_view(held, choices), identity, resume.template))
-    try:
-        choices_after, entry, profile = await _write_line(session, applicant_id, resume_id, body, line)
-    except BaseException:
-        # The compile's thread finishes on its own; nothing waits for it
-        compile_.cancel()
-        raise
-    return LineSaveResponse(
-        render=_render_response(await compile_, resume.name, identity),
-        choices=choices_after,
+    rendered = await _render(build_view(held, after), identity, resume.template)
+    return EditRendered(
+        render=_render_response(rendered, resume.name, identity),
+        choices=service.choices_out(after, variants) if after is not choices else None,
         entry=entry,
-        profile=profile,
     )
+
+
+def _parse(line) -> resume_lines.Line:
+    parsed = resume_lines.parse(line.kind, line.text)
+    if (parsed.target == "header") != (line.item_id == HEADER):
+        raise resume_lines.LineError("This line is not typed here.")
+    return parsed
 
 
 async def _held(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID, source):
@@ -399,87 +413,58 @@ def _with_header(identity: HeaderIdentity, changes: dict) -> HeaderIdentity:
     return dataclasses.replace(identity, links=tuple((f, links[f]) for f in order if links.get(f)))
 
 
-async def _write_line(
-    session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID, body: LineSave, line: resume_lines.Line
-) -> tuple[ChoicesResponse | None, EntryResponse | None, ApplicantProfileResponse | None]:
-    """The typed line's write and commit, then what the answer reports
-    besides the render: the choices after a bullet, the entry after an
-    entry field, the profile after a header field."""
-    entry = profile = None
-    try:
-        if line.target == "bullet":
-            await service.update_choices(
-                session, applicant_id, resume_id, bullets=[{"bullet_id": body.item_id, **line.changes}]
-            )
-        elif line.target == "entry":
-            entry = await bank.update_entry(session, applicant_id, body.item_id, line.changes)
-        else:
-            profile = _edit_header(await session.get(Applicant_Profile, applicant_id), line.changes)
-            await session.flush()
-    except NotFound:
-        raise HTTPException(404, "Resume or bank item not found")
-    await _commit(session, "Failed to save the resume")
-    if line.target == "bullet":
-        return await service.choices_response(session, resume_id), None, None
-    if line.target == "header":
-        return None, None, ApplicantProfileResponse.model_validate(profile)
-    return None, bank.entry_response(entry), None
-
-
-def _edit_header(profile: Applicant_Profile | None, changes: dict) -> Applicant_Profile:
-    """A header field on the profile, in memory, checked as My Profile's
-    PATCH checks it; a name typed whole is split into its parts there too
-    (routers/profiles.py). Saved by the next flush."""
-    if profile is None:
-        raise NotFound
-    ApplicantProfileUpdate.model_validate(changes)
-    for field, value in changes.items():
-        if field == "full_name":
-            for column, part in name_columns(value).items():
-                setattr(profile, column, part)
-        else:
-            setattr(profile, field, value)
-    return profile
-
-
-@router.patch("/{resume_id}/choices/render", response_model=ChoicesSaved)
-async def save_choices(
-    body: ChoicesSave,
+@router.put("/{resume_id}/lines", response_model=LineSaved)
+async def save_line(
+    body: LineSave,
     resume_id: uuid.UUID,
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
-) -> ChoicesSaved:
-    # The choices PATCH and a render in one request, the compile beside the
-    # write, as a typed line's (save_line, KAN-391)
-    resume = await _owned(session, applicant_id, resume_id)
-    changes = {
-        kind: [c.model_dump(exclude_unset=True) for c in getattr(body.changes, kind)]
-        for kind in ("entries", "bullets", "skills")
-    }
-    held, choices, identity = await _held(session, applicant_id, resume_id, body.source)
-    if body.source is not None:
-        texts = {v.id: v.text for v in body.source.choices.variants}
-    else:
-        texts = {v.id: v.text for v in await service.list_variants(session, resume_id, list(choices.bullets))}
+) -> LineSaved:
+    # The save alone, written with no read first (KAN-391): each kind of
+    # line is one statement whose WHERE checks the row is the applicant's.
+    # A typed entry field is checked whole against the editor's copy of the
+    # entry, read only when no copy is sent. The editor renders through
+    # POST .../render beside it and does not wait for this answer.
+    saved = LineSaved()
     try:
-        after = service.apply_choices(held, choices, **changes, variant_text=texts)
+        line = _parse(body)
+        if line.target == "bullet":
+            saved.variant_id = await service.type_wording(
+                session, applicant_id, resume_id, body.item_id, line.changes["text"])
+        elif line.target == "entry":
+            current = None
+            if body.source is not None:
+                held = resume_copy.from_copy(body.source)[0]
+                current = next((bank.entry_fields(e.row) for e in held.entries if e.row.id == body.item_id), None)
+            if current is None:
+                current = bank.entry_fields(await bank.entry_row(session, applicant_id, body.item_id))
+            await bank.write_entry(session, applicant_id, body.item_id, current, line.changes)
+        else:
+            saved.profile = await _write_header(session, applicant_id, line.changes)
+    except resume_lines.LineError as exc:
+        raise HTTPException(422, str(exc))
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors(include_url=False, include_context=False))
     except NotFound:
         raise HTTPException(404, "Resume or bank item not found")
+    await _commit(session, "Failed to save the resume")
+    return saved
 
-    compile_ = asyncio.create_task(_render(build_view(held, after), identity, resume.template))
-    try:
-        try:
-            await service.update_choices(
-                session, applicant_id, resume_id, **{k: [dict(c) for c in v] for k, v in changes.items()}
-            )
-        except NotFound:
-            raise HTTPException(404, "Resume or bank item not found")
-        await _commit(session, "Failed to save the resume")
-        saved = await service.choices_response(session, resume_id)
-    except BaseException:
-        compile_.cancel()
-        raise
-    return ChoicesSaved(render=_render_response(await compile_, resume.name, identity), choices=saved)
+
+async def _write_header(session: AsyncSession, applicant_id: uuid.UUID, changes: dict) -> ApplicantProfileResponse:
+    """A header field on the profile in one UPDATE, checked as My Profile's
+    PATCH checks it; a name typed whole is split into its parts there too
+    (routers/profiles.py)."""
+    ApplicantProfileUpdate.model_validate(changes)
+    values = {}
+    for field, value in changes.items():
+        values.update(name_columns(value) if field == "full_name" else {field: value})
+    profile = (await session.scalars(
+        update(Applicant_Profile).where(Applicant_Profile.id == applicant_id).values(**values)
+        .returning(Applicant_Profile))).first()
+    if profile is None:
+        raise NotFound
+    return ApplicantProfileResponse.model_validate(profile)
 
 
 @router.get("/{resume_id}/docx")

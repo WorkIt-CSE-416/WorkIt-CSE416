@@ -4,7 +4,7 @@ import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from app.schemas.bank import EntryResponse, SkillResponse
 from app.schemas.profile import ApplicantProfileResponse
@@ -189,9 +189,10 @@ class ResumeCopy(BaseModel):
     as GET /bank sent it (the resume's own skills included), the choices as
     the choices routes send them, and the header the last render printed.
     With it, an edit's PDF compiles at once, from the copy with the edit
-    made, while the database is written: no read comes first. It shapes
-    only the PDF sent back to the student who sent it; every write, and
-    every download, Apply and sent resume, reads the database."""
+    made, with no database read. It shapes only the PDF sent back to the
+    student who sent it, and the whole-entry check of a typed entry field;
+    every write checks ownership in the database, and every download, Apply
+    and sent resume reads the database."""
 
     entries: list[EntryResponse] = Field(max_length=500)
     skills: list[SkillResponse] = Field(max_length=1000)
@@ -199,7 +200,7 @@ class ResumeCopy(BaseModel):
     identity: IdentityCopy
 
 
-class LineSave(BaseModel):
+class LineEdit(BaseModel):
     """One line typed in the editor (KAN-391): the clicked box's `item_id`
     and `kind`, and the text as typed. The API decides what it changes
     (services/resume_lines.py)."""
@@ -207,32 +208,51 @@ class LineSave(BaseModel):
     item_id: UUID | Literal["header"]
     kind: str
     text: Annotated[str, StringConstraints(max_length=2000)]
+
+
+class LineSave(LineEdit):
+    """A typed line to save. `source`, the editor's copy, gives a typed
+    entry field the rest of its entry to be checked against, so the save
+    reads nothing; without it the entry is read first."""
+
     source: ResumeCopy | None = None
 
 
-class LineSaveResponse(BaseModel):
-    """The resume after a typed line, rendered again. `choices` after a
-    bullet, `entry` after an entry field (`resume_ids` empty: the save
-    does not change them), `profile` after a header field; the others
-    null."""
+class LineSaved(BaseModel):
+    """What the save wrote that the editor cannot know: a typed bullet's
+    local variant (`variant_id`, null when the original was typed back),
+    and the profile after a header field (`profile`, its own columns as the
+    write returned them)."""
+
+    variant_id: UUID | None = None
+    profile: ApplicantProfileResponse | None = None
+
+
+class EditRender(BaseModel):
+    """An edit to render, never saved: a typed line (`line`) or a choice
+    change (`changes`, the choices PATCH body), exactly one, made to the
+    editor's copy (`source`) in memory."""
+
+    line: LineEdit | None = None
+    changes: ChoicesUpdate | None = None
+    source: ResumeCopy | None = None
+
+    @model_validator(mode="after")
+    def _one_edit(self) -> "EditRender":
+        if (self.line is None) == (self.changes is None):
+            raise ValueError("Send a line or changes, not both")
+        return self
+
+
+class EditRendered(BaseModel):
+    """The resume with the edit made, rendered, and what the edit changed in
+    the copy, as the editor holds it: the choices after a typed bullet or a
+    choice change, the entry after a typed entry field (its own fields only:
+    `bullets` and `resume_ids` empty), the header in `render.identity`."""
 
     render: RenderResponse
     choices: ChoicesResponse | None = None
     entry: EntryResponse | None = None
-    profile: ApplicantProfileResponse | None = None
-
-
-class ChoicesSave(BaseModel):
-    """The editor's hide, show, move, toggles and wording switches, with
-    its copy (KAN-391): saved and rendered in one request."""
-
-    changes: ChoicesUpdate
-    source: ResumeCopy | None = None
-
-
-class ChoicesSaved(BaseModel):
-    render: RenderResponse
-    choices: ChoicesResponse
 
 
 class FitResponse(BaseModel):

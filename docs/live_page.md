@@ -1,7 +1,8 @@
 # The editor's live page
 
-Status: step 1 partly built (KAN-391, 2026-10-28): one request saves
-and renders a typed line, every box carries its printed text, and the
+Status: step 1 partly built (KAN-391, 2026-10-29): each edit renders
+from the editor's copy with no database read while its save writes
+beside it, every box carries its printed text, and the
 typed line reflows the page below it on its page (option A below). The
 whole page as HTML (option B) is not built. Step 2, editing in place on a
 page that Typst draws, is under consideration only. Read this before changing how
@@ -63,10 +64,11 @@ PDF takes the HTML page's place.
 
 Built so far (option A, the typed line only):
 
-- **One request per typed line:** `PUT .../built-resumes/{rid}/lines`
-  saves the text as typed and answers the new render. The rules for
-  typed text (a GPA is a number, a label typed back is dropped) are the
-  API's (`services/resume_lines.py`); the browser has none.
+- **A line goes when the student leaves it:** a click away, Enter,
+  Escape or another line sends it, only when its text changed. Nothing
+  goes while they type. The rules for typed text (a GPA is a number, a
+  label typed back is dropped) are the API's (`services/resume_lines.py`);
+  the browser has none.
 - **Each box carries its printed text** (`Box.text`), noted by the
   template as it writes each line, so the HTML never needs `fields.py`.
 - **The page below the typed line moves as the student types:** the
@@ -76,19 +78,27 @@ Built so far (option A, the typed line only):
 - **Leaving a line keeps its typed text on the page** until the PDF that
   prints it has painted. The first build dropped it on leaving, and the
   old line showed for the whole save and compile.
-- **No read before the compile:** the editor sends its copy of the bank,
-  choices and printed header with each edit, and the API compiles from it
-  while it writes. Edits go one at a time, so each copy holds the edits
-  before it.
+- **Each edit is a render and a save, side by side:** `POST .../render`
+  compiles the edit from the editor's copy of the bank, choices and
+  printed header, reading no database, and `PUT .../lines` (or `PATCH
+  .../choices`) saves it. Neither waits for the other. Renders go one at
+  a time, so each copy holds the edits before it.
+- **A typed line's save is one write, no read:** one statement per kind
+  of line, with the ownership check in its WHERE.
+- **A failed save puts the saved resume back:** the editor reads the bank
+  and choices again, renders from the database and says the change was
+  not saved.
 - **Moves show at once:** two neighbours' strips of the page trade places
-  until the PDF lands. Hide, show and wording switches use the same one
-  request but show nothing until then.
-- **The compile runs beside the write:** the line route reads once,
-  makes the change in memory and starts Tectonic before it writes.
-  Measured from a laptop against the shared database (2026-10-28): one
-  round trip about 66 ms, loading a resume's view 560 to 730 ms, a
-  compile 410 to 500 ms; a line save went from about 2.7 to 3.5 s to
-  about 2.3 s. Most of that wait was the database, not Tectonic.
+  until the PDF lands. Hide, show and wording switches show nothing until
+  then.
+- **Measured from a laptop against the shared database:** one round trip
+  about 66 ms, loading a resume's view 560 to 730 ms, a compile 410 to
+  500 ms (2026-10-28). A line went from about 2.7 to 3.5 s (save, then
+  render) to about 2.3 s (one request, compile beside the write), then to
+  about 1.8 s (render and save apart, 2026-10-29). The render's request
+  waited 1.7 s on the server: the compile, the sign-in check and the
+  resume's row, each read over a new connection, since the local API
+  keeps none open (`DB_POOL_SIZE` 0).
 
 Still open for step 1:
 
@@ -98,11 +108,12 @@ Still open for step 1:
   once the PDF lands), to see whether the browser wraps close enough to
   TeX.
 - A line split across a page break moves only its first page.
-- The answer still waits for the write and its commit as well as the
-  compile. From a laptop the write is the longer of the two (about 13
-  round trips of 66 ms and a 0.6 s connection), so a save still reads
-  about 2.2 s there. Deployed, the write should be the shorter. Streaming
-  the PDF first and the saved choices after would remove that wait.
+- The render still reads twice: the sign-in check's profile row and the
+  resume's row. Reading the template and name from the copy would leave
+  only the sign-in check.
+- A choice change's save (`PATCH .../choices`) still reads the bank and
+  the choice rows before it writes.
+- A line the student is still on when the tab closes is not saved.
 - Hide, show and a wording switch show nothing until the PDF lands.
 - The time on the deployed API, where a round trip is 8 to 30 ms and
   connections stay open: not measured yet.

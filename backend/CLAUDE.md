@@ -680,41 +680,47 @@ Find files with a directory listing; these are the rules for where code goes.
   a write to a choice row leaves the resume's own row as it was:
   `write_choices` and `update_choices` call it, and any new write to a
   resume's choices goes through them or calls it too.
-- **A line typed in the editor is one request: `PUT
-  .../built-resumes/{rid}/lines`** (KAN-391), the clicked box's `item_id`
-  and `kind` with the text as typed. `services/resume_lines.py` (pure)
-  decides what it changes: a bullet the resume's own wording (through
-  `update_choices`), an entry field the bank (`bank.update_entry`), a
-  header field the profile, checked as My Profile's PATCH checks it.
-  **The compile runs beside the write**: the route takes the bank, the
-  choices and the header from the editor's copy (`source`, a
-  `ResumeCopy`, read by `services/resume_copy.py`) or, without one, reads
-  them once; makes the change to them in memory (`bank.edit_entry`,
-  `built_resumes.apply_choices`, the header); starts Tectonic on that
-  view; then writes, commits and reads its answer's choices while it
-  compiles. **The copy shapes only the PDF sent back**: every write checks
-  the database as before, and downloads, Apply and sent resumes never read
-  a copy. Every render answers the header it printed (`identity`), which
-  the editor sends back in its copy, since the browser does not hold the
-  contact email or the citizenship answer. A change the checks refuse (422, 404) is
-  refused before the compile starts. A write that fails cancels the wait
-  on the compile; a compile that fails after the commit answers 503 and
-  the line stays saved, as a save then a render did. Until then the route
-  read the bank three times and compiled only after the commit: measured
-  from a laptop, 9 reads of about 66 ms each and a 0.6 s connection sat
-  before every 0.4 s compile (2026-10-28). **Hide, show, move, the toggles
-  and wording switches take the same path**: `PATCH
-  .../choices/render` (`ChoicesSave`: `changes` and `source`).
-  `apply_choices` mirrors `update_choices` field for field, new rows and
-  all; change one and the other together, or the PDF shows what was not
-  saved. `test_the_pdf_built_in_memory_matches_the_saved_resume` checks
-  them against each other.
+- **An editor edit is two requests side by side: a render that reads no
+  database and a save that only writes** (KAN-391). `POST
+  .../built-resumes/{rid}/render` (`EditRender`: a typed `line`, or choice
+  `changes`, and the editor's copy, `source`) makes the edit in memory to
+  the copy (`services/resume_copy.py`; `bank.edit_entry`,
+  `built_resumes.apply_choices`, the header) and compiles it; it reads only
+  the resume's row (its template and name) and saves nothing. It answers
+  what the edit changed in the copy (`choices`, `entry`; the header is
+  `render.identity`), so the browser never parses typed text. `PUT
+  .../lines` saves a typed line with no read first and never renders:
+  `services/resume_lines.py` (pure) decides what it changes, then one
+  statement per kind writes it with ownership in its WHERE: a bullet
+  through `built_resumes.type_wording` (`_TYPE_WORDING`, one CTE: the
+  local variant made, rewritten or, for the original typed back, deleted,
+  the row pointed at it and the resume touched; answers `variant_id`), an
+  entry field through `bank.write_entry` (checked whole against the
+  copy's entry, read only when no copy is sent, and only the fields the
+  edit changes written, with the embedding cleared in the same
+  statement), a header field as one `UPDATE ... RETURNING` (answers
+  `profile`). `type_wording` and `update_choices`'s `_type_wording` must
+  agree. Choice changes save through the plain `PATCH .../choices`, which
+  still reads first. **The copy shapes only the PDF sent back** and the
+  whole-entry check: every write checks ownership in the database, and
+  downloads, Apply and sent resumes never read a copy. Every render
+  answers the header it printed (`identity`), which the editor sends back
+  in its copy, since the browser does not hold the contact email or the
+  citizenship answer. Until then one request saved and rendered: the
+  answer waited for the write, and from a laptop a line read 2.3 s;
+  before that the route read the bank three times and compiled only after
+  the commit (9 reads of about 66 ms and a 0.6 s connection before every
+  0.4 s compile, 2026-10-28). `apply_choices` mirrors `update_choices`
+  field for field, new rows and all; change one and the other together,
+  or the PDF shows what was not saved.
+  `test_the_pdf_built_in_memory_matches_the_saved_resume` checks them
+  against each other.
   The rules for typed text (a GPA is a number, the label typed back is
   dropped, a link gets `https://`) live there and nowhere in the browser:
   until KAN-391 `model.ts` held them, and a GPA it could not read was
-  dropped without a word; now it answers 422 with the reason. A save then
-  a render was two round trips per edit. Tests: `tests/test_resume_lines.py`
-  and the "PUT .../lines" part of `tests/test_resume_editor.py`.
+  dropped without a word; now both routes answer 422 with the reason.
+  Tests: `tests/test_resume_lines.py` and the KAN-391 part of
+  `tests/test_resume_editor.py`.
 - **The editor writes a resume's choices in one PATCH**
   (`.../built-resumes/{rid}/choices`, KAN-218): hide, show, move (the
   client renumbers the siblings), the GPA and coursework toggles, typed

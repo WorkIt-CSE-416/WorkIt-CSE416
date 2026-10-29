@@ -181,9 +181,10 @@ with the failure it prevents.
   Holds the skill placement rule. Read it before changing Tailor or its
   screen.
 - `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
-  built: a typed line saves and renders in one request, and the page
-  below it reflows as the student types, while the LaTeX PDF compiles
-  behind it; the PDF stays the only output. The whole page as HTML is
+  built: each edit renders from the editor's copy with no database read
+  while its save writes beside it, and the page below a typed line
+  reflows as the student types, while the LaTeX PDF compiles behind it;
+  the PDF stays the only output. The whole page as HTML is
   not built yet. Typst,
   for editing in place, is under consideration and would supersede ADR
   0002. Read it before changing how the editor shows an edit or choosing

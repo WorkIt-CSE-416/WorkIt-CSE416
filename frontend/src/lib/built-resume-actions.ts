@@ -199,19 +199,41 @@ export async function updateChoices(
   });
 }
 
-/** The resume after a typed line (KAN-391): the render, and what the line
- *  changed: the choices after a bullet, the bank entry after an entry field
- *  (its `resume_ids` empty), the profile after a header field. */
-export type LineSaved = {
+/** One edit rendered and never saved (KAN-391): a typed line or choice
+ *  changes, made to the editor's copy in memory, so the API reads nothing
+ *  but the resume's row. What the edit changed in the copy comes back with
+ *  the PDF: the choices after a bullet or a choice change, the entry's own
+ *  fields after an entry field (`bullets` and `resume_ids` empty), the
+ *  header in `render.identity`. */
+export type EditRendered = {
   render: RenderedPdf;
   choices: Choices | null;
   entry: BankEntry | null;
+};
+
+export async function renderEdit(
+  resumeId: string,
+  edit: { line: { item_id: string; kind: string; text: string } } | { changes: ChoicesUpdate },
+  source?: ResumeCopy,
+): Promise<Result<EditRendered>> {
+  return call<EditRendered>(`/${id(resumeId)}/render`, {
+    method: "POST",
+    body: JSON.stringify({ ...edit, source }),
+  });
+}
+
+/** What a typed line's save wrote that the editor cannot know: a bullet's
+ *  local variant (null when the original was typed back), and the profile
+ *  after a header field. */
+export type LineSaved = {
+  variant_id: string | null;
   profile: ApplicantProfile | null;
 };
 
-/** One typed line, saved and rendered in one request: the clicked box's
- *  item and kind, and the text as typed. The API reads it (a GPA must be a
- *  number) and answers why when it cannot save it. */
+/** One typed line saved, never rendered: the clicked box's item and kind,
+ *  and the text as typed. The API reads it (a GPA must be a number) and
+ *  answers why when it cannot save it; it writes with no read first, and
+ *  checks a typed entry field against `source`'s copy of the entry. */
 export async function saveLine(
   resumeId: string,
   line: { item_id: string; kind: string; text: string },
@@ -220,19 +242,6 @@ export async function saveLine(
   return call<LineSaved>(`/${id(resumeId)}/lines`, {
     method: "PUT",
     body: JSON.stringify({ ...line, source }),
-  });
-}
-
-/** The choices PATCH and a render in one request (KAN-391): hide, show,
- *  move, toggles and wording switches; the choices after, and the PDF. */
-export async function saveChoices(
-  resumeId: string,
-  changes: ChoicesUpdate,
-  source?: ResumeCopy,
-): Promise<Result<{ render: RenderedPdf; choices: Choices }>> {
-  return call(`/${id(resumeId)}/choices/render`, {
-    method: "PATCH",
-    body: JSON.stringify({ changes, source }),
   });
 }
 

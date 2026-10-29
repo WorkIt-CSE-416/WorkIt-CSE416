@@ -1576,31 +1576,42 @@ the KAN-296 cutover.
   only cleared `"dev": true` on `sharp`'s `@img/*` packages (`next`
   depends on `sharp` too), which is correct and removes no entry.
 - **The editor sends a typed line as typed, and the API reads it**
-  (KAN-391, `saveLine`, `PUT .../built-resumes/{rid}/lines`): one request
-  saves and renders. The field opens on the box's own printed text
-  (`RenderBox.text`), and a line is saved only when the typed text differs
-  from it. Never put a rule for typed text (GPA parsing, a label typed
+  (KAN-391, `saveLine`, `PUT .../built-resumes/{rid}/lines`). The field
+  opens on the box's own printed text (`RenderBox.text`), and a line is
+  sent only when the student leaves it (a click away, Enter, Escape,
+  another line) and the typed text differs from it. Nothing goes while
+  they type: a 700 ms pause saved half a line, then the line again once
+  it was done. Never put a rule for typed text (GPA parsing, a label typed
   back, `https://` on a link) back in the browser: `model.ts` held them
-  until KAN-391 and dropped a GPA it could not read without a word. The
-  700 ms pause leaves an emptied line waiting, since the student is likely
-  retyping it and an empty title or bullet is refused; leaving the line
-  sends it. "Saved, N ms" now times the save and the render together.
-- **The editor's requests run one at a time, each with a copy**
-  (KAN-391): typed lines, moves, hides, put-backs, wording switches and
-  Fit go through one queue (`enqueue`), and each request carries the
-  editor's copy of the bank, choices and printed header (`ResumeCopy`,
-  built from the `held` ref), so the API compiles with no database read
-  first. The queue is what keeps the copy true: a copy built while an
-  earlier edit was on its way would print that edit's old text. Every
-  answer's bank entry and choices go into `held` even when a newer request
-  owns the page. A choice change's plain fields (shown, position, the
-  toggles) go into the choices at once (`mergeChoices`) and are merged
-  again over each answer until their own lands, so a second quick move
-  computes from the first. A move of two neighbours shows at once as their
-  strips of the page trading places (`swapOf`, `swapsOn`, `Strip` in
-  `pdf-pages.tsx`): a swap is kept by item, not by position, so a PDF
-  that lands before its own still shows it, and one the page already
-  shows draws nothing.
+  until KAN-391 and dropped a GPA it could not read without a word.
+- **Each edit is a render and a save, side by side, and neither waits for
+  the other** (KAN-391): typed lines, moves, hides, put-backs and wording
+  switches render through `renderEdit` (`POST .../render`, from the
+  editor's copy, no database read) and save through `saveLine` or
+  `updateChoices` (writes only). **The render goes through a route
+  handler, `app/api/resume-edit`**, never a server action: Next runs one
+  client's actions one at a time, and as two actions the render waited
+  behind the save. Renders run one at a time (`enqueue`), and each carries
+  the editor's copy of the bank, choices and printed header (`ResumeCopy`,
+  built from the `held` ref); the render's answer (the choices, the entry,
+  the header it printed) goes into `held`, even when a newer request owns
+  the page, so the next copy holds every edit before it. Saves run one at
+  a time in their own queue (`queueSave`); a typed bullet's save answers
+  its local variant, kept in `wordings` and laid over every later answer
+  (`withWording`), since the render could not know its id. Fit reads the
+  saved resume, so it waits for the saves sent before it. **A save that
+  fails puts the saved resume back** (`reload`): once the saves before it
+  answer, the bank, the choices and a PDF read from the database replace
+  the copy, and the bar says the change was not saved. A refusal (404,
+  422) needs no reload: the render refuses it too and says why. A choice
+  change's plain fields (shown, position, the toggles) go into the
+  choices at once (`mergeChoices`) and are merged again over each answer
+  until their own lands, so a second quick move computes from the first.
+  A move of two neighbours shows at once as their strips of the page
+  trading places (`swapOf`, `swapsOn`, `Strip` in `pdf-pages.tsx`): a
+  swap is kept by item, not by position, so a PDF that lands before its
+  own still shows it, and one the page already shows draws nothing.
+  "Saved, N ms" times the render.
 - **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
   text is kept per line (`drafts`, by box key) and drawn over the line
   until the PDF that prints it has painted: the selected line as its
@@ -1619,7 +1630,7 @@ the KAN-296 cutover.
   old drawing. Desktop only: the phone types in a sheet.
 - **The editor's page has a zoom** (`Zoom` on the slim bar, both pages):
   steps of the page's printed size, 100% being 816px (8.5in at 96px an
-  inch), capped by its column, kept per browser through
+  inch), opening at 125% (1020px), capped by its column, kept per browser through
   `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`). The page filled its column
   until then, and KAN-421's 1440px pages made it take most of the screen.
   The overlay and click targets are in `cqw` of each page, so they follow

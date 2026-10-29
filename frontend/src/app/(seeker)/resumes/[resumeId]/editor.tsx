@@ -32,20 +32,22 @@ import { Button, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { TextLink } from "@/components/ui/text-link";
-import type { Bank } from "@/lib/bank-actions";
+import { getBank, type Bank } from "@/lib/bank-actions";
 import {
   fitToOnePage,
   getChoices,
   renderResumePdf,
-  saveChoices,
   saveLine,
+  updateChoices,
   type Choices,
   type ChoicesUpdate,
+  type EditRendered,
   type IdentityCopy,
   type ResumeCopy,
   type RenderBox,
   type RenderedPdf,
 } from "@/lib/built-resume-actions";
+import type { Result } from "@/lib/applicant-call";
 import { cn } from "@/lib/cn";
 import { EDITOR_ZOOM_KEY, readLocalDraft, writeLocalDraft } from "@/lib/local-drafts";
 
@@ -63,6 +65,7 @@ import {
   lineOf,
   mergeChoices,
   move,
+  withWording,
   swapOf,
   typed,
   type Swap,
@@ -98,13 +101,16 @@ import { Tray } from "./tray";
 
 /**
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
- * page. Click a line and type: the field over it shows the text at once and
- * saves after a pause (SAVE_AFTER_MS) or on blur, then the PDF renders
- * again. Each typed line is one request, `saveLine` (KAN-391), which saves
- * and renders: the API reads the text, so a bullet becomes this resume's
- * local variant, an entry's typed field changes the bank and the header's
- * the profile, and the browser holds none of those rules. The field opens
- * on the box's own printed text. The field is set in Latin Modern,
+ * page. Click a line and type: the field over it shows the text at once,
+ * and leaving the line (a click away, Enter, Escape) sends it, only when it
+ * differs from what the line prints. Each edit is two requests side by side
+ * (KAN-391): `renderEdit` renders it from the editor's copy, reading no
+ * database, and `saveLine` or `updateChoices` saves it, writing with no
+ * read first. Neither waits for the other. The API reads the text, so a
+ * bullet becomes this resume's local variant, an entry's typed field
+ * changes the bank and the header's the profile, and the browser holds
+ * none of those rules. A save that fails puts the saved resume back
+ * (`reload`). The field opens on the box's own printed text. The field is set in Latin Modern,
  * the PDF's own font, at the line's size and weight, and opens with the
  * caret where the click landed, so typing starts where the student
  * pointed and wraps where the PDF does. The sticky bar holds the
@@ -135,7 +141,6 @@ import { Tray } from "./tray";
 // clearing the selected line
 const KEEPS_SELECTION = "data-keeps-selection";
 
-const SAVE_AFTER_MS = 700;
 // Letter is 612 pt wide and Jake's text ends at 576 pt; field type is set in
 // cqw of the page so it matches the PDF's at any width.
 const PAGE_WIDTH = 612;
@@ -148,7 +153,7 @@ const pt = (points: number) => `${(points / PAGE_WIDTH) * 100}cqw`;
  *  stops at the column's width. Each page draws again at its new width
  *  (`PageCanvas`), so text stays sharp at every step. */
 const ZOOMS = [50, 75, 90, 100, 125, 150];
-const DEFAULT_ZOOM = 100;
+const DEFAULT_ZOOM = 125;
 const zoomWidth = (zoom: number) => `${(816 * zoom) / 100}px`;
 
 /** The page's zoom, kept per browser (`EDITOR_ZOOM_KEY`). The server and
@@ -231,6 +236,26 @@ type Draft = { key: string; text: string };
  *  rejects: a failure is its `error`. */
 type FirstRender = ReturnType<typeof renderResumePdf>;
 
+/** An edit's render (`renderEdit`, KAN-391) through `/api/resume-edit`, a
+ *  route handler: as a server action it waited behind the edit's save,
+ *  since Next runs one client's actions one at a time. */
+async function renderEdit(
+  resumeId: string,
+  edit: { line: { item_id: string; kind: string; text: string } } | { changes: ChoicesUpdate },
+  source?: ResumeCopy,
+): Promise<Result<EditRendered>> {
+  try {
+    const res = await fetch("/api/resume-edit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resumeId, edit, source }),
+    });
+    return (await res.json()) as Result<EditRendered>;
+  } catch {
+    return { data: null, error: "Could not reach the server.", status: null };
+  }
+}
+
 function splitKey(key: string) {
   const dot = key.lastIndexOf(".");
   return { item_id: key.slice(0, dot), kind: key.slice(dot + 1) };
@@ -300,10 +325,13 @@ export function Editor({
   const confirmed = useRef(initialChoices);
   const unanswered = useRef(new Map<string, ChoicesUpdate>());
   const changeCount = useRef(0);
-  // The editor's requests run one at a time, so each copy holds every
+  // The editor's renders run one at a time, so each copy holds every
   // edit before it; a copy built while an earlier edit was on its way would
-  // print that edit's old text
+  // print that edit's old text. Saves run one at a time in their own queue
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const saves = useRef<Promise<unknown>>(Promise.resolve());
+  // Each typed bullet's saved wording, which the render could not know
+  const wordings = useRef(new Map<string, { variant_id: string | null; text: string }>());
   // The moves on their way, shown on the page at once (./pdf-pages.tsx)
   const [swaps, setSwaps] = useState<(Swap & { id: string })[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -360,7 +388,6 @@ export function Editor({
   }, [toast]);
   const latest = useRef(0);
   const started = useRef<number | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<Draft | null>(null);
   // Where the last press on the pages landed, from their top left (the bar
   // can change height as the line is selected), to put the caret there
@@ -398,11 +425,21 @@ export function Editor({
     return run;
   }, []);
 
-  /** The choices an answer gave, with the changes still on their way. */
+  /** Runs a save after every save before it. Saves have their own queue,
+   *  beside the renders': a render never waits for a write, nor a write
+   *  for a compile. */
+  const queueSave = useCallback((job: () => Promise<unknown>) => {
+    saves.current = saves.current.then(job).catch(() => undefined);
+  }, []);
+
+  /** The choices an answer gave, with the changes still on their way and
+   *  the typed wordings saved since. */
   const keepChoices = useCallback((answer: Choices) => {
     confirmed.current = answer;
     let next = answer;
     for (const changes of unanswered.current.values()) next = mergeChoices(next, changes);
+    for (const [bullet, saved] of wordings.current)
+      next = withWording(next, bullet, saved.variant_id, saved.text);
     held.current.choices = next;
     setChoices(next);
   }, []);
@@ -418,15 +455,52 @@ export function Editor({
     return identity ? { entries: bank.entries, skills: bank.skills, choices, identity } : undefined;
   }, []);
 
+  /**
+   * Puts the saved resume back after a save failed (KAN-391): once every
+   * save sent before has answered, the bank, the choices and a PDF read
+   * from the database replace the editor's copy, and every draft but the
+   * selected line's goes. The page showed the edit before it was saved, so
+   * this is how a failed write undoes it.
+   */
+  const reload = useCallback(
+    (why: string | null) => {
+      void enqueue(async () => {
+        await saves.current;
+        const current = begin();
+        const bankRead = await getBank(resumeId);
+        const choicesRead = await getChoices(resumeId);
+        const pdf = await renderResumePdf(resumeId);
+        unanswered.current.clear();
+        wordings.current.clear();
+        onTheirWay.current.clear();
+        if (bankRead.data) {
+          held.current.bank = bankRead.data;
+          setBank(bankRead.data);
+        }
+        if (choicesRead.data) keepChoices(choicesRead.data);
+        setSwaps([]);
+        const typing = selectedNow.current;
+        setDrafts((d) => (typing && typing in d ? { [typing]: d[typing] } : {}));
+        if (!current()) return;
+        setSaving(false);
+        if (pdf.data) keepRendered(pdf.data);
+        setError(
+          `Your last change could not be saved${why ? ` (${why})` : ""}. The page shows your saved resume.`,
+        );
+      });
+    },
+    [begin, enqueue, keepChoices, keepRendered, resumeId],
+  );
+
   const apply = useCallback(
     async (changes: ChoicesUpdate, revertedTarget?: RevertTarget) => {
       // A wording picked from the bar or the assistant replaces what was
       // typed, so the field shows the picked wording, not the old draft
       if (changes.bullets?.some((b) => "variant_id" in b)) {
-        if (timer.current) clearTimeout(timer.current);
         pending.current = null;
         const picked = new Set(changes.bullets.map((b) => `${b.bullet_id}.bullet`));
         setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([k]) => !picked.has(k))));
+        for (const b of changes.bullets) wordings.current.delete(b.bullet_id);
       }
       // The change shows at once: its plain fields in the choices, and a
       // move as two neighbours trading places on the page
@@ -436,10 +510,16 @@ export function Editor({
       keepChoices(confirmed.current);
       sent(id);
       if (swap) setSwaps((s) => [...s, { ...swap, id }]);
+      // The save goes now, beside the render; a refusal is the render's to
+      // show, and any other failure puts the saved resume back
+      queueSave(async () => {
+        const { error, status } = await updateChoices(resumeId, changes);
+        if (error && status !== 404 && status !== 422) reload(error);
+      });
       return enqueue(async () => {
         const current = begin();
         started.current = performance.now();
-        const { data, error } = await saveChoices(resumeId, changes, copy());
+        const { data, error } = await renderEdit(resumeId, { changes }, copy());
         unanswered.current.delete(id);
         answered(id);
         // Refused: the change and its swap leave the page
@@ -454,26 +534,42 @@ export function Editor({
           setReview({
             ...waiting,
             edits: revertedTarget
-              ? reverted(waiting.edits, revertedTarget, data.choices)
+              ? reverted(waiting.edits, revertedTarget, data.choices ?? confirmed.current)
               : untouched(waiting.edits, changes),
           });
         }
         keepRendered(data.render);
       });
     },
-    [begin, copy, enqueue, keepChoices, keepRendered, resumeId, setReview],
+    [begin, copy, enqueue, keepChoices, keepRendered, queueSave, reload, resumeId, setReview],
   );
 
-  /** Saves one typed line and renders, in one request (KAN-391). The API
-   *  reads the text and answers what it changed. */
+  /** One typed line (KAN-391): the save and the render go side by side.
+   *  The render answers what the line changed in the copy, read by the API
+   *  (a GPA's number, a link's https://); the save answers a bullet's
+   *  variant id and the profile after a header field. */
   const saveText = useCallback(
     (item_id: string, kind: string, text: string) => {
       const key = `${item_id}.${kind}`;
       sent(key);
+      const source = copy();
+      queueSave(async () => {
+        const { data, error, status } = await saveLine(resumeId, { item_id, kind, text }, source);
+        if (data && kind === "bullet") {
+          wordings.current.set(item_id, { variant_id: data.variant_id, text });
+          keepChoices(confirmed.current);
+        }
+        if (data?.profile) setHeader(data.profile);
+        if (!data && status !== 404 && status !== 422) reload(error);
+      });
       return enqueue(async () => {
         const current = begin();
         started.current = performance.now();
-        const { data, error } = await saveLine(resumeId, { item_id, kind, text }, copy());
+        const { data, error } = await renderEdit(
+          resumeId,
+          { line: { item_id, kind, text } },
+          copy(),
+        );
         answered(key);
         // Refused: the page shows what is saved, unless the student is
         // still on the line to fix it
@@ -485,12 +581,11 @@ export function Editor({
           held.current.bank = {
             ...held.current.bank,
             entries: held.current.bank.entries.map((e) =>
-              e.id === entry.id ? { ...entry, resume_ids: e.resume_ids } : e,
+              e.id === entry.id ? { ...entry, bullets: e.bullets, resume_ids: e.resume_ids } : e,
             ),
           };
           setBank(held.current.bank);
         }
-        if (data?.profile) setHeader(data.profile);
         if (data?.choices) keepChoices(data.choices);
         if (!current()) return;
         setSaving(false);
@@ -504,7 +599,7 @@ export function Editor({
         keepRendered(data.render);
       });
     },
-    [begin, copy, drop, enqueue, keepChoices, keepRendered, resumeId, setReview],
+    [begin, copy, drop, enqueue, keepChoices, keepRendered, queueSave, reload, resumeId, setReview],
   );
 
   /** Adds a header field the profile lacks, which has no line to click. */
@@ -525,21 +620,14 @@ export function Editor({
     [rendered, saveText],
   );
 
-  /** Saves a waiting draft now, instead of after the pause. The pause
-   *  (`paused`) leaves an emptied line waiting: the student is likely
-   *  retyping it, and an empty title or bullet is refused. Leaving the line
-   *  saves it. */
-  const flush = useCallback(
-    (paused = false) => {
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = null;
-      const waiting = pending.current;
-      if (paused && !waiting?.text.trim()) return;
-      pending.current = null;
-      if (waiting) void save(waiting);
-    },
-    [save],
-  );
+  /** Sends the line's typed text, as the student leaves it (a click away,
+   *  Enter, Escape, another line). Nothing goes while they type: a pause
+   *  saved half a line once, and the line again when it was done (KAN-391). */
+  const flush = useCallback(() => {
+    const waiting = pending.current;
+    pending.current = null;
+    if (waiting) void save(waiting);
+  }, [save]);
 
   const select = useCallback(
     (key: string | null) => {
@@ -573,22 +661,16 @@ export function Editor({
     return () => document.removeEventListener("pointerdown", away);
   }, [selected, phone, select]);
 
-  // The pause timer calls the newest flush, which sees the newest bank
-  const latestFlush = useRef(flush);
-  useEffect(() => {
-    latestFlush.current = flush;
-  });
-
   function type(key: string, text: string) {
     setDrafts((d) => ({ ...d, [key]: text }));
     pending.current = { key, text };
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => latestFlush.current(true), SAVE_AFTER_MS);
   }
 
   function fit() {
     select(null);
     return enqueue(async () => {
+      // Fit reads the saved resume, so every save sent before goes first
+      await saves.current;
       const current = begin();
       started.current = performance.now();
       const { data, error } = await fitToOnePage(resumeId);
@@ -1393,7 +1475,7 @@ function SlimBar({
 /** Zoom out, the zoom as a menu of its steps, and zoom in, as a PDF
  *  viewer has them. After KAN-421 widened every seeker page to 1440px,
  *  the page filled its column and took most of the screen; it now opens
- *  at 100% and the student picks. */
+ *  at 125% and the student picks. */
 function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) => void }) {
   const at = ZOOMS.indexOf(zoom);
   return (

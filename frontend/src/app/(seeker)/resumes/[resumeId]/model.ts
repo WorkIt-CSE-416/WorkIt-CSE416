@@ -124,8 +124,8 @@ export function move(bank: Bank, choices: Choices, line: Line, by: -1 | 1): Choi
 /** The choices with a change's plain fields (shown, position, the GPA
  *  and coursework toggles) set at once, for rows the resume already has
  *  (KAN-391): a second move computes from the first, and the copy sent
- *  with the next request holds it. Wording and new rows wait for the API,
- *  whose answer replaces these. */
+ *  with the next request holds it. Wording and new rows wait for the
+ *  render's answer, which replaces these. */
 export function mergeChoices(choices: Choices, changes: ChoicesUpdate): Choices {
   const plain = <T extends object>(row: T, change: object) => ({
     ...row,
@@ -150,6 +150,32 @@ export function mergeChoices(choices: Choices, changes: ChoicesUpdate): Choices 
     skills: choices.skills.map((r) =>
       skills.has(r.skill_id) ? plain(r, skills.get(r.skill_id)!) : r,
     ),
+  };
+}
+
+/** The choices with a typed bullet's saved wording (KAN-391): the save
+ *  answers the resume's local variant (`variantId`, null when the original
+ *  was typed back), which the render, made before the write, could not
+ *  know. Applied only while the bullet still shows those words. */
+export function withWording(
+  choices: Choices,
+  bulletId: string,
+  variantId: string | null,
+  text: string,
+): Choices {
+  const row = choices.bullets.find((b) => b.bullet_id === bulletId);
+  if (!row || (row.text ?? null) !== (variantId ? text : null)) return choices;
+  return {
+    ...choices,
+    bullets: choices.bullets.map((b) =>
+      b.bullet_id === bulletId ? { ...b, variant_id: variantId } : b,
+    ),
+    variants: [
+      ...choices.variants.filter((v) => !(v.local && v.bullet_id === bulletId)),
+      ...(variantId
+        ? [{ id: variantId, bullet_id: bulletId, text, job_posting_id: null, local: true }]
+        : []),
+    ],
   };
 }
 

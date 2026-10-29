@@ -31,7 +31,7 @@ import re
 import uuid
 from collections.abc import Awaitable, Callable
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.autofill_answers import Autofill_Answers
@@ -495,6 +495,58 @@ def apply_choices(
     return Choices(found["entries"], found["bullets"], found["skills"])
 
 
+# A typed bullet in one statement, no read first (KAN-391): the bullet's
+# row on the resume, checked to be the applicant's, becomes the resume's
+# local variant with the typed wording (made or rewritten), or, when the
+# typed text is the bank's original, loses its local variant. The resume is
+# marked edited (`touch`). Data-modifying CTEs all run, used or not; the
+# delete's ON DELETE SET NULL finds the row already cleared by `shown`.
+_TYPE_WORDING = text("""
+WITH target AS (
+    SELECT r.bullet_id, btrim(b.text) = :wording AS original
+    FROM built_resume_bullets r
+    JOIN built_resumes br ON br.id = r.built_resume_id
+    JOIN bank_bullets b ON b.id = r.bullet_id
+    WHERE r.built_resume_id = CAST(:resume_id AS uuid) AND r.bullet_id = CAST(:bullet_id AS uuid)
+      AND br.applicant_id = CAST(:applicant_id AS uuid)
+), typed AS (
+    INSERT INTO bank_bullet_variants (bullet_id, built_resume_id, text)
+    SELECT bullet_id, CAST(:resume_id AS uuid), :wording FROM target WHERE NOT original
+    ON CONFLICT (built_resume_id, bullet_id) WHERE built_resume_id IS NOT NULL
+    DO UPDATE SET text = EXCLUDED.text
+    RETURNING id
+), gone AS (
+    DELETE FROM bank_bullet_variants
+    WHERE built_resume_id = CAST(:resume_id AS uuid) AND bullet_id = CAST(:bullet_id AS uuid)
+      AND EXISTS (SELECT 1 FROM target WHERE original)
+), shown AS (
+    UPDATE built_resume_bullets SET variant_id = (SELECT id FROM typed)
+    WHERE built_resume_id = CAST(:resume_id AS uuid) AND bullet_id IN (SELECT bullet_id FROM target)
+), touched AS (
+    UPDATE built_resumes SET updated_at = now()
+    WHERE id = CAST(:resume_id AS uuid) AND EXISTS (SELECT 1 FROM target)
+)
+SELECT EXISTS (SELECT 1 FROM target) AS found, (SELECT id FROM typed) AS variant_id
+""")
+
+
+async def type_wording(
+    session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID, bullet_id: uuid.UUID, wording: str
+) -> uuid.UUID | None:
+    """A bullet typed in the editor, written in one statement (`_TYPE_WORDING`):
+    the id of the resume's local variant, or None when the original was
+    typed back. NotFound, with nothing written, for a bullet not on the
+    applicant's resume. `update_choices` does the same with reads first;
+    the two must agree (`_type_wording`)."""
+    found, variant_id = (await session.execute(_TYPE_WORDING, {
+        "applicant_id": str(applicant_id), "resume_id": str(resume_id), "bullet_id": str(bullet_id),
+        "wording": wording,
+    })).one()
+    if not found:
+        raise NotFound
+    return variant_id
+
+
 async def _type_wording(
     session: AsyncSession, resume_id: uuid.UUID, bullet_id: uuid.UUID, original: str, wording: str
 ) -> uuid.UUID | None:
@@ -654,9 +706,15 @@ async def choices_response(session: AsyncSession, resume_id: uuid.UUID) -> Choic
     the API's shape (the choices GET and PATCH answer with it)."""
     choices = await load_choices(session, resume_id)
     variants = await list_variants(session, resume_id, list(choices.bullets))
+    return choices_out(choices, [
+        VariantResponse(id=v.id, bullet_id=v.bullet_id, text=v.text, job_posting_id=v.job_posting_id,
+                        local=v.built_resume_id is not None) for v in variants])
+
+
+def choices_out(choices: Choices, variants: list[VariantResponse]) -> ChoicesResponse:
+    """Choices in the API's shape, with the variants their bullets can show."""
     return ChoicesResponse(
-        variants=[VariantResponse(id=v.id, bullet_id=v.bullet_id, text=v.text, job_posting_id=v.job_posting_id,
-                                  local=v.built_resume_id is not None) for v in variants],
+        variants=variants,
         entries=[EntryChoiceResponse(entry_id=i, shown=c.shown, position=c.position, show_gpa=c.show_gpa,
                                      show_coursework=c.show_coursework) for i, c in choices.entries.items()],
         bullets=[BulletChoiceResponse(bullet_id=i, shown=c.shown, position=c.position, variant_id=c.variant_id,
