@@ -2001,13 +2001,14 @@ function LineActions({
 
   if (line.kind === "bullet") {
     const id = line.bullet.id;
-    const current = choices.bullets.find((c) => c.bullet_id === id)?.variant_id ?? null;
-    // Two choices only: the bank's original, or this resume's own wording,
-    // which is the one it shows (Tailor's, on a tailored resume) or else
-    // the one typed on it. Tailor's other wordings were each a "Tailored N"
-    // button until the user found them noise (2026-10-29)
-    const own = current ?? choices.variants.find((v) => v.bullet_id === id && v.local)?.id;
-    const versions = choices.variants.filter((v) => v.id === own);
+    const row = choices.bullets.find((c) => c.bullet_id === id);
+    // One wording button, Original, shown while the bullet shows any other
+    // wording (Tailor's or one typed on this resume): it puts the bank's
+    // text back, and Undo takes it back. The resume's own wording stays
+    // stored. A "Tailored N" button per Tailor wording went first, then a
+    // This Resume's Wording button; the user wanted Original alone
+    // (2026-10-29)
+    const reworded = row?.variant_id != null || row?.text != null;
     return (
       <>
         {movesFirst && moves}
@@ -2019,23 +2020,16 @@ function LineActions({
           <EyeSlashIcon aria-hidden /> Hide
         </Button>
         {!movesFirst && moves}
-        {versions.length > 0 &&
-          [null, ...versions].map((v) => {
-            const on = current === (v?.id ?? null);
-            const label = v == null ? "Original" : "This Resume's Wording";
-            return (
-              <Button
-                key={v?.id ?? "original"}
-                variant={on ? "outline" : "secondary"}
-                size="sm"
-                aria-pressed={on}
-                title={v?.text ?? line.bullet.text}
-                onClick={() => onApply({ bullets: [{ bullet_id: id, variant_id: v?.id ?? null }] })}
-              >
-                {label}
-              </Button>
-            );
-          })}
+        {reworded && (
+          <Button
+            variant="secondary"
+            size="sm"
+            title={line.bullet.text}
+            onClick={() => onApply({ bullets: [{ bullet_id: id, variant_id: null }] })}
+          >
+            Original
+          </Button>
+        )}
       </>
     );
   }

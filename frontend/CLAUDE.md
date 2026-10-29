@@ -1657,12 +1657,13 @@ the KAN-296 cutover.
   click and the press closed the line. A line reopened and left as it was
   sends nothing again (`lastSent`). Desktop only: the phone types in a
   sheet.
-- **A bullet offers two wordings: Original and This Resume's Wording**
-  (`LineActions`): the one the resume shows, Tailor's on a tailored
-  resume, else the one typed on it. Each of Tailor's other wordings was a
-  "Tailored N" button until the user found them noise (2026-10-29); they
-  stay in `bank_bullet_variants`, and the API still accepts a switch to
-  any wording the resume can show.
+- **A bullet's one wording button is Original** (`LineActions`), shown
+  only while the bullet shows another wording (Tailor's, or one typed on
+  this resume): it puts the bank's text back, and Undo takes that back.
+  The resume's own wording and Tailor's stay in `bank_bullet_variants`.
+  A "Tailored N" button per Tailor wording came first, then This Resume's
+  Wording beside Original; the user wanted Original alone (2026-10-29).
+  The API still accepts a switch to any wording the resume can show.
 - **The editor's page has a zoom** (`Zoom` on the slim bar, both pages):
   steps of the page's printed size, 100% being 816px (8.5in at 96px an
   inch), opening at 125% (1020px), capped by its column, kept per browser through
