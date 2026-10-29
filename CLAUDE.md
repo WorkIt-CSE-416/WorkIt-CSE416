@@ -190,7 +190,11 @@ with the failure it prevents.
   bodies. Build step 1 is built: the `interviewing`, `offer` and
   `rejected` stages, the stage menu, `application_events` added by hand
   (which feed the Calendar), and the Inbox (`/inbox`), where emails live;
-  reading Gmail is not. Read it before changing
+  reading Gmail is not. **The Inbox is archived** (KAN-428): reading Gmail
+  waits on money for Google's verification, so every screen that shows or
+  promises emails is hidden behind `INBOX_LIVE`
+  (`frontend/src/app/(seeker)/inbox/live.ts`), and students track
+  applications by hand. Read it before changing
   application stages, the tracker's dated events or anything that reads a
   student's email.
 - `docs/search.md` — how the Jobs page's search reads a query.
