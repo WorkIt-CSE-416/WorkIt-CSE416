@@ -183,7 +183,11 @@ class TestStage:
         assert classify("Technology Program Associate") == ("new-grad", "other")
         assert classify("Sales Development Program") == ("new-grad", "sales")
         assert classify("Engineering Talent") == ("new-grad", "other")
-        assert classify("Emerging Talent - Data Science") == ("new-grad", "data_ai", "data_ai/data_science")
+        assert classify("Emerging Talent - Data Science") == (
+            "new-grad",
+            "data_ai",
+            "data_ai/data_science",
+        )
         # British spelling.
         assert classify("Graduate Programme - Finance") == ("new-grad", "finance")
         # "Program Manager" is a real title, not a named program: LEADS blocks it.
@@ -698,6 +702,12 @@ class TestWideningStep:
         for title in ("Software Engineer Intern", "Legal Intern", "Senior Software Engineer"):
             assert (widening_step(title) == "kept") == bool(classify(title)), title
 
+    def test_description_kept_counts_as_kept(self):
+        desc = "Requirements: 0-2 years of experience in software engineering."
+        assert widening_step("Software Engineer", desc) == "kept"
+        # Without the description, the same title is no_stage.
+        assert widening_step("Software Engineer") == "no_stage"
+
 
 class TestClassifyWithDescription:
     """Description fallback: a title with no stage word is kept when the
@@ -711,7 +721,9 @@ class TestClassifyWithDescription:
     def test_zero_to_one_year(self):
         desc = "This role requires 0-1 years of relevant experience."
         assert classify_with_description("Data Analyst", desc) == (
-            "new-grad", "data_ai", "data_ai/analytics",
+            "new-grad",
+            "data_ai",
+            "data_ai/analytics",
         )
 
     def test_one_to_two_years(self):
@@ -721,7 +733,9 @@ class TestClassifyWithDescription:
     def test_zero_plus_years(self):
         desc = "Experience: 0+ years in data science."
         assert classify_with_description("Data Scientist", desc) == (
-            "new-grad", "data_ai", "data_ai/data_science",
+            "new-grad",
+            "data_ai",
+            "data_ai/data_science",
         )
 
     def test_one_plus_years(self):
@@ -780,4 +794,40 @@ class TestClassifyWithDescription:
     def test_does_not_match_ten_years(self):
         # "10-20 years" must not fire the [01] branch.
         desc = "Requirements: 10-20 years of experience."
+        assert classify_with_description("Software Engineer", desc) == ()
+
+    def test_mixed_requirements_high_floor_with_low_phrase(self):
+        # "1+ years with Kubernetes" looks low, but the posting's real floor is
+        # five years — min_years reads the smallest stated requirement.
+        desc = (
+            "Requirements: 5+ years of backend experience, including"
+            " 1+ years with Kubernetes and 2+ years with Go."
+        )
+        assert classify_with_description("Software Engineer", desc) == ()
+
+    def test_mixed_requirements_high_years_with_short_contract(self):
+        # "1-2 year contract" is not an experience requirement.
+        desc = (
+            "This is a 1-2 year contract. Requirements: 8+ years of"
+            " experience required. Must have deep expertise in distributed systems."
+        )
+        assert classify_with_description("Software Engineer", desc) == ()
+
+    def test_mixed_requirements_low_floor_keeps(self):
+        # When the smallest stated requirement is genuinely low, keep.
+        desc = (
+            "Requirements: 0-2 years of experience in software engineering"
+            " or a related field. Familiarity with Python or Go preferred."
+        )
+        assert classify_with_description("Software Engineer", desc) == (
+            "new-grad",
+            "software",
+        )
+
+    def test_mixed_requirements_high_floor_with_low_sub_skill(self):
+        # "1+ years with Go" names a skill, not the role's floor.
+        desc = (
+            "Qualifications: 3+ years of software engineering experience,"
+            " including 1+ years with Go and familiarity with Kubernetes."
+        )
         assert classify_with_description("Software Engineer", desc) == ()

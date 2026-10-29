@@ -384,11 +384,11 @@ def widening(scanned: list[Job]) -> dict[str, int]:
     """Every posting this run scanned, under the first step of a wider shortlist that
     would keep it (`shortlist.widening_step`). A run scans only what it reads, so
     compare steps with each other, not with a run that rested more boards. Each
-    distinct title is read once: the rules cost about 50 microseconds a title."""
-    titles = Counter(job.title for job in scanned)
+    distinct (title, description) pair is read once."""
+    pairs = Counter((job.title, job.description) for job in scanned)
     steps = Counter[str]()
-    for title, count in titles.items():
-        steps[widening_step(title)] += count
+    for (title, desc), count in pairs.items():
+        steps[widening_step(title, desc)] += count
     return {step: steps[step] for step in WIDENING_STEPS}
 
 

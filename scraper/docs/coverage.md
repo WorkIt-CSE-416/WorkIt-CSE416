@@ -154,7 +154,7 @@ metrics.json files every scanned posting under the first step that would keep it
 
 | Step | Adds | What it costs |
 |---|---|---|
-| `no_stage` | No stage word ("Software Engineer I", "Paralegal") | Kept only when the description asks for 0 to 2 years: a page read each on 7 of 10 systems |
+| `no_stage` | No stage word ("Software Engineer I", "Paralegal") | Partly taken: providers that send the description with the board listing (Ashby, Lever, Recruitee, TikTok, Jibe, SuccessFactors) keep a title when `details.min_years` returns 0 or 1 (`classify_with_description`). The remaining 7 systems need a page read each. |
 | `senior` | Experienced roles | The limits below |
 
 **`held_field` and `no_field` were taken on 2026-10-28 (KAN-430):** every

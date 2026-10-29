@@ -302,10 +302,13 @@ rejected. Tag names are the `Tag` enum, which the page's filter chips read.
   students of every major. Law, consulting, support, the arts, policy and
   teaching, held off until then, are categories of their own; a title naming
   no field, or a trade, operator, medical or hotel job (`OUTSIDE_FIELDS`, the
-  old never list), is `other`. So the stage words are the whole filter: a
+  old never list), is `other`. The stage words are the main filter: a
   word joins them only when every live title it matched was early career
-  ("trainee", "rotational program"). "Level I", "Associate" and "Analyst"
-  failed that test and wait for a rule that reads the description
+  ("trainee", "rotational program"). A title with no stage word is also kept
+  when its description states 0 or 1 years of experience
+  (`classify_with_description`, using `details.min_years` as the authority
+  when it finds years and `EARLY_EXPERIENCE` when it does not). "Level I",
+  "Associate" and "Analyst" wait for that rule to reach more providers
   (`docs/categories.md`, "Every field, early career only").
 - **`engineer` alone is not a signal**, and reinstating it is the tempting
   mistake: Wade Trim's "Engineer Summer Intern" is civil, Decagon's
@@ -522,7 +525,9 @@ scraper standard-library-only.
 - Common Crawl is excluded under the robots restriction recorded in CLAUDE.md.
   Unsupported ATS URLs are reported; adding readers is a separate provider change.
 
-Usage and credentials: `docs/discovery.md`.
+Usage and credentials: `docs/discovery.md`. How open-jobs and freehire find
+their boards, and what of it WorkIt could take: `docs/research-open-jobs-freehire.md`
+(2026-10-28, ideas not yet taken).
 
 Shared boundaries: `providers/urls.py` owns board URL recognition for both
 commands; `board_read.py` owns the robots/pacing/read result; `catalog.py` owns
@@ -658,7 +663,9 @@ the design they serve and its next steps):
 - **`widening`**: every posting scanned, under the first step of a wider
   shortlist that would keep it (`shortlist.widening_step`: `kept`,
   `no_stage`, `senior`), so the size of each step is known before anyone
-  takes it. `held_field` and `no_field` were taken by KAN-430, and `outside`
+  takes it. `widening_step` uses `classify_with_description`, so a posting
+  kept by its description's years counts as `kept`, not `no_stage`.
+  `held_field` and `no_field` were taken by KAN-430, and `outside`
   went with them: every field is kept, so only the level is left to widen. A run scans only what it reads, so
   compare steps with each other. Each distinct title is read once: the rules
   cost about 50 microseconds a title.

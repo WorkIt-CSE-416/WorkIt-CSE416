@@ -29,7 +29,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
-from workit_scraper.details import Facts
+from workit_scraper.details import Facts, min_years
 from workit_scraper.providers import Job
 
 
@@ -989,13 +989,23 @@ EARLY_EXPERIENCE = re.compile(
 def classify_with_description(title: str, description: str | None) -> tuple[Tag, ...]:
     """Like `classify`, but when the title has no stage word and a description is
     available, checks for low-experience language ("0-2 years", "no experience
-    required") before giving up.  Returns the same shape as `classify`."""
+    required") before giving up.  Returns the same shape as `classify`.
+
+    Uses `details.min_years` as the authority when it finds years: a description
+    that states "5+ years of backend experience, including 1+ years with
+    Kubernetes" asks for five, not one, and is rejected even though a phrase in
+    it looks like "1+ years".  ``EARLY_EXPERIENCE`` still catches phrasing
+    ``min_years`` does not read ("0+ years in data science", "no experience
+    required"); ``min_years`` overrides it when both fire."""
     result = classify(title)
     if result:
         return result
     if not description or not title or SENIOR.search(title):
         return ()
-    if not EARLY_EXPERIENCE.search(description):
+    years = min_years(description)
+    if years is not None and years > 1:
+        return ()
+    if years is None and not EARLY_EXPERIENCE.search(description):
         return ()
     words = PLACE.sub(" ", AUDIENCE.sub(" ", title))
     if LEADS.search(words):
@@ -1023,10 +1033,10 @@ WIDENING_STEPS = (
 )
 
 
-def widening_step(title: str) -> str:
-    """The first of `WIDENING_STEPS` that would keep this title, by `classify`'s
-    own rules."""
-    if classify(title):
+def widening_step(title: str, description: str | None = None) -> str:
+    """The first of `WIDENING_STEPS` that would keep this title (and, when
+    available, its description), by `classify_with_description`'s own rules."""
+    if classify_with_description(title, description):
         return "kept"
     # A recruiter for a program ("Campus Recruiter") has a stage, but not one of
     # the person's own: no stage, like any other title without one.

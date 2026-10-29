@@ -31,8 +31,13 @@ database plan (`coverage.md`, "More roles").
 - **Left out on purpose:** "Level I" (59 dropped titles in the sample),
   "Associate" (35) and "Analyst" (69). Many are entry level ("Software Engineer
   I", "Associate Product Manager"), but many ask for experience ("Associate
-  Scientist II", "Mold Setter I"), and "UK&I" matched "I". Keeping them needs
-  the description's years of experience: `coverage.md`'s `no_stage` step.
+  Scientist II", "Mold Setter I"), and "UK&I" matched "I". A title with no
+  stage word is now kept when its description states 0 or 1 years of experience
+  (`classify_with_description`, using `details.min_years` as the authority and
+  `EARLY_EXPERIENCE` as fallback), which covers providers that send the
+  description with the board listing (Ashby, Lever, Recruitee, TikTok, Jibe,
+  SuccessFactors). Reaching all providers needs `coverage.md`'s `no_stage`
+  step (a page read each on the other 7 systems).
   "Fellow" and "resident" matched only coaching jobs in the sample.
 - **Unchanged:** every guard on the stage (senior, manager or lead, a
   recruiter for a program, a place), the order of the twelve, `SECOND` and
