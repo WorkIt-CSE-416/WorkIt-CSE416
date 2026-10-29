@@ -27,7 +27,13 @@ from workit_scraper.discovery_review import validate_catalog
 from workit_scraper.polite import Robots
 from workit_scraper.providers import Board, Job
 from workit_scraper.providers.systems.workday import WORKDAY_CAP
-from workit_scraper.shortlist import WIDENING_STEPS, classify, pick, widening_step
+from workit_scraper.shortlist import (
+    WIDENING_STEPS,
+    classify,
+    classify_with_description,
+    pick,
+    widening_step,
+)
 from workit_scraper.store import RunStats
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -305,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
         # marketing and senior roles included -- would make jobs.json tens of megabytes
         # and tell us nothing we display. `stats.postings` still counts everything
         # scanned, so the funnel on the page stays honest about how wide the net was.
-        fresh = [job for job in scanned if classify(job.title)]
+        fresh = [job for job in scanned if classify_with_description(job.title, job.description)]
         stats = replace(stats, kept=len(fresh))
         run = store.update(previous, fresh, read, stats, now, missing=missing)
         # Only boards with a job on the page need a logo, and each is read once --

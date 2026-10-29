@@ -945,6 +945,56 @@ def classify(title: str) -> tuple[Tag, ...]:
     return (at.tag, *found)
 
 
+# --- Description fallback ----------------------------------------------------
+#
+# A title with no stage word ("Software Engineer", "Data Analyst") can still be
+# early career if the description states a low experience requirement. Only
+# useful for providers that send the description with the board listing (Ashby,
+# Lever, Recruitee); the rest have no description until a kept posting's page is
+# read, so this adds zero HTTP.
+
+EARLY_EXPERIENCE = re.compile(
+    r"(?:"
+    # "0-2 years", "0 to 1 year", "1-2 yrs" — low range
+    r"(?<!\d)[01]\s*[-–]\s*[0-2]\s*(?:\+\s*)?(?:years?|yrs?)"
+    r"|"
+    r"(?<!\d)[01]\s+to\s+[0-2]\s*(?:years?|yrs?)"
+    r"|"
+    # "0+ years", "1+ years" (not "10+")
+    r"(?<!\d)[01]\+\s*(?:years?|yrs?)"
+    r"|"
+    # "no experience required/needed/necessary"
+    r"no\s+(?:prior\s+)?experience\s+(?:is\s+)?(?:required|needed|necessary)"
+    r"|"
+    # "0 experience required"
+    r"(?<!\d)0\s*\+?\s*experience\s+(?:is\s+)?(?:required|needed|necessary)"
+    r")",
+    re.I,
+)
+
+
+def classify_with_description(title: str, description: str | None) -> tuple[Tag, ...]:
+    """Like `classify`, but when the title has no stage word and a description is
+    available, checks for low-experience language ("0-2 years", "no experience
+    required") before giving up.  Returns the same shape as `classify`."""
+    result = classify(title)
+    if result:
+        return result
+    if not description or not title or SENIOR.search(title):
+        return ()
+    if not EARLY_EXPERIENCE.search(description):
+        return ()
+    words = PLACE.sub(" ", AUDIENCE.sub(" ", title))
+    if LEADS.search(words):
+        return ()
+    found = categories(title)
+    # A title naming no specific field ("Specialist") is `other`; when the only
+    # evidence is the description's experience level, that is too vague to keep.
+    if not found or found[0] is Tag.OTHER:
+        return ()
+    return (Tag.NEW_GRAD, *found)
+
+
 #: The steps a wider shortlist could take, in order, and what each would add
 #: (docs/coverage.md, "More roles"). `widening_step` files every scanned title
 #: under the first that would keep it, and metrics.json counts them, so the size
@@ -1035,7 +1085,8 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
         # The lead copy says what the role is and where to apply, and goes first.
         lead = _lead(copies, oldest)
         postings = [lead, *(job for job in copies if job is not lead)]
-        tags = classify(lead.title)
+        lead_description = next((job.description for job in postings if job.description), None)
+        tags = classify_with_description(lead.title, lead_description)
         if not tags:
             continue
         locations = tuple(dict.fromkeys(place for job in postings for place in job.places))

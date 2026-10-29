@@ -9,7 +9,14 @@ were measured on.
 from __future__ import annotations
 
 from workit_scraper.providers import Job
-from workit_scraper.shortlist import CATEGORY_TAGS, Tag, classify, pick, widening_step
+from workit_scraper.shortlist import (
+    CATEGORY_TAGS,
+    Tag,
+    classify,
+    classify_with_description,
+    pick,
+    widening_step,
+)
 
 
 def job(
@@ -674,3 +681,80 @@ class TestWideningStep:
     def test_kept_is_what_classify_keeps(self):
         for title in ("Software Engineer Intern", "Legal Intern", "Senior Software Engineer"):
             assert (widening_step(title) == "kept") == bool(classify(title)), title
+
+
+class TestClassifyWithDescription:
+    """Description fallback: a title with no stage word is kept when the
+    description states a low experience requirement. Only fires when a
+    description is already in hand (Ashby, Lever, Recruitee)."""
+
+    def test_falls_back_to_description_experience(self):
+        desc = "Requirements: 0-2 years of experience in software engineering."
+        assert classify_with_description("Software Engineer", desc) == ("new-grad", "software")
+
+    def test_zero_to_one_year(self):
+        desc = "This role requires 0-1 years of relevant experience."
+        assert classify_with_description("Data Analyst", desc) == (
+            "new-grad", "data_ai", "data_ai/analytics",
+        )
+
+    def test_one_to_two_years(self):
+        desc = "Ideal candidates have 1-2 years experience in a similar role."
+        assert classify_with_description("Business Analyst", desc) == ("new-grad", "business")
+
+    def test_zero_plus_years(self):
+        desc = "Experience: 0+ years in data science."
+        assert classify_with_description("Data Scientist", desc) == (
+            "new-grad", "data_ai", "data_ai/data_science",
+        )
+
+    def test_one_plus_years(self):
+        desc = "Qualifications: 1+ years of relevant work experience."
+        assert classify_with_description("Product Manager", desc) == ("new-grad", "product")
+
+    def test_no_experience_required(self):
+        desc = "No experience required. We will train you."
+        assert classify_with_description("Recruiter", desc) == ("new-grad", "hr")
+
+    def test_no_prior_experience_needed(self):
+        desc = "No prior experience needed for this role."
+        assert classify_with_description("Marketing Coordinator", desc) == ("new-grad", "marketing")
+
+    def test_zero_experience_required(self):
+        desc = "0 experience required. On-the-job training provided."
+        assert classify_with_description("Sales Representative", desc) == ("new-grad", "sales")
+
+    def test_does_not_match_high_experience(self):
+        desc = "Requirements: 5-10 years of software engineering experience."
+        assert classify_with_description("Software Engineer", desc) == ()
+
+    def test_does_not_match_three_plus_years(self):
+        desc = "3+ years of experience in product management."
+        assert classify_with_description("Product Manager", desc) == ()
+
+    def test_senior_title_still_blocked(self):
+        desc = "Requirements: 0-2 years of experience."
+        assert classify_with_description("Senior Software Engineer", desc) == ()
+
+    def test_title_match_takes_precedence(self):
+        # When the title itself says early career, the description is not needed.
+        desc = "Requirements: 5 years of experience."
+        assert classify_with_description("Software Engineer Intern", desc) == ("intern", "software")
+
+    def test_no_description_no_fallback(self):
+        assert classify_with_description("Software Engineer", None) == ()
+        assert classify_with_description("Software Engineer", "") == ()
+
+    def test_no_field_no_match(self):
+        # A title with no recognizable field stays out even with a low-experience description.
+        desc = "0-2 years of experience."
+        assert classify_with_description("Specialist", desc) == ()
+
+    def test_leads_still_blocked(self):
+        desc = "0-2 years of experience in talent management."
+        assert classify_with_description("Recruiting Manager", desc) == ()
+
+    def test_does_not_match_ten_years(self):
+        # "10-20 years" must not fire the [01] branch.
+        desc = "Requirements: 10-20 years of experience."
+        assert classify_with_description("Software Engineer", desc) == ()
