@@ -949,6 +949,19 @@ is no backfill. Only the import writes it (`../CLAUDE.md`, The feed import).
 A reason added to the CHECK goes into the import's `CLOSED_REASONS` too, or
 the import files it as `unknown`.
 
+**`company_domain` is the employer's own website, for its logo**
+(`d9b579e66623`, KAN-442): the registered domain the scraper found
+(`goldmansachs.com`), never a careers subdomain or a hiring vendor's host
+(`micron.eightfold.ai` gave Eightfold's logo in the Brandfetch test). The
+Jobs page loads the logo from Brandfetch by it, so the CHECK
+`job_postings_company_domain` allows only a bare lower-case host name: the
+value goes into an image URL, and a scheme, path or space must never reach
+it. Null when the scraper found no website, for a company's own job and for
+rows from before the column; the import fills it, with no backfill. **No
+model maps it yet**: the scraper, import and Jobs page change comes in its
+own PR, and until then `alembic revision --autogenerate` proposes dropping
+the column: delete that line from any migration it writes.
+
 **Company search uses a trigram GIN index** on `company_name`
 (`55f3c813be50`), so `ILIKE '%term%'` and the fuzzy `<%` operator look
 matches up instead of scanning. Measured on 2026-10-06: about 140 KB for the
