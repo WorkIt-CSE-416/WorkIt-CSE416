@@ -238,7 +238,14 @@ export type UpNextItem = TrackerEvent;
 
 /** The order kinds are taken in when choosing what to show: someone waiting
  *  on you outranks a deadline, which outranks a nudge. */
-const KIND_ORDER: EventKind[] = ["interview", "offer", "deadline", "follow-up"];
+const KIND_ORDER: EventKind[] = [
+  "interview",
+  "assessment",
+  "offer",
+  "apply-by",
+  "closes",
+  "follow-up",
+];
 const SHOWN = 5;
 
 /**

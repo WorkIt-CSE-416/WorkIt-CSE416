@@ -19,6 +19,13 @@ class StageChange(BaseModel):
     stage: Literal["applied", "interviewing", "offer", "rejected"]
 
 
+class ApplyByChange(BaseModel):
+    """PUT .../applications/{job_id}/apply-by: the student's own day to apply
+    by (KAN-429), or null to clear it."""
+
+    apply_by: datetime.date | None
+
+
 class StageSet(BaseModel):
     """The application's stage after a change."""
 
@@ -35,6 +42,8 @@ class EventCreate(BaseModel):
     kind: Literal["assessment", "interview", "offer", "rejection", "other"]
     title: str = Field(min_length=1, max_length=120)
     at: datetime.datetime | None = None
+    # When a timed event ends (KAN-429): only with `at`, and after it.
+    ends_at: datetime.datetime | None = None
     on_day: datetime.date | None = None
     note: str | None = Field(None, max_length=1000)
     meeting_url: str | None = Field(None, max_length=500)
@@ -68,6 +77,13 @@ class EventCreate(BaseModel):
             raise ValueError("Give either a time (at) or a day (on_day), not both.")
         if self.at is not None and self.at.tzinfo is None:
             raise ValueError("A time needs its zone, or it can't be placed on the Calendar.")
+        if self.ends_at is not None:
+            if self.at is None:
+                raise ValueError("Only an event at a time can have an end time.")
+            if self.ends_at.tzinfo is None:
+                raise ValueError("An end time needs its zone, or it can't be placed on the Calendar.")
+            if self.ends_at <= self.at:
+                raise ValueError("The end time must be after the start.")
         return self
 
 
@@ -81,6 +97,8 @@ class EventResponse(BaseModel):
     source: application_event_source
     title: str
     at: datetime.datetime | None
+    # When a timed event ends (KAN-429); null when none was given
+    ends_at: datetime.datetime | None = None
     on_day: datetime.date | None
     note: str | None
     meeting_url: str | None

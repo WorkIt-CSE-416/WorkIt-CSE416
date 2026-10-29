@@ -1119,7 +1119,7 @@ at the top of the email's column.
   with its date ("Adds the interview, Nov 4, 2:00 PM, to its timeline").
   An email that matched no job shows Choose Application in the
   application's place: a modal with a view of the Applications Tracker
-  (`inbox/pick-application.tsx`: a search over role and company, and the
+  (`applications/pick-application.tsx`, shared with Create Event: a search over role and company, and the
   list's rows, logo over role and company, the stage's pill and the
   applied day, latest first), where a row's click picks it and closes the
   modal. The banner then shows the pick with Change, and its before and
@@ -1459,9 +1459,18 @@ is restored after the Applications Tracker. The Applications panel's Show
 on Calendar button is still gone, since an application opens its own page
 now; a link to the Calendar from that page is not built.
 
-**The Calendar** (`(seeker)/calendar/`) shows every dated entry: the day each
-application went in, interviews, offers and their deadlines, closing dates
-and follow-ups, in their kind's stage colour, with a legend. `?view=` picks
+**The Calendar** (`(seeker)/calendar/`) shows every application's dates
+(KAN-429): the student's own **Apply By** for a job not applied to yet
+(`job_applications.apply_by`, set under Your Application on its page), the
+posting's **Closes** date where it publishes one (`closes_at`: company
+jobs; most scraped postings have none), **Applied**, and the tracker's
+events, **Assessment** (its own kind now, not folded into a deadline),
+**Interview**, **Offer**, **Rejection** and **Follow-Up**. Apply By and
+Closes stop showing once the job is applied to. Saved dates are left out
+on purpose: a student who saves 40 jobs would get 40 entries. Each kind
+wears its stage's colour and its own glyph (`KIND_STAGE` and `KIND_ICON`
+in `stage-colors.ts`, which Home's Up Next, the timeline and Interviews &
+Dates draw with too). `?view=` picks
 Month, Week or Agenda (two weeks), `?date=` anchors it on a bare day, and
 `?app=` opens the application in a detail panel (`applications/detail-panel.tsx`,
 now the Calendar's alone), with a way across to its own page.
@@ -1469,17 +1478,132 @@ Without `?date=` it opens on the viewer's today, which the server cannot
 know, so the views render in the browser behind a placeholder
 (`calendar-view.tsx`, `useHydrated`). They read the view and the day from
 the page's query themselves (`useCalendarQuery` in `view-switch.tsx`), and
-the view switch, the arrows, Today and a day's number move it in place; an
-entry is a real link, since its panel is drawn on the server. Its layout follows a reference the team
-picked: the span's title at the top left with round grey arrows at the top
-right, small uppercase weekday names, each day a light grey rounded tile with
-gaps rather than a ruled grid, today's tile white and outlined in the brand,
-and the legend at the foot. Week days and Agenda entries are the same tiles,
-and Today is a grey pill just left of the arrows, in their fill, so the three
-read as one group.
-It sits open on the page, not in a card: the page panel is already white.
-Month chips name the company and carry no time, since the colour already says
-what kind of entry it is; Week and Agenda name both. A
+the view switch, the arrows, Today and a day's number move it in place.
+
+**Create Event** (KAN-429, `applications/create-event.tsx`) is the
+toolbar's last control, the page's one filled button, as Google Calendar's
+Create: the same dialog as an application's Interviews & Dates, with an
+Application to choose first, opening on
+today when today is on screen, else the span's first day. **It is wide,
+not tall**, as Google Calendar's editor: 672px (`sm:max-w-2xl`), the
+title first, Application (picked in Choose Application, the Tracker's rows
+from `applications/pick-application.tsx`, as a step of this same dialog:
+from the Calendar it opens on that step, a pick goes to the form, Change
+comes back with a Back arrow, and the form keeps what was typed; never a
+dropdown, never a dialog over this one) beside Type
+(each kind in its glyph and colour), Date (WorkIt's calendar), Start and
+End (quarter hours, the End list naming each length, an hour after the
+start until picked) on one row, All Day under them, then the link and a
+two-line note, about 600px in all; no control is the browser's own
+(`docs/design.md`, Components); it scrolls inside
+itself on a shorter window. In the stock 384px dialog, one field a row
+ran past the foot of a 900px window. Until then the
+only way in was an application's page, so a student on the Calendar could
+not add to it or tell where its entries came from. The card's second line
+says who made an event ("Added by you", "From an email"), and its note
+sits under "Your Note" or "From the Email", never as a bare grey box.
+
+**What the Calendar holds, by where it comes from** (KAN-429):
+
+- The tracker's own dates: Applied (the day it went in), Apply By (the
+  student's own date) and Application Closes (the posting's), the last
+  two only while the job is not applied to. Always all day.
+- Events the student adds on an application's page: an interview, an
+  assessment, an offer, a rejection or a follow-up, each at a time (with
+  an optional end) or on a day, with an optional note and meeting link.
+- Emails filed onto an application (`source` gmail). **Only the ones that
+  name a date or an outcome show**: an interview or an assessment at the
+  time it names, and an offer or a rejection all day on the day it came.
+  A confirmation or an update (`emailKind` confirmation or other) is a
+  record, not a date, so it stays on the application's timeline and off
+  the Calendar (`onCalendar` in `entries.ts`): it sat on the grid at the
+  minute it arrived, as if it were a meeting, beside the Applied entry it
+  repeats.
+
+**An entry opens its own card, not the timeline** (`event-card.tsx`), as
+Google Calendar's event card, **in one layout for every kind**: the glyph
+and the title; a line saying what it is (the kind, "· From an email" for
+an email, and for the tracker's own dates what the date means: "Application
+sent", "Your own day to apply by", "The posting stops taking
+applications", since "Applied" and a day alone said nothing); then When
+(a range, a closing cut-off or All Day, and for Apply By and Closes how
+far off, "In 3 days"), Application, Resume (the one an Applied entry went
+out with), Meeting and the note, each only where the entry has it; then
+View Application, a real link to `?app=` since the panel is drawn on the
+server. A note longer than about six lines scrolls in its own box. Each
+entry opened the panel straight away until then, so a bare closing day
+and an interview with a note showed the same timeline.
+
+**The card sits beside its entry and never leaves the window**: to the
+right, or the left where the right has no room, its top level with the
+entry's, moved up only as far as it must (`align: "shift"`), at least 16px
+from the window's edge, and no taller than the window (it scrolls inside
+then). base-ui's default flips the alignment instead, so a tall card that
+did not fit below ended level with the entry's foot, well above it, and
+its default boundary is the grid's scroll box, not the window. Checked on
+2026-10-28 by opening every entry at 1024 × 768, 1440 × 640 and a 375px
+phone: none left the window.
+
+**The page is the screen under the bar and never scrolls** (KAN-429), as
+Google Calendar's is: `h-[calc(100svh-4rem)]`, no visible heading (an
+`sr-only` one; the toolbar's span title says where you are), the toolbar on
+top and the view taking every pixel under it. A window under 32rem tall
+lets the page scroll rather than crush the grid.
+
+The layout (KAN-429), after Google Calendar: **one toolbar**, the span's
+title at the left, then the **Type** filter (a `FieldFacet` dropdown, as on
+every page with filters: each kind in its glyph and colour with how many
+fall in the span on screen, a cross to clear it; this visit's own state),
+Today, the arrows and **Week / Month / Agenda**, which wrap apart on a
+phone; then the view, the full width of the page. An Upcoming list beside
+it (the next two weeks of what was due) was tried and taken out: the grid
+itself says what is next, and it narrowed the week.
+
+- **No Day view** (dropped after a draft, KAN-429): a search's entries are
+  points in a week, not a day's schedule, so one day's grid was mostly empty
+  hours. An old `?view=day` opens the default view.
+- **Week is a time grid** (`time-grid.tsx`): a header of days, an
+  **all-day row** for what has no time of its own (folded to two a day and
+  "+N more", with one toggle under All Day that opens the whole row, as
+  Google's does: five all-day entries on one day pushed the morning off the
+  grid),
+  and 24 hours at 48px an hour that scroll inside the box, which fills the
+  page's height (the header and all-day row stay put), and open at 8 AM,
+  or an hour before the day's first event. A timed event is a block from
+  `at` to `endsAt` (`application_events.ends_at`, Create Event's End field), an
+  hour long without one, in its kind's tint with its stage's bar;
+  overlapping events sit side by side (`layout`). A red line marks now on
+  today's column. They were a list a day with no hours, which hid when
+  things were.
+- **What is timed** is one rule, `isTimed` in `entries.ts`: an entry with a
+  time of its own, except Applied (its instant is only when the button was
+  clicked), Apply By (a day) and Closes (a deadline, not an appointment),
+  which go in the all-day row, Closes with its cut-off in its label.
+- **Month is one ruled table**: white days on hairlines (1px gaps over
+  `--color-border-subtle`), weekday names in a grey band, other months' days
+  grey with faint numbers, today's number in a brand disc. As Google draws
+  it, an all-day entry is a filled bar in its stage tint with its kind's
+  glyph, and a timed one a dot in its colour with its time and the company,
+  unfilled. **The weeks share the page's height** (`gridTemplateRows`, five
+  or six rows), so a day shows as many entries as its row has room for
+  (`useFit`, from the grid's measured height) and folds the rest into "+N
+  more"; a short window shows fewer a day, never a scrollbar. A date or "+N
+  more" opens the week that holds it. Rows were 112px at least, so a month ran past the
+  fold.
+- **Agenda** scrolls inside the page's height too.
+- **The sample week** (`demo.ts`): `/calendar?demo=1`, in local
+  development only, adds a spread of made-up entries to the current week
+  (overlaps, a chain of three, a 15-minute call, a 90-minute interview, a
+  7 AM start, a stacked all-day day, every kind, a few with a note or a
+  meeting link, a rejection filed from an email with a long note), each on a real application so its card's View
+  Application opens a real panel. Nothing is written, every
+  Calendar link keeps the switch, and production ignores it. Use it to
+  judge a layout change against a busy week.
+- It replaced a wall of separate grey rounded tiles, lavender company-only
+  chips, a key of tiny dots under the grid, and a view switch in the page's
+  header.
+
+A
 link into the Calendar from anywhere else goes through `DayLink` in
 `(seeker)/local-time.tsx`, which picks the viewer's local day the way
 `<When>` picks their words.

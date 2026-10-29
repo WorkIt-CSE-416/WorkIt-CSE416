@@ -41,6 +41,11 @@ class Application_Event(BaseModel):
     __tablename__ = "application_events"
     __table_args__ = (
         CheckConstraint("num_nonnulls(at, on_day) = 1", name="application_events_one_when"),
+        # An end only on a timed event, and after its start (KAN-429)
+        CheckConstraint(
+            "ends_at IS NULL OR (at IS NOT NULL AND ends_at > at)",
+            name="application_events_ends_after_start",
+        ),
         ForeignKeyConstraint(
             ["applicant_id", "job_id"],
             ["job_applications.applicant_id", "job_applications.job_id"],
@@ -63,6 +68,9 @@ class Application_Event(BaseModel):
     # "Technical Interview", "CodeSignal Assessment": what the tracker prints
     title: Mapped[str]
     at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # When a timed event ends (KAN-429): the Calendar's Day and Week grid
+    # draws it from `at` to here, and an hour long when null
+    ends_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     on_day: Mapped[datetime.date | None] = mapped_column(Date)
     # The student's own note, or a one-line summary of an email
     note: Mapped[str | None]

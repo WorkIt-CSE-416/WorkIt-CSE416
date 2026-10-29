@@ -26,18 +26,30 @@ import type { StageKey } from "./stage-colors";
 /** What a dated entry is. Each kind wears one stage's colour and glyph
  *  (KIND_STAGE in ./stage-colors.ts), so a calendar entry and a board column
  *  never disagree about what amber means. */
-export type EventKind = "applied" | "interview" | "offer" | "deadline" | "follow-up" | "rejection";
+export type EventKind =
+  | "applied"
+  | "apply-by"
+  | "closes"
+  | "interview"
+  | "assessment"
+  | "offer"
+  | "rejection"
+  | "follow-up";
 
-/** Something dated on one application. The applied date is not stored here:
- *  it is `appliedOn`, and `eventsOf` adds it. */
+/** Something dated on one application. The applied date, the student's
+ *  Apply by and the posting's closing date are not stored here: they are
+ *  `appliedOn`, `applyBy` and `closesAt`, and `eventsOf` adds them. */
 export type ApplicationEvent = {
   /** The API's id (`application_events.id`, KAN-413), what Delete names. */
   id?: string;
-  kind: Exclude<EventKind, "applied">;
+  kind: Exclude<EventKind, "applied" | "apply-by" | "closes">;
   /** "Technical Interview", "Application Closes", "Respond By". */
   title: string;
   /** An instant for something at a time, a bare date for something due on a day. */
   at: string;
+  /** When a timed event ends, an instant (KAN-429); null or missing when
+   *  none was given, and the Calendar's time grid draws it an hour long. */
+  endsAt?: string | null;
   /** The student's own note. */
   note?: string | null;
   /** A Zoom, Meet or Teams link. */
@@ -101,6 +113,12 @@ export type Application = {
   savedOn: string;
   /** When it was sent, or null while it is only saved. */
   appliedOn: string | null;
+  /** The student's own day to apply by, a bare date (KAN-429); null while
+   *  none is set. */
+  applyBy?: string | null;
+  /** When its job posting stops taking applications, an instant, where the
+   *  posting says (a company's own job; a scraped one rarely does). */
+  closesAt?: string | null;
   /** Interviews, deadlines, offers and follow-ups, past and still to come. */
   events: ApplicationEvent[];
   /** A filled button, for the one card whose action cannot wait. */
@@ -117,6 +135,18 @@ export type TrackerEvent = {
   kind: EventKind;
   title: string;
   at: string;
+  /** A timed event's end, where one was given (ApplicationEvent.endsAt). */
+  endsAt?: string | null;
+  /** Its note and meeting link, for the Calendar's event card. */
+  note?: string | null;
+  meetingUrl?: string | null;
+  /** Typed by the student or read from an email, and the email's own kind
+   *  (ApplicationEvent): the Calendar leaves an email that only confirms
+   *  or updates off its grid. */
+  source?: "manual" | "gmail";
+  emailKind?: ApplicationEvent["emailKind"];
+  /** The resume the application went out with, on the Applied entry. */
+  resume?: string | null;
 };
 
 /** A bare date is due on a day rather than at a time. */
@@ -148,11 +178,45 @@ export function isUpcoming(at: string, now: Date) {
  *  then its own events. */
 export function eventsOf(app: Application): TrackerEvent[] {
   const applied = app.appliedOn
-    ? [{ id: `${app.id}-applied`, kind: "applied" as const, title: "Applied", at: app.appliedOn }]
+    ? [
+        {
+          id: `${app.id}-applied`,
+          kind: "applied" as const,
+          title: "Applied",
+          at: app.appliedOn,
+          resume: app.sentResume?.name ?? app.resume ?? null,
+        },
+      ]
     : [];
+  // Apply by and the closing date are for a job not applied to yet
+  // (KAN-429): once it went in, neither is a date to act on.
+  const ahead: { id: string; kind: EventKind; title: string; at: string }[] = app.appliedOn
+    ? []
+    : [
+        ...(app.applyBy
+          ? [
+              {
+                id: `${app.id}-apply-by`,
+                kind: "apply-by" as const,
+                title: "Apply By",
+                at: app.applyBy,
+              },
+            ]
+          : []),
+        ...(app.closesAt
+          ? [
+              {
+                id: `${app.id}-closes`,
+                kind: "closes" as const,
+                title: "Application Closes",
+                at: app.closesAt,
+              },
+            ]
+          : []),
+      ];
   const own = app.events.map((event, i) => ({ ...event, id: event.id ?? `${app.id}-${i}` }));
 
-  return [...applied, ...own]
+  return [...applied, ...ahead, ...own]
     .map((event) => ({ ...event, applicationId: app.id, role: app.role, company: app.company }))
     .sort(bySortKey);
 }

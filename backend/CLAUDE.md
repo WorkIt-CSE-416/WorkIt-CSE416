@@ -1105,7 +1105,12 @@ Find files with a directory listing; these are the rules for where code goes.
   update's `POST .../events/{event_id}/accept` and `.../dismiss`), and
   the Inbox's `GET .../emails` (every email, every status) and its
   `PUT .../emails/read` (KAN-427, Mark as Read and Unread, all or none;
-  `read_at` keeps the first read, and Accept and dismiss set it too). An
+  `read_at` keeps the first read, and Accept and dismiss set it too), and
+  a saved job's `PUT .../applications/{job_id}/apply-by` (KAN-429, the
+  student's own day to apply by, null to clear; the application list
+  sends it as `apply_by` beside the posting's `closes_at`). Add Event
+  takes an `ends_at` after `at` (KAN-429, the Calendar's time grid; a
+  CHECK keeps it after the start and only on a timed event). An
   event moves its application forward only (`advance`, Accept too). **An
   email files itself unless it would move the stage or matched no job**
   (`needs_review`, `file_email`, the Gmail reader's entry point); a stage past

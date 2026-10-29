@@ -9,6 +9,9 @@ PUT    /applicants/{id}/applications/{job_id}/stage  {"stage": "interviewing"}
        direction (a saved or queued job can go straight to one). Answers
        StageSet. An application with no applied date gets today's. 404 with
        no application.
+PUT    /applicants/{id}/applications/{job_id}/apply-by  {"apply_by": "2026-11-10"}
+       A saved job's Apply by (KAN-429), the student's own day to apply by,
+       or null to clear it: 204. 404 with no application.
 GET    /applicants/{id}/events?status=accepted
        The applicant's events in one status, as EventResponses. accepted
        (the default): every event on the tracker, soonest first; the
@@ -17,7 +20,8 @@ GET    /applicants/{id}/events?status=accepted
        with job_id null for one that matched no application (Couldn't
        Match).
 POST   /applicants/{id}/applications/{job_id}/events  EventCreate
-       Add Event: 201 with EventAdded, the event and the stage after it. An
+       Add Event: 201 with EventAdded, the event and the stage after it;
+       `ends_at`, after `at`, gives a timed event its end (KAN-429). An
        interview, offer or rejection moves the application forward (an
        interview takes applied to interviewing), never back. 404 with no
        application; 422 without exactly one of `at` (a time with its zone)
@@ -72,9 +76,11 @@ from app.queries.tracker import (
     fetch_emails,
     fetch_events,
     mark_read,
+    set_apply_by,
     set_stage,
 )
 from app.schemas.tracker import (
+    ApplyByChange,
     EmailsRead,
     EventAccept,
     EventAdded,
@@ -101,6 +107,19 @@ async def put_stage(
     if stage is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, NO_APPLICATION)
     return StageSet(job_id=job_id, stage=stage)
+
+
+@router.put("/applications/{job_id}/apply-by", status_code=status.HTTP_204_NO_CONTENT)
+async def put_apply_by(
+    job_id: uuid.UUID,
+    body: ApplyByChange,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    db: AsyncSession = Depends(get_session),
+) -> Response:
+    """Sets or clears a saved job's Apply by."""
+    if not await set_apply_by(db, applicant_id, job_id, body.apply_by):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_APPLICATION)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/events", response_model=list[EventResponse])
@@ -149,6 +168,7 @@ async def post_event(
         kind=application_event_kind(body.kind),
         title=body.title,
         at=body.at,
+        ends_at=body.ends_at,
         on_day=body.on_day,
         note=body.note,
         meeting_url=body.meeting_url,

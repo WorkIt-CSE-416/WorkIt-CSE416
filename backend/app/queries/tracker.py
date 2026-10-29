@@ -53,6 +53,7 @@ class NewEvent(NamedTuple):
     on_day: datetime.date | None
     note: str | None
     meeting_url: str | None
+    ends_at: datetime.datetime | None = None
 
 
 async def fetch_stage(
@@ -97,6 +98,26 @@ async def set_stage(
     return stage
 
 
+async def set_apply_by(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, apply_by: datetime.date | None
+) -> bool:
+    '''
+    a saved job's Apply by (KAN-429): the student's own day to apply by, or
+    None to clear it. Any stage takes one; the Calendar shows it only until
+    the job is applied to. False when there is no application
+    '''
+    found = await db.scalar(
+        update(Job_Application)
+        .where(Job_Application.applicant_id == applicant_id, Job_Application.job_id == job_id)
+        .values(apply_by=apply_by)
+        .returning(Job_Application.job_id)
+    )
+    if found is None:
+        return False
+    await db.commit()
+    return True
+
+
 def advance(current: application_stage, kind: application_event_kind) -> application_stage | None:
     '''the stage an event of `kind` moves an application at `current` to,
     or None when it stays: only forward, never back'''
@@ -126,6 +147,7 @@ async def add_event(
         source=application_event_source.manual,
         title=new.title,
         at=new.at,
+        ends_at=new.ends_at,
         on_day=new.on_day,
         note=new.note,
         meeting_url=new.meeting_url,
