@@ -1,4 +1,40 @@
 {
+  "greenhouse/cision": {
+    "ats": "greenhouse",
+    "companies": [
+      "Cision"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Cision",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://job-boards.eu.greenhouse.io/cision/jobs/4899574101"
+      }
+    ],
+    "postings": 49,
+    "status": "validated",
+    "token": "cision",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
+  "greenhouse/fideres": {
+    "ats": "greenhouse",
+    "companies": [
+      "Fideres"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Fideres",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://job-boards.eu.greenhouse.io/fideres/jobs/4711405101"
+      }
+    ],
+    "postings": 7,
+    "status": "validated",
+    "token": "fideres",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
   "icims/americas-cookmedical": {
     "ats": "icims",
     "companies": [
@@ -37,6 +73,29 @@
     "token": "americas-cookmedical",
     "validated_at": "2026-10-29T11:47:25.205610+00:00"
   },
+  "icims/careers-affiniuscapital": {
+    "ats": "icims",
+    "companies": [
+      "Affinius Capital"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Affinius Capital",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-affiniuscapital.icims.com/jobs/2294/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Affinius Capital",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-affiniuscapital.icims.com/jobs/2298/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 8,
+    "status": "validated",
+    "token": "careers-affiniuscapital",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
   "icims/careers-americas": {
     "ats": "icims",
     "companies": [
@@ -64,6 +123,29 @@
     "status": "validated",
     "token": "careers-americas",
     "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-apexservicepartners": {
+    "ats": "icims",
+    "companies": [
+      "Apex Service Partners"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Apex Service Partners",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-apexservicepartners.icims.com/jobs/22843/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Apex Service Partners",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-apexservicepartners.icims.com/jobs/24570/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 54,
+    "status": "validated",
+    "token": "careers-apexservicepartners",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
   },
   "icims/careers-benjaminmoore": {
     "ats": "icims",
@@ -115,6 +197,24 @@
     "status": "validated",
     "token": "careers-calamp",
     "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-changegrowlive": {
+    "ats": "icims",
+    "companies": [
+      "Change Grow Live"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Change Grow Live",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-changegrowlive.icims.com/jobs/20510/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 105,
+    "status": "validated",
+    "token": "careers-changegrowlive",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
   },
   "icims/careers-cotiviti": {
     "ats": "icims",
@@ -268,6 +368,126 @@
     "status": "validated",
     "token": "careers-cotiviti",
     "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-dewberry": {
+    "ats": "icims",
+    "companies": [
+      "Dewberry"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Dewberry",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-dewberry.icims.com/jobs/15845/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Dewberry",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-dewberry.icims.com/jobs/15844/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Dewberry",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-dewberry.icims.com/jobs/16026/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Dewberry",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-dewberry.icims.com/jobs/15975/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 508,
+    "status": "validated",
+    "token": "careers-dewberry",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
+  "icims/careers-gilbaneco": {
+    "ats": "icims",
+    "companies": [
+      "Gilbane Building Company"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Gilbane Building Company",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-gilbaneco.icims.com/jobs/12964/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Gilbane Building Company",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-gilbaneco.icims.com/jobs/13115/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 434,
+    "status": "validated",
+    "token": "careers-gilbaneco",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
+  "icims/careers-kci": {
+    "ats": "icims",
+    "companies": [
+      "KCI Technologies"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "KCI Technologies",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-kci.icims.com/jobs/7902/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "KCI Technologies",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-kci.icims.com/jobs/7666/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "KCI Technologies",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-kci.icims.com/jobs/8152/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 217,
+    "status": "validated",
+    "token": "careers-kci",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
+  "icims/careers-kearnybank": {
+    "ats": "icims",
+    "companies": [
+      "Kearny Bank"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Kearny Bank",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-kearnybank.icims.com/jobs/3162/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 29,
+    "status": "validated",
+    "token": "careers-kearnybank",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
+  "icims/careers-kemin": {
+    "ats": "icims",
+    "companies": [
+      "Kemin"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Kemin",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-kemin.icims.com/jobs/12130/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 90,
+    "status": "validated",
+    "token": "careers-kemin",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
   },
   "icims/careers-kinaxis": {
     "ats": "icims",
@@ -551,6 +771,34 @@
     "token": "careers-persistentsystems",
     "validated_at": "2026-10-29T11:47:25.205610+00:00"
   },
+  "icims/careers-primehealthcare": {
+    "ats": "icims",
+    "companies": [
+      "Prime Healthcare"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Prime Healthcare",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-primehealthcare.icims.com/jobs/210062/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Prime Healthcare",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-primehealthcare.icims.com/jobs/249171/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Prime Healthcare",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-primehealthcare.icims.com/jobs/284347/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 3447,
+    "status": "validated",
+    "token": "careers-primehealthcare",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
   "icims/careers-riversideresearch": {
     "ats": "icims",
     "companies": [
@@ -634,6 +882,24 @@
     "token": "careers-riversideresearch",
     "validated_at": "2026-10-29T11:47:25.205610+00:00"
   },
+  "icims/careers-ruralking": {
+    "ats": "icims",
+    "companies": [
+      "Rural King"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Rural King",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-ruralking.icims.com/jobs/38941/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 824,
+    "status": "validated",
+    "token": "careers-ruralking",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
   "icims/careers-slco": {
     "ats": "icims",
     "companies": [
@@ -689,6 +955,42 @@
     "status": "validated",
     "token": "careers-stellantsystems",
     "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-svclnk": {
+    "ats": "icims",
+    "companies": [
+      "ServiceLink"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "ServiceLink",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-svclnk.icims.com/jobs/3431/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 44,
+    "status": "validated",
+    "token": "careers-svclnk",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
+  "icims/careers-targetedvictory": {
+    "ats": "icims",
+    "companies": [
+      "Targeted Victory"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Targeted Victory",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-targetedvictory.icims.com/jobs/8008/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 1,
+    "status": "validated",
+    "token": "careers-targetedvictory",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
   },
   "icims/careers-urbanscience": {
     "ats": "icims",
@@ -765,6 +1067,24 @@
     "status": "validated",
     "token": "careers-walterpmoore",
     "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/careers-wuxiapptec": {
+    "ats": "icims",
+    "companies": [
+      "WuXi AppTec"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "WuXi AppTec",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://careers-wuxiapptec.icims.com/jobs/14131/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 59,
+    "status": "validated",
+    "token": "careers-wuxiapptec",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
   },
   "icims/careersus-shure": {
     "ats": "icims",
@@ -1132,6 +1452,44 @@
     "token": "external-canoncareers",
     "validated_at": "2026-10-29T11:47:25.205610+00:00"
   },
+  "icims/non-clinical-emory": {
+    "ats": "icims",
+    "companies": [
+      "Emory Healthcare"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Emory Healthcare",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://non-clinical-emory.icims.com/jobs/150075/job?hub=14&mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Emory Healthcare",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://non-clinical-emory.icims.com/jobs/169212/job?hub=14&mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Emory Healthcare",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://non-clinical-emory.icims.com/jobs/165195/job?hub=14&mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Emory Healthcare",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://non-clinical-emory.icims.com/jobs/171054/job?hub=14&mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Emory Healthcare",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://non-clinical-emory.icims.com/jobs/170743/job?hub=14&mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 203,
+    "status": "validated",
+    "token": "non-clinical-emory",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
   "icims/staff-emory": {
     "ats": "icims",
     "companies": [
@@ -1179,6 +1537,49 @@
     "status": "validated",
     "token": "staff-emory",
     "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "icims/uscareers-fujifilm": {
+    "ats": "icims",
+    "companies": [
+      "Fujifilm"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Fujifilm",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://uscareers-fujifilm.icims.com/jobs/36847/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Fujifilm",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://uscareers-fujifilm.icims.com/jobs/37808/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Fujifilm",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://uscareers-fujifilm.icims.com/jobs/38036/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Fujifilm",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://uscareers-fujifilm.icims.com/jobs/37311/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Fujifilm",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://uscareers-fujifilm.icims.com/jobs/38334/job?mobile=true&needsRedirect=false"
+      },
+      {
+        "company": "Fujifilm",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://uscareers-fujifilm.icims.com/jobs/38622/job?mobile=true&needsRedirect=false"
+      }
+    ],
+    "postings": 315,
+    "status": "validated",
+    "token": "uscareers-fujifilm",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
   },
   "lever/eu/cirrus": {
     "ats": "lever",
@@ -1362,6 +1763,95 @@
     "status": "validated",
     "token": "eu/cirrus",
     "validated_at": "2026-10-29T11:47:25.205610+00:00"
+  },
+  "rippling/edgehog-trading": {
+    "ats": "rippling",
+    "companies": [
+      "Edgehog Trading"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Edgehog Trading",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://ats.rippling.com/edgehog-trading/jobs/10ba9bbf-9fbe-49ff-8f58-a88041de1438"
+      },
+      {
+        "company": "Edgehog Trading",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://ats.rippling.com/edgehog-trading/jobs/96354af0-1bd0-4703-a654-e3d591b07777"
+      },
+      {
+        "company": "Edgehog Trading",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://ats.rippling.com/edgehog-trading/jobs/0d6b0e5c-be84-4324-8ee3-b875504e01d8"
+      }
+    ],
+    "postings": 13,
+    "status": "validated",
+    "token": "edgehog-trading",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
+  "rippling/kraken-robotics-inc": {
+    "ats": "rippling",
+    "companies": [
+      "Kraken Robotics"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Kraken Robotics",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://ats.rippling.com/kraken-robotics-inc/jobs/2aeebe9a-29dd-467a-854f-002f08e69f1a"
+      },
+      {
+        "company": "Kraken Robotics",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://ats.rippling.com/kraken-robotics-inc/jobs/306b015a-6c3c-4205-b6df-6a9c7ce7b9a8"
+      },
+      {
+        "company": "Kraken Robotics",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://ats.rippling.com/kraken-robotics-inc/jobs/91ab4101-8c0f-4e52-a2a7-c952cb966fe2"
+      },
+      {
+        "company": "Kraken Robotics",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://ats.rippling.com/kraken-robotics-inc/jobs/a1c6c58a-7815-4a4f-bb69-f5105d195286"
+      }
+    ],
+    "postings": 20,
+    "status": "validated",
+    "token": "kraken-robotics-inc",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
+  },
+  "rippling/momentumcareers": {
+    "ats": "rippling",
+    "companies": [
+      "Momentum Engineering"
+    ],
+    "decision": "proposed",
+    "evidence": [
+      {
+        "company": "Momentum Engineering",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://ats.rippling.com/momentumcareers/jobs/e1151761-ee74-4f66-bbc4-b676f7f7db71"
+      },
+      {
+        "company": "Momentum Engineering",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://ats.rippling.com/momentumcareers/jobs/dd4281b8-fa2a-4833-8370-b1859933b612"
+      },
+      {
+        "company": "Momentum Engineering",
+        "source": "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
+        "url": "https://ats.rippling.com/momentumcareers/jobs/dbcd3c46-e2fa-4d75-8da1-ac8d15d3771e"
+      }
+    ],
+    "postings": 102,
+    "status": "validated",
+    "token": "momentumcareers",
+    "validated_at": "2026-10-30T11:39:41.470862+00:00"
   },
   "rippling/usare": {
     "ats": "rippling",
