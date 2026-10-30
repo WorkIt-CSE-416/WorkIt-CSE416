@@ -223,6 +223,16 @@ class LineSave(LineEdit):
     source: ResumeCopy | None = None
 
 
+class ResumeChanged(BaseModel):
+    """When anything the resume's page prints last changed, and the
+    database's clock now (KAN-391): the editor asks on a return to its tab
+    after a while away, and reloads only when something changed while it
+    was hidden. `now` lets it read its own clock against the database's."""
+
+    changed_at: datetime.datetime
+    now: datetime.datetime
+
+
 class LineSaved(BaseModel):
     """What the save wrote that the editor cannot know: a typed bullet's
     local variant (`variant_id`, null when the original was typed back),

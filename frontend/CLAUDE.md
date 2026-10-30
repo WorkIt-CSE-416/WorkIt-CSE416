@@ -1647,6 +1647,25 @@ the KAN-296 cutover.
   Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
   own text undo runs. An open line is saved first, so Undo takes back
   what was just typed.
+- **An editor tab reads the resume again when it changed elsewhere**
+  (KAN-391), quietly, through `reload` with no notice, which also clears
+  Undo. Each save that lands is announced on a `BroadcastChannel`
+  (`RESUME_CHANNEL`, `{ resumeId, shared }`; `shared` for an entry's field
+  or the header, which every resume prints), and only a signal goes: each
+  tab's copy stays in its memory. A tab that hears one marks its copy
+  `stale` and reads it again only while it shows and is idle (no line
+  open, nothing on its way; `refresh`, called again on leaving a line and
+  in `drawn`), so ten hidden tabs cost one reload, the one looked at. A
+  tab hidden for `CHECK_AFTER_MS` (5 minutes) asks on its return when the
+  page last changed (`resumeChangedAt`, `GET .../changed-at`: the resume,
+  the bank and the profile, one read) and reloads only if that is after
+  it hid, read against the database's clock; a quicker switch reads
+  nothing. The time away is measured from timestamps, never timers, which
+  Chrome throttles in a hidden tab. **Still open:** the Experiences page
+  and Tailor do not announce their writes, so an editor tab learns of
+  them only after 5 minutes away; the bar says "Saving…" while a quiet
+  reload runs; and two tabs editing within the same few seconds still
+  need a version check on each save.
 - **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
   text is kept per line (`drafts`, by box key) and drawn over the line
   until the PDF that prints it has painted: the selected line as its

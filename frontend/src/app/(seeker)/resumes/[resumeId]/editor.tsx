@@ -37,6 +37,7 @@ import {
   fitToOnePage,
   getChoices,
   renderResumePdf,
+  resumeChangedAt,
   saveLine,
   updateChoices,
   type Choices,
@@ -249,6 +250,19 @@ const unsaved = (status: number | null) => status !== 422;
 
 /** How long a failed render waits before it is sent once more. */
 const RETRY_AFTER_MS = 500;
+
+/** How long a tab stays hidden before its return asks whether the resume
+ *  changed elsewhere (`resumeChangedAt`): a quick switch reads nothing. */
+const CHECK_AFTER_MS = 5 * 60_000;
+
+/** The editor tabs' channel: each save that lands is announced on it, so
+ *  another tab showing the resume reads it again. Only a signal: each tab's
+ *  copy stays in its memory and comes from the database. */
+const RESUME_CHANNEL = "workit:resume-edits";
+
+/** The bar's line after a save or a render failed and `reload` ran. */
+const lostChange = (why: string | null, failed: "saved" | "shown") =>
+  `Your last change could not be ${failed}${why ? ` (${why})` : ""}. The page shows your saved resume.`;
 
 /** An edit's render (`renderEdit`, KAN-391) through `/api/resume-edit`, a
  *  route handler: as a server action it waited behind the edit's save,
@@ -566,7 +580,8 @@ export function Editor({
   );
 
   /**
-   * Puts the saved resume back after a save or a render failed (KAN-391):
+   * Puts the saved resume back after a save or a render failed, or after it
+   * changed elsewhere (KAN-391; `notice` null, quiet):
    * once every save sent before has answered, the bank, the choices and a
    * PDF read from the database replace the editor's copy, and every draft
    * but the selected line's goes. The page showed the edit before it was
@@ -575,7 +590,7 @@ export function Editor({
    * what the page should show.
    */
   const reload = useCallback(
-    (why: string | null, failed: "saved" | "shown" = "saved") => {
+    (notice: string | null) => {
       void enqueue(async () => {
         await saves.current;
         const current = begin();
@@ -601,13 +616,79 @@ export function Editor({
         if (!current()) return;
         setSaving(false);
         if (pdf.data) keepRendered(pdf.data);
-        setError(
-          `Your last change could not be ${failed}${why ? ` (${why})` : ""}. The page shows your saved resume.`,
-        );
+        setError(notice);
       });
     },
     [begin, countSteps, enqueue, keepChoices, keepRendered, resumeId],
   );
+
+  // Another editor tab's save, or a long time away (KAN-391): `stale` marks
+  // a copy to read again once the tab is idle, `hiddenAt` when it hid
+  const stale = useRef(false);
+  const hiddenAt = useRef<number | null>(null);
+  const channel = useRef<BroadcastChannel | null>(null);
+
+  /** Reads a stale copy again, quietly, once the tab shows, no line is open
+   *  and no edit is on its way: a reload under an edit would read the
+   *  database before that edit's save. Busy, it waits: leaving a line and
+   *  each PDF painted (`drawn`) call it again. */
+  const refresh = useCallback(() => {
+    if (!stale.current || document.hidden) return;
+    const busy =
+      selectedNow.current !== null || onTheirWay.current.size > 0 || unanswered.current.size > 0;
+    if (busy) return;
+    stale.current = false;
+    reload(null);
+  }, [reload]);
+
+  /** Tells the other editor tabs a save landed: `shared` for what every
+   *  resume prints (an entry's field, the header), else this resume's only. */
+  const announce = useCallback(
+    (shared: boolean) => channel.current?.postMessage({ resumeId, shared }),
+    [resumeId],
+  );
+
+  useEffect(() => {
+    const ours =
+      typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(RESUME_CHANNEL);
+    channel.current = ours;
+    if (ours)
+      ours.onmessage = (event: MessageEvent<{ resumeId: string; shared: boolean }>) => {
+        if (event.data.resumeId !== resumeId && !event.data.shared) return;
+        // Hidden, it only marks the copy: ten tabs cost one reload, the one
+        // looked at
+        stale.current = true;
+        refresh();
+      };
+    const seen = async () => {
+      if (document.hidden) {
+        hiddenAt.current = Date.now();
+        // A save still on its way lands after the tab hid, and is its own
+        void saves.current.then(() => {
+          if (document.hidden) hiddenAt.current = Date.now();
+        });
+        return;
+      }
+      const away = hiddenAt.current;
+      hiddenAt.current = null;
+      if (stale.current || away === null || Date.now() - away < CHECK_AFTER_MS) return refresh();
+      // Another device, or a page that does not announce: one small read
+      const { data } = await resumeChangedAt(resumeId);
+      if (!data) return;
+      // The database's clock read against this one, so a skewed clock
+      // neither misses a change nor takes the tab's own saves for one
+      const offset = Date.parse(data.now) - Date.now();
+      if (Date.parse(data.changed_at) <= away + offset) return;
+      stale.current = true;
+      refresh();
+    };
+    document.addEventListener("visibilitychange", seen);
+    return () => {
+      document.removeEventListener("visibilitychange", seen);
+      ours?.close();
+      channel.current = null;
+    };
+  }, [refresh, resumeId]);
 
   /** Saves a typed line, in the save queue. The answer's bullet variant and
    *  profile go into the editor's state; a failure the render does not
@@ -621,9 +702,10 @@ export function Editor({
           keepChoices(confirmed.current);
         }
         if (data?.profile) setHeader(data.profile);
-        if (!data && unsaved(status)) reload(error);
+        if (data) announce(line.kind !== "bullet");
+        if (!data && unsaved(status)) reload(lostChange(error, "saved"));
       }),
-    [keepChoices, queueSave, reload, resumeId],
+    [announce, keepChoices, queueSave, reload, resumeId],
   );
 
   /** Saves choice changes, in the save queue. */
@@ -631,9 +713,10 @@ export function Editor({
     (changes: ChoicesUpdate) =>
       queueSave(async () => {
         const { error, status } = await updateChoices(resumeId, changes);
-        if (error && unsaved(status)) reload(error);
+        if (!error) announce(false);
+        if (error && unsaved(status)) reload(lostChange(error, "saved"));
       }),
-    [queueSave, reload, resumeId],
+    [announce, queueSave, reload, resumeId],
   );
 
   /** `record: false` for an Undo or Redo sent as an edit (`travel`). */
@@ -674,7 +757,7 @@ export function Editor({
         answered(id);
         // A render that failed twice for any other reason (a timeout, a
         // compile) says nothing of the save beside it
-        if (!data && !refused(status)) reload(error, "shown");
+        if (!data && !refused(status)) reload(lostChange(error, "shown"));
         // Refused: the change and its swap leave the page
         keepChoices(data?.choices ?? confirmed.current);
         if (!data) setSwaps((s) => s.filter((x) => x.id !== id));
@@ -753,7 +836,7 @@ export function Editor({
           copy(),
         );
         answered(key);
-        if (!data && !refused(status)) reload(error, "shown");
+        if (!data && !refused(status)) reload(lostChange(error, "shown"));
         // Refused: the page shows what is saved, unless the student is
         // still on the line to fix it
         if (!data && key !== selectedNow.current) drop(key);
@@ -849,8 +932,9 @@ export function Editor({
       placed.current = null;
       selectedNow.current = key;
       setSelected(key);
+      if (key === null) refresh();
     },
-    [drop, flush],
+    [drop, flush, refresh],
   );
 
   useEffect(() => {
@@ -974,6 +1058,7 @@ export function Editor({
         setSaving(false);
         return setError(error);
       }
+      announce(false);
       lastPdf.current = data.render;
       keepRendered(data.render);
       const hid = data.undo.bullets?.length || data.undo.entries?.length;
@@ -1206,6 +1291,7 @@ export function Editor({
       const kept = s.filter((x) => onTheirWay.current.has(x.id));
       return kept.length === s.length ? s : kept;
     });
+    refresh();
     if (started.current == null) return;
     setElapsed(Math.round(performance.now() - started.current));
     started.current = null;

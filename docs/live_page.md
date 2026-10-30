@@ -104,6 +104,10 @@ Built so far (option A, the typed line only):
   save goes; an older step, past the newest 7 that keep their PDFs,
   renders like a new edit. 25 steps, in the tab's memory (both numbers
   are first guesses, to tune in `history.ts`).
+- **Another tab's edit reaches this one:** each save is announced to the
+  other editor tabs in the browser, which read the resume again once
+  shown and idle; a tab back after 5 minutes away asks when the resume
+  last changed and reads it again only if it changed meanwhile.
 - **Measured from a laptop against the shared database:** one round trip
   about 66 ms, loading a resume's view 560 to 730 ms, a compile 410 to
   500 ms (2026-10-28). A line went from about 2.7 to 3.5 s (save, then
