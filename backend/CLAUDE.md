@@ -702,8 +702,11 @@ Find files with a directory listing; these are the rules for where code goes.
   the row pointed at it and the resume touched; answers `variant_id`), an
   entry field through `bank.write_entry` (checked whole against the
   copy's entry, read only when no copy is sent, and only the fields the
-  edit changes written, with the embedding cleared in the same
-  statement), a header field as one `UPDATE ... RETURNING` (answers
+  edit names written, even when the copy already holds that value: the
+  copy can predate a save still on its way, and an old value typed back
+  over that save matched the copy and was dropped, so the page showed it
+  and the database kept the save before; the embedding is cleared in the
+  same statement), a header field as one `UPDATE ... RETURNING` (answers
   `profile`). `type_wording` and `update_choices`'s `_type_wording` must
   agree. Choice changes save through `PATCH .../choices`
   (`built_resumes.save_choices`): moves, hides, shows, toggles and wording

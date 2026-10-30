@@ -212,7 +212,7 @@ class LineEdit(BaseModel):
 
     item_id: UUID | Literal["header"]
     kind: str
-    text: Annotated[str, StringConstraints(max_length=2000)]
+    text: Annotated[str, StringConstraints(max_length=500)]
 
 
 class LineSave(LineEdit):

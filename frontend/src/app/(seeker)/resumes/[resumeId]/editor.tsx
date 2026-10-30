@@ -236,24 +236,48 @@ type Draft = { key: string; text: string };
  *  rejects: a failure is its `error`. */
 type FirstRender = ReturnType<typeof renderResumePdf>;
 
+/** The API refused the edit (a resume or item not found, a line it cannot
+ *  read): sent again it answers the same. */
+const refused = (status: number | null) => status === 404 || status === 422;
+
+/** A save that failed leaves the page unlike the database, unless the
+ *  render refused the edit too. Only a 422 is sure to: both read the line
+ *  the same way. A 404 can be the save's alone, since the render reads the
+ *  editor's copy and the save the database: an entry deleted in another
+ *  tab still renders here. */
+const unsaved = (status: number | null) => status !== 422;
+
+/** How long a failed render waits before it is sent once more. */
+const RETRY_AFTER_MS = 500;
+
 /** An edit's render (`renderEdit`, KAN-391) through `/api/resume-edit`, a
  *  route handler: as a server action it waited behind the edit's save,
- *  since Next runs one client's actions one at a time. */
+ *  since Next runs one client's actions one at a time. A failure that is
+ *  not a refusal (the network, a compile timed out) is sent once more:
+ *  the render writes nothing and reads no database, so the same copy
+ *  renders the same page. */
 async function renderEdit(
   resumeId: string,
   edit: { line: { item_id: string; kind: string; text: string } } | { changes: ChoicesUpdate },
   source?: ResumeCopy,
 ): Promise<Result<EditRendered>> {
-  try {
-    const res = await fetch("/api/resume-edit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resumeId, edit, source }),
-    });
-    return (await res.json()) as Result<EditRendered>;
-  } catch {
-    return { data: null, error: "Could not reach the server.", status: null };
-  }
+  const body = JSON.stringify({ resumeId, edit, source });
+  const send = async (): Promise<Result<EditRendered>> => {
+    try {
+      const res = await fetch("/api/resume-edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+      return (await res.json()) as Result<EditRendered>;
+    } catch {
+      return { data: null, error: "Could not reach the server.", status: null };
+    }
+  };
+  const first = await send();
+  if (first.data || refused(first.status)) return first;
+  await new Promise((resolve) => setTimeout(resolve, RETRY_AFTER_MS));
+  return send();
 }
 
 /** What the last PDF printed beside the resume's own content: its header,
@@ -542,14 +566,16 @@ export function Editor({
   );
 
   /**
-   * Puts the saved resume back after a save failed (KAN-391): once every
-   * save sent before has answered, the bank, the choices and a PDF read
-   * from the database replace the editor's copy, and every draft but the
-   * selected line's goes. The page showed the edit before it was saved, so
-   * this is how a failed write undoes it.
+   * Puts the saved resume back after a save or a render failed (KAN-391):
+   * once every save sent before has answered, the bank, the choices and a
+   * PDF read from the database replace the editor's copy, and every draft
+   * but the selected line's goes. The page showed the edit before it was
+   * saved, so this is how a failed write undoes it; after a failed render
+   * the save may still have gone through, so only the database can say
+   * what the page should show.
    */
   const reload = useCallback(
-    (why: string | null) => {
+    (why: string | null, failed: "saved" | "shown" = "saved") => {
       void enqueue(async () => {
         await saves.current;
         const current = begin();
@@ -576,7 +602,7 @@ export function Editor({
         setSaving(false);
         if (pdf.data) keepRendered(pdf.data);
         setError(
-          `Your last change could not be saved${why ? ` (${why})` : ""}. The page shows your saved resume.`,
+          `Your last change could not be ${failed}${why ? ` (${why})` : ""}. The page shows your saved resume.`,
         );
       });
     },
@@ -584,8 +610,8 @@ export function Editor({
   );
 
   /** Saves a typed line, in the save queue. The answer's bullet variant and
-   *  profile go into the editor's state; a failure other than a refusal
-   *  puts the saved resume back. */
+   *  profile go into the editor's state; a failure the render does not
+   *  share puts the saved resume back (`unsaved`). */
   const sendLine = useCallback(
     (line: { item_id: string; kind: string; text: string }, source?: ResumeCopy) =>
       queueSave(async () => {
@@ -595,7 +621,7 @@ export function Editor({
           keepChoices(confirmed.current);
         }
         if (data?.profile) setHeader(data.profile);
-        if (!data && status !== 404 && status !== 422) reload(error);
+        if (!data && unsaved(status)) reload(error);
       }),
     [keepChoices, queueSave, reload, resumeId],
   );
@@ -605,7 +631,7 @@ export function Editor({
     (changes: ChoicesUpdate) =>
       queueSave(async () => {
         const { error, status } = await updateChoices(resumeId, changes);
-        if (error && status !== 404 && status !== 422) reload(error);
+        if (error && unsaved(status)) reload(error);
       }),
     [queueSave, reload, resumeId],
   );
@@ -643,9 +669,12 @@ export function Editor({
           step.before = settled();
           step.pdfBefore = lastPdf.current;
         }
-        const { data, error } = await renderEdit(resumeId, { changes }, copy());
+        const { data, error, status } = await renderEdit(resumeId, { changes }, copy());
         unanswered.current.delete(id);
         answered(id);
+        // A render that failed twice for any other reason (a timeout, a
+        // compile) says nothing of the save beside it
+        if (!data && !refused(status)) reload(error, "shown");
         // Refused: the change and its swap leave the page
         keepChoices(data?.choices ?? confirmed.current);
         if (!data) setSwaps((s) => s.filter((x) => x.id !== id));
@@ -680,6 +709,7 @@ export function Editor({
       keepChoices,
       keepRendered,
       record,
+      reload,
       resumeId,
       sendChoices,
       setReview,
@@ -717,12 +747,13 @@ export function Editor({
           step.before = before;
           step.pdfBefore = lastPdf.current;
         }
-        const { data, error } = await renderEdit(
+        const { data, error, status } = await renderEdit(
           resumeId,
           { line: { item_id, kind, text } },
           copy(),
         );
         answered(key);
+        if (!data && !refused(status)) reload(error, "shown");
         // Refused: the page shows what is saved, unless the student is
         // still on the line to fix it
         if (!data && key !== selectedNow.current) drop(key);
@@ -767,6 +798,7 @@ export function Editor({
       keepChoices,
       keepRendered,
       record,
+      reload,
       resumeId,
       sendLine,
       setReview,
@@ -780,15 +812,19 @@ export function Editor({
     [saveText],
   );
 
-  /** Saves typed text when it differs from what the line prints, and from
-   *  what was last sent for it: a line reopened while its PDF is on its
-   *  way and left as it was sends nothing again. */
+  /** Saves typed text when it differs from what the line prints, or, while
+   *  its PDF is on its way, from what was last sent for it: the page still
+   *  prints the text before, so a line reopened and typed back to it sent
+   *  nothing and the sent text came back. Left as it was, it sends nothing
+   *  again. */
   const save = useCallback(
     async (typed: Draft) => {
       const shown = rendered?.boxes.find((b) => boxKey(b) === typed.key)?.text;
       const text = typed.text.trim();
-      if (shown === undefined || text === shown) return;
-      if (onTheirWay.current.has(typed.key) && lastSent.current.get(typed.key) === text) return;
+      const onItsWay = onTheirWay.current.has(typed.key)
+        ? lastSent.current.get(typed.key)
+        : undefined;
+      if (shown === undefined || text === (onItsWay ?? shown)) return;
       const { item_id, kind } = splitKey(typed.key);
       await saveText(item_id, kind, text);
     },

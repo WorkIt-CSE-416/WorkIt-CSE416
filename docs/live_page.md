@@ -90,7 +90,12 @@ Built so far (option A, the typed line only):
   back from the tray that never had a row still reads first.
 - **A failed save puts the saved resume back:** the editor reads the bank
   and choices again, renders from the database and says the change was
-  not saved.
+  not saved. A save refused with 422 needs no reload, since its render
+  refuses it too; a 404 reloads, since the render reads the editor's copy
+  and an item deleted in another tab is still in it. A render that fails
+  for any reason but a refusal (404, 422)
+  is sent once more; if it fails again it does the same, since its save
+  may have gone through.
 - **Moves show at once:** two neighbours' strips of the page trade places
   until the PDF lands. Hide, show and wording switches show nothing until
   then.

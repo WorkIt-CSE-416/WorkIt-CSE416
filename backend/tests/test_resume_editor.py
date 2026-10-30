@@ -602,6 +602,20 @@ async def test_a_save_with_a_stale_copy_writes_only_the_typed_field(student):
     assert saved["organization"] == "Campus Center"
 
 
+async def test_an_old_value_typed_back_over_a_stale_copy_is_saved(student):
+    # The editor's copy predates the save before: "Math Tutor" went in,
+    # then "Tutor" was typed back while the copy still said "Tutor"
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+    tutor = next(e for e in copy["entries"] if e["title"] == "Tutor")
+
+    assert (await _type(client, me, resume_id, tutor["id"], "title", "Math Tutor", copy)).status_code == 200
+    res = await _type(client, me, resume_id, tutor["id"], "title", "Tutor", copy)
+    assert res.status_code == 200, res.text
+    assert _entry(await _bank(client, me), "Tutor")["id"] == tutor["id"]
+
 async def test_a_typed_header_field_with_a_copy_prints_at_once(student):
     _tectonic_or_skip()
     client, me = student
