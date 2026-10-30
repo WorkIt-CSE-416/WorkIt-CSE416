@@ -435,11 +435,17 @@ waited up to two days for the same number of requests. `RUN_EVERY` must match th
 cron in `.github/workflows/scrape.yml`; if they drift, quiet boards are still read
 on a third of runs, only less evenly spaced.
 
-**A lane can have a time budget** (`Provider.budget_s`; Workday's and
-Oracle's, 12 minutes each, run side by side). It starts boards from the front of
+**A lane can have a time budget** (`Provider.budget_s`; Workday's, Oracle's and
+Jibe's, 12 minutes each, run side by side). It starts boards from the front of
 `Store.to_read`'s order (a board with a posting missed once, then one never
 read, then the least recently read), and once its time is up leaves the rest for
-a later run.
+a later run. **A budget does not cut a board short**: a board started in time is
+read whole, so a lane whose boards can be huge needs a size cap as well
+(`WORKDAY_MAX`, Oracle's, `JIBE_MAX`), raising `TooLarge` after the first page.
+Jibe had neither until 2026-10-30: H&R Block's 18,576 postings took 15 minutes
+at Jibe's 5-second Crawl-delay, the lane ran 31, and two of three scheduled runs
+that day hit the 60-minute workflow timeout and imported nothing. Before a lane
+grows, check its slowest board in `metrics.json` against the timeout.
 
 **Page reads have a deadline too** (`PAGES_UNTIL_S`, 20 minutes from the lanes'
 start, for every lane): after it, no posting's own page is asked for, the lane
@@ -451,7 +457,15 @@ host at a time; every scheduled run then spent its last 16 minutes on pages with
 nothing in the log, hit the job's 30-minute limit, and was cancelled. **A
 cancelled run saves no store**, so the next one repeated the same pages, and
 nothing was imported for 32 hours. Keep the deadline plus the import (about 10
-minutes) well under `timeout-minutes` in `.github/workflows/scrape.yml` (now 60).
+minutes) well under `timeout-minutes` in `.github/workflows/scrape.yml` (90 since 2026-10-30).
+
+**So do board reads, in every lane** (`BOARDS_UNTIL_S`, 30 minutes from the
+lanes' start): after it no lane starts a board, budget or not, and the rest are
+`DEFERRED`, first in line next run (`Store.to_read`). A lane budget alone was not
+enough: a lane without one ran as long as its boards took, and Jibe's held two of
+three scheduled runs on 2026-10-30 past 60 minutes, each cancelled, each saving
+nothing, so the next one faced the same boards. This is what guarantees a run
+ends and saves; a new lane, or a lane that grows, cannot bring the loop back.
 
 **A board that keeps going unread rests** (`Store.health`, `store.rest_for`),
 as Freehire's do. After `REST_AFTER` (3) runs in a row that left it unread for

@@ -16,6 +16,8 @@ import pytest
 
 from build_boards import tokens
 from workit_scraper import providers
+from workit_scraper.providers import TooLarge
+from workit_scraper.providers.systems.jibe import JIBE_MAX
 
 FIXTURES = Path(__file__).parent / "fixtures" / "providers"
 
@@ -88,6 +90,16 @@ class TestJibe:
         payload["jobs"][1]["data"]["ats_code"] = "workday"
         monkeypatch.setattr(providers.fetch, "_get_json", lambda url: payload)
         assert len(providers.jibe("careers.amd.com", "AMD")) == 1
+
+    def test_a_board_past_the_cap_is_skipped_after_its_first_page(self, monkeypatch) -> None:
+        # H&R Block's site counted 18,576 postings (2026-10-30): 186 pages at 5 s each.
+        asked: list[str] = []
+        payload = fixture("icims-jibe-list.json")
+        payload["totalCount"] = JIBE_MAX + 1
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: asked.append(url) or payload)
+        with pytest.raises(TooLarge):
+            providers.jibe("careers.hrblock.com", "H&R Block")
+        assert asked == ["https://careers.hrblock.com/api/jobs?page=1&limit=100"]
 
 
 class TestSuccessFactors:

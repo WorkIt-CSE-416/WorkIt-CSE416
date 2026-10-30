@@ -54,6 +54,14 @@ MAX_IN_FLIGHT = 8
 #: was cancelled. A cancelled run saves no store, so the next one read the same pages
 #: again, and nothing was imported for 32 hours. Leave the import its 10 minutes.
 PAGES_UNTIL_S = 20 * 60
+#: No lane starts a board once this long has passed since the lanes started, budget
+#: or not; the rest wait for the next run, first in line there (`Store.to_read`).
+#: A lane without a budget ran as long as its boards took, and a run that hit the
+#: job's 60-minute limit saved no store, so the next one faced the same boards and
+#: was cancelled too: twice on 2026-10-30, by Jibe. A board started in time is read
+#: whole, so the lanes end about this long plus their slowest board after starting,
+#: leaving the store, the feed and the import well inside the limit.
+BOARDS_UNTIL_S = 30 * 60
 #: A lane in which this many boards we hold postings from say they do not exist,
 #: and more of them than read whole, closes none of them: that is the hiring
 #: system changing (every Workday tenant a 422), not its companies leaving. The
@@ -102,21 +110,27 @@ def newest_first(jobs: list[Job]) -> bool | None:
 
 
 def _lane(
-    boards: list[Board], robots: Robots, before: dict[str, Job], pages_until: float | None = None
+    boards: list[Board],
+    robots: Robots,
+    before: dict[str, Job],
+    pages_until: float | None = None,
+    boards_until: float | None = None,
 ):
     """One provider's boards, then the own pages of their postings that need one
     (`with_page`) -- so Greenhouse's page reads start when its boards are done,
     not after Lever's. Order is kept, so each board gets its own jobs back.
 
     A lane with a budget (`Provider.budget_s`) starts no board once it has run out,
-    and no lane starts a page read after `pages_until` (`PAGES_UNTIL_S`). Also
+    no lane starts a board after `boards_until` (`BOARDS_UNTIL_S`), and no lane
+    starts a page read after `pages_until` (`PAGES_UNTIL_S`). Also
     returns how long the lane took, how many pages it read, for a provider that
     pages how many of its lists named the newest postings first (`newest_first`),
     and why each board it did not read stayed unread, for the run's metrics."""
     started = time.monotonic()
     provider = providers.PROVIDERS.get(boards[0].ats) if boards else None
     budget = provider.budget_s if provider else None
-    deadline = started + budget if budget is not None else None
+    ends = [started + budget if budget is not None else None, boards_until]
+    deadline = min((end for end in ends if end is not None), default=None)
 
     def read(board: Board) -> tuple[Outcome, list[Job], str | None]:
         if deadline is not None and time.monotonic() > deadline:
@@ -169,9 +183,13 @@ def scrape(
     for board in boards:
         lanes.setdefault(board.ats, []).append(board)
     pages_until = time.monotonic() + PAGES_UNTIL_S
+    boards_until = time.monotonic() + BOARDS_UNTIL_S
     with ThreadPoolExecutor(max(len(lanes), 1)) as pool:
         by_lane = list(
-            pool.map(lambda lane: _lane(lane, robots, before, pages_until), lanes.values())
+            pool.map(
+                lambda lane: _lane(lane, robots, before, pages_until, boards_until),
+                lanes.values(),
+            )
         )
     outcome_of = {
         board.key: result
