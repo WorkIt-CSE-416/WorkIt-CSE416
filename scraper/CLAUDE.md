@@ -457,7 +457,7 @@ host at a time; every scheduled run then spent its last 16 minutes on pages with
 nothing in the log, hit the job's 30-minute limit, and was cancelled. **A
 cancelled run saves no store**, so the next one repeated the same pages, and
 nothing was imported for 32 hours. Keep the deadline plus the import (about 10
-minutes) well under `timeout-minutes` in `.github/workflows/scrape.yml` (now 60).
+minutes) well under `timeout-minutes` in `.github/workflows/scrape.yml` (90 since 2026-10-30).
 
 **So do board reads, in every lane** (`BOARDS_UNTIL_S`, 30 minutes from the
 lanes' start): after it no lane starts a board, budget or not, and the rest are
