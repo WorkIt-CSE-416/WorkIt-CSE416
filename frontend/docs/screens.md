@@ -2617,8 +2617,8 @@ student who opened a resume from Experiences landed on another view.
   one-page resume shows no count: a green "1 page" said what the page
   itself shows. No "Click a line to edit it." hint: the pointer's own
   highlight on a line says so. In both states the bar says "Saving…" or
-  the last round trip ("Saved, 412 ms"), the measure for the Vercel
-  preview check. Idle, **Download** (PDF, Word or LaTeX) ends the bar,
+  the last round trip ("Saved, 412 ms"), the measure for the production
+  check (`backend/app/services/resume_render/CLAUDE.md`, Still open). Idle, **Download** (PDF, Word or LaTeX) ends the bar,
   secondary, so it stays in reach down a two-page resume
   (`../download-menu.tsx`, KAN-258; it was on each card of the Resumes
   view). It keeps nothing (KAN-267) and holds a PDF with characters the

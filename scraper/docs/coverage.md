@@ -162,10 +162,15 @@ metrics.json files every scanned posting under the first step that would keep it
 
 | Step | Adds | What it costs |
 |---|---|---|
-| `held_field` | Early career in the fields we hold off on: law, consulting, teaching, the arts, policy, support | Shortlist rules and tests, the backend's role aliases |
-| `no_field` | Early career, naming no field ("Engineering Intern") | A rule that reads the description |
-| `no_stage` | Our fields, no stage word ("Software Engineer I") | Kept only when the description asks for 0 to 2 years: a page read each on 7 of 10 systems |
-| `senior` | Experienced roles in our fields | The limits below |
+| `no_stage` | No stage word ("Software Engineer I", "Paralegal") | Partly taken: providers that send the description with the board listing (Ashby, Lever, Recruitee, TikTok, Jibe, SuccessFactors) keep a title when `details.min_years` returns 0 or 1 (`classify_with_description`). The remaining 7 systems need a page read each. |
+| `senior` | Experienced roles | The limits below |
+
+**`held_field` and `no_field` were taken on 2026-10-28 (KAN-430):** every
+early-career role is kept, in any field, which added about 41% (573 and 3,577
+postings to the run's 10,086). The decision and its sample are in
+`categories.md`, "Every field, early career only". The backend's role aliases
+for the new fields are still to add; until then those jobs are found by
+search, not by the role filter.
 
 Experienced roles would be about 10 to 25 times today's roles, by estimate, and
 hit four limits: Supabase's free plan allows 500 MB of database, against 1 to 4

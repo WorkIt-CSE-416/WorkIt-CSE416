@@ -15,11 +15,17 @@ from collections.abc import Callable
 from workit_scraper import details
 from workit_scraper.providers import fetch
 from workit_scraper.providers.fetch import _iso
-from workit_scraper.providers.model import Incomplete, Job, Provider
+from workit_scraper.providers.model import Incomplete, Job, Provider, TooLarge
 from workit_scraper.providers.text import _described, _page, _place
 
 #: Postings per Jibe request (its own page asks for 10).
 JIBE_PAGE = 100
+#: The largest Jibe board read, as Workday's `WORKDAY_MAX`: 50 requests, about four
+#: minutes at Jibe's 5-second Crawl-delay. Past it were H&R Block (18,576 postings,
+#: 15 minutes, no early-career role), Ulta (12,196, 22 roles) and UHS (6,100, none):
+#: read every run, they held the lane at 31 minutes, and two of three scheduled
+#: runs on 2026-10-30 hit the workflow's 60-minute timeout and imported nothing.
+JIBE_MAX = 5000
 
 
 def jibe(token: str, company: str, *, pace: Callable[[str], None] = lambda url: None) -> list[Job]:
@@ -39,7 +45,10 @@ def jibe(token: str, company: str, *, pace: Callable[[str], None] = lambda url: 
             pace(url)
         payload = fetch._get_json(url)
         assert isinstance(payload, dict)
-        expected = int(payload.get("totalCount") or 0) if expected is None else expected
+        if expected is None:
+            expected = int(payload.get("totalCount") or 0)
+            if expected > JIBE_MAX:
+                raise TooLarge(f"{expected:,} postings")
         page = [row.get("data") or {} for row in payload.get("jobs") or []]
         served += len(page)
         for row in page:
@@ -92,5 +101,8 @@ PROVIDER = Provider(
     # {host}/jobs/{id}?icims=1: the board is that host, which lists them all.
     apply_link=re.compile(r"//([a-z0-9.-]+)/jobs/\d+[^\s#]*[?&]icims=1", re.I),
     paged=True,
+    # As Workday's and Oracle's: past it the lane starts no board and leaves the rest
+    # for the next run, so a slow site never holds the whole run past its timeout.
+    budget_s=12 * 60,
     # The list carries every description, so no page is read. No logo yet.
 )

@@ -4,7 +4,10 @@ import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, model_validator
+
+from app.schemas.bank import EntryResponse, SkillResponse
+from app.schemas.profile import ApplicantProfileResponse
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 
@@ -51,7 +54,9 @@ class RenderBox(BaseModel):
     (full_name, phone_number, email, linkedin_url, ...). A
     rectangle in PDF points from the page's top left, y growing down;
     `page` counts from 1. One item and kind can have a box on each of two
-    pages when its line splits across a page break."""
+    pages when its line splits across a page break. `text` is the line as
+    printed, labels included ("GPA: 3.8/4.0"): the editor's typing field
+    opens on it, and the live page shows it (KAN-391)."""
 
     item_id: UUID | Literal["header"]
     kind: str
@@ -60,6 +65,19 @@ class RenderBox(BaseModel):
     y0: float
     x1: float
     y1: float
+    text: str = ""
+
+
+class IdentityCopy(BaseModel):
+    """The header a PDF printed (resume_render.HeaderIdentity): sent with
+    every render, so the editor can send it back in its `ResumeCopy`.
+    `links` are (profile column, URL) pairs in print order."""
+
+    name: str
+    email: str | None = None
+    phone: str | None = None
+    links: list[tuple[str, str]] = []
+    us_citizen: bool = False
 
 
 class RenderResponse(BaseModel):
@@ -76,6 +94,9 @@ class RenderResponse(BaseModel):
     lines_over: int
     missing_characters: list[str]
     boxes: list[RenderBox]
+    identity: IdentityCopy | None = None
+    # The resume's template id, which the editor sends back in its copy
+    template: str = "jakes"
 
 
 class EntryChoiceResponse(BaseModel):
@@ -163,6 +184,81 @@ class ChoicesUpdate(BaseModel):
     entries: list[EntryChoiceUpdate] = []
     bullets: list[BulletChoiceUpdate] = []
     skills: list[SkillChoiceUpdate] = []
+
+
+class ResumeCopy(BaseModel):
+    """The editor's copy of what its PDF is built from (KAN-391): the bank
+    as GET /bank sent it (the resume's own skills included), the choices as
+    the choices routes send them, and the header the last render printed.
+    With it, an edit's PDF compiles at once, from the copy with the edit
+    made, with no database read. It shapes only the PDF sent back to the
+    student who sent it, and the whole-entry check of a typed entry field;
+    every write checks ownership in the database, and every download, Apply
+    and sent resume reads the database."""
+
+    entries: list[EntryResponse] = Field(max_length=500)
+    skills: list[SkillResponse] = Field(max_length=1000)
+    choices: ChoicesResponse
+    identity: IdentityCopy
+    # From the last render, so a render of the copy reads no resume row
+    template: str = Field("jakes", max_length=40)
+    file_name: str = Field("Resume.pdf", max_length=200)
+
+
+class LineEdit(BaseModel):
+    """One line typed in the editor (KAN-391): the clicked box's `item_id`
+    and `kind`, and the text as typed. The API decides what it changes
+    (services/resume_lines.py)."""
+
+    item_id: UUID | Literal["header"]
+    kind: str
+    text: Annotated[str, StringConstraints(max_length=2000)]
+
+
+class LineSave(LineEdit):
+    """A typed line to save. `source`, the editor's copy, gives a typed
+    entry field the rest of its entry to be checked against, so the save
+    reads nothing; without it the entry is read first."""
+
+    source: ResumeCopy | None = None
+
+
+class LineSaved(BaseModel):
+    """What the save wrote that the editor cannot know: a typed bullet's
+    local variant (`variant_id`, null when the original was typed back),
+    and the profile after a header field (`profile`, its own columns as the
+    write returned them)."""
+
+    variant_id: UUID | None = None
+    profile: ApplicantProfileResponse | None = None
+
+
+class EditRender(BaseModel):
+    """An edit to render, never saved: a typed line (`line`) or a choice
+    change (`changes`, the choices PATCH body), exactly one, made to the
+    editor's copy (`source`, required: the render reads no database) in
+    memory."""
+
+    line: LineEdit | None = None
+    changes: ChoicesUpdate | None = None
+    source: ResumeCopy
+
+    @model_validator(mode="after")
+    def _one_edit(self) -> "EditRender":
+        if (self.line is None) == (self.changes is None):
+            raise ValueError("Send a line or changes, not both")
+        return self
+
+
+class EditRendered(BaseModel):
+    """The resume with the edit made, rendered, and what the edit changed in
+    the copy, as the editor holds it: the choices after a typed bullet or a
+    choice change, the entry after a typed entry field (its own fields only:
+    `bullets` and `resume_ids` empty), the header in `render.identity`."""
+
+    render: RenderResponse
+    choices: ChoicesResponse | None = None
+    entry: EntryResponse | None = None
 
 
 class FitResponse(BaseModel):

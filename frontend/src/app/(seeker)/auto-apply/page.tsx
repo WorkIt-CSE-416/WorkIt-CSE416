@@ -15,6 +15,7 @@ import { AutoApplyPanel } from "./auto-apply-panel";
 import type { SavedJob } from "./add-jobs-dialog";
 import { SetupStrip } from "./setup-strip";
 import { QueueSummary, UpNext } from "./up-next";
+import { jobLogo } from "@/lib/job-logo";
 
 export const metadata: Metadata = {
   title: "Auto Apply",
@@ -138,7 +139,7 @@ export default async function AutoApplyPage() {
     id: job.id,
     role: job.title,
     company: job.company,
-    logoUrl: job.logo_url,
+    logoUrl: jobLogo(job),
     match: match ?? null,
     autoApply: job.auto_apply,
   }));

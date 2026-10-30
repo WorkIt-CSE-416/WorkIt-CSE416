@@ -234,6 +234,30 @@ async def owned_applicant(
     return applicant_id
 
 
+async def token_applicant(
+    applicant_id: uuid.UUID,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> uuid.UUID:
+    """`owned_applicant` from the token alone, with no database read: its
+    signature, audience, issuer and expiry are checked (`decode_access_token`,
+    keys held in memory), and its applicant must be the path's. For a route
+    that reads and writes nothing (the editor's render of its own copy,
+    KAN-391): every other route needs `get_current_account`, which also
+    loads the account's row. A deleted account's token passes here until it
+    expires (an hour at most), which is harmless where nothing is read."""
+    if credentials is None:
+        raise _not_authenticated()
+    try:
+        claims = await decode_access_token(credentials.credentials)
+        account_type = AccountType(claims.get("app_metadata", {}).get("account_type"))
+        account_id = uuid.UUID(claims["sub"])
+    except (jwt.InvalidTokenError, ValueError):
+        raise _not_authenticated()
+    if account_type != AccountType.APPLICANT or account_id != applicant_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Forbidden")
+    return applicant_id
+
+
 def _not_a_company_member() -> HTTPException:
     return HTTPException(status.HTTP_403_FORBIDDEN, "Only active company members can do this.")
 

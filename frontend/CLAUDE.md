@@ -31,7 +31,9 @@ them). Notes the scripts don't say:
   `npm ci` in a `node:22` container before pushing.
 - `typecheck` runs `next typegen` first because `LayoutProps`/`PageProps` are
   generated route types that do not exist on a fresh clone; bare `tsc` fails.
-- **Tests are Node's own runner** (`node --test`, Node 24 strips the types),
+- **Tests are Node's own runner** (`node --test`, Node 24 strips the types;
+  on Node 22 add `--experimental-strip-types`, or every test fails with
+  "Unknown file extension .ts"),
   for pure modules only: `npm test`, or one file with
   `node --test src/lib/autofill-answers.test.ts`. A test sits beside its
   module as `<name>.test.ts` and imports it with the `.ts` extension
@@ -47,9 +49,10 @@ them). Notes the scripts don't say:
 
 **Cloudflare Workers through OpenNext** (KAN-294, ADR 0004): the Worker
 `workit-web` at `workitjobs.ai`, configured in `wrangler.jsonc`, deployed by
-CI with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The Vercel project
-(Root Directory `frontend`, URLs in the root `CLAUDE.md`) keeps running until
-the KAN-296 cutover.
+CI with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. This is production.
+The Vercel project (Root Directory `frontend`) is retired: it still builds each
+PR until KAN-296 deletes it, and nothing is set or checked there (root
+`CLAUDE.md`).
 
 - **Scripts**: `cf:build` runs `next build` and turns `.next/` into
   `.open-next/`; `cf:preview` serves that output in the local Workers runtime;
@@ -74,9 +77,8 @@ the KAN-296 cutover.
   If a later adapter rejects it, rename it back to `middleware.ts`
   exporting `middleware` on the Edge runtime (ADR 0004).
 - **`next/image` is unoptimized on Cloudflare** (`next.config.ts`): logos
-  load from their own hosts. Vercel keeps the optimizer until the KAN-296
-  cutover, read from `VERCEL`, which every Vercel build sets and OpenNext's
-  never does. The Cloudflare Images binding bills per unique transformation
+  load from their own hosts. The optimizer is on only where `VERCEL` is set,
+  which only the retired Vercel builds do and OpenNext's never does. The Cloudflare Images binding bills per unique transformation
   past 5,000 a month, which the feed's logos would outrun. Where it is off,
   `remotePatterns` and the SVG settings do nothing; they stay for the day the
   optimizer returns.
@@ -86,12 +88,12 @@ the KAN-296 cutover.
   chunks, CSS and fonts went out with `max-age=0, must-revalidate` and every
   full load paid a 304 round trip per file (28 to 53 ms on workitjobs.ai).
   Never widen it past `/_next/static/*`: HTML and un-hashed `public/` files
-  would stop updating for users after a deploy. Vercel ignores it. After a
+  would stop updating for users after a deploy. After a
   deploy, `curl -sI` one chunk, one CSS file and one woff2 and look for
   `immutable`.
 - **Still open: on Cloudflare the prerendered marketing pages render per
   request** until an incremental cache is set (OpenNext's default is the
-  "dummy" cache), so the prerender gain below is full on Vercel only
+  "dummy" cache), so production does not get the prerender gain below yet
   (KAN-368).
 - **The OpenNext build is not guaranteed on Windows.** Run `cf:*` in WSL, or
   leave them to CI; `dev`, `build` and the rest work natively.
@@ -101,14 +103,14 @@ the KAN-296 cutover.
   confirm emails add `?next=/settings/...` to it; if Supabase sends those to
   its Site URL instead (untested on 2026-10-23), add a `**` wildcard entry
   for each origin's callback. `lib/request-origin.ts` (OAuth sign-in, linking, Change Email)
-  builds the origin from `x-forwarded-host` on Vercel, whose proxy sets it,
+  builds the origin from `x-forwarded-host` on Vercel (retired), whose proxy sets it,
   and from `Host` elsewhere: on Cloudflare `x-forwarded-host` is whatever the
   browser sent. It assumes https for any host
   but localhost when `x-forwarded-proto` is missing; Supabase silently falls
   back to its Site URL for any origin not on the list.
-- **Vercel refuses request bodies over 4.5 MB** before Next runs, while uploads
-  are capped at 5 MB, so a 4.5–5 MB upload fails there with a bare 413.
-  Cloudflare allows 100 MB, so this closes at the KAN-296 cutover.
+- **Uploads up to the 5 MB cap reach Next in production**: Cloudflare allows
+  100 MB request bodies. Vercel, now retired, refused bodies over 4.5 MB
+  before Next ran, so a 4.5–5 MB upload failed there with a bare 413.
 
 ## Architecture
 
@@ -1528,7 +1530,7 @@ the KAN-296 cutover.
   `quiet`, not `blue`, `green`, `plain`.
 - **`components/company-logo.tsx` hosts are allow-listed** in `next.config.ts`
   and must match `scraper/workit_scraper/logos.py`. With the optimizer on, an
-  unlisted host throws and fails the whole page (on Vercel); where
+  unlisted host throws and fails the whole page (wherever the optimizer is on); where
   `images.unoptimized` holds (Cloudflare, Deployment), the list is not checked, so keep it current anyway. It
   measures each logo on load: a square mark
   fills the tile edge to edge, a wide wordmark sits on white with padding.
@@ -1537,6 +1539,23 @@ the KAN-296 cutover.
   reports the load once the browser has decoded it, which a hidden browser
   tab (the Browser pane when it is not shown) can hold back, so check it
   with the page visible.
+- **A job's logo is a list of sources, best first** (KAN-442,
+  `lib/job-logo.ts`'s `jobLogo`): Brandfetch's icon by the employer's own
+  website (`company_domain`), then what the scraper found (the logo uploaded
+  to the job board, or the website's Google favicon, often 16 to 32px), then
+  the initials. `CompanyLogo` shows the first source that loads; Brandfetch
+  answers 404 for a company it lacks (`fallback/404`), never its made-up
+  lettermark. Every job tile takes `jobLogo(job)`, never `job.logo_url`
+  alone, or it keeps the favicon. **Brandfetch loads straight from the
+  browser** (`unoptimized`): its terms allow hotlinking only, with the page's
+  Referer, and refuse a server fetching the image, which the `next/image`
+  optimizer does wherever it is on; so its host is not in `remotePatterns`.
+  The client ID is `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID` (public by design; free
+  plan, about 1M logo loads a month), set in `.env.local` and in the repo's
+  variables, which the Cloudflare build reads (`../.github/CLAUDE.md`);
+  without it every tile falls back to the scraper's logo. `jobLogo` is in `lib/`, not beside
+  `CompanyLogo`, because server modules build a job's sources too and cannot
+  call a function a `"use client"` file exports.
 - **`src/react-canary.d.ts`** loads React's canary types (`<ViewTransition>`,
   `addTransitionType`): the App Router runs React canary and `@types/react`'s
   stable entry lacks them.
@@ -1586,11 +1605,110 @@ the KAN-296 cutover.
   render. The worker comes from `new URL("pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url)`, which Turbopack emits as a static file. After a build,
   only those routes' client manifests name the pdf.js chunk.
+  **A page draws on a hidden canvas, then copies onto the shown one**
+  (`PageCanvas`, KAN-391): setting a canvas's size blanks it, and drawing
+  the new PDF straight onto the shown canvas left it blank for the whole
+  pdf.js draw, a dark flash after every edit's render. Never size or
+  render into the shown canvas before the draw is done.
   `npm install` on a Mac dropped two optional `@emnapi/*` entries from the
   lockfile when pdf.js was added; they were put back by hand. Check the
   lockfile diff for removals after adding any dependency. Adding Lenis
   only cleared `"dev": true` on `sharp`'s `@img/*` packages (`next`
   depends on `sharp` too), which is correct and removes no entry.
+- **The editor sends a typed line as typed, and the API reads it**
+  (KAN-391, `saveLine`, `PUT .../built-resumes/{rid}/lines`). The field
+  opens on the box's own printed text (`RenderBox.text`), and a line is
+  sent only when the student leaves it (a click away, on the paper off
+  every line too, Enter, Escape, another line) and the typed text differs
+  from it. The page keeps the selection for its lines, so a press on it
+  that lands on no line box, field or button closes the line itself:
+  without it only Enter or Escape left a line. Nothing goes while
+  they type: a 700 ms pause saved half a line, then the line again once
+  it was done. Never put a rule for typed text (GPA parsing, a label typed
+  back, `https://` on a link) back in the browser: `model.ts` held them
+  until KAN-391 and dropped a GPA it could not read without a word.
+- **Each edit is a render and a save, side by side, and neither waits for
+  the other** (KAN-391): typed lines, moves, hides, put-backs and wording
+  switches render through `renderEdit` (`POST .../render`, from the
+  editor's copy, no database read) and save through `saveLine` or
+  `updateChoices` (writes only; `?read_back=false`). **The render goes through a route
+  handler, `app/api/resume-edit`**, never a server action: Next runs one
+  client's actions one at a time, and as two actions the render waited
+  behind the save. Renders run one at a time (`enqueue`), and each carries
+  the editor's copy of the bank, choices, printed header, template and
+  file name (`ResumeCopy`, built from the `held` ref; the last three from
+  the last render, `printedBy`), so the API renders with no database
+  read; the render's answer (the choices, the entry,
+  the header it printed) goes into `held`, even when a newer request owns
+  the page, so the next copy holds every edit before it. Saves run one at
+  a time in their own queue (`queueSave`); a typed bullet's save answers
+  its local variant, kept in `wordings` and laid over every later answer
+  (`withWording`), since the render could not know its id. Fit reads the
+  saved resume, so it waits for the saves sent before it. **A save that
+  fails puts the saved resume back** (`reload`): once the saves before it
+  answer, the bank, the choices and a PDF read from the database replace
+  the copy, and the bar says the change was not saved. A refusal (404,
+  422) needs no reload: the render refuses it too and says why. A choice
+  change's plain fields (shown, position, the toggles) go into the
+  choices at once (`mergeChoices`) and are merged again over each answer
+  until their own lands, so a second quick move computes from the first.
+  A move of two neighbours shows at once as their strips of the page
+  trading places (`swapOf`, `swapsOn`, `Strip` in `pdf-pages.tsx`): a
+  swap is kept by item, not by position, so a PDF that lands before its
+  own still shows it, and one the page already shows draws nothing.
+  "Saved, N ms" times the render.
+- **Undo and Redo live in the tab's memory, never in browser storage**
+  (KAN-391, `(seeker)/resumes/[resumeId]/history.ts`, tested with
+  `node --test`). Each edit records a step: the edit and its reverse,
+  read from the editor's copy before it (a move's old positions, an old
+  `shown`, an old wording, a typed line's printed text, or a header
+  link's stored URL, since the page prints it without "https://"), and
+  the state and PDF on each side once its render lands. Undo or Redo
+  waits for the renders before it, then, with both sides kept, puts the
+  page back at once and only saves; otherwise it sends the edit as any
+  other. A refused edit's step is dropped, and a failed save's reload
+  clears them all. **`HISTORY_STEPS` (25) and `PDF_STEPS` (7, the newest
+  steps that keep their PDFs, about 110 KB each) are first guesses: tune
+  them in `history.ts` once students use it.** In storage a step would
+  outlive the database it describes (another tab's edit, a reload).
+  Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
+  own text undo runs. An open line is saved first, so Undo takes back
+  what was just typed.
+- **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
+  text is kept per line (`drafts`, by box key) and drawn over the line
+  until the PDF that prints it has painted: the selected line as its
+  field, a line already left as read-only text in the same type. A draft
+  goes when every page of a new PDF has painted (`drawn`) and its save is
+  no longer on its way, or at once when its save is refused and the
+  student has left the line. Until then, leaving a line showed its old
+  text for the whole save and compile. For each drawn line `PdfPages`
+  clears the line's glyphs and moves everything below it on its page,
+  click targets too, by the lines its text gained or lost (`shiftOf`,
+  measured by a `ResizeObserver`); several such moves add up down the
+  page. The canvas is composed from the last pdf.js drawing (`compose`),
+  so a move never draws the PDF again, and only onto the drawing of the
+  PDF whose boxes are on screen: `PdfPages` keeps the boxes that came
+  with the PDF it shows, so a new PDF's boxes never clear lines of the
+  old drawing. **A line left is still editable while its PDF is on its
+  way**: its typed text carries the line's `data-box` and reopens the
+  line on a click, with what was typed; until then the text took the
+  click and the press closed the line. A line reopened and left as it was
+  sends nothing again (`lastSent`). Desktop only: the phone types in a
+  sheet.
+- **A bullet's one wording button is Original** (`LineActions`), shown
+  only while the bullet shows another wording (Tailor's, or one typed on
+  this resume): it puts the bank's text back, and Undo takes that back.
+  The resume's own wording and Tailor's stay in `bank_bullet_variants`.
+  A "Tailored N" button per Tailor wording came first, then This Resume's
+  Wording beside Original; the user wanted Original alone (2026-10-29).
+  The API still accepts a switch to any wording the resume can show.
+- **The editor's page has a zoom** (`Zoom` on the slim bar, both pages):
+  steps of the page's printed size, 100% being 816px (8.5in at 96px an
+  inch), opening at 125% (1020px), capped by its column, kept per browser through
+  `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`). The page filled its column
+  until then, and KAN-421's 1440px pages made it take most of the screen.
+  The overlay and click targets are in `cqw` of each page, so they follow
+  any width.
 - **Tailor's review is the resume editor with props, not a fork**
   (`(seeker)/resumes/[resumeId]/editor.tsx`), and both pages draw one
   editor design (KAN-411): the title row (`heading`, `ResumeTitle`

@@ -22,6 +22,7 @@ import { formatPosted } from "./format";
 import { nextPage } from "./list-pages";
 import { listingFacts } from "./listing-card";
 import { isFresh, readShownList, rememberList, subscribe, type ShownList } from "./shown-list";
+import { jobLogo } from "@/lib/job-logo";
 
 /** A job posting's own page, /jobs/<id>; not its Tailor page under it. */
 const JOB_PAGE = /^\/jobs\/([^/]+)$/;
@@ -202,7 +203,7 @@ function RailRow({ job, current }: { job: ShownList["jobs"][number]; current: bo
       <span className="flex items-start gap-3">
         <CompanyLogo
           name={job.company}
-          src={job.logo_url}
+          src={jobLogo(job)}
           className="text-label rounded-control size-11 shrink-0"
         />
         <span className="min-w-0 flex-1">

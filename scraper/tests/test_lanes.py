@@ -129,6 +129,38 @@ class TestLanes:
         # The page read before still speaks for posting 1.
         assert {j.external_id: j.description for j in scanned} == {"1": "Old.", "2": None}
 
+    def test_no_page_is_read_once_the_runs_page_time_is_up(
+        self, monkeypatch, swap_provider, capsys
+    ) -> None:
+        # Every scheduled run from 2026-10-28 spent its last 16 minutes reading
+        # pages, hit the job's limit and saved nothing. Out of time, a posting keeps
+        # no page and the next run reads it.
+        gh = board("greenhouse", "cloudflare")
+        monkeypatch.setattr(run, "PAGES_UNTIL_S", -1)
+        monkeypatch.setattr(
+            run, "_scrape_one", lambda b, robots: (run.Outcome.OK, [job(b, "1"), job(b, "2")], None)
+        )
+        fetched: list[str] = []
+        swap_provider("greenhouse", describe=lambda j: fetched.append(j.external_id) or j)
+        robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
+        scanned, _, _, _ = run.scrape([gh], robots, {})
+        assert fetched == []
+        assert [j.page for j in scanned] == [None, None]
+        assert run.needs_page(scanned[0])
+        assert "greenhouse: 2 postings' pages left for the next run" in capsys.readouterr().out
+
+    def test_no_lane_starts_a_board_once_the_runs_board_time_is_up(self, monkeypatch) -> None:
+        # Jibe had no budget, ran past the job's 60 minutes twice on 2026-10-30, and
+        # each cancelled run saved nothing. Out of time, every lane leaves its
+        # boards for the next run, budget or not, so the run ends and saves.
+        lever = board("lever", "acme")
+        monkeypatch.setattr(run, "BOARDS_UNTIL_S", -1)
+        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: pytest.fail("started late"))
+        robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
+        assert providers.PROVIDERS["lever"].budget_s is None
+        scanned, stats, read, _ = run.scrape([lever], robots, {})
+        assert (scanned, read, stats.boards_deferred) == ([], [], 1)
+
     def test_postings_we_do_not_keep_have_no_page_read(self, monkeypatch, swap_provider) -> None:
         gh = board("greenhouse", "stripe")
         monkeypatch.setattr(
@@ -381,16 +413,10 @@ class TestWidening:
             job(b, "2", title="Legal Intern"),
             job(b, "3", title="Senior Software Engineer"),
             job(b, "4", title="Senior Software Engineer"),
+            job(b, "5", title="Data Analyst"),
         ]
         steps = run.widening(scanned)
-        assert steps == {
-            "kept": 1,
-            "held_field": 1,
-            "no_field": 0,
-            "no_stage": 0,
-            "senior": 2,
-            "outside": 0,
-        }
+        assert steps == {"kept": 2, "no_stage": 1, "senior": 2}
         path = tmp_path / "metrics.json"
         run.write_metrics(RunStats(), [], {}, MONDAY, path, steps=steps, missed=2)
         written = json.loads(path.read_text(encoding="utf-8"))

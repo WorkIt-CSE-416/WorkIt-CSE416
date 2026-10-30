@@ -104,27 +104,28 @@ shells into it.
 CI runs on every PR to `main`; merge only on a green check. The jobs, the
 scheduled scrape and its gotchas are in `.github/CLAUDE.md`.
 
-**Both halves are moving to Cloudflare Workers Paid** (KAN-169,
-`docs/adr/0004-host-on-cloudflare.md`): the app on Workers through OpenNext at
-https://workitjobs.ai, the API in a Container at https://api.workitjobs.ai,
-both deployed by `.github/workflows/deploy.yml` with no Cloudflare login on
-anyone's machine. The Cloudflare account is owned by the team Gmail, never one
-person's login; teammates are members with Developer Platform Admin on the
-account and Administrator on the `workitjobs.ai` zone only. Until the cutover
-(KAN-296) Vercel stays production, as described next.
+**Both halves run on Cloudflare Workers Paid** (KAN-169,
+`docs/adr/0004-host-on-cloudflare.md`): production is the app on Workers
+through OpenNext at https://workitjobs.ai and the API in a Container at
+https://api.workitjobs.ai, both deployed by `.github/workflows/deploy.yml` on
+every merge to `main`, with no Cloudflare login on anyone's machine. The
+Cloudflare account is owned by the team Gmail, never one person's login;
+teammates are members with Developer Platform Admin on the account and
+Administrator on the `workitjobs.ai` zone only. Migrations stay a manual,
+local step, never part of a deploy. Supabase (Authentication → URL
+Configuration) must list each deployed origin's `/auth/callback`, or OAuth
+sign-in bounces. Settings: a `NEXT_PUBLIC_*` value is a GitHub repository
+variable that `deploy.yml` passes to the app's build, and an API value is in
+the `CF_API_SECRETS_JSON` secret (`.github/CLAUDE.md`); each half's
+Deployment section has the rest.
 
-Both halves deploy to **Vercel as two projects from this repo** (Root
-Directory `frontend` and `backend`, the API as one Vercel Function).
-Production is https://workit-web-gamma.vercel.app (app) and
-https://workit-api.vercel.app (API). Read and change Vercel state with the
-Vercel CLI: `vercel link` once in each half's folder, then `vercel env`,
-`vercel logs` and `vercel curl <url>` (reaches a protected preview); the
-dashboard only for what the CLI cannot do. Merging to
-`main` deploys production; every PR gets preview URLs for both. The Next
-project's `API_URL` points at the API project. Migrations stay a manual, local
-step, never part of a deploy. Supabase (Authentication → URL Configuration)
-must list each deployed origin's `/auth/callback`, or OAuth sign-in bounces.
-Settings and env vars: each half's Deployment section.
+**Vercel is retired** (2026-10-29): set nothing up there and check nothing
+there. Its two projects (https://workit-web-gamma.vercel.app,
+https://workit-api.vercel.app) still build every PR and every merge until
+KAN-296 deletes them, after the Chrome extension, which still accepts both
+host pairs, is updated; a Vercel check on a PR says nothing about production.
+`backend/vercel.json` and `[tool.vercel]` in `backend/pyproject.toml` go with
+those projects.
 
 ## Cross-platform
 
@@ -180,6 +181,15 @@ with the failure it prevents.
   proposals and no Done, and the editor marks each change and reverts it.
   Holds the skill placement rule. Read it before changing Tailor or its
   screen.
+- `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
+  built: each edit renders from the editor's copy with no database read
+  while its save writes beside it, and the page below a typed line
+  reflows as the student types, while the LaTeX PDF compiles behind it;
+  the PDF stays the only output. The whole page as HTML is
+  not built yet. Typst,
+  for editing in place, is under consideration and would supersede ADR
+  0002. Read it before changing how the editor shows an edit or choosing
+  a renderer.
 - `docs/fill-reports.md` — fix reports (KAN-369): what a fill report from
   the extension holds, and the Markdown fix brief admins export for a
   coding agent (sections, markers, where the fixture goes).

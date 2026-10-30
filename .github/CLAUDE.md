@@ -44,9 +44,9 @@ one's code and the API on the other's.
   Workers" template, scoped to the WorkIt account and the `workitjobs.ai`
   zone) and `CLOUDFLARE_ACCOUNT_ID`, which wrangler reads from the env.
 - **The API's runtime values are one secret, `CF_API_SECRETS_JSON`**: a JSON
-  object of every variable the API reads in production, copied from Vercel's
-  production env. The job pipes it to `wrangler secret bulk` **before** the
-  deploy: the image rollout restarts the containers with the secrets of that
+  object of every variable the API reads in production (first copied from
+  Vercel's production env, before Vercel was retired). The job pipes it to
+  `wrangler secret bulk` **before** the deploy: the image rollout restarts the containers with the secrets of that
   moment, and a secrets-only version restarts none, so set after, the new
   values reach no container until each sleeps (found 2026-10-21). `secret
   bulk` never deletes a secret, so a key dropped from the JSON keeps its old
@@ -55,9 +55,11 @@ one's code and the API on the other's.
   shipped as the database URL and keys. To change one value, rewrite the whole JSON
   (`gh secret set CF_API_SECRETS_JSON < file.json`); never put a value in the
   workflow. `DIRECT_URL` never goes in it: migrations stay a local step.
-- **`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are repo
-  variables, not secrets**: Next inlines them at build time and both are public
-  by design. Setting them as Worker secrets would do nothing.
+- **`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
+  `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID` (KAN-442) are repo variables, not
+  secrets**: Next inlines them at build time and all are public by design.
+  Setting them as Worker secrets would do nothing. Without the Brandfetch
+  one, every company logo falls back to what the scraper found.
 - **A new Worker's first deploy needs `scripts/ensure-worker.sh`.** For a
   Worker that does not exist yet, Cloudflare answers wrangler's secrets lookup
   with "No access to the specified resource" rather than "not found" when the
@@ -86,7 +88,11 @@ the big internship lists do and hourly the most any aggregator does; every few
 hours gets a new posting onto the site the same day for a ~15 minute run that
 only writes the rows that changed. Twelve of those minutes are Workday's (KAN-134):
 its boards are read for a fixed share of each run and take about four runs to go
-round, which keeps the job well inside its 30-minute timeout (`scraper/CLAUDE.md`).
+round, page reads stop 20 minutes in (`PAGES_UNTIL_S`) and no lane starts a board
+after 30 (`BOARDS_UNTIL_S`), which keeps the job inside its 90-minute timeout
+(`scraper/CLAUDE.md`, "Page reads have a deadline too"): a run cut off by the
+timeout saves no store, so the next one repeats it. The scraper runs with `-u`, so
+a slow run's log shows where it is.
 **A change to the cron changes `RUN_EVERY` in `scraper/workit_scraper/store.py`
 too**: quiet boards take turns by that slot. Each run keeps `feed.json`,
 `closings.json` (why each stored job is not in the feed, which the import

@@ -1,5 +1,10 @@
 # Built resumes render as LaTeX through Tectonic, so templates match Overleaf exactly
 
+Status: accepted; under review 2026-10-27 (`../live_page.md`). The editor
+will show an HTML page while the student types, with the PDF still the
+only output. Typst is being considered again for editing in place, which
+would supersede this ADR.
+
 A built resume's PDF is compiled from the template's own LaTeX by Tectonic inside the FastAPI function. Jake's Resume is copied byte for byte from its MIT-licensed source, so the PDF is the page students already know from Overleaf. The rendered PDF is the only look: the preview shows it, and there is no fallback renderer. Word files share one plain layout for every template.
 
 ## Considered Options

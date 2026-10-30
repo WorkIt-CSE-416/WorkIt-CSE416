@@ -680,6 +680,59 @@ Find files with a directory listing; these are the rules for where code goes.
   a write to a choice row leaves the resume's own row as it was:
   `write_choices` and `update_choices` call it, and any new write to a
   resume's choices goes through them or calls it too.
+- **An editor edit is two requests side by side: a render that reads no
+  database and a save that only writes** (KAN-391). `POST
+  .../built-resumes/{rid}/render` (`EditRender`: a typed `line`, or choice
+  `changes`, and the editor's copy, `source`) makes the edit in memory to
+  the copy (`services/resume_copy.py`; `bank.edit_entry`,
+  `built_resumes.apply_choices`, the header) and compiles it, with **no
+  database at all**: the copy is required and carries the last render's
+  template and file name, and the token is checked by its signature alone
+  (`deps.token_applicant`, no profile row read). No ownership check of the
+  path's resume is needed, since nothing of it is read and the PDF prints
+  only what the student sent; `test_a_render_reads_no_database` refuses
+  every session to hold it. It saves nothing. It answers
+  what the edit changed in the copy (`choices`, `entry`; the header is
+  `render.identity`), so the browser never parses typed text. `PUT
+  .../lines` saves a typed line with no read first and never renders:
+  `services/resume_lines.py` (pure) decides what it changes, then one
+  statement per kind writes it with ownership in its WHERE: a bullet
+  through `built_resumes.type_wording` (`_TYPE_WORDING`, one CTE: the
+  local variant made, rewritten or, for the original typed back, deleted,
+  the row pointed at it and the resume touched; answers `variant_id`), an
+  entry field through `bank.write_entry` (checked whole against the
+  copy's entry, read only when no copy is sent, and only the fields the
+  edit changes written, with the embedding cleared in the same
+  statement), a header field as one `UPDATE ... RETURNING` (answers
+  `profile`). `type_wording` and `update_choices`'s `_type_wording` must
+  agree. Choice changes save through `PATCH .../choices`
+  (`built_resumes.save_choices`): moves, hides, shows, toggles and wording
+  switches on items that already have a row are one statement
+  (`_WRITE_CHOICES`, with the row-less bullets a changed entry brings, as
+  `update_choices` makes them); a change that finds no row, or types
+  wording, falls back to `update_choices`, which reads and refuses. The
+  editor asks `?read_back=false` (204), so the save reads nothing back.
+  An empty save still checks the resume is the applicant's: without it,
+  the read-back answered another student's choices. **The copy shapes only the PDF sent back** and the
+  whole-entry check: every write checks ownership in the database, and
+  downloads, Apply and sent resumes never read a copy. Every render
+  answers the header it printed (`identity`), which the editor sends back
+  in its copy, since the browser does not hold the contact email or the
+  citizenship answer. Until then one request saved and rendered: the
+  answer waited for the write, and from a laptop a line read 2.3 s;
+  before that the route read the bank three times and compiled only after
+  the commit (9 reads of about 66 ms and a 0.6 s connection before every
+  0.4 s compile, 2026-10-28). `apply_choices` mirrors `update_choices`
+  field for field, new rows and all; change one and the other together,
+  or the PDF shows what was not saved.
+  `test_the_pdf_built_in_memory_matches_the_saved_resume` checks them
+  against each other.
+  The rules for typed text (a GPA is a number, the label typed back is
+  dropped, a link gets `https://`) live there and nowhere in the browser:
+  until KAN-391 `model.ts` held them, and a GPA it could not read was
+  dropped without a word; now both routes answer 422 with the reason.
+  Tests: `tests/test_resume_lines.py` and the KAN-391 part of
+  `tests/test_resume_editor.py`.
 - **The editor writes a resume's choices in one PATCH**
   (`.../built-resumes/{rid}/choices`, KAN-218): hide, show, move (the
   client renumbers the siblings), the GPA and coursework toggles, typed
@@ -785,7 +838,7 @@ Find files with a directory listing; these are the rules for where code goes.
   `AI_DAILY_POOL` per feature, per UTC day, defaults from the spec. The counts
   live in `ai_usage_counters` (one row per account, or the pool with a NULL
   account, per feature and day). Never count in memory: a restart or a second
-  Vercel instance resets it. Check-then-count can overshoot by one under
+  container instance resets it. Check-then-count can overshoot by one under
   concurrent requests, on purpose; it errs toward the student.
 - **Intake** (KAN-213) is `routers/intake.py` (`POST /intake/turn`) over
   `services/intake.py`, which holds its frozen system prompt. It uses
@@ -1202,7 +1255,7 @@ Find files with a directory listing; these are the rules for where code goes.
   Both cache settings go in `connect_args`; passed to `create_async_engine()`
   they raise `TypeError: Invalid argument(s)`. `hide_parameters=True` keeps
   the values a statement sent out of its error's text, which every route's
-  `logger.exception` writes to the Vercel logs: a failed answer bank save
+  `logger.exception` writes to the deployed API's logs: a failed answer bank save
   logged a student's gender and disability answers (KAN-283,
   `tests/test_autofill_answers.py`). Debug with the SQL, never by turning it
   off.
@@ -1213,12 +1266,12 @@ Find files with a directory listing; these are the rules for where code goes.
 
 ## Deployment
 
-**The target is a Cloudflare Container** at `api.workitjobs.ai` (ADR 0004,
+**Production is a Cloudflare Container** at `api.workitjobs.ai` (ADR 0004,
 KAN-295): `Dockerfile` here, behind the small Worker in `cloudflare/`, on
-Workers Paid. **Vercel stays live until the KAN-296 cutover**: its project
-(Root Directory `backend`, the app one Vercel Function from `[tool.vercel]
-entrypoint` and `vercel.json`) still serves production, and both files are
-removed at cutover, not before. Until then a change must work on both.
+Workers Paid. **Vercel is retired** (2026-10-29): its project (Root Directory
+`backend`, the app one Vercel Function from `[tool.vercel] entrypoint` and
+`vercel.json`) still builds each PR until KAN-296 deletes it, and both files
+go then. A change needs to work on Cloudflare only.
 
 - **The image builds from the repo root**, `docker build --platform
   linux/amd64 -f backend/Dockerfile -t workit-api .`, because `../scout` is a
@@ -1293,9 +1346,10 @@ removed at cutover, not before. Until then a change must work on both.
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
   business holding that connection. Embeddings use Ollama with
   `nomic-embed-text:v1.5` by default; see `app/services/matching/CLAUDE.md`.
-  **Still open:** the deployed API has no Ollama, so until the Vercel project
-  sets `EMBEDDING_PROVIDER=gemini` and `GEMINI_API_KEY`, recommendations
-  score without the semantic part. The Worker forwards both names when set,
+  **Still open:** the deployed API has no Ollama, so until the API's secrets
+  (`CF_API_SECRETS_JSON`, `../.github/CLAUDE.md`) set
+  `EMBEDDING_PROVIDER=gemini` and `GEMINI_API_KEY`, recommendations score
+  without the semantic part. The Worker forwards both names when set,
   and sets neither itself: `gemini` without a key would fail matching.
 - **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
   (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
@@ -1379,12 +1433,11 @@ removed at cutover, not before. Until then a change must work on both.
   it (why a scraped job closed) follows in its own PR, whose dry-run scrape
   check and every scheduled import fail on a database without it; and the
   model maps it, so a company job's insert fails there too.
-- **Apply `d9b579e66623` (`job_postings.company_domain`, KAN-442) as soon
-  as it merges.** It only adds a nullable column and a CHECK every row
-  meets, and no code maps it yet, so it is safe for every deploy. The
-  scraper, import and Jobs page change that writes and reads it follows in
-  its own PR, whose dry-run scrape check and every scheduled import fail on
-  a database without it.
+- **`d9b579e66623` (`job_postings.company_domain`, KAN-442) went on before
+  the code that maps it** (applied to the shared database on 2026-10-29).
+  The model selects the column with every listing and the import writes it,
+  so a database without it fails every `GET /jobs` and every scheduled
+  import.
 - **Batch apply's migrations (KAN-369, `d1a7c3e5f902` through
   `f4a8c1d6e273`) are on main ahead of their code**, so they can be applied
   before the deploy that maps them. The models map
@@ -1475,15 +1528,15 @@ removed at cutover, not before. Until then a change must work on both.
 - **`vercel.json`'s build command fetches Tectonic** (pinned, SHA-256
   checked) and warms its cache into `vendor/`, which the function bundles.
   A build that cannot fetch it fails rather than shipping without TeX
-  (`app/services/resume_render/CLAUDE.md`). Removed at the KAN-296 cutover.
+  (`app/services/resume_render/CLAUDE.md`). Only the retired Vercel builds run
+  it; it goes with the Vercel project (KAN-296).
 - **`../scout` is installed as a non-editable path source.** uv copies it into
   site-packages at build time; an editable install would point at a folder the
   function (or the image's final layout) need not have.
-- **The container keeps 5 connections open; Vercel opens one per
-  request.** `DB_POOL_SIZE` (`app/config.py`) is 0 by default, which is
+- **The container keeps 5 connections open.** `DB_POOL_SIZE` (`app/config.py`) is 0 by default, which is
   `NullPool`, and the Dockerfile sets 5. Under `NullPool` in the container
   every request spent ~1 s opening its connection, and pages took 3–9 s
-  (2026-10-21). A Vercel Function is short-lived, so it keeps `NullPool`.
+  (2026-10-21). The retired Vercel Function kept `NullPool`, being short-lived.
   `max_overflow` equals the pool size, so three instances hold at most 30
   Supavisor clients, which still pools them onto a few Postgres backends. `pool_pre_ping` and
   `pool_recycle` replace a connection Supavisor has dropped.
@@ -1494,9 +1547,6 @@ removed at cutover, not before. Until then a change must work on both.
   runs (8–30 ms from ENAM; 150 ms from the West Coast). Read it first when
   the deployed API turns slow. They are in the body because Cloudflare drops
   a `Server-Timing` header.
-- **Still open, closes at the KAN-296 cutover:** Vercel's 4.5 MB request-body
-  limit against the 5 MB upload cap (`../frontend/CLAUDE.md`, Deployment).
-  Cloudflare accepts 100 MB bodies.
 
 ## Auth
 
@@ -1511,11 +1561,15 @@ why each rule exists.
   write it). If any profile write fails, the route deletes the auth user it
   just made; every write sits inside that one `try`.
 - **Whoever acts on a token verifies its signature**, in one place, used by
-  every protected route: `get_current_account` (`app/deps.py`), which reads `Authorization: Bearer` (never a cookie) and verifies against
+  every protected route but one: `get_current_account` (`app/deps.py`), which reads `Authorization: Bearer` (never a cookie) and verifies against
   the project's JWKS, ES256/RS256 only. The legacy HS256 shared secret is
   unsupported on purpose: it can mint tokens.
 - **Access decisions read the profile row and `app_metadata`**, never
-  `user_metadata`, which the user can edit. `company_id` and onboarding state
+  `user_metadata`, which the user can edit. The one exception is the
+  editor's render (`POST .../built-resumes/{rid}/render`, KAN-391), which
+  reads and writes nothing: `token_applicant` checks the signature and
+  `app_metadata` only, so a deleted account's token still renders its own
+  copy until it expires. Never use it on a route that reads or writes. `company_id` and onboarding state
   come from the row, never the token. The one value copied the other way is
   the sign-in email: `get_current_account` writes the token's onto the row
   when they differ (Settings' Change Email, KAN-326), and keeps the old copy

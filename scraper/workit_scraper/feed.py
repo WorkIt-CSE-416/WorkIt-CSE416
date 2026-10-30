@@ -16,7 +16,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from workit_scraper.shortlist import Role, Tag, classify
+from workit_scraper.logos import company_domain
+from workit_scraper.shortlist import Role, Tag, classify_with_description
 from workit_scraper.store import Store
 
 # `providers.text._work_style` yields exactly these three labels, or None. Indexed, not
@@ -26,6 +27,7 @@ WORK_STYLE = {"Remote": "remote", "Hybrid": "hybrid", "On site": "onsite"}
 
 
 def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
+    logo = logos.get(role.board_key)
     return {
         # pick() keys roles on their apply URL, so it is unique per feed.
         "id": role.apply_url,
@@ -38,7 +40,10 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
         "work_style": WORK_STYLE[role.facts.work_style] if role.facts.work_style else None,
         "location": role.location_label or None,
         "posted_at": role.posted_at,
-        "logo_url": logos.get(role.board_key),
+        "logo_url": logo,
+        # The employer's own website, which the Jobs page draws the logo from
+        # (KAN-442); `logo_url` stays as the page's fallback.
+        "company_domain": company_domain(role.board_key, logo),
         "description": role.description,
         "job_type": "internship" if Tag.INTERN in role.tags else role.facts.job_type,
         **salary(role),
@@ -102,7 +107,11 @@ def closings(run: Store, roles: list[Role]) -> dict[str, str]:
         if job.apply_url in shown:
             continue
         if run.is_listed(job):
-            why = "replaced" if classify(job.title) else "filtered_out"
+            why = (
+                "replaced"
+                if classify_with_description(job.title, job.description)
+                else "filtered_out"
+            )
         else:
             reads = run.boards.get(job.board_key)
             why = "board_gone" if reads and reads.missing_at else "gone_from_board"

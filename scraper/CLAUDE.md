@@ -300,16 +300,30 @@ scraper. Every string in `tests/test_shortlist.py` was observed on a live board;
 add cases the same way, from a title you saw, including ones that must be
 rejected. Tag names are the `Tag` enum, which the page's filter chips read.
 
+- **The stage decides what is kept; the field only files it (KAN-430).** An
+  early-career title in any field is kept, because the page is for college
+  students of every major. Law, consulting, support, the arts, policy and
+  teaching, held off until then, are categories of their own; a title naming
+  no field, or a trade, operator, medical or hotel job (`OUTSIDE_FIELDS`, the
+  old never list), is `other`. The stage words are the main filter: a
+  word joins them only when every live title it matched was early career
+  ("trainee", "rotational program"). A title with no stage word is also kept
+  when its description states 0 or 1 years of experience
+  (`classify_with_description`, using `details.min_years` as the authority
+  when it finds years and `EARLY_EXPERIENCE` when it does not). "Level I",
+  "Associate" and "Analyst" wait for that rule to reach more providers
+  (`docs/categories.md`, "Every field, early career only").
 - **`engineer` alone is not a signal**, and reinstating it is the tempting
   mistake: Wade Trim's "Engineer Summer Intern" is civil, Decagon's
   "Engineering Intern" software, and nothing in either title tells them apart.
+  Both are `other`, never `engineering`.
 - `\bintern\b` must not fire on "Internal Applications". `SENIOR` beats the
   stage: "Junior/Senior or Staff Software Engineer" is not a new-grad role.
-- **Twelve categories, up to two a role, plus specialties (KAN-172).** The
-  first discipline a title names is its category (`CATEGORIES`, first match
-  wins), and that order is the decision. Read `docs/categories.md` before
-  changing a category, specialty, the stage or their order: it has the order's
-  reasoning, what is held off, and the measurements.
+- **Nineteen categories, up to two a role, plus specialties (KAN-172,
+  KAN-430).** The first discipline a title names is its category
+  (`CATEGORIES`, first match wins), and that order is the decision. Read
+  `docs/categories.md` before changing a category, specialty, the stage or
+  their order: it has the order's reasoning and the measurements.
 - **A new role key is a change to `Tag` alone.** Since KAN-155 the backend
   ignores the feed's `roles`: it tags each job from its title with its own
   `job_roles` list (`backend/app/services/role_resolver.py`). The categories
@@ -424,11 +438,37 @@ waited up to two days for the same number of requests. `RUN_EVERY` must match th
 cron in `.github/workflows/scrape.yml`; if they drift, quiet boards are still read
 on a third of runs, only less evenly spaced.
 
-**A lane can have a time budget** (`Provider.budget_s`; Workday's and
-Oracle's, 12 minutes each, run side by side). It starts boards from the front of
+**A lane can have a time budget** (`Provider.budget_s`; Workday's, Oracle's and
+Jibe's, 12 minutes each, run side by side). It starts boards from the front of
 `Store.to_read`'s order (a board with a posting missed once, then one never
 read, then the least recently read), and once its time is up leaves the rest for
-a later run.
+a later run. **A budget does not cut a board short**: a board started in time is
+read whole, so a lane whose boards can be huge needs a size cap as well
+(`WORKDAY_MAX`, Oracle's, `JIBE_MAX`), raising `TooLarge` after the first page.
+Jibe had neither until 2026-10-30: H&R Block's 18,576 postings took 15 minutes
+at Jibe's 5-second Crawl-delay, the lane ran 31, and two of three scheduled runs
+that day hit the 60-minute workflow timeout and imported nothing. Before a lane
+grows, check its slowest board in `metrics.json` against the timeout.
+
+**Page reads have a deadline too** (`PAGES_UNTIL_S`, 20 minutes from the lanes'
+start, for every lane): after it, no posting's own page is asked for, the lane
+prints how many it left ("… N postings' pages left for the next run"), and the
+next run reads them first, since `needs_page` still says so. A lane's budget
+covers only its board reads. Without the deadline, the batch-apply merge
+(2026-10-28) added SuccessFactors, whose every kept posting needs its page, one
+host at a time; every scheduled run then spent its last 16 minutes on pages with
+nothing in the log, hit the job's 30-minute limit, and was cancelled. **A
+cancelled run saves no store**, so the next one repeated the same pages, and
+nothing was imported for 32 hours. Keep the deadline plus the import (about 10
+minutes) well under `timeout-minutes` in `.github/workflows/scrape.yml` (90 since 2026-10-30).
+
+**So do board reads, in every lane** (`BOARDS_UNTIL_S`, 30 minutes from the
+lanes' start): after it no lane starts a board, budget or not, and the rest are
+`DEFERRED`, first in line next run (`Store.to_read`). A lane budget alone was not
+enough: a lane without one ran as long as its boards took, and Jibe's held two of
+three scheduled runs on 2026-10-30 past 60 minutes, each cancelled, each saving
+nothing, so the next one faced the same boards. This is what guarantees a run
+ends and saves; a new lane, or a lane that grows, cannot bring the loop back.
 
 **A board that keeps going unread rests** (`Store.health`, `store.rest_for`),
 as Freehire's do. After `REST_AFTER` (3) runs in a row that left it unread for
@@ -555,6 +595,13 @@ catalog against the ledger, and the scraper and publisher must call
 `discovery_review.validate_catalog` before consuming/publishing it. This prevents
 a ledger-only rejection merged between daily runs from becoming an active board.
 Reconsideration requires a deliberate ledger-entry removal.
+
+**To retire a board on main, delete its row and add
+`"ats/token": {"decision": "rejected"}` to `discovery-review.json`** in the
+same commit (create the file if it is absent). Deleting the row alone is not
+enough: the ledger rejects only boards discovery proposed, so a deleted main
+row is proposed again on the next run that finds it. Nothing else in the entry
+is required. Dead boards need no retiring: they rest by themselves (above).
 `discovery-review.md` is generated from that ledger and must not be hand-edited.
 Evidence includes source/company, ATS/token, posting count, and validation time;
 it is not proof of ownership. There is no company allowlist or trust manifest.
@@ -606,6 +653,13 @@ its careers site links. **Raise `logos.VERSION` with any new place to find a log
 or website**, or boards already stored as having none never get it. Read
 `docs/logos.md` before changing how a logo or website is found.
 
+**The feed's `company_domain` is what the Jobs page draws the logo from**
+(Brandfetch, KAN-442): `logos.company_domain`, worked out as the feed is
+written, from `checked_websites.csv` first, else the favicon's website, cut to
+the company's registered domain and never a hiring vendor's. A row goes into
+`checked_websites.csv` only after its checks (`docs/logos.md`, Checked
+websites): a script for the site and its name, a person for every failure.
+
 ## The page
 
 One self-contained HTML table (`# · Position Title · Date · Apply · Work Model
@@ -651,8 +705,11 @@ the design they serve and its next steps):
 
 - **`widening`**: every posting scanned, under the first step of a wider
   shortlist that would keep it (`shortlist.widening_step`: `kept`,
-  `held_field`, `no_field`, `no_stage`, `senior`, `outside`), so the size of
-  each step is known before anyone takes it. A run scans only what it reads, so
+  `no_stage`, `senior`), so the size of each step is known before anyone
+  takes it. `widening_step` uses `classify_with_description`, so a posting
+  kept by its description's years counts as `kept`, not `no_stage`.
+  `held_field` and `no_field` were taken by KAN-430, and `outside`
+  went with them: every field is kept, so only the level is left to widen. A run scans only what it reads, so
   compare steps with each other. Each distinct title is read once: the rules
   cost about 50 microseconds a title.
 - **`newest_first`, `not_newest_first`, `order_unclear`** for each provider that

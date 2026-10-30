@@ -34,7 +34,7 @@ import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import delete, func, null, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -202,7 +202,7 @@ async def load_bank(
     return Bank(entries=[Entry(r, bullets[r.id]) for r in rows], skills=list(skills))
 
 
-async def _entry_row(session: AsyncSession, applicant_id: uuid.UUID, entry_id: uuid.UUID) -> Bank_Entry:
+async def entry_row(session: AsyncSession, applicant_id: uuid.UUID, entry_id: uuid.UUID) -> Bank_Entry:
     row = await session.scalar(
         select(Bank_Entry).where(Bank_Entry.id == entry_id, Bank_Entry.applicant_id == applicant_id)
     )
@@ -212,7 +212,7 @@ async def _entry_row(session: AsyncSession, applicant_id: uuid.UUID, entry_id: u
 
 
 async def get_entry(session: AsyncSession, applicant_id: uuid.UUID, entry_id: uuid.UUID) -> Entry:
-    row = await _entry_row(session, applicant_id, entry_id)
+    row = await entry_row(session, applicant_id, entry_id)
     return Entry(row, (await _bullets_of(session, [row.id]))[row.id])
 
 
@@ -283,23 +283,69 @@ async def update_entry(
     entry_id: uuid.UUID,
     changes: Mapping[str, object],
 ) -> Entry:
-    """Apply a partial edit. The merged entry is checked whole through
-    EntryFields, so it raises pydantic's ValidationError when the result
-    would not be a valid entry; the section cannot change."""
-    row = await _entry_row(session, applicant_id, entry_id)
-    current = {name: getattr(row, name) for name in EntryFields.model_fields}
-    merged = EntryFields.model_validate({**current, **changes, "section": row.section})
-    for name, value in merged.model_dump().items():
-        setattr(row, name, value)
+    """Apply a partial edit (`edit_entry`) and save it."""
+    row = await entry_row(session, applicant_id, entry_id)
+    edit_entry(row, changes)
     await clear_embedding(session, applicant_id)
     await session.flush()
     await session.refresh(row)
     return await get_entry(session, applicant_id, entry_id)
 
 
+async def write_entry(
+    session: AsyncSession, applicant_id: uuid.UUID, entry_id: uuid.UUID, current: Mapping[str, object],
+    changes: Mapping[str, object],
+) -> None:
+    """A partial edit written with no read first (the editor's typed line,
+    KAN-391): `current` is the entry as the caller holds it, the merged
+    entry is checked whole as `edit_entry` checks it, and only the fields
+    the edit changes are written, so a stale `current` never writes back
+    an old value. One statement updates the row, if it is the applicant's,
+    and marks the bank embedding stale; NotFound for another's entry."""
+    merged = EntryFields.model_validate({**current, **changes, "section": current["section"]}).model_dump()
+    values = {k: v for k, v in merged.items() if k != "section" and v != current.get(k)}
+    if not values:
+        return
+    edited = (
+        update(Bank_Entry)
+        .where(Bank_Entry.id == entry_id, Bank_Entry.applicant_id == applicant_id)
+        .values(**values)
+        .returning(Bank_Entry.applicant_id)
+        .cte("edited")
+    )
+    stale = insert(Experience_Bank).from_select(
+        ["applicant_id", "embedding", "embedded_at"],
+        select(edited.c.applicant_id, null(), null()),
+    )
+    stale = stale.on_conflict_do_update(
+        index_elements=[Experience_Bank.applicant_id],
+        set_={"embedding": None, "embedded_at": None, "updated_at": func.now()},
+    ).returning(Experience_Bank.applicant_id)
+    if (await session.execute(stale)).first() is None:
+        raise NotFound
+
+
+def entry_fields(row) -> dict[str, object]:
+    """An entry's fields as `write_entry` takes them, from a row or a copy's."""
+    return {name: getattr(row, name) for name in EntryFields.model_fields}
+
+
+def edit_entry(row: Bank_Entry, changes: Mapping[str, object]) -> None:
+    """A partial edit on a loaded row, in memory: saved by the session's
+    next flush. The merged entry is checked whole through EntryFields, so it
+    raises pydantic's ValidationError when the result would not be a valid
+    entry; the section cannot change. The editor's line route edits the row
+    its bank already holds, so the PDF compiles before the write
+    (routers/built_resumes.py, `save_line`)."""
+    current = {name: getattr(row, name) for name in EntryFields.model_fields}
+    merged = EntryFields.model_validate({**current, **changes, "section": row.section})
+    for name, value in merged.model_dump().items():
+        setattr(row, name, value)
+
+
 async def delete_entry(session: AsyncSession, applicant_id: uuid.UUID, entry_id: uuid.UUID) -> None:
     """Delete an entry; its bullets go with it (ON DELETE CASCADE)."""
-    row = await _entry_row(session, applicant_id, entry_id)
+    row = await entry_row(session, applicant_id, entry_id)
     await session.delete(row)
     await clear_embedding(session, applicant_id)
     await session.flush()

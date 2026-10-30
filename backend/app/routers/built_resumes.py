@@ -35,7 +35,31 @@ GET    /applicants/{id}/built-resumes/{rid}/choices -> ChoicesResponse
        GPA and coursework toggles. A bank item with no row is not on it.
 PATCH  /applicants/{id}/built-resumes/{rid}/choices ChoicesUpdate -> ChoicesResponse
        The editor's hide, show, move and toggles, all saved together. An
-       item with no row gets one. 404 for an item outside the bank.
+       item with no row gets one. 404 for an item outside the bank. Written
+       in one statement with no read first when every change finds its row
+       (KAN-391); `?read_back=false` answers 204 instead of the choices, so
+       the save reads nothing.
+POST   /applicants/{id}/built-resumes/{rid}/render EditRender -> EditRendered
+       The editor's edit rendered, never saved (KAN-391): a typed `line`
+       ({item_id, kind, text}) or choice `changes` (the PATCH .../choices
+       body), made in memory to the editor's copy (`source`, ResumeCopy,
+       required, with the template and file name of the last render). Reads
+       no database: the token is checked by its signature alone
+       (deps.token_applicant), and nothing of the resume is read. Answers
+       the render and what the edit changed in the copy (`choices`,
+       `entry`; the header is `render.identity`). 422 for text the save
+       would refuse or an unknown template, 404 for an item outside the
+       copy, 503 like render.
+PUT    /applicants/{id}/built-resumes/{rid}/lines  LineSave -> LineSaved
+       One typed line saved, with no read first (KAN-391): one statement
+       per kind, whose WHERE checks ownership. The API reads the text
+       (services/resume_lines.py): a bullet becomes this resume's wording
+       (`variant_id` answered, null when the original is typed back), an
+       entry field changes the bank, checked whole against `source`'s copy
+       of the entry (read when none is sent), a header field the profile
+       (`profile` answered). 422 {detail} for text it cannot save (an
+       empty title, a GPA that is not a number, a kind not typed here),
+       404 for an item that is not the applicant's.
 POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, undo, render}
        Fit to One Page: hides coursework, bullets and whole entries, least
        useful first (resume_view.fit_order), and renders again until the
@@ -61,36 +85,50 @@ GET    /applicants/{id}/built-resumes/{rid}/keyword-match?job_posting_id=
 
 import asyncio
 import base64
+import dataclasses
 import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
+from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 from workit_scout.llm import LLM, ScoutUnavailable
 
 from app.db import get_session
-from app.deps import owned_applicant
+from app.deps import owned_applicant, token_applicant
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
+from app.models.profiles import Applicant_Profile
+from app.schemas.bank import EntryResponse
 from app.schemas.built_resume import (
     BuiltResumeCreate,
     BuiltResumeRename,
     BuiltResumeResponse,
     ChoicesResponse,
     ChoicesUpdate,
+    EditRender,
+    EditRendered,
     FitResponse,
+    LineSave,
+    LineSaved,
     RenderBox,
     RenderResponse,
 )
 from app.schemas.keywords import KeywordMatchResponse
+from app.schemas.profile import ApplicantProfileResponse, ApplicantProfileUpdate
+from app.services import bank, keywords, postings, resume_copy, resume_lines
 from app.services import built_resumes as service
-from app.services import keywords, postings
 from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound
 from app.services.models import get_small_llm
+from app.services.names import name_columns
+from app.services.resume_copy import identity_copy
 from app.services.resume_render import (
+    HEADER,
     HeaderIdentity,
     Rendered,
     TectonicUnavailable,
@@ -98,6 +136,7 @@ from app.services.resume_render import (
     render,
 )
 from app.services.resume_render.word import render_docx
+from app.services.resume_view import build_view
 from app.services.usage import Feature, count_use, uses_left
 
 logger = logging.getLogger(__name__)
@@ -221,7 +260,7 @@ async def render_pdf(
     except NotFound:
         raise HTTPException(404, "Resume not found")
     identity = await _identity(session, applicant_id)
-    return _render_response(await _render(view, identity, resume.template), resume.name)
+    return _render_response(await _render(view, identity, resume.template), resume.name, identity, resume.template)
 
 
 RENDER_FAILED = "The PDF could not be made. Try again, or download the Word file."
@@ -235,7 +274,9 @@ async def _render(view, identity: HeaderIdentity, template: str) -> Rendered:
         raise HTTPException(503, RENDER_FAILED) from exc
 
 
-def _render_response(rendered: Rendered, name: str) -> RenderResponse:
+def _render_response(
+    rendered: Rendered, name: str, identity: HeaderIdentity, template: str
+) -> RenderResponse:
     return RenderResponse(
         pdf=base64.b64encode(rendered.pdf).decode("ascii"),
         file_name=service.file_name(name, "pdf"),
@@ -243,6 +284,8 @@ def _render_response(rendered: Rendered, name: str) -> RenderResponse:
         lines_over=rendered.lines_over,
         missing_characters=list(rendered.missing_characters),
         boxes=[RenderBox(**vars(box)) for box in rendered.boxes],
+        identity=identity_copy(identity),
+        template=template,
     )
 
 
@@ -263,7 +306,7 @@ async def fit(
     return FitResponse(
         hidden=[c.id for c in cuts if c.kind == "bullet"],
         undo=ChoicesUpdate(**service.fit_changes(cuts, hide=False)),
-        render=_render_response(rendered, resume.name),
+        render=_render_response(rendered, resume.name, identity, resume.template),
     )
 
 
@@ -277,15 +320,20 @@ async def get_choices(
     return await service.choices_response(session, resume_id)
 
 
-@router.patch("/{resume_id}/choices", response_model=ChoicesResponse)
+@router.patch("/{resume_id}/choices", response_model=ChoicesResponse | None)
 async def update_choices(
     body: ChoicesUpdate,
     resume_id: uuid.UUID,
+    read_back: bool = True,
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
-) -> ChoicesResponse:
+) -> ChoicesResponse | Response:
+    # Written with no read first when every change finds its row
+    # (`service.save_choices`, KAN-391). The editor asks `read_back=false`:
+    # it renders through POST .../render and needs nothing back, so the
+    # save stays writes only
     try:
-        await service.update_choices(
+        await service.save_choices(
             session, applicant_id, resume_id,
             entries=[c.model_dump(exclude_unset=True) for c in body.entries],
             bullets=[c.model_dump(exclude_unset=True) for c in body.bullets],
@@ -294,7 +342,139 @@ async def update_choices(
     except NotFound:
         raise HTTPException(404, "Resume or bank item not found")
     await _commit(session, "Failed to save the resume")
+    if not read_back:
+        return Response(status_code=204)
     return await service.choices_response(session, resume_id)
+
+
+@router.post("/{resume_id}/render", response_model=EditRendered)
+async def render_edit(
+    body: EditRender,
+    resume_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(token_applicant),
+) -> EditRendered:
+    # The editor's edit, rendered and never saved (KAN-391): made in memory
+    # to its copy and compiled, with no database at all. The token is
+    # checked without a read (`token_applicant`), and nothing of the resume
+    # is read: the copy carries its template and file name, and the PDF
+    # prints only what the student sent, so the path's resume needs no
+    # ownership check here. The save goes separately and writes with its
+    # own check (PUT .../lines, PATCH .../choices).
+    source = body.source
+    held, choices, identity = resume_copy.from_copy(source)
+    variants = source.choices.variants
+    entry = None
+    after = choices
+    try:
+        if body.line is not None:
+            line = _parse(body.line)
+            if line.target == "bullet":
+                after = service.apply_choices(held, choices, bullets=[{"bullet_id": body.line.item_id, **line.changes}])
+            elif line.target == "entry":
+                found = next((e for e in held.entries if e.row.id == body.line.item_id), None)
+                if found is None:
+                    raise NotFound
+                bank.edit_entry(found.row, line.changes)
+                entry = EntryResponse.model_validate({**bank.entry_fields(found.row), "id": found.row.id})
+            else:
+                identity = _with_header(identity, line.changes)
+        else:
+            changes = {kind: [c.model_dump(exclude_unset=True) for c in getattr(body.changes, kind)]
+                       for kind in ("entries", "bullets", "skills")}
+            after = service.apply_choices(held, choices, **changes, variant_text={v.id: v.text for v in variants})
+    except resume_lines.LineError as exc:
+        raise HTTPException(422, str(exc))
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors(include_url=False, include_context=False))
+    except NotFound:
+        raise HTTPException(404, "Resume or bank item not found")
+    try:
+        rendered = await _render(build_view(held, after), identity, source.template)
+    except ValueError:
+        raise HTTPException(422, "Unknown template")
+    response = _render_response(rendered, "", identity, source.template)
+    return EditRendered(
+        # The copy's file name, from the last render: the name is not read
+        render=response.model_copy(update={"file_name": source.file_name}),
+        choices=service.choices_out(after, variants) if after is not choices else None,
+        entry=entry,
+    )
+
+
+def _parse(line) -> resume_lines.Line:
+    parsed = resume_lines.parse(line.kind, line.text)
+    if (parsed.target == "header") != (line.item_id == HEADER):
+        raise resume_lines.LineError("This line is not typed here.")
+    return parsed
+
+
+def _with_header(identity: HeaderIdentity, changes: dict) -> HeaderIdentity:
+    """The header after a typed header field, in memory, checked as My
+    Profile's PATCH checks it."""
+    ApplicantProfileUpdate.model_validate(changes)
+    field, value = next(iter(changes.items()))
+    if field == "full_name":
+        return dataclasses.replace(identity, name=name_columns(value)["full_name"])
+    if field == "phone_number":
+        return dataclasses.replace(identity, phone=value)
+    links = dict(identity.links)
+    links[field] = value
+    order = ("linkedin_url", "github_url", "portfolio_url", "other_url")
+    return dataclasses.replace(identity, links=tuple((f, links[f]) for f in order if links.get(f)))
+
+
+@router.put("/{resume_id}/lines", response_model=LineSaved)
+async def save_line(
+    body: LineSave,
+    resume_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> LineSaved:
+    # The save alone, written with no read first (KAN-391): each kind of
+    # line is one statement whose WHERE checks the row is the applicant's.
+    # A typed entry field is checked whole against the editor's copy of the
+    # entry, read only when no copy is sent. The editor renders through
+    # POST .../render beside it and does not wait for this answer.
+    saved = LineSaved()
+    try:
+        line = _parse(body)
+        if line.target == "bullet":
+            saved.variant_id = await service.type_wording(
+                session, applicant_id, resume_id, body.item_id, line.changes["text"])
+        elif line.target == "entry":
+            current = None
+            if body.source is not None:
+                held = resume_copy.from_copy(body.source)[0]
+                current = next((bank.entry_fields(e.row) for e in held.entries if e.row.id == body.item_id), None)
+            if current is None:
+                current = bank.entry_fields(await bank.entry_row(session, applicant_id, body.item_id))
+            await bank.write_entry(session, applicant_id, body.item_id, current, line.changes)
+        else:
+            saved.profile = await _write_header(session, applicant_id, line.changes)
+    except resume_lines.LineError as exc:
+        raise HTTPException(422, str(exc))
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors(include_url=False, include_context=False))
+    except NotFound:
+        raise HTTPException(404, "Resume or bank item not found")
+    await _commit(session, "Failed to save the resume")
+    return saved
+
+
+async def _write_header(session: AsyncSession, applicant_id: uuid.UUID, changes: dict) -> ApplicantProfileResponse:
+    """A header field on the profile in one UPDATE, checked as My Profile's
+    PATCH checks it; a name typed whole is split into its parts there too
+    (routers/profiles.py)."""
+    ApplicantProfileUpdate.model_validate(changes)
+    values = {}
+    for field, value in changes.items():
+        values.update(name_columns(value) if field == "full_name" else {field: value})
+    profile = (await session.scalars(
+        update(Applicant_Profile).where(Applicant_Profile.id == applicant_id).values(**values)
+        .returning(Applicant_Profile))).first()
+    if profile is None:
+        raise NotFound
+    return ApplicantProfileResponse.model_validate(profile)
 
 
 @router.get("/{resume_id}/docx")

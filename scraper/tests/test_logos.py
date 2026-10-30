@@ -268,10 +268,12 @@ class TestFetch:
             b'{"footer":{"privacyPolicy":{"uri":"https://tbcdn.talentbrew.com/company/13015/'
             b'v1_0/pdf/Candidate_Privacy_Notice.pdf"}},"header":{"homePageURL":null}}'
         )
-        found = fetch(
-            ("workday", "barclays.wd3/external_career_site_barclays", "Barclays"),
-            {"https://barclays.wd3.myworkdayjobs.com/": approot},
-        )
+        # Barclays has a checked website since KAN-442, which would answer first.
+        with mock.patch.dict(logos.CHECKED_WEBSITES, clear=True):
+            found = fetch(
+                ("workday", "barclays.wd3/external_career_site_barclays", "Barclays"),
+                {"https://barclays.wd3.myworkdayjobs.com/": approot},
+            )
         assert found == {"workday/barclays.wd3/external_career_site_barclays": None}
 
     def test_a_greenhouse_logo_link_names_the_site_with_no_logo_uploaded(self) -> None:
@@ -376,3 +378,41 @@ class TestStore:
         assert store.reread_missing_logos(again, 2) is again
         now = "2026-10-19T00:00:00+00:00"
         assert store.update(again, [], [], RunStats(), now).logos_version == 2
+
+
+class TestCompanyDomain:
+    """The website the Jobs page draws a logo from (KAN-442). The cases are the
+    Brandfetch test of 2026-10-29: 98 of 100 companies drew a logo, and Micron,
+    whose home page is on Eightfold, drew Eightfold's."""
+
+    def test_the_favicons_website_cut_to_its_registered_domain(self) -> None:
+        careers = logos.favicon("careers.gevernova.com")
+        assert logos.company_domain("workday/gevernova.wd5/ge_vernova", careers) == "gevernova.com"
+        assert logos.company_domain("workday/x", logos.favicon("www.careers.jnj.com")) == "jnj.com"
+
+    def test_a_country_suffix_keeps_the_companys_own_label(self) -> None:
+        assert logos.registered_domain("intel.co.uk") == "intel.co.uk"
+        assert logos.registered_domain("www.example.com.au") == "example.com.au"
+
+    def test_a_hiring_vendors_site_is_no_companys(self) -> None:
+        assert logos.company_domain("workday/x", logos.favicon("micron.eightfold.ai")) is None
+
+    def test_the_checked_website_wins_over_the_favicons(self) -> None:
+        micron = logos.favicon("micron.eightfold.ai")
+        assert logos.company_domain("workday/micron.wd1/external", micron) == "micron.com"
+        uline = logos.favicon("www.uline.jobs")
+        assert logos.company_domain("workday/uline.wd1/uline_careers", uline) == "uline.com"
+
+    def test_a_board_with_no_logo_page_gets_its_checked_website(self) -> None:
+        # iCIMS and Oracle boards are never read for a logo.
+        assert logos.company_domain("icims/careers-kimley-horn", None) == "kimley-horn.com"
+        assert logos.company_domain("oracle/hdpc.fa.us2/LateralHiring", None) == "goldmansachs.com"
+
+    def test_an_uploaded_logo_or_none_gives_no_domain(self) -> None:
+        upload = "https://app.ashbyhq.com/api/images/x.png"
+        assert logos.company_domain("ashby/terranova", upload) is None
+        assert logos.company_domain("lever/nologo", None) is None
+
+    def test_every_checked_website_fits_the_columns_check(self) -> None:
+        for key, site in logos.CHECKED_WEBSITES.items():
+            assert logos.DOMAIN.fullmatch(logos.registered_domain(site)), key

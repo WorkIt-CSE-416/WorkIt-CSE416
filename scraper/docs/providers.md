@@ -213,7 +213,10 @@ added its own iCIMS and Oracle readers. KAN-301's are the canonical ones:
   Only rows Jibe marks `ats_code: icims` are kept. Jibe sites publish
   `Crawl-delay: 5`. A site can list one posting twice (MasTec: 1,258 rows served,
   1,211 postings), so the rows served must add up to the count, and a twice-listed
-  posting is kept once.
+  posting is kept once. A site counting over `JIBE_MAX` (5,000) is skipped after
+  its first page as too large: H&R Block (18,576), Ulta (12,196) and UHS (6,100) on
+  2026-10-30, 22 early-career roles in all, Ulta's. As on Workday, a skipped
+  board's postings stay listed as its last complete read saw them.
 - **SuccessFactors** is read from a career site's own search page
   (`jobs.grainger.com/search/?q=&startrow=N`), HTML, as many rows a page as the site
   set (Grainger 35), and a kept posting's page for its description and exact date.
