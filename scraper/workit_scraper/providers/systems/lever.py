@@ -10,10 +10,10 @@ from workit_scraper.providers.fetch import _iso
 from workit_scraper.providers.model import Job, Provider
 from workit_scraper.providers.registry import listing_url
 from workit_scraper.providers.text import (
-    _described,
-    _page,
+    _listing_page,
     _work_style,
     plain_text,
+    title_name,
 )
 
 
@@ -33,7 +33,16 @@ def lever(token: str, company: str) -> list[Job]:
     for row in payload:
         categories = row.get("categories") or {}
         title = (row.get("text") or "").strip()
-        full, roles = _described(_lever_markup(row))
+        markup = _lever_markup(row)
+        shortlist_tags, page = _listing_page(
+            title,
+            markup,
+            stated_type=details.job_type_label(categories.get("commitment")),
+            # Some boards put the work model in `commitment` ("Remote").
+            stated_style=_work_style(row.get("workplaceType"), categories.get("location"))
+            or _work_style(categories.get("commitment"), None),
+            stated_pay=_lever_pay(row),
+        )
         jobs.append(
             Job(
                 ats="lever",
@@ -45,16 +54,8 @@ def lever(token: str, company: str) -> list[Job]:
                 location=categories.get("location"),
                 department=categories.get("team"),
                 posted_at=_iso(row.get("createdAt")),
-                page=_page(
-                    title,
-                    full,
-                    roles=roles,
-                    stated_type=details.job_type_label(categories.get("commitment")),
-                    # Some boards put the work model in `commitment` ("Remote").
-                    stated_style=_work_style(row.get("workplaceType"), categories.get("location"))
-                    or _work_style(categories.get("commitment"), None),
-                    stated_pay=_lever_pay(row),
-                ),
+                shortlist_tags=shortlist_tags,
+                page=page,
             )
         )
     return jobs
@@ -93,4 +94,7 @@ PROVIDER = Provider(
         r'class="main-header-logo"[^>]*>\s*<img[^>]*\ssrc="'
         r'(https://lever-client-logos\.s3(?:[.-]us-west-2)?\.amazonaws\.com/[^"]+)"'
     ),
+    # The board page's title is the company's name alone ("Palantir Technologies").
+    name_url="https://{site}/{slug}",
+    read_name=title_name,
 )

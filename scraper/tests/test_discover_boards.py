@@ -557,3 +557,141 @@ def test_negative_offset_rejected_before_network(monkeypatch):
             ["--url", "https://jobs.lever.co/acme", "--company", "Acme", "--offset", "-1"]
         )
     assert error.value.code == 2
+
+
+# --- Resolve step -----------------------------------------------------------
+
+
+class ResolveWeb:
+    """Answers by URL: bytes for a 200, a str for a redirect (raised as a 302),
+    else a 404."""
+
+    def __init__(self, answers):
+        self.answers = answers
+        self.asked = []
+
+    def __call__(self, url):
+        import urllib.error
+
+        self.asked.append(url)
+        answer = self.answers.get(url)
+        if isinstance(answer, bytes):
+            return answer
+        if isinstance(answer, str):
+            raise urllib.error.HTTPError(answer, 302, "redirect", None, None)
+        raise urllib.error.HTTPError(url, 404, "Not Found", None, None)
+
+
+def test_resolve_short_link_to_board(tmp_path, monkeypatch, swap_provider):
+    """A short link that redirects to a known board URL adds it as evidence."""
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    swap_provider("greenhouse", read=lambda *_: [])
+    web = ResolveWeb({"https://go.vansh.nyc/o": "https://job-boards.greenhouse.io/acme/jobs/123"})
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [Evidence("https://go.vansh.nyc/o", "Acme", "curated")], []
+        ),
+    )
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    monkeypatch.setattr(discovery.web, "get", lambda url, **kw: web(url))
+    discovery.main(
+        [
+            "--channel",
+            "curated",
+            "--resolve",
+            "--apply",
+            "--boards",
+            str(boards),
+            "--report",
+            str(report),
+        ]
+    )
+    assert "greenhouse,acme,Acme" in boards.read_text()
+
+
+def test_resolve_greenhouse_careers_page(tmp_path, monkeypatch, swap_provider):
+    """A ?gh_jid= URL proved against the Greenhouse API adds the board."""
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    swap_provider("greenhouse", read=lambda *_: [])
+    api_url = "https://boards-api.greenhouse.io/v1/boards/waymo/jobs/8189848"
+    web = ResolveWeb({api_url: b"{}"})
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [Evidence("https://careers.withwaymo.com/jobs?gh_jid=8189848", "Waymo", "curated")], []
+        ),
+    )
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    monkeypatch.setattr(discovery.web, "get", lambda url, **kw: web(url))
+    discovery.main(
+        [
+            "--channel",
+            "curated",
+            "--resolve",
+            "--apply",
+            "--boards",
+            str(boards),
+            "--report",
+            str(report),
+        ]
+    )
+    assert "greenhouse,waymo,Waymo" in boards.read_text()
+
+
+def test_resolve_unresolvable_stays_unmatched(tmp_path, monkeypatch):
+    """A URL that cannot be resolved stays in unmatched, no board is added."""
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    web = ResolveWeb({})
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [Evidence("https://example.com/careers/apply", "Unknown", "curated")], []
+        ),
+    )
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    monkeypatch.setattr(discovery.web, "get", lambda url, **kw: web(url))
+    discovery.main(
+        [
+            "--channel",
+            "curated",
+            "--resolve",
+            "--apply",
+            "--boards",
+            str(boards),
+            "--report",
+            str(report),
+        ]
+    )
+    assert not boards.exists()
+    data = json.loads(report.read_text())
+    assert any(u["url"] == "https://example.com/careers/apply" for u in data["unmatched"])
+
+
+def test_resolve_not_called_without_flag(tmp_path, monkeypatch):
+    """Without --resolve, unmatched evidence is not resolved."""
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [Evidence("https://go.vansh.nyc/o", "Acme", "curated")], []
+        ),
+    )
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    discovery.main(
+        [
+            "--channel",
+            "curated",
+            "--boards",
+            str(boards),
+            "--report",
+            str(report),
+        ]
+    )
+    assert not boards.exists()
+    data = json.loads(report.read_text())
+    assert data["unmatched"][0]["url"] == "https://go.vansh.nyc/o"

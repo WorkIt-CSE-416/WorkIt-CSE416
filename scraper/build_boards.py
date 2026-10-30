@@ -27,10 +27,12 @@ The two internship lists are one repo each, renamed every season (both were
 Summer2026 until 2026), and GitHub serves a renamed repo's files at its old
 address too. So an old name keeps working, but name the current one.
 
-The scheduled scrape runs this before every scrape (.github/workflows/scrape.yml),
-so a company a list names today is read on the next run without anyone committing
-it. Since boards are only added and nothing is written until every list has
-loaded, a failed download leaves boards.csv as it was.
+A person runs this by hand and commits the diff; no workflow runs it. The
+scheduled scrape ran it before every scrape from KAN-167 (2026-10-09) until
+KAN-422 (2026-10-28), which replaced it with daily discovery (discovery_pr.py)
+so that new boards are checked before they reach main. Since boards are only
+added and nothing is written until every list has loaded, a failed download
+leaves boards.csv as it was.
 """
 
 from __future__ import annotations
@@ -38,7 +40,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import urllib.error
 from collections import Counter
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -47,10 +48,20 @@ from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
 from workit_scraper import web
+from workit_scraper.board_resolve import (
+    GH_JID,
+    ICIMS_HERE,
+    SHORTENER,
+    TRIES,
+    _get,
+    greenhouse_board,
+    icims_board,
+    unshortened,
+)
 from workit_scraper.catalog import BOARDS_CSV, load_boards, write_boards
 from workit_scraper.discovery_sources import SOURCES
 from workit_scraper.polite import Robots
-from workit_scraper.providers import PROVIDERS, Board, listing_url
+from workit_scraper.providers import Board
 from workit_scraper.providers.urls import board_keys as tokens
 
 # Boards verified by hand to yield early-career software roles, kept because the
@@ -111,15 +122,6 @@ def unread_hosts(links: Iterable[str]) -> Counter[str]:
     new reader would add the most (iCIMS and Oracle topped it before KAN-301)."""
     return Counter(urlsplit(link).hostname or "" for link in links if link and not tokens(link))
 
-
-#: The link shortener the vanshb03 list wraps every apply link in (2026-10-27):
-#: its 1,877 rows named no board, and nothing said so.
-SHORTENER = re.compile(r"//go\.vansh\.nyc/", re.I)
-#: A Greenhouse posting on a company's own careers site, by its number
-#: (careers.withwaymo.com/jobs?gh_jid=8189848).
-GH_JID = re.compile(r"[?&]gh_jid=(\d+)", re.I)
-#: An iCIMS posting on a company's own careers site (careers.amd.com/jobs/86868?icims=1).
-ICIMS_HERE = re.compile(r"icims", re.I)
 
 #: Why a link no reader takes goes unread, first match wins: the hiring system
 #: behind it when the link shows one, else whose site it is. On 2026-10-27, 44% of
@@ -200,105 +202,6 @@ def harvest(
     return boards, unread
 
 
-# --- Resolving: the boards behind links no pattern takes (`--resolve`) ------------
-#
-# Each board is proved before it is kept, never guessed: a board under the wrong
-# name would put another company's name on real cards. Only on request, never in
-# the scheduled run: it asks a few hundred hosts each time, and a person commits
-# the boards.csv it grows, as with every board.
-
-#: Names a careers page may give its Greenhouse board by: the embed script
-#: (`embed/job_board/js?for=waymo`), the API, or the board's own address.
-GH_NAMED = (
-    re.compile(
-        r"greenhouse\.io/embed/job_(?:board|app)(?:/js)?\?[^\"'<>\s]*?\bfor=([a-z0-9_-]+)", re.I
-    ),
-    re.compile(r"boards-api\.greenhouse\.io/v1/boards/([a-z0-9_-]+)", re.I),
-    re.compile(r"//(?:job-)?boards(?:\.eu)?\.greenhouse\.io/(?!embed\b)([a-z0-9_-]+)", re.I),
-)
-#: A posting's number in a company careers site's path (`/jobs/86868`).
-JOB_NUMBER = re.compile(r"/jobs/(\d+)")
-#: Tries per company and host: a closed posting proves nothing either way.
-TRIES = 3
-
-
-def _get(url: str) -> bytes:
-    return web.get(url, timeout=30)
-
-
-def _read(url: str, robots: Robots, get: Callable[[str], bytes]) -> bytes | None:
-    """The body; b"" for a 404, which answers "no"; None when we may not ask or the
-    answer says nothing (robots.txt, a refused redirect, a failure)."""
-    if not robots.allows(url):
-        return None
-    robots.pace(url)
-    try:
-        return get(url)
-    except urllib.error.HTTPError as error:
-        return b"" if error.code == 404 else None
-    except Exception:  # noqa: BLE001 - one link must not end the run
-        return None
-
-
-def _guesses(company: str, link: str) -> list[str]:
-    """Board names a company is likely to use: its name run together, and its
-    careers site's own name (careers.withwaymo.com: "withwaymo")."""
-    labels = (urlsplit(link).hostname or "").split(".")
-    site = labels[-2] if len(labels) >= 2 else ""
-    return list(dict.fromkeys(g for g in (re.sub(r"[^a-z0-9]", "", company.lower()), site) if g))
-
-
-def greenhouse_board(listing: Listing, robots: Robots, get: Callable[[str], bytes]) -> str | None:
-    """The Greenhouse board whose posting this careers page shows, proved by asking
-    that board for the posting's number: only its own board answers 200."""
-    number = GH_JID.search(listing.link)
-    if not number:
-        return None
-
-    def holds(token: str) -> bool:
-        api = f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{number[1]}"
-        return bool(_read(api, robots, get))
-
-    guesses = _guesses(listing.company, listing.link)
-    if found := next((token for token in guesses if holds(token)), None):
-        return found
-    page = (_read(listing.link, robots, get) or b"").decode("utf-8", "replace")
-    named = dict.fromkeys(m.lower() for p in GH_NAMED for m in p.findall(page))
-    return next((token for token in named if token not in guesses and holds(token)), None)
-
-
-def icims_board(listing: Listing, robots: Robots, get: Callable[[str], bytes]) -> str | None:
-    """The iCIMS tenant whose posting this careers page shows, proved by its sitemap,
-    which lists every open job by number (`providers.icims`)."""
-    number = JOB_NUMBER.search(urlsplit(listing.link).path)
-    if not number:
-        return None
-    page = (_read(listing.link, robots, get) or b"").decode("utf-8", "replace")
-    named = [m.lower() for m in PROVIDERS["icims"].apply_link.findall(page)]
-    guesses = [f"careers-{g}" for g in _guesses(listing.company, listing.link)]
-    for tenant in dict.fromkeys([*named, *guesses]):
-        sitemap = _read(listing_url("icims", tenant), robots, get)
-        if sitemap and f"/jobs/{number[1]}/".encode() in sitemap:
-            return tenant
-    return None
-
-
-def unshortened(link: str, robots: Robots, get: Callable[[str], bytes]) -> str | None:
-    """Where a short link leads: `web.get` refuses the redirect to another site and
-    names where it went, which is all this needs."""
-    if not robots.allows(link):
-        return None
-    robots.pace(link)
-    try:
-        get(link)
-    except urllib.error.HTTPError as error:
-        if 300 <= error.code < 400 and error.filename and error.filename != link:
-            return error.filename
-    except Exception:  # noqa: BLE001 - one link must not end the run
-        return None
-    return None
-
-
 def resolve(
     unread: list[Listing], robots: Robots, get: Callable[[str], bytes] = _get
 ) -> dict[tuple[str, str], str]:
@@ -329,7 +232,7 @@ def resolve(
     def one(group: tuple[tuple[str, str, str], list[Listing]]) -> tuple[str, str, str] | None:
         (ats, _, company), listings = group
         for listing in sorted(listings, key=lambda x: not x.active)[:TRIES]:
-            if token := readers[ats](listing, robots, get):
+            if token := readers[ats](listing.link, listing.company, robots, get):
                 return ats, token, company
         return None
 

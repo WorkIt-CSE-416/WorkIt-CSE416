@@ -4,6 +4,7 @@ the work model and places its fields name."""
 from __future__ import annotations
 
 import html
+import json
 import re
 from collections.abc import Iterable
 from html.parser import HTMLParser
@@ -110,6 +111,49 @@ def _described(markup: str | None) -> tuple[str | None, tuple[str, ...]]:
     return "\n".join(line for line, _ in lines) or None, tuple(role for _, role in lines)
 
 
+def _listing_page(
+    title: str,
+    markup: str | None,
+    *,
+    stated_type: str | None = None,
+    stated_style: str | None = None,
+    stated_pay: details.Pay | None = None,
+) -> tuple[tuple[str, ...], Page | None]:
+    """Classify inline text before extracting expensive card facts.
+
+    Ambiguous titles need full text but no per-character HTML roles.
+    Rejected listings still retain their identity for board completeness.
+    """
+    # Providers register while shortlist imports Job; defer this import.
+    from workit_scraper.shortlist import (
+        classify,
+        classify_with_description,
+        description_categories,
+    )
+
+    tags = classify(title)
+    if not tags and description_categories(title):
+        parser = _TextOnly()
+        parser.feed(html.unescape(markup or ""))
+        parser.close()
+        full = "".join(piece for piece, _ in parser.parts)
+        full = "\n".join(
+            line for raw in full.splitlines() if (line := re.sub(r"[ \t\xa0]+", " ", raw).strip())
+        )
+        tags = classify_with_description(title, full)
+    if not tags:
+        return (), None
+    full, roles = _described(markup)
+    return tuple(str(tag) for tag in tags), _page(
+        title,
+        full,
+        roles=roles,
+        stated_type=stated_type,
+        stated_style=stated_style,
+        stated_pay=stated_pay,
+    )
+
+
 def cap(plain: str | None) -> str | None:
     """At most DESCRIPTION_CHARS, cut at a word: what is stored for Scout."""
     if plain is None or len(plain) <= DESCRIPTION_CHARS:
@@ -176,3 +220,27 @@ def _places(places: Iterable[str | None]) -> str | None:
     """Several places as one location, as Greenhouse boards write them
     ("Stamford, CT; New York, NY"); the backend's resolver splits on ";"."""
     return "; ".join(dict.fromkeys(place for place in places if place)) or None
+
+
+def json_name(text: str) -> str | None:
+    """The `name` an account's JSON gives its company: Greenhouse's board, Workable's
+    account (`Provider.read_name`)."""
+    payload = json.loads(text)
+    name = payload.get("name") if isinstance(payload, dict) else None
+    if not isinstance(name, str):
+        return None
+    return " ".join(name.split()) or None
+
+
+_TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
+
+
+def title_name(text: str, suffix: str = "") -> str | None:
+    """The company a board page's <title> names: Lever's is the name alone, Ashby's
+    the name and `suffix` (" Jobs"). A title without the suffix names no one -- an
+    unknown Ashby board's is "Jobs" alone."""
+    match = _TITLE.search(text)
+    title = " ".join(html.unescape(match[1]).split()) if match else ""
+    if suffix:
+        title = title.removesuffix(suffix) if title.endswith(suffix) else ""
+    return title.strip() or None

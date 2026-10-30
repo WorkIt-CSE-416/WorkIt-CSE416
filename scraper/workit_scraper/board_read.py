@@ -66,3 +66,20 @@ def read_board(board: Board, robots: Robots) -> BoardRead:
         return BoardRead(ReadStatus.SKIPPED, reason="too large", error=error)
     except Exception as error:  # One unread board must not end a run.
         return BoardRead(ReadStatus.FAILED, reason=failure_reason(error), error=error)
+
+
+def reported_name(board: Board, robots: Robots) -> str | None:
+    """The company name the hiring system itself gives a board (`Provider.name_url`).
+    None when it gives none, robots.txt forbids the page, or the page cannot be
+    read: the board then stays unnamed, never named by a guess."""
+    provider = providers.PROVIDERS.get(board.ats)
+    if provider is None or provider.read_name is None:
+        return None
+    url = providers.name_url(board.ats, board.token)
+    if not robots.allows(url):
+        return None
+    robots.pace(url)
+    try:
+        return provider.read_name(providers.fetch._get_text(url))
+    except Exception:  # A lost name leaves the board unproposed, nothing worse.
+        return None
