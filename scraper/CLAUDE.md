@@ -464,8 +464,18 @@ lanes' start): after it no lane starts a board, budget or not, and the rest are
 `DEFERRED`, first in line next run (`Store.to_read`). A lane budget alone was not
 enough: a lane without one ran as long as its boards took, and Jibe's held two of
 three scheduled runs on 2026-10-30 past 60 minutes, each cancelled, each saving
-nothing, so the next one faced the same boards. This is what guarantees a run
-ends and saves; a new lane, or a lane that grows, cannot bring the loop back.
+nothing, so the next one faced the same boards.
+
+**And no board's read outlasts the run** (`READS_UNTIL_S`, 40 minutes): the
+lanes hand board reads a `_Until`, whose `pace` raises `Incomplete` once the
+deadline has passed, so a reader that pages stops at its next page and the board
+counts as unread, never as read with postings missing. Starting boards by a
+deadline was not enough: a started board ran as long as its site took, and
+SuccessFactors' Sonepar read for 35 minutes, one slow page after another, after
+every other lane had finished, so the run was cut off at 60 minutes even with
+`BOARDS_UNTIL_S`. The three deadlines together are what make a run end and save:
+a new lane, a lane that grows, or one slow site cannot bring the loop back. A
+reader that pages must call `pace` before each page, or this cannot stop it.
 
 **A board that keeps going unread rests** (`Store.health`, `store.rest_for`),
 as Freehire's do. After `REST_AFTER` (3) runs in a row that left it unread for
