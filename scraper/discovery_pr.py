@@ -107,6 +107,7 @@ def run(root: Path, repository: str, *, publishing: bool = False) -> int:
                     "hn",
                     "--channel",
                     "openjobs",
+                    "--resolve",
                     "--months",
                     "1",
                     "--limit",

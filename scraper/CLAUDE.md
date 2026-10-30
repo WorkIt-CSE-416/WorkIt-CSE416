@@ -516,10 +516,13 @@ before merging them. Postings are always scraped from the employer.
   a short link by where it leads, a careers page with `?gh_jid=` by the
   Greenhouse board that holds that posting's number, one with `icims` by the
   tenant whose sitemap lists it. Never a guess: a board under the wrong name
-  puts another company's name on real cards. It asks a few hundred hosts, so it
-  runs on request, never in the scheduled run: run it on a laptop, read the
-  diff of `boards.csv` and commit it. Its tests are built cases (`TestResolve`);
-  the first real run's diff is its live check.
+  puts another company's name on real cards. The resolve functions live in
+  `board_resolve.py`, shared by `build_boards.py` (manual) and
+  `discover_boards.py --resolve` (daily). `discovery_pr.py` passes `--resolve`
+  so the daily workflow resolves unmatched evidence before extracting
+  candidates; `build_boards.py --resolve` still works for manual runs. Its
+  tests are built cases (`TestResolve` in `test_build_boards.py`, resolve
+  tests in `test_discover_boards.py`).
 - **The internship lists are renamed each season** (`Summer2026-Internships` →
   `Summer2027-Internships`). GitHub serves the old address too, but update
   `SOURCES` each season: a list that starts a new repo instead would go unread.

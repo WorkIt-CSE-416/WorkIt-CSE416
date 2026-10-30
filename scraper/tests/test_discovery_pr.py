@@ -46,6 +46,7 @@ class Repository:
 
     def discover(self, args):
         assert "--apply" not in args
+        assert "--resolve" in args
         self.excluded = json.loads(Path(args[args.index("--exclude") + 1]).read_text())
         Path(args[args.index("--report") + 1]).write_text(
             json.dumps(
