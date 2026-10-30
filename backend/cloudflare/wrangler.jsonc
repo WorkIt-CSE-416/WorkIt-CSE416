@@ -23,7 +23,7 @@
       "constraints": { "regions": ["ENAM"] },
       // Twice INSTANCES (src/index.ts): after the objects are renamed, the old
       // containers stay awake for sleepAfter and still count against this
-      "max_instances": 6
+      "max_instances": 4
     }
   ],
   // The Worker version's id, which Api compares with the one its running
@@ -33,6 +33,9 @@
     "bindings": [{ "name": "API", "class_name": "Api" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Api"] }],
+  // Pings each instance so none sleeps (src/index.ts, scheduled). Keep it
+  // shorter than sleepAfter (10m), or each instance sleeps between pings.
+  "triggers": { "crons": ["*/5 * * * *"] },
   "routes": [{ "pattern": "api.workitjobs.ai", "custom_domain": true }],
   // Served on the custom domain only: the account has no workers.dev
   // subdomain, and the CI token cannot read one.
