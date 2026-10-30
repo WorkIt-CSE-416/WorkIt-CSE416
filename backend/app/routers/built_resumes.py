@@ -375,7 +375,9 @@ async def render_edit(
                 if found is None:
                     raise NotFound
                 bank.edit_entry(found.row, line.changes)
-                entry = EntryResponse.model_validate({**bank.entry_fields(found.row), "id": found.row.id})
+                entry = EntryResponse.model_validate({
+                    **bank.entry_fields(found.row), "id": found.row.id, "copy_group": bank.copy_group(found.row),
+                })
             else:
                 identity = _with_header(identity, line.changes)
         else:

@@ -1714,7 +1714,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   editor design (KAN-411): the title row (`heading`, `ResumeTitle`
   renamed in place) and the slim toolbar (`SlimBar`). Only the review
   passes `suggestions` (the panel, and with it the margin dots and tints,
-  the view switch in the title row, no Not on This Resume, and Scout's
+  the view switch in the title row, no Experiences picker, and Scout's
   panel left to the job chat), `original` and `phoneBar`. A change for the review goes behind
   one of these props, and a change to the bar or the title row changes
   both pages, so the two never drift into two editors again: until
@@ -1961,18 +1961,17 @@ are in `docs/auth.md`.
   the app's life and would show a PDF from before an edit. An upload's card opened its Storage link in
   a new tab until then (`lib/preview-resume.ts`, now gone), so an upload
   left the app and a DOCX simply downloaded.
-- **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
-  `../docs/bank_by_resume.md`): a Showing card names the pick, drawn as
+- **The Experiences view opens on All Experiences, and filters to one
+  resume** (KAN-343, KAN-440, ADR 0005, `../docs/bank_by_resume.md`): a
+  Showing card names the pick, drawn as
   the Resumes page draws a resume (KAN-363), and its Change Resume opens
-  the shared resume list (KAN-361, KAN-406, `(seeker)/bank/resume-bar.tsx`
-  over `(seeker)/jobs/resume-picker.tsx`'s `ResumeLists`), with Not From an
-  Upload as a card under the list (`pickRowClasses`, drawn as its
-  cards), in its radio group, while anything no
-  upload owns exists or while it is the pick. The page opens on
-  `?resume=`, else the starred resume, else the newest. A pick applies on Show Resume, never on a row
+  the shared resume list (KAN-361, KAN-406, `(seeker)/experiences/resume-bar.tsx`
+  over `(seeker)/jobs/resume-picker.tsx`'s `ResumeLists`), with All
+  Experiences as a card over the list, in its radio group. The page opens on
+  `?resume=`, else All Experiences. A pick applies on Show Resume, never on a row
   click, so the arrow keys can move it. The dropdown it replaced had no
   search and cut long names short. The rules (which items a pick shows, the opening pick, the "Also
-  used in" line) live in `(seeker)/bank/holdings.ts` and read only the
+  used in" line) live in `(seeker)/experiences/holdings.ts` and read only the
   API's `resume_ids`; never work out a resume's items in a component.
   Intake always gets the whole bank. Add sends the pick (`createEntry`,
   `addSkill`), so the new item belongs to that upload or shows on that
@@ -1983,9 +1982,10 @@ are in `docs/auth.md`.
   editor, or the upload's own page, `/resumes/uploaded/[id]`); Rename,
   Download, Make Primary and Delete stay on the Resumes view, so the page
   never shows a resume deleted from under it. All Experiences was removed
-  (2026-10-23). **Every item must show under some pick**: Not From an
-  Upload holds what no upload owns (intake's, or one that came from
-  several uploads before ADR 0005). It was removed too at first, which
+  (2026-10-23) and came back (KAN-440): copies group by the API's
+  `copy_group` (`rowsOf`), never by a rule in the browser. **Every item must show under All Experiences**: a copy no resume holds, with
+  bullets its row does not show, stays a row of its own (`rowsOf`). Not From
+  an Upload did this job until KAN-440; removed once too early, it
   left 96 entries and 242 skills of 8 students that every reader used but
   no student could see, edit or delete, so it came back (2026-10-24).
   Clear All (KAN-352) deletes what a card shows, from the whole bank, as
@@ -2010,7 +2010,7 @@ are in `docs/auth.md`.
   upload page's Delete still wait for the API behind a busy button: they
   confirm a count or leave the page.
 - **The Experiences view has a section nav** (KAN-349,
-  `(seeker)/bank/section-nav.tsx`): one sticky row of links to the seven
+  `(seeker)/experiences/section-nav.tsx`): one sticky row of links to the seven
   section cards, each with its count under the current pick, the one in
   view lit. It is one row at every width, scrolling sideways where it does
   not fit, so its height never changes; every section card's `scroll-mt-16`

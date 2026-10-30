@@ -10,6 +10,7 @@ import {
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   ScissorsIcon,
+  StackIcon,
   WarningIcon,
 } from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
@@ -25,6 +26,7 @@ import {
 } from "react";
 
 import { ChevronDownIcon } from "@/components/icons";
+import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -97,7 +99,7 @@ import {
   untouched,
   useTailorReview,
 } from "./tailor-review";
-import { Tray } from "./tray";
+import { ExperiencesPicker } from "./experiences-picker";
 
 /**
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
@@ -140,6 +142,14 @@ import { Tray } from "./tray";
 // The attribute on the parts of the editor a press may land on without
 // clearing the selected line
 const KEEPS_SELECTION = "data-keeps-selection";
+
+/** The panel's mark while it shows the Experiences picker: the toolbar
+ *  button's glyph, so what opened it is what it wears, and not Scout's. */
+const EXPERIENCES_MARK = (
+  <span className="bg-brand-tint text-brand flex size-8 shrink-0 items-center justify-center rounded-2xl">
+    <StackIcon aria-hidden className="size-4.5" weight="duotone" />
+  </span>
+);
 
 // Letter is 612 pt wide and Jake's text ends at 576 pt; field type is set in
 // cqw of the page so it matches the PDF's at any width.
@@ -440,6 +450,24 @@ export function Editor({
   // Suggestions panel, the original resume, or nothing, when the page
   // takes the room
   const [side, setSide] = useState<"suggestions" | "original" | null>("suggestions");
+  // What the editor shows in Scout's panel (KAN-440): the assistant, or the
+  // Experiences picker, opened from the toolbar. The panel shows one at a
+  // time, so they share it, and there is no switch in it: the top bar's Scout
+  // is the way back, and a switch only took up the panel's top. Closed, it
+  // goes back to the assistant, so the top bar's Scout always opens Scout
+  const scoutOpen = useScout().open;
+  const [panelView, setPanelView] = useState<"scout" | "experiences">("scout");
+  const [panelWasOpen, setPanelWasOpen] = useState(scoutOpen);
+  if (panelWasOpen !== scoutOpen) {
+    setPanelWasOpen(scoutOpen);
+    if (!scoutOpen) setPanelView("scout");
+  }
+  const showScout = useCallback(() => setPanelView("scout"), []);
+  const showExperiences = () => {
+    if (scoutOpen && panelView === "experiences") return setScoutOpen(false);
+    setPanelView("experiences");
+    setScoutOpen(true);
+  };
   const [zoom, setZoom] = useZoom();
   // The column beside the page, the panel or the original, sized to the
   // window from wherever its top is
@@ -1380,6 +1408,15 @@ export function Editor({
       onClose={() => select(null)}
       onFit={fit}
       onUndoFit={undoFit}
+      experiences={
+        // Not on Tailor's review: choosing what a resume shows is the
+        // editor's own page's work, a run's own removals have Reject, and a
+        // toolbar button and modal for it there cluttered the review. It
+        // waits for the first render, since a pick renders again
+        rendered && !suggestions
+          ? { open: scoutOpen && panelView === "experiences", onToggle: showExperiences }
+          : null
+      }
       zoom={<Zoom zoom={zoom} onZoom={setZoom} />}
       history={{
         canUndo: steps.undo > 0,
@@ -1454,11 +1491,6 @@ export function Editor({
             />
           ))}
         </div>
-        {/* Putting an item back renders again, so it waits for the first. */}
-        {/* Not on Tailor's review: putting a hidden line back is the
-            editor's own page's work, and a run's own removals have Reject.
-            A toolbar button and modal for it there cluttered the review */}
-        {rendered && !suggestions && <Tray bank={bank} choices={choices} onPutBack={apply} />}
       </div>
       {/* The assistant lives in Scout's panel, opened from the top bar's
           Scout (`ScoutTakeover`), so the page has one way to it. Not on
@@ -1470,11 +1502,29 @@ export function Editor({
           found two Scout buttons on one page one too many. It waits for the
           first render, as that button did: the assistant reads its page
           count and acts through renders, so until then the panel is
-          Scout's job chat */}
+          Scout's job chat. The Experiences picker shares the panel (KAN-440):
+          the toolbar's Experiences opens it, and the top bar's Scout goes
+          back to the assistant, which stays mounted under it, for its chat */}
       {rendered && !suggestions && (
-        <ScoutTakeover title="Scout" subtitle="Edits this resume as you talk">
+        <ScoutTakeover
+          mark={panelView === "experiences" ? EXPERIENCES_MARK : undefined}
+          away={panelView === "experiences" ? showScout : undefined}
+          title={panelView === "experiences" ? "Experiences" : "Scout"}
+          subtitle={
+            panelView === "experiences"
+              ? "Pick what this resume shows"
+              : "Edits this resume as you talk"
+          }
+        >
           <div data-keeps-selection className="flex min-h-0 flex-1 flex-col">
-            {assistant("flex-1")}
+            <div className={cn("flex min-h-0 flex-1 flex-col", panelView !== "scout" && "hidden")}>
+              {assistant("flex-1")}
+            </div>
+            {panelView === "experiences" && (
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4">
+                <ExperiencesPicker bank={bank} choices={choices} onApply={apply} />
+              </div>
+            )}
           </div>
         </ScoutTakeover>
       )}
@@ -1572,6 +1622,7 @@ function Bar({
   onClose,
   onFit,
   onUndoFit,
+  experiences,
   zoom,
   history,
 }: {
@@ -1591,6 +1642,7 @@ function Bar({
   onClose: () => void;
   onFit: () => void;
   onUndoFit: () => void;
+  experiences: ExperiencesTools | null;
   zoom: ReactNode;
   history: HistoryTools;
 }) {
@@ -1603,6 +1655,7 @@ function Bar({
       download={download}
       onFit={onFit}
       onUndoFit={onUndoFit}
+      experiences={experiences}
       zoom={zoom}
       history={history}
       editing={
@@ -1630,6 +1683,10 @@ function Bar({
     />
   );
 }
+
+/** The toolbar's Experiences (KAN-440): whether Scout's panel shows the
+ *  picker now. */
+type ExperiencesTools = { open: boolean; onToggle: () => void };
 
 /** The slim bar's review tools: the changes left, and which column shows
  *  beside the page. */
@@ -1723,6 +1780,7 @@ function SlimBar({
   onFit,
   onUndoFit,
   editing,
+  experiences,
   zoom,
   history,
 }: {
@@ -1735,6 +1793,8 @@ function SlimBar({
   onUndoFit: () => void;
   /** The open line's label and actions, or nothing while idle. */
   editing: ReactNode;
+  /** The editor's own page only; null on Tailor's review. */
+  experiences: ExperiencesTools | null;
   /** The page's zoom control (`Zoom`), on the editor's own page only. */
   zoom?: ReactNode;
   history?: HistoryTools;
@@ -1780,6 +1840,22 @@ function SlimBar({
       {fitUndo && (
         <Button variant="ghost" size="xs" onClick={onUndoFit} disabled={saving}>
           <ArrowUUpLeftIcon aria-hidden /> Undo Fit
+        </Button>
+      )}
+      {experiences && (
+        // A button of the bar's own weight, as Download is: it is the way to
+        // add to the resume, not a label. Tinted while its panel is open
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-pressed={experiences.open}
+          title="Pick what this resume shows"
+          className={cn(
+            experiences.open && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
+          )}
+          onClick={experiences.onToggle}
+        >
+          <StackIcon aria-hidden /> Add Experiences
         </Button>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -2073,7 +2149,7 @@ function LineActions({
       )}
       {!typed(line) && (
         <span className="text-note text-ink-meta">
-          Change this in <TextLink href="/bank">Experiences</TextLink>.
+          Change this in <TextLink href="/experiences">Experiences</TextLink>.
         </span>
       )}
     </>

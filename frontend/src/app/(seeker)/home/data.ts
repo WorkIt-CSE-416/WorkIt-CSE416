@@ -152,7 +152,7 @@ export async function getHeadline(): Promise<Record<RangeKey, HomeStat[]>> {
       value: strongMatches(rangeDays(range, now)),
       previous: null,
       ...(matched === "empty"
-        ? { note: "Add your experience first", href: "/bank" }
+        ? { note: "Add your experience first", href: "/experiences" }
         : {
             note: matched ? STRONG_MATCHES_NOTE[range] : undefined,
             href: STRONG_MATCHES_HREF[range],

@@ -55,7 +55,10 @@ import type { ScoutMessage } from "./stream";
  * puts intake here. Its content renders into the slot below in place of the
  * chat, under its own title, and the panel widens from 384px to 448px so an
  * entry card fits beside nothing. Scout's conversation is kept, not shown,
- * and comes back on any other page.
+ * and comes back on any other page. A page can show something else in the
+ * panel for a while, under its own `mark`: the resume editor's Experiences
+ * picker does, and the bar's Scout then goes back to the page's assistant
+ * (`away`), since Scout is not what is open.
  */
 export function ScoutPanel() {
   const { open, messages, reply, error, takeover } = useScout();
@@ -137,7 +140,7 @@ export function ScoutPanel() {
         <header className="flex shrink-0 items-center gap-3 px-4 pt-4 pb-1">
           {/* The mark beside every line the assistant says, so the panel and
               its chat wear one (KAN-257); a brand-tint circle stood here. */}
-          <ScoutMark />
+          {takeover?.mark ?? <ScoutMark />}
           <div className="min-w-0">
             <h2 className="text-subtitle text-ink font-semibold">{takeover?.title ?? "Scout"}</h2>
             <p className="text-note text-ink-meta">
@@ -145,7 +148,7 @@ export function ScoutPanel() {
             </p>
           </div>
           <IconButton
-            label="Close Scout"
+            label={`Close ${takeover?.title ?? "Scout"}`}
             className="hover:bg-hover ml-auto size-8 rounded-full after:hidden"
             onClick={closeScout}
           >

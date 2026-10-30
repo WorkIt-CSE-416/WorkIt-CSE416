@@ -113,6 +113,12 @@ def copy_key(entry: Bank_Entry) -> tuple:
     )
 
 
+def copy_group(entry: Bank_Entry) -> str:
+    """`copy_key` as one string, for the API: entries that are copies of one
+    share it. The browser groups by it and holds no copy of the rule."""
+    return "|".join(str(part) for part in copy_key(entry))
+
+
 def _newest_first(entry: Bank_Entry) -> tuple:
     # Python sorts ascending, so dates sort by their negated ordinal and a
     # missing date (0) goes after every real one.
@@ -725,6 +731,7 @@ def entry_response(entry: Entry, resume_ids: list[uuid.UUID] | None = None) -> E
         "id": entry.row.id,
         "bullets": [BulletResponse.model_validate(b) for b in entry.bullets],
         "resume_ids": resume_ids or [],
+        "copy_group": copy_group(entry.row),
     })
 
 

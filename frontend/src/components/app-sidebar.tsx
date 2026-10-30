@@ -227,7 +227,7 @@ export type SidebarNavItem = NavRowBase &
          *  screen. */
         exact?: boolean;
         /** Other paths this row owns, with their subtrees: one section shown
-         *  as two routes, like Resumes & Experiences (/resumes and /bank). */
+         *  as two routes, like Resumes & Experiences (/resumes and /experiences). */
         also?: string[];
       }
     | { action: () => void | Promise<void> }

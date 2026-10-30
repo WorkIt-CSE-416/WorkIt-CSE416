@@ -17,7 +17,7 @@
  * EntryResponse exactly — this is the same JSON GET /applicants/{id}/bank
  * returns in `entries`, not a shape invented here. `title` and
  * `organization` mean different things per `section` (GLOSSARY.md /
- * frontend/src/app/(seeker)/bank/sections.ts's SECTIONS): for "education",
+ * frontend/src/app/(seeker)/experiences/sections.ts's SECTIONS): for "education",
  * `title` is the school and `organization` is the college or department;
  * for "experience", `title` is the job title and `organization` is the
  * company.
