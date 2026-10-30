@@ -52,6 +52,13 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   reaches `NAME_ASCENT`/`NAME_DESCENT`, since it prints `\Huge`. The editor
   types them into the profile. The render route sends them as `RenderResponse.boxes`
   (`schemas/built_resume.py`).
+  **Each box carries the words it prints** (`Box.text`, KAN-391), labels
+  included ("GPA: 3.8/4.0"): `jakes.body(..., printed=)` notes each marked
+  line's plain text under its marker's name as it writes the line, and
+  `render()` puts it on the box. The editor opens its typing field on it
+  and the live page draws it (`../../../../docs/live_page.md`), so the
+  browser holds no copy of `fields.py`. A new template notes its text the
+  same way, from the same string it escapes, never from a second rule.
 - **`Rendered.lines_over` is read from the boxes** (KAN-218): the distinct
   baselines past page 1, a wrapped box counting each line
   (`box_lines`, `WRAPPED_LINE`). Section headings and the space
@@ -108,6 +115,13 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   service-role key.
 - **An empty itemize is a LaTeX error**, so a bullet list opens only around
   bullets.
+- **Every `\resumeItem` argument ends in `\ignorespaces`** (KAN-391). Jake's
+  macro puts a space after its argument (`{#1 \vspace{-2pt}}`); when a
+  bullet's last line was full, TeX broke at that space and printed an
+  empty line after the bullet, 14.9 pt where bullets sit 2.9 pt apart, in
+  Overleaf too. `\ignorespaces` swallows the space, so `jakes.tex` stays
+  byte for byte. A new template whose macros leave a space before a
+  `\vspace` needs the same.
 - **Position markers never move the page.** `MARKS` (in `__init__`) goes at
   the start of the body, after `\begin{document}`, so the preamble stays
   byte for byte; `mark(id, kind, latex)` wraps each line. `\pdfsavepos`
@@ -199,9 +213,10 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 ## Still open
 
 - **The edit-to-PDF round trip in production, warm and cold** (KAN-209):
-  read it from the editor's bar after a save ("Saved, 412 ms", KAN-218). If it feels broken, the fallback
-  is an HTML copy of the page for typing (research option 4), which ADR
-  0002 would have to revisit.
+  read it from the editor's bar after a save ("Saved, 412 ms", KAN-218).
+  The team chose the HTML copy of the page for typing (research option 4)
+  as step 1, with this package's PDF still the only output, and is
+  considering Typst for step 2 (`docs/live_page.md`, ADR 0002's status).
 
 - **Each PDF download renders again** (about a second of function time).
   Sent resumes (KAN-208) store the file and reuse it for a repeat.

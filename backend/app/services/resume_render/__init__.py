@@ -22,7 +22,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -133,7 +133,9 @@ class Box:
     field such as title or dates), its page (from 1), and its rectangle in
     PDF points from the page's top left, y growing down. A wrapped line runs
     from its start to the text's right edge; a line split across pages gives
-    one box on each.'''
+    one box on each. `text` is the line's words as printed, labels included
+    ("GPA: 3.8/4.0"), so the editor can show them without the rules that
+    format them (KAN-391); empty from a bare compile.'''
 
     item_id: str
     kind: str
@@ -142,6 +144,7 @@ class Box:
     y0: float
     x1: float
     y1: float
+    text: str = ""
 
 
 def box_lines(box: Box) -> int:
@@ -186,7 +189,10 @@ def render(view, identity: HeaderIdentity, template: str) -> Rendered:
     Raises ValueError for a template id it does not know, and
     TectonicUnavailable when the compile cannot run or fails.
     '''
-    return compile_document(_document(view, identity, template, marks=True))
+    printed: dict[str, str] = {}
+    rendered = compile_document(_document(view, identity, template, marks=True, printed=printed))
+    boxes = tuple(replace(b, text=printed.get(f"{b.item_id}.{b.kind}", "")) for b in rendered.boxes)
+    return replace(rendered, boxes=boxes)
 
 
 def latex(view, identity: HeaderIdentity, template: str) -> str:
@@ -197,7 +203,9 @@ def latex(view, identity: HeaderIdentity, template: str) -> str:
     return _document(view, identity, template, marks=False)
 
 
-def _document(view, identity: HeaderIdentity, template: str, *, marks: bool) -> str:
+def _document(
+    view, identity: HeaderIdentity, template: str, *, marks: bool, printed: dict[str, str] | None = None
+) -> str:
     # Imported here: the template modules import escape() from this one
     from app.services.resume_render import jakes
 
@@ -205,7 +213,7 @@ def _document(view, identity: HeaderIdentity, template: str, *, marks: bool) -> 
     # out, since pdfLaTeX (Overleaf's default) ignores an xdvipdfmx special
     # and warns about it.
     title = _titled(identity) if marks else ""
-    templates = {"jakes": lambda v, i: jakes_document(title + jakes.body(v, i, marks=marks))}
+    templates = {"jakes": lambda v, i: jakes_document(title + jakes.body(v, i, marks=marks, printed=printed))}
     if template not in templates:
         raise ValueError(f"unknown template {template!r}")
     return templates[template](view, identity)

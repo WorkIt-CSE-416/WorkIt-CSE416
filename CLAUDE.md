@@ -181,6 +181,15 @@ with the failure it prevents.
   proposals and no Done, and the editor marks each change and reverts it.
   Holds the skill placement rule. Read it before changing Tailor or its
   screen.
+- `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
+  built: each edit renders from the editor's copy with no database read
+  while its save writes beside it, and the page below a typed line
+  reflows as the student types, while the LaTeX PDF compiles behind it;
+  the PDF stays the only output. The whole page as HTML is
+  not built yet. Typst,
+  for editing in place, is under consideration and would supersede ADR
+  0002. Read it before changing how the editor shows an edit or choosing
+  a renderer.
 - `docs/fill-reports.md` — fix reports (KAN-369): what a fill report from
   the extension holds, and the Markdown fix brief admins export for a
   coding agent (sections, markers, where the fixture goes).

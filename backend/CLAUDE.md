@@ -680,6 +680,59 @@ Find files with a directory listing; these are the rules for where code goes.
   a write to a choice row leaves the resume's own row as it was:
   `write_choices` and `update_choices` call it, and any new write to a
   resume's choices goes through them or calls it too.
+- **An editor edit is two requests side by side: a render that reads no
+  database and a save that only writes** (KAN-391). `POST
+  .../built-resumes/{rid}/render` (`EditRender`: a typed `line`, or choice
+  `changes`, and the editor's copy, `source`) makes the edit in memory to
+  the copy (`services/resume_copy.py`; `bank.edit_entry`,
+  `built_resumes.apply_choices`, the header) and compiles it, with **no
+  database at all**: the copy is required and carries the last render's
+  template and file name, and the token is checked by its signature alone
+  (`deps.token_applicant`, no profile row read). No ownership check of the
+  path's resume is needed, since nothing of it is read and the PDF prints
+  only what the student sent; `test_a_render_reads_no_database` refuses
+  every session to hold it. It saves nothing. It answers
+  what the edit changed in the copy (`choices`, `entry`; the header is
+  `render.identity`), so the browser never parses typed text. `PUT
+  .../lines` saves a typed line with no read first and never renders:
+  `services/resume_lines.py` (pure) decides what it changes, then one
+  statement per kind writes it with ownership in its WHERE: a bullet
+  through `built_resumes.type_wording` (`_TYPE_WORDING`, one CTE: the
+  local variant made, rewritten or, for the original typed back, deleted,
+  the row pointed at it and the resume touched; answers `variant_id`), an
+  entry field through `bank.write_entry` (checked whole against the
+  copy's entry, read only when no copy is sent, and only the fields the
+  edit changes written, with the embedding cleared in the same
+  statement), a header field as one `UPDATE ... RETURNING` (answers
+  `profile`). `type_wording` and `update_choices`'s `_type_wording` must
+  agree. Choice changes save through `PATCH .../choices`
+  (`built_resumes.save_choices`): moves, hides, shows, toggles and wording
+  switches on items that already have a row are one statement
+  (`_WRITE_CHOICES`, with the row-less bullets a changed entry brings, as
+  `update_choices` makes them); a change that finds no row, or types
+  wording, falls back to `update_choices`, which reads and refuses. The
+  editor asks `?read_back=false` (204), so the save reads nothing back.
+  An empty save still checks the resume is the applicant's: without it,
+  the read-back answered another student's choices. **The copy shapes only the PDF sent back** and the
+  whole-entry check: every write checks ownership in the database, and
+  downloads, Apply and sent resumes never read a copy. Every render
+  answers the header it printed (`identity`), which the editor sends back
+  in its copy, since the browser does not hold the contact email or the
+  citizenship answer. Until then one request saved and rendered: the
+  answer waited for the write, and from a laptop a line read 2.3 s;
+  before that the route read the bank three times and compiled only after
+  the commit (9 reads of about 66 ms and a 0.6 s connection before every
+  0.4 s compile, 2026-10-28). `apply_choices` mirrors `update_choices`
+  field for field, new rows and all; change one and the other together,
+  or the PDF shows what was not saved.
+  `test_the_pdf_built_in_memory_matches_the_saved_resume` checks them
+  against each other.
+  The rules for typed text (a GPA is a number, the label typed back is
+  dropped, a link gets `https://`) live there and nowhere in the browser:
+  until KAN-391 `model.ts` held them, and a GPA it could not read was
+  dropped without a word; now both routes answer 422 with the reason.
+  Tests: `tests/test_resume_lines.py` and the KAN-391 part of
+  `tests/test_resume_editor.py`.
 - **The editor writes a resume's choices in one PATCH**
   (`.../built-resumes/{rid}/choices`, KAN-218): hide, show, move (the
   client renumbers the siblings), the GPA and coursework toggles, typed
@@ -1508,11 +1561,15 @@ why each rule exists.
   write it). If any profile write fails, the route deletes the auth user it
   just made; every write sits inside that one `try`.
 - **Whoever acts on a token verifies its signature**, in one place, used by
-  every protected route: `get_current_account` (`app/deps.py`), which reads `Authorization: Bearer` (never a cookie) and verifies against
+  every protected route but one: `get_current_account` (`app/deps.py`), which reads `Authorization: Bearer` (never a cookie) and verifies against
   the project's JWKS, ES256/RS256 only. The legacy HS256 shared secret is
   unsupported on purpose: it can mint tokens.
 - **Access decisions read the profile row and `app_metadata`**, never
-  `user_metadata`, which the user can edit. `company_id` and onboarding state
+  `user_metadata`, which the user can edit. The one exception is the
+  editor's render (`POST .../built-resumes/{rid}/render`, KAN-391), which
+  reads and writes nothing: `token_applicant` checks the signature and
+  `app_metadata` only, so a deleted account's token still renders its own
+  copy until it expires. Never use it on a route that reads or writes. `company_id` and onboarding state
   come from the row, never the token. The one value copied the other way is
   the sign-in email: `get_current_account` writes the token's onto the row
   when they differ (Settings' Change Email, KAN-326), and keeps the old copy

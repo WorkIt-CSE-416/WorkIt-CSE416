@@ -400,3 +400,23 @@ def test_an_unchecked_header_hashes_as_before_the_check_box() -> None:
     # A resume sent before the field existed still matches its repeat
     assert "us_citizen" not in _identity(IDENTITY)
     assert _identity(replace(IDENTITY, us_citizen=True))["us_citizen"] is True
+
+
+def test_a_bullet_whose_last_line_is_full_has_no_empty_line_after_it():
+    # Jake's \resumeItem puts a space after its argument ("{#1 \vspace{-2pt}}").
+    # When the last line was full, TeX broke at that space and printed an
+    # empty line after the bullet, 14.9 pt where bullets sit 2.9 pt apart
+    # (KAN-391). This text fills its last line in the sample view.
+    _tectonic_or_skip()
+    entry = next(e for s in VIEW.sections for e in s.entries if len(e.bullets) >= 2)
+    full = replace(entry.bullets[0], text=(
+        "Cut the build from 40 to 9 minutes by caching dependencies and splitting tests across "
+        "four workers and more iiiiiiiiii"))
+    view = replace(VIEW, sections=tuple(
+        replace(s, entries=tuple(
+            replace(e, bullets=(full, *e.bullets[1:])) if e.id == entry.id else e for e in s.entries))
+        for s in VIEW.sections))
+
+    boxes = [b for b in render(view, IDENTITY, "jakes").boxes if b.kind == "bullet"]
+    at = next(i for i, b in enumerate(boxes) if b.item_id == str(full.id))
+    assert boxes[at + 1].y0 - boxes[at].y1 < 5

@@ -31,7 +31,9 @@ them). Notes the scripts don't say:
   `npm ci` in a `node:22` container before pushing.
 - `typecheck` runs `next typegen` first because `LayoutProps`/`PageProps` are
   generated route types that do not exist on a fresh clone; bare `tsc` fails.
-- **Tests are Node's own runner** (`node --test`, Node 24 strips the types),
+- **Tests are Node's own runner** (`node --test`, Node 24 strips the types;
+  on Node 22 add `--experimental-strip-types`, or every test fails with
+  "Unknown file extension .ts"),
   for pure modules only: `npm test`, or one file with
   `node --test src/lib/autofill-answers.test.ts`. A test sits beside its
   module as `<name>.test.ts` and imports it with the `.ts` extension
@@ -1603,11 +1605,110 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   render. The worker comes from `new URL("pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url)`, which Turbopack emits as a static file. After a build,
   only those routes' client manifests name the pdf.js chunk.
+  **A page draws on a hidden canvas, then copies onto the shown one**
+  (`PageCanvas`, KAN-391): setting a canvas's size blanks it, and drawing
+  the new PDF straight onto the shown canvas left it blank for the whole
+  pdf.js draw, a dark flash after every edit's render. Never size or
+  render into the shown canvas before the draw is done.
   `npm install` on a Mac dropped two optional `@emnapi/*` entries from the
   lockfile when pdf.js was added; they were put back by hand. Check the
   lockfile diff for removals after adding any dependency. Adding Lenis
   only cleared `"dev": true` on `sharp`'s `@img/*` packages (`next`
   depends on `sharp` too), which is correct and removes no entry.
+- **The editor sends a typed line as typed, and the API reads it**
+  (KAN-391, `saveLine`, `PUT .../built-resumes/{rid}/lines`). The field
+  opens on the box's own printed text (`RenderBox.text`), and a line is
+  sent only when the student leaves it (a click away, on the paper off
+  every line too, Enter, Escape, another line) and the typed text differs
+  from it. The page keeps the selection for its lines, so a press on it
+  that lands on no line box, field or button closes the line itself:
+  without it only Enter or Escape left a line. Nothing goes while
+  they type: a 700 ms pause saved half a line, then the line again once
+  it was done. Never put a rule for typed text (GPA parsing, a label typed
+  back, `https://` on a link) back in the browser: `model.ts` held them
+  until KAN-391 and dropped a GPA it could not read without a word.
+- **Each edit is a render and a save, side by side, and neither waits for
+  the other** (KAN-391): typed lines, moves, hides, put-backs and wording
+  switches render through `renderEdit` (`POST .../render`, from the
+  editor's copy, no database read) and save through `saveLine` or
+  `updateChoices` (writes only; `?read_back=false`). **The render goes through a route
+  handler, `app/api/resume-edit`**, never a server action: Next runs one
+  client's actions one at a time, and as two actions the render waited
+  behind the save. Renders run one at a time (`enqueue`), and each carries
+  the editor's copy of the bank, choices, printed header, template and
+  file name (`ResumeCopy`, built from the `held` ref; the last three from
+  the last render, `printedBy`), so the API renders with no database
+  read; the render's answer (the choices, the entry,
+  the header it printed) goes into `held`, even when a newer request owns
+  the page, so the next copy holds every edit before it. Saves run one at
+  a time in their own queue (`queueSave`); a typed bullet's save answers
+  its local variant, kept in `wordings` and laid over every later answer
+  (`withWording`), since the render could not know its id. Fit reads the
+  saved resume, so it waits for the saves sent before it. **A save that
+  fails puts the saved resume back** (`reload`): once the saves before it
+  answer, the bank, the choices and a PDF read from the database replace
+  the copy, and the bar says the change was not saved. A refusal (404,
+  422) needs no reload: the render refuses it too and says why. A choice
+  change's plain fields (shown, position, the toggles) go into the
+  choices at once (`mergeChoices`) and are merged again over each answer
+  until their own lands, so a second quick move computes from the first.
+  A move of two neighbours shows at once as their strips of the page
+  trading places (`swapOf`, `swapsOn`, `Strip` in `pdf-pages.tsx`): a
+  swap is kept by item, not by position, so a PDF that lands before its
+  own still shows it, and one the page already shows draws nothing.
+  "Saved, N ms" times the render.
+- **Undo and Redo live in the tab's memory, never in browser storage**
+  (KAN-391, `(seeker)/resumes/[resumeId]/history.ts`, tested with
+  `node --test`). Each edit records a step: the edit and its reverse,
+  read from the editor's copy before it (a move's old positions, an old
+  `shown`, an old wording, a typed line's printed text, or a header
+  link's stored URL, since the page prints it without "https://"), and
+  the state and PDF on each side once its render lands. Undo or Redo
+  waits for the renders before it, then, with both sides kept, puts the
+  page back at once and only saves; otherwise it sends the edit as any
+  other. A refused edit's step is dropped, and a failed save's reload
+  clears them all. **`HISTORY_STEPS` (25) and `PDF_STEPS` (7, the newest
+  steps that keep their PDFs, about 110 KB each) are first guesses: tune
+  them in `history.ts` once students use it.** In storage a step would
+  outlive the database it describes (another tab's edit, a reload).
+  Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
+  own text undo runs. An open line is saved first, so Undo takes back
+  what was just typed.
+- **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
+  text is kept per line (`drafts`, by box key) and drawn over the line
+  until the PDF that prints it has painted: the selected line as its
+  field, a line already left as read-only text in the same type. A draft
+  goes when every page of a new PDF has painted (`drawn`) and its save is
+  no longer on its way, or at once when its save is refused and the
+  student has left the line. Until then, leaving a line showed its old
+  text for the whole save and compile. For each drawn line `PdfPages`
+  clears the line's glyphs and moves everything below it on its page,
+  click targets too, by the lines its text gained or lost (`shiftOf`,
+  measured by a `ResizeObserver`); several such moves add up down the
+  page. The canvas is composed from the last pdf.js drawing (`compose`),
+  so a move never draws the PDF again, and only onto the drawing of the
+  PDF whose boxes are on screen: `PdfPages` keeps the boxes that came
+  with the PDF it shows, so a new PDF's boxes never clear lines of the
+  old drawing. **A line left is still editable while its PDF is on its
+  way**: its typed text carries the line's `data-box` and reopens the
+  line on a click, with what was typed; until then the text took the
+  click and the press closed the line. A line reopened and left as it was
+  sends nothing again (`lastSent`). Desktop only: the phone types in a
+  sheet.
+- **A bullet's one wording button is Original** (`LineActions`), shown
+  only while the bullet shows another wording (Tailor's, or one typed on
+  this resume): it puts the bank's text back, and Undo takes that back.
+  The resume's own wording and Tailor's stay in `bank_bullet_variants`.
+  A "Tailored N" button per Tailor wording came first, then This Resume's
+  Wording beside Original; the user wanted Original alone (2026-10-29).
+  The API still accepts a switch to any wording the resume can show.
+- **The editor's page has a zoom** (`Zoom` on the slim bar, both pages):
+  steps of the page's printed size, 100% being 816px (8.5in at 96px an
+  inch), opening at 125% (1020px), capped by its column, kept per browser through
+  `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`). The page filled its column
+  until then, and KAN-421's 1440px pages made it take most of the screen.
+  The overlay and click targets are in `cqw` of each page, so they follow
+  any width.
 - **Tailor's review is the resume editor with props, not a fork**
   (`(seeker)/resumes/[resumeId]/editor.tsx`), and both pages draw one
   editor design (KAN-411): the title row (`heading`, `ResumeTitle`

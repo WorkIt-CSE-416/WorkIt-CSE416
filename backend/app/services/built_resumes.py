@@ -27,11 +27,12 @@ resume answers `NotFound`), and flushes but never commits.
 """
 
 import dataclasses
+import json
 import re
 import uuid
 from collections.abc import Awaitable, Callable
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.autofill_answers import Autofill_Answers
@@ -421,6 +422,98 @@ async def update_choices(
         await touch(session, resume_id)
 
 
+# The editor's choice changes in one statement, no read first (KAN-391):
+# each change updates its existing row on the applicant's resume (a null
+# field keeps its value, as in `update_choices`), an entry changed brings
+# its row-less bullets (shown, after their siblings, in bank order), a
+# switch is checked to be a wording the resume can show, and the resume is
+# marked edited. It answers how many rows each table updated, so the caller
+# can tell when a change found no row.
+_WRITE_CHOICES = text("""
+WITH owner AS (
+    SELECT id FROM built_resumes WHERE id = CAST(:resume_id AS uuid) AND applicant_id = CAST(:applicant_id AS uuid)
+), ec AS (
+    SELECT * FROM jsonb_to_recordset(CAST(:entries AS jsonb))
+        AS c(entry_id uuid, shown boolean, position integer, show_gpa boolean, show_coursework boolean)
+), bc AS (
+    SELECT * FROM jsonb_to_recordset(CAST(:bullets AS jsonb))
+        AS c(bullet_id uuid, shown boolean, position integer, switch boolean, variant_id uuid)
+), sc AS (
+    SELECT * FROM jsonb_to_recordset(CAST(:skills AS jsonb)) AS c(skill_id uuid, shown boolean, position integer)
+), e AS (
+    UPDATE built_resume_entries r SET
+        shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position),
+        show_gpa = coalesce(c.show_gpa, r.show_gpa), show_coursework = coalesce(c.show_coursework, r.show_coursework)
+    FROM ec c
+    WHERE r.built_resume_id IN (SELECT id FROM owner) AND r.entry_id = c.entry_id
+    RETURNING r.entry_id
+), b AS (
+    UPDATE built_resume_bullets r SET
+        shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position),
+        variant_id = CASE WHEN c.switch THEN c.variant_id ELSE r.variant_id END
+    FROM bc c
+    WHERE r.built_resume_id IN (SELECT id FROM owner) AND r.bullet_id = c.bullet_id
+      AND (c.switch IS NOT TRUE OR c.variant_id IS NULL OR EXISTS (
+          SELECT 1 FROM bank_bullet_variants v
+          WHERE v.id = c.variant_id AND v.bullet_id = r.bullet_id
+            AND (v.built_resume_id IS NULL OR v.built_resume_id = r.built_resume_id)))
+    RETURNING r.bullet_id
+), s AS (
+    UPDATE built_resume_skills r SET
+        shown = coalesce(c.shown, r.shown), position = coalesce(c.position, r.position)
+    FROM sc c
+    WHERE r.built_resume_id IN (SELECT id FROM owner) AND r.skill_id = c.skill_id
+    RETURNING r.skill_id
+), brought AS (
+    INSERT INTO built_resume_bullets (built_resume_id, bullet_id, shown, position)
+    SELECT o.id, bb.id, true,
+        coalesce((SELECT max(r.position) FROM built_resume_bullets r JOIN bank_bullets sib ON sib.id = r.bullet_id
+                  WHERE r.built_resume_id = o.id AND sib.entry_id = bb.entry_id), -1)
+        + row_number() OVER (PARTITION BY bb.entry_id ORDER BY bb.position, bb.created_at)
+    FROM owner o JOIN bank_bullets bb ON bb.entry_id IN (SELECT entry_id FROM e)
+    WHERE NOT EXISTS (SELECT 1 FROM built_resume_bullets r WHERE r.built_resume_id = o.id AND r.bullet_id = bb.id)
+    ON CONFLICT DO NOTHING
+), touched AS (
+    UPDATE built_resumes SET updated_at = now() WHERE id IN (SELECT id FROM owner)
+)
+SELECT (SELECT count(*) FROM e), (SELECT count(*) FROM b), (SELECT count(*) FROM s)
+""")
+
+
+async def save_choices(
+    session: AsyncSession,
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    entries: list[dict] = (),
+    bullets: list[dict] = (),
+    skills: list[dict] = (),
+) -> None:
+    """`update_choices`, written with no read first when it can be (KAN-391):
+    moves, hides, shows, toggles and wording switches on items that already
+    have a row on the resume are one statement (`_WRITE_CHOICES`). A change
+    that finds no row (an item put back from the tray that never had one,
+    another applicant's item, a wording the resume cannot show) or that
+    types wording falls back to `update_choices`, which reads, makes the
+    rows and raises NotFound; the fast statement's writes are the same sets
+    again there, and the caller's rollback drops both on a refusal."""
+    if not (entries or bullets or skills):
+        # Nothing to write, but the caller may read the choices back: the
+        # resume must still be the applicant's
+        await get_resume(session, applicant_id, resume_id)
+        return
+    if any("text" in c for c in bullets):
+        await update_choices(session, applicant_id, resume_id, entries, bullets, skills)
+        return
+    switched = [{**c, "switch": "variant_id" in c} for c in bullets]
+    found = (await session.execute(_WRITE_CHOICES, {
+        "applicant_id": str(applicant_id), "resume_id": str(resume_id),
+        "entries": json.dumps(list(entries), default=str), "bullets": json.dumps(switched, default=str),
+        "skills": json.dumps(list(skills), default=str),
+    })).one()
+    if tuple(found) != (len(entries), len(bullets), len(skills)):
+        await update_choices(session, applicant_id, resume_id, entries, bullets, skills)
+
+
 async def load_view(
     session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID
 ) -> tuple[Built_Resume, ResumeView]:
@@ -431,6 +524,120 @@ async def load_view(
 
 
 _UNSET = object()
+
+
+def apply_choices(
+    bank,
+    choices: Choices,
+    entries: list[dict] = (),
+    bullets: list[dict] = (),
+    skills: list[dict] = (),
+    variant_text: dict[uuid.UUID, str] | None = None,
+) -> Choices:
+    """`choices` after `update_choices` would save these changes, in memory:
+    the same fields, the same new rows at the end of their siblings, an
+    entry bringing its row-less bullets, typed wording and the original
+    typed back. A switch to a variant shows `variant_text[variant_id]`. The
+    editor's edit route builds the PDF's view from it, so the compile runs
+    while the write does (KAN-391). NotFound, before anything, for an item
+    outside `bank` or a variant outside `variant_text`. The dicts are
+    read, never changed."""
+    variant_text = variant_text or {}
+    entry_of = {b.id: e.row.id for e in bank.entries for b in e.bullets}
+    original = {b.id: b.text for e in bank.entries for b in e.bullets}
+    section_of = {e.row.id: str(e.row.section) for e in bank.entries}
+    bullets_of = {e.row.id: [b.id for b in e.bullets] for e in bank.entries}
+    skill_ids = {s.id for s in bank.skills}
+    if (any(c["entry_id"] not in section_of for c in entries)
+            or any(c["bullet_id"] not in entry_of for c in bullets)
+            or any(c["skill_id"] not in skill_ids for c in skills)
+            or any(c.get("variant_id") not in (None, *variant_text) for c in bullets)):
+        raise NotFound
+    found = {"entries": dict(choices.entries), "bullets": dict(choices.bullets), "skills": dict(choices.skills)}
+    made = {"entries": EntryChoice, "bullets": BulletChoice, "skills": SkillChoice}
+
+    def row(kind: str, item_id: uuid.UUID, siblings) -> object:
+        store = found[kind]
+        if item_id not in store:
+            used = [c.position for i, c in store.items() if i in siblings]
+            store[item_id] = made[kind](shown=True, position=max(used, default=-1) + 1)
+        return store[item_id]
+
+    def changed(target, change: dict, key: str):
+        fields = {k: v for k, v in change.items() if k not in (key, "text", "variant_id") and v is not None}
+        return dataclasses.replace(target, **fields)
+
+    for change in entries:
+        entry_id = change["entry_id"]
+        siblings = {i for i, s in section_of.items() if s == section_of[entry_id]}
+        found["entries"][entry_id] = changed(row("entries", entry_id, siblings), change, "entry_id")
+        for bullet_id in bullets_of[entry_id]:
+            row("bullets", bullet_id, set(bullets_of[entry_id]))
+    for change in bullets:
+        bullet_id = change["bullet_id"]
+        target = changed(row("bullets", bullet_id, set(bullets_of[entry_of[bullet_id]])), change, "bullet_id")
+        if change.get("text") is not None:
+            wording = change["text"]
+            target = dataclasses.replace(target, text=None if wording == original[bullet_id].strip() else wording)
+        elif "variant_id" in change:
+            switch = change["variant_id"]
+            target = dataclasses.replace(target, variant_id=switch, text=variant_text.get(switch))
+        found["bullets"][bullet_id] = target
+    for change in skills:
+        found["skills"][change["skill_id"]] = changed(row("skills", change["skill_id"], skill_ids), change, "skill_id")
+    return Choices(found["entries"], found["bullets"], found["skills"])
+
+
+# A typed bullet in one statement, no read first (KAN-391): the bullet's
+# row on the resume, checked to be the applicant's, becomes the resume's
+# local variant with the typed wording (made or rewritten), or, when the
+# typed text is the bank's original, loses its local variant. The resume is
+# marked edited (`touch`). Data-modifying CTEs all run, used or not; the
+# delete's ON DELETE SET NULL finds the row already cleared by `shown`.
+_TYPE_WORDING = text("""
+WITH target AS (
+    SELECT r.bullet_id, btrim(b.text) = :wording AS original
+    FROM built_resume_bullets r
+    JOIN built_resumes br ON br.id = r.built_resume_id
+    JOIN bank_bullets b ON b.id = r.bullet_id
+    WHERE r.built_resume_id = CAST(:resume_id AS uuid) AND r.bullet_id = CAST(:bullet_id AS uuid)
+      AND br.applicant_id = CAST(:applicant_id AS uuid)
+), typed AS (
+    INSERT INTO bank_bullet_variants (bullet_id, built_resume_id, text)
+    SELECT bullet_id, CAST(:resume_id AS uuid), :wording FROM target WHERE NOT original
+    ON CONFLICT (built_resume_id, bullet_id) WHERE built_resume_id IS NOT NULL
+    DO UPDATE SET text = EXCLUDED.text
+    RETURNING id
+), gone AS (
+    DELETE FROM bank_bullet_variants
+    WHERE built_resume_id = CAST(:resume_id AS uuid) AND bullet_id = CAST(:bullet_id AS uuid)
+      AND EXISTS (SELECT 1 FROM target WHERE original)
+), shown AS (
+    UPDATE built_resume_bullets SET variant_id = (SELECT id FROM typed)
+    WHERE built_resume_id = CAST(:resume_id AS uuid) AND bullet_id IN (SELECT bullet_id FROM target)
+), touched AS (
+    UPDATE built_resumes SET updated_at = now()
+    WHERE id = CAST(:resume_id AS uuid) AND EXISTS (SELECT 1 FROM target)
+)
+SELECT EXISTS (SELECT 1 FROM target) AS found, (SELECT id FROM typed) AS variant_id
+""")
+
+
+async def type_wording(
+    session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID, bullet_id: uuid.UUID, wording: str
+) -> uuid.UUID | None:
+    """A bullet typed in the editor, written in one statement (`_TYPE_WORDING`):
+    the id of the resume's local variant, or None when the original was
+    typed back. NotFound, with nothing written, for a bullet not on the
+    applicant's resume. `update_choices` does the same with reads first;
+    the two must agree (`_type_wording`)."""
+    found, variant_id = (await session.execute(_TYPE_WORDING, {
+        "applicant_id": str(applicant_id), "resume_id": str(resume_id), "bullet_id": str(bullet_id),
+        "wording": wording,
+    })).one()
+    if not found:
+        raise NotFound
+    return variant_id
 
 
 async def _type_wording(
@@ -592,9 +799,15 @@ async def choices_response(session: AsyncSession, resume_id: uuid.UUID) -> Choic
     the API's shape (the choices GET and PATCH answer with it)."""
     choices = await load_choices(session, resume_id)
     variants = await list_variants(session, resume_id, list(choices.bullets))
+    return choices_out(choices, [
+        VariantResponse(id=v.id, bullet_id=v.bullet_id, text=v.text, job_posting_id=v.job_posting_id,
+                        local=v.built_resume_id is not None) for v in variants])
+
+
+def choices_out(choices: Choices, variants: list[VariantResponse]) -> ChoicesResponse:
+    """Choices in the API's shape, with the variants their bullets can show."""
     return ChoicesResponse(
-        variants=[VariantResponse(id=v.id, bullet_id=v.bullet_id, text=v.text, job_posting_id=v.job_posting_id,
-                                  local=v.built_resume_id is not None) for v in variants],
+        variants=variants,
         entries=[EntryChoiceResponse(entry_id=i, shown=c.shown, position=c.position, show_gpa=c.show_gpa,
                                      show_coursework=c.show_coursework) for i, c in choices.entries.items()],
         bullets=[BulletChoiceResponse(bullet_id=i, shown=c.shown, position=c.position, variant_id=c.variant_id,

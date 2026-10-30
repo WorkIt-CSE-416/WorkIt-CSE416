@@ -1,7 +1,6 @@
-import type { Bank, BankEntry, Bullet, EntryFields, Skill } from "@/lib/bank-actions";
+import type { Bank, BankEntry, Bullet, Skill } from "@/lib/bank-actions";
 import type { ChoicesUpdate, Choices, RenderBox } from "@/lib/built-resume-actions";
 import type { ApplicantProfile } from "@/lib/profile-actions";
-import { linkText } from "@/lib/profile-links";
 
 /**
  * The editor's reading of the bank and one resume's choices (KAN-218): what
@@ -38,104 +37,21 @@ export const HEADER = "header";
 /** The header's link fields, in the order the header prints them. */
 export const LINK_FIELDS = ["linkedin_url", "github_url", "portfolio_url", "other_url"] as const;
 
-/** A typed field's text as the field shows it, and the change typed text
- *  makes, or null when it makes none (a required field left empty, a GPA
- *  that is not a number). */
-type Codec<T, P> = { read: (from: T) => string; write: (text: string) => P | null };
-type EntryPatch = Partial<Omit<EntryFields, "section">>;
-
-const plain = <F extends string>(field: F, required = false) => ({
-  read: (from: Partial<Record<F, string | null>>) => from[field] ?? "",
-  write: (text: string) =>
-    required && !text ? null : ({ [field]: text || null } as Record<F, string | null>),
-});
-
-/** A detail line that prints after a label ("GPA: 3.8/4.0"): the field
- *  shows the label too, so it covers the line as printed, and typing drops
- *  it again. An empty value prints no line, so it shows no label. */
-function labelled(
-  label: string,
-  codec: Codec<BankEntry, EntryPatch>,
-): Codec<BankEntry, EntryPatch> {
-  // The label as printed, or one damaged while typing ("Relevant Coursewok:"),
-  // which would otherwise save into the value: text before the first colon
-  // that starts with the label's first word
-  const prefix = new RegExp(`^\\s*${label.split(" ")[0]}[^:]{0,30}:\\s*`, "i");
-  return {
-    read: (e) => {
-      const value = codec.read(e);
-      return value && `${label}: ${value}`;
-    },
-    write: (text) => codec.write(text.replace(prefix, "").trim()),
-  };
-}
-
-/** A number as the API's `fields._number` prints it: 3.80 as "3.8", 4 as "4.0". */
-function gpaNumber(value: number) {
-  const text = String(value);
-  return text.includes(".") ? text : `${text}.0`;
-}
-
-/** The GPA as the API's `fields.gpa` prints it, the scale as precise as the
- *  score: "3.81/4.00", "3.8/4.0". */
-export function gpaText(gpa: number, scale: number | null) {
-  const score = gpaNumber(gpa);
-  if (scale == null) return score;
-  const places = score.split(".")[1].length;
-  const plain = gpaNumber(scale);
-  const fixed = scale.toFixed(places);
-  return `${score}/${fixed.length > plain.length ? fixed : plain}`;
-}
-
-/** The entry fields typed in place; they change the bank (user story 61). */
-export const ENTRY_CODECS: Record<string, Codec<BankEntry, EntryPatch>> = {
-  title: plain("title", true) as Codec<BankEntry, EntryPatch>,
-  organization: plain("organization"),
-  location: plain("location"),
-  honors: labelled("Honors", {
-    read: (e) => e.honors ?? "",
-    write: (text) => ({ honors: text || null }),
-  }),
-  coursework: labelled("Relevant Coursework", {
-    read: (e) => e.coursework.join(", "),
-    write: (text) => ({
-      coursework: text
-        .split(",")
-        .map((c) => c.trim())
-        .filter(Boolean),
-    }),
-  }),
-  gpa: labelled("GPA", {
-    read: (e) => (e.gpa == null ? "" : gpaText(e.gpa, e.gpa_scale)),
-    write: (text) => {
-      if (!text) return { gpa: null, gpa_scale: null };
-      const m = /^(\d+(?:\.\d+)?)\s*(?:\/\s*(\d+(?:\.\d+)?))?$/.exec(text);
-      return m ? { gpa: Number(m[1]), gpa_scale: m[2] ? Number(m[2]) : null } : null;
-    },
-  }),
-};
-
-const link = (field: (typeof LINK_FIELDS)[number]): Codec<Header, Partial<Header>> => ({
-  read: (h) => (h[field] ? linkText(h[field]) : ""),
-  write: (text) => ({
-    [field]: !text ? null : /^https?:\/\//i.test(text) ? text : `https://${text}`,
-  }),
-});
+/** The entry fields typed in place; they change the bank (user story 61).
+ *  The API reads what is typed (`PUT .../lines`, KAN-391): a GPA must be a
+ *  number, a label typed back is dropped. */
+const TYPED_ENTRY = new Set(["title", "organization", "location", "honors", "coursework", "gpa"]);
 
 /** The header fields typed in place; they change the profile. The email is
  *  the profile's contact email, else the sign-in address, so it is set on
  *  My Profile, not typed here. */
-export const HEADER_CODECS: Partial<Record<HeaderField, Codec<Header, Partial<Header>>>> = {
-  full_name: plain("full_name", true) as Codec<Header, Partial<Header>>,
-  phone_number: plain("phone_number"),
-  ...Object.fromEntries(LINK_FIELDS.map((f) => [f, link(f)])),
-};
+const TYPED_HEADER = new Set<string>(["full_name", "phone_number", ...LINK_FIELDS]);
 
 /** True when the line's text is typed in place. */
 export function typed(line: Line) {
   if (line.kind === "bullet") return true;
-  if (line.kind === "entry") return line.field in ENTRY_CODECS;
-  if (line.kind === "header") return line.field in HEADER_CODECS;
+  if (line.kind === "entry") return TYPED_ENTRY.has(line.field);
+  if (line.kind === "header") return TYPED_HEADER.has(line.field);
   return false;
 }
 
@@ -203,6 +119,111 @@ export function move(bank: Bank, choices: Choices, line: Line, by: -1 | 1): Choi
   return line.kind === "bullet"
     ? { bullets: order.map((bullet_id, position) => ({ bullet_id, position })) }
     : { entries: order.map((entry_id, position) => ({ entry_id, position })) };
+}
+
+/** The choices with a change's plain fields (shown, position, the GPA
+ *  and coursework toggles) set at once, for rows the resume already has
+ *  (KAN-391): a second move computes from the first, and the copy sent
+ *  with the next request holds it. Wording and new rows wait for the
+ *  render's answer, which replaces these. */
+export function mergeChoices(choices: Choices, changes: ChoicesUpdate): Choices {
+  const plain = <T extends object>(row: T, change: object) => ({
+    ...row,
+    ...Object.fromEntries(
+      Object.entries(change).filter(
+        ([k, v]) =>
+          v !== undefined && ["shown", "position", "show_gpa", "show_coursework"].includes(k),
+      ),
+    ),
+  });
+  const entries = new Map(changes.entries?.map((c) => [c.entry_id, c]));
+  const bullets = new Map(changes.bullets?.map((c) => [c.bullet_id, c]));
+  const skills = new Map(changes.skills?.map((c) => [c.skill_id, c]));
+  return {
+    ...choices,
+    entries: choices.entries.map((r) =>
+      entries.has(r.entry_id) ? plain(r, entries.get(r.entry_id)!) : r,
+    ),
+    bullets: choices.bullets.map((r) =>
+      bullets.has(r.bullet_id) ? plain(r, bullets.get(r.bullet_id)!) : r,
+    ),
+    skills: choices.skills.map((r) =>
+      skills.has(r.skill_id) ? plain(r, skills.get(r.skill_id)!) : r,
+    ),
+  };
+}
+
+/** The choices with a typed bullet's saved wording (KAN-391): the save
+ *  answers the resume's local variant (`variantId`, null when the original
+ *  was typed back), which the render, made before the write, could not
+ *  know. Applied only while the bullet still shows those words. */
+export function withWording(
+  choices: Choices,
+  bulletId: string,
+  variantId: string | null,
+  text: string,
+): Choices {
+  const row = choices.bullets.find((b) => b.bullet_id === bulletId);
+  if (!row || (row.text ?? null) !== (variantId ? text : null)) return choices;
+  return {
+    ...choices,
+    bullets: choices.bullets.map((b) =>
+      b.bullet_id === bulletId ? { ...b, variant_id: variantId } : b,
+    ),
+    variants: [
+      ...choices.variants.filter((v) => !(v.local && v.bullet_id === bulletId)),
+      ...(variantId
+        ? [{ id: variantId, bullet_id: bulletId, text, job_posting_id: null, local: true }]
+        : []),
+    ],
+  };
+}
+
+/** Two neighbours a change swaps: an entry within its section, or a
+ *  bullet within its entry, `a` the one above before the change. Null for
+ *  any other change. The page shows the swap at once (KAN-391). */
+export type Swap = { kind: "entry" | "bullet"; a: string; b: string };
+
+export function swapOf(bank: Bank, choices: Choices, changes: ChoicesUpdate): Swap | null {
+  const renumber = (list: { position?: number | null }[] | undefined) =>
+    list &&
+    list.length >= 2 &&
+    list.every((c) => Object.keys(c).length === 2 && c.position != null);
+  const swapped = (before: string[], after: string[]): [string, string] | null => {
+    const at = before.findIndex((id, i) => id !== after[i]);
+    if (at < 0 || at + 1 >= before.length) return null;
+    const same = before.every((id, i) =>
+      i === at ? after[i + 1] === id : i === at + 1 ? after[i - 1] === id : after[i] === id,
+    );
+    return same ? [before[at], before[at + 1]] : null;
+  };
+  if (renumber(changes.bullets) && !changes.entries?.length && !changes.skills?.length) {
+    const ids = changes.bullets!.map((c) => c.bullet_id);
+    const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === ids[0]));
+    if (!entry) return null;
+    const before = ordered(entry.bullets, (id) => choices.bullets.find((c) => c.bullet_id === id));
+    const after = [...changes.bullets!].sort((x, y) => x.position! - y.position!);
+    const pair = swapped(
+      before.map((b) => b.id),
+      after.map((c) => c.bullet_id),
+    );
+    return pair && { kind: "bullet", a: pair[0], b: pair[1] };
+  }
+  if (renumber(changes.entries) && !changes.bullets?.length && !changes.skills?.length) {
+    const first = bank.entries.find((e) => e.id === changes.entries![0].entry_id);
+    if (!first) return null;
+    const before = ordered(
+      bank.entries.filter((e) => e.section === first.section),
+      (id) => choices.entries.find((c) => c.entry_id === id),
+    );
+    const after = [...changes.entries!].sort((x, y) => x.position! - y.position!);
+    const pair = swapped(
+      before.map((e) => e.id),
+      after.map((c) => c.entry_id),
+    );
+    return pair && { kind: "entry", a: pair[0], b: pair[1] };
+  }
+  return null;
 }
 
 export type TrayItem =
