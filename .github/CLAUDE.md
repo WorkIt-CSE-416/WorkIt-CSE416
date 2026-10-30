@@ -187,3 +187,49 @@ bounced send.
 - **Still open:** the EC2 crontab has no built-in failure alerting the
   way this workflow's schedule trigger got from GitHub for free. Not set
   up yet (a dead-man's-switch ping or a CloudWatch alarm would do it).
+
+## Publish extension to Chrome Web Store (`workflows/publish-extension.yml`, KAN-447)
+
+Keeps the Store listing in step with `autofiller_extension/` (its own
+`CLAUDE.md` has the extension itself), so published users run what a PR
+here actually reviewed, never a build off someone's machine. Two jobs:
+
+- **`check-version-bump`**, every PR touching the extension: fails unless
+  `autofiller_extension/manifest.json`'s `version` is strictly greater
+  than `main`'s (`dpkg --compare-versions`). The Store API refuses a
+  re-upload of a version it already has, so this catches a forgotten bump
+  before merge rather than after, with no PR left open to fix it from.
+  **The bump is a one-line, by-hand part of the PR**, on purpose — not
+  something this workflow writes and commits itself, which would need
+  write-back permissions and risks a loop for little gained.
+- **`publish`**, on push to `main` (or by hand): packages only what
+  ships — `manifest.json`, `icons/`, `fonts/`, `src/`, and the
+  `fill-engine` submodule's committed `dist/` bundle alone, never its
+  TypeScript source, tests, or this repo's own `test/`/`CLAUDE.md`/
+  `README.md` — then pushes it through the Chrome Web Store API and
+  submits it for review.
+
+**This does not make an update live by itself.** The extension asks for
+sensitive permissions (`cookies`, several hosts), so Google reviews every
+submission by hand regardless of this workflow — a green run here means
+"queued for review," not "published." A failed or stuck review needs a
+human in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole),
+not a re-run.
+
+- **Secrets:** `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`,
+  `CHROME_REFRESH_TOKEN` (a Google Cloud OAuth client with the Chrome Web
+  Store API enabled, and a refresh token for the account that owns the
+  Store listing — a one-time human setup, not reproducible from this
+  file) and `CHROME_EXTENSION_ID` (the Store item id; this extension
+  pins it via `manifest.json`'s `key`, so it matches the id Chrome
+  already assigns the unpacked dev build,
+  `cpklhdkoafegnndlafmiceehfloodjgi`).
+- **The API can only update an existing Store item.** The very first
+  submission — store listing, screenshots, privacy-practice
+  justifications — is a one-time manual step in the Dashboard; this
+  workflow has nothing to push to until that exists.
+- **One run at a time**, same reasoning as the other workflows: two
+  overlapping publishes could submit two versions out of order.
+- **Still open:** no notification when a submitted version clears (or
+  fails) Google's review — that's checked by hand in the Dashboard for
+  now.

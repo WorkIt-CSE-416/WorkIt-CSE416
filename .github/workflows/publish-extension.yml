@@ -1,0 +1,139 @@
+name: Publish extension to Chrome Web Store
+
+# KAN-447: keeps the Chrome Web Store listing in step with this repo, so
+# published users run the same code reviewed in a PR here, never something
+# built by hand on a developer's machine. autofiller_extension/CLAUDE.md
+# has the extension itself; this file is the publishing half.
+#
+# Two jobs:
+# - check-version-bump (every PR touching the extension): autofiller_
+#   extension/manifest.json's version must be strictly higher than main's,
+#   or the Store API below refuses the re-upload after merge with no PR
+#   left open to fix it from. A version bump is a deliberate one-line change
+#   in the same PR as the rest, not something this workflow writes itself.
+# - publish (push to main, or by hand): packages the extension and pushes
+#   it to the Store via its API, then submits it for review. This does NOT
+#   make the update live by itself — the extension asks for sensitive
+#   permissions (cookies, several hosts), so Google's manual review still
+#   gates when (or whether) it actually reaches users, same as a first
+#   submission. A failed review needs a human in the Developer Dashboard,
+#   not a retry here.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "autofiller_extension/**"
+  push:
+    branches: [main]
+    paths:
+      - "autofiller_extension/**"
+      - ".github/workflows/publish-extension.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: publish-extension
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check-version-bump:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: manifest.json's version must increase
+        run: |
+          OLD=$(git show origin/main:autofiller_extension/manifest.json | jq -r .version)
+          NEW=$(jq -r .version autofiller_extension/manifest.json)
+          echo "main: $OLD -> this branch: $NEW"
+          if ! dpkg --compare-versions "$NEW" gt "$OLD"; then
+            echo "::error file=autofiller_extension/manifest.json::version ($NEW) must be greater than main's ($OLD) or the Chrome Web Store will refuse this upload once merged."
+            exit 1
+          fi
+
+  publish:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      # Only what manifest.json and the shipped files actually reference —
+      # never this repo's own test/, CLAUDE.md or README.md, and only the
+      # fill-engine submodule's committed dist/ bundle, not its TypeScript
+      # source or tests (autofiller_extension/CLAUDE.md, "The Fill engine").
+      - name: Package the extension
+        working-directory: autofiller_extension
+        run: |
+          mkdir -p /tmp/package/fill-engine
+          cp manifest.json /tmp/package/
+          cp -r icons fonts src /tmp/package/
+          cp -r fill-engine/dist /tmp/package/fill-engine/
+          (cd /tmp/package && zip -rq /tmp/extension.zip .)
+
+      # A short-lived access token from the stored refresh token
+      # (autofiller_extension's own publishing setup, not a user's
+      # sign-in) — refresh tokens don't expire, access tokens do.
+      - name: Get an access token
+        id: token
+        env:
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: |
+          RESPONSE=$(curl -sS -X POST https://oauth2.googleapis.com/token \
+            -d client_id="$CLIENT_ID" \
+            -d client_secret="$CLIENT_SECRET" \
+            -d refresh_token="$REFRESH_TOKEN" \
+            -d grant_type=refresh_token)
+          TOKEN=$(echo "$RESPONSE" | jq -r .access_token)
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "::error::Could not get an access token from the stored refresh token: $RESPONSE"
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the new version
+        env:
+          TOKEN: ${{ steps.token.outputs.token }}
+          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+        run: |
+          RESPONSE=$(curl -sS -X PUT \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -T /tmp/extension.zip \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$EXTENSION_ID")
+          echo "$RESPONSE"
+          if [ "$(echo "$RESPONSE" | jq -r .uploadState)" != "SUCCESS" ]; then
+            echo "::error::Upload failed: $RESPONSE"
+            exit 1
+          fi
+
+      # Submits the uploaded version for Google's review. This is not the
+      # same as going live: a sensitive-permission extension like this one
+      # is reviewed by hand on Google's side regardless, so "OK" here means
+      # "queued", not "published". ITEM_PENDING_REVIEW is the normal,
+      # non-error outcome while an earlier submission is still in review.
+      - name: Submit for review
+        env:
+          TOKEN: ${{ steps.token.outputs.token }}
+          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+        run: |
+          RESPONSE=$(curl -sS -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -H "Content-Length: 0" \
+            "https://www.googleapis.com/chromewebstore/v1.1/items/$EXTENSION_ID/publish")
+          echo "$RESPONSE"
+          STATUS=$(echo "$RESPONSE" | jq -r '.status[0]')
+          if [ "$STATUS" != "OK" ] && [ "$STATUS" != "ITEM_PENDING_REVIEW" ]; then
+            echo "::error::Submitting for review failed: $RESPONSE"
+            exit 1
+          fi
