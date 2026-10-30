@@ -213,8 +213,24 @@ class TestRecruitee:
         assert asked == ["https://hardrockdigital.recruitee.com/api/offers/"]
         assert director.key == "recruitee/hardrockdigital#2776212"
         assert director.posted_at == "2026-10-08T10:41:07+00:00"
-        assert director.description == "What are we building?\nWhat are we looking for?"
-        assert director.facts.job_type == "full_time"
+        # Senior listings retain identity/date but no longer parse card facts.
+        assert director.page is None
+        assert contract.page is None
+
+    def kept_jobs(self, monkeypatch) -> list[Job]:
+        # Synthetic early-career titles exercise the same real metadata fields.
+        payload = {
+            "offers": [
+                {**row, "title": "Software Engineer Intern"} for row in self.OFFERS["offers"]
+            ]
+        }
+        serve(monkeypatch, payload)
+        return providers.recruitee("hardrockdigital", "Hard Rock Digital")
+
+    def test_kept_offers_read_description_and_employment_type(self, monkeypatch) -> None:
+        first, *_, contract = self.kept_jobs(monkeypatch)
+        assert first.description == "What are we building?\nWhat are we looking for?"
+        assert first.facts.job_type == "full_time"
         assert contract.facts.job_type == "contract"
 
     def test_the_place_is_the_name_the_employer_typed(self, monkeypatch) -> None:
@@ -229,7 +245,7 @@ class TestRecruitee:
         ]
 
     def test_remote_or_hybrid_is_remote(self, monkeypatch) -> None:
-        styles = [job.facts.work_style for job in self.jobs(monkeypatch)]
+        styles = [job.facts.work_style for job in self.kept_jobs(monkeypatch)]
         assert styles == ["Remote", "Hybrid", "On site", "Remote"]
 
     def test_pay_arrives_as_strings(self) -> None:

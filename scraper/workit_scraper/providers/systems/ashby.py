@@ -10,8 +10,7 @@ from workit_scraper.providers.fetch import _iso
 from workit_scraper.providers.model import Job, Provider
 from workit_scraper.providers.registry import listing_url
 from workit_scraper.providers.text import (
-    _described,
-    _page,
+    _listing_page,
     _work_style,
     title_name,
 )
@@ -38,7 +37,18 @@ def ashby(token: str, company: str) -> list[Job]:
         if not row.get("isListed", True):
             continue
         title = (row.get("title") or "").strip()
-        full, roles = _described(row.get("descriptionPlain") or row.get("descriptionHtml"))
+        markup = row.get("descriptionPlain") or row.get("descriptionHtml")
+        shortlist_tags, page = _listing_page(
+            title,
+            markup,
+            stated_type=details.job_type_label(row.get("employmentType")),
+            # Some boards leave `workplaceType` unset but still flag `isRemote`.
+            stated_style=_work_style(
+                row.get("workplaceType") or ("Remote" if row.get("isRemote") else None),
+                row.get("location"),
+            ),
+            stated_pay=_ashby_pay(row),
+        )
         jobs.append(
             Job(
                 ats="ashby",
@@ -50,18 +60,8 @@ def ashby(token: str, company: str) -> list[Job]:
                 location=row.get("location"),
                 department=row.get("department"),
                 posted_at=_iso(row.get("publishedAt")),
-                page=_page(
-                    title,
-                    full,
-                    roles=roles,
-                    stated_type=details.job_type_label(row.get("employmentType")),
-                    # Some boards leave `workplaceType` unset but still flag `isRemote`.
-                    stated_style=_work_style(
-                        row.get("workplaceType") or ("Remote" if row.get("isRemote") else None),
-                        row.get("location"),
-                    ),
-                    stated_pay=_ashby_pay(row),
-                ),
+                shortlist_tags=shortlist_tags,
+                page=page,
             )
         )
     return jobs

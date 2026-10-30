@@ -17,7 +17,7 @@ import json
 from pathlib import Path
 
 from workit_scraper.logos import company_domain
-from workit_scraper.shortlist import Role, Tag, classify_with_description
+from workit_scraper.shortlist import Role, Tag, classify_job
 from workit_scraper.store import Store
 
 # `providers.text._work_style` yields exactly these three labels, or None. Indexed, not
@@ -107,11 +107,7 @@ def closings(run: Store, roles: list[Role]) -> dict[str, str]:
         if job.apply_url in shown:
             continue
         if run.is_listed(job):
-            why = (
-                "replaced"
-                if classify_with_description(job.title, job.description)
-                else "filtered_out"
-            )
+            why = "replaced" if classify_job(job) else "filtered_out"
         else:
             reads = run.boards.get(job.board_key)
             why = "board_gone" if reads and reads.missing_at else "gone_from_board"
