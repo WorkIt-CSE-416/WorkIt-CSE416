@@ -63,9 +63,12 @@ jobs:
 
       # Daily discovery proposes additions in a PR. Only the human-reviewed,
       # merged boards.csv is scraped; do not add unreviewed curated leads here.
+      # -u: unbuffered, so each board's line shows when it happens. Buffered, the
+      # cancelled runs of 2026-10-30 printed lines in batches and lost their last
+      # minutes, so the log looked silent where the scraper was still reading.
       - name: Scrape
         working-directory: scraper
-        run: python3 -m workit_scraper ${{ inputs.full && '--full' || '' }}
+        run: python3 -u -m workit_scraper ${{ inputs.full && '--full' || '' }}
 
       # Saved only after a scrape that finished, so a crashed run can't hand the
       # next one a half-written store.

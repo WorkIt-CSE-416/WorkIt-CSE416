@@ -149,6 +149,18 @@ class TestLanes:
         assert run.needs_page(scanned[0])
         assert "greenhouse: 2 postings' pages left for the next run" in capsys.readouterr().out
 
+    def test_no_lane_starts_a_board_once_the_runs_board_time_is_up(self, monkeypatch) -> None:
+        # Jibe had no budget, ran past the job's 60 minutes twice on 2026-10-30, and
+        # each cancelled run saved nothing. Out of time, every lane leaves its
+        # boards for the next run, budget or not, so the run ends and saves.
+        lever = board("lever", "acme")
+        monkeypatch.setattr(run, "BOARDS_UNTIL_S", -1)
+        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: pytest.fail("started late"))
+        robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
+        assert providers.PROVIDERS["lever"].budget_s is None
+        scanned, stats, read, _ = run.scrape([lever], robots, {})
+        assert (scanned, read, stats.boards_deferred) == ([], [], 1)
+
     def test_postings_we_do_not_keep_have_no_page_read(self, monkeypatch, swap_provider) -> None:
         gh = board("greenhouse", "stripe")
         monkeypatch.setattr(

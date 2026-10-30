@@ -88,9 +88,11 @@ the big internship lists do and hourly the most any aggregator does; every few
 hours gets a new posting onto the site the same day for a ~15 minute run that
 only writes the rows that changed. Twelve of those minutes are Workday's (KAN-134):
 its boards are read for a fixed share of each run and take about four runs to go
-round, and page reads stop 20 minutes in (`PAGES_UNTIL_S`), which keeps the job
-inside its 60-minute timeout (`scraper/CLAUDE.md`, "Page reads have a deadline
-too"): a run cut off by the timeout saves no store, so the next one repeats it.
+round, page reads stop 20 minutes in (`PAGES_UNTIL_S`) and no lane starts a board
+after 30 (`BOARDS_UNTIL_S`), which keeps the job inside its 60-minute timeout
+(`scraper/CLAUDE.md`, "Page reads have a deadline too"): a run cut off by the
+timeout saves no store, so the next one repeats it. The scraper runs with `-u`, so
+a slow run's log shows where it is.
 **A change to the cron changes `RUN_EVERY` in `scraper/workit_scraper/store.py`
 too**: quiet boards take turns by that slot. Each run keeps `feed.json`,
 `closings.json` (why each stored job is not in the feed, which the import

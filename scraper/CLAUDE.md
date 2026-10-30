@@ -459,6 +459,14 @@ cancelled run saves no store**, so the next one repeated the same pages, and
 nothing was imported for 32 hours. Keep the deadline plus the import (about 10
 minutes) well under `timeout-minutes` in `.github/workflows/scrape.yml` (now 60).
 
+**So do board reads, in every lane** (`BOARDS_UNTIL_S`, 30 minutes from the
+lanes' start): after it no lane starts a board, budget or not, and the rest are
+`DEFERRED`, first in line next run (`Store.to_read`). A lane budget alone was not
+enough: a lane without one ran as long as its boards took, and Jibe's held two of
+three scheduled runs on 2026-10-30 past 60 minutes, each cancelled, each saving
+nothing, so the next one faced the same boards. This is what guarantees a run
+ends and saves; a new lane, or a lane that grows, cannot bring the loop back.
+
 **A board that keeps going unread rests** (`Store.health`, `store.rest_for`),
 as Freehire's do. After `REST_AFTER` (3) runs in a row that left it unread for
 any reason in `RunStats.unread` (a failure, "no such board", robots.txt), no run
