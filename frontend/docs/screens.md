@@ -1157,37 +1157,19 @@ Applications list's frame (one white card, 12px grey headings, rules between
 rows), Live Activity with a Status filter and sorting kept in the URL.
 KAN-359 put jobs first: Up Next, Ready to Queue and History, below.
 
-**The run button is in the page's header, at the top right** (`auto-apply/
-auto-apply-panel.tsx`). It is sm (36px), a header action's size, and as
-wide as its widest label, so Start becoming Pause shifts nothing; on a
-phone it drops under the title at full width. Its label is the run's
-state: Pause while it runs, Resume while paused. It sat beside the Resume
-List until KAN-285, where the list's grid stretched it to the list's whole
-height, a violet block. The first redesign made it lg with a Not Started /
-Live / Paused word beside it; the user found the button larger than the
-app's other primary buttons and the word redundant, and both went
-(2026-10-20). The brand fill marks the
-action that starts work, so Pause is the bordered neutral and Resume the
-brand fill again. Start Auto Apply queues a batch of the seeker's best
-matches through the API (`POST .../auto-apply/batches`, the server action
-`startBatch`: 10, leaving out every job they already have an application
-for), says how many in a note under the header, and refreshes the route so
-Live Activity lists them; an error (an empty experience bank) shows there in
-red instead. Then it starts batch apply (KAN-370): the extension opens the
-queued applications in background tabs, at most five filling at once,
-the next opening as one finishes, and puts each filled tab in its "Ready"
-or "Needs you" tab group (`openNextApplication` in
-`src/lib/autofill-extension.ts`, the message `run/open`). The note says so,
-or why not (no extension, signed out) in red (`auto-apply/opened-note.ts`,
-shared with the job card). Tabs already open stay as they are, so Start
-never wipes a form in progress, and the student is never taken to a tab.
-Pause and Resume only move
-the state. It is off until
-the seeker has a resume (`hasResume`, read on the server with both resume
-lists), and while a batch is queueing. It never waits on
-the tab's page load: the note says how many jobs it queued at once and adds
-the tab's result when it lands. The state (`idle`, `running`, `paused`) is
-the page's own; a return visit starts idle, so Start queues another batch.
+**The header holds no button** (asked for 2026-10-29, `auto-apply/
+auto-apply-panel.tsx`): the app's page headers keep their top right for a
+view switcher, not a primary action. Start Auto Apply sat there until then.
+It queued a batch of the seeker's 10 best matches (`POST
+.../auto-apply/batches`, the server action `startBatch`, now gone), then
+started batch apply on the whole queue, and its Pause and Resume only moved
+a state of its own. Jobs now join the queue from their own Auto Apply
+button or Up Next's Add Jobs, and open from Up Next: the student picks rows
+and presses Auto Apply, which starts batch apply (KAN-370) on those jobs
+(`openNextApplication` with their ids, the message `run/open`), and its
+toast says so, or why not (`auto-apply/opened-note.ts`, shared with the job
+card). Tabs already open stay as they are, and the student is never taken
+to a tab. The API's batch route stays, for the MCP server's `start_batch`.
 
 **Add to Claude** (KAN-383) is a secondary button with the sparkle, the AI
 mark, in the setup strip while the student's Claude isn't connected
@@ -1254,8 +1236,8 @@ showed (`auto-apply/answers/new-answers.ts`, written by `seen-now.tsx` once
 the page shows), so the marks clear on the next visit; a student who never
 opened the page sees every own answer New.
 
-**Jobs lead the page** (KAN-359): the heading with **Start Auto Apply**,
-its one action, and under the title the queue in a line ("2 ready to apply
+**Jobs lead the page** (KAN-359): the heading, with no button since
+2026-10-29, and under the title the queue in a line ("2 ready to apply
 · 1 needs you", each part only when it counts something); then the
 **setup strip**; then **Up Next**, and nothing else for now. It opened
 with a "Resume List" table of every resume until KAN-359, then a line
@@ -1265,60 +1247,90 @@ beside Start until KAN-424, three bordered buttons of one weight for a
 page with one action.
 
 - **The setup banner** (`auto-apply/setup-strip.tsx`, KAN-424): one card
-  under the heading, only while something a batch needs is missing, gone
-  once all of it is done. Three parts across: "Set Up Auto Apply" at
-  subtitle size over "1 of 3 done" at the left, the steps centred in the
-  room between, and Configure at the right (they stack below 42rem of
-  page). With the title small and the steps beside it, the middle stood
-  empty and the banner read as off. Each step is its logo, with a mark on
-  the logo's corner (a green check, or a gray dot), and its name: Chrome
-  Extension (Chrome's mark; asked of the extension itself on load and
-  when the tab comes back into focus), Default Resume (a resume in the
-  brand violet; read on the server) and Claude MCP (Claude's spark; the
-  WorkIt connector in the student's Claude, GET `.../connector`; left out
-  when it can't be read). `ChromeIcon` and `ClaudeIcon` are brand marks in
-  `components/icons.tsx`, in their own colours, beside Google's; Claude's
-  is not WorkIt's AI mark, so Connect wears Claude's spark, never
-  `SparkleIcon`. Its one button is **Configure**, since the
-  banner sets up the tool: it opens the **Set Up Auto Apply** dialog,
-  laid out as a settings page is (after Claude's settings): a row per
-  step, its logo in a 40px bordered tile, its name over its reason in a
-  column of its own, and its control
-  in a fixed column at the right, centred on the row, so every button
-  and status lines up and no text runs under one. The control is the
-  step's action (Install while `NEXT_PUBLIC_EXTENSION_INSTALL_URL` is
-  set, else a Not Installed outline pill, the reason saying to ask the
-  team; Open Resumes, where the star sets the default; Connect, Claude's
-  Add Custom Connector dialog, with Written Answers linked in its reason
-  as the other way), or a green status pill with a check once done
-  (Installed, Starred, Connected). No footer: its × closes it. The first
-  dialog put a mark before each name, let the reasons run toward the
-  button and left "Installed" as loose green text at the row's top, which
-  read as off. A first version showed
-  the first missing step's action on the banner itself ("Set Default"),
-  which read as a puzzle out of context, and named the third step
-  "Claude". The extension counts as done until it answers, so a student
-  with everything set up never sees the banner flash in.
+  under the heading, only while the Chrome extension is missing (asked of
+  the extension itself on load and when the tab comes back into focus; it
+  counts as installed until it answers, so the banner never flashes in).
+  Chrome's mark in a 40px bordered tile, "Add the Chrome Extension" over
+  one line on what it does, and Install while
+  `NEXT_PUBLIC_EXTENSION_INSTALL_URL` is set (the line asks the student to
+  get the link from the team while it isn't). **Only the required step**
+  (2026-10-29): it was "Set Up Auto Apply, 1 of 3 done" with a Configure
+  dialog that counted a default resume and the Claude MCP too, and students
+  read all three as required. Both are optional, so each shows where it
+  helps: a row with no resume says No Resume and its Resume cell picks one,
+  and a row's Questions to Write chip links to Written Answers, whose
+  heading offers **Connect Claude** (Claude's Add Custom Connector dialog,
+  wearing Claude's spark, never `SparkleIcon`) in Write with Claude's place
+  while the student's Claude has no WorkIt connector (GET `.../connector`).
+  Disconnecting stays in Settings.
 
-- **Up Next** (`auto-apply/up-next.tsx`): the queue in one table, **the
-  rows that need the student first** (KAN-424; `needsYou`: a closed
-  posting, a fill that couldn't finish, or no resume, each saying why in
-  its chip), then the rest, each part oldest first, the order the
-  extension takes it. A "Needs You · 2" heading over its own table was
-  tried and removed: it said again what the header's line and the chips
-  say. Live Activity's table with its "queue" columns (`QUEUE_COLUMNS`):
-  Role, Status, **Resume**, Match, Date Added and the row's ⋯. No sorting,
-  since the order is the run's. **Only a row that opens something takes a
-  hover tint**, the whole row: a closed posting's row opens nothing, and
-  its frozen Role cell, which followed the row's hover group, once tinted
-  alone.
-- **The Status cell is a chip only where a row isn't simply waiting**
-  (KAN-424, `QueueChip` in `auto-apply/activity-list.tsx`), most urgent
-  first: Posting Closed (danger), Couldn't Finish (warning; "Finish it on
-  the job's page" in its tooltip), No Resume (danger), Working in Browser
-  (advanced, with its ringing dot), "2 Questions to Write" (warning, a link
-  to Written Answers), else an inert Ready. Every row read "Queued" until
-  then, with "Job posting closed" as gray text under it.
+- **Up Next** (`auto-apply/up-next.tsx`, its table `auto-apply/queue-table.tsx`;
+  redesigned 2026-10-29): every queued job in one table, **grouped by whether
+  WorkIt has started it**, each group under a heading row (its name in a pill and its
+  count) that folds it, as the Resumes page groups its list. A line beside
+  the count, and a line under each status restating its chip ("Filling the
+  form"), were cut as noise (2026-10-29). The
+  heading's button stays at the left while the table scrolls sideways.
+  - **In Progress**: every started job not yet sent. Open in a batch tab,
+    the status is the tab's own, read live from the extension
+    (`useBrowserTabs`, which asks `run/status` every 4 seconds while the
+    page shows): Filling (with a spinning ring, as Tailor's run loader),
+    Ready to Submit, Needs You, Fill Failed, Submitted. With its tab closed
+    (stage needs_you) it is Needs You.
+  - **Queued**: waiting, in the order the extension takes it; no status. A
+    place ("#1 in Queue") was tried and cut: five fill at once, so it read
+    as one at a time.
+  The first version had three groups the same day (In Your Tabs, Waiting,
+  Unfinished, then In Progress, Queued, Incomplete): a started job whose
+  tab closed sat in a group of its own at the bottom, apart from the same
+  kind of job open in a tab, and jumped groups whenever its tab closed or
+  reopened. A job now moves once, Queued to In Progress, then leaves when
+  it is sent. The header's line counts the two groups in the browser
+  ("3 in progress · 2 queued", `QueueSummary`), since only the extension
+  knows which jobs are open in a tab. **The status is one item, in its
+  colour, never a second line**, and a button where there is somewhere to
+  go (`Status` in `queue-table.tsx`), most urgent first: Posting Closed
+  (red, no click), "N Questions to Write" (amber, while any wait; Filling
+  outranks it), the tab's state, and Needs You for a started job whose
+  tab closed. A queued job shows only Posting Closed: its questions show
+  once it starts (they were shown on queued rows too, and the user wanted
+  Queued plain; they can still be written ahead on Written Answers). A
+  click goes where the job is finished: its tab, opened again (it fills
+  again; the API hands a picked needs_you job out too) if it was closed. The same day it went through a pill badge per row, a
+  state with an action link after it ("Tab Closed · Reopen") and the
+  questions' link on a second line, which the user found layers of
+  cluttered text: "Tab Closed" said a browser detail, and Reopen and the
+  questions' link went to the same place. A Next Step column of its own
+  came before that and said again what the status said. A missing resume
+  is not a status: it is an empty Choose Resume slot (grey, dashed, a
+  plus) in the Resume cell, not amber, since a job with no resume still
+  fills. Until 2026-10-29 one chip mixed Couldn't Finish, No Resume and
+  Questions to Write, and the rows that needed the student came first in
+  one ungrouped table. A tab that closes or sends its application
+  refreshes the route, since the stage may have moved and only the server
+  reads it.
+  Columns: Role (with its select box), Status, Resume, Match, Date Added
+  and ⋯. No sorting, since the order is the run's. **Only a
+  row that opens something takes a hover tint**, the whole row, and a row
+  whose ⋯ menu is open tints whole (`data-popup-open`): its frozen Role
+  cell, which follows the row's hover group, once tinted alone.
+- **The ⋯ menu is the same three items on every row**:
+  Change Resume, I Already Applied and Remove From Queue. Going to a tab
+  is the status's, so it is not in the menu. **Remove works on every row**:
+  a tab open on it closes first (`run/close`); a queued job leaves the
+  queue with Undo in its toast; a started one with its tab closed, which the queue's
+  DELETE refuses, is skipped (`skipJob`), with no Undo. Remove was offered
+  on queued rows only until 2026-10-29, so a Couldn't Finish row's menu
+  had no way out.
+- **Picked rows**: each Role cell has a select box and Role's heading
+  Select All, which, as the Inbox's, picks every row or unpicks them while
+  any is picked. While any row is picked, Up Next's heading shows the
+  count, Remove and Auto Apply (opens the picked jobs with no tab open: queued, or Tab Closed
+  jobs first; a batch started from them opens nothing else), in place of
+  Add Jobs. A Stop (close a filling job's tab, so it waits again) and a
+  Clear were there too and went the same day: Stop's square read as one
+  more select box and Remove already closes the tab, and Select All
+  clears a pick.
 - **The Resume cell is a button** (a bordered pill with a pencil): it
   opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
   Apply dialog's own resume list (`jobs/resume-picker.tsx`, Job posting
@@ -2407,11 +2419,14 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   (`src/components/resume-upload.tsx`) is a pure dropzone + file preview —
   it knows nothing about upload logic or limits.
 - **The list** (`resumes/resume-list.tsx`) is one card that scrolls
-  inside itself, five cards high under a group heading (`FIVE_ROWS`,
-  351px; the shared `max-h-scroll-box` of Top Matches and the resume
-  picker showed three and a half once the headings came), so the
-  search and the buttons stay in view however many resumes a student
-  keeps. It is grouped by
+  inside itself and runs down to the foot of the page, 24px above the
+  window's bottom (`ResumeScroll`'s `fill`, KAN-434), never shorter than
+  five cards under a group heading (`FIVE_ROWS`, 351px), so the search
+  and the buttons stay in view however many resumes a student keeps. On
+  a window too short for that the page scrolls too. It stopped at five
+  cards until KAN-434, which left half a laptop screen empty under it;
+  the resume pickers keep five cards, since they sit in a dialog. It is
+  grouped by
   type, as Notion's Group by (KAN-404): **Uploaded**, **Generated**, then
   **Tailored**, each under a heading with its name in a pill (`Badge`,
   brand, alike for all three) and its count, which sticks to the card's
@@ -2602,8 +2617,8 @@ student who opened a resume from Experiences landed on another view.
   one-page resume shows no count: a green "1 page" said what the page
   itself shows. No "Click a line to edit it." hint: the pointer's own
   highlight on a line says so. In both states the bar says "Saving…" or
-  the last round trip ("Saved, 412 ms"), the measure for the Vercel
-  preview check. Idle, **Download** (PDF, Word or LaTeX) ends the bar,
+  the last round trip ("Saved, 412 ms"), the measure for the production
+  check (`backend/app/services/resume_render/CLAUDE.md`, Still open). Idle, **Download** (PDF, Word or LaTeX) ends the bar,
   secondary, so it stays in reach down a two-page resume
   (`../download-menu.tsx`, KAN-258; it was on each card of the Resumes
   view). It keeps nothing (KAN-267) and holds a PDF with characters the

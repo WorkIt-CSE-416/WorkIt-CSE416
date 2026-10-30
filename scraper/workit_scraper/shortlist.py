@@ -3,11 +3,10 @@
 The scraper's densest logic, and the place a bug is quietest. Two steps:
 
 1. **Classify.** A posting is kept when its title names an early-career stage
-   (`intern` or `new-grad`, `stage`) *and* one of twelve categories (KAN-172,
-   `CATEGORIES`), and the first discipline it names is not one we hold off on
-   (law, consulting, teaching, the arts, policy, customer support). The first
-   discipline is the role's category; a few engineering titles name a second
-   (`SECOND`), and some categories have specialties (`SPECIALTIES`).
+   (`intern` or `new-grad`, `stage`), in any field (KAN-430). The first
+   discipline the title names is the role's category (`CATEGORIES`); a title
+   naming none is `other`. A few engineering titles name a second (`SECOND`),
+   and some categories have specialties (`SPECIALTIES`).
 
 2. **Dedupe** on `apply_url`. Each URL is its own job: Stripe posting "Software
    Engineer, New Grad" once per office, each with its own application, is seven
@@ -30,7 +29,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
-from workit_scraper.details import Facts
+from workit_scraper.details import Facts, min_years
 from workit_scraper.providers import Job
 
 
@@ -58,6 +57,16 @@ class Tag(StrEnum):
     SALES = "sales"
     HR = "hr"
     DESIGN = "design"
+    # Held off until KAN-430, when every early-career field was kept.
+    LAW = "law"
+    CONSULTING = "consulting"
+    SUPPORT = "support"
+    ARTS = "arts"
+    POLICY = "policy"
+    EDUCATION = "education"
+    #: An early-career title naming no field ("Engineering Intern", "Research
+    #: Intern"), or a job no field's words describe (`OUTSIDE_FIELDS`).
+    OTHER = "other"
 
     SECURITY_IT = "software/security"
     ML = "data_ai/ml"
@@ -84,6 +93,13 @@ CATEGORY_TAGS = (
     Tag.SALES,
     Tag.HR,
     Tag.DESIGN,
+    Tag.LAW,
+    Tag.CONSULTING,
+    Tag.SUPPORT,
+    Tag.ARTS,
+    Tag.POLICY,
+    Tag.EDUCATION,
+    Tag.OTHER,
 )
 
 
@@ -110,15 +126,39 @@ INTERN = rx(
 # year-round analyst nor JCC's "Summer Day Camp" counselors count.
 SUMMER_ANALYST = re.compile(r"^(?=.*\bsummer\b)(?=.*\banalysts?\b)", re.I)
 NEW_GRAD = rx(
-    r"\bnew ?grad(?:uate)?\b",
+    r"\bnew ?grad(?:uate)?s?\b",
     r"\bgraduate\b",
     r"\bentry[- ]level\b",
     r"\bjunior\b",
     r"\bapprentice\b",
+    # Omnicom Health's "Trainee Account Executive", Crest Industries' "Fabrication
+    # Trainee" (KAN-430: every trainee in a 110-board sample was entry level).
+    r"\btrainees?\b",
+    r"\bfellowships?\b",
 )
 # These say a role is for students or graduates as often as they say who a
-# recruiter recruits ("University Recruiter") or where a job is (below).
-PROGRAM = rx(r"\buniversity\b", r"\bcampus\b", r"\bearly[- ]career\b")
+# recruiter recruits ("University Recruiter") or where a job is (below). A
+# rotational program is a graduate program (National Life's "Finance Leadership
+# Rotational Program Associate"); its manager is not a graduate, so it is here,
+# not a stage of the person's own.
+PROGRAM = rx(
+    r"\buniversity\b",
+    r"\bcampus\b",
+    r"\bearly[- ]career\b",
+    r"\bemerging talent\b",
+    r"\brotational program(?:me)?s?\b",
+    # "<Discipline> Program/Programme/Talent": a named graduate or rotational
+    # program. Goldman's "2027 Analyst Program", GE's "Engineering Development
+    # Programme", Unilever's "Management Development Program", Deloitte's
+    # "Engineering Talent". AUDIENCE already strips titles where the word precedes
+    # a management role ("Campus Programme Manager"), and SENIOR and LEADS block
+    # directors and managers of the program itself.
+    r"\b(?:analyst|associate|engineer(?:ing)?|technology|tech|consulting|talent"
+    r"|leadership|manage(?:ment|r)|development|sales|finance|marketing|business"
+    r"|operations) (?:program(?:me)?s?|talent)\b",
+    # "<Any word> Development Program/Programme".
+    r"\b\w+ development program(?:me)?s?\b",
+)
 # Who a role recruits or serves, not who fills it: Stripe's "University Recruiter",
 # Jane Street's "Campus Recruiter, Machine Learning and Quantitative Research",
 # Belvedere's "Early Career Talent Partner - Trading", Bridgewater's "Campus Talent
@@ -129,11 +169,11 @@ PROGRAM = rx(r"\buniversity\b", r"\bcampus\b", r"\bearly[- ]career\b")
 AUDIENCE = re.compile(
     r"\b(?:university|campus|early[- ]careers?|early talent)(?:\s*&\s*\w+)?\s+(?:recruit\w*"
     r"(?!\s+20\d\d)|relations|talent|engagement|outreach|partnerships?|ambassadors?|events?"
-    r"|hiring|lead|programs?\s+(?:manager|lead|coordinator|specialist|partner))\b"
+    r"|hiring|lead|program(?:me)?s?\s+(?:manager|lead|coordinator|specialist|partner))\b"
     # Canonical's "Graduate Talent Scientist" is a graduate; its "Talent Scientist -
     # Graduate Lead" leads the graduates.
     r"|\b(?:graduate|intern(?:ship)?s?|student)\s+(?:recruit\w*|relations|outreach|hiring|lead"
-    r"|ambassadors?|programs?\s+(?:manager|lead|coordinator|specialist|partner))\b",
+    r"|ambassadors?|program(?:me)?s?\s+(?:manager|lead|coordinator|specialist|partner))\b",
     re.I,
 )
 # A place, not a stage: Brooks's "Retail Sales Associate, University Village",
@@ -195,7 +235,7 @@ def stage(title: str) -> Stage | None:
 # "Engineer" on its own is not a signal. Wade Trim posts "Engineer Summer Intern",
 # a civil firm; nothing in a bare "Engineering Intern" tells a software company's
 # from theirs, so each category names its specialisms instead and such a title is
-# dropped.
+# `other`.
 
 # Recruiting and HR, named as the job. It outranks every discipline the title
 # recruits for, so Jane Street's ML recruiter is a recruiter; as a team or a
@@ -215,7 +255,7 @@ HR = rx(
     r"\bcompensation (?:and|&) benefits\b",
     r"\blearning (?:and|&) development\b",
 )
-# Law, as the job; compliance is held off below, after security.
+# Law, as the job; compliance is law too, below, after security.
 LEGAL = rx(
     r"\blegal\b",
     r"\bparalegal",
@@ -251,7 +291,7 @@ PARTNERS = rx(
     r"\bgo[- ]to[- ]market\b",
     r"\bgtm\b",
 )
-# Consulting, held off: Veeva's "Associate Consultant - Entry-Level Technology
+# Consulting: Veeva's "Associate Consultant - Entry-Level Technology
 # Consulting", CRA's "Accounting/Business/Finance Consulting Analyst". A solutions
 # consultant sells (above) and a recruitment consultant recruits; a consultant who
 # names data or software keeps that job (Fifty-Five's "Data Analyst Consultant
@@ -604,11 +644,11 @@ SECURITY_IT = re.compile(
     r"|\btechnology (?:graduate )?analyst\b)"
     r"|\bIT\b"
 )
-# Compliance is legal work, held off, after security: "Security Compliance" is
-# security, Geotab's "Corporate Compliance Intern" and Capco's "Junior Compliance
-# KYC Specialist" are not ours.
+# Compliance is legal work, after security: "Security Compliance" is security,
+# Geotab's "Corporate Compliance Intern" and Capco's "Junior Compliance KYC
+# Specialist" are law.
 COMPLIANCE = rx(r"\bcompliance\b", r"\baml\b", r"\bkyc\b")
-# Customer and technical support, held off, named as the job. After security and
+# Customer and technical support, named as the job. After security and
 # IT, which take a help desk and Instawork's "IT Intern – Gadget & Tech Support
 # Operations", and ahead of the hardware a support desk supports (RF-SMART's
 # "Hardware Support Internship"). After data, so Cresta's "Data Science Intern
@@ -718,7 +758,7 @@ OTHER_JOB = rx(
     r"\bphysicists?\b",
     r"\bdevelopers?\b",
 )
-# The arts, held off: Duolingo's "Illustrator, Intern", 2K's "Technical Art Graduate
+# The arts: Duolingo's "Illustrator, Intern", 2K's "Technical Art Graduate
 # Program", a videographer, a podcast producer. Not "3D" or "film": Applied
 # Intuition's "Research Intern - 3D Vision" and Periodic Labs' "Research Intern,
 # Thin Films" are science.
@@ -742,7 +782,7 @@ ART = rx(
     r"\bpodcast\w*",
     r"\bvfx\b",
 )
-# Public policy and government relations, held off. Not a robot's "policy
+# Public policy and government relations. Not a robot's "policy
 # learning", which is machine learning (ML ranks first anyway).
 PUBLIC = rx(
     r"\bpolicy\b(?! learning)",
@@ -759,12 +799,13 @@ EDUCATION = rx(
     r"\bcurriculum\b",
     r"\beducat\w*",
 )
-# Never ours, whatever else the title names: trades and operators, not engineers
-# (InfraServices' "Electrical Apprentice", Silvus's "Electronics Test and Assembly
-# Technician", Faraday Future's "Robotics Data Operator Intern", Nexus's
-# "Electrical Drafter/Designer"), medicine, and a hotel's kitchen and front desk
-# (Belmond's "Internship for Train Operations - F&B").
-NEVER = rx(
+# No field's job, whatever else the title names, so `other`: trades and operators,
+# not engineers (InfraServices' "Electrical Apprentice", Silvus's "Electronics Test
+# and Assembly Technician", Faraday Future's "Robotics Data Operator Intern",
+# Nexus's "Electrical Drafter/Designer"), medicine, and a hotel's kitchen and front
+# desk (Belmond's "Internship for Train Operations - F&B"). Dropped until KAN-430;
+# kept now, but never filed under the hardware or design their words suggest.
+OUTSIDE_FIELDS = rx(
     r"\belectrical apprentice\b",
     r"\btechnicians?\b",
     r"\boperators?\b",
@@ -779,16 +820,13 @@ NEVER = rx(
     r"\bguest experience\b",
 )
 
-#: A held-off discipline: a title it is first in is not kept.
-HELD = None
-
 # Which discipline a title is in, first match wins. Job names first (a recruiter
 # of quants recruits, a designer of products designs), then the disciplines from
 # most specific to least, then the modifiers that only name a job nothing else
-# does. A HELD row drops the title: those are fields we hold off on (KAN-172).
-CATEGORIES: tuple[tuple[Tag | None, re.Pattern[str]], ...] = (
+# does. The fields held off under KAN-172 keep their places in the order.
+CATEGORIES: tuple[tuple[Tag, re.Pattern[str]], ...] = (
     (Tag.HR, HR),
-    (HELD, LEGAL),
+    (Tag.LAW, LEGAL),
     (Tag.SALES, SALES),
     (Tag.DESIGN, DESIGN),
     (Tag.BUSINESS, PROJECTS),
@@ -801,22 +839,22 @@ CATEGORIES: tuple[tuple[Tag | None, re.Pattern[str]], ...] = (
     (Tag.DATA_AI, ANALYTICS),
     (Tag.HARDWARE, EMBEDDED),
     (Tag.SOFTWARE, SOFTWARE),
-    (HELD, CONSULTING),
+    (Tag.CONSULTING, CONSULTING),
     (Tag.SOFTWARE, SECURITY_IT),
-    (HELD, SUPPORT),
+    (Tag.SUPPORT, SUPPORT),
     (Tag.BUSINESS, SUPPLY),
     (Tag.HARDWARE, HARDWARE_JOB),
     (Tag.ENGINEERING, ENGINEERING),
     (Tag.HARDWARE, HARDWARE),
     (Tag.SALES, PARTNERS),
-    (HELD, SUPPORT_ROLE),
-    (HELD, COMPLIANCE),
+    (Tag.SUPPORT, SUPPORT_ROLE),
+    (Tag.LAW, COMPLIANCE),
     (Tag.FINANCE, FINANCE),
     (Tag.MARKETING, MARKETING),
     (Tag.BUSINESS, BUSINESS),
-    (HELD, ART),
-    (HELD, PUBLIC),
-    (HELD, EDUCATION),
+    (Tag.ARTS, ART),
+    (Tag.POLICY, PUBLIC),
+    (Tag.EDUCATION, EDUCATION),
     # The modifiers. Software's generic words before the rest, as they always
     # were: "QA Interns || Robotics" (Instawork) is QA.
     (Tag.SOFTWARE, SOFTWARE_WEAK),
@@ -878,30 +916,23 @@ SPECIALTIES: dict[Tag, tuple[tuple[Tag, re.Pattern[str]], ...]] = {
 }
 
 
-def _discipline(title: str) -> tuple[str, Tag | None]:
-    """Whose discipline the title names first: "ours" with its category, "held"
-    (a field we hold off on), "never" (`NEVER`) or "none"."""
-    if NEVER.search(title):
-        return "never", None
+def first_category(title: str) -> Tag:
+    """The first discipline the title names, or `other` for a title naming none."""
+    if OUTSIDE_FIELDS.search(title):
+        return Tag.OTHER
     for tag, pattern in CATEGORIES:
         if pattern.search(title):
-            return ("held", None) if tag is HELD else ("ours", tag)
+            return tag
     if BUSINESS_WEAK.search(title) and not OTHER_JOB.search(title):
-        return "ours", Tag.BUSINESS
-    return "none", None
-
-
-def first_category(title: str) -> Tag | None:
-    """The first discipline the title names, or None for a title naming none of
-    ours or one we hold off on."""
-    return _discipline(title)[1]
+        return Tag.BUSINESS
+    return Tag.OTHER
 
 
 def categories(title: str) -> tuple[Tag, ...]:
-    """The role's categories, first first, then its specialties; () if none."""
-    first = first_category(title) if title else None
-    if first is None:
+    """The role's categories, first first, then its specialties; () for no title."""
+    if not title:
         return ()
+    first = first_category(title)
     found = [first]
     second = SECOND.get(first)
     if second and second.search(title) and not _NOT_SECOND.search(title):
@@ -927,32 +958,88 @@ def classify(title: str) -> tuple[Tag, ...]:
     return (at.tag, *found)
 
 
+# --- Description fallback ----------------------------------------------------
+#
+# A title with no stage word ("Software Engineer", "Data Analyst") can still be
+# early career if the description states a low experience requirement. Only
+# useful for providers that send the description with the board listing (Ashby,
+# Lever, Recruitee, TikTok, Jibe); the rest, SuccessFactors among them, have no
+# description until a kept posting's page is read, so this adds zero HTTP.
+
+EARLY_EXPERIENCE = re.compile(
+    r"(?:"
+    # "0-2 years", "0 to 1 year", "1-2 yrs" — low range
+    r"(?<!\d)[01]\s*[-–]\s*[0-2]\s*(?:\+\s*)?(?:years?|yrs?)"
+    r"|"
+    r"(?<!\d)[01]\s+to\s+[0-2]\s*(?:years?|yrs?)"
+    r"|"
+    # "0+ years", "1+ years" (not "10+")
+    r"(?<!\d)[01]\+\s*(?:years?|yrs?)"
+    r"|"
+    # "no experience required/needed/necessary"
+    r"no\s+(?:prior\s+)?experience\s+(?:is\s+)?(?:required|needed|necessary)"
+    r"|"
+    # "0 experience required"
+    r"(?<!\d)0\s*\+?\s*experience\s+(?:is\s+)?(?:required|needed|necessary)"
+    r")",
+    re.I,
+)
+
+
+def classify_with_description(title: str, description: str | None) -> tuple[Tag, ...]:
+    """Like `classify`, but when the title has no stage word and a description is
+    available, checks for low-experience language ("0-2 years", "no experience
+    required") before giving up.  Returns the same shape as `classify`.
+
+    Uses `details.min_years` as the authority when it finds years: a description
+    that states "5+ years of backend experience, including 1+ years with
+    Kubernetes" asks for five, not one, and is rejected even though a phrase in
+    it looks like "1+ years".  ``EARLY_EXPERIENCE`` still catches phrasing
+    ``min_years`` does not read ("0+ years in data science", "no experience
+    required"); ``min_years`` overrides it when both fire."""
+    result = classify(title)
+    if result:
+        return result
+    if not description or not title or SENIOR.search(title):
+        return ()
+    years = min_years(description)
+    if years is not None and years > 1:
+        return ()
+    if years is None and not EARLY_EXPERIENCE.search(description):
+        return ()
+    words = PLACE.sub(" ", AUDIENCE.sub(" ", title))
+    if LEADS.search(words):
+        return ()
+    found = categories(title)
+    # A title naming no specific field ("Specialist") is `other`; when the only
+    # evidence is the description's experience level, that is too vague to keep.
+    # HR is blocked for the same reason as in `classify`: a recruiter whose title
+    # has no personal stage word ("University Recruiter") recruits for a program,
+    # not fills one.
+    if not found or found[0] is Tag.OTHER or found[0] is Tag.HR:
+        return ()
+    return (Tag.NEW_GRAD, *found)
+
+
 #: The steps a wider shortlist could take, in order, and what each would add
 #: (docs/coverage.md, "More roles"). `widening_step` files every scanned title
 #: under the first that would keep it, and metrics.json counts them, so the size
 #: of each step is measured before anyone takes it.
+#: Every field is kept since KAN-430, so only the level is left to widen.
 WIDENING_STEPS = (
-    "kept",  # kept now
-    "held_field",  # early career, in a field we hold off on: law, consulting, the arts
-    "no_field",  # early career, naming no field: "Engineering Intern", "Research Intern"
-    "no_stage",  # in our fields, no stage word: "Software Engineer I", "Data Analyst"
-    "senior",  # in our fields, senior: "Senior Software Engineer"
-    "outside",  # none of our fields at any level: nurses, retail, trades
+    "kept",  # kept now: early career, in any field
+    "no_stage",  # no stage word: "Software Engineer I", "Data Analyst", "Paralegal"
+    "senior",  # senior: "Senior Software Engineer"
 )
 
 
-def widening_step(title: str) -> str:
-    """The first of `WIDENING_STEPS` that would keep this title, by `classify`'s
-    own rules."""
-    if classify(title):
+def widening_step(title: str, description: str | None = None) -> str:
+    """The first of `WIDENING_STEPS` that would keep this title (and, when
+    available, its description), by `classify_with_description`'s own rules."""
+    if classify_with_description(title, description):
         return "kept"
-    kind, _ = _discipline(title) if title else ("none", None)
-    if stage(title):
-        # Ours with a stage and still dropped is a recruiter for a program
-        # ("Campus Recruiter"): no stage of the person's own.
-        return {"held": "held_field", "none": "no_field", "ours": "no_stage"}.get(kind, "outside")
-    if kind != "ours":
-        return "outside"
+    # A recruiter for a program ("Campus Recruiter") has a stage, but not one of
+    # the person's own: no stage, like any other title without one.
     return "senior" if SENIOR.search(title) else "no_stage"
 
 
@@ -1024,7 +1111,8 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
         # The lead copy says what the role is and where to apply, and goes first.
         lead = _lead(copies, oldest)
         postings = [lead, *(job for job in copies if job is not lead)]
-        tags = classify(lead.title)
+        lead_description = next((job.description for job in postings if job.description), None)
+        tags = classify_with_description(lead.title, lead_description)
         if not tags:
             continue
         locations = tuple(dict.fromkeys(place for job in postings for place in job.places))

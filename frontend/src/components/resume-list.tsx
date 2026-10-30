@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 
 import { ChevronDownIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
@@ -38,25 +38,69 @@ export function matches(text: string, words: string[]): boolean {
  *  of fewer cards stops short of it. */
 const FIVE_ROWS = "max-h-[calc(2.4375rem+5*3.75rem+0.75rem)]";
 
+/** `fill`'s cap: the room `useFillPage` measured, never under `FIVE_ROWS`,
+ *  which also holds until it has measured (the server's render). */
+const FILL_PAGE = "max-h-[max(calc(2.4375rem+5*3.75rem+0.75rem),var(--fill-height,0px))]";
+
 /**
  * The list's one scroll, five cards high under a heading, not the shared
  * `max-h-scroll-box` (320px) that Top Matches uses: with the group
  * headings, 320px showed three and a half. Never a scroll box per group:
- * nested, the wheel and a finger get caught in the inner box.
+ * nested, the wheel and a finger get caught in the inner box. With `fill`
+ * (the Resumes page, KAN-434) it runs down to the foot of the page
+ * instead: five cards left half a laptop screen empty under it.
  */
-export function ResumeScroll({ label, children }: { label?: string; children: ReactNode }) {
+export function ResumeScroll({
+  label,
+  fill = false,
+  children,
+}: {
+  label?: string;
+  fill?: boolean;
+  children: ReactNode;
+}) {
+  const fit = useFillPage(fill);
   return (
     // pb-3: the last card's room. A group's heading opens with its own top
     // padding, which also leaves a card's lift under the pointer room the
     // scroll would clip.
     <ul
+      ref={fill ? fit : undefined}
       role="list"
       aria-label={label}
-      className={cn(FIVE_ROWS, "flex flex-col overflow-y-auto px-3 pb-3")}
+      className={cn(fill ? FILL_PAGE : FIVE_ROWS, "flex flex-col overflow-y-auto px-3 pb-3")}
     >
       {children}
     </ul>
   );
+}
+
+/**
+ * The room under the list, as `--fill-height` on it: the page's scroll
+ * area (`main`) below the list's top, less the page's 24px foot (`py-6`)
+ * and the card's 1px border. The top is measured from the start of the
+ * page, not the window, so the cap holds still while the page scrolls: a
+ * cap that grew as the list's top rose would grow the page with it. Read
+ * again when `main` resizes (the window) or the page does (an upload's
+ * note above the list).
+ */
+function useFillPage(on: boolean) {
+  const [el, setEl] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const page = el?.closest("main");
+    if (!on || !el || !page) return;
+    const fit = () => {
+      const top =
+        el.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop;
+      el.style.setProperty("--fill-height", `${Math.round(page.clientHeight - top - 25)}px`);
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(page);
+    if (page.firstElementChild) observer.observe(page.firstElementChild);
+    return () => observer.disconnect();
+  }, [on, el]);
+  return setEl;
 }
 
 /**

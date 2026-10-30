@@ -49,6 +49,10 @@ class Job_Post(BaseModel):
     )
     company_name: Mapped[str | None] = mapped_column(Text)
     company_logo_url: Mapped[str | None] = mapped_column(Text)
+    # The employer's own registered domain, "goldmansachs.com", which the Jobs
+    # page draws the logo from (d9b579e66623, KAN-442); null when the scraper
+    # found no website, and for a company's own job.
+    company_domain: Mapped[str | None] = mapped_column(Text)
     apply_url: Mapped[str | None] = mapped_column(Text, unique=True)
 
     title: Mapped[str] = mapped_column(Text)
@@ -138,6 +142,11 @@ class Job_Post(BaseModel):
             "closed_reason IS NULL OR closed_reason IN"
             " ('gone_from_board','board_gone','filtered_out','replaced','unknown')",
             name="job_postings_closed_reason"
+        ),
+        CheckConstraint(
+            "company_domain IS NULL OR company_domain ~ "
+            "'^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'",
+            name="job_postings_company_domain"
         ),
 
         Index(  # index by job status ranked from earliest posted to latest 

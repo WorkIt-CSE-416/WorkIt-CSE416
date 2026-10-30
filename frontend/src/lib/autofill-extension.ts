@@ -80,18 +80,37 @@ export type OpenApplicationResult =
  * open are left as they are. Resolves once the tabs have opened, or with
  * why nothing opened; never throws. No answer means no extension, or one
  * turned off. Updates `useBrowserJobs`.
+ *
+ * `picked`: the jobs the student picked in Up Next. They open first, and a
+ * batch started from them opens nothing else (batch.js, "PICKED JOBS GO
+ * FIRST"). Without them the whole queue opens.
  */
-export async function openNextApplication(): Promise<OpenApplicationResult> {
-  const r = (await sendToExtension({ type: "run/open" })) as
+export async function openNextApplication(picked?: string[]): Promise<OpenApplicationResult> {
+  const r = (await sendToExtension({
+    type: "run/open",
+    ...(picked?.length ? { jobIds: picked } : {}),
+  })) as
     | ({ ok: true } & Exclude<OpenApplicationResult, { reason: "not_installed" | "error" }>)
     | { ok: false; error: string }
     | undefined;
   if (r === undefined) return { opened: false, reason: "not_installed" };
   if (!r.ok) return { opened: false, reason: "error", error: r.error };
-  setBrowserJobs(r.opened ? r.jobIds : []);
+  // The ids at once, then each tab's state: the new tabs read Filling until the extension says more.
+  setBrowserJobs(r.opened ? r.jobIds.map((jobId) => ({ jobId, state: "filling" as const })) : []);
+  if (r.opened) void refreshBrowserJobs();
   if (!r.opened) return { opened: false, reason: r.reason };
   const { jobId, jobIds, url, fill } = r;
   return { opened: true, jobId, jobIds, url, fill };
+}
+
+/** Closes the batch's tab showing `jobId` (Up Next's Remove on a row open
+ *  in a tab). The application keeps its stage. False when there was
+ *  no such tab or the extension failed to answer. */
+export async function closeRunTab(jobId: string): Promise<boolean> {
+  const r = (await sendToExtension({ type: "run/close", jobId })) as
+    { ok: true; closed: boolean } | { ok: false } | undefined;
+  void refreshBrowserJobs();
+  return Boolean(r?.ok && r.closed);
 }
 
 /** Switches to the batch's tab showing `jobId`. False when it was closed
@@ -104,33 +123,59 @@ export async function showRunTab(jobId: string): Promise<boolean> {
   return r.shown;
 }
 
+/** Where one batch tab's form is (autofiller_extension/src/background/
+ *  batch-store.js, `TabState`): still filling, every field answered, fields
+ *  waiting on the student, a fill that went wrong, or sent. */
+export type BatchTabState = "filling" | "ready" | "needs_you" | "failed" | "applied";
+
 /**
- * WHICH JOB POSTINGS THE BATCH'S TABS SHOW, shared by every caller on the
- * page: each job card's Auto Apply and Live Activity read one value, so the
- * extension is asked once, not once per card. Asked on the first
- * subscriber and again whenever this tab gets focus, since the student
- * closes batch tabs and comes back here. Empty with no extension, no batch,
- * or before the first answer (and on the server). It changes only on the
- * extension's answer (run/open, run/status), never on a failed one.
+ * WHICH JOB POSTINGS THE BATCH'S TABS SHOW, AND HOW EACH TAB'S FORM STANDS,
+ * shared by every caller on the page: each job card's Auto Apply and Up
+ * Next read one value, so the extension is asked once, not once per card.
+ * Asked on the first subscriber and again whenever this tab gets focus,
+ * since the student closes batch tabs and comes back here. While Up Next
+ * shows (`useBrowserTabs`), also every few seconds while this tab is
+ * visible, so a row turns from Filling to Ready to Submit on its own. Empty
+ * with no extension, no batch, or before the first answer (and on the
+ * server). It changes only on the extension's answer (run/open,
+ * run/status), never on a failed one.
  */
+const NO_TABS: ReadonlyMap<string, BatchTabState> = new Map();
 const NONE: ReadonlySet<string> = new Set();
+let browserTabs: ReadonlyMap<string, BatchTabState> = NO_TABS;
 let browserJobs: ReadonlySet<string> = NONE;
 let watching = false;
 const listeners = new Set<() => void>();
+/** How often Up Next asks while it shows. */
+const LIVE_EVERY_MS = 4000;
+let live = 0;
+let liveTimer: ReturnType<typeof setInterval> | null = null;
 
-function setBrowserJobs(jobIds: string[]) {
-  if (jobIds.length === browserJobs.size && jobIds.every((id) => browserJobs.has(id))) return;
-  browserJobs = new Set(jobIds);
+function setBrowserJobs(jobs: { jobId: string; state: BatchTabState }[]) {
+  if (
+    jobs.length === browserTabs.size &&
+    jobs.every((job) => browserTabs.get(job.jobId) === job.state)
+  )
+    return;
+  browserTabs = new Map(jobs.map((job) => [job.jobId, job.state]));
+  browserJobs = new Set(browserTabs.keys());
   for (const listener of listeners) listener();
 }
 
 async function refreshBrowserJobs() {
   const r = (await sendToExtension({ type: "run/status" })) as
-    { ok: true; jobIds?: string[] } | { ok: false } | undefined;
+    | { ok: true; jobIds?: string[]; jobs?: { jobId: string; state: BatchTabState }[] }
+    | { ok: false }
+    | undefined;
   // Only a real answer changes it. A failed one (an extension that predates
   // run/status, a worker that errored) once turned Working in Browser back
-  // to Queued each time the student came back from the run's tab.
-  if (r?.ok) setBrowserJobs(r.jobIds ?? []);
+  // to Queued each time the student came back from the run's tab. An
+  // extension that answers ids alone counts each tab as filling.
+  if (r?.ok) {
+    setBrowserJobs(
+      r.jobs ?? (r.jobIds ?? []).map((jobId) => ({ jobId, state: "filling" as const })),
+    );
+  }
 }
 
 function subscribe(listener: () => void) {
@@ -145,12 +190,38 @@ function subscribe(listener: () => void) {
   };
 }
 
+/** Like `subscribe`, and asks again every few seconds while this tab shows. */
+function subscribeLive(listener: () => void) {
+  const stop = subscribe(listener);
+  live += 1;
+  liveTimer ??= setInterval(() => {
+    if (document.visibilityState === "visible") void refreshBrowserJobs();
+  }, LIVE_EVERY_MS);
+  return () => {
+    stop();
+    live -= 1;
+    if (live === 0 && liveTimer) {
+      clearInterval(liveTimer);
+      liveTimer = null;
+    }
+  };
+}
+
 /** The job posting ids open in the batch's tabs. */
 export function useBrowserJobs(): ReadonlySet<string> {
   return useSyncExternalStore(
     subscribe,
     () => browserJobs,
     () => NONE,
+  );
+}
+
+/** Each batch tab's state by job posting id, kept current while it is used (Up Next). */
+export function useBrowserTabs(): ReadonlyMap<string, BatchTabState> {
+  return useSyncExternalStore(
+    subscribeLive,
+    () => browserTabs,
+    () => NO_TABS,
   );
 }
 

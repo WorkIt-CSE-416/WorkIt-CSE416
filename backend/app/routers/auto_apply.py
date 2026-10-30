@@ -26,10 +26,12 @@ GET  /applicants/{id}/applications?stage=queued&stage=needs_you
      ?scored=true adds `match`, the Jobs page's score, and its `highlights`
      to each open one
      (the Applications page; null while the experience bank is empty).
-GET  /applicants/{id}/applications/next?skip=<job id>&skip=...
+GET  /applicants/{id}/applications/next?skip=<job id>&skip=...&only=<job id>...
      What the extension fills next: the oldest queued application whose job
      posting is open, or null when none is left. ?skip= leaves out the jobs
-     batch apply already has open in its tabs (KAN-370).
+     batch apply already has open in its tabs (KAN-370); ?only= counts just
+     those jobs (the ones the student picked in Up Next), needs_you ones too,
+     so a form whose tab was closed opens again.
 GET  /applicants/{id}/applications/{job_id}
      The application for one job posting, as the list has it. 404 when the
      applicant has none.
@@ -228,12 +230,14 @@ async def list_applications(
 async def next_application(
     applicant_id: uuid.UUID,
     skip: list[uuid.UUID] = Query([]),
+    only: list[uuid.UUID] = Query([]),
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> Application | None:
-    """The next application to fill, past the jobs in `skip`, or null."""
+    """The next application to fill, past the jobs in `skip` and among those
+    in `only` when given, or null."""
     assert_applicant_owns(account, applicant_id)
-    return await pipeline.next_application(db, applicant_id, skip)
+    return await pipeline.next_application(db, applicant_id, skip, only)
 
 
 # After /applications/next: a job id is a UUID, so "next" would match this

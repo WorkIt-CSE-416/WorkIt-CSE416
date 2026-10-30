@@ -49,9 +49,10 @@ them). Notes the scripts don't say:
 
 **Cloudflare Workers through OpenNext** (KAN-294, ADR 0004): the Worker
 `workit-web` at `workitjobs.ai`, configured in `wrangler.jsonc`, deployed by
-CI with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The Vercel project
-(Root Directory `frontend`, URLs in the root `CLAUDE.md`) keeps running until
-the KAN-296 cutover.
+CI with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. This is production.
+The Vercel project (Root Directory `frontend`) is retired: it still builds each
+PR until KAN-296 deletes it, and nothing is set or checked there (root
+`CLAUDE.md`).
 
 - **Scripts**: `cf:build` runs `next build` and turns `.next/` into
   `.open-next/`; `cf:preview` serves that output in the local Workers runtime;
@@ -76,9 +77,8 @@ the KAN-296 cutover.
   If a later adapter rejects it, rename it back to `middleware.ts`
   exporting `middleware` on the Edge runtime (ADR 0004).
 - **`next/image` is unoptimized on Cloudflare** (`next.config.ts`): logos
-  load from their own hosts. Vercel keeps the optimizer until the KAN-296
-  cutover, read from `VERCEL`, which every Vercel build sets and OpenNext's
-  never does. The Cloudflare Images binding bills per unique transformation
+  load from their own hosts. The optimizer is on only where `VERCEL` is set,
+  which only the retired Vercel builds do and OpenNext's never does. The Cloudflare Images binding bills per unique transformation
   past 5,000 a month, which the feed's logos would outrun. Where it is off,
   `remotePatterns` and the SVG settings do nothing; they stay for the day the
   optimizer returns.
@@ -88,12 +88,12 @@ the KAN-296 cutover.
   chunks, CSS and fonts went out with `max-age=0, must-revalidate` and every
   full load paid a 304 round trip per file (28 to 53 ms on workitjobs.ai).
   Never widen it past `/_next/static/*`: HTML and un-hashed `public/` files
-  would stop updating for users after a deploy. Vercel ignores it. After a
+  would stop updating for users after a deploy. After a
   deploy, `curl -sI` one chunk, one CSS file and one woff2 and look for
   `immutable`.
 - **Still open: on Cloudflare the prerendered marketing pages render per
   request** until an incremental cache is set (OpenNext's default is the
-  "dummy" cache), so the prerender gain below is full on Vercel only
+  "dummy" cache), so production does not get the prerender gain below yet
   (KAN-368).
 - **The OpenNext build is not guaranteed on Windows.** Run `cf:*` in WSL, or
   leave them to CI; `dev`, `build` and the rest work natively.
@@ -103,14 +103,14 @@ the KAN-296 cutover.
   confirm emails add `?next=/settings/...` to it; if Supabase sends those to
   its Site URL instead (untested on 2026-10-23), add a `**` wildcard entry
   for each origin's callback. `lib/request-origin.ts` (OAuth sign-in, linking, Change Email)
-  builds the origin from `x-forwarded-host` on Vercel, whose proxy sets it,
+  builds the origin from `x-forwarded-host` on Vercel (retired), whose proxy sets it,
   and from `Host` elsewhere: on Cloudflare `x-forwarded-host` is whatever the
   browser sent. It assumes https for any host
   but localhost when `x-forwarded-proto` is missing; Supabase silently falls
   back to its Site URL for any origin not on the list.
-- **Vercel refuses request bodies over 4.5 MB** before Next runs, while uploads
-  are capped at 5 MB, so a 4.5–5 MB upload fails there with a bare 413.
-  Cloudflare allows 100 MB, so this closes at the KAN-296 cutover.
+- **Uploads up to the 5 MB cap reach Next in production**: Cloudflare allows
+  100 MB request bodies. Vercel, now retired, refused bodies over 4.5 MB
+  before Next ran, so a 4.5–5 MB upload failed there with a bare 413.
 
 ## Architecture
 
@@ -1340,14 +1340,33 @@ the KAN-296 cutover.
   That dialog is the one place several jobs are queued at once. Up Next's
   resume picker stores a job's resume as the sent resume its application
   names; the extension does not read it yet (`docs/screens.md`, Auto
-  Apply). **Up Next orders its rows by one rule** (KAN-424): `needsYou` in
-  `auto-apply/activity-list.tsx` (a closed posting, a fill that couldn't
-  finish, no resume) puts those rows first in its one table, and the
-  header's count line reads the same rule, so change it there. A row's
-  rarer actions go in its ⋯ menu (`auto-apply/row-menu.tsx`), worded,
-  never as bare icon buttons beside each other, and the page's setup
-  steps go in the setup banner's Configure dialog, which hides once they
-  are done, never as header buttons that stay. A table row that opens
+  Apply). **Up Next groups its rows by whether WorkIt has started each job**
+  (`auto-apply/queue-table.tsx`, `groupOf`): In Progress (open in a tab,
+  with the extension's live tab state, `useBrowserTabs`, or closed)
+  and Queued; never a group per tab state, or a job jumps groups as its
+  tab opens and closes. The header's count line (`QueueSummary`) uses the
+  same rule, so change them together. **A row's
+  status is one item, never a second line or an action beside it**: the
+  most urgent of Posting Closed, its written questions, its tab's state
+  or Needs You, and a click on it goes where the job is finished (its
+  tab, opened again if closed). A missing resume shows in the Resume
+  cell, never as a status. Layers of text there (a state, an action link,
+  a questions line) read as clutter. Never a column of its own for the action,
+  and its rarer actions go in its ⋯ menu (`auto-apply/row-menu.tsx`),
+  worded, the same three on every row (Change Resume, I Already Applied,
+  Remove From Queue), never as bare icon buttons beside each other.
+  Remove works on every row (`remove` in `up-next.tsx`: closes its tab,
+  dequeues a queued job, skips a started one whose tab is closed). **Several rows at once
+  go through Up Next's select boxes**: while any row is picked, the
+  heading's right end shows the count, Remove and Auto Apply in place of
+  Add Jobs, and Select All unpicks them, as the Inbox's does; keep the
+  bar to those two actions. Auto Apply sends the
+  picked ids with no tab open with `run/open`, so the extension
+  opens them first and nothing else in a new batch. A select box's click
+  stops in its cell, or the row opens the job posting. The setup banner shows only what Auto Apply can't run
+  without (the Chrome extension) and hides once it is there; an optional
+  step (a default resume, the Claude MCP) shows on the rows it helps,
+  never as a banner step or a header button that stays. A table row that opens
   nothing carries no `group/row`, or its frozen cell tints alone on hover.
   **Written Answers (`/auto-apply/answers`, KAN-385) saves through the
   connector's own save** (`PUT .../written-answers`, which runs WorkIt's
@@ -1511,7 +1530,7 @@ the KAN-296 cutover.
   `quiet`, not `blue`, `green`, `plain`.
 - **`components/company-logo.tsx` hosts are allow-listed** in `next.config.ts`
   and must match `scraper/workit_scraper/logos.py`. With the optimizer on, an
-  unlisted host throws and fails the whole page (on Vercel); where
+  unlisted host throws and fails the whole page (wherever the optimizer is on); where
   `images.unoptimized` holds (Cloudflare, Deployment), the list is not checked, so keep it current anyway. It
   measures each logo on load: a square mark
   fills the tile edge to edge, a wide wordmark sits on white with padding.
@@ -1520,6 +1539,23 @@ the KAN-296 cutover.
   reports the load once the browser has decoded it, which a hidden browser
   tab (the Browser pane when it is not shown) can hold back, so check it
   with the page visible.
+- **A job's logo is a list of sources, best first** (KAN-442,
+  `lib/job-logo.ts`'s `jobLogo`): Brandfetch's icon by the employer's own
+  website (`company_domain`), then what the scraper found (the logo uploaded
+  to the job board, or the website's Google favicon, often 16 to 32px), then
+  the initials. `CompanyLogo` shows the first source that loads; Brandfetch
+  answers 404 for a company it lacks (`fallback/404`), never its made-up
+  lettermark. Every job tile takes `jobLogo(job)`, never `job.logo_url`
+  alone, or it keeps the favicon. **Brandfetch loads straight from the
+  browser** (`unoptimized`): its terms allow hotlinking only, with the page's
+  Referer, and refuse a server fetching the image, which the `next/image`
+  optimizer does wherever it is on; so its host is not in `remotePatterns`.
+  The client ID is `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID` (public by design; free
+  plan, about 1M logo loads a month), set in `.env.local` and in the repo's
+  variables, which the Cloudflare build reads (`../.github/CLAUDE.md`);
+  without it every tile falls back to the scraper's logo. `jobLogo` is in `lib/`, not beside
+  `CompanyLogo`, because server modules build a job's sources too and cannot
+  call a function a `"use client"` file exports.
 - **`src/react-canary.d.ts`** loads React's canary types (`<ViewTransition>`,
   `addTransitionType`): the App Router runs React canary and `@types/react`'s
   stable entry lacks them.
@@ -1546,9 +1582,11 @@ the KAN-296 cutover.
   itself at one height, the `--spacing-scroll-box` token (`max-h-scroll-box`
   or `h-scroll-box`, 320px): Add Jobs and Top Matches. Each picked its
   own height before, and Add Jobs grew to 90% of the window. The grouped
-  resume list (the Resumes page and every resume picker) is the one
-  exception: five cards under a group heading (`ResumeScroll`,
-  `components/resume-list.tsx`), since 320px showed three and a half.
+  resume list is the one exception: five cards under a group heading in
+  every resume picker (`ResumeScroll`, `components/resume-list.tsx`),
+  since 320px showed three and a half, and on the Resumes page it scrolls
+  inside itself down to the foot of the page (`fill`, KAN-434), so the
+  search and buttons above it stay in view.
 - **A filter whose rows the page already holds moves the URL in place**
   (`useShallowPush`, `docs/motion.md`): Live Activity's Status and sort
   (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of
@@ -1849,9 +1887,12 @@ are in `docs/auth.md`.
   newest first, each as its card (`components/resume-row.tsx`'s box, star
   and icons: star, Rename, Download, Delete; Delete asks in a popover
   under the trash, `DeleteResumeConfirm`, KAN-347), in one card that scrolls
-  inside itself, five cards high under a heading (`FIVE_ROWS` in
-  `resume-list.tsx`, 351px, not the shared `max-h-scroll-box`: with group
-  headings, 320px showed three and a half cards). **It is laid
+  inside itself and runs down to the foot of the page (`ResumeScroll`'s
+  `fill` in `components/resume-list.tsx`, KAN-434), never shorter than
+  five cards under a heading (`FIVE_ROWS`, 351px). Capped at five cards,
+  it left half a laptop screen empty under it. The cap is measured from
+  the start of the page, not the window: a cap that grew as the list's top
+  rose would grow the page with it as it scrolled. **It is laid
   out as the Applications Tracker is**, so keep the two alike: the search
   on its own row, then the Type filter (`FieldFacet`, the Applications
   list's dropdown, in `?type=`) and the Sort dropdown (Last Edited, the
@@ -1889,8 +1930,9 @@ are in `docs/auth.md`.
   one row the buttons sat alone at the right, and "Generate Resume"
   broke onto two lines on a phone. **Every resume picker dialog draws
   the same grouped list** (KAN-406): `components/resume-list.tsx` holds
-  the groups, the heading (`ResumeGroup`) and the five-card scroll
-  (`ResumeScroll`), and each screen draws its own cards in it, the
+  the groups, the heading (`ResumeGroup`) and the scroll (`ResumeScroll`:
+  five cards in a picker, the page's foot with `fill`), and each screen
+  draws its own cards in it, the
   Resumes page's with their actions, a picker's with a radio. A change
   to how the list groups or scrolls goes there, so the page and the
   dialogs never drift apart again. The picker's row is the page's row

@@ -11,6 +11,7 @@ import { EmailKindPill } from "../applications/email-kinds";
 import type { Email } from "../applications/tracked";
 import { useHydrated } from "../local-time";
 import type { StageKey } from "../stage-colors";
+import type { LogoSrc } from "@/lib/job-logo";
 
 /** The job an email is about, as the tracker holds it. `appliedOn` is for
  *  the Choose Application modal's Applied column (../applications/pick-application.tsx). */
@@ -18,7 +19,7 @@ export type EmailJob = {
   id: string;
   role: string;
   company: string;
-  logoUrl: string | null;
+  logoUrl: LogoSrc;
   stage: StageKey;
   appliedOn: string | null;
 };

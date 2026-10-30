@@ -1,8 +1,8 @@
 # CLAUDE.md — resume rendering
 
 How a built resume becomes a PDF: Jake's Resume's own LaTeX, compiled by
-Tectonic inside the API (ADR 0002): a Vercel Function until the KAN-296
-cutover, then the Cloudflare Container (ADR 0004). And a plain Word file.
+Tectonic inside the API (ADR 0002), which runs in the Cloudflare Container
+(ADR 0004; it was a Vercel Function before Vercel was retired). And a plain Word file.
 Loaded on top of `../../../CLAUDE.md`. KAN-204 proved Tectonic with a fixed
 resume; KAN-207 renders the bank and retired the proof endpoint.
 
@@ -139,7 +139,8 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   markers; every new template must pass it.
 - **Everything the build script imports stays stdlib**: this package's
   `__init__`, `fields.py`, `jakes.py`, `sample.py` and `../resume_view.py`.
-  `scripts/fetch_tectonic.py` imports them before Vercel installs anything;
+  `scripts/fetch_tectonic.py` imports them before the retired Vercel build
+  installs anything (`backend/vercel.json`, until KAN-296 deletes it);
   only `word.py` may use a dependency. `python3 -I -c "import sys;
   sys.path.insert(0, '.'); import app.services.resume_render.sample"` from
   `backend/` checks it.
@@ -155,9 +156,10 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 
 - **Pinned:** `scripts/fetch_tectonic.py` holds the version (0.17.0) and the
   static Linux build's SHA-256, and refuses a download that does not match.
-  It is stdlib only, because it runs as Vercel's build command
-  (`backend/vercel.json`) before anything is installed. The container image
-  runs the same script in `backend/Dockerfile`, after `uv sync`.
+  The container image runs it in `backend/Dockerfile`, after `uv sync`. It is
+  stdlib only because the retired Vercel build ran it as its build command
+  (`backend/vercel.json`) before anything was installed; keep it so until
+  KAN-296 deletes that file.
 - **What it builds:** `backend/vendor/tectonic/` (gitignored): the binary on
   Linux x86_64, and a package cache warmed by compiling `sample.py` (Jake's
   sample content as a view, through the real `jakes.py`) once online
@@ -166,11 +168,11 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   `backend/` once; `--check` compiles offline from the cache.
 - **Warming gets 10 minutes, a render 60 s** (`WARM_TIMEOUT_SECONDS`,
   `COMPILE_TIMEOUT_SECONDS`). The online compile downloads every package,
-  and under the render's 60 s it failed CI on a cold cache; Vercel builds
-  cold every time, so the same limit could fail a production deploy.
+  and under the render's 60 s it failed CI on a cold cache; a build that
+  starts cold (each image build) could fail a deploy the same way.
 - **Runtime:** `compile_pdf` uses `vendor/tectonic/tectonic`, else
-  `tectonic` on PATH. A read-only cache (a Vercel Function writes only under
-  `/tmp`) is copied to `/tmp` once per process, and a binary that lost its
+  `tectonic` on PATH. A read-only cache (a Vercel Function, now retired,
+  wrote only under `/tmp`) is copied to `/tmp` once per process, and a binary that lost its
   execute bit runs from a copy there. Each copy is made under a staging name
   and renamed into place only when finished (`_copy_once`): a Function
   serves several renders at once on threads, and a plain "copy if missing"
@@ -210,17 +212,12 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 
 ## Still open
 
-- **The edit-to-PDF round trip on a Vercel preview, warm and cold** (KAN-209):
+- **The edit-to-PDF round trip in production, warm and cold** (KAN-209):
   read it from the editor's bar after a save ("Saved, 412 ms", KAN-218).
   The team chose the HTML copy of the page for typing (research option 4)
   as step 1, with this package's PDF still the only output, and is
   considering Typst for step 2 (`docs/live_page.md`, ADR 0002's status).
 
-- **The first Vercel preview:** confirm the build log ends "tectonic and its
-  cache ready" and that Generate then PDF downloads a resume from the bank
-  page. If Vercel's build machine cannot reach GitHub or
-  the Tectonic package host, the binary and cache come from a release asset
-  in this repo (ADR 0002).
 - **Each PDF download renders again** (about a second of function time).
   Sent resumes (KAN-208) store the file and reuse it for a repeat.
 - **No Cyrillic or CJK.** The template's font covers accented Latin only.

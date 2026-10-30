@@ -2,7 +2,7 @@ import type { OpenApplicationResult } from "@/lib/autofill-extension";
 
 /**
  * What the extension's runner did with run/open, as one sentence for the
- * seeker: the second half of Start Auto Apply's note, and a job card's
+ * seeker: Up Next's Auto Apply toast (./up-next.tsx), and a job card's
  * error line (./auto-apply-button.tsx shows only the failures).
  */
 export function openedNote(result: OpenApplicationResult): string {

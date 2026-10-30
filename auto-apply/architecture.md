@@ -99,8 +99,8 @@ everything up to that click and nothing after it ("Decisions", below).
 | LLM access | Scout's model chain. Daily uses per student and feature; Tailor has 2 a day | `scout/workit_scout/llm.py`, `backend/app/services/usage.py` |
 | Privacy boundary | Identity fields (name, contact details, links) never reach a model: the seam removes them | `backend/app/services/identity.py`, `scout/` |
 | Form filling | Chrome extension, started from its popup. Fills text fields, dropdowns and repeated sections. Never submits | `autofiller_extension/` |
-| Webapp ↔ extension link | `externally_connectable`, one-shot messages: `run/open` (open the next queued application), `run/status` and `run/show` (Working in Browser) | `frontend/src/lib/autofill-extension.ts`, `autofiller_extension/src/background/runner.js` |
-| Auto Apply page | Start Auto Apply and the queue's count, a setup banner (Configure) while the extension, a default resume or the Claude MCP is missing, then Up Next with the jobs that need the student first (each job with the resume it will get, a click to change it, a status chip where it isn't simply waiting, a ⋯ menu, and Add Jobs to queue saved ones), from the API. History is archived for now: applied jobs show on the Applications Tracker | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
+| Webapp ↔ extension link | `externally_connectable`, one-shot messages: `run/open` (open the next queued application, or, with `jobIds`, the ones the student picked in Up Next first, started ones whose tab closed too), `run/status` (each tab's state: Up Next's live status), `run/show` (go to a job's tab) and `run/close` (Remove on an open job) | `frontend/src/lib/autofill-extension.ts`, `autofiller_extension/src/background/runner.js` |
+| Auto Apply page | The queue's count, a setup banner while the Chrome extension is missing (a default resume and the Claude MCP are optional, offered on the rows and on Written Answers), then Up Next in two groups, In Progress (started: each tab's live state from `run/status`, or Needs You once its tab closed) and Queued, each job with the resume it will get (a click changes it), one status that is also its action (a click goes to its tab, opened again if closed), a ⋯ menu and a select box; picked rows get Auto Apply and Remove, and Add Jobs queues saved ones. Start Auto Apply left the header on 2026-10-29, from the API. History is archived for now: applied jobs show on the Applications Tracker | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
 | Applications screen | Saved and Applied columns live from `GET .../applications?stage=saved&stage=applied&scored=true` (KAN-261), each card with the Jobs page's score (KAN-256); Interviewing and Offer empty until the API stores those stages | `frontend/src/app/(seeker)/applications/` |
 
 **Built since:** the queue (`job_applications.stage`), its routes, and the
@@ -319,7 +319,10 @@ never `apply_url`.
 
 ## 7. The batch
 
-One click of **Start Auto Apply** queues a batch of 10 job postings.
+One call of `start_batch` (`POST .../auto-apply/batches`) queues a batch of
+10 job postings. The Auto Apply page's Start Auto Apply made that call until
+it left the page on 2026-10-29; jobs now join the queue one by one or from
+Add Jobs.
 
 1. **Fetching and scoring are one step.** `fetch_recommended` finds, scores
    and ranks in one call. There is no separate "match the resume" step.
@@ -1117,8 +1120,8 @@ the batch tab that asked for it.
 **Where it runs.** Inside the API (`backend/app/connector/`), on the
 official MCP Python SDK (`MCPServer`, Streamable HTTP, stateless, JSON
 answers), at `<api>/mcp`. No second service. The SDK's session manager runs
-in the API's lifespan (`app/main.py`); Vercel runs FastAPI lifespans, and
-so does uvicorn in the container. `CONNECTOR_API_URL` and
+in the API's lifespan (`app/main.py`), which uvicorn runs in the
+production container. `CONNECTOR_API_URL` and
 `CONNECTOR_WEB_URL` (`app/config.py`) say where the API and the webapp are
 reached from outside; production sets both.
 

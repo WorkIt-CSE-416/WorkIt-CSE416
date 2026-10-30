@@ -641,7 +641,7 @@ never downloads anything. Re-run the script to refresh it.
 - Towns under 15,000 are absent, which is fine when a state follows
   (`Montpelier, VT`) and a miss when one stands alone. `cities5000` is the
   next size up if that starts to matter.
-- It ships with the Vercel deploy although only the import reads it.
+- It ships with the API's deploy although only the import reads it.
 
 ## Job roles — `job_roles.py`
 
@@ -948,6 +948,19 @@ open, for a company's own job and for a job closed before the column; there
 is no backfill. Only the import writes it (`../CLAUDE.md`, The feed import).
 A reason added to the CHECK goes into the import's `CLOSED_REASONS` too, or
 the import files it as `unknown`.
+
+**`company_domain` is the employer's own website, for its logo**
+(`d9b579e66623`, KAN-442): the registered domain the scraper found
+(`goldmansachs.com`), never a careers subdomain or a hiring vendor's host
+(`micron.eightfold.ai` gave Eightfold's logo in the Brandfetch test). The
+Jobs page loads the logo from Brandfetch by it, so the CHECK
+`job_postings_company_domain` allows only a bare lower-case host name: the
+value goes into an image URL, and a scheme, path or space must never reach
+it. Null when the scraper found no website, for a company's own job and for
+rows from before the column; the import fills it from the feed's
+`company_domain` (`../../scraper/docs/logos.md`), with no backfill, and every
+listing sends it (`JobListing.company_domain`). The model repeats the CHECK, so
+`alembic check` sees no drift.
 
 **Company search uses a trigram GIN index** on `company_name`
 (`55f3c813be50`), so `ILIKE '%term%'` and the fuzzy `<%` operator look

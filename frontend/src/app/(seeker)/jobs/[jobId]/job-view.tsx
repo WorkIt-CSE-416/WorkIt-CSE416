@@ -22,6 +22,7 @@ import { JobDescription } from "./description";
 import { getRequirements, KeyRequirementsCard, type Requirement } from "./key-requirements";
 import { AppliedNote, MoreActions } from "./page-actions";
 import { SentNote } from "./sent-note";
+import { jobLogo } from "@/lib/job-logo";
 
 /**
  * One live role as its job page draws it: the actions, the header and the
@@ -139,7 +140,7 @@ export function JobViewHeader({ job }: { job: JobListing }) {
       tile={
         <CompanyLogo
           name={job.company}
-          src={job.logo_url}
+          src={jobLogo(job)}
           className="text-label rounded-control size-10"
         />
       }

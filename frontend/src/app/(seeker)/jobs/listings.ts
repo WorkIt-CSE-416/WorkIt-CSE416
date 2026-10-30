@@ -50,6 +50,10 @@ export type JobListing = {
   location_label: string | null;
   posted_at: string | null;
   logo_url: string | null;
+  /** The employer's own website, "goldmansachs.com", which the logo is drawn
+   *  from (KAN-442, `jobLogo`); null when the scraper found none. Absent from
+   *  an API older than KAN-442. */
+  company_domain?: string | null;
   /** The rest of the card, named after `job_postings`' columns. Null when the
    *  posting never states it — the scraper reads the board's own fields, then
    *  the description, and infers only by measured rules (job type Full-Time

@@ -2,7 +2,8 @@ name: Deploy to Cloudflare
 
 # Both halves run on Cloudflare Workers Paid (docs/adr/0004-host-on-cloudflare.md):
 # the app on Workers through OpenNext at workitjobs.ai, the API in a Container
-# behind a Worker at api.workitjobs.ai. Vercel stays live until KAN-296.
+# behind a Worker at api.workitjobs.ai. This is production; Vercel is retired
+# (its projects still build until KAN-296 deletes them).
 on:
   push:
     branches: [main]
@@ -62,11 +63,13 @@ jobs:
           node-version-file: .nvmrc
       - run: npm ci
       # NEXT_PUBLIC_* are inlined at build time, so they come in here, not as
-      # Worker secrets. Both are public by design (the anon key and URL).
+      # Worker secrets. All are public by design (the anon key and URL, and
+      # Brandfetch's client ID, which every logo URL carries; KAN-442).
       - run: npm run cf:build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_BRANDFETCH_CLIENT_ID: ${{ vars.NEXT_PUBLIC_BRANDFETCH_CLIENT_ID }}
       # Prints the token's account and scopes (never the token), so a
       # permission error below can be read straight from the log.
       - run: npx wrangler whoami
