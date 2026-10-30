@@ -1,8 +1,7 @@
-"""Exercise proposal publishing against local Git, never real GitHub."""
+"""Exercise direct-to-main discovery publishing against local Git."""
 
 import json
 import subprocess
-from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -31,44 +30,22 @@ def candidate(token, company=None):
 class Repository:
     def __init__(self, root, origin, monkeypatch):
         self.root, self.origin = root, origin
-        self.prs = []
-        self.creates = 0
-        self.create_failures = 0
-        self.calls = 0
         self.rows = []
         self.exit_code = 0
         self.on_discover = None
         self.excluded = None
         self.real_command = publishing.command
         monkeypatch.setattr(publishing, "command", self.command)
-        monkeypatch.setattr(publishing, "pull_requests", lambda *_: deepcopy(self.prs))
         monkeypatch.setattr(publishing.discover_boards, "main", self.discover)
 
     def git(self, *args, cwd=None):
         return self.real_command(["git", *args], cwd or self.root)
 
     def command(self, args, cwd):
-        if args[:3] != ["gh", "pr", "create"]:
-            return self.real_command(args, cwd)
-        if self.create_failures:
-            self.create_failures -= 1
-            raise subprocess.CalledProcessError(1, args, stderr="Temporary API failure")
-        self.creates += 1
-        branch = args[args.index("--head") + 1]
-        sha = self.git("ls-remote", "origin", f"refs/heads/{branch}").split()[0]
-        pr = {
-            "number": self.creates,
-            "state": "open",
-            "merged_at": None,
-            "head": {"ref": branch, "sha": sha, "repo": {"full_name": "owner/repo"}},
-            "html_url": f"https://github.com/owner/repo/pull/{self.creates}",
-        }
-        self.prs.append(pr)
-        return pr["html_url"]
+        return self.real_command(args, cwd)
 
     def discover(self, args):
         assert "--apply" not in args
-        self.calls += 1
         self.excluded = json.loads(Path(args[args.index("--exclude") + 1]).read_text())
         Path(args[args.index("--report") + 1]).write_text(
             json.dumps(
@@ -86,40 +63,21 @@ class Repository:
 
     def run(self):
         result = publishing.run(self.root, "owner/repo", publishing=True)
-        self.refresh_head()
+        # Sync local HEAD with origin/main so subsequent runs pass the HEAD check.
+        self.git("fetch", "origin", "main")
+        self.git("reset", "--hard", "FETCH_HEAD")
         return result
 
-    def refresh_head(self):
-        for pr in self.prs:
-            if pr["state"] == "open":
-                pr["head"]["sha"] = self.git("ls-remote", "origin", pr["head"]["ref"]).split()[0]
-
-    def show(self, filename, *, main=False):
-        branch = "main" if main else self.prs[-1]["head"]["ref"]
-        self.git("fetch", "origin", branch)
+    def show_main(self, filename):
+        self.git("fetch", "origin", "main")
         return self.git("show", f"FETCH_HEAD:{filename}")
 
-    def edit(self, transform, filename=publishing.CATALOG):
-        branch = self.prs[-1]["head"]["ref"]
-        self.git("fetch", "origin", branch)
-        path = self.root.parent / "reviewer"
-        self.git("worktree", "add", "--detach", str(path), "FETCH_HEAD")
+    def main_has(self, filename):
         try:
-            target = path / filename
-            target.write_text(transform(target.read_text() if target.exists() else ""))
-            self.git("add", "--", filename, cwd=path)
-            self.git("commit", "-m", "Developer review", cwd=path)
-            self.git("push", "origin", f"HEAD:{branch}", cwd=path)
-        finally:
-            self.git("worktree", "remove", "--force", str(path))
-        self.refresh_head()
-
-    def merge(self):
-        pr = self.prs[-1]
-        self.git("fetch", "origin", pr["head"]["ref"])
-        self.git("merge", "--ff-only", "FETCH_HEAD")
-        self.git("push", "origin", "main")
-        pr.update(state="closed", merged_at="2026-10-28T13:00:00Z")
+            self.git("ls-tree", "--name-only", "origin/main", "--", filename)
+            return True
+        except subprocess.CalledProcessError:
+            return False
 
 
 @pytest.fixture
@@ -146,177 +104,67 @@ def repository(tmp_path, monkeypatch):
     return Repository(root, origin, monkeypatch)
 
 
-def test_repeated_discovery_updates_one_pr_and_never_main(repository):
+def test_discovery_commits_to_main(repository):
     repo = repository
-    before = repo.show(publishing.CATALOG, main=True)
+    before = repo.show_main(publishing.CATALOG)
     repo.rows = [candidate("acme")]
     assert repo.run() == 0
-    branch = repo.prs[0]["head"]["ref"]
-    assert branch.startswith(publishing.PREFIX)
-    assert "lever,acme,Acme" in repo.show(publishing.CATALOG)
-    assert repo.show(publishing.CATALOG, main=True) == before
+    after = repo.show_main(publishing.CATALOG)
+    assert after != before
+    assert "lever,acme,Acme" in after
+    # No extra branches created
+    branches = repo.git("ls-remote", "--heads", "origin")
+    assert branches.count("refs/heads/") == 1
+
+
+def test_repeated_discovery_adds_more_boards(repository):
+    repo = repository
+    repo.rows = [candidate("acme")]
+    repo.run()
     repo.rows = [candidate("acme"), candidate("another")]
-    assert repo.run() == 0
-    assert repo.creates == 1
-    assert repo.prs[0]["head"]["ref"] == branch
-    assert "lever,another,Another" in repo.show(publishing.CATALOG)
-    assert repo.show(publishing.CATALOG, main=True) == before
+    repo.run()
+    catalog = repo.show_main(publishing.CATALOG)
+    assert "lever,acme,Acme" in catalog
+    assert "lever,another,Another" in catalog
 
 
 def test_removed_row_is_rejected_and_not_restored(repository):
     repo = repository
     repo.rows = [candidate("acme")]
     repo.run()
-    repo.edit(lambda text: text.replace("lever,acme,Acme\n", ""))
+    # Simulate rejection: remove the CSV row and mark rejected in ledger.
+    # Local HEAD is already synced to origin/main by run().
+    catalog = (repo.root / publishing.CATALOG).read_text()
+    (repo.root / publishing.CATALOG).write_text(catalog.replace("lever,acme,Acme\n", ""))
+    ledger = json.loads((repo.root / publishing.LEDGER).read_text())
+    ledger["lever/acme"]["decision"] = "rejected"
+    (repo.root / publishing.LEDGER).write_text(json.dumps(ledger))
+    repo.git("add", "--", publishing.CATALOG, publishing.LEDGER)
+    repo.git("commit", "-m", "Reject acme")
+    repo.git("push", "origin", "main")
+    # Next run should not re-add acme
+    repo.rows = [candidate("acme")]
     repo.run()
-    assert "lever,acme" not in repo.show(publishing.CATALOG)
-    ledger = json.loads(repo.show(publishing.LEDGER))
-    assert ledger["lever/acme"]["decision"] == "rejected"
+    assert "lever,acme" not in repo.show_main(publishing.CATALOG)
+    new_ledger = json.loads(repo.show_main(publishing.LEDGER))
+    assert new_ledger["lever/acme"]["decision"] == "rejected"
     assert repo.excluded["lever/acme"]["decision"] == "rejected"
-    assert repo.creates == 1
 
 
-def test_reviewer_company_edit_survives_new_candidates(repository):
+def test_no_candidates_creates_no_commit(repository):
     repo = repository
-    repo.rows = [candidate("acme")]
-    repo.run()
-    repo.edit(lambda text: text.replace("lever,acme,Acme", "lever,acme,Acme Corporation"))
-    repo.rows.append(candidate("another"))
-    repo.run()
-    assert "lever,acme,Acme Corporation" in repo.show(publishing.CATALOG)
-    assert repo.creates == 1
+    before = repo.git("ls-remote", "origin", "refs/heads/main").split()[0]
+    assert repo.run() == 0
+    after = repo.git("ls-remote", "origin", "refs/heads/main").split()[0]
+    assert before == after
 
 
-def test_merged_pr_starts_new_cycle_with_rejections_remembered(repository):
-    repo = repository
-    repo.rows = [candidate("acme"), candidate("rejected")]
-    repo.run()
-    old_branch = repo.prs[-1]["head"]["ref"]
-    repo.edit(lambda text: text.replace("lever,rejected,Rejected\n", ""))
-    # Merge before another discovery run records the row deletion.
-    repo.merge()
-    repo.rows.append(candidate("next"))
-    repo.run()
-    assert repo.creates == 2
-    assert repo.prs[-1]["head"]["ref"] != old_branch
-    assert "lever,next,Next" in repo.show(publishing.CATALOG)
-    assert "lever,rejected" not in repo.show(publishing.CATALOG)
-    assert repo.excluded["lever/rejected"]["decision"] == "rejected"
-    assert "lever,next" not in repo.show(publishing.CATALOG, main=True)
-
-
-def test_closed_unmerged_pr_blocks_reproposal(repository):
-    repo = repository
-    repo.rows = [candidate("acme")]
-    repo.run()
-    repo.prs[0]["state"] = "closed"
-    with pytest.raises(ValueError, match="closed without merging"):
-        repo.run()
-    assert repo.calls == 1
-    assert repo.creates == 1
-
-
-def test_reviewer_commit_during_discovery_blocks_publish(repository):
-    repo = repository
-    repo.rows = [candidate("acme")]
-    repo.run()
-    repo.rows.append(candidate("another"))
-    repo.on_discover = lambda: repo.edit(
-        lambda text: text.replace("lever,acme,Acme", "lever,acme,Reviewed Acme")
-    )
-    with pytest.raises(ValueError, match="reviewer updated"):
-        repo.run()
-    assert "lever,acme,Reviewed Acme" in repo.show(publishing.CATALOG)
-    assert "lever,another" not in repo.show(publishing.CATALOG)
-
-
-def test_non_review_changes_on_proposal_branch_are_rejected(repository):
-    repo = repository
-    repo.rows = [candidate("acme")]
-    repo.run()
-    repo.edit(lambda _: "print('untrusted')\n", "unexpected.py")
-    with pytest.raises(ValueError, match="non-review changes"):
-        repo.run()
-    assert repo.calls == 1
-
-
-def test_partial_collection_failure_still_proposes_successes(repository):
+def test_partial_failure_still_commits_successes(repository):
     repo = repository
     repo.rows = [candidate("acme")]
     repo.exit_code = 1
     assert repo.run() == 1
-    assert repo.creates == 1
-    assert "lever,acme,Acme" in repo.show(publishing.CATALOG)
-
-
-def test_no_candidates_creates_no_pr(repository):
-    assert repository.run() == 0
-    assert repository.creates == 0
-    assert repository.git("ls-remote", "--heads", "origin").count("refs/heads/") == 1
-
-
-def test_failed_pr_creation_recovers_same_branch_and_evidence(repository):
-    repo = repository
-    repo.rows = [candidate("acme")]
-    repo.create_failures = 1
-    before = repo.show(publishing.CATALOG, main=True)
-    with pytest.raises(subprocess.CalledProcessError):
-        repo.run()
-    branch = publishing.PREFIX + "after-0"
-    repo.git("fetch", "origin", branch)
-    original_head = repo.git("rev-parse", "FETCH_HEAD")
-    original_ledger = repo.git("show", f"FETCH_HEAD:{publishing.LEDGER}")
-    assert repo.prs == []
-    # Retry with no matching source records: earlier proposals must survive,
-    # and the exact unchanged branch still needs its PR created.
-    repo.rows = []
-    assert repo.run() == 0
-    assert repo.creates == 1
-    assert repo.prs[0]["head"]["ref"] == branch
-    assert repo.prs[0]["head"]["sha"] == original_head
-    assert repo.show(publishing.LEDGER) == original_ledger
-    assert "lever,acme,Acme" in repo.show(publishing.CATALOG)
-    assert repo.git("ls-remote", "--heads", "origin").count("refs/heads/") == 2
-    assert repo.show(publishing.CATALOG, main=True) == before
-
-
-def test_push_race_rejects_without_overwriting_reviewer(repository, monkeypatch):
-    repo = repository
-    repo.rows = [candidate("acme")]
-    repo.run()
-    repo.rows.append(candidate("another"))
-    raced = False
-
-    def command(args, cwd):
-        nonlocal raced
-        if args[:2] == ["git", "push"] and not raced:
-            raced = True
-            # This happens after publish's API head check, exercising Git's
-            # non-fast-forward rejection rather than the earlier API guard.
-            repo.edit(lambda text: text.replace("lever,acme,Acme", "lever,acme,Reviewed Acme"))
-        return repo.command(args, cwd)
-
-    monkeypatch.setattr(publishing, "command", command)
-    with pytest.raises(subprocess.CalledProcessError):
-        repo.run()
-    assert raced
-    assert "lever,acme,Reviewed Acme" in repo.show(publishing.CATALOG)
-    assert "lever,another" not in repo.show(publishing.CATALOG)
-    assert repo.creates == 1
-
-
-def test_new_cycle_is_rechecked_before_first_publish(repository):
-    repo = repository
-    repo.rows = [candidate("acme")]
-    # Another publishing actor completed a PR cycle during collection. Neither
-    # snapshot has an open PR, but the old after-0 cycle must not be published.
-    repo.on_discover = lambda: repo.prs.append(
-        {"number": 7, "state": "closed", "merged_at": "2026-10-28T13:00:00Z"}
-    )
-    with pytest.raises(ValueError, match="cycle changed"):
-        repo.run()
-    assert repo.creates == 0
-    assert repo.git("ls-remote", "--heads", "origin").count("refs/heads/") == 1
+    assert "lever,acme,Acme" in repo.show_main(publishing.CATALOG)
 
 
 def test_rejected_main_catalog_fails_before_collecting(repository):
@@ -329,24 +177,49 @@ def test_rejected_main_catalog_fails_before_collecting(repository):
     repo.git("push", "origin", "main")
     with pytest.raises(ValueError, match="(?i)reject"):
         repo.run()
-    assert repo.calls == 0
-    assert repo.creates == 0
 
 
-def test_pending_ledger_rejection_is_reconciled_before_validation(repository):
+def test_push_race_is_rejected_by_git(repository):
+    """If someone pushes to main between fetch and push, git rejects non-fast-forward."""
     repo = repository
     repo.rows = [candidate("acme")]
-    repo.run()
+    raced = False
 
-    def reject(text):
-        ledger = json.loads(text)
-        ledger["lever/acme"]["decision"] = "rejected"
-        return json.dumps(ledger)
+    def racing_command(args, cwd):
+        nonlocal raced
+        if args[:2] == ["git", "push"] and not raced:
+            raced = True
+            # Push a commit to main while we're about to push
+            subprocess.run(
+                ["git", "commit", "--allow-empty", "-m", "Race"],
+                cwd=repo.root,
+                check=True,
+                capture_output=True,
+                env={
+                    **subprocess.os.environ,
+                    "GIT_AUTHOR_NAME": "Racer",
+                    "GIT_AUTHOR_EMAIL": "r@example.com",
+                    "GIT_COMMITTER_NAME": "Racer",
+                    "GIT_COMMITTER_EMAIL": "r@example.com",
+                },
+            )
+            subprocess.run(
+                ["git", "push", "origin", "main"],
+                cwd=repo.root,
+                check=True,
+                capture_output=True,
+            )
+        return repo.real_command(args, cwd)
 
-    repo.edit(reject, publishing.LEDGER)
-    assert repo.run() == 0
-    assert "lever,acme" not in repo.show(publishing.CATALOG)
-    assert repo.excluded["lever/acme"]["decision"] == "rejected"
+    repo.on_discover = None
+    original_command = publishing.command
+    publishing.command = racing_command
+    try:
+        with pytest.raises(subprocess.CalledProcessError):
+            repo.run()
+    finally:
+        publishing.command = original_command
+    assert raced
 
 
 @pytest.mark.parametrize("source", ["argument", "environment", "remote"])

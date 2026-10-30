@@ -452,13 +452,13 @@ sources. A complete provider read shows that a board is live; it does not prove
 the source named the right company. Developers review proposed catalog changes
 before merging them. Postings are always scraped from the employer.
 
-- **Daily discovery maintains one human-review PR**, separately from the
-  three-hour scrape. It never pushes additions directly to main or merges the
-  PR. Developers retain accepted rows, correct names, and remove rejected rows;
-  a durable ledger prevents removed proposals from being re-added. The rules
-  are below; operation is documented in `docs/discovery.md`.
-  `build_boards.py` remains a manual legacy importer; do not restore it to the
-  scheduled scrape, which would bypass review.
+- **Daily discovery commits new boards directly to main**, separately from
+  the three-hour scrape, so the next scrape reads them with no human bottleneck.
+  The rejection ledger (`discovery-review.json`) and `validate_catalog` gate
+  prevent rejected rows from returning. To reject a board, add
+  `"decision": "rejected"` to its ledger entry and remove its CSV row. The
+  rules are below; operation is documented in `docs/discovery.md`.
+  `build_boards.py` remains a manual legacy importer.
 - **A board on a provider's second host is still its board.** Greenhouse's EU
   boards (`job-boards.eu.greenhouse.io`) answer on the same
   `boards-api.greenhouse.io`, but its apply-link pattern missed the `.eu.` and dropped 26
@@ -494,8 +494,8 @@ scraper standard-library-only.
 - Preview is the default. Local `--apply` adds only new boards whose existing
   provider reader completed and whose evidence supplies one unambiguous name.
   An empty successful response is a live board; a failed or partial read is not.
-  A live read does not prove company ownership: developers review catalog changes
-  before merging. Scheduled discovery proposes changes in a PR, never on main.
+  A live read does not prove company ownership. Scheduled discovery commits
+  new boards directly to main so the next scrape reads them.
 - Search URLs without company attribution remain `needs_company` in the report.
   Do not turn their slugs or search snippets into company names: every downstream
   card trusts boards.csv. Supply a verified URL and company through the CLI.
@@ -529,8 +529,10 @@ their boards, what WorkIt took from them and the 500-board pool sample:
 
 Shared boundaries: `providers/urls.py` owns board URL recognition for both
 commands; `board_read.py` owns the robots/pacing/read result; `catalog.py` owns
-CSV serialization and atomic writes. The collector and legacy builder share these modules, never each other or the
-scrape entry point. The PR orchestrator calls the collector entry point. Keep provider failures distinguishable from empty success.
+CSV serialization and atomic writes. The collector and legacy builder share these
+modules, never each other or the scrape entry point. The discovery orchestrator
+calls the collector entry point. Keep provider failures distinguishable from
+empty success.
 
 `discovery_sources.py` declares each curated source's application URL field.
 Do not scan arbitrary metadata recursively: company homepages are not ATS leads.
@@ -539,20 +541,16 @@ Collection returns evidence and per-source failures; a failed independent source
 must not discard successful evidence. Reports retain company attribution per
 evidence entry, and report/catalog paths must never alias, even during preview.
 
-`discovery_pr.py` maintains one rolling PR on a `codex/board-discovery-<cycle>`
-branch. It reads proposal data but executes only trusted main code. No automatic
-approval, merge, or push to main is permitted. Keep its default a local preview;
-publishing needs explicit `--publish`. Main changes merge into the proposal
-branch without force pushes; conflicts fail visibly. A closed, unmerged PR
-pauses publishing until reopened. Merge that PR with its rejection ledger
-retained to finish the cycle; the next proposal then starts a new cycle.
+`discovery_pr.py` commits new boards directly to main. It fetches `origin/main`,
+runs discovery in a worktree, reconciles against the catalog and rejection ledger,
+and pushes to main. Keep its default a local preview; publishing needs explicit
+`--publish`. If someone pushes to main between our fetch and our push, git
+rejects the non-fast-forward and the next daily run retries.
 
-`discovery-review.json` stores observations and durable review decisions. A
-developer's removal of a proposed CSV row means rejection; never re-add it on
-rediscovery. Preserve company-name corrections and merge rejected ledger entries
-even when no proposed boards are accepted. Explicit `decision: rejected` queues
-CSV removal for the next discovery run; the rejected row must be removed before
-merging, either by the reviewer or by rerunning discovery. CI checks the actual
+`discovery-review.json` stores observations and durable review decisions. To
+reject a board, add `"decision": "rejected"` to its ledger entry and remove its
+CSV row; discovery will not re-add it. Preserve company-name corrections and
+merge rejected ledger entries even when no boards are added. CI checks the actual
 catalog against the ledger, and the scraper and publisher must call
 `discovery_review.validate_catalog` before consuming/publishing it. This prevents
 a ledger-only rejection merged between daily runs from becoming an active board.

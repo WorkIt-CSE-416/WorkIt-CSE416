@@ -27,10 +27,12 @@ The two internship lists are one repo each, renamed every season (both were
 Summer2026 until 2026), and GitHub serves a renamed repo's files at its old
 address too. So an old name keeps working, but name the current one.
 
-The scheduled scrape runs this before every scrape (.github/workflows/scrape.yml),
-so a company a list names today is read on the next run without anyone committing
-it. Since boards are only added and nothing is written until every list has
-loaded, a failed download leaves boards.csv as it was.
+A person runs this by hand and commits the diff; no workflow runs it. The
+scheduled scrape ran it before every scrape from KAN-167 (2026-10-09) until
+KAN-422 (2026-10-28), which replaced it with daily discovery (discovery_pr.py)
+so that new boards are checked before they reach main. Since boards are only
+added and nothing is written until every list has loaded, a failed download
+leaves boards.csv as it was.
 """
 
 from __future__ import annotations
