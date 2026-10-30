@@ -1,6 +1,7 @@
 import { differenceInCalendarDays, format, getYear, parseISO } from "date-fns";
 import type { Highlight } from "./jobs/data";
 import type { StageKey } from "./stage-colors";
+import type { LogoSrc } from "@/lib/job-logo";
 
 /**
  * The application tracker's shape, and what the seeker pages work out from
@@ -73,7 +74,7 @@ export type Application = {
   company: string;
   /** The company logo, as the job card draws it; null: initials
    *  (./applications/application-tile.tsx). */
-  logoUrl: string | null;
+  logoUrl: LogoSrc;
   /** Its job posting's page, while the posting is open. */
   jobHref?: string;
   /** False once its job posting has closed. Scraped postings state no

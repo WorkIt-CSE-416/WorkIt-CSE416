@@ -84,27 +84,26 @@ export async function dequeueJob(jobId: string): Promise<{ error: string | null 
   }
 }
 
-/** Start Auto Apply: queues a batch of the seeker's best matches (POST
- *  .../auto-apply/batches, 10 by default) and answers how many it queued. */
-export async function startBatch(): Promise<
-  { queued: number; error: null } | { queued: null; error: string }
-> {
+/** Up Next's Remove on a started job whose tab is closed (needs_you), which the queue's
+ *  DELETE refuses: finishes it as skipped (POST .../applications/{job_id}/
+ *  finish), so it leaves Up Next. Its posting stays out of later batches. */
+export async function skipJob(jobId: string): Promise<{ error: string | null }> {
   let session;
   try {
     session = await getApplicantSession();
   } catch {
-    return { queued: null, error: SIGNED_OUT };
+    return { error: SIGNED_OUT };
   }
   try {
     const res = await apiFetch(
-      `/applicants/${session.id}/auto-apply/batches`,
-      { method: "POST", body: JSON.stringify({}) },
+      `/applicants/${session.id}/applications/${encodeURIComponent(jobId)}/finish`,
+      { method: "POST", body: JSON.stringify({ outcome: "skipped" }) },
       session.token,
     );
-    if (!res.ok) return { queued: null, error: await extractErrorMessage(res) };
-    return { queued: ((await res.json()) as { queued: string[] }).queued.length, error: null };
+    if (res.ok) return { error: null };
+    return { error: await extractErrorMessage(res) };
   } catch {
-    return { queued: null, error: UNREACHABLE };
+    return { error: UNREACHABLE };
   }
 }
 

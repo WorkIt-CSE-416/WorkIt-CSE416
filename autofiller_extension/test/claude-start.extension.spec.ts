@@ -38,11 +38,13 @@ test("Write with Claude opens a new Claude chat with the trigger and copies it",
   await expect.poll(() => loaded.context.pages().find((p) => p.url() === LUMEN), { timeout: 60_000 }).toBeTruthy();
   const form = loaded.context.pages().find((p) => p.url() === LUMEN)!;
   const row = form.locator("#workit-autofiller-overlay-host .row", { hasText: WHY });
-  await expect(row).toContainText("Waiting for your Claude", { timeout: 60_000 });
-  await expect(row).toContainText("Press Enter in Claude (or paste)");
+  await expect(row).toHaveAttribute("data-mark", "waiting", { timeout: 60_000 });
+  // The waiting box says it once, at its head (KAN-424), not on each row.
+  const note = form.locator('#workit-autofiller-overlay-host .box[data-box="waiting"] .box-note');
+  await expect(note).toContainText("Press Enter in Claude (or paste)");
 
   await form.bringToFront();
-  const [claude] = await Promise.all([loaded.context.waitForEvent("page"), row.getByRole("link", { name: "Write with Claude" }).click()]);
+  const [claude] = await Promise.all([loaded.context.waitForEvent("page"), note.getByRole("link", { name: "Write with Claude" }).click()]);
   // The new tab asks claude.ai (the fake network's) for the chat with the trigger in its box.
   await expect.poll(() => loaded.asked).toContain(START);
   expect(claude.url()).toBe(START);

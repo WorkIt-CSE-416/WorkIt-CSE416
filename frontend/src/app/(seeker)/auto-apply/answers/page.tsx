@@ -6,11 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TextLink } from "@/components/ui/text-link";
+import { claudeConnectorLink } from "@/lib/claude-connector";
 import { cn } from "@/lib/cn";
+import { getClaudeConnected } from "@/lib/connector-actions";
 
 import { BackLink } from "../../back-link";
 import { SEEKER_GUTTER } from "../../gutter";
-import { WriteWithClaude } from "../write-with-claude";
+import { ConnectClaude, WriteWithClaude } from "../write-with-claude";
 import { AnswerBox } from "./answer-box";
 import { DeleteAnswer } from "./delete-answer";
 import { FactBox } from "./fact-box";
@@ -47,6 +49,9 @@ export const metadata: Metadata = {
  *
  * WRITE WITH CLAUDE (../write-with-claude.tsx), beside the heading while
  * any question waits, starts the student's own Claude on them instead.
+ * While their Claude has no WorkIt connector (GET .../connector) it is
+ * Connect Claude: this is where the optional Claude step lives since Auto
+ * Apply's setup banner shows only the extension.
  *
  * YOUR ANSWERS. Below, every written question already answered, newest
  * application first, with the company brief fact the answer names (its
@@ -61,9 +66,10 @@ export const metadata: Metadata = {
  * what they sent. A <div>, since SidebarInset is already the <main>.
  */
 export default async function WrittenAnswersPage() {
-  const [{ data: postings, error }, { data: answered }] = await Promise.all([
+  const [{ data: postings, error }, { data: answered }, claude] = await Promise.all([
     getWrittenQuestions(),
     getAnsweredQuestions(),
+    getClaudeConnected(),
   ]);
   // Own answers captured from a form since the last visit are marked New (./new-answers.ts).
   const seen = seenAt((await cookies()).get(SEEN_COOKIE)?.value);
@@ -82,7 +88,14 @@ export default async function WrittenAnswersPage() {
             the job&apos;s open tab.
           </p>
         </div>
-        {postings && postings.length > 0 && <WriteWithClaude className="shrink-0" />}
+        {postings &&
+          postings.length > 0 &&
+          // Connect first while their Claude has no WorkIt connector; a failed read shows Write with Claude.
+          (claude.added === false ? (
+            <ConnectClaude link={claudeConnectorLink()} className="shrink-0" />
+          ) : (
+            <WriteWithClaude className="shrink-0" />
+          ))}
       </div>
 
       {error != null ? (

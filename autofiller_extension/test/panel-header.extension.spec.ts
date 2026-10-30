@@ -1,6 +1,5 @@
 // The panel's top (KAN-395): the header (WorkIt's logo, Report a problem,
-// settings, collapse), the batch line in a batch tab ("Batch · 0 of 2 ready ·
-// Next tab →", Workday's step instead), and the job card naming the tab's job
+// settings, collapse), Workday's step line, and the job card naming the tab's job
 // with its Match score ring and "You applied on <date>". Anduril's and Arc's
 // saved Greenhouse forms and a fake Workday tenant.
 import { expect, test, type Page } from "@playwright/test";
@@ -29,9 +28,8 @@ async function runBatch(): Promise<void> {
 }
 
 const tabOf = (url: string) => loaded.context.pages().find((p) => p.url() === url && !p.isClosed())!;
-const activeUrl = () => loaded.worker.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]?.url);
 
-test("a batch tab shows the batch line, its job card with the Match score, and Next tab goes to the tab that needs the student", async () => {
+test("a batch tab shows its job card with the Match score and no batch count above it", async () => {
   test.setTimeout(180_000);
   const forms = new SavedForms([ANDURIL, ARC]);
   const api = new FakeApi().queue(
@@ -48,12 +46,12 @@ test("a batch tab shows the batch line, its job card with the Match score, and N
   await expect.poll(() => api.stages.get("job-0"), { timeout: 90_000 }).toBe("needs_you");
   await expect.poll(() => loaded.context.pages().some((p) => p.url() === forms.url(ARC)), { timeout: 30_000 }).toBe(true);
   const arc = tabOf(forms.url(ARC));
-  const line = slotOf(arc, "batch-line");
-  await expect(line).toHaveText("Batch · 1 of 2 ready · Next tab →", { timeout: 90_000 });
+  await expect(slotOf(arc, "job-card").locator(".job-title")).toHaveText("Platform Intern", { timeout: 90_000 });
+  // No "Batch · 1 of 2 ready" line (KAN-424): the slot stays hidden off Workday.
+  await expect(slotOf(arc, "batch-line")).toBeHidden();
 
   const anduril = tabOf(forms.url(ANDURIL));
-  // Anduril's own tab: no other tab needs the student.
-  await expect(slotOf(anduril, "batch-line")).toHaveText("Batch · 1 of 2 ready");
+  await expect(slotOf(anduril, "batch-line")).toBeHidden();
 
   const card = slotOf(anduril, "job-card");
   await expect(card).toBeVisible();
@@ -69,8 +67,11 @@ test("a batch tab shows the batch line, its job card with the Match score, and N
   await expect(slotOf(arc, "job-card").locator(".job-title")).toHaveText("Platform Intern");
   await expect(slotOf(arc, "job-card").locator(".match")).toHaveCount(0);
 
-  await line.getByRole("button", { name: "Next tab →" }).click();
-  await expect.poll(activeUrl).toBe(forms.url(ANDURIL));
+  // The card is a link to the job's page on WorkIt.
+  const opened = loaded.context.waitForEvent("page");
+  await card.getByRole("link").click();
+  expect((await opened).url()).toBe("http://localhost:3000/jobs/job-0");
+
   expect(forms.submissions).toEqual([]);
 });
 
@@ -116,7 +117,7 @@ test("a Workday tab's line shows its step number, count and name", async () => {
   await expect(slotOf(tab, "job-card").locator(".job-title")).toHaveText("Analyst Intern", { timeout: 60_000 });
   // A batch's Workday tab walks to Review (Fill to Review), the fake tenant's step 4 of 4.
   await expect(slotOf(tab, "batch-line").locator(".step")).toHaveText("Step 4 of 4 · Review", { timeout: 60_000 });
-  await expect(slotOf(tab, "batch-line")).toContainText("Batch · ");
+  await expect(slotOf(tab, "batch-line")).not.toContainText("Batch · ");
   await expect(slotOf(tab, "job-card").locator(".job-title")).toHaveText("Analyst Intern");
   expect(workdays.submissions).toEqual([]);
 });

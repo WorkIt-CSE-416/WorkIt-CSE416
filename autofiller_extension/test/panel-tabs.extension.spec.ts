@@ -63,24 +63,12 @@ test("the marks follow the rows: a guess that looks right turns green, its Undo 
   await expect(marked(form, "filled")).toHaveCount(20);
 });
 
-test("the tabs switch, Answers goes on a form with nothing written, and the tab chosen is kept while the browser tab is open", async () => {
+test("the panel is one view: no tab strip, no Resume or Answers tab", async () => {
   test.setTimeout(120_000);
   const { form } = await anduril();
   const host = hostOf(form);
-  const tabs = host.getByRole("tab");
-  // Anduril's form asks nothing in words and has no cover letter field: no Answers tab (KAN-424).
-  await expect(tabs.filter({ visible: true })).toHaveText(["Autofill", "Resume"]);
-  await expect(host.getByRole("tab", { name: "Autofill" })).toHaveAttribute("aria-selected", "true");
-
-  await host.getByRole("tab", { name: "Resume" }).click();
-  await expect(host.getByRole("tab", { name: "Resume" })).toHaveAttribute("aria-selected", "true");
-  await expect(host.locator(`[data-key="${HEARD}"]`)).toBeHidden();
-  await expect(host.getByRole("tabpanel")).toHaveCount(1);
-  await expect(host.getByRole("tabpanel")).toHaveAttribute("data-tab", "resume");
-
-  // The page loads again in the same tab: the panel comes back on Resume.
-  await form.reload();
-  await loaded.worker.evaluate(async (url) => (globalThis as any).workitToolbar((await chrome.tabs.query({ url }))[0]), form.url());
-  await expect(host.locator(".panel")).toBeVisible();
-  await expect(host.getByRole("tab", { name: "Resume" })).toHaveAttribute("aria-selected", "true");
+  // KAN-424: the Resume and Answers tabs are gone, so with Autofill alone the strip stays hidden.
+  await expect(host.locator(".tabs")).toBeHidden();
+  await expect(host.getByRole("tab", { name: "Resume" })).toHaveCount(0);
+  await expect(host.getByRole("tab", { name: "Answers" })).toHaveCount(0);
 });

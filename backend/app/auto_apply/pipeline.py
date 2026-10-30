@@ -39,6 +39,7 @@ from app.auto_apply.review import (  # noqa: F401 (re-exported: callers name the
     answer_version,
     keep,
     next_to_review,
+    redo,
     reviewed_answers,
     rewrite,
     rewrites,
@@ -245,12 +246,17 @@ async def list_applications(
 
 
 async def next_application(
-    db: AsyncSession, applicant_id: uuid.UUID, skip: Sequence[uuid.UUID] = ()
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    skip: Sequence[uuid.UUID] = (),
+    only: Sequence[uuid.UUID] = (),
 ) -> Application | None:
     """What the extension fills next: the oldest queued application whose job
     posting is open and isn't in `skip` (the jobs batch apply already has in
-    its tabs). None when the queue is empty, and the run goes idle."""
-    return await fetch_next_application(db, applicant_id, skip)
+    its tabs), among `only` when given (the jobs the student picked, which
+    may be needs_you too). None when the queue is empty, and the run goes
+    idle."""
+    return await fetch_next_application(db, applicant_id, skip, only)
 
 
 async def record_fill(

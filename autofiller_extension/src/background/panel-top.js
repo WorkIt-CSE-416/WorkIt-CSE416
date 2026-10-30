@@ -69,6 +69,8 @@ export async function jobForTab({ tabId, url }) {
     const min = job.salary_min ?? job.salary ?? null;
     const max = job.salary_max ?? null;
     return {
+      // Its id makes the card a link to the job's page on WorkIt (panel/open-job).
+      id: job.id ?? null,
       title: job.title ?? "",
       company: job.company ?? job.company_name ?? "",
       logo: job.logo_url ?? null,
@@ -81,7 +83,7 @@ export async function jobForTab({ tabId, url }) {
   if (!pageId) return null;
   const names = await jobNamesOf(url).catch(() => null);
   if (!names?.title && !names?.company) return null;
-  return { title: names.title, company: names.company, logo: null, location: null, pay: null, match: null, appliedAt: null };
+  return { id: null, title: names.title, company: names.company, logo: null, location: null, pay: null, match: null, appliedAt: null };
 }
 
 const NEEDS_YOU = ["needs_you", "failed"];

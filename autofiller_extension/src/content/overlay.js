@@ -61,7 +61,7 @@ window.WIA = window.WIA || {};
       .essay-banner button[data-generate] svg { width: 12px; height: 12px; }
       .essay-banner button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       /* A moment's card (KAN-387): something onboarding left for the form that first needs it. */
-      .moment { padding: 10px 12px; background: var(--color-brand-tint); border-bottom: 1px solid var(--color-border); }
+      .moment { padding: 10px 12px; background: var(--color-brand-tint); border-radius: var(--radius-card); }
       .moment[hidden] { display: none; }
       .moment h2 { margin: 0 0 4px; font-size: var(--text-label); font-weight: 600; color: var(--color-ink); }
       .moment p { margin: 0 0 8px; font-size: var(--text-note); color: var(--color-ink-muted); }
@@ -146,7 +146,8 @@ window.WIA = window.WIA || {};
     el.className = "row";
     el.dataset.key = field.key;
     if (field.key === current) el.dataset.current = "";
-    if (field.key === current || field.key === opened) el.dataset.open = "";
+    const open = field.key === current || field.key === opened;
+    if (open) el.dataset.open = "";
     // Its mark (groups.js markOf): spinner, check, ?, ! or gray.
     const mark = window.WIA.groups?.markOf(field);
     if (mark) el.dataset.mark = mark;
@@ -175,10 +176,16 @@ window.WIA = window.WIA || {};
       text.appendChild(source);
       if (field.source === "guessed") el.dataset.guessed = "";
     }
-    // A row's card (row-card.js) says what is wrong in its place: a failed field's says what the page shows.
-    const card = window.WIA.rowCard?.for(field) ?? null;
+    // A row's card (row-card.js) says what is wrong in its place: a failed field's says what the page shows. A failed
+    // field's card shows only on the row the student opened (pressed, or the button's Answer took them to), so seven
+    // red rows aren't seven cards (KAN-424); it is still asked for, since it reads what the page shows as it is made.
+    // The opened Resume/CV row's card is the résumé's own (resume-card.js, KAN-424): what is attached, Change, Upload.
+    const made = (open ? window.WIA.resumeCard?.card(field) : null) ?? window.WIA.rowCard?.for(field) ?? null;
+    const card = open || field.status !== "failed" ? made : null;
+    // The waiting box's head says once how their Claude writes these (groups.js), so its rows don't each say it.
+    const waitLine = field.status === "needs_generation" && field.claude && /^Waiting for your Claude/.test(field.reason ?? "");
     // needs_generation's reason says who writes it (a batch tab: the student's Claude, KAN-377).
-    if (!card && (field.status === "failed" || field.status === "skipped" || field.status === "needs_generation" || field.status === "pending") && field.reason) {
+    if (!card && !waitLine && (field.status === "failed" || field.status === "skipped" || field.status === "needs_generation" || field.status === "pending") && field.reason) {
       const reason = document.createElement("div");
       reason.className = field.status === "failed" ? "reason" : "reason note";
       reason.textContent = field.reason;
@@ -189,8 +196,10 @@ window.WIA = window.WIA || {};
       text.appendChild(reason);
     }
     if (card) text.appendChild(card);
-    // The waiting card (card-waiting.js) carries Write with Claude, with a paste box and Write it myself.
-    if (field.status === "needs_generation" && field.claude) text.appendChild(window.WIA.waitingCard?.card(field, startClaude) ?? startClaude());
+    // The waiting card (card-waiting.js), a paste box, on the opened row only (KAN-424). A flagged answer sent back
+    // to their Claude (Rewrite) stays in the red box, under no waiting box's head, so its row keeps Write with Claude.
+    if (field.status === "needs_generation" && field.claude && field.flag) text.appendChild(startClaude());
+    if (field.status === "needs_generation" && field.claude && open && window.WIA.waitingCard) text.appendChild(window.WIA.waitingCard.card(field));
     // The flag card (card-flag.js): the reason, the flagged sentence, Keep / Rewrite with Claude / Edit myself.
     if (field.flag && window.WIA.flagCard) {
       el.dataset.flagged = "";
@@ -202,6 +211,9 @@ window.WIA = window.WIA || {};
       reason.textContent = `Your Claude's check: ${field.flag} Read it before you submit, and edit it if it's wrong.`;
       text.appendChild(reason);
     }
+    // A written question's answer, its first lines, with Rewrite and Undo rewrite (card-written.js, KAN-424).
+    const written = window.WIA.writtenRow?.parts(field, el) ?? [];
+    if (written.length) text.append(...written);
     // See cover letter (letter-preview.js): the written answer as the form has it.
     const letter = window.WIA.letterPreview?.render(field);
     if (letter) text.appendChild(letter);
@@ -216,7 +228,8 @@ window.WIA = window.WIA || {};
       text.appendChild(skip);
     }
     // Report this / Wrong? (report.js, KAN-369 fix reports): reports this field, marked wrong.
-    const reportIt = window.WIA.report?.rowAction?.(field);
+    // Only on the opened row (or a note), so a list of red rows isn't a list of Report buttons (KAN-424).
+    const reportIt = open || field.note ? window.WIA.report?.rowAction?.(field) : null;
     if (reportIt) text.appendChild(reportIt);
     el.append(dot, text);
     return el;
@@ -388,8 +401,7 @@ window.WIA = window.WIA || {};
   function offerClaude({ url }) {
     const card = momentCard("add-claude", `
       <h2>Let Your Claude Write These</h2>
-      <p>This form has a question to write. Add WorkIt to your Claude once, then ask it to "${CLAUDE_TRIGGER}": each answer fills in here, for you to check.</p>
-      <p>When Claude first asks to use each of WorkIt's tools, choose "Always allow", so it doesn't stop to ask at every answer.</p>
+      <p>Add WorkIt to your Claude once. Its answers then fill in here.</p>
       <div class="actions">
         <a data-primary data-add target="_blank" rel="noreferrer">${SPARKLE}Add to Claude</a>
         <button type="button" data-secondary data-dismiss>Not Now</button>

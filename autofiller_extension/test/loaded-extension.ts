@@ -51,7 +51,7 @@ export type FakeNet = {
  * other host over HTTPS. Each request goes to the handlers in turn; one no
  * handler answers gets a 404.
  */
-export async function startFakeNet(handlers: Handler[], extension = EXTENSION): Promise<FakeNet> {
+export async function startFakeNet(handlers: Handler[], extension = EXTENSION, live = false): Promise<FakeNet> {
   const asked: string[] = [];
   const serve = (scheme: string) => async (incoming: IncomingMessage, response: ServerResponse) => {
     const body = await new Promise<Buffer>((done) => {
@@ -86,7 +86,8 @@ export async function startFakeNet(handlers: Handler[], extension = EXTENSION): 
     args: [
       `--disable-extensions-except=${extension}`,
       `--load-extension=${extension}`,
-      `--host-resolver-rules=MAP localhost 127.0.0.1:${httpPort}, MAP * 127.0.0.1:${httpsPort}`,
+      // `live`: only localhost (the fake API and webapp) is faked; job systems are the real ones, for a live check.
+      `--host-resolver-rules=MAP localhost 127.0.0.1:${httpPort}${live ? "" : `, MAP * 127.0.0.1:${httpsPort}`}`,
       "--ignore-certificate-errors",
       // Every host now resolves to this machine: let public pages reach it.
       "--disable-features=LocalNetworkAccessChecks",
@@ -115,12 +116,13 @@ export async function loadExtension(
     args = [] as string[],
     grantHosts = [] as string[],
     closedPanel = false,
+    live = false,
   } = {},
 ): Promise<Loaded> {
   // A copy, so its panel's and marks' shadow roots can be open for Playwright's locators (which can't reach a
   // closed one); `closedPanel` keeps the student's closed roots, for the tests of what the page can reach.
   const copy = testCopy(grantHosts, !closedPanel);
-  const net = await startFakeNet(handlers, copy);
+  const net = await startFakeNet(handlers, copy, live);
   // `profile`: a Chromium profile folder to start (again) with, which the caller keeps; else a new one, removed on close.
   const profile = kept ?? mkdtempSync(join(tmpdir(), "workit-extension-"));
   const context = await chromium.launchPersistentContext(profile, {

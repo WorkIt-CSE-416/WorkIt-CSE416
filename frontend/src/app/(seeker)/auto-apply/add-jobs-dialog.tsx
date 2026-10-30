@@ -23,13 +23,14 @@ import { cn } from "@/lib/cn";
 
 import { queueJob } from "./actions";
 import { openedNote } from "./opened-note";
+import type { LogoSrc } from "@/lib/job-logo";
 
 /** A saved job as Add Jobs lists it: plain data from ./page.tsx. */
 export type SavedJob = {
   id: string;
   role: string;
   company: string;
-  logoUrl: string | null;
+  logoUrl: LogoSrc;
   match: number | null;
   /** Its hiring system is one auto apply can fill (Greenhouse for now). */
   autoApply: boolean;

@@ -60,20 +60,20 @@ test("the list, every count line, Next Thing and the page's dots agree on what n
   await expect(host.locator('.box[data-box="needs-you"] .box-head')).toHaveText("1 Needs Your Answer");
   await expect(mainButton(page)).toHaveText("Answer 1 of 1");
 
-  // The button goes to the red row, though the guess stands above it; a dot on its field. Pressed again, it stays there:
+  // The button goes to the red row, though the guess stands above it. Pressed again, it stays there:
   // the field isn't answered yet (KAN-424).
   await mainButton(page).click();
   await expect(host.locator("[data-current]")).toHaveAttribute("data-key", ASKED);
-  await expect(dots(page)).toHaveCount(1);
   await mainButton(page).click();
   await expect(host.locator("[data-current]")).toHaveAttribute("data-key", ASKED);
 
-  // Next Thing (Alt+N) walks on: the red row, then the guess, visited but with no dot (it doesn't need the student).
+  // Next Thing (Alt+N) walks on: the red row, then the guess.
   await pressNextThing(loaded, host);
   await expect(host.locator("[data-current]")).toHaveAttribute("data-key", ASKED);
   await pressNextThing(loaded, host);
   await expect(host.locator("[data-current]")).toHaveAttribute("data-key", GUESS);
-  await expect(dots(page)).toHaveCount(1);
+  // No dot is left on any field it walked to (KAN-424).
+  await expect(dots(page)).toHaveCount(0);
   // The hidden question is never visited.
   await pressNextThing(loaded, host);
   await expect(host.locator('[data-slot="primary"] [data-said]')).toHaveText("Nothing else needs you.");
@@ -114,6 +114,6 @@ test("in a batch tab, the walk goes to every red row before the guess, and the c
     visited.push((await host.locator("[data-current]").getAttribute("data-key")) ?? undefined);
   }
   expect(visited).toEqual([ASKED, HIDDEN, GUESS]);
-  await expect(dots(page)).toHaveCount(2);
+  await expect(dots(page)).toHaveCount(0);
   expect(forms.submissions).toEqual([]);
 });

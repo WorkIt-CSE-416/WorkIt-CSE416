@@ -81,7 +81,8 @@ test("signed out, the panel shows the job card and Sign in to WorkIt only; signe
   await page.bringToFront();
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   await expect(primary.getByRole("button", { name: "Autofill This Page" })).toBeVisible();
-  await expect(hostOf(page).locator(".tabs")).toBeVisible();
+  // The list is back (empty until a fill, so it has no height to be "visible").
+  await expect(hostOf(page).locator("[data-tabs]")).not.toHaveAttribute("hidden", "");
 });
 
 test("a batch tab's submit shows Sent with Next job, and I didn't submit this sets the application back", async () => {

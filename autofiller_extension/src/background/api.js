@@ -79,7 +79,8 @@ async function apiRequest(path, init = {}) {
   const response = await fetch(`${base}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      // A FormData body (uploadResume) sets its own multipart type, with its boundary.
+      ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       Authorization: `Bearer ${session.access_token}`,
       ...init.headers,
     },
@@ -90,6 +91,8 @@ async function apiRequest(path, init = {}) {
     const error = new ApiError(response.status, errorMessage(response.status, body));
     // A refusal's reasons by question (the paste route's 422, savePastedAnswer), when the route gives them.
     error.reasons = body?.detail?.reasons;
+    // The resume a duplicate upload matches (POST .../resumes' 409), so the panel can use it instead.
+    error.resumeId = body?.detail?.resume_id ?? null;
     throw error;
   }
   return response;
@@ -512,13 +515,15 @@ export function warmProfile() {
 /**
  * GET .../applications/next — the oldest queued application whose job
  * posting is open (its `job.form_url`, else `job.apply_url`, is the page
- * to open), past the jobs in `skip` (those batch apply has opened), or
- * null when none is left.
+ * to open), past the jobs in `skip` (those batch apply has opened), among
+ * `only` when given (the jobs the student picked in Up Next), or null when
+ * none is left.
  * @param {string} applicantId
  * @param {string[]} [skip]
+ * @param {string[]} [only]
  */
-export async function nextApplication(applicantId, skip = []) {
-  const query = new URLSearchParams(skip.map((id) => ["skip", id])).toString();
+export async function nextApplication(applicantId, skip = [], only = []) {
+  const query = new URLSearchParams([...skip.map((id) => ["skip", id]), ...only.map((id) => ["only", id])]).toString();
   return apiFetch(`/applicants/${applicantId}/applications/next${query ? `?${query}` : ""}`);
 }
 
@@ -645,11 +650,13 @@ export async function dropOwnAnswer(applicantId, jobId, name) {
  * stands, or send it back to the student's Claude to write again.
  * @param {string} applicantId
  * @param {string} jobId
- * @param {"keep" | "rewrite"} action
+ * @param {"keep" | "rewrite" | "redo"} action  redo: any answer their Claude wrote, for another version (KAN-424)
  * @param {string} name
+ * @param {string} [steer]  redo's "how to change it" ("Make it shorter."), if the student said
  */
-export async function answerFlag(applicantId, jobId, action, name) {
-  await apiRequest(`/applicants/${applicantId}/applications/${jobId}/review/${action}`, { method: "POST", body: JSON.stringify({ name }) });
+export async function answerFlag(applicantId, jobId, action, name, steer) {
+  const body = steer ? { name, steer } : { name };
+  await apiRequest(`/applicants/${applicantId}/applications/${jobId}/review/${action}`, { method: "POST", body: JSON.stringify(body) });
 }
 
 /**
@@ -676,6 +683,18 @@ export async function savePastedAnswer(applicantId, jobId, name, answer) {
  * @param {string} jobId
  * @param {{ uploaded_resume_id: string } | { built_resume_id: string }} resume
  */
+/**
+ * Uploads a résumé file to the student's Resumes (POST .../resumes, the
+ * Resumes page's own upload, which reads it into their Experiences too).
+ * `file` is { filename, mimeType, base64 }. Returns the new row.
+ */
+export async function uploadResume(applicantId, file) {
+  const form = new FormData();
+  const bytes = Uint8Array.from(atob(file.base64), (c) => c.charCodeAt(0));
+  form.append("file", new Blob([bytes], { type: file.mimeType }), file.filename);
+  return apiFetch(`/applicants/${applicantId}/resumes`, { method: "POST", body: form });
+}
+
 export async function recordSentResume(applicantId, jobId, resume) {
   return apiFetch(`/applicants/${applicantId}/applications/${jobId}/resume`, { method: "PUT", body: JSON.stringify(resume) });
 }
@@ -807,19 +826,6 @@ export async function generateEssayAnswer(applicantId, { question, companyName, 
       max_length: maxLength,
     }),
   });
-}
-
-/**
- * GET .../built-resumes/{id}/keyword-match?job_posting_id= — the Keyword
- * match of one built resume against one job posting (`matched`, `missing`,
- * required keywords first). A posting read for the first time spends one of
- * today's Tailor uses (backend/app/routers/built_resumes.py).
- * @param {string} applicantId
- * @param {string} resumeId
- * @param {string} jobId
- */
-export async function keywordMatch(applicantId, resumeId, jobId) {
-  return apiFetch(`/applicants/${applicantId}/built-resumes/${resumeId}/keyword-match?job_posting_id=${encodeURIComponent(jobId)}`);
 }
 
 export { ApiError, me, getResumes as uploadedResumes, getBuiltResumes as builtResumes, uploadedResumeFile, builtResumeFile };

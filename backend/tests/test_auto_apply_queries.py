@@ -76,10 +76,17 @@ def test_next_is_the_oldest_queued_open_one():
     db = Recorder()
     assert asyncio.run(queries.fetch_next_application(db, APPLICANT)) is None
     sql = db.sql()
-    assert "job_applications.stage = %(stage_1)s" in sql
+    assert "job_applications.stage IN (__[POSTCOMPILE_stage_1])" in sql
     assert "ORDER BY job_applications.created_at, job_applications.job_id" in sql
     assert "LIMIT" in sql
-    assert db.sent[-1].compile().params["stage_1"] == application_stage.queued
+    assert db.sent[-1].compile().params["stage_1"] == [application_stage.queued]
+
+
+def test_next_among_picked_jobs_counts_only_those_and_reopens_unfinished_ones():
+    db = Recorder()
+    asyncio.run(queries.fetch_next_application(db, APPLICANT, only=[JOB]))
+    assert "job_applications.job_id IN (__[POSTCOMPILE_job_id_1])" in db.sql()
+    assert db.sent[-1].compile().params["stage_1"] == [application_stage.queued, application_stage.needs_you]
 
 
 def test_one_application_is_this_applicants_for_this_job():
