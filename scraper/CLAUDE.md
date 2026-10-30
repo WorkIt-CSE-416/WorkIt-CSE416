@@ -435,11 +435,17 @@ waited up to two days for the same number of requests. `RUN_EVERY` must match th
 cron in `.github/workflows/scrape.yml`; if they drift, quiet boards are still read
 on a third of runs, only less evenly spaced.
 
-**A lane can have a time budget** (`Provider.budget_s`; Workday's and
-Oracle's, 12 minutes each, run side by side). It starts boards from the front of
+**A lane can have a time budget** (`Provider.budget_s`; Workday's, Oracle's and
+Jibe's, 12 minutes each, run side by side). It starts boards from the front of
 `Store.to_read`'s order (a board with a posting missed once, then one never
 read, then the least recently read), and once its time is up leaves the rest for
-a later run.
+a later run. **A budget does not cut a board short**: a board started in time is
+read whole, so a lane whose boards can be huge needs a size cap as well
+(`WORKDAY_MAX`, Oracle's, `JIBE_MAX`), raising `TooLarge` after the first page.
+Jibe had neither until 2026-10-30: H&R Block's 18,576 postings took 15 minutes
+at Jibe's 5-second Crawl-delay, the lane ran 31, and two of three scheduled runs
+that day hit the 60-minute workflow timeout and imported nothing. Before a lane
+grows, check its slowest board in `metrics.json` against the timeout.
 
 **Page reads have a deadline too** (`PAGES_UNTIL_S`, 20 minutes from the lanes'
 start, for every lane): after it, no posting's own page is asked for, the lane
