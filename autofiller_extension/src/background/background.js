@@ -36,6 +36,8 @@ import { allowTabSite, allowedSites, pageJobUrl, removeSite, syncSites } from ".
 import { fetchText, planReads } from "./plan-reads.js";
 import { treeStore } from "./stored-data.js";
 import { installed, setUninstallPage } from "./install.js";
+import { remoteConfig, turnedOff } from "./remote-config.js";
+import { TEST_HOOKS } from "../shared/config.js";
 
 /**
  * Calls the Fill engine in the frame that sent `sender`'s message: the
@@ -409,6 +411,10 @@ async function handleMessage(message, sender) {
     }
     case "panel/site":
       return { site: await panelSite(sender.url ?? "", message.set) };
+    // The off switch (remote-config.js, KAN-467): the job system's name when WorkIt turned it off, which the
+    // panel shows in place of its button and the fill in place of filling (a batch tab then needs the student).
+    case "fill/available":
+      return { unavailable: await turnedOff((await pageJobUrl(sender.tab?.id, sender.frameId ?? 0, sender.url ?? "")) ?? sender.url ?? "") };
     // The panel's Autofill This Page and Fill Again: the fill, in the frame that asked (a batch tab stays one).
     // Signed out (panel-states.js, KAN-401): the panel's Sign in to WorkIt opens the webapp's sign-in.
     case "panel/sign-in":
@@ -617,6 +623,8 @@ function resumeOnce() {
 }
 chrome.runtime.onStartup.addListener(resumeOnce);
 resumeOnce();
+// The job systems WorkIt turned off (KAN-467), read as the worker starts; a fill or panel reads it again once 15 minutes old.
+void remoteConfig();
 
 // Install, update and uninstall (install.js, KAN-471): onboarding's extension step on a first install, stored data
 // migrated on every update, and the uninstall survey's URL kept current.
@@ -687,8 +695,11 @@ async function commandPressed(command, tab) {
 }
 chrome.commands.onCommand.addListener((command, tab) => void commandPressed(command, tab));
 // The tests' way to press the toolbar icon and the commands' keys, which Chrome gives no page a way to press.
-globalThis.workitToolbar = toolbarPressed;
-globalThis.workitCommand = commandPressed;
+// Not in the Store build (config.js).
+if (TEST_HOOKS) {
+  globalThis.workitToolbar = toolbarPressed;
+  globalThis.workitCommand = commandPressed;
+}
 
 // Messages from the popup and the content script (same extension, so this
 // channel, not the External one below).
