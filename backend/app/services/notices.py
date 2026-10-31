@@ -18,16 +18,23 @@ The callers are app/scripts/send_notice.py and
 app/scripts/send_closure_notice.py.
 """
 
+import asyncio
+import html
 import logging
+from dataclasses import dataclass, field
 from functools import lru_cache
+from urllib.parse import urlsplit
 
 import boto3
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.models.email_log import Email_Suppression
+from app.models.dto import profile_status
+from app.models.email_log import Email_Send, Email_Suppression
+from app.models.profiles import Applicant_Profile, Company_Membership
+from app.services import email
 
 logger = logging.getLogger(__name__)
 
@@ -66,3 +73,121 @@ async def sync_suppressions(db: AsyncSession) -> int:
 
 async def is_suppressed(db: AsyncSession, address: str) -> bool:
     return (await db.get(Email_Suppression, _normal(address))) is not None
+
+
+@dataclass(frozen=True)
+class Notice:
+    subject: str
+    # Plain text; a blank line starts a new paragraph.
+    body: str
+    link: str
+    link_text: str
+
+
+def check_link(link: str) -> str:
+    """Every link in a notice is https on workitjobs.ai or a subdomain of
+    it, never the old Vercel host. Raises ValueError otherwise."""
+    parts = urlsplit(link)
+    host = parts.hostname or ""
+    if parts.scheme != "https" or not (host == "workitjobs.ai" or host.endswith(".workitjobs.ai")):
+        raise ValueError(f"notice links must be https://workitjobs.ai, not {link!r}")
+    return link
+
+
+def notice_html(notice: Notice) -> str:
+    check_link(notice.link)
+    paragraphs = "".join(
+        f'<p style="font-size:15px;color:#1a1625;line-height:1.5">{html.escape(part.strip())}</p>'
+        for part in notice.body.split("\n\n")
+        if part.strip()
+    )
+    return f"""
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+      <h1 style="font-size:20px;color:#1a1625">{html.escape(notice.subject)}</h1>
+      {paragraphs}
+      <p style="margin-top:24px">
+        <a href="{html.escape(notice.link)}" style="font-size:15px;color:#6b4ee6">{html.escape(notice.link_text)} &rarr;</a>
+      </p>
+      <p style="font-size:12px;color:#9890a3;margin-top:32px">
+        You're getting this because you have a WorkIt account. It's a notice about
+        your account, not marketing.
+      </p>
+    </div>"""
+
+
+async def active_recipients(db: AsyncSession) -> list[str]:
+    """Every active account's sign-in address, lowercased, once each:
+    every applicant and every company member whose status is active."""
+    applicants = await db.scalars(select(Applicant_Profile.email))
+    members = await db.scalars(
+        select(Company_Membership.email).where(Company_Membership.status == profile_status.active)
+    )
+    return sorted({_normal(address) for address in [*applicants, *members] if address})
+
+
+async def send_once(db: AsyncSession, campaign: str, address: str, subject: str, body_html: str) -> str:
+    """Sends one campaign's email to one address at most once. Returns
+    "sent", "already_sent", "suppressed" or "failed" (SES refused it; not
+    logged, so a re-run tries it again)."""
+    address = _normal(address)
+    if await is_suppressed(db, address):
+        return "suppressed"
+    claimed = await db.execute(
+        insert(Email_Send)
+        .values(campaign=campaign, email=address)
+        .on_conflict_do_nothing(constraint="email_sends_campaign_email_key")
+    )
+    await db.commit()
+    if not claimed.rowcount:
+        return "already_sent"
+    if await email.send_email(address, subject, body_html):
+        return "sent"
+    await db.execute(delete(Email_Send).where(Email_Send.campaign == campaign, Email_Send.email == address))
+    await db.commit()
+    return "failed"
+
+
+@dataclass
+class Report:
+    recipients: int = 0
+    sent: int = 0
+    already_sent: int = 0
+    suppressed: int = 0
+    failed: int = 0
+    sample: list[str] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        return (
+            f"{self.recipients} recipients: {self.sent} sent, {self.already_sent} already sent, "
+            f"{self.suppressed} suppressed, {self.failed} failed"
+        )
+
+
+async def broadcast(
+    db: AsyncSession,
+    campaign: str,
+    notice: Notice,
+    *,
+    to: list[str] | None = None,
+    dry_run: bool = False,
+    rate: float = 1.0,
+    sleep=asyncio.sleep,
+) -> Report:
+    """Sends `notice` once to every active account, or only to `to` (a
+    test list) when given. `campaign` names this notice in the send log:
+    re-running with the same name reaches only the addresses it missed.
+    At most `rate` sends a second (SES's MaxSendRate: 1 in the sandbox).
+    A dry run counts and samples the recipients and sends nothing."""
+    body_html = notice_html(notice)
+    recipients = sorted({_normal(a) for a in to}) if to is not None else await active_recipients(db)
+    report = Report(recipients=len(recipients), sample=recipients[:3])
+    if dry_run:
+        return report
+
+    await sync_suppressions(db)
+    for address in recipients:
+        outcome = await send_once(db, campaign, address, notice.subject, body_html)
+        setattr(report, outcome, getattr(report, outcome) + 1)
+        if outcome in ("sent", "failed"):
+            await sleep(1 / rate)
+    return report
