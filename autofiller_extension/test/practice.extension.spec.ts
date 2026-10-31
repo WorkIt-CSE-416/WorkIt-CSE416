@@ -37,9 +37,8 @@ function tabs(worker: Worker): Promise<Tab[]> {
 let loaded: Loaded;
 test.afterEach(() => loaded?.close());
 
-async function start(): Promise<{ api: FakeApi; onboarding: Page }> {
+async function start(api = new FakeApi()): Promise<{ api: FakeApi; onboarding: Page }> {
   // An empty queue: the practice batch never reads it.
-  const api = new FakeApi();
   loaded = await loadExtension([api.handler, webapp]);
   await signIn(loaded.context);
   const onboarding = loaded.context.pages()[0] ?? (await loaded.context.newPage());
@@ -114,4 +113,17 @@ test("a practice batch opens only WorkIt's practice forms on the asking page's o
   });
   expect(answer).toEqual({ ok: false, error: "No practice form to open" });
   expect((await tabs(loaded.worker)).map((t) => t.url)).toEqual([`${WEB}/onboarding/applicant`]);
+});
+
+test("with Lever turned off, the practice forms (shaped as Lever's) still fill: they are WorkIt's own", async () => {
+  test.setTimeout(120_000);
+  const api = new FakeApi();
+  api.disabledJobSystems = [{ job_system: "lever", name: "Lever" }];
+  const { onboarding } = await start(api);
+  expect(await sendFromWebapp(onboarding, { type: "practice/open", urls: [HARBOR, LUMEN] })).toMatchObject({ ok: true, opened: true });
+  const groupOf = async (url: string) => (await tabs(loaded.worker)).find((t) => t.url === url)?.group;
+  await expect.poll(() => groupOf(HARBOR), { timeout: 60_000 }).toBe("Ready");
+  const harbor = loaded.context.pages().find((p) => p.url() === HARBOR)!;
+  await expect(harbor.locator("[name=name]")).toHaveValue(STUDENT.full_name);
+  await expect(harbor.locator("#workit-autofiller-overlay-host")).not.toContainText("can't fill");
 });
