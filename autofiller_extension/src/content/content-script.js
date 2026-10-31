@@ -441,6 +441,19 @@
     },
   });
 
+  // A job system WorkIt turned off (KAN-467, background/remote-config.js): nothing is filled, typed or pressed,
+  // the panel says so, and a batch tab needs the student.
+  const off = await send({ type: "fill/available" }).catch(() => null);
+  if (off?.ok && off.unavailable) {
+    status.reset();
+    note("_unavailable", `WorkIt can't fill ${off.unavailable} right now`, window.WIA.unavailableSaid?.(off.unavailable) ?? "Fill this application yourself.", true);
+    overlay.mount(panel);
+    window.WIA.phase = "stopped";
+    window.WIA.running = false;
+    report();
+    return;
+  }
+
   // A stepped system (steps.js): Workday, Oracle.
   const workday = window.WIA.steps;
   if (!workday) {
