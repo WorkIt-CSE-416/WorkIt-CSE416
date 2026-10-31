@@ -35,6 +35,7 @@ import { followTrackedTab, forgetTracked, isTracked, markTracked, track, trackSt
 import { allowTabSite, allowedSites, pageJobUrl, removeSite, syncSites } from "./site-access.js";
 import { fetchText, planReads } from "./plan-reads.js";
 import { treeStore } from "./stored-data.js";
+import { installed, setUninstallPage } from "./install.js";
 
 /**
  * Calls the Fill engine in the frame that sent `sender`'s message: the
@@ -616,6 +617,11 @@ function resumeOnce() {
 }
 chrome.runtime.onStartup.addListener(resumeOnce);
 resumeOnce();
+
+// Install, update and uninstall (install.js, KAN-471): onboarding's extension step on a first install, stored data
+// migrated on every update, and the uninstall survey's URL kept current.
+chrome.runtime.onInstalled.addListener((details) => void installed(details).catch((error) => console.warn("[install] not handled:", error.message)));
+chrome.runtime.onStartup.addListener(() => void setUninstallPage().catch(() => {}));
 
 // The panel's choices per site (panel.js): { top, collapsed, hidden }, by host name.
 const PANEL_SITES_KEY = "panel_sites";

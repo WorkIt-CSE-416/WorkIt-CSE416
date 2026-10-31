@@ -117,11 +117,15 @@ export async function loadExtension(
     grantHosts = [] as string[],
     closedPanel = false,
     live = false,
+    welcome = false,
+    version = undefined as string | undefined,
   } = {},
 ): Promise<Loaded> {
   // A copy, so its panel's and marks' shadow roots can be open for Playwright's locators (which can't reach a
   // closed one); `closedPanel` keeps the student's closed roots, for the tests of what the page can reach.
-  const copy = testCopy(grantHosts, !closedPanel);
+  // `welcome`: the install opens onboarding's extension step (install.js), as for a student; off, every other test's tabs are its own.
+  // `version`: the manifest's version in the copy, so a second start on a kept `profile` is an update to Chrome.
+  const copy = testCopy(grantHosts, !closedPanel, welcome, version);
   const net = await startFakeNet(handlers, copy, live);
   // `profile`: a Chromium profile folder to start (again) with, which the caller keeps; else a new one, removed on close.
   const profile = kept ?? mkdtempSync(join(tmpdir(), "workit-extension-"));
@@ -167,19 +171,31 @@ export function openPanel(source: string, file = "src/content/panel.js"): string
   return open;
 }
 
+const INSTALL_FILE = "src/background/install.js";
+
+/** install.js's source with no onboarding tab on install, for the tests that don't test it (`welcome`). */
+function noWelcome(source: string): string {
+  const quiet = source.replace('details.reason === "install"', "false");
+  if (quiet === source) throw new Error(`${INSTALL_FILE} no longer checks details.reason === "install": update noWelcome`);
+  return quiet;
+}
+
 /**
  * A copy of the extension to load: its panel's and marks' roots open when `open` (see
  * openPanel), and allowed to read `hosts` too: what activeTab grants when the
  * student presses the toolbar icon on a page outside the manifest's hosts,
- * which a test can't press. Same key, so the same extension id.
+ * which a test can't press, and with no onboarding tab on install unless
+ * `welcome`. Same key, so the same extension id.
  */
-function testCopy(hosts: string[], open: boolean): string {
+function testCopy(hosts: string[], open: boolean, welcome: boolean, version?: string): string {
   const dir = mkdtempSync(join(tmpdir(), "workit-extension-copy-"));
   for (const part of ["src", "icons", "fonts", "fill-engine/dist"]) cpSync(join(EXTENSION, part), join(dir, part), { recursive: true });
   const manifest = JSON.parse(readFileSync(join(EXTENSION, "manifest.json"), "utf8"));
   manifest.host_permissions.push(...hosts);
+  if (version) manifest.version = version;
   writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest));
   if (open) for (const file of CLOSED_ROOT_FILES) writeFileSync(join(dir, file), openPanel(readFileSync(join(dir, file), "utf8"), file));
+  if (!welcome) writeFileSync(join(dir, INSTALL_FILE), noWelcome(readFileSync(join(dir, INSTALL_FILE), "utf8")));
   return dir;
 }
 

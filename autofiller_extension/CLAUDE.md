@@ -1326,6 +1326,39 @@ fill and groups as a real one, and `practice/status` says where each is.
   Needs you; the student's Submit on each reaches `/thanks` with no data,
   and nothing reaches any host but WorkIt's site and API.
 
+## Install, update and uninstall (KAN-471)
+
+`install.js` handles `chrome.runtime.onInstalled`; `stored-data.js` holds
+what storage looks like across versions.
+
+- **Install opens onboarding's extension step**: a tab on
+  `webappOrigin()`'s `/onboarding/applicant?step=extension`. The webapp
+  opens a finished student's onboarding on that step, then the practice
+  batch; a signed-out student signs in first and comes back to it; one
+  who never finished onboarding starts at its first step. No page of its
+  own here.
+- **Storage has a schema version** (`workit_storage_version`). Every
+  install and update runs `migrateStorage`: each migration after the
+  stored version, in order, once. **A change to what a stored key holds
+  adds a migration and bumps `STORAGE_VERSION`**, or an update leaves the
+  old shape for code that reads the new one. Version 1 turned
+  `workday_trees` into capped `[key, tree]` pairs: `chrome.storage` gives
+  an object's keys back sorted, so an object can't say which entry is
+  oldest.
+- **Removing the extension opens the webapp's survey**
+  (`/uninstalled?v=<version>`, `chrome.runtime.setUninstallURL`, set again
+  on each install, update and start). The URL carries the version only, no
+  account, so the answer is anonymous (the webapp's page and
+  `POST /uninstall-answers`).
+- **Tests**: `test/stored-data.spec.ts` (the migrations and the cap, on a
+  fake storage) and `test/install.extension.spec.ts` (the loaded
+  extension: the install's tab; an update, as a second start on the same
+  profile with a higher version, since `chrome.runtime.reload()` unloads an
+  extension loaded with `--load-extension`; and `uninstallSelf()` opening
+  the survey). Every other loaded-extension test turns the install's tab
+  off (`loadExtension`'s `welcome`, a source swap in the test copy like
+  `openPanel`), so its tabs stay its own.
+
 ## Onboarding's later moments (KAN-387): asked when first needed
 
 Onboarding stops at the practice batch; what it no longer asks up front is
