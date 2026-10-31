@@ -61,7 +61,8 @@ test("every call names the extension's version, and a 426 asks the student to up
   const versions = new Set<string | undefined>();
   const api = new FakeApi();
   const tooOld: Handler = ({ url, headers }) => {
-    if (url.host !== "localhost:8000" || url.pathname === "/health") return undefined;
+    // The remote config names no version on purpose: the off switch must reach the oldest builds (KAN-467).
+    if (url.host !== "localhost:8000" || url.pathname === "/health" || url.pathname === "/extension/config") return undefined;
     versions.add(headers["x-workit-extension"] as string | undefined);
     return url.pathname.endsWith("/profile") ? { status: 426, json: { detail: { message: "Please update WorkIt.", min_version: "9.0.0" } } } : undefined;
   };

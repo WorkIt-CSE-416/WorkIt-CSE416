@@ -15,7 +15,7 @@
 //    engine) — an unfilled optional field renders as "skipped", a neutral
 //    state, never "failed".
 //
-// A fourth status, "needs_generation", is the written questions' own: one
+// A fourth status, "needs_writing", is the written questions' own: one
 // waiting for the student's Claude or their paste on Written Answers, or, on
 // a form they opened themselves, for them to ask for that in the overlay's
 // prompt (written-answers.js, overlay.js's promptForEssays).
@@ -114,7 +114,7 @@ window.WIA = window.WIA || {};
     // student dismisses the prompt — same honesty rule as every
     // other required-but-unresolved field, just with a third way to
     // resolve it besides WorkIt already having the data.
-    const essay = all.filter((r) => r.status === "needs_generation");
+    const essay = all.filter((r) => r.status === "needs_writing");
 
     return {
       total: all.length,
@@ -177,7 +177,7 @@ window.WIA = window.WIA || {};
     if (!(row.status === "failed" || row.flag || row.required || row.off)) return false;
     if (!shown(row)) return false;
     if (row.status === "failed" || row.flag) return true;
-    if (row.status === "needs_generation") return !row.claude;
+    if (row.status === "needs_writing") return !row.claude;
     return row.status === "pending" && window.WIA.phase !== "filling";
   }
 
@@ -185,7 +185,7 @@ window.WIA = window.WIA || {};
   const toCheck = (row) => !row.note && row.status === "filled" && (row.source === "guessed" || Boolean(window.WIA.unseenAnswers?.has(row.key)));
 
   /** A required question waiting for the student's Claude: nothing for them to fix yet, but not ready either. */
-  const waitingOnClaude = (row) => !row.note && row.required && row.status === "needs_generation" && Boolean(row.claude);
+  const waitingOnClaude = (row) => !row.note && row.required && row.status === "needs_writing" && Boolean(row.claude);
 
   /** How many rows need the student now (needsYou): the number every count line shows. */
   const needsYouCount = () => Array.from(results.values()).filter(needsYou).length;

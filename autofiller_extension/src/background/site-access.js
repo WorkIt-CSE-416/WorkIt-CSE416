@@ -123,6 +123,21 @@ export async function pageJobUrl(tabId, frameId, url) {
   return read?.result ? markedLink(url, read.result) : null;
 }
 
+/**
+ * The job system of the page in `tabId`'s frame `frameId` ("workday"), on
+ * its own hosts or marked on an employer's domain (pageJobUrl), else null.
+ * Content scripts can't load the engine, so they are told it: the panel
+ * (panel/where) and a fill (content-scripts.js injectFill) set it as
+ * `window.WIA.jobSystem`.
+ * @param {number | undefined} tabId
+ * @param {number} frameId
+ * @param {string} url
+ */
+export async function pageSystem(tabId, frameId, url) {
+  const link = await pageJobUrl(tabId, frameId, url);
+  return link ? (jobOf(link)?.site ?? null) : null;
+}
+
 /** Whether the page holds a frame showing a form the engine covers (an embedded Greenhouse form, say). */
 async function framesWithForm(tabId) {
   const [read] = await chrome.scripting

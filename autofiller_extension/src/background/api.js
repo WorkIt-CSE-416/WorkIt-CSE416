@@ -62,9 +62,8 @@ async function apiUrl(session) {
  */
 export async function publicFetch(path, timeout = 3000) {
   const base = await apiUrl(await getSession().catch(() => null));
-  const response = await fetch(`${base}${path}`, { signal: AbortSignal.timeout(timeout) });
-  if (!response.ok) throw new ApiError(response.status, errorMessage(response.status, await response.json().catch(() => ({}))));
-  return response.json();
+  const response = await fetch(`${base}${path}`, { signal: AbortSignal.timeout(timeout) }).catch(unanswered);
+  return (await checked(response)).json().catch(unanswered);
 }
 // The panel's words when the API can't be used (KAN-466): one sentence for
 // no answer in time, no network, and the API being down, never the browser's
@@ -113,25 +112,33 @@ async function apiRequest(path, { timeoutMs = TIMEOUT_MS, ...init } = {}) {
     },
   }).catch(unanswered);
   let response = await send(session.access_token);
-  // A refused token (expired early, or revoked): the webapp refreshes the session once (auth.js), then one retry.
+  // A refused token (expired early, or revoked): the webapp refreshes the session once, forced since the
+  // token may be far from its expiry (auth.js), then one retry.
   if (response.status === 401) {
-    const renewed = await refreshSession(session);
+    const renewed = await refreshSession(session, { force: true });
     if (!renewed) throw new ApiError(401, "Not signed in");
     if (renewed.access_token !== session.access_token) response = await send(renewed.access_token);
   }
 
-  if (!response.ok) {
-    // Chrome looks for the new version now, rather than within hours.
-    if (response.status === 426) chrome.runtime.requestUpdateCheck().catch(() => {});
-    const body = await response.json().catch(() => ({}));
-    const error = new ApiError(response.status, errorMessage(response.status, body));
-    // A refusal's reasons by question (the paste route's 422, savePastedAnswer), when the route gives them.
-    error.reasons = body?.detail?.reasons;
-    // The resume a duplicate upload matches (POST .../resumes' 409), so the panel can use it instead.
-    error.resumeId = body?.detail?.resume_id ?? null;
-    throw error;
-  }
-  return response;
+  return checked(response);
+}
+
+/**
+ * `response` when it is a 2xx, else an ApiError with the route's words
+ * (errorMessage): what apiRequest and publicFetch both do with an answer.
+ * @param {Response} response
+ */
+async function checked(response) {
+  if (response.ok) return response;
+  // Chrome looks for the new version now, rather than within hours.
+  if (response.status === 426) chrome.runtime.requestUpdateCheck().catch(() => {});
+  const body = await response.json().catch(() => ({}));
+  const error = new ApiError(response.status, errorMessage(response.status, body));
+  // A refusal's reasons by question (the paste route's 422, savePastedAnswer), when the route gives them.
+  error.reasons = body?.detail?.reasons;
+  // The resume a duplicate upload matches (POST .../resumes' 409), so the panel can use it instead.
+  error.resumeId = body?.detail?.resume_id ?? null;
+  throw error;
 }
 
 /**

@@ -8,13 +8,15 @@
 // (Send fill numbers). Kept 90 days by the backend's daily purge.
 
 import { sendFillEvent } from "./api.js";
-import { ENGINE_VERSION, jobOf } from "./engine.js";
+import { ENGINE_VERSION, jobOf, practiceJob } from "./engine.js";
 import "../shared/report-parts.js";
 
 const { ERRORS } = globalThis.WIA.reportParts;
 // Whether fill numbers are sent (true unless the student turned them off).
 const ON_KEY = "fill_numbers";
-const COUNTS = ["fields", "filled", "guessed", "needs_you", "failed"];
+const COUNTS = ["fields", "filled", "guessed", "needs_you", "skipped_by_choice", "failed"];
+// The longest a fill's time may be: a Workday step the student sits on can take minutes.
+const MAX_DURATION_MS = 60 * 60 * 1000;
 
 /** Whether the student lets the extension send fill numbers. */
 export async function fillNumbersOn() {
@@ -27,15 +29,20 @@ export async function setFillNumbers(on) {
   return { fillNumbers: Boolean(on) };
 }
 
-const count = (value) => Math.max(0, Math.min(10_000, Math.round(Number(value) || 0)));
+/** A whole number from 0 to `max`, whatever `value` is. */
+const count = (value, max = 10_000) => Math.max(0, Math.min(max, Math.round(Number(value) || 0)));
 
 /**
  * The event for one fill: `counts` as the page's fill.js gave them, each part
  * forced to its shape, with `site` (the page's Plan's job system) checked
  * against the engine's reading of the frame. Null for a fill with nothing
- * in it (no field, no error), which is no fill at all (a closed job's page).
+ * in it (no field, no error), which is no fill at all (a closed job's page),
+ * unless it is a stepped system's last step (Review): that one ends the fill.
+ * A stepped system's `step` (from 1) and `final_step` go as they came.
  */
 export function eventOf(url, counts = {}, batch = false) {
+  // Onboarding's practice form is WorkIt's own page, shaped as Lever's: no fill of Lever's to count.
+  if (practiceJob(url)) return null;
   const site = /^[a-z][a-z0-9_-]{0,23}$/.test(counts.site ?? "") ? counts.site : jobOf(url)?.site;
   if (!site) return null;
   const errors = {};
@@ -47,9 +54,11 @@ export function eventOf(url, counts = {}, batch = false) {
     mode: batch ? "batch" : "single",
     ...Object.fromEntries(COUNTS.map((part) => [part, count(counts[part])])),
     errors,
-    duration_ms: Math.min(3_600_000, count(counts.duration_ms) || 1),
+    duration_ms: count(counts.duration_ms, MAX_DURATION_MS) || 1,
   };
-  if (!event.fields && !Object.keys(errors).length) return null;
+  if (Number.isInteger(counts.step) && counts.step >= 1) event.step = Math.min(counts.step, 100);
+  if (typeof counts.final_step === "boolean") event.final_step = counts.final_step;
+  if (!event.fields && !Object.keys(errors).length && event.final_step !== true) return null;
   return event;
 }
 

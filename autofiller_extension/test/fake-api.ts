@@ -3,7 +3,7 @@
 // data, extension.ts's STUDENT) and an auto-apply queue held in memory, with
 // the stage rules of backend/app/auto_apply/pipeline.py.
 import { STUDENT } from "./extension";
-import type { Handler } from "./loaded-extension";
+import { TEST_TOKEN, type Handler } from "./loaded-extension";
 
 export type Stage = "queued" | "needs_you" | "skipped" | "applied";
 /** `form_url`: the employer's form the API names (KAN-376); its apply_url when left out, as for a hiring system's posting. */
@@ -26,7 +26,10 @@ export type Written = {
 export type Flag = string | { reason: string; quote?: string; hard?: boolean };
 
 // POST /fill-events' shape (backend/app/schemas/fill_events.py): these keys only, never a value.
-const FILL_EVENT_KEYS = ["job_system", "engine_version", "extension_version", "mode", "fields", "filled", "guessed", "needs_you", "failed", "errors", "duration_ms"];
+const FILL_EVENT_KEYS = [
+  "job_system", "engine_version", "extension_version", "mode", "fields", "filled", "guessed", "needs_you", "skipped_by_choice", "failed", "errors", "duration_ms",
+  "step", "final_step",
+];
 const ERROR_NAMES = ["Readback", "FillError", "Handoff", "NoForm", "NoAnswer", "Error"];
 
 /** What is wrong with a fill event: a key or part outside the shape, or any of the student's values in it. */
@@ -37,6 +40,10 @@ function fillEventProblems(event: Record<string, unknown>, profile: object): str
     if (!Number.isInteger(event[key]) || (event[key] as number) < 0) problems.push(`${key} is not a count`);
   }
   if (!["single", "batch"].includes(event.mode as string)) problems.push(`mode ${event.mode}`);
+  // Optional (a stepped system's, KAN-476): the step's number from 1, and whether it is the last.
+  if ("step" in event && (!Number.isInteger(event.step) || (event.step as number) < 1)) problems.push(`step ${event.step}`);
+  if ("final_step" in event && typeof event.final_step !== "boolean") problems.push(`final_step ${event.final_step}`);
+  if ("skipped_by_choice" in event && (!Number.isInteger(event.skipped_by_choice) || (event.skipped_by_choice as number) < 0)) problems.push("skipped_by_choice is not a count");
   for (const [name, count] of Object.entries((event.errors as object) ?? {})) {
     if (!ERROR_NAMES.includes(name) || !Number.isInteger(count)) problems.push(`error ${name}`);
   }
@@ -193,7 +200,7 @@ export class FakeApi {
   }
 
   /** The access token the API takes (signIn's): change it to expire the one the student signed in with. */
-  token = "test-access-token";
+  token = TEST_TOKEN;
 
   readonly handler: Handler = ({ url, method, headers, body }) => {
     if (url.host !== "localhost:8000") return undefined;

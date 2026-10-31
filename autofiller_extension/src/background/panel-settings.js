@@ -8,6 +8,7 @@ import { getSession } from "./auth.js";
 import { connectorAdded, disconnectConnector, me } from "./api.js";
 import { AUTOFILL_OFF_KEY } from "../shared/autofill-categories.js";
 import { fillNumbersOn } from "./fill-events.js";
+import { HIDDEN_EVERYWHERE_KEY } from "../shared/panel-keys.js";
 
 // Whether a batch tab's panel opens by itself once its fill is done (true unless the student turned it off).
 const AUTO_OPEN_KEY = "panel_auto_open";
@@ -56,7 +57,6 @@ export async function disconnectClaude() {
 
 // The edge tab hidden on every site (KAN-480): the panel's and the edge tab's Hide everywhere set it; Options'
 // "Show the WorkIt tab on job pages" clears it. Alt+W and the toolbar still open the panel.
-export const HIDDEN_EVERYWHERE_KEY = "panel_hidden_everywhere";
 
 /** Whether the student hid the edge tab everywhere. */
 export async function hiddenEverywhere() {

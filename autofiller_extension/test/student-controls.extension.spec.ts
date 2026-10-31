@@ -130,6 +130,15 @@ test("with Demographics off, the EEO questions are left blank and need the stude
   expect(await boxText("veteran_status")).not.toContain("I am not a protected veteran");
   // Contact info still fills.
   expect(await page.locator("#first_name").inputValue()).not.toBe("");
+  // The fill's numbers (KAN-476) count them as the student's choice, not as fields WorkIt left for them.
+  await expect.poll(() => api.fillEvents.length, { timeout: 30_000 }).toBe(1);
+  const [event] = api.fillEvents as any[];
+  const off = await host.locator(".row", { hasText: "Demographics autofill is off" }).count();
+  expect(off).toBeGreaterThanOrEqual(EEO.length);
+  expect(event.skipped_by_choice).toBe(off);
+  const marked = await host.locator('.row[data-mark="needs-you"]').count();
+  expect(event.needs_you).toBeLessThanOrEqual(marked - off);
+  expect(api.fillEventProblems).toEqual([]);
 
   // The saved answers are untouched: nothing was written to them, and they still read back.
   expect(api.calls.filter((c) => /autofill-answers/.test(c) && !c.startsWith("GET"))).toEqual([]);

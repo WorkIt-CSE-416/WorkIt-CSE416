@@ -62,8 +62,8 @@ window.WIA = window.WIA || {};
 
     /** A row waiting for the student's Claude, with the Written Answers link (KAN-385) when there is one. */
     function waitForClaude(name) {
-      if (answersPage) status.setStatus(name, "needs_generation", WAIT_OR_PASTE, undefined, undefined, answersPage, true);
-      else status.setStatus(name, "needs_generation", WAIT_FOR_CLAUDE, undefined, undefined, undefined, true);
+      if (answersPage) status.setStatus(name, "needs_writing", WAIT_OR_PASTE, undefined, undefined, answersPage, true);
+      else status.setStatus(name, "needs_writing", WAIT_FOR_CLAUDE, undefined, undefined, undefined, true);
     }
 
     /**
@@ -77,7 +77,7 @@ window.WIA = window.WIA || {};
         if (!isNew(q.name)) continue;
         status.register(q.name, q.label, q.required);
         if (batch) waitForClaude(q.name);
-        else status.setStatus(q.name, "needs_generation");
+        else status.setStatus(q.name, "needs_writing");
       }
     }
 
@@ -126,7 +126,7 @@ window.WIA = window.WIA || {};
      * it; once they have, the row waits for their Claude again.
      */
     function showAsk(name, ask) {
-      if ((asked.get(name) ?? "") === (ask ?? "") || rowStatus(name) !== "needs_generation") return;
+      if ((asked.get(name) ?? "") === (ask ?? "") || rowStatus(name) !== "needs_writing") return;
       asked.set(name, ask ?? "");
       if (!ask) {
         waitForClaude(name);
@@ -134,8 +134,8 @@ window.WIA = window.WIA || {};
       }
       const question = ask.startsWith(ASK) ? ask.slice(ASK.length) : ask;
       const reason = `Your Claude needs a fact from you first: ${question}`;
-      if (answersPage) status.setStatus(name, "needs_generation", `${reason} Answer it on`, undefined, undefined, answersPage, true);
-      else status.setStatus(name, "needs_generation", `${reason} Answer it on WorkIt's Written Answers page, or write this answer yourself.`, undefined, undefined, undefined, true);
+      if (answersPage) status.setStatus(name, "needs_writing", `${reason} Answer it on`, undefined, undefined, answersPage, true);
+      else status.setStatus(name, "needs_writing", `${reason} Answer it on WorkIt's Written Answers page, or write this answer yourself.`, undefined, undefined, undefined, true);
     }
 
     /** The current status of one row, or undefined. */
@@ -321,7 +321,7 @@ window.WIA = window.WIA || {};
         onDismiss() {
           for (const { name } of written) status.setStatus(name, "skipped", "You chose to answer this yourself");
         },
-        async onGenerate() {
+        async onWriteWithClaude() {
           const opened = await send({ type: "written/open" }).catch((error) => ({ ok: false, error: error.message }));
           if (!opened?.ok) {
             for (const q of written) status.setStatus(q.name, q.required ? "failed" : "skipped", opened?.error ?? WRITE_IT);
@@ -329,7 +329,7 @@ window.WIA = window.WIA || {};
           }
           window.WIA.writing = api;
           await loadAnswersPage();
-          for (const q of written) if (rowStatus(q.name) === "needs_generation") waitForClaude(q.name);
+          for (const q of written) if (rowStatus(q.name) === "needs_writing") waitForClaude(q.name);
           awaitClaude(prepared);
         },
       });
@@ -461,15 +461,15 @@ window.WIA = window.WIA || {};
      */
     async function awaitRewrite(name, row) {
       rewriting.set(name, row.shows);
-      status.setStatus(name, "needs_generation", WAIT_FOR_CLAUDE, row.shows, undefined, undefined, true);
+      status.setStatus(name, "needs_writing", WAIT_FOR_CLAUDE, row.shows, undefined, undefined, true);
       if (row.flag) status.flag(name, row.flag, { quote: row.flagQuote, hard: row.flagHard, rewriting: true });
       try {
         const since = Date.now();
-        while (rowStatus(name) === "needs_generation") {
+        while (rowStatus(name) === "needs_writing") {
           await sleep(answerPoll(since));
           const reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
           const answer = reply.ok ? reply.questions.find((q) => q.name === name)?.answer : null;
-          if (!answer || rowStatus(name) !== "needs_generation") continue;
+          if (!answer || rowStatus(name) !== "needs_writing") continue;
           rewriting.delete(name);
           await fillWritten(claudeFill, name, answer, "claude");
           awaitReview();

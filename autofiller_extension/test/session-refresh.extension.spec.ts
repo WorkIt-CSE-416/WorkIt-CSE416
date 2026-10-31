@@ -14,14 +14,20 @@ test.afterEach(() => loaded?.close());
 
 const hostOf = (page: Page) => page.locator("#workit-autofiller-overlay-host");
 
-/** The webapp's refresh route: each request's cookie header, and how it answers (a new token, or signed out). */
+/**
+ * The webapp's refresh route: each request's cookie header and query, and how it answers (a new token, the
+ * session as it was, or signed out). The real route rotates a token only near its expiry, or with `force=1`.
+ */
 class RefreshRoute {
   readonly cookies: string[] = [];
-  constructor(private answer: () => { token: string } | "signed-out") {}
+  readonly queries: string[] = [];
+  constructor(private answer: (forced: boolean) => { token: string } | "unchanged" | "signed-out") {}
   readonly handler: Handler = ({ url, headers }) => {
     if (url.host !== "localhost:3000" || url.pathname !== "/api/session/refresh") return undefined;
     this.cookies.push(String(headers.cookie ?? ""));
-    const answer = this.answer();
+    this.queries.push(url.search);
+    const answer = this.answer(url.searchParams.get("force") === "1");
+    if (answer === "unchanged") return { json: { signed_in: true } };
     if (answer === "signed-out") {
       return { status: 401, headers: { "set-cookie": `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax` }, json: { signed_in: false } };
     }
@@ -44,7 +50,8 @@ test("an access token that expires mid-batch is refreshed through the webapp, an
     { id: "job-0", apply_url: forms.url("greenhouse-arc") },
     { id: "job-1", apply_url: forms.url("greenhouse-anduril") },
   );
-  const route = new RefreshRoute(() => ({ token: "rotated-access-token" }));
+  // The token was refused well before its expiry: only a forced refresh rotates it.
+  const route = new RefreshRoute((forced) => (forced ? { token: "rotated-access-token" } : "unchanged"));
   // Anduril's page loads only once the first token has expired.
   let release!: () => void;
   const expired = new Promise<void>((done) => (release = done));
@@ -69,6 +76,7 @@ test("an access token that expires mid-batch is refreshed through the webapp, an
   await expect(anduril.locator("#first_name")).toHaveValue("Test");
   // One refresh, through the webapp, with the student's session cookie; the extension rotated nothing itself.
   expect(route.cookies).toHaveLength(1);
+  expect(route.queries).toEqual(["?force=1"]);
   expect(route.cookies[0]).toContain(`${SESSION_COOKIE}=base64-`);
   const cookie = (await loaded.context.cookies("http://localhost:3000/")).find((c) => c.name === SESSION_COOKIE)!;
   expect(JSON.parse(Buffer.from(cookie.value.slice("base64-".length), "base64url").toString()).access_token).toBe("rotated-access-token");

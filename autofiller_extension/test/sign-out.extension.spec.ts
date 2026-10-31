@@ -8,15 +8,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { STUDENT } from "./extension";
 import { SavedForms } from "./fake-job-systems";
-import { loadExtension, menuItem, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { loadExtension, menuItem, signIn, tokenFor, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 const COOKIE = "sb-zhdrvdrojipkluhzgsea-auth-token";
 const pdf = (words: string) => Buffer.from(`%PDF-1.4\n% ${words}\n%%EOF\n`).toString("base64");
 const BASE = { id: "built-base", name: "Base Resume", job_posting_id: null, pdf: pdf("base resume of the first student") };
-
-/** An access token for `sub`, shaped as Supabase's (its id is all the extension reads unverified). */
-const tokenFor = (sub: string) => `header.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.signature`;
 
 let loaded: Loaded;
 test.afterEach(() => loaded?.close());
@@ -94,5 +91,30 @@ test("another account signing in on the same Chrome never fills with the first a
   // The first account's switched résumé is gone with it: the form gets this account's own.
   await expect(page.locator('[aria-labelledby="upload-label-resume"] .file-upload__filename')).toHaveText(STUDENT.resume.filename);
   expect(await stored()).not.toContain(BASE.pdf);
+  expect(forms.submissions).toEqual([]);
+});
+
+test("a session cookie rewritten mid-batch (gone a moment, then half-written) keeps the student's profile and switched résumé", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms([ANDURIL]);
+  const api = new FakeApi();
+  api.builtResumes.push(BASE);
+  loaded = await loadExtension([api.handler, webapp, forms.handler]);
+  await signIn(loaded.context);
+  await filledWithSwitchedResume();
+  expect(await storedKeys()).toContain("workit_autofill_profile");
+
+  // A refresh rewrites the cookie: the old one goes, a value that won't decode is there a moment, then the new one.
+  await loaded.context.clearCookies({ name: COOKIE });
+  await new Promise((done) => setTimeout(done, 300));
+  await loaded.context.addCookies([{ name: COOKIE, value: "base64-eyJhY2Nlc3NfdG9r", url: "http://localhost:3000/" }]);
+  await new Promise((done) => setTimeout(done, 300));
+  await signIn(loaded.context);
+
+  // Well past the time a sign-out takes to clear (the first test's), nothing was cleared.
+  await new Promise((done) => setTimeout(done, 5_000));
+  expect(await storedKeys()).toContain("workit_autofill_profile");
+  expect(await stored()).toContain(STUDENT.resume.base64);
+  expect(await stored()).toContain(BASE.pdf);
   expect(forms.submissions).toEqual([]);
 });

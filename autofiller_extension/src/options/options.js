@@ -9,6 +9,7 @@
 // WorkIt email, to prefill the box, and never shows a saved password back.
 
 import { AUTOFILL_OFF_KEY, CATEGORIES } from "../shared/autofill-categories.js";
+import { HIDDEN_EVERYWHERE_KEY, PANEL_SITES_KEY } from "../shared/panel-keys.js";
 
 const SIGNUP_KEY = "workday_signup";
 
@@ -122,8 +123,6 @@ listSites();
 // The WorkIt tab (KAN-480): Hide everywhere's switch and the sites where the student hid the tab
 // (background.js keeps them: `panel_hidden_everywhere`, and `hidden` in `panel_sites` by host name),
 // each with Remove, which shows the tab there again.
-const HIDDEN_EVERYWHERE_KEY = "panel_hidden_everywhere";
-const PANEL_SITES_KEY = "panel_sites";
 const everywhere = document.getElementById("tab-everywhere");
 const hiddenSites = document.getElementById("hidden-sites");
 

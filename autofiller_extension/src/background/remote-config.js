@@ -40,11 +40,13 @@ export async function remoteConfig() {
 
 /**
  * The name of the job system at `url` ("Workday") when WorkIt turned it
- * off, else null (a job system that is on, or a page of none).
+ * off, else null (a job system that is on, or a page of none). Onboarding's
+ * practice forms are WorkIt's own, though shaped as Lever's: never off.
  * @param {string} url
  */
 export async function turnedOff(url) {
-  const site = jobOf(url)?.site;
+  const job = jobOf(url);
+  const site = job?.practice ? null : job?.site;
   if (!site) return null;
   const off = (await remoteConfig())?.disabled_job_systems ?? [];
   return off.find((system) => system.job_system === site)?.name ?? null;

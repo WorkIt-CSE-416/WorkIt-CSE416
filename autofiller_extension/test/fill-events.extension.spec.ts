@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
-import { SavedForms } from "./fake-job-systems";
+import { FakeWorkdays, SavedForms } from "./fake-job-systems";
 import { loadExtension, menuItem, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 const ARC = "greenhouse-arc";
@@ -108,4 +108,46 @@ test("with Send fill numbers off in the panel's settings, a fill sends nothing",
   await expect(mainButton(page)).toHaveText(DONE, { timeout: 60_000 });
   await page.waitForTimeout(1_500);
   expect(api.fillEvents).toEqual([]);
+});
+
+test("each Workday step sends its own event, numbered and the last marked, and a step WorkIt can't plan sends one with its error", async () => {
+  test.setTimeout(180_000);
+  const NAME = [
+    { key: "legalName--firstName", label: "First Name", kind: "text", required: true },
+    { key: "legalName--lastName", label: "Last Name", kind: "text", required: true },
+  ] as const;
+  const PREFERRED = { key: "preferredName", label: "Preferred First Name", kind: "text", required: true } as const;
+  const workdays = new FakeWorkdays(["workday-caci"], [["My Information", [...NAME]], ["Application Questions", [PREFERRED]], ["Voluntary Disclosures", [...NAME]]]);
+  workdays.inPlace.add("caci.wd1.myworkdayjobs.com");
+  const api = new FakeApi().queue({ id: "wd-0", apply_url: workdays.url(0) });
+  // The first step's save takes the profile down (and its cached copy), so the second step's Plan fails.
+  const down: Handler = async (request) => {
+    if (request.method !== "POST" || request.url.pathname !== "/__fake__/apply/1") return undefined;
+    api.profileDown = true;
+    await loaded.worker.evaluate(() => chrome.storage.local.remove("workit_autofill_profile"));
+    return undefined;
+  };
+  loaded = await loadExtension([down, api.handler, webapp, workdays.handler]);
+  await signIn(loaded.context);
+  const app = await loaded.context.newPage();
+  await app.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(app, { type: "run/open" });
+  await expect.poll(() => loaded.context.pages().some((p) => p.url() === workdays.url(0, 2)), { timeout: 90_000 }).toBe(true);
+  const tab = loaded.context.pages().find((p) => p.url() === workdays.url(0, 2))!;
+  await expect(hostOf(tab)).toContainText("WorkIt couldn't fill this step", { timeout: 60_000 });
+  // The step WorkIt couldn't plan is an event too, named by its error, not a fill that went missing.
+  await expect.poll(() => api.fillEvents.length, { timeout: 30_000 }).toBe(2);
+  // Steps are numbered as Workday's step bar numbers them (its sign-in is step 1).
+  expect(api.fillEvents[1]).toMatchObject({ job_system: "workday", step: 3, final_step: false, errors: { Error: 1 } });
+
+  api.profileDown = false;
+  await tab.locator(`[data-automation-id="formField-${PREFERRED.key}"] input`).fill("Made up");
+  await tab.locator("[data-automation-id=pageFooterNextButton]").click();
+  await tab.waitForURL(workdays.url(0, 4), { timeout: 90_000 });
+  await expect.poll(() => api.fillEvents.length, { timeout: 30_000 }).toBe(4);
+  await tab.waitForTimeout(1_500);
+  // One event a step, so fill-health counts the fill once, by its last step (Review).
+  expect(api.fillEvents.map((e: any) => [e.step, e.final_step])).toEqual([[2, false], [3, false], [4, false], [5, true]]);
+  expect(api.fillEventProblems).toEqual([]);
+  expect(workdays.submissions).toEqual([]);
 });

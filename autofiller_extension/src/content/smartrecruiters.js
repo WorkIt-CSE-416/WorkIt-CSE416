@@ -17,7 +17,7 @@
     const needed = await send({ type: "fill/required", site: prepared.site, questions: prepared.questions }).catch(() => null);
     // A required answer still being written is lost once the page is left; an optional one (the
     // message to the hiring team) is not worth holding the page for: the student can go Back to it.
-    const failed = status.summary().fields.some((row) => row.status === "failed" || (row.required && row.status === "needs_generation"));
+    const failed = status.summary().fields.some((row) => row.status === "failed" || (row.required && row.status === "needs_writing"));
     const stay = (reason) => {
       status.register(STEP_LINE, "SmartRecruiters: first page", true, undefined, "todo");
       status.setStatus(STEP_LINE, "failed", reason);

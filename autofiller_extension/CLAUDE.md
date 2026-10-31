@@ -44,9 +44,11 @@ repo `WorkIt-CSE-416/fill-engine` and sits here as the submodule
 `fill-engine/`, **pinned to a tag**. A person moves the pin (`git -C
 autofiller_extension/fill-engine checkout vX.Y.Z`, commit the gitlink), so
 a change to the engine reaches students only when someone here chooses it.
-Moving the pin also means changing `ENGINE_VERSION` in
-`src/background/report.js` (what a problem report names);
-`test/report.extension.spec.ts` fails until it matches `git describe --tags`.
+Nothing else changes with the pin: `ENGINE_VERSION` (`src/background/engine.js`,
+what a problem report and a fill event name) is the bundle's own `version`
+(the engine's package.json version and a hash of its src/), and
+`test/report.extension.spec.ts` checks a report carries what
+`node build.mjs --version` prints in the submodule.
 **A checkout needs `git submodule update --init` once**, or Chrome can't
 load `fill-engine/dist/engine.js` and every fill fails. The extension never
 builds it: `dist/engine.js` is committed in the engine repo.
@@ -427,8 +429,12 @@ job system kept). `panel/where`, `fill/*` and the toolbar read the page
 through `pageJobUrl`. A SuccessFactors posting's panel says to press Apply
 and sign in (its form is the career site's, which the manifest covers).
 A Workday career site on the employer's domain is Workday's whole
-application there: the content scripts know it by the same scripts
-(`panel.js`'s `WIA.onWorkday`, which `workday.js` reads), and its steps
+application there: the content scripts can't load the engine, so the
+background reads the page's job system with it (`site-access.js`
+`pageSystem`) and sets `window.WIA.jobSystem`, in `injectFill` before the
+fill's scripts load and from `panel/where` for the panel (`panel.js`'s
+`WIA.onWorkday`, which `workday.js` reads); a test that injects the scripts
+itself sets it as `injectFill` does. Its steps
 fill as on `*.myworkdayjobs.com`. Not covered there yet: the Create Account
 / Sign In watch (`workday-logins.js` `watchWorkdaySends` listens only on
 Workday's own hosts) and the closed-job words (`closed-posting.js`).
@@ -1488,12 +1494,19 @@ rotates the session when it is within three minutes of expiry and sets the
 new cookie; only the webapp writes it, so there is no race. The extension
 asks when `getSession()` finds the access token within two minutes of
 `expires_at`, and when an API call gets a 401 (`api.js`'s `apiRequest`
-then retries once with the new token). Callers holding the same token
+then retries once with the new token). After a 401 it asks with `?force=1`,
+which rotates the session however far from expiry it is: a refused token may
+not be near it. Callers holding the same token
 share one request, and one that left the token unchanged (the webapp
 unreachable) isn't asked again for 30 seconds. With no valid refresh
 token, Supabase clears the cookie and the route answers 401, so
 `getSession()` returns null and the panel shows Sign in to WorkIt. Tested
-in `test/session-refresh.extension.spec.ts`.
+in `test/session-refresh.extension.spec.ts`. A rewrite of the cookie (a
+refresh) reads as signed out, or as a cookie that won't decode, for a
+moment, so a sign-out clears the account's data (account-data.js) only
+once the cookie has been gone for 2 s with no refresh of the extension's
+own just settled; one that won't decode clears nothing
+(`test/sign-out.extension.spec.ts`).
 
 **Two host families until KAN-296.** Production runs on Cloudflare
 (`workitjobs.ai`, `api.workitjobs.ai`). Vercel is retired, but its projects
@@ -1773,7 +1786,7 @@ photo for forms.
 Open-ended questions ("Why do you want to work here?") have no fixed
 answer. The Fill engine's Plan says which questions need writing (its
 essays, and its drafts but a file; `engine.js`'s `planRows`), and the
-overlay lists each as "needs_generation" (`lib-status.js`). **WorkIt calls
+overlay lists each as "needs_writing" (`lib-status.js`). **WorkIt calls
 no model for them**, on any tab: the student's own Claude writes them
 through the connector, or the student pastes their own on the webapp's
 Written Answers page, exactly as on a batch tab (below). The server's
@@ -2467,18 +2480,24 @@ page and no password field in the panel).
 After every fill, single or batch, the extension sends one event to `POST
 /fill-events`, for the website's `/admin/fill-health`: the job system, the
 engine's and the extension's versions, `single` or `batch`, the field
-counts (fields, filled, guessed, needs you, failed), each failed field's
+counts (fields, filled, guessed, needs you, skipped by choice, failed), each failed field's
 error name with a count (report-parts.js ERRORS: report.js's name for the
 field, else NoAnswer; a failed `_error` note counts Error) and the
-duration. **Never a value, a label, an answer or the page's link.**
+duration (up to an hour). A field left blank because its Fields to autofill
+category is off counts in `skipped_by_choice`, not `needs_you` (the panel
+still marks it needs you). **Never a value, a label, an answer or the page's link.**
 
 - `src/content/fill-event.js` counts off the checklist (lib-status.js);
   content-script.js calls `start()` as a fill begins and `sent(site)` once
   it settles: once per page outside Workday and Oracle, once per step on
-  them (each step is its own fill). A page with no field and no error (a
-  closed job, a page that isn't a form) sends nothing; nor does a step
-  WorkIt couldn't plan (a sign-in or email gate). The student's edits
-  after the fill send nothing; Fill Again is a new fill.
+  them (each step is its own fill), each with `step` (the step bar's
+  number, else the steps the tab filled) and `final_step` (Review, the step
+  whose button sends, or a fill that stopped), so fill-health counts the
+  fill once. A step WorkIt couldn't plan (a sign-in or email gate, the API
+  down) sends one with an Error. A page with no field and no error (a
+  closed job, a page that isn't a form) sends nothing, unless it is a last
+  step; nor does onboarding's practice form (WorkIt's own, shaped as
+  Lever's). The student's edits after the fill send nothing; Fill Again is a new fill.
 - `src/background/fill-events.js` builds the event: the job system is
   the Plan's (checked against a name pattern) else the engine's `jobOf`,
   `batch` is `inBatch` (never the page's word), each count clamped. It
@@ -2488,7 +2507,8 @@ duration. **Never a value, a label, an answer or the page's link.**
   numbers). Kept 90 days (the backend's daily purge, KAN-482).
 
 Tests: `test/fill-events.extension.spec.ts` (a single fill's one event with
-a broken name box's Readback, a batch's one per tab, the opt-out). The fake
+a broken name box's Readback, a batch's one per tab, the opt-out, a Workday
+application's numbered steps), `test/fill-events.spec.ts` (the event's shape). The fake
 API checks every event any test sends (`fillEventProblems`: a key outside
 the shape, or any of the student's values in it).
 

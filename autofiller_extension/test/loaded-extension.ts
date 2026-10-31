@@ -208,14 +208,23 @@ function testCopy(hosts: string[], open: boolean, welcome: boolean, version?: st
 /** The name of the webapp's Supabase session cookie. */
 export const SESSION_COOKIE = "sb-zhdrvdrojipkluhzgsea-auth-token";
 
+/** An access token for the account `sub`, shaped as Supabase's: its `sub` is all the extension reads (unverified). */
+export const tokenFor = (sub: string) => `header.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.signature`;
+
+/**
+ * The signed-in student's token (extension.ts's STUDENT, and so the cached profile's id). A token with no
+ * `sub` signs in as no account, whose cached profile is never this one's: every read would fetch it again.
+ */
+export const TEST_TOKEN = tokenFor("00000000-0000-0000-0000-000000000001");
+
 /** The session cookie's value, as @supabase/ssr writes it, for a fake token expiring `expiresIn` seconds from now. */
-export function sessionCookie(accessToken = "test-access-token", expiresIn = 3600): string {
+export function sessionCookie(accessToken = TEST_TOKEN, expiresIn = 3600): string {
   const session = { access_token: accessToken, refresh_token: "test-refresh-token", expires_at: Math.floor(Date.now() / 1000) + expiresIn };
   return `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`;
 }
 
 /** The webapp's Supabase session cookie, as background/webapp-session.js reads it, for a fake token. */
-export async function signIn(context: BrowserContext, accessToken = "test-access-token", expiresIn = 3600): Promise<void> {
+export async function signIn(context: BrowserContext, accessToken = TEST_TOKEN, expiresIn = 3600): Promise<void> {
   await context.addCookies([{ name: SESSION_COOKIE, value: sessionCookie(accessToken, expiresIn), url: "http://localhost:3000/" }]);
 }
 

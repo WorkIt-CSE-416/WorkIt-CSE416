@@ -539,9 +539,13 @@
     }, (onAllow) => overlay.askWorkdayAccounts({ onAllow }));
   }
   let step = await workday.stepAfter("");
+  // Each step's event names its number (fill-event.js): the page's, else the steps this tab has filled.
+  let steps = 0;
   for (;;) {
     await workday.quiet();
     const shownId = workday.stepId(); // told from a next step of the same name by its number
+    steps += 1;
+    const number = Number(shownId.split("#").pop()) || steps;
     window.WIA.phase = "filling";
     status.reset();
     fillEvent.start();
@@ -555,6 +559,7 @@
       window.WIA.phase = "step";
       window.WIA.primary?.refresh();
       report();
+      fillEvent.sent(undefined, { step: number, final_step: false, error: "Error" });
       step = await workday.stepAfter(step);
       continue;
     }
@@ -562,7 +567,7 @@
       window.WIA.phase = "stopped";
       window.WIA.running = false;
       report();
-      fillEvent.sent();
+      fillEvent.sent(undefined, { step: number, final_step: true });
       return;
     }
     const last = prepared.step.review || prepared.step.sends;
@@ -582,7 +587,7 @@
     overlay.refresh(); // the checklist settles: red, then amber, first (groups.js)
     window.WIA.primary?.refresh();
     report();
-    fillEvent.sent(prepared.site);
+    fillEvent.sent(prepared.site, { step: number, final_step: Boolean(last || prepared.stopped) });
     if (last || prepared.stopped) return;
     const goOn = async () => {
       await flagEmptyRequired(prepared);
