@@ -313,11 +313,11 @@ window.WIA = window.WIA || {};
     const shut = folded.has(kind);
     const toggle = Object.assign(document.createElement("button"), { type: "button", className: "box-toggle", textContent: title });
     toggle.setAttribute("aria-expanded", String(!shut));
-    toggle.addEventListener("click", () => {
+    toggle.addEventListener("click", window.WIA.ui.trusted(() => {
       if (folded.has(kind)) folded.delete(kind);
       else folded.add(kind);
       window.WIA.overlay?.refresh?.();
-    });
+    }));
     const head = Object.assign(document.createElement("h3"), { className: "box-head" });
     head.append(toggle);
     for (const r of rows) r.hidden = shut && !r.matches("[data-current], [data-open]");
@@ -332,11 +332,11 @@ window.WIA = window.WIA || {};
     const head = Object.assign(document.createElement("button"), { type: "button", className: "group-head", textContent: label });
     head.dataset.mark = name === "filled" ? "filled" : "empty";
     head.setAttribute("aria-expanded", String(opened.has(name)));
-    head.addEventListener("click", () => {
+    head.addEventListener("click", window.WIA.ui.trusted(() => {
       if (opened.has(name)) opened.delete(name);
       else opened.add(name);
       window.WIA.overlay?.refresh?.();
-    });
+    }));
     for (const r of rows) r.hidden = !opened.has(name);
     el.append(head, ...rows);
     return el;

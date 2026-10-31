@@ -127,15 +127,14 @@ window.WIA = window.WIA || {};
       if (!answer?.ok) say("WorkIt couldn't go to the next job. Try again.");
     }));
     // The student's own click only, as I submitted this (decision 1012).
-    card.querySelector("[data-unsubmit]").addEventListener("click", async (event) => {
-      if (!event.isTrusted) return;
+    card.querySelector("[data-unsubmit]").addEventListener("click", window.WIA.ui.trusted(async (event) => {
       const button = event.currentTarget;
       button.disabled = true;
       const answer = await send({ type: "batch/unsubmitted" });
       button.disabled = false;
       if (!answer?.ok) return say("WorkIt couldn't set it back. Try again.");
       unsent();
-    });
+    }));
     const line = await send({ type: "panel/batch-line" });
     if (card.isConnected) card.querySelector("[data-next-job]").hidden = !line?.line?.next;
   }
