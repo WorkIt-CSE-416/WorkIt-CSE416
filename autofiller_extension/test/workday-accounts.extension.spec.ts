@@ -206,6 +206,33 @@ test("fresh profile: the consent card asks for the one Workday password, nothing
   expect(seen.filter((s) => s.includes(WORKDAY_SIGNUP.password))).toEqual([]);
 });
 
+test("a fix report from Workday's sign-in, with the password filled, never carries it", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  const fake = new FakeApi().queue({ id: "wd-0", apply_url: workdays.signInUrl(0) });
+  loaded = await loadExtension([fake.handler, webapp, workdays.handler]);
+  await signIn(loaded.context);
+  await saveWorkdaySignup(loaded);
+  const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await app.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(app, { type: "run/open" });
+  await expect.poll(() => loaded!.context.pages().some((p) => p.url() === workdays.signInUrl(0)), { timeout: 30_000 }).toBe(true);
+  const caci = loaded.context.pages().find((p) => p.url() === workdays.signInUrl(0))!;
+  // Filled, not pressed (the card is not answered).
+  await expect.poll(() => box(caci, "password").inputValue(), { timeout: 30_000 }).toBe(WORKDAY_SIGNUP.password);
+
+  await (await menuItem(overlay(caci), "Report a problem")).click();
+  const card = overlay(caci).locator('[data-slot="report"]');
+  await card.locator(".report-all summary").click();
+  expect(await card.locator(".report-json").textContent()).not.toContain(WORKDAY_SIGNUP.password);
+  await card.getByRole("button", { name: "Send report" }).click();
+  await expect.poll(() => fake.reports.length, { timeout: 15_000 }).toBe(1);
+  const sent = JSON.stringify(fake.reports);
+  expect(sent).toContain("caci.wd1.myworkdayjobs.com");
+  expect(sent).not.toContain(WORKDAY_SIGNUP.password);
+  expect(workdays.signIns).toEqual([]);
+});
+
 test("Not Now with no Workday password: nothing is pressed, and a password set later in Options is filled on the waiting page", async () => {
   test.setTimeout(120_000);
   const workdays = new FakeWorkdays(["workday-caci"]);
