@@ -240,6 +240,8 @@ async function init() {
   }
   const profileResponse = await sendMessage({ type: "profile/get" });
   if (!profileResponse.ok && profileResponse.status === 401) return renderLoginView();
+  // An extension older than the API serves (its 426, KAN-466): how to update.
+  if (!profileResponse.ok && profileResponse.status === 426) return renderFailed(profileResponse.error);
   // Any other failed read (KAN-401): a plain sentence and Try again, never the request's status or words.
   if (!profileResponse.ok) return renderFailed("WorkIt couldn't load your profile.");
   renderSignedIn(profileResponse.profile);

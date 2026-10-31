@@ -1,11 +1,12 @@
 // The panel when WorkIt's API can't be used (KAN-466): an API that never
 // answers or can't be reached is one plain sentence within the call's time,
-// never a spinner forever or the browser's "Failed to fetch". Saved forms
+// never a spinner forever or the browser's "Failed to fetch"; an extension
+// older than the API serves (its 426) asks the student to update. Saved forms
 // and the fake API only; nothing is ever submitted.
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { loadExtension, signIn, webapp, type Handler, type Loaded, type Reply } from "./loaded-extension";
+import { EXTENSION_ID, loadExtension, signIn, webapp, type Handler, type Loaded, type Reply } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 const NO_ANSWER = "WorkIt didn't answer. Try again in a minute.";
@@ -54,4 +55,24 @@ test("an API that can't be reached shows the same sentence, never Failed to fetc
 
   await expect(hostOf(page).locator('[data-key="_error"]')).toContainText(NO_ANSWER, { timeout: 30_000 });
   await expect(hostOf(page)).not.toContainText("Failed to fetch");
+});
+
+test("every call names the extension's version, and a 426 asks the student to update, not the generic error", async () => {
+  const versions = new Set<string | undefined>();
+  const api = new FakeApi();
+  const tooOld: Handler = ({ url, headers }) => {
+    if (url.host !== "localhost:8000" || url.pathname === "/health") return undefined;
+    versions.add(headers["x-workit-extension"] as string | undefined);
+    return url.pathname.endsWith("/profile") ? { status: 426, json: { detail: { message: "Please update WorkIt.", min_version: "9.0.0" } } } : undefined;
+  };
+  loaded = await loadExtension([tooOld, api.handler, webapp]);
+  await signIn(loaded.context);
+  const popup = await loaded.context.newPage();
+  await popup.goto(`chrome-extension://${EXTENSION_ID}/src/popup/popup.html`);
+
+  await expect(popup.locator("#root")).toContainText("Please update WorkIt. Restart Chrome to get the new version.");
+  await expect(popup.locator("#root")).not.toContainText("WorkIt couldn't load your profile.");
+  await expect(popup.locator("#root")).not.toContainText("WorkIt's server couldn't do that just now.");
+  const manifest = await loaded.worker.evaluate(() => chrome.runtime.getManifest().version);
+  expect([...versions]).toEqual([manifest]);
 });

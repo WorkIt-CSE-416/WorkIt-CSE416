@@ -55,8 +55,9 @@ async function apiUrl(session) {
 
 // The panel's words when the API can't be used (KAN-466): one sentence for
 // no answer in time, no network, and the API being down, never the browser's
-// "Failed to fetch".
+// "Failed to fetch"; and for an extension older than the API serves (its 426).
 const NO_ANSWER = "WorkIt didn't answer. Try again in a minute.";
+const UPDATE = "Please update WorkIt. Restart Chrome to get the new version. If Chrome then asks about WorkIt's new permissions, accept them.";
 // How long a call may take before it fails with NO_ANSWER: most answer in well under a second.
 const TIMEOUT_MS = 20_000;
 /** For a file's bytes and an upload, which can be megabytes. */
@@ -78,7 +79,8 @@ class ApiError extends Error {
  * non-2xx response into an ApiError. Returns the raw Response so each
  * caller decides how to read the body — `.json()` for every other endpoint
  * in this file, `.arrayBuffer()` for the one that returns a file
- * (getResumeFileBytes). Every call fails after `timeoutMs` (KAN-466).
+ * (getResumeFileBytes). Every call names the extension's version (the API
+ * answers 426 below its minimum) and fails after `timeoutMs` (KAN-466).
  * @param {string} path
  * @param {RequestInit & { timeoutMs?: number }} [options]
  */
@@ -92,6 +94,7 @@ async function apiRequest(path, { timeoutMs = TIMEOUT_MS, ...init } = {}) {
     // Also bounds reading the body (apiFetch's .json()).
     signal: AbortSignal.timeout(timeoutMs),
     headers: {
+      "X-WorkIt-Extension": chrome.runtime.getManifest().version,
       // A FormData body (uploadResume) sets its own multipart type, with its boundary.
       ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       Authorization: `Bearer ${session.access_token}`,
@@ -100,6 +103,8 @@ async function apiRequest(path, { timeoutMs = TIMEOUT_MS, ...init } = {}) {
   }).catch(unanswered);
 
   if (!response.ok) {
+    // Chrome looks for the new version now, rather than within hours.
+    if (response.status === 426) chrome.runtime.requestUpdateCheck().catch(() => {});
     const body = await response.json().catch(() => ({}));
     const error = new ApiError(response.status, errorMessage(response.status, body));
     // A refusal's reasons by question (the paste route's 422, savePastedAnswer), when the route gives them.
@@ -119,6 +124,7 @@ async function apiRequest(path, { timeoutMs = TIMEOUT_MS, ...init } = {}) {
  * @param {{ detail?: string | { msg?: string }[] }} body
  */
 export function errorMessage(status, body) {
+  if (status === 426) return UPDATE;
   const { detail } = body ?? {};
   if (typeof detail === "string" && detail) return detail;
   if (typeof detail?.message === "string" && detail.message) return detail.message;
