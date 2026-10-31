@@ -18,6 +18,7 @@ import { openDownload } from "@/lib/save-file";
 
 import { LocalDate } from "../../../local-time";
 import { PageSkeleton, PdfPages } from "../../[resumeId]/pdf-pages";
+import { Zoom, zoomWidth } from "../../[resumeId]/zoom";
 import { RenameForm } from "../../built-resume-row";
 import { DeleteResumeConfirm } from "../../delete-confirm";
 
@@ -32,7 +33,9 @@ import { DeleteResumeConfirm } from "../../delete-confirm";
  *
  * A PDF is drawn page by page with the editor's pdf.js preview
  * (`PdfPages`), with no click targets: an upload is read, not edited, and
- * its facts are edited in Experiences (ADR 0003). A DOCX cannot be drawn
+ * its facts are edited in Experiences (ADR 0003). The bar holds the
+ * editor's zoom control (`Zoom`) for a PDF; it opens at 100% and is not
+ * stored, so each visit starts there. A DOCX cannot be drawn
  * that way, so its place holds the file's name and Download.
  *
  * Rename edits the heading in place, with the form every resume's card
@@ -52,6 +55,8 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
   const [saving, startSaving] = useTransition();
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Opens at 100%, kept in this page's state only: not stored, not shared
+  const [zoom, setZoom] = useState(100);
 
   function rename(next: string) {
     setError(null);
@@ -120,6 +125,7 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
           {/* The bar's end wraps as one, so on a narrow page the buttons stay
               together at the right. */}
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            {pdf && <Zoom zoom={zoom} onZoom={setZoom} />}
             {!primary && (
               <Button variant="secondary" size="sm" onClick={makePrimary} disabled={saving}>
                 <StarIcon aria-hidden className="size-4" /> Make Primary
@@ -151,13 +157,15 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
 
         {pdf ? (
           // The page's skeleton until pdf.js draws, as ./loading.tsx shows it.
-          <PdfPages
-            pdf={pdf}
-            boxes={[]}
-            selected={null}
-            onSelect={() => {}}
-            placeholder={<PageSkeleton />}
-          />
+          <div className="mx-auto w-full" style={{ maxWidth: zoomWidth(zoom) }}>
+            <PdfPages
+              pdf={pdf}
+              boxes={[]}
+              selected={null}
+              onSelect={() => {}}
+              placeholder={<PageSkeleton />}
+            />
+          </div>
         ) : (
           <EmptyState
             Icon={FileIcon}

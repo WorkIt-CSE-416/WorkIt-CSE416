@@ -1724,7 +1724,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   A "Tailored N" button per Tailor wording came first, then This Resume's
   Wording beside Original; the user wanted Original alone (2026-10-29).
   The API still accepts a switch to any wording the resume can show.
-- **The editor's page has a zoom** (`Zoom` on the slim bar, both pages):
+- **The editor's page has a zoom** (`Zoom` in `[resumeId]/zoom.tsx`, on
+  the slim bar of both pages; an upload's page has the same control for a
+  PDF, opening at 100% and kept in its state only, never stored):
   steps of the page's printed size, 100% being 816px (8.5in at 96px an
   inch), opening at 125% (1020px), capped by its column, kept per browser through
   `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`). The page filled its column
