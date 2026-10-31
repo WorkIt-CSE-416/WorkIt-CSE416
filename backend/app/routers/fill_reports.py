@@ -5,7 +5,8 @@ lists their own; WorkIt's admins list, triage and export them as a fix brief
 for a coding agent. docs/fill-reports.md describes the brief.
 
 POST /fill-reports  FillReportRequest (app/schemas/fill_reports.py)
-     Stores it with its sender and answers {"id"} (201). 413 past BODY_MAX
+     Stores it with its sender and answers {"id"} (201). 429 past the
+     account's daily cap (FILL_REPORT_DAILY_CAP, app/services/daily_caps.py). 413 past BODY_MAX
      bytes (read in chunks, never whole), 422 for any key or value outside
      the shape: posting_url is http or https with no sign-in or fragment, and
      its query only the params that name the posting (POSTING_PARAMS). What
@@ -47,6 +48,7 @@ from app.schemas.fill_reports import (
     FillReportTriage,
     Status,
 )
+from app.services.daily_caps import Capped, take_daily
 from app.services.fill_brief import fix_brief, fixture_name
 
 router = APIRouter(tags=["fill-reports"])
@@ -98,6 +100,7 @@ async def store_fill_report(
 ) -> FillReportStored:
     """Stores one problem report from the signed-in account."""
     body = await _report_body(request)
+    await take_daily(db, account.id, Capped.FILL_REPORT)
     return FillReportStored(id=str(await store_report(db, body.scrubbed(), account.id)))
 
 
