@@ -41,7 +41,12 @@ out `speed.extension.spec.ts`, the timing harness (about 7 minutes alone),
 which `workflows/extension-nightly.yml` runs with the rest every night at
 07:41 UTC (and by hand: `gh workflow run extension-nightly.yml`). Both need
 `FILL_ENGINE_TOKEN`, as `extension-store-build` does, and only warn without
-it. The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
+it. Both run on `macos-latest` (free on a public repo): on Linux, Chromium
+asks `accounts.google.com` on its own (which `practice.extension.spec.ts`'s
+request list catches) and a field a panel row scrolls to doesn't come into
+view (`panel-reopen`, `workday-show`), found in the Playwright image
+2026-10-31. On CI each spec gets two retries; a broken one fails all three.
+The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.

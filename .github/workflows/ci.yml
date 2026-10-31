@@ -80,7 +80,10 @@ jobs:
   extension:
     needs: changes
     if: needs.changes.outputs.extension == 'true'
-    runs-on: ubuntu-latest
+    # macOS, as most students run Chrome: on Linux, Chromium asks
+    # accounts.google.com on its own and scrolls and focuses differently, so
+    # a few specs fail there only. Free on a public repo.
+    runs-on: macos-latest
     timeout-minutes: 30
     defaults:
       run:
@@ -116,7 +119,7 @@ jobs:
             exit 1
           }
       - if: steps.engine.outputs.token == 'true'
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - if: steps.engine.outputs.token == 'true'
         run: npx playwright test $(ls *.spec.ts | grep -vx speed.extension.spec.ts)
       - uses: actions/upload-artifact@v4

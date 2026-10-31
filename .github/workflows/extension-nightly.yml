@@ -9,7 +9,10 @@ on:
 
 jobs:
   extension:
-    runs-on: ubuntu-latest
+    # macOS, as most students run Chrome: on Linux, Chromium asks
+    # accounts.google.com on its own and scrolls and focuses differently, so
+    # a few specs fail there only. Free on a public repo.
+    runs-on: macos-latest
     timeout-minutes: 60
     defaults:
       run:
@@ -33,7 +36,7 @@ jobs:
       - if: steps.engine.outputs.token == 'true'
         run: npm ci
       - if: steps.engine.outputs.token == 'true'
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - if: steps.engine.outputs.token == 'true'
         run: npx playwright test
       - uses: actions/upload-artifact@v4
