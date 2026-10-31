@@ -18,10 +18,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type BrowserContext, type Locator, type Page, type Worker } from "@playwright/test";
 import { CERT, KEY } from "./fake-tls";
+import { manifestId } from "../store/extension-id.mjs";
 
 export const EXTENSION = join(__dirname, "..");
-/** manifest.json's `key` pins this id. */
-export const EXTENSION_ID = "cpklhdkoafegnndlafmiceehfloodjgi";
+/** The id manifest.json's `key` pins (store/extension-id.mjs). */
+export const EXTENSION_ID = manifestId(EXTENSION);
 
 export type Request = { url: URL; method: string; headers: IncomingHttpHeaders; body: Buffer };
 export type Reply = { status?: number; headers?: Record<string, string>; body?: string | Buffer; json?: unknown };
