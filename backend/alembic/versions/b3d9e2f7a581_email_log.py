@@ -1,7 +1,7 @@
 """email_log: the notice send log and the bounce/complaint suppressions (KAN-483)
 
 Revision ID: b3d9e2f7a581
-Revises: c5e7a9b1d024
+Revises: a7f3c9e1d476
 Create Date: 2026-10-31 20:00:00.000000
 
 Two new tables (app/models/email_log.py): `email_sends`, one row per
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'b3d9e2f7a581'
-down_revision: Union[str, Sequence[str], None] = 'c5e7a9b1d024'
+down_revision: Union[str, Sequence[str], None] = 'a7f3c9e1d476'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -2,8 +2,10 @@
 // page, full height with its own scroll, over the page (the page is never
 // resized), in a shadow root so the employer's styles can't reach it. It
 // collapses to an edge tab the student drags up and down, with "Hide until
-// next visit" and "Hide on this site". Where the tab sits, a collapse and a
-// site hide are kept per site (background.js's panel/where and panel/site).
+// next visit", "Hide on this site" and "Hide everywhere" (KAN-480). Where the
+// tab sits, a collapse and a site hide are kept per site (background.js's
+// panel/where and panel/site); a hide everywhere is one switch (panel/hide-everywhere).
+// Options lists the hidden sites with Remove and has the switch.
 //
 // This file owns only the frame. What goes in it plugs into its slots
 // (`slot(name)`, autofiller_extension/CLAUDE.md "The panel's shell"):
@@ -155,6 +157,8 @@ window.WIA = window.WIA || {};
   let keeper = null;
   // This site's kept choices (background.js panel/where): { top, collapsed, hidden }.
   let site = {};
+  // Hidden on every site (KAN-480): Options' "Show the WorkIt tab on job pages" turns it back on.
+  let hiddenEverywhere = false;
   // Hidden until the next visit: this page only, so a new page load shows the tab again.
   let hiddenThisVisit = false;
   let ready = null;
@@ -222,6 +226,7 @@ window.WIA = window.WIA || {};
     menu.innerHTML = `
       <button type="button" role="menuitem" data-hide-visit>Hide until next visit</button>
       <button type="button" role="menuitem" data-hide-site>Hide on this site</button>
+      <button type="button" role="menuitem" data-hide-everywhere>Hide everywhere</button>
     `;
     edge.querySelector("[data-more]").addEventListener("click", trusted(() => {
       menu.style.top = `${edge.getBoundingClientRect().top}px`;
@@ -235,6 +240,7 @@ window.WIA = window.WIA || {};
       remember({ hidden: true });
       paint();
     }));
+    menu.querySelector("[data-hide-everywhere]").addEventListener("click", trusted(() => hideEverywhere()));
     draggable(edge);
 
     root.append(panel, edge, menu);
@@ -277,6 +283,22 @@ window.WIA = window.WIA || {};
       },
     });
     menuItem("settings", { label: "Settings", order: 50, onPress: () => showSettings(panel.querySelector('[data-slot="settings"]').hidden) });
+    // The edge tab's hides (KAN-480), here too (menuItem passes each press through ui.trusted): the panel closes with no edge tab; Alt+W and the toolbar still open it.
+    menuItem("hide-site", { label: "Hide on this site", order: 60, onPress: () => hideSite() });
+    menuItem("hide-everywhere", { label: "Hide everywhere", order: 70, onPress: () => hideEverywhere() });
+  }
+
+  /** Hides the edge tab on this site, kept until Options' Remove; an open panel closes. */
+  function hideSite() {
+    remember({ hidden: true });
+    collapse({ keep: false });
+  }
+
+  /** Hides the edge tab on every site, until Options' switch shows it again; an open panel closes. */
+  function hideEverywhere() {
+    hiddenEverywhere = true;
+    void send({ type: "panel/hide-everywhere" });
+    collapse({ keep: false });
   }
 
   function showMenu(shown) {
@@ -379,7 +401,7 @@ window.WIA = window.WIA || {};
     const panel = root.querySelector(".panel");
     const edge = root.querySelector(".edge");
     const shown = !panel.hidden;
-    edge.hidden = shown || hiddenThisVisit || Boolean(site.hidden && !shell.batch);
+    edge.hidden = shown || hiddenThisVisit || Boolean((site.hidden || hiddenEverywhere) && !shell.batch);
     root.querySelector(".menu").hidden = true;
     edge.style.top = `${clampTop(site.top ?? TAB_TOP, edge)}px`;
   }
@@ -393,6 +415,7 @@ window.WIA = window.WIA || {};
   function where() {
     ready ??= send({ type: "panel/where" }).then((answer) => {
       site = answer?.site ?? {};
+      hiddenEverywhere = Boolean(answer?.hiddenEverywhere);
       shell.batch = Boolean(answer?.batch);
       // The settings view's Open the panel by itself (KAN-402), on unless the student turned it off.
       autoOpens = answer?.autoOpen !== false;
@@ -410,11 +433,11 @@ window.WIA = window.WIA || {};
     });
   }
 
-  /** Opens the panel (the student's press: a collapse kept for the site is let go). */
+  /** Opens the panel (the student's press: a collapse kept for the site is let go; a hide stays until Options). */
   function open() {
     if (!root) return false;
     root.querySelector(".panel").hidden = false;
-    if (site.collapsed || site.hidden) remember({ collapsed: false, hidden: false });
+    if (site.collapsed) remember({ collapsed: false });
     hiddenThisVisit = false;
     paint();
     return true;

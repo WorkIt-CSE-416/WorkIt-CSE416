@@ -123,6 +123,8 @@ class Settings(BaseSettings):
     # account in a loop can't fill the database. Past one, the route answers 429. Days are UTC.
     fill_report_daily_cap: int = 30
     job_system_request_daily_cap: int = 50
+    # Fill events (KAN-476), one per fill: five batch tabs filling all day stay far below it.
+    fill_event_daily_cap: int = 2000
 
     # The oldest extension version the API still serves (KAN-466): a request whose
     # X-WorkIt-Extension header names an older one gets 426, and the panel asks the
