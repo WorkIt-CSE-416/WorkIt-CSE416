@@ -202,6 +202,23 @@ async def load_bank(
     return Bank(entries=[Entry(r, bullets[r.id]) for r in rows], skills=list(skills))
 
 
+def bank_context(bank: Bank) -> tuple[str, list[str]]:
+    """(experience text, skill names): the whole bank as one text, each
+    entry's heading (title, organization) and its bullets, for the
+    connector to show the student's Claude and for the truth-rule check of
+    what it writes (auto_apply/written.py). The whole bank, not a ranked
+    subset: a student's bank is small enough to use whole."""
+    lines = []
+    for entry in bank.entries:
+        row = entry.row
+        heading = ", ".join(p for p in (row.title, row.organization) if p)
+        if heading:
+            lines.append(heading)
+        for bullet in entry.bullets:
+            lines.append(f"- {bullet.text}")
+    return "\n".join(lines), [s.name for s in bank.skills]
+
+
 async def entry_row(session: AsyncSession, applicant_id: uuid.UUID, entry_id: uuid.UUID) -> Bank_Entry:
     row = await session.scalar(
         select(Bank_Entry).where(Bank_Entry.id == entry_id, Bank_Entry.applicant_id == applicant_id)

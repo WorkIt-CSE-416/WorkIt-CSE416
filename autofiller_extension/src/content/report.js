@@ -349,6 +349,7 @@ window.WIA = window.WIA || {};
     [data-slot="report"] .report-marks { max-height: 160px; overflow: auto; border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: 4px 8px; }
     [data-slot="report"] .report-marks label { display: flex; gap: 6px; align-items: baseline; font-weight: 400; margin: 2px 0; }
     [data-slot="report"] .report-marks span { color: var(--color-ink-meta); }
+    [data-slot="report"] .report-layout { display: flex; gap: 6px; align-items: baseline; font-weight: 400; margin: 0 0 10px; }
     [data-slot="report"] details { margin: 0 0 10px; font-size: var(--text-note); }
     [data-slot="report"] summary { cursor: pointer; color: var(--color-ink-meta); }
     [data-slot="report"] pre {
@@ -421,7 +422,19 @@ window.WIA = window.WIA || {};
 
     const json = el("pre", "report-json");
     const note = el("textarea");
-    const showJson = () => (json.textContent = JSON.stringify(finalize(report, { marked: [...marked], note: note.value }), null, 1));
+    // The page's layout (its HTML, values out) goes along unless the student unticks it (KAN-456: opt-in, ticked by default).
+    const layout = el("input");
+    layout.type = "checkbox";
+    layout.checked = true;
+    layout.id = "workit-report-layout";
+    const summary = el("summary");
+    const showJson = () => {
+      json.textContent = JSON.stringify(finalize(report, { marked: [...marked], note: note.value, layout: layout.checked }), null, 1);
+      summary.textContent = layout.checked && report.html
+        ? `Exactly what WorkIt sends (the form's page with every value taken out: ${Math.ceil(report.html.length / 1024)} KB)`
+        : "Exactly what WorkIt sends";
+    };
+    layout.addEventListener("change", showJson);
 
     const marks = el("fieldset");
     if (report.fields.length) {
@@ -454,21 +467,25 @@ window.WIA = window.WIA || {};
     said.hidden = true;
 
     const all = el("details", "report-all");
-    all.append(el("summary", "", `Exactly what WorkIt sends (the form's page with every value taken out: ${Math.ceil((report.html?.length ?? 0) / 1024)} KB)`), json);
+    all.append(summary, json);
+    const layoutLabel = el("label", "report-layout");
+    layoutLabel.append(layout, "Include the page's layout (no answers)");
     showJson();
 
     const sendButton = button("Send report", async () => {
       sendButton.disabled = true;
       said.hidden = true;
       const text = note.value.trim();
-      const answer = await send({ type: "report/send", marked: [...marked], note: text || null });
+      const answer = await send({ type: "report/send", marked: [...marked], note: text || null, layout: layout.checked });
       if (answer?.ok) {
         place.replaceChildren(el("h2", "", "Report a problem"), el("p", "report-said", "Sent. Thanks for telling WorkIt."), button("Back", back));
         return;
       }
       sendButton.disabled = false;
       said.dataset.error = "";
-      said.textContent = answer?.status === 401 ? "Sign in to WorkIt to send a report." : "WorkIt couldn't send it. Try again.";
+      // 429: the day's limit (KAN-478), in the API's own words.
+      said.textContent = answer?.status === 401 ? "Sign in to WorkIt to send a report."
+        : answer?.status === 429 && answer.error ? answer.error : "WorkIt couldn't send it. Try again.";
       said.hidden = false;
     });
     const actions = el("div", "report-actions");
@@ -476,10 +493,12 @@ window.WIA = window.WIA || {};
     place.replaceChildren(
       el("h2", "", "Report a problem"),
       el("p", "report-lead", "WorkIt sends only what's listed here, and only when you press Send. Your answers and personal details are taken out first."),
-      sent, marks, label, note, all, said, actions,
+      sent, marks, label, note, layoutLabel, all, said, actions,
     );
   }
 
-  window.WIA.report = { track, failed, result, follow, log, labelShape, rowAction, collect };
+  /** A failed field's error name (ERRORS), if the fill named one: fill-event.js's counts (KAN-476). */
+  const errorOf = (name) => errors.get(name);
+  window.WIA.report = { track, failed, result, follow, log, labelShape, rowAction, collect, errorOf };
   window.WIA.reportCard = { open };
 })();

@@ -183,6 +183,9 @@ GitHub's runners structurally cannot send the real mail anymore. The live
 run is a crontab entry on that instance, daily at 13:13 UTC (off the
 hour, same reasoning as the scrape's own cron), running the same
 `app.scripts.send_job_alerts` this workflow calls.
+The same instance runs `app.scripts.send_fill_report_alerts` hourly
+(KAN-478; e.g. `17 * * * *`), which emails the admins new fix report
+groups through the same SES sender and role.
 
 This workflow still exists for two things, both free of real AWS access:
 a PR that touches the digest, the script, `email.py` or this workflow
@@ -213,3 +216,68 @@ bounced send.
 - **Still open:** the EC2 crontab has no built-in failure alerting the
   way this workflow's schedule trigger got from GitHub for free. Not set
   up yet (a dead-man's-switch ping or a CloudWatch alarm would do it).
+
+## Retention purge (KAN-482)
+
+`workflows/retention-purge.yml` runs `app.scripts.purge_old_data` against
+production **daily at 07:43 UTC** (off the hour, same reasoning as the
+scrape). It deletes rows past their retention period and logs a count per
+table, never a row. The periods live in one place,
+`backend/app/services/retention.py`'s `RETENTION`, and the privacy policy's
+retention section quotes the same numbers (KAN-474): change both together.
+A rule whose table does not exist yet (`fill_events`, until KAN-476) is
+skipped and logged as such.
+
+- **It never runs from a PR.** Every run reaches the production database,
+  so unlike the scrape and job alerts there is no `pull_request` trigger.
+  Only the schedule, on `main`, deletes. A manual run (Actions → Retention
+  purge → Run workflow, or `gh workflow run retention-purge.yml`) is always
+  a dry run: it logs what it would delete and deletes nothing.
+- **Secret:** `DATABASE_URL`, the one the scrape already uses.
+- **A failed scheduled run opens an issue** titled "Retention purge failed"
+  (or comments on the open one) with the run's link, so the team is told.
+  Close it once fixed. GitHub also emails whoever last edited the cron line.
+- **It stops silently after 60 days without a commit** to `main`, same as
+  the scrape. Re-enable with `gh workflow enable retention-purge.yml`.
+
+## Live canary (`workflows/live-canary.yml`, KAN-468)
+
+The saved forms under `autofiller_extension/fill-engine/test/fixtures/forms/`
+are frozen recordings, so a job system that changes its markup or API would
+otherwise surface only as students' fix reports. Each night (and by hand:
+`gh workflow run live-canary.yml`) the canary reads live forms and compares
+them with those saved forms.
+
+- **What it reads.** `autofiller_extension/test/canary/postings.json` names,
+  per job system, one board, its pinned postings and the fields its form
+  page must show. Each run lists the board's open postings with the job
+  system's public API (never the production database) and reads `count`
+  of them: the pinned ones still open, then listed ones. For each, the
+  engine's own read gives the Question set (`questionSet`), the form is
+  opened headless, and the engine's `readback` must find the `onPage`
+  fields there (Ashby's `readQuestions` too, its host's fallback). The
+  Question set must hold every field all of that system's saved
+  `question-set.json` files share, with the same kind, and no kind they
+  never have. A form that differs is read once more before it counts.
+- **It never fills.** It types nothing, uploads nothing and presses no
+  button. `test/canary.spec.ts` runs first and fails if `canary/*.mjs` calls
+  any engine function but `jobOf`, `questionSet`, `readback` or
+  `readQuestions`, or any of Playwright's fill, click or press calls.
+- **A changed form opens an issue** "Live canary: `<site>` form changed"
+  (or comments on the open one) naming each posting and its field-kind diff,
+  with the default `GITHUB_TOKEN`. A crash before the comparison opens "Live
+  canary failed". Close the issue once the engine is fixed.
+- **A closed posting is not a change.** A pinned posting the board no longer
+  lists is reported in the run's summary as "posting closed" and another
+  listed one is read instead; replace it in `postings.json` when convenient.
+- **Covered:** Greenhouse, Lever, Ashby, Rippling, Workable, the systems
+  whose form opens with no sign-in and whose saved forms have a Question
+  set. **Left out:** SmartRecruiters (its robots.txt) and any system with a
+  bot check; Workday, Oracle, iCIMS, SuccessFactors and TikTok, whose form
+  shows only after an Apply button or a sign-in, which the canary never
+  presses; Eightfold and Waymo, which have no saved Question set to compare.
+- **Secret:** `FILL_ENGINE_TOKEN`, as in CI: without it the job warns and
+  reads nothing. The schedule runs only on `main`, and stops after 60 days
+  without a commit there (`gh workflow enable live-canary.yml`).
+- **Run it locally:** `cd autofiller_extension/test && npm ci && node
+  canary/run.mjs` writes `canary-out/report.md` and `canary-out/issues/`.

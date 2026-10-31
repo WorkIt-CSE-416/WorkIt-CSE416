@@ -1,7 +1,7 @@
 // A Workday tenant's dropdown choices, kept across its Postings (decisions
 // 1770-1799): the Fill engine returns each dropdown's choices as a tree
 // marked `list`, the extension keeps them with the tenant's nested-prompt
-// trees (chrome.storage `workday_trees`, background.js), and the next fill on
+// trees (chrome.storage `workday_trees`, stored-data.js), and the next fill on
 // that tenant reads the dropdown from them instead of opening it.
 import { expect, test } from "@playwright/test";
 import { FakeApi } from "./fake-api";
@@ -19,7 +19,7 @@ const TENANT = "caci.wd1.myworkdayjobs.com";
 const PHONE_TYPE = `${TENANT} / list / My Information / Phone Device Type`;
 
 /** Fills the fake tenant's first step in a batch tab, `trees` saved before; the tab, and the lists it opened. */
-async function fillStep(trees: Record<string, unknown> = {}) {
+async function fillStep(trees: [string, unknown][] = []) {
   const workdays = new FakeWorkdays(["workday-caci"], [STEPS[0]]);
   const api = new FakeApi().queue({ id: "wd-0", apply_url: workdays.url(0) });
   loaded = await loadExtension([api.handler, webapp, workdays.handler]);
@@ -46,7 +46,8 @@ test("a Workday tenant's dropdown choices are kept after its fill, and its next 
   test.setTimeout(180_000);
   const first = await fillStep();
   const saved = await loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_trees")).workday_trees);
-  expect(saved[PHONE_TYPE]).toEqual({ shown: ["Home", "Mobile", "Work"], categories: {}, list: true });
+  // [key, tree] pairs, oldest saved first (stored-data.js).
+  expect(Object.fromEntries(saved)[PHONE_TYPE]).toEqual({ shown: ["Home", "Mobile", "Work"], categories: {}, list: true });
   expect(first.workdays.submissions).toEqual([]);
   await loaded!.close();
 

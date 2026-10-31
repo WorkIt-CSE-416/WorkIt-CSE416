@@ -15,6 +15,7 @@ import "../../fill-engine/dist/engine.js";
 import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
 import { letterPdf } from "./letter-pdf.js";
 import { unansweredSelfId } from "./self-id.js";
+import { CATEGORIES, withoutCategory } from "../shared/autofill-categories.js";
 
 /** The engine's own copy here, for what needs no page. */
 const engine = globalThis.FillEngine;
@@ -32,6 +33,23 @@ export function jobOf(url) {
   const practice = practiceJob(url);
   if (practice) return practice.page === "apply" ? { site: "lever", practice: true, company: practice.company, job: practice.job, form: url, onForm: true } : null;
   return engine.jobOf(url);
+}
+
+/**
+ * The job systems an employer's own domain may host, each with the selector
+ * that marks its pages (Workday's career site, SuccessFactors'): the engine's
+ * PAGE_MARKS, looked for in the tab, where the engine isn't loaded.
+ */
+export const PAGE_MARKS = engine.PAGE_MARKS;
+
+/**
+ * `url` marked as `site`'s (`ats=<site>`), as the engine reads such a link,
+ * or `url` itself where the engine covers it; null where it covers neither.
+ * @param {string} url
+ * @param {string | null} site
+ */
+export function markedLink(url, site) {
+  return engine.markedLink(url, site);
 }
 
 /**
@@ -93,7 +111,8 @@ const readOffPage = (job) => engine.stepped(job.site) || READ_OFF_PAGE.has(job.s
  */
 export function signInFirst(url) {
   const job = jobOf(url);
-  return job?.site === "tiktok" && !job.onForm && /^\/(login|create-?account|register)\b/i.test(new URL(url).pathname);
+  // TikTok USDS keeps its pages, sign-in too, under /usds.
+  return job?.site === "tiktok" && !job.onForm && /^(\/usds)?\/(login|create-?account|register)\b/i.test(new URL(url).pathname);
 }
 
 /** The link to open for an application: its form, where the engine covers the job system. */
@@ -607,10 +626,11 @@ async function readQuestions({ job, url, call, fetchText, state }) {
  *   url: string, profile: import("../shared/types.js").AutofillProfile, bank?: object | Promise<object> | Function, today: string,
  *   call: (name: string, ...args: unknown[]) => Promise<any>,
  *   fetchText: (url: string, init?: { method: string, body: string }) => Promise<string>,
- *   extra?: object[], state?: object, jobType?: string | null,
+ *   extra?: object[], state?: object, jobType?: string | null, off?: string[],
  * }} options `jobType`: the queued job's job_type (a batch tab's), which picks the start date the engine answers.
+ *   `off`: the Fields to autofill categories the student switched off (KAN-480): their answers are held back, `plan.off`.
  */
-export async function planFill({ url, profile, bank = {}, today, call, fetchText, extra = [], state, jobType = null }) {
+export async function planFill({ url, profile, bank = {}, today, call, fetchText, extra = [], state, jobType = null, off = [] }) {
   const job = jobOf(url);
   if (!job) return { covered: false };
   const { site } = job;
@@ -630,9 +650,36 @@ export async function planFill({ url, profile, bank = {}, today, call, fetchText
   const asked = [...read.questions, ...extra.filter((q) => !known.has(q.name))];
   const questions = await optional(() => call("limits", asked), asked);
   const { posting, plan, planFor } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce, jobType, reading });
+  holdBack(plan, questions, off, (id) => planFor(profile, id));
   const answers = withFiles(plan.answers, profile);
   const prepared = { covered: true, site, posting, questions, plan, answers, applicantId: profile.id, step: read.step, state: read.state };
-  return { ...prepared, rows: planRows(prepared), selfId: selfIdAsked(questions, profile, plan, planFor) };
+  // Demographics off: the form's self-identification is the student's, so WorkIt doesn't ask to save it either.
+  const selfId = off.includes("demographics") ? null : selfIdAsked(questions, profile, plan, planFor);
+  return { ...prepared, rows: planRows(prepared), selfId };
+}
+
+/**
+ * Holds back the answers of the Fields to autofill categories the student
+ * switched off (KAN-480): each category's are the answers a Plan without its
+ * facts doesn't give the same (`planWithout(id)`), so which questions are a
+ * category's is the engine's to say. They leave the Plan's answers for
+ * `plan.off`, each with its question and category, and the form keeps them
+ * blank. The saved answers themselves are never touched.
+ */
+function holdBack(plan, questions, off, planWithout) {
+  plan.off = [];
+  const byName = new Map(questions.map((q) => [q.name, q]));
+  for (const category of CATEGORIES.filter((c) => off.includes(c.id))) {
+    const without = planWithout(category.id);
+    for (const [name, value] of Object.entries(plan.answers)) {
+      if (name in without.answers && JSON.stringify(without.answers[name]) === JSON.stringify(value)) continue;
+      const q = byName.get(name);
+      plan.off.push({ name, label: q?.label ?? name, required: Boolean(q?.required), category: category.id, categoryLabel: category.label });
+      delete plan.answers[name];
+      delete plan.sources?.[name];
+      delete plan.accepted?.[name];
+    }
+  }
 }
 
 /**
@@ -690,8 +737,12 @@ async function planQuestions({ job, url, questions, profile, bank, today, fetchT
   // job_type: WorkIt's own for the job (full_time, internship, ...), unknown outside a batch.
   const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url, job_type: jobType };
   bank = typeof bank === "function" ? (questions.length ? await bank(names.company) : {}) : await bank;
-  // `planFor`: the same Plan for another profile (the self-identification's probe, KAN-387).
-  const planFor = (someone) => engine.plan(questions, engineProfile(someone, today ?? undefined), enginePolicies(someone), bank ?? {}, { posting, today, postingText: text, employerText: text });
+  // `planFor`: the same Plan for another profile (the self-identification's probe, KAN-387), or without one
+  // Fields to autofill category's facts (`without`, KAN-480).
+  const planFor = (someone, without = null) => {
+    const facts = engineProfile(someone, today ?? undefined);
+    return engine.plan(questions, without ? withoutCategory(facts, without) : facts, enginePolicies(someone), bank ?? {}, { posting, today, postingText: text, employerText: text });
+  };
   const plan = questions.length
     ? planFor(profile)
     : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [], accepted: {}, sources: {} };
@@ -769,35 +820,32 @@ export async function fillPage({ call, site, questions, answers, accepted, state
  *   its field's own limit as the engine read it from the form (null when it
  *   sets none). A draft that is a choice whose options were read has `kind`
  *   "choice" (a select) or "choices" (a multi-select) and its `options`
- *   (KAN-369), which the connector shows Claude and takes only. `generate`:
- *   the essay-answer route writes it (an essay, or a draft in a text area),
- *   so outside a batch tab it waits for the student's one Generate click;
- *   the rest are the student's there (content-script.js).
+ *   (KAN-369), which the connector shows Claude and takes only.
  * - `yours`: questions WorkIt has no answer for (Missing facts, and a draft
  *   that is a file).
  * - `notes`: what the Plan leaves to the student and why (an AI trap or ban,
  *   a video), and a screener the student would not pass.
  * A form that bans AI-written text never has `written`: the Plan hands its
  * essays off instead, so nothing AI-written goes where it is banned.
- * @returns {{ written: Row[], yours: Row[], notes: string[] }}
+ * - `off`: the answers held back because their Fields to autofill category is
+ *   off (KAN-480, holdBack), each with its category's words (`categoryLabel`).
+ * @returns {{ written: Row[], yours: Row[], notes: string[], off: (Row & { category: string, categoryLabel: string })[] }}
  * @typedef {{ name: string, label: string, required: boolean, max_length?: number | null }} Row
  */
 export function planRows({ plan }) {
   const row = (q) => ({ name: q.name, label: q.label, required: q.required });
-  // Only a text area takes the essay route's answer: it writes sentences, so a one-line draft
-  // ("Nick Name", Hermeus's Lever form) or a choice is the student's Claude's alone.
-  const takesText = (q) => q.kind === "textarea";
   const drafts = plan.drafts ?? [];
   const toClaude = (q) => q.kind !== "file" && !tooManyOptions(q);
   const notes = [...(plan.handoffs ?? [])];
   if (plan.not_eligible) notes.push(`You may not meet this requirement: ${plan.not_eligible}`);
   return {
     written: [
-      ...plan.essays.map((q) => ({ ...row(q), max_length: q.maxLength ?? null, generate: true })),
-      ...drafts.filter(toClaude).map((q) => ({ ...row(q), max_length: q.maxLength ?? null, generate: takesText(q), ...choice(q) })),
+      ...plan.essays.map((q) => ({ ...row(q), max_length: q.maxLength ?? null })),
+      ...drafts.filter(toClaude).map((q) => ({ ...row(q), max_length: q.maxLength ?? null, ...choice(q) })),
     ],
     yours: [...plan.missing, ...drafts.filter((q) => !toClaude(q))].map(row),
     notes,
+    off: plan.off ?? [],
   };
 }
 
@@ -837,7 +885,7 @@ function choice(q) {
  * @param {{ url: string, profile: object, bank?: object, today: string, call: Function, fetchText: Function,
  *   trees?: { load(): Promise<object>, save(saved: object): Promise<void> }, jobType?: string | null }} context
  */
-export async function handleFill(message, { url, profile, bank, today, call, fetchText, trees, jobType = null }) {
+export async function handleFill(message, { url, profile, bank, today, call, fetchText, trees, jobType = null, off = [] }) {
   const withTrees = async (state) => (state && trees ? { ...state, trees: { ...state.trees, ...(await trees.load()) } } : state);
   const keep = async (state) => {
     if (state?.saved && trees && Object.keys(state.saved).length) await trees.save(state.saved);
@@ -847,7 +895,7 @@ export async function handleFill(message, { url, profile, bank, today, call, fet
   if (message.type === "fill/plan") {
     let state = message.state;
     if (!state && trees && jobOf(url)?.site === "workday") state = { tenant: jobOf(url).tenant, trees: {} };
-    answer = await planFill({ url, profile, bank, today, call, fetchText, extra: message.extra, state: await withTrees(state), jobType });
+    answer = await planFill({ url, profile, bank, today, call, fetchText, extra: message.extra, state: await withTrees(state), jobType, off });
   } else if (message.type === "fill/page") {
     answer = await fillPage({ call, ...message, answers: asUploads(message.answers, message.questions, profile), state: await withTrees(message.state) });
   } else if (message.type === "fill/read") {
