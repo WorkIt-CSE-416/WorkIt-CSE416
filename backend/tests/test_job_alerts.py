@@ -113,3 +113,14 @@ def test_send_job_alert_keeps_the_notification_when_the_email_fails(monkeypatch)
     assert result is True
     assert len(db.added) == 1
     db.commit.assert_awaited_once()
+
+
+def test_digest_links_point_at_workitjobs_ai_by_default(monkeypatch):
+    # KAN-483: every email link uses workitjobs.ai, never the old Vercel host.
+    monkeypatch.delenv("WEB_URL", raising=False)
+    from app.config import Settings
+
+    html = job_alerts._digest_html([job("7", GH + "7")], Settings(_env_file=None).web_url)
+
+    assert 'href="https://workitjobs.ai/jobs/7"' in html
+    assert "vercel.app" not in html
