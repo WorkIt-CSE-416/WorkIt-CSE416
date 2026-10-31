@@ -88,17 +88,14 @@ class Settings(BaseSettings):
     ai_intake_cap: int = 15
     ai_tailor_cap: int = 2
     ai_parsing_cap: int = 1
-    # The editor assistant (KAN-221) and the autofiller's essay-answer
-    # generation (KAN-164): each share is on top of the spec's four, which
-    # already sum to the pool, so a busy day can overshoot it by 20%.
+    # The editor assistant (KAN-221): its share is on top of the spec's
+    # four, which already sum to the pool, so a busy day can overshoot it by 10%.
     ai_assistant_cap: int = 10
-    ai_essay_cap: int = 5
     ai_tailor_share: float = 0.4
     ai_intake_share: float = 0.3
     ai_scout_share: float = 0.2
     ai_parsing_share: float = 0.1
     ai_assistant_share: float = 0.1
-    ai_essay_share: float = 0.1
 
     # The connector (KAN-377, app/connector/): where this API and the webapp
     # are reached from outside. The API's is the OAuth issuer and the MCP
