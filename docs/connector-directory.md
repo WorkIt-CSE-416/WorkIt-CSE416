@@ -21,15 +21,11 @@ connector**. Any paid Claude plan can submit. Escalations: `mcp-review@anthropic
    Add Custom Connector link below. Before you send, check once more that
    the API has `CONNECTOR_API_URL=https://api.workitjobs.ai` and
    `CONNECTOR_WEB_URL=https://workitjobs.ai`.
-2. **Fill the Privacy Policy's open items.** `/privacy` has a section on the
-   connector (what Claude reads, what WorkIt keeps, how to stop it). The
-   KAN-462 answers fill most `[TEAM TO DECIDE]` marks (operator, contact
-   email `team@workitjobs.ai`, minimum age 16, where data is stored, AI
-   providers, request logs, legal requests, change notices). Two stay open
-   on `/privacy` (retention after an account closes and for backups, and
-   privacy rights by region) and one on `/terms` (warranty and liability).
-   Anthropic rejects a submission with an incomplete privacy policy, so
-   decide those, and deploy, before you send.
+2. **Deploy the finished Privacy Policy.** `/privacy` has a section on the
+   connector (what Claude reads, what WorkIt keeps, how to stop it), and
+   the KAN-462 answers fill every open item on `/privacy` and `/terms`
+   (contact email `team@workitjobs.ai`). Anthropic rejects a submission
+   with an incomplete privacy policy, so deploy them before you send.
 3. **Make the reviewer account** (see "Test & launch" below) and check it
    once through Claude yourself.
 4. **Test every tool in Claude** as a custom connector (Auto Apply's Add to
