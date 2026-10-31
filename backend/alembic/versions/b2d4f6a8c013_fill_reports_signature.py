@@ -1,6 +1,6 @@
 """fill_reports.signature: a report's group, job system + field kind + error (KAN-478)
 
-Revision ID: a7c3e9d1f456
+Revision ID: b2d4f6a8c013
 Revises: bafdca0d9501
 Create Date: 2026-10-31 17:20:00.000000
 
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'a7c3e9d1f456'
+revision: str = 'b2d4f6a8c013'
 down_revision: Union[str, Sequence[str], None] = 'bafdca0d9501'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

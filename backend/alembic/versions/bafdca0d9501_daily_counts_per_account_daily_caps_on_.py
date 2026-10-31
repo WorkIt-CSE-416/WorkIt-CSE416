@@ -1,7 +1,7 @@
 """daily_counts: per-account daily caps on the extension's writes (KAN-478)
 
 Revision ID: bafdca0d9501
-Revises: d9b579e66623
+Revises: a7c3e9d1f467
 Create Date: 2026-10-31 17:04:10.798101
 
 One row per account, kind of write (fill_report, job_system_request) and
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'bafdca0d9501'
-down_revision: Union[str, Sequence[str], None] = 'd9b579e66623'
+down_revision: Union[str, Sequence[str], None] = 'a7c3e9d1f467'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
