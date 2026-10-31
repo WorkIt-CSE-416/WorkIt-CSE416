@@ -64,6 +64,8 @@ jobs:
     outputs:
       extension: ${{ steps.filter.outputs.extension }}
     steps:
+      # A PR's files come from the API; any other event diffs the checkout.
+      - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
