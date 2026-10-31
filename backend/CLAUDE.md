@@ -425,6 +425,28 @@ Find files with a directory listing; these are the rules for where code goes.
   needs a sign-in. The team ranks the next job systems with `SELECT host,
   count(*) FROM job_system_requests GROUP BY host`; nothing reads it in the
   app. Tests: `tests/test_job_system_requests.py`.
+  **The per-job-system off switch** (KAN-467, `routers/extension_config.py`,
+  table `disabled_job_systems`, migration `a7c3e9d1f467`): when a job
+  system's markup changes and fills break, an admin turns it off with `PUT
+  /admin/disabled-job-systems/{job_system}` (the Fill engine's id,
+  `hosts.py` `JOB_SYSTEMS`; any other is 422) and on again with `DELETE`,
+  both behind `get_admin` (`WORKIT_ADMINS`, as fix reports). `GET
+  /extension/config` is public and answers `{"disabled_job_systems":
+  [{"job_system", "name"}]}`; the extension reads it every 15 minutes and
+  fills none of them, with no Store release. The list lives in the database,
+  not in config: the backend's small settings are env vars
+  (`app/config.py`), but changing one needs a redeploy
+  (`CF_API_SECRETS_JSON`), and an admin must flip this in minutes. The queue
+  reads the same list: the matches (`JobFilters.disabled_job_systems`, by
+  `FORM_URL`, so a job board's posting naming a Workday form counts as
+  Workday's) and `queue_applications` leave those postings out, and an Auto
+  Apply click on one is 404 "WorkIt can't fill Workday right now. Try this
+  job again later." Applications already queued stay; the extension's tab
+  for one needs the student. The Jobs page's Auto Apply button still shows.
+  Each system's link pattern is `hosts.py` `SYSTEM_URL_PATTERNS`, written
+  for Python's re and Postgres's `~*` alike (the Greenhouse one uses a
+  negative lookahead, which both take). Tests:
+  `tests/test_job_system_off.py`.
   **Save to WorkIt by a page's link** (KAN-401, `POST /jobs/saved-by-link`
   in `routers/applications.py`, `queries/applications.py`
   `listed_job_by_link`): the extension's toolbar popup on a site it can't

@@ -101,6 +101,10 @@ export class FakeApi {
 
   /** Set to answer the profile with a server error, so a tab's fill can't plan. */
   profileDown = false;
+  /** The job systems WorkIt turned off (GET /extension/config, KAN-467), as routers/extension_config.py names them. */
+  disabledJobSystems: { job_system: string; name: string }[] = [];
+  /** Set to fail GET /extension/config, as a down API would. */
+  configDown = false;
 
   /** The student's transcript (GET .../documents, .../documents/transcript/bytes, KAN-369), or none. */
   transcript: { filename: string; base64: string } | null = null;
@@ -161,6 +165,11 @@ export class FakeApi {
     const path = url.pathname;
     this.calls.push(`${method} ${path}${url.search}`);
     if (path === "/health") return { json: { status: "ok" } };
+    // Public: no sign-in (routers/extension_config.py).
+    if (path === "/extension/config" && method === "GET") {
+      if (this.configDown) return { status: 503, json: { detail: "Service Unavailable" } };
+      return { json: { disabled_job_systems: this.disabledJobSystems } };
+    }
     if (headers.authorization !== `Bearer ${this.token}`) return { status: 401, json: { detail: "Not signed in" } };
     if (path === "/fill-reports" && method === "POST") {
       this.reports.push(JSON.parse(body.toString()));

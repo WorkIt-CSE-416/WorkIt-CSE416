@@ -13,7 +13,7 @@ from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auto_apply.hosts import refusal
+from app.auto_apply.hosts import JOB_SYSTEMS, job_system_of, refusal
 from app.auto_apply.plans import (  # noqa: F401 (re-exported for the connector)
     Backed,
     Plan,
@@ -21,8 +21,10 @@ from app.auto_apply.plans import (  # noqa: F401 (re-exported for the connector)
 from app.auto_apply.queries import (
     close_posting,
     fetch_applications,
+    fetch_disabled_job_systems,
     fetch_next_application,
     fetch_open_apply_url,
+    fetch_open_form_url,
     fetch_stage,
     queue_applications,
     remove_queued,
@@ -107,8 +109,12 @@ async def _matches(
     filters: JobFilters,
     min_match: int,
     size: int,
+    disabled: Sequence[str] | None = None,
 ) -> list[ScoredJob]:
-    """get_matches and start_batch's shared reading of the matches."""
+    """get_matches and start_batch's shared reading of the matches. Never
+    one on a job system WorkIt turned off (KAN-467): `disabled`, else read."""
+    if disabled is None:
+        disabled = await fetch_disabled_job_systems(db)
     scored = await fetch_recommended(
         db,
         account,
@@ -117,7 +123,8 @@ async def _matches(
         # only saved (KAN-261: a save never queues by itself); and only
         # job postings the extension can fill come in (hosts.py).
         filters=dataclasses.replace(
-            filters, no_application_by=account.id, auto_apply_only=True
+            filters, no_application_by=account.id, auto_apply_only=True,
+            disabled_job_systems=tuple(disabled),
         ),
         min_match=min_match,
         # Every match, not a page: pick_batch drops repeats before it takes
@@ -162,8 +169,9 @@ async def start_batch(
     get_matches reads them) in one commit, and answers their job ids, best
     first. Fewer when fewer matches are left. Raises EmptyBank.
     """
-    matches = await _matches(db, account, filters, min_match, size)
-    queued = await queue_applications(db, account.id, [uuid.UUID(m.id) for m in matches])
+    disabled = await fetch_disabled_job_systems(db)
+    matches = await _matches(db, account, filters, min_match, size, disabled)
+    queued = await queue_applications(db, account.id, [uuid.UUID(m.id) for m in matches], disabled=disabled)
     await db.commit()
     return [m.id for m in matches if uuid.UUID(m.id) in queued]
 
@@ -179,13 +187,18 @@ async def queue_job(
     stage: a second click changes nothing. Raises NotFound for a job posting
     that isn't open, or isn't on a hiring system auto apply fills
     (queue_applications saves neither), with the reason: a job board's
-    posting that names no employer form (KAN-376) says so.
+    posting that names no employer form (KAN-376) says so, and one on a job
+    system WorkIt turned off (KAN-467) says that.
     """
-    if await queue_applications(db, applicant_id, [job_id]):
+    disabled = await fetch_disabled_job_systems(db)
+    if await queue_applications(db, applicant_id, [job_id], disabled=disabled):
         await db.commit()
         return application_stage.queued
     stage = await fetch_stage(db, applicant_id, job_id)
     if stage is None:
+        off = disabled and job_system_of(await fetch_open_form_url(db, job_id) or "")
+        if off in disabled:
+            raise NotFound(f"WorkIt can't fill {JOB_SYSTEMS[off]} right now. Try this job again later.")
         apply_url = await fetch_open_apply_url(db, job_id)
         raise NotFound(refusal(apply_url) if apply_url else "That job isn't open any more.")
     return stage
