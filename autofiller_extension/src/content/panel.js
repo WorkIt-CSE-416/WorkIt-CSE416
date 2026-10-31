@@ -22,13 +22,12 @@ window.WIA = window.WIA || {};
 
 /**
  * Whether this page is Workday's: on its own hosts, or a Workday career site
- * on the employer's domain, which its scripts mark (the Fill engine's
- * PAGE_MARKS.workday, src/marks.ts, KAN-472). Content scripts run only where
- * the student allowed WorkIt, so the marks are read only there.
+ * on the employer's domain, which its scripts mark (KAN-472). The background
+ * reads it with the Fill engine (its jobOf and PAGE_MARKS, site-access.js
+ * pageSystem) and sets `window.WIA.jobSystem`: a fill before its scripts
+ * load (content-scripts.js injectFill), the panel from panel/where.
  */
-window.WIA.onWorkday = () =>
-  /(^|\.)(myworkdayjobs|myworkdaysite)\.com$/.test(location.hostname)
-  || Boolean(document.querySelector('script[src*="/wday/asset/candidate-experience"], script[src*="/wday/asset/uic-shared-vendors"]'));
+window.WIA.onWorkday = () => window.WIA.jobSystem === "workday";
 
 (function () {
   "use strict";
@@ -425,6 +424,7 @@ window.WIA.onWorkday = () =>
   function where() {
     ready ??= send({ type: "panel/where" }).then((answer) => {
       site = answer?.site ?? {};
+      window.WIA.jobSystem ??= answer?.jobSystem ?? null;
       hiddenEverywhere = Boolean(answer?.hiddenEverywhere);
       shell.batch = Boolean(answer?.batch);
       // The settings view's Open the panel by itself (KAN-402), on unless the student turned it off.

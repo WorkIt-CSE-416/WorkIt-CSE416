@@ -33,7 +33,7 @@ import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, sentSi
 import { writeEarly } from "./write-early.js";
 import { popupHome, showNextJob } from "./popup-home.js";
 import { followTrackedTab, forgetTracked, isTracked, markTracked, openForWriting, track, trackState, writingJob } from "./track.js";
-import { allowTabSite, allowedSites, pageJobUrl, removeSite, syncSites } from "./site-access.js";
+import { allowTabSite, allowedSites, pageJobUrl, pageSystem, removeSite, syncSites } from "./site-access.js";
 import { fetchText, planReads } from "./plan-reads.js";
 import { treeStore } from "./stored-data.js";
 import { installed, setUninstallPage } from "./install.js";
@@ -420,11 +420,12 @@ async function handleMessage(message, sender) {
     // page the toolbar icon opens and closes the panel, so the tab has no popup.
     case "panel/where": {
       const url = sender.url ?? "";
-      const job = Boolean(await pageJobUrl(sender.tab?.id, sender.frameId ?? 0, url));
+      const jobSystem = await pageSystem(sender.tab?.id, sender.frameId ?? 0, url);
+      const job = Boolean(jobSystem);
       if (job && sender.tab?.id !== undefined) await chrome.action.setPopup({ tabId: sender.tab.id, popup: "" });
       // A job page's panel will plan a fill: its profile is fetched while the page settles.
       if (job) warmProfile();
-      return { job, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen(), hiddenEverywhere: await hiddenEverywhere() };
+      return { job, jobSystem, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen(), hiddenEverywhere: await hiddenEverywhere() };
     }
     case "panel/site":
       return { site: await panelSite(sender.url ?? "", message.set) };

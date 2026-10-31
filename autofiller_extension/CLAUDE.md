@@ -427,8 +427,12 @@ job system kept). `panel/where`, `fill/*` and the toolbar read the page
 through `pageJobUrl`. A SuccessFactors posting's panel says to press Apply
 and sign in (its form is the career site's, which the manifest covers).
 A Workday career site on the employer's domain is Workday's whole
-application there: the content scripts know it by the same scripts
-(`panel.js`'s `WIA.onWorkday`, which `workday.js` reads), and its steps
+application there: the content scripts can't load the engine, so the
+background reads the page's job system with it (`site-access.js`
+`pageSystem`) and sets `window.WIA.jobSystem`, in `injectFill` before the
+fill's scripts load and from `panel/where` for the panel (`panel.js`'s
+`WIA.onWorkday`, which `workday.js` reads); a test that injects the scripts
+itself sets it as `injectFill` does. Its steps
 fill as on `*.myworkdayjobs.com`. Not covered there yet: the Create Account
 / Sign In watch (`workday-logins.js` `watchWorkdaySends` listens only on
 Workday's own hosts) and the closed-job words (`closed-posting.js`).
