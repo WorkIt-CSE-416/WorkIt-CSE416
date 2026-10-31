@@ -1235,8 +1235,8 @@ as `own` and win on every later form. Own means written into a field
 WorkIt didn't fill, or replacing what it filled: an edit of their Claude's
 (or a saved) answer stays not own, is checked as their Claude's save is,
 and is never filled on a form that bans AI text. **WorkIt calls no model on this path**: no tool or route of the
-connector makes a `workit_scout` `LLM` (tested), and batch tabs never call
-the essay-answer route.
+connector makes a `workit_scout` `LLM` (tested), and no tab calls one: the
+essay-answer route is gone (KAN-470).
 
 **How an answer reaches the tab.** A batch tab whose Plan has questions
 that need writing sends them (`PUT .../applications/{job_id}/questions`,

@@ -18,6 +18,7 @@ function sendMessage(message) {
  *  resolved here since this is just "which tab to open", not an API call —
  *  popup.js still never talks to the backend or Supabase directly. */
 async function webappUrl() {
+  if (DEV_WEB_URL === null) return PROD_SITES[0].web;
   try {
     const response = await fetch(DEV_WEB_URL, { signal: AbortSignal.timeout(1000) });
     if (response.ok || response.type === "opaque") return DEV_WEB_URL;
@@ -240,6 +241,8 @@ async function init() {
   }
   const profileResponse = await sendMessage({ type: "profile/get" });
   if (!profileResponse.ok && profileResponse.status === 401) return renderLoginView();
+  // An extension older than the API serves (its 426, KAN-466): how to update.
+  if (!profileResponse.ok && profileResponse.status === 426) return renderFailed(profileResponse.error);
   // Any other failed read (KAN-401): a plain sentence and Try again, never the request's status or words.
   if (!profileResponse.ok) return renderFailed("WorkIt couldn't load your profile.");
   renderSignedIn(profileResponse.profile);

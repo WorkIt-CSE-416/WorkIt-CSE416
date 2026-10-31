@@ -54,7 +54,7 @@ export function submittedPage(url) {
 }
 
 // WorkIt's own web origins: the only ones whose practice forms are filled.
-const WEB_ORIGINS = [DEV_WEB_URL, ...PROD_SITES.map((site) => site.web)];
+const WEB_ORIGINS = [DEV_WEB_URL, ...PROD_SITES.map((site) => site.web)].filter(Boolean);
 const PRACTICE_PATH = /^\/practice\/([a-z0-9-]+)\/([0-9a-f-]{36})\/(apply|thanks)\/?$/;
 
 /**
@@ -769,10 +769,7 @@ export async function fillPage({ call, site, questions, answers, accepted, state
  *   its field's own limit as the engine read it from the form (null when it
  *   sets none). A draft that is a choice whose options were read has `kind`
  *   "choice" (a select) or "choices" (a multi-select) and its `options`
- *   (KAN-369), which the connector shows Claude and takes only. `generate`:
- *   the essay-answer route writes it (an essay, or a draft in a text area),
- *   so outside a batch tab it waits for the student's one Generate click;
- *   the rest are the student's there (content-script.js).
+ *   (KAN-369), which the connector shows Claude and takes only.
  * - `yours`: questions WorkIt has no answer for (Missing facts, and a draft
  *   that is a file).
  * - `notes`: what the Plan leaves to the student and why (an AI trap or ban,
@@ -784,17 +781,14 @@ export async function fillPage({ call, site, questions, answers, accepted, state
  */
 export function planRows({ plan }) {
   const row = (q) => ({ name: q.name, label: q.label, required: q.required });
-  // Only a text area takes the essay route's answer: it writes sentences, so a one-line draft
-  // ("Nick Name", Hermeus's Lever form) or a choice is the student's Claude's alone.
-  const takesText = (q) => q.kind === "textarea";
   const drafts = plan.drafts ?? [];
   const toClaude = (q) => q.kind !== "file" && !tooManyOptions(q);
   const notes = [...(plan.handoffs ?? [])];
   if (plan.not_eligible) notes.push(`You may not meet this requirement: ${plan.not_eligible}`);
   return {
     written: [
-      ...plan.essays.map((q) => ({ ...row(q), max_length: q.maxLength ?? null, generate: true })),
-      ...drafts.filter(toClaude).map((q) => ({ ...row(q), max_length: q.maxLength ?? null, generate: takesText(q), ...choice(q) })),
+      ...plan.essays.map((q) => ({ ...row(q), max_length: q.maxLength ?? null })),
+      ...drafts.filter(toClaude).map((q) => ({ ...row(q), max_length: q.maxLength ?? null, ...choice(q) })),
     ],
     yours: [...plan.missing, ...drafts.filter((q) => !toClaude(q))].map(row),
     notes,

@@ -24,12 +24,9 @@ what the student has done. `src/background/engine.js` maps the schools and
 the jobs it gives the Fill engine from the bank's `entries` by `section`,
 and the skills from its `skills`, not from a `ParsedResume`.
 
-**One exception**: essay-question generation (below) is the first feature
-here that needed a genuinely new backend route,
-`POST /applicants/{id}/essay-answer`, because it's the first one that calls
-a model — and an extension can't hold a model API key client-side without
-exposing it. Every other value this folder fills still comes from an
-endpoint that already existed for the webapp.
+Nothing here calls a model, and no route the extension calls does: a
+question that needs writing is the student's own Claude's, through the
+connector, or theirs (KAN-470, "Written questions" below).
 
 **No npm, no TypeScript compiler, no bundler.** Every file here is the file
 Chrome actually loads — plain ES2020+ JavaScript, JSDoc `@typedef`s in
@@ -175,7 +172,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   them, and so are its dropdowns' choices (trees marked `list`): the next
   fill on that tenant reads a dropdown from them without opening it, and
   the engine checks them when it fills it (a choice gone since re-plans the
-  field with what shows). Tests: `test/workday-lists.extension.spec.ts`;
+  field with what shows). They are capped (`stored-data.js`,
+  `MAX_WORKDAY_TREES`): past the cap the entries saved longest ago are
+  dropped, and a dropped one is only read from the page again (KAN-471;
+  before, every tenant a student ever opened stayed for good). Tests: `test/workday-lists.extension.spec.ts`;
   `test/speed.extension.spec.ts` times each fake step (`workday`,
   `workday-2` to `workday-5`). Its own How Did You Hear About Us? is never read: the engine
   searches it for each source in turn (WorkIt, LinkedIn, then the rest) and
@@ -702,8 +702,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   elsewhere (the self-identification fill's, under load). Test:
   `test/submit.extension.spec.ts` ("leaves their focus where they put it").
 - **A batch tab's essays come from the student's own Claude** (KAN-377;
-  `auto-apply/architecture.md` 14.6). The essay route is never batch
-  apply's. The tab sends the questions its Plan needs written, and every
+  `auto-apply/architecture.md` 14.6), as on any tab (KAN-470). The tab sends the questions its Plan needs written, and every
   one-off draft but a file (KAN-369): a choice whose options were read goes
   with `kind` "choice"/"choices" and its `options`, which the connector
   shows Claude and takes only, and a "choices" answer joins its options
@@ -874,7 +873,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   `planFill` passes the Question set through the engine's `limits`, which
   reads each text field's own `maxlength` on the page, and `planRows`
   gives each `written` row its `max_length` (null when the field sets
-  none). Both `batch/questions` and the essay route take it from the row;
+  none). `batch/questions` takes it from the row;
   never read a box's `maxLength` in the content script (a field's element
   is named differently on each hiring system: the engine knows how). The
   API refuses a saved answer over it.
@@ -1323,6 +1322,39 @@ fill and groups as a real one, and `practice/status` says where each is.
   Needs you; the student's Submit on each reaches `/thanks` with no data,
   and nothing reaches any host but WorkIt's site and API.
 
+## Install, update and uninstall (KAN-471)
+
+`install.js` handles `chrome.runtime.onInstalled`; `stored-data.js` holds
+what storage looks like across versions.
+
+- **Install opens onboarding's extension step**: a tab on
+  `webappOrigin()`'s `/onboarding/applicant?step=extension`. The webapp
+  opens a finished student's onboarding on that step, then the practice
+  batch; a signed-out student signs in first and comes back to it; one
+  who never finished onboarding starts at its first step. No page of its
+  own here.
+- **Storage has a schema version** (`workit_storage_version`). Every
+  install and update runs `migrateStorage`: each migration after the
+  stored version, in order, once. **A change to what a stored key holds
+  adds a migration and bumps `STORAGE_VERSION`**, or an update leaves the
+  old shape for code that reads the new one. Version 1 turned
+  `workday_trees` into capped `[key, tree]` pairs: `chrome.storage` gives
+  an object's keys back sorted, so an object can't say which entry is
+  oldest.
+- **Removing the extension opens the webapp's survey**
+  (`/uninstalled?v=<version>`, `chrome.runtime.setUninstallURL`, set again
+  on each install, update and start). The URL carries the version only, no
+  account, so the answer is anonymous (the webapp's page and
+  `POST /uninstall-answers`).
+- **Tests**: `test/stored-data.spec.ts` (the migrations and the cap, on a
+  fake storage) and `test/install.extension.spec.ts` (the loaded
+  extension: the install's tab; an update, as a second start on the same
+  profile with a higher version, since `chrome.runtime.reload()` unloads an
+  extension loaded with `--load-extension`; and `uninstallSelf()` opening
+  the survey). Every other loaded-extension test turns the install's tab
+  off (`loadExtension`'s `welcome`, a source swap in the test copy like
+  `openPanel`), so its tabs stay its own.
+
 ## Onboarding's later moments (KAN-387): asked when first needed
 
 Onboarding stops at the practice batch; what it no longer asks up front is
@@ -1434,16 +1466,25 @@ bare origin with no path at all — only confirmed working against an actual
 page path (`/dashboard`) during that same live test, so the bare-origin
 case is avoided rather than assumed safe.
 
-**No refresh is attempted here on purpose.** Supabase rotates the
-refresh_token on each use. If this extension refreshed independently and
-the webapp's own `src/proxy.ts` refreshed around the same time, one of the
-two would present an already-rotated refresh_token and fail — which could
-sign the user out of the actual webapp over something happening in the
-background here. `getSession()` just reads what's there; an expired
-access_token means the popup asks the user to revisit a WorkIt tab (which
-refreshes it) rather than this extension trying to fix it quietly. See
-Open Items for what a from-scratch refresh story would need to look like
-if this turns out to be too conservative in practice.
+**The extension never rotates the token; the webapp does, on request
+(KAN-465).** Supabase rotates the refresh_token on each use. If this
+extension refreshed independently and the webapp's own `src/proxy.ts`
+refreshed around the same time, one of the two would present an
+already-rotated refresh_token and fail, which could sign the student out
+of the webapp. So the extension never sends the refresh token anywhere.
+Instead, `auth.js`'s `refreshSession` calls the webapp's
+`GET <web_origin>/api/session/refresh` (`frontend/src/app/api/session/
+refresh/route.ts`) with the cookie, and reads the cookie again. The route
+rotates the session when it is within three minutes of expiry and sets the
+new cookie; only the webapp writes it, so there is no race. The extension
+asks when `getSession()` finds the access token within two minutes of
+`expires_at`, and when an API call gets a 401 (`api.js`'s `apiRequest`
+then retries once with the new token). Callers holding the same token
+share one request, and one that left the token unchanged (the webapp
+unreachable) isn't asked again for 30 seconds. With no valid refresh
+token, Supabase clears the cookie and the route answers 401, so
+`getSession()` returns null and the panel shows Sign in to WorkIt. Tested
+in `test/session-refresh.extension.spec.ts`.
 
 **Two host families until KAN-296.** Production runs on Cloudflare
 (`workitjobs.ai`, `api.workitjobs.ai`). Vercel is retired, but its projects
@@ -1477,7 +1518,9 @@ checking the student owns the application: a tab's state (`PUT
 `POST /fill-reports` (`routers/fill_reports.py`): no applicant in the path;
 the row names the signed-in sender, who alone can read it back. The popup's Request this job system
 (KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
-the host alone, no account in the row. The rest are older:
+the host alone, no account in the row. The off switch (KAN-467) reads `GET
+/extension/config` (`routers/extension_config.py`), public and sent with no
+token: it names only the job systems turned off. The rest are older:
 
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
@@ -1487,10 +1530,10 @@ webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
 KAN-424, the Resumes page's own upload), `GET
 /applicants/{id}/built-resumes` (plus `.../built-resumes/{id}/render`), and
 batch apply's `GET /applicants/{id}/applications/next`. All were already
-reachable with a Bearer token before the extension called them. Two routes
-existed only for this extension — essay-answer generation and `GET
-.../resumes/{resume_id}/bytes` — each explained in its own section below,
-with why no existing endpoint was safe/usable from here. A third is batch
+reachable with a Bearer token before the extension called them. One route
+exists only for this extension, `GET .../resumes/{resume_id}/bytes`,
+explained in its own section below, with why no existing endpoint was
+safe/usable from here. A third is batch
 apply's `PUT .../applications/{job_id}/fill` (KAN-370): the stage is the
 API's record of each tab, and no route set `needs_you` back to `queued`.
 
@@ -1632,7 +1675,7 @@ real file input is directly targetable underneath both.
   response body (`backend/app/routers/built_resumes.py`'s
   `RenderResponse.pdf`), the same render the resume editor's own preview
   uses.
-- **A second new backend route, after essay-answer.** An uploaded resume's
+- **A new backend route.** An uploaded resume's
   first implementation read `GET .../resumes/{id}/file`, the webapp
   preview's 5-minute signed Storage URL, and fetched it directly from the
   background worker. That shipped, was reasoned as safe (MV3 background
@@ -1692,36 +1735,44 @@ for you" ("Photo upload: add a photo yourself"), while the still-empty
 required field keeps the batch tab in Needs you. WorkIt stores no profile
 photo for forms.
 
-## Essay-question generation: the one opt-in, model-backed feature
+## Written questions on a form the student opened themselves (KAN-470)
 
 Open-ended questions ("Why do you want to work here?") have no fixed
-answer. The Fill engine's Plan says which questions need a written answer
-(its essays, and its drafts in a text area; `engine.js`'s `planRows`), and
-the overlay lists each as "needs_generation" (`lib-status.js`).
+answer. The Fill engine's Plan says which questions need writing (its
+essays, and its drafts but a file; `engine.js`'s `planRows`), and the
+overlay lists each as "needs_generation" (`lib-status.js`). **WorkIt calls
+no model for them**, on any tab: the student's own Claude writes them
+through the connector, or the student pastes their own on the webapp's
+Written Answers page, exactly as on a batch tab (below). The server's
+essay-answer route (KAN-164) is gone.
 
-- **One blanket opt-in, never per-question.** After the fill, the overlay's
-  `promptForEssays` asks once: "N essay question(s) found — generate
-  answers with AI from your experience bank?" Nothing is sent anywhere
-  until the student clicks **Generate**. **Not Now** marks each one
-  "skipped" (never "failed": the student chose to answer it).
+- **A saved answer fills first.** The Plan's Answer bank (`GET
+  .../answer-bank?company=`) fills any question the student (or their
+  Claude) answered before, with nothing to ask.
+- **One opt-in, never per-question.** After the fill, the overlay's
+  `promptForEssays` asks once: "N questions need writing. Your Claude can
+  write them from your experience, or you can paste your own on Written
+  Answers." Nothing goes to WorkIt until the student presses **Write with
+  Claude**. **Not Now** marks each one "skipped" (never "failed": the
+  student chose to answer it).
+- **Write with Claude gives the job an application** (`written/open`,
+  `track.js`'s `openForWriting`): the questions routes keep the questions
+  on one. The job is queued with the Auto Apply button's route (a saved job
+  too), moved to needs_you at once so the batch never opens it, and the tab
+  is tracked (its submit marks the job applied, as Track on WorkIt's). The
+  tab then runs the batch tab's `awaitClaude`: its rows wait for the
+  student's Claude with the Written Answers link, and the `batch/*`
+  messages accept the tab (`background.js`'s `applicationJob`). A job
+  WorkIt doesn't list, or one already applied or skipped, can't have one:
+  its rows say why and are the student's.
 - **AI traps and bans stay the student's.** A form or posting that bans
   AI-written answers, or a posting that speaks to AI agents, makes the Plan
-  hand those questions off instead: they never reach the essay route, and
-  the overlay lists the Plan's reason under "Left for you". Outside a batch
-  tab, a draft that is a choice (a dropdown) or one line ("Nick Name") is
-  the student's: the essay route writes sentences and can't pick an option
-  (`planRows`' `generate` is false for them). In a batch tab the student's
-  Claude answers them (below).
-- **Generation is sequential** (`written-answers.js`'s `onGenerate`), one
-  `essay/generate` per question: each is its own counted AI use, and the
-  overlay shows each row as it lands. The answer is then filled through the
-  engine like any other. The box's own `maxlength` goes with the question,
-  capped at the route's 5000: Workable's cover letter takes 200000, and the
-  route answered that with a 422.
+  hand those questions off instead: they never reach the student's Claude,
+  and the overlay lists the Plan's reason under "Left for you".
 - **A letter for an upload goes up as a PDF.** An optional cover letter
   upload is an essay under the student's `cover_letter: "always"` policy
-  (often brought from Apply). Its written words, Claude's or the essay
-  route's, are made a PDF (`letter-pdf.js`: Helvetica, wrapped, no
+  (often brought from Apply). Its written words, Claude's or pasted, are
+  made a PDF (`letter-pdf.js`: Helvetica, wrapped, no
   library) named for the student as their resume is
   (`First_Last_Cover_Letter.pdf`, with the first and last name the
   student goes by when the profile brought from Apply holds one, else the
@@ -1732,16 +1783,6 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
   date or "Re:" line: the student's Claude writes the whole letter.
 - **Company name and job title come from the job system's API** (the Job
   Board API's `company_name` and `title`), not the page's title.
-- **The model call is `POST /applicants/{id}/essay-answer`**
-  (`backend/app/routers/essay_answer.py`): grounded in the whole
-  experience bank, checked against the truth rule, never given identity
-  data. The question, company and role count as given, so an answer may
-  name them (before that, every live answer was refused: "Cloudflare" and
-  the pronoun "I" read as invented tools). A 429/503/422 becomes the row's "failed" reason verbatim (a 422
-  that lists errors, as their messages: `api.js`'s `errorMessage`); there is
-  no retry.
-- **Nothing is persisted.** The question and the generated answer are
-  never saved.
 
 ## The panel's shell (KAN-394): one docked panel, slots to plug into
 
@@ -2050,11 +2091,38 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   at once draws the step's line, "Workday: My Experience · Filling this
   step…" (content-script.js), with the button at Filling…; the step's rows
   follow as it fills.
+- **A job system WorkIt turned off** (KAN-467, `src/background/remote-config.js`):
+  when a job system's markup changes and fills break, an admin turns it off
+  on the API (`backend/CLAUDE.md`, "The per-job-system off switch") and
+  the extension stops filling it with no Store release. The worker reads
+  `GET /extension/config` (public, no Bearer; `api.js` `publicFetch`, 3 s
+  timeout) as it starts, and again at the next panel or fill once the copy
+  in chrome.storage.local `workit_remote_config` is 15 minutes old, so a
+  switch reaches a student within 15 minutes. A read that fails keeps the
+  last copy; with none, every job system fills. It is data, never code
+  (Manifest V3 forbids remote code, not JSON). `fill/available` answers the
+  page's job system name (`jobOf(url).site`) when it is off: the panel's
+  `start()` shows "WorkIt can't fill Workday right now" in place of its
+  button, and `content-script.js` checks it before anything fills, types
+  or presses (Workday's sign-in too), shows the same as a failed row and
+  stops, so a batch tab needs the student. Test:
+  `test/job-system-off.extension.spec.ts`.
 - **Errors**: every failed request the panel or popup makes is a plain
   sentence with Try again (or the same button, which retries), never a
   status code or the route's raw words.
+- **No answer, and too old** (KAN-466): `api.js`'s `apiRequest` gives every
+  call a time limit (20 s; 60 s for a file's bytes or an upload, 90 s for an
+  essay draft). A call past it, a network error ("Failed to fetch") and a
+  5xx with no words of the route's all say "WorkIt didn't answer. Try again
+  in a minute." Every call sends `X-WorkIt-Extension: <manifest version>`;
+  the API answers 426 below its `MIN_EXTENSION_VERSION` (default 0.0.0,
+  which refuses no build), and the extension asks Chrome for the update
+  (`chrome.runtime.requestUpdateCheck`) and says "Please update WorkIt.
+  Restart Chrome…". Raise the minimum only when a change breaks older
+  builds: store updates take hours to days to reach every student.
 
-Tests: `test/panel-states.extension.spec.ts`.
+Tests: `test/panel-states.extension.spec.ts`, `test/api-errors.extension.spec.ts`
+(an API that hangs or is unreachable, a 426), `backend/tests/test_extension_version.py`.
 
 ## The panel's top (KAN-395): header, batch line, job card
 
@@ -2295,7 +2363,7 @@ text boxes), and any cover letter field (label or name "cover letter").
   `redo`): the answer is cleared and handed to their Claude again with the
   request as its `rewrite` reason, the flag card's own path, so the row
   waits in the blue box until the new answer lands. Not offered on the
-  student's own words, a pasted or saved answer, or the essay route's.
+  student's own words, or a pasted or saved answer.
 - **Undo rewrite**, under the row while it waits and after the new answer
   lands: the answer it had goes back into the field and is saved again
   through the paste route (`batch/paste`), so their Claude isn't handed the
@@ -2405,7 +2473,7 @@ reason in red and a skipped row's in gray.
 
 Each filled row carries its **Source** (KAN-375, `GLOSSARY.md`): the Fill
 engine's Plan names each planned answer's (`plan.sources`: profile,
-student, saved, guessed), the essay route's answers are "ai", the
+student, saved, guessed), the
 student's own Claude's (the connector) "claude", and a value the student
 types after the fill "student", and one pasted in a waiting row's card
 "pasted". The overlay shows it as a badge (Profile,
@@ -2487,6 +2555,52 @@ overlay uses the system font.
   at any time — it's the one place session state can actually live, not
   the popup (which is destroyed every time it closes).
 
+## The Store build and the extension ID (KAN-463)
+
+The checked-in folder is the **dev** extension: it tries
+`localhost:8000` for the API and `localhost:3000` for the webapp first, lists
+both (and the Vercel hosts) in `host_permissions` and
+`externally_connectable`, and puts the tests' hooks (`workitToolbar`,
+`workitCommand`) on the service worker's global. The tests need all of that,
+so it stays. The **Store** gets `node store/build.mjs [outDir]` instead
+(default `.store-build/`, gitignored): `outDir/extension/` and
+`outDir/workit-extension.zip`, with
+
+- `manifest.json`: `store/store.json`'s name ("WorkIt"), version,
+  description (132 characters at most) and toolbar title; no localhost or
+  vercel.app host; no `key` (the Store signs the item itself).
+- `src/shared/config.js`: `DEV_API_URL` and `DEV_WEB_URL` null (every user
+  of them skips a null one, so nothing probes or calls localhost),
+  `TEST_HOOKS` false, the Vercel site gone (KAN-296).
+- only what Chrome loads: `manifest.json`, `icons`, `fonts`, `src`,
+  `fill-engine/dist`.
+
+The build fails if any packaged file still names localhost, vercel.app or
+"Prototype" (as a word). A new dev-only line in `config.js` must be one
+`storeConfig` rewrites, or the build fails. `test/store-build.spec.ts` reads
+the zip back; `test/store-build.extension.spec.ts` loads the built package
+with a fake server answering `localhost:8000/health` and checks it calls only
+`api.workitjobs.ai`, answers the site's ping and opens Start batch's tabs.
+KAN-447's publish workflow uploads this zip; the Store version is
+`store/store.json`'s, so a release bumps it there.
+
+**One extension ID.** `manifest.json`'s `key` is the one place it is set:
+Chrome derives the ID from it (`store/extension-id.mjs`), the tests take it
+from there (`test/loaded-extension.ts`), and the website's
+`EXTENSION_ID` (`frontend/src/lib/autofill-extension.ts`) is written from it
+(`test/extension-id.spec.ts` fails while they differ). Today it is the dev key
+(`cpklhdkoafegnndlafmiceehfloodjgi`). To give dev builds and the website the
+Store item's ID (a person's step, with the Developer Dashboard):
+
+1. Dashboard → the WorkIt item → **Package** → **View public key**. Copy the
+   key between the BEGIN/END lines, joined into one line.
+2. Paste it as `key` in `manifest.json`.
+3. `node autofiller_extension/store/extension-id.mjs --write`: prints the
+   new ID and writes it into the website. It must equal the item ID the
+   Dashboard shows (and the `CHROME_EXTENSION_ID` secret KAN-447 uses).
+4. Reload the unpacked extension: chrome://extensions shows the Store ID.
+   Run the extension tests (they load it at the new ID).
+
 ## Open items
 
 Flagged here rather than silently deferred — the user asked for a
@@ -2499,8 +2613,7 @@ openness covers:
   Greenhouse forms (Arc Boat Company's, Pure Storage's, 2026-10-22) with a
   dummy profile and sent nothing; what no test reaches is the Chrome glue:
   `injectFill`'s MAIN-world load, `fill/plan` and `fill/field` through
-  `executeScript`, the essay round trip (`essay/generate` → the live API →
-  the filled field), and the resume's `.../bytes` fetch. Load it unpacked,
+  `executeScript`, and the resume's `.../bytes` fetch. Load it unpacked,
   sign in as a test student, run it on a Greenhouse posting with an essay
   question, and never press Submit. If a fill stops, the background
   service worker's console (`chrome://extensions` → this extension →
@@ -2513,13 +2626,6 @@ openness covers:
   Worth a quick recheck against `node_modules/@supabase/ssr/src/
   cookies.ts` and `utils/chunker.ts` after any `@supabase/ssr` or
   `@supabase/supabase-js` version bump in `frontend/package.json`.
-- **No refresh story if the access token goes stale between WorkIt
-  visits.** Right now that's "ask the user to reopen a WorkIt tab" (see
-  Auth section's reasoning on refresh_token rotation). If that proves too
-  rough in practice, the safer fix is having the *webapp* do the
-  refreshing it already does (`src/proxy.ts`) and this extension only
-  ever reading, never writing, the cookie — not independent refresh logic
-  here.
 - **Six job systems not yet checked live through the loaded extension
   (KAN-341).** Lever, Ashby, Rippling, Workable and Eightfold filled live
   forms through this fill path in a test browser, not the loaded
@@ -2546,10 +2652,10 @@ openness covers:
   saves the parts (`first_name`, `middle_name`, `last_name` on GET
   .../profile), the fill uses them, and a middle name goes only where a
   form asks for the full legal name.
-- **No packaging/publishing path yet.** The `key` in `manifest.json` pins a
-  stable *local* extension id (so the webapp bridge has something fixed to
-  call) — it is not a Chrome Web Store signing key, and publishing for
-  real would need its own key and listing.
+- **The manifest's `key` is still the dev key, not the Store item's**
+  (KAN-463). Until someone swaps it (below, "The Store build and the
+  extension ID"), a Store-installed extension has another ID and doesn't
+  answer the website.
 - **The toolbar icons are rendered from the webapp's own icon**
   (KAN-424): `icons/icon-{16,32,48,128}.png` are
   `frontend/public/workit-icon.svg` (the favicon's source) drawn by

@@ -41,6 +41,7 @@ uv run python -m app.scripts.intake_test_set   intake's fixed test set against t
 uv run python -m app.scripts.ship_check ...   the connector's blind read, KAN-386 (by hand, never CI; data outside the repo)
 uv run python -m app.scripts.clean_bank_entries  one-off: split "| C++, Go" off older bank titles, drop read skills the catalog lacks; --typed also drops Tailor-added degrees/"AI tools" (dry run unless --apply; local DB only)
 uv run python -m app.scripts.fill_report <id>   a fill report's fix brief + form fixture into fill-reports/ (--latest; reads DATABASE_URL, writes nothing)
+uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -406,6 +407,40 @@ Find files with a directory listing; these are the rules for where code goes.
   needs a sign-in. The team ranks the next job systems with `SELECT host,
   count(*) FROM job_system_requests GROUP BY host`; nothing reads it in the
   app. Tests: `tests/test_job_system_requests.py`.
+  **The uninstall survey** (KAN-471, `routers/uninstall_answers.py`, table
+  `uninstall_answers`, migration `4403f420a47c`): removing the extension
+  opens the webapp's `/uninstalled`, whose one question goes to `POST
+  /uninstall-answers {"reason", "detail"?, "version"?}`. **The one write
+  route with no sign-in**, so it is capped twice: `PER_SENDER_PER_DAY` per
+  sender (the address the webapp's server forwards as `x-workit-client-ip`,
+  counted in memory as a hash and never stored; per process, and a direct
+  caller can set the header) and `PER_DAY` for everyone, counted in the
+  table, the bound that always holds. 429 past either. The row names no
+  account or address; a reason the CHECK doesn't list is 422 first. The
+  team reads `SELECT reason, count(*) FROM uninstall_answers GROUP BY
+  reason`. Tests: `tests/test_uninstall_answers.py`.
+  **The per-job-system off switch** (KAN-467, `routers/extension_config.py`,
+  table `disabled_job_systems`, migration `a7c3e9d1f467`): when a job
+  system's markup changes and fills break, an admin turns it off with `PUT
+  /admin/disabled-job-systems/{job_system}` (the Fill engine's id,
+  `hosts.py` `JOB_SYSTEMS`; any other is 422) and on again with `DELETE`,
+  both behind `get_admin` (`WORKIT_ADMINS`, as fix reports). `GET
+  /extension/config` is public and answers `{"disabled_job_systems":
+  [{"job_system", "name"}]}`; the extension reads it every 15 minutes and
+  fills none of them, with no Store release. The list lives in the database,
+  not in config: the backend's small settings are env vars
+  (`app/config.py`), but changing one needs a redeploy
+  (`CF_API_SECRETS_JSON`), and an admin must flip this in minutes. The queue
+  reads the same list: the matches (`JobFilters.disabled_job_systems`, by
+  `FORM_URL`, so a job board's posting naming a Workday form counts as
+  Workday's) and `queue_applications` leave those postings out, and an Auto
+  Apply click on one is 404 "WorkIt can't fill Workday right now. Try this
+  job again later." Applications already queued stay; the extension's tab
+  for one needs the student. The Jobs page's Auto Apply button still shows.
+  Each system's link pattern is `hosts.py` `SYSTEM_URL_PATTERNS`, written
+  for Python's re and Postgres's `~*` alike (the Greenhouse one uses a
+  negative lookahead, which both take). Tests:
+  `tests/test_job_system_off.py`.
   **Save to WorkIt by a page's link** (KAN-401, `POST /jobs/saved-by-link`
   in `routers/applications.py`, `queries/applications.py`
   `listed_job_by_link`): the extension's toolbar popup on a site it can't
@@ -1132,26 +1167,12 @@ Find files with a directory listing; these are the rules for where code goes.
   `--dry-run` builds and reports every digest, writing and sending
   nothing. Tests: `tests/test_job_alerts.py`, `tests/test_notifications.py`,
   `tests/test_email.py`.
-- **The autofiller's essay-answer generation** (KAN-164) is
-  `routers/essay_answer.py` (`POST /applicants/{id}/essay-answer`) over
-  `services/essay_answer.py` — the first route `autofiller_extension/`
-  needed, since the extension cannot hold a model key itself. The Chrome
-  extension reads an open-ended application question straight off the ATS
-  page's own DOM (no `job_posting_id`: the posting may not be one WorkIt
-  has scraped or a company has posted) and sends the literal question text,
-  plus whatever company name/job title it could read from the page and the
-  field's own HTML `maxlength`. The model drafts a short paragraph grounded
-  in the whole bank (not a ranked subset — a student's bank is small enough
-  to use whole, unlike Tailor's posting-ranked bullets); a draft that fails
-  `truth_rule.invented` against the whole bank's bullets and skills, or
-  holds an identity placeholder, answers 422 and counts nothing — there is
-  no safe fallback text to show instead, the way the assistant's `none`
-  action has one. Nothing is stored: the question text is never saved
-  (`models/CLAUDE.md`'s "autofill_answers" section explains why, and
-  already anticipates this feature as the reason a company's own question
-  would eventually get its own JSONB-backed slot). One `ESSAY` use per
-  generated answer (cap 5, share 10%: on top of the spec's four shares plus
-  the assistant's, following the same accepted-overshoot precedent).
+- **The autofiller calls no model** (KAN-470): the essay-answer route
+  (KAN-164) is gone. A question that needs writing is the student's own
+  Claude's, through the connector, or their paste on Written Answers, on a
+  batch tab and on a form they opened themselves alike
+  (`auto_apply/written.py`). `tests/test_model_sizes.py` lists every route
+  that asks for a model.
 - **The Applications Tracker's own writes** (KAN-413,
   `../docs/email_tracker.md`) are `routers/tracker.py` over
   `queries/tracker.py`: the stage menu (`PUT .../applications/{job_id}/stage`,

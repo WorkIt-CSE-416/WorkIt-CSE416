@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.auto_apply import pipeline
+from app.config import get_settings
 from app.connector.server import ROUTES as CONNECTOR_ROUTES
 from app.connector.server import connector
 from app.db import get_sessionmaker
@@ -30,7 +31,7 @@ from app.routers.company_jobs import router as company_jobs_router
 from app.routers.connector import added_router as connector_added_router
 from app.routers.connector import router as connector_router
 from app.routers.documents import router as documents_router
-from app.routers.essay_answer import router as essay_answer_router
+from app.routers.extension_config import router as extension_config_router
 from app.routers.fill_reports import router as fill_reports_router
 from app.routers.intake import router as intake_router
 from app.routers.job_system_requests import router as job_system_requests_router
@@ -44,6 +45,7 @@ from app.routers.scout import router as scout_router
 from app.routers.sent_resumes import router as sent_resumes_router
 from app.routers.tailor import router as tailor_router
 from app.routers.tracker import router as tracker_router
+from app.routers.uninstall_answers import router as uninstall_answers_router
 from app.routers.writing_samples import router as writing_samples_router
 
 logger = logging.getLogger(__name__)
@@ -60,6 +62,39 @@ app = FastAPI(
     title="WorkIt",
     lifespan=lifespan,
 )
+
+def _version(text: str) -> tuple[int, ...] | None:
+    """"0.3" as (0, 3, 0, 0), as Chrome compares versions; None for anything that isn't dotted numbers."""
+    parts = text.strip().split(".")
+    if not all(p.isdigit() for p in parts):
+        return None
+    return (*map(int, parts), 0, 0, 0)[:max(4, len(parts))]
+
+
+@app.middleware("http")
+async def extension_version(request: Request, call_next):
+    """
+    The extension names its version on every request (KAN-466). One older
+    than MIN_EXTENSION_VERSION gets 426 with the minimum, and the panel asks
+    the student to update. A request with no version is let through: the
+    webapp's server sends none, and neither did builds before this. One from
+    the extension (its chrome-extension:// origin) is logged, to see how
+    many old builds are still out there.
+    """
+    sent = request.headers.get("x-workit-extension")
+    if sent is None:
+        if request.headers.get("origin", "").startswith("chrome-extension://"):
+            logger.info("Extension request with no version: %s %s", request.method, request.url.path)
+        return await call_next(request)
+    minimum = get_settings().min_extension_version
+    version, floor = _version(sent), _version(minimum)
+    if version is not None and floor is not None and version < floor:
+        return JSONResponse(
+            status_code=426,
+            content={"detail": {"message": "Please update WorkIt.", "min_version": minimum}},
+        )
+    return await call_next(request)
+
 
 app.include_router(auth_router)
 app.include_router(jobs_router)
@@ -80,14 +115,15 @@ app.include_router(assistant_router)
 app.include_router(preferences_router)
 app.include_router(autofill_answers_router)
 app.include_router(notifications_router)
-app.include_router(essay_answer_router)
 app.include_router(connector_router)
 app.include_router(connector_added_router)
 app.include_router(writing_samples_router)
 app.include_router(pasted_answers_router)
 app.include_router(fill_reports_router)
 app.include_router(job_system_requests_router)
+app.include_router(extension_config_router)
 app.include_router(tracker_router)
+app.include_router(uninstall_answers_router)
 # The connector's MCP server and its OAuth endpoints (app/connector/server.py).
 app.router.routes.extend(CONNECTOR_ROUTES)
 

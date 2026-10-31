@@ -152,7 +152,7 @@ function decodeSession(raw) {
  * @returns {Promise<import("../shared/types.js").Session | null>}
  */
 export async function readWebappSession() {
-  for (const origin of [DEV_WEB_URL, ...PROD_SITES.map((site) => site.web)]) {
+  for (const origin of [DEV_WEB_URL, ...PROD_SITES.map((site) => site.web)].filter(Boolean)) {
     const raw = await reassembleSessionCookie(origin);
     if (!raw) continue;
 

@@ -101,6 +101,10 @@ export class FakeApi {
 
   /** Set to answer the profile with a server error, so a tab's fill can't plan. */
   profileDown = false;
+  /** The job systems WorkIt turned off (GET /extension/config, KAN-467), as routers/extension_config.py names them. */
+  disabledJobSystems: { job_system: string; name: string }[] = [];
+  /** Set to fail GET /extension/config, as a down API would. */
+  configDown = false;
 
   /** The student's transcript (GET .../documents, .../documents/transcript/bytes, KAN-369), or none. */
   transcript: { filename: string; base64: string } | null = null;
@@ -121,9 +125,6 @@ export class FakeApi {
   connectorAdded = false;
   /** How many reads of the Claude connection fail (a server error) before one answers. */
   connectorDown = 0;
-
-  /** The access token this student signs in with (loaded-extension.ts signIn); another is refused. */
-  token = "test-access-token";
 
   /** `profile`: the student's profile fields that differ from STUDENT's (another student: their id, name, email). */
   constructor(private profile: Partial<Omit<typeof STUDENT, "answers">> & { answers?: Record<string, string | null> } = {}) {
@@ -156,11 +157,19 @@ export class FakeApi {
     return this;
   }
 
+  /** The access token the API takes (signIn's): change it to expire the one the student signed in with. */
+  token = "test-access-token";
+
   readonly handler: Handler = ({ url, method, headers, body }) => {
     if (url.host !== "localhost:8000") return undefined;
     const path = url.pathname;
     this.calls.push(`${method} ${path}${url.search}`);
     if (path === "/health") return { json: { status: "ok" } };
+    // Public: no sign-in (routers/extension_config.py).
+    if (path === "/extension/config" && method === "GET") {
+      if (this.configDown) return { status: 503, json: { detail: "Service Unavailable" } };
+      return { json: { disabled_job_systems: this.disabledJobSystems } };
+    }
     if (headers.authorization !== `Bearer ${this.token}`) return { status: 401, json: { detail: "Not signed in" } };
     if (path === "/fill-reports" && method === "POST") {
       this.reports.push(JSON.parse(body.toString()));
@@ -273,6 +282,15 @@ export class FakeApi {
       const next = [...this.stages].find(([id, stage]) => open(stage) && !skip.has(id) && (!only.size || only.has(id)));
       if (next) this.events.push(`next:${next[0]}`);
       return { json: next ? this.application(next[0]) : null };
+    }
+    // A job's Auto Apply button (pipeline.py's queue_job): a listed job with no application, or a saved one, is
+    // queued; one at any other stage keeps it. A job WorkIt doesn't list is a 404.
+    if (route === "/applications" && method === "POST") {
+      const { job_id: id } = JSON.parse(body.toString());
+      if (!this.postings.has(id)) return { status: 404, json: { detail: "That job isn't open any more." } };
+      const stage = this.stages.get(id);
+      if (!stage || (stage as string) === "saved") this.stages.set(id, "queued");
+      return { json: { job_id: id, stage: this.stages.get(id) } };
     }
     // The queued applications, newest first, as GET .../applications?stage=queued answers them.
     if (route === "/applications" && method === "GET" && url.searchParams.get("stage") === "queued") {

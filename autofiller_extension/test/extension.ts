@@ -44,12 +44,10 @@ export type Row = { key: string; label: string; required: boolean; status: strin
 type Fetch = (url: string, init?: { method: string; body: string }) => Promise<string>;
 
 /** Answers the page's chrome.runtime.sendMessage with the background's fill handler, for every page `page` shows. */
-export async function bridge(page: Page, fetchText: Fetch, profile = STUDENT, essay?: (message: any) => string): Promise<void> {
+export async function bridge(page: Page, fetchText: Fetch, profile = STUDENT): Promise<void> {
   const trees: Record<string, unknown> = {};
   await page.exposeFunction("__workitSend", async (message: any) => {
     try {
-      // The essay route's answer, as background.js's essay/generate gives it.
-      if (message.type === "essay/generate" && essay) return { ok: true, answer: essay(message), usesLeft: 4 };
       const call = engineCaller((request) => page.evaluate(runEngine, request));
       const answer = await handleFill(message, {
         url: page.url(), profile, today: "2026-10-22", call, fetchText,
