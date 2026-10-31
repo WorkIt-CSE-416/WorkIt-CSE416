@@ -119,6 +119,12 @@ class Settings(BaseSettings):
     # no one is an admin. There is no admin role in the database: the team is a handful of developers.
     workit_admins: str = ""
 
+    # The oldest extension version the API still serves (KAN-466): a request whose
+    # X-WorkIt-Extension header names an older one gets 426, and the panel asks the
+    # student to update. Raise it only when a change breaks older builds; the default
+    # refuses none. Store updates take hours to days to reach every student.
+    min_extension_version: str = "0.0.0"
+
     # The scraper's output, which app/scripts/import_jobs.py loads into the
     # database by default. Data — nothing from scraper/ is imported, so it
     # stays out of this build.

@@ -13,3 +13,10 @@ test("a route's own error shows as it says it, and one with no words is a plain 
   expect(errorMessage(422, { detail: "Couldn't draft an answer." })).toBe("Couldn't draft an answer.");
   expect(errorMessage(404, {})).toBe("WorkIt's server couldn't do that just now.");
 });
+
+test("an API that is down says so in one plain sentence (KAN-466), and a 426 asks the student to update", () => {
+  // Cloudflare's 502 or a crash's 500 has no JSON body, so no words of the route's.
+  expect(errorMessage(502, {})).toBe("WorkIt didn't answer. Try again in a minute.");
+  expect(errorMessage(500, {})).toBe("WorkIt didn't answer. Try again in a minute.");
+  expect(errorMessage(426, { detail: { message: "Please update WorkIt.", min_version: "0.3.0" } })).toMatch(/^Please update WorkIt\. Restart Chrome/);
+});

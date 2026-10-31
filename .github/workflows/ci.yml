@@ -21,6 +21,41 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
 
+  # The Chrome Web Store package (KAN-463): store/build.mjs fails if any packaged file names localhost,
+  # vercel.app or "Prototype", and the specs read the zip back and check the website calls the
+  # extension's ID. The package needs the private fill-engine submodule, which the default token can't
+  # read: the build steps run once a FILL_ENGINE_TOKEN secret (read access to WorkIt-CSE-416/fill-engine)
+  # is set; the ID check runs either way.
+  extension-store-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: autofiller_extension
+    steps:
+      - id: engine
+        run: echo "token=${{ secrets.FILL_ENGINE_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.engine.outputs.token == 'true'
+        with:
+          submodules: true
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - uses: actions/checkout@v4
+        if: steps.engine.outputs.token != 'true'
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci
+        working-directory: autofiller_extension/test
+      - run: npx playwright test extension-id.spec.ts --project=page
+        working-directory: autofiller_extension/test
+      - if: steps.engine.outputs.token == 'true'
+        run: node store/build.mjs
+      - if: steps.engine.outputs.token == 'true'
+        run: npx playwright test store-build.spec.ts --project=page
+        working-directory: autofiller_extension/test
+      - if: steps.engine.outputs.token != 'true'
+        run: echo "::warning::FILL_ENGINE_TOKEN is not set, so the Store package was not built or checked."
+
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.
   api-worker:

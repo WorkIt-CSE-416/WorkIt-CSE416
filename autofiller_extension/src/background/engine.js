@@ -54,7 +54,7 @@ export function submittedPage(url) {
 }
 
 // WorkIt's own web origins: the only ones whose practice forms are filled.
-const WEB_ORIGINS = [DEV_WEB_URL, ...PROD_SITES.map((site) => site.web)];
+const WEB_ORIGINS = [DEV_WEB_URL, ...PROD_SITES.map((site) => site.web)].filter(Boolean);
 const PRACTICE_PATH = /^\/practice\/([a-z0-9-]+)\/([0-9a-f-]{36})\/(apply|thanks)\/?$/;
 
 /**

@@ -18,13 +18,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type BrowserContext, type Locator, type Page, type Worker } from "@playwright/test";
 import { CERT, KEY } from "./fake-tls";
+import { manifestId } from "../store/extension-id.mjs";
 
 export const EXTENSION = join(__dirname, "..");
-/** manifest.json's `key` pins this id. */
-export const EXTENSION_ID = "cpklhdkoafegnndlafmiceehfloodjgi";
+/** The id manifest.json's `key` pins (store/extension-id.mjs). */
+export const EXTENSION_ID = manifestId(EXTENSION);
 
 export type Request = { url: URL; method: string; headers: IncomingHttpHeaders; body: Buffer };
-export type Reply = { status?: number; headers?: Record<string, string>; body?: string | Buffer; json?: unknown };
+/** `drop`: close the connection with no answer, as an API that is unreachable (the browser's "Failed to fetch"). */
+export type Reply = { status?: number; headers?: Record<string, string>; body?: string | Buffer; json?: unknown; drop?: true };
 /** Answers a request, or returns undefined to pass it to the next handler. */
 export type Handler = (request: Request) => Reply | undefined | Promise<Reply | undefined>;
 
@@ -68,6 +70,7 @@ export async function startFakeNet(handlers: Handler[], extension = EXTENSION, l
       reply = { status: 500, body: String(error) };
     }
     reply ??= { status: 404, body: "" };
+    if (reply.drop) return void incoming.socket.destroy();
     // Saved pages load module scripts from another origin (Greenhouse's CDN), which only run with CORS
     // headers; Playwright's route.fulfill adds them itself, and the saved responses don't keep them.
     const cors = incoming.headers.origin ? { "access-control-allow-origin": incoming.headers.origin, "access-control-allow-credentials": "true" } : {};
@@ -94,6 +97,9 @@ export async function startFakeNet(handlers: Handler[], extension = EXTENSION, l
     ],
     asked,
     close() {
+      // A handler that never answers (an API that hangs) keeps its connection open: close it too.
+      http.closeAllConnections();
+      https.closeAllConnections();
       http.close();
       https.close();
     },
@@ -183,11 +189,18 @@ function testCopy(hosts: string[], open: boolean): string {
   return dir;
 }
 
+/** The name of the webapp's Supabase session cookie. */
+export const SESSION_COOKIE = "sb-zhdrvdrojipkluhzgsea-auth-token";
+
+/** The session cookie's value, as @supabase/ssr writes it, for a fake token expiring `expiresIn` seconds from now. */
+export function sessionCookie(accessToken = "test-access-token", expiresIn = 3600): string {
+  const session = { access_token: accessToken, refresh_token: "test-refresh-token", expires_at: Math.floor(Date.now() / 1000) + expiresIn };
+  return `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`;
+}
+
 /** The webapp's Supabase session cookie, as background/webapp-session.js reads it, for a fake token. */
-export async function signIn(context: BrowserContext, accessToken = "test-access-token"): Promise<void> {
-  const session = { access_token: accessToken, refresh_token: "test-refresh-token", expires_at: Math.floor(Date.now() / 1000) + 3600 };
-  const value = `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`;
-  await context.addCookies([{ name: "sb-zhdrvdrojipkluhzgsea-auth-token", value, url: "http://localhost:3000/" }]);
+export async function signIn(context: BrowserContext, accessToken = "test-access-token", expiresIn = 3600): Promise<void> {
+  await context.addCookies([{ name: SESSION_COOKIE, value: sessionCookie(accessToken, expiresIn), url: "http://localhost:3000/" }]);
 }
 
 /** A page of the webapp (localhost:3000), from which a test sends the messages the webapp sends. */
