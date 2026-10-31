@@ -19,7 +19,8 @@ problem"); the API stores it and writes the brief
 
 An admin is an account whose email or id is on the API's `WORKIT_ADMINS`.
 
-- **Web:** `/admin/fill-reports`, open a report: Copy Fix Brief, Download Fix
+- **Web:** `/admin/fill-reports` (filter by job system, status and engine
+  version; the Groups table on top, a group's count lists its reports), open a report: Copy Fix Brief, Download Fix
   Brief, Download Form Fixture, and its status (new / triaged / fixed) and note.
 - **curl:** `curl -H "Authorization: Bearer $TOKEN" $API/admin/fill-reports/<id>/brief`
   (and `.../fixture` for the HTML; `GET /admin/fill-reports?job_system=greenhouse&status=new`

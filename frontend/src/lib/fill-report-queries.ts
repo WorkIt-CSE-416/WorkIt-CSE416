@@ -1,7 +1,12 @@
 import "server-only";
 
 import { apiGet } from "@/lib/api";
-import { isReportId, type FillReport, type FillReportSummary } from "@/lib/fill-reports";
+import {
+  isReportId,
+  type FillReport,
+  type FillReportGroup,
+  type FillReportSummary,
+} from "@/lib/fill-reports";
 import { getAccessToken } from "@/lib/session";
 
 /**
@@ -28,6 +33,11 @@ export function listFillReports(
   query: string,
 ): Promise<Read<{ reports: FillReportSummary[]; total: number }>> {
   return read(`/admin/fill-reports${query}`);
+}
+
+/** GET /admin/fill-report-groups with the query `groupsQuery` built (KAN-478). */
+export function listFillReportGroups(query: string): Promise<Read<{ groups: FillReportGroup[] }>> {
+  return read(`/admin/fill-report-groups${query}`);
 }
 
 export function getFillReport(id: string): Promise<Read<FillReport>> {
