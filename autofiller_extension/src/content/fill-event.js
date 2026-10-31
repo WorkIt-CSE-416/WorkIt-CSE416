@@ -7,7 +7,8 @@
 // `start()` marks when the fill began; `sent(site, step)` sends once per start.
 // A stepped system's event names its step (from 1) and whether it is the last,
 // so fill-health counts the fill once; a step WorkIt couldn't plan sends one
-// with its `error`.
+// with its `error`. A field left blank because its Fields to autofill category
+// is off counts in `skipped_by_choice`, not `needs_you`: the student's choice.
 window.WIA = window.WIA || {};
 
 (function () {
@@ -31,7 +32,8 @@ window.WIA = window.WIA || {};
       fields: fields.length,
       filled: fields.filter((r) => r.status === "filled").length,
       guessed: fields.filter((r) => r.status === "filled" && r.source === "guessed").length,
-      needs_you: fields.filter(status.needsYou).length,
+      needs_you: fields.filter((r) => !r.off && status.needsYou(r)).length,
+      skipped_by_choice: fields.filter((r) => r.off && status.needsYou(r)).length,
       failed: fields.filter((r) => r.status === "failed").length,
       errors,
       duration_ms: Math.round(performance.now() - began),

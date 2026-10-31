@@ -14,7 +14,7 @@ import "../shared/report-parts.js";
 const { ERRORS } = globalThis.WIA.reportParts;
 // Whether fill numbers are sent (true unless the student turned them off).
 const ON_KEY = "fill_numbers";
-const COUNTS = ["fields", "filled", "guessed", "needs_you", "failed"];
+const COUNTS = ["fields", "filled", "guessed", "needs_you", "skipped_by_choice", "failed"];
 // The longest a fill's time may be: a Workday step the student sits on can take minutes.
 const MAX_DURATION_MS = 60 * 60 * 1000;
 

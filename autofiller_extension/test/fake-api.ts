@@ -27,7 +27,7 @@ export type Flag = string | { reason: string; quote?: string; hard?: boolean };
 
 // POST /fill-events' shape (backend/app/schemas/fill_events.py): these keys only, never a value.
 const FILL_EVENT_KEYS = [
-  "job_system", "engine_version", "extension_version", "mode", "fields", "filled", "guessed", "needs_you", "failed", "errors", "duration_ms",
+  "job_system", "engine_version", "extension_version", "mode", "fields", "filled", "guessed", "needs_you", "skipped_by_choice", "failed", "errors", "duration_ms",
   "step", "final_step",
 ];
 const ERROR_NAMES = ["Readback", "FillError", "Handoff", "NoForm", "NoAnswer", "Error"];
@@ -43,6 +43,7 @@ function fillEventProblems(event: Record<string, unknown>, profile: object): str
   // Optional (a stepped system's, KAN-476): the step's number from 1, and whether it is the last.
   if ("step" in event && (!Number.isInteger(event.step) || (event.step as number) < 1)) problems.push(`step ${event.step}`);
   if ("final_step" in event && typeof event.final_step !== "boolean") problems.push(`final_step ${event.final_step}`);
+  if ("skipped_by_choice" in event && (!Number.isInteger(event.skipped_by_choice) || (event.skipped_by_choice as number) < 0)) problems.push("skipped_by_choice is not a count");
   for (const [name, count] of Object.entries((event.errors as object) ?? {})) {
     if (!ERROR_NAMES.includes(name) || !Number.isInteger(count)) problems.push(`error ${name}`);
   }
