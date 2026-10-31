@@ -1,4 +1,11 @@
-import { AppWindow, Eye, PenLine, SkipForward, TriangleAlert, Zap } from "lucide-react";
+import {
+  AppWindowIcon,
+  EyeIcon,
+  PencilLineIcon,
+  SkipForwardIcon,
+  WarningIcon,
+} from "@phosphor-icons/react/ssr";
+import { LightningRoundedIcon } from "@/components/custom-icons";
 import Link from "next/link";
 import type { ComponentType, ReactNode } from "react";
 
@@ -16,9 +23,7 @@ import {
   TableRow,
 } from "@/components/shadcn/table";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
-import { IconButton } from "@/components/ui/icon-button";
 import { Card } from "@/components/ui/card";
-import { showRunTab } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
 
 import { LocalDate } from "../local-time";
@@ -26,7 +31,7 @@ import { STAGE_ICON } from "../stage-colors";
 import type { RunStage } from "./actions";
 import type { Application } from "./applications";
 import type { Sort, StatusFilter } from "./query";
-import { RemoveFromQueue } from "./remove-from-queue";
+import { jobLogo, type LogoSrc } from "@/lib/job-logo";
 
 type Glyph = ComponentType<{ className?: string }>;
 
@@ -44,7 +49,7 @@ export type ActivityItem = {
   role: string;
   company: string;
   /** The job posting's logo URL; its initials when null. */
-  logoUrl: string | null;
+  logoUrl: LogoSrc;
   status: ActivityStatus;
   /** A line under the status, only where it says more than the badge: what
    *  went wrong, where the job is open, or that its posting closed. */
@@ -57,6 +62,18 @@ export type ActivityItem = {
   appliedAt: string | null;
   /** The job posting's own page; the whole row opens it. None once closed. */
   href?: string;
+  /** The resume a queued job will go out with (./page.tsx): the student's
+   *  pick, else the rule's; null when it would go with none. Up Next shows
+   *  it. */
+  resume?: string | null;
+  /** That resume as the picker keys it, "built:<id>" or "uploaded:<id>", so
+   *  Up Next's resume picker (./resume-dialog.tsx) opens on it. */
+  resumeKey?: string | null;
+  /** Its job posting closed: the application can't go out (KAN-424). */
+  closed?: boolean;
+  /** How many of its written questions have no answer yet (./page.tsx, from
+   *  GET .../written-questions); Up Next's chip links them. */
+  questions?: number;
 };
 
 /** Each stored stage's status, and the line it needs under its badge. */
@@ -75,10 +92,11 @@ export function activityOf(application: Application<RunStage>): ActivityItem {
     id: job.id,
     role: job.title,
     company: job.company,
-    logoUrl: job.logo_url,
+    logoUrl: jobLogo(job),
     status,
     // A closed one waits on nothing: its page is gone.
     detail: open ? detail : "Job posting closed",
+    closed: !open,
     match: application.match ?? null,
     addedAt: application.added_at,
     appliedAt: application.applied_at,
@@ -116,7 +134,7 @@ export const STATUS: Record<
   }
 > = {
   review: {
-    Icon: Eye,
+    Icon: EyeIcon,
     label: "Needs Review",
     tone: "warning",
     dot: "bg-warning-strong",
@@ -124,7 +142,7 @@ export const STATUS: Record<
     rank: 0,
   },
   failed: {
-    Icon: TriangleAlert,
+    Icon: WarningIcon,
     label: "Couldn't Finish",
     tone: "warning",
     dot: "bg-warning-strong",
@@ -132,7 +150,7 @@ export const STATUS: Record<
     rank: 0,
   },
   browser: {
-    Icon: AppWindow,
+    Icon: AppWindowIcon,
     label: "Working in Browser",
     tone: "advanced",
     dot: "bg-advanced",
@@ -148,7 +166,7 @@ export const STATUS: Record<
     rank: 1,
   },
   filling: {
-    Icon: PenLine,
+    Icon: PencilLineIcon,
     label: "Autofilling",
     tone: "advanced",
     dot: "bg-advanced",
@@ -172,7 +190,7 @@ export const STATUS: Record<
     rank: 3,
   },
   skipped: {
-    Icon: SkipForward,
+    Icon: SkipForwardIcon,
     label: "Skipped",
     tone: "inert",
     dot: "bg-ink-faint",
@@ -187,10 +205,10 @@ export const STATUS: Record<
  *  it is the run at work. */
 export const GROUPS: Record<StatusFilter, { label: string; Icon: Glyph; ink: string }> = {
   queued: { label: "Queued", Icon: ClockIcon, ink: "text-ink-meta" },
-  progress: { label: "In Progress", Icon: Zap, ink: "text-advanced" },
-  needs_you: { label: "Needs You", Icon: TriangleAlert, ink: "text-warning" },
+  progress: { label: "In Progress", Icon: LightningRoundedIcon, ink: "text-advanced" },
+  needs_you: { label: "Needs You", Icon: WarningIcon, ink: "text-warning" },
   applied: { label: "Applied", Icon: STAGE_ICON.applied, ink: "text-brand" },
-  skipped: { label: "Skipped", Icon: SkipForward, ink: "text-ink-meta" },
+  skipped: { label: "Skipped", Icon: SkipForwardIcon, ink: "text-ink-meta" },
 };
 
 const IN_FLIGHT: ActivityStatus[] = ["browser", "tailoring", "filling"];
@@ -252,33 +270,30 @@ const COLUMNS: { id: string; label: string; sort?: Sort; hint?: string; width?: 
     hint: "Sort by date applied, latest first",
     width: "w-30",
   },
-  { id: "action", label: "Actions", width: "w-16" },
 ];
 
-const TH = "px-4 text-note text-ink-meta font-medium";
-const TD = "px-4 py-3 text-note text-ink";
+export const TH = "px-4 text-note text-ink-meta font-medium";
+export const TD = "px-4 py-3 text-note text-ink";
 /** Every column but Role is centred, heading and cell (asked for
  *  2026-10-20): each holds one short value under its heading. */
-const CENTER = "text-center";
+export const CENTER = "text-center";
 /** Role is frozen at the left while the rest scrolls, from 672px of page up,
  *  as on the Applications list (applications/list.tsx says why not below). */
-const FROZEN =
+export const FROZEN =
   "z-1 bg-panel @2xl/main:sticky @2xl/main:left-0 @2xl/main:shadow-[1px_0_0_var(--color-border-subtle)]";
 
 /**
  * Live Activity's table (KAN-285): one row per job posting, in one white
  * card with 12px grey headings and rules between rows, the Applications
  * list's frame (applications/list.tsx). Columns: Role (the logo, then the
- * role over its company), Status, Match, Date Added, Date Applied, and
- * Actions at the right end.
+ * role over its company), Status, Match, Date Added and Date Applied. It
+ * lists applied and skipped jobs only (History, archived for now:
+ * ./page.tsx); Up Next has its own table (./queue-table.tsx), which shares
+ * this one's frame (TH, TD, CENTER, FROZEN).
  *
  * Every column but Role is centred. A row with an `href` (its job posting
  * is still open) opens it on a click anywhere (components/clickable-row.tsx);
- * the role is its link. Actions is a narrow column of icon buttons, to save
- * width: a queued row's cross takes it out of the queue
- * (./remove-from-queue.tsx), and the row open in the extension's tab has a
- * window glyph that goes to that tab; the row leaves clicks on a button to
- * the button.
+ * the role is its link.
  *
  * A heading sorts the table (`onSort`), each one way, as the Applications
  * list's headings do; the sort in force says so in aria-sort and its chevron.
@@ -297,12 +312,13 @@ export function ActivityTable({
   sort: Sort;
   onSort: (sort: Sort) => void;
 }) {
+  const columns = COLUMNS;
   return (
     <Card padding="none" className="mt-3 overflow-hidden">
       <Table className="min-w-[54rem] table-fixed">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            {COLUMNS.map((column) => {
+            {columns.map((column) => {
               const active = column.sort != null && column.sort === sort;
               const direction = column.sort && SORT_DESC[column.sort] ? "desc" : "asc";
               return (
@@ -321,11 +337,13 @@ export function ActivityTable({
                       direction={direction}
                       onClick={() => onSort(column.sort!)}
                     />
-                  ) : (
+                  ) : column.id === "action" ? (
                     // Actions is named for a screen reader only: the column
                     // holds one icon button with its own tooltip, and the
                     // word would not fit its 64px.
                     <span className="sr-only">{column.label}</span>
+                  ) : (
+                    column.label
                   )}
                 </TableHead>
               );
@@ -381,34 +399,40 @@ function Row({ item, index }: { item: ActivityItem; index: number }) {
       </TableCell>
 
       <TableCell className={cn(TD, CENTER, "overflow-hidden")}>
-        <div className="flex items-center justify-center gap-2">
-          {IN_FLIGHT.includes(item.status) && (
-            <span
-              aria-hidden="true"
-              className={cn("relative size-1.5 shrink-0 rounded-full", status.dot)}
-            >
+        <>
+          <div className="flex items-center justify-center gap-2">
+            {IN_FLIGHT.includes(item.status) && (
               <span
-                className={cn("animate-status-ping absolute inset-0 rounded-full", status.dot)}
-              />
-            </span>
+                aria-hidden="true"
+                className={cn("relative size-1.5 shrink-0 rounded-full", status.dot)}
+              >
+                <span
+                  className={cn("animate-status-ping absolute inset-0 rounded-full", status.dot)}
+                />
+              </span>
+            )}
+            <Badge tone={status.tone}>
+              <status.Icon aria-hidden className="mr-1 size-3.5 shrink-0" />
+              {status.label}
+            </Badge>
+          </div>
+          {item.detail && (
+            <p className="text-note text-ink-meta mt-1 truncate" title={item.detail}>
+              {item.detail}
+            </p>
           )}
-          <Badge tone={status.tone}>
-            <status.Icon aria-hidden className="mr-1 size-3.5 shrink-0" />
-            {status.label}
-          </Badge>
-        </div>
-        {item.detail && (
-          <p className="text-note text-ink-meta mt-1 truncate" title={item.detail}>
-            {item.detail}
-          </p>
-        )}
+        </>
       </TableCell>
 
       <TableCell className={cn(TD, CENTER)}>
         {item.match != null ? (
           <MatchBadge score={item.match} />
         ) : (
-          <span className="text-ink-meta">Not scored</span>
+          // A dash, not "Not scored" in every row: the empty cell is the answer.
+          <span className="text-ink-faint">
+            <span aria-hidden="true">–</span>
+            <span className="sr-only">Not scored</span>
+          </span>
         )}
       </TableCell>
 
@@ -418,21 +442,6 @@ function Row({ item, index }: { item: ActivityItem; index: number }) {
 
       <TableCell className={cn(TD, CENTER, !item.appliedAt && "text-ink-meta")}>
         {item.appliedAt ? <LocalDate at={item.appliedAt} /> : "Not yet"}
-      </TableCell>
-
-      <TableCell className={cn(TD, CENTER, "py-0")}>
-        {item.status === "queued" ? (
-          <RemoveFromQueue jobId={item.id} role={item.role} company={item.company} />
-        ) : item.status === "browser" ? (
-          <IconButton
-            label={`Go to the tab with ${item.role}`}
-            tooltip="Go to the tab"
-            className="size-8"
-            onClick={() => void showRunTab()}
-          >
-            <AppWindow aria-hidden className="size-4" />
-          </IconButton>
-        ) : null}
       </TableCell>
     </>
   );
@@ -445,7 +454,9 @@ function Row({ item, index }: { item: ActivityItem; index: number }) {
       {cells}
     </ClickableRow>
   ) : (
-    <TableRow className="group/row animate-fade hover:bg-transparent" style={style}>
+    // No `group/row`: a row that opens nothing takes no hover tint, and with it the frozen Role cell
+    // (which follows the row's group) tinted alone, so half a row lit up (KAN-424).
+    <TableRow className="animate-fade hover:bg-transparent" style={style}>
       {cells}
     </TableRow>
   );

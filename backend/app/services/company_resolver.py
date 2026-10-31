@@ -48,6 +48,9 @@ class CompanyRead:
     companies: frozenset[str]
     # The words no name used, in order, for the roles and the job's text.
     rest: tuple[str, ...]
+    # Where each of rest's words stood in the words read (read only), so a
+    # fact found in rest can name the words of the search that set it.
+    kept: tuple[int, ...] = ()
 
 
 class CompanyResolver:
@@ -77,6 +80,7 @@ class CompanyResolver:
         ws = list(words)
         found: set[str] = set()
         rest: list[str] = []
+        kept: list[int] = []
         i = 0
         while i < len(ws):
             for n in range(min(self._longest, len(ws) - i), 0, -1):
@@ -87,8 +91,9 @@ class CompanyResolver:
                     break
             else:
                 rest.append(ws[i])
+                kept.append(i)
                 i += 1
-        return CompanyRead(frozenset(found), tuple(rest))
+        return CompanyRead(frozenset(found), tuple(rest), tuple(kept))
 
     def _close(self, typed: str) -> tuple[str, ...] | None:
         '''the one name close to typed, or None when none is or several are'''

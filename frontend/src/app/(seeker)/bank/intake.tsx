@@ -1,14 +1,14 @@
 "use client";
 
 import {
-  ChevronLeft,
-  FileText,
-  FileUp,
-  MessageSquareText,
-  PartyPopper,
-  Pencil,
-  SkipForward,
-} from "lucide-react";
+  CaretLeftIcon,
+  ChatTextIcon,
+  ConfettiIcon,
+  FileArrowUpIcon,
+  FileTextIcon,
+  PencilSimpleIcon,
+  SkipForwardIcon,
+} from "@phosphor-icons/react/ssr";
 import { Fragment, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
 import { Composer, Message, Typing, ScoutMark as Mark } from "@/components/scout/chat";
@@ -597,7 +597,7 @@ export function Intake({
 
   const uploadStrip = offerImport && !importing && (
     <div className="border-brand-pale bg-brand-tint/40 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-dashed px-4 py-3">
-      <FileUp aria-hidden className="text-brand size-5 shrink-0" />
+      <FileArrowUpIcon aria-hidden className="text-brand size-5 shrink-0" />
       <p className="text-note text-ink-muted min-w-0 flex-1">
         Want to pre-fill your entries? Upload your resume. Scout fills in what it can, then asks
         only about the rest.{" "}
@@ -614,7 +614,7 @@ export function Intake({
         onClick={() => fileInput.current?.click()}
         disabled={uploading || answering || saving}
       >
-        <FileUp /> {uploading ? "Uploading…" : "Upload Resume"}
+        <FileArrowUpIcon aria-hidden /> {uploading ? "Uploading…" : "Upload Resume"}
       </Button>
       {uploadError && (
         <p role="alert" className="text-note text-danger basis-full">
@@ -640,15 +640,15 @@ export function Intake({
           onClick={() => fileInput.current?.click()}
           disabled={uploading || answering || saving}
         >
-          <FileUp aria-hidden />
+          <FileArrowUpIcon aria-hidden />
           {uploading ? "Uploading…" : "Upload Resume"}
         </Chip>
         <Chip variant="suggestion" disabled={uploading} onClick={() => setImporting(true)}>
-          <FileText aria-hidden /> Use One I Uploaded
+          <FileTextIcon aria-hidden /> Use One I Uploaded
         </Chip>
         {stage && (
           <Chip variant="suggestion" disabled={uploading} onClick={startWithoutResume}>
-            <MessageSquareText aria-hidden /> Start Without One
+            <ChatTextIcon aria-hidden /> Start Without One
           </Chip>
         )}
       </div>
@@ -858,10 +858,10 @@ export function Intake({
         ) : (
           <div className="animate-fade flex flex-wrap gap-2">
             <Chip variant="suggestion" onClick={() => setSheet(true)}>
-              <Pencil aria-hidden /> Fill In Myself
+              <PencilSimpleIcon aria-hidden /> Fill In Myself
             </Chip>
             <Chip variant="suggestion" onClick={skip} disabled={saving || answering}>
-              <SkipForward aria-hidden /> Skip Section
+              <SkipForwardIcon aria-hidden /> Skip Section
             </Chip>
           </div>
         )}
@@ -920,7 +920,7 @@ export function Intake({
           >
             <div className="px-3 pb-1">
               <Button size="sm" variant="ghost" onClick={() => setSheet(false)}>
-                <ChevronLeft /> Back to Chat
+                <CaretLeftIcon aria-hidden /> Back to Chat
               </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{card}</div>
@@ -1021,14 +1021,14 @@ function ChatLine({ line, follows }: { line: Line; follows: boolean }) {
   if (line.kind === "saved")
     return (
       <div className="animate-pop text-label bg-positive-tint text-positive-ink mx-auto my-1 flex items-center gap-2 rounded-full px-4 py-1.5">
-        <PartyPopper aria-hidden className="size-4" />
+        <ConfettiIcon aria-hidden className="size-4" />
         Saved! {line.title}
       </div>
     );
   if (line.kind === "skipped")
     return (
       <p className="text-note text-ink-meta mx-auto flex items-center gap-1.5 text-center">
-        <SkipForward aria-hidden className="size-3.5 shrink-0" />
+        <SkipForwardIcon aria-hidden className="size-3.5 shrink-0" />
         Skipped {sectionOf(line.section).label}. You can come back to it anytime.
       </p>
     );

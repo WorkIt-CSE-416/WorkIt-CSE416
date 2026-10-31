@@ -29,10 +29,13 @@ import {
   getJobFacets,
   getJobListings,
   getJobLocations,
+  getSearchFacts,
   getTailoredJobIds,
   isApplicant,
   type FeedPage,
+  type SearchFact,
 } from "../jobs/listings";
+import { SearchFacts } from "./search-facts";
 
 export const metadata: Metadata = {
   title: "Search Jobs",
@@ -98,18 +101,22 @@ function ResultCountSkeleton() {
 /** The matching roles, or the state that stands in for them. */
 async function Results({
   results,
+  facts: factsLoading,
   query,
   filters,
 }: {
   results: Promise<FeedPage>;
+  /** The filters the search's own words set (./search-facts). */
+  facts: Promise<SearchFact[]>;
   query: string;
   filters: FeedFilters;
 }) {
   // The seeker's applications and tailored resumes, for the cards' Auto Apply
   // and Tailor buttons, and whether Apply Now may ask "Did You Apply?" (as
   // /jobs).
-  const [{ jobs, more, error }, stages, tailored, canMarkApplied] = await Promise.all([
+  const [{ jobs, more, error }, facts, stages, tailored, canMarkApplied] = await Promise.all([
     results,
+    factsLoading,
     getApplicationStages(),
     getTailoredJobIds(),
     isApplicant(),
@@ -120,27 +127,36 @@ async function Results({
     return <ListingsError error={error} retryHref={`/search?${retry}`} />;
   }
 
+  // Above the list or the empty state, with the results rather than the
+  // heading: they arrive together, so the chips never push a list down that
+  // is already on screen.
+  const shownFacts = <SearchFacts facts={facts} filters={filters} />;
+
   if (jobs.length === 0) {
     return (
-      <EmptyState
-        Icon={SearchIcon}
-        title={`No Roles Match “${query}”`}
-        className="mt-4"
-        action={
-          <ButtonLink href="/jobs" variant="secondary" size="sm">
-            Browse All Jobs
-          </ButtonLink>
-        }
-      >
-        {isFiltered(filters)
-          ? "Try a different title or company name, loosen a filter, or browse every role in the feed."
-          : "Try a different title or company name, or browse every role in the feed."}
-      </EmptyState>
+      <>
+        {shownFacts}
+        <EmptyState
+          Icon={SearchIcon}
+          title={`No Roles Match “${query}”`}
+          className="mt-4"
+          action={
+            <ButtonLink href="/jobs" variant="secondary" size="sm">
+              Browse All Jobs
+            </ButtonLink>
+          }
+        >
+          {isFiltered(filters) || facts.length > 0
+            ? "Try a different title or company name, loosen a filter, or browse every role in the feed."
+            : "Try a different title or company name, or browse every role in the feed."}
+        </EmptyState>
+      </>
     );
   }
 
   return (
     <>
+      {shownFacts}
       {/* The level between the page's h1 and each card's h3, as on /jobs. */}
       <h2 className="sr-only">Search Results</h2>
       {/* The first page of matches, and a Load More for the rest. */}
@@ -172,7 +188,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
      no count, since nothing has been searched for them to narrow or count. */
   if (!query) {
     return (
-      <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+      <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
         <h1 className="text-heading text-ink">Search Jobs</h1>
         {subtitle}
 
@@ -194,12 +210,13 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
   const results = getJobListings(filters, query);
   const count = getJobCount(filters, query);
+  const facts = getSearchFacts(query);
   // Keys the boundaries below: a new query or a new set of filters shows the
   // placeholders straight away.
   const key = feedQuery(filters, query);
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* So a job's page can come back to these results. */}
       <RememberFeed />
       {/* One transition for a filter change, so the results dim the moment
@@ -241,7 +258,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
         <PendingFeed>
           <Suspense key={key} fallback={<ListingsSkeleton />}>
-            <Results results={results} query={query} filters={filters} />
+            <Results results={results} facts={facts} query={query} filters={filters} />
           </Suspense>
         </PendingFeed>
       </FeedTransition>

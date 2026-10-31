@@ -29,6 +29,12 @@
   /* Fonts — the faces themselves are loaded by next/font in app/layout.tsx. */
   --font-sans: var(--font-jakarta-sans);
   --font-mono: var(--font-geist-mono);
+  /* Regular is 450, not 400 (KAN-365). Plus Jakarta Sans's 400 is light, and
+   * small grey text at it (a job card's facts, dates, helper lines) read
+   * thin. next/font loads the face as a variable font, so any weight from
+   * 200 to 800 draws true. This sets `font-normal`, the body's default and
+   * --text-hero's weight; medium (500) stays a step above. */
+  --font-weight-normal: 450;
 
   /* Surfaces ------------------------------------------------------------
    * NEUTRALISED, the same way the app roles below were and for the same
@@ -93,7 +99,7 @@
   /* Radii ---------------------------------------------------------------- */
   --radius-control: 0.5rem; /* 8px — inputs, buttons */
   --radius-card: 0.625rem; /* 10px — card */
-  --radius-shell: 1.25rem; /* 20px: the seeker shell's floating panels, both Dashboards' heroes, the company pipeline band */
+  --radius-shell: 1.25rem; /* 20px: Home's and the company Dashboard's heroes and tiles, the company pipeline band */
 
   /* Elevation ------------------------------------------------------------
    * Matches the measured falloff: ~10px below the card, ~8px to the sides. */
@@ -101,6 +107,12 @@
 
   /* Layout --------------------------------------------------------------- */
   --container-auth: 22.5rem; /* 360px: the auth card, 310px of content inside p-6 and a 1px border */
+  /* 320px: every list or table that scrolls inside a dialog or a tile (the
+   * resume picker, Add Jobs, Top Matches), as `max-h-scroll-box` or
+   * `h-scroll-box`, so those boxes stop at one height. Each picked its own
+   * until KAN-360: Add Jobs grew to 90% of the window. A full-page table
+   * never takes it; the page scrolls. */
+  --spacing-scroll-box: 20rem;
 
   /* -------------------------------------------------------------------------
    * App shell — added for the KAN-43 profile mockup
@@ -196,13 +208,9 @@
   --color-rail-selected: #e9e2ff;
   --color-rail-border: #e6e0f8;
 
-  /* The ground under the seeker shell's floating panels. The panel, the top
-   * bar and the page each sit on it as a white rounded panel, so the brand's
-   * lavender moved from the panel's fill to the frame around all three: a
-   * step deeper than --color-rail, enough for a white panel's edge to read
-   * against it with the rail border and --shadow-panel, and still a tint
-   * rather than a colour. The company shell is still docked and does not
-   * use it. */
+  /* A pale lavender a step deeper than --color-rail. It was the ground under
+   * the seeker shell's floating panels until the shell went flat
+   * (2026-10-27); onboarding's story panel still fades to it. */
   --color-frame: #f1eef9;
 
   /* App borders ---------------------------------------------------------- */
@@ -229,12 +237,22 @@
    * so what the click will open stands up from its neighbours. Only ever
    * on hover, and only on a card the whole of which is one target. */
   --shadow-lift: 0 2px 4px rgb(18 26 40 / 0.04), 0 10px 24px rgb(18 26 40 / 0.08);
+  /* A list row under the pointer, as Gmail marks one (KAN-427): hairlines
+   * at its sides and a short drop below, raised over its neighbours. A
+   * shadow, not a fill, because a read row is already grey (--color-app)
+   * and --color-hover on it is a step too small to see. */
+  --shadow-row:
+    inset 1px 0 0 rgb(18 26 40 / 0.1), inset -1px 0 0 rgb(18 26 40 / 0.1),
+    0 1px 2px rgb(18 26 40 / 0.2), 0 1px 3px 1px rgb(18 26 40 / 0.1);
 
   /* App layout ----------------------------------------------------------- */
+  /* The company shell's and the design kit's page column. */
   --container-app: 64rem; /* 1024px — 928px content + 48px padding each side */
-  /* The seeker Dashboard's cap, wider than the rest: a grid of tiles, not
-   * lines of text to read, so it uses a laptop's width and goes three columns
-   * across (KAN-173). Reading pages keep --container-app. */
+  /* Every seeker page's cap (2026-10-27): Home's since KAN-173, and every
+   * other seeker page's once the rail left the 1024px pages centred between
+   * wide empty margins. A block of prose keeps its own measure (About the
+   * Role's 68ch), since text past about 80 characters a line is hard to
+   * follow. */
   --container-dashboard: 90rem; /* 1440px */
 
   /* The seeker Dashboard's tiles (KAN-173): white on the white page panel,
@@ -252,7 +270,7 @@
    * one line on the screen, set large and regular with its key words bold. */
   --text-hero: 2.5rem; /* 40px */
   --text-hero--line-height: 3rem;
-  --text-hero--font-weight: 400;
+  --text-hero--font-weight: var(--font-weight-normal);
   --text-hero--letter-spacing: -0.02em;
 
   /* -------------------------------------------------------------------------
@@ -345,6 +363,11 @@
    * ink on the bright fill above, which read as the one stage drawn
    * differently. */
   --color-warning-strong: #d97706;
+  /* A yellow deep enough to carry a white glyph: 4.92:1 (Tailwind's
+   * yellow-700). The disc behind Home's Interviewing number (KAN-423), where
+   * the user wanted yellow rather than --color-warning-strong's orange-
+   * leaning amber. #b45309, a burnt amber, came first and read as orange. */
+  --color-warning-deep: #a16207;
   --color-danger: #c02a3d; /* unmeasured: rejected, ended badly */
   --color-danger-tint: #fce9eb;
 
@@ -403,7 +426,7 @@
 
   /* Activity streak ------------------------------------------------------
    * The four levels of the Dashboard's Activity streak, applications sent in
-   * a day from light to heavy, which (seeker)/dashboard/streak-canvas.ts
+   * a day from light to heavy, which (seeker)/home/streak-canvas.ts
    * paints. A day with none is --color-border-subtle, the recessive grey of a
    * chart's rules.
    *
@@ -465,7 +488,7 @@
   /* Board type -----------------------------------------------------------
    * A step above --text-title, which the board still uses for its column
    * headings — so the page name and the column names cannot be confused. */
-  --text-heading: 1.625rem; /* 26px — "My Applications" */
+  --text-heading: 1.625rem; /* 26px — "Applications Tracker" */
   --text-heading--line-height: 2rem;
   --text-heading--font-weight: 700;
   --text-heading--letter-spacing: -0.02em;
@@ -708,16 +731,6 @@
   --color-landing-brand-950: #22114b;
 }
 
-/* What collapsing the seeker panel frees, eased over the panel's own 200ms
- * linear (see (seeker)/layout.tsx, "A PAGE KEEPS THE WIDTH"). Registered as a
- * <length> so it can transition at all: an unregistered custom property
- * swaps at once, and the page would narrow for the length of the collapse. */
-@property --panel-gain {
-  syntax: "<length>";
-  inherits: true;
-  initial-value: 0px;
-}
-
 /* Scout opening and closing beside a seeker page ((seeker)/layout.tsx,
  * components/scout/scout-panel.tsx). The page lays itself out once at its new
  * width, then settles into it: 32px from where it was coming from, fading up
@@ -897,6 +910,7 @@ body {
   background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: var(--font-weight-normal);
 }
 
 /* The canvas — the strip a rubber-band scroll exposes past the top or bottom of
@@ -922,12 +936,6 @@ body {
  * axis it would take the trackpad's swipe-to-go-back with it. */
 body:has([data-shell]) {
   background: var(--color-panel);
-}
-
-/* The seeker shell floats its panels on --color-frame, so a bounce there
- * should open more frame, not a white strip. */
-body:has([data-shell="seeker"]) {
-  background: var(--color-frame);
 }
 
 /* The auth screens' sky is white overhead, so a bounce past their top opens
@@ -1210,6 +1218,38 @@ body:has([data-skyline]) {
 
   ::file-selector-button {
     cursor: pointer;
+  }
+
+  /* Phosphor's glyphs, a touch heavier (KAN-365). Its regular line is 16 on
+   * a 256 grid, 1px at size-4, and after the switch from Lucide (2 on 24)
+   * every icon read thin. Phosphor has no weight between regular and bold,
+   * so each glyph's filled shape gets a 5-unit outline in its own colour:
+   * about Lucide's 2px line, with Phosphor's shapes kept. Phosphor draws on
+   * a 256 grid and nothing else in the app does, which is what the selector
+   * reads. custom-icons.tsx strokes its own glyphs to match (STROKE); change
+   * the two together. In base, so a utility on one icon can still undo it. */
+  svg[viewBox="0 0 256 256"] {
+    stroke: currentColor;
+    stroke-width: 5;
+    stroke-linejoin: round;
+  }
+
+  /* A menu's, a select's or a combobox's rows are medium (500), as every
+   * control a student clicks or picks is: a button, a chip, a segmented
+   * control, the filters' options. shadcn's rows set no weight, so they drew
+   * at 400 and the account menu read thinner than the Jobs page's filters
+   * (KAN-365). In base, so a row that asks for another weight still gets it,
+   * and by data-slot rather than role, so the filters' own option rows keep
+   * the weights they set. */
+  :is(
+    [data-slot="dropdown-menu-item"],
+    [data-slot="dropdown-menu-checkbox-item"],
+    [data-slot="dropdown-menu-radio-item"],
+    [data-slot="dropdown-menu-sub-trigger"],
+    [data-slot="select-item"],
+    [data-slot="combobox-item"]
+  ) {
+    font-weight: 500;
   }
 }
 

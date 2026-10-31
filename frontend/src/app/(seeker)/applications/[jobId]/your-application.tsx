@@ -1,5 +1,7 @@
+import { ChatTextIcon } from "@phosphor-icons/react/ssr";
+import type { ReactNode } from "react";
+
 import { FileIcon } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
 import { cn } from "@/lib/cn";
@@ -8,12 +10,30 @@ import type { SentResume } from "@/lib/sent-resume-actions";
 import type { JobListing } from "../../jobs/listings";
 import { MatchRail } from "../../jobs/match-rail";
 import { LocalDate } from "../../local-time";
-import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "../../stage-colors";
-import { sortKey, type Application, type TimelineStep } from "../../tracker";
+import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, type StageKey } from "../../stage-colors";
+import {
+  eventsOf,
+  isUpcoming,
+  nextEvent,
+  sortKey,
+  type Application,
+  type TimelineStep,
+} from "../../tracker";
 import { Timeline } from "../timeline";
-import { ViewResumeButton } from "../view-resume";
+import { SentResumeRow } from "../view-resume";
+import { ApplyBy } from "./apply-by";
+import { StageMenu, TrackerEvents } from "./tracker-controls";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The card's headline: where the application stands, in a few words. */
+const HEADLINE: Record<StageKey, string> = {
+  saved: "Not Applied Yet",
+  applied: "Waiting to Hear Back",
+  interviewing: "In Interviews",
+  offer: "You Have an Offer",
+  rejected: "Not Moving Forward",
+};
 
 /** The strip's columns from 448px of card, by how many cards it has: a
  *  literal class each, so Tailwind sees them. */
@@ -131,10 +151,13 @@ export function YourApplication({
               <span className={cn("text-label font-semibold", STAGE_COLOR[app.stage].onTint)}>
                 {STAGE_LABEL[app.stage]}
               </span>
+              {/* The stage menu (KAN-413): the student says where it
+                  stands once the employer answers. */}
+              <span className="ml-auto">
+                <StageMenu jobId={app.id} stage={app.stage} />
+              </span>
             </div>
-            <h2 className="text-title text-ink mt-3 font-bold">
-              {app.appliedOn ? "Waiting to Hear Back" : "Not Applied Yet"}
-            </h2>
+            <h2 className="text-title text-ink mt-3 font-bold">{HEADLINE[app.stage]}</h2>
             {/* No applied date here: the days-since card and the timeline
                 both carry it. */}
             <p className="text-body text-ink-meta mt-1">
@@ -147,7 +170,17 @@ export function YourApplication({
               {app.resume ? <>Sent {app.resume}</> : "No resume sent through WorkIt"}
             </p>
 
-            <Timeline steps={timeline(app, sent)} horizontal className="mt-5" />
+            {/* Before it goes in, the student's own day to apply by
+                (KAN-429), which the Calendar shows. */}
+            {!app.appliedOn && (
+              <ApplyBy
+                jobId={app.id}
+                applyBy={app.applyBy ?? null}
+                closesAt={app.closesAt ?? null}
+              />
+            )}
+
+            <Timeline steps={timeline(app, sent, now)} horizontal className="mt-5" />
 
             {/* The cards: a figure over its words, a rounded white
                 box each. justify-end puts the figure at the top (the column
@@ -183,58 +216,125 @@ export function YourApplication({
         </div>
       </Card>
 
+      {/* INTERVIEWS & DATES (KAN-413): the events the student adds, and
+          later the ones the email tracker proposes (docs/email_tracker.md). */}
+      <TrackerEvents jobId={app.id} events={app.events} />
+
+      {/* WHAT YOU SENT (KAN-317): the resume as the Resumes view draws its
+          rows, then the answers the application asked for. Answers are not
+          stored yet; the dashed slot holds their place so the section's
+          shape does not change when they arrive. Both empty slots are the
+          upload dropzone's dashed outline, as the empty resume list's was. */}
       <Section title="What You Sent">
+        <h3 className="text-label text-ink mt-3 font-semibold">Resume</h3>
         {sent.length > 0 ? (
-          <ul className="mt-3 flex flex-col gap-2">
+          <ul>
             {sent.map((resume) => (
-              <li key={resume.id} className="text-body text-ink flex flex-wrap items-center gap-2">
-                <ViewResumeButton resume={resume} />
-                <Badge tone="inert">{resume.format.toUpperCase()}</Badge>
-                {resume.rebuilt && <Badge tone="inert">Rebuilt</Badge>}
-                {/* The one the application names (KAN-267): what the
-                    student said they sent, among every send to the posting. */}
-                {app.sentResume?.id === resume.id && <Badge tone="positive">Applied With</Badge>}
-                <span className="text-note text-ink-meta">
-                  Sent <LocalDate at={resume.created_at} />
-                </span>
-              </li>
+              <SentResumeRow
+                key={resume.id}
+                resume={resume}
+                appliedWith={app.sentResume?.id === resume.id}
+              />
             ))}
           </ul>
         ) : (
-          // A placeholder in the upload dropzone's dashed outline: the slot a
-          // sent resume fills, rather than a paragraph about why it's empty.
-          <div className="border-border-strong bg-well rounded-card mt-3 flex flex-col items-center gap-2 border border-dashed px-4 py-7">
-            <FileIcon className="text-ink-meta size-5" />
-            <p className="text-body text-ink-meta">No resume sent yet</p>
-          </div>
+          <EmptySlot icon={<FileIcon className="text-ink-meta size-5" />}>
+            No resume sent yet
+          </EmptySlot>
         )}
+
+        <h3 className="text-label text-ink mt-5 font-semibold">Answers</h3>
+        <EmptySlot icon={<ChatTextIcon aria-hidden className="text-ink-meta size-5" />}>
+          Your answers to this application&apos;s questions will show here.
+        </EmptySlot>
       </Section>
     </>
   );
 }
 
-/** Saved, each resume sent, then applied, oldest first. All behind it: the
- *  tracker stores nothing still to come (../../tracker.ts). A sent resume
- *  wears Applied's violet, as the applied date does. */
-function timeline(app: Application, sent: SentResume[]): TimelineStep[] {
-  const steps: TimelineStep[] = [
-    { id: "saved", kind: "saved", title: "Saved", at: app.savedOn, state: "done" },
-    ...sent.map((resume) => ({
+/** An empty slot in the upload dropzone's dashed outline: the place a sent
+ *  resume or the answers fill, rather than a paragraph about why it's
+ *  empty. */
+function EmptySlot({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <div className="border-border-strong bg-well rounded-card mt-2 flex flex-col items-center gap-2 border border-dashed px-4 py-7">
+      {icon}
+      <p className="text-body text-ink-meta text-center">{children}</p>
+    </div>
+  );
+}
+
+/** A resume sent closer than this to applying went with the application:
+ *  "Did You Apply?"'s Yes sends the resume and applies within a second or
+ *  two. */
+const ONE_ACTION_MS = 2 * 60 * 1000;
+
+/** A save closer than this to applying came from the same click: Yes on a
+ *  job never saved writes both in one statement, at one time. Two minutes
+ *  here once hid a real save made a minute before applying. */
+const SAME_CLICK_MS = 5 * 1000;
+
+/** The order of steps from one action, whatever their milliseconds say. */
+const RANK: Partial<Record<TimelineStep["kind"], number>> = { saved: 0, sent: 1, applied: 2 };
+
+/**
+ * Saved, each resume sent, applied, then the application's events
+ * (KAN-413), oldest first. An event still ahead is an empty ring, and the
+ * first of those is marked Next (`nextEvent`), as the Calendar's panel
+ * marks it.
+ *
+ * WHAT ONE ACTION WROTE IS ONE STEP (KAN-317). Apply writes the save, the
+ * sent resume and the application within a second, in no fixed order, so
+ * sorting by the millisecond once drew Sent, Saved, Applied, all at 3:02
+ * PM: a resume sent before the job was saved. Now a resume sent with the
+ * application is the Applied step's note, and a save from the same click
+ * is left out, since the student never saved the job first. The save's
+ * window is seconds, the resume's minutes: a student who saves and applies
+ * a minute later did two things. Steps further apart keep their own dot;
+ * a tie still sorts Saved, Sent, Applied.
+ */
+function timeline(app: Application, sent: SentResume[], now: Date): TimelineStep[] {
+  const applied = app.appliedOn ? sortKey(app.appliedOn) : null;
+  const withApplying = (at: string, within = ONE_ACTION_MS) =>
+    applied != null && Math.abs(sortKey(at) - applied) <= within;
+
+  const steps: TimelineStep[] = [];
+  if (!withApplying(app.savedOn, SAME_CLICK_MS)) {
+    steps.push({ id: "saved", kind: "saved", title: "Saved", at: app.savedOn, state: "done" });
+  }
+  const alone = sent.filter((resume) => !withApplying(resume.created_at));
+  for (const resume of alone) {
+    steps.push({
       id: resume.id,
-      kind: "applied" as const,
-      title: `Sent ${resume.name}`,
+      kind: "sent",
+      title: "Sent a Resume",
       at: resume.created_at,
-      state: "done" as const,
-    })),
-  ];
+      state: "done",
+    });
+  }
   if (app.appliedOn) {
     steps.push({
       id: "applied",
       kind: "applied",
       title: "Applied",
       at: app.appliedOn,
+      // What You Sent, under this card, names the resume.
+      note: alone.length < sent.length ? "Resume sent" : undefined,
       state: "done",
     });
   }
-  return steps.sort((a, b) => sortKey(a.at) - sortKey(b.at));
+  const next = nextEvent(app, now);
+  for (const event of eventsOf(app)) {
+    if (event.kind === "applied") continue;
+    steps.push({
+      id: event.id,
+      kind: event.kind,
+      title: event.title,
+      at: event.at,
+      state: event.id === next?.id ? "next" : isUpcoming(event.at, now) ? "later" : "done",
+    });
+  }
+  return steps.sort(
+    (a, b) => sortKey(a.at) - sortKey(b.at) || (RANK[a.kind] ?? 0) - (RANK[b.kind] ?? 0),
+  );
 }

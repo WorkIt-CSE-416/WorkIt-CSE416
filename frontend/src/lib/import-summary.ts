@@ -14,11 +14,5 @@ export function importSummary(result: ImportResult, filename: string | null): st
     result.entries_added ? count(result.entries_added, "entry", "entries") : "",
     result.skills_added ? count(result.skills_added, "skill", "skills") : "",
   ].filter(Boolean);
-  const filled = result.entries_updated
-    ? `filled in ${count(result.entries_updated, "entry", "entries")} you had`
-    : "";
-  if (!added.length && !filled) return `Experiences already has everything in ${from}${how}.`;
-  const did = [added.length ? `added ${added.join(" and ")}` : "", filled].filter(Boolean);
-  const sentence = did.join(" and ");
-  return `${sentence[0].toUpperCase()}${sentence.slice(1)} from ${from}${how}.`;
+  return `Added ${added.join(" and ")} from ${from}${how}.`;
 }

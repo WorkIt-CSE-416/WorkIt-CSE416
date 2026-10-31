@@ -84,8 +84,14 @@ class SignupRequest(AccountTypeSelection):
     second, redundant place the same rule could drift out of sync."""
 
     full_name: str = Field(alias="name", min_length=1, max_length=50)
+    # The parts the form asks for (KAN-326). Optional so an older web build,
+    # which sends `name` alone, still signs up; the route splits `name` then.
+    first_name: str | None = Field(None, alias="firstName", max_length=50)
+    middle_name: str | None = Field(None, alias="middleName", max_length=50)
+    last_name: str | None = Field(None, alias="lastName", max_length=50)
     email: NormalizedEmail
     password: str = Field(min_length=8)
+    captcha_token: str | None = Field(None, alias="captchaToken")
 
 
 class AuthenticatedAccount(BaseModel):

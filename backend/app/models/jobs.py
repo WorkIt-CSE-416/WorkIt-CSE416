@@ -49,6 +49,10 @@ class Job_Post(BaseModel):
     )
     company_name: Mapped[str | None] = mapped_column(Text)
     company_logo_url: Mapped[str | None] = mapped_column(Text)
+    # The employer's own registered domain, "goldmansachs.com", which the Jobs
+    # page draws the logo from (d9b579e66623, KAN-442); null when the scraper
+    # found no website, and for a company's own job.
+    company_domain: Mapped[str | None] = mapped_column(Text)
     apply_url: Mapped[str | None] = mapped_column(Text, unique=True)
 
     title: Mapped[str] = mapped_column(Text)
@@ -85,6 +89,10 @@ class Job_Post(BaseModel):
                         default=dto.job_post_status.published,
                         server_default=dto.job_post_status.published.name)
     closes_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # Why the feed import closed a scraped job (bd730e8ab454: gone_from_board,
+    # board_gone, filtered_out, replaced or unknown); null while open, for a
+    # company's own job and for one closed before the column.
+    closed_reason: Mapped[str | None] = mapped_column(Text)
     posted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     # The posting's meaning as a vector
     embedding: Mapped[list[float] | None] = mapped_column(
@@ -129,6 +137,16 @@ class Job_Post(BaseModel):
         CheckConstraint(
             "company_id IS NOT NULL OR (company_name IS NOT NULL AND apply_url IS NOT NULL)",
             name="scraped_job_completed"
+        ),
+        CheckConstraint(
+            "closed_reason IS NULL OR closed_reason IN"
+            " ('gone_from_board','board_gone','filtered_out','replaced','unknown')",
+            name="job_postings_closed_reason"
+        ),
+        CheckConstraint(
+            "company_domain IS NULL OR company_domain ~ "
+            "'^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'",
+            name="job_postings_company_domain"
         ),
 
         Index(  # index by job status ranked from earliest posted to latest 

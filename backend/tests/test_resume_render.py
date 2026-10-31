@@ -158,6 +158,22 @@ def test_escaped_text_prints_literally_and_runs_nothing() -> None:
     assert "root:" not in text
 
 
+
+def test_the_pdf_is_titled_with_the_name_and_the_name_runs_nothing() -> None:
+    # KAN-317: with no Title, a viewer showed the blob: link's random id
+    _tectonic_or_skip()
+    from pypdf import PdfReader
+
+    def title(name: str) -> str:
+        pdf = render(VIEW, replace(IDENTITY, name=name), "jakes").pdf
+        return PdfReader(io.BytesIO(pdf)).metadata["/Title"]
+
+    assert title("José O'Brien") == "José O'Brien Resume"
+    assert title("\\input{/etc/passwd} (a) >> <b>") == "\\input{/etc/passwd} (a) >> <b> Resume"
+    assert title("  ") == "Resume"
+    # The Overleaf source stays Jake's own: pdfLaTeX would warn on the special
+    assert "pdf:docinfo" not in resume_render.latex(VIEW, IDENTITY, "jakes")
+
 def _content_streams(pdf: bytes) -> list[bytes]:
     from pypdf import PdfReader
 
@@ -384,3 +400,23 @@ def test_an_unchecked_header_hashes_as_before_the_check_box() -> None:
     # A resume sent before the field existed still matches its repeat
     assert "us_citizen" not in _identity(IDENTITY)
     assert _identity(replace(IDENTITY, us_citizen=True))["us_citizen"] is True
+
+
+def test_a_bullet_whose_last_line_is_full_has_no_empty_line_after_it():
+    # Jake's \resumeItem puts a space after its argument ("{#1 \vspace{-2pt}}").
+    # When the last line was full, TeX broke at that space and printed an
+    # empty line after the bullet, 14.9 pt where bullets sit 2.9 pt apart
+    # (KAN-391). This text fills its last line in the sample view.
+    _tectonic_or_skip()
+    entry = next(e for s in VIEW.sections for e in s.entries if len(e.bullets) >= 2)
+    full = replace(entry.bullets[0], text=(
+        "Cut the build from 40 to 9 minutes by caching dependencies and splitting tests across "
+        "four workers and more iiiiiiiiii"))
+    view = replace(VIEW, sections=tuple(
+        replace(s, entries=tuple(
+            replace(e, bullets=(full, *e.bullets[1:])) if e.id == entry.id else e for e in s.entries))
+        for s in VIEW.sections))
+
+    boxes = [b for b in render(view, IDENTITY, "jakes").boxes if b.kind == "bullet"]
+    at = next(i for i, b in enumerate(boxes) if b.item_id == str(full.id))
+    assert boxes[at + 1].y0 - boxes[at].y1 < 5

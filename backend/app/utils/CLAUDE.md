@@ -59,7 +59,8 @@ etc.) used to tell title from company when both are plain text.
 
 Matches `City, ST` at the end of a line, where ST is a US state/territory code
 from `US_STATES`. Two passes: first looks for a multi-space gap (PDF extraction
-preserves these), then falls back to a 1-2 word city regex.
+preserves these), then falls back to a 1-2 word city regex. "Remote" or "Hybrid" after a multi-space gap
+is the location too ("Engineer| Ruby, Rails  Remote").
 
 Known ceilings:
 - US-only (no international locations)
@@ -119,11 +120,29 @@ as `None` (null end date).
   line is a new project when it holds a "|" or opens a new sentence after a
   finished bullet. Jake's Resume from LaTeX lists projects this way; before
   this, three projects merged into one.
-- **A project's tools** follow a "|" as a comma list ("Robot | C++, Python")
-  or sit in parentheses with a comma; they go to `Project.technologies`, and
-  import adds those missing from the skills section as ungrouped skills. One
-  phrase after the bar is a subtitle and stays in the name ("WorkIt | Full
-  Stack Recruiting Platform").
+- **A project's tools** follow the last "|" as a comma list ("Robot | C++,
+  Python") or sit in parentheses with a comma; they go to
+  `Project.technologies`, and import adds those missing from the skills
+  section as ungrouped skills. One phrase after the bar is a subtitle and
+  stays in the name ("WorkIt | Full Stack Recruiting Platform"); with a
+  subtitle and a list ("Robot | Club| C++, Go") the name keeps both phrases
+  and only the list is tools (`split_tools`). Before, the first bar split,
+  and "Club| C++" became a skill.
+- **A role's tools** work the same way: "Software Engineer Intern| C++, Go"
+  keeps only the role as the title, and the list goes to
+  `Experience.technologies` (jobs and leadership), then to ungrouped skills.
+  Before, the whole tail stayed in the title.
+- **Skills a reading keeps** (`bank_import.skill_pairs`, for the parser's and
+  the model's readings alike) are only those the skills catalog knows
+  (`services/skill_catalog.py`, `data/skills.txt`, KAN-369): tools,
+  languages, frameworks and hard skills, each with its other spellings. A
+  soft skill ("Teamwork"), a qualification ("Computer Science degree") or a
+  vague phrase ("AI tools") is no catalog line, so it is left out; a name
+  still holding a "|" is too (`not_a_skill`). The resume's spelling is kept,
+  once per catalog skill ("ReactJS" then "React" keeps "ReactJS"). A real
+  skill the catalog lacks is left out as well: add its line to
+  `data/skills.txt`. The clean-up script checks only skills read from an
+  upload; one the student typed is never removed.
 - **A skills line that ends in a comma** continues on the next line, which
   keeps its group. Before this, a wrapped "Concepts:" list lost its group.
 
@@ -167,7 +186,7 @@ only when the student asks ("Read It With AI", Import Again's
   schema has no `link` field and a field holding a placeholder is emptied.
   Project links come only from this parser.
 - Either reading goes straight into the experience bank through
-  `services/bank.py`'s `merge_import`; nothing keeps the reading itself
+  `services/bank.py`'s `import_upload`; nothing keeps the reading itself
   (`resumes.parsed_json` was dropped in KAN-240).
 
 ## Text extraction (lives in `app/routers/resumes.py`, not here)

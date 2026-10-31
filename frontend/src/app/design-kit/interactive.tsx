@@ -1,10 +1,11 @@
 "use client";
 
-import { CircleHelp, Settings } from "lucide-react";
+import { GearIcon, QuestionIcon } from "@phosphor-icons/react/ssr";
 import { useState } from "react";
 
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { Avatar } from "@/components/avatar";
+import { DateField } from "@/components/date-field";
 import { ResumeUpload } from "@/components/resume-upload";
 import { RemovableChip } from "@/components/ui/chip";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
@@ -27,9 +28,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { Switch } from "@/components/shadcn/switch";
 import { Button } from "@/components/ui/button";
 import { SelectField } from "@/components/ui/select-field";
 import { useToast } from "@/components/ui/toast";
+import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "@/app/(seeker)/stage-colors";
 
 /**
  * The kit's specimens that hold state or take a function, which a server page
@@ -64,6 +67,19 @@ export function DialogSpecimen() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** An on/off setting (Settings' Notifications draws them, KAN-326): on, off,
+ *  and disabled. */
+export function SwitchSpecimen() {
+  const [on, setOn] = useState(true);
+  return (
+    <div className="flex items-center gap-6">
+      <Switch checked={on} onCheckedChange={setOn} aria-label="Example switch" />
+      <Switch checked={false} aria-label="Off" />
+      <Switch checked disabled aria-label="Disabled" />
+    </div>
   );
 }
 
@@ -141,6 +157,46 @@ export function SelectFieldSpecimen() {
   );
 }
 
+/** A pick in its glyph and colour, as Create Event's Type draws one. */
+export function GlyphSelectSpecimen() {
+  const [value, setValue] = useState("interviewing");
+
+  return (
+    <div className="w-72">
+      <SelectField
+        id="dk-stage"
+        label="Stage"
+        value={value}
+        onValueChange={setValue}
+        options={(["applied", "interviewing", "offer", "rejected"] as const).map((stage) => ({
+          value: stage,
+          label: STAGE_LABEL[stage],
+          Icon: STAGE_ICON[stage],
+          iconClassName: STAGE_COLOR[stage].onTint,
+        }))}
+      />
+    </div>
+  );
+}
+
+/** An optional date with Clear in its popover. */
+export function DateFieldSpecimen() {
+  const [value, setValue] = useState("");
+
+  return (
+    <div className="w-72">
+      <DateField
+        id="dk-date"
+        label="Apply By"
+        value={value}
+        onValueChange={setValue}
+        placeholder="Pick a day"
+        clearable
+      />
+    </div>
+  );
+}
+
 /** A real toast in the window's corner: one plain, one with an action, as
  *  Live Activity raises it. Undo here only raises a second toast. */
 export function ToastSpecimen() {
@@ -193,8 +249,8 @@ export function ResumeUploadSpecimen() {
 }
 
 const ACCOUNT_ROWS: AccountMenuItem[] = [
-  { href: "/settings", label: "Settings", icon: <Settings aria-hidden className="size-4" /> },
-  { href: "/help", label: "Help", icon: <CircleHelp aria-hidden className="size-4" /> },
+  { href: "/settings", label: "Settings", icon: <GearIcon aria-hidden className="size-4" /> },
+  { href: "/help", label: "Help", icon: <QuestionIcon aria-hidden className="size-4" /> },
 ];
 
 /** Signing out from the kit would end a real session, so its row does nothing. */

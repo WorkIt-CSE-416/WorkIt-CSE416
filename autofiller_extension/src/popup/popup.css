@@ -1,10 +1,21 @@
+/* WorkIt's design system (frontend/docs/design.md), with the tokens from
+   ../shared/tokens.js, which popup.html loads first. No colour of its own. */
+
+@font-face {
+  font-family: "WorkIt Jakarta Sans";
+  src: url("../../fonts/PlusJakartaSans-latin.woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+}
+
 * { box-sizing: border-box; }
 
 body {
   width: 280px;
   margin: 0;
-  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color: #1a1a1a;
+  font: var(--font-weight-normal) var(--text-label) / var(--text-label--line-height) var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-panel);
 }
 
 header {
@@ -12,63 +23,160 @@ header {
   align-items: center;
   gap: 8px;
   padding: 12px;
-  background: #6d28d9;
-  color: #fff;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-border);
   font-weight: 600;
+}
+
+header .logo {
+  height: 20px;
+  width: auto;
+  display: block;
+}
+
+header .figure {
+  color: var(--color-brand);
 }
 
 main {
   padding: 12px;
 }
 
-.muted {
-  color: #6b7280;
+p {
+  margin: 0 0 8px;
 }
 
+.muted {
+  color: var(--color-ink-meta);
+}
+
+/* ui/button.tsx at size sm (36px): default is the brand fill, secondary the white one. */
 button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  padding: 8px 10px;
-  border: none;
-  border-radius: 6px;
-  background: #6d28d9;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  font: inherit;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
   cursor: pointer;
-  margin-top: 4px;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+
+button[hidden] { display: none; }
+
+button:hover { background: var(--color-brand-hover); }
+button:active { background: var(--color-brand-active); }
+
+button:focus-visible {
+  outline: 3px solid var(--color-brand);
+  outline-offset: 2px;
 }
 
 button.secondary {
-  background: transparent;
-  color: #6b7280;
+  border-color: var(--color-border-subtle);
+  background: var(--color-panel);
+  color: var(--color-ink);
+}
+
+button.secondary:hover { background: var(--color-hover); }
+
+/* A quiet action at the foot of the popup (Workday Sign-Up): a link's look, a button's behaviour. */
+button.link {
+  width: auto;
+  margin: 12px auto 0;
+  padding: 2px 4px;
+  background: none;
+  color: var(--color-ink-meta);
+  font-size: var(--text-note);
+  line-height: var(--text-note--line-height);
   font-weight: 500;
 }
 
+button.link:hover { background: none; color: var(--color-ink); text-decoration: underline; }
+
+/* What the student is doing, and its one next step (KAN-424): a batch, the queue, or an empty queue. */
+.home {
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+}
+
+.home[hidden] { display: none; }
+
+.home-title {
+  margin: 0;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: 600;
+}
+
+.home .batch-status {
+  margin: 2px 0 0;
+  font-size: var(--text-note);
+  line-height: var(--text-note--line-height);
+}
+
 button:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: default;
+  pointer-events: none;
 }
 
 .error {
-  color: #dc2626;
+  color: var(--color-danger);
   margin: 4px 0;
 }
 
 .profile {
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
 
 .profile .name {
-  font-weight: 600;
+  font-size: var(--text-subtitle);
+  line-height: var(--text-subtitle--line-height);
+  font-weight: var(--text-subtitle--font-weight);
   margin: 0;
 }
 
 .profile .email,
 .profile .bank-status {
   margin: 2px 0 0;
+  font-size: var(--text-note);
+  line-height: var(--text-note--line-height);
 }
 
 .hint {
-  font-size: 11.5px;
-  margin: 10px 0;
+  font-size: var(--text-note);
+  line-height: var(--text-note--line-height);
+  margin: 12px 0 0;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  button { transition: none; }
+}
+
+/* A site WorkIt can't fill (KAN-401). */
+.unsupported {
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+}
+.unsupported-line { margin: 0 0 8px; font-weight: 600; }
+.report-parts { margin: 4px 0 8px; padding-left: 16px; font-size: var(--text-note); overflow-wrap: anywhere; }
+.report label { display: block; margin: 0 0 4px; font-weight: 600; font-size: var(--text-note); }
+.report textarea {
+  box-sizing: border-box; width: 100%; min-height: 56px; margin: 0 0 8px; padding: 6px 8px; resize: vertical;
+  font: inherit; color: var(--color-ink); background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-control);
+}
+.said { margin: 8px 0 0; font-size: var(--text-note); }

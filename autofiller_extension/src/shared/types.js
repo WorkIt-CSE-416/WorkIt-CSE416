@@ -7,6 +7,9 @@
  * @property {string} access_token
  * @property {string} refresh_token
  * @property {number} expires_at  Unix seconds
+ * @property {string | null} user_id  the signed-in account's id, the access
+ *   token's `sub` (read unverified, to key the cached profile)
+ * @property {string} web_origin  the webapp origin the cookie was read from
  */
 
 /**
@@ -60,8 +63,8 @@
  * Shape matches backend/app/schemas/autofill_answers.py's AutofillAnswers
  * exactly — the same JSON GET /applicants/{id}/autofill-answers returns,
  * each value one of the option keys `frontend/src/lib/autofill-answers.ts`
- * defines (never the label shown on screen; `field-map.js` holds the label
- * text for each). `work_authorized_us` and `needs_sponsorship` are filled
+ * defines (never the label shown on screen; background/engine.js maps each to the
+ * words the Fill engine's rules read). `work_authorized_us` and `needs_sponsorship` are filled
  * in by background/api.js's fetchAutofillProfile when they're still
  * unanswered here, inferred from the onboarding "Visa Sponsorship"
  * job-search filter — a real saved answer always wins over that inference.
@@ -76,8 +79,36 @@
  * @property {"male" | "female" | "non_binary" | "declined" | null} gender
  * @property {"yes" | "no" | "declined" | null} hispanic_latino
  * @property {"american_indian_alaska_native" | "asian" | "black_african_american" | "native_hawaiian_pacific_islander" | "white" | "two_or_more" | "declined" | null} race
- * @property {"protected_veteran" | "not_protected_veteran" | "declined" | null} veteran_status
+ * @property {"protected_veteran" | "not_protected_veteran" | "not_veteran" | "declined" | null} veteran_status
  * @property {"yes" | "no" | "declined" | null} disability_status
+ * The Application answers (KAN-369), each null until answered; a list's [] is the student's "none":
+ * @property {"yes" | "no" | null} [onsite_ok]
+ * @property {"yes" | "no" | null} [full_time_40h]
+ * @property {string | null} [earliest_start]  YYYY-MM-DD
+ * @property {string | null} [latest_end]  YYYY-MM-DD
+ * @property {string[] | null} [available_terms]  "summer 2027"
+ * @property {"yes" | "no" | null} [willing_to_relocate]
+ * @property {string[] | null} [location_preferences]  ranked places
+ * @property {string | null} [internship_location]
+ * @property {string | null} [address_line1]
+ * @property {string | null} [postal_code]
+ * @property {string[] | null} [languages]
+ * @property {string[] | null} [relatives_at]
+ * @property {"yes" | "no" | null} [relative_public_official]
+ * @property {string[] | null} [referred_at]
+ * @property {"yes" | "no" | null} [prior_government_work]
+ * @property {"yes" | "no" | null} [non_compete]
+ * @property {string[] | null} [pending_offers]
+ * @property {"yes" | "no" | null} [age_18_or_over]
+ * @property {number | null} [expected_hourly_pay] dollars an hour
+ * @property {"yes" | "no" | null} [accept_posted_pay]
+ * @property {"heterosexual" | "gay" | "lesbian" | "bisexual" | "asexual" | "queer" | "declined" | null} [sexual_orientation]
+ * @property {"yes" | "no" | "declined" | null} [transgender]
+ * @property {"he_him" | "she_her" | "they_them" | "declined" | null} [pronouns]
+ * @property {string[] | null} [communities] [] is "none of these"; ["declined"] a decline
+ * @property {string[] | null} [role_interests]
+ * @property {string | null} [x_url]
+ * @property {string[] | null} [citizenship_countries] every country they are a citizen of
  */
 
 /**
@@ -91,8 +122,14 @@
  * @property {string} email  The profile's contact email, else the sign-in
  *   email: the one employers see (KAN-262).
  * @property {string} full_name
+ * @property {string | null} [first_name]  The profile's own name parts
+ *   (KAN-326); the fill splits full_name only when they are missing.
+ * @property {string | null} [middle_name]
+ * @property {string | null} [last_name]
  * @property {string | null} phone_number
  * @property {string | null} headline
+ * @property {string | null} location  Where the student lives, as they typed
+ *   it on the Profile step or My Profile ("Stony Brook, NY"; KAN-372).
  * @property {string | null} linkedin_url
  * @property {string | null} portfolio_url
  * @property {string | null} github_url
@@ -103,12 +140,19 @@
  * @property {AutofillAnswers} answers  Never null — every key is simply
  *   null until the student answers it (KAN-283's onboarding Profile step,
  *   or My Profile).
+ * @property {{ profile: object, policies: object } | null} [fill]  The Fill
+ *   engine's own profile and policies the student brought from Apply
+ *   (GET .../fill-profile); engine.js lays WorkIt's own fields over them.
  * @property {{ filename: string, mimeType: string, base64: string } | null} resume
  *   Whichever resume My Profile calls the student's default (an upload or a
  *   built resume, backend/app/models/CLAUDE.md's "Built resumes"), already
  *   resolved to file bytes — null when there is none, or when resolving it
  *   failed (background/api.js's resolveResumeFile is best-effort and never
  *   fails the rest of the profile over this one field).
+ * @property {{ filename: string, mimeType: string, base64: string } | null} [transcript]
+ *   The student's unofficial transcript (My Profile's Transcript, KAN-369),
+ *   as file bytes for a form's transcript upload; null when there is none or
+ *   the fetch failed (background/api.js's resolveTranscriptFile).
  * @property {number} fetched_at  Unix ms, for cache-staleness decisions.
  */
 
@@ -119,7 +163,7 @@
  * empty optional field is a non-event, not a red flag. "needs_generation"
  * is its own fourth state: an open-ended question WorkIt could draft an
  * answer for but hasn't, pending the student's one opt-in click in the
- * overlay (content-script.js's essay-question detection,
+ * overlay (the Fill engine's Plan, content-script.js,
  * overlay.js's promptForEssays) — never "pending", since nothing in the
  * normal fill pass is ever going to resolve it on its own.
  * @typedef {"pending" | "filled" | "failed" | "skipped" | "needs_generation"} FieldStatus
@@ -138,4 +182,27 @@
  * @property {FieldStatus} status
  * @property {string} [reason]      Shown on hover when status is "failed" —
  *   e.g. "No matching option for \"SUNY Korea\""
+ * @property {string | string[]} [shows]  What a filled field shows now, as the engine read it back
+ * @property {Source} [source]  Where the value came from, shown beside it (overlay.js)
+ * @property {string} [flag]  Why the student's Claude's pre-submit review found a filled answer wrong
+ *   (KAN-369): the row needs the student until they keep it, send it back, or edit it (card-flag.js)
+ * @property {string} [flagQuote]  The flagged sentence, word for word from the answer
+ * @property {boolean} [flagHard]  The flag says the answer names the wrong company
+ * @property {boolean} [rewriting]  The flagged answer is with the student's Claude to write again
+ * @property {"todo" | "done"} [note]  The row is the panel's message, not a field (content-script.js's
+ *   note): "todo" asks something of the student, "done" is news that asks nothing. A field's own key
+ *   may start with "_" too (Ashby's "_systemfield_name"), so only this marks a message.
+ * @property {{ text: string, href: string }} [link]  A link ending the reason (a batch tab's
+ *   wait for Claude links the webapp's Written Answers page)
+ * @property {boolean} [claude]  It waits for the student's Claude: the overlay offers Write with Claude.
+ */
+
+/**
+ * Where a field's value came from. The Fill engine's Plan says it for each
+ * planned answer (its `sources`): the student's profile, their own answer to
+ * the question ("student"), a saved answer, or a guess (WorkIt's default, or
+ * no fact of theirs). "student" is also a value the student typed after the
+ * fill; "claude" an answer their own Claude wrote (the connector); "ai" one
+ * the essay route wrote.
+ * @typedef {"profile" | "student" | "saved" | "guessed" | "claude" | "ai" | "pasted"} Source
  */

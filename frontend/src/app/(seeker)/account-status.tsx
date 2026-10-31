@@ -1,4 +1,4 @@
-import { CircleHelp, Settings } from "lucide-react";
+import { GearIcon, QuestionIcon } from "@phosphor-icons/react/ssr";
 
 import { signOut } from "@/app/actions";
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
@@ -44,12 +44,20 @@ import { getCurrentAccount, getSessionUser } from "@/lib/session";
  *  group. Elements, not components, since they cross into the client menu
  *  (see `icon` in @/components/account-menu). */
 const MENU_ITEMS: AccountMenuItem[] = [
-  { href: "/settings", label: "Settings", icon: <Settings aria-hidden className="size-4" /> },
-  { href: "/help", label: "Help", icon: <CircleHelp aria-hidden className="size-4" /> },
+  {
+    href: "/settings/personal",
+    label: "Settings",
+    icon: <GearIcon aria-hidden className="size-4" />,
+  },
+  { href: "/help", label: "Help", icon: <QuestionIcon aria-hidden className="size-4" /> },
 ];
 
 export async function SeekerAccount() {
-  const account = await getCurrentAccount();
+  // Both at once: the photo does not depend on /auth/me's answer, and asked
+  // one after the other the chip waited on two API calls in a row on every
+  // hard load and every router.refresh(). getAvatar never throws (it returns
+  // its error), and with no account its answer is simply not used.
+  const [account, avatar] = await Promise.all([getCurrentAccount(), getAvatar()]);
 
   if (!account) {
     const user = await getSessionUser();
@@ -72,8 +80,6 @@ export async function SeekerAccount() {
       </AccountMenu>
     );
   }
-
-  const avatar = await getAvatar();
 
   return (
     <AccountMenu

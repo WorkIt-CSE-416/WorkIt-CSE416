@@ -6,39 +6,76 @@ transaction. None checks ownership: the layer-3 route that calls it does.
 """
 
 import dataclasses
-import logging
 import sys
 import uuid
 from collections.abc import Sequence
-from typing import Any, Literal
+from typing import Literal
 
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auto_apply.hosts import refusal
+from app.auto_apply.plans import (  # noqa: F401 (re-exported for the connector)
+    Backed,
+    Plan,
+)
 from app.auto_apply.queries import (
-    fetch_application,
+    close_posting,
     fetch_applications,
     fetch_next_application,
+    fetch_open_apply_url,
     fetch_stage,
-    link_resume,
-    pick_resume,
     queue_applications,
     remove_queued,
     set_stage,
 )
+from app.auto_apply.resume import (  # noqa: F401 (re-exported: callers name these steps as pipeline's)
+    FileFailed,
+    choose_resume,
+    prepare_resume,
+)
+from app.auto_apply.review import (  # noqa: F401 (re-exported: callers name these steps as pipeline's)
+    Flag,
+    ToReview,
+    answer_version,
+    keep,
+    next_to_review,
+    redo,
+    reviewed_answers,
+    rewrite,
+    rewrites,
+    save_review,
+)
 from app.auto_apply.rules import pick_batch
+from app.auto_apply.stages import (  # noqa: F401 (get_application re-exported)
+    FINISHABLE,
+    NotFound,
+    WrongStage,
+    get_application,
+)
+from app.auto_apply.written import (  # noqa: F401 (re-exported: callers name these steps as pipeline's)
+    Refused,
+    ToWrite,
+    answer_bank,
+    answer_fact,
+    answered_questions,
+    ask_fact,
+    ask_questions,
+    drop_own_answer,
+    led_before,
+    next_to_write,
+    read_first,
+    save_answers,
+    save_own_answer,
+    unanswered_questions,
+    writing_samples,
+    written_answers,
+)
 from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
 from app.routers.jobs import EmptyBank, fetch_recommended
 from app.schemas.applications import Application
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
-from app.schemas.sent_resume import SentResumeDownload
-from app.services import sent_resumes
-from app.services.bank import NotFound as ResumeNotFound
-from app.services.resume_render import TectonicUnavailable
-
-logger = logging.getLogger(__name__)
 
 # The lowest score auto apply takes ("Match (built)"). It moves with the
 # matching weights: retune it when they change.
@@ -51,24 +88,17 @@ OUTCOME_STAGE = {
     "submitted": application_stage.applied,
     "skipped": application_stage.skipped,
     "failed": application_stage.needs_you,
+    # The job system says the job is closed: it leaves the queue (skipped)
+    # and its posting is marked closed (close_posting).
+    "closed": application_stage.skipped,
 }
-# The stages a fill can end from: queued, or needs_you when the student
-# finishes a failed form by hand.
-FINISHABLE = (application_stage.queued, application_stage.needs_you)
-
-
-class NotFound(Exception):
-    """No such job posting open, or no application for it. The route answers 404."""
-
-
-class WrongStage(Exception):
-    """The application is not in the stage this step needs. The message names
-    the step to call first. The route answers 409."""
-
-
-class FileFailed(Exception):
-    """Storage refused the resume's file or its link. Nothing was kept. The
-    route answers 502."""
+# Batch apply (KAN-370): how a tab's fill left the form, on the stage. A
+# ready tab waits for the student's submit, so it stays queued (the batch
+# skips the jobs it has open); a tab with anything unfilled needs them.
+FILL_STAGE = {
+    "ready": application_stage.queued,
+    "needs_you": application_stage.needs_you,
+}
 
 
 async def _matches(
@@ -148,14 +178,16 @@ async def queue_job(
     any other stage keeps it, and answers that
     stage: a second click changes nothing. Raises NotFound for a job posting
     that isn't open, or isn't on a hiring system auto apply fills
-    (queue_applications saves neither).
+    (queue_applications saves neither), with the reason: a job board's
+    posting that names no employer form (KAN-376) says so.
     """
     if await queue_applications(db, applicant_id, [job_id]):
         await db.commit()
         return application_stage.queued
     stage = await fetch_stage(db, applicant_id, job_id)
     if stage is None:
-        raise NotFound("That job isn't open, or Auto Apply can't fill its hiring system yet.")
+        apply_url = await fetch_open_apply_url(db, job_id)
+        raise NotFound(refusal(apply_url) if apply_url else "That job isn't open any more.")
     return stage
 
 
@@ -213,106 +245,78 @@ async def list_applications(
     ]
 
 
-async def get_application(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
-) -> Application:
-    """The applicant's application for one job posting: its listing, stage
-    and dates. Raises NotFound when they have none."""
-    application = await fetch_application(db, applicant_id, job_id)
-    if application is None:
-        raise NotFound("No application for that job.")
-    return application
-
-
-async def next_application(db: AsyncSession, applicant_id: uuid.UUID) -> Application | None:
+async def next_application(
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    skip: Sequence[uuid.UUID] = (),
+    only: Sequence[uuid.UUID] = (),
+) -> Application | None:
     """What the extension fills next: the oldest queued application whose job
-    posting is open. None when the queue is empty, and the run goes idle."""
-    return await fetch_next_application(db, applicant_id)
+    posting is open and isn't in `skip` (the jobs batch apply already has in
+    its tabs), among `only` when given (the jobs the student picked, which
+    may be needs_you too). None when the queue is empty, and the run goes
+    idle."""
+    return await fetch_next_application(db, applicant_id, skip, only)
+
+
+async def record_fill(
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    state: Literal["ready", "needs_you"],
+) -> application_stage:
+    """
+    Records how a batch tab's fill left the form (FILL_STAGE) and answers the
+    new stage: needs_you while anything is unfilled, back to queued once the
+    student has answered it. Only a queued or needs_you application takes
+    one: raises NotFound when there is none, WrongStage when it is skipped or
+    applied already.
+    """
+    stage = await fetch_stage(db, applicant_id, job_id)
+    if stage is None:
+        raise NotFound("No application for that job. Queue it first.")
+    if stage not in FINISHABLE:
+        raise WrongStage(f"That application is {stage}, so its form is no longer open.")
+    new = FILL_STAGE[state]
+    await set_stage(db, applicant_id, job_id, new)
+    await db.commit()
+    return new
 
 
 async def finish_application(
     db: AsyncSession,
     applicant_id: uuid.UUID,
     job_id: uuid.UUID,
-    outcome: Literal["submitted", "skipped", "failed"],
+    outcome: Literal["submitted", "skipped", "failed", "closed", "unsubmitted"],
+    state: Literal["ready", "needs_you"] | None = None,
 ) -> application_stage:
     """
     Records how a fill ended (OUTCOME_STAGE) and answers the new stage.
     Only a queued or needs_you application can finish: raises NotFound when
     there is none, WrongStage when it is skipped or applied already.
+    "unsubmitted" (the panel's I didn't submit this, KAN-401) is the one way
+    back: only an applied application, its date cleared, to the stage its
+    batch tab had before in FILL_STAGE's words (`state`: ready is queued),
+    needs_you when `state` is None. Never queued unless the extension says
+    the tab was Ready: a queued application is the batch's next fill.
     """
     stage = await fetch_stage(db, applicant_id, job_id)
     if stage is None:
         raise NotFound("No application for that job. Queue it first.")
+    if outcome == "unsubmitted":
+        if stage != application_stage.applied:
+            raise WrongStage(f"That application is {stage}, so it wasn't marked applied.")
+        back = FILL_STAGE[state or "needs_you"]
+        await set_stage(db, applicant_id, job_id, back)
+        await db.commit()
+        return back
     if stage not in FINISHABLE:
         raise WrongStage(
             f"That application is {stage}, so it can't be finished. Queue a new job instead."
         )
     new = OUTCOME_STAGE[outcome]
     await set_stage(db, applicant_id, job_id, new)
+    if outcome == "closed":
+        await close_posting(db, job_id)
     await db.commit()
     return new
-
-
-async def prepare_resume(
-    db: AsyncSession, storage: Any, applicant_id: uuid.UUID, job_id: uuid.UUID
-) -> SentResumeDownload | None:
-    """
-    The resume one application sends, ready to attach: pick_resume's choice
-    (the resume tailored to the job posting, else the default) kept as a sent
-    resume linked to the job posting, as Apply keeps one, with its file: the
-    PDF itself (`data`) for a built resume, kept as a snapshot (KAN-267), or
-    a 5-minute link (`url`) for an uploaded one. None when the student has no such resume:
-    the form is filled without one. Never tailors.
-
-    Only a queued or needs_you application gets one: raises NotFound when
-    there is none or its job posting closed, WrongStage when it is skipped or
-    applied. A repeat with unchanged content returns the same sent resume, so
-    a run that starts again keeps nothing new. The application names the
-    sent resume (`link_resume`, KAN-267). Raises TectonicUnavailable
-    when the PDF cannot be made, FileFailed when Storage cannot sign the link.
-    """
-    stage = await fetch_stage(db, applicant_id, job_id)
-    if stage is None:
-        raise NotFound("No application for that job. Queue it first.")
-    if stage not in FINISHABLE:
-        raise WrongStage(
-            f"That application is {stage}, so it gets no resume. Queue a new job instead."
-        )
-    choice = await pick_resume(db, applicant_id, job_id)
-    if choice is None:
-        return None
-
-    try:
-        if choice.built_resume_id is not None:
-            sent = await sent_resumes.send_built(
-                db, applicant_id, choice.built_resume_id, job_posting_id=job_id
-            )
-        else:
-            sent = await sent_resumes.send_uploaded(
-                db, applicant_id, choice.uploaded_resume_id, job_posting_id=job_id
-            )
-    except ResumeNotFound as exc:
-        # The job posting closed (or its resume went) after the pick.
-        raise NotFound("That job isn't open any more.") from exc
-
-    # The application names what it goes out with (KAN-267), a repeat's
-    # sent resume too, in the same commit. A failed commit leaves nothing to
-    # clean up: a send stores no file.
-    await link_resume(db, applicant_id, job_id, sent.row.id)
-    try:
-        await db.commit()
-    except SQLAlchemyError:
-        await db.rollback()
-        raise
-
-    try:
-        file = await sent_resumes.open_file(db, storage, sent.row, pdf=sent.pdf)
-    except TectonicUnavailable:
-        raise
-    except Exception as exc:
-        logger.exception("Failed to sign an auto apply resume's URL")
-        raise FileFailed("The resume's link could not be made. Try again.") from exc
-    return SentResumeDownload.of(sent.row, file, sent.missing_characters)
-
-

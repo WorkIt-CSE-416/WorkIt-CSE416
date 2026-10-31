@@ -29,6 +29,11 @@ export type Application<Stage extends ApplicationStage = ApplicationStage> = {
   /** When it was queued, or marked applied: an ISO instant. */
   added_at: string;
   applied_at: string | null;
+  /** The student's own day to apply by, "YYYY-MM-DD" (KAN-429), or null. */
+  apply_by?: string | null;
+  /** When the job posting stops taking applications, an ISO instant, where
+   *  it says; null for most scraped postings. */
+  closes_at?: string | null;
   /** False once the job posting has closed; its page is gone. */
   open: boolean;
   /** The Jobs page's match score (0-100), when read with `scored`: null for

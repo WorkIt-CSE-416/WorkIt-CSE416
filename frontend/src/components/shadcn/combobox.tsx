@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
-import { CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
+import { CaretDownIcon, CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/shadcn/button";
@@ -19,7 +19,7 @@ import {
  * shadcn docs show, and what this repo's `components.json` is actually set
  * to). Not `shadcn add`'d because that overwrites button.tsx/input.tsx with
  * stock versions (see docs/shadcn.md); everything below is the registry
- * file's own structure and classes, with only the icon source (lucide-react
+ * file's own structure and classes, with only the icon source (Phosphor
  * instead of the registry's placeholder) and import paths changed.
  */
 
@@ -37,7 +37,7 @@ function ComboboxTrigger({ className, children, ...props }: ComboboxPrimitive.Tr
       {...props}
     >
       {children}
-      <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4" />
+      <CaretDownIcon aria-hidden className="text-muted-foreground pointer-events-none size-4" />
     </ComboboxPrimitive.Trigger>
   );
 }
@@ -50,7 +50,7 @@ function ComboboxClear({ className, ...props }: ComboboxPrimitive.Clear.Props) {
       className={cn(className)}
       {...props}
     >
-      <XIcon className="pointer-events-none" />
+      <XIcon aria-hidden className="pointer-events-none" />
     </ComboboxPrimitive.Clear>
   );
 }
@@ -163,7 +163,10 @@ function ComboboxItem({ className, children, ...props }: ComboboxPrimitive.Item.
         aria-hidden
         className="border-input group-data-selected/combobox-item:border-primary group-data-selected/combobox-item:bg-primary group-data-selected/combobox-item:text-primary-foreground pointer-events-none flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors"
       >
-        <CheckIcon className="size-3.5 opacity-0 group-data-selected/combobox-item:opacity-100" />
+        <CheckIcon
+          aria-hidden
+          className="size-3.5 opacity-0 group-data-selected/combobox-item:opacity-100"
+        />
       </span>
       {children}
       <ComboboxPrimitive.ItemIndicator render={<span className="sr-only" />}>
@@ -256,7 +259,7 @@ function ComboboxChip({
           className="-ml-1 opacity-50 hover:opacity-100"
           data-slot="combobox-chip-remove"
         >
-          <XIcon className="pointer-events-none" />
+          <XIcon aria-hidden className="pointer-events-none" />
         </ComboboxPrimitive.ChipRemove>
       )}
     </ComboboxPrimitive.Chip>

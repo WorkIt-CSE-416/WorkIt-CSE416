@@ -31,7 +31,7 @@ from workit_scraper.store import RunStats
 #: slow to scroll on a projector.
 INITIAL_ROWS = 200
 
-#: The chips: the two stages, then a role's twelve categories (shortlist.CATEGORY_TAGS),
+#: The chips: the two stages, then a role's categories (shortlist.CATEGORY_TAGS),
 #: which match a role in either of its categories. Specialties have no chip.
 FILTERS = [
     ("all", "All"),
@@ -49,6 +49,13 @@ FILTERS = [
     (Tag.SALES, "Sales"),
     (Tag.HR, "HR"),
     (Tag.DESIGN, "Design"),
+    (Tag.LAW, "Law"),
+    (Tag.CONSULTING, "Consulting"),
+    (Tag.SUPPORT, "Support"),
+    (Tag.ARTS, "Arts"),
+    (Tag.POLICY, "Policy"),
+    (Tag.EDUCATION, "Education"),
+    (Tag.OTHER, "Other"),
 ]
 #: A row's kind: its stage and categories, by the chips' names.
 LABELS = dict(FILTERS[1:])

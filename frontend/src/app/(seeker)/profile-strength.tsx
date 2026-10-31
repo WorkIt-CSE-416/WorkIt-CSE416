@@ -24,13 +24,23 @@ import { getCurrentAccount } from "@/lib/session";
  *
  * Gone once complete — a full bar is a card with nothing to say — and when
  * signed out or the loads fail, since a failure is not the same as a missing
- * resume. Hidden on the collapsed rail, which has no room for it.
+ * resume.
+ *
+ * TWO FORMS: the card in the phone's sheet, and on the 88px rail a tile
+ * like the rows above it, a ring filled to the share done around the count,
+ * named Setup, which goes to the next step (2026-10-27). Its accessible
+ * name says the whole card's line: the count and the next step.
  */
 export async function ProfileStrength() {
-  const account = await getCurrentAccount();
+  // All three at once: neither read waits on /auth/me's answer, and the card
+  // used to wait on it before asking for the other two. With no account the
+  // other answers are not used (both report their own errors, never throw).
+  const [account, resumes, avatar] = await Promise.all([
+    getCurrentAccount(),
+    listResumes(),
+    getAvatar(),
+  ]);
   if (!account) return null;
-
-  const [resumes, avatar] = await Promise.all([listResumes(), getAvatar()]);
   if (resumes.error != null || avatar.error != null) return null;
 
   const steps = [
@@ -41,12 +51,48 @@ export async function ProfileStrength() {
   const next = steps.find((step) => !step.done);
   if (!next) return null;
 
+  const share = (done / steps.length) * 100;
   return (
-    <div className="border-rail-border bg-rail rounded-card border p-3 group-data-[collapsible=icon]:hidden">
+    <>
+      <Link
+        href={next.href}
+        aria-label={`Setup: ${done} of ${steps.length} done. Next: ${next.todo}`}
+        className="text-note text-ink-meta hover:text-ink focus-visible:ring-brand-ring hover:bg-rail-hover hidden h-16 flex-col items-center justify-center gap-1 rounded-md font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none md:flex"
+      >
+        {/* A conic fill under a white disc: the ring. */}
+        <span
+          aria-hidden
+          className="grid size-7 place-items-center rounded-full"
+          style={{
+            background: `conic-gradient(var(--color-brand) ${share}%, var(--color-rail-selected) 0)`,
+          }}
+        >
+          <span className="bg-panel text-caption text-ink grid size-5 place-items-center rounded-full tabular-nums">
+            {done}/{steps.length}
+          </span>
+        </span>
+        Setup
+      </Link>
+      <Card done={done} total={steps.length} next={next} />
+    </>
+  );
+}
+
+function Card({
+  done,
+  total,
+  next,
+}: {
+  done: number;
+  total: number;
+  next: { todo: string; href: string };
+}) {
+  return (
+    <div className="border-rail-border bg-rail rounded-card border p-3 md:hidden">
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-label text-ink">Profile Strength</p>
         <p className="text-note text-ink-meta tabular-nums">
-          {done} of {steps.length} done
+          {done} of {total} done
         </p>
       </div>
 
@@ -54,14 +100,14 @@ export async function ProfileStrength() {
         role="progressbar"
         aria-label="Profile Strength"
         aria-valuemin={0}
-        aria-valuemax={steps.length}
+        aria-valuemax={total}
         aria-valuenow={done}
         className="bg-rail-selected mt-2 h-1.5 overflow-hidden rounded-full"
       >
         {/* Fills from the left as the panel arrives. */}
         <span
           className="bg-brand animate-draw-x block h-full origin-left rounded-full"
-          style={{ width: `${(done / steps.length) * 100}%`, animationDelay: "200ms" }}
+          style={{ width: `${(done / total) * 100}%`, animationDelay: "200ms" }}
         />
       </div>
 

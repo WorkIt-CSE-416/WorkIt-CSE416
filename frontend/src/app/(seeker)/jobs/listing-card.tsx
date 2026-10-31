@@ -1,4 +1,4 @@
-import { Ban, CloudOff } from "lucide-react";
+import { CloudSlashIcon, ProhibitIcon } from "@phosphor-icons/react/ssr";
 
 import { SparkleIcon } from "@/components/icons";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
@@ -18,12 +18,14 @@ import {
   formatSalary,
   formatWorkStyle,
 } from "./format";
+import { hasApplied } from "../applied";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { AutoApplyButton } from "../auto-apply/auto-apply-button";
 import { ApplyButton } from "./apply-button";
 import type { JobListing } from "./listings";
 import { MatchRail } from "./match-rail";
 import { SaveJobButton } from "./save-job-button";
+import { jobLogo } from "@/lib/job-logo";
 
 /* The live feed's card, and the two states that stand in for a list of them.
  * Shared by /jobs and /search, so a role found by searching is the same card,
@@ -93,7 +95,7 @@ export function ListingCard({
     <JobPostingCard
       job={{
         company: job.company,
-        logoUrl: job.logo_url,
+        logoUrl: jobLogo(job),
         title: job.title,
         titleHref: `/jobs/${job.id}`,
         timing: job.posted_at ? formatPosted(job.posted_at) : NOT_LISTED,
@@ -113,7 +115,7 @@ export function ListingCard({
             variant="outline"
             className="size-9"
           >
-            <Ban className="size-4" />
+            <ProhibitIcon aria-hidden className="size-4" />
           </IconButton>
 
           <SaveJobButton jobId={job.id} title={job.title} stage={stage} />
@@ -143,7 +145,7 @@ export function ListingCard({
             title={job.title}
             applyUrl={job.apply_url}
             canMarkApplied={canMarkApplied}
-            applied={stage === "applied"}
+            applied={hasApplied(stage)}
             onApplied={onApplied}
           />
         </>
@@ -263,7 +265,7 @@ export function ListingsSkeleton() {
 export function ListingsError({ error, retryHref }: { error: string; retryHref: string }) {
   return (
     <EmptyState
-      Icon={CloudOff}
+      Icon={CloudSlashIcon}
       title="Jobs Aren't Loading Right Now"
       className="mt-4"
       /* A plain link, not <Link>: a full reload is what re-runs the fetch. */

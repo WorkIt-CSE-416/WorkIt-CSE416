@@ -5,6 +5,30 @@ import { redirect } from "next/navigation";
 import { apiFetch, extractErrorMessage, homePath, type AuthenticatedAccount } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET_KEY;
+const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+
+/** Null when the token passes, else the message to show. Same 5s limit and
+ *  messages as the API's _verify_turnstile, so a slow or down Cloudflare
+ *  reads as a retry, not a crashed action. */
+async function verifyTurnstile(token: string | null): Promise<string | null> {
+  if (!TURNSTILE_SECRET) return null; // skip in local dev
+  if (!token) return "CAPTCHA verification required.";
+  try {
+    const resp = await fetch(TURNSTILE_VERIFY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: token }),
+      signal: AbortSignal.timeout(5000),
+    });
+    const data = await resp.json();
+    return data.success === true ? null : "CAPTCHA verification failed. Please try again.";
+  } catch (error) {
+    console.error("[login] Turnstile verification request failed:", error);
+    return "CAPTCHA verification is temporarily unavailable. Please try again.";
+  }
+}
+
 // `email` round-trips the submitted value back into the form on failure.
 // React resets a useActionState-bound form's uncontrolled fields once the
 // action completes, wrong password included, so without this the email a
@@ -22,6 +46,12 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
   const email = formData.get("email");
   const emailValue = typeof email === "string" ? email : "";
   const password = formData.get("password");
+
+  const turnstileToken = formData.get("cf-turnstile-response");
+  const captchaError = await verifyTurnstile(
+    typeof turnstileToken === "string" ? turnstileToken : null,
+  );
+  if (captchaError) return { error: captchaError, email: emailValue };
 
   const supabase = await createSupabaseServerClient();
 
@@ -52,5 +82,12 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
     return { error: message, email: emailValue };
   }
 
-  redirect(homePath(account));
+  redirect(nextPath(formData.get("next")) ?? homePath(account));
+}
+
+/** Where a sign-in started from another page goes back to (`/login?next=`):
+ *  only the connector's consent page (KAN-377), so the link can't send a
+ *  student anywhere else. */
+function nextPath(next: FormDataEntryValue | null): string | null {
+  return typeof next === "string" && next.startsWith("/connect/claude?") ? next : null;
 }

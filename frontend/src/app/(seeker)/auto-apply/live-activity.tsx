@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleDot } from "lucide-react";
+import { RadioButtonIcon } from "@phosphor-icons/react/ssr";
 import { useRef } from "react";
 
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
@@ -9,12 +9,15 @@ import { useShallowParams, useShallowPush } from "@/components/shallow-routing";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
-import { useRunnerJob } from "@/lib/autofill-extension";
+import { useBrowserJobs } from "@/lib/autofill-extension";
 
 import { ActivityTable, GROUPS, sortItems, STATUS, type ActivityItem } from "./activity-list";
 import { activityHref, parseActivityQuery, STATUS_FILTERS, type StatusFilter } from "./query";
 
-const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.map((group) => ({
+/** History's statuses: queued and in-progress jobs are Up Next's (./up-next.tsx). */
+const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.filter(
+  (group) => group !== "queued" && group !== "progress",
+).map((group) => ({
   value: group,
   label: GROUPS[group].label,
   Icon: GROUPS[group].Icon,
@@ -22,11 +25,13 @@ const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.map((group) => ({
 }));
 
 /**
- * Live Activity (KAN-285): the Status filter and the table of applications
- * (./activity-list.tsx).
+ * History, once Live Activity (KAN-285): the Status filter and the table of
+ * the applications past the queue (./activity-list.tsx): needs you, applied
+ * and skipped. The queue itself is Up Next (./up-next.tsx) since KAN-359,
+ * so the filter offers only these statuses.
  *
  * It adds the one row the server cannot know: the queued job posting open
- * in the extension's run tab reads Working in Browser (useRunnerJob), in
+ * in one of the extension's batch tabs reads Working in Browser (useBrowserJobs), in
  * flight, and has a glyph that goes to the tab instead of the cross, since
  * taking it out of the queue would leave the tab on a job that is gone.
  * Every other row is as the server drew it.
@@ -45,11 +50,11 @@ const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.map((group) => ({
 export function LiveActivity({ items }: { items: ActivityItem[] }) {
   const query = parseActivityQuery(useShallowParams());
   const push = useShallowPush();
-  const runnerJob = useRunnerJob();
+  const browserJobs = useBrowserJobs();
   const statusButton = useRef<HTMLButtonElement>(null);
 
   const rows = items.map((item) =>
-    item.status === "queued" && item.id === runnerJob
+    item.status === "queued" && browserJobs.has(item.id)
       ? { ...item, status: "browser" as const, detail: "Open in a background tab" }
       : item,
   );
@@ -78,7 +83,7 @@ export function LiveActivity({ items }: { items: ActivityItem[] }) {
         <FieldFacet
           ref={statusButton}
           label="Status"
-          Icon={CircleDot}
+          Icon={RadioButtonIcon}
           options={STATUS_OPTIONS}
           values={query.statuses}
           onChange={setStatuses}

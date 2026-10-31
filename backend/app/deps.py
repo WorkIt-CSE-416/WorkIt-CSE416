@@ -12,26 +12,35 @@ sets it at signup); user_metadata is writable by the user and is never read.
 
 Everything else — email, name, onboarding state, company_id — comes from the
 profile row, one lookup per request. That keeps the token free of anything
-that could go stale between refreshes.
+that could go stale between refreshes. The one exception runs the other way:
+when the token's email differs from the row's, the sign-in email changed
+(Settings' Change Email, KAN-326), and get_current_account copies the
+token's onto the row.
 
 A separate module rather than living in app/routers/auth.py: every future
 router (jobs, applications, ...) will depend on this, and importing it
 shouldn't also import auth's route registrations.
 """
 
+import logging
 import uuid
 
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db import get_session
 from app.models.dto import profile_status
 from app.models.profiles import Applicant_Profile, Company_Membership
+from app.queries.accounts import copy_sign_in_email
 from app.schemas.auth import AccountType, AuthenticatedAccount, VerifiedIdentity
 from app.security import decode_access_token
+
+logger = logging.getLogger(__name__)
 
 
 # One message: whether the header is missing, the token is malformed, it's
@@ -105,6 +114,22 @@ async def get_current_account(
     if account is None:
         raise _not_authenticated()
 
+    # A confirmed email change reaches the token first: Supabase Auth owns
+    # the sign-in email, and the row only keeps a copy. Copied here, on the
+    # account's next request from any device, rather than by a callback
+    # that only the browser that opened the confirm link would run.
+    email = claims.get("email")
+    if isinstance(email, str) and email.lower() != account.email.lower():
+        try:
+            await copy_sign_in_email(db, account_id, account_type, email.lower())
+            await db.commit()
+            account = account.model_copy(update={"email": email.lower()})
+        except IntegrityError:
+            # Another row holds the address. Supabase allows one account
+            # per email, so this is a leftover row; keep the old copy.
+            await db.rollback()
+            logger.warning("Couldn't copy the new sign-in email of account %s", account_id)
+
     return account
 
 
@@ -169,6 +194,28 @@ async def get_signed_in_applicant_id(
         return None
 
 
+async def get_signed_in_applicant(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    db: AsyncSession = Depends(get_session),
+) -> AuthenticatedAccount | None:
+    '''
+    Like get_signed_in_applicant_id but loads the full profile row, needed
+    when the caller must pass an AuthenticatedAccount (score_jobs reads
+    identity). Never 401s: a missing, bad or non-applicant token returns
+    None, so a public page still loads.
+    '''
+    if credentials is None:
+        return None
+    try:
+        claims = await decode_access_token(credentials.credentials)
+        if claims.get("app_metadata", {}).get("account_type") != AccountType.APPLICANT:
+            return None
+        account_id = uuid.UUID(claims["sub"])
+    except (jwt.InvalidTokenError, ValueError):
+        return None
+    return await load_account(db, account_id, AccountType.APPLICANT)
+
+
 def assert_applicant_owns(account: AuthenticatedAccount, applicant_id: uuid.UUID) -> None:
     """Shared ownership guard: the caller must be an applicant whose id matches
     the path. Used by resumes, avatars and profile endpoints."""
@@ -184,6 +231,30 @@ async def owned_applicant(
     /applicants/{applicant_id} takes `applicant_id: uuid.UUID =
     Depends(owned_applicant)` and gets the checked id."""
     assert_applicant_owns(account, applicant_id)
+    return applicant_id
+
+
+async def token_applicant(
+    applicant_id: uuid.UUID,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> uuid.UUID:
+    """`owned_applicant` from the token alone, with no database read: its
+    signature, audience, issuer and expiry are checked (`decode_access_token`,
+    keys held in memory), and its applicant must be the path's. For a route
+    that reads and writes nothing (the editor's render of its own copy,
+    KAN-391): every other route needs `get_current_account`, which also
+    loads the account's row. A deleted account's token passes here until it
+    expires (an hour at most), which is harmless where nothing is read."""
+    if credentials is None:
+        raise _not_authenticated()
+    try:
+        claims = await decode_access_token(credentials.credentials)
+        account_type = AccountType(claims.get("app_metadata", {}).get("account_type"))
+        account_id = uuid.UUID(claims["sub"])
+    except (jwt.InvalidTokenError, ValueError):
+        raise _not_authenticated()
+    if account_type != AccountType.APPLICANT or account_id != applicant_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Forbidden")
     return applicant_id
 
 
@@ -205,4 +276,25 @@ async def get_company_member(
     if account.membership_status != profile_status.active:
         raise _not_a_company_member()
 
+    return account
+
+
+def is_admin(account: AuthenticatedAccount) -> bool:
+    '''whether the account is one of WorkIt's admins: its email or id is on WORKIT_ADMINS (app/config.py)'''
+    allowed = {entry.strip().lower() for entry in get_settings().workit_admins.split(",") if entry.strip()}
+    return str(account.email).lower() in allowed or str(account.id).lower() in allowed
+
+
+async def get_admin(
+    account: AuthenticatedAccount = Depends(get_current_account),
+) -> AuthenticatedAccount:
+    '''
+    for WorkIt's own admin routes (fix reports, KAN-369): the caller must be
+    on WORKIT_ADMINS. The email is the profile row's, which
+    get_current_account keeps equal to the verified token's sign-in email,
+    and signup requires a confirmed email, so no one can claim one they
+    don't hold.
+    '''
+    if not is_admin(account):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only WorkIt's admins can do this.")
     return account

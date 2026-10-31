@@ -61,11 +61,11 @@ class TestText:
 
 class TestLines:
     def test_closing_a_list_closes_its_implicit_items(self) -> None:
-        full, roles = providers._described(
+        full, roles = providers.text._described(
             "<h3>Requirements</h3><ul><li>Python<li>C++</ul><p><b>Benefits</b></p><p>Free lunch</p>"
         )
         assert roles == ("h", "li", "li", "b", "p")
-        assert providers._page("Intern", full, roles=roles).description == (
+        assert providers.text._page("Intern", full, roles=roles).description == (
             "Requirements\n• Python\n• C++\nBenefits\nFree lunch"
         )
 
@@ -91,11 +91,11 @@ class TestLines:
         assert providers.plain_lines("Intro\n- Python") == [("Intro", "p"), ("- Python", "p")]
 
     def test_a_page_stores_a_list_item_with_its_bullet(self) -> None:
-        full, roles = providers._described(
+        full, roles = providers.text._described(
             "<h3>Responsibilities</h3><ul><li>Build robots</li><li>Write tests</li></ul>"
         )
 
-        page = providers._page("Intern", full, roles=roles)
+        page = providers.text._page("Intern", full, roles=roles)
 
         assert page.description == "Responsibilities\n• Build robots\n• Write tests"
 
@@ -109,7 +109,7 @@ class TestLever:
             "additionalPlain": "Equal opportunity employer.",
         }
         assert (
-            providers._lever_description(row)
+            providers.systems.lever._lever_description(row)
             == "About us.\nRequirements\nPython\nROS\nEqual opportunity employer."
         )
 
@@ -141,7 +141,7 @@ class TestStore:
 
 
 class TestWithPage:
-    def test_only_unread_greenhouse_postings_are_fetched(self, monkeypatch) -> None:
+    def test_only_unread_greenhouse_postings_are_fetched(self, swap_provider) -> None:
         robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
         jobs = [job("greenhouse", "1"), job("greenhouse", "2", "Known."), job("lever", "3")]
         fetched: list[str] = []
@@ -150,25 +150,23 @@ class TestWithPage:
             fetched.append(j.external_id)
             return replace(j, page=page("Fetched."))
 
-        monkeypatch.setattr(providers, "describe_greenhouse", describe_greenhouse)
+        swap_provider("greenhouse", describe=describe_greenhouse)
         described = [run.with_page(j, robots) for j in jobs]
         assert fetched == ["1"]
         assert [j.description for j in described] == ["Fetched.", "Known.", None]
 
-    def test_a_page_read_under_an_older_version_is_read_again(self, monkeypatch) -> None:
+    def test_a_page_read_under_an_older_version_is_read_again(self, swap_provider) -> None:
         robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
         fetched: list[str] = []
-        monkeypatch.setattr(
-            providers, "describe_greenhouse", lambda j: fetched.append(j.external_id) or j
-        )
+        swap_provider("greenhouse", describe=lambda j: fetched.append(j.external_id) or j)
         stale = replace(job("greenhouse", "1"), page=page("Known.", providers.PAGE_VERSION - 1))
         run.with_page(stale, robots)
         assert fetched == ["1"]
 
-    def test_robots_disallow_leaves_it_undescribed(self, monkeypatch) -> None:
+    def test_robots_disallow_leaves_it_undescribed(self, swap_provider) -> None:
         robots = SimpleNamespace(allows=lambda url: False)
         fetched: list[Job] = []
-        monkeypatch.setattr(providers, "describe_greenhouse", fetched.append)
+        swap_provider("greenhouse", describe=fetched.append)
         described = run.with_page(job(), robots)
         assert fetched == []
         assert described.description is None

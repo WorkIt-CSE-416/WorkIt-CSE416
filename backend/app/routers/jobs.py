@@ -20,6 +20,11 @@ and /jobs/recommended then leave out the jobs that applicant marked as applied
 (job_applications, routers/applications.py). Without a token, or with one
 that isn't an applicant's, every job is listed (get_signed_in_applicant_id).
 
+GET /jobs also enriches each listing with `match` and `highlights` when the
+viewer is a signed-in applicant whose experience bank is non-empty, using the
+same `score_jobs` path as GET /jobs/recommended. A scoring failure is logged
+and swallowed: the feed still loads, just without scores.
+
 This file is the HTTP layer only: the routes, their query parameters and
 read_filters, which turns those into JobFilters. What each filter matches
 and how the database is asked live in app/queries/jobs/ (filters.py has the
@@ -57,9 +62,15 @@ by that filter, as one with no location is by ?location=.
 word in the job's text (queries/jobs/search.py has the four parts;
 docs/search.md the design). A search orders nothing: results are newest
 first, as the feed is. Ranking is the recommendations' job, not search's.
+
+GET /jobs/search-facts?q= lists the facts a search's words name that the
+filter row also offers (an experience level, a work style, a start term),
+each with the search its words leave out: /search shows them beside the
+row, so a filter the words set is never invisible (KAN-308).
 """
 
 import datetime
+import logging
 import uuid
 from typing import Annotated, Literal
 
@@ -70,9 +81,11 @@ from app.db import get_session
 from app.deps import (
     assert_applicant_owns,
     get_current_account,
+    get_signed_in_applicant,
     get_signed_in_applicant_id,
 )
 from app.models import dto
+from app.queries.jobs import home
 from app.queries.jobs.facets import (
     fetch_facets,
     fetch_location_options,
@@ -84,6 +97,7 @@ from app.queries.jobs.recommendations import score_jobs
 from app.queries.jobs.search import read_search, terms_in
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import (
+    HomeMatches,
     JobCount,
     JobFacets,
     JobListing,
@@ -93,11 +107,15 @@ from app.schemas.jobs import (
     PlaceCode,
     RoleSlug,
     ScoredJob,
+    SearchFact,
     SeasonKey,
 )
 from app.schemas.requirements import JobRequirement
 from app.services import postings, requirements
 from app.services.bank import load_bank
+from app.services.search_facts import without_words
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -123,7 +141,7 @@ async def read_filters(
     start_term: list[SeasonKey] = Query([], max_length=12),
     visa: Literal["sponsors"] | None = None,
     # All Filters' "Auto Apply Supported": only job postings auto apply can
-    # fill (Greenhouse for now, app/auto_apply/hosts.py).
+    # fill (every hiring system the Fill engine fills, app/auto_apply/hosts.py).
     auto_apply: bool = False,
     # /search's words, read by the role resolver (JobFilters.query_roles).
     q: str | None = Query(None, max_length=200),
@@ -188,10 +206,30 @@ async def list_jobs(
     # drops by id, or skip one it shows next visit.
     offset: int = Query(0, ge=0, le=100_000),
     filters: JobFilters = Depends(read_filters),
+    account: AuthenticatedAccount | None = Depends(get_signed_in_applicant),
     db: AsyncSession = Depends(get_session),
 ) -> list[JobListing]:
-    """Newest roles first. Empty until the first import has run."""
-    return await fetch_listings(db, limit, filters, offset)
+    """Newest roles first, with match scores when the viewer is a signed-in
+    applicant with a non-empty experience bank. Empty until the first import
+    has run."""
+    listings = await fetch_listings(db, limit, filters, offset)
+    if account is not None and listings:
+        try:
+            bank = await load_bank(db, account.id)
+            if bank.entries or bank.skills:
+                scored = await score_jobs(
+                    db, account, bank,
+                    JobFilters(job_ids=[uuid.UUID(j.id) for j in listings]),
+                )
+                by_id = {s.id: s for s in scored}
+                for listing in listings:
+                    hit = by_id.get(listing.id)
+                    if hit is not None:
+                        listing.match = hit.match
+                        listing.highlights = hit.highlights
+        except Exception:
+            logger.exception("Scoring failed for applicant %s", account.id)
+    return listings
 
 
 @router.get("/count", response_model=JobCount)
@@ -202,6 +240,22 @@ async def count_jobs(
     """How many jobs GET /jobs would list for the same filters, uncapped: the
     All Filters panel's "Show 128 jobs"."""
     return JobCount(jobs=await fetch_count(db, filters))
+
+
+@router.get("/search-facts", response_model=list[SearchFact])
+async def search_facts(
+    q: str = Query(max_length=200),
+    db: AsyncSession = Depends(get_session),
+) -> list[SearchFact]:
+    """The filters a search's words set, in the order typed, each once: a
+    fact named twice ("remote remote") is one, and dropping it drops both."""
+    at: dict[tuple[str, str], list[int]] = {}
+    for fact in (await read_search(db, q)).facts:
+        at.setdefault((fact.facet, fact.value), []).extend(fact.at)
+    return [
+        SearchFact(facet=facet, value=value, without=without_words(q, places))
+        for (facet, value), places in at.items()
+    ]
 
 
 @router.get("/roles", response_model=list[JobRoleOption])
@@ -284,6 +338,35 @@ async def recommended_jobs(
         )
     except EmptyBank as exc:
         raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/recommended/{applicant_id}/home", response_model=HomeMatches)
+async def recommended_home(
+    applicant_id: uuid.UUID,
+    # Strong Matches' window: Home sends its longest range's days.
+    posted_within: int = Query(ge=1, le=365),
+    min_match: int = Query(ge=0, le=100),
+    limit: int = Query(12, ge=1, le=50),
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> HomeMatches:
+    """Home's matches from one scoring pass (queries/jobs/home.py): the
+    best `limit`, the best `limit` auto apply can fill, and when each job
+    posted within `posted_within` days scoring at least `min_match` went
+    up. Served from the kept result while nothing it was made from has
+    changed. 404 while the bank is empty."""
+    assert_applicant_owns(account, applicant_id)
+    key = (account.id, await home.home_version(db, account.id), posted_within, min_match, limit)
+    if (hit := home.kept(key)) is not None:
+        return hit
+    bank = await load_bank(db, account.id)
+    if not bank.entries and not bank.skills:
+        raise HTTPException(404, "Your experience bank is empty")
+    matches = await home.home_matches(
+        db, account, bank, posted_within=posted_within, min_match=min_match, limit=limit
+    )
+    home.keep(key, matches)
+    return matches
 
 
 @router.get("/{job_id}/requirements", response_model=list[JobRequirement])

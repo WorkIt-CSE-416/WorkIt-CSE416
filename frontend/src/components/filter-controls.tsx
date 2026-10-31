@@ -52,7 +52,7 @@ export function OptionChip({
 }) {
   return (
     <Chip pressed={pressed} size={size} onClick={onClick}>
-      {Icon && <Icon className={cn("size-3.5", !pressed && "text-ink-meta")} />}
+      {Icon && <Icon aria-hidden className={cn("size-3.5", !pressed && "text-ink-meta")} />}
       {children}
     </Chip>
   );

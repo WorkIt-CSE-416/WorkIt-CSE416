@@ -11,8 +11,8 @@ import { cn } from "@/lib/cn";
  * The top bar's left cell: the sidebar toggle and the logo, in a cell exactly
  * as wide as the panel below it, ruled off on the right where the panel is.
  * The company shell opens its bar with it; `href` is where the logo goes
- * home to. The seeker shell used it too until it moved to floating panels,
- * where the logo lives in the panel's own header (PanelBrand in
+ * home to. The seeker shell used it too until it moved to floating panels;
+ * its rail now carries the mark in its own header (RailBrand in
  * @/components/app-sidebar).
  * The bar and the panel then read as one frame around the page, the way a
  * dashboard's corner does, instead of a bar whose logo and search float at
@@ -46,7 +46,7 @@ import { cn } from "@/lib/cn";
  *
  * The toggle's glyph is 16px, the rail icons' size, by `[&_svg]:size-4`.
  * shadcn's own button base sizes an svg for it; WorkIt's Button does not, so
- * without this the PanelLeft glyph fell back to Lucide's 24px and was the
+ * without this the toggle's glyph fell back to its own default size and was the
  * heaviest mark at the top of the column. It is set here rather than in the
  * Button base, which would resize the glyph in every Button.
  *

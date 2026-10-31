@@ -118,7 +118,10 @@ type Glyph = ComponentType<{ className?: string }>;
 function FacetLabel({ Icon, label, active }: { Icon: Glyph; label: string; active: boolean }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      <Icon className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink-meta")} />
+      <Icon
+        aria-hidden
+        className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink-meta")}
+      />
       <span className="truncate">{label}</span>
     </span>
   );
@@ -186,7 +189,7 @@ function FacetPopup({ options, multiple }: { options: readonly Option[]; multipl
       {options.map((option) => (
         <Item key={option.value} value={option.value} className="font-medium">
           <span className="flex items-center gap-2">
-            {option.Icon && <option.Icon className="text-ink-meta size-4 shrink-0" />}
+            {option.Icon && <option.Icon aria-hidden className="text-ink-meta size-4 shrink-0" />}
             {option.label}
           </span>
         </Item>
@@ -649,7 +652,7 @@ export function JobFilters({
       for (const [key, value] of filterEntries(next)) query.append(key, value);
       let search = query.toString();
       // Bare /jobs is a fresh visit, which the page sends on to the saved
-      // preferences, so a cleared row with no ?sort (as the Dashboard's
+      // preferences, so a cleared row with no ?sort (as Home's
       // week and month links open it) names the default order instead.
       if (!search && pathname === "/jobs") search = "sort=match";
       router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
@@ -731,8 +734,7 @@ export function JobFilters({
           label that renders a little wider elsewhere. Those leave room for
           Clear Filters whether or not it shows, so a pick never pushes a
           facet out of the row or All Filters onto a second line (KAN-252).
-          The row is never wider than 928px (max-w-app less its gutters), so
-          it holds five facets. Job Type took Experience's place (KAN-284):
+          From 920px the row holds all five facets. Job Type took Experience's place (KAN-284):
           it is where Internship is picked, and a pick out of sight emptied
           the feed (Student with Full-Time). Experience Level is in the panel
           only; until the scraper keeps experienced roles, its Entry Level

@@ -1,65 +1,72 @@
 import {
-  Accessibility,
-  ArrowLeft,
-  ArrowLeftRight,
-  ArrowRight,
-  Award,
-  Backpack,
-  BadgeCheck,
-  Banknote,
-  Bell,
-  Bookmark,
-  BriefcaseBusiness,
-  Building,
-  Building2,
-  Calendar,
-  Check,
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-  ClipboardCheck,
-  Clock,
-  ContactRound,
-  Ellipsis,
-  ExternalLink,
-  FileCheck2,
-  FileText,
-  Globe,
-  Gift,
-  GraduationCap,
-  House,
-  IdCard,
-  Info,
-  ListChecks,
-  ListFilter,
-  Lock,
-  LogOut,
-  Mail,
-  MapPin,
-  Medal,
-  Monitor,
-  Pencil,
-  Pin,
-  PinOff,
-  Plus,
-  Search,
-  Send,
-  Settings,
-  ShieldCheck,
-  Sparkles,
-  Star,
-  Trash2,
-  TrendingDown,
-  TrendingUp,
-  Upload,
-  User,
-  UserRound,
-  UsersRound,
-  X,
-  createLucideIcon,
-} from "lucide-react";
+  AirplaneTiltIcon as AirplaneTilt,
+  ArrowLeftIcon as ArrowLeft,
+  ArrowRightIcon as ArrowRight,
+  ArrowSquareOutIcon as ArrowSquareOut,
+  ArrowsLeftRightIcon as ArrowsLeftRight,
+  BackpackIcon as Backpack,
+  BellIcon as Bell,
+  BookmarkSimpleIcon as BookmarkSimple,
+  BriefcaseIcon as Briefcase,
+  BuildingIcon as Building,
+  BuildingOfficeIcon as BuildingOffice,
+  CalendarBlankIcon as CalendarBlank,
+  CaretDownIcon as CaretDown,
+  CaretUpDownIcon as CaretUpDown,
+  CaretUpIcon as CaretUp,
+  CheckIcon as Check,
+  ClockIcon as Clock,
+  DotsThreeIcon as DotsThree,
+  EnvelopeIcon as Envelope,
+  FileTextIcon as FileText,
+  FunnelSimpleIcon as FunnelSimple,
+  GearIcon as Gear,
+  GiftIcon as Gift,
+  GlobeIcon as Globe,
+  GraduationCapIcon as GraduationCap,
+  CurrencyDollarIcon as CurrencyDollar,
+  CompassIcon as Compass,
+  ChatCircleTextIcon as ChatCircleText,
+  HouseIcon as House,
+  IdentificationBadgeIcon as IdentificationBadge,
+  IdentificationCardIcon as IdentificationCard,
+  InfoIcon as Info,
+  ListChecksIcon as ListChecks,
+  LockIcon as Lock,
+  MagnifyingGlassIcon as MagnifyingGlass,
+  MapPinIcon as MapPin,
+  MedalIcon as Medal,
+  MedalMilitaryIcon as MedalMilitary,
+  MoneyIcon as Money,
+  PaperPlaneTiltIcon as PaperPlaneTilt,
+  PencilSimpleIcon as PencilSimple,
+  PersonArmsSpreadIcon as PersonArmsSpread,
+  PlugsConnectedIcon as PlugsConnected,
+  PlusIcon as Plus,
+  PushPinIcon as PushPin,
+  SealCheckIcon as SealCheck,
+  ShieldCheckIcon as ShieldCheck,
+  SignOutIcon as SignOut,
+  SparkleIcon as Sparkle,
+  StarIcon as Star,
+  TargetIcon as Target,
+  TranslateIcon as Translate,
+  TrashIcon as Trash,
+  TrendDownIcon as TrendDown,
+  TrendUpIcon as TrendUp,
+  UploadSimpleIcon as UploadSimple,
+  UserCircleIcon as UserCircle,
+  UserIcon as User,
+  UsersThreeIcon as UsersThree,
+  XIcon as X,
+} from "@phosphor-icons/react/ssr";
+import {
+  ClipboardCheckIcon as ClipboardCheck,
+  FileCheckIcon as FileCheck,
+  UserTieIcon as UserTie,
+} from "@/components/custom-icons";
 
-import type { AutofillAnswers } from "@/lib/autofill-answers";
+import type { QuestionKey } from "@/lib/autofill-answers";
 
 type IconProps = { className?: string };
 
@@ -69,46 +76,49 @@ type IconProps = { className?: string };
  * Per-route icon sets stay beside their route; a glyph moves here the moment a
  * second route needs it.
  *
- * THEY ARE LUCIDE'S, the set the sidebar, its toggle and shadcn's own
- * components already draw. These used to be hand-drawn at a 1.4 stroke on 12-,
- * 14-, 16- and 18-unit grids, which put two icon families on every screen: a
- * Lucide toggle beside a house bell in the top bar, and strokes from 0.88px to
- * 2px on the Dashboard. Each export is now a thin wrapper that keeps its old
- * name and props, so no call site changed when the drawing did.
+ * THEY ARE PHOSPHOR'S (KAN-350), at its regular weight, imported from
+ * `@phosphor-icons/react/ssr` so a server component can draw them. They were
+ * Lucide's until KAN-350, and hand-drawn before that at a 1.4 stroke on four
+ * grids, which put two icon families on every screen. Each export is a thin
+ * wrapper that keeps its old name and props, so no call site changed when the
+ * drawing did. Lucide went because it reads as the default set of every
+ * shadcn app and AI builder.
  *
- * Lucide's default stroke is kept (no strokeWidth, no absoluteStrokeWidth), so
- * these weigh exactly what the sidebar's do at the same size. Lucide also marks
- * a glyph aria-hidden on its own; it is passed here anyway so the rule is
- * visible where the icons are defined.
+ * Phosphor marks no glyph aria-hidden on its own, so every wrapper passes it.
+ * A filled state takes Phosphor's `weight="fill"`, never a `fill` prop or a
+ * `fill-*` class: its glyphs are filled shapes, so either one paints the
+ * whole glyph.
  *
  * The three brand marks at the bottom (Google, LinkedIn, the PDF file) stay
- * drawn: they are logos, not glyphs, and Lucide does not have them. A glyph
- * Lucide lacks (RoleIcon's person in a suit) is drawn on its grid and built
- * with its `createLucideIcon`, never as a bare <svg>, so it keeps the family.
+ * drawn: they are logos, not glyphs. A glyph Phosphor lacks (RoleIcon's
+ * person in a suit, the checked clipboard and file) is drawn in
+ * ./custom-icons.tsx, which takes Phosphor's props and weights, never as a
+ * bare <svg> here.
  */
 
 /* Chrome ------------------------------------------------------------------ */
 
 /** Scout and every AI action, the one mark for both (KAN-257): the top bar's
- *  launcher, the panel's header, Scout's mark in the chat, Ask Scout, Tailor My Resume and Read It Again with AI. It was a filled
- *  sparkle drawn by hand in the bar and the panel, beside Lucide's outlined
- *  Sparkles in the chat and on every AI button, so the assistant wore two
- *  marks. Use this, never `Sparkles` from lucide-react directly. */
+ *  launcher, the panel's header, Scout's mark in the chat, Ask Scout, Tailor
+ *  My Resume and Read It Again with AI. It was a filled sparkle drawn by hand
+ *  in the bar and the panel, beside an outlined one in the chat and on every
+ *  AI button, so the assistant wore two marks. Use this, never Phosphor's
+ *  `SparkleIcon` directly. */
 export function SparkleIcon({ className }: IconProps) {
-  return <Sparkles aria-hidden className={className} />;
+  return <Sparkle aria-hidden className={className} />;
 }
 
 export function SearchIcon({ className }: IconProps) {
-  return <Search aria-hidden className={className} />;
+  return <MagnifyingGlass aria-hidden className={className} />;
 }
 
 export function FilterIcon({ className }: IconProps) {
-  return <ListFilter aria-hidden className={className} />;
+  return <FunnelSimple aria-hidden className={className} />;
 }
 
 /** A filter chip's trailing glyph while it is still a dropdown. */
 export function ChevronDownIcon({ className }: IconProps) {
-  return <ChevronDown aria-hidden className={className} />;
+  return <CaretDown aria-hidden className={className} />;
 }
 
 /** The same chip's trailing glyph once it has something to remove. */
@@ -127,22 +137,28 @@ export function ArrowRightIcon({ className }: IconProps) {
 
 /** Opens the overflow menu on a card or a column. */
 export function EllipsisIcon({ className }: IconProps) {
-  return <Ellipsis aria-hidden className={className} />;
+  return <DotsThree aria-hidden className={className} />;
+}
+
+/** A job posting that fits the seeker: the Dashboard's Strong Matches. A
+ *  target, not SparkleIcon, which marks Scout and AI only (KAN-257). */
+export function MatchIcon({ className }: IconProps) {
+  return <Target aria-hidden className={className} />;
 }
 
 /** Filled is the saved state; the outline is the affordance to save. */
 export function BookmarkIcon({ className, filled = false }: IconProps & { filled?: boolean }) {
-  return <Bookmark aria-hidden fill={filled ? "currentColor" : "none"} className={className} />;
+  return <BookmarkSimple aria-hidden weight={filled ? "fill" : "regular"} className={className} />;
 }
 
 /** Edit: the profile pencils, seeker and company. */
 export function PencilIcon({ className }: IconProps) {
-  return <Pencil aria-hidden className={className} />;
+  return <PencilSimple aria-hidden className={className} />;
 }
 
 /** Delta direction on a stat tile. */
 export function TrendIcon({ className, down = false }: IconProps & { down?: boolean }) {
-  const Glyph = down ? TrendingDown : TrendingUp;
+  const Glyph = down ? TrendDown : TrendUp;
   return <Glyph aria-hidden className={className} />;
 }
 
@@ -162,7 +178,7 @@ export function ClockIcon({ className }: IconProps) {
 
 /** After a link that leaves WorkIt, such as Apply on an employer's own site. */
 export function ExternalLinkIcon({ className }: IconProps) {
-  return <ExternalLink aria-hidden className={className} />;
+  return <ArrowSquareOut aria-hidden className={className} />;
 }
 
 /* App shell ---------------------------------------------------------------- */
@@ -178,12 +194,12 @@ export function UserIcon({ className }: IconProps) {
 }
 
 export function GearIcon({ className }: IconProps) {
-  return <Settings aria-hidden className={className} />;
+  return <Gear aria-hidden className={className} />;
 }
 
 /** The account menu's Sign out row. */
 export function SignOutIcon({ className }: IconProps) {
-  return <LogOut aria-hidden className={className} />;
+  return <SignOut aria-hidden className={className} />;
 }
 
 /* Facts about a job, and the stages of a search ---------------------------
@@ -194,7 +210,7 @@ export function SignOutIcon({ className }: IconProps) {
  * date) CalendarIcon. */
 
 export function CoinIcon({ className }: IconProps) {
-  return <Banknote aria-hidden className={className} />;
+  return <Money aria-hidden className={className} />;
 }
 
 export function PinIcon({ className }: IconProps) {
@@ -202,17 +218,12 @@ export function PinIcon({ className }: IconProps) {
 }
 
 export function BriefcaseIcon({ className }: IconProps) {
-  return <BriefcaseBusiness aria-hidden className={className} />;
-}
-
-/** A company tile's glyph. A job's work style draws workStyleIcon() instead. */
-export function MonitorIcon({ className }: IconProps) {
-  return <Monitor aria-hidden className={className} />;
+  return <Briefcase aria-hidden className={className} />;
 }
 
 /** The Offer stage (see (seeker)/stage-colors.ts), not a job's level. */
 export function AwardIcon({ className }: IconProps) {
-  return <Award aria-hidden className={className} />;
+  return <Medal aria-hidden className={className} />;
 }
 
 /** Experience level: a mortarboard, which reads for "Internship" as well as
@@ -226,7 +237,7 @@ export function StudentIcon({ className }: IconProps) {
 }
 
 export function ExperiencedIcon({ className }: IconProps) {
-  return <BadgeCheck aria-hidden className={className} />;
+  return <SealCheck aria-hidden className={className} />;
 }
 
 /* Keyed as WORK_STYLE_ICON is, so the filter's "new_grad" and a label's
@@ -250,7 +261,7 @@ export function levelIcon(level: string | null) {
 }
 
 export function OnSiteIcon({ className }: IconProps) {
-  return <Building2 aria-hidden className={className} />;
+  return <BuildingOffice aria-hidden className={className} />;
 }
 
 export function RemoteIcon({ className }: IconProps) {
@@ -258,7 +269,7 @@ export function RemoteIcon({ className }: IconProps) {
 }
 
 export function HybridIcon({ className }: IconProps) {
-  return <ArrowLeftRight aria-hidden className={className} />;
+  return <ArrowsLeftRight aria-hidden className={className} />;
 }
 
 /* Keyed by the label with its case and punctuation stripped, because several
@@ -288,17 +299,6 @@ export function VisaIcon({ className }: IconProps) {
   return <Globe aria-hidden className={className} />;
 }
 
-/** Lucide has no person in a suit, so this one is drawn on its 24-unit grid
- *  and rendered by its own factory: the same stroke, caps and size as every
- *  glyph above, so it is still one family. Lucide's `User` with wider
- *  shoulders, a collar and a knotted tie. */
-const UserTie = createLucideIcon("user-tie", [
-  ["circle", { cx: "12", cy: "6", r: "3.5", key: "head" }],
-  ["path", { d: "M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1", key: "shoulders" }],
-  ["path", { d: "m10.5 14 1.5 2 1.5-2", key: "collar" }],
-  ["path", { d: "m12 16-1 3 1 2 1-2z", key: "tie" }],
-]);
-
 /** A role, the job a person does: someone in a suit and tie (KAN-252; it
  *  was shapes, which read as nothing). The Role filter's and onboarding's;
  *  the job card doesn't print the fact. */
@@ -316,10 +316,10 @@ export function BenefitsIcon({ className }: IconProps) {
 }
 
 export function ApplyIcon({ className }: IconProps) {
-  return <Send aria-hidden className={className} />;
+  return <PaperPlaneTilt aria-hidden className={className} />;
 }
 
-/** A plain building, not On-Site's Building2, so the two never read as one fact. */
+/** A plain building, not On-Site's BuildingOffice, so the two never read as one fact. */
 export function CompanyIcon({ className }: IconProps) {
   return <Building aria-hidden className={className} />;
 }
@@ -345,11 +345,17 @@ export function DetailsIcon({ className }: IconProps) {
 }
 
 export function CalendarIcon({ className }: IconProps) {
-  return <Calendar aria-hidden className={className} />;
+  return <CalendarBlank aria-hidden className={className} />;
 }
 
 export function MailIcon({ className }: IconProps) {
-  return <Mail aria-hidden className={className} />;
+  return <Envelope aria-hidden className={className} />;
+}
+
+/** Settings' Integrations: apps a student connects to WorkIt (Gmail,
+ *  Google Calendar; KAN-413). */
+export function IntegrationsIcon({ className }: IconProps) {
+  return <PlugsConnected aria-hidden className={className} />;
 }
 
 /* Auth --------------------------------------------------------------------- */
@@ -361,7 +367,7 @@ export function LockIcon({ className }: IconProps) {
 /* Resume upload ------------------------------------------------------------ */
 
 export function UploadIcon({ className }: IconProps) {
-  return <Upload aria-hidden className={className} />;
+  return <UploadSimple aria-hidden className={className} />;
 }
 
 export function FileIcon({ className }: IconProps) {
@@ -369,11 +375,13 @@ export function FileIcon({ className }: IconProps) {
 }
 
 export function TrashIcon({ className }: IconProps) {
-  return <Trash2 aria-hidden className={className} />;
+  return <Trash aria-hidden className={className} />;
 }
 
 /* Brand marks ---------------------------------------------------------------
- * The two OAuth providers' own logos, in their own colours. Unlike every other
+ * The OAuth providers' and Settings' integrations' own logos (Google,
+ * LinkedIn, Gmail, Google Calendar), and Auto Apply's setup's (Chrome,
+ * Claude), in their own colours. Unlike every other
  * icon in this file these do not take `currentColor` — a brand mark recoloured
  * to the surrounding text is no longer the brand mark, and both companies'
  * guidelines require the official colours on a light background, which is what
@@ -403,6 +411,92 @@ export function GoogleIcon({ className }: IconProps) {
         fill="#EA4335"
         d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.55 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5Z"
       />
+    </svg>
+  );
+}
+
+/**
+ * Chrome's mark (the 2022 one): red, yellow and green bands round a white
+ * ring and a blue centre, each band bounded by a line tangent to the ring.
+ * Drawn here from that geometry (KAN-424, Auto Apply's setup), not copied
+ * from a file.
+ */
+export function ChromeIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true" className={className}>
+      <path
+        fill="#EA4335"
+        d="M14.91 29.25L4.12 10.56A24 24 0 0 1 45.58 13.50L24.00 13.50A10.5 10.5 0 0 0 14.91 29.25Z"
+      />
+      <path
+        fill="#FBBC04"
+        d="M24.00 13.50L45.58 13.50A24 24 0 0 1 22.30 47.94L33.09 29.25A10.5 10.5 0 0 0 24.00 13.50Z"
+      />
+      <path
+        fill="#34A853"
+        d="M33.09 29.25L22.30 47.94A24 24 0 0 1 4.12 10.56L14.91 29.25A10.5 10.5 0 0 0 33.09 29.25Z"
+      />
+      <circle cx="24" cy="24" r="10.5" fill="#FFFFFF" />
+      <circle cx="24" cy="24" r="8.5" fill="#1A73E8" />
+    </svg>
+  );
+}
+
+/**
+ * Claude's spark, Anthropic's own mark in its terracotta (#D97757), as the
+ * Claude desktop app ships it, for the connector's rows (KAN-424, Auto
+ * Apply's setup), so a student finds Claude by its look. A likeness drawn
+ * here first, twelve even rounded rays, read as a snowflake. Not WorkIt's
+ * AI mark: Scout and every WorkIt AI action keep `SparkleIcon`.
+ */
+export function ClaudeIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 248 248" aria-hidden="true" className={className}>
+      <path
+        fill="#D97757"
+        d="M52.4285 162.873L98.7844 136.879L99.5485 134.602L98.7844 133.334H96.4921L88.7237 132.862L62.2346 132.153L39.3113 131.207L17.0249 130.026L11.4214 128.844L6.2 121.873L6.7094 118.447L11.4214 115.257L18.171 115.847L33.0711 116.911L55.485 118.447L71.6586 119.392L95.728 121.873H99.5485L100.058 120.337L98.7844 119.392L97.7656 118.447L74.5877 102.732L49.4995 86.1905L36.3823 76.62L29.3779 71.7757L25.8121 67.2858L24.2839 57.3608L30.6515 50.2716L39.3113 50.8623L41.4763 51.4531L50.2636 58.1879L68.9842 72.7209L93.4357 90.6804L97.0015 93.6343L98.4374 92.6652L98.6571 91.9801L97.0015 89.2625L83.757 65.2772L69.621 40.8192L63.2534 30.6579L61.5978 24.632C60.9565 22.1032 60.579 20.0111 60.579 17.4246L67.8381 7.49965L71.9133 6.19995L81.7193 7.49965L85.7946 11.0443L91.9074 24.9865L101.714 46.8451L116.996 76.62L121.453 85.4816L123.873 93.6343L124.764 96.1155H126.292V94.6976L127.566 77.9197L129.858 57.3608L132.15 30.8942L132.915 23.4505L136.608 14.4708L143.994 9.62643L149.725 12.344L154.437 19.0788L153.8 23.4505L150.998 41.6463L145.522 70.1215L141.957 89.2625H143.994L146.414 86.7813L156.093 74.0206L172.266 53.698L179.398 45.6635L187.803 36.802L193.152 32.5484H203.34L210.726 43.6549L207.415 55.1159L196.972 68.3492L188.312 79.5739L175.896 96.2095L168.191 109.585L168.882 110.689L170.738 110.53L198.755 104.504L213.91 101.787L231.994 98.7149L240.144 102.496L241.036 106.395L237.852 114.311L218.495 119.037L195.826 123.645L162.07 131.592L161.696 131.893L162.137 132.547L177.36 133.925L183.855 134.279H199.774L229.447 136.524L237.215 141.605L241.8 147.867L241.036 152.711L229.065 158.737L213.019 154.956L175.45 145.977L162.587 142.787H160.805V143.85L171.502 154.366L191.242 172.089L215.82 195.011L217.094 200.682L213.91 205.172L210.599 204.699L188.949 188.394L180.544 181.069L161.696 165.118H160.422V166.772L164.752 173.152L187.803 207.771L188.949 218.405L187.294 221.832L181.308 223.959L174.813 222.777L161.187 203.754L147.305 182.486L136.098 163.345L134.745 164.2L128.075 235.42L125.019 239.082L117.887 241.8L111.902 237.31L108.718 229.984L111.902 215.452L115.722 196.547L118.779 181.541L121.58 162.873L123.291 156.636L123.14 156.219L121.773 156.449L107.699 175.752L86.304 204.699L69.3663 222.777L65.291 224.431L58.2867 220.768L58.9235 214.27L62.8713 208.48L86.304 178.705L100.44 160.155L109.551 149.507L109.462 147.967L108.959 147.924L46.6977 188.512L35.6182 189.93L30.7788 185.44L31.4156 178.115L33.7079 175.752L52.4285 162.873Z"
+      />
+    </svg>
+  );
+}
+
+/** Gmail's four-colour envelope "M" (the 2020 mark). Wider than tall, so it
+ *  sits centred in a square `size-*`. */
+export function GmailIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="52 42 88 66" aria-hidden="true" className={className}>
+      <path fill="#4285F4" d="M58 108h14V74L52 59v43c0 3.32 2.69 6 6 6" />
+      <path fill="#34A853" d="M120 108h14c3.32 0 6-2.69 6-6V59l-20 15" />
+      <path fill="#FBBC04" d="M120 48v26l20-15v-8c0-7.42-8.47-11.65-14.4-7.2" />
+      <path fill="#EA4335" d="M72 74V48l24 18 24-18v26L96 92" />
+      <path fill="#C5221F" d="M52 51v8l20 15V48l-5.6-4.2c-5.94-4.45-14.4-.22-14.4 7.2" />
+    </svg>
+  );
+}
+
+/** Google Calendar's square with its folded corner and "31" (the 2020
+ *  mark). */
+export function GoogleCalendarIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 200 200" aria-hidden="true" className={className}>
+      <path
+        fill="#FFFFFF"
+        d="M152.6 47.4 105.3 42.1 47.4 47.4 42.1 100l5.3 52.6 52.6 6.6 52.6-6.6 5.3-53.9z"
+      />
+      <path
+        fill="#1A73E8"
+        d="M69 129c-3.9-2.7-6.7-6.5-8.1-11.7l9.1-3.8c.8 3.2 2.3 5.6 4.3 7.3 2.1 1.7 4.6 2.6 7.5 2.6 3 0 5.6-.9 7.7-2.7s3.2-4.1 3.2-6.9c0-2.9-1.1-5.2-3.4-7s-5.1-2.7-8.5-2.7h-5.3v-9h4.7c2.9 0 5.4-.8 7.4-2.4s3-3.7 3-6.5c0-2.4-.9-4.4-2.7-5.9s-4.1-2.2-6.8-2.2c-2.7 0-4.8.7-6.4 2.1s-2.7 3.2-3.4 5.3l-9-3.8c1.2-3.4 3.4-6.4 6.6-9s7.3-3.9 12.3-3.9c3.7 0 7 .7 10 2.1s5.3 3.4 6.9 5.9c1.7 2.5 2.5 5.4 2.5 8.5 0 3.2-.8 5.9-2.3 8.2s-3.5 3.9-5.7 5.1v.5c3 1.2 5.4 3.2 7.3 5.7s2.9 5.6 2.9 9.2-.9 6.8-2.7 9.6-4.3 5-7.5 6.6c-3.2 1.6-6.8 2.4-10.8 2.4-4.6 0-8.9-1.3-12.8-4z"
+      />
+      <path fill="#1A73E8" d="m125 83.7-10 7.3-5-7.6 18-13h6.9v61.2H125z" />
+      <path fill="#EA4335" d="M152.6 200 200 152.6l-23.7-10.5-23.7 10.5-10.5 23.7z" />
+      <path fill="#34A853" d="m36.8 176.3 10.6 23.7h105.2v-47.4H47.4z" />
+      <path
+        fill="#4285F4"
+        d="M15.8 0C7.1 0 0 7.1 0 15.8v136.8l23.7 10.6 23.7-10.6V47.4h105.2l10.6-23.7L152.6 0z"
+      />
+      <path fill="#188038" d="M0 152.6v31.6c0 8.7 7.1 15.8 15.8 15.8h31.6v-47.4z" />
+      <path fill="#FBBC04" d="M152.6 47.4v105.2H200V47.4l-23.7-10.6z" />
+      <path fill="#1967D2" d="M200 47.4V15.8C200 7.1 192.9 0 184.2 0h-31.6v47.4z" />
     </svg>
   );
 }
@@ -460,19 +554,18 @@ export function PdfIcon({ className }: IconProps) {
  * the state on its own, which is what keeps it readable where colour is not.
  */
 export function SortIcon({ className, direction }: IconProps & { direction?: "asc" | "desc" }) {
-  const Glyph =
-    direction === "asc" ? ChevronUp : direction === "desc" ? ChevronDown : ChevronsUpDown;
+  const Glyph = direction === "asc" ? CaretUp : direction === "desc" ? CaretDown : CaretUpDown;
   return <Glyph aria-hidden className={className} />;
 }
 
 /** Work authorization: a checked document. */
 export function AuthorizationIcon({ className }: IconProps) {
-  return <FileCheck2 aria-hidden className={className} />;
+  return <FileCheck aria-hidden className={className} />;
 }
 
 /** Citizenship and visa status: an ID card. */
 export function CitizenshipIcon({ className }: IconProps) {
-  return <IdCard aria-hidden className={className} />;
+  return <IdentificationCard aria-hidden className={className} />;
 }
 
 /** Security clearance: a checked shield. */
@@ -482,30 +575,30 @@ export function ClearanceIcon({ className }: IconProps) {
 
 /** Gender: a person. */
 export function GenderIcon({ className }: IconProps) {
-  return <UserRound aria-hidden className={className} />;
+  return <UserCircle aria-hidden className={className} />;
 }
 
 /** Hispanic or Latino: a contact card. */
 export function HispanicLatinoIcon({ className }: IconProps) {
-  return <ContactRound aria-hidden className={className} />;
+  return <IdentificationBadge aria-hidden className={className} />;
 }
 
 /** Race/Ethnicity: a group of people. */
 export function RaceIcon({ className }: IconProps) {
-  return <UsersRound aria-hidden className={className} />;
+  return <UsersThree aria-hidden className={className} />;
 }
 
 /** Veteran status: a medal. */
 export function VeteranIcon({ className }: IconProps) {
-  return <Medal aria-hidden className={className} />;
+  return <MedalMilitary aria-hidden className={className} />;
 }
 
 /** Disability: the accessibility figure. */
 export function DisabilityIcon({ className }: IconProps) {
-  return <Accessibility aria-hidden className={className} />;
+  return <PersonArmsSpread aria-hidden className={className} />;
 }
 
-const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
+const ANSWER_ICON: Record<QuestionKey, typeof AuthorizationIcon> = {
   work_authorized_us: AuthorizationIcon,
   needs_sponsorship: VisaIcon,
   work_authorization_status: CitizenshipIcon,
@@ -515,19 +608,36 @@ const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
   race: RaceIcon,
   veteran_status: VeteranIcon,
   disability_status: DisabilityIcon,
+  sexual_orientation: GenderIcon,
+  transgender: GenderIcon,
+  pronouns: ({ className }: IconProps) => <ChatCircleText aria-hidden className={className} />,
 };
 
 /** An application question's glyph, by its key in the answer bank
  *  (lib/autofill-answers): onboarding's Profile step and My Profile's
  *  Application Questions draw the same one. Moved here from onboarding when
  *  My Profile became the second route to want them (KAN-269). */
-export function answerIcon(key: keyof AutofillAnswers) {
+export function answerIcon(key: QuestionKey) {
   return ANSWER_ICON[key];
 }
 
-/** The sidebar's pin (KAN-300, components/hover-sidebar.tsx): a pin to pin
- *  the panel open, crossed out to unpin it. Not PinIcon, which is a place. */
-export function SidebarPinIcon({ pinned, className }: IconProps & { pinned: boolean }) {
-  const Glyph = pinned ? PinOff : Pin;
-  return <Glyph aria-hidden className={className} />;
+/** My Profile's Application answers groups (KAN-369), shared with
+ *  onboarding's Availability step: one glyph a group, by its name. */
+export const ANSWER_GROUP_ICON = {
+  availability: ({ className }: IconProps) => <Clock aria-hidden className={className} />,
+  startWindow: ({ className }: IconProps) => <CalendarBlank aria-hidden className={className} />,
+  relocation: ({ className }: IconProps) => <AirplaneTilt aria-hidden className={className} />,
+  address: ({ className }: IconProps) => <House aria-hidden className={className} />,
+  languages: ({ className }: IconProps) => <Translate aria-hidden className={className} />,
+  screeners: ({ className }: IconProps) => <ListChecks aria-hidden className={className} />,
+  schoolYear: ({ className }: IconProps) => <GraduationCap aria-hidden className={className} />,
+  agePay: ({ className }: IconProps) => <CurrencyDollar aria-hidden className={className} />,
+  interests: ({ className }: IconProps) => <Compass aria-hidden className={className} />,
+  communities: ({ className }: IconProps) => <UsersThree aria-hidden className={className} />,
+};
+
+/** Pinning the WorkIt extension to Chrome's toolbar (KAN-378, onboarding's
+ *  install step): a pin glyph. Not PinIcon, which is a place. */
+export function ToolbarPinIcon({ className }: IconProps) {
+  return <PushPin aria-hidden className={className} />;
 }

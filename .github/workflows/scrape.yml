@@ -39,7 +39,14 @@ permissions:
 jobs:
   scrape-and-import:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A cancelled run saves no store, so the next one repeats its work: every
+    # scheduled run from 2026-10-28 to 10-29 hit 30 minutes reading posting pages
+    # and none imported. The scraper now stops starting page reads 20 minutes in
+    # (`PAGES_UNTIL_S`) and every lane stops starting boards 30 minutes in
+    # (`BOARDS_UNTIL_S`), so a run should end near 40 minutes with its import; this
+    # is headroom. Keep it well under the 3-hour schedule: one run at a time, so a
+    # stuck run holds the next one back until it is cut off.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -57,18 +64,14 @@ jobs:
           key: scraper-store-${{ github.run_id }}
           restore-keys: scraper-store-
 
-      # boards.csv only grows (build_boards.py), so this adds the companies the
-      # curated lists have named since it was last committed and can never drop
-      # one. It writes nothing unless every list loads, and a failure here leaves
-      # the committed list for the scrape, which still runs.
-      - name: Add companies the curated lists name now
-        working-directory: scraper
-        continue-on-error: true
-        run: python3 build_boards.py
-
+      # Daily discovery proposes additions in a PR. Only the human-reviewed,
+      # merged boards.csv is scraped; do not add unreviewed curated leads here.
+      # -u: unbuffered, so each board's line shows when it happens. Buffered, the
+      # cancelled runs of 2026-10-30 printed lines in batches and lost their last
+      # minutes, so the log looked silent where the scraper was still reading.
       - name: Scrape
         working-directory: scraper
-        run: python3 -m workit_scraper ${{ inputs.full && '--full' || '' }}
+        run: python3 -u -m workit_scraper ${{ inputs.full && '--full' || '' }}
 
       # Saved only after a scrape that finished, so a crashed run can't hand the
       # next one a half-written store.
@@ -84,7 +87,9 @@ jobs:
           name: scrape-${{ github.run_id }}
           path: |
             scraper/feed.json
+            scraper/closings.json
             scraper/internships.html
+            scraper/metrics.json
           retention-days: 7
 
       - uses: astral-sh/setup-uv@v3
@@ -98,10 +103,22 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # The model the keyword pass reads (scout/CLAUDE.md): the small
+          # chain, then the default chain after it.
+          SCOUT_ENDPOINTS_SMALL: ${{ secrets.SCOUT_ENDPOINTS_SMALL }}
+          SCOUT_ENDPOINTS: ${{ secrets.SCOUT_ENDPOINTS }}
           DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::The DATABASE_URL secret is not set (Settings > Secrets and variables > Actions)."
             exit 1
+          fi
+          # A missing secret arrives as "", which is not unset: Scout's
+          # settings refuse "" as a list.
+          for name in SCOUT_ENDPOINTS_SMALL SCOUT_ENDPOINTS; do
+            if [ -z "${!name}" ]; then unset "$name"; fi
+          done
+          if [ -z "$SCOUT_ENDPOINTS_SMALL" ] && [ -z "$SCOUT_ENDPOINTS" ]; then
+            echo "::warning::No SCOUT_ENDPOINTS_SMALL or SCOUT_ENDPOINTS secret; this run extracts no keywords."
           fi
           uv run python -m app.scripts.import_jobs ../scraper/feed.json ${DRY_RUN:+"$DRY_RUN"}

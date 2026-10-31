@@ -4,6 +4,8 @@ import {
   addDays,
   addMonths,
   addWeeks,
+  eachDayOfInterval,
+  endOfMonth,
   endOfWeek,
   format,
   isSameMonth,
@@ -12,29 +14,39 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { ViewTransition, type ReactNode } from "react";
+import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react/ssr";
+import { useState, ViewTransition, type ReactNode } from "react";
 
+import { FieldFacet, type FacetOption } from "@/components/field-facet";
+import { CloseIcon } from "@/components/icons";
 import { ShallowLink } from "@/components/shallow-routing";
+import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 
+import { CreateEventDialog, type EventTarget } from "../applications/create-event";
+import { StatusIcon } from "../applications/icons";
+
 import { useHydrated } from "../local-time";
-import type { TrackerEvent } from "../tracker";
+import { localDay, type EventKind, type TrackerEvent } from "../tracker";
 import { Agenda, AGENDA_DAYS } from "./agenda";
-import { dayKey, groupByDay, KIND_LABEL, LEGEND_ORDER, lookOf } from "./entries";
+import { dayKey, groupByDay, KIND_LABEL, KIND_ORDER, lookOf, onCalendar } from "./entries";
 import { Month } from "./month";
 import { calendarHref, type CalendarView as View } from "./query";
-import { useCalendarQuery } from "./view-switch";
-import { Week } from "./week";
+import { TimeGrid } from "./time-grid";
+import { CalendarViewSwitch, useCalendarQuery } from "./view-switch";
 
 /**
- * The calendar itself, laid out after the reference the KAN-152 design took
- * from: the span's title at the top left ("October 2026"), and at the top
- * right Today with the arrows beside it as two round grey buttons, so the
- * three ways of moving through time sit together; the view under them, and
- * the legend at the foot. Open on the page rather than boxed: the page panel
- * is already white, and the day tiles carry the structure a card's edge
- * would.
+ * The calendar itself (KAN-429): ONE TOOLBAR, the span's title at the left
+ * ("October 2026") and at the right Today, the arrows, Month / Week /
+ * Agenda and Create Event, with THE TYPE FILTER beside the title: a dropdown, as every page
+ * with filters draws one (components/field-facet.tsx), each kind in its
+ * glyph and colour with how many fall in the span; then the view, the full
+ * width of the page. An Upcoming list beside it was tried and taken out
+ * (KAN-429): the grid itself says what is next. The colour key
+ * was a row of tiny dots under the grid, far from what it named, then for a
+ * draft a row of chips, which broke the filter pattern; the view switch sat
+ * apart in the page's header. The picked kinds are this visit's own state,
+ * kept while the span or the view changes.
  *
  * ALL OF IT RENDERS IN THE BROWSER. Which day an entry falls on depends on
  * the viewer's zone, and a bare /calendar opens on the viewer's today, and
@@ -51,8 +63,9 @@ import { Week } from "./week";
  * handed down by the page, and every link that only changes them moves the
  * URL in place (ShallowLink). The views are drawn from entries the browser
  * already holds, so a step or a new view redraws at once; through the
- * server, it waited on a round trip after the click. An entry still
- * navigates for real: its detail panel is drawn on the server.
+ * server, it waited on a round trip after the click. An entry opens its
+ * event card in place; the card's View Application navigates for real,
+ * since the detail panel is drawn on the server.
  *
  * THE SPAN SLIDES THE WAY TIME WENT. The title and the view are each keyed
  * by the span on screen (`Step`), so moving to another span is an exit and an
@@ -64,19 +77,22 @@ import { Week } from "./week";
  * outside the keys, so they hold still while the span moves under them.
  */
 export function CalendarView({
+  applications,
   events,
 }: {
+  /** The applications Create Event can put an event on. */
+  applications: EventTarget[];
   /** Every dated entry, oldest first; the views group them by local day. */
   events: TrackerEvent[];
 }) {
   const hydrated = useHydrated();
-  const { view, date } = useCalendarQuery();
+  const { view, date, demo } = useCalendarQuery();
 
   if (!hydrated) {
     return (
-      <div aria-hidden="true">
-        <div className="bg-well rounded-control mt-6 h-8 w-48 animate-pulse" />
-        <div className="bg-well rounded-card mt-4 h-[32rem] animate-pulse" />
+      <div aria-hidden="true" className="flex min-h-0 flex-1 flex-col">
+        <div className="bg-well rounded-control h-9 w-48 animate-pulse" />
+        <div className="bg-well rounded-card mt-4 flex-1 animate-pulse" />
       </div>
     );
   }
@@ -84,8 +100,8 @@ export function CalendarView({
   // The real thing fades in over the placeholder's spot rather than cutting
   // to it.
   return (
-    <div className="animate-fade">
-      <Calendar view={view} date={date} events={events} />
+    <div className="animate-fade flex min-h-0 flex-1 flex-col">
+      <Calendar view={view} date={date} demo={demo} applications={applications} events={events} />
     </div>
   );
 }
@@ -167,84 +183,159 @@ function spanOf(view: View, anchor: Date) {
   };
 }
 
+/** The first and last day each view draws, for the filter row's counts. */
+function rangeOf(view: View, anchor: Date) {
+  if (view === "month") {
+    return { from: startOfWeek(startOfMonth(anchor)), to: endOfWeek(endOfMonth(anchor)) };
+  }
+  if (view === "week") return { from: startOfWeek(anchor), to: endOfWeek(anchor) };
+  return { from: anchor, to: addDays(anchor, AGENDA_DAYS - 1) };
+}
+
 function Calendar({
   view,
   date,
+  demo,
+  applications,
   events,
 }: {
   view: View;
   date: string | null;
+  /** The sample week is on (./demo.ts): every link keeps it. */
+  demo: boolean;
+  applications: EventTarget[];
   events: TrackerEvent[];
 }) {
+  // The kinds the filter picked; none picked shows every kind, as every
+  // filter dropdown reads (components/field-facet.tsx).
+  const [kinds, setKinds] = useState<EventKind[]>([]);
   const today = dayKey(new Date());
   const anchor = parseISO(date ?? today);
   const span = spanOf(view, anchor);
-  const byDay = groupByDay(events);
+  const listed = events.filter(onCalendar);
+  const shown = kinds.length ? listed.filter((event) => kinds.includes(event.kind)) : listed;
+  const byDay = groupByDay(shown);
+
+  // How many of each kind fall in the span on screen, for its chip.
+  const range = rangeOf(view, anchor);
+  const from = dayKey(range.from);
+  const to = dayKey(range.to);
+  const counts = new Map<EventKind, number>();
+  for (const event of listed) {
+    const day = localDay(event.at);
+    if (day >= from && day <= to) counts.set(event.kind, (counts.get(event.kind) ?? 0) + 1);
+  }
 
   // Which span this is, for Step's key, and which way Today goes from it.
   const first = dayKey(span.start);
   const home = dayKey(spanOf(view, parseISO(today)).start);
   const towardToday = home < first ? "nav-back" : home > first ? "nav-forward" : undefined;
 
-  // An entry opens its application's panel over the view it was clicked in.
-  const openHref = (applicationId: string) => calendarHref({ view, date, app: applicationId });
-  const dayHref = (day: string) => calendarHref({ view: "agenda", date: day });
+  // An event card's View Application opens its application's panel over
+  // the view it was clicked in.
+  const openHref = (applicationId: string) =>
+    calendarHref({ view, date, app: applicationId, demo });
+  // A day's number or "+N more" opens the week that holds it.
+  const dayHref = (day: string) => calendarHref({ view: "week", date: day, demo });
+  const options: FacetOption[] = KIND_ORDER.map((kind) => {
+    const look = lookOf(kind);
+    const count = counts.get(kind) ?? 0;
+    return {
+      value: kind,
+      label: count ? `${KIND_LABEL[kind]} (${count})` : KIND_LABEL[kind],
+      Icon: look.Icon,
+      iconClassName: look.onTint,
+    };
+  });
 
   return (
-    <>
-      <div className="mt-6 flex items-center justify-between gap-4">
-        <Step key={`${view}:${first}`}>
-          <h2 className="text-title text-ink">{span.title}</h2>
-        </Step>
-        <div className="flex shrink-0 items-center gap-2">
-          <ShallowLink href={calendarHref({ view })} transitionType={towardToday} className={TODAY}>
-            Today
-          </ShallowLink>
-          <ShallowLink
-            href={calendarHref({ view, date: dayKey(span.prev) })}
-            transitionType="nav-back"
-            aria-label={`Previous ${span.unit}`}
-            className={cn(ARROW, "hover:[&>svg]:-translate-x-0.5")}
-          >
-            <ChevronLeft aria-hidden className="size-4" />
-          </ShallowLink>
-          <ShallowLink
-            href={calendarHref({ view, date: dayKey(span.next) })}
-            transitionType="nav-forward"
-            aria-label={`Next ${span.unit}`}
-            className={cn(ARROW, "hover:[&>svg]:translate-x-0.5")}
-          >
-            <ChevronRight aria-hidden className="size-4" />
-          </ShallowLink>
-        </div>
-      </div>
-
-      <Step key={`${view}:${first}`}>
-        {view === "month" && (
-          <Month
-            anchor={anchor}
-            today={today}
-            byDay={byDay}
-            openHref={openHref}
-            dayHref={dayHref}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* Three pieces that wrap apart on a narrow screen: the title, the
+            arrows with Today, and the view switch, which takes a line of its
+            own on a phone rather than pushing the page sideways. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Step key={`${view}:${first}`}>
+            <h2 className="text-title text-ink mr-auto">{span.title}</h2>
+          </Step>
+          {/* THE FILTER, a dropdown as on every page with filters
+              (components/field-facet.tsx): each kind in its glyph and
+              colour, with how many fall in the span on screen. */}
+          <div className="flex items-center gap-1">
+            <FieldFacet
+              label="Type"
+              Icon={StatusIcon}
+              options={options}
+              values={kinds}
+              onChange={(next) => setKinds(next as EventKind[])}
+            />
+            {kinds.length > 0 && (
+              <IconButton label="Clear Filter" className="size-8" onClick={() => setKinds([])}>
+                <CloseIcon className="size-4" />
+              </IconButton>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <ShallowLink
+              href={calendarHref({ view, demo })}
+              transitionType={towardToday}
+              className={TODAY}
+            >
+              Today
+            </ShallowLink>
+            <ShallowLink
+              href={calendarHref({ view, date: dayKey(span.prev), demo })}
+              transitionType="nav-back"
+              aria-label={`Previous ${span.unit}`}
+              className={cn(ARROW, "hover:[&>svg]:-translate-x-0.5")}
+            >
+              <CaretLeftIcon aria-hidden className="size-4" />
+            </ShallowLink>
+            <ShallowLink
+              href={calendarHref({ view, date: dayKey(span.next), demo })}
+              transitionType="nav-forward"
+              aria-label={`Next ${span.unit}`}
+              className={cn(ARROW, "hover:[&>svg]:translate-x-0.5")}
+            >
+              <CaretRightIcon aria-hidden className="size-4" />
+            </ShallowLink>
+          </div>
+          <CalendarViewSwitch />
+          {/* CREATE EVENT, as Google Calendar's Create: the student's own
+              interviews, assessments, offers and follow-ups, on the
+              application they pick (../applications/create-event.tsx). It
+              opens on today when today is on screen, else the span's
+              first day. */}
+          <CreateEventDialog
+            variant="default"
+            applications={applications}
+            defaultDay={today >= from && today <= to ? today : first}
           />
-        )}
-        {view === "week" && (
-          <Week anchor={anchor} today={today} byDay={byDay} openHref={openHref} />
-        )}
-        {view === "agenda" && (
-          <Agenda anchor={anchor} today={today} byDay={byDay} openHref={openHref} />
-        )}
-      </Step>
+        </div>
 
-      <ul aria-label="Legend" className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1">
-        {LEGEND_ORDER.map((kind) => (
-          <li key={kind} className="text-note text-ink-meta flex items-center gap-1.5">
-            <span aria-hidden="true" className={cn("size-2 rounded-full", lookOf(kind).fill)} />
-            {KIND_LABEL[kind]}
-          </li>
-        ))}
-      </ul>
-    </>
+        <Step key={`${view}:${first}`}>
+          {view === "month" && (
+            <Month
+              anchor={anchor}
+              today={today}
+              byDay={byDay}
+              openHref={openHref}
+              dayHref={dayHref}
+            />
+          )}
+          {view === "week" && (
+            <TimeGrid
+              days={eachDayOfInterval({ start: startOfWeek(anchor), end: endOfWeek(anchor) })}
+              today={today}
+              byDay={byDay}
+              openHref={openHref}
+            />
+          )}
+          {view === "agenda" && (
+            <Agenda anchor={anchor} today={today} byDay={byDay} openHref={openHref} />
+          )}
+        </Step>
+      </div>
+    </div>
   );
 }

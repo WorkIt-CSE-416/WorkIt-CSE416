@@ -1,10 +1,20 @@
 """Request/response shapes for the applicant profile (GET + PATCH)."""
 
+from typing import Any
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 from pydantic_core import PydanticCustomError
+
+from app.services.names import split_name
 
 
 class ApplicantProfileResponse(BaseModel):
@@ -15,12 +25,36 @@ class ApplicantProfileResponse(BaseModel):
     # NULL means the sign-in email (Applicant_Profile.email_for_employers).
     contact_email: str | None
     full_name: str
+    first_name: str | None
+    middle_name: str | None
+    last_name: str | None
     phone_number: str | None
     headline: str | None
     linkedin_url: str | None
     portfolio_url: str | None
     github_url: str | None
     other_url: str | None
+    location: str | None = None
+    # KAN-298: the Settings opt-in for the daily job-match digest (bell and
+    # email alike). Off until the student turns it on.
+    job_alerts_enabled: bool
+
+    @model_validator(mode="after")
+    def _parts_from_full_name(self) -> "ApplicantProfileResponse":
+        # A row written before the split (KAN-326), or by code that predates
+        # it, has full_name alone: answer it split, so every reader gets parts.
+        if self.first_name is None:
+            self.first_name, self.middle_name, self.last_name = split_name(self.full_name)
+        return self
+
+
+class FillProfile(BaseModel):
+    """The Fill engine's own profile and policies for the student, in the
+    engine's shapes (nested sections by dotted key; models/CLAUDE.md, "The
+    Fill engine's profile"). Empty objects when they brought none."""
+
+    profile: dict[str, Any]
+    policies: dict[str, Any]
 
 
 LINK_FIELDS = ("linkedin_url", "portfolio_url", "github_url", "other_url")
@@ -48,11 +82,19 @@ def web_link(value: str | None) -> str | None:
 class ApplicantProfileUpdate(BaseModel):
     """PATCH body. Only fields present in the JSON are applied;
     use model.model_fields_set to tell sent-as-null from omitted.
-    An empty string clears a field, the same as null."""
+    An empty string clears a field, the same as null.
+
+    The name comes as parts (Settings) or as one line (the resume editor's
+    header); routers/profiles.py keeps full_name and the parts in step. A
+    first or last name sent must not be blank: both are required, as at
+    signup. The middle name may be cleared."""
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
     full_name: str | None = Field(None, min_length=1, max_length=50)
+    first_name: str | None = Field(None, min_length=1, max_length=50)
+    middle_name: str | None = Field(None, max_length=50)
+    last_name: str | None = Field(None, min_length=1, max_length=50)
     contact_email: EmailStr | None = Field(None, max_length=100)
     phone_number: str | None = Field(None, max_length=30)
     headline: str | None = Field(None, max_length=50)
@@ -60,8 +102,13 @@ class ApplicantProfileUpdate(BaseModel):
     portfolio_url: str | None = Field(None, max_length=500)
     github_url: str | None = Field(None, max_length=500)
     other_url: str | None = Field(None, max_length=500)
+    # Where the student lives (KAN-372), as forms ask it: "Stony Brook, NY".
+    location: str | None = Field(None, max_length=100)
+    job_alerts_enabled: bool | None = None
 
-    @field_validator("contact_email", "phone_number", "headline", *LINK_FIELDS, mode="before")
+    @field_validator(
+        "contact_email", "phone_number", "headline", "middle_name", "location", *LINK_FIELDS, mode="before"
+    )
     @classmethod
     def _blank_is_none(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value

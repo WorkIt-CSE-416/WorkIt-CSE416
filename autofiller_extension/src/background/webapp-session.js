@@ -20,7 +20,7 @@
 // CLAUDE.md's Open Items for what happens if this project ever upgrades
 // those packages and the format moves.
 
-import { SUPABASE_SESSION_COOKIE_KEY, DEV_WEB_URL, PROD_WEB_URL } from "../shared/config.js";
+import { SUPABASE_SESSION_COOKIE_KEY, DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
 
 const BASE64_PREFIX = "base64-";
 // @supabase/ssr's utils/chunker.ts: chunks beyond the first are named
@@ -40,6 +40,21 @@ function base64UrlDecode(value) {
   const binary = atob(padded);
   const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
   return new TextDecoder("utf-8").decode(bytes);
+}
+
+/**
+ * The access token's `sub` claim (the signed-in account's id), or null for a
+ * token that won't decode. Read unverified: it only picks which cached
+ * profile is this account's, and the API still verifies the token.
+ * @param {string} token
+ * @returns {string | null}
+ */
+function tokenSubject(token) {
+  try {
+    return JSON.parse(base64UrlDecode(token.split(".")[1])).sub ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -101,7 +116,7 @@ async function reassembleSessionCookie(url) {
 
 /**
  * @param {string} raw
- * @returns {import("../shared/types.js").Session | null}
+ * @returns {Omit<import("../shared/types.js").Session, "web_origin"> | null}
  */
 function decodeSession(raw) {
   const encoded = raw.startsWith(BASE64_PREFIX) ? raw.slice(BASE64_PREFIX.length) : raw;
@@ -124,23 +139,23 @@ function decodeSession(raw) {
     access_token: session.access_token,
     refresh_token: session.refresh_token,
     expires_at: session.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
+    user_id: tokenSubject(session.access_token),
   };
 }
 
 /**
- * Tries the local dev webapp first, then the deployed one — same pattern
- * as api.js's apiUrl(), and independent of it: there's no reason the
- * backend and the webapp session necessarily come from the same
- * environment while testing.
+ * Tries the local dev webapp first, then each deployed one in PROD_SITES
+ * order. The session carries the origin it came from, so api.js can call
+ * the API paired with it.
  * @returns {Promise<import("../shared/types.js").Session | null>}
  */
 export async function readWebappSession() {
-  for (const origin of [DEV_WEB_URL, PROD_WEB_URL]) {
+  for (const origin of [DEV_WEB_URL, ...PROD_SITES.map((site) => site.web)]) {
     const raw = await reassembleSessionCookie(origin);
     if (!raw) continue;
 
     const session = decodeSession(raw);
-    if (session) return session;
+    if (session) return { ...session, web_origin: origin };
   }
   return null;
 }

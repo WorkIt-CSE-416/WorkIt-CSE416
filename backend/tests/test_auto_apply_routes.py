@@ -68,6 +68,7 @@ def step(monkeypatch, name, result=None, raises=None):
         ("get", "/applications/next", None),
         ("get", f"/applications/{JOB}", None),
         ("post", f"/applications/{JOB}/finish", {"outcome": "skipped"}),
+        ("put", f"/applications/{JOB}/fill", {"state": "ready"}),
         ("post", f"/applications/{JOB}/resume", None),
         ("delete", f"/applications/{JOB}", None),
     ],
@@ -131,6 +132,12 @@ def test_next_is_null_when_the_queue_is_empty(client, monkeypatch):
     res = client.get(BASE + "/applications/next")
     assert res.status_code == 200
     assert res.json() is None
+
+
+def test_next_hands_the_picked_jobs_through(client, monkeypatch):
+    calls = step(monkeypatch, "next_application", None)
+    assert client.get(BASE + f"/applications/next?only={JOB}").status_code == 200
+    assert calls[0][0][2:] == ([], [JOB])
 
 
 def test_next_is_not_read_as_a_job_id(client, monkeypatch):

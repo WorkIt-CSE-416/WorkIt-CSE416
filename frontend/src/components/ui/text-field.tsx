@@ -44,6 +44,15 @@ export const FIELD_CONTROL =
 /** The type style of a field's label. */
 export const FIELD_LABEL = "text-label text-ink-muted";
 
+/** A field's box drawn as a button that opens a picker (a date, a saved
+ *  location) rather than a native control, so it sits in a row of
+ *  <TextField>s as one of them. Promoted from the company composer with
+ *  <DateField> (KAN-429). */
+export const PICKER_TRIGGER = cn(
+  FIELD_CONTROL,
+  "flex items-center justify-between gap-2 px-3.5 py-2.5 text-left",
+);
+
 /**
  * The asterisk after a required field's label, shared so every field draws
  * the same mark rather than each inventing its own. `aria-hidden` because the
@@ -97,7 +106,10 @@ export function TextField({
 
       <div className="relative">
         {Icon && (
-          <Icon className="text-ink-meta pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2" />
+          <Icon
+            aria-hidden
+            className="text-ink-meta pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2"
+          />
         )}
         <input
           id={id}

@@ -9,7 +9,7 @@ import type { Application } from "../tracker";
  *
  * All of it lives in the query string rather than in component state, so it
  * survives a reload, the back button undoes it, and it can be linked to: the
- * Dashboard's Waiting opens `/applications?view=list&stage=applied`. The
+ * Home's Waiting opens `/applications?view=list&stage=applied`. The
  * server does the filtering, so a pick in a dropdown (Status or a field) or
  * in All Filters replaces the URL. The layout switcher and the list's sort
  * headings move ?view= and ?sort= in place (./view-switcher.tsx), since the
@@ -42,7 +42,7 @@ export const DEFAULT_SORT: Sort = "applied";
  *  values, as Status does, and a value is the cell's own text. */
 export const FILTER_FIELDS = [
   { key: "company", param: "company", label: "Company" },
-  { key: "track", param: "track", label: "Track" },
+  { key: "track", param: "track", label: "Job Type" },
   { key: "workModel", param: "work", label: "Work Model" },
   { key: "source", param: "source", label: "Source" },
 ] as const;

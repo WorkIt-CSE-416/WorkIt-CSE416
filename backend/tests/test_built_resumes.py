@@ -10,9 +10,10 @@ import uuid
 
 import httpx
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import text
 
-from app.deps import get_current_account
+from app.deps import get_current_account, token_applicant
 from app.main import app
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
@@ -41,6 +42,15 @@ def _sign_in(applicant_id: uuid.UUID) -> None:
         account_type=AccountType.APPLICANT,
         onboarding_completed=True,
     )
+
+    # The render's token-only check (deps.token_applicant), as the token would
+    def token(applicant_id: uuid.UUID) -> uuid.UUID:
+        if applicant_id != signed_in:
+            raise HTTPException(403, "Forbidden")
+        return applicant_id
+
+    signed_in = applicant_id
+    app.dependency_overrides[token_applicant] = token
 
 
 @pytest.fixture
@@ -550,7 +560,7 @@ async def test_render_gives_the_editor_a_box_for_each_line_with_bank_ids(student
     bank = (await client.get(f"{me}/bank")).json()
 
     boxes = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["boxes"]
-    assert boxes and all(set(b) == {"item_id", "kind", "page", "x0", "y0", "x1", "y1"} for b in boxes)
+    assert boxes and all(set(b) == {"item_id", "kind", "page", "x0", "y0", "x1", "y1", "text"} for b in boxes)
     by_item = {}
     for b in boxes:
         by_item.setdefault(b["item_id"], set()).add(b["kind"])

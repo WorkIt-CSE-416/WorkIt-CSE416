@@ -3,21 +3,22 @@ import { AnimatePresence, motion, useInView, useReducedMotion } from "motion/rea
 
 import { cn } from "@/lib/cn";
 
+import { FitScale } from "./fit";
+
 /**
  * A product tour stop told as a short story that loops a scene at a time,
- * never every step at once (the Resumes and Matching stops). It plays only
- * while in view and starts over each time it comes back. A step bar names
- * the scenes, shows how long the current one has left, and jumps to any of
- * them. With reduced motion it holds one finished scene, `rest`. Rendered
+ * never every step at once (all four tour stops). It plays only while in
+ * view and starts over each time it comes back. A glass pill over the stage
+ * titles the current scene and numbers it; it is not a switcher (the team
+ * removed the step bar's buttons) and has no progress line (removed too).
+ * With reduced motion it holds one finished scene, `rest`. Rendered
  * by the product tour, whose MotionConfig makes transforms instant for
  * those visitors.
  */
 
 export type StoryScene<Id extends string> = {
   id: Id;
-  /** Its label in the step bar. */
-  label: string;
-  /** The line under the step bar while it plays. */
+  /** The scene's title in the pill above the stage. */
   caption: string;
   /** How long it holds, in ms. */
   hold: number;
@@ -27,19 +28,16 @@ export type StoryScene<Id extends string> = {
 export const GLIDE = [0.16, 1, 0.3, 1] as const;
 
 export function Story<Id extends string>({
-  label,
   scenes,
   rest,
   accent,
   stageHeight,
   children,
 }: {
-  /** The step bar's accessible name, e.g. "Resume steps". */
-  label: string;
   scenes: readonly StoryScene<Id>[];
   /** The scene shown, still, with reduced motion. */
   rest: Id;
-  /** The step bar's progress line, a background class in the stop's colour. */
+  /** The stop's colour, a background class: the scene number's disc. */
   accent: string;
   /** The stage's height in px; every scene draws inside it. */
   stageHeight: number;
@@ -49,9 +47,8 @@ export function Story<Id extends string>({
   const ref = React.useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { amount: 0.4 });
   const reduceMotion = useReducedMotion();
-  const fillId = React.useId();
   const [step, setStep] = React.useState(0);
-  // Bumped on every scene change, so the progress line restarts.
+  // Bumped on every scene change, so the scene's timer restarts.
   const [tick, setTick] = React.useState(0);
 
   const go = React.useCallback((next: number) => {
@@ -61,10 +58,15 @@ export function Story<Id extends string>({
 
   // Start over each time the stop leaves the screen, so it plays from the
   // top when it is back. Set during render, not in an effect.
+  // Bumped each time the stop comes into view, to remount the stage: a
+  // scene that plays on mount (the Auto Apply form, the Resumes pile) then
+  // starts when it is seen, not when it was first drawn off screen.
+  const [pass, setPass] = React.useState(0);
   const [wasInView, setWasInView] = React.useState(inView);
   if (inView !== wasInView) {
     setWasInView(inView);
-    if (!inView) {
+    if (inView) setPass((p) => p + 1);
+    else {
       setStep(0);
       setTick((t) => t + 1);
     }
@@ -84,64 +86,76 @@ export function Story<Id extends string>({
     : step;
   const scene = scenes[shown];
 
+  // Where Fit draws the story smaller (a phone draws it at about 0.66),
+  // the title grows back by as much, up to the stage's width, so the line
+  // that tells the scene stays readable: at the story's own size its 13px
+  // caption read at about 8px. Grown from its foot, with the room it takes
+  // above it added as margin, so it never covers the stage.
+  const fit = React.useContext(FitScale);
+  const grow = fit < 1 ? Math.min(1 / fit, 520 / 380) : 1;
+
   return (
-    <div ref={ref} className="flex w-[520px] flex-col items-center gap-3">
+    // shrink-0: as Fit's flex child, the story shrank to its title's 380px,
+    // so Fit read that width, scaled it too little, and its 520px scenes
+    // spilled past the panel and were cut (KAN-368).
+    <div ref={ref} className="flex w-[520px] shrink-0 flex-col items-center gap-4">
+      {/* The scene's title: a glass pill with its number, not a switcher.
+          The scenes play on their own. */}
       <div
-        role="group"
-        aria-label={label}
-        className="flex w-[380px] gap-1 rounded-full bg-white/60 p-1 ring-1 ring-white/80"
+        className="glass-card relative flex h-10 w-[380px] items-center gap-2.5 overflow-hidden rounded-full pr-4 pl-1.5"
+        style={
+          grow > 1
+            ? {
+                transform: `scale(${grow})`,
+                transformOrigin: "50% 100%",
+                marginTop: 40 * (grow - 1),
+              }
+            : undefined
+        }
       >
-        {scenes.map((s, i) => {
-          const active = i === shown;
-          return (
-            <button
-              key={s.id}
-              type="button"
-              aria-pressed={active}
-              onClick={() => go(i)}
+        {/* The count changes with the number and caption, in the same
+            swap: outside it, "2/4" showed beside the last scene's caption. */}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span
+            key={scene.id}
+            className="flex min-w-0 flex-1 items-center gap-2.5"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.25, ease: GLIDE }}
+          >
+            <span
               className={cn(
-                "relative flex-1 overflow-hidden rounded-full py-1.5 text-[11px] font-medium transition-colors",
-                active ? "text-ink" : "text-ink-meta hover:text-ink",
+                "grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white tabular-nums shadow-[inset_0_1px_0_rgb(255_255_255/0.35)]",
+                accent,
               )}
             >
-              {/* The white fill slides to the current scene. */}
-              {active && (
-                <motion.span
-                  layoutId={fillId}
-                  className="absolute inset-0 rounded-full bg-white shadow-sm ring-1 ring-slate-900/5"
-                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                />
+              {shown + 1}
+            </span>
+            {/* Grown, the caption takes the count's room and a size up: at
+                13px it still read at about 10.7px on a phone. The disc
+                still numbers the scene. */}
+            <span
+              className={cn(
+                "text-ink truncate font-semibold tracking-tight",
+                grow > 1 ? "text-[15px]" : "text-[13px]",
               )}
-              {active && !reduceMotion && (
-                <motion.span
-                  key={tick}
-                  aria-hidden="true"
-                  className={cn("absolute bottom-0 left-3 h-0.5 rounded-full", accent)}
-                  initial={{ width: 0 }}
-                  animate={{ width: "calc(100% - 1.5rem)" }}
-                  transition={{ duration: s.hold / 1000, ease: "linear" }}
-                />
+            >
+              {scene.caption}
+            </span>
+            <span
+              className={cn(
+                "text-ink-muted ml-auto shrink-0 text-[11px] font-medium tabular-nums",
+                grow > 1 && "hidden",
               )}
-              <span className="relative">{s.label}</span>
-            </button>
-          );
-        })}
+            >
+              {shown + 1}/{scenes.length}
+            </span>
+          </motion.span>
+        </AnimatePresence>
       </div>
 
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.p
-          key={scene.id}
-          className="text-ink-meta h-4 text-center text-xs"
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -4 }}
-          transition={{ duration: 0.25 }}
-        >
-          {scene.caption}
-        </motion.p>
-      </AnimatePresence>
-
-      <div className="relative w-full" style={{ height: stageHeight }}>
+      <div key={pass} className="relative w-full" style={{ height: stageHeight }}>
         {children(scene.id)}
       </div>
     </div>

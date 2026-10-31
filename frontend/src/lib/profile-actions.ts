@@ -9,13 +9,23 @@ export type ApplicantProfile = {
   email: string;
   /** The email employers see; null means `email`, the sign-in email. */
   contact_email: string | null;
+  /** The parts joined (KAN-326); the API keeps the four in step. */
   full_name: string;
+  first_name: string;
+  middle_name: string | null;
+  /** Null only for a one-word name never split by its owner. */
+  last_name: string | null;
   phone_number: string | null;
   headline: string | null;
   linkedin_url: string | null;
   portfolio_url: string | null;
   github_url: string | null;
   other_url: string | null;
+  /** Where the student lives, as forms ask it: "Stony Brook, NY" (KAN-372). */
+  location: string | null;
+  /** KAN-298: the Settings opt-in for the daily job-match digest (bell and
+   *  email alike). Off until the student turns it on. */
+  job_alerts_enabled: boolean;
 };
 
 export async function getProfile(): Promise<{

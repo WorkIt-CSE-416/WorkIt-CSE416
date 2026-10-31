@@ -63,8 +63,13 @@ class JobListing(BaseModel):
     # defaults to None there.
     location_label: str | None = None
     posted_at: str | None
-    # The logo the company uploaded to its job board; None when it has none.
+    # The logo the company uploaded to its job board, or its website's favicon;
+    # None when it has none. The Jobs page's fallback since KAN-442.
     logo_url: str | None
+    # The employer's own registered domain ("goldmansachs.com"), which the Jobs
+    # page draws the logo from (Brandfetch); None when the scraper found no
+    # website. Defaulted so a feed.json from before KAN-442 still parses.
+    company_domain: str | None = None
     # Plain text, capped by the scraper. Scout reads it; GET /jobs leaves it out
     # (the cards never show it). Defaulted so a feed.json written before the
     # scraper captured descriptions still parses.
@@ -92,19 +97,28 @@ class JobListing(BaseModel):
     # it sponsors, it doesn't, or US citizens only. None when it says nothing,
     # which is most postings. Defaulted so an older feed.json still parses.
     sponsorship: dto.visa_sponsorship | None = None
+    # Match score (0-100) and highlights, filled when a signed-in applicant
+    # with a non-empty bank views the feed; None/[] for everyone else.
+    match: int | None = None
+    highlights: list["Highlight"] = []
     # No roles field: a job's roles are job_role_tags, which the import
     # resolves from the title (KAN-155). The scraper's own "roles" keys in
     # feed.json (KAN-172) are ignored, as any key this model doesn't declare
     # is, so a new scraper key never fails the import.
 
-    # Whether auto apply takes this job posting: its apply_url is on a hiring
-    # system the extension fills (app/auto_apply/hosts.py). Worked out from
-    # apply_url, never stored or parsed, so feed.json has no such key; the
-    # Jobs page shows Auto Apply only where it is true.
+    # The employer's form auto apply opens (KAN-376; queries/jobs/filters.py
+    # FORM_URL): apply_url on a hiring system the extension fills, or the
+    # form a job board's posting names. None when there is none, and in
+    # feed.json, which has no such key.
+    form_url: str | None = None
+
+    # Whether auto apply takes this job posting: it has a form on a hiring
+    # system the extension fills (app/auto_apply/hosts.py). Worked out, never
+    # stored or parsed; the Jobs page shows Auto Apply only where it is true.
     @computed_field
     @property
     def auto_apply(self) -> bool:
-        return auto_apply_supported(self.apply_url)
+        return auto_apply_supported(self.form_url or self.apply_url)
 
 
 class JobLocationOption(BaseModel):
@@ -173,6 +187,34 @@ class ScoredJob(JobListing):
     match: int  # 0-100
     score_breakdown: ScoreBreakdown
     highlights: list[Highlight] = []
+
+
+class HomeMatches(BaseModel):
+    """GET /jobs/recommended/{id}/home: what the seeker's Home shows from
+    the Best Match scores, from one scoring pass (KAN-425)."""
+
+    # The best `limit` jobs, as GET /jobs/recommended lists them: Top Matches.
+    top: list[ScoredJob]
+    # The best `limit` that auto apply can fill (?auto_apply=true): Top
+    # Matches' picking mode.
+    auto_apply: list[ScoredJob]
+    # When each job posted within `posted_within` days that scores at least
+    # `min_match` went up: Strong Matches counts them per range.
+    strong_posted: list[str]
+
+
+class SearchFact(BaseModel):
+    """GET /jobs/search-facts: a filter a search's words set ("intern",
+    "remote", "summer 2027"), which /search shows so the seeker can see and
+    drop it (KAN-308, docs/search.md)."""
+
+    facet: Literal["level", "work_style", "start_term"]
+    # The filter's own key: "student", "new_grad", "remote", "summer-2027",
+    # or a bare year ("2027").
+    value: str
+    # The search as typed with this fact's words taken out: the ?q= its ×
+    # goes to. Empty when the words were the whole search.
+    without: str
 
 
 class JobCount(BaseModel):

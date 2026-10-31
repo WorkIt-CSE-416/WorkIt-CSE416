@@ -1,47 +1,48 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
-  EXPERIENCE_OPTIONS,
-  JOB_TYPE_OPTIONS,
   NO_FILTERS,
-  PAY_OPTIONS,
-  payUnits,
   statesNarrowCountries,
-  WORKPLACE_OPTIONS,
   type FeedFilters,
 } from "@/app/(seeker)/jobs/filter-query";
-import { SalaryPicker, SearchPicker, type PickOption } from "@/components/filter-controls";
-import {
-  answerIcon,
-  BriefcaseIcon,
-  CalendarIcon,
-  CoinIcon,
-  FileIcon,
-  LevelIcon,
-  PinIcon,
-  RoleIcon,
-  workStyleIcon,
-} from "@/components/icons";
-import { ResumeUpload } from "@/components/resume-upload";
+import type { PickOption } from "@/components/filter-controls";
+import { answerIcon } from "@/components/icons";
 import { Stepper } from "@/components/stepper";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { uploadResume } from "@/lib/resume-actions";
+import { updateProfile } from "@/lib/profile-actions";
+import { webLink } from "@/lib/profile-links";
+import { previewResume, uploadResume, type ResumePreview } from "@/lib/resume-actions";
+import { showRunTab, startPractice } from "@/lib/autofill-extension";
+import { PRACTICE_JOBS, practiceFormUrl } from "@/lib/practice-form";
 
 import { saveAutofillAnswers } from "@/lib/autofill-answers-actions";
-import { NO_ANSWERS, PROFILE_QUESTIONS, type AutofillAnswers } from "@/lib/autofill-answers";
+import {
+  changedAnswers,
+  NO_ANSWERS,
+  PROFILE_QUESTIONS,
+  SELF_ID_KEYS,
+  type AutofillAnswers,
+  type ProfileQuestion,
+} from "@/lib/autofill-answers";
 
 import { savePreferences } from "./actions";
+import { AvailabilityStep } from "./availability-step";
 import { ChoiceTile } from "./choice-tile";
+import { LinkFields, LINKS, LocationField, NO_CONTACT, type Contact } from "./contact-fields";
+import { ExtensionStep, useExtensionState } from "./extension-step";
+import { nextPracticeTab, practiceDone, PracticeStep, usePracticeStatus } from "./practice-step";
+import { ResumeStep } from "./resume-step";
+import { Field, fieldId, RoleStep } from "./role-step";
 import { SignedInAs } from "./signed-in-as";
 import { ONBOARDING_STEPS } from "./steps";
 import { StoryPanel } from "./story-panel";
 
 /**
- * The applicant onboarding wizard (KAN-231): three short steps, each one's
+ * The applicant onboarding wizard (KAN-231): six short steps, each one's
  * question on the left (./story-panel) and the fields answering it on the
  * right, under the step rail (./steps.ts). Each new question takes focus, so
  * a screen reader hears it.
@@ -55,30 +56,53 @@ import { StoryPanel } from "./story-panel";
  * rarely does. Date Posted is not asked: a saved "past 24 hours" would empty
  * the feed within days.
  *
- * STEP 2 IS WHAT EVERY APPLICATION ASKS (KAN-283): work authorization,
- * sponsorship, citizenship and visa status, clearance, and the voluntary
- * gender, Hispanic or Latino, race, veteran and disability
- * self-identification (lib/autofill-answers). They are no
- * filter: they go to the seeker's answer bank, which auto apply fills forms
- * from. It used to be Pay & Visa; pay moved to step 1 with the rest of the
- * role, and the visa filter question left onboarding (a saved one is kept,
- * and the Jobs page still sets it).
+ * STEP 2 IS THE RESUME, CHECKED BEFORE IT IS SAVED (KAN-372, ADR 0006;
+ * ./resume-step). Read Resume shows what the parser found and saves nothing;
+ * Save Resume uploads the file with `replace=matching`, so a second resume
+ * replaces the first one's copies of the same entries instead of adding
+ * them again. The upload saves at once, before onboarding is done; Skip goes
+ * on without one. It replaced intake's chat (KAN-275 put the resume last).
  *
- * THE LAST STEP IS A RESUME (KAN-275), the Resumes view's dropzone, and it
- * replaced intake's chat (KAN-214). Continue saves step 2 to the answer bank,
- * then step 1 as the seeker's preferences, which marks onboarding done, then
- * uploads the picked file; the API reads it into the experience bank matching
- * reads (ADR 0003). Skip saves the answers alone. Either opens the Jobs
- * page in its Best Match order. The answer bank saves first because a finished
- * seeker is never sent back here, and nothing else asks these questions yet;
- * a failed upload leaves onboarding done and this step to retry from, and
- * saving again changes nothing.
+ * STEP 3 IS WHAT EVERY APPLICATION ASKS (KAN-283), right after the resume
+ * (KAN-372). Work authorization and sponsorship come first, then the home
+ * location and the links (./contact-fields), then citizenship and visa
+ * status and clearance (lib/autofill-answers). Never the voluntary gender,
+ * Hispanic or Latino, race, veteran and disability self-identification
+ * (KAN-387): the extension asks those the first time a form does, and saves
+ * them for later forms. They are no filter: the questions go to the seeker's answer bank and the
+ * location and links to the profile, which auto apply fills forms from. It
+ * used to be Pay & Visa; pay moved to step 1 with the rest of the role, and
+ * the visa filter question left onboarding (a saved one is kept, and the
+ * Jobs page still sets it).
  *
- * `initial` and `initialAnswers` are what the seeker saved, so a finished
+ * STEP 3'S NEXT saves it to the answer bank and the profile, only what
+ * changed, then step 1 as the seeker's preferences, which marks onboarding
+ * done, before Availability and the extension's two steps: a seeker who leaves during them
+ * has a finished profile, and Skip on either opens the Jobs page. Step 3 saves first
+ * because a finished seeker is never sent back here; a failed save leaves
+ * this step to retry from, and saving again changes nothing. A link that is
+ * no web address stops Finish before anything saves.
+ *
+ * STEP 4 IS AVAILABILITY (KAN-369, ./availability-step): on-site and full
+ * time, the earliest start and terms, and the screener facts card, nothing
+ * pre-picked. Next saves what changed to the answer bank; Skip drops this
+ * step's picks and goes on. The rest of the Application answers live on My
+ * Profile.
+ *
+ * STEPS 5 AND 6 ARE THE EXTENSION (KAN-378). Step 4 asks the seeker to add
+ * the WorkIt extension and pin it (./extension-step), and turns each line
+ * done as the page sees it, asking the extension every 1.5 seconds. Step 5
+ * runs a practice batch on WorkIt's own practice forms (lib/practice-form,
+ * ./practice-step): the extension fills them into the Ready and Needs you
+ * tab groups and the seeker submits each one, which sends nothing. Once
+ * both are submitted it says the seeker is ready, and Find Jobs opens the
+ * Jobs page in its Best Match order. A first real batch then fills the
+ * factual fields only: a batch tab leaves written answers to the seeker
+ * until Claude is added.
+ *
+ * `initial`, `initialAnswers` and `initialContact` are what the seeker saved, so a finished
  * seeker who comes back edits them rather than starting over.
  */
-
-type Glyph = ComponentType<{ className?: string }>;
 
 /** Each step's question, and the tip Scout types in its bubble below it: a
  *  tip, not the question again, which is what made the two hard to tell
@@ -95,7 +119,15 @@ const STEPS: { question: ReactNode; line: string }[] = [
   {
     question: (
       <>
-        Next, the questions <strong>every application asks</strong>.
+        Next, <strong>upload your resume</strong> and check what I read.
+      </>
+    ),
+    line: "Nothing is saved until you say so. No resume yet? Skip it.",
+  },
+  {
+    question: (
+      <>
+        Then, the questions <strong>every application asks</strong>.
       </>
     ),
     line: "All optional. Answer once, and I'll keep them ready for your applications.",
@@ -103,15 +135,36 @@ const STEPS: { question: ReactNode; line: string }[] = [
   {
     question: (
       <>
-        Last, <strong>upload your resume</strong> and I&apos;ll fill in your experiences.
+        Next, <strong>when you can work</strong>, and a few screening facts.
       </>
     ),
-    line: "One file, and I'll know what you've done. No resume yet? Skip it.",
+    line: "All optional. Skip it, and fill the rest in on My Profile later.",
+  },
+  {
+    question: (
+      <>
+        Now, <strong>add the WorkIt extension</strong> to Chrome.
+      </>
+    ),
+    line: "It fills each form in its own tab. Pin it, so it's one click away.",
+  },
+  {
+    question: (
+      <>
+        Last, try a <strong>practice batch</strong> before a real one.
+      </>
+    ),
+    line: "These forms are WorkIt's own. Nothing you submit reaches an employer.",
   },
 ];
 
-const toggle = <T,>(values: T[], value: T) =>
-  values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
+/** The steps by name, in ONBOARDING_STEPS' order. */
+const ROLE = 0;
+const RESUME = 1;
+const PROFILE = 2;
+const AVAILABILITY = 3;
+const EXTENSION = 4;
+const PRACTICE = 5;
 
 export function OnboardingForm({
   roles,
@@ -119,6 +172,7 @@ export function OnboardingForm({
   seasons,
   initial = NO_FILTERS,
   initialAnswers = NO_ANSWERS,
+  initialContact = NO_CONTACT,
   email,
   startStep = 0,
 }: {
@@ -127,8 +181,10 @@ export function OnboardingForm({
   /** The Start Date options, GET /jobs/facets' seasons. */
   seasons: PickOption[];
   initial?: FeedFilters;
-  /** The answer bank as saved (lib/autofill-answers-actions), for step 2. */
+  /** The answer bank as saved (lib/autofill-answers-actions), for step 3. */
   initialAnswers?: AutofillAnswers;
+  /** The profile's location and links as saved, for step 3. */
+  initialContact?: Contact;
   /** Who is signed in, for the line at the foot (./signed-in-as). */
   email: string | null;
   /** The step to open on: Profile for ?step=2 (./page). */
@@ -149,21 +205,40 @@ export function OnboardingForm({
    *  still clears it. Against the page's first props it sent nothing, and
    *  the bank kept the answer the seeker took back. */
   const bankSaved = useRef<AutofillAnswers>(initialAnswers);
+  const [contact, setContact] = useState<Contact>(initialContact);
+  /** The profile as saved, so Finish sends only what changed (as bankSaved). */
+  const contactSaved = useRef<Contact>(initialContact);
+  const [badLinks, setBadLinks] = useState<ReadonlySet<keyof Contact>>(new Set());
   const [resume, setResume] = useState<File | null>(null);
-  const [saving, setSaving] = useState(false);
-  // Only while the file is on its way, so the dropzone's "Uploading…" never
-  // shows for Skip or for the answers' save before the upload.
-  const [uploading, setUploading] = useState(false);
+  /** The picked file's reading, from Read Resume; cleared with the file. */
+  const [preview, setPreview] = useState<ResumePreview | null>(null);
+  /** The reading's skills the student took out (×, KAN-369); cleared with the file. */
+  const [removedSkills, setRemovedSkills] = useState<string[]>([]);
+  /** The file name this visit saved, for the resume step's "Saved" line. */
+  const [savedResume, setSavedResume] = useState<string | null>(null);
+  // What is in flight. "reading" alone shows on the dropzone, so it never
+  // says "Uploading…" for a save.
+  const [busy, setBusy] = useState<"reading" | "saving" | null>(null);
+  const saving = busy != null;
   const [error, setError] = useState<string | null>(null);
 
+  const extension = useExtensionState(step === EXTENSION);
+  const practice = usePracticeStatus(step === PRACTICE);
+  const done = practiceDone(practice);
+  const practiceTab = nextPracticeTab(practice);
+
   const set = (change: Partial<FeedFilters>) => setAnswers((a) => ({ ...a, ...change }));
-  const last = step === STEPS.length - 1;
-  // Step 1 asks the required answers; the resume step's Continue needs a
-  // file, and Skip is the way on without one.
-  const canNext = last
-    ? resume != null
-    : step > 0 ||
-      (answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0);
+  // Step 1 asks the required answers; the resume step's Read Resume needs a
+  // file, and Skip is the way on without one; the extension step needs the
+  // extension.
+  const canNext =
+    step === ROLE
+      ? answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0
+      : step === RESUME
+        ? resume != null || savedResume != null
+        : step === EXTENSION
+          ? extension?.installed === true
+          : true;
 
   // EACH NEW QUESTION TAKES FOCUS, so a screen reader reads it out. Focus used
   // to stay on the footer's button, which only changed its label, and the new
@@ -180,11 +255,98 @@ export function OnboardingForm({
     window.scrollTo({ top: 0 });
   }
 
+  function pickResume(file: File | null) {
+    setResume(file);
+    setPreview(null);
+    setRemovedSkills([]);
+    setError(null);
+  }
+
+  function resumeForm() {
+    const fd = new FormData();
+    fd.append("file", resume!);
+    return fd;
+  }
+
+  /** Read Resume: what the parser finds in the picked file, saving nothing. */
+  async function readResume() {
+    setBusy("reading");
+    setError(null);
+    try {
+      const { preview: reading, error: readError } = await previewResume(resumeForm());
+      if (!reading) return fail(readError ?? "Could not read the resume.");
+      setPreview(reading);
+      setBusy(null);
+    } catch {
+      fail("Could not reach the server. Check your connection and try again.");
+    }
+  }
+
+  /** Save Resume: the confirmed upload, replacing earlier copies (ADR 0006). */
+  async function saveResume() {
+    setBusy("saving");
+    setError(null);
+    try {
+      const form = resumeForm();
+      // Not saved, and no later reading adds them again (KAN-369).
+      for (const name of removedSkills) form.append("removed_skills", name);
+      const { error: uploadError, duplicateOf } = await uploadResume(form, {
+        replaceMatching: true,
+      });
+      // A duplicate is already uploaded (KAN-267): an upload that reached
+      // the API before a dropped connection, sent again on retry. Not a
+      // reason to keep the student here.
+      if (uploadError && !duplicateOf) return fail(uploadError);
+      setSavedResume(resume!.name);
+      pickResume(null);
+      setBusy(null);
+      goTo(PROFILE);
+    } catch {
+      fail("Could not reach the server. Check your connection and try again.");
+    }
+  }
+
+  /** The resume step's main button: read the picked file, save a reading,
+   *  or go on once there is nothing new to save. */
+  function resumeNext() {
+    if (preview?.duplicate_of) {
+      setSavedResume(preview.duplicate_of.name);
+      pickResume(null);
+      goTo(PROFILE);
+    } else if (preview) saveResume();
+    else if (resume) readResume();
+    else goTo(PROFILE);
+  }
+
+  const resumeLabel =
+    busy === "reading"
+      ? "Reading…"
+      : preview
+        ? preview.duplicate_of
+          ? "Next"
+          : "Save Resume"
+        : resume || !savedResume
+          ? "Read Resume"
+          : "Next";
+
   /** Saves the answer bank, then the preferences, which finish onboarding,
-   *  then uploads the resume if one was picked. A failure leaves this page to
-   *  retry from. */
-  async function finish(file: File | null) {
-    setSaving(true);
+   *  then goes on to the extension. A failure leaves this page to retry from. */
+  async function saveProfile() {
+    // A link that is no web address is refused here, by the API's own rule
+    // (lib/profile-links), before anything saves.
+    const typed: Contact = {
+      ...contact,
+      location: contact.location?.trim() || null,
+    };
+    const bad = new Set<keyof Contact>();
+    for (const { key } of LINKS) {
+      const link = webLink(contact[key] ?? "");
+      if (link === "invalid") bad.add(key);
+      else typed[key] = link;
+    }
+    setBadLinks(bad);
+    if (bad.size) return fail("Check the links: each must be a web address.");
+    setBusy("saving");
     setError(null);
     // Each action catches its own API failures, but the call to the action
     // can itself fail (the connection drops, the Next server is down). That
@@ -193,36 +355,84 @@ export function OnboardingForm({
       // Only the answers changed here go to the bank: it merges them into
       // what it holds, so one this page didn't load is never erased.
       const sent = profile;
-      const changed = Object.fromEntries(
-        Object.entries(sent).filter(
-          ([key, value]) => value !== bankSaved.current[key as keyof AutofillAnswers],
-        ),
+      const { error: bankError } = await saveAutofillAnswers(
+        changedAnswers(sent, bankSaved.current),
       );
-      const { error: bankError } = await saveAutofillAnswers(changed);
       if (bankError) return fail(bankError);
       bankSaved.current = sent;
+      const contactChanged = Object.fromEntries(
+        Object.entries(typed).filter(
+          ([key, value]) => value !== contactSaved.current[key as keyof Contact],
+        ),
+      );
+      if (Object.keys(contactChanged).length) {
+        const { error: profileError } = await updateProfile(contactChanged);
+        if (profileError) return fail(profileError);
+        contactSaved.current = typed;
+      }
       // A picked state narrows its country, as All Filters' Apply does.
       const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
       if (saveError) return fail(saveError);
-      if (file) {
-        const fd = new FormData();
-        fd.append("file", file);
-        setUploading(true);
-        const { error: uploadError, duplicateOf } = await uploadResume(fd);
-        // A duplicate is already uploaded (KAN-267): an upload that reached
-        // the API before a dropped connection, sent again on retry. Not
-        // a reason to keep the student here.
-        if (uploadError && !duplicateOf) return fail(uploadError);
-      }
-      router.push("/jobs");
+      setBusy(null);
+      goTo(AVAILABILITY);
     } catch {
       fail("Could not reach the server. Check your connection and try again.");
     }
   }
 
+  /** Availability's Next: what changed on it to the answer bank, then the
+   *  extension. A failure stays here to retry from. */
+  async function saveAvailability() {
+    setBusy("saving");
+    setError(null);
+    try {
+      const sent = profile;
+      const { error: bankError } = await saveAutofillAnswers(
+        changedAnswers(sent, bankSaved.current),
+      );
+      if (bankError) return fail(bankError);
+      bankSaved.current = sent;
+      setBusy(null);
+      goTo(EXTENSION);
+    } catch {
+      fail("Could not reach the server. Check your connection and try again.");
+    }
+  }
+
+  /** The practice step's main button: start the practice batch, show the
+   *  next tab while it runs, or open the Jobs page once it is done. */
+  async function practiceNext() {
+    if (done) return router.push("/jobs");
+    setError(null);
+    if (practiceTab) {
+      if (!(await showRunTab(practiceTab)))
+        setError("That tab was closed. Start the practice again.");
+      return;
+    }
+    const started = await startPractice(
+      PRACTICE_JOBS.map((job) => practiceFormUrl(window.location.origin, job)),
+    );
+    if (started.opened) return;
+    if (started.reason === "error") return setError(started.error);
+    setError(
+      started.reason === "not_installed"
+        ? "WorkIt can't find the extension. Go back a step and add it."
+        : started.reason === "signed_out"
+          ? "The extension can't see your WorkIt sign-in. Reload this page."
+          : "A batch is already open. Finish or close its tabs first.",
+    );
+  }
+
+  const practiceLabel = done
+    ? "Find Jobs"
+    : practiceTab
+      ? "Show Next Tab"
+      : Object.keys(practice).length
+        ? "Start Again"
+        : "Start Practice";
+
   function fail(message: string) {
-    setSaving(false);
-    setUploading(false);
+    setBusy(null);
     setError(message);
   }
 
@@ -249,29 +459,47 @@ export function OnboardingForm({
             thin bar and 14px grey "Step 1 of 2" at the foot of the left
             panel, the screen's smallest type, and went unnoticed (KAN-259). */}
         <div className="mx-auto w-full max-w-2xl px-6 pt-6 lg:pt-10">
-          <Stepper size="lg" steps={ONBOARDING_STEPS} current={step} />
+          <Stepper
+            size="lg"
+            steps={ONBOARDING_STEPS}
+            // Availability is Profile's second page on the rail (./steps.ts).
+            current={step > PROFILE ? step - 1 : step}
+          />
         </div>
 
         {/* Keyed on the step so each step's fields rise in. */}
         <div key={step} className="animate-rise mx-auto w-full max-w-2xl flex-1 px-6 py-8 lg:pt-12">
-          {step === 0 && (
+          {step === ROLE && (
             <RoleStep answers={answers} set={set} roles={roles} places={places} seasons={seasons} />
           )}
-          {step === 1 && (
-            <ProfileStep
+          {step === RESUME && (
+            <ResumeStep
+              file={resume}
+              onFileChange={pickResume}
+              onRemove={() => pickResume(null)}
+              reading={busy === "reading"}
+              preview={preview}
+              removedSkills={removedSkills}
+              onRemoveSkill={(name) => setRemovedSkills((all) => [...all, name])}
+              savedName={savedResume}
+            />
+          )}
+          {step === AVAILABILITY && (
+            <AvailabilityStep
               answers={profile}
               set={(change) => setProfile((a) => ({ ...a, ...change }))}
             />
           )}
-          {step === 2 && (
-            <Field Icon={FileIcon} label="Resume">
-              <ResumeUpload
-                file={resume}
-                onFileChange={setResume}
-                onRemove={() => setResume(null)}
-                busy={uploading}
-              />
-            </Field>
+          {step === EXTENSION && <ExtensionStep state={extension} />}
+          {step === PRACTICE && <PracticeStep states={practice} />}
+          {step === PROFILE && (
+            <ProfileStep
+              answers={profile}
+              set={(change) => setProfile((a) => ({ ...a, ...change }))}
+              contact={contact}
+              setContact={(change) => setContact((c) => ({ ...c, ...change }))}
+              badLinks={badLinks}
+            />
           )}
         </div>
 
@@ -292,8 +520,45 @@ export function OnboardingForm({
                   {error}
                 </p>
               )}
-              {last && (
-                <Button variant="outline" size="lg" disabled={saving} onClick={() => finish(null)}>
+              {step === RESUME && preview && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  disabled={saving}
+                  onClick={() => pickResume(null)}
+                >
+                  Choose Another File
+                </Button>
+              )}
+              {step === AVAILABILITY && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  disabled={saving}
+                  onClick={() => {
+                    // Skip keeps nothing picked here: the bank stays as saved.
+                    setProfile(bankSaved.current);
+                    goTo(EXTENSION);
+                  }}
+                >
+                  Skip
+                </Button>
+              )}
+              {(step === EXTENSION || (step === PRACTICE && !done)) && (
+                <Button variant="outline" size="lg" onClick={() => router.push("/jobs")}>
+                  {step === EXTENSION ? "Skip" : "Skip Practice"}
+                </Button>
+              )}
+              {step === RESUME && !preview && !savedResume && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  disabled={saving}
+                  onClick={() => {
+                    pickResume(null);
+                    goTo(PROFILE);
+                  }}
+                >
                   Skip
                 </Button>
               )}
@@ -303,139 +568,31 @@ export function OnboardingForm({
                 size="lg"
                 className="min-w-32"
                 disabled={!canNext || saving}
-                onClick={() => (last ? finish(resume) : goTo(step + 1))}
+                onClick={() =>
+                  step === PROFILE
+                    ? saveProfile()
+                    : step === AVAILABILITY
+                      ? saveAvailability()
+                      : step === RESUME
+                        ? resumeNext()
+                        : step === PRACTICE
+                          ? practiceNext()
+                          : goTo(step + 1)
+                }
               >
-                {saving ? "Saving…" : last ? "Continue" : "Next"}
+                {busy === "saving"
+                  ? "Saving…"
+                  : step === RESUME
+                    ? resumeLabel
+                    : step === PRACTICE
+                      ? practiceLabel
+                      : "Next"}
               </Button>
             </div>
           </div>
         </div>
       </div>
     </main>
-  );
-}
-
-type StepProps = { answers: FeedFilters; set: (change: Partial<FeedFilters>) => void };
-
-function RoleStep({
-  answers,
-  set,
-  roles,
-  places,
-  seasons,
-}: StepProps & { roles: PickOption[]; places: PickOption[]; seasons: PickOption[] }) {
-  const interns = answers.jobTypes.includes("internship");
-  return (
-    <>
-      <Field Icon={RoleIcon} label="Role" required>
-        <SearchPicker
-          size="lg"
-          label="Roles"
-          placeholder="Search a role, like Software Engineer"
-          empty="No role by that name."
-          options={roles}
-          values={answers.roles}
-          onChange={(next) => set({ roles: next })}
-        />
-      </Field>
-      <Field Icon={BriefcaseIcon} label="Job Type" required>
-        <div className="grid grid-cols-2 gap-2 lg:gap-3">
-          {JOB_TYPE_OPTIONS.map((o) => (
-            <ChoiceTile
-              key={o.value}
-              pressed={answers.jobTypes.includes(o.value)}
-              onClick={() => {
-                const jobTypes = toggle(answers.jobTypes, o.value);
-                const units = payUnits(jobTypes);
-                // The salary's unit starts on the one these job types fit
-                // (interns /hr), and a typed range keeps its own. It is set
-                // here, not forced on the picker, so the /hr /yr toggle can
-                // still change it and the unit saved is the one shown.
-                const unset = answers.minPay == null && answers.maxPay == null;
-                set({
-                  jobTypes,
-                  ...(units.length === 1 && unset ? { payPer: units[0] } : {}),
-                  ...(jobTypes.includes("internship") ? {} : { startTerms: [] }),
-                });
-              }}
-            >
-              {o.label}
-            </ChoiceTile>
-          ))}
-        </div>
-      </Field>
-      {interns && (
-        <Field Icon={CalendarIcon} label="Start Date">
-          {seasons.length === 0 ? (
-            <p className="text-body text-ink-meta">No start dates in the feed yet.</p>
-          ) : (
-            <SearchPicker
-              size="lg"
-              label="Start Dates"
-              placeholder="Search a season, or leave empty for any"
-              empty="No season by that name has jobs."
-              options={seasons}
-              values={answers.startTerms}
-              onChange={(next) => set({ startTerms: next })}
-            />
-          )}
-        </Field>
-      )}
-      {/* After Job Type, which says what kind of job: this says how much
-          experience it asks for, and internships count as Entry Level, so
-          no pair of the two empties the feed (KAN-284). */}
-      <Field Icon={LevelIcon} label="Experience Level">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:gap-3">
-          {EXPERIENCE_OPTIONS.map((o) => (
-            <ChoiceTile
-              key={o.value}
-              pressed={answers.levels.includes(o.value)}
-              onClick={() => set({ levels: toggle(answers.levels, o.value) })}
-            >
-              {o.label}
-            </ChoiceTile>
-          ))}
-        </div>
-      </Field>
-      <Field Icon={workStyleIcon("onsite")} label="Workplace" required>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
-          {WORKPLACE_OPTIONS.map((o) => (
-            <ChoiceTile
-              key={o.value}
-              Icon={workStyleIcon(o.value)}
-              pressed={answers.workStyles.includes(o.value)}
-              onClick={() => set({ workStyles: toggle(answers.workStyles, o.value) })}
-            >
-              {o.label}
-            </ChoiceTile>
-          ))}
-        </div>
-      </Field>
-      <Field Icon={PinIcon} label="Location">
-        <SearchPicker
-          size="lg"
-          label="Places"
-          placeholder="Search a state or country, or leave empty for anywhere"
-          empty="No place by that name has jobs."
-          options={places}
-          values={answers.places}
-          onChange={(next) => set({ places: next })}
-        />
-      </Field>
-      {/* Pay is part of the role (KAN-283): its units follow the job types
-          picked above. */}
-      <Field Icon={CoinIcon} label="Salary Range">
-        <SalaryPicker
-          size="lg"
-          units={payUnits(answers.jobTypes)}
-          presets={PAY_OPTIONS}
-          minPay={answers.minPay}
-          maxPay={answers.maxPay}
-          payPer={answers.payPer}
-          onChange={(minPay, maxPay, per) => set({ minPay, maxPay, payPer: per })}
-        />
-      </Field>
-    </>
   );
 }
 
@@ -485,82 +642,48 @@ function OneOf<V extends string>({
   );
 }
 
-/** Step 2 (KAN-283): lib/autofill-answers' PROFILE_QUESTIONS, each under the question as
+/** Step 3 (KAN-283): lib/autofill-answers' PROFILE_QUESTIONS, each under the question as
  *  forms word it, so the seeker knows what their answer will fill in. */
 function ProfileStep({
   answers,
   set,
+  contact,
+  setContact,
+  badLinks,
 }: {
   answers: AutofillAnswers;
   set: (change: Partial<AutofillAnswers>) => void;
+  contact: Contact;
+  setContact: (change: Partial<Contact>) => void;
+  badLinks: ReadonlySet<keyof Contact>;
 }) {
+  const question = (q: ProfileQuestion) => (
+    <Field key={q.key} Icon={answerIcon(q.key)} label={q.label} hint={q.question}>
+      <OneOf
+        labelledBy={fieldId(q.label)}
+        describedBy={`${fieldId(q.label)}-hint`}
+        columns={q.columns}
+        options={q.options}
+        value={answers[q.key]}
+        // The key's own options, so the value is one of its answers.
+        onChange={(next) => set({ [q.key]: next } as Partial<AutofillAnswers>)}
+      />
+    </Field>
+  );
+  // Work authorization and sponsorship lead (KAN-372): the facts a Match
+  // and most forms need first. Location and links follow, then the rest in
+  // the order forms ask.
+  const asked = PROFILE_QUESTIONS.filter((q) => !SELF_ID_KEYS.includes(q.key));
+  const first = asked.filter((q) => FIRST.includes(q.key));
+  const rest = asked.filter((q) => !FIRST.includes(q.key));
   return (
     <>
-      {PROFILE_QUESTIONS.map((q) => (
-        <Field key={q.key} Icon={answerIcon(q.key)} label={q.label} hint={q.question}>
-          <OneOf
-            labelledBy={fieldId(q.label)}
-            describedBy={`${fieldId(q.label)}-hint`}
-            columns={q.columns}
-            options={q.options}
-            value={answers[q.key]}
-            // The key's own options, so the value is one of its answers.
-            onChange={(next) => set({ [q.key]: next } as Partial<AutofillAnswers>)}
-          />
-        </Field>
-      ))}
+      {first.map(question)}
+      <LocationField value={contact.location} onChange={(location) => setContact({ location })} />
+      <LinkFields contact={contact} onChange={setContact} invalid={badLinks} />
+      {rest.map(question)}
     </>
   );
 }
 
-/** One question on the right: its glyph and label, a red star when it must be
- *  answered to go on, "Optional" when it need not be.
- *
- *  THE SCREEN HAS THREE TYPE SIZES, AT EVERY WIDTH: 20px for these labels,
- *  16px for every answer (tiles, chips, pills, typed text) and 14px for every
- *  note beside one. The answers' size is text-subtitle, whose own weight is
- *  600, so each answer sets its weight. */
-/** A Field's heading id, from its label; its hint is the same id plus
- *  "-hint". */
-const fieldId = (label: string) => `field-${label.toLowerCase().replaceAll(" ", "-")}`;
-
-function Field({
-  Icon,
-  label,
-  hint,
-  required = false,
-  children,
-}: {
-  Icon: Glyph;
-  label: string;
-  /** A 14px note under the label: the question as forms word it. */
-  hint?: string;
-  required?: boolean;
-  children: ReactNode;
-}) {
-  const id = fieldId(label);
-  return (
-    <section
-      aria-labelledby={id}
-      className="border-border-subtle border-t py-8 first:border-t-0 first:pt-0"
-    >
-      <h2 id={id} className="text-title text-ink mb-4 flex items-center gap-2.5 font-semibold">
-        <Icon className="text-ink-meta size-5 shrink-0" />
-        {label}
-        {required ? (
-          <span className="text-danger" aria-label="required">
-            *
-          </span>
-        ) : (
-          <span className="text-body text-ink-faint ml-auto font-normal">Optional</span>
-        )}
-      </h2>
-      {hint && (
-        <p id={`${id}-hint`} className="text-body text-ink-meta -mt-2 mb-4">
-          {hint}
-        </p>
-      )}
-      {children}
-    </section>
-  );
-}
+const FIRST: ProfileQuestion["key"][] = ["work_authorized_us", "needs_sponsorship"];

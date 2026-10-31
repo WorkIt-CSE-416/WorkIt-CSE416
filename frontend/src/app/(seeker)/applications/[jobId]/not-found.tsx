@@ -12,14 +12,14 @@ import { SEEKER_GUTTER } from "../../gutter";
  */
 export default function ApplicationNotFound() {
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <EmptyState
         Icon={BookmarkIcon}
         title="This Application Isn't Here"
         action={
           <ButtonLink href="/applications" variant="secondary" size="sm">
             <ArrowLeftIcon className="size-3.5" />
-            Back to Applications
+            Back to Applications Tracker
           </ButtonLink>
         }
       >

@@ -57,7 +57,7 @@ def test_queue_inserts_only_listed_jobs_and_moves_only_saved_rows():
     assert "CAST(%(param_2)s AS application_stage)" in sql
     assert "job_postings.company_id IS NULL" in sql
     assert "job_postings.status = %(status_1)s" in sql
-    assert "job_postings.apply_url ~* %(apply_url_1)s" in sql  # Greenhouse only
+    assert "job_postings.apply_url ~* %(apply_url_1)s" in sql  # the hiring systems the extension fills (hosts.py)
     # Only a saved job moves to queued; any other stage keeps its row.
     assert "ON CONFLICT (applicant_id, job_id) DO UPDATE SET stage = " in sql
     assert "created_at = now()" in sql
@@ -76,10 +76,17 @@ def test_next_is_the_oldest_queued_open_one():
     db = Recorder()
     assert asyncio.run(queries.fetch_next_application(db, APPLICANT)) is None
     sql = db.sql()
-    assert "job_applications.stage = %(stage_1)s" in sql
+    assert "job_applications.stage IN (__[POSTCOMPILE_stage_1])" in sql
     assert "ORDER BY job_applications.created_at, job_applications.job_id" in sql
     assert "LIMIT" in sql
-    assert db.sent[-1].compile().params["stage_1"] == application_stage.queued
+    assert db.sent[-1].compile().params["stage_1"] == [application_stage.queued]
+
+
+def test_next_among_picked_jobs_counts_only_those_and_reopens_unfinished_ones():
+    db = Recorder()
+    asyncio.run(queries.fetch_next_application(db, APPLICANT, only=[JOB]))
+    assert "job_applications.job_id IN (__[POSTCOMPILE_job_id_1])" in db.sql()
+    assert db.sent[-1].compile().params["stage_1"] == [application_stage.queued, application_stage.needs_you]
 
 
 def test_one_application_is_this_applicants_for_this_job():
@@ -98,32 +105,45 @@ def test_list_filters_by_stage_newest_first():
     assert "ORDER BY job_applications.created_at DESC" in sql
 
 
-def test_set_stage_applied_keeps_the_first_date():
+def test_set_stage_applied_dates_the_submit_now():
     db = Recorder()
     asyncio.run(queries.set_stage(db, APPLICANT, JOB, application_stage.applied))
-    assert "applied_at=coalesce(job_applications.applied_at, now())" in db.sql()
+    assert "applied_at=now()" in db.sql()
 
 
-def test_set_stage_skipped_leaves_the_date():
+def test_set_stage_skipped_clears_the_date():
     db = Recorder()
     asyncio.run(queries.set_stage(db, APPLICANT, JOB, application_stage.skipped))
-    assert "applied_at" not in db.sql()
+    assert "applied_at=%(applied_at)s" in db.sql()
 
 
 def test_mark_applied_turns_a_queued_job_applied_and_keeps_a_first_date():
     db = Recorder(scalar=JOB)  # the job is listed
     asyncio.run(applications.mark_applied(db, APPLICANT, JOB))
     sql = db.sql(1)  # after the "is it listed" read
-    assert "ON CONFLICT (applicant_id, job_id) DO UPDATE SET stage = %(param_1)s" in sql
+    # A stage before applied becomes applied; a later one keeps itself
+    # (KAN-413). Only stages every database has are named.
+    assert "ON CONFLICT (applicant_id, job_id) DO UPDATE SET stage = CASE WHEN" in sql
+    assert "ELSE job_applications.stage END" in sql
     # The first date stays (KAN-267 dropped the WHERE, so a second mark can
     # still change the resume it names); no body leaves that resume alone.
-    assert "applied_at = coalesce(job_applications.applied_at, now())" in sql
+    # One not applied yet is dated now, whatever date it held (KAN-369).
+    assert (
+        "applied_at = CASE WHEN (job_applications.stage IN (__[POSTCOMPILE_stage_2]))"
+        " THEN now() ELSE coalesce(job_applications.applied_at, now()) END"
+    ) in sql
     assert "sent_resume_id" not in sql
 
 
 def test_the_feed_hides_applied_jobs_only():
+    # Interviewing, offer and rejected were applied too (KAN-413), asked as
+    # NOT IN the stages before applied, so the query never names a value a
+    # database without a7d3e5f1c2b4 lacks
     (clause,) = matching(JobFilters(applied_by=APPLICANT))
-    assert "job_applications.stage = 'applied'" in _sql(clause)
+    sql = _sql(clause)
+    assert "job_applications.stage NOT IN ('saved', 'queued', 'needs_you', 'skipped')" in sql
+    for later in ("interviewing", "offer", "rejected"):
+        assert later not in sql
 
 
 def test_matches_hide_every_job_with_an_application_saved_ones_too():
@@ -137,5 +157,8 @@ def test_matches_hide_every_job_with_an_application_saved_ones_too():
 def test_matches_can_take_only_jobs_auto_apply_fills():
     assert matching(JobFilters()) == []
     (clause,) = matching(JobFilters(auto_apply_only=True))
-    assert _sql(clause).startswith("job_postings.apply_url ~* '^https?://")
-    assert "greenhouse\\.io" in _sql(clause)
+    sql = _sql(clause)
+    # Its apply_url is a hiring system's form, or a job board's posting names one (KAN-376).
+    assert sql.startswith("CASE WHEN (job_postings.apply_url ~* '^https?://")
+    assert "greenhouse\\.io" in sql and "linkedin\\.com" in sql
+    assert sql.endswith("END IS NOT NULL")

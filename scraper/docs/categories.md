@@ -1,8 +1,74 @@
-# Categories, specialties and stage (KAN-172)
+# Categories, specialties and stage (KAN-172, KAN-430)
 
 Which roles the shortlist keeps, how a title gets its categories and specialties, and the measurements behind each decision. Reached from `../CLAUDE.md`, "Filter changes need a real title".
 
+## Every field, early career only (KAN-430)
+
+**Decided 2026-10-28: the page keeps every early-career role, whatever the
+field.** WorkIt is for college students of every major, so the stage decides
+what is kept and the field only files it. All levels was weighed first and
+turned down for now: it would be 10 to 25 times today's roles, past the free
+database plan (`coverage.md`, "More roles").
+
+- **The fields held off under KAN-172 are categories now**, in the same places
+  in `CATEGORIES`, so a title files exactly where it was dropped before: `law`
+  (law and compliance), `consulting`, `support` (customer and technical
+  support), `arts`, `policy` (public policy and government relations) and
+  `education`.
+- **A title naming no field is `other`**: "Engineering Intern", "Research
+  Intern", "Summer Intern", "2027 Internships - All Disciplines".
+- **The old never list is `other` too** (`OUTSIDE_FIELDS`): trades, operators,
+  technicians, drafters, medicine and a hotel's kitchen and front desk. It is
+  checked first, as before, so "Robotics Data Operator Intern" is `other`,
+  never `hardware`. A physician "intern" (a medical resident) is kept with
+  the rest: the user chose no exceptions.
+- **Two stage words joined:** "trainee" (`NEW_GRAD`) and "rotational program"
+  (`PROGRAM`, so a rotational program's manager stays dropped). In the same
+  sample every trainee was entry level (Omnicom Health's "Trainee Account
+  Executive", Crest Industries' "Fabrication Trainee"), and the one rotational
+  program a graduate program (National Life's "Finance Leadership Rotational
+  Program Associate").
+- **Left out on purpose:** "Level I" (59 dropped titles in the sample),
+  "Associate" (35) and "Analyst" (69). Many are entry level ("Software Engineer
+  I", "Associate Product Manager"), but many ask for experience ("Associate
+  Scientist II", "Mold Setter I"), and "UK&I" matched "I". A title with no
+  stage word is now kept when its description states 0 or 1 years of experience
+  (`classify_with_description`, using `details.min_years` as the authority and
+  `EARLY_EXPERIENCE` as fallback), which covers providers that send the
+  description with the board listing (Ashby, Lever, Recruitee, TikTok, Jibe,
+  SuccessFactors). Reaching all providers needs `coverage.md`'s `no_stage`
+  step (a page read each on the other 7 systems).
+  "Fellow" and "resident" matched only coaching jobs in the sample.
+- **Unchanged:** every guard on the stage (senior, manager or lead, a
+  recruiter for a program, a place), the order of the twelve, `SECOND` and
+  the specialties.
+
+**Measured.** The last scheduled run before the change (2026-10-28) kept
+10,086 postings; `widening` counted 573 more early-career titles in held
+fields and 3,577 naming no field, about 41% more. A live read of 110 boards
+sampled from `boards.csv` (70 Greenhouse, 25 Ashby, 15 Lever; seed 430) kept
+236 titles before and 44 more after: 38 `other`, 2 `support`, 2 `arts`, 1
+`consulting`, 1 `law`. Every one of the 44 was read, and every one is an
+early-career role: Rocket Lab's "Export Compliance Intern" (law), Astranis's
+"Assembly, Integration, and Test Intern", Crest Industries' "Engineering
+Apprentice I", Excel Sports Management's internships. **Known misses,
+accepted:** Four Hands' "Demand Planning Intern" and National Life's "Capital
+Management Intern" are `other`, not business or finance; Omnicom Health's
+"Medical Writer Intern" is `arts` (a writer). The backend ignores these
+categories (below), so a loose one costs only the scraper page's chips.
+
+**What it costs.** The first run reads each newly kept posting's own page on
+the systems that need one (`../CLAUDE.md`, "A posting's own page is read
+once"), and counts the newly kept roles on boards it already read as "new
+today" once (below). Boards that now hold a kept posting are read every run,
+not one run in `QUIET_EVERY`. The backend's role filter finds a new field's
+jobs only once `job_roles` has aliases for it; until then they are found by
+search (`backend/app/services/role_resolver.py`: no alias, no role).
+
 ## Twelve categories, their specialties, up to two a role (KAN-172)
+
+> Until KAN-430 the fields listed as held off below were dropped; they are
+> categories now (above). The rest of this section still holds.
 
 The page kept software and AI roles until KAN-171, then the SimplifyJobs lists' five.
 It now keeps twelve categories: `software`, `data_ai` (data science, AI and machine

@@ -6,10 +6,18 @@ job_role_tags.
     uv run python -m app.scripts.import_jobs path/to/feed.json
     uv run python -m app.scripts.import_jobs --dry-run        do it all, then roll back
     uv run python -m app.scripts.import_jobs --embeddings-only --embed-limit 100
+    uv run python -m app.scripts.import_jobs --keywords-only --keywords-limit 50
 
 --embeddings-only skips the feed entirely and fills missing scraped-job
 vectors using DATABASE_URL. It never imports or closes postings. Omit
 --embed-limit to process all missing vectors; completed batches survive failures.
+
+After a committed import (never a dry run), the run also extracts Tailor's
+keywords (services/keywords.py) for published scraped jobs that have none:
+new ones, and changed ones, whose keywords step 3 cleared. One model call a
+job, through Scout's SCOUT_* chain, at most --keywords-limit a run (default
+KEYWORDS_PER_RUN; 0 skips it), so later runs work through a backlog.
+--keywords-only does just that, with no feed.
 
 The default feed is the one GET /jobs reads: scraper/feed.json when a local
 scraper run has written one, else data/feed.json (app/config.py).
@@ -30,8 +38,11 @@ holds unique. One run, in one transaction:
    feed is re-resolved on every run, so an alias added to role_resolver.py
    reaches every job on the next run with no backfill;
 6. closes scraped jobs no longer in the feed. The scraper drops a job only
-   after reading its board in full without it (scraper/CLAUDE.md), so absence
-   is evidence. A job that comes back is published again.
+   after two complete reads of its board in a row without it
+   (scraper/CLAUDE.md, "Nothing closes"), so absence is evidence. Each close
+   records why in closed_reason, from closings.json beside the feed (or
+   --closings): the scraper's reason, else "unknown". A job that comes back
+   is published again, with no reason.
 
 The report lists the titles that resolved to no role, most jobs first: that
 list is how the aliases grow (docs/search.md).
@@ -46,8 +57,10 @@ Company-posted jobs (company_id set) are never read or written here.
 import argparse
 import asyncio
 import datetime
+import json
 import logging
 import sys
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -73,6 +86,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.ext.asyncio import AsyncConnection
+from workit_scout.llm import LLM, InvalidReply, ScoutUnavailable
 
 from app.config import get_settings
 from app.db import get_engine
@@ -81,11 +95,13 @@ from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
 from app.schemas.jobs import JobListing
+from app.services import keywords
 from app.services.location_resolver import LocationResolver, Place, Resolution
 from app.services.matching.embeddings import BATCH_SIZE, embed, job_text
+from app.services.models import get_small_llm
+from app.services.role_resolver import RoleResolver
 
 logger = logging.getLogger(__name__)
-from app.services.role_resolver import RoleResolver
 
 _FEED = TypeAdapter(list[JobListing])
 _jobs = Job_Post.__table__
@@ -94,18 +110,29 @@ _tags = Job_Role_Tag.__table__
 
 # The columns the feed owns, compared to decide whether a known job changed.
 _FEED_COLUMNS = (
-    "title", "company_name", "company_logo_url", "description",
+    "title", "company_name", "company_logo_url", "company_domain", "description",
     "experience_level", "work_style", "location_raw", "location_label", "posted_at",
     "job_type", "min_years_experience", "start_term", "sponsorship",
     "salary", "salary_min", "salary_max", "salary_currency", "salary_period",
 )
-# asyncpg allows 32,767 parameters a statement; a row here binds 20.
+# asyncpg allows 32,767 parameters a statement; a row here binds 21.
 _CHUNK = 1000
 # Closing more than this share of the published scraped jobs in one run is
 # refused without --allow-mass-close.
 _MASS_CLOSE_SHARE = 0.5
 # ...unless there are this few, as on a first import or a test database.
 _MASS_CLOSE_FLOOR = 20
+# Keyword extractions a run makes by default: one model call each, so a
+# first run's backlog of thousands spreads over many runs instead of
+# spending the day's quota, or the job's 30 minutes, in one.
+KEYWORDS_PER_RUN = 100
+# Why a scraped job closed (job_postings.closed_reason, bd730e8ab454's CHECK),
+# as the scraper's closings.json names them (scraper/workit_scraper/feed.py's
+# REASONS). A reason it gives that is not here is filed as UNKNOWN, as is a
+# job it gives none for: a scraper newer than this list must not stop real
+# closes, and a missing reason is what this column is for finding.
+CLOSED_REASONS = frozenset({"gone_from_board", "board_gone", "filtered_out", "replaced"})
+UNKNOWN = "unknown"
 
 
 class ImportRefused(Exception):
@@ -138,13 +165,42 @@ class Report:
     updated: int = 0
     unchanged: int = 0
     closed: int = 0
+    # closed_reason -> how many jobs this run closed under it
+    closed_by_reason: dict[str, int] = field(default_factory=dict)
+    # False when the run had no closings.json: every close is UNKNOWN
+    had_closings: bool = True
+    # reasons closings.json gave that CLOSED_REASONS lacks, filed as UNKNOWN
+    strange_reasons: set[str] = field(default_factory=set)
     embedded: int = 0
+    keywords: int = 0
     locations_changed: int = 0
     roles_changed: int = 0
     duplicates: int = 0
     no_place: int = 0
     unresolved: dict[str, tuple[str, ...]] = field(default_factory=dict)
     untagged: dict[str, int] = field(default_factory=dict)
+
+
+def read_closings(path: Path) -> dict[str, str] | None:
+    '''
+    closings.json: apply_url -> why the scraper dropped it. None when the file
+    is missing or not that shape, so the run still closes, as UNKNOWN: a feed
+    from before closings.json, a local run or a lost artifact must not keep
+    real closes open.
+    '''
+    try:
+        found = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except ValueError:
+        logger.warning("%s is not JSON; every close this run is %s", path, UNKNOWN)
+        return None
+    if not isinstance(found, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in found.items()
+    ):
+        logger.warning("%s is not a map of URLs to reasons; every close this run is %s", path, UNKNOWN)
+        return None
+    return found
 
 
 def parse_posted_at(value: str | None) -> datetime.datetime | None:
@@ -200,6 +256,7 @@ def prepare(
             "title": listing.title,
             "company_name": listing.company,
             "company_logo_url": listing.logo_url,
+            "company_domain": listing.company_domain,
             # Scout reads it; the job cards don't. Absent from feeds written
             # before the scraper captured descriptions.
             "description": listing.description,
@@ -255,8 +312,9 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
                 **{col: stmt.excluded[col] for col in _FEED_COLUMNS},
                 "status": dto.job_post_status.published,
                 # A job closed by an earlier run and back in the feed is open
-                # again, so the date it closed no longer applies.
+                # again, so the date and reason it closed no longer apply.
                 "closes_at": None,
+                "closed_reason": None,
                 # Tailor's cached keywords (KAN-215) came from the old
                 # description; a new one clears them.
                 **{
@@ -361,7 +419,10 @@ async def _sync_roles(
         await conn.execute(insert(_tags).values(fresh[start:start + _CHUNK * 2]))
 
 
-async def _close_missing(conn: AsyncConnection, urls: list[str], report: Report, *, allow_mass_close: bool) -> None:
+async def _close_missing(
+    conn: AsyncConnection, urls: list[str], report: Report, *, allow_mass_close: bool,
+    closings: dict[str, str] | None = None,
+) -> None:
     published_scraped = and_(
         _jobs.c.company_id.is_(None), _jobs.c.status == dto.job_post_status.published
     )
@@ -380,22 +441,39 @@ async def _close_missing(conn: AsyncConnection, urls: list[str], report: Report,
             "Re-run with --allow-mass-close if they really are gone."
         )
 
+    report.had_closings = closings is not None
+    known = {url: why for url, why in (closings or {}).items() if why in CLOSED_REASONS}
+    report.strange_reasons = {why for why in (closings or {}).values() if why not in CLOSED_REASONS}
+    # Two arrays, unnested side by side as (url, reason) rows: one parameter
+    # each, like _text_array's, whatever the file's size.
+    given = func.unnest(
+        _text_array(list(known)), _text_array(list(known.values()))
+    ).table_valued("url", "reason").render_derived()
+    reason = func.coalesce(
+        select(given.c.reason).where(given.c.url == _jobs.c.apply_url).scalar_subquery(),
+        UNKNOWN,
+    )
     now = func.now()
     result = await conn.execute(
         update(_jobs).where(missing).values(
             status=dto.job_post_status.closed,
             closes_at=func.least(func.coalesce(_jobs.c.closes_at, now), now),
+            closed_reason=reason,
             updated_at=now,
-        )
+        ).returning(_jobs.c.closed_reason)
     )
-    report.closed = result.rowcount
+    reasons = Counter(result.scalars().all())
+    report.closed = sum(reasons.values())
+    report.closed_by_reason = dict(reasons)
 
 
 async def import_feed(
-    conn: AsyncConnection, listings: list[JobListing], *, allow_mass_close: bool = False
+    conn: AsyncConnection, listings: list[JobListing], *, allow_mass_close: bool = False,
+    closings: dict[str, str] | None = None,
 ) -> Report:
     '''
-    the whole import, on a connection whose transaction the caller owns
+    the whole import, on a connection whose transaction the caller owns.
+    `closings` is closings.json (`read_closings`); None closes as UNKNOWN.
     '''
     if not listings:
         raise ImportRefused("The feed is empty; nothing was written.")
@@ -429,7 +507,9 @@ async def import_feed(
     ids = await _scraped_ids(conn, list(prepared.places))
     await _sync_locations(conn, prepared.places, ids, report)
     await _sync_roles(conn, prepared.role_tags, ids, report)
-    await _close_missing(conn, list(prepared.places), report, allow_mass_close=allow_mass_close)
+    await _close_missing(
+        conn, list(prepared.places), report, allow_mass_close=allow_mass_close, closings=closings
+    )
     return report
 
 
@@ -480,11 +560,77 @@ async def _embed_jobs(conn: AsyncConnection, *, limit: int | None = None) -> int
     return count
 
 
+async def _extract_keywords(conn: AsyncConnection, llm: LLM, *, limit: int) -> int:
+    '''
+    extract and store keywords for published scraped jobs with none, at most
+    `limit` model calls. Requires a connection with no active transaction:
+    no transaction stays open across a model call, and each job's keywords
+    commit on their own, so a failure keeps the ones already written.
+    '''
+    count = 0
+    attempted = 0
+    after = None
+    while attempted < limit:
+        async with conn.begin():
+            query = (
+                select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
+                .where(
+                    _jobs.c.company_id.is_(None),
+                    _jobs.c.status == dto.job_post_status.published,
+                    _jobs.c.keywords.is_(None),
+                )
+                .order_by(_jobs.c.id)
+                .limit(min(BATCH_SIZE, limit - attempted))
+            )
+            # Past the last job tried, not OFFSET or "still NULL": a job
+            # whose reply failed stays NULL and would be read again forever.
+            if after is not None:
+                query = query.where(_jobs.c.id > after)
+            batch = (await conn.execute(query)).all()
+        if not batch:
+            break
+        for row in batch:
+            after = row.id
+            attempted += 1
+            try:
+                found = await keywords.read(row.title, row.description, llm)
+            except InvalidReply:
+                # This job's reply only; the next run tries it again.
+                logger.warning("Keyword reply for job %s failed its schema", row.id)
+                continue
+            except ScoutUnavailable:
+                # No model answers (down or out of quota); the next run goes on.
+                logger.warning("No model answered; stopping keyword extraction", exc_info=True)
+                return count
+            async with conn.begin():
+                # Only if the description is the one read: a company never
+                # edits these, but the next import may have.
+                result = await conn.execute(
+                    update(_jobs)
+                    .where(
+                        _jobs.c.id == row.id,
+                        _jobs.c.description.is_not_distinct_from(row.description),
+                    )
+                    .values(
+                        keywords=[k.model_dump() for k in found],
+                        keywords_hash=keywords.posting_text_hash(row.title, row.description),
+                    )
+                )
+            count += result.rowcount
+    return count
+
+
 def _print_report(report: Report, *, dry_run: bool) -> None:
     print(f"{'DRY RUN, rolled back — ' if dry_run else ''}{report.feed_rows} rows in the feed")
     print(f"  inserted {report.inserted}, updated {report.updated}, unchanged {report.unchanged}")
     print(f"  embedded {report.embedded}")
-    print(f"  closed (no longer in the feed) {report.closed}")
+    print(f"  keywords extracted {report.keywords}")
+    reasons = ", ".join(f"{why} {n}" for why, n in sorted(report.closed_by_reason.items()))
+    print(f"  closed (no longer in the feed) {report.closed}" + (f": {reasons}" if reasons else ""))
+    if not report.had_closings:
+        print(f"  no closings.json beside the feed: every close this run is {UNKNOWN}")
+    if report.strange_reasons:
+        print(f"  reasons this import does not know, filed as {UNKNOWN}: {', '.join(sorted(report.strange_reasons))}")
     print(f"  jobs whose locations changed {report.locations_changed}")
     print(f"  jobs whose job_role_tags changed {report.roles_changed}")
     if report.duplicates:
@@ -499,15 +645,19 @@ def _print_report(report: Report, *, dry_run: bool) -> None:
 
 
 async def _run(
-    path: Path, *, dry_run: bool, allow_mass_close: bool, embed_limit: int | None = None
+    path: Path, *, dry_run: bool, allow_mass_close: bool, embed_limit: int | None = None,
+    keywords_limit: int = KEYWORDS_PER_RUN, closings_path: Path | None = None,
 ) -> Report:
     listings = _FEED.validate_json(path.read_bytes())
+    closings = read_closings(closings_path or path.with_name("closings.json"))
     engine = get_engine()
     try:
         async with engine.connect() as conn:
             trans = await conn.begin()
             try:
-                report = await import_feed(conn, listings, allow_mass_close=allow_mass_close)
+                report = await import_feed(
+                    conn, listings, allow_mass_close=allow_mass_close, closings=closings
+                )
             except BaseException:
                 await trans.rollback()
                 raise
@@ -519,6 +669,11 @@ async def _run(
                     report.embedded = await _embed_jobs(conn, limit=embed_limit)
                 except Exception:
                     logger.warning("Embedding failed after import committed", exc_info=True)
+                if keywords_limit:
+                    try:
+                        report.keywords = await _extract_keywords(conn, get_small_llm(), limit=keywords_limit)
+                    except Exception:
+                        logger.warning("Keyword extraction failed after import committed", exc_info=True)
             return report
     finally:
         await engine.dispose()
@@ -533,16 +688,41 @@ async def _run_embeddings_only(*, limit: int | None = None) -> int:
         await engine.dispose()
 
 
+async def _run_keywords_only(*, limit: int) -> int:
+    engine = get_engine()
+    try:
+        async with engine.connect() as conn:
+            return await _extract_keywords(conn, get_small_llm(), limit=limit)
+    finally:
+        await engine.dispose()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("feed", nargs="?", type=Path, help="feed.json to import (default: the one GET /jobs reads)")
     parser.add_argument("--dry-run", action="store_true", help="run every step, then roll back")
     parser.add_argument("--allow-mass-close", action="store_true", help="close however many jobs left the feed")
+    parser.add_argument("--closings", type=Path,
+                        help="why each job left the feed (default: closings.json beside the feed)")
     parser.add_argument("--embed-limit", type=int, help="embed at most this many jobs; does not limit feed imports")
     parser.add_argument("--embeddings-only", action="store_true", help="fill missing scraped-job vectors without reading or importing a feed")
+    parser.add_argument("--keywords-limit", type=int, default=KEYWORDS_PER_RUN,
+                        help=f"extract keywords for at most this many jobs (default {KEYWORDS_PER_RUN}; 0 skips)")
+    parser.add_argument("--keywords-only", action="store_true", help="fill missing scraped-job keywords without reading or importing a feed")
     args = parser.parse_args(argv)
     if args.embed_limit is not None and args.embed_limit < 1:
         parser.error("--embed-limit must be a positive integer")
+    if args.keywords_limit < 0:
+        parser.error("--keywords-limit must be 0 or more")
+    if args.embeddings_only and args.keywords_only:
+        parser.error("--embeddings-only and --keywords-only cannot be combined")
+
+    if args.keywords_only:
+        if args.feed is not None or args.dry_run or args.allow_mass_close:
+            parser.error("--keywords-only cannot be combined with a feed, --dry-run, or --allow-mass-close")
+        count = asyncio.run(_run_keywords_only(limit=args.keywords_limit))
+        print(f"extracted keywords for {count} scraped jobs; no feed imported")
+        return 0
 
     if args.embeddings_only:
         if args.feed is not None or args.dry_run or args.allow_mass_close:
@@ -555,7 +735,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         report = asyncio.run(_run(
             path, dry_run=args.dry_run, allow_mass_close=args.allow_mass_close,
-            embed_limit=args.embed_limit,
+            embed_limit=args.embed_limit, keywords_limit=args.keywords_limit,
+            closings_path=args.closings,
         ))
     except FileNotFoundError:
         print(f"No feed at {path}. Run `python3 -m workit_scraper` in scraper/ first.", file=sys.stderr)

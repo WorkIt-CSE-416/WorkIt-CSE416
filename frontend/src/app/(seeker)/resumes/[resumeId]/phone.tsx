@@ -1,15 +1,15 @@
 "use client";
 
 import {
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  Pointer,
-  Undo2,
-  X,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+  ArrowLeftIcon,
+  ArrowUUpLeftIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
+  HandPointingIcon,
+  MagnifyingGlassMinusIcon,
+  MagnifyingGlassPlusIcon,
+  XIcon,
+} from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
@@ -20,9 +20,11 @@ import type { Choices, ChoicesUpdate, RenderBox, RenderedPdf } from "@/lib/built
 import { cn } from "@/lib/cn";
 
 import { DownloadMenu, DownloadNotes, type ResumeDownload } from "../download-menu";
+import { useBack } from "../../back-link";
+import { EDITOR_PARENT } from "./back";
 import { FitNotice } from "./fit-notice";
 import { lineName, shortPageLabel, tray, type Line } from "./model";
-import { boxKey, kindLabel, PdfPages } from "./pdf-pages";
+import { boxKey, kindLabel } from "./pdf-pages";
 import { Tray } from "./tray";
 
 /**
@@ -88,6 +90,8 @@ export function pageOrder(boxes: RenderBox[]) {
 
 export function PhoneEditor({
   rendered,
+  hint,
+  pages,
   bank,
   choices,
   selected,
@@ -99,6 +103,8 @@ export function PhoneEditor({
   error,
   fitUndo,
   download,
+  bar,
+  suggestions,
   actions,
   assistant,
   onSelect,
@@ -107,9 +113,15 @@ export function PhoneEditor({
   onApply,
   onFit,
   onUndoFit,
-  onDrawn,
 }: {
-  rendered: RenderedPdf;
+  /** Null until the first render lands (./editor.tsx streams it in). */
+  rendered: RenderedPdf | null;
+  /** Shows "Tap a line to edit it."; off once the first render failed. */
+  hint: boolean;
+  /** The page area, drawn by the editor: the PDF, or its skeleton while the
+   *  first render is on its way, from the same unawaited render the desktop
+   *  layout reads. */
+  pages: ReactNode;
   bank: Bank;
   choices: Choices;
   selected: string | null;
@@ -123,6 +135,16 @@ export function PhoneEditor({
   fitUndo: ChoicesUpdate | null;
   /** The resume's downloads, the same as the desktop sticky bar's. */
   download: ResumeDownload;
+  /** The page's own row under the buttons (Tailor's note when it has no
+   *  suggestions to show). */
+  bar?: ReactNode;
+  /** Tailor's Suggestions panel, in a sheet opened from the bottom bar. */
+  suggestions?: {
+    count: number;
+    panel: ReactNode;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  } | null;
   /** The selected line's actions, the same as the desktop sticky bar's. */
   actions: ReactNode;
   /** The editor assistant (KAN-221), shown in a sheet when asked for. */
@@ -133,8 +155,8 @@ export function PhoneEditor({
   onApply: (changes: ChoicesUpdate) => void;
   onFit: () => void;
   onUndoFit: () => void;
-  onDrawn: () => void;
 }) {
+  const back = useBack(EDITOR_PARENT);
   const snapshot = useSyncExternalStore(subscribeViewport, viewportSnapshot, () => "0|0");
   const [height, top] = snapshot.split("|").map(Number);
   const [zoom, setZoom] = useState(false);
@@ -142,7 +164,7 @@ export function PhoneEditor({
   const [asking, setAsking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
-  const order = pageOrder(rendered.boxes);
+  const order = pageOrder(rendered?.boxes ?? []);
   const at = selected ? order.indexOf(selected) : -1;
   const waiting = tray(bank, choices).length;
 
@@ -164,16 +186,17 @@ export function PhoneEditor({
       <header className="bg-brand-tint/95 border-brand-pale flex flex-col gap-2 border-b px-4 pt-3 pb-2 backdrop-blur">
         <div className="flex items-center gap-2">
           <Link
-            href="/resumes"
-            aria-label="Back to Resumes"
+            href={back.href}
+            aria-label={back.label}
+            onClick={back.onClick}
             className="text-ink -ml-2 flex size-11 items-center justify-center rounded-full"
           >
-            <ArrowLeft className="size-5" />
+            <ArrowLeftIcon aria-hidden className="size-5" />
           </Link>
           {/* As on the desktop bar: the way in, or, over one page, the
               count joined to its fix (./fit-notice.tsx), short so it fits
               beside the back arrow; the toast spells it out (KAN-258). */}
-          {rendered.page_count > 1 ? (
+          {rendered && rendered.page_count > 1 ? (
             <span className={TAP}>
               <FitNotice
                 label={shortPageLabel(rendered.page_count, rendered.lines_over)}
@@ -183,10 +206,12 @@ export function PhoneEditor({
               />
             </span>
           ) : (
-            <span className="text-label text-ink flex items-center gap-1.5 font-medium">
-              <Pointer aria-hidden className="text-brand size-4 shrink-0" />
-              Tap a line to edit it.
-            </span>
+            hint && (
+              <span className="text-label text-ink flex items-center gap-1.5 font-medium">
+                <HandPointingIcon aria-hidden className="text-brand size-4 shrink-0" />
+                Tap a line to edit it.
+              </span>
+            )
           )}
           <span className="text-note text-ink-meta ml-auto" aria-live="polite">
             {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
@@ -195,7 +220,7 @@ export function PhoneEditor({
         <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
           {fitUndo && (
             <Button variant="secondary" size="sm" onClick={onUndoFit} disabled={saving}>
-              <Undo2 /> Undo
+              <ArrowUUpLeftIcon aria-hidden /> Undo
             </Button>
           )}
           <div className="ml-auto flex gap-2">
@@ -206,11 +231,16 @@ export function PhoneEditor({
               aria-pressed={zoom}
               onClick={() => setZoom(!zoom)}
             >
-              {zoom ? <ZoomOut /> : <ZoomIn />}
+              {zoom ? (
+                <MagnifyingGlassMinusIcon aria-hidden />
+              ) : (
+                <MagnifyingGlassPlusIcon aria-hidden />
+              )}
               {zoom ? "Fit Width" : "Zoom"}
             </Button>
           </div>
         </div>
+        {bar}
         {error && (
           <p role="alert" className="text-note text-danger">
             {error}
@@ -221,17 +251,12 @@ export function PhoneEditor({
 
       <div
         ref={scroller}
-        className={cn("min-h-0 flex-1 overflow-auto p-4", selected ? "pb-[70vh]" : "pb-24")}
+        className={cn(
+          "min-h-0 flex-1 overflow-auto p-4",
+          selected || suggestions?.open ? "pb-[70vh]" : suggestions ? "pb-36" : "pb-24",
+        )}
       >
-        <div className={zoom ? "w-[200%]" : "w-full"}>
-          <PdfPages
-            pdf={rendered.pdf}
-            boxes={rendered.boxes}
-            selected={selected}
-            onSelect={(key) => onSelect(selected === key ? null : key)}
-            onDrawn={onDrawn}
-          />
-        </div>
+        <div className={zoom ? "w-[200%]" : "w-full"}>{pages}</div>
       </div>
 
       {!selected && (
@@ -241,12 +266,30 @@ export function PhoneEditor({
             TAP,
           )}
         >
+          {suggestions && (
+            <Button
+              variant="secondary"
+              className="mb-2 w-full"
+              onClick={() => suggestions.onOpenChange(true)}
+            >
+              Suggestions{" "}
+              {suggestions.count > 0 && (
+                <span className="text-ink-meta">({suggestions.count})</span>
+              )}
+            </Button>
+          )}
+          {/* Both wait for the first render: each acts through a new one. */}
           <div className="flex gap-2">
-            <Button variant="secondary" className="flex-1" onClick={() => setTrayOpen(true)}>
+            <Button
+              variant="secondary"
+              className="flex-1"
+              disabled={!rendered}
+              onClick={() => setTrayOpen(true)}
+            >
               Not on This Resume {waiting > 0 && <span className="text-ink-meta">({waiting})</span>}
             </Button>
             {/* The primary action, filled as on the desktop bar. */}
-            <Button onClick={() => setAsking(true)}>
+            <Button disabled={!rendered} onClick={() => setAsking(true)}>
               <SparkleIcon /> Ask Scout
             </Button>
           </div>
@@ -266,7 +309,7 @@ export function PhoneEditor({
                 disabled={at <= 0}
                 onClick={() => onSelect(order[at - 1])}
               >
-                <ChevronLeft />
+                <CaretLeftIcon aria-hidden />
               </Button>
               <span className="text-label text-ink-meta min-w-0 flex-1 truncate text-center font-semibold">
                 {kindLabel(box.kind)} · {lineName(line)}
@@ -278,7 +321,7 @@ export function PhoneEditor({
                 disabled={at < 0 || at >= order.length - 1}
                 onClick={() => onSelect(order[at + 1])}
               >
-                <ChevronRight />
+                <CaretRightIcon aria-hidden />
               </Button>
             </div>
           }
@@ -324,6 +367,13 @@ export function PhoneEditor({
           {assistant}
         </Sheet>
       </div>
+
+      {/* No scrim, as a line's sheet: the outlined line shows above it */}
+      {suggestions?.open && !selected && (
+        <Sheet onClose={() => suggestions.onOpenChange(false)} title="Suggestions">
+          <div className={TAP}>{suggestions.panel}</div>
+        </Sheet>
+      )}
 
       {trayOpen && (
         <>
@@ -376,7 +426,7 @@ function Sheet({
           {title}
         </div>
         <Button variant="secondary" size="sm" aria-label="Close" onClick={onClose}>
-          <X />
+          <XIcon aria-hidden />
         </Button>
       </div>
       {fill ? (

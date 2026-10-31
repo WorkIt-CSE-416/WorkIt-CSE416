@@ -19,8 +19,9 @@ const VIEWS: Record<ResumesView, { title: string; description: string }> = {
 /**
  * The header the two views of Resumes & Experiences share: the view's own
  * title and line on the left, and at the top right the switcher, then the
- * view's primary action (Generate Resume, or Fill With Scout). It is drawn
- * as the Dashboard's is: a <header> whose controls sit at the right, level
+ * view's primary action where it has one (Fill With Scout on Experiences;
+ * the Resumes view's buttons sit on its filter row since KAN-362). It is drawn
+ * as Home's is: a <header> whose controls sit at the right, level
  * with the foot of the title's block, and wrap under it where the page is
  * narrow. The views are two routes, /resumes and /bank, so every link to
  * either still lands; the switcher is plain links between them, not a

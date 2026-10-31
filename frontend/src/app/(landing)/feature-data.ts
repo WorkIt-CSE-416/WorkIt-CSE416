@@ -1,30 +1,31 @@
 /**
  * Copy and sample data for the landing page's product tour
  * (product-tour.tsx): the feature list and the data each feature's
- * animation uses. The candidate and resumes are fictional. The Autofill and
- * Updates stops' companies are too, and reuse the logos from the
- * application board (./board-data.ts) so the two sections match; the
- * Resumes and Matching stops name real employers the scraper reads, like
- * the hero's cards.
+ * animation uses. The candidate and resumes are fictional. Every stop
+ * names real employers the scraper reads, like the hero's cards; the
+ * Auto Apply and Updates stops take theirs from the applications board
+ * (./board-data.ts), so the sections match.
  */
-import type { LucideIcon } from "lucide-react";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { HeadsetIcon, PresentationIcon } from "@phosphor-icons/react/ssr";
+
 import { stages } from "./board-data";
 
-/** Logo and tile colors for a company on the application board. */
-function companyLogo(company: string): { logo: LucideIcon; logoTone: string } {
-  const job = stages.flatMap((stage) => stage.jobs).find((item) => item.company === company);
-  if (!job) throw new Error(`No application-board job for company "${company}"`);
-  return { logo: job.logo, logoTone: job.logoTone };
-}
-
-export type FeatureId = "matching" | "resumes" | "autofill" | "updates";
+export type FeatureId = "matching" | "resumes" | "auto-apply" | "updates";
 
 /**
  * The carousel's features, in the hero's pipeline order: Tailored (resumes),
- * Matched, Applied (autofill), Tracked (updates). `seconds` is how long each
+ * Matched, Applied (auto apply), Tracked (updates). `seconds` is how long each
  * shows before auto-advancing.
  */
-export const features: { id: FeatureId; title: string; description: string; seconds: number }[] = [
+export const features: {
+  id: FeatureId;
+  title: string;
+  description: string;
+  seconds: number;
+  /** Not built yet: the stop says "Coming soon" (`SoonChip`). */
+  soon?: boolean;
+}[] = [
   {
     id: "resumes",
     title: "A resume for every job",
@@ -40,20 +41,36 @@ export const features: { id: FeatureId; title: string; description: string; seco
     seconds: 7,
   },
   {
-    id: "autofill",
-    title: "Autofill on every application",
+    id: "auto-apply",
+    title: "Auto apply to your best matches",
     description:
-      "Your profile fills in every WorkIt application, resume attached. Check it over, then send.",
+      "WorkIt queues the jobs that fit you best, fills in every field of each application and attaches the resume tailored to it. You check each one and click Submit.",
     seconds: 7,
   },
   {
     id: "updates",
-    title: "Hear back, right here",
+    title: "Know the moment they reply",
     description:
-      "Views, interview invites, messages, and offers show up the moment a recruiter acts.",
+      "A view, a recruiter’s message, an interview invite, an offer: each one lands on your tracker the moment it happens, and moves the application along.",
     seconds: 9,
+    // The tracker stores no employer replies yet.
+    soon: true,
   },
 ];
+
+/**
+ * The one job the home page follows from the hero to the offer: the hero's
+ * Stripe card flies into the product tour and every stop works on it
+ * (Resumes tailors to it, Matching ranks it first, Auto Apply fills its
+ * application, Updates hears back). Change it here and every stop follows.
+ * Stripe is a real employer on scraper/boards.csv (Greenhouse).
+ */
+export const followedJob = {
+  title: "Software Engineer Intern",
+  company: "Stripe",
+  domain: "stripe.com",
+  score: 91,
+};
 
 // --- Matching: read the bank, scan postings, score, rank ---
 
@@ -76,9 +93,17 @@ export interface MatchJob {
 export const matchingFeature = {
   /** What the score reads from Alex Morgan's experience bank (the Resumes stop's). */
   profile: {
-    degree: "Computer Science · 2027",
+    degree: "Computer Science",
+    year: "Class of 2027",
     skills: ["TypeScript", "Python", "SQL", "React", "Node.js"],
-    titles: ["Teaching Assistant", "IT Support Intern"],
+    /** The bank's experience entries (the Resumes stop's, `resumeFeature`),
+     * each with a mark of the job: the score reads their titles. Shown as
+     * bare "Past titles" they read as a list, not as the student's
+     * experience. */
+    experiences: [
+      { title: "Teaching Assistant", detail: "Data Structures", icon: PresentationIcon },
+      { title: "IT Support Intern", detail: "Campus Help Desk", icon: HeadsetIcon },
+    ] satisfies { title: string; detail: string; icon: PhosphorIcon }[],
   },
   factorLabels: {
     meaning: "Meaning",
@@ -104,12 +129,12 @@ export const matchingFeature = {
     },
     {
       id: "stripe",
-      title: "Software Engineer Intern",
-      company: "Stripe",
-      domain: "stripe.com",
+      title: followedJob.title,
+      company: followedJob.company,
+      domain: followedJob.domain,
       snippet: "Ship TypeScript and React tools on our payments APIs.",
       keywords: ["TypeScript", "React", "APIs"],
-      score: 91,
+      score: followedJob.score,
       factors: { meaning: 0.92, skills: 0.85, title: 0.75, experience: 1 },
     },
     {
@@ -234,9 +259,9 @@ export const resumeFeature = {
     { id: "compact", label: "Compact" },
   ],
   job: {
-    title: "Software Engineer Intern",
-    company: "Stripe",
-    domain: "stripe.com",
+    title: followedJob.title,
+    company: followedJob.company,
+    domain: followedJob.domain,
     keywords: ["TypeScript", "REST APIs"],
     /** The match before tailoring; each suggestion adds its points. */
     before: 72,
@@ -295,69 +320,164 @@ export interface ResumeSuggestion {
   points: number;
 }
 
-// --- Autofill ---
+// --- Auto Apply: one application filled field by field, then a whole queue ---
 
-export const autofillFeature = {
-  job: { title: "Frontend Engineer", company: "Nimbus Cloud", ...companyLogo("Nimbus Cloud") },
-  fields: [
-    { id: "name", label: "Full name", value: candidate.name },
-    { id: "email", label: "Email", value: "alex@example.com" },
-    // Shown as an attached file rather than typed text.
-    { id: "resume", label: "Resume", value: "Frontend.pdf", file: true },
-  ],
+/** One field on the sample application, in the order WorkIt fills it. */
+export interface ApplicationField {
+  id: string;
+  label: string;
+  value: string;
+  /** How it fills: typed, picked from a list, a file attached, or a written answer. */
+  kind?: "text" | "select" | "file" | "long";
+  /** Half the form's width, beside its neighbour. */
+  half?: boolean;
+}
+
+/** An employer in the zoomed-out grid of applications filling in parallel. */
+export interface GridApplication {
+  company: string;
+  domain: string;
+  title: string;
+  score: number;
+}
+
+export const autoApplyFeature = {
+  job: {
+    title: followedJob.title,
+    company: followedJob.company,
+    domain: followedJob.domain,
+    place: "San Francisco, CA · Internship",
+  },
+  /** The address bar's text: a Greenhouse job board, as the scraper reads them. */
+  url: "job-boards.greenhouse.io/stripe",
+  /** The application, a Greenhouse-style form, in sections. */
+  sections: [
+    {
+      title: "Personal information",
+      fields: [
+        { id: "first", label: "First name", value: "Alex", half: true },
+        { id: "last", label: "Last name", value: "Morgan", half: true },
+        { id: "email", label: "Email", value: "alex@example.com", half: true },
+        // 555-01xx numbers are reserved for fiction.
+        { id: "phone", label: "Phone", value: "(555) 014-2290", half: true },
+        { id: "location", label: "Location (city)", value: "Chicago, Illinois" },
+      ],
+    },
+    {
+      title: "Resume",
+      fields: [
+        // The resume tailored to this posting in the Resumes stop.
+        {
+          id: "resume",
+          label: "Resume/CV",
+          value: `Alex_Morgan_${followedJob.company}.pdf`,
+          kind: "file",
+        },
+      ],
+    },
+    {
+      title: "Links",
+      fields: [
+        { id: "linkedin", label: "LinkedIn", value: "linkedin.com/in/alexmorgan", half: true },
+        { id: "github", label: "GitHub", value: "github.com/alexmorgan", half: true },
+      ],
+    },
+    {
+      title: "Education",
+      fields: [
+        { id: "school", label: "School", value: "Northview University", half: true },
+        { id: "degree", label: "Degree", value: "B.S. Computer Science", half: true },
+        { id: "grad", label: "Graduation date", value: "May 2027", half: true },
+        { id: "start", label: "Earliest start date", value: "June 2027", half: true },
+      ],
+    },
+    {
+      title: "Application questions",
+      fields: [
+        {
+          id: "authorized",
+          label: "Are you legally authorized to work in the United States?",
+          value: "Yes",
+          kind: "select",
+        },
+        {
+          id: "sponsorship",
+          label: "Will you now or in the future require visa sponsorship?",
+          value: "No",
+          kind: "select",
+        },
+        {
+          id: "why",
+          label: `Why do you want to work at ${followedJob.company}?`,
+          value:
+            "I want to build the tools businesses run their money on. Shipping a budgeting app that 200 students use every week showed me how much a clear, fast payment flow matters.",
+          kind: "long",
+        },
+      ],
+    },
+    {
+      title: "Voluntary self-identification",
+      fields: [
+        {
+          id: "gender",
+          label: "Gender",
+          value: "Decline to self-identify",
+          kind: "select",
+          half: true,
+        },
+        {
+          id: "veteran",
+          label: "Veteran status",
+          value: "I am not a protected veteran",
+          kind: "select",
+          half: true,
+        },
+      ],
+    },
+  ] satisfies { title: string; fields: ApplicationField[] }[],
+  /** The other applications in the grid: the board's and Matching's real
+   * employers, the followed job's company (filled up close) left out, and
+   * the weak fits too (under 70), since the stop queues the best matches.
+   * Each window shows its match, so the queue reads as fits, not as the
+   * mass copy-paste the statement warns about. */
+  grid: [
+    ...stages
+      .flatMap((stage) => stage.jobs)
+      .filter((job) => job.company !== followedJob.company && job.score >= 70)
+      .map(({ company, domain, title, score }) => ({ company, domain, title, score })),
+    ...matchingFeature.jobs
+      .filter((job) => job.company !== followedJob.company && job.score >= 70)
+      .map(({ company, domain, title, score }) => ({ company, domain, title, score })),
+  ] satisfies GridApplication[],
 };
 
 // --- Recruiter updates ---
 
-export interface RecruiterUpdate {
-  id: string;
-  company: string;
-  logo: LucideIcon;
-  logoTone: string;
-  kind: "viewed" | "screen" | "interview" | "message" | "offer";
-  /** Follows the company name, e.g. "Nimbus Cloud viewed your application". */
-  action: string;
-  detail: string;
-}
-
 export const updatesFeature = {
-  updates: (
-    [
-      {
-        id: "nimbus-viewed",
-        company: "Nimbus Cloud",
-        kind: "viewed",
-        action: "viewed your application",
-        detail: "Frontend Engineer",
-      },
-      {
-        id: "dataforge-interview",
-        company: "DataForge",
-        kind: "interview",
-        action: "moved you to Interview",
-        detail: "System design round · Oct 8",
-      },
-      {
-        id: "tempo-message",
-        company: "Tempo",
-        kind: "message",
-        action: "sent you a message",
-        detail: "“Are you free Thursday to pair?”",
-      },
-      {
-        id: "acme-screen",
-        company: "Acme Health",
-        kind: "screen",
-        action: "booked a recruiter screen",
-        detail: "Oct 3, 2:30 PM EST",
-      },
-      {
-        id: "fintech-offer",
-        company: "FinTech Corp",
-        kind: "offer",
-        action: "sent you an offer",
-        detail: "UI Developer · reply by Oct 20",
-      },
-    ] satisfies Omit<RecruiterUpdate, "logo" | "logoTone">[]
-  ).map((update): RecruiterUpdate => ({ ...update, ...companyLogo(update.company) })),
+  /** The application the Updates stop follows: the one Auto Apply just filled. */
+  application: {
+    title: followedJob.title,
+    company: followedJob.company,
+    domain: followedJob.domain,
+    applied: "Oct 1",
+  },
+  /** What the recruiter writes, and the student's quick replies. */
+  message: {
+    text: "Hi Alex, thanks for applying! Are you free Thursday for a 45-minute technical interview?",
+    replies: ["Thursday works!", "Could we do Friday?"],
+  },
+  interview: {
+    title: "Technical interview",
+    /** The week it falls in, Monday first; `day` is its index. */
+    week: [
+      { day: "Mon", date: 5 },
+      { day: "Tue", date: 6 },
+      { day: "Wed", date: 7 },
+      { day: "Thu", date: 8 },
+      { day: "Fri", date: 9 },
+    ],
+    day: 3,
+    time: "1:00 – 1:45 PM",
+  },
+  offer: { term: "Summer 2027", replyBy: "Oct 20" },
 };

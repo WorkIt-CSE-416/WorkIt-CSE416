@@ -44,7 +44,7 @@ export function EmptyState({
       className={cn("flex flex-col items-center px-6 py-10 text-center", className)}
     >
       <span className="bg-brand-tint text-brand rounded-control flex size-10 items-center justify-center">
-        <Icon className="size-5" />
+        <Icon aria-hidden className="size-5" />
       </span>
       <h2 className="text-subtitle text-ink mt-3 max-w-full break-words">{title}</h2>
       {children && <p className="text-body text-ink-meta mt-1 max-w-md">{children}</p>}

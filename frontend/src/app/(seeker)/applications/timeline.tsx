@@ -1,19 +1,22 @@
 import type { CSSProperties } from "react";
 
-import { CheckIcon } from "@/components/icons";
+import { FileIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 
 import { When } from "../local-time";
-import { KIND_STAGE, STAGE_COLOR, type StageKey } from "../stage-colors";
+import { KIND_ICON, KIND_STAGE, STAGE_COLOR, STAGE_ICON, type StageKey } from "../stage-colors";
 import type { TimelineStep } from "../tracker";
 
 /**
  * An application's timeline: one dot per step on one rail, in its kind's
- * stage colour (KIND_STAGE), as the Dashboard's Up Next colours it. A step
- * behind is filled with a check, the one the application is waiting on is
- * filled and marked Next, and anything further out is an empty ring. Drawn
- * by the archived Calendar's detail panel and the application's own page
+ * stage colour (KIND_STAGE), as Home's Up Next colours it. A step
+ * behind, and the one the application is waiting on, is filled with its
+ * stage's glyph (STAGE_ICON; a resume sent on its own wears the file), the
+ * one waiting is marked Next too, and anything further out is an empty
+ * ring. The glyph replaced a check on every step (KAN-317): the page's
+ * timeline is all history, so a check on each step said nothing. Drawn by
+ * the archived Calendar's detail panel and the application's own page
  * (./[jobId], KAN-256).
  *
  * It arrives in order: the rail draws down as the steps rise in one after
@@ -63,10 +66,10 @@ export function Timeline({
 
   return (
     // One rail for the whole list, drawn by the <ol> through the centre of
-    // the 16px dots, as Work Experience draws its own.
+    // the 20px dots, as Work Experience draws its own.
     <ol
       className={cn(
-        "before:bg-border before:animate-draw-y relative flex flex-col gap-5 before:absolute before:top-2 before:bottom-2 before:left-[7px] before:w-0.5 before:origin-top before:content-[''] before:[animation-delay:var(--rail-delay)]",
+        "before:bg-border before:animate-draw-y relative flex flex-col gap-5 before:absolute before:top-2.5 before:bottom-2.5 before:left-[9px] before:w-0.5 before:origin-top before:content-[''] before:[animation-delay:var(--rail-delay)]",
         className,
       )}
       // The rail starts with the first step; a custom property, since an
@@ -94,7 +97,14 @@ function Step({
   /** The last step on a horizontal row draws no rail after it. */
   last?: boolean;
 }) {
-  const stage: StageKey = step.kind === "saved" ? "saved" : KIND_STAGE[step.kind];
+  const stage: StageKey =
+    step.kind === "saved" ? "saved" : step.kind === "sent" ? "applied" : KIND_STAGE[step.kind];
+  const Glyph =
+    step.kind === "sent"
+      ? FileIcon
+      : step.kind === "saved"
+        ? STAGE_ICON.saved
+        : KIND_ICON[step.kind];
   const filled = step.state !== "later";
   const next = step.state === "next";
 
@@ -104,17 +114,17 @@ function Step({
         "animate-rise relative flex items-start",
         horizontal ? "flex-col gap-2 pr-4" : "gap-3",
         // The rail to the next step: from this dot's right edge to the next
-        // one's left, through the centre of the 16px dots.
+        // one's left, through the centre of the 20px dots.
         horizontal &&
           !last &&
-          "before:bg-border before:animate-draw-x before:absolute before:top-[9px] before:right-0 before:left-5 before:h-0.5 before:origin-left before:content-['']",
+          "before:bg-border before:animate-draw-x before:absolute before:top-[11px] before:right-0 before:left-6 before:h-0.5 before:origin-left before:content-['']",
       )}
       style={{ animationDelay: `${delay}ms` }}
     >
       <span
         aria-hidden="true"
         className={cn(
-          "relative mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full",
+          "relative mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full",
           filled
             ? cn(STAGE_COLOR[stage].fill, "text-white")
             : "bg-panel border-border-strong border-2",
@@ -131,7 +141,7 @@ function Step({
             style={{ animationDelay: `${delay + 260}ms` }}
           />
         )}
-        {step.state === "done" && <CheckIcon className="size-2.5" />}
+        {filled && <Glyph aria-hidden className="relative size-3" />}
       </span>
 
       <div className="min-w-0 flex-1">
@@ -150,6 +160,7 @@ function Step({
         <p className="text-note text-ink-meta">
           <When at={step.at} />
         </p>
+        {step.note && <p className="text-note text-ink-meta">{step.note}</p>}
       </div>
     </li>
   );

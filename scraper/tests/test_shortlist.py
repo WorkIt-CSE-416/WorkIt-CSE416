@@ -9,7 +9,14 @@ were measured on.
 from __future__ import annotations
 
 from workit_scraper.providers import Job
-from workit_scraper.shortlist import CATEGORY_TAGS, Tag, classify, pick
+from workit_scraper.shortlist import (
+    CATEGORY_TAGS,
+    Tag,
+    classify,
+    classify_with_description,
+    pick,
+    widening_step,
+)
 
 
 def job(
@@ -64,12 +71,12 @@ class TestClassify:
         tags = classify("Systems Research Engineer Intern - GPU Programming")
         assert tags == ("intern", "data_ai", "data_ai/ml")
 
-    def test_engineer_alone_is_not_a_signal(self):
+    def test_engineer_alone_names_no_field(self):
         # Wade Trim is a civil firm, Decagon a software one: nothing in either title
-        # tells them apart, so neither is kept.
-        assert classify("Engineer Summer Intern - #3036") == ()
-        assert classify("Engineering Intern (Summer 2027)") == ()
-        assert classify("Harness Design Engineer Intern (Winter 2027)") == ()
+        # tells them apart, so both are kept as other (KAN-430), never engineering.
+        assert first("Engineer Summer Intern - #3036") == "other"
+        assert first("Engineering Intern (Summer 2027)") == "other"
+        assert first("Harness Design Engineer Intern (Winter 2027)") == "other"
 
     def test_named_software_specialisms_still_qualify(self):
         for title in (
@@ -100,9 +107,9 @@ class TestClassify:
     def test_rejects_empty_title(self):
         assert classify("") == ()
 
-    def test_the_categories_are_twelve(self):
-        # The scraper's own keep-or-drop categories; the backend's roles are
-        # its job_roles list since KAN-155.
+    def test_the_categories(self):
+        # The scraper's own categories, every field since KAN-430; the backend's
+        # roles are its job_roles list since KAN-155.
         assert [tag.value for tag in CATEGORY_TAGS] == [
             "software",
             "data_ai",
@@ -116,6 +123,13 @@ class TestClassify:
             "sales",
             "hr",
             "design",
+            "law",
+            "consulting",
+            "support",
+            "arts",
+            "policy",
+            "education",
+            "other",
         ]
         specialties = {tag.value for tag in Tag if "/" in tag.value}
         assert specialties == {
@@ -150,6 +164,36 @@ class TestStage:
             == ()
         )
         assert classify("Credit Analyst") == ()
+
+    def test_a_trainee_and_a_rotational_program_are_new_grad(self):
+        # KAN-430: each title from the 110-board sample of 2026-10-28.
+        assert classify("Trainee Account Executive") == ("new-grad", "sales")  # Omnicom Health
+        assert classify("Fabrication Trainee") == ("new-grad", "other")  # Crest Industries
+        assert classify("Finance Project Coordinator (Trainee)") == ("new-grad", "business")
+        assert classify("Finance Leadership Rotational Program Associate") == (
+            "new-grad",
+            "finance",
+        )  # National Life
+
+    def test_a_named_program_is_new_grad(self):
+        assert classify("2027 Analyst Program") == ("new-grad", "business")
+        assert classify("Engineering Program") == ("new-grad", "other")
+        assert classify("Talent Program") == ("new-grad", "other")
+        assert classify("Management Development Program") == ("new-grad", "other")
+        assert classify("Technology Program Associate") == ("new-grad", "other")
+        assert classify("Sales Development Program") == ("new-grad", "sales")
+        assert classify("Engineering Talent") == ("new-grad", "other")
+        assert classify("Emerging Talent - Data Science") == (
+            "new-grad",
+            "data_ai",
+            "data_ai/data_science",
+        )
+        # British spelling.
+        assert classify("Graduate Programme - Finance") == ("new-grad", "finance")
+        # "Program Manager" is a real title, not a named program: LEADS blocks it.
+        assert classify("Program Manager") == ()
+        # "Program Director" is senior.
+        assert classify("Senior Program Director") == ()
 
     def test_a_working_student_is_an_intern(self):
         assert classify("Trader Assistant (Working Student)") == ("intern", "quant")  # IMC
@@ -396,7 +440,7 @@ class TestCategories:
         assert first(title) == "software"  # Agoda
         # One partnership is a program, not a sales team (the title's dash is an
         # em dash, as posted).
-        assert classify("Bluestaq Graduate Research Scholar \u2014 NDSU Partnership") == ()
+        assert first("Bluestaq Graduate Research Scholar \u2014 NDSU Partnership") == "other"
 
     def test_hr(self):
         for title in (
@@ -413,38 +457,40 @@ class TestCategories:
         assert first("Forward Deployed Engineer Intern (HR Technology)") == "software"
         assert first("Emerging Talent - Electrical Engineering Internship") == "hardware"  # VAST
 
-    def test_held_off_disciplines_are_not_kept(self):
-        # Law, consulting, teaching, the arts, policy and support are not among the
-        # twelve (KAN-172), and a title naming one first is dropped.
-        for title in (
-            "Legal Intern",  # Sezzle
-            "Corporate Compliance Intern (Winter/January 2027, 12 Months)",  # Geotab
-            "Associate Consultant - Entry-Level Technology Consulting",  # Veeva
-            "Teen Health Education Internship",  # HealthCorps
-            "Illustrator, Intern",  # Duolingo
-            "Policy Intern",  # Coinbase
-            "Customer Success Intern",  # Tanium
-            "Technical Support Engineer - University Graduate 2027",  # Verkada
-            "Hardware Support Internship - Summer 2027",  # RF-SMART
+    def test_the_fields_held_off_until_kan_430_are_kept(self):
+        # Law, consulting, teaching, the arts, policy and support were dropped under
+        # KAN-172; each is its own category now.
+        for title, category in (
+            ("Legal Intern", "law"),  # Sezzle
+            ("Corporate Compliance Intern (Winter/January 2027, 12 Months)", "law"),  # Geotab
+            ("Associate Consultant - Entry-Level Technology Consulting", "consulting"),  # Veeva
+            ("Teen Health Education Internship", "education"),  # HealthCorps
+            ("Illustrator, Intern", "arts"),  # Duolingo
+            ("Policy Intern", "policy"),  # Coinbase
+            ("Customer Success Intern", "support"),  # Tanium
+            ("Technical Support Engineer - University Graduate 2027", "support"),  # Verkada
+            ("Hardware Support Internship - Summer 2027", "support"),  # RF-SMART
         ):
-            assert classify(title) == (), title
+            assert first(title) == category, title
 
     def test_a_consultant_who_names_data_keeps_that_job(self):
         assert first("Data Analyst Consultant Intern (H/F)") == "data_ai"  # Fifty-Five
 
-    def test_trades_operators_and_kitchens_are_never_ours(self):
-        assert classify("Electrical Apprentice") == ()
-        assert classify("Electronics Test and Assembly Technician (Entry-Level)") == ()
-        assert classify("Robotics Data Operator Intern") == ()
-        assert classify("Internship for Train Operations - F&B (Malaysian Students Only)") == ()
+    def test_trades_operators_and_kitchens_are_kept_as_other(self):
+        # Dropped until KAN-430. Kept now, but never filed under the hardware or
+        # engineering their words suggest.
+        assert classify("Electrical Apprentice") == ("new-grad", "other")
+        assert first("Electronics Test and Assembly Technician (Entry-Level)") == "other"
+        assert first("Robotics Data Operator Intern") == "other"
+        assert first("Internship for Train Operations - F&B (Malaysian Students Only)") == "other"
 
     def test_words_that_look_like_a_discipline_but_are_not(self):
         # Palantir's civil liberties, DRW's UK year in industry, Ginkgo's lab
         # scientist and Astera Labs' office facilities.
         assert first("Privacy and Civil Liberties Software Engineer, Internship") == "software"
         assert first("Software Developer Intern - Industrial Placement") == "software"
-        assert classify("Automation Scientist Intern, RAC Operations") == ()
-        assert classify("Facilities Intern") == ()
+        assert first("Automation Scientist Intern, RAC Operations") == "other"
+        assert first("Facilities Intern") == "other"
         assert first("Mission Operations Internship - Summer 2027") == "engineering"  # Varda
 
 
@@ -460,7 +506,7 @@ class TestSpecialties:
             assert classify(title)[1:] == ("software", "software/security"), title
 
     def test_physical_security_is_not_computer_security(self):
-        assert classify("Physical Security Specialist (PhySS) – Junior") == ()  # CGS Federal
+        assert first("Physical Security Specialist (PhySS) – Junior") == "other"  # CGS Federal
 
     def test_data_and_ai(self):
         assert classify("Research Scientist Intern")[2:] == ("data_ai/ml",)
@@ -605,7 +651,7 @@ class TestPick:
         assert [role.new for role in roles] == [False]
 
     def test_drops_everything_that_does_not_classify(self):
-        assert roles_of([job("Senior Software Engineer"), job("Customer Support Intern")]) == []
+        assert roles_of([job("Senior Software Engineer"), job("Credit Analyst")]) == []
 
     def test_a_roles_keys_are_its_categories_then_its_specialties(self):
         (role,) = roles_of([job("Machine Learning Engineering Intern")])
@@ -628,3 +674,160 @@ class TestPick:
             ]
         )
         assert roles[-1].posted_at is None
+
+
+class TestWideningStep:
+    """metrics.json counts what each step of a wider shortlist would add, before
+    anyone takes it (docs/coverage.md, "More roles"). Each title was seen live."""
+
+    def test_each_title_counts_under_the_first_step_that_would_keep_it(self):
+        for title, step in (
+            ("Software Engineer Intern", "kept"),
+            ("Legal Intern", "kept"),  # Sezzle
+            ("Technical Support Engineer - University Graduate 2027", "kept"),  # Verkada
+            ("Engineering Intern", "kept"),  # Decagon
+            # Recruits for a program; no stage of the person's own.
+            ("Campus Recruiter, Machine Learning and Quantitative Research", "no_stage"),
+            ("Senior Software Engineer", "senior"),
+            ("Junior/Senior or Staff Software Engineer, Inference / Compute", "senior"),
+            ("Electronics Test and Assembly Technician", "no_stage"),  # Silvus
+            (
+                "Advocate Camp Counselor for children w/disabilities, JCC Sports Camp, Summer",
+                "no_stage",
+            ),
+        ):
+            assert widening_step(title) == step, title
+
+    def test_kept_is_what_classify_keeps(self):
+        for title in ("Software Engineer Intern", "Legal Intern", "Senior Software Engineer"):
+            assert (widening_step(title) == "kept") == bool(classify(title)), title
+
+    def test_description_kept_counts_as_kept(self):
+        desc = "Requirements: 0-2 years of experience in software engineering."
+        assert widening_step("Software Engineer", desc) == "kept"
+        # Without the description, the same title is no_stage.
+        assert widening_step("Software Engineer") == "no_stage"
+
+
+class TestClassifyWithDescription:
+    """Description fallback: a title with no stage word is kept when the
+    description states a low experience requirement. Only fires when a
+    description is already in hand (Ashby, Lever, Recruitee)."""
+
+    def test_falls_back_to_description_experience(self):
+        desc = "Requirements: 0-2 years of experience in software engineering."
+        assert classify_with_description("Software Engineer", desc) == ("new-grad", "software")
+
+    def test_zero_to_one_year(self):
+        desc = "This role requires 0-1 years of relevant experience."
+        assert classify_with_description("Data Analyst", desc) == (
+            "new-grad",
+            "data_ai",
+            "data_ai/analytics",
+        )
+
+    def test_one_to_two_years(self):
+        desc = "Ideal candidates have 1-2 years experience in a similar role."
+        assert classify_with_description("Business Analyst", desc) == ("new-grad", "business")
+
+    def test_zero_plus_years(self):
+        desc = "Experience: 0+ years in data science."
+        assert classify_with_description("Data Scientist", desc) == (
+            "new-grad",
+            "data_ai",
+            "data_ai/data_science",
+        )
+
+    def test_one_plus_years(self):
+        desc = "Qualifications: 1+ years of relevant work experience."
+        assert classify_with_description("Product Manager", desc) == ("new-grad", "product")
+
+    def test_no_experience_required(self):
+        desc = "No experience required. We will train you."
+        assert classify_with_description("Account Executive", desc) == ("new-grad", "sales")
+
+    def test_hr_blocked_from_description_fallback(self):
+        # A recruiter with no stage word in the title could recruit for a program,
+        # not fill one; the description alone cannot tell them apart.
+        desc = "No experience required."
+        assert classify_with_description("Recruiter", desc) == ()
+        assert classify_with_description("University Recruiter", desc) == ()
+
+    def test_no_prior_experience_needed(self):
+        desc = "No prior experience needed for this role."
+        assert classify_with_description("Marketing Coordinator", desc) == ("new-grad", "marketing")
+
+    def test_zero_experience_required(self):
+        desc = "0 experience required. On-the-job training provided."
+        assert classify_with_description("Sales Representative", desc) == ("new-grad", "sales")
+
+    def test_does_not_match_high_experience(self):
+        desc = "Requirements: 5-10 years of software engineering experience."
+        assert classify_with_description("Software Engineer", desc) == ()
+
+    def test_does_not_match_three_plus_years(self):
+        desc = "3+ years of experience in product management."
+        assert classify_with_description("Product Manager", desc) == ()
+
+    def test_senior_title_still_blocked(self):
+        desc = "Requirements: 0-2 years of experience."
+        assert classify_with_description("Senior Software Engineer", desc) == ()
+
+    def test_title_match_takes_precedence(self):
+        # When the title itself says early career, the description is not needed.
+        desc = "Requirements: 5 years of experience."
+        assert classify_with_description("Software Engineer Intern", desc) == ("intern", "software")
+
+    def test_no_description_no_fallback(self):
+        assert classify_with_description("Software Engineer", None) == ()
+        assert classify_with_description("Software Engineer", "") == ()
+
+    def test_no_field_no_match(self):
+        # A title with no recognizable field stays out even with a low-experience description.
+        desc = "0-2 years of experience."
+        assert classify_with_description("Specialist", desc) == ()
+
+    def test_leads_still_blocked(self):
+        desc = "0-2 years of experience in talent management."
+        assert classify_with_description("Recruiting Manager", desc) == ()
+
+    def test_does_not_match_ten_years(self):
+        # "10-20 years" must not fire the [01] branch.
+        desc = "Requirements: 10-20 years of experience."
+        assert classify_with_description("Software Engineer", desc) == ()
+
+    def test_mixed_requirements_high_floor_with_low_phrase(self):
+        # "1+ years with Kubernetes" looks low, but the posting's real floor is
+        # five years — min_years reads the smallest stated requirement.
+        desc = (
+            "Requirements: 5+ years of backend experience, including"
+            " 1+ years with Kubernetes and 2+ years with Go."
+        )
+        assert classify_with_description("Software Engineer", desc) == ()
+
+    def test_mixed_requirements_high_years_with_short_contract(self):
+        # "1-2 year contract" is not an experience requirement.
+        desc = (
+            "This is a 1-2 year contract. Requirements: 8+ years of"
+            " experience required. Must have deep expertise in distributed systems."
+        )
+        assert classify_with_description("Software Engineer", desc) == ()
+
+    def test_mixed_requirements_low_floor_keeps(self):
+        # When the smallest stated requirement is genuinely low, keep.
+        desc = (
+            "Requirements: 0-2 years of experience in software engineering"
+            " or a related field. Familiarity with Python or Go preferred."
+        )
+        assert classify_with_description("Software Engineer", desc) == (
+            "new-grad",
+            "software",
+        )
+
+    def test_mixed_requirements_high_floor_with_low_sub_skill(self):
+        # "1+ years with Go" names a skill, not the role's floor.
+        desc = (
+            "Qualifications: 3+ years of software engineering experience,"
+            " including 1+ years with Go and familiarity with Kubernetes."
+        )
+        assert classify_with_description("Software Engineer", desc) == ()

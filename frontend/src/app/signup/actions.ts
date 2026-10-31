@@ -2,20 +2,18 @@
 
 import { redirect } from "next/navigation";
 
-import { apiFetch, extractErrorMessage, type AuthenticatedAccount } from "@/lib/auth";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { apiFetch, extractErrorMessage } from "@/lib/auth";
 
-// firstName/middleName/lastName/email round-trip the submitted values back
+// firstName/lastName/email round-trip the submitted values back
 // into the form on failure. React resets a useActionState-bound form's
 // uncontrolled fields once the action completes, so without this an error
 // (a taken email, say) would wipe every field the user just typed along with
-// it. password/confirmPassword don't need this — signup-form.tsx already
+// it. The password doesn't need this — signup-form.tsx already
 // keeps them in local state, and echoing a password back isn't good practice
 // regardless. The company* fields are only filled on the Create Company path.
 export type SignupState = {
   error: string | null;
   firstName: string;
-  middleName: string;
   lastName: string;
   email: string;
   companyName: string;
@@ -25,14 +23,15 @@ export type SignupState = {
 };
 
 /**
- * Sign up with 2 steps (for job_applicants)
+ * Sign up (for job_applicants)
  *
- * 1. POST /auth/signup (backend/app/routers/auth.py) creates the Supabase
- *    auth user and the profile row. It goes through the API rather than
- *    `supabase.auth.signUp()` because only the API can set the account type
- *    where the user can't edit it
- * 2. signInWithPassword() starts the session, setting Supabase's cookies.
- 
+ * POST /auth/signup (backend/app/routers/auth.py) creates the Supabase
+ * auth user and the profile row. It goes through the API rather than
+ * `supabase.auth.signUp()` because only the API can set the account type
+ * where the user can't edit it.
+ *
+ * Email verification is required: the action redirects to /signup/check-email
+ * after a successful signup. The user signs in after clicking the confirm link.
  */
 function fieldValue(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -45,7 +44,6 @@ export async function createAccount(
 ): Promise<SignupState> {
   // select all values, they will be None if not for the type
   const firstName = fieldValue(formData, "firstName");
-  const middleName = fieldValue(formData, "middleName");
   const lastName = fieldValue(formData, "lastName");
   const email = fieldValue(formData, "email");
   const accountType = fieldValue(formData, "accountType");
@@ -56,7 +54,6 @@ export async function createAccount(
   const companySize = fieldValue(formData, "companySize");
   const echo = {
     firstName,
-    middleName,
     lastName,
     email,
     companyName,
@@ -66,12 +63,14 @@ export async function createAccount(
   };
 
   // clear the white spaces
-  const name = [firstName, middleName, lastName]
+  // No middle name: sign-up asks the minimum (KAN-372); Settings adds one.
+  const name = [firstName, lastName]
     .map((part) => part.trim())
     .filter((part) => part.trim().length > 0)
     .join(" ");
 
   const password = fieldValue(formData, "password");
+  const captchaToken = fieldValue(formData, "cf-turnstile-response") || null;
 
   // create the user in backend with supabase
   const response = await apiFetch("/auth/signup", {
@@ -79,6 +78,11 @@ export async function createAccount(
     body: JSON.stringify({
       accountType,
       name,
+      captchaToken,
+      // The parts too (KAN-326), so the API stores the name as typed
+      // rather than splitting `name` again.
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       email,
       password,
 
@@ -99,24 +103,8 @@ export async function createAccount(
     return { error: await extractErrorMessage(response), ...echo };
   }
 
-  const account: AuthenticatedAccount = await response.json();
-
-  // user finishes sign up, logs in and issue token
-  const supabase = await createSupabaseServerClient();
-
-  // sign in with the created user, supabase issues the token
-  const { error } = await supabase.auth.signInWithPassword({ email: account.email, password });
-  if (error) {
-    return {
-      error: "Your account was created, but signing in failed. Please sign in again.",
-      ...echo,
-    };
-  }
-
-  // A new applicant always starts with onboarding; a company's is a stub.
-  if (account.account_type == "applicant") {
-    redirect("/onboarding/applicant");
-  } else {
-    redirect("/company");
-  }
+  // Email verification is required before sign-in. Redirect to the
+  // check-email page regardless — a taken-email signup returns 201
+  // silently, so this path always runs.
+  redirect("/signup/check-email");
 }

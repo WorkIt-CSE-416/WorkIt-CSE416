@@ -1,6 +1,7 @@
 "use server";
 
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
+import type { SentResume } from "@/lib/sent-resume-actions";
 import { getApplicantSession } from "@/lib/session";
 
 /**
@@ -12,21 +13,30 @@ import { getApplicantSession } from "@/lib/session";
 
 /** Where one application stands: backend `dto.application_stage`. Saved
  *  (KAN-261) is a job's Save button, not a run: it counts as no application
- *  yet, so queueing a saved job queues it. */
-export type ApplicationStage = "saved" | "queued" | "needs_you" | "skipped" | "applied";
+ *  yet, so queueing a saved job queues it. Interviewing, offer and rejected
+ *  (KAN-413) come after applied, set on the Applications Tracker. */
+export type ApplicationStage =
+  "saved" | "queued" | "needs_you" | "skipped" | "applied" | AfterApplied;
+
+/** The stages after applied (KAN-413): the student sets them on the
+ *  Applications Tracker. Each still counts as applied. */
+export type AfterApplied = "interviewing" | "offer" | "rejected";
 
 /** The stages auto apply itself writes: Live Activity's rows. */
-export type RunStage = Exclude<ApplicationStage, "saved">;
+export type RunStage = Exclude<ApplicationStage, "saved" | AfterApplied>;
 
 const SIGNED_OUT = "You're signed out. Sign in again to continue.";
 const UNREACHABLE = "Could not reach the server.";
 
 /** A job's Auto Apply button: queues it (POST .../applications) and answers
  *  its stage. A saved job is queued; one that already has an application
- *  keeps that stage, so the answer is never saved. */
+ *  keeps that stage, so the answer is never saved, and may be a stage past
+ *  applied that the student set on the tracker. */
 export async function queueJob(
   jobId: string,
-): Promise<{ stage: RunStage; error: null } | { stage: null; error: string }> {
+): Promise<
+  { stage: Exclude<ApplicationStage, "saved">; error: null } | { stage: null; error: string }
+> {
   let session;
   try {
     session = await getApplicantSession();
@@ -40,7 +50,10 @@ export async function queueJob(
       session.token,
     );
     if (!res.ok) return { stage: null, error: await extractErrorMessage(res) };
-    return { stage: ((await res.json()) as { stage: RunStage }).stage, error: null };
+    return {
+      stage: ((await res.json()) as { stage: Exclude<ApplicationStage, "saved"> }).stage,
+      error: null,
+    };
   } catch {
     return { stage: null, error: UNREACHABLE };
   }
@@ -71,26 +84,83 @@ export async function dequeueJob(jobId: string): Promise<{ error: string | null 
   }
 }
 
-/** Start Auto Apply: queues a batch of the seeker's best matches (POST
- *  .../auto-apply/batches, 10 by default) and answers how many it queued. */
-export async function startBatch(): Promise<
-  { queued: number; error: null } | { queued: null; error: string }
-> {
+/** Up Next's Remove on a started job whose tab is closed (needs_you), which the queue's
+ *  DELETE refuses: finishes it as skipped (POST .../applications/{job_id}/
+ *  finish), so it leaves Up Next. Its posting stays out of later batches. */
+export async function skipJob(jobId: string): Promise<{ error: string | null }> {
   let session;
   try {
     session = await getApplicantSession();
   } catch {
-    return { queued: null, error: SIGNED_OUT };
+    return { error: SIGNED_OUT };
   }
   try {
     const res = await apiFetch(
-      `/applicants/${session.id}/auto-apply/batches`,
-      { method: "POST", body: JSON.stringify({}) },
+      `/applicants/${session.id}/applications/${encodeURIComponent(jobId)}/finish`,
+      { method: "POST", body: JSON.stringify({ outcome: "skipped" }) },
       session.token,
     );
-    if (!res.ok) return { queued: null, error: await extractErrorMessage(res) };
-    return { queued: ((await res.json()) as { queued: string[] }).queued.length, error: null };
+    if (res.ok) return { error: null };
+    return { error: await extractErrorMessage(res) };
   } catch {
-    return { queued: null, error: UNREACHABLE };
+    return { error: UNREACHABLE };
+  }
+}
+
+/** Up Next's resume picker (KAN-359): the resume one queued job goes out
+ *  with, in place of the rule's pick (PUT .../applications/{job_id}/resume).
+ *  The API keeps it as a sent resume the application names, which the run's
+ *  resume step sends. */
+export async function chooseResume(
+  jobId: string,
+  source: { builtResumeId: string } | { uploadedResumeId: string },
+): Promise<{ sent: SentResume; error: null } | { sent: null; error: string }> {
+  let session;
+  try {
+    session = await getApplicantSession();
+  } catch {
+    return { sent: null, error: SIGNED_OUT };
+  }
+  try {
+    const res = await apiFetch(
+      `/applicants/${session.id}/applications/${encodeURIComponent(jobId)}/resume`,
+      {
+        method: "PUT",
+        body: JSON.stringify(
+          "builtResumeId" in source
+            ? { built_resume_id: source.builtResumeId }
+            : { uploaded_resume_id: source.uploadedResumeId },
+        ),
+      },
+      session.token,
+    );
+    if (!res.ok) return { sent: null, error: await extractErrorMessage(res) };
+    return { sent: (await res.json()) as SentResume, error: null };
+  } catch {
+    return { sent: null, error: UNREACHABLE };
+  }
+}
+
+/** "Mark applied" on a Live Activity row (KAN-369): the student sent this
+ *  application and WorkIt's extension didn't see it. Finishes it as
+ *  submitted (POST .../applications/{job_id}/finish), which dates it now.
+ *  One already applied or skipped answers the API's 409, which says why. */
+export async function markSubmitted(jobId: string): Promise<{ error: string | null }> {
+  let session;
+  try {
+    session = await getApplicantSession();
+  } catch {
+    return { error: SIGNED_OUT };
+  }
+  try {
+    const res = await apiFetch(
+      `/applicants/${session.id}/applications/${encodeURIComponent(jobId)}/finish`,
+      { method: "POST", body: JSON.stringify({ outcome: "submitted" }) },
+      session.token,
+    );
+    if (res.ok) return { error: null };
+    return { error: await extractErrorMessage(res) };
+  } catch {
+    return { error: UNREACHABLE };
   }
 }

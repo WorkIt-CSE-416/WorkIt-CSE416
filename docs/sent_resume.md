@@ -129,7 +129,7 @@ What the text hash calls a duplicate:
 |---|---|
 | The same file picked again | Yes |
 | The same resume exported again, at any time | Yes |
-| The same words in a new layout or font | Yes. Import Updated Resume replaces the old one instead |
+| The same words in a new layout or font | Yes. Delete the old one and upload the new (or the picker's replace at the limit) |
 | Any change to the words, even one letter | No |
 | The same resume as PDF once and DOCX once | Usually not: the two formats go through different extractors, which can give different text |
 
@@ -433,8 +433,9 @@ You Apply? step, with "I didn't send a resume" as one choice. Picking a
 resume there calls `POST .../sent-resumes` first (flow 4's Apply, without
 giving a file), then this route with its id.
 
-Built: "Did You Apply?" lists the resumes in sections (Generated Resumes,
-Uploaded Resumes, Sent a Different Resume?, then No Resume), starting on the one sent at Apply (No Resume after Apply
+Built: "Did You Apply?" lists the resumes as the Resumes page does
+(KAN-360, grouped since KAN-406), with Upload Resume in the list's row
+for a file sent instead, then No Resume, starting on the one sent at Apply (No Resume after Apply
 Without a Resume), and the student can change it. Yes keeps a resume
 other than the one sent as a sent resume for the posting
 (`applyWithResume`), then marks the job applied with its `sent_resume_id`,

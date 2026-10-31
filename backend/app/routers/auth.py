@@ -10,17 +10,29 @@ afterward. /oauth/status tells the Next server whether that's the case for
 the identity it just got a session for, and /oauth/account-type is where the
 user's choice (Applicant or Company) fills them in — the OAuth equivalent of
 this file's own signup().
+
+DELETE /auth/me deletes an applicant's account (KAN-326): its Storage files,
+then the auth user, whose foreign keys cascade to every row the account
+owns. Both steps are safe to run again, so a retry after a failure finishes
+the job. It depends on get_verified_identity, not get_current_account, so a
+retry whose first try did delete the account (its answer lost) gets a 204,
+not a 401 for the missing profile row.
+
+Company accounts get a 403: a company owner's delete would decide the fate
+of the company and its other members, which nothing has designed yet.
 """
 
 import asyncio
 import logging
 import uuid
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from supabase_auth.errors import AuthError
 
+from app.config import get_settings
 from app.db import get_session, get_supabase
 from app.deps import get_current_account, get_verified_identity, load_account
 from app.models.dto import company_role, profile_status
@@ -34,10 +46,19 @@ from app.schemas.auth import (
     SignupRequest,
     VerifiedIdentity,
 )
+from app.services.names import name_columns
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Every bucket that keeps an applicant's files under `<applicant_id>/`.
+# A new bucket keyed by the account joins this list, or a deleted account
+# leaves its files behind.
+ACCOUNT_BUCKETS = ("Resume", "Avatar")
+# Storage lists a folder a page at a time. Before KAN-267 every download
+# kept a PDF in `<applicant_id>/sent/`, so one account can hold hundreds.
+_PAGE = 1000
 
 # A function, not a shared instance: see _not_authenticated in app/deps.py.
 def _email_taken() -> HTTPException:
@@ -56,6 +77,41 @@ def _signup_error(exc: AuthError) -> HTTPException:
 
     logger.error("Supabase Auth rejected signup: %s (%s)", exc.message, exc.code)
     return HTTPException(status.HTTP_502_BAD_GATEWAY, "Couldn't create the account. Please try again.")
+
+
+TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+
+async def _verify_turnstile(token: str | None) -> None:
+    """Verify a Turnstile token server-side. Skips when no secret is configured
+    (local dev). Raises 400 when the token is missing or invalid."""
+    secret = get_settings().turnstile_secret_key
+    if secret is None:
+        return
+    if not token:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "CAPTCHA verification required.")
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.post(
+                TURNSTILE_VERIFY_URL,
+                data={"secret": secret, "response": token},
+            )
+        result = resp.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.error("Turnstile verification request failed: %s", exc)
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "CAPTCHA verification is temporarily unavailable. Please try again.",
+        ) from exc
+    if not result.get("success"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "CAPTCHA verification failed.")
+
+
+async def _send_confirmation(supabase, email: str) -> None:
+    """Ask Supabase for the signup confirmation email. The admin create_user
+    that signup uses sends none of its own (Supabase's docs say so), so
+    without this call a new account could never confirm, and never sign in."""
+    await asyncio.to_thread(supabase.auth.resend, {"type": "signup", "email": email})
 
 
 def _create_company(company_info:CompanySignup)->Company_Profile:
@@ -92,6 +148,11 @@ async def signup(
     for companies, generate company_id, create company_profile, and return login attributes 
     '''
     account_type = body.account_type
+    if account_type is AccountType.COMPANY:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Company signup is not available yet.")
+
+    await _verify_turnstile(body.captcha_token)
+
     supabase = get_supabase()
 
     # Supabase first: each profile's id is its auth.users id, and a foreign
@@ -103,23 +164,41 @@ async def signup(
             {
                 "email": body.email,
                 "password": body.password,
-                "email_confirm": True,
                 "app_metadata": {"account_type": account_type.value},
             },
         )
     except AuthError as exc:
+        # Taken email returns 201 silently — same shape, dummy id, no profile
+        # row created. This prevents leaking whether an email is registered.
+        # An account still unconfirmed gets its email again; a confirmed one
+        # (or a send inside Supabase's 60s limit) refuses, and that refusal
+        # is swallowed so the answer stays the same.
+        if exc.code in ("email_exists", "user_already_exists"):
+            try:
+                await _send_confirmation(supabase, body.email)
+            except AuthError:
+                pass
+            return AuthenticatedAccount(
+                id=uuid.uuid4(),
+                email=body.email,
+                full_name=body.full_name,
+                account_type=account_type,
+                onboarding_completed=False,
+                company_id=None,
+            )
         raise _signup_error(exc) from exc
 
     user_id = uuid.UUID(created.user.id)
-    company_id= None 
+    company_id= None
+    names = name_columns(body.full_name, body.first_name, body.middle_name, body.last_name)
     try:
         if account_type is AccountType.APPLICANT:
             profile = Applicant_Profile(
                 id=user_id,
                 email=body.email,
-                full_name=body.full_name,
+                **names,
             )
-        else:   
+        else:
             new_company = _create_company(body.company)
             company_id = new_company.id
             db.add(new_company)
@@ -130,7 +209,7 @@ async def signup(
                 id=user_id,
                 company_id=company_id,
                 email=body.email,
-                full_name=body.full_name,
+                **names,
                 role=company_role.owner,
                 status=profile_status.active,
             )
@@ -143,8 +222,31 @@ async def signup(
         except AuthError:
             logger.exception("Orphaned Supabase auth user %s after a failed signup", created.user.id)
         if isinstance(exc, IntegrityError):
-            raise _email_taken() from exc
+            # Profile collision (another signup raced). Return 201 silently.
+            return AuthenticatedAccount(
+                id=uuid.uuid4(),
+                email=body.email,
+                full_name=body.full_name,
+                account_type=account_type,
+                onboarding_completed=False,
+                company_id=None,
+            )
         raise
+
+    try:
+        await _send_confirmation(supabase, body.email)
+    except AuthError as exc:
+        # No email means no way in: undo the account (deleting the auth user
+        # cascades to the profile row) so a retry can start clean.
+        logger.exception("Couldn't send the confirmation email for %s", user_id)
+        try:
+            await asyncio.to_thread(supabase.auth.admin.delete_user, created.user.id)
+        except AuthError:
+            logger.exception("Orphaned Supabase auth user %s after a failed signup", created.user.id)
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            "Couldn't send the confirmation email. Please try again.",
+        ) from exc
 
     return AuthenticatedAccount(
         id=profile.id,
@@ -201,6 +303,9 @@ async def complete_oauth_account_type(
     app_metadata.account_type and the profile row both start out missing —
     this sets them the same way signup() does, minus a password to set.
     '''
+    if body.account_type is AccountType.COMPANY:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Company signup is not available yet.")
+
     supabase = get_supabase()
 
     if identity.account_type is not None:
@@ -227,11 +332,11 @@ async def complete_oauth_account_type(
     # Best-effort — the identity provider's claimed name, trimmed to what the
     # profile column allows, falling back to the email's local part on an
     # OAuth app that never sent a name at all.
-    full_name = (identity.full_name or identity.email.split("@")[0])[:50]
+    names = name_columns((identity.full_name or identity.email.split("@")[0])[:50])
     company_id = None
     try:
         if body.account_type is AccountType.APPLICANT:
-            profile = Applicant_Profile(id=identity.id, email=identity.email, full_name=full_name)
+            profile = Applicant_Profile(id=identity.id, email=identity.email, **names)
         else:
             new_company = _create_company(body.company)
             company_id = new_company.id
@@ -242,7 +347,7 @@ async def complete_oauth_account_type(
                 id=identity.id,
                 company_id=company_id,
                 email=identity.email,
-                full_name=full_name,
+                **names,
                 role=company_role.owner,
                 status=profile_status.active,
             )
@@ -277,3 +382,63 @@ async def complete_oauth_account_type(
         onboarding_completed=False,
         company_id=company_id,
     )
+
+
+def _delete_failed() -> HTTPException:
+    return HTTPException(status.HTTP_502_BAD_GATEWAY, "Couldn't delete the account. Please try again.")
+
+
+async def _files_under(bucket, folder: str) -> list[str]:
+    '''every file path in the folder and its sub-folders'''
+    paths: list[str] = []
+    offset = 0
+    while True:
+        page = await asyncio.to_thread(bucket.list, folder, {"limit": _PAGE, "offset": offset})
+        for item in page:
+            path = f"{folder}/{item['name']}"
+            # A sub-folder lists with no id (the pre-KAN-267 `sent/`).
+            paths += [path] if item.get("id") else await _files_under(bucket, path)
+        if len(page) < _PAGE:
+            return paths
+        offset += _PAGE
+
+
+async def _remove_account_files(account_id: uuid.UUID) -> None:
+    '''removes every file under the account's folder in each bucket.
+    Listed rather than read off the rows, so a file no row names any more
+    (a failed cleanup's leftover) goes too'''
+    for name in ACCOUNT_BUCKETS:
+        bucket = get_supabase().storage.from_(name)
+        paths = await _files_under(bucket, str(account_id))
+        for start in range(0, len(paths), _PAGE):
+            await asyncio.to_thread(bucket.remove, paths[start : start + _PAGE])
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_account(identity: VerifiedIdentity = Depends(get_verified_identity)) -> None:
+    '''
+    Deletes the signed-in applicant's account for good: its files, then
+    the auth user, which takes the profile row and everything under it
+    by cascade. Files go first because Storage has no cascade: once the
+    rows are gone, nothing would remove them. Supabase ends the user's
+    sessions with the auth user; the Next server clears its cookies after
+    a 204.
+    '''
+    if identity.account_type is AccountType.COMPANY:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Company accounts can't be deleted yet.")
+
+    try:
+        await _remove_account_files(identity.id)
+    except Exception as exc:
+        logger.exception("Couldn't remove the Storage files of account %s", identity.id)
+        raise _delete_failed() from exc
+
+    try:
+        await asyncio.to_thread(get_supabase().auth.admin.delete_user, str(identity.id))
+    except AuthError as exc:
+        # Gone already: a retry after the delete went through but its answer
+        # was lost.
+        if exc.code == "user_not_found":
+            return
+        logger.error("Supabase Auth rejected deleting %s: %s (%s)", identity.id, exc.message, exc.code)
+        raise _delete_failed() from exc

@@ -1,6 +1,8 @@
 "use server";
 
 import { applicantCall, encodeId, type Result } from "@/lib/applicant-call";
+import type { BankEntry, Skill } from "@/lib/bank-actions";
+import type { ApplicantProfile } from "@/lib/profile-actions";
 
 /**
  * Built resumes (backend/app/routers/built_resumes.py), as server actions.
@@ -32,7 +34,8 @@ export type BuiltResume = {
  * Where one line sits on the PDF (schemas `RenderBox`): the bank id of the
  * bullet, skill or entry it shows, which part (`kind`: "bullet", "skill", or
  * an entry field such as "title" or "dates"), its page from 1, and its
- * rectangle in PDF points from the page's top left, y growing down.
+ * rectangle in PDF points from the page's top left, y growing down. `text`
+ * is the line as printed, labels included ("GPA: 3.8/4.0").
  */
 export type RenderBox = {
   item_id: string;
@@ -42,6 +45,17 @@ export type RenderBox = {
   y0: number;
   x1: number;
   y1: number;
+  text: string;
+};
+
+/** The header a PDF printed (schemas `IdentityCopy`): the editor sends it
+ *  back in its copy. */
+export type IdentityCopy = {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  links: [string, string][];
+  us_citizen: boolean;
 };
 
 /** The PDF, base64, what the student is warned about before saving it, and
@@ -55,6 +69,22 @@ export type RenderedPdf = {
   lines_over: number;
   missing_characters: string[];
   boxes: RenderBox[];
+  identity: IdentityCopy | null;
+  /** The resume's template id, sent back in the editor's copy. */
+  template: string;
+};
+
+/** The editor's copy of what its PDF is built from (schemas `ResumeCopy`,
+ *  KAN-391): with it, an edit's PDF compiles with no database read at all,
+ *  the template and file name taken from the last render. It shapes only
+ *  the PDF sent back. */
+export type ResumeCopy = {
+  entries: BankEntry[];
+  skills: Skill[];
+  choices: Choices;
+  identity: IdentityCopy;
+  template: string;
+  file_name: string;
 };
 
 const id = encodeId;
@@ -163,14 +193,63 @@ export async function getChoices(resumeId: string): Promise<Result<Choices>> {
   return call<Choices>(`/${id(resumeId)}/choices`);
 }
 
-/** Every change in one request, saved together; returns the choices after. */
+/** Every change in one request, saved together and answered with nothing
+ *  (`?read_back=false`, KAN-391): the API writes with no read first when
+ *  every change finds its row, and the editor renders through `renderEdit`,
+ *  so it needs nothing back. */
 export async function updateChoices(
   resumeId: string,
   changes: ChoicesUpdate,
-): Promise<Result<Choices>> {
-  return call<Choices>(`/${id(resumeId)}/choices`, {
+): Promise<Result<null>> {
+  return call<null>(`/${id(resumeId)}/choices?read_back=false`, {
     method: "PATCH",
     body: JSON.stringify(changes),
+  });
+}
+
+/** One edit rendered and never saved (KAN-391): a typed line or choice
+ *  changes, made to the editor's copy in memory, so the API reads nothing
+ *  but the resume's row. What the edit changed in the copy comes back with
+ *  the PDF: the choices after a bullet or a choice change, the entry's own
+ *  fields after an entry field (`bullets` and `resume_ids` empty), the
+ *  header in `render.identity`. */
+export type EditRendered = {
+  render: RenderedPdf;
+  choices: Choices | null;
+  entry: BankEntry | null;
+};
+
+export async function renderEdit(
+  resumeId: string,
+  edit: { line: { item_id: string; kind: string; text: string } } | { changes: ChoicesUpdate },
+  source?: ResumeCopy,
+): Promise<Result<EditRendered>> {
+  return call<EditRendered>(`/${id(resumeId)}/render`, {
+    method: "POST",
+    body: JSON.stringify({ ...edit, source }),
+  });
+}
+
+/** What a typed line's save wrote that the editor cannot know: a bullet's
+ *  local variant (null when the original was typed back), and the profile
+ *  after a header field. */
+export type LineSaved = {
+  variant_id: string | null;
+  profile: ApplicantProfile | null;
+};
+
+/** One typed line saved, never rendered: the clicked box's item and kind,
+ *  and the text as typed. The API reads it (a GPA must be a number) and
+ *  answers why when it cannot save it; it writes with no read first, and
+ *  checks a typed entry field against `source`'s copy of the entry. */
+export async function saveLine(
+  resumeId: string,
+  line: { item_id: string; kind: string; text: string },
+  source?: ResumeCopy,
+): Promise<Result<LineSaved>> {
+  return call<LineSaved>(`/${id(resumeId)}/lines`, {
+    method: "PUT",
+    body: JSON.stringify({ ...line, source }),
   });
 }
 

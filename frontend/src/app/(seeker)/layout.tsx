@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import Form from "next/form";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -6,11 +5,10 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { LogoLockup } from "@/components/logo";
-import { NotificationsMenu } from "@/components/notifications-menu";
 import { ScoutLauncher } from "@/components/scout/scout-buttons";
 import { ScoutPanel } from "@/components/scout/scout-panel";
-import { HoverSidebarProvider, SidebarPinToggle } from "@/components/hover-sidebar";
-import { SidebarInset } from "@/components/shadcn/sidebar";
+import { RailSidebarProvider } from "@/components/app-sidebar";
+import { SidebarInset, SidebarTrigger } from "@/components/shadcn/sidebar";
 import { ShallowRouting } from "@/components/shallow-routing";
 import { getSessionUser } from "@/lib/session";
 
@@ -21,36 +19,33 @@ import { ProfileCacheProvider } from "./profile-cache";
 import { ProfileStrength } from "./profile-strength";
 import { ScrollMemory } from "./scroll-memory";
 import { QueryField } from "./search/query-field";
+import { SeekerNotificationsBell } from "./seeker-notifications-bell";
 import { SeekerSidebar } from "./seeker-sidebar";
 
 /**
- * Chrome shared by every signed-in seeker screen: three white rounded panels
- * floating on a lavender ground (--color-frame). The section panel runs the
- * full height on the left; beside it, the top bar, and under the bar the page
- * itself. It replaced a docked layout (a full-width bar ruled off from a
- * full-bleed panel and a white page) after the user pointed at a dashboard
- * built this way: separate rounded panels read as calmer and more finished
- * than one box cut into regions by hairlines.
+ * Chrome shared by every signed-in seeker screen: one white surface, ruled
+ * into regions by hairlines (--color-border-subtle). The section panel runs
+ * the full height on the left, flush with the window; beside it, the top bar
+ * along the top, and under the bar the page itself.
  *
- * THE INSET IS 12px EVERYWHERE: around the window's edge, between the panel
- * and the bar, and between the bar and the page. The panel pads itself 12px
- * (FLOATING in @/components/app-sidebar), which is why --sidebar-width and
- * --sidebar-width-icon are set here 24px wider than shadcn's own: the panel
- * keeps its 256px open and a 72px collapsed rail, and the in-flow gap shadcn
- * keeps beside it stays the panel's exact width in both states. The column
- * beside it pads itself the same 12px on every side but the left, where the
- * panel's own padding already is. Below md the panel is a sheet, so the
- * column takes the left edge too, and the inset tightens to 8px on a phone,
- * where 12px would be 24px of a 375px screen.
+ * IT WAS THREE FLOATING PANELS until 2026-10-27: white rounded panels 12px
+ * apart on a lavender ground (--color-frame), after a dashboard the user had
+ * pointed at. The user then found the frame wasted room, about 36px of every
+ * width and height went to lavender and gaps, and the three boxes read as
+ * separate containers rather than one app. Keep it flat: no ground colour,
+ * no gaps, no rounded or shadowed shell panels.
  *
- * The panel is pinned open or opens on hover (KAN-300,
- * components/hover-sidebar.tsx): unpinned, it is the icon rail, and pointing
- * at it or tabbing into it opens it over the page without moving it. The pin
- * survives a reload: it is the sidebar_state cookie, which this layout reads
- * back as defaultPinned, so the page does not open pinned and jump when the
- * user unpinned it.
+ * THE PANEL IS AN 88px RAIL THAT IS ALWAYS OPEN (RAIL in
+ * @/components/app-sidebar): an icon over each section's name. It was a
+ * 256px panel that collapsed to a 72px rail and opened over the page on
+ * hover (KAN-300) until 2026-10-27, when the user found the panel covering
+ * the page a flaw. So there is no pin and no peek, and the page never changes
+ * width for the panel. shadcn still writes its sidebar_state cookie on a Ctrl
+ * or Cmd+B; nothing reads it (the company pin has its own cookie). --sidebar-width is
+ * the rail's width, so shadcn's in-flow gap beside it matches it.
  *
- * THE BAR holds the toggle, the job search and, on the right, Scout, the
+ * THE BAR holds, below md, the toggle that opens the panel's sheet, then the
+ * job search and, on the right, Scout, the
  * bell, and the photo with the full name and email beside it from lg. It
  * had a "N New Roles Since Yesterday" pill from xl too; it was taken out as
  * a distraction, and a bar message comes back only when it is worth one. That last opens the
@@ -79,34 +74,24 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * out below sm, where the bar has room for the toggle, the logo, the
  * magnifier and the photo and little else.
  *
- * THE PAGE PANEL is the one scrolling element, so the bar and the section
+ * THE PAGE is the one scrolling element, so the bar and the section
  * panel stay put and a scrollbar runs only beside the page. SidebarInset
  * renders the <main>, so pages render a <div>; it is the skip link's target.
  *
- * A PAGE KEEPS THE WIDTH IT HAS WITH THE PANEL OPEN, so collapsing the panel
- * never rearranges it: the page re-centres in the room the collapse frees,
- * as it always has on a window wide enough to cap it at max-w-app, and
- * nothing on it moves relative to anything else. Inside the <main> sits
- * @container/main, kept --panel-gain narrower than the <main> (the 184px a
- * collapse frees, 0 while open and below md, where the panel is a sheet),
- * and pages render inside it. So every @…/main query, every component's own
- * container and every wrapping row sees the same width in both states.
- * Keyed to the <main> itself, collapsing between about 800 and 1300px
- * moved the Dashboard from one column to two and its range switch from the
- * page's right edge to its middle, wrapped the Calendar's view switch onto
- * a new line, and turned the Week from a list into seven columns. Letting
- * the page widen into the room while keying only the page's own queries to
- * the open width was tried and left everything that measures itself (the
- * headline numbers, Up Next, a job card's rail and facts, the stage chips)
- * still reflowing. --panel-gain is a registered <length> (globals.css) that
- * eases over the same 200ms linear as the panel's own width, so the page
- * holds its width through the whole animation and only glides to its new
- * centre; change one duration and change the other. Scout's panel is another
- * matter: open, it takes real room beside the page, and the page does fit
- * itself to what is left.
+ * PAGES BREAK ON @container/main, the width they actually get, never the
+ * window's: Scout's panel takes room beside the page when open, and the page
+ * fits itself to what is left.
  */
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode;
+  /** The @modal slot: a route opened as a modal over the page, Settings for
+   *  now (KAN-364, @modal/(.)settings), or nothing (@modal/default.tsx). */
+  modal: React.ReactNode;
+}) {
   // Request time, not build time. The sign-in check below needs the Supabase
   // keys, and `next build` prerenders any page that has not yet asked for a
   // request: CI has no keys, so /applications failed its build with "must
@@ -120,22 +105,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // /auth/me, so the check never waits on the API.
   if (!(await getSessionUser())) redirect("/login");
 
-  const defaultOpen = (await cookies()).get("sidebar_state")?.value !== "false";
-
   return (
     /* h-svh makes this row the window, so the only thing left to scroll is
        the page panel: a min-height would hand the scroll back to the
        document, and the bar and the panel would scroll away with it. */
-    <HoverSidebarProvider
-      defaultPinned={defaultOpen}
-      className="bg-frame h-svh"
+    <RailSidebarProvider
+      className="bg-panel h-svh"
       /* Read by the canvas rule in globals.css, which paints the overscroll
-         strip the frame's lavender to match. */
+         strip white to match. */
       data-shell="seeker"
       style={
         {
-          "--sidebar-width": "17.5rem",
-          "--sidebar-width-icon": "6rem",
+          "--sidebar-width": "5.5rem",
         } as React.CSSProperties
       }
     >
@@ -158,19 +139,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         }
       />
 
-      {/* --panel-gain: what a collapse frees, eased in step with the panel's
-          own 200ms linear width (see "A PAGE KEEPS THE WIDTH" above). A
-          hover peek opens the panel over the page, so it keeps the collapsed
-          gain too: the page does not move while the panel is only peeking
-          (components/hover-sidebar.tsx). */}
-      <div className="flex min-w-0 flex-1 flex-col gap-2 p-2 transition-[--panel-gain] duration-200 ease-linear sm:gap-3 sm:p-3 md:pl-0 md:group-data-[peek=true]/sidebar-wrapper:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))] md:peer-data-[state=collapsed]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]">
-        <header className="bg-panel border-rail-border shadow-panel rounded-shell flex h-16 shrink-0 items-center gap-3 border px-3 sm:gap-4 sm:px-4">
-          <SidebarPinToggle className="text-ink-meta hover:text-ink hover:bg-app size-10 shrink-0 rounded-full [&_svg]:size-4" />
+      {/* The bar and the page. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* 64px with its rule, the panel header's height, so the two rules
+            beneath them run as one line across the window. */}
+        <header className="bg-panel border-border-subtle flex h-16 shrink-0 items-center gap-3 border-b px-3 sm:gap-4 sm:px-4">
+          {/* The rail is always open from md, so the toggle only opens the
+              phone's sheet. */}
+          <SidebarTrigger className="text-ink-meta hover:text-ink hover:bg-app size-10 shrink-0 rounded-full md:hidden [&_svg]:size-4" />
 
           {/* The panel's header carries the logo from md; below that the
               panel is a sheet and the bar is the only place left for it. */}
           <Link
-            href="/dashboard"
+            href="/home"
             className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs transition-transform duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97] md:hidden"
           >
             <LogoLockup />
@@ -189,9 +170,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
             <ScoutLauncher className={BAR_CIRCLE} />
 
-            <NotificationsMenu className={BAR_CIRCLE}>
-              New matches and replies from employers will show up here.
-            </NotificationsMenu>
+            <SeekerNotificationsBell className={BAR_CIRCLE} />
 
             {/* Streamed: it waits on the API, and nothing else in the bar or
                 the page should wait with it. The fallback holds the photo's
@@ -207,10 +186,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             default, which would push the column past h-svh and hand the
             scroll back to the document. overscroll-contain so a fling that
             outruns the page does not chain onto the document. */}
-        {/* A row, so Scout's panel docks beside the page as one more floating
-            panel instead of covering it; min-w-0 lets the page shrink for it.
-            No gap: the panel stays mounted to glide open and closed, and
-            brings its own 12px with it, so a closed one adds nothing.
+        {/* A row, so Scout's panel docks beside the page, ruled off by its
+            own border, instead of covering it; min-w-0 lets the page shrink
+            for it. The panel stays mounted to glide open and closed, and a
+            closed one takes no room.
             data-scout-row lets the page settle as the panel opens and closes
             (scout-page-in and -out in globals.css), and the row clips the
             panel where it slides in and out past the window's edge. */}
@@ -218,21 +197,52 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <SidebarInset
             id="content"
             tabIndex={-1}
-            className="bg-panel border-rail-border shadow-panel rounded-shell min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain border focus:outline-none"
+            className="bg-panel min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain focus:outline-none"
           >
-            {/* The page, as wide as the <main> is with the panel open (see "A
-                PAGE KEEPS THE WIDTH" above), and the container it breaks on. */}
-            <div
-              data-scout-page
-              className="@container/main mx-auto flex w-[calc(100%_-_var(--panel-gain))] flex-1 flex-col"
-            >
+            {/* The page, and the container it breaks on. */}
+            <div data-scout-page className="@container/main flex w-full flex-1 flex-col">
               {/* Outlives a single page so My Profile renders at once on a
                   return visit; see profile-cache.tsx for why it lives here.
                   The query the pages show, moved in place by their segmented
                   controls and the Calendar's arrows, is held by
                   ShallowRouting. */}
               <ProfileCacheProvider>
-                <ShallowRouting>{children}</ShallowRouting>
+                <ShallowRouting>
+                  {/* THE PAGE STREAMS IN BEHIND THE SHELL on a hard load (a
+                      sign-in landing, a reload, a new tab). Without this
+                      boundary the page was part of React's shell, so no byte
+                      of the panel or the bar left the server until the page's
+                      slowest read had answered: on Home, a whole
+                      scoring pass. Now the shell goes out at once and the page
+                      follows it in the same response. A soft navigation is
+                      unchanged: the boundary is already showing a page, and a
+                      navigation is a transition, which keeps the old page up
+                      until the new one is ready, so the fallback never shows
+                      there. It is empty, for that moment of a hard load only.
+                      It wraps the page slot only, never {modal}, so a modal
+                      never waits on the page under it.
+                      What a page that answers after the shell gives up: a
+                      redirect() or notFound() in it can no longer set the
+                      status, so the response is a 200 and the browser follows
+                      the redirect (a meta refresh without JavaScript) or draws
+                      the not-found page itself; and React reveals a streamed
+                      boundary no sooner than 300ms after the shell's first
+                      frame, so a page that answers inside that window lands up
+                      to that much later than it did riding with the shell.
+                      THE contents DIV KEEPS PAGE-ENTER TO SOFT NAVIGATIONS.
+                      React plays a <ViewTransition>'s enter on a Suspense
+                      reveal only when no DOM element sits between the boundary
+                      and it, so without this div a hard load's page rose in
+                      with the template's page-enter whenever it streamed in
+                      (checked in Chromium on a copy of this tree), where it
+                      used to simply be there. A soft navigation remounts the
+                      template below the div, so its enter and exit still run.
+                      display: contents leaves no box, so the page is still the
+                      container's flex child. */}
+                  <Suspense fallback={null}>
+                    <div className="contents">{children}</div>
+                  </Suspense>
+                </ShallowRouting>
               </ProfileCacheProvider>
             </div>
           </SidebarInset>
@@ -241,8 +251,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <ScrollMemory />
           <ScoutPanel />
         </div>
+        {modal}
       </div>
-    </HoverSidebarProvider>
+    </RailSidebarProvider>
   );
 }
 

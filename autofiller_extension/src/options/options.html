@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Workday Sign-Up · WorkIt Autofiller</title>
+    <script src="../shared/tokens.js"></script>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <section class="card" aria-labelledby="signup-title">
+        <h1 id="signup-title">Workday Sign-Up</h1>
+        <p class="muted">
+          Each company's Workday asks you to make an account before you apply. Set one email and
+          password here, and WorkIt uses them to make your account and sign you in at every company.
+          Without one, WorkIt makes a new password for each company.
+        </p>
+        <form id="signup-form" autocomplete="off">
+          <label for="signup-email">Registration Email</label>
+          <input id="signup-email" type="email" required autocomplete="email" />
+
+          <label for="signup-password">Password</label>
+          <div class="password">
+            <input id="signup-password" type="password" autocomplete="new-password" spellcheck="false" />
+            <button type="button" id="signup-show" class="secondary" aria-pressed="false">Show</button>
+          </div>
+          <ul class="rules" aria-label="Your password needs">
+            <li data-rule="length" data-met="false">At least 12 characters</li>
+            <li data-rule="upper" data-met="false">An uppercase letter</li>
+            <li data-rule="lower" data-met="false">A lowercase letter</li>
+            <li data-rule="number" data-met="false">A number</li>
+            <li data-rule="special" data-met="false">A special character</li>
+          </ul>
+
+          <div class="actions">
+            <button type="submit" id="signup-save" disabled>Save</button>
+            <button type="button" id="signup-clear" class="secondary">Clear</button>
+          </div>
+          <p id="signup-said" class="muted" role="status"></p>
+        </form>
+        <p class="note">Your password stays in this browser. WorkIt never sends or saves it anywhere else.</p>
+      </section>
+      <section class="card" aria-labelledby="sites-title">
+        <h2 id="sites-title">Sites You Allowed</h2>
+        <p class="muted">
+          Employer career sites where you allowed WorkIt from its toolbar button. WorkIt reads only these
+          sites, besides the job systems it fills. Remove one to take WorkIt off it.
+        </p>
+        <ul id="sites" class="sites"></ul>
+        <p id="sites-said" class="muted" role="status"></p>
+      </section>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

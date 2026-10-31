@@ -6,11 +6,13 @@ columns they need and embeds the bank on demand.
 """
 
 import datetime
+from collections.abc import Mapping
 
-from sqlalchemy import case, func, literal, select, update
+from sqlalchemy import and_, case, false, func, literal, or_, select, true, update
 from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.bank import Experience_Bank
 from app.models.jobs import Job_Post
@@ -64,7 +66,9 @@ async def _bank_embedding(db: AsyncSession, account: AuthenticatedAccount, bank:
             Experience_Bank.applicant_id == account.id,
             Experience_Bank.updated_at == bank_row.updated_at,
         )
-        .values(embedding=vectors[0], embedded_at=func.now())
+        # updated_at stays the bank's last change: storing its vector is no
+        # change, and Home's kept result is keyed on it (queries/jobs/home.py).
+        .values(embedding=vectors[0], embedded_at=func.now(), updated_at=bank_row.updated_at)
         .execution_options(synchronize_session=False)
     )
     try:
@@ -81,23 +85,79 @@ async def score_jobs(
     every job these filters keep, scored against this bank, best first.
     Jobs without embeddings still appear, scored on the other components
     '''
+    return (await score_job_sets(db, account, bank, filters, {"all": None}))["all"]
+
+
+async def score_job_sets(
+    db: AsyncSession,
+    account: AuthenticatedAccount,
+    bank: Bank,
+    filters: JobFilters,
+    sets: Mapping[str, ColumnElement[bool] | None],
+) -> dict[str, list[ScoredJob]]:
+    '''
+    the jobs these filters keep, scored against this bank, best first, once
+    per named set: a set is the jobs its condition also keeps (None: all of
+    them), each capped at CANDIDATES as score_jobs caps one. One scan of the
+    vectors serves every set, and a job in two sets is scored once: Home
+    asks for its three lists at once (fetch_home_matches).
+    '''
     bank_embedding = await _bank_embedding(db, account, bank)
 
     # Deduplicate case-insensitively so repeated skills cannot change the score.
     skills = list({s.strip().casefold(): s.strip()
                    for s in bank_input.skills(bank) if s.strip()}.values())
 
-    # Query with scoring columns
-    score_columns = list(LISTING_COLUMNS)
-
     # Semantic similarity: 1 - cosine_distance
     if bank_embedding is not None:
-        semantic_col = (
-            literal(1.0) - Job_Post.embedding.cosine_distance(bank_embedding)
-        ).label("semantic")
+        semantic = literal(1.0) - Job_Post.embedding.cosine_distance(bank_embedding)
     else:
-        semantic_col = literal(None).label("semantic")
-    score_columns.append(semantic_col)
+        semantic = literal(None)
+
+    # RANKED ON THE VECTOR ALONE, THEN READ IN FULL (KAN-425). The first
+    # query reads the filtered jobs' id, vector and posting date and keeps
+    # each set's CANDIDATES nearest; only those rows are read whole and
+    # matched against the skills. Matching skills in the ranking query made
+    # Postgres run every skill's text search on every listed job before the
+    # cap: on 2026-10-28 that read each posting's text once per skill,
+    # 438,713 buffers against 52,803 for the vector alone, and a pass took
+    # 10 to 15 s instead of 4 to 6.
+    near = (
+        select(
+            Job_Post.id,
+            semantic.label("semantic"),
+            Job_Post.posted_at,
+            *(
+                (true() if cond is None else func.coalesce(cond, false())).label(f"in_{name}")
+                for name, cond in sets.items()
+            ),
+        )
+        .where(LISTED, *matching(filters))
+        .subquery("near")
+    )
+    # Each set's own rank, nearest first. NULLS LAST: Postgres sorts NULL
+    # first under DESC, so a job the import couldn't embed would otherwise
+    # crowd the real matches out of the cap. Newest next, so the jobs
+    # without a vector that do make it are fresh; id breaks the last ties.
+    newest = near.c.posted_at.desc().nulls_last()
+    order = (
+        (near.c.semantic.desc().nulls_last(), newest, near.c.id)
+        if bank_embedding is not None
+        else (newest, near.c.id)
+    )
+    ranked = select(
+        near.c.id,
+        near.c.semantic,
+        *(
+            and_(
+                near.c[f"in_{name}"],
+                func.row_number().over(partition_by=near.c[f"in_{name}"], order_by=order)
+                <= CANDIDATES,
+            ).label(f"in_{name}")
+            for name in sets
+        ),
+    ).subquery("ranked")
+    in_sets = [ranked.c[f"in_{name}"] for name in sets]
 
     # Match skills independently, so partial coverage earns credit. This is
     # independent of other results and remains stable when filters change.
@@ -110,27 +170,18 @@ async def score_jobs(
         ]).label("matched_skills")
     else:
         skill_matches = literal(None).label("matched_skills")
-    score_columns.append(skill_matches)
 
-    # posted_at for freshness
-    score_columns.append(Job_Post.posted_at.label("_posted_at"))
-
-    # Hard filters first, then the candidates nearest the bank, then the
-    # score. Ordered by the label, so the vector is bound once, not twice.
-    # NULLS LAST: Postgres sorts NULL first under DESC, so a job the import
-    # couldn't embed would otherwise crowd the real matches out of the cap.
-    # Newest next, so the jobs without a vector that do make it are fresh.
-    newest = Job_Post.posted_at.desc().nulls_last()
-    order = (
-        (semantic_col.desc().nulls_last(), newest)
-        if bank_embedding is not None
-        else (newest,)
-    )
     query = (
-        select(*score_columns)
-        .where(LISTED, *matching(filters))
-        .order_by(*order, Job_Post.id)
-        .limit(CANDIDATES)
+        select(
+            *LISTING_COLUMNS,
+            ranked.c.semantic,
+            skill_matches,
+            # posted_at for freshness
+            Job_Post.posted_at.label("_posted_at"),
+            *in_sets,
+        )
+        .join(ranked, ranked.c.id == Job_Post.id)
+        .where(or_(*in_sets))
     )
     rows = (await db.execute(query)).all()
 
@@ -140,7 +191,7 @@ async def score_jobs(
     years_exp = bank_input.years_of_experience(bank, now.date())
     graduation = bank_input.expected_graduation(bank)
 
-    scored: list[ScoredJob] = []
+    scored: dict[str, list[ScoredJob]] = {name: [] for name in sets}
     for row in rows:
         semantic_val = row.semantic
         matched_skills = [skill for skill in (row.matched_skills or []) if skill is not None]
@@ -160,13 +211,17 @@ async def score_jobs(
         )
 
         listing = to_listing(row)
-        scored.append(ScoredJob(
-            **listing.model_dump(),
+        job = ScoredJob(
+            **listing.model_dump(exclude={"match", "highlights"}),
             match=breakdown.final_score,
             score_breakdown=breakdown,
             highlights=[Highlight(**h) for h in highlights],
-        ))
+        )
+        for name in sets:
+            if getattr(row, f"in_{name}"):
+                scored[name].append(job)
 
     # Best first; ties broken by the unrounded score, then id, so pages are stable
-    scored.sort(key=lambda s: (-s.match, -s.score_breakdown.score_before_rounding, s.id))
+    for jobs in scored.values():
+        jobs.sort(key=lambda s: (-s.match, -s.score_breakdown.score_before_rounding, s.id))
     return scored

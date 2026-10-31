@@ -46,8 +46,8 @@ import { cn } from "@/lib/cn";
  *
  * ICONS ARE SIZED HERE TOO. A glyph with no size class takes 16px (14px in
  * the `inline` and `xs` sizes, whose text is 12px, and in `section`, which
- * matches SectionLink's arrow). Lucide draws at 24px by
- * default, and an unsized one stretched an sm button to 38px: My Resumes
+ * matches SectionLink's arrow). Lucide, the set before Phosphor (KAN-350),
+ * drew at 24px by default, and an unsized one stretched an sm button to 38px: My Resumes
  * stood 6px taller than Fill With Scout beside it, and the same held for
  * about 30 buttons (Open, PDF, Word, Edit, Save Entry...). A call site that
  * sets its own `size-*` keeps it.
@@ -125,6 +125,12 @@ export const buttonVariants = cva(
          *  equivalent: its palette has no success role. */
         positive:
           "bg-positive text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+        /** Danger tint with red text: declining something offered, such as
+         *  Tailor's Reject beside a `positive` Accept. Quieter than
+         *  `destructive`, so the pair reads as two choices, not two alarms.
+         *  WorkIt-only. */
+        decline:
+          "bg-danger-tint text-danger hover:bg-danger/15 focus-visible:ring-destructive rounded-control border border-transparent focus-visible:ring-[3px]",
         /** Text only, in brand, no chrome: an inline action such as a form's
          *  Add Question or a table's Clear Selection. A section heading's
          *  action is `section` instead.
@@ -208,6 +214,7 @@ const DEFAULT_SIZE: Record<ButtonVariant, ButtonSize> = {
   secondary: "default",
   destructive: "default",
   positive: "sm",
+  decline: "sm",
   outline: "sm",
   ghost: "inline",
   section: "section",

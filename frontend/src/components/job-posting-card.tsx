@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
 import { cn } from "@/lib/cn";
+import type { LogoSrc } from "@/lib/job-logo";
 
 /**
  * The job posting card a seeker sees on their Jobs feed, in the layout it had
@@ -139,7 +140,7 @@ const FACT_NAME = {
 export type JobPostingCardData = {
   company: string;
   /** The company's logo; omit (or null) for its initials instead. */
-  logoUrl?: string | null;
+  logoUrl?: LogoSrc;
   /** Omit to render the company name in the same ink without a real `<a>`
    *  under it — the composer's preview has nowhere to send a click that
    *  wouldn't abandon the draft being edited. */
@@ -180,9 +181,12 @@ type FactName = keyof typeof FACT_NAME;
 type Slot = readonly [FactName, ComponentType<{ className?: string }>, FactValue];
 type FactValue = string | null | NotListed;
 
+/** The six facts a card prints, as JobFactGrid takes them. */
+export type JobFactData = Pick<JobPostingCardData, FactName>;
+
 /** The six slots in reading order, three to a row from 448px of body. See
  *  "THE FACTS ARE TWO FIXED ROWS" above. */
-function slotsOf(job: JobPostingCardData): Slot[] {
+function slotsOf(job: JobFactData): Slot[] {
   const workStyle = isNotListed(job.workStyle) ? null : job.workStyle;
   return [
     ["location", PinIcon, job.location],
@@ -218,6 +222,20 @@ function FactSlot({ name, Icon, value }: { name: FactName; Icon: Slot[1]; value:
       </Fact>
       {isNotListed(value) && <span className="sr-only">{FACT_NAME[name]} not listed</span>}
     </span>
+  );
+}
+
+/** The card's six facts as their grid: two columns, three once the nearest
+ *  `@container` is 448px wide. Shared with the job posting page's rail of
+ *  jobs ((seeker)/jobs/jobs-rail.tsx), so a rail card and a feed card print
+ *  a role's facts the same way. */
+export function JobFactGrid({ job, className }: { job: JobFactData; className?: string }) {
+  return (
+    <div className={cn("grid grid-cols-2 gap-x-4 gap-y-1.5 @md:grid-cols-3", className)}>
+      {slotsOf(job).map(([name, Icon, value]) => (
+        <FactSlot key={name} name={name} Icon={Icon} value={value} />
+      ))}
+    </div>
   );
 }
 
@@ -291,7 +309,9 @@ export function JobPostingCard({
               ) : (
                 job.timing != null && (
                   <Badge variant="status" tone="positive">
-                    {job.timing}
+                    {/* "Posted 5 minutes ago" reads the clock, which moves
+                        between the server render and hydration. */}
+                    <span suppressHydrationWarning>{job.timing}</span>
                   </Badge>
                 )
               )}
@@ -329,11 +349,7 @@ export function JobPostingCard({
             {headerAction}
           </div>
 
-          <div className="border-border-subtle mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 @md:grid-cols-3">
-            {slotsOf(job).map(([name, Icon, value]) => (
-              <FactSlot key={name} name={name} Icon={Icon} value={value} />
-            ))}
-          </div>
+          <JobFactGrid job={job} className="border-border-subtle mt-3 border-t pt-3" />
 
           {actions && (
             <div className="border-border-subtle relative z-2 mt-3 flex flex-wrap items-center justify-end gap-2 border-t pt-3">

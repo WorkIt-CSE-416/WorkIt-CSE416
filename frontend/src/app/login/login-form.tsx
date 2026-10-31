@@ -1,11 +1,13 @@
 "use client";
 
-import { CircleAlert } from "lucide-react";
+import { WarningCircleIcon } from "@phosphor-icons/react/ssr";
 import { useActionState, useEffect } from "react";
 
 import { ArrowRightIcon, LockIcon, MailIcon } from "@/components/icons";
+import { Turnstile } from "@/components/turnstile";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
+import { TextLink } from "@/components/ui/text-link";
 import { clearLocalDrafts } from "@/lib/local-drafts";
 
 import { signIn, type LoginState } from "./actions";
@@ -17,7 +19,7 @@ const INITIAL_STATE: LoginState = { error: null, email: "" };
  * as signup/signup-form.tsx: useActionState requires a Client Component,
  * and AccountTypeSwitcher targets this form by id from outside it.
  */
-export function LoginForm({ formId }: { formId: string }) {
+export function LoginForm({ formId, next }: { formId: string; next?: string }) {
   const [state, formAction, pending] = useActionState(signIn, INITIAL_STATE);
   // Sign-out and an expired session both land here: no draft outlives them.
   useEffect(clearLocalDrafts, []);
@@ -29,6 +31,7 @@ export function LoginForm({ formId }: { formId: string }) {
 
   return (
     <form id={formId} action={formAction} className="mt-5 flex flex-col">
+      {next && <input type="hidden" name="next" value={next} />}
       <div className="flex flex-col gap-2.5">
         <TextField
           id="email"
@@ -43,20 +46,25 @@ export function LoginForm({ formId }: { formId: string }) {
           aria-describedby={describedBy}
         />
 
-        {/* No "Forgot password?" in the label row until a reset flow exists:
-            the link opened a bare 404 for the people already stuck. */}
-        <TextField
-          id="password"
-          name="password"
-          type="password"
-          label="Password"
-          icon={LockIcon}
-          autoComplete="current-password"
-          required
-          aria-invalid={invalid}
-          aria-describedby={describedBy}
-        />
+        <div className="flex flex-col gap-1">
+          <TextField
+            id="password"
+            name="password"
+            type="password"
+            label="Password"
+            icon={LockIcon}
+            autoComplete="current-password"
+            required
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
+          />
+          <p className="text-meta text-right">
+            <TextLink href="/login/reset-password">Forgot Password?</TextLink>
+          </p>
+        </div>
       </div>
+
+      <Turnstile form={formId} resetKey={state} />
 
       {state.error && (
         <p
@@ -64,7 +72,7 @@ export function LoginForm({ formId }: { formId: string }) {
           role="alert"
           className="text-label text-danger bg-danger-tint rounded-control mt-2.5 flex items-start gap-2 px-3 py-2"
         >
-          <CircleAlert className="mt-px size-4 shrink-0" aria-hidden />
+          <WarningCircleIcon className="mt-px size-4 shrink-0" aria-hidden />
           {state.error}
         </p>
       )}

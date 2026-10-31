@@ -76,7 +76,7 @@ import { ViewResumeButton } from "./view-resume";
 /**
  * The applications as a table, one row each, in the order job trackers read
  * (KAN-256): what and who (Role, with its company under it), where it stands (Status, Date
- * Applied), how good it is (Match), the job's facts (Track, the job type;
+ * Applied), how good it is (Match), the job's facts (Job Type;
  * Location; Work Model; Pay Range), where and what was sent (Source, the
  * hiring system its posting is on; Resume; Posting, open or not), and Notes /
  * Next Step last, the widest and least scanned. Role stays frozen at the
@@ -88,7 +88,7 @@ import { ViewResumeButton } from "./view-resume";
  * Notes / Next Step is a placeholder for now: nothing stores notes yet, and
  * Status can only be Saved or Applied until the API keeps later stages.
  *
- * Its frame follows the company Dashboard's Recent Applicants
+ * Its frame follows the company Home's Recent Applicants
  * (company/applicants-preview.tsx): one white card, 12px grey headings,
  * rules between rows and no box around each.
  *

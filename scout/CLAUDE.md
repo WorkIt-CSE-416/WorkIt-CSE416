@@ -33,7 +33,7 @@ install time.
 
 | file | owns |
 |---|---|
-| `settings.py` | `SCOUT_*`: the endpoint chain |
+| `settings.py` | `SCOUT_*`: the endpoint chains, the default and one per size |
 | `llm.py` | the one place `openai` is imported; the endpoint chain, streamed and structured calls, identity-data removal on every call |
 | `prompt.py` | the frozen system prompt and the facts block after it |
 | `agent.py` | one turn: prompt + conversation in, events out |
@@ -85,15 +85,27 @@ are now ignored; a deploy that still sets them has no fallback until
 | Where | Chain |
 | --- | --- |
 | Laptops (default) | Qwen 3.5 4B on Ollama, $0, nothing leaves the machine; nothing to set |
-| Production now (spec) | Groq `openai/gpt-oss-120b` (`https://api.groq.com/openai/v1`), the Gemini free tier (`https://generativelanguage.googleapis.com/v1beta/openai/`, `gemini-3.5-flash-lite`, effort `minimal`), Groq `openai/gpt-oss-20b` (effort `low`), Cloudflare Workers AI; set as `SCOUT_ENDPOINTS` on the `workit-api` Vercel project |
+| Production now (spec) | Groq `openai/gpt-oss-120b` (`https://api.groq.com/openai/v1`), the Gemini free tier (`https://generativelanguage.googleapis.com/v1beta/openai/`, `gemini-3.5-flash-lite`, effort `minimal`), Groq `openai/gpt-oss-20b` (effort `low`), Cloudflare Workers AI; set as `SCOUT_ENDPOINTS` in the API's production secrets (`CF_API_SECRETS_JSON`, `.github/CLAUDE.md`) |
 | At launch (spec) | DeepInfra `gpt-oss-120b`, then Groq, with a $50 a month spend limit |
 | Laptops testing on hosted models | Groq `openai/gpt-oss-120b`, then Groq `openai/gpt-oss-20b` (effort `low`), then Gemini `gemini-3.5-flash-lite` once a key is added; as `SCOUT_ENDPOINTS` in the root `.env`. Each Groq model has its own daily quota, so the 20b doubles the free room |
 
-**Production differs from the spec** (checked 2026-10-14 with `vercel env
-pull`): `workit-api` sets no `SCOUT_ENDPOINTS`, only `SCOUT_BASE_URL`,
-`SCOUT_MODEL` and `SCOUT_API_KEY` for Gemini `gemini-3.5-flash-lite` alone,
-with no fallback. Its key is a Vercel Sensitive variable, so a pull shows
-`[SENSITIVE]`, not the value; a laptop needs its own key from AI Studio.
+**A feature asks for a size, never a model by name** (KAN-356): `large`
+(`SCOUT_ENDPOINTS_LARGE`) for writing and judgment, `small`
+(`SCOUT_ENDPOINTS_SMALL`) for plain extraction at volume, or the default
+chain. `ScoutSettings.chain(size)` is the size's own chain followed by the
+default chain, an endpoint in both tried once, so a shared fallback (Gemini)
+is written once, in `SCOUT_ENDPOINTS`; an unset size is the default chain
+alone, so a deploy without the size variables behaves as before. A model
+name in code would make a retired model a code change; a size makes it an
+env change. Which feature uses which size is the API's choice
+(`backend/app/services/models.py`), not this package's.
+
+**Production differed from the spec when last checked** (2026-10-14, on the
+Vercel project, since retired): it set no `SCOUT_ENDPOINTS`, only
+`SCOUT_BASE_URL`, `SCOUT_MODEL` and `SCOUT_API_KEY` for Gemini
+`gemini-3.5-flash-lite` alone, with no fallback. The Cloudflare API's secrets
+were first copied from those values (`CF_API_SECRETS_JSON`), so read that JSON
+before assuming the spec's chain. A laptop needs its own key from AI Studio.
 Training on prompts is acceptable to the team (2026-10-14), since identity
 data is removed on every call, so Gemini's and Z.ai's free tiers are open
 choices.
@@ -123,7 +135,10 @@ reply with `Schema.model_validate_json`. A reply that fails the check raises
 `InvalidReply` and is not repaired or retried down the chain: the caller
 decides whether to ask again, and it does not count as a use. No text reaches
 the student before it returns, so a 429, 5xx or dead endpoint moves down the
-whole chain.
+whole chain. `max_tokens=` caps the reply, reasoning included, and is sent
+only when given (as `max_tokens`, which Ollama, Groq and Gemini all accept);
+a reply the provider stops at its cap (`finish_reason` "length") raises
+`ReplyCutOff`, an `InvalidReply`, since its JSON is cut off.
 
 ## How a failure behaves
 
@@ -132,7 +147,12 @@ when one is rate-limited (429), erroring (5xx) or unreachable **before it has
 sent any text**. Once text has reached the user a retry would repeat it, so a
 failure mid-reply ends the reply with an `error` event. A 4xx other than 429 is
 misconfiguration — wrong key, model name or parameter — and is not retried; the
-server log says which endpoint failed. Every failure reaches the panel as one
+server log says which endpoint failed. **A request too large for one endpoint
+moves down the chain too**: a 413 (Groq's answer to a request over its
+tokens-a-minute limit), or a 400 whose code or message says the context
+length is exceeded (`_too_large`). Gemini reads far more than Groq's free
+tier, so it can answer what Groq refused. When the last endpoint tried
+refused it as too large, the call raises `RequestTooLarge`. Every failure reaches the panel as one
 `error` event with a message written for the user, on a 200 response.
 
 ## What Scout knows, and where it comes from
@@ -150,9 +170,10 @@ Each turn the API hands `agent.run` two sets of facts, rendered by
   **no fallback to an uploaded resume**. For an empty bank the block says so
   and says whether an upload exists (`ResumeFacts.has_upload`). An upload
   fills the bank itself (ADR 0003), so an empty bank beside one means the
-  parser read nothing: Scout points at the Jobs page's Import Your Resume
-  and Read It With AI instead of guessing. (It named Import Again on My
-  Profile until that row button became Import Updated Resume.) The block keeps the heading "The
+  parser read nothing: Scout points at uploading another file on Resumes
+  and at Experiences instead of guessing. (It named Import Your Resume and
+  Read It With AI until KAN-353 took the AI reading off every screen, and
+  Import Again on My Profile before that.) The block keeps the heading "The
   user's resume" because the frozen prompt's grounding rules name it so.
 - **The job** — when the panel sends a `job_id` (an "Ask Scout" click, and every
   message after it), the feed's row for it, description included. Descriptions
@@ -229,10 +250,11 @@ address or a friend's link goes too. Rules:
 `tests/test_scout.py` runs Scout against `ScriptedLLM`, which takes one script
 per endpoint in the chain (`ScriptedLLM(rate_limited(), ["reply"])`), records
 every prompt as the model received it, and joins a script's pieces as the
-answer to a structured call. It covers: moving down the chain on 429, 5xx and
-a dead endpoint, no move on misconfiguration or mid-reply, the structured call
-(checked object, chain, rejected replies, no identity data), the request body
-(a JSON schema, never `tool_choice`), the chain read from env, the reply cap
+answer to a structured call. It covers: moving down the chain on 429, 5xx,
+a dead endpoint and a request too large, no move on misconfiguration or mid-reply, the structured call
+(checked object, chain, rejected replies, no identity data, a reply cut off
+at its cap), the request body (a JSON schema, never `tool_choice`,
+`max_tokens` only when asked), the chain read from env, the reply cap
 and the privacy mapping (`facts.py`). Tests of the system prompt's wording
 and the facts block's text were removed on purpose (2026-10-18); do not add
 them back. The tests that no identity data reaches the model stay.

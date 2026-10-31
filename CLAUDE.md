@@ -34,8 +34,14 @@ none.
   touches the database; runs with `python3 -m workit_scraper`, tests under
   `uvx pytest`.
 - `autofiller_extension/` — the ATS autofiller (KAN-164): a Manifest V3
-  Chrome extension, no build step, no dependency manifest. Adds no backend
-  routes or schema; reads the same endpoints the webapp already has.
+  Chrome extension, no build step, no dependency manifest. It fills through
+  the Fill engine, the git submodule `autofiller_extension/fill-engine`
+  pinned to a tag (`git submodule update --init` once per checkout). Batch
+  apply (KAN-369) fills up to five tabs at once and gave it routes of its
+  own in `backend/app/routers/auto_apply.py` (a tab's state, its written
+  questions and answers, the answer bank, finish), plus the connector its
+  essays come from (`backend/app/connector/`); `autofiller_extension/CLAUDE.md`
+  lists every endpoint it calls.
 - `.github/` — CI and the scheduled scrape-and-import (KAN-160).
 - `docs/` — team prose that spans the repo (below).
 
@@ -98,27 +104,28 @@ shells into it.
 CI runs on every PR to `main`; merge only on a green check. The jobs, the
 scheduled scrape and its gotchas are in `.github/CLAUDE.md`.
 
-**Both halves are moving to Cloudflare Workers Paid** (KAN-169,
-`docs/adr/0004-host-on-cloudflare.md`): the app on Workers through OpenNext at
-https://workitjobs.ai, the API in a Container at https://api.workitjobs.ai,
-both deployed by `.github/workflows/deploy.yml` with no Cloudflare login on
-anyone's machine. The Cloudflare account is owned by the team Gmail, never one
-person's login; teammates are members with Developer Platform Admin on the
-account and Administrator on the `workitjobs.ai` zone only. Until the cutover
-(KAN-296) Vercel stays production, as described next.
+**Both halves run on Cloudflare Workers Paid** (KAN-169,
+`docs/adr/0004-host-on-cloudflare.md`): production is the app on Workers
+through OpenNext at https://workitjobs.ai and the API in a Container at
+https://api.workitjobs.ai, both deployed by `.github/workflows/deploy.yml` on
+every merge to `main`, with no Cloudflare login on anyone's machine. The
+Cloudflare account is owned by the team Gmail, never one person's login;
+teammates are members with Developer Platform Admin on the account and
+Administrator on the `workitjobs.ai` zone only. Migrations stay a manual,
+local step, never part of a deploy. Supabase (Authentication → URL
+Configuration) must list each deployed origin's `/auth/callback`, or OAuth
+sign-in bounces. Settings: a `NEXT_PUBLIC_*` value is a GitHub repository
+variable that `deploy.yml` passes to the app's build, and an API value is in
+the `CF_API_SECRETS_JSON` secret (`.github/CLAUDE.md`); each half's
+Deployment section has the rest.
 
-Both halves deploy to **Vercel as two projects from this repo** (Root
-Directory `frontend` and `backend`, the API as one Vercel Function).
-Production is https://workit-web-gamma.vercel.app (app) and
-https://workit-api.vercel.app (API). Read and change Vercel state with the
-Vercel CLI: `vercel link` once in each half's folder, then `vercel env`,
-`vercel logs` and `vercel curl <url>` (reaches a protected preview); the
-dashboard only for what the CLI cannot do. Merging to
-`main` deploys production; every PR gets preview URLs for both. The Next
-project's `API_URL` points at the API project. Migrations stay a manual, local
-step, never part of a deploy. Supabase (Authentication → URL Configuration)
-must list each deployed origin's `/auth/callback`, or OAuth sign-in bounces.
-Settings and env vars: each half's Deployment section.
+**Vercel is retired** (2026-10-29): set nothing up there and check nothing
+there. Its two projects (https://workit-web-gamma.vercel.app,
+https://workit-api.vercel.app) still build every PR and every merge until
+KAN-296 deletes them, after the Chrome extension, which still accepts both
+host pairs, is updated; a Vercel check on a PR says nothing about production.
+`backend/vercel.json` and `[tool.vercel]` in `backend/pyproject.toml` go with
+those projects.
 
 ## Cross-platform
 
@@ -160,6 +167,46 @@ with the failure it prevents.
   rendered again on view; downloads keep nothing; uploads and Generate
   refuse duplicates. Read it before changing sent resumes, applications,
   resume upload or delete, Generate or the editor's Download.
+- `docs/bank_by_resume.md` — KAN-343's design, built, as revised by ADR
+  0005: each upload owns its own entries and skills (no merge, no
+  duplicate check across resumes; an import replaces what the upload
+  owned), and the Experiences view's Showing card picks one resume from
+  the shared resume list (KAN-361, KAN-406), showing what the picked one
+  owns or shows, with Not From an Upload as a card of its own under it
+  (KAN-363). Add saves into the picked resume.
+  Read it before changing import, the bank's API shape or the Experiences
+  view.
+- `docs/tailor_resume.md` — Tailor's redesign, built (2026-10-25): the student picks a resume and the missing keywords to
+  add, one click rewrites and saves the posting's tailored resume with no
+  proposals and no Done, and the editor marks each change and reverts it.
+  Holds the skill placement rule. Read it before changing Tailor or its
+  screen.
+- `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
+  built: each edit renders from the editor's copy with no database read
+  while its save writes beside it, and the page below a typed line
+  reflows as the student types, while the LaTeX PDF compiles behind it;
+  the PDF stays the only output. The whole page as HTML is
+  not built yet. Typst,
+  for editing in place, is under consideration and would supersede ADR
+  0002. Read it before changing how the editor shows an edit or choosing
+  a renderer.
+- `docs/fill-reports.md` — fix reports (KAN-369): what a fill report from
+  the extension holds, and the Markdown fix brief admins export for a
+  coding agent (sections, markers, where the fixture goes).
+- `docs/email_tracker.md`: KAN-413's email tracker design, a draft not yet
+  reviewed. A student connects Gmail (read-only); WorkIt reads only job
+  emails, matches each to an application, and proposes a stage change or a
+  dated event that the student accepts or rejects. It stores no email
+  bodies. Build step 1 is built: the `interviewing`, `offer` and
+  `rejected` stages, the stage menu, `application_events` added by hand
+  (which feed the Calendar), and the Inbox (`/inbox`), where emails live;
+  reading Gmail is not. **The Inbox is archived** (KAN-428): reading Gmail
+  waits on money for Google's verification, so every screen that shows or
+  promises emails is hidden behind `INBOX_LIVE`
+  (`frontend/src/app/(seeker)/inbox/live.ts`), and students track
+  applications by hand. Read it before changing
+  application stages, the tracker's dated events or anything that reads a
+  student's email.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
@@ -225,7 +272,9 @@ with the failure it prevents.
 `docs/agents/`. Each person installs the plugin themselves.
 
 - **Issue tracker:** Jira, project KAN on workitsbu.atlassian.net, through the
-  Atlassian MCP server. Ask before creating tickets. `docs/agents/issue-tracker.md`.
+  Atlassian MCP server. Ask before creating tickets. Epic, Story and Task only
+  (no Bug, no Subtask): every Story and Task has an Epic as its parent.
+  `docs/agents/issue-tracker.md`.
 - **Triage labels:** the five default roles, as Jira labels under their own
   names. `docs/agents/triage-labels.md`.
 - **Domain docs:** single-context, one `GLOSSARY.md` and `docs/adr/` at the

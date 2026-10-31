@@ -1,6 +1,6 @@
 "use client";
 
-import { CloudOff } from "lucide-react";
+import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -34,9 +34,9 @@ export default function SeekerError({
   }, [error]);
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <EmptyState
-        Icon={CloudOff}
+        Icon={CloudSlashIcon}
         title="Something Went Wrong"
         action={
           <Button variant="secondary" size="sm" onClick={() => retry()}>
