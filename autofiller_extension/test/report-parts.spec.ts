@@ -39,3 +39,10 @@ test("finalize marks the fields the student picked and keeps their note, trimmed
   expect(finalize(report, { note: "x".repeat(1200) }).note).toHaveLength(1000);
   expect(finalize(report).note).toBeNull();
 });
+
+test("finalize leaves the page's layout out when the student unticks it (KAN-456's decision: opt-in, ticked by default)", () => {
+  const report = { job_system: "greenhouse", fields: [], html: "<form></form>" };
+  expect(finalize(report).html).toBe("<form></form>");
+  expect(finalize(report, { layout: true }).html).toBe("<form></form>");
+  expect(finalize(report, { layout: false })).toEqual({ job_system: "greenhouse", fields: [], note: null });
+});

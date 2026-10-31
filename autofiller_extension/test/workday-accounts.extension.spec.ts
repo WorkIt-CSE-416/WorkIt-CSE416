@@ -50,6 +50,25 @@ async function skip(page: Page): Promise<void> {
   await (await menuItem(overlay(page), "Skip")).click();
 }
 
+test("a click the page makes on Sign Me In allows nothing: only the student's own press does (KAN-469)", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  const page = await start(workdays, { id: "wd-0", apply_url: workdays.signInUrl(0) });
+  const caci = await page(workdays.signInUrl(0));
+  const card = overlay(caci).locator(".moment.workday-accounts");
+  await expect(card).toContainText("ticks the box that you agree to the company's terms", { timeout: 30_000 });
+
+  // The employer's script presses it (el.click() is no press of the student's: isTrusted is false).
+  await card.locator("[data-allow]").evaluate((button: HTMLElement) => button.click());
+  await caci.waitForTimeout(2000);
+  await expect(card).toBeVisible();
+  expect(workdays.signIns).toEqual([]);
+  expect(await loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_accounts_for_me")).workday_accounts_for_me)).toBeUndefined();
+
+  await allow(caci);
+  await expect.poll(() => workdays.signIns.length, { timeout: 30_000 }).toBe(1);
+});
+
 test("allowed once, makes each company's Workday account itself, terms box shown, and signs in later", async () => {
   test.setTimeout(180_000);
   const workdays = new FakeWorkdays(["workday-caci", "workday-xcel"]);

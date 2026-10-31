@@ -387,7 +387,12 @@ Find files with a directory listing; these are the rules for where code goes.
   **Admins** are the emails or account ids on `WORKIT_ADMINS`
   (`app/config.py`; `deps.get_admin`, 403 to anyone else): there is no
   admin role in the database. They list (`GET /admin/fill-reports`, newest
-  first, `?job_system=&status=`), read, triage (`PATCH`, status new /
+  first, `?job_system=&status=&engine_version=&signature=`), see them
+  grouped (KAN-478: `GET /admin/fill-report-groups`, one line per
+  `signature`, "<job system>:<field kind>:<error>" of the first field that
+  went wrong, else the first marked one as `Marked`, stored on the row by
+  `schemas/fill_reports.py`'s `signature_of`, migration `b2d4f6a8c013`,
+  with its count and engine versions), read, triage (`PATCH`, status new /
   triaged / fixed and a note) and export a report: `GET
   /admin/fill-reports/{id}/brief` is the Markdown fix brief
   (`services/fill_brief.py`, format in `../docs/fill-reports.md`;
@@ -397,7 +402,26 @@ Find files with a directory listing; these are the rules for where code goes.
   -m app.scripts.fill_report <id>` (or `--latest`) writes the brief, the
   fixture, its question set and the report to `fill-reports/` (gitignored)
   and names the engine commit the report's engine version was built from.
-  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`.
+  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`,
+  `tests/test_fill_report_groups.py`.
+  **Admin alerts** (KAN-478, `services/fill_report_alerts.py`, run by
+  `app/scripts/send_fill_report_alerts.py` hourly from the job alerts' EC2
+  crontab, migration `c5e7a9b1d024`): a group (signature) none of whose
+  reports an alert has named (`alerted_at`) emails the emails on
+  `WORKIT_ADMINS` through `services/email.py`, at most once an hour, then
+  stamps its reports. No admin's send accepted (no IAM role, SES sandbox
+  refusing an unverified address) stamps nothing, so the next run retries.
+  The migration stamps the reports already stored. Links use `WEB_URL`.
+  Tests: `tests/test_fill_report_alerts.py`.
+  **Daily caps per account** (KAN-478, `services/daily_caps.py`, table
+  `daily_counts`, migration `bafdca0d9501`): 30 fix reports and 50 job
+  system requests a UTC day (`FILL_REPORT_DAILY_CAP`,
+  `JOB_SYSTEM_REQUEST_DAILY_CAP`); the next is a 429 whose sentence the
+  extension shows. `take_daily` runs after the body is validated (a 422
+  costs nothing) and is one upsert that goes up only under the cap, so
+  concurrent requests can't slip past it. A new capped write adds a
+  `Capped` kind, its `<kind>_daily_cap` setting and its sentence.
+  Tests: `tests/test_daily_caps.py`.
   **Job system requests from the extension's popup** (KAN-369,
   `routers/job_system_requests.py`, table `job_system_requests`, migration
   `d8a3f5c1e7b2`): `POST /job-system-requests {"host"}` stores the host of

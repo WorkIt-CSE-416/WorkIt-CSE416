@@ -480,7 +480,7 @@ async function handleMessage(message, sender) {
     case "report/preview":
       return previewReport(sender, message.draft);
     case "report/send":
-      return sendPreviewed(sender, { marked: message.marked, note: message.note });
+      return sendPreviewed(sender, { marked: message.marked, note: message.note, layout: message.layout });
     // The panel's settings view (panel-settings.js, KAN-402): the Claude connection and auto-open.
     case "settings/read":
       return readSettings();
