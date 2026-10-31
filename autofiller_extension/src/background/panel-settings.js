@@ -50,3 +50,18 @@ export async function disconnectClaude() {
   await disconnectConnector((await me()).id);
   return { claude: false };
 }
+
+// The edge tab hidden on every site (KAN-480): the panel's and the edge tab's Hide everywhere set it; Options'
+// "Show the WorkIt tab on job pages" clears it. Alt+W and the toolbar still open the panel.
+export const HIDDEN_EVERYWHERE_KEY = "panel_hidden_everywhere";
+
+/** Whether the student hid the edge tab everywhere. */
+export async function hiddenEverywhere() {
+  return (await chrome.storage.local.get(HIDDEN_EVERYWHERE_KEY))[HIDDEN_EVERYWHERE_KEY] === true;
+}
+
+/** Hides the edge tab everywhere. */
+export async function hideEverywhere() {
+  await chrome.storage.local.set({ [HIDDEN_EVERYWHERE_KEY]: true });
+  return { hiddenEverywhere: true };
+}

@@ -116,3 +116,41 @@ async function listSites() {
 }
 
 listSites();
+
+// The WorkIt tab (KAN-480): Hide everywhere's switch and the sites where the student hid the tab
+// (background.js keeps them: `panel_hidden_everywhere`, and `hidden` in `panel_sites` by host name),
+// each with Remove, which shows the tab there again.
+const HIDDEN_EVERYWHERE_KEY = "panel_hidden_everywhere";
+const PANEL_SITES_KEY = "panel_sites";
+const everywhere = document.getElementById("tab-everywhere");
+const hiddenSites = document.getElementById("hidden-sites");
+
+everywhere.addEventListener("change", async () => {
+  await chrome.storage.local.set({ [HIDDEN_EVERYWHERE_KEY]: !everywhere.checked });
+});
+
+async function listHiddenSites() {
+  const kept = await chrome.storage.local.get([HIDDEN_EVERYWHERE_KEY, PANEL_SITES_KEY]);
+  everywhere.checked = kept[HIDDEN_EVERYWHERE_KEY] !== true;
+  const sitesKept = kept[PANEL_SITES_KEY] ?? {};
+  const hidden = Object.keys(sitesKept).filter((host) => sitesKept[host]?.hidden).sort();
+  hiddenSites.replaceChildren(
+    ...hidden.map((host) => {
+      const item = document.createElement("li");
+      const name = Object.assign(document.createElement("span"), { textContent: host });
+      const remove = Object.assign(document.createElement("button"), { type: "button", className: "secondary", textContent: "Remove" });
+      remove.setAttribute("aria-label", `Remove ${host}`);
+      remove.addEventListener("click", async () => {
+        const now = (await chrome.storage.local.get(PANEL_SITES_KEY))[PANEL_SITES_KEY] ?? {};
+        now[host] = { ...now[host], hidden: false };
+        await chrome.storage.local.set({ [PANEL_SITES_KEY]: now });
+        await listHiddenSites();
+      });
+      item.append(name, remove);
+      return item;
+    }),
+  );
+  if (!hidden.length) hiddenSites.replaceChildren(Object.assign(document.createElement("li"), { className: "muted", textContent: "None." }));
+}
+
+listHiddenSites();

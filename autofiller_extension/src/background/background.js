@@ -21,7 +21,7 @@ import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
 import { batchLine, jobForTab, showNextTab } from "./panel-top.js";
 import { attachedFile, chooseResume, openJob, resumeTab, uploadAndChoose, withTabResume } from "./resume-tab.js";
-import { addClaude, autoOpen, disconnectClaude, readSettings, setAutoOpen } from "./panel-settings.js";
+import { addClaude, autoOpen, disconnectClaude, hiddenEverywhere, hideEverywhere, readSettings, setAutoOpen } from "./panel-settings.js";
 import { previewReport, sendPreviewed } from "./report.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
@@ -412,10 +412,13 @@ async function handleMessage(message, sender) {
       if (job && sender.tab?.id !== undefined) await chrome.action.setPopup({ tabId: sender.tab.id, popup: "" });
       // A job page's panel will plan a fill: its profile is fetched while the page settles.
       if (job) warmProfile();
-      return { job, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen() };
+      return { job, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen(), hiddenEverywhere: await hiddenEverywhere() };
     }
     case "panel/site":
       return { site: await panelSite(sender.url ?? "", message.set) };
+    // The panel's and the edge tab's Hide everywhere (KAN-480); Options' switch turns it back on.
+    case "panel/hide-everywhere":
+      return hideEverywhere();
     // The panel's Autofill This Page and Fill Again: the fill, in the frame that asked (a batch tab stays one).
     // Signed out (panel-states.js, KAN-401): the panel's Sign in to WorkIt opens the webapp's sign-in.
     case "panel/sign-in":
