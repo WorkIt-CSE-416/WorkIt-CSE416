@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.applications import Job_Application
 from app.models.built_resume import Built_Resume
+from app.models.disabled_job_systems import Disabled_Job_System
 from app.models.dto import application_stage, job_post_status
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile, Company_Profile
@@ -86,6 +87,11 @@ async def queue_applications(
         .returning(Job_Application.job_id)
     )
     return set(queued)
+
+
+async def fetch_disabled_job_systems(db: AsyncSession) -> list[str]:
+    """The job systems WorkIt has turned off (KAN-467), by the engine's id, in order."""
+    return list(await db.scalars(select(Disabled_Job_System.job_system).order_by(Disabled_Job_System.job_system)))
 
 
 async def fetch_open_apply_url(db: AsyncSession, job_id: uuid.UUID) -> str | None:

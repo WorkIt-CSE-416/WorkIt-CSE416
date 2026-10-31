@@ -5,9 +5,16 @@ new batch or Auto Apply click queues its postings. Turned back on, both
 come back.
 """
 
+import uuid
+
+import httpx
 import pytest
 
 from app.auto_apply.hosts import JOB_SYSTEMS, job_system_of
+from app.config import get_settings
+from app.deps import get_current_account
+from app.main import app
+from app.schemas.auth import AccountType, AuthenticatedAccount
 
 WORKDAY = "https://acme.wd5.myworkdayjobs.com/en-US/External/job/Remote/Engineer_R123"
 GREENHOUSE = "https://job-boards.greenhouse.io/acme/jobs/7"
@@ -46,3 +53,58 @@ def test_every_job_system_has_a_name_a_student_knows():
         "workday", "waymo", "tiktok", "oracle", "icims", "successfactors",
     }
 
+
+# --- the list: GET /extension/config, and the admins' switch ---
+
+ADMIN = "dev@example.com"
+
+
+def _as(email: str | None) -> None:
+    if email is None:
+        app.dependency_overrides.pop(get_current_account, None)
+        return
+    app.dependency_overrides[get_current_account] = lambda: AuthenticatedAccount(
+        id=uuid.uuid4(), email=email, full_name="Dev", account_type=AccountType.APPLICANT, onboarding_completed=True,
+    )
+
+
+@pytest.fixture
+async def api(database, monkeypatch):
+    monkeypatch.setattr(get_settings(), "workit_admins", ADMIN)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        yield client
+    _as(None)
+
+
+async def _config(api) -> list[dict]:
+    _as(None)  # the extension asks it signed in or not
+    res = await api.get("/extension/config")
+    assert res.status_code == 200, res.text
+    return res.json()["disabled_job_systems"]
+
+
+@pytest.mark.anyio
+async def test_an_admin_turns_a_job_system_off_and_on_and_the_config_says_so(api):
+    assert await _config(api) == []
+
+    _as(ADMIN)
+    res = await api.put("/admin/disabled-job-systems/workday")
+    assert res.status_code == 200, res.text
+    assert await _config(api) == [{"job_system": "workday", "name": "Workday"}]
+
+    _as(ADMIN)
+    assert (await api.put("/admin/disabled-job-systems/workday")).status_code == 200  # again: no change
+    assert (await api.delete("/admin/disabled-job-systems/workday")).status_code == 200
+    assert await _config(api) == []
+
+
+@pytest.mark.anyio
+async def test_only_an_admin_changes_the_list_and_only_to_a_known_job_system(api):
+    _as("sam@example.com")
+    assert (await api.put("/admin/disabled-job-systems/workday")).status_code == 403
+    assert (await api.delete("/admin/disabled-job-systems/workday")).status_code == 403
+    _as(None)
+    assert (await api.put("/admin/disabled-job-systems/workday")).status_code == 401
+    _as(ADMIN)
+    assert (await api.put("/admin/disabled-job-systems/myspace")).status_code == 422
+    assert await _config(api) == []
