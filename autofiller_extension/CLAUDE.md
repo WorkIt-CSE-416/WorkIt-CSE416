@@ -266,8 +266,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
 - **TikTok's form is behind the site's own sign-in, the student's
   (KAN-369).** TikTok and ByteDance share one form and the engine's
   `"tiktok"` Filler (`lifeattiktok.com`, `careers.tiktok.com`,
-  `jobs.bytedance.com`, `joinbytedance.com`); a posting's form
-  (`/resume/<id>/apply`) sends a signed-out student to
+  `jobs.bytedance.com`, `joinbytedance.com`, and TikTok USDS's
+  `careers.tiktokusds.com`, whose pages sit under `/usds`, KAN-472); a
+  posting's form (`/resume/<id>/apply`) sends a signed-out student to
   `/login?redirect_path=...`. WorkIt never signs in there and never types
   an email or password: on the sign-in (`engine.js`'s `signInFirst`, or the
   engine's `readQuestions` throwing `Handoff` on a page with a password
@@ -414,15 +415,23 @@ way). Once granted, `popup/allow` keeps the origin (chrome.storage.local
 `allowed_sites`), registers the launcher's files for it
 (`registerContentScripts`, id `site-<host>`, kept across restarts), runs
 them in the tab at once, and answers what it found: the engine's own
-reading of the page (`pageJobUrl`: `jobOf` of the link, or a
-SuccessFactors career-site posting its page marks with rmkcdn assets or
-`data-careersite-propertyid`, read as `ats=successfactors`), in which case
+reading of the page (`pageJobUrl`: `jobOf` of the link, or a job system
+the page's markup names, the engine's `PAGE_MARKS`: a SuccessFactors
+career-site posting's rmkcdn assets or `data-careersite-propertyid`, a
+Workday career site's `/wday/asset/` candidate-experience scripts (KAN-472),
+read as `ats=<site>`), in which case
 the panel opens; or a frame showing a form the engine covers ("Open
 WorkIt's tab at the right edge of the application form"); or nothing
 ("WorkIt found no application it fills on this page.", with Request this
 job system kept). `panel/where`, `fill/*` and the toolbar read the page
 through `pageJobUrl`. A SuccessFactors posting's panel says to press Apply
 and sign in (its form is the career site's, which the manifest covers).
+A Workday career site on the employer's domain is Workday's whole
+application there: the content scripts know it by the same scripts
+(`panel.js`'s `WIA.onWorkday`, which `workday.js` reads), and its steps
+fill as on `*.myworkdayjobs.com`. Not covered there yet: the Create Account
+/ Sign In watch (`workday-logins.js` `watchWorkdaySends` listens only on
+Workday's own hosts) and the closed-job words (`closed-posting.js`).
 The options page's Sites You Allowed lists them with Remove
 (`sites/remove`: `chrome.permissions.remove`, then the scripts go);
 Chrome's own removal is followed at the worker's start and on

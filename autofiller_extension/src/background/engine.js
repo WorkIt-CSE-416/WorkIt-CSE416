@@ -36,6 +36,23 @@ export function jobOf(url) {
 }
 
 /**
+ * The job systems an employer's own domain may host, each with the selector
+ * that marks its pages (Workday's career site, SuccessFactors'): the engine's
+ * PAGE_MARKS, looked for in the tab, where the engine isn't loaded.
+ */
+export const PAGE_MARKS = engine.PAGE_MARKS;
+
+/**
+ * `url` marked as `site`'s (`ats=<site>`), as the engine reads such a link,
+ * or `url` itself where the engine covers it; null where it covers neither.
+ * @param {string} url
+ * @param {string | null} site
+ */
+export function markedLink(url, site) {
+  return engine.markedLink(url, site);
+}
+
+/**
  * The posting's company and title, as the Fill engine reads them from its
  * job system (the panel's job card when WorkIt has no posting for the page).
  * @param {string} url
@@ -94,7 +111,8 @@ const readOffPage = (job) => engine.stepped(job.site) || READ_OFF_PAGE.has(job.s
  */
 export function signInFirst(url) {
   const job = jobOf(url);
-  return job?.site === "tiktok" && !job.onForm && /^\/(login|create-?account|register)\b/i.test(new URL(url).pathname);
+  // TikTok USDS keeps its pages, sign-in too, under /usds.
+  return job?.site === "tiktok" && !job.onForm && /^(\/usds)?\/(login|create-?account|register)\b/i.test(new URL(url).pathname);
 }
 
 /** The link to open for an application: its form, where the engine covers the job system. */
