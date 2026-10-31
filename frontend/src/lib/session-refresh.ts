@@ -8,7 +8,15 @@
  */
 export const ROTATE_WITHIN_S = 3 * 60;
 
-/** Whether a session expiring at `expiresAt` (Unix seconds) is due for rotation at `nowMs`. */
-export function needsRotation(expiresAt: number | undefined, nowMs: number): boolean {
-  return expiresAt === undefined || expiresAt - nowMs / 1000 <= ROTATE_WITHIN_S;
+/**
+ * Whether a session expiring at `expiresAt` (Unix seconds) is due for rotation at `nowMs`.
+ * `force` (the route's `?force=1`) rotates it whatever its expiry: the extension sends it
+ * when the API refused a token the clock says is still good (revoked, or a skewed clock).
+ */
+export function needsRotation(
+  expiresAt: number | undefined,
+  nowMs: number,
+  { force = false }: { force?: boolean } = {},
+): boolean {
+  return force || expiresAt === undefined || expiresAt - nowMs / 1000 <= ROTATE_WITHIN_S;
 }

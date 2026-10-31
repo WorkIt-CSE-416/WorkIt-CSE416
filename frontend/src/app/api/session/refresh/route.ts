@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 import { needsRotation } from "@/lib/session-refresh";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -15,7 +15,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  *
  * src/proxy.ts runs first, as on every app request, and refreshes an
  * expired token itself. This route also rotates one inside
- * ROTATE_WITHIN_S, the extension's window. With no valid refresh token,
+ * ROTATE_WITHIN_S, the extension's window, and always with `?force=1`,
+ * which the extension sends on its retry after the API answered 401 (a
+ * token refused before its expiry would otherwise come back unchanged).
+ * With no valid refresh token,
  * Supabase clears the cookie and this answers 401: the extension then
  * shows its signed-out state.
  *
@@ -23,14 +26,15 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  */
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const force = request.nextUrl.searchParams.get("force") === "1";
   const supabase = await createSupabaseServerClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
   let signedIn = Boolean(session);
-  if (session && needsRotation(session.expires_at, Date.now())) {
+  if (session && needsRotation(session.expires_at, Date.now(), { force })) {
     const { data, error } = await supabase.auth.refreshSession();
     signedIn = !error && Boolean(data.session);
   }
