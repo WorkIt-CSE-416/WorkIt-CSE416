@@ -55,9 +55,9 @@ window.WIA = window.WIA || {};
         all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500;
         display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: var(--radius-control);
       }
-      .essay-banner button[data-generate] { background: var(--color-advanced); color: var(--color-on-brand); }
+      .essay-banner button[data-write-claude] { background: var(--color-advanced); color: var(--color-on-brand); }
       .essay-banner button[data-dismiss] { background: var(--color-panel); color: var(--color-ink); border: 1px solid var(--color-border-subtle); }
-      .essay-banner button[data-generate] svg { width: 12px; height: 12px; }
+      .essay-banner button[data-write-claude] svg { width: 12px; height: 12px; }
       .essay-banner button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       /* A moment's card (KAN-387): something onboarding left for the form that first needs it. */
       .moment { padding: 10px 12px; background: var(--color-brand-tint); border-radius: var(--radius-card); }
@@ -182,9 +182,9 @@ window.WIA = window.WIA || {};
     const made = (open ? window.WIA.resumeCard?.card(field) : null) ?? window.WIA.rowCard?.for(field) ?? null;
     const card = open || field.status !== "failed" ? made : null;
     // The waiting box's head says once how their Claude writes these (groups.js), so its rows don't each say it.
-    const waitLine = field.status === "needs_generation" && field.claude && /^Waiting for your Claude/.test(field.reason ?? "");
-    // needs_generation's reason says who writes it (a batch tab: the student's Claude, KAN-377).
-    if (!card && !waitLine && (field.status === "failed" || field.status === "skipped" || field.status === "needs_generation" || field.status === "pending") && field.reason) {
+    const waitLine = field.status === "needs_writing" && field.claude && /^Waiting for your Claude/.test(field.reason ?? "");
+    // needs_writing's reason says who writes it (a batch tab: the student's Claude, KAN-377).
+    if (!card && !waitLine && (field.status === "failed" || field.status === "skipped" || field.status === "needs_writing" || field.status === "pending") && field.reason) {
       const reason = document.createElement("div");
       reason.className = field.status === "failed" ? "reason" : "reason note";
       reason.textContent = field.reason;
@@ -197,8 +197,8 @@ window.WIA = window.WIA || {};
     if (card) text.appendChild(card);
     // The waiting card (card-waiting.js), a paste box, on the opened row only (KAN-424). A flagged answer sent back
     // to their Claude (Rewrite) stays in the red box, under no waiting box's head, so its row keeps Write with Claude.
-    if (field.status === "needs_generation" && field.claude && field.flag) text.appendChild(startClaude());
-    if (field.status === "needs_generation" && field.claude && open && window.WIA.waitingCard) text.appendChild(window.WIA.waitingCard.card(field));
+    if (field.status === "needs_writing" && field.claude && field.flag) text.appendChild(startClaude());
+    if (field.status === "needs_writing" && field.claude && open && window.WIA.waitingCard) text.appendChild(window.WIA.waitingCard.card(field));
     // The flag card (card-flag.js): the reason, the flagged sentence, Keep / Rewrite with Claude / Edit myself.
     if (field.flag && window.WIA.flagCard) {
       el.dataset.flagged = "";
@@ -311,11 +311,11 @@ window.WIA = window.WIA || {};
    * or to their paste on Written Answers. Nothing goes to WorkIt until they
    * press it; `onDismiss` fires just as explicitly on Not Now, so a declined
    * page still resolves to a definite state rather than sitting at
-   * "needs_generation" forever. The banner removes itself once a choice is
+   * "needs_writing" forever. The banner removes itself once a choice is
    * made; calling this again (a second "Autofill This Page" run) rebuilds it.
-   * @param {{ count: number, onGenerate: () => void, onDismiss: () => void }} options
+   * @param {{ count: number, onWriteWithClaude: () => void, onDismiss: () => void }} options
    */
-  function promptForEssays({ count, onGenerate, onDismiss }) {
+  function promptForEssays({ count, onWriteWithClaude, onDismiss }) {
     if (!root || count <= 0) return;
     const banner = root.querySelector(".essay-banner");
     banner.hidden = false;
@@ -323,7 +323,7 @@ window.WIA = window.WIA || {};
     banner.innerHTML = `
       <p>${count} question${many ? "s need" : " needs"} writing. Your Claude can write ${many ? "them" : "it"} from your experience, or you can paste your own on Written Answers.</p>
       <div class="row">
-        <button type="button" data-generate>${SPARKLE}Write with Claude</button>
+        <button type="button" data-write-claude>${SPARKLE}Write with Claude</button>
         <button type="button" data-dismiss>Not Now</button>
       </div>
     `;
@@ -331,9 +331,9 @@ window.WIA = window.WIA || {};
       banner.hidden = true;
       banner.innerHTML = "";
     };
-    banner.querySelector("[data-generate]").addEventListener("click", window.WIA.ui.trusted(() => {
+    banner.querySelector("[data-write-claude]").addEventListener("click", window.WIA.ui.trusted(() => {
       hide();
-      onGenerate();
+      onWriteWithClaude();
     }));
     banner.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => {
       hide();

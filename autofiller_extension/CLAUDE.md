@@ -1784,7 +1784,7 @@ photo for forms.
 Open-ended questions ("Why do you want to work here?") have no fixed
 answer. The Fill engine's Plan says which questions need writing (its
 essays, and its drafts but a file; `engine.js`'s `planRows`), and the
-overlay lists each as "needs_generation" (`lib-status.js`). **WorkIt calls
+overlay lists each as "needs_writing" (`lib-status.js`). **WorkIt calls
 no model for them**, on any tab: the student's own Claude writes them
 through the connector, or the student pastes their own on the webapp's
 Written Answers page, exactly as on a batch tab (below). The server's
