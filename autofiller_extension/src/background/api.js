@@ -17,7 +17,7 @@
 // CORS on the FastAPI app for this extension's origin is the fallback.
 
 import { DEV_API_URL, PROD_SITES } from "../shared/config.js";
-import { getSession } from "./auth.js";
+import { getSession, refreshSession } from "./auth.js";
 
 const CACHE_KEY = "workit_autofill_profile";
 // Re-fetch after this long even on a cache hit, so a profile edit made in
@@ -76,15 +76,22 @@ async function apiRequest(path, init = {}) {
   if (!session) throw new ApiError(401, "Not signed in");
 
   const base = await apiUrl(session);
-  const response = await fetch(`${base}${path}`, {
+  const send = (token) => fetch(`${base}${path}`, {
     ...init,
     headers: {
       // A FormData body (uploadResume) sets its own multipart type, with its boundary.
       ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
-      Authorization: `Bearer ${session.access_token}`,
+      Authorization: `Bearer ${token}`,
       ...init.headers,
     },
   });
+  let response = await send(session.access_token);
+  // A refused token (expired early, or revoked): the webapp refreshes the session once (auth.js), then one retry.
+  if (response.status === 401) {
+    const renewed = await refreshSession(session);
+    if (!renewed) throw new ApiError(401, "Not signed in");
+    if (renewed.access_token !== session.access_token) response = await send(renewed.access_token);
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
