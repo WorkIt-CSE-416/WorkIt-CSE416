@@ -22,8 +22,11 @@
     },
     {
       "site": "rippling",
-      "board": "collieraerospace",
-      "pinned": ["https://ats.rippling.com/collieraerospace/jobs/f2dd7c17-0959-4ce4-85ba-b614a5b0ae74"],
+      "board": "rippling",
+      "pinned": [
+        "https://ats.rippling.com/rippling/jobs/84d388b6-7656-434c-8862-0312eb6b97ac",
+        "https://ats.rippling.com/rippling/jobs/a07e4e46-3721-4934-b57b-0d58412e22ba"
+      ],
       "onPage": ["first_name", "last_name", "email", "phone_number", "resume"]
     },
     {
