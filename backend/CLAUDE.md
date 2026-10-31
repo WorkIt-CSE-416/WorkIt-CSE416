@@ -404,6 +404,15 @@ Find files with a directory listing; these are the rules for where code goes.
   and names the engine commit the report's engine version was built from.
   Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`,
   `tests/test_fill_report_groups.py`.
+  **Admin alerts** (KAN-478, `services/fill_report_alerts.py`, run by
+  `app/scripts/send_fill_report_alerts.py` hourly from the job alerts' EC2
+  crontab, migration `c5e7a9b1d024`): a group (signature) none of whose
+  reports an alert has named (`alerted_at`) emails the emails on
+  `WORKIT_ADMINS` through `services/email.py`, at most once an hour, then
+  stamps its reports. No admin's send accepted (no IAM role, SES sandbox
+  refusing an unverified address) stamps nothing, so the next run retries.
+  The migration stamps the reports already stored. Links use `WEB_URL`.
+  Tests: `tests/test_fill_report_alerts.py`.
   **Daily caps per account** (KAN-478, `services/daily_caps.py`, table
   `daily_counts`, migration `bafdca0d9501`): 30 fix reports and 50 job
   system requests a UTC day (`FILL_REPORT_DAILY_CAP`,

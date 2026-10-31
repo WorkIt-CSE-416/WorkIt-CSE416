@@ -62,3 +62,5 @@ class Fill_Report(Base):
     status: Mapped[str] = mapped_column(String(16), server_default="new")
     admin_note: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # When an admin alert named this report's group (app/services/fill_report_alerts.py, KAN-478).
+    alerted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))

@@ -29,6 +29,10 @@ An admin is an account whose email or id is on the API's `WORKIT_ADMINS`.
   wrong, as `Marked`), are one group with a count, at the top of
   `/admin/fill-reports` and at `GET /admin/fill-report-groups`. Twenty
   students hitting one broken field make one group of 20.
+- **Alerts** (KAN-478): a new group emails the emails on `WORKIT_ADMINS`
+  within the hour, at most once an hour (`app/scripts/send_fill_report_alerts.py`
+  on the EC2 crontab). While SES is in its sandbox, only verified addresses
+  get it (KAN-483 lifts that).
 - **Script**, from `backend/`: `uv run python -m app.scripts.fill_report <id>`
   (or `--latest [--job-system greenhouse]`) writes `fill-reports/fill-report-<id8>/`:
   `brief.md`, `fill-report-<id8>.html` (the fixture), `question-set.json` (the
