@@ -47,8 +47,11 @@ async def test_a_chat_is_handed_its_applications_in_order_and_saves_their_place(
             too_long = await client.call_tool(
                 "save_answers", {"job_id": first["job_id"], "answers": [{"name": "why", "answer": "x" * 201, "unsupported": [], "plan": PLAN}]})
             assert too_long.is_error
-            await client.call_tool(
+            saved = await client.call_tool(
                 "save_answers", {"job_id": first["job_id"], "answers": [{"name": "why", "answer": "Buses.", "unsupported": [], "plan": PLAN}]})
+            # A save that passes reads the posting and the saved answers back without a database.
+            assert not saved.is_error
+            assert saved.structured_content["left"] == 0
             second = (await client.call_tool("get_next_application", {"chat": first["chat"]})).structured_content
 
     assert second["company"] == "Bolt"
