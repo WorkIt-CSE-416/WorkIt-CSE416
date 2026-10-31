@@ -39,6 +39,12 @@ const FORWARDED = [
   "AI_PARSING_SHARE",
   "AI_ASSISTANT_SHARE",
   "AI_ESSAY_SHARE",
+  // The connector (KAN-377): unforwarded, its OAuth issuer and MCP address
+  // were http://localhost:8000, so no student's Claude could sign in.
+  "CONNECTOR_API_URL",
+  "CONNECTOR_WEB_URL",
+  "CONNECTOR_CHAT_CAP",
+  "CONNECTOR_LOOPBACK_REDIRECTS",
 ] as const;
 
 type Env = { API: DurableObjectNamespace<Api>; VERSION: WorkerVersionMetadata } & Partial<Record<(typeof FORWARDED)[number], string>>;

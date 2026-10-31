@@ -1324,7 +1324,12 @@ go then. A change needs to work on Cloudflare only.
   Worker's `Api` class copies the names in its `FORWARDED` list into the
   container's environment, skipping any the Worker lacks so the code's
   default applies. **A new setting the API reads must join `FORWARDED`**, or
-  the container never sees it. **A container keeps the environment it
+  the container never sees it: the connector's `CONNECTOR_*` were left out,
+  so production's OAuth issuer and MCP address read `http://localhost:8000`
+  and no student's Claude could sign in (KAN-377, found 2026-10-31). A public
+  value (the connector's two URLs) is a `vars` entry in `wrangler.jsonc`,
+  forwarded the same way; never also put its name in `CF_API_SECRETS_JSON`,
+  since a var and a secret cannot share a name. **A container keeps the environment it
   started with**, and an `Api` object that finds its container running
   attaches to it as it is, so after a secret change one instance went on
   answering with the old values (2026-10-21). `Api.fetch` therefore stores
