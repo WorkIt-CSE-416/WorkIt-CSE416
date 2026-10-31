@@ -157,6 +157,9 @@ export class FakeApi {
     return this;
   }
 
+  /** The access token the API takes (signIn's): change it to expire the one the student signed in with. */
+  token = "test-access-token";
+
   readonly handler: Handler = ({ url, method, headers, body }) => {
     if (url.host !== "localhost:8000") return undefined;
     const path = url.pathname;
@@ -167,7 +170,7 @@ export class FakeApi {
       if (this.configDown) return { status: 503, json: { detail: "Service Unavailable" } };
       return { json: { disabled_job_systems: this.disabledJobSystems } };
     }
-    if (headers.authorization !== "Bearer test-access-token") return { status: 401, json: { detail: "Not signed in" } };
+    if (headers.authorization !== `Bearer ${this.token}`) return { status: 401, json: { detail: "Not signed in" } };
     if (path === "/fill-reports" && method === "POST") {
       this.reports.push(JSON.parse(body.toString()));
       return { status: 201, json: { stored: true } };
