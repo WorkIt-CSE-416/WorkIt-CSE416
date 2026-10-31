@@ -18,6 +18,7 @@ import {
   use,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -59,6 +60,7 @@ import {
 } from "../download-menu";
 import { Assistant } from "./assistant";
 import { FitToast } from "./fit-notice";
+import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import {
   HEADER,
   LINK_FIELDS,
@@ -546,6 +548,23 @@ export function Editor({
     [countSteps],
   );
 
+  // A rename in the title is a step too (./resume-title.tsx): the title
+  // records it and hands over its own rename, which Undo and Redo call
+  const applyName = useRef<ApplyName | null>(null);
+  const titleHistory = useMemo<TitleHistory>(
+    () => ({
+      record: (from, to) => {
+        const step = record({ name: to });
+        step.undo = { name: from };
+        return () => forget(step);
+      },
+      attach: (apply) => {
+        applyName.current = apply;
+      },
+    }),
+    [forget, record],
+  );
+
   /**
    * Puts the saved resume back after a save failed (KAN-391): once every
    * save sent before has answered, the bank, the choices and a PDF read
@@ -869,6 +888,7 @@ export function Editor({
         const pdf = back ? step.pdfBefore : step.pdfAfter;
         const saved = back ? step.after : step.before;
         if (!edit) return;
+        if ("name" in edit) return applyName.current?.(edit.name, () => forget(step));
         if (state && pdf && saved?.printed) {
           restore(state, pdf);
           const source = {
@@ -891,7 +911,7 @@ export function Editor({
         }
       });
     },
-    [apply, countSteps, enqueue, restore, saveText, select, sendChoices, sendLine],
+    [apply, countSteps, enqueue, forget, restore, saveText, select, sendChoices, sendLine],
   );
 
   // Cmd+Z (Ctrl+Z) undoes, Shift+Cmd+Z or Ctrl+Y redoes; inside a field the
@@ -1516,7 +1536,9 @@ export function Editor({
   return (
     <div className="mt-4 flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="min-w-0 flex-1">{heading}</div>
+        <div className="min-w-0 flex-1">
+          <TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>
+        </div>
         {reviewTools && <SideSwitch review={reviewTools} />}
       </div>
       {grid}

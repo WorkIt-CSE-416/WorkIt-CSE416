@@ -1690,7 +1690,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   outlive the database it describes (another tab's edit, a reload).
   Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
   own text undo runs. An open line is saved first, so Undo takes back
-  what was just typed.
+  what was just typed. **A rename in the title is a step too**
+  (KAN-443, `TitleHistoryContext` in `resume-title.tsx`, provided by the
+  editor round its title row): it shows at once, saves behind it, and a
+  failed save puts the name before it back and drops the step. Its step
+  keeps no state or PDF, since no PDF prints the name, so Undo and Redo
+  only save. Undo skipped the title until then.
 - **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
   text is kept per line (`drafts`, by box key) and drawn over the line
   until the PDF that prints it has painted: the selected line as its

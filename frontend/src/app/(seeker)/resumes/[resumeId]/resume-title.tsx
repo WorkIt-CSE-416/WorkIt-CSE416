@@ -167,10 +167,7 @@ export function ResumeTitle({
               close(true);
             }
           }}
-          className={cn(
-            BOX,
-            "bg-panel ring-brand-ring w-full min-w-0 ring-2 outline-none",
-          )}
+          className={cn(BOX, "bg-panel ring-brand-ring w-full min-w-0 ring-2 outline-none")}
         />
       )}
       {error && (
