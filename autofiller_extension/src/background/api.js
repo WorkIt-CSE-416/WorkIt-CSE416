@@ -49,8 +49,21 @@ async function reachable(url) {
 async function apiUrl(session) {
   devApiReachable ??= await reachable(DEV_API_URL);
   if (devApiReachable) return DEV_API_URL;
-  const site = PROD_SITES.find((s) => s.web === session.web_origin) ?? PROD_SITES[0];
+  const site = PROD_SITES.find((s) => s.web === session?.web_origin) ?? PROD_SITES[0];
   return site.api;
+}
+
+/**
+ * GET of a public route (no sign-in, no Bearer header): the extension's
+ * remote config (remote-config.js), read signed out too. Gives up after
+ * `timeout` ms, so a down API never holds up the panel.
+ * @param {string} path
+ */
+export async function publicFetch(path, timeout = 3000) {
+  const base = await apiUrl(await getSession().catch(() => null));
+  const response = await fetch(`${base}${path}`, { signal: AbortSignal.timeout(timeout) });
+  if (!response.ok) throw new ApiError(response.status, errorMessage(response.status, await response.json().catch(() => ({}))));
+  return response.json();
 }
 
 class ApiError extends Error {

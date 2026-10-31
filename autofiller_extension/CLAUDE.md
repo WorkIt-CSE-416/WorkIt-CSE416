@@ -1477,7 +1477,9 @@ checking the student owns the application: a tab's state (`PUT
 `POST /fill-reports` (`routers/fill_reports.py`): no applicant in the path;
 the row names the signed-in sender, who alone can read it back. The popup's Request this job system
 (KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
-the host alone, no account in the row. The rest are older:
+the host alone, no account in the row. The off switch (KAN-467) reads `GET
+/extension/config` (`routers/extension_config.py`), public and sent with no
+token: it names only the job systems turned off. The rest are older:
 
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
@@ -2043,6 +2045,22 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   at once draws the step's line, "Workday: My Experience · Filling this
   step…" (content-script.js), with the button at Filling…; the step's rows
   follow as it fills.
+- **A job system WorkIt turned off** (KAN-467, `src/background/remote-config.js`):
+  when a job system's markup changes and fills break, an admin turns it off
+  on the API (`backend/CLAUDE.md`, "The per-job-system off switch") and
+  the extension stops filling it with no Store release. The worker reads
+  `GET /extension/config` (public, no Bearer; `api.js` `publicFetch`, 3 s
+  timeout) as it starts, and again at the next panel or fill once the copy
+  in chrome.storage.local `workit_remote_config` is 15 minutes old, so a
+  switch reaches a student within 15 minutes. A read that fails keeps the
+  last copy; with none, every job system fills. It is data, never code
+  (Manifest V3 forbids remote code, not JSON). `fill/available` answers the
+  page's job system name (`jobOf(url).site`) when it is off: the panel's
+  `start()` shows "WorkIt can't fill Workday right now" in place of its
+  button, and `content-script.js` checks it before anything fills, types
+  or presses (Workday's sign-in too), shows the same as a failed row and
+  stops, so a batch tab needs the student. Test:
+  `test/job-system-off.extension.spec.ts`.
 - **Errors**: every failed request the panel or popup makes is a plain
   sentence with Try again (or the same button, which retries), never a
   status code or the route's raw words.
