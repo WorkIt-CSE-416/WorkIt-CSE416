@@ -387,7 +387,12 @@ Find files with a directory listing; these are the rules for where code goes.
   **Admins** are the emails or account ids on `WORKIT_ADMINS`
   (`app/config.py`; `deps.get_admin`, 403 to anyone else): there is no
   admin role in the database. They list (`GET /admin/fill-reports`, newest
-  first, `?job_system=&status=`), read, triage (`PATCH`, status new /
+  first, `?job_system=&status=&engine_version=&signature=`), see them
+  grouped (KAN-478: `GET /admin/fill-report-groups`, one line per
+  `signature`, "<job system>:<field kind>:<error>" of the first field that
+  went wrong, else the first marked one as `Marked`, stored on the row by
+  `schemas/fill_reports.py`'s `signature_of`, migration `b2d4f6a8c013`,
+  with its count and engine versions), read, triage (`PATCH`, status new /
   triaged / fixed and a note) and export a report: `GET
   /admin/fill-reports/{id}/brief` is the Markdown fix brief
   (`services/fill_brief.py`, format in `../docs/fill-reports.md`;
@@ -397,7 +402,46 @@ Find files with a directory listing; these are the rules for where code goes.
   -m app.scripts.fill_report <id>` (or `--latest`) writes the brief, the
   fixture, its question set and the report to `fill-reports/` (gitignored)
   and names the engine commit the report's engine version was built from.
-  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`.
+  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`,
+  `tests/test_fill_report_groups.py`.
+  **Admin alerts** (KAN-478, `services/fill_report_alerts.py`, run by
+  `app/scripts/send_fill_report_alerts.py` hourly from the job alerts' EC2
+  crontab, migration `c5e7a9b1d024`): a group (signature) none of whose
+  reports an alert has named (`alerted_at`) emails the emails on
+  `WORKIT_ADMINS` through `services/email.py`, at most once an hour, then
+  stamps its reports. No admin's send accepted (no IAM role, SES sandbox
+  refusing an unverified address) stamps nothing, so the next run retries.
+  The migration stamps the reports already stored. Links use `WEB_URL`.
+  Tests: `tests/test_fill_report_alerts.py`.
+  **Daily caps per account** (KAN-478, `services/daily_caps.py`, table
+  `daily_counts`, migration `bafdca0d9501`): 30 fix reports, 50 job
+  system requests and 2,000 fill events (KAN-476) a UTC day
+  (`FILL_REPORT_DAILY_CAP`, `JOB_SYSTEM_REQUEST_DAILY_CAP`,
+  `FILL_EVENT_DAILY_CAP`); the next is a 429 whose sentence the
+  extension shows. `take_daily` runs after the body is validated (a 422
+  costs nothing) and is one upsert that goes up only under the cap, so
+  concurrent requests can't slip past it. A new capped write adds a
+  `Capped` kind, its `<kind>_daily_cap` setting and its sentence.
+  Tests: `tests/test_daily_caps.py`.
+  **Fill numbers** (KAN-476, decided in KAN-454; `routers/fill_events.py`
+  over `queries/fill_events.py`, table `fill_events`, migration
+  `a7f3c9e1d476`): after every fill, single or batch, the extension sends
+  `POST /fill-events` with the job system, the engine's and the
+  extension's versions, `mode`, the field counts (`fields`, `filled`,
+  `guessed`, `needs_you`, `failed`), the error names with a count each
+  (fix reports' `ErrorName`) and `duration_ms`. **Never a value, an answer
+  or a link**: every part is a pattern, a count or a listed name, and any
+  other key is 422. The row names no account; each account sends at most
+  `FILL_EVENT_DAILY_CAP` (2,000) a UTC day through `take_daily` (the
+  `fill_event` kind; 429 past it, which the extension drops).
+  It is on for every student; the extension's settings have the opt-out.
+  **Kept 90 days**: KAN-482's daily purge deletes older rows
+  (`services/retention.py` RETENTION's `fill_events` rule). Admins read
+  `GET /admin/fill-health?days=&engine_version=`: per job system per day
+  (UTC), fills, `clean_share` (no failed field), `needs_you_rate`
+  (needs-you fields over all fields) and the top 3 error names, plus the
+  period's engine versions for the filter. A job system that breaks shows
+  as its `clean_share` dropping that day. Tests: `tests/test_fill_events.py`.
   **Job system requests from the extension's popup** (KAN-369,
   `routers/job_system_requests.py`, table `job_system_requests`, migration
   `d8a3f5c1e7b2`): `POST /job-system-requests {"host"}` stores the host of
@@ -1155,7 +1199,8 @@ Find files with a directory listing; these are the rules for where code goes.
   plain values, nothing to rotate — a run from anywhere without that role
   (local dev, GitHub Actions) has `send_email` log and return `False`,
   same as a bounced send. **Still open: the SES account is in its
-  sandbox** (production access not yet requested), so a real send to an
+  sandbox** (production access not yet requested; the request text is in
+  `docs/email-sending.md`), so a real send to an
   address SES hasn't individually verified is rejected the same
   best-effort way. The AWS/EC2-side setup (SES identity, the IAM role,
   the instance, the crontab) is a human runbook, run by hand, not code:
@@ -1167,6 +1212,17 @@ Find files with a directory listing; these are the rules for where code goes.
   `--dry-run` builds and reports every digest, writing and sending
   nothing. Tests: `tests/test_job_alerts.py`, `tests/test_notifications.py`,
   `tests/test_email.py`.
+- **Notices to every user** (KAN-483, `services/notices.py`;
+  `docs/email-sending.md` has the SES and DNS steps). `scripts/send_notice.py`
+  sends one notice to every active account (applicants plus active company
+  members), one message per address, paced by `--rate`; `--campaign` keys
+  the send log `email_sends`, so a re-run reaches only the addresses it
+  missed. A real run needs `--to` (a test list) or `--all-accounts`.
+  `scripts/send_closure_notice.py` sends the one closure email. Both first
+  copy SES's account suppression list into `email_suppressions`, and
+  nothing (including the job-alert email) is sent to an address on it.
+  Every notice link must be https on workitjobs.ai (`check_link`). Tests:
+  `tests/test_notices.py`, with a fake SES.
 - **The autofiller calls no model** (KAN-470): the essay-answer route
   (KAN-164) is gone. A question that needs writing is the student's own
   Claude's, through the connector, or their paste on Written Answers, on a

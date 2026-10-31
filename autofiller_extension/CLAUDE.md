@@ -1529,7 +1529,10 @@ the row names the signed-in sender, who alone can read it back. The popup's Requ
 (KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
 the host alone, no account in the row. The off switch (KAN-467) reads `GET
 /extension/config` (`routers/extension_config.py`), public and sent with no
-token: it names only the job systems turned off. The rest are older:
+token: it names only the job systems turned off. Every fill sends `POST
+/fill-events` (KAN-476, `routers/fill_events.py`; "Fill numbers" below):
+counts and error names only, with the sender for the backend's daily cap.
+The rest are older:
 
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
@@ -1556,7 +1559,14 @@ started before the edit. A cached profile is used only for the account
 signed in, read from the access token's `sub` (`webapp-session.js`) with no
 API call: before KAN-312, one cached under ten minutes ago was used for
 whoever signed in next, so a second student on the same Chrome got the
-first one's name and answers. Past its 10 min TTL a profile under a day old
+first one's name and answers. Nor does it stay on disk: a sign-out or
+another account's sign-in deletes the cached profile, each tab's switched
+résumé and the report previews (`account-data.js`, KAN-469), as soon as the
+webapp's session cookie changes (`auth.js`) or the next call reads the
+session; a fetch under way is shared only with its own account's callers,
+and cached only if that account is still signed in. The Workday logins and
+the allowed sites stay: they are the browser's, not one account's
+(`test/sign-out.extension.spec.ts`). Past its 10 min TTL a profile under a day old
 is used at once while a fresh one is fetched behind (a cold API answered in
 4-9 s live); an older one is waited for. The
 fetch starts before anything waits for it (`warmProfile`): as the webapp
@@ -1657,6 +1667,27 @@ the bank, with no new input: `experience_facts.prior_internships_count`
   answer on a legal-eligibility or self-identification question is worse
   than one the student fills in. The Plan lists it as a Missing fact; the
   overlay marks it failed when the form requires it, skipped when not.
+
+## Fields to autofill (KAN-480): a category switched off is the student's
+
+Options' **Fields to Autofill** card has one switch a category, as
+Simplify's settings do: Contact info, Location, Documents, Education,
+Experience, Demographics and Work authorization
+(`src/shared/autofill-categories.js`, `CATEGORIES`, each with the engine
+profile's facts it covers). The ids switched off are `autofill_off` in
+chrome.storage.local (`panel-settings.js` `autofillOff`), read for each
+`fill/plan`. `engine.js`'s `holdBack` plans once more per category off,
+without that category's facts (`withoutCategory`): the answers that Plan
+doesn't give the same are the category's, so which questions they are is
+the engine's to say, never a list of labels. They leave the Plan's answers
+for `plan.off`, and `planRows` gives them as `rows.off`; content-script.js
+registers each with its category (`off`) and leaves it pending with "<Category>
+autofill is off in WorkIt's Options. Answer it yourself." lib-status.js's
+`needsYou` counts such a row, required or not, while it stays empty, so
+the list, the counts and Next Thing agree. Nothing saved is written or
+deleted: only the Plan's profile goes without the facts. With Demographics
+off, a form's self-identification is not asked to be saved either
+(`selfId` is null). Tests: `test/student-controls.extension.spec.ts`.
 
 ## Attaching the student's resume file
 
@@ -1839,7 +1870,8 @@ view. **The ⋯ menu** (`panel.menuItem(id, { label, onPress, order } |
 null)`, role menu, shut by Escape, a press elsewhere in the panel or an
 item) holds, by `order`: I submitted this (10) and Skip (20) in a batch
 tab (overlay.mount), Fill Again (30) after a fill (primary.js), Report a
-problem (40) and Settings (50), the shell's own. Each item carries
+problem (40), Settings (50), Hide on this site (60) and Hide everywhere
+(70), the shell's own. Each item carries
 `data-<id>` (`[data-skip]`, `[data-submitted]`, `[data-again]`); an item
 that changes something passes its `onPress` through `ui.trusted`. Tests
 open it with `menuItem(host, name)` (test/loaded-extension.ts).
@@ -1878,12 +1910,20 @@ Page opens it (it is open already).
 ×, `data-close` kept for older tests) leaves it on the right edge. It is
 dragged up and down (a move under 4 px is a press, which opens the panel);
 its ⋯ menu has **Hide until next visit** (this page only: the next page
-load shows it again) and **Hide on this site**. Per site (host name),
+load shows it again), **Hide on this site** and **Hide everywhere**
+(KAN-480, KAN-457's decision: the tab shows on every supported posting, and
+the student can hide it). The panel's own ⋯ menu has the last two as well;
+from there the panel closes with no edge tab. Per site (host name),
 `panel_sites` in chrome.storage.local (background.js `panel/where`,
 `panel/site`) keeps `{ top, collapsed, hidden }`: where the tab sits, a
 collapse (a batch tab's panel then stays collapsed on that site), and the
-site hide (a batch tab's edge tab still shows). Opening the panel by any
-press lets a collapse and a hide go.
+site hide (a batch tab's edge tab still shows). Hide everywhere is
+`panel_hidden_everywhere` (`panel/hide-everywhere`; `panel/where` gives it
+as `hiddenEverywhere`). Opening the panel by any press lets a collapse go,
+never a hide: Alt+W and the toolbar open the panel where the tab is
+hidden, and the hide stays until Options, whose **WorkIt Tab** card has
+"Show the WorkIt tab on job pages" (Hide everywhere's switch) and the
+sites hidden, each with Remove. Tests: `test/student-controls.extension.spec.ts`.
 
 **The toolbar icon and Alt+W.** `panel/where` on a job page sets that
 tab's popup to "" (per tab, so both behaviours coexist), so the icon's
@@ -2210,7 +2250,11 @@ sends just that:
   option list (a dropdown's chosen value) is «shown». Structure, labels,
   options, ids, names and classes stay, so it loads in an engine test. The
   form's own element when the fields share one, else the body;
-  `HTML_MAX` (500,000 characters), cut past it;
+  `HTML_MAX` (500,000 characters), cut past it. **Opt-in, ticked by
+  default** (KAN-456's decision, built in KAN-478): the card's "Include the
+  page's layout (no answers)" box; unticked, `finalize(..., { layout:
+  false })` leaves `html` out of both the preview and what Send sends
+  (`report/send {marked, note, layout}`);
 - the student's note, optional (`NOTE_MAX`).
 
 **Personal values never leave the browser, by design.** Values come out
@@ -2247,7 +2291,10 @@ had nothing to fill.
 **Nothing is sent but on Send**, one report per press: once sent, the card
 says "Sent. Thanks for telling WorkIt." with Back and no second Send; a
 new report means opening it again. Signed out, Send says "Sign in to WorkIt
-to send a report." The toolbar popup's Report a problem sends the page's
+to send a report." Past the account's daily cap (30 reports, 50 job
+system requests, KAN-478) the API answers 429, and the card and the popup
+show its sentence ("You've sent a lot of reports today. Try again
+tomorrow."). The toolbar popup's Report a problem sends the page's
 parts, its context and the note only (`sendReport`). **The Web Store
 listing's privacy practices must declare it** (the posting link, the form's
 structure and the student's note leave the extension): for Lisul, before
@@ -2406,10 +2453,44 @@ its messages. The gear shows it in place of the tabs; Back returns.
   (`workday/signup-open`). No password field is ever in the panel: it
   lives in the employer's page.
 
+- **Send fill numbers** (on by default, KAN-476): `fill_numbers` in
+  chrome.storage.local (background `fill-events.js`). Off, no fill sends
+  its event.
+
 Tests: `test/panel-settings.extension.spec.ts` (the Claude connection with
 Disconnect and Add to Claude; auto-open off keeps a batch tab's panel
 closed; the gear and Back, Report, Workday Sign-Up opening the options
 page and no password field in the panel).
+
+## Fill numbers (KAN-476, decided in KAN-454): one event per fill
+
+After every fill, single or batch, the extension sends one event to `POST
+/fill-events`, for the website's `/admin/fill-health`: the job system, the
+engine's and the extension's versions, `single` or `batch`, the field
+counts (fields, filled, guessed, needs you, failed), each failed field's
+error name with a count (report-parts.js ERRORS: report.js's name for the
+field, else NoAnswer; a failed `_error` note counts Error) and the
+duration. **Never a value, a label, an answer or the page's link.**
+
+- `src/content/fill-event.js` counts off the checklist (lib-status.js);
+  content-script.js calls `start()` as a fill begins and `sent(site)` once
+  it settles: once per page outside Workday and Oracle, once per step on
+  them (each step is its own fill). A page with no field and no error (a
+  closed job, a page that isn't a form) sends nothing; nor does a step
+  WorkIt couldn't plan (a sign-in or email gate). The student's edits
+  after the fill send nothing; Fill Again is a new fill.
+- `src/background/fill-events.js` builds the event: the job system is
+  the Plan's (checked against a name pattern) else the engine's `jobOf`,
+  `batch` is `inBatch` (never the page's word), each count clamped. It
+  never throws: a lost event is a lost number, never a failed fill. Its
+  one API call is `sendFillEvent` in api.js.
+- On for everyone; the panel's settings have the opt-out (Send fill
+  numbers). Kept 90 days (the backend's daily purge, KAN-482).
+
+Tests: `test/fill-events.extension.spec.ts` (a single fill's one event with
+a broken name box's Readback, a batch's one per tab, the opt-out). The fake
+API checks every event any test sends (`fillEventProblems`: a key outside
+the shape, or any of the student's values in it).
 
 ## The résumé's card (KAN-399; on the Resume/CV row since KAN-424)
 

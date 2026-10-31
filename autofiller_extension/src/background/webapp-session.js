@@ -125,13 +125,15 @@ function decodeSession(raw) {
   try {
     session = JSON.parse(base64UrlDecode(decodeURIComponent(encoded)));
   } catch (error) {
-    // a half-written chunk set, or the cookie format changed — see CLAUDE.md's Open Items
-    console.warn("webapp-session: could not decode the session cookie", error);
+    // a half-written chunk set, or the cookie format changed — see CLAUDE.md's Open Items. The error's name
+    // only: JSON.parse's message can quote the cookie's text (KAN-469).
+    console.warn(`webapp-session: could not decode the session cookie (${error?.name ?? "Error"})`);
     return null;
   }
 
   if (!session?.access_token || !session?.refresh_token) {
-    console.warn("webapp-session: decoded cookie has no access_token/refresh_token", session);
+    // Never the session itself, nor its keys' values: the extension's console is readable on a shared Chrome (KAN-469).
+    console.warn("webapp-session: decoded cookie has no access_token/refresh_token");
     return null;
   }
 

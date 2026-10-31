@@ -246,7 +246,7 @@ window.WIA = window.WIA || {};
     const open = Object.assign(document.createElement("a"), { href: CLAUDE_START_URL, target: "_blank", rel: "noreferrer" });
     open.innerHTML = SPARKLE;
     open.append("Write with Claude");
-    open.addEventListener("click", () => copy(CLAUDE_TRIGGER));
+    open.addEventListener("click", window.WIA.ui.trusted(() => copy(CLAUDE_TRIGGER)));
     const hint = Object.assign(document.createElement("span"), { className: "hint", textContent: "Press Enter in Claude (or paste)" });
     start.append(open, hint);
     return start;
@@ -335,10 +335,10 @@ window.WIA = window.WIA || {};
       hide();
       onGenerate();
     }));
-    banner.querySelector("[data-dismiss]").addEventListener("click", () => {
+    banner.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => {
       hide();
       onDismiss();
-    });
+    }));
   }
 
   /** A new moment card at the top of the panel's list (KAN-387); removed by its own buttons. */
@@ -380,7 +380,7 @@ window.WIA = window.WIA || {};
     `);
     if (!card) return;
     const error = card.querySelector(".error");
-    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
     card.querySelector("[data-save]").addEventListener("click", window.WIA.ui.trusted(async () => {
       const answers = Object.fromEntries([...card.querySelectorAll("select")].filter((s) => s.value).map((s) => [s.name, s.value]));
       error.hidden = true;
@@ -412,8 +412,8 @@ window.WIA = window.WIA || {};
     if (!card) return;
     const add = card.querySelector("[data-add]");
     add.href = url;
-    add.addEventListener("click", () => card.remove());
-    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    add.addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
   }
 
   /**
@@ -434,8 +434,8 @@ window.WIA = window.WIA || {};
     if (!card) return;
     const add = card.querySelector("[data-add]");
     add.href = url;
-    add.addEventListener("click", () => card.remove());
-    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    add.addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
   }
 
   /**
@@ -456,13 +456,14 @@ window.WIA = window.WIA || {};
       </div>
     `);
     if (!card) return;
-    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
     // The extension's Workday Sign-Up page (src/options/), in a tab of its own; the card stays for the answer.
-    card.querySelector("[data-signup]").addEventListener("click", () => chrome.runtime.sendMessage({ type: "workday/signup-open" }));
-    card.querySelector("[data-allow]").addEventListener("click", () => {
+    card.querySelector("[data-signup]").addEventListener("click", window.WIA.ui.trusted(() => chrome.runtime.sendMessage({ type: "workday/signup-open" })));
+    // Allows account creation at every company: the student's own press only, never the page's (KAN-469).
+    card.querySelector("[data-allow]").addEventListener("click", window.WIA.ui.trusted(() => {
       card.remove();
       onAllow();
-    });
+    }));
   }
 
   /**
@@ -528,7 +529,7 @@ window.WIA = window.WIA || {};
         <div class="list"></div>
       </div>
     `;
-    tab.querySelector(".list").addEventListener("click", jump);
+    tab.querySelector(".list").addEventListener("click", window.WIA.ui.trusted(jump));
     tab.querySelector(".list").addEventListener("keydown", jump);
     unsubscribe = window.WIA.status.subscribe(render);
     render(window.WIA.status.summary());

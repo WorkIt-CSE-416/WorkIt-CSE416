@@ -76,6 +76,9 @@
   window.WIA.phase = "filling";
 
   const send = window.WIA.ui.ask;
+  // This fill's numbers (fill-event.js, KAN-476): one event when it ends, each Workday step's its own.
+  const fillEvent = window.WIA.fillEvent;
+  fillEvent.start();
   // The panel's options: a batch tab's panel has Skip, and "I submitted this" for a submit WorkIt missed.
   const panel = batch ? { onSkip: () => send({ type: "batch/skip" }).catch(() => {}), onSubmitted: () => markSentByHand() } : undefined;
   /** The student says they sent this application: it is marked applied, as a detected submit is. */
@@ -200,6 +203,12 @@
         window.WIA.report?.failed(q.name, "NoAnswer");
       }
       rows.notes.forEach((text) => isNew(`_note:${text}`) && note(`_note:${text}`, "Left for you", text));
+      // A Fields to autofill category the student switched off in Options (KAN-480): left blank, theirs to answer.
+      for (const q of rows.off ?? []) {
+        if (!isNew(q.name)) continue;
+        status.register(q.name, q.label, q.required, undefined, undefined, q.category);
+        status.setStatus(q.name, "pending", `${q.categoryLabel} autofill is off in WorkIt's Options. Answer it yourself.`);
+      }
 
       let more = null;
       let filledAny = false;
@@ -475,6 +484,7 @@
     overlay.refresh(); // the checklist settles: red, then amber, first (groups.js)
     window.WIA.running = false;
     report();
+    fillEvent.sent(prepared?.site);
     if (prepared) writing.offer(prepared);
     if (prepared) offerSelfId(prepared);
     // Outside a batch too (KAN-396): the primary button turns Ready to submit once the student answered what was open.
@@ -534,6 +544,7 @@
     const shownId = workday.stepId(); // told from a next step of the same name by its number
     window.WIA.phase = "filling";
     status.reset();
+    fillEvent.start();
     // Never an empty panel between steps (KAN-401): the step's line at once, its rows as it fills.
     note("_step", `${workday.name}: ${step}`, "Filling this step…", false, true);
     const prepared = await fillShown(workday.filledBefore());
@@ -551,6 +562,7 @@
       window.WIA.phase = "stopped";
       window.WIA.running = false;
       report();
+      fillEvent.sent();
       return;
     }
     const last = prepared.step.review || prepared.step.sends;
@@ -570,6 +582,7 @@
     overlay.refresh(); // the checklist settles: red, then amber, first (groups.js)
     window.WIA.primary?.refresh();
     report();
+    fillEvent.sent(prepared.site);
     if (last || prepared.stopped) return;
     const goOn = async () => {
       await flagEmptyRequired(prepared);
