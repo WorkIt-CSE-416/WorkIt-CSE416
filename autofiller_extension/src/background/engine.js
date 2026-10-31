@@ -35,6 +35,23 @@ export function jobOf(url) {
 }
 
 /**
+ * The job systems an employer's own domain may host, each with the selector
+ * that marks its pages (Workday's career site, SuccessFactors'): the engine's
+ * PAGE_MARKS, looked for in the tab, where the engine isn't loaded.
+ */
+export const PAGE_MARKS = engine.PAGE_MARKS;
+
+/**
+ * `url` marked as `site`'s (`ats=<site>`), as the engine reads such a link,
+ * or `url` itself where the engine covers it; null where it covers neither.
+ * @param {string} url
+ * @param {string | null} site
+ */
+export function markedLink(url, site) {
+  return engine.markedLink(url, site);
+}
+
+/**
  * The posting's company and title, as the Fill engine reads them from its
  * job system (the panel's job card when WorkIt has no posting for the page).
  * @param {string} url

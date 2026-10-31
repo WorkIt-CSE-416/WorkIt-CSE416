@@ -513,7 +513,8 @@ window.WIA = window.WIA || {};
     look();
   }
 
-  const isWorkday = /(^|\.)(myworkdayjobs|myworkdaysite)\.com$/.test(location.hostname);
+  // On Workday's own hosts, or its career site on the employer's domain (panel.js's onWorkday, loaded first).
+  const isWorkday = window.WIA.onWorkday();
   window.WIA.workday = {
     // Whether this page is Workday's.
     isWorkday,

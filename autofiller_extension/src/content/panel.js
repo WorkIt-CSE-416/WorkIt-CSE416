@@ -18,6 +18,16 @@
 // makes the shell and later ones keep it.
 window.WIA = window.WIA || {};
 
+/**
+ * Whether this page is Workday's: on its own hosts, or a Workday career site
+ * on the employer's domain, which its scripts mark (the Fill engine's
+ * PAGE_MARKS.workday, src/marks.ts, KAN-472). Content scripts run only where
+ * the student allowed WorkIt, so the marks are read only there.
+ */
+window.WIA.onWorkday = () =>
+  /(^|\.)(myworkdayjobs|myworkdaysite)\.com$/.test(location.hostname)
+  || Boolean(document.querySelector('script[src*="/wday/asset/candidate-experience"], script[src*="/wday/asset/uic-shared-vendors"]'));
+
 (function () {
   "use strict";
 
@@ -580,7 +590,7 @@ window.WIA = window.WIA || {};
    * Review, workday-walk.js, goes on from there), else Autofill This Page.
    */
   const startLabel = () =>
-    /\.(myworkdayjobs|myworkdaysite)\.com$/.test(location.hostname) && !window.WIA.batch ? "Fill this step" : "Autofill This Page";
+    window.WIA.onWorkday() && !window.WIA.batch ? "Fill this step" : "Autofill This Page";
 
   /**
    * Autofill This Page and Fill Again: the background injects the fill into
