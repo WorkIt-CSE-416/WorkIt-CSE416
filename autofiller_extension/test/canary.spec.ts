@@ -1,4 +1,6 @@
 // KAN-468: the live canary (canary/run.mjs) reads a live form and compares it with the saved ones.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { kindDiff, pickPostings } from "./canary/canary.mjs";
 
@@ -39,4 +41,24 @@ test("a pinned posting the board no longer lists is closed, and a listed one tak
 
 test("a board listing fewer postings than asked for checks what it lists", () => {
   expect(pickPostings([], ["https://x.test/jobs/9"], 2, jobId)).toEqual({ check: ["https://x.test/jobs/9"], closed: [] });
+});
+
+// The canary reads employers' live forms: it must never type into one, press a button or send it.
+// Every engine call it makes is one of these reads, and it calls none of Playwright's ways to act on a page.
+const READS = ["jobOf", "questionSet", "readback", "readQuestions", "version"];
+const ACTIONS = /\.(fill|fillEach|type|pressSequentially|press|click|dblclick|tap|check|uncheck|setChecked|selectOption|selectText|setInputFiles|dragTo|dispatchEvent|submit|requestSubmit|focus|hover)\s*\(/g;
+
+for (const file of ["canary/run.mjs", "canary/canary.mjs"]) {
+  test(`${file} makes only engine reads and never acts on a page`, () => {
+    const code = readFileSync(join(__dirname, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    expect(code.match(ACTIONS) ?? []).toEqual([]);
+    expect(code).not.toMatch(/FillEngine\s*\[/); // no call by a name worked out at run time
+    const calls = [...code.matchAll(/FillEngine\s*\.\s*(\w+)/g)].map((m) => m[1]);
+    expect(calls.filter((name) => !READS.includes(name))).toEqual([]);
+  });
+}
+
+test("the guard catches a canary that fills or clicks", () => {
+  const code = 'await FillEngine.fill(site, q, a); await page.click("button"); await page.locator("x").setInputFiles([]);';
+  expect(code.match(ACTIONS)).toEqual([".fill(", ".click(", ".setInputFiles("]);
 });
