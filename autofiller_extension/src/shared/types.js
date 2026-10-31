@@ -202,7 +202,6 @@
  * planned answer (its `sources`): the student's profile, their own answer to
  * the question ("student"), a saved answer, or a guess (WorkIt's default, or
  * no fact of theirs). "student" is also a value the student typed after the
- * fill; "claude" an answer their own Claude wrote (the connector); "ai" one
- * the essay route wrote.
- * @typedef {"profile" | "student" | "saved" | "guessed" | "claude" | "ai" | "pasted"} Source
+ * fill; "claude" an answer their own Claude wrote (the connector).
+ * @typedef {"profile" | "student" | "saved" | "guessed" | "claude" | "pasted"} Source
  */

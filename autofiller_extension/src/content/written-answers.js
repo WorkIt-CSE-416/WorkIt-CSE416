@@ -82,7 +82,7 @@ window.WIA = window.WIA || {};
     }
 
     /** Fills one answer that needed writing, through the engine, and shows how it went. `source`: who wrote it. */
-    async function fillWritten(prepared, name, value, source = "ai") {
+    async function fillWritten(prepared, name, value, source) {
       fillingWritten += 1;
       const answer = await send({ type: "fill/page", site: prepared.site, questions: prepared.questions, answers: { [name]: value }, state: prepared.state })
         .finally(() => (fillingWritten -= 1));

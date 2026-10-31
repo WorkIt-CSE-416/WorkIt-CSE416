@@ -17,7 +17,6 @@ window.WIA = window.WIA || {};
     saved: "Saved Answer",
     guessed: "Guessed",
     claude: "Claude",
-    ai: "AI",
     pasted: "Pasted",
   };
   // Phosphor's Sparkle (fill), the mark WorkIt puts on everything AI wrote (frontend/src/components/icons.tsx).
@@ -115,7 +114,7 @@ window.WIA = window.WIA || {};
       .source svg { width: 11px; height: 11px; }
       .source[data-source="guessed"] { background: var(--color-panel); color: var(--color-warning); border: 1px solid var(--color-warning-strong); }
       .source[data-source="student"] { background: var(--color-positive-tint); color: var(--color-positive-ink); }
-      .source[data-source="claude"], .source[data-source="ai"] { background: var(--color-brand-tint); color: var(--color-brand-ink); }
+      .source[data-source="claude"] { background: var(--color-brand-tint); color: var(--color-brand-ink); }
       .reason { color: var(--color-danger); font-size: var(--text-note); margin-top: 2px; }
       .reason.note { color: var(--color-ink-meta); }
       /* An answer the student's Claude's pre-submit review flagged (KAN-369): theirs to read before they submit. */
@@ -171,7 +170,7 @@ window.WIA = window.WIA || {};
       const source = document.createElement("span");
       source.className = "source";
       source.dataset.source = field.source;
-      source.innerHTML = field.source === "claude" || field.source === "ai" ? SPARKLE : "";
+      source.innerHTML = field.source === "claude" ? SPARKLE : "";
       source.append(SOURCE_LABEL[field.source]);
       text.appendChild(source);
       if (field.source === "guessed") el.dataset.guessed = "";
