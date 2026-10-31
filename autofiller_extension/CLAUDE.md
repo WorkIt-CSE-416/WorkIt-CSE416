@@ -175,7 +175,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   them, and so are its dropdowns' choices (trees marked `list`): the next
   fill on that tenant reads a dropdown from them without opening it, and
   the engine checks them when it fills it (a choice gone since re-plans the
-  field with what shows). Tests: `test/workday-lists.extension.spec.ts`;
+  field with what shows). They are capped (`stored-data.js`,
+  `MAX_WORKDAY_TREES`): past the cap the entries saved longest ago are
+  dropped, and a dropped one is only read from the page again (KAN-471;
+  before, every tenant a student ever opened stayed for good). Tests: `test/workday-lists.extension.spec.ts`;
   `test/speed.extension.spec.ts` times each fake step (`workday`,
   `workday-2` to `workday-5`). Its own How Did You Hear About Us? is never read: the engine
   searches it for each source in turn (WorkIt, LinkedIn, then the rest) and

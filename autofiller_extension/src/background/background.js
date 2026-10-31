@@ -34,6 +34,7 @@ import { popupHome, showNextJob } from "./popup-home.js";
 import { followTrackedTab, forgetTracked, isTracked, markTracked, track, trackState } from "./track.js";
 import { allowTabSite, allowedSites, pageJobUrl, removeSite, syncSites } from "./site-access.js";
 import { fetchText, planReads } from "./plan-reads.js";
+import { treeStore } from "./stored-data.js";
 
 /**
  * Calls the Fill engine in the frame that sent `sender`'s message: the
@@ -61,16 +62,8 @@ function engineIn(sender) {
   });
 }
 
-// The nested prompts the engine read on each Workday tenant (fill/plan, fill/page), kept for its next fill.
-const WORKDAY_TREES_KEY = "workday_trees";
-const workdayTrees = {
-  async load() {
-    return (await chrome.storage.local.get(WORKDAY_TREES_KEY))[WORKDAY_TREES_KEY] ?? {};
-  },
-  async save(saved) {
-    await chrome.storage.local.set({ [WORKDAY_TREES_KEY]: { ...(await this.load()), ...saved } });
-  },
-};
+// The nested prompts the engine read on each Workday tenant (fill/plan, fill/page), kept for its next fill, capped (stored-data.js).
+const workdayTrees = treeStore(chrome.storage.local);
 
 /** Today in the student's own time zone, as the engine's rules read it ("YYYY-MM-DD"). */
 function today() {
