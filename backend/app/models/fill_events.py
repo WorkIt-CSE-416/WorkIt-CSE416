@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import DateTime, Index, Integer, String, func, text
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,3 +42,10 @@ class Fill_Event(Base):
     # {"Readback": 2, "FillError": 1}: the failed fields' error names (schemas' ErrorName), a count each.
     errors: Mapped[dict] = mapped_column(JSONB)
     duration_ms: Mapped[int] = mapped_column(Integer)
+    # Workday sends one event per step: its number and whether it is the walk's last, so
+    # fill-health counts the walk once (queries/fill_events.py). Null on a single-page fill.
+    step: Mapped[int | None] = mapped_column(Integer)
+    final_step: Mapped[bool | None] = mapped_column(Boolean)
+    # Fields left blank because the student switched their category off (KAN-480): not in
+    # needs_you, and out of the needs-you rate's fields.
+    skipped_by_choice: Mapped[int] = mapped_column(Integer, server_default="0")

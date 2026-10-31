@@ -155,3 +155,32 @@ async def test_fill_health_is_per_system_per_day_for_admins_only(accounts, datab
     assert (workday["fills"], workday["clean_share"]) == (1, 0)
     assert sorted(answer["engine_versions"]) == ["v0.3.1", "v0.3.2-105-gfcaaf20"]
     assert [r["job_system"] for r in only_new["rows"]] == ["greenhouse"]
+
+
+async def test_a_workday_walk_counts_as_one_fill_and_choices_are_not_needs_you(accounts, database):
+    # KAN-476: Workday sends one event per step, marked with its step and whether it is the last;
+    # fields left blank because their category is switched off come as skipped_by_choice (KAN-480).
+    walk = {**EVENT, "job_system": "workday", "failed": 0, "errors": {}, "fields": 10, "needs_you": 1}
+    sent = [
+        {**walk, "step": 1, "final_step": False, "skipped_by_choice": 4},
+        {**walk, "step": 2, "final_step": False},
+        {**walk, "step": 3, "final_step": True, "failed": 1, "errors": {"Readback": 1}},
+        # Another job system's single page names no step: one fill, as before.
+        {**EVENT, "skipped_by_choice": 0},
+    ]
+    for event in sent:
+        assert (await _send(event)).status_code == 201, event
+    for bad in ({**walk, "step": -1}, {**walk, "final_step": "yes"}, {**walk, "skipped_by_choice": -1}):
+        assert (await _send(bad)).status_code == 422, bad
+
+    accounts(ADMIN)
+    async with _api() as api:
+        rows = {r["job_system"]: r for r in (await api.get("/admin/fill-health")).json()["rows"]}
+
+    workday = rows["workday"]
+    assert workday["fills"] == 1
+    # Each step is a page: two of its three pages had no failed field.
+    assert workday["clean_share"] == pytest.approx(2 / 3)
+    # 3 needs-you fields over the 26 fields that were not skipped by choice.
+    assert workday["needs_you_rate"] == pytest.approx(3 / 26)
+    assert rows["greenhouse"]["fills"] == 1

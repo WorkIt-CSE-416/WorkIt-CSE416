@@ -429,7 +429,10 @@ Find files with a directory listing; these are the rules for where code goes.
   `POST /fill-events` with the job system, the engine's and the
   extension's versions, `mode`, the field counts (`fields`, `filled`,
   `guessed`, `needs_you`, `failed`), the error names with a count each
-  (fix reports' `ErrorName`) and `duration_ms`. **Never a value, an answer
+  (fix reports' `ErrorName`) and `duration_ms`; optionally `step` (int) and
+  `final_step` (bool), which Workday's one event per step carries (migration
+  `d6f8b0c2e135`), and `skipped_by_choice`, the fields left blank because
+  their category is switched off (not in `needs_you`). **Never a value, an answer
   or a link**: every part is a pattern, a count or a listed name, and any
   other key is 422. The row names no account; each account sends at most
   `FILL_EVENT_DAILY_CAP` (2,000) a UTC day through `take_daily` (the
@@ -438,8 +441,10 @@ Find files with a directory listing; these are the rules for where code goes.
   **Kept 90 days**: KAN-482's daily purge deletes older rows
   (`services/retention.py` RETENTION's `fill_events` rule). Admins read
   `GET /admin/fill-health?days=&engine_version=`: per job system per day
-  (UTC), fills, `clean_share` (no failed field), `needs_you_rate`
-  (needs-you fields over all fields) and the top 3 error names, plus the
+  (UTC), fills (a Workday walk once: events with `final_step` false don't
+  count), `clean_share` (pages, i.e. events, with no failed field),
+  `needs_you_rate` (needs-you fields over all fields less those skipped by
+  choice) and the top 3 error names, plus the
   period's engine versions for the filter. A job system that breaks shows
   as its `clean_share` dropping that day. Tests: `tests/test_fill_events.py`.
   **Job system requests from the extension's popup** (KAN-369,
