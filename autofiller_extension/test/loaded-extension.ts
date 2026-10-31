@@ -25,7 +25,8 @@ export const EXTENSION = join(__dirname, "..");
 export const EXTENSION_ID = manifestId(EXTENSION);
 
 export type Request = { url: URL; method: string; headers: IncomingHttpHeaders; body: Buffer };
-export type Reply = { status?: number; headers?: Record<string, string>; body?: string | Buffer; json?: unknown };
+/** `drop`: close the connection with no answer, as an API that is unreachable (the browser's "Failed to fetch"). */
+export type Reply = { status?: number; headers?: Record<string, string>; body?: string | Buffer; json?: unknown; drop?: true };
 /** Answers a request, or returns undefined to pass it to the next handler. */
 export type Handler = (request: Request) => Reply | undefined | Promise<Reply | undefined>;
 
@@ -69,6 +70,7 @@ export async function startFakeNet(handlers: Handler[], extension = EXTENSION, l
       reply = { status: 500, body: String(error) };
     }
     reply ??= { status: 404, body: "" };
+    if (reply.drop) return void incoming.socket.destroy();
     // Saved pages load module scripts from another origin (Greenhouse's CDN), which only run with CORS
     // headers; Playwright's route.fulfill adds them itself, and the saved responses don't keep them.
     const cors = incoming.headers.origin ? { "access-control-allow-origin": incoming.headers.origin, "access-control-allow-credentials": "true" } : {};
@@ -95,6 +97,9 @@ export async function startFakeNet(handlers: Handler[], extension = EXTENSION, l
     ],
     asked,
     close() {
+      // A handler that never answers (an API that hangs) keeps its connection open: close it too.
+      http.closeAllConnections();
+      https.closeAllConnections();
       http.close();
       https.close();
     },

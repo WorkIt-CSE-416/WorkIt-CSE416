@@ -2055,8 +2055,19 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
 - **Errors**: every failed request the panel or popup makes is a plain
   sentence with Try again (or the same button, which retries), never a
   status code or the route's raw words.
+- **No answer, and too old** (KAN-466): `api.js`'s `apiRequest` gives every
+  call a time limit (20 s; 60 s for a file's bytes or an upload, 90 s for an
+  essay draft). A call past it, a network error ("Failed to fetch") and a
+  5xx with no words of the route's all say "WorkIt didn't answer. Try again
+  in a minute." Every call sends `X-WorkIt-Extension: <manifest version>`;
+  the API answers 426 below its `MIN_EXTENSION_VERSION` (default 0.0.0,
+  which refuses no build), and the extension asks Chrome for the update
+  (`chrome.runtime.requestUpdateCheck`) and says "Please update WorkIt.
+  Restart Chrome…". Raise the minimum only when a change breaks older
+  builds: store updates take hours to days to reach every student.
 
-Tests: `test/panel-states.extension.spec.ts`.
+Tests: `test/panel-states.extension.spec.ts`, `test/api-errors.extension.spec.ts`
+(an API that hangs or is unreachable, a 426), `backend/tests/test_extension_version.py`.
 
 ## The panel's top (KAN-395): header, batch line, job card
 
