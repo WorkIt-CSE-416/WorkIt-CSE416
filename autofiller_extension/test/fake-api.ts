@@ -270,6 +270,15 @@ export class FakeApi {
       if (next) this.events.push(`next:${next[0]}`);
       return { json: next ? this.application(next[0]) : null };
     }
+    // A job's Auto Apply button (pipeline.py's queue_job): a listed job with no application, or a saved one, is
+    // queued; one at any other stage keeps it. A job WorkIt doesn't list is a 404.
+    if (route === "/applications" && method === "POST") {
+      const { job_id: id } = JSON.parse(body.toString());
+      if (!this.postings.has(id)) return { status: 404, json: { detail: "That job isn't open any more." } };
+      const stage = this.stages.get(id);
+      if (!stage || (stage as string) === "saved") this.stages.set(id, "queued");
+      return { json: { job_id: id, stage: this.stages.get(id) } };
+    }
     // The queued applications, newest first, as GET .../applications?stage=queued answers them.
     if (route === "/applications" && method === "GET" && url.searchParams.get("stage") === "queued") {
       return { json: [...this.stages].filter(([, stage]) => stage === "queued").map(([id]) => this.application(id)).reverse() };

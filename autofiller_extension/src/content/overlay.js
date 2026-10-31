@@ -305,23 +305,26 @@ window.WIA = window.WIA || {};
   }
 
   /**
-   * The one opt-in gate for every detected essay question on the page at
-   * once (never a per-question prompt — one decision for the whole batch).
-   * Nothing is generated until the student clicks Generate; `onDismiss`
-   * fires just as explicitly on Not Now, so a declined batch still resolves
-   * to a definite state rather than sitting at "needs_generation" forever.
-   * The banner removes itself once a choice is made — calling this again
-   * (a second "Autofill This Page" run) rebuilds it fresh.
+   * The one opt-in gate for every question that needs writing on a form the
+   * student opened themselves (never a per-question prompt; one decision
+   * for the page). WorkIt writes nothing itself (KAN-470): Write with Claude
+   * hands the questions to the student's own Claude through the connector,
+   * or to their paste on Written Answers. Nothing goes to WorkIt until they
+   * press it; `onDismiss` fires just as explicitly on Not Now, so a declined
+   * page still resolves to a definite state rather than sitting at
+   * "needs_generation" forever. The banner removes itself once a choice is
+   * made; calling this again (a second "Autofill This Page" run) rebuilds it.
    * @param {{ count: number, onGenerate: () => void, onDismiss: () => void }} options
    */
   function promptForEssays({ count, onGenerate, onDismiss }) {
     if (!root || count <= 0) return;
     const banner = root.querySelector(".essay-banner");
     banner.hidden = false;
+    const many = count !== 1;
     banner.innerHTML = `
-      <p>${count} essay question${count === 1 ? "" : "s"} found — generate answer${count === 1 ? "" : "s"} with AI from your experience bank?</p>
+      <p>${count} question${many ? "s need" : " needs"} writing. Your Claude can write ${many ? "them" : "it"} from your experience, or you can paste your own on Written Answers.</p>
       <div class="row">
-        <button type="button" data-generate>${SPARKLE}Generate</button>
+        <button type="button" data-generate>${SPARKLE}Write with Claude</button>
         <button type="button" data-dismiss>Not Now</button>
       </div>
     `;
