@@ -8,6 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.extension_config import EXTENSION_VERSION
 from app.schemas.fill_reports import ErrorName
 
 Count = Field(ge=0, le=10_000)
@@ -19,7 +20,7 @@ class FillEventRequest(BaseModel):
     job_system: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,23}$")
     # A git describe ("v0.3.2-105-gfcaaf20") or a version number: letters, digits and . _ + -.
     engine_version: str = Field(pattern=r"^[A-Za-z0-9._+-]{1,64}$")
-    extension_version: str = Field(pattern=r"^[0-9]{1,5}(\.[0-9]{1,5}){0,3}$")
+    extension_version: str = Field(pattern=EXTENSION_VERSION)
     mode: Literal["single", "batch"]
     fields: int = Count
     filled: int = Count

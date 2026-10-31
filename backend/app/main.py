@@ -48,6 +48,7 @@ from app.routers.tailor import router as tailor_router
 from app.routers.tracker import router as tracker_router
 from app.routers.uninstall_answers import router as uninstall_answers_router
 from app.routers.writing_samples import router as writing_samples_router
+from app.schemas.extension_config import version_key
 from app.services import daily_caps
 
 logger = logging.getLogger(__name__)
@@ -64,14 +65,6 @@ app = FastAPI(
     title="WorkIt",
     lifespan=lifespan,
 )
-
-def _version(text: str) -> tuple[int, ...] | None:
-    """"0.3" as (0, 3, 0, 0), as Chrome compares versions; None for anything that isn't dotted numbers."""
-    parts = text.strip().split(".")
-    if not all(p.isdigit() for p in parts):
-        return None
-    return (*map(int, parts), 0, 0, 0)[:max(4, len(parts))]
-
 
 # The extension's calls that send no version on purpose: the remote config
 # (routers/extension_config.py, api.js publicFetch) is a plain public read,
@@ -96,7 +89,7 @@ async def extension_version(request: Request, call_next):
             logger.debug("Extension request with no version: %s %s", request.method, request.url.path)
         return await call_next(request)
     minimum = get_settings().min_extension_version
-    version, floor = _version(sent), _version(minimum)
+    version, floor = version_key(sent), version_key(minimum)
     if version is not None and floor is not None and version < floor:
         return JSONResponse(
             status_code=426,

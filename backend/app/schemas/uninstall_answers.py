@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.schemas.extension_config import EXTENSION_VERSION
+
 Reason = Literal["bad_fills", "missing_sites", "found_job", "other_tool", "privacy", "other"]
 
 
@@ -15,7 +17,7 @@ class UninstallAnswer(BaseModel):
     reason: Reason
     detail: str | None = Field(default=None, max_length=500)
     # manifest.json's version: up to four dot-separated numbers.
-    version: str | None = Field(default=None, max_length=32, pattern=r"^\d{1,5}(\.\d{1,5}){0,3}$")
+    version: str | None = Field(default=None, max_length=32, pattern=EXTENSION_VERSION)
 
     @field_validator("detail")
     @classmethod
