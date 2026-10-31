@@ -93,3 +93,28 @@ test("another account signing in on the same Chrome never fills with the first a
   expect(await stored()).not.toContain(BASE.pdf);
   expect(forms.submissions).toEqual([]);
 });
+
+test("a session cookie rewritten mid-batch (gone a moment, then half-written) keeps the student's profile and switched résumé", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms([ANDURIL]);
+  const api = new FakeApi();
+  api.builtResumes.push(BASE);
+  loaded = await loadExtension([api.handler, webapp, forms.handler]);
+  await signIn(loaded.context);
+  await filledWithSwitchedResume();
+  expect(await storedKeys()).toContain("workit_autofill_profile");
+
+  // A refresh rewrites the cookie: the old one goes, a value that won't decode is there a moment, then the new one.
+  await loaded.context.clearCookies({ name: COOKIE });
+  await new Promise((done) => setTimeout(done, 300));
+  await loaded.context.addCookies([{ name: COOKIE, value: "base64-eyJhY2Nlc3NfdG9r", url: "http://localhost:3000/" }]);
+  await new Promise((done) => setTimeout(done, 300));
+  await signIn(loaded.context);
+
+  // Well past the time a sign-out takes to clear (the first test's), nothing was cleared.
+  await new Promise((done) => setTimeout(done, 5_000));
+  expect(await storedKeys()).toContain("workit_autofill_profile");
+  expect(await stored()).toContain(STUDENT.resume.base64);
+  expect(await stored()).toContain(BASE.pdf);
+  expect(forms.submissions).toEqual([]);
+});

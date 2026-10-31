@@ -10,7 +10,7 @@
 
 import { SUPABASE_SESSION_COOKIE_KEY } from "../shared/config.js";
 import { keepFor } from "./account-data.js";
-import { readWebappSession } from "./webapp-session.js";
+import { readSessionCookie, readWebappSession } from "./webapp-session.js";
 
 // Refresh this long before the access token expires, so a call never goes out with one about to lapse.
 const REFRESH_MARGIN_S = 2 * 60;
@@ -18,6 +18,11 @@ const REFRESH_MARGIN_S = 2 * 60;
 const RETRY_AFTER_MS = 30 * 1000;
 /** The last refresh asked for, by the access token it replaced: callers holding that token share it. */
 let refreshing = null;
+// A cookie the webapp rewrites (a refresh) is gone or half-written for a moment: no session is taken for a
+// sign-out until the cookie has been so this long, and as long since the extension's own refresh settled.
+const SETTLE_MS = 2000;
+/** The sign-out check under way (confirmSignedOut), if any. */
+let signOutCheck = null;
 
 /**
  * The one function everything else calls. Returns null when the webapp
@@ -29,11 +34,31 @@ let refreshing = null;
  * @returns {Promise<import("../shared/types.js").Session | null>}
  */
 export async function getSession() {
-  const session = await readWebappSession();
+  const { session, unreadable } = await readSessionCookie();
   const current = session && session.expires_at - Date.now() / 1000 < REFRESH_MARGIN_S ? await refreshSession(session) : session;
-  // A sign-out or another account's sign-in clears the last account's data (account-data.js).
-  await keepFor(current).catch((error) => console.warn("[account] not cleared:", error.message));
+  // Another account's sign-in clears the last account's data at once (account-data.js); a sign-out only once
+  // it holds (confirmSignedOut), never for a cookie that won't decode.
+  if (current) await keepFor(current).catch((error) => console.warn("[account] not cleared:", error.message));
+  else if (!unreadable) confirmSignedOut();
   return current;
+}
+
+/**
+ * Clears the last account's data (keepFor(null)) once the session cookie is
+ * still gone SETTLE_MS on, with no refresh of the extension's own under way
+ * or just settled: a refresh rewrites the cookie, and for that moment it
+ * reads as signed out (KAN-469). A cookie that won't decode clears nothing.
+ */
+function confirmSignedOut() {
+  signOutCheck ??= (async () => {
+    const wait = () => new Promise((done) => setTimeout(done, SETTLE_MS));
+    await wait();
+    while (refreshing && !(refreshing.settled && Date.now() - refreshing.settled >= SETTLE_MS)) await wait();
+    const { session, unreadable } = await readSessionCookie();
+    if (!session && !unreadable) await keepFor(null);
+  })()
+    .catch((error) => console.warn("[account] not cleared:", error.message))
+    .finally(() => (signOutCheck = null));
 }
 
 /**
@@ -55,7 +80,8 @@ export async function getSession() {
 export async function refreshSession(stale) {
   const fresh = refreshing?.from === stale.access_token && Date.now() - refreshing.at < RETRY_AFTER_MS;
   if (!fresh) {
-    const asked = { from: stale.access_token, at: Date.now(), done: askWebapp(stale.web_origin) };
+    const asked = { from: stale.access_token, at: Date.now(), settled: 0, done: askWebapp(stale.web_origin) };
+    asked.done.finally(() => (asked.settled = Date.now()));
     refreshing = asked;
   }
   return refreshing.done;

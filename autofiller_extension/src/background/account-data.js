@@ -4,8 +4,10 @@
 // answers and bank must not stay on disk after they sign out.
 //
 // auth.js's getSession hands every session it reads to keepFor, and watches
-// the webapp's session cookie, so a sign-out clears this at once even when
-// nothing else asks for the session after it.
+// the webapp's session cookie, so a sign-out clears this within seconds even
+// when nothing else asks for the session after it. Only a sign-out that holds:
+// a refresh rewrites the cookie, which reads as signed out (or won't decode)
+// for a moment, and must not clear a batch's résumés (auth.js confirmSignedOut).
 //
 // Kept on purpose: the Workday logins this Chrome saved (workday-logins.js)
 // and the sites the student allowed (site-access.js) belong to the browser,
