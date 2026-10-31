@@ -1550,7 +1550,7 @@ go then. A change needs to work on Cloudflare only.
   `NullPool`, and the Dockerfile sets 5. Under `NullPool` in the container
   every request spent ~1 s opening its connection, and pages took 3–9 s
   (2026-10-21). The retired Vercel Function kept `NullPool`, being short-lived.
-  `max_overflow` equals the pool size, so three instances hold at most 30
+  `max_overflow` equals the pool size, so two instances hold at most 20
   Supavisor clients, which still pools them onto a few Postgres backends. `pool_pre_ping` and
   `pool_recycle` replace a connection Supavisor has dropped.
 - **`/health/db?timing=true` reports `pool`, `first_ms` and `again_ms`**
