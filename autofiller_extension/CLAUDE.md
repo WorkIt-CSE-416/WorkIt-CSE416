@@ -2171,7 +2171,11 @@ sends just that:
   option list (a dropdown's chosen value) is «shown». Structure, labels,
   options, ids, names and classes stay, so it loads in an engine test. The
   form's own element when the fields share one, else the body;
-  `HTML_MAX` (500,000 characters), cut past it;
+  `HTML_MAX` (500,000 characters), cut past it. **Opt-in, ticked by
+  default** (KAN-456's decision, built in KAN-478): the card's "Include the
+  page's layout (no answers)" box; unticked, `finalize(..., { layout:
+  false })` leaves `html` out of both the preview and what Send sends
+  (`report/send {marked, note, layout}`);
 - the student's note, optional (`NOTE_MAX`).
 
 **Personal values never leave the browser, by design.** Values come out
@@ -2208,7 +2212,10 @@ had nothing to fill.
 **Nothing is sent but on Send**, one report per press: once sent, the card
 says "Sent. Thanks for telling WorkIt." with Back and no second Send; a
 new report means opening it again. Signed out, Send says "Sign in to WorkIt
-to send a report." The toolbar popup's Report a problem sends the page's
+to send a report." Past the account's daily cap (30 reports, 50 job
+system requests, KAN-478) the API answers 429, and the card and the popup
+show its sentence ("You've sent a lot of reports today. Try again
+tomorrow."). The toolbar popup's Report a problem sends the page's
 parts, its context and the note only (`sendReport`). **The Web Store
 listing's privacy practices must declare it** (the posting link, the form's
 structure and the student's note leave the extension): for Lisul, before
