@@ -47,7 +47,7 @@ async function reachable(url) {
  * @param {import("../shared/types.js").Session} session
  */
 async function apiUrl(session) {
-  devApiReachable ??= await reachable(DEV_API_URL);
+  devApiReachable ??= DEV_API_URL !== null && (await reachable(DEV_API_URL));
   if (devApiReachable) return DEV_API_URL;
   const site = PROD_SITES.find((s) => s.web === session.web_origin) ?? PROD_SITES[0];
   return site.api;

@@ -2489,6 +2489,52 @@ overlay uses the system font.
   at any time — it's the one place session state can actually live, not
   the popup (which is destroyed every time it closes).
 
+## The Store build and the extension ID (KAN-463)
+
+The checked-in folder is the **dev** extension: it tries
+`localhost:8000` for the API and `localhost:3000` for the webapp first, lists
+both (and the Vercel hosts) in `host_permissions` and
+`externally_connectable`, and puts the tests' hooks (`workitToolbar`,
+`workitCommand`) on the service worker's global. The tests need all of that,
+so it stays. The **Store** gets `node store/build.mjs [outDir]` instead
+(default `.store-build/`, gitignored): `outDir/extension/` and
+`outDir/workit-extension.zip`, with
+
+- `manifest.json`: `store/store.json`'s name ("WorkIt"), version,
+  description (132 characters at most) and toolbar title; no localhost or
+  vercel.app host; no `key` (the Store signs the item itself).
+- `src/shared/config.js`: `DEV_API_URL` and `DEV_WEB_URL` null (every user
+  of them skips a null one, so nothing probes or calls localhost),
+  `TEST_HOOKS` false, the Vercel site gone (KAN-296).
+- only what Chrome loads: `manifest.json`, `icons`, `fonts`, `src`,
+  `fill-engine/dist`.
+
+The build fails if any packaged file still names localhost, vercel.app or
+"Prototype" (as a word). A new dev-only line in `config.js` must be one
+`storeConfig` rewrites, or the build fails. `test/store-build.spec.ts` reads
+the zip back; `test/store-build.extension.spec.ts` loads the built package
+with a fake server answering `localhost:8000/health` and checks it calls only
+`api.workitjobs.ai`, answers the site's ping and opens Start batch's tabs.
+KAN-447's publish workflow uploads this zip; the Store version is
+`store/store.json`'s, so a release bumps it there.
+
+**One extension ID.** `manifest.json`'s `key` is the one place it is set:
+Chrome derives the ID from it (`store/extension-id.mjs`), the tests take it
+from there (`test/loaded-extension.ts`), and the website's
+`EXTENSION_ID` (`frontend/src/lib/autofill-extension.ts`) is written from it
+(`test/extension-id.spec.ts` fails while they differ). Today it is the dev key
+(`cpklhdkoafegnndlafmiceehfloodjgi`). To give dev builds and the website the
+Store item's ID (a person's step, with the Developer Dashboard):
+
+1. Dashboard → the WorkIt item → **Package** → **View public key**. Copy the
+   key between the BEGIN/END lines, joined into one line.
+2. Paste it as `key` in `manifest.json`.
+3. `node autofiller_extension/store/extension-id.mjs --write`: prints the
+   new ID and writes it into the website. It must equal the item ID the
+   Dashboard shows (and the `CHROME_EXTENSION_ID` secret KAN-447 uses).
+4. Reload the unpacked extension: chrome://extensions shows the Store ID.
+   Run the extension tests (they load it at the new ID).
+
 ## Open items
 
 Flagged here rather than silently deferred — the user asked for a
@@ -2541,10 +2587,10 @@ openness covers:
   saves the parts (`first_name`, `middle_name`, `last_name` on GET
   .../profile), the fill uses them, and a middle name goes only where a
   form asks for the full legal name.
-- **No packaging/publishing path yet.** The `key` in `manifest.json` pins a
-  stable *local* extension id (so the webapp bridge has something fixed to
-  call) — it is not a Chrome Web Store signing key, and publishing for
-  real would need its own key and listing.
+- **The manifest's `key` is still the dev key, not the Store item's**
+  (KAN-463). Until someone swaps it (below, "The Store build and the
+  extension ID"), a Store-installed extension has another ID and doesn't
+  answer the website.
 - **The toolbar icons are rendered from the webapp's own icon**
   (KAN-424): `icons/icon-{16,32,48,128}.png` are
   `frontend/public/workit-icon.svg` (the favicon's source) drawn by

@@ -18,6 +18,7 @@ function sendMessage(message) {
  *  resolved here since this is just "which tab to open", not an API call —
  *  popup.js still never talks to the backend or Supabase directly. */
 async function webappUrl() {
+  if (DEV_WEB_URL === null) return PROD_SITES[0].web;
   try {
     const response = await fetch(DEV_WEB_URL, { signal: AbortSignal.timeout(1000) });
     if (response.ok || response.type === "opaque") return DEV_WEB_URL;
