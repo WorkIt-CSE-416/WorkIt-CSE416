@@ -15,6 +15,8 @@ const { ERRORS } = globalThis.WIA.reportParts;
 // Whether fill numbers are sent (true unless the student turned them off).
 const ON_KEY = "fill_numbers";
 const COUNTS = ["fields", "filled", "guessed", "needs_you", "failed"];
+// The longest a fill's time may be: a Workday step the student sits on can take minutes.
+const MAX_DURATION_MS = 60 * 60 * 1000;
 
 /** Whether the student lets the extension send fill numbers. */
 export async function fillNumbersOn() {
@@ -27,7 +29,8 @@ export async function setFillNumbers(on) {
   return { fillNumbers: Boolean(on) };
 }
 
-const count = (value) => Math.max(0, Math.min(10_000, Math.round(Number(value) || 0)));
+/** A whole number from 0 to `max`, whatever `value` is. */
+const count = (value, max = 10_000) => Math.max(0, Math.min(max, Math.round(Number(value) || 0)));
 
 /**
  * The event for one fill: `counts` as the page's fill.js gave them, each part
@@ -47,7 +50,7 @@ export function eventOf(url, counts = {}, batch = false) {
     mode: batch ? "batch" : "single",
     ...Object.fromEntries(COUNTS.map((part) => [part, count(counts[part])])),
     errors,
-    duration_ms: Math.min(3_600_000, count(counts.duration_ms) || 1),
+    duration_ms: count(counts.duration_ms, MAX_DURATION_MS) || 1,
   };
   if (!event.fields && !Object.keys(errors).length) return null;
   return event;
