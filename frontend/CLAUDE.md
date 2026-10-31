@@ -2057,6 +2057,14 @@ are in `docs/auth.md`.
   `lib/transcript-actions.ts`, KAN-369): one file, uploaded, replaced or
   removed there, with the resume's file checks (`resumeFileError`). The
   autofiller attaches it to a form's transcript upload.
+- **The uninstall survey is `/uninstalled`** (KAN-471): the page Chrome
+  opens when a student removes the extension (`?v=` the version removed).
+  Public, outside both shells, and it asks no sign-in: the answer goes to
+  `POST /uninstall-answers` with no session and names no one. Its reasons'
+  values (`uninstalled/answer.ts`) are the API's schema and the table's
+  CHECK: change all three together. The action forwards the student's
+  address (`cf-connecting-ip`) as `x-workit-client-ip` for the API's
+  per-sender cap only; a 429 still thanks the student.
 - **The practice forms (`lib/practice-form.ts`) import nothing** (KAN-378):
   they are whole HTML pages, served by a route handler, and the extension's
   end-to-end test imports the module to serve the same bytes, so it can't
