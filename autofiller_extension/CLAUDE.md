@@ -2480,18 +2480,24 @@ page and no password field in the panel).
 After every fill, single or batch, the extension sends one event to `POST
 /fill-events`, for the website's `/admin/fill-health`: the job system, the
 engine's and the extension's versions, `single` or `batch`, the field
-counts (fields, filled, guessed, needs you, failed), each failed field's
+counts (fields, filled, guessed, needs you, skipped by choice, failed), each failed field's
 error name with a count (report-parts.js ERRORS: report.js's name for the
 field, else NoAnswer; a failed `_error` note counts Error) and the
-duration. **Never a value, a label, an answer or the page's link.**
+duration (up to an hour). A field left blank because its Fields to autofill
+category is off counts in `skipped_by_choice`, not `needs_you` (the panel
+still marks it needs you). **Never a value, a label, an answer or the page's link.**
 
 - `src/content/fill-event.js` counts off the checklist (lib-status.js);
   content-script.js calls `start()` as a fill begins and `sent(site)` once
   it settles: once per page outside Workday and Oracle, once per step on
-  them (each step is its own fill). A page with no field and no error (a
-  closed job, a page that isn't a form) sends nothing; nor does a step
-  WorkIt couldn't plan (a sign-in or email gate). The student's edits
-  after the fill send nothing; Fill Again is a new fill.
+  them (each step is its own fill), each with `step` (the step bar's
+  number, else the steps the tab filled) and `final_step` (Review, the step
+  whose button sends, or a fill that stopped), so fill-health counts the
+  fill once. A step WorkIt couldn't plan (a sign-in or email gate, the API
+  down) sends one with an Error. A page with no field and no error (a
+  closed job, a page that isn't a form) sends nothing, unless it is a last
+  step; nor does onboarding's practice form (WorkIt's own, shaped as
+  Lever's). The student's edits after the fill send nothing; Fill Again is a new fill.
 - `src/background/fill-events.js` builds the event: the job system is
   the Plan's (checked against a name pattern) else the engine's `jobOf`,
   `batch` is `inBatch` (never the page's word), each count clamped. It
@@ -2501,7 +2507,8 @@ duration. **Never a value, a label, an answer or the page's link.**
   numbers). Kept 90 days (the backend's daily purge, KAN-482).
 
 Tests: `test/fill-events.extension.spec.ts` (a single fill's one event with
-a broken name box's Readback, a batch's one per tab, the opt-out). The fake
+a broken name box's Readback, a batch's one per tab, the opt-out, a Workday
+application's numbered steps), `test/fill-events.spec.ts` (the event's shape). The fake
 API checks every event any test sends (`fillEventProblems`: a key outside
 the shape, or any of the student's values in it).
 
