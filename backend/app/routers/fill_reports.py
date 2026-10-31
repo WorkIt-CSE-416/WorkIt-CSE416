@@ -14,7 +14,10 @@ POST /fill-reports  FillReportRequest (app/schemas/fill_reports.py)
      (schemas' scrub).
 GET  /fill-reports/mine              the signed-in account's reports, newest first
 GET  /fill-reports/{id}              one, whole: its sender's or an admin's; 404 to anyone else
-GET  /admin/fill-reports             ?job_system=&status=&limit=&offset=, newest first (admins only, 403)
+GET  /admin/fill-reports             ?job_system=&status=&engine_version=&signature=&limit=&offset=,
+     newest first (admins only, 403)
+GET  /admin/fill-report-groups       ?job_system=&status=&engine_version=: the matching reports by signature
+     (job system + field kind + error, schemas' signature_of), each with its count, newest group first
 GET  /admin/fill-reports/{id}        one, whole
 PATCH /admin/fill-reports/{id}       {"status": new|triaged|fixed, "admin_note"}
 GET  /admin/fill-reports/{id}/brief  the fix brief, text/markdown (curl it with an admin's token)
@@ -33,6 +36,7 @@ from app.deps import get_admin, get_current_account, is_admin
 from app.models.fill_reports import Fill_Report
 from app.queries.fill_reports import (
     get_report,
+    list_groups,
     list_reports,
     store_report,
     triage_report,
@@ -41,6 +45,7 @@ from app.schemas.auth import AuthenticatedAccount
 from app.schemas.fill_reports import (
     BODY_MAX,
     FillReportDetail,
+    FillReportGroups,
     FillReportList,
     FillReportRequest,
     FillReportStored,
@@ -73,7 +78,7 @@ def _summary(row: Fill_Report) -> dict:
     return {
         "id": str(row.id), "created_at": row.created_at, "job_system": row.job_system, "posting_url": row.posting_url,
         "engine_version": row.engine_version, "status": row.status, "trigger": row.trigger, "note": row.note,
-        "field_count": len(row.fields or []),
+        "signature": row.signature, "field_count": len(row.fields or []),
         "marked": [f.get("name") or f.get("label_shape") or "" for f in row.fields or [] if f.get("marked")],
     }
 
@@ -130,13 +135,28 @@ async def one_fill_report(
 async def all_fill_reports(
     job_system: str | None = Query(default=None, max_length=24),
     status_: Status | None = Query(default=None, alias="status"),
+    engine_version: str | None = Query(default=None, max_length=64),
+    signature: str | None = Query(default=None, max_length=80),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     _admin: AuthenticatedAccount = Depends(get_admin),
     db: AsyncSession = Depends(get_session),
 ) -> FillReportList:
-    rows, total = await list_reports(db, job_system=job_system, status=status_, limit=limit, offset=offset)
+    rows, total = await list_reports(
+        db, job_system=job_system, status=status_, engine_version=engine_version, signature=signature, limit=limit, offset=offset,
+    )
     return FillReportList(reports=[FillReportSummary(**_summary(r)) for r in rows], total=total)
+
+
+@router.get("/admin/fill-report-groups", response_model=FillReportGroups)
+async def fill_report_groups(
+    job_system: str | None = Query(default=None, max_length=24),
+    status_: Status | None = Query(default=None, alias="status"),
+    engine_version: str | None = Query(default=None, max_length=64),
+    _admin: AuthenticatedAccount = Depends(get_admin),
+    db: AsyncSession = Depends(get_session),
+) -> FillReportGroups:
+    return FillReportGroups(groups=await list_groups(db, job_system=job_system, status=status_, engine_version=engine_version))
 
 
 @router.get("/admin/fill-reports/{report_id}", response_model=FillReportDetail)

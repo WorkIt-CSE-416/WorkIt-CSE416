@@ -23,7 +23,12 @@ An admin is an account whose email or id is on the API's `WORKIT_ADMINS`.
   Brief, Download Form Fixture, and its status (new / triaged / fixed) and note.
 - **curl:** `curl -H "Authorization: Bearer $TOKEN" $API/admin/fill-reports/<id>/brief`
   (and `.../fixture` for the HTML; `GET /admin/fill-reports?job_system=greenhouse&status=new`
-  lists them, newest first).
+  lists them, newest first; `&engine_version=` and `&signature=` filter too).
+- **Groups** (KAN-478): reports with the same signature, `<job system>:<field
+  kind>:<error>` of the first field that went wrong (or the first one marked
+  wrong, as `Marked`), are one group with a count, at the top of
+  `/admin/fill-reports` and at `GET /admin/fill-report-groups`. Twenty
+  students hitting one broken field make one group of 20.
 - **Script**, from `backend/`: `uv run python -m app.scripts.fill_report <id>`
   (or `--latest [--job-system greenhouse]`) writes `fill-reports/fill-report-<id8>/`:
   `brief.md`, `fill-report-<id8>.html` (the fixture), `question-set.json` (the

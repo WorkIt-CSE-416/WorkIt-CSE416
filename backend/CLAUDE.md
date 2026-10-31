@@ -386,7 +386,12 @@ Find files with a directory listing; these are the rules for where code goes.
   **Admins** are the emails or account ids on `WORKIT_ADMINS`
   (`app/config.py`; `deps.get_admin`, 403 to anyone else): there is no
   admin role in the database. They list (`GET /admin/fill-reports`, newest
-  first, `?job_system=&status=`), read, triage (`PATCH`, status new /
+  first, `?job_system=&status=&engine_version=&signature=`), see them
+  grouped (KAN-478: `GET /admin/fill-report-groups`, one line per
+  `signature`, "<job system>:<field kind>:<error>" of the first field that
+  went wrong, else the first marked one as `Marked`, stored on the row by
+  `schemas/fill_reports.py`'s `signature_of`, migration `a7c3e9d1f456`,
+  with its count and engine versions), read, triage (`PATCH`, status new /
   triaged / fixed and a note) and export a report: `GET
   /admin/fill-reports/{id}/brief` is the Markdown fix brief
   (`services/fill_brief.py`, format in `../docs/fill-reports.md`;
@@ -396,7 +401,8 @@ Find files with a directory listing; these are the rules for where code goes.
   -m app.scripts.fill_report <id>` (or `--latest`) writes the brief, the
   fixture, its question set and the report to `fill-reports/` (gitignored)
   and names the engine commit the report's engine version was built from.
-  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`.
+  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`,
+  `tests/test_fill_report_groups.py`.
   **Daily caps per account** (KAN-478, `services/daily_caps.py`, table
   `daily_counts`, migration `bafdca0d9501`): 30 fix reports and 50 job
   system requests a UTC day (`FILL_REPORT_DAILY_CAP`,
