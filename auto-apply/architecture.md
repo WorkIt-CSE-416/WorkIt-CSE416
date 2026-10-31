@@ -79,8 +79,9 @@ everything up to that click and nothing after it ("Decisions", below).
 - Solving CAPTCHAs or hiding automation from a hiring system.
 - Creating accounts on a hiring system without the student's yes. Workday
   asks for one per company. The extension fills its Create Account form
-  (the student's email and a password of its own for that company, kept
-  only in the extension's local storage); once the student allows it,
+  with the one Workday email and password the student set for every
+  company (KAN-479), kept only in the extension's local storage; once the
+  student allows it,
   asked once, it also ticks the terms box and presses Create Account or
   Sign In, as Jobright and Simplify do. The student opens Workday's email
   (KAN-373, KAN-369, 8.4).
@@ -594,11 +595,23 @@ leaves the batch (closed, skipped or submitted); other job systems keep
 filling beside it.
 
 **Workday sign-in.** On a Workday Create Account or Sign In form, the
-content script fills the student's email and a strong password unique to
-that company's Workday (its tenant), made the first time and kept only in
-the extension's `chrome.storage.local` on the student's computer: never sent
-to WorkIt's servers (Chrome may offer to save it too). Later visits fill the
-saved login. The first sign-in page asks the student once whether WorkIt
+content script fills the one Workday email and password the student set for
+every company (KAN-479, decided on KAN-453), as Jobright and Simplify do. The
+student sets them on the extension's Workday Sign-Up page or on the consent
+card, which asks for them before any Create Account is pressed; WorkIt makes
+no account and makes up no password without them. They are kept only in the
+extension's `chrome.storage.local` on the student's computer: never sent to
+WorkIt's servers, never in a message to the webapp, a log or a fix report
+(Chrome may offer to save them too). Because the student chose the password,
+an uninstall or a new laptop never locks them out of the accounts WorkIt
+made. Each company's Create Account saves a copy as that company's login, so
+a changed password applies only to companies made after the change (Workday
+keeps each company's account separate). A company saved by an older install
+keeps the password generated for it alone. The Options page lists each
+company's saved login with Copy, Remove and Export (a CSV that Chrome's
+password manager imports); removing the extension deletes them. A separate
+generated password per company, saved encrypted on WorkIt, is a later paid
+feature (KAN-481). The first sign-in page asks the student once whether WorkIt
 may make and sign in to their Workday accounts (KAN-369, as Jobright and
 Simplify do). After a yes, at every company it ticks the terms box (and
 names its words in the panel) and presses Create Account or Sign In itself,
@@ -608,8 +621,7 @@ refused sign-in is never tried again, since Workday locks accounts. Without a ye
 student always opens the verification email; the panel says so. The tab sits in Needs you
 with "Sign in to continue" until the application's first step shows, and the
 fill then goes on by itself (on a page signing in loads, too: the tab is
-remembered for Workday's re-injection). Never one password shared across
-companies, never a password on a server.
+remembered for Workday's re-injection). Never a password on a server.
 
 **Skip** is on a batch tab's panel: the application goes to `skipped`, its
 tab closes, and the next queued one opens. Closing a tab is not Skip.
@@ -634,9 +646,10 @@ on after the fill.
 | `run/status` | webapp → extension | `{}`; answers `{ jobId, jobIds }` |
 | `run/show` | webapp → extension | `{ jobId }`; switches to that job's tab |
 | `batch/state` | content script → background | `{ state: "ready" \| "needs_you" }` |
-| `workday/login` | content script → background | `{ create }`; answers `{ email, password, made, signedIn, forMe }`, the login for the page's Workday tenant (a new password for Create Account when none is saved) and whether the student allowed the extension to press its buttons |
+| `workday/login` | content script → background | `{ create }`; answers `{ email, password, made, needsSignup, signedIn, forMe }`, the login for the page's Workday tenant (the saved one, else the student's one Workday login; `needsSignup` and no password when none is set) and whether the student allowed the extension to press its buttons. The only message that carries a password: the worker's answer to the content script that types it |
 | `workday/allow` | content script → background | `{}`; the student allowed, once, the extension to make and sign in to their Workday accounts (KAN-369) |
-| `workday/forget` | content script → background | `{}`; Workday refused the Create Account the extension pressed: drop that new password |
+| `workday/forget` | content script → background | `{}`; Workday refused the Create Account the extension pressed: drop that company's new copy of the login |
+| `workday/remove-login` | options page → background | `{ tenant }`; the Options page's Remove: drop that company's saved login (only the options page may) |
 | `batch/skip` | content script → background | `{}`: the panel's Skip. The application goes to `skipped` (`POST .../finish`), its tab closes, the next one opens (KAN-373) |
 | `batch/watch` | content script → background | `{}`; the engine starts watching the page for the student's submit |
 | `batch/submitted` | content script → background | `{}`; the student's submit sent the application: mark it applied |
