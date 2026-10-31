@@ -203,6 +203,12 @@
         window.WIA.report?.failed(q.name, "NoAnswer");
       }
       rows.notes.forEach((text) => isNew(`_note:${text}`) && note(`_note:${text}`, "Left for you", text));
+      // A Fields to autofill category the student switched off in Options (KAN-480): left blank, theirs to answer.
+      for (const q of rows.off ?? []) {
+        if (!isNew(q.name)) continue;
+        status.register(q.name, q.label, q.required, undefined, undefined, q.category);
+        status.setStatus(q.name, "pending", `${q.categoryLabel} autofill is off in WorkIt's Options. Answer it yourself.`);
+      }
 
       let more = null;
       let filledAny = false;

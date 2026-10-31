@@ -1659,6 +1659,27 @@ the bank, with no new input: `experience_facts.prior_internships_count`
   than one the student fills in. The Plan lists it as a Missing fact; the
   overlay marks it failed when the form requires it, skipped when not.
 
+## Fields to autofill (KAN-480): a category switched off is the student's
+
+Options' **Fields to Autofill** card has one switch a category, as
+Simplify's settings do: Contact info, Location, Documents, Education,
+Experience, Demographics and Work authorization
+(`src/shared/autofill-categories.js`, `CATEGORIES`, each with the engine
+profile's facts it covers). The ids switched off are `autofill_off` in
+chrome.storage.local (`panel-settings.js` `autofillOff`), read for each
+`fill/plan`. `engine.js`'s `holdBack` plans once more per category off,
+without that category's facts (`withoutCategory`): the answers that Plan
+doesn't give the same are the category's, so which questions they are is
+the engine's to say, never a list of labels. They leave the Plan's answers
+for `plan.off`, and `planRows` gives them as `rows.off`; content-script.js
+registers each with its category (`off`) and leaves it pending with "<Category>
+autofill is off in WorkIt's Options. Answer it yourself." lib-status.js's
+`needsYou` counts such a row, required or not, while it stays empty, so
+the list, the counts and Next Thing agree. Nothing saved is written or
+deleted: only the Plan's profile goes without the facts. With Demographics
+off, a form's self-identification is not asked to be saved either
+(`selfId` is null). Tests: `test/student-controls.extension.spec.ts`.
+
 ## Attaching the student's resume file
 
 Greenhouse's "Resume/CV" field is a stable `input#resume`, `type="file"`,
@@ -1840,7 +1861,8 @@ view. **The ⋯ menu** (`panel.menuItem(id, { label, onPress, order } |
 null)`, role menu, shut by Escape, a press elsewhere in the panel or an
 item) holds, by `order`: I submitted this (10) and Skip (20) in a batch
 tab (overlay.mount), Fill Again (30) after a fill (primary.js), Report a
-problem (40) and Settings (50), the shell's own. Each item carries
+problem (40), Settings (50), Hide on this site (60) and Hide everywhere
+(70), the shell's own. Each item carries
 `data-<id>` (`[data-skip]`, `[data-submitted]`, `[data-again]`); an item
 that changes something passes its `onPress` through `ui.trusted`. Tests
 open it with `menuItem(host, name)` (test/loaded-extension.ts).
@@ -1879,12 +1901,20 @@ Page opens it (it is open already).
 ×, `data-close` kept for older tests) leaves it on the right edge. It is
 dragged up and down (a move under 4 px is a press, which opens the panel);
 its ⋯ menu has **Hide until next visit** (this page only: the next page
-load shows it again) and **Hide on this site**. Per site (host name),
+load shows it again), **Hide on this site** and **Hide everywhere**
+(KAN-480, KAN-457's decision: the tab shows on every supported posting, and
+the student can hide it). The panel's own ⋯ menu has the last two as well;
+from there the panel closes with no edge tab. Per site (host name),
 `panel_sites` in chrome.storage.local (background.js `panel/where`,
 `panel/site`) keeps `{ top, collapsed, hidden }`: where the tab sits, a
 collapse (a batch tab's panel then stays collapsed on that site), and the
-site hide (a batch tab's edge tab still shows). Opening the panel by any
-press lets a collapse and a hide go.
+site hide (a batch tab's edge tab still shows). Hide everywhere is
+`panel_hidden_everywhere` (`panel/hide-everywhere`; `panel/where` gives it
+as `hiddenEverywhere`). Opening the panel by any press lets a collapse go,
+never a hide: Alt+W and the toolbar open the panel where the tab is
+hidden, and the hide stays until Options, whose **WorkIt Tab** card has
+"Show the WorkIt tab on job pages" (Hide everywhere's switch) and the
+sites hidden, each with Remove. Tests: `test/student-controls.extension.spec.ts`.
 
 **The toolbar icon and Alt+W.** `panel/where` on a job page sets that
 tab's popup to "" (per tab, so both behaviours coexist), so the icon's

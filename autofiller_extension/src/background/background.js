@@ -21,7 +21,7 @@ import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
 import { batchLine, jobForTab, showNextTab } from "./panel-top.js";
 import { attachedFile, chooseResume, openJob, resumeTab, uploadAndChoose, withTabResume } from "./resume-tab.js";
-import { addClaude, autoOpen, disconnectClaude, readSettings, setAutoOpen } from "./panel-settings.js";
+import { addClaude, autoOpen, autofillOff, disconnectClaude, hiddenEverywhere, hideEverywhere, readSettings, setAutoOpen } from "./panel-settings.js";
 import { previewReport, sendPreviewed } from "./report.js";
 import { sendFill, setFillNumbers } from "./fill-events.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
@@ -115,12 +115,14 @@ async function handleMessage(message, sender) {
       const plan = message.type === "fill/plan";
       // A Plan's profile and batch reads are asked at once; the job's saved answers are fetched while
       // the engine reads the job's questions (planFill waits for them only to plan).
-      const [profile, jobId, typed] = await Promise.all([
+      const [profile, jobId, typed, off] = await Promise.all([
         // The résumé the student switched this tab to (resume-tab.js) in place of the default.
         getAutofillProfile().then((p) => withTabResume(p, sender.tab?.id)),
         plan ? jobInTab(sender.tab.id) : null,
         // Its job type picks the start date: a full-time role's is graduation, an internship's its start.
         plan ? jobTypeInTab(sender.tab.id) : null,
+        // The Fields to autofill categories switched off in Options (KAN-480): left blank, for the student.
+        plan ? autofillOff() : [],
       ]);
       const jobType = jobId ? typed : null;
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") {
@@ -137,7 +139,7 @@ async function handleMessage(message, sender) {
       // On a site the student allowed (site-access.js), the link the engine reads for the page.
       const url = (await pageJobUrl(sender.tab?.id, sender.frameId ?? 0, sender.url ?? "")) ?? sender.url;
       const answer = await handleFill(message, {
-        url, profile, bank, today: today(), call: engineIn(sender), fetchText: plan ? planReads(sender.tab.id) : fetchText, trees: workdayTrees, jobType,
+        url, profile, bank, today: today(), call: engineIn(sender), fetchText: plan ? planReads(sender.tab.id) : fetchText, trees: workdayTrees, jobType, off,
       });
       // TikTok's sign-in, the student's to go through: the tab is remembered, and its form fills once it shows.
       if (message.type === "fill/plan" && answer.signIn) await rememberSignInTab(sender.tab.id);
@@ -422,10 +424,13 @@ async function handleMessage(message, sender) {
       if (job && sender.tab?.id !== undefined) await chrome.action.setPopup({ tabId: sender.tab.id, popup: "" });
       // A job page's panel will plan a fill: its profile is fetched while the page settles.
       if (job) warmProfile();
-      return { job, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen() };
+      return { job, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen(), hiddenEverywhere: await hiddenEverywhere() };
     }
     case "panel/site":
       return { site: await panelSite(sender.url ?? "", message.set) };
+    // The panel's and the edge tab's Hide everywhere (KAN-480); Options' switch turns it back on.
+    case "panel/hide-everywhere":
+      return hideEverywhere();
     // The off switch (remote-config.js, KAN-467): the job system's name when WorkIt turned it off, which the
     // panel shows in place of its button and the fill in place of filling (a batch tab then needs the student).
     case "fill/available":

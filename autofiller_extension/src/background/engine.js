@@ -15,6 +15,7 @@ import "../../fill-engine/dist/engine.js";
 import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
 import { letterPdf } from "./letter-pdf.js";
 import { unansweredSelfId } from "./self-id.js";
+import { CATEGORIES, withoutCategory } from "../shared/autofill-categories.js";
 
 /** The engine's own copy here, for what needs no page. */
 const engine = globalThis.FillEngine;
@@ -607,10 +608,11 @@ async function readQuestions({ job, url, call, fetchText, state }) {
  *   url: string, profile: import("../shared/types.js").AutofillProfile, bank?: object | Promise<object> | Function, today: string,
  *   call: (name: string, ...args: unknown[]) => Promise<any>,
  *   fetchText: (url: string, init?: { method: string, body: string }) => Promise<string>,
- *   extra?: object[], state?: object, jobType?: string | null,
+ *   extra?: object[], state?: object, jobType?: string | null, off?: string[],
  * }} options `jobType`: the queued job's job_type (a batch tab's), which picks the start date the engine answers.
+ *   `off`: the Fields to autofill categories the student switched off (KAN-480): their answers are held back, `plan.off`.
  */
-export async function planFill({ url, profile, bank = {}, today, call, fetchText, extra = [], state, jobType = null }) {
+export async function planFill({ url, profile, bank = {}, today, call, fetchText, extra = [], state, jobType = null, off = [] }) {
   const job = jobOf(url);
   if (!job) return { covered: false };
   const { site } = job;
@@ -630,9 +632,36 @@ export async function planFill({ url, profile, bank = {}, today, call, fetchText
   const asked = [...read.questions, ...extra.filter((q) => !known.has(q.name))];
   const questions = await optional(() => call("limits", asked), asked);
   const { posting, plan, planFor } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce, jobType, reading });
+  holdBack(plan, questions, off, (id) => planFor(profile, id));
   const answers = withFiles(plan.answers, profile);
   const prepared = { covered: true, site, posting, questions, plan, answers, applicantId: profile.id, step: read.step, state: read.state };
-  return { ...prepared, rows: planRows(prepared), selfId: selfIdAsked(questions, profile, plan, planFor) };
+  // Demographics off: the form's self-identification is the student's, so WorkIt doesn't ask to save it either.
+  const selfId = off.includes("demographics") ? null : selfIdAsked(questions, profile, plan, planFor);
+  return { ...prepared, rows: planRows(prepared), selfId };
+}
+
+/**
+ * Holds back the answers of the Fields to autofill categories the student
+ * switched off (KAN-480): each category's are the answers a Plan without its
+ * facts doesn't give the same (`planWithout(id)`), so which questions are a
+ * category's is the engine's to say. They leave the Plan's answers for
+ * `plan.off`, each with its question and category, and the form keeps them
+ * blank. The saved answers themselves are never touched.
+ */
+function holdBack(plan, questions, off, planWithout) {
+  plan.off = [];
+  const byName = new Map(questions.map((q) => [q.name, q]));
+  for (const category of CATEGORIES.filter((c) => off.includes(c.id))) {
+    const without = planWithout(category.id);
+    for (const [name, value] of Object.entries(plan.answers)) {
+      if (name in without.answers && JSON.stringify(without.answers[name]) === JSON.stringify(value)) continue;
+      const q = byName.get(name);
+      plan.off.push({ name, label: q?.label ?? name, required: Boolean(q?.required), category: category.id, categoryLabel: category.label });
+      delete plan.answers[name];
+      delete plan.sources?.[name];
+      delete plan.accepted?.[name];
+    }
+  }
 }
 
 /**
@@ -690,8 +719,12 @@ async function planQuestions({ job, url, questions, profile, bank, today, fetchT
   // job_type: WorkIt's own for the job (full_time, internship, ...), unknown outside a batch.
   const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url, job_type: jobType };
   bank = typeof bank === "function" ? (questions.length ? await bank(names.company) : {}) : await bank;
-  // `planFor`: the same Plan for another profile (the self-identification's probe, KAN-387).
-  const planFor = (someone) => engine.plan(questions, engineProfile(someone, today ?? undefined), enginePolicies(someone), bank ?? {}, { posting, today, postingText: text, employerText: text });
+  // `planFor`: the same Plan for another profile (the self-identification's probe, KAN-387), or without one
+  // Fields to autofill category's facts (`without`, KAN-480).
+  const planFor = (someone, without = null) => {
+    const facts = engineProfile(someone, today ?? undefined);
+    return engine.plan(questions, without ? withoutCategory(facts, without) : facts, enginePolicies(someone), bank ?? {}, { posting, today, postingText: text, employerText: text });
+  };
   const plan = questions.length
     ? planFor(profile)
     : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [], accepted: {}, sources: {} };
@@ -776,7 +809,9 @@ export async function fillPage({ call, site, questions, answers, accepted, state
  *   a video), and a screener the student would not pass.
  * A form that bans AI-written text never has `written`: the Plan hands its
  * essays off instead, so nothing AI-written goes where it is banned.
- * @returns {{ written: Row[], yours: Row[], notes: string[] }}
+ * - `off`: the answers held back because their Fields to autofill category is
+ *   off (KAN-480, holdBack), each with its category's words (`categoryLabel`).
+ * @returns {{ written: Row[], yours: Row[], notes: string[], off: (Row & { category: string, categoryLabel: string })[] }}
  * @typedef {{ name: string, label: string, required: boolean, max_length?: number | null }} Row
  */
 export function planRows({ plan }) {
@@ -792,6 +827,7 @@ export function planRows({ plan }) {
     ],
     yours: [...plan.missing, ...drafts.filter((q) => !toClaude(q))].map(row),
     notes,
+    off: plan.off ?? [],
   };
 }
 
@@ -831,7 +867,7 @@ function choice(q) {
  * @param {{ url: string, profile: object, bank?: object, today: string, call: Function, fetchText: Function,
  *   trees?: { load(): Promise<object>, save(saved: object): Promise<void> }, jobType?: string | null }} context
  */
-export async function handleFill(message, { url, profile, bank, today, call, fetchText, trees, jobType = null }) {
+export async function handleFill(message, { url, profile, bank, today, call, fetchText, trees, jobType = null, off = [] }) {
   const withTrees = async (state) => (state && trees ? { ...state, trees: { ...state.trees, ...(await trees.load()) } } : state);
   const keep = async (state) => {
     if (state?.saved && trees && Object.keys(state.saved).length) await trees.save(state.saved);
@@ -841,7 +877,7 @@ export async function handleFill(message, { url, profile, bank, today, call, fet
   if (message.type === "fill/plan") {
     let state = message.state;
     if (!state && trees && jobOf(url)?.site === "workday") state = { tenant: jobOf(url).tenant, trees: {} };
-    answer = await planFill({ url, profile, bank, today, call, fetchText, extra: message.extra, state: await withTrees(state), jobType });
+    answer = await planFill({ url, profile, bank, today, call, fetchText, extra: message.extra, state: await withTrees(state), jobType, off });
   } else if (message.type === "fill/page") {
     answer = await fillPage({ call, ...message, answers: asUploads(message.answers, message.questions, profile), state: await withTrees(message.state) });
   } else if (message.type === "fill/read") {
