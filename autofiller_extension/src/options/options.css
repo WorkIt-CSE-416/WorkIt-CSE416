@@ -119,3 +119,4 @@ h2 { margin: 0 0 8px; font-size: 18px; }
 h3 { margin: 24px 0 0; font-size: 15px; }
 .switch { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: normal; }
 .switch input { width: auto; margin: 0; }
+.switches { display: grid; gap: 8px; }

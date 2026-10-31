@@ -21,7 +21,7 @@ import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
 import { batchLine, jobForTab, showNextTab } from "./panel-top.js";
 import { attachedFile, chooseResume, openJob, resumeTab, uploadAndChoose, withTabResume } from "./resume-tab.js";
-import { addClaude, autoOpen, disconnectClaude, hiddenEverywhere, hideEverywhere, readSettings, setAutoOpen } from "./panel-settings.js";
+import { addClaude, autoOpen, autofillOff, disconnectClaude, hiddenEverywhere, hideEverywhere, readSettings, setAutoOpen } from "./panel-settings.js";
 import { previewReport, sendPreviewed } from "./report.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
@@ -120,12 +120,14 @@ async function handleMessage(message, sender) {
       const plan = message.type === "fill/plan";
       // A Plan's profile and batch reads are asked at once; the job's saved answers are fetched while
       // the engine reads the job's questions (planFill waits for them only to plan).
-      const [profile, jobId, typed] = await Promise.all([
+      const [profile, jobId, typed, off] = await Promise.all([
         // The résumé the student switched this tab to (resume-tab.js) in place of the default.
         getAutofillProfile().then((p) => withTabResume(p, sender.tab?.id)),
         plan ? jobInTab(sender.tab.id) : null,
         // Its job type picks the start date: a full-time role's is graduation, an internship's its start.
         plan ? jobTypeInTab(sender.tab.id) : null,
+        // The Fields to autofill categories switched off in Options (KAN-480): left blank, for the student.
+        plan ? autofillOff() : [],
       ]);
       const jobType = jobId ? typed : null;
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") {
@@ -142,7 +144,7 @@ async function handleMessage(message, sender) {
       // On a site the student allowed (site-access.js), the link the engine reads for the page.
       const url = (await pageJobUrl(sender.tab?.id, sender.frameId ?? 0, sender.url ?? "")) ?? sender.url;
       const answer = await handleFill(message, {
-        url, profile, bank, today: today(), call: engineIn(sender), fetchText: plan ? planReads(sender.tab.id) : fetchText, trees: workdayTrees, jobType,
+        url, profile, bank, today: today(), call: engineIn(sender), fetchText: plan ? planReads(sender.tab.id) : fetchText, trees: workdayTrees, jobType, off,
       });
       // TikTok's sign-in, the student's to go through: the tab is remembered, and its form fills once it shows.
       if (message.type === "fill/plan" && answer.signIn) await rememberSignInTab(sender.tab.id);

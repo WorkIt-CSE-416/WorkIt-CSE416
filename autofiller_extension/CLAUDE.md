@@ -1615,6 +1615,27 @@ the bank, with no new input: `experience_facts.prior_internships_count`
   than one the student fills in. The Plan lists it as a Missing fact; the
   overlay marks it failed when the form requires it, skipped when not.
 
+## Fields to autofill (KAN-480): a category switched off is the student's
+
+Options' **Fields to Autofill** card has one switch a category, as
+Simplify's settings do: Contact info, Location, Documents, Education,
+Experience, Demographics and Work authorization
+(`src/shared/autofill-categories.js`, `CATEGORIES`, each with the engine
+profile's facts it covers). The ids switched off are `autofill_off` in
+chrome.storage.local (`panel-settings.js` `autofillOff`), read for each
+`fill/plan`. `engine.js`'s `holdBack` plans once more per category off,
+without that category's facts (`withoutCategory`): the answers that Plan
+doesn't give the same are the category's, so which questions they are is
+the engine's to say, never a list of labels. They leave the Plan's answers
+for `plan.off`, and `planRows` gives them as `rows.off`; content-script.js
+registers each with its category (`off`) and leaves it pending with "<Category>
+autofill is off in WorkIt's Options. Answer it yourself." lib-status.js's
+`needsYou` counts such a row, required or not, while it stays empty, so
+the list, the counts and Next Thing agree. Nothing saved is written or
+deleted: only the Plan's profile goes without the facts. With Demographics
+off, a form's self-identification is not asked to be saved either
+(`selfId` is null). Tests: `test/student-controls.extension.spec.ts`.
+
 ## Attaching the student's resume file
 
 Greenhouse's "Resume/CV" field is a stable `input#resume`, `type="file"`,

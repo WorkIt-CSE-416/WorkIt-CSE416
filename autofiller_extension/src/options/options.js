@@ -8,6 +8,8 @@
 // an API call or the webapp. The page asks the worker only for the student's
 // WorkIt email, to prefill the box, and never shows a saved password back.
 
+import { AUTOFILL_OFF_KEY, CATEGORIES } from "../shared/autofill-categories.js";
+
 const SIGNUP_KEY = "workday_signup";
 
 /** Each rule of the checklist, as Workday's own password rules ask. */
@@ -154,3 +156,29 @@ async function listHiddenSites() {
 }
 
 listHiddenSites();
+
+// Fields to autofill (KAN-480, shared/autofill-categories.js): one switch a category, on unless the
+// student turned it off. Off, the fill leaves the category's fields blank; the saved answers stay.
+const fields = document.getElementById("fields");
+
+async function listFields() {
+  const kept = (await chrome.storage.local.get(AUTOFILL_OFF_KEY))[AUTOFILL_OFF_KEY];
+  const off = new Set(Array.isArray(kept) ? kept : []);
+  fields.replaceChildren(
+    ...CATEGORIES.map(({ id, label }) => {
+      const row = Object.assign(document.createElement("label"), { className: "switch" });
+      const box = Object.assign(document.createElement("input"), { type: "checkbox", checked: !off.has(id) });
+      box.dataset.category = id;
+      box.addEventListener("change", async () => {
+        const now = new Set((await chrome.storage.local.get(AUTOFILL_OFF_KEY))[AUTOFILL_OFF_KEY] ?? []);
+        if (box.checked) now.delete(id);
+        else now.add(id);
+        await chrome.storage.local.set({ [AUTOFILL_OFF_KEY]: [...now] });
+      });
+      row.append(box, ` ${label}`);
+      return row;
+    }),
+  );
+}
+
+listFields();

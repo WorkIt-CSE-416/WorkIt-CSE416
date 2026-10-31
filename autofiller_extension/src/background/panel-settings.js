@@ -6,6 +6,7 @@
 
 import { getSession } from "./auth.js";
 import { connectorAdded, disconnectConnector, me } from "./api.js";
+import { AUTOFILL_OFF_KEY } from "../shared/autofill-categories.js";
 
 // Whether a batch tab's panel opens by itself once its fill is done (true unless the student turned it off).
 const AUTO_OPEN_KEY = "panel_auto_open";
@@ -64,4 +65,10 @@ export async function hiddenEverywhere() {
 export async function hideEverywhere() {
   await chrome.storage.local.set({ [HIDDEN_EVERYWHERE_KEY]: true });
   return { hiddenEverywhere: true };
+}
+
+/** The Fields to autofill categories the student switched off in Options (KAN-480), by id. */
+export async function autofillOff() {
+  const off = (await chrome.storage.local.get(AUTOFILL_OFF_KEY))[AUTOFILL_OFF_KEY];
+  return Array.isArray(off) ? off : [];
 }

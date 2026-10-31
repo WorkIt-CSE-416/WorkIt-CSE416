@@ -96,3 +96,44 @@ test("Hide everywhere from the edge tab's menu: Options' switch brings it back",
   await expect(edgeTab(page)).toBeVisible({ timeout: 15_000 });
   expect(forms.submissions).toEqual([]);
 });
+
+// Anduril's self-identification questions the form draws, all optional (Race shows once Hispanic/Latino is answered).
+const EEO = ["gender", "hispanic_ethnicity", "veteran_status"];
+
+test("with Demographics off, the EEO questions are left blank and need the student; the saved answers stay", async () => {
+  test.setTimeout(150_000);
+  const forms = new SavedForms([ANDURIL]);
+  const api = new FakeApi();
+  loaded = await loadExtension([api.handler, webapp, forms.handler]);
+  await signIn(loaded.context);
+
+  const options = await optionsPage();
+  const demographics = options.getByRole("checkbox", { name: "Demographics" });
+  await expect(demographics).toBeChecked();
+  await demographics.uncheck();
+  await expect(options.getByRole("checkbox", { name: "Contact info" })).toBeChecked();
+
+  const page = await ownTab(forms);
+  const host = hostOf(page);
+  await edgeTab(page).click({ timeout: 15_000 });
+  await host.getByRole("button", { name: "Autofill This Page" }).click();
+  await expect(host.locator('[data-key="first_name"] .source')).toHaveCount(1, { timeout: 60_000 });
+  await expect(host.locator('[data-slot="primary"] .primary-button').first()).toContainText(/Answer \d+ of \d+/, { timeout: 60_000 });
+  for (const key of EEO) {
+    await expect(host.locator(`[data-key="${key}"]`)).toHaveAttribute("data-mark", "needs-you");
+    await expect(host.locator(`[data-key="${key}"]`)).toContainText("Demographics autofill is off");
+  }
+  // Left blank on the form: no question's box shows the answer WorkIt would have picked (greenhouse.spec.ts's).
+  const boxText = (id: string) =>
+    page.evaluate((id) => document.getElementById(`${id}-label`)!.closest(".select__container")!.textContent ?? "", id);
+  expect(await boxText("gender")).not.toContain("Decline To Self Identify");
+  expect(await boxText("veteran_status")).not.toContain("I am not a protected veteran");
+  // Contact info still fills.
+  expect(await page.locator("#first_name").inputValue()).not.toBe("");
+
+  // The saved answers are untouched: nothing was written to them, and they still read back.
+  expect(api.calls.filter((c) => /autofill-answers/.test(c) && !c.startsWith("GET"))).toEqual([]);
+  const profile = await options.evaluate(() => chrome.runtime.sendMessage({ type: "profile/get", force: true }));
+  expect(profile?.profile?.answers).toMatchObject({ gender: "declined", race: "asian", veteran_status: "not_protected_veteran" });
+  expect(forms.submissions).toEqual([]);
+});
