@@ -13,17 +13,15 @@ export type SurveyState = { sent: boolean; error: string | null };
  * session: the answer is anonymous. The student's address goes along as
  * `x-workit-client-ip` only for the API's per-sender cap, which keeps it in
  * memory and never stores it (backend/app/routers/uninstall_answers.py).
- * Cloudflare sets `cf-connecting-ip`; x-forwarded-for is the local and
- * Vercel equivalent.
+ * The address is Cloudflare's `cf-connecting-ip`, as the site is served
+ * from Cloudflare (docs/adr/0004-host-on-cloudflare.md); with none (local
+ * dev), none is sent.
  */
 export async function sendAnswer(_: SurveyState, form: FormData): Promise<SurveyState> {
   const body = answerBody(form);
   if (!body) return { sent: false, error: "Pick one answer first." };
   const headersList = await headers();
-  const address =
-    headersList.get("cf-connecting-ip") ??
-    headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "";
+  const address = headersList.get("cf-connecting-ip")?.trim() ?? "";
   try {
     const response = await apiFetch("/uninstall-answers", {
       method: "POST",

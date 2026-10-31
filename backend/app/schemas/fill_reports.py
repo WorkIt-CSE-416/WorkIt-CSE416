@@ -9,7 +9,7 @@ and the admins' reads (routers/fill_reports.py)."""
 
 import datetime
 import re
-from typing import Literal
+from typing import Literal, NamedTuple
 from urllib.parse import parse_qsl, urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -201,18 +201,39 @@ class FillReportRequest(BaseModel):
         return report
 
 
+class Signature(NamedTuple):
+    """
+    A report's group (KAN-478), stored as "<job system>:<field kind>:<error>"
+    (str()); `parse` splits a stored one back. The one place the text is built
+    or split: queries/fill_reports.py's groups and services/fill_report_alerts.py.
+    """
+
+    job_system: str
+    field_kind: str | None = None
+    error: str | None = None
+
+    def __str__(self) -> str:
+        return f"{self.job_system}:{self.field_kind or ''}:{self.error or ''}"
+
+    @classmethod
+    def parse(cls, text: str) -> "Signature":
+        """A stored signature's parts; '' (a report stored by code older than the column) is all empty."""
+        job_system, kind, error = (text.split(":", 2) + ["", ""])[:3]
+        return cls(job_system, kind or None, error or None)
+
+
 def signature_of(report: dict) -> str:
     """
-    The report's group (KAN-478): "<job system>:<field kind>:<error>", for the
-    field it is about: the first that went wrong, else the first the student
-    marked ("Marked"), else none ("<job system>::"). Twenty students hitting
-    one broken field send one signature.
+    The report's group (KAN-478) for the field it is about: the first that
+    went wrong, else the first the student marked ("Marked"), else none
+    ("<job system>::"). Twenty students hitting one broken field send one
+    signature.
     """
     fields = report.get("fields") or []
     field = next((f for f in fields if f.get("error")), None) or next((f for f in fields if f.get("marked")), None)
     if field is None:
-        return f"{report['job_system']}::"
-    return f"{report['job_system']}:{field['kind']}:{field.get('error') or 'Marked'}"
+        return str(Signature(report["job_system"]))
+    return str(Signature(report["job_system"], field["kind"], field.get("error") or "Marked"))
 
 
 class FillReportStored(BaseModel):

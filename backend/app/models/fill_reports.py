@@ -49,7 +49,8 @@ class Fill_Report(Base):
     posting_url: Mapped[str] = mapped_column(Text)
     engine_version: Mapped[str] = mapped_column(String(64))
     # The report's group, "<job system>:<field kind>:<error>" (schemas' signature_of, KAN-478).
-    signature: Mapped[str] = mapped_column(String(80))
+    # '' on a report inserted by code older than the column.
+    signature: Mapped[str] = mapped_column(String(80), server_default="")
     # [{"kind", "label_shape", "error", ...FillReportField's other parts}], as the panel previewed them.
     fields: Mapped[list] = mapped_column(JSONB)
     note: Mapped[str | None] = mapped_column(Text)

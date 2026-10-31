@@ -9,7 +9,9 @@ The admins are the emails on WORKIT_ADMINS (an account id there names no
 inbox). Mail goes through services/email.py's SES sender, which needs the
 sending machine's IAM role; while SES is in its sandbox it reaches only the
 addresses SES has verified. When no admin's send is accepted, nothing is
-stamped, so the next run tries again.
+stamped, so the next run tries again. Every link passes the notices'
+check_link (https on workitjobs.ai), or nothing is sent. It flushes the stamps and never
+commits: the script does.
 """
 
 import datetime
@@ -21,15 +23,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models.fill_reports import Fill_Report
+from app.schemas.fill_reports import Signature
 from app.services.email import send_email
+from app.services.notices import check_link
 
 QUIET = datetime.timedelta(hours=1)
 
 
 def admin_emails() -> list[str]:
     """The emails on WORKIT_ADMINS, lower-cased, in order."""
-    entries = (entry.strip().lower() for entry in get_settings().workit_admins.split(","))
-    return [entry for entry in entries if "@" in entry]
+    return [entry for entry in get_settings().admins if "@" in entry]
 
 
 def _email(groups: list) -> tuple[str, str]:
@@ -37,14 +40,14 @@ def _email(groups: list) -> tuple[str, str]:
     noun = "group" if len(groups) == 1 else "groups"
     items = []
     for g in groups:
-        _, kind, error = g.signature.split(":")
-        what = " · ".join(html.escape(part) for part in (g.job_system, kind or "no field", error or "no error"))
+        signature = Signature.parse(g.signature)
+        what = " · ".join(html.escape(part) for part in (g.job_system, signature.field_kind or "no field", signature.error or "no error"))
         reports = "1 report" if g.count == 1 else f"{g.count} reports"
-        link = f"{base}/admin/fill-reports?signature={quote(g.signature, safe='')}"
+        link = check_link(f"{base}/admin/fill-reports?signature={quote(g.signature, safe='')}")
         items.append(f'<li><a href="{html.escape(link)}">{what}</a>: {reports}</li>')
     body = (
         f"<p>Students sent fix reports in {len(groups)} new {noun}:</p><ul>{''.join(items)}</ul>"
-        f'<p><a href="{html.escape(base)}/admin/fill-reports">All fill reports</a></p>'
+        f'<p><a href="{html.escape(check_link(base + "/admin/fill-reports"))}">All fill reports</a></p>'
     )
     return f"WorkIt: {len(groups)} new fix report {noun}", body
 
@@ -76,5 +79,5 @@ async def alert_new_groups(db: AsyncSession, *, now: datetime.datetime | None = 
         .where(Fill_Report.signature.in_([g.signature for g in groups]), Fill_Report.alerted_at.is_(None), Fill_Report.created_at <= now)
         .values(alerted_at=now)
     )
-    await db.commit()
+    await db.flush()
     return len(groups)

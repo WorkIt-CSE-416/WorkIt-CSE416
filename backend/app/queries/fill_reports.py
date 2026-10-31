@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 
 from app.models.fill_reports import Fill_Report
-from app.schemas.fill_reports import signature_of
+from app.schemas.fill_reports import Signature, signature_of
 
 
 async def store_report(db: AsyncSession, report: dict, account_id: uuid.UUID) -> uuid.UUID:
@@ -70,9 +70,9 @@ async def list_groups(db: AsyncSession, *, limit: int = 200, **filters) -> list[
     )
     groups = []
     for row in rows:
-        _, kind, error = row.signature.split(":")
+        signature = Signature.parse(row.signature)
         groups.append({
-            **row._asdict(), "field_kind": kind or None, "error": error or None,
+            **row._asdict(), "field_kind": signature.field_kind, "error": signature.error,
             "latest_id": str(row.latest_id), "engine_versions": sorted(row.engine_versions),
         })
     return groups

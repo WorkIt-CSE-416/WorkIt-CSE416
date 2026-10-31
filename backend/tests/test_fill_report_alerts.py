@@ -47,7 +47,9 @@ async def _report(database, signature: str, at: datetime.datetime) -> None:
 
 async def _alert(database, now: datetime.datetime) -> int:
     async with database() as s:
-        return await alert_new_groups(s, now=now)
+        groups = await alert_new_groups(s, now=now)
+        await s.commit()
+        return groups
 
 
 async def test_new_groups_email_the_admins_at_most_once_an_hour(database, mailbox):
@@ -109,3 +111,14 @@ def test_alert_links_point_at_workitjobs_ai_by_default(monkeypatch):
 
     assert 'href="https://workitjobs.ai/admin/fill-reports?signature=' in body
     assert "vercel.app" not in body
+
+
+async def test_an_alert_linking_off_workitjobs_ai_is_refused_before_any_send(database, mailbox, monkeypatch):
+    # The notices' guard (services/notices.py check_link): https on workitjobs.ai only.
+    sent, _ = mailbox
+    await _report(database, "greenhouse:text:Readback", NOW - datetime.timedelta(minutes=5))
+    monkeypatch.setattr(get_settings(), "web_url", "https://workit-web-gamma.vercel.app")
+
+    with pytest.raises(ValueError):
+        await _alert(database, NOW)
+    assert sent == []

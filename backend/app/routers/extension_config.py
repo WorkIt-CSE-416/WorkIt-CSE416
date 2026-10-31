@@ -16,15 +16,13 @@ DELETE /admin/disabled-job-systems/{job_system}   turns it back on
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import delete
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auto_apply.hosts import JOB_SYSTEMS
 from app.auto_apply.queries import fetch_disabled_job_systems
 from app.db import get_session
 from app.deps import get_admin
-from app.models.disabled_job_systems import Disabled_Job_System
+from app.queries import disabled_job_systems
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.extension_config import DisabledJobSystem, ExtensionConfig
 
@@ -56,11 +54,7 @@ async def disable_job_system(
     db: AsyncSession = Depends(get_session),
 ) -> ExtensionConfig:
     """Turns a job system off."""
-    await db.execute(
-        insert(Disabled_Job_System)
-        .values(job_system=_known(job_system), disabled_by=str(admin.email))
-        .on_conflict_do_nothing(index_elements=["job_system"])
-    )
+    await disabled_job_systems.disable(db, _known(job_system), by=str(admin.email))
     await db.commit()
     return await _config(db)
 
@@ -72,6 +66,6 @@ async def enable_job_system(
     db: AsyncSession = Depends(get_session),
 ) -> ExtensionConfig:
     """Turns a job system back on."""
-    await db.execute(delete(Disabled_Job_System).where(Disabled_Job_System.job_system == _known(job_system)))
+    await disabled_job_systems.enable(db, _known(job_system))
     await db.commit()
     return await _config(db)

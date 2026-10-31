@@ -41,14 +41,25 @@ async def test_a_version_at_or_above_the_minimum_works(minimum):
         assert (await _health({"X-WorkIt-Extension": current})).status_code == 200, current
 
 
-async def test_a_request_with_no_version_is_let_through_and_an_extension_one_logged(minimum, caplog):
-    with caplog.at_level(logging.INFO, logger="app.main"):
+EXTENSION = {"Origin": "chrome-extension://cpklhdkoafegnndlafmiceehfloodjgi"}
+
+
+async def test_a_request_with_no_version_is_let_through_and_an_extension_one_logged_at_debug(minimum, caplog):
+    with caplog.at_level(logging.DEBUG, logger="app.main"):
         assert (await _health({})).status_code == 200
-        assert (await _health({"Origin": "chrome-extension://cpklhdkoafegnndlafmiceehfloodjgi"})).status_code == 200
+        assert (await _health(EXTENSION)).status_code == 200
 
     logged = [r for r in caplog.records if "no version" in r.getMessage()]
     # The webapp's server never names a version: only the extension's request is logged.
-    assert len(logged) == 1
+    assert [r.levelno for r in logged] == [logging.DEBUG]
+
+
+async def test_the_extension_config_read_names_no_version_on_purpose_and_is_not_logged(database, minimum, caplog):
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000") as api:
+        with caplog.at_level(logging.DEBUG, logger="app.main"):
+            await api.get("/extension/config", headers=EXTENSION)
+
+    assert not [r for r in caplog.records if "no version" in r.getMessage()]
 
 
 async def test_the_default_minimum_refuses_no_build():

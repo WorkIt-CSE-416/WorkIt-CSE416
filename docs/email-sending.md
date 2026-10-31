@@ -22,12 +22,18 @@ only to addresses verified in the SES console.
 - `backend/app/scripts/send_closure_notice.py` sends the one closure email,
   "your account will be closed on <date> because <reason>", once per
   address and date.
-- Before sending, both copy SES's account suppression list into
+- Before sending, both (and the daily job-alert run) copy SES's account suppression list into
   `email_suppressions`. No notice and no job-alert email goes to an
   address on it (the job alert still writes its bell notification). An
   address SES refuses is not logged, so the next run tries it again.
   If a run is killed between logging an address and sending to it, that
   address is skipped next time: one missed email instead of two.
+- What is kept, for privacy (`backend/app/services/retention.py`):
+  `email_sends` rows (campaign and address, no account link) are deleted
+  1 year after the send by the daily purge. `email_suppressions` is kept
+  on purpose, with no period: SES compliance means a bounced or
+  complaining address is never mailed again, even if SES drops it from
+  its own list.
 - The code is in `backend/app/services/notices.py` and the tests in
   `backend/tests/test_notices.py`, which use a fake SES and never reach
   AWS.

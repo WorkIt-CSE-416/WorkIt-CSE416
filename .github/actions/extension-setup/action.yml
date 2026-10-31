@@ -1,0 +1,26 @@
+name: Extension test setup
+description: >-
+  Node, autofiller_extension/test's packages and Playwright's Chromium, for the
+  jobs that run the extension's specs (ci.yml's extension, extension-nightly.yml,
+  live-canary.yml). Runs after the checkout, which must bring the fill-engine
+  submodule (FILL_ENGINE_TOKEN): a local action can't check out its own repo.
+inputs:
+  with-deps:
+    description: "'true' to install Chromium's system packages too (Linux runners)."
+    required: false
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+    - shell: bash
+      working-directory: autofiller_extension/test
+      run: npm ci
+    - shell: bash
+      working-directory: autofiller_extension/test
+      env:
+        WITH_DEPS: ${{ inputs.with-deps }}
+      run: |
+        if [ "$WITH_DEPS" = true ]; then npx playwright install --with-deps chromium; else npx playwright install chromium; fi

@@ -48,6 +48,8 @@ from app.routers.tailor import router as tailor_router
 from app.routers.tracker import router as tracker_router
 from app.routers.uninstall_answers import router as uninstall_answers_router
 from app.routers.writing_samples import router as writing_samples_router
+from app.schemas.extension_config import version_key
+from app.services import daily_caps
 
 logger = logging.getLogger(__name__)
 
@@ -64,12 +66,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-def _version(text: str) -> tuple[int, ...] | None:
-    """"0.3" as (0, 3, 0, 0), as Chrome compares versions; None for anything that isn't dotted numbers."""
-    parts = text.strip().split(".")
-    if not all(p.isdigit() for p in parts):
-        return None
-    return (*map(int, parts), 0, 0, 0)[:max(4, len(parts))]
+# The extension's calls that send no version on purpose: the remote config
+# (routers/extension_config.py, api.js publicFetch) is a plain public read,
+# so the off switch reaches every build, even one below the minimum.
+UNVERSIONED = frozenset({"/extension/config"})
 
 
 @app.middleware("http")
@@ -79,16 +79,17 @@ async def extension_version(request: Request, call_next):
     than MIN_EXTENSION_VERSION gets 426 with the minimum, and the panel asks
     the student to update. A request with no version is let through: the
     webapp's server sends none, and neither did builds before this. One from
-    the extension (its chrome-extension:// origin) is logged, to see how
-    many old builds are still out there.
+    the extension (its chrome-extension:// origin) is logged at debug, to see
+    how many old builds are still out there, except the remote config read
+    (UNVERSIONED), which names no version on purpose.
     """
     sent = request.headers.get("x-workit-extension")
     if sent is None:
-        if request.headers.get("origin", "").startswith("chrome-extension://"):
-            logger.info("Extension request with no version: %s %s", request.method, request.url.path)
+        if request.headers.get("origin", "").startswith("chrome-extension://") and request.url.path not in UNVERSIONED:
+            logger.debug("Extension request with no version: %s %s", request.method, request.url.path)
         return await call_next(request)
     minimum = get_settings().min_extension_version
-    version, floor = _version(sent), _version(minimum)
+    version, floor = version_key(sent), version_key(minimum)
     if version is not None and floor is not None and version < floor:
         return JSONResponse(
             status_code=426,
@@ -141,6 +142,12 @@ async def not_found(request: Request, exc: pipeline.NotFound) -> JSONResponse:
 @app.exception_handler(pipeline.WrongStage)
 async def wrong_stage(request: Request, exc: pipeline.WrongStage) -> JSONResponse:
     return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
+@app.exception_handler(daily_caps.OverDailyCap)
+async def over_daily_cap(request: Request, exc: daily_caps.OverDailyCap) -> JSONResponse:
+    """A write past its account's daily cap (app/services/daily_caps.py), from any route."""
+    return JSONResponse(status_code=429, content={"detail": str(exc)})
 
 
 @app.exception_handler(RequestValidationError)

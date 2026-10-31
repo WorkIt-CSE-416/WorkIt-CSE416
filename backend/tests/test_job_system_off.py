@@ -15,7 +15,12 @@ import pytest
 from sqlalchemy import select, text
 
 from app.auto_apply import pipeline
-from app.auto_apply.hosts import JOB_SYSTEMS, job_system_of
+from app.auto_apply.hosts import (
+    JOB_SYSTEMS,
+    SYSTEM_HOSTS,
+    SYSTEM_URL_PATTERNS,
+    job_system_of,
+)
 from app.config import get_settings
 from app.deps import get_current_account
 from app.main import app
@@ -63,6 +68,13 @@ def test_every_job_system_has_a_name_a_student_knows():
         "greenhouse", "lever", "ashby", "rippling", "workable", "eightfold", "smartrecruiters",
         "workday", "waymo", "tiktok", "oracle", "icims", "successfactors",
     }
+
+
+def test_every_named_job_system_has_a_link_pattern_and_every_pattern_a_name():
+    # Waymo has no host of its own (its careers site shows Greenhouse postings), so the
+    # names are checked against the link patterns, not SYSTEM_HOSTS; hosts.py refuses to import otherwise.
+    assert set(JOB_SYSTEMS) == set(SYSTEM_URL_PATTERNS)
+    assert set(SYSTEM_HOSTS) == set(JOB_SYSTEMS) - {"waymo"}
 
 
 # --- the list: GET /extension/config, and the admins' switch ---

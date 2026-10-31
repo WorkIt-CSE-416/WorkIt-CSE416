@@ -39,6 +39,16 @@ RETENTION: tuple[Rule, ...] = (
     # Fill events (KAN-476's fill numbers): 90 days. Skipped until the
     # table exists; KAN-476 makes sure it has a created_at timestamptz.
     Rule("fill_events", "created_at", 90),
+    # The extension's per-account daily write counts (KAN-478) only enforce
+    # daily caps, as the AI counters do: 30 days.
+    Rule("daily_counts", "day", 30, date=True),
+    # Uninstall survey answers (KAN-471), which name no account: 1 year.
+    Rule("uninstall_answers", "created_at", 365),
+    # The notice send log (KAN-483), an address per campaign with no account
+    # link: 1 year, past any campaign's re-run. email_suppressions has no
+    # rule on purpose: SES compliance means a bounced or complaining address
+    # is never mailed again, so it is kept (docs/email-sending.md).
+    Rule("email_sends", "sent_at", 365),
 )
 
 
@@ -57,7 +67,7 @@ def _cutoff(rule: Rule, now: datetime.datetime) -> datetime.datetime | datetime.
 async def purge(
     db: AsyncSession, *, now: datetime.datetime | None = None, dry_run: bool = False
 ) -> dict[str, int | None]:
-    """Delete every row past its period and commit. Returns the count per
+    """Delete every row past its period and flush; the caller commits. Returns the count per
     table (None for a table that does not exist). A dry run counts the rows
     it would delete and deletes nothing."""
     now = now or datetime.datetime.now(datetime.UTC)
@@ -74,6 +84,5 @@ async def purge(
         else:
             sql = f"DELETE FROM {rule.table} WHERE {_condition(rule)}"
             counts[rule.table] = (await db.execute(text(sql), params)).rowcount
-    if not dry_run:
-        await db.commit()
+    await db.flush()
     return counts

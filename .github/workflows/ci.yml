@@ -21,26 +21,32 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
 
+  # Whether FILL_ENGINE_TOKEN (read access to the private fill-engine submodule) is set. Without it the
+  # jobs and steps below that need the engine are skipped, and this job's summary says SKIPPED.
+  engine:
+    uses: ./.github/workflows/engine-token.yml
+    with:
+      skipped: the extension's Playwright suite and the Chrome Web Store package build
+    secrets: inherit
+
   # The Chrome Web Store package (KAN-463): store/build.mjs fails if any packaged file names localhost,
   # vercel.app or "Prototype", and the specs read the zip back and check the website calls the
-  # extension's ID. The package needs the private fill-engine submodule, which the default token can't
-  # read: the build steps run once a FILL_ENGINE_TOKEN secret (read access to WorkIt-CSE-416/fill-engine)
-  # is set; the ID check runs either way.
+  # extension's ID. The package needs the fill-engine submodule: the build steps run once
+  # FILL_ENGINE_TOKEN is set (the engine job), and show as skipped otherwise; the ID check runs either way.
   extension-store-build:
+    needs: engine
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: autofiller_extension
     steps:
-      - id: engine
-        run: echo "token=${{ secrets.FILL_ENGINE_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
-        if: steps.engine.outputs.token == 'true'
+        if: needs.engine.outputs.set == 'true'
         with:
           submodules: true
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
       - uses: actions/checkout@v4
-        if: steps.engine.outputs.token != 'true'
+        if: needs.engine.outputs.set != 'true'
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -48,13 +54,13 @@ jobs:
         working-directory: autofiller_extension/test
       - run: npx playwright test extension-id.spec.ts --project=page
         working-directory: autofiller_extension/test
-      - if: steps.engine.outputs.token == 'true'
+      - name: Build the Store package
+        if: needs.engine.outputs.set == 'true'
         run: node store/build.mjs
-      - if: steps.engine.outputs.token == 'true'
+      - name: Check the Store package
+        if: needs.engine.outputs.set == 'true'
         run: npx playwright test store-build.spec.ts --project=page
         working-directory: autofiller_extension/test
-      - if: steps.engine.outputs.token != 'true'
-        run: echo "::warning::FILL_ENGINE_TOKEN is not set, so the Store package was not built or checked."
 
   # Which parts a PR touches, so a job can skip a PR that can't break it.
   changes:
@@ -73,13 +79,15 @@ jobs:
             extension:
               - autofiller_extension/**
               - .github/workflows/ci.yml
+              - .github/workflows/engine-token.yml
+              - .github/actions/extension-setup/**
 
   # The extension's Playwright suite, headless, on the engine the submodule
   # pins (KAN-464). The slow speed harness runs nightly instead
-  # (extension-nightly.yml). Needs FILL_ENGINE_TOKEN, as extension-store-build.
+  # (extension-nightly.yml). Skipped without FILL_ENGINE_TOKEN (the engine job).
   extension:
-    needs: changes
-    if: needs.changes.outputs.extension == 'true'
+    needs: [changes, engine]
+    if: needs.changes.outputs.extension == 'true' && needs.engine.outputs.set == 'true'
     # macOS, as most students run Chrome: on Linux, Chromium asks
     # accounts.google.com on its own and scrolls and focuses differently, so
     # a few specs fail there only. Free on a public repo.
@@ -89,27 +97,14 @@ jobs:
       run:
         working-directory: autofiller_extension/test
     steps:
-      - id: engine
-        working-directory: .
-        run: echo "token=${{ secrets.FILL_ENGINE_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
-      - if: steps.engine.outputs.token != 'true'
-        working-directory: .
-        run: echo "::warning::FILL_ENGINE_TOKEN is not set, so the extension tests did not run."
       - uses: actions/checkout@v4
-        if: steps.engine.outputs.token == 'true'
         with:
           submodules: true
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
-      - uses: actions/setup-node@v4
-        if: steps.engine.outputs.token == 'true'
-        with:
-          node-version-file: .nvmrc
-      - if: steps.engine.outputs.token == 'true'
-        run: npm ci
+      - uses: ./.github/actions/extension-setup
       # The extension loads the engine's committed dist/; it must be what the
       # pinned src/ builds to.
       - name: The pinned engine's dist/ is built from its src/
-        if: steps.engine.outputs.token == 'true'
         working-directory: autofiller_extension/fill-engine
         run: |
           npm ci
@@ -118,10 +113,7 @@ jobs:
             echo "::error::The pinned fill-engine commit's dist/ is stale."
             exit 1
           }
-      - if: steps.engine.outputs.token == 'true'
-        run: npx playwright install chromium
-      - if: steps.engine.outputs.token == 'true'
-        run: npx playwright test $(ls *.spec.ts | grep -vx speed.extension.spec.ts)
+      - run: npx playwright test $(ls *.spec.ts | grep -vx speed.extension.spec.ts)
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

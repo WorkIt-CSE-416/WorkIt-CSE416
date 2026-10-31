@@ -8,7 +8,16 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Whether FILL_ENGINE_TOKEN is set: without it the suite below is skipped, and this job's summary says SKIPPED.
+  engine:
+    uses: ./.github/workflows/engine-token.yml
+    with:
+      skipped: the extension's nightly Playwright suite
+    secrets: inherit
+
   extension:
+    needs: engine
+    if: needs.engine.outputs.set == 'true'
     # macOS, as most students run Chrome: on Linux, Chromium asks
     # accounts.google.com on its own and scrolls and focuses differently, so
     # a few specs fail there only. Free on a public repo.
@@ -18,27 +27,12 @@ jobs:
       run:
         working-directory: autofiller_extension/test
     steps:
-      - id: engine
-        working-directory: .
-        run: echo "token=${{ secrets.FILL_ENGINE_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
-      - if: steps.engine.outputs.token != 'true'
-        working-directory: .
-        run: echo "::warning::FILL_ENGINE_TOKEN is not set, so the extension tests did not run."
       - uses: actions/checkout@v4
-        if: steps.engine.outputs.token == 'true'
         with:
           submodules: true
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
-      - uses: actions/setup-node@v4
-        if: steps.engine.outputs.token == 'true'
-        with:
-          node-version-file: .nvmrc
-      - if: steps.engine.outputs.token == 'true'
-        run: npm ci
-      - if: steps.engine.outputs.token == 'true'
-        run: npx playwright install chromium
-      - if: steps.engine.outputs.token == 'true'
-        run: npx playwright test
+      - uses: ./.github/actions/extension-setup
+      - run: npx playwright test
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

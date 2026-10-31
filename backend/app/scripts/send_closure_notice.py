@@ -19,7 +19,9 @@ from app.services.notices import closure_notice, notice_html, send_closure_notic
 
 async def _send(args) -> str:
     async with get_sessionmaker()() as db:
-        return await send_closure_notice(db, args.email, args.date, args.reason)
+        outcome = await send_closure_notice(db, args.email, args.date, args.reason, commit=db.commit)
+        await db.commit()
+        return outcome
 
 
 def main(argv: list[str] | None = None) -> int:
