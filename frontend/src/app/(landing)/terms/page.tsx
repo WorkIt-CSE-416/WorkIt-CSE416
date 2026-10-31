@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { LegalPage, TeamToDecide } from "../legal-page";
+import { LegalPage } from "../legal-page";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
@@ -9,9 +9,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * The public Terms of Service, a draft for the team to review. Like
- * /privacy, it describes only what WorkIt does today, and leaves each
- * business or legal decision as a TeamToDecide placeholder.
+ * The public Terms of Service. Like /privacy, it describes only what WorkIt
+ * does today; its business and legal decisions are the team's, recorded on
+ * KAN-462 on 2026-10-31.
  */
 export default function TermsPage() {
   return (
@@ -94,9 +94,9 @@ export default function TermsPage() {
 
       <h2>Disclaimers and Limits of Liability</h2>
       <p>
-        <TeamToDecide>
-          warranty disclaimer and limitation of liability, after legal review
-        </TeamToDecide>
+        WorkIt is provided &ldquo;as is&rdquo;, without warranties of any kind. Our liability to you
+        for anything about WorkIt is limited to the amount you paid WorkIt in the 12 months before
+        the claim, which is currently $0.
       </p>
 
       <h2>Governing Law</h2>
