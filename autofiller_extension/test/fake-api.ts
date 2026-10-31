@@ -122,7 +122,10 @@ export class FakeApi {
   /** How many reads of the Claude connection fail (a server error) before one answers. */
   connectorDown = 0;
 
-  /** `profile`: the student's profile fields that differ from STUDENT's. */
+  /** The access token this student signs in with (loaded-extension.ts signIn); another is refused. */
+  token = "test-access-token";
+
+  /** `profile`: the student's profile fields that differ from STUDENT's (another student: their id, name, email). */
   constructor(private profile: Partial<Omit<typeof STUDENT, "answers">> & { answers?: Record<string, string | null> } = {}) {
     this.answers = { ...(profile.answers ?? STUDENT.answers) };
   }
@@ -158,7 +161,7 @@ export class FakeApi {
     const path = url.pathname;
     this.calls.push(`${method} ${path}${url.search}`);
     if (path === "/health") return { json: { status: "ok" } };
-    if (headers.authorization !== "Bearer test-access-token") return { status: 401, json: { detail: "Not signed in" } };
+    if (headers.authorization !== `Bearer ${this.token}`) return { status: 401, json: { detail: "Not signed in" } };
     if (path === "/fill-reports" && method === "POST") {
       this.reports.push(JSON.parse(body.toString()));
       return { status: 201, json: { stored: true } };
@@ -198,9 +201,10 @@ export class FakeApi {
       this.appliedAt.set(id, new Date().toISOString());
       return { json: { applied_at: this.appliedAt.get(id), sent_resume_id: null } };
     }
-    if (path === "/auth/me") return { json: { id: STUDENT.id, email: STUDENT.email, full_name: STUDENT.full_name, account_type: "applicant" } };
+    const account = { ...STUDENT, ...this.profile };
+    if (path === "/auth/me") return { json: { id: account.id, email: account.email, full_name: account.full_name, account_type: "applicant" } };
 
-    const me = `/applicants/${STUDENT.id}`;
+    const me = `/applicants/${account.id}`;
     if (!path.startsWith(`${me}/`)) return { status: 403, json: { detail: "Not yours" } };
     const route = path.slice(me.length);
     if (route === "/profile") {

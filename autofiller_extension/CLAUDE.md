@@ -1504,7 +1504,14 @@ started before the edit. A cached profile is used only for the account
 signed in, read from the access token's `sub` (`webapp-session.js`) with no
 API call: before KAN-312, one cached under ten minutes ago was used for
 whoever signed in next, so a second student on the same Chrome got the
-first one's name and answers. Past its 10 min TTL a profile under a day old
+first one's name and answers. Nor does it stay on disk: a sign-out or
+another account's sign-in deletes the cached profile, each tab's switched
+résumé and the report previews (`account-data.js`, KAN-469), as soon as the
+webapp's session cookie changes (`auth.js`) or the next call reads the
+session; a fetch under way is shared only with its own account's callers,
+and cached only if that account is still signed in. The Workday logins and
+the allowed sites stay: they are the browser's, not one account's
+(`test/sign-out.extension.spec.ts`). Past its 10 min TTL a profile under a day old
 is used at once while a fresh one is fetched behind (a cold API answered in
 4-9 s live); an older one is waited for. The
 fetch starts before anything waits for it (`warmProfile`): as the webapp

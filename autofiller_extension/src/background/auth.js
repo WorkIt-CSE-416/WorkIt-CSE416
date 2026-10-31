@@ -8,6 +8,8 @@
 // earlier, since-replaced approach (an independent sign-in) and why this
 // one won out.
 
+import { SUPABASE_SESSION_COOKIE_KEY } from "../shared/config.js";
+import { keepFor } from "./account-data.js";
 import { readWebappSession } from "./webapp-session.js";
 
 /**
@@ -28,5 +30,14 @@ import { readWebappSession } from "./webapp-session.js";
  * @returns {Promise<import("../shared/types.js").Session | null>}
  */
 export async function getSession() {
-  return readWebappSession();
+  const session = await readWebappSession();
+  // A sign-out or another account's sign-in clears the last account's data (account-data.js).
+  await keepFor(session).catch((error) => console.warn("[account] not cleared:", error.message));
+  return session;
 }
+
+// The webapp's session cookie (or one of its chunks) changed: a sign-out clears the account's data now,
+// not at the next call that reads the session.
+chrome.cookies.onChanged.addListener(({ cookie }) => {
+  if (cookie.name.startsWith(SUPABASE_SESSION_COOKIE_KEY)) getSession().catch(() => {});
+});
