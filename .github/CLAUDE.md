@@ -283,10 +283,13 @@ them with those saved forms.
   listed one is read instead; replace it in `postings.json` when convenient.
 - **Covered:** Greenhouse, Lever, Ashby, Rippling, Workable, the systems
   whose form opens with no sign-in and whose saved forms have a Question
-  set. **Left out:** SmartRecruiters (its robots.txt) and any system with a
-  bot check; Workday, Oracle, iCIMS, SuccessFactors and TikTok, whose form
-  shows only after an Apply button or a sign-in, which the canary never
-  presses; Eightfold and Waymo, which have no saved Question set to compare.
+  set.
+- **Skipped, and why:**
+  - **Workday, Oracle, iCIMS, SuccessFactors, TikTok:** the form sits behind
+    an Apply button or a sign-in, which the canary never presses.
+  - **Eightfold, Waymo:** no saved field list (Question set) to compare.
+  - **SmartRecruiters:** a bot check (and its robots.txt); so is any other
+    system that adds one.
 - **Secret:** `FILL_ENGINE_TOKEN`, as in CI: without it the canary job is
   skipped and the `engine` job's summary says SKIPPED. The schedule runs only on `main`, and stops after 60 days
   without a commit there (`gh workflow enable live-canary.yml`).
