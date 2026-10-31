@@ -21,3 +21,20 @@ export function kindDiff(saved, live) {
   for (const { name, kind } of live) if (!known.has(kind)) diff.push(`${name}: kind ${kind}, which no saved form has`);
   return diff;
 }
+
+/** Which postings to read: each pinned one the board still lists, then listed ones until there are
+ * `count`. A pinned posting the board no longer lists is closed: reported as such, never as a
+ * change to the form. `jobOf` names the job a link is, however the link is written.
+ * @param {string[]} pinned @param {string[]} listed @param {number} count @param {(url: string) => string} jobOf
+ * @returns {{ check: string[], closed: string[] }} */
+export function pickPostings(pinned, listed, count, jobOf) {
+  const open = new Set(listed.map(jobOf));
+  const check = pinned.filter((url) => open.has(jobOf(url)));
+  const closed = pinned.filter((url) => !open.has(jobOf(url)));
+  const taken = new Set(check.map(jobOf));
+  for (const url of listed) {
+    if (check.length >= count) break;
+    if (!taken.has(jobOf(url))) check.push(url), taken.add(jobOf(url));
+  }
+  return { check, closed };
+}
