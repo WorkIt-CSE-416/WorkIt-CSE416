@@ -70,19 +70,20 @@ window.WIA = window.WIA || {};
     if (!card) return;
     card.setAttribute("role", "alertdialog");
     card.setAttribute("aria-label", count);
-    card.querySelector("[data-show]").addEventListener("click", () => {
+    card.querySelector("[data-show]").addEventListener("click", window.WIA.ui.trusted(() => {
       close();
       const key = items[0].key;
       chrome.runtime
         .sendMessage({ type: "batch/walk-from", key })
         .then((answer) => answer?.shown || window.WIA.walk?.show(key))
         .catch(() => window.WIA.walk?.show(key));
-    });
-    card.querySelector("[data-anyway]").addEventListener("click", () => {
+    }));
+    // Only the student's own press lets Submit through: the page can't press Submit anyway for them.
+    card.querySelector("[data-anyway]").addEventListener("click", window.WIA.ui.trusted(() => {
       allowed = true;
       card.removeAttribute("role");
       card.innerHTML = "<p>Press Submit again to send it. WorkIt won't stop it.</p>";
-    });
+    }));
   }
 
   /** Holds the student's Submit while something is open (the press does nothing), and says what. */
@@ -109,7 +110,8 @@ window.WIA = window.WIA || {};
     if (window.WIA.submitWatched) return;
     window.WIA.submitWatched = true;
     // On window, in the capture phase: before the page's own handlers (React's sit on its root), so a held
-    // press never reaches them.
+    // press never reaches them. Not ui.trusted, unlike every panel button: this is the employer's Submit, not
+    // the panel's, and a click the page makes on it is held too.
     window.addEventListener("click", onClick, true);
     window.addEventListener("submit", onSubmit, true);
   }

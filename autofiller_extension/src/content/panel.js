@@ -30,7 +30,7 @@ window.WIA = window.WIA || {};
   // WorkIt's logo (frontend/src/components/logo.tsx's lockup): the figure in violet, the word in ink, as the
   // webapp draws it everywhere (KAN-300). Change the two together.
   const LOGO = `<svg role="img" aria-label="WorkIt" viewBox="0 0 434.78 91"><g class="figure"><path d="M7.94 26.87 L33.59 83.06 L59.24 45.19 L84.89 83.06 L110.54 26.87" fill="none" stroke="currentColor" stroke-width="15.88" stroke-linecap="round" stroke-linejoin="round"/><circle cx="59.24" cy="13.44" r="13.44" fill="currentColor"/></g><path d="M18 77.7 1 27.7H14.4L24.8 59.9L35.3 27.7H48.3L58.6 59.4L69.1 27.7H82.5L65.5 77.7H52.5L41.8 43.9L31 77.7H18ZM109.6 78.9Q102 78.9 96 75.5Q90.1 72.2 86.8 66.3Q83.4 60.4 83.4 52.7Q83.4 45 86.7 39.1Q90 33.2 95.9 29.9Q101.8 26.5 109.4 26.5Q117.1 26.5 123 29.9Q128.9 33.2 132.2 39.1Q135.5 45 135.5 52.7Q135.5 60.4 132.2 66.3Q128.9 72.2 123.1 75.5Q117.2 78.9 109.6 78.9ZM109.6 66.7Q113.3 66.7 116.1 64.9Q118.9 63.1 120.4 60Q122 56.8 122 52.7Q122 48.6 120.4 45.4Q118.8 42.3 116 40.5Q113.1 38.7 109.4 38.7Q105.8 38.7 102.9 40.5Q100.1 42.3 98.5 45.4Q96.9 48.6 96.9 52.7Q96.9 56.8 98.5 60Q100.1 63.1 103 64.9Q105.9 66.7 109.6 66.7ZM142.7 77.7V27.7H155.9V36.9Q159 32.2 163.7 29.8Q168.5 27.5 173.6 27.5V40.3Q169 40.3 165 41.4Q160.9 42.5 158.4 45Q155.9 47.5 155.9 51.4V77.7H142.7ZM179.1 77.7V7.7H192.3V46.3L209.4 27.7H225.1L206.2 48.8L226.6 77.7H211.1L197.8 58.3L192.3 64.3V77.7H179.1ZM232.2 77.7V27.7H245.4V77.7H232.2ZM238.8 19.6Q235.8 19.6 233.5 17.3Q231.2 15.1 231.2 12Q231.2 8.9 233.5 6.7Q235.8 4.4 238.8 4.4Q241.9 4.4 244.2 6.7Q246.4 8.9 246.4 12Q246.4 15.1 244.2 17.3Q241.9 19.6 238.8 19.6ZM276.7 78.9Q268.4 78.9 264.1 74.8Q259.9 70.7 259.9 63.1V38.9H251.8V27.7H259.9V12.1H273.1V27.7H285.6V38.9H273.1V60.2Q273.1 63.4 274.5 65.1Q275.9 66.7 278.6 66.7Q279.6 66.7 280.8 66.2Q282 65.8 283.3 64.9L287.9 74.8Q285.5 76.6 282.5 77.8Q279.6 78.9 276.7 78.9Z" fill="currentColor" transform="translate(145.78 0)"/></svg>`;
-  const { send } = window.WIA.ui;
+  const { send, trusted } = window.WIA.ui;
 
   const SHELL_CSS = `
     :host { all: initial; }
@@ -202,11 +202,11 @@ window.WIA = window.WIA || {};
       </div>
       <div class="bottom"><div data-slot="primary"></div></div>
     `;
-    panel.querySelector("[data-collapse]").addEventListener("click", () => collapse());
-    for (const back of panel.querySelectorAll("[data-back]")) back.addEventListener("click", () => showSettings(false));
+    panel.querySelector("[data-collapse]").addEventListener("click", trusted(() => collapse()));
+    for (const back of panel.querySelectorAll("[data-back]")) back.addEventListener("click", trusted(() => showSettings(false)));
     menuParts(panel);
     // The extension's own settings page (src/options/): the password is never typed into the employer's page.
-    panel.querySelector("[data-signup]").addEventListener("click", () => send({ type: "workday/signup-open" }));
+    panel.querySelector("[data-signup]").addEventListener("click", trusted(() => send({ type: "workday/signup-open" })));
 
     const edge = document.createElement("div");
     edge.className = "edge";
@@ -223,18 +223,18 @@ window.WIA = window.WIA || {};
       <button type="button" role="menuitem" data-hide-visit>Hide until next visit</button>
       <button type="button" role="menuitem" data-hide-site>Hide on this site</button>
     `;
-    edge.querySelector("[data-more]").addEventListener("click", () => {
+    edge.querySelector("[data-more]").addEventListener("click", trusted(() => {
       menu.style.top = `${edge.getBoundingClientRect().top}px`;
       menu.hidden = !menu.hidden;
-    });
-    menu.querySelector("[data-hide-visit]").addEventListener("click", () => {
+    }));
+    menu.querySelector("[data-hide-visit]").addEventListener("click", trusted(() => {
       hiddenThisVisit = true;
       paint();
-    });
-    menu.querySelector("[data-hide-site]").addEventListener("click", () => {
+    }));
+    menu.querySelector("[data-hide-site]").addEventListener("click", trusted(() => {
       remember({ hidden: true });
       paint();
-    });
+    }));
     draggable(edge);
 
     root.append(panel, edge, menu);
@@ -257,16 +257,16 @@ window.WIA = window.WIA || {};
   function menuParts(panel) {
     more = panel.querySelector("[data-more-menu]");
     menu = panel.querySelector(".panel-menu");
-    more.addEventListener("click", () => showMenu(menu.hidden));
+    more.addEventListener("click", trusted(() => showMenu(menu.hidden)));
     // Shut by Escape and by a press anywhere else in the panel.
     panel.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || menu.hidden) return;
       showMenu(false);
       more.focus();
     });
-    panel.addEventListener("click", (event) => {
+    panel.addEventListener("click", trusted((event) => {
       if (!menu.hidden && !menu.contains(event.target) && !more.contains(event.target)) showMenu(false);
-    });
+    }));
     // Report a problem (report.js, KAN-403) fills the report slot; a second press closes it.
     menuItem("report", {
       label: "Report a problem",
@@ -289,8 +289,8 @@ window.WIA = window.WIA || {};
    * Adds (or with null takes out) one item of the header's ⋯ menu (KAN-369
    * Q4): `label`, `onPress(event)` and `order` (I submitted this 10, Skip
    * 20, Fill Again 30, Report a problem 40, Settings 50). The item carries
-   * `data-<id>`; the menu shuts before `onPress` runs. A press that must be
-   * the student's own passes `onPress` through ui.trusted.
+   * `data-<id>`; the menu shuts before `onPress` runs. Only the student's own
+   * press runs it (ui.trusted), as every panel button's.
    * @param {string} id
    * @param {{ label: string, onPress: (event: MouseEvent) => void, order: number } | null} item
    */
@@ -303,10 +303,10 @@ window.WIA = window.WIA || {};
         const button = Object.assign(document.createElement("button"), { type: "button", textContent: label });
         button.setAttribute("role", "menuitem");
         button.dataset[key.replace(/-(\w)/g, (_, c) => c.toUpperCase())] = "";
-        button.addEventListener("click", (event) => {
+        button.addEventListener("click", trusted((event) => {
           showMenu(false);
           onPress(event);
-        });
+        }));
         return button;
       }),
     );
@@ -355,14 +355,14 @@ window.WIA = window.WIA || {};
       if (from && moved) remember({ top: parseFloat(edge.style.top) });
       from = null;
     });
-    grip.addEventListener("click", (event) => {
+    grip.addEventListener("click", trusted((event) => {
       if (moved) {
         moved = false;
         event.preventDefault();
         return;
       }
       open();
-    });
+    }));
   }
 
   const clampTop = (top, edge) => Math.max(8, Math.min(top, window.innerHeight - (edge.offsetHeight || 80) - 8));
@@ -487,11 +487,11 @@ window.WIA = window.WIA || {};
     button.setAttribute("role", "tab");
     button.dataset.tab = id;
     // A tab's press also leaves the settings or report view: the tabs stay on top in every view (KAN-369 Q6).
-    button.addEventListener("click", () => {
+    button.addEventListener("click", trusted(() => {
       if (root.querySelector("[data-tabs]").hidden) showView(null, false);
       selectTab(id);
       keepTab(id);
-    });
+    }));
     tabs.push(id);
     root.querySelector(".tabs").appendChild(button);
     root.querySelector("[data-tabs]").appendChild(body);
@@ -568,7 +568,7 @@ window.WIA = window.WIA || {};
     if (!options) return void place.replaceChildren();
     const button = Object.assign(document.createElement("button"), { type: "button", className: "primary-button", textContent: options.label });
     if (options.secondary) button.dataset.secondary = "";
-    button.addEventListener("click", options.onPress);
+    button.addEventListener("click", trusted(options.onPress));
     const said = Object.assign(document.createElement("div"), { className: "primary-said", hidden: true });
     place.replaceChildren(button, said);
     return { button, said };
