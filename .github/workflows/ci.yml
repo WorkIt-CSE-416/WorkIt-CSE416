@@ -32,7 +32,9 @@ jobs:
       run:
         working-directory: autofiller_extension
     steps:
+      # Before the checkout autofiller_extension/ doesn't exist yet, so this step runs in the workspace.
       - id: engine
+        working-directory: .
         run: echo "token=${{ secrets.FILL_ENGINE_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         if: steps.engine.outputs.token == 'true'
