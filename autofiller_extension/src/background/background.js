@@ -39,6 +39,7 @@ import { treeStore } from "./stored-data.js";
 import { installed, setUninstallPage } from "./install.js";
 import { remoteConfig, turnedOff } from "./remote-config.js";
 import { TEST_HOOKS } from "../shared/config.js";
+import { PANEL_SITES_KEY } from "../shared/panel-keys.js";
 
 /**
  * Calls the Fill engine in the frame that sent `sender`'s message: the
@@ -660,7 +661,6 @@ chrome.runtime.onInstalled.addListener((details) => void installed(details).catc
 chrome.runtime.onStartup.addListener(() => void setUninstallPage().catch(() => {}));
 
 // The panel's choices per site (panel.js): { top, collapsed, hidden }, by host name.
-const PANEL_SITES_KEY = "panel_sites";
 async function panelSite(url, change) {
   let site;
   try {
