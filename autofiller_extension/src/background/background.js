@@ -34,6 +34,8 @@ import { popupHome, showNextJob } from "./popup-home.js";
 import { followTrackedTab, forgetTracked, isTracked, markTracked, track, trackState } from "./track.js";
 import { allowTabSite, allowedSites, pageJobUrl, removeSite, syncSites } from "./site-access.js";
 import { fetchText, planReads } from "./plan-reads.js";
+import { treeStore } from "./stored-data.js";
+import { installed, setUninstallPage } from "./install.js";
 import { remoteConfig, turnedOff } from "./remote-config.js";
 import { TEST_HOOKS } from "../shared/config.js";
 
@@ -63,16 +65,8 @@ function engineIn(sender) {
   });
 }
 
-// The nested prompts the engine read on each Workday tenant (fill/plan, fill/page), kept for its next fill.
-const WORKDAY_TREES_KEY = "workday_trees";
-const workdayTrees = {
-  async load() {
-    return (await chrome.storage.local.get(WORKDAY_TREES_KEY))[WORKDAY_TREES_KEY] ?? {};
-  },
-  async save(saved) {
-    await chrome.storage.local.set({ [WORKDAY_TREES_KEY]: { ...(await this.load()), ...saved } });
-  },
-};
+// The nested prompts the engine read on each Workday tenant (fill/plan, fill/page), kept for its next fill, capped (stored-data.js).
+const workdayTrees = treeStore(chrome.storage.local);
 
 /** Today in the student's own time zone, as the engine's rules read it ("YYYY-MM-DD"). */
 function today() {
@@ -631,6 +625,11 @@ chrome.runtime.onStartup.addListener(resumeOnce);
 resumeOnce();
 // The job systems WorkIt turned off (KAN-467), read as the worker starts; a fill or panel reads it again once 15 minutes old.
 void remoteConfig();
+
+// Install, update and uninstall (install.js, KAN-471): onboarding's extension step on a first install, stored data
+// migrated on every update, and the uninstall survey's URL kept current.
+chrome.runtime.onInstalled.addListener((details) => void installed(details).catch((error) => console.warn("[install] not handled:", error.message)));
+chrome.runtime.onStartup.addListener(() => void setUninstallPage().catch(() => {}));
 
 // The panel's choices per site (panel.js): { top, collapsed, hidden }, by host name.
 const PANEL_SITES_KEY = "panel_sites";

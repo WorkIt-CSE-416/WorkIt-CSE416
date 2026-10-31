@@ -407,6 +407,18 @@ Find files with a directory listing; these are the rules for where code goes.
   needs a sign-in. The team ranks the next job systems with `SELECT host,
   count(*) FROM job_system_requests GROUP BY host`; nothing reads it in the
   app. Tests: `tests/test_job_system_requests.py`.
+  **The uninstall survey** (KAN-471, `routers/uninstall_answers.py`, table
+  `uninstall_answers`, migration `4403f420a47c`): removing the extension
+  opens the webapp's `/uninstalled`, whose one question goes to `POST
+  /uninstall-answers {"reason", "detail"?, "version"?}`. **The one write
+  route with no sign-in**, so it is capped twice: `PER_SENDER_PER_DAY` per
+  sender (the address the webapp's server forwards as `x-workit-client-ip`,
+  counted in memory as a hash and never stored; per process, and a direct
+  caller can set the header) and `PER_DAY` for everyone, counted in the
+  table, the bound that always holds. 429 past either. The row names no
+  account or address; a reason the CHECK doesn't list is 422 first. The
+  team reads `SELECT reason, count(*) FROM uninstall_answers GROUP BY
+  reason`. Tests: `tests/test_uninstall_answers.py`.
   **The per-job-system off switch** (KAN-467, `routers/extension_config.py`,
   table `disabled_job_systems`, migration `a7c3e9d1f467`): when a job
   system's markup changes and fills break, an admin turns it off with `PUT
