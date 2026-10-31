@@ -66,5 +66,5 @@ def test_each_invented_fact_is_named_once() -> None:
 
 
 def test_the_pronoun_i_is_never_a_tool() -> None:
-    # A first-person essay answer (services/essay_answer.py) says "I" mid-sentence; no bullet does.
+    # A first-person answer the student's Claude writes (auto_apply/written.py) says "I" mid-sentence; no bullet does.
     assert invented("Since then I wrote Python billing services, and I cut invoice errors 40%", ORIGINAL, SKILLS) == []

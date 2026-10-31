@@ -26,6 +26,14 @@ ACCOUNT = SimpleNamespace(id=APPLICANT)
 JOB = uuid.uuid4()
 
 
+@pytest.fixture(autouse=True)
+def no_job_system_off(monkeypatch):
+    """Every job system on (KAN-467): its read needs a database."""
+    async def none(db):
+        return []
+    monkeypatch.setattr(pipeline, "fetch_disabled_job_systems", none)
+
+
 class FakeDB:
     def __init__(self):
         self.commit = AsyncMock()
@@ -82,7 +90,7 @@ def test_start_batch_queues_the_matches_in_one_commit_best_first(monkeypatch):
     monkeypatch.setattr(pipeline, "fetch_recommended", fake_recommended(scored, []))
     asked = []
 
-    async def queue_applications(db, applicant_id, job_ids):
+    async def queue_applications(db, applicant_id, job_ids, disabled=()):
         asked.append(job_ids)
         return {uuid.UUID(ids[2]), uuid.UUID(ids[0])}  # one was queued meanwhile
 
@@ -99,7 +107,7 @@ def test_start_batch_queues_the_matches_in_one_commit_best_first(monkeypatch):
 # --- queue_job ---
 
 def test_queue_job_queues_and_commits(monkeypatch):
-    async def queue_applications(db, applicant_id, job_ids):
+    async def queue_applications(db, applicant_id, job_ids, disabled=()):
         return set(job_ids)
 
     monkeypatch.setattr(pipeline, "queue_applications", queue_applications)

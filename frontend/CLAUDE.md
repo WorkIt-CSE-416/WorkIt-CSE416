@@ -121,8 +121,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   one; the prefix also makes the auth guard one path check. Auth screens
   (`login/`, `signup/`), the connector's consent page (`connect/claude/`,
   KAN-377) and `design-kit/` sit outside both shells. `/login?next=` goes
-  back only to `/connect/claude` (`login/actions.ts`): never widen it to
-  any path, which would make the sign-in page an open redirect.
+  back only to `/connect/claude` and to onboarding's extension step
+  (`/onboarding/applicant?step=extension`, the tab the extension opens on
+  install, KAN-471; `login/actions.ts`): never widen it to any path, which
+  would make the sign-in page an open redirect. A Google or LinkedIn
+  sign-in drops `next` (`auth/callback` follows `/settings/` only).
   **Every way into the connector is one link**, `lib/claude-connector.ts`
   (KAN-383): Claude's Add Custom Connector dialog filled in with WorkIt's
   name and `<api>/mcp`, or the directory listing once
@@ -2054,6 +2057,14 @@ are in `docs/auth.md`.
   `lib/transcript-actions.ts`, KAN-369): one file, uploaded, replaced or
   removed there, with the resume's file checks (`resumeFileError`). The
   autofiller attaches it to a form's transcript upload.
+- **The uninstall survey is `/uninstalled`** (KAN-471): the page Chrome
+  opens when a student removes the extension (`?v=` the version removed).
+  Public, outside both shells, and it asks no sign-in: the answer goes to
+  `POST /uninstall-answers` with no session and names no one. Its reasons'
+  values (`uninstalled/answer.ts`) are the API's schema and the table's
+  CHECK: change all three together. The action forwards the student's
+  address (`cf-connecting-ip`) as `x-workit-client-ip` for the API's
+  per-sender cap only; a 429 still thanks the student.
 - **The practice forms (`lib/practice-form.ts`) import nothing** (KAN-378):
   they are whole HTML pages, served by a route handler, and the extension's
   end-to-end test imports the module to serve the same bytes, so it can't
@@ -2110,6 +2121,15 @@ forward the token and answer a download (text/plain for the fixture, never
 rendered: it is an employer page's markup). `lib/fill-reports.ts` is the
 pure half (shapes, the list's query, `node --test`), `fill-report-queries.ts`
 the server-only reads, `fill-report-actions.ts` the triage.
+
+`/admin/fill-health` (fill numbers, KAN-476) is the same kind of page: per
+job system per day (UTC), the extension's fills, the share with no failed
+field, the needs-you rate and the top error names, filtered by days and
+engine version, from `GET /admin/fill-health` under the same
+`WORKIT_ADMINS` gate (403 → the 404). A job system that breaks shows as its
+No Failed Field share dropping. `lib/fill-health.ts` is its pure half (the
+query, the percent; `node --test`); its read is `getFillHealth` in
+`fill-report-queries.ts`.
 
 ## Screens, design and motion
 

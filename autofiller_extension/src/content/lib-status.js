@@ -15,10 +15,10 @@
 //    engine) — an unfilled optional field renders as "skipped", a neutral
 //    state, never "failed".
 //
-// A fourth status, "needs_generation", is the essay-question feature's own:
-// an open-ended question WorkIt can offer to draft (never fill) until the
-// student opts in via the overlay's batch prompt — see content-script.js and
-// overlay.js's promptForEssays.
+// A fourth status, "needs_generation", is the written questions' own: one
+// waiting for the student's Claude or their paste on Written Answers, or, on
+// a form they opened themselves, for them to ask for that in the overlay's
+// prompt (written-answers.js, overlay.js's promptForEssays).
 window.WIA = window.WIA || {};
 
 (function () {
@@ -110,8 +110,8 @@ window.WIA = window.WIA || {};
     const filled = required.filter((r) => r.status === "filled");
     const failed = all.filter((r) => r.status === "failed");
     // A required one of these still counts toward requiredTotal above (and
-    // stays un-filled in the percent) until the student generates an
-    // answer or dismisses the batch prompt — same honesty rule as every
+    // stays un-filled in the percent) until an answer is written or the
+    // student dismisses the prompt — same honesty rule as every
     // other required-but-unresolved field, just with a third way to
     // resolve it besides WorkIt already having the data.
     const essay = all.filter((r) => r.status === "needs_generation");

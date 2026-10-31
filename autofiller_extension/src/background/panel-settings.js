@@ -7,6 +7,7 @@
 import { getSession } from "./auth.js";
 import { connectorAdded, disconnectConnector, me } from "./api.js";
 import { AUTOFILL_OFF_KEY } from "../shared/autofill-categories.js";
+import { fillNumbersOn } from "./fill-events.js";
 
 // Whether a batch tab's panel opens by itself once its fill is done (true unless the student turned it off).
 const AUTO_OPEN_KEY = "panel_auto_open";
@@ -24,18 +25,19 @@ export async function setAutoOpen(on) {
 
 /**
  * What the settings view shows: signed in or not, the Claude connection
- * (`claude`: true, false, or null when it couldn't be read) and auto-open.
+ * (`claude`: true, false, or null when it couldn't be read), auto-open and
+ * whether fill numbers are sent (KAN-476).
  */
 export async function readSettings() {
-  const [session, open] = await Promise.all([getSession(), autoOpen()]);
-  if (!session) return { signedIn: false, claude: null, autoOpen: open };
+  const [session, open, fillNumbers] = await Promise.all([getSession(), autoOpen(), fillNumbersOn()]);
+  if (!session) return { signedIn: false, claude: null, autoOpen: open, fillNumbers };
   let claude = null;
   try {
     claude = await connectorAdded((await me()).id);
   } catch (error) {
     console.warn("[settings] Claude connection not read:", error.message);
   }
-  return { signedIn: true, claude, autoOpen: open };
+  return { signedIn: true, claude, autoOpen: open, fillNumbers };
 }
 
 /** Add to Claude: the webapp's link, which goes on to Claude's Add Custom Connector dialog. */

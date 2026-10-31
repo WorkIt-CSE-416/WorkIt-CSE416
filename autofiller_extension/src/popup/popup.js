@@ -198,7 +198,8 @@ async function showUnsupported() {
     request.disabled = true;
     const answer = await sendMessage({ type: "popup/request", tabId });
     request.disabled = false;
-    if (!answer?.ok) return say("WorkIt couldn't send the request. Try again.", true);
+    // 429: the day's limit (KAN-478), in the API's own words.
+    if (!answer?.ok) return say(answer?.status === 429 && answer.error ? answer.error : "WorkIt couldn't send the request. Try again.", true);
     request.hidden = true;
     say("Requested. WorkIt adds the job systems students ask for most.");
   });
@@ -217,7 +218,7 @@ async function showUnsupported() {
     const note = box.querySelector("#report-note").value.trim();
     const answer = await sendMessage({ type: "popup/report", tabId, note: note || null });
     send.disabled = false;
-    if (!answer?.ok) return say("WorkIt couldn't send the report. Try again.", true);
+    if (!answer?.ok) return say(answer?.status === 429 && answer.error ? answer.error : "WorkIt couldn't send the report. Try again.", true);
     box.querySelector(".report").hidden = true;
     say("Sent. Thanks for telling WorkIt.");
   });

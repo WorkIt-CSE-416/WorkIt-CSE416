@@ -11,8 +11,9 @@
 // went, so the overlay shows each field's own result: a field showing
 // something other than its planned answer is failed. A fill that brings on new
 // questions (Eightfold's follow-ups, Workday's new panels) is planned again
-// with them and goes on. Questions that need a written answer wait for the
-// student's one Generate click, then go to the essay-answer route.
+// with them and goes on. Questions that need a written answer go to the
+// student's own Claude through the connector, or their paste on Written
+// Answers (written-answers.js): WorkIt calls no model.
 //
 // Workday asks a step at a time: each step is filled as it shows, the
 // student checks it and presses Save and Continue (or, in a batch tab or
@@ -75,6 +76,9 @@
   window.WIA.phase = "filling";
 
   const send = window.WIA.ui.ask;
+  // This fill's numbers (fill-event.js, KAN-476): one event when it ends, each Workday step's its own.
+  const fillEvent = window.WIA.fillEvent;
+  fillEvent.start();
   // The panel's options: a batch tab's panel has Skip, and "I submitted this" for a submit WorkIt missed.
   const panel = batch ? { onSkip: () => send({ type: "batch/skip" }).catch(() => {}), onSubmitted: () => markSentByHand() } : undefined;
   /** The student says they sent this application: it is marked applied, as a detected submit is. */
@@ -189,12 +193,10 @@
         window.WIA.groups?.planned(name, byName.get(name)?.label ?? name, answers[name]);
         if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false, sources[name] ?? "guessed");
       }
-      // Outside a batch tab only the essay route writes (Generate): a choice or a one-line draft is the student's there.
-      const toWrite = batch ? rows.written : rows.written.filter((q) => q.generate);
-      const yours = batch ? rows.yours : [...rows.yours, ...rows.written.filter((q) => !q.generate)];
-      for (const q of toWrite) written.set(q.name, q);
-      await writing.showRows(toWrite, isNew);
-      for (const q of yours) {
+      // The student's Claude writes these, on any tab (KAN-470): WorkIt calls no model.
+      for (const q of rows.written) written.set(q.name, q);
+      await writing.showRows(rows.written, isNew);
+      for (const q of rows.yours) {
         if (!isNew(q.name)) continue;
         status.register(q.name, q.label, q.required);
         status.setStatus(q.name, q.required ? "failed" : "skipped", "WorkIt has no answer for this. Answer it yourself.");
@@ -447,6 +449,19 @@
     },
   });
 
+  // A job system WorkIt turned off (KAN-467, background/remote-config.js): nothing is filled, typed or pressed,
+  // the panel says so, and a batch tab needs the student.
+  const off = await send({ type: "fill/available" }).catch(() => null);
+  if (off?.ok && off.unavailable) {
+    status.reset();
+    note("_unavailable", `WorkIt can't fill ${off.unavailable} right now`, window.WIA.unavailableSaid?.(off.unavailable) ?? "Fill this application yourself.", true);
+    overlay.mount(panel);
+    window.WIA.phase = "stopped";
+    window.WIA.running = false;
+    report();
+    return;
+  }
+
   // A stepped system (steps.js): Workday, Oracle.
   const workday = window.WIA.steps;
   if (!workday) {
@@ -469,6 +484,7 @@
     overlay.refresh(); // the checklist settles: red, then amber, first (groups.js)
     window.WIA.running = false;
     report();
+    fillEvent.sent(prepared?.site);
     if (prepared) writing.offer(prepared);
     if (prepared) offerSelfId(prepared);
     // Outside a batch too (KAN-396): the primary button turns Ready to submit once the student answered what was open.
@@ -528,6 +544,7 @@
     const shownId = workday.stepId(); // told from a next step of the same name by its number
     window.WIA.phase = "filling";
     status.reset();
+    fillEvent.start();
     // Never an empty panel between steps (KAN-401): the step's line at once, its rows as it fills.
     note("_step", `${workday.name}: ${step}`, "Filling this step…", false, true);
     const prepared = await fillShown(workday.filledBefore());
@@ -545,6 +562,7 @@
       window.WIA.phase = "stopped";
       window.WIA.running = false;
       report();
+      fillEvent.sent();
       return;
     }
     const last = prepared.step.review || prepared.step.sends;
@@ -564,6 +582,7 @@
     overlay.refresh(); // the checklist settles: red, then amber, first (groups.js)
     window.WIA.primary?.refresh();
     report();
+    fillEvent.sent(prepared.site);
     if (last || prepared.stopped) return;
     const goOn = async () => {
       await flagEmptyRequired(prepared);

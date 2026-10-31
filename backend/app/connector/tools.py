@@ -89,7 +89,7 @@ from app.db import get_sessionmaker
 from app.models.written_answers import is_text
 from app.queries import writing
 from app.schemas.applications import ANSWER_MAX
-from app.services.essay_answer import bank_context
+from app.services.bank import bank_context
 
 
 class Rewrite(BaseModel):

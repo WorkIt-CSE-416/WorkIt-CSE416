@@ -1,8 +1,10 @@
 // The questions a form needs written (KAN-377, KAN-379, KAN-387), for the
 // fill (content-script.js): their rows on the panel, their writing (the
-// essay route's Generate, or in a batch tab the student's own Claude
-// through the connector, or the student's paste on Written Answers), and
-// the student's edits of them, whose own words are saved for later forms.
+// student's own Claude through the connector, or the student's paste on
+// Written Answers: WorkIt calls no model, KAN-470), and the student's edits
+// of them, whose own words are saved for later forms. A batch tab sends its
+// questions at once; a form the student opened themselves, once they ask
+// on the panel.
 // Loaded before content-script.js (shared/content-scripts.js), as
 // window.WIA.writtenAnswers, which makes one per fill.
 window.WIA = window.WIA || {};
@@ -10,11 +12,6 @@ window.WIA = window.WIA || {};
 (function () {
   "use strict";
 
-  // The essay-answer route's limits (backend/app/schemas/essay_answer.py).
-  const QUESTION_MAX = 500;
-  const NAME_MAX = 200;
-  const MIN_LENGTH = 50;
-  const MAX_LENGTH = 5000; // a box that takes more (Workable's cover letter: 200000) asks for this much
   const WRITE_IT = "Write this answer yourself.";
   const TRIGGER = window.WIA.overlay.CLAUDE_TRIGGER;
   // Each row waiting for the student's Claude also has the overlay's Write with Claude.
@@ -56,32 +53,36 @@ window.WIA = window.WIA || {};
     // How many fills of a written answer are under way: their typing is WorkIt's, not the student's.
     let fillingWritten = 0;
 
+    /** Asks the background once for the Written Answers link. */
+    async function loadAnswersPage() {
+      if (answersPage !== undefined) return;
+      const page = await send({ type: "batch/answers-page" }).catch(() => null);
+      answersPage = page?.ok ? { text: "Written Answers", href: page.url } : null;
+    }
+
+    /** A row waiting for the student's Claude, with the Written Answers link (KAN-385) when there is one. */
+    function waitForClaude(name) {
+      if (answersPage) status.setStatus(name, "needs_generation", WAIT_OR_PASTE, undefined, undefined, answersPage, true);
+      else status.setStatus(name, "needs_generation", WAIT_FOR_CLAUDE, undefined, undefined, undefined, true);
+    }
+
     /**
      * Puts the questions that need writing on the panel, each one `isNew`
      * says the panel lacks: in a batch tab waiting for the student's
-     * Claude (with the Written Answers link, KAN-385), else for Generate.
+     * Claude, else for the student to ask for it (offer).
      */
     async function showRows(questions, isNew) {
-      if (batch && questions.length && answersPage === undefined) {
-        const page = await send({ type: "batch/answers-page" }).catch(() => null);
-        answersPage = page?.ok ? { text: "Written Answers", href: page.url } : null;
-      }
+      if (batch && questions.length) await loadAnswersPage();
       for (const q of questions) {
-        if (batch) {
-          if (!isNew(q.name)) continue;
-          status.register(q.name, q.label, q.required);
-          if (answersPage) status.setStatus(q.name, "needs_generation", WAIT_OR_PASTE, undefined, undefined, answersPage, true);
-          else status.setStatus(q.name, "needs_generation", WAIT_FOR_CLAUDE, undefined, undefined, undefined, true);
-          continue;
-        }
         if (!isNew(q.name)) continue;
         status.register(q.name, q.label, q.required);
-        status.setStatus(q.name, "needs_generation");
+        if (batch) waitForClaude(q.name);
+        else status.setStatus(q.name, "needs_generation");
       }
     }
 
     /** Fills one answer that needed writing, through the engine, and shows how it went. `source`: who wrote it. */
-    async function fillWritten(prepared, name, value, source = "ai") {
+    async function fillWritten(prepared, name, value, source) {
       fillingWritten += 1;
       const answer = await send({ type: "fill/page", site: prepared.site, questions: prepared.questions, answers: { [name]: value }, state: prepared.state })
         .finally(() => (fillingWritten -= 1));
@@ -95,7 +96,7 @@ window.WIA = window.WIA || {};
 
     /**
      * The written answers WorkIt filled that aren't the student's own words
-     * (their Claude's, the essay route's, a saved one of their Claude's), by
+     * (their Claude's, a pasted one, a saved one of their Claude's), by
      * field: what was filled, and who wrote it. A student's edit of one stays
      * that writer's (KAN-379): only words they wrote into a field WorkIt
      * didn't fill, or that replace what it filled, count as their own.
@@ -128,8 +129,7 @@ window.WIA = window.WIA || {};
       if ((asked.get(name) ?? "") === (ask ?? "") || rowStatus(name) !== "needs_generation") return;
       asked.set(name, ask ?? "");
       if (!ask) {
-        if (answersPage) status.setStatus(name, "needs_generation", WAIT_OR_PASTE, undefined, undefined, answersPage, true);
-        else status.setStatus(name, "needs_generation", WAIT_FOR_CLAUDE, undefined, undefined, undefined, true);
+        waitForClaude(name);
         return;
       }
       const question = ask.startsWith(ASK) ? ask.slice(ASK.length) : ask;
@@ -302,7 +302,13 @@ window.WIA = window.WIA || {};
       if (answer?.ok && answer.show) overlay.askSamples({ url: answer.url });
     }
 
-    /** The Generate prompt for the questions that need a written answer, if any. */
+    /**
+     * The questions that need a written answer, if any, go to the student's
+     * Claude: a batch tab's at once; on a form the student opened
+     * themselves, once they ask on the panel (KAN-470), when the background
+     * has given its job an application to keep them on. Until then, and if
+     * it can't (WorkIt doesn't list the job), they are the student's.
+     */
     function offer(prepared) {
       const written = prepared.written;
       if (written.length === 0) return;
@@ -316,23 +322,15 @@ window.WIA = window.WIA || {};
           for (const { name } of written) status.setStatus(name, "skipped", "You chose to answer this yourself");
         },
         async onGenerate() {
-          // One at a time: each is its own counted AI use, and the overlay shows each row as it lands.
-          for (const q of written) {
-            const maxLength = q.max_length >= MIN_LENGTH ? Math.min(q.max_length, MAX_LENGTH) : null;
-            const result = await send({
-              type: "essay/generate",
-              applicantId: prepared.applicantId,
-              question: q.label.slice(0, QUESTION_MAX),
-              companyName: prepared.posting.company.slice(0, NAME_MAX) || null,
-              jobTitle: prepared.posting.title.slice(0, NAME_MAX) || null,
-              maxLength,
-            });
-            if (!result.ok) {
-              status.setStatus(q.name, "failed", result.error);
-              continue;
-            }
-            await fillWritten(prepared, q.name, result.answer);
+          const opened = await send({ type: "written/open" }).catch((error) => ({ ok: false, error: error.message }));
+          if (!opened?.ok) {
+            for (const q of written) status.setStatus(q.name, q.required ? "failed" : "skipped", opened?.error ?? WRITE_IT);
+            return;
           }
+          window.WIA.writing = api;
+          await loadAnswersPage();
+          for (const q of written) if (rowStatus(q.name) === "needs_generation") waitForClaude(q.name);
+          awaitClaude(prepared);
         },
       });
     }
@@ -344,10 +342,11 @@ window.WIA = window.WIA || {};
      * answer, so their Claude isn't asked for it, and for later forms. `own`:
      * their own words; false for their edit of an answer WorkIt filled, which
      * WorkIt checks as their Claude's (a refusal shows on the row, and the
-     * edit isn't kept). Batch tabs only: only they have an application at WorkIt.
+     * edit isn't kept). Only a tab with an application at WorkIt: a batch
+     * tab, or one whose questions went to the student's Claude (offer).
      */
     function keepOwn(question, answer, own) {
-      if (!batch || !answer.trim() || answer.length > ANSWER_MAX) return;
+      if (!(batch || claudeFill) || !answer.trim() || answer.length > ANSWER_MAX) return;
       // Taken back with the captured notice's Undo (captured-notice.js): not saved again on this page.
       if (own && window.WIA.capturedNotice?.undone(question.name)) return;
       clearTimeout(ownTimers.get(question.name));

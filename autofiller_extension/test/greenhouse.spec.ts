@@ -195,10 +195,10 @@ test("the profile's home answers the form's location and picks the phone's count
   expect(unread.country).toBeUndefined(); // a +44 number with no home on file: the student picks
 });
 
-test("an essay question waits for the student to ask for a written answer", async () => {
+test("an essay question is one for the student's Claude to write", async () => {
   const rows = await rowsFor(arcWithEssay("&lt;p&gt;Build boats.&lt;/p&gt;"));
 
-  expect(rows.written).toEqual([{ name: "question_1", label: "Why do you want to work at Arc?", required: true, max_length: null, generate: true }]);
+  expect(rows.written).toEqual([{ name: "question_1", label: "Why do you want to work at Arc?", required: true, max_length: null }]);
   expect(rows.yours).toEqual([]);
 });
 
@@ -216,7 +216,7 @@ test("an essay's limit is its field's own, as the engine reads it from the form"
     call: engineCaller((request) => page.evaluate(runEngine, request)), fetchText: async () => arcWithEssay("&lt;p&gt;Build boats.&lt;/p&gt;"),
   });
 
-  expect(planRows(prepared).written).toEqual([{ name: "question_1", label: "Why do you want to work at Arc?", required: true, max_length: 600, generate: true }]);
+  expect(planRows(prepared).written).toEqual([{ name: "question_1", label: "Why do you want to work at Arc?", required: true, max_length: 600 }]);
 });
 
 test("on a posting that bans AI-written answers, the essay is left for the student", async () => {
@@ -226,8 +226,7 @@ test("on a posting that bans AI-written answers, the essay is left for the stude
   expect(rows.notes.join(" ")).toMatch(/AI/);
 });
 
-test("a one-line or choice draft goes to the student's Claude, never the essay route", () => {
-  // Hermeus's Lever form (live, 2026-10-24): "Nick Name" went to the essay route, which writes 3-5 sentences.
+test("a one-line or choice draft goes to the student's Claude", () => {
   const nickname = { name: "nick", label: "Nick Name", kind: "text", required: false, options: [] };
   const details = { name: "details", label: "Have you completed at least one previous internship? Please provide details.", kind: "textarea", required: true, options: [] };
   const size = { name: "size", label: "Which team size do you prefer?", kind: "select", required: true, options: ["Small", "Large"] };
@@ -236,11 +235,11 @@ test("a one-line or choice draft goes to the student's Claude, never the essay r
   const rows = planRows({ plan: { essays: [], drafts: [nickname, details, size, unread, sample], missing: [], handoffs: [] } });
 
   expect(rows.written).toEqual([
-    { name: "nick", label: "Nick Name", required: false, max_length: null, generate: false },
-    { name: "details", label: details.label, required: true, max_length: null, generate: true },
-    { name: "size", label: size.label, required: true, max_length: null, generate: false, kind: "choice", options: ["Small", "Large"] },
+    { name: "nick", label: "Nick Name", required: false, max_length: null },
+    { name: "details", label: details.label, required: true, max_length: null },
+    { name: "size", label: size.label, required: true, max_length: null, kind: "choice", options: ["Small", "Large"] },
     // Options not read (a closed list): answered in words, which the engine fits to the list.
-    { name: "unread", label: unread.label, required: true, max_length: null, generate: false },
+    { name: "unread", label: unread.label, required: true, max_length: null },
   ]);
   expect(rows.yours).toEqual([{ name: "sample", label: "Work sample", required: false }]);
 });
