@@ -21,7 +21,16 @@ permissions:
   contents: read
 
 jobs:
+  # Whether FILL_ENGINE_TOKEN is set: without it the canary below is skipped, and this job's summary says SKIPPED.
+  engine:
+    uses: ./.github/workflows/engine-token.yml
+    with:
+      skipped: the live canary (no live form was read)
+    secrets: inherit
+
   canary:
+    needs: engine
+    if: needs.engine.outputs.set == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -32,38 +41,23 @@ jobs:
         working-directory: autofiller_extension/test
     steps:
       # The engine is the private fill-engine submodule, which the default token can't read.
-      - id: engine
-        working-directory: .
-        run: echo "token=${{ secrets.FILL_ENGINE_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
-      - if: steps.engine.outputs.token != 'true'
-        working-directory: .
-        run: echo "::warning::FILL_ENGINE_TOKEN is not set, so the live canary did not run."
-
       - uses: actions/checkout@v4
-        if: steps.engine.outputs.token == 'true'
         with:
           submodules: true
           token: ${{ secrets.FILL_ENGINE_TOKEN }}
-      - uses: actions/setup-node@v4
-        if: steps.engine.outputs.token == 'true'
+      - uses: ./.github/actions/extension-setup
         with:
-          node-version-file: .nvmrc
-      - if: steps.engine.outputs.token == 'true'
-        run: npm ci
-      - if: steps.engine.outputs.token == 'true'
-        run: npx playwright install --with-deps chromium
+          with-deps: "true"
 
       - name: Check the canary only reads
-        if: steps.engine.outputs.token == 'true'
         run: npx playwright test canary.spec.ts --project=page
 
       - name: Read the live forms
         id: canary
-        if: steps.engine.outputs.token == 'true'
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node canary/run.mjs canary-out
-      - if: always() && steps.engine.outputs.token == 'true'
+      - if: always()
         run: test -f canary-out/report.md && cat canary-out/report.md >> "$GITHUB_STEP_SUMMARY" || true
 
       # One open issue per job system: a later failing run comments on it.
