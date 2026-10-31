@@ -31,10 +31,10 @@ from app.routers.connector import added_router as connector_added_router
 from app.routers.connector import router as connector_router
 from app.routers.documents import router as documents_router
 from app.routers.essay_answer import router as essay_answer_router
+from app.routers.extension_config import router as extension_config_router
 from app.routers.fill_reports import router as fill_reports_router
 from app.routers.intake import router as intake_router
 from app.routers.job_system_requests import router as job_system_requests_router
-from app.routers.extension_config import router as extension_config_router
 from app.routers.jobs import router as jobs_router
 from app.routers.notifications import router as notifications_router
 from app.routers.pasted_answers import router as pasted_answers_router

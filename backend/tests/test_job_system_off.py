@@ -5,16 +5,26 @@ new batch or Auto Apply click queues its postings. Turned back on, both
 come back.
 """
 
+import asyncio
 import uuid
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
+from sqlalchemy import select, text
 
+from app.auto_apply import pipeline
 from app.auto_apply.hosts import JOB_SYSTEMS, job_system_of
 from app.config import get_settings
 from app.deps import get_current_account
 from app.main import app
+from app.models.jobs import Job_Post
+from app.queries.jobs.filters import JobFilters, matching
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from tests import test_built_resumes
+
+student = test_built_resumes.student
 
 WORKDAY = "https://acme.wd5.myworkdayjobs.com/en-US/External/job/Remote/Engineer_R123"
 GREENHOUSE = "https://job-boards.greenhouse.io/acme/jobs/7"
@@ -108,3 +118,92 @@ async def test_only_an_admin_changes_the_list_and_only_to_a_known_job_system(api
     _as(ADMIN)
     assert (await api.put("/admin/disabled-job-systems/myspace")).status_code == 422
     assert await _config(api) == []
+
+
+# --- the queue: a job system turned off takes no new applications ---
+
+async def _seed(database, apply_url: str) -> str:
+    async with database() as session:
+        posting = await session.scalar(text(
+            "INSERT INTO job_postings (id, title, status, company_name, apply_url, experience_level)"
+            " VALUES (gen_random_uuid(), 'Intern', 'published', 'Acme', :url, 'new_grad') RETURNING id"
+        ), {"url": apply_url})
+        await session.commit()
+    return str(posting)
+
+
+async def _switch(on: bool, system: str = "workday") -> None:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as admin:
+        saved = app.dependency_overrides.get(get_current_account)
+        _as(ADMIN)
+        res = await (admin.delete if on else admin.put)(f"/admin/disabled-job-systems/{system}")
+        assert res.status_code == 200, res.text
+        if saved:
+            app.dependency_overrides[get_current_account] = saved
+
+
+@pytest.mark.anyio
+async def test_an_auto_apply_click_on_a_job_system_turned_off_is_refused_until_it_is_on(student, database, monkeypatch):
+    monkeypatch.setattr(get_settings(), "workit_admins", ADMIN)
+    client, me = student
+    workday, greenhouse = await _seed(database, WORKDAY), await _seed(database, GREENHOUSE)
+    await _switch(on=False)
+
+    res = await client.post(f"{me}/applications", json={"job_id": workday})
+    assert res.status_code == 404
+    assert res.json()["detail"] == "WorkIt can't fill Workday right now. Try this job again later."
+    assert (await client.post(f"{me}/applications", json={"job_id": greenhouse})).json()["stage"] == "queued"
+
+    await _switch(on=True)
+    assert (await client.post(f"{me}/applications", json={"job_id": workday})).json()["stage"] == "queued"
+
+
+@pytest.mark.anyio
+async def test_a_batch_matches_no_job_on_a_job_system_turned_off(database):
+    # The matches' own filter, on real Postgres: its regex is Postgres's, not Python's.
+    urls = {
+        "workday": WORKDAY,
+        "greenhouse": GREENHOUSE,
+        "stripe": "https://stripe.com/jobs/search?gh_jid=8257892",
+        "waymo": "https://careers.withwaymo.com/jobs/engineer?gh_jid=123",
+        # A job board's posting that names a Workday form is that form.
+        "linkedin": "https://www.linkedin.com/jobs/view/1",
+    }
+    ids = {name: await _seed(database, url) for name, url in urls.items()}
+    async with database() as session:
+        await session.execute(text("UPDATE job_postings SET description = :d WHERE id = :id"),
+                              {"d": f'<a href="{WORKDAY}">Apply</a>', "id": ids["linkedin"]})
+        await session.commit()
+
+    async def matched(*off: str) -> set[str]:
+        filters = JobFilters(auto_apply_only=True, disabled_job_systems=off)
+        async with database() as session:
+            found = await session.scalars(select(Job_Post.id).where(*matching(filters)))
+        names = {v: k for k, v in ids.items()}
+        return {names[str(i)] for i in found if str(i) in names}
+
+    assert await matched() == set(urls)
+    assert await matched("workday") == {"greenhouse", "stripe", "waymo"}
+    assert await matched("greenhouse") == {"workday", "waymo", "linkedin"}
+    assert await matched("waymo", "workday") == {"greenhouse", "stripe"}
+
+
+def test_start_batch_leaves_out_the_job_systems_turned_off(monkeypatch):
+    calls = []
+
+    async def fetch_recommended(db, account, **kwargs):
+        calls.append(kwargs)
+        return []
+
+    async def disabled(db):
+        return ["workday"]
+
+    monkeypatch.setattr(pipeline, "fetch_recommended", fetch_recommended)
+    monkeypatch.setattr(pipeline, "fetch_disabled_job_systems", disabled)
+    db = SimpleNamespace(commit=AsyncMock())
+    monkeypatch.setattr(pipeline, "queue_applications", AsyncMock(return_value=set()))
+
+    asyncio.run(pipeline.start_batch(db, SimpleNamespace(id=uuid.uuid4())))
+
+    (kwargs,) = calls
+    assert kwargs["filters"].disabled_job_systems == ("workday",)

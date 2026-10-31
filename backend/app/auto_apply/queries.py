@@ -39,7 +39,7 @@ from app.models.profiles import Applicant_Profile, Company_Profile
 from app.models.resume import Resume
 from app.models.sent_resume import Sent_Resume
 from app.models.written_answers import Written_Answer, is_text
-from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, LISTED
+from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, FORM_URL, LISTED, not_on
 from app.queries.jobs.listings import LISTING_COLUMNS, to_listing
 from app.schemas.applications import (
     Application,
@@ -51,11 +51,15 @@ from app.schemas.sent_resume import SentResumeResponse
 
 
 async def queue_applications(
-    db: AsyncSession, applicant_id: uuid.UUID, job_ids: Sequence[uuid.UUID]
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    job_ids: Sequence[uuid.UUID],
+    disabled: Sequence[str] = (),
 ) -> set[uuid.UUID]:
     """
     Saves as queued each of `job_ids` that is listed (open, scraped), is on a
-    hiring system auto apply fills (AUTO_APPLY_SUPPORTED), and has no
+    hiring system auto apply fills (AUTO_APPLY_SUPPORTED) and not one of the
+    `disabled` job systems (KAN-467), and has no
     application of this applicant yet, or only a saved one (KAN-261);
     answers the ones it queued. One with an application at any other stage
     keeps it: queueing never moves an applied or skipped job back.
@@ -71,7 +75,7 @@ async def queue_applications(
         cast(literal(application_stage.queued, stage_type), stage_type),
         # Not applied yet: NULL in place of the column's now() default.
         cast(null(), DateTime(timezone=True)),
-    ).where(Job_Post.id.in_(job_ids), LISTED, AUTO_APPLY_SUPPORTED)
+    ).where(Job_Post.id.in_(job_ids), LISTED, AUTO_APPLY_SUPPORTED, *([not_on(disabled)] if disabled else []))
     queued = await db.scalars(
         insert(Job_Application)
         .from_select(["applicant_id", "job_id", "stage", "applied_at"], listed)
@@ -97,6 +101,11 @@ async def fetch_disabled_job_systems(db: AsyncSession) -> list[str]:
 async def fetch_open_apply_url(db: AsyncSession, job_id: uuid.UUID) -> str | None:
     """The apply_url of this job posting while it is listed (open), else None."""
     return await db.scalar(select(Job_Post.apply_url).where(Job_Post.id == job_id, LISTED))
+
+
+async def fetch_open_form_url(db: AsyncSession, job_id: uuid.UUID) -> str | None:
+    """The form auto apply opens for this job posting (FORM_URL) while it is listed, else None."""
+    return await db.scalar(select(FORM_URL).where(Job_Post.id == job_id, LISTED))
 
 
 async def fetch_stage(
