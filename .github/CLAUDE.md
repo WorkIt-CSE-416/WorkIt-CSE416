@@ -31,6 +31,19 @@ which the default token can't read, so the build steps run only once a
 `FILL_ENGINE_TOKEN` secret (read access to WorkIt-CSE-416/fill-engine) is set;
 without it the job warns and checks the extension ID only.
 
+The `extension` job (KAN-464) runs the extension's Playwright suite headless
+(`autofiller_extension/test`, both projects) on the engine the submodule
+pins, and first fails if that engine commit's committed `dist/` differs from
+what its `src/` builds. It runs only on a PR touching `autofiller_extension/`
+(the engine pointer included) or `ci.yml`: the `changes` job
+(`dorny/paths-filter`) decides, and a skipped job counts as passed. It leaves
+out `speed.extension.spec.ts`, the timing harness (about 7 minutes alone),
+which `workflows/extension-nightly.yml` runs with the rest every night at
+07:41 UTC (and by hand: `gh workflow run extension-nightly.yml`). Both need
+`FILL_ENGINE_TOKEN`, as `extension-store-build` does, and only warn without
+it. The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
+typecheck, the same stale-`dist/` check, and its tests, on every PR.
+
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
 `frontend/.prettierignore`, so Prettier never rewrites prose.

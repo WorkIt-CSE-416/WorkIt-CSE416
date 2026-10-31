@@ -56,6 +56,74 @@ jobs:
       - if: steps.engine.outputs.token != 'true'
         run: echo "::warning::FILL_ENGINE_TOKEN is not set, so the Store package was not built or checked."
 
+  # Which parts a PR touches, so a job can skip a PR that can't break it.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      extension: ${{ steps.filter.outputs.extension }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            extension:
+              - autofiller_extension/**
+              - .github/workflows/ci.yml
+
+  # The extension's Playwright suite, headless, on the engine the submodule
+  # pins (KAN-464). The slow speed harness runs nightly instead
+  # (extension-nightly.yml). Needs FILL_ENGINE_TOKEN, as extension-store-build.
+  extension:
+    needs: changes
+    if: needs.changes.outputs.extension == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: autofiller_extension/test
+    steps:
+      - id: engine
+        working-directory: .
+        run: echo "token=${{ secrets.FILL_ENGINE_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+      - if: steps.engine.outputs.token != 'true'
+        working-directory: .
+        run: echo "::warning::FILL_ENGINE_TOKEN is not set, so the extension tests did not run."
+      - uses: actions/checkout@v4
+        if: steps.engine.outputs.token == 'true'
+        with:
+          submodules: true
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - uses: actions/setup-node@v4
+        if: steps.engine.outputs.token == 'true'
+        with:
+          node-version-file: .nvmrc
+      - if: steps.engine.outputs.token == 'true'
+        run: npm ci
+      # The extension loads the engine's committed dist/; it must be what the
+      # pinned src/ builds to.
+      - name: The pinned engine's dist/ is built from its src/
+        if: steps.engine.outputs.token == 'true'
+        working-directory: autofiller_extension/fill-engine
+        run: |
+          npm ci
+          npm run build
+          git diff --exit-code --stat dist/ || {
+            echo "::error::The pinned fill-engine commit's dist/ is stale."
+            exit 1
+          }
+      - if: steps.engine.outputs.token == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.engine.outputs.token == 'true'
+        run: npx playwright test $(ls *.spec.ts | grep -vx speed.extension.spec.ts)
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: extension-test-results
+          path: autofiller_extension/test/test-results
+          retention-days: 7
+
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.
   api-worker:

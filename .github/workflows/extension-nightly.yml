@@ -1,0 +1,44 @@
+name: Extension nightly
+
+# The extension's whole Playwright suite, the speed harness too, which the
+# `extension` job in ci.yml leaves out of PRs for time (KAN-464).
+on:
+  schedule:
+    - cron: "41 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: autofiller_extension/test
+    steps:
+      - id: engine
+        working-directory: .
+        run: echo "token=${{ secrets.FILL_ENGINE_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+      - if: steps.engine.outputs.token != 'true'
+        working-directory: .
+        run: echo "::warning::FILL_ENGINE_TOKEN is not set, so the extension tests did not run."
+      - uses: actions/checkout@v4
+        if: steps.engine.outputs.token == 'true'
+        with:
+          submodules: true
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - uses: actions/setup-node@v4
+        if: steps.engine.outputs.token == 'true'
+        with:
+          node-version-file: .nvmrc
+      - if: steps.engine.outputs.token == 'true'
+        run: npm ci
+      - if: steps.engine.outputs.token == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.engine.outputs.token == 'true'
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: extension-test-results
+          path: autofiller_extension/test/test-results
+          retention-days: 7
