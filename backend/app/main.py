@@ -73,6 +73,12 @@ def _version(text: str) -> tuple[int, ...] | None:
     return (*map(int, parts), 0, 0, 0)[:max(4, len(parts))]
 
 
+# The extension's calls that send no version on purpose: the remote config
+# (routers/extension_config.py, api.js publicFetch) is a plain public read,
+# so the off switch reaches every build, even one below the minimum.
+UNVERSIONED = frozenset({"/extension/config"})
+
+
 @app.middleware("http")
 async def extension_version(request: Request, call_next):
     """
@@ -80,13 +86,14 @@ async def extension_version(request: Request, call_next):
     than MIN_EXTENSION_VERSION gets 426 with the minimum, and the panel asks
     the student to update. A request with no version is let through: the
     webapp's server sends none, and neither did builds before this. One from
-    the extension (its chrome-extension:// origin) is logged, to see how
-    many old builds are still out there.
+    the extension (its chrome-extension:// origin) is logged at debug, to see
+    how many old builds are still out there, except the remote config read
+    (UNVERSIONED), which names no version on purpose.
     """
     sent = request.headers.get("x-workit-extension")
     if sent is None:
-        if request.headers.get("origin", "").startswith("chrome-extension://"):
-            logger.info("Extension request with no version: %s %s", request.method, request.url.path)
+        if request.headers.get("origin", "").startswith("chrome-extension://") and request.url.path not in UNVERSIONED:
+            logger.debug("Extension request with no version: %s %s", request.method, request.url.path)
         return await call_next(request)
     minimum = get_settings().min_extension_version
     version, floor = _version(sent), _version(minimum)
