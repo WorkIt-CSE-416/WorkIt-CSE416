@@ -97,6 +97,12 @@ SYSTEM_URL_PATTERNS = {
 }
 
 
+# Every job system has a name and a link pattern, and the two lists agree; Waymo is in
+# neither SYSTEM_HOSTS nor AUTO_APPLY_HOSTS, being Greenhouse postings on its own site.
+if set(JOB_SYSTEMS) != set(SYSTEM_URL_PATTERNS):
+    raise RuntimeError(f"hosts.py: JOB_SYSTEMS and SYSTEM_URL_PATTERNS disagree on {set(JOB_SYSTEMS) ^ set(SYSTEM_URL_PATTERNS)}")
+
+
 def systems_pattern(systems) -> str | None:
     """One pattern for the links of any of these job systems; None for none."""
     return "|".join(SYSTEM_URL_PATTERNS[s] for s in sorted(set(systems))) or None

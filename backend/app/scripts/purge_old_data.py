@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 async def run(*, dry_run: bool, now: datetime.datetime | None = None) -> dict[str, int | None]:
     async with get_sessionmaker()() as db:
         counts = await purge(db, now=now, dry_run=dry_run)
+        await db.commit()
     prefix = "[dry run] " if dry_run else ""
     verb = "would be deleted" if dry_run else "deleted"
     for table, count in counts.items():

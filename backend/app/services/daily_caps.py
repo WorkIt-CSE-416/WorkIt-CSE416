@@ -8,14 +8,14 @@ A route calls `take_daily` after it has validated the body and before it
 writes, in the same session: the count is one atomic upsert that goes up
 only while under the cap, so two requests at once can't both slip past it.
 It flushes, never commits: the route's own commit keeps the count and the
-row together.
+row together. At the cap it raises `OverDailyCap`, which app/main.py answers
+as a 429 for every route.
 """
 
 import datetime
 import uuid
 from enum import StrEnum
 
-from fastapi import HTTPException, status
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,8 +38,16 @@ REFUSALS = {
 }
 
 
+class OverDailyCap(Exception):
+    """The account is at today's cap for `kind`; str() is the sentence the 429 sends."""
+
+    def __init__(self, kind: Capped):
+        super().__init__(REFUSALS[kind])
+        self.kind = kind
+
+
 async def take_daily(db: AsyncSession, account_id: uuid.UUID, kind: Capped) -> None:
-    """Counts one `kind` write for the account today; a 429 (nothing counted) once it is at the cap."""
+    """Counts one `kind` write for the account today; OverDailyCap (nothing counted) once it is at the cap."""
     cap = getattr(get_settings(), f"{kind}_daily_cap")
     table = Daily_Count.__table__
     counted = await db.scalar(
@@ -53,5 +61,5 @@ async def take_daily(db: AsyncSession, account_id: uuid.UUID, kind: Capped) -> N
         .returning(table.c.count)
     )
     if counted is None or cap < 1:
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, REFUSALS[kind])
+        raise OverDailyCap(kind)
     await db.flush()

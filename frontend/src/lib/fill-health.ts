@@ -9,10 +9,11 @@ export const DEFAULT_DAYS = 14;
 export type FillHealthRow = {
   day: string;
   job_system: string;
+  /** Fills, a Workday walk once (its final step's event). */
   fills: number;
-  /** The share of fills with no failed field: a job system that breaks shows as this dropping. */
+  /** The share of pages (a Workday step is one) with no failed field: a job system that breaks shows as this dropping. */
   clean_share: number;
-  /** Fields left needing the student over all fields. */
+  /** Fields left needing the student over all fields, less those skipped by the student's choice. */
   needs_you_rate: number;
   top_errors: { name: string; count: number }[];
 };

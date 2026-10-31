@@ -119,6 +119,12 @@ class Settings(BaseSettings):
     # no one is an admin. There is no admin role in the database: the team is a handful of developers.
     workit_admins: str = ""
 
+    @property
+    def admins(self) -> list[str]:
+        '''WORKIT_ADMINS parsed once for every reader (deps.is_admin, services/fill_report_alerts.py):
+        each entry stripped and lower-cased, empty ones dropped, in order.'''
+        return [entry for entry in (e.strip().lower() for e in self.workit_admins.split(",")) if entry]
+
     # Per-account daily caps on the extension's writes (KAN-478, app/services/daily_caps.py): one
     # account in a loop can't fill the database. Past one, the route answers 429. Days are UTC.
     fill_report_daily_cap: int = 30

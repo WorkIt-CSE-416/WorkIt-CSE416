@@ -4,11 +4,13 @@ Revision ID: b2d4f6a8c013
 Revises: bafdca0d9501
 Create Date: 2026-10-31 17:20:00.000000
 
-Adds the column nullable, fills it for the reports already stored (the
-rule of app/schemas/fill_reports.py's signature_of, copied here so this
-migration never changes with it), then makes it NOT NULL and indexes it.
-Apply it before the deploy: the new code writes and reads the column, and
-old code ignores it.
+Adds the column NOT NULL with a server default of '' (so every stored
+report gets ''), fills it for those reports (the rule of
+app/schemas/fill_reports.py's signature_of, copied here so this migration
+never changes with it), and indexes it. The default stays: code from before
+KAN-478 inserts reports without the column, and they land as '' instead of
+failing. Safe on either side of the deploy: old code never names the column,
+and new code always sets it.
 """
 from typing import Sequence, Union
 
@@ -33,11 +35,10 @@ def _signature(job_system: str, fields: list | None) -> str:
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.add_column('fill_reports', sa.Column('signature', sa.String(length=80), nullable=True))
+    op.add_column('fill_reports', sa.Column('signature', sa.String(length=80), nullable=False, server_default=''))
     bind = op.get_bind()
     for id_, job_system, fields in bind.execute(sa.text('SELECT id, job_system, fields FROM fill_reports')).all():
         bind.execute(sa.text('UPDATE fill_reports SET signature = :s WHERE id = :id'), {'s': _signature(job_system, fields), 'id': id_})
-    op.alter_column('fill_reports', 'signature', nullable=False)
     op.create_index('ix_fill_reports_signature', 'fill_reports', ['signature'], unique=False)
 
 

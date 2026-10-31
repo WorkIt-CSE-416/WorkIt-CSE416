@@ -23,11 +23,10 @@ import datetime
 import hashlib
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models.uninstall_answers import Uninstall_Answer
+from app.queries.uninstall_answers import add_answer, count_answered_since
 from app.schemas.uninstall_answers import UninstallAnswer
 
 router = APIRouter(tags=["uninstall-answers"])
@@ -78,10 +77,8 @@ async def answer_uninstall_survey(
 ) -> dict:
     """Stores one answer to Why did you remove WorkIt?, with no account."""
     today = datetime.datetime.now(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-    answered_today = await db.scalar(
-        select(func.count()).select_from(Uninstall_Answer).where(Uninstall_Answer.created_at >= today))
-    if answered_today >= PER_DAY or not _take_sender_turn(request):
+    if await count_answered_since(db, today) >= PER_DAY or not _take_sender_turn(request):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many answers today. Thanks, we have yours.")
-    db.add(Uninstall_Answer(reason=body.reason, detail=body.detail, extension_version=body.version))
+    add_answer(db, reason=body.reason, detail=body.detail, extension_version=body.version)
     await db.commit()
     return {}

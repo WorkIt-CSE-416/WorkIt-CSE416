@@ -21,3 +21,8 @@ test("an expired token, or one with no expiry, is rotated", () => {
   assert.equal(needsRotation(at(-60), now), true);
   assert.equal(needsRotation(undefined, now), true);
 });
+
+test("force (?force=1, the extension's retry after a 401) rotates even a fresh token", () => {
+  assert.equal(needsRotation(at(50 * 60), now, { force: true }), true);
+  assert.equal(needsRotation(at(50 * 60), now, { force: false }), false);
+});

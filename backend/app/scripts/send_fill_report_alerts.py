@@ -22,7 +22,9 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 
 async def _run(*, dry_run: bool) -> int:
     async with get_sessionmaker()() as db:
-        return await alert_new_groups(db, dry_run=dry_run)
+        groups = await alert_new_groups(db, dry_run=dry_run)
+        await db.commit()
+        return groups
 
 
 def main(argv: list[str] | None = None) -> int:

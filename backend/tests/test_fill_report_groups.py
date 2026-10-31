@@ -85,3 +85,21 @@ async def test_two_reports_with_the_same_signature_are_one_group_of_two(people):
         older = (await api.get("/admin/fill-report-groups", params={"engine_version": "0.3.2"})).json()["groups"]
         assert [(g["field_kind"], g["count"]) for g in older] == [(None, 1), ("select", 1), ("text", 1)]
         assert marked in [r["id"] for r in (await api.get("/admin/fill-reports", params={"signature": groups[1]["signature"]})).json()["reports"]]
+
+
+async def test_a_report_stored_by_code_older_than_signatures_groups_by_its_system(people, database):
+    # Code from before KAN-478 inserts no signature; the column's default is ''.
+    async with database() as session:
+        await session.execute(text(
+            "INSERT INTO fill_reports (job_system, posting_url, engine_version, fields)"
+            " VALUES ('greenhouse', 'https://job-boards.greenhouse.io/acme/jobs/1', '0.3.1', '[]')"
+        ))
+        await session.commit()
+
+    async with _api() as api:
+        _as(people["admin"], "dev@example.com")
+        groups = (await api.get("/admin/fill-report-groups")).json()["groups"]
+
+    assert [(g["signature"], g["job_system"], g["field_kind"], g["error"], g["count"]) for g in groups] == [
+        ("", "greenhouse", None, None, 1),
+    ]

@@ -24,9 +24,10 @@ async def store_event(db: AsyncSession, event: dict) -> uuid.UUID:
 
 async def fill_health(db: AsyncSession, *, days: int, engine_version: str | None = None) -> tuple[list[dict], list[str]]:
     '''
-    the last `days` days' events by job system and day (UTC), newest day first: fills, the share with no
-    failed field, needs-you fields over all fields, and the 3 most common error names; and every engine
-    version those days' events name, newest first
+    the last `days` days' events by job system and day (UTC), newest day first: fills (an event that is
+    no Workday walk's non-final step, so a walk counts once), the share of pages (events) with no failed
+    field, needs-you fields over the fields not skipped by choice, and the 3 most common error names; and
+    every engine version those days' events name, newest first
     '''
     since = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days)
     day = func.date(func.timezone("UTC", Fill_Event.created_at)).label("day")
@@ -35,9 +36,11 @@ async def fill_health(db: AsyncSession, *, days: int, engine_version: str | None
         where.append(Fill_Event.engine_version == engine_version)
     rows = (await db.execute(
         select(
-            day, Fill_Event.job_system, func.count().label("fills"),
+            day, Fill_Event.job_system, func.count().label("pages"),
+            func.count().filter(Fill_Event.final_step.is_not(False)).label("fills"),
             func.count().filter(Fill_Event.failed == 0).label("clean"),
-            func.sum(Fill_Event.needs_you).label("needs_you"), func.sum(Fill_Event.fields).label("fields"),
+            func.sum(Fill_Event.needs_you).label("needs_you"),
+            func.sum(Fill_Event.fields - Fill_Event.skipped_by_choice).label("fields"),
         ).where(*where).group_by(day, Fill_Event.job_system).order_by(day.desc(), Fill_Event.job_system)
     )).all()
     # Error names summed per system and day, from each event's {name: count}.
@@ -57,8 +60,8 @@ async def fill_health(db: AsyncSession, *, days: int, engine_version: str | None
     return [
         {
             "day": r.day.isoformat(), "job_system": r.job_system, "fills": r.fills,
-            "clean_share": r.clean / r.fills if r.fills else 0.0,
-            "needs_you_rate": (r.needs_you or 0) / r.fields if r.fields else 0.0,
+            "clean_share": r.clean / r.pages if r.pages else 0.0,
+            "needs_you_rate": (r.needs_you or 0) / r.fields if r.fields and r.fields > 0 else 0.0,
             "top_errors": sorted(top.get((r.day, r.job_system), []), key=lambda e: (-e["count"], e["name"]))[:3],
         }
         for r in rows

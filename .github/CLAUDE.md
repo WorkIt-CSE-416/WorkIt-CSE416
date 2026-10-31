@@ -29,7 +29,18 @@ localhost, vercel.app or "Prototype", and runs `store-build.spec.ts` and
 `extension-id.spec.ts`. The package needs the private fill-engine submodule,
 which the default token can't read, so the build steps run only once a
 `FILL_ENGINE_TOKEN` secret (read access to WorkIt-CSE-416/fill-engine) is set;
-without it the job warns and checks the extension ID only.
+without it they show as skipped and the job checks the extension ID only.
+
+**Without `FILL_ENGINE_TOKEN`, the engine's tests are skipped, never green.**
+`ci.yml`, `extension-nightly.yml` and `live-canary.yml` each first call
+`workflows/engine-token.yml` (a reusable workflow, job `engine`), which
+answers whether the secret is set and, when it isn't, writes "SKIPPED: ..."
+to its job summary and a warning. A job that needs the engine depends on it
+(`needs.engine.outputs.set == 'true'`), so it shows as skipped instead of a
+run of tests that did nothing. Those jobs share their setup after the
+checkout (Node, `autofiller_extension/test`'s `npm ci`, Playwright's
+Chromium) in the composite action `actions/extension-setup`; the checkout
+stays in each job, since a local action can't check out its own repo.
 
 The `extension` job (KAN-464) runs the extension's Playwright suite headless
 (`autofiller_extension/test`, both projects) on the engine the submodule
@@ -40,8 +51,8 @@ what its `src/` builds. It runs only on a PR touching `autofiller_extension/`
 out `speed.extension.spec.ts`, the timing harness (about 7 minutes alone),
 which `workflows/extension-nightly.yml` runs with the rest every night at
 07:41 UTC (and by hand: `gh workflow run extension-nightly.yml`). Both need
-`FILL_ENGINE_TOKEN`, as `extension-store-build` does, and only warn without
-it. Both run on `macos-latest` (free on a public repo): on Linux, Chromium
+`FILL_ENGINE_TOKEN`, as `extension-store-build` does, and are skipped
+without it. Both run on `macos-latest` (free on a public repo): on Linux, Chromium
 asks `accounts.google.com` on its own (which `practice.extension.spec.ts`'s
 request list catches) and a field a panel row scrolls to doesn't come into
 view (`panel-reopen`, `workday-show`), found in the Playwright image
@@ -272,12 +283,15 @@ them with those saved forms.
   listed one is read instead; replace it in `postings.json` when convenient.
 - **Covered:** Greenhouse, Lever, Ashby, Rippling, Workable, the systems
   whose form opens with no sign-in and whose saved forms have a Question
-  set. **Left out:** SmartRecruiters (its robots.txt) and any system with a
-  bot check; Workday, Oracle, iCIMS, SuccessFactors and TikTok, whose form
-  shows only after an Apply button or a sign-in, which the canary never
-  presses; Eightfold and Waymo, which have no saved Question set to compare.
-- **Secret:** `FILL_ENGINE_TOKEN`, as in CI: without it the job warns and
-  reads nothing. The schedule runs only on `main`, and stops after 60 days
+  set.
+- **Skipped, and why:**
+  - **Workday, Oracle, iCIMS, SuccessFactors, TikTok:** the form sits behind
+    an Apply button or a sign-in, which the canary never presses.
+  - **Eightfold, Waymo:** no saved field list (Question set) to compare.
+  - **SmartRecruiters:** a bot check (and its robots.txt); so is any other
+    system that adds one.
+- **Secret:** `FILL_ENGINE_TOKEN`, as in CI: without it the canary job is
+  skipped and the `engine` job's summary says SKIPPED. The schedule runs only on `main`, and stops after 60 days
   without a commit there (`gh workflow enable live-canary.yml`).
 - **Run it locally:** `cd autofiller_extension/test && npm ci && node
   canary/run.mjs` writes `canary-out/report.md` and `canary-out/issues/`.

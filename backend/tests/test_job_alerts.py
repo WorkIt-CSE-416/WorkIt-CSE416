@@ -11,6 +11,8 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pytest
+
 from app.auto_apply.pipeline import BATCH_SIZE, MIN_MATCH
 from app.services import job_alerts
 from tests.test_auto_apply_rules import GH, job
@@ -139,3 +141,59 @@ def test_send_job_alert_emails_no_suppressed_address(monkeypatch):
 
     assert len(db.added) == 1
     job_alerts.send_email.assert_not_called()
+
+
+# --- the daily run (app/scripts/send_job_alerts.py) ---
+
+
+class FakeSuppressionList:
+    def __init__(self, addresses):
+        self.addresses = addresses
+
+    def list_suppressed_destinations(self, **kwargs):
+        return {"SuppressedDestinationSummaries": [
+            {"EmailAddress": address, "Reason": "BOUNCE"} for address in self.addresses
+        ]}
+
+
+@pytest.mark.anyio
+async def test_the_run_refreshes_suppressions_before_it_sends(database, monkeypatch):
+    # KAN-483: a bounce since the last broadcast is skipped on today's alerts too.
+    from app.scripts import send_job_alerts
+    from app.services import notices
+
+    monkeypatch.setattr(notices, "_suppression_client", lambda: FakeSuppressionList(["Bounced@Example.com"]))
+
+    await send_job_alerts._run(dry_run=False)
+
+    async with database() as session:
+        assert await notices.is_suppressed(session, "bounced@example.com")
+
+
+@pytest.mark.anyio
+async def test_a_dry_run_leaves_suppressions_alone(database, monkeypatch):
+    from app.scripts import send_job_alerts
+    from app.services import notices
+
+    monkeypatch.setattr(notices, "_suppression_client", lambda: FakeSuppressionList(["bounced@example.com"]))
+
+    await send_job_alerts._run(dry_run=True)
+
+    async with database() as session:
+        assert not await notices.is_suppressed(session, "bounced@example.com")
+
+
+@pytest.mark.anyio
+async def test_a_suppression_list_ses_cannot_give_does_not_stop_the_run(database, monkeypatch):
+    from app.scripts import send_job_alerts
+    from app.services import notices
+
+    class Down:
+        def list_suppressed_destinations(self, **kwargs):
+            raise RuntimeError("no credentials")
+
+    monkeypatch.setattr(notices, "_suppression_client", lambda: Down())
+
+    report = await send_job_alerts._run(dry_run=False)
+
+    assert report.failed == 0
