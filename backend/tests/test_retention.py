@@ -88,6 +88,72 @@ async def test_ai_usage_counters_past_30_days_are_deleted(database):
     assert days == [datetime.date(2026, 10, 1)]
 
 
+async def test_daily_counts_past_30_days_are_deleted(database):
+    today = NOW.date()
+    async with database() as session:
+        account_id = await _account(session)
+        for days_ago in (31, 30):
+            await session.execute(
+                text("INSERT INTO daily_counts (account_id, kind, day, count) VALUES (:a, 'fill_report', :day, 4)"),
+                {"a": account_id, "day": today - datetime.timedelta(days=days_ago)},
+            )
+        await session.commit()
+
+    async with database() as session:
+        counts = await purge(session, now=NOW)
+        await session.commit()
+
+    assert counts["daily_counts"] == 1
+    async with database() as session:
+        days = (await session.scalars(text("SELECT day FROM daily_counts"))).all()
+    assert days == [datetime.date(2026, 10, 1)]
+
+
+async def test_uninstall_answers_past_a_year_are_deleted(database):
+    year = datetime.timedelta(days=365)
+    async with database() as session:
+        for detail, at in (("old", NOW - year - MINUTE), ("recent", NOW - year + MINUTE)):
+            await session.execute(
+                text("INSERT INTO uninstall_answers (reason, detail, created_at) VALUES ('other', :d, :at)"),
+                {"d": detail, "at": at},
+            )
+        await session.commit()
+
+    async with database() as session:
+        counts = await purge(session, now=NOW)
+        await session.commit()
+
+    assert counts["uninstall_answers"] == 1
+    async with database() as session:
+        assert (await session.scalars(text("SELECT detail FROM uninstall_answers"))).all() == ["recent"]
+
+
+async def test_email_sends_past_a_year_are_deleted_and_suppressions_kept(database):
+    year = datetime.timedelta(days=365)
+    async with database() as session:
+        for campaign, at in (("old", NOW - year - MINUTE), ("recent", NOW - year + MINUTE)):
+            await session.execute(
+                text("INSERT INTO email_sends (campaign, email, sent_at) VALUES (:c, 'sam@example.com', :at)"),
+                {"c": campaign, "at": at},
+            )
+        # SES compliance: a suppression is never purged, however old.
+        await session.execute(
+            text("INSERT INTO email_suppressions (email, reason, created_at) VALUES ('gone@example.com', 'BOUNCE', :at)"),
+            {"at": NOW - 5 * year},
+        )
+        await session.commit()
+
+    async with database() as session:
+        counts = await purge(session, now=NOW)
+        await session.commit()
+
+    assert counts["email_sends"] == 1
+    assert "email_suppressions" not in counts
+    async with database() as session:
+        assert (await session.scalars(text("SELECT campaign FROM email_sends"))).all() == ["recent"]
+        assert await session.scalar(text("SELECT count(*) FROM email_suppressions")) == 1
+
+
 async def test_read_notifications_past_90_days_are_deleted_unread_ones_kept(database):
     period = datetime.timedelta(days=90)
     async with database() as session:

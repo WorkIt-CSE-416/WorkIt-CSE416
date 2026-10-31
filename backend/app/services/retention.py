@@ -39,6 +39,16 @@ RETENTION: tuple[Rule, ...] = (
     # Fill events (KAN-476's fill numbers): 90 days. Skipped until the
     # table exists; KAN-476 makes sure it has a created_at timestamptz.
     Rule("fill_events", "created_at", 90),
+    # The extension's per-account daily write counts (KAN-478) only enforce
+    # daily caps, as the AI counters do: 30 days.
+    Rule("daily_counts", "day", 30, date=True),
+    # Uninstall survey answers (KAN-471), which name no account: 1 year.
+    Rule("uninstall_answers", "created_at", 365),
+    # The notice send log (KAN-483), an address per campaign with no account
+    # link: 1 year, past any campaign's re-run. email_suppressions has no
+    # rule on purpose: SES compliance means a bounced or complaining address
+    # is never mailed again, so it is kept (docs/email-sending.md).
+    Rule("email_sends", "sent_at", 365),
 )
 
 
