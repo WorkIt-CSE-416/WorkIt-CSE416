@@ -1,6 +1,7 @@
 import "server-only";
 
 import { apiGet } from "@/lib/api";
+import type { FillHealth } from "@/lib/fill-health";
 import {
   isReportId,
   type FillReport,
@@ -58,4 +59,9 @@ export function getFillFixture(id: string): Promise<Read<string>> {
   return isReportId(id)
     ? read(`/admin/fill-reports/${id}/fixture`, "text")
     : Promise.resolve({ data: null, status: 404 });
+}
+
+/** Fill numbers per job system per day (KAN-476): GET /admin/fill-health with the query `healthQuery` built. */
+export function getFillHealth(query: string): Promise<Read<FillHealth>> {
+  return read(`/admin/fill-health${query}`);
 }

@@ -497,6 +497,8 @@ window.WIA = window.WIA || {};
     );
   }
 
-  window.WIA.report = { track, failed, result, follow, log, labelShape, rowAction, collect };
+  /** A failed field's error name (ERRORS), if the fill named one: fill-event.js's counts (KAN-476). */
+  const errorOf = (name) => errors.get(name);
+  window.WIA.report = { track, failed, result, follow, log, labelShape, rowAction, collect, errorOf };
   window.WIA.reportCard = { open };
 })();

@@ -23,6 +23,7 @@ import { batchLine, jobForTab, showNextTab } from "./panel-top.js";
 import { attachedFile, chooseResume, openJob, resumeTab, uploadAndChoose, withTabResume } from "./resume-tab.js";
 import { addClaude, autoOpen, disconnectClaude, readSettings, setAutoOpen } from "./panel-settings.js";
 import { previewReport, sendPreviewed } from "./report.js";
+import { sendFill, setFillNumbers } from "./fill-events.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { watchEmbeddedForms } from "./embedded-forms.js";
@@ -490,6 +491,11 @@ async function handleMessage(message, sender) {
       return disconnectClaude();
     case "settings/auto-open":
       return setAutoOpen(message.on);
+    case "settings/fill-numbers":
+      return setFillNumbers(message.on);
+    // A fill ended (content/fill-event.js): its numbers, sent unless the student turned them off (KAN-476).
+    case "fill/event":
+      return sendFill(sender.url ?? "", message.counts, Boolean(sender.tab?.id) && (await inBatch(sender.tab.id)));
     // The toolbar popup off job pages: the batch's status, and (KAN-424) what the student is doing, with its next step.
     case "popup/batch":
       return batchStatus();
