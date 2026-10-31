@@ -1488,12 +1488,19 @@ rotates the session when it is within three minutes of expiry and sets the
 new cookie; only the webapp writes it, so there is no race. The extension
 asks when `getSession()` finds the access token within two minutes of
 `expires_at`, and when an API call gets a 401 (`api.js`'s `apiRequest`
-then retries once with the new token). Callers holding the same token
+then retries once with the new token). After a 401 it asks with `?force=1`,
+which rotates the session however far from expiry it is: a refused token may
+not be near it. Callers holding the same token
 share one request, and one that left the token unchanged (the webapp
 unreachable) isn't asked again for 30 seconds. With no valid refresh
 token, Supabase clears the cookie and the route answers 401, so
 `getSession()` returns null and the panel shows Sign in to WorkIt. Tested
-in `test/session-refresh.extension.spec.ts`.
+in `test/session-refresh.extension.spec.ts`. A rewrite of the cookie (a
+refresh) reads as signed out, or as a cookie that won't decode, for a
+moment, so a sign-out clears the account's data (account-data.js) only
+once the cookie has been gone for 2 s with no refresh of the extension's
+own just settled; one that won't decode clears nothing
+(`test/sign-out.extension.spec.ts`).
 
 **Two host families until KAN-296.** Production runs on Cloudflare
 (`workitjobs.ai`, `api.workitjobs.ai`). Vercel is retired, but its projects
