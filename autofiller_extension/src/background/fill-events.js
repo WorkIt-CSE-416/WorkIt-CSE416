@@ -8,7 +8,7 @@
 // (Send fill numbers). Kept 90 days by the backend's daily purge.
 
 import { sendFillEvent } from "./api.js";
-import { ENGINE_VERSION, jobOf } from "./engine.js";
+import { ENGINE_VERSION, jobOf, practiceJob } from "./engine.js";
 import "../shared/report-parts.js";
 
 const { ERRORS } = globalThis.WIA.reportParts;
@@ -41,6 +41,8 @@ const count = (value, max = 10_000) => Math.max(0, Math.min(max, Math.round(Numb
  * A stepped system's `step` (from 1) and `final_step` go as they came.
  */
 export function eventOf(url, counts = {}, batch = false) {
+  // Onboarding's practice form is WorkIt's own page, shaped as Lever's: no fill of Lever's to count.
+  if (practiceJob(url)) return null;
   const site = /^[a-z][a-z0-9_-]{0,23}$/.test(counts.site ?? "") ? counts.site : jobOf(url)?.site;
   if (!site) return null;
   const errors = {};

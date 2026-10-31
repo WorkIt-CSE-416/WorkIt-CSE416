@@ -29,3 +29,8 @@ test("a last step with no field (Workday's Review) still ends the fill; another 
   expect(eventOf(URL, { ...empty, step: 5, final_step: true })).toMatchObject({ job_system: "workday", fields: 0, final_step: true });
   expect(eventOf(URL, { ...empty, step: 4, final_step: false })).toBeNull();
 });
+
+test("onboarding's practice form, shaped as Lever's, is no fill of Lever's: it sends nothing", () => {
+  const practice = "http://localhost:3000/practice/harbor/00000000-0000-0000-0000-00000000000a/apply";
+  expect(eventOf(practice, { ...COUNTS, site: "lever" })).toBeNull();
+});
