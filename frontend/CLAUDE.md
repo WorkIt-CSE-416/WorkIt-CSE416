@@ -1427,6 +1427,23 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Turning it on needs every write to call `revalidatePath` in its server
   action first, which Next's `revalidatePath.md` says clears every visited
   page from the client cache.
+- **Every resume write clears the router's copies, but the editor's saves
+  never do** (KAN-443). A Back to the Resumes page showed the list from
+  before an edit, rename or delete. Each write action in
+  `lib/built-resume-actions.ts` and `lib/resume-actions.ts` calls
+  `resumesChanged` or `revalidatingResumes` (`lib/resume-revalidate.ts`)
+  once it worked. **In Next 16.3 any `revalidatePath` in an action also
+  renders the current page again in its answer, whatever path it names**
+  (`revalidate.js`: "TODO: only revalidate if the path matches"), so:
+  the editor's per-edit saves (`saveLine`, `updateChoices`) and Fit never
+  call it, or every edit would compile the PDF again and hold the save
+  queue behind it; they, and the Tailor run (a route handler, whose
+  revalidation never reaches the browser), call `markResumesStale`
+  (`lib/resumes-stale.ts`), and the Resumes list reads itself again on
+  mount when it is set. A screen whose write already revalidates calls no
+  `router.refresh()` after it (the editor's title, the upload's page),
+  which would render the page twice. The upload page's Delete passes
+  `leaving`: rendered again, that page is a 404 before its push.
 - **Every other seeker Back goes to the page that opened it**
   (`(seeker)/back-link.tsx`, KAN-363): `BackLink`, or `useBack` for a
   control drawn its own way (the editor's phone arrow), given the page's

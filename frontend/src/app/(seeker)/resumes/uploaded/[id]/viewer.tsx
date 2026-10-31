@@ -44,9 +44,11 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
   const name = resume.original_filename ?? "Resume";
   const primary = resume.is_default;
   const [renaming, setRenaming] = useState(false);
-  // A rename or a new star reads the page again (`router.refresh`), so the
-  // name and the star are always the API's; the form stays open until the
-  // new name is in, so the old one never flashes back.
+  // A rename or a new star reads the page again, so the name and the star
+  // are always the API's: the action clears the router's copies, which in
+  // Next 16 renders this page again in its answer (lib/resume-revalidate.ts),
+  // so a `router.refresh()` after it would read the PDF twice. The form stays
+  // open until the new name is in, so the old one never flashes back.
   const [saving, startSaving] = useTransition();
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +58,6 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
     startSaving(async () => {
       const { error } = await renameResume(resume.id, next);
       if (error) return setError(error);
-      router.refresh();
       setRenaming(false);
     });
   }
@@ -66,7 +67,6 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
     startSaving(async () => {
       const { error } = await setPrimaryResume(resume.id);
       if (error) return setError(error);
-      router.refresh();
     });
   }
 
@@ -81,7 +81,8 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
   async function remove() {
     setDeleting(true);
     setError(null);
-    const { error } = await deleteResume(resume.id);
+    // `leaving`: rendered again, this page would be a 404 before the push
+    const { error } = await deleteResume(resume.id, { leaving: true });
     if (!error) return router.push("/resumes");
     setDeleting(false);
     setError(error);

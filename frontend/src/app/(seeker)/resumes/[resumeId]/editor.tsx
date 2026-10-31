@@ -49,6 +49,7 @@ import {
 import type { Result } from "@/lib/applicant-call";
 import { cn } from "@/lib/cn";
 import { EDITOR_ZOOM_KEY, readLocalDraft, writeLocalDraft } from "@/lib/local-drafts";
+import { markResumesStale } from "@/lib/resumes-stale";
 
 import {
   DownloadMenu,
@@ -464,7 +465,11 @@ export function Editor({
   /** Runs a save after every save before it. Saves have their own queue,
    *  beside the renders': a render never waits for a write, nor a write
    *  for a compile. */
+  // Each save changes the resume's edited day, which the Resumes page
+  // shows, so it marks that list stale: a revalidation here would render
+  // this page, PDF and all, again on every edit (lib/resume-revalidate.ts).
   const queueSave = useCallback((job: () => Promise<unknown>) => {
+    markResumesStale();
     saves.current = saves.current.then(job).catch(() => undefined);
   }, []);
 
@@ -932,6 +937,7 @@ export function Editor({
       started.current = performance.now();
       const before = settled();
       const pdfBefore = lastPdf.current;
+      markResumesStale();
       const { data, error } = await fitToOnePage(resumeId);
       if (!current()) return;
       if (!data) {

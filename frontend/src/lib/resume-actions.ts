@@ -3,6 +3,7 @@
 import { apiUpload, apiGet, apiDelete } from "@/lib/api";
 import { apiFetch, errorMessage, extractErrorMessage } from "@/lib/auth";
 import type { EntryFields, ImportResult } from "@/lib/bank-actions";
+import { resumesChanged } from "@/lib/resume-revalidate";
 import { getApplicantSession } from "@/lib/session";
 
 export type ResumeItem = {
@@ -41,7 +42,13 @@ export async function listResumes(): Promise<{ resumes: ResumeItem[]; error: str
   }
 }
 
-export async function deleteResume(resumeId: string): Promise<{ error: string | null }> {
+// `leaving`: the caller leaves the page once it is gone (the upload's own
+// page), so nothing clears the router's copies: in an action that also
+// renders the current page again, and that page is now a 404.
+export async function deleteResume(
+  resumeId: string,
+  { leaving = false }: { leaving?: boolean } = {},
+): Promise<{ error: string | null }> {
   try {
     const { id, token } = await getApplicantSession();
     const res = await apiDelete(resumePath(id, resumeId), token);
@@ -49,11 +56,16 @@ export async function deleteResume(resumeId: string): Promise<{ error: string | 
       const msg = await extractErrorMessage(res);
       return { error: msg };
     }
+    if (!leaving) resumesChanged();
     return { error: null };
   } catch {
     return { error: "Could not reach the server." };
   }
 }
+
+// Every write that worked clears the router's copies of the pages this tab
+// has visited (`resumesChanged`, lib/resume-revalidate.ts), so a Back to a
+// list of resumes reads it again.
 
 // Unused: replaced by getApplicantSession() from @/lib/session.
 // async function getApplicantId(): Promise<{ id: string; token: string }> {
@@ -74,6 +86,7 @@ export async function setPrimaryResume(resumeId: string): Promise<{ error: strin
     const { id, token } = await getApplicantSession();
     const res = await apiFetch(`${resumePath(id, resumeId)}/default`, { method: "PUT" }, token);
     if (!res.ok) return { error: await extractErrorMessage(res) };
+    resumesChanged();
     return { error: null };
   } catch {
     return { error: "Could not reach the server." };
@@ -95,6 +108,7 @@ export async function renameResume(
     );
     if (!res.ok) return { resume: null, error: await extractErrorMessage(res) };
     const resume: ResumeItem = await res.json();
+    resumesChanged();
     return { resume, error: null };
   } catch {
     return { resume: null, error: "Could not reach the server." };
@@ -168,6 +182,7 @@ export async function uploadResume(
     const res = await apiUpload(`/applicants/${id}/resumes${query}`, formData, token);
     if (!res.ok) return await refused(res);
     const resume: ResumeItem = await res.json();
+    resumesChanged();
     return { resume, error: null };
   } catch {
     return { resume: null, error: "Could not reach the server. Is the backend running?" };
@@ -201,6 +216,7 @@ export async function replaceResume(
     const res = await apiUpload(resumePath(id, resumeId), formData, token, "PUT");
     if (!res.ok) return await refused(res);
     const resume: ResumeItem = await res.json();
+    resumesChanged();
     return { resume, error: null };
   } catch {
     return { resume: null, error: "Could not reach the server. Is the backend running?" };
