@@ -1,0 +1,36 @@
+{
+  "count": 2,
+  "systems": [
+    {
+      "site": "greenhouse",
+      "board": "andurilindustries",
+      "pinned": ["https://job-boards.greenhouse.io/andurilindustries/jobs/4802172007"],
+      "onPage": ["first_name", "last_name", "email", "phone", "resume"]
+    },
+    {
+      "site": "lever",
+      "board": "shieldai",
+      "pinned": ["https://jobs.lever.co/shieldai/ba945088-38ec-4e58-8f66-01c0497a3bd3"],
+      "onPage": ["name", "email", "phone", "resume"]
+    },
+    {
+      "site": "ashby",
+      "board": "cohere",
+      "pinned": ["https://jobs.ashbyhq.com/cohere/7133d205-5421-4336-a8e2-6037b5f55073"],
+      "onPage": ["_systemfield_name", "_systemfield_email", "_systemfield_resume"],
+      "readsPage": true
+    },
+    {
+      "site": "rippling",
+      "board": "collieraerospace",
+      "pinned": ["https://ats.rippling.com/collieraerospace/jobs/f2dd7c17-0959-4ce4-85ba-b614a5b0ae74"],
+      "onPage": ["first_name", "last_name", "email", "phone_number", "resume"]
+    },
+    {
+      "site": "workable",
+      "board": "perryhomes",
+      "pinned": ["https://apply.workable.com/perryhomes/j/D894A62691"],
+      "onPage": ["firstname", "lastname", "email", "phone", "resume"]
+    }
+  ]
+}
