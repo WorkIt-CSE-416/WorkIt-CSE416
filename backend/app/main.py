@@ -32,6 +32,7 @@ from app.routers.connector import added_router as connector_added_router
 from app.routers.connector import router as connector_router
 from app.routers.documents import router as documents_router
 from app.routers.essay_answer import router as essay_answer_router
+from app.routers.fill_events import router as fill_events_router
 from app.routers.fill_reports import router as fill_reports_router
 from app.routers.intake import router as intake_router
 from app.routers.job_system_requests import router as job_system_requests_router
@@ -120,6 +121,7 @@ app.include_router(connector_added_router)
 app.include_router(writing_samples_router)
 app.include_router(pasted_answers_router)
 app.include_router(fill_reports_router)
+app.include_router(fill_events_router)
 app.include_router(job_system_requests_router)
 app.include_router(tracker_router)
 # The connector's MCP server and its OAuth endpoints (app/connector/server.py).

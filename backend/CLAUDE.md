@@ -398,6 +398,24 @@ Find files with a directory listing; these are the rules for where code goes.
   fixture, its question set and the report to `fill-reports/` (gitignored)
   and names the engine commit the report's engine version was built from.
   Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`.
+  **Fill numbers** (KAN-476, decided in KAN-454; `routers/fill_events.py`
+  over `queries/fill_events.py`, table `fill_events`, migration
+  `a7f3c9e1d476`): after every fill, single or batch, the extension sends
+  `POST /fill-events` with the job system, the engine's and the
+  extension's versions, `mode`, the field counts (`fields`, `filled`,
+  `guessed`, `needs_you`, `failed`), the error names with a count each
+  (fix reports' `ErrorName`) and `duration_ms`. **Never a value, an answer
+  or a link**: every part is a pattern, a count or a listed name, and any
+  other key is 422. The row names its sender only for the cap
+  (`DAILY_CAP` a rolling 24 hours, 429 past it) and goes with the account.
+  It is on for every student; the extension's settings have the opt-out.
+  **Kept 90 days**: KAN-482's daily purge deletes older rows
+  (`services/retention.py` RETENTION's `fill_events` rule). Admins read
+  `GET /admin/fill-health?days=&engine_version=`: per job system per day
+  (UTC), fills, `clean_share` (no failed field), `needs_you_rate`
+  (needs-you fields over all fields) and the top 3 error names, plus the
+  period's engine versions for the filter. A job system that breaks shows
+  as its `clean_share` dropping that day. Tests: `tests/test_fill_events.py`.
   **Job system requests from the extension's popup** (KAN-369,
   `routers/job_system_requests.py`, table `job_system_requests`, migration
   `d8a3f5c1e7b2`): `POST /job-system-requests {"host"}` stores the host of
