@@ -35,6 +35,7 @@ import { followTrackedTab, forgetTracked, isTracked, markTracked, track, trackSt
 import { allowTabSite, allowedSites, pageJobUrl, removeSite, syncSites } from "./site-access.js";
 import { fetchText, planReads } from "./plan-reads.js";
 import { treeStore } from "./stored-data.js";
+import { installed, setUninstallPage } from "./install.js";
 
 /**
  * Calls the Fill engine in the frame that sent `sender`'s message: the
@@ -617,13 +618,11 @@ function resumeOnce() {
 chrome.runtime.onStartup.addListener(resumeOnce);
 resumeOnce();
 
-// A fresh Chrome Web Store install (never an update, and never a browser
-// update, which fire "update"/"chrome_update" instead) opens the setup page
-// once, so a student who never opens the popup still sees how to use this.
-chrome.runtime.onInstalled.addListener(async ({ reason }) => {
-  if (reason !== "install") return;
-  await chrome.tabs.create({ url: `${await webappOrigin()}/extension-setup` });
-});
+// Install, update and uninstall (install.js, KAN-471/KAN-495): the setup
+// page on a first install, stored data migrated on every update, and the
+// uninstall survey's URL kept current.
+chrome.runtime.onInstalled.addListener((details) => void installed(details).catch((error) => console.warn("[install] not handled:", error.message)));
+chrome.runtime.onStartup.addListener(() => void setUninstallPage().catch(() => {}));
 
 // The panel's choices per site (panel.js): { top, collapsed, hidden }, by host name.
 const PANEL_SITES_KEY = "panel_sites";
