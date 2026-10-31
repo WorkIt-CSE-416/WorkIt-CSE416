@@ -23,6 +23,14 @@ The backend job installs real Tectonic with `backend/scripts/fetch_tectonic.py`
 template text test fails, never skips, when Tectonic is missing
 (`backend/app/services/resume_render/CLAUDE.md`).
 
+The `extension-store-build` job (KAN-463) builds the Chrome Web Store package
+(`autofiller_extension/store/build.mjs`), which fails if a packaged file names
+localhost, vercel.app or "Prototype", and runs `store-build.spec.ts` and
+`extension-id.spec.ts`. The package needs the private fill-engine submodule,
+which the default token can't read, so the build steps run only once a
+`FILL_ENGINE_TOKEN` secret (read access to WorkIt-CSE-416/fill-engine) is set;
+without it the job warns and checks the extension ID only.
+
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
 `frontend/.prettierignore`, so Prettier never rewrites prose.
