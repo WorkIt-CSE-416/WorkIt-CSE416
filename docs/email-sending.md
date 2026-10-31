@@ -22,7 +22,7 @@ only to addresses verified in the SES console.
 - `backend/app/scripts/send_closure_notice.py` sends the one closure email,
   "your account will be closed on <date> because <reason>", once per
   address and date.
-- Before sending, both copy SES's account suppression list into
+- Before sending, both (and the daily job-alert run) copy SES's account suppression list into
   `email_suppressions`. No notice and no job-alert email goes to an
   address on it (the job alert still writes its bell notification). An
   address SES refuses is not logged, so the next run tries it again.
