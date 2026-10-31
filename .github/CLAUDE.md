@@ -187,3 +187,26 @@ bounced send.
 - **Still open:** the EC2 crontab has no built-in failure alerting the
   way this workflow's schedule trigger got from GitHub for free. Not set
   up yet (a dead-man's-switch ping or a CloudWatch alarm would do it).
+
+## Retention purge (KAN-482)
+
+`workflows/retention-purge.yml` runs `app.scripts.purge_old_data` against
+production **daily at 07:43 UTC** (off the hour, same reasoning as the
+scrape). It deletes rows past their retention period and logs a count per
+table, never a row. The periods live in one place,
+`backend/app/services/retention.py`'s `RETENTION`, and the privacy policy's
+retention section quotes the same numbers (KAN-474): change both together.
+A rule whose table does not exist yet (`fill_events`, until KAN-476) is
+skipped and logged as such.
+
+- **It never runs from a PR.** Every run reaches the production database,
+  so unlike the scrape and job alerts there is no `pull_request` trigger.
+  Only the schedule, on `main`, deletes. A manual run (Actions → Retention
+  purge → Run workflow, or `gh workflow run retention-purge.yml`) is always
+  a dry run: it logs what it would delete and deletes nothing.
+- **Secret:** `DATABASE_URL`, the one the scrape already uses.
+- **A failed scheduled run opens an issue** titled "Retention purge failed"
+  (or comments on the open one) with the run's link, so the team is told.
+  Close it once fixed. GitHub also emails whoever last edited the cron line.
+- **It stops silently after 60 days without a commit** to `main`, same as
+  the scrape. Re-enable with `gh workflow enable retention-purge.yml`.
