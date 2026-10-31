@@ -3,9 +3,8 @@
 // profiles.py, bank.py, preferences.py, autofill_answers.py, auto_apply.py,
 // documents.py)
 // — straight from the extension's background service worker instead of a
-// Server Action. Two routes are new, built for this extension specifically
-// because no existing one was safe/usable from here: essay-answer
-// generation (no way to hold a model key client-side) and
+// Server Action. One route is new, built for this extension specifically
+// because no existing one was safe/usable from here:
 // getResumeFileBytes (a signed Storage URL lives outside this extension's
 // host_permissions and Storage's own CORS policy proved unreliable from a
 // chrome-extension:// origin — see that function's own doc comment).
@@ -76,8 +75,6 @@ const UPDATE = "Please update WorkIt. Restart Chrome to get the new version. If 
 const TIMEOUT_MS = 20_000;
 /** For a file's bytes and an upload, which can be megabytes. */
 const FILE_TIMEOUT_MS = 60_000;
-/** For an essay draft, a model's whole answer. */
-const DRAFT_TIMEOUT_MS = 90_000;
 
 class ApiError extends Error {
   /** @param {number} status */
@@ -860,29 +857,17 @@ export async function saveAutofillAnswers(applicantId, changed) {
 }
 
 /**
- * POST .../essay-answer — a drafted answer to one open-ended application
- * question, grounded in the applicant's experience bank. Never looked up
- * against a stored job posting: `question`/`companyName`/`jobTitle` are
- * read straight off the ATS page's own DOM by content-script.js, since the
- * posting may not be one WorkIt has scraped or a company has posted here.
- * Throws `ApiError` (429 at today's limit, 503 if the model's down, 422 if
- * the draft isn't grounded in the bank) the same as every other call here —
- * background.js's existing message wrapper turns that into `{ ok: false,
- * error, status }` with no new handling needed.
+ * POST .../applications — a job's Auto Apply button: queues the job, and
+ * answers its stage (one with an application keeps its stage; a saved one
+ * is queued). A form the student opened themselves uses it when they ask
+ * their Claude to write its questions (KAN-470): the questions are kept on
+ * an application.
  * @param {string} applicantId
- * @param {{ question: string, companyName: string | null, jobTitle: string | null, maxLength: number | null }} options
+ * @param {string} jobId
+ * @returns {Promise<{ job_id: string, stage: string }>}
  */
-export async function generateEssayAnswer(applicantId, { question, companyName, jobTitle, maxLength }) {
-  return apiFetch(`/applicants/${applicantId}/essay-answer`, {
-    method: "POST",
-    timeoutMs: DRAFT_TIMEOUT_MS,
-    body: JSON.stringify({
-      question,
-      company_name: companyName,
-      job_title: jobTitle,
-      max_length: maxLength,
-    }),
-  });
+export async function queueJob(applicantId, jobId) {
+  return apiFetch(`/applicants/${applicantId}/applications`, { method: "POST", body: JSON.stringify({ job_id: jobId }) });
 }
 
 export { ApiError, me, getResumes as uploadedResumes, getBuiltResumes as builtResumes, uploadedResumeFile, builtResumeFile };

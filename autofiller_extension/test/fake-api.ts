@@ -81,6 +81,8 @@ export class FakeApi {
   readonly pasted: { jobId: string; name: string; answer: string }[] = [];
   /** Set to refuse the next pastes with these reasons, as WorkIt's checks do (422, reasons by question). */
   refusePastes: string[] | null = null;
+  /** Set to refuse the next reports with this status and detail, as the daily cap does (429, KAN-478). */
+  refuseReports: { status: number; detail: string } | null = null;
   /** The problem reports the extension sent (POST /fill-reports, KAN-403), each as its body, in order. */
   readonly reports: unknown[] = [];
   /** The fill events the extension sent (POST /fill-events, KAN-476), each as its body, in order. */
@@ -205,6 +207,7 @@ export class FakeApi {
     }
     if (headers.authorization !== `Bearer ${this.token}`) return { status: 401, json: { detail: "Not signed in" } };
     if (path === "/fill-reports" && method === "POST") {
+      if (this.refuseReports) return { status: this.refuseReports.status, json: { detail: this.refuseReports.detail } };
       this.reports.push(JSON.parse(body.toString()));
       return { status: 201, json: { stored: true } };
     }
@@ -320,6 +323,15 @@ export class FakeApi {
       const next = [...this.stages].find(([id, stage]) => open(stage) && !skip.has(id) && (!only.size || only.has(id)));
       if (next) this.events.push(`next:${next[0]}`);
       return { json: next ? this.application(next[0]) : null };
+    }
+    // A job's Auto Apply button (pipeline.py's queue_job): a listed job with no application, or a saved one, is
+    // queued; one at any other stage keeps it. A job WorkIt doesn't list is a 404.
+    if (route === "/applications" && method === "POST") {
+      const { job_id: id } = JSON.parse(body.toString());
+      if (!this.postings.has(id)) return { status: 404, json: { detail: "That job isn't open any more." } };
+      const stage = this.stages.get(id);
+      if (!stage || (stage as string) === "saved") this.stages.set(id, "queued");
+      return { json: { job_id: id, stage: this.stages.get(id) } };
     }
     // The queued applications, newest first, as GET .../applications?stage=queued answers them.
     if (route === "/applications" && method === "GET" && url.searchParams.get("stage") === "queued") {

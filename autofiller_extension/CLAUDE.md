@@ -24,12 +24,9 @@ what the student has done. `src/background/engine.js` maps the schools and
 the jobs it gives the Fill engine from the bank's `entries` by `section`,
 and the skills from its `skills`, not from a `ParsedResume`.
 
-**One exception**: essay-question generation (below) is the first feature
-here that needed a genuinely new backend route,
-`POST /applicants/{id}/essay-answer`, because it's the first one that calls
-a model — and an extension can't hold a model API key client-side without
-exposing it. Every other value this folder fills still comes from an
-endpoint that already existed for the webapp.
+Nothing here calls a model, and no route the extension calls does: a
+question that needs writing is the student's own Claude's, through the
+connector, or theirs (KAN-470, "Written questions" below).
 
 **No npm, no TypeScript compiler, no bundler.** Every file here is the file
 Chrome actually loads — plain ES2020+ JavaScript, JSDoc `@typedef`s in
@@ -175,7 +172,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   them, and so are its dropdowns' choices (trees marked `list`): the next
   fill on that tenant reads a dropdown from them without opening it, and
   the engine checks them when it fills it (a choice gone since re-plans the
-  field with what shows). Tests: `test/workday-lists.extension.spec.ts`;
+  field with what shows). They are capped (`stored-data.js`,
+  `MAX_WORKDAY_TREES`): past the cap the entries saved longest ago are
+  dropped, and a dropped one is only read from the page again (KAN-471;
+  before, every tenant a student ever opened stayed for good). Tests: `test/workday-lists.extension.spec.ts`;
   `test/speed.extension.spec.ts` times each fake step (`workday`,
   `workday-2` to `workday-5`). Its own How Did You Hear About Us? is never read: the engine
   searches it for each source in turn (WorkIt, LinkedIn, then the rest) and
@@ -702,8 +702,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   elsewhere (the self-identification fill's, under load). Test:
   `test/submit.extension.spec.ts` ("leaves their focus where they put it").
 - **A batch tab's essays come from the student's own Claude** (KAN-377;
-  `auto-apply/architecture.md` 14.6). The essay route is never batch
-  apply's. The tab sends the questions its Plan needs written, and every
+  `auto-apply/architecture.md` 14.6), as on any tab (KAN-470). The tab sends the questions its Plan needs written, and every
   one-off draft but a file (KAN-369): a choice whose options were read goes
   with `kind` "choice"/"choices" and its `options`, which the connector
   shows Claude and takes only, and a "choices" answer joins its options
@@ -874,7 +873,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   `planFill` passes the Question set through the engine's `limits`, which
   reads each text field's own `maxlength` on the page, and `planRows`
   gives each `written` row its `max_length` (null when the field sets
-  none). Both `batch/questions` and the essay route take it from the row;
+  none). `batch/questions` takes it from the row;
   never read a box's `maxLength` in the content script (a field's element
   is named differently on each hiring system: the engine knows how). The
   API refuses a saved answer over it.
@@ -1323,6 +1322,39 @@ fill and groups as a real one, and `practice/status` says where each is.
   Needs you; the student's Submit on each reaches `/thanks` with no data,
   and nothing reaches any host but WorkIt's site and API.
 
+## Install, update and uninstall (KAN-471)
+
+`install.js` handles `chrome.runtime.onInstalled`; `stored-data.js` holds
+what storage looks like across versions.
+
+- **Install opens onboarding's extension step**: a tab on
+  `webappOrigin()`'s `/onboarding/applicant?step=extension`. The webapp
+  opens a finished student's onboarding on that step, then the practice
+  batch; a signed-out student signs in first and comes back to it; one
+  who never finished onboarding starts at its first step. No page of its
+  own here.
+- **Storage has a schema version** (`workit_storage_version`). Every
+  install and update runs `migrateStorage`: each migration after the
+  stored version, in order, once. **A change to what a stored key holds
+  adds a migration and bumps `STORAGE_VERSION`**, or an update leaves the
+  old shape for code that reads the new one. Version 1 turned
+  `workday_trees` into capped `[key, tree]` pairs: `chrome.storage` gives
+  an object's keys back sorted, so an object can't say which entry is
+  oldest.
+- **Removing the extension opens the webapp's survey**
+  (`/uninstalled?v=<version>`, `chrome.runtime.setUninstallURL`, set again
+  on each install, update and start). The URL carries the version only, no
+  account, so the answer is anonymous (the webapp's page and
+  `POST /uninstall-answers`).
+- **Tests**: `test/stored-data.spec.ts` (the migrations and the cap, on a
+  fake storage) and `test/install.extension.spec.ts` (the loaded
+  extension: the install's tab; an update, as a second start on the same
+  profile with a higher version, since `chrome.runtime.reload()` unloads an
+  extension loaded with `--load-extension`; and `uninstallSelf()` opening
+  the survey). Every other loaded-extension test turns the install's tab
+  off (`loadExtension`'s `welcome`, a source swap in the test copy like
+  `openPanel`), so its tabs stay its own.
+
 ## Onboarding's later moments (KAN-387): asked when first needed
 
 Onboarding stops at the practice batch; what it no longer asks up front is
@@ -1501,10 +1533,10 @@ webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
 KAN-424, the Resumes page's own upload), `GET
 /applicants/{id}/built-resumes` (plus `.../built-resumes/{id}/render`), and
 batch apply's `GET /applicants/{id}/applications/next`. All were already
-reachable with a Bearer token before the extension called them. Two routes
-existed only for this extension — essay-answer generation and `GET
-.../resumes/{resume_id}/bytes` — each explained in its own section below,
-with why no existing endpoint was safe/usable from here. A third is batch
+reachable with a Bearer token before the extension called them. One route
+exists only for this extension, `GET .../resumes/{resume_id}/bytes`,
+explained in its own section below, with why no existing endpoint was
+safe/usable from here. A third is batch
 apply's `PUT .../applications/{job_id}/fill` (KAN-370): the stage is the
 API's record of each tab, and no route set `needs_you` back to `queued`.
 
@@ -1639,7 +1671,7 @@ real file input is directly targetable underneath both.
   response body (`backend/app/routers/built_resumes.py`'s
   `RenderResponse.pdf`), the same render the resume editor's own preview
   uses.
-- **A second new backend route, after essay-answer.** An uploaded resume's
+- **A new backend route.** An uploaded resume's
   first implementation read `GET .../resumes/{id}/file`, the webapp
   preview's 5-minute signed Storage URL, and fetched it directly from the
   background worker. That shipped, was reasoned as safe (MV3 background
@@ -1699,36 +1731,44 @@ for you" ("Photo upload: add a photo yourself"), while the still-empty
 required field keeps the batch tab in Needs you. WorkIt stores no profile
 photo for forms.
 
-## Essay-question generation: the one opt-in, model-backed feature
+## Written questions on a form the student opened themselves (KAN-470)
 
 Open-ended questions ("Why do you want to work here?") have no fixed
-answer. The Fill engine's Plan says which questions need a written answer
-(its essays, and its drafts in a text area; `engine.js`'s `planRows`), and
-the overlay lists each as "needs_generation" (`lib-status.js`).
+answer. The Fill engine's Plan says which questions need writing (its
+essays, and its drafts but a file; `engine.js`'s `planRows`), and the
+overlay lists each as "needs_generation" (`lib-status.js`). **WorkIt calls
+no model for them**, on any tab: the student's own Claude writes them
+through the connector, or the student pastes their own on the webapp's
+Written Answers page, exactly as on a batch tab (below). The server's
+essay-answer route (KAN-164) is gone.
 
-- **One blanket opt-in, never per-question.** After the fill, the overlay's
-  `promptForEssays` asks once: "N essay question(s) found — generate
-  answers with AI from your experience bank?" Nothing is sent anywhere
-  until the student clicks **Generate**. **Not Now** marks each one
-  "skipped" (never "failed": the student chose to answer it).
+- **A saved answer fills first.** The Plan's Answer bank (`GET
+  .../answer-bank?company=`) fills any question the student (or their
+  Claude) answered before, with nothing to ask.
+- **One opt-in, never per-question.** After the fill, the overlay's
+  `promptForEssays` asks once: "N questions need writing. Your Claude can
+  write them from your experience, or you can paste your own on Written
+  Answers." Nothing goes to WorkIt until the student presses **Write with
+  Claude**. **Not Now** marks each one "skipped" (never "failed": the
+  student chose to answer it).
+- **Write with Claude gives the job an application** (`written/open`,
+  `track.js`'s `openForWriting`): the questions routes keep the questions
+  on one. The job is queued with the Auto Apply button's route (a saved job
+  too), moved to needs_you at once so the batch never opens it, and the tab
+  is tracked (its submit marks the job applied, as Track on WorkIt's). The
+  tab then runs the batch tab's `awaitClaude`: its rows wait for the
+  student's Claude with the Written Answers link, and the `batch/*`
+  messages accept the tab (`background.js`'s `applicationJob`). A job
+  WorkIt doesn't list, or one already applied or skipped, can't have one:
+  its rows say why and are the student's.
 - **AI traps and bans stay the student's.** A form or posting that bans
   AI-written answers, or a posting that speaks to AI agents, makes the Plan
-  hand those questions off instead: they never reach the essay route, and
-  the overlay lists the Plan's reason under "Left for you". Outside a batch
-  tab, a draft that is a choice (a dropdown) or one line ("Nick Name") is
-  the student's: the essay route writes sentences and can't pick an option
-  (`planRows`' `generate` is false for them). In a batch tab the student's
-  Claude answers them (below).
-- **Generation is sequential** (`written-answers.js`'s `onGenerate`), one
-  `essay/generate` per question: each is its own counted AI use, and the
-  overlay shows each row as it lands. The answer is then filled through the
-  engine like any other. The box's own `maxlength` goes with the question,
-  capped at the route's 5000: Workable's cover letter takes 200000, and the
-  route answered that with a 422.
+  hand those questions off instead: they never reach the student's Claude,
+  and the overlay lists the Plan's reason under "Left for you".
 - **A letter for an upload goes up as a PDF.** An optional cover letter
   upload is an essay under the student's `cover_letter: "always"` policy
-  (often brought from Apply). Its written words, Claude's or the essay
-  route's, are made a PDF (`letter-pdf.js`: Helvetica, wrapped, no
+  (often brought from Apply). Its written words, Claude's or pasted, are
+  made a PDF (`letter-pdf.js`: Helvetica, wrapped, no
   library) named for the student as their resume is
   (`First_Last_Cover_Letter.pdf`, with the first and last name the
   student goes by when the profile brought from Apply holds one, else the
@@ -1739,16 +1779,6 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
   date or "Re:" line: the student's Claude writes the whole letter.
 - **Company name and job title come from the job system's API** (the Job
   Board API's `company_name` and `title`), not the page's title.
-- **The model call is `POST /applicants/{id}/essay-answer`**
-  (`backend/app/routers/essay_answer.py`): grounded in the whole
-  experience bank, checked against the truth rule, never given identity
-  data. The question, company and role count as given, so an answer may
-  name them (before that, every live answer was refused: "Cloudflare" and
-  the pronoun "I" read as invented tools). A 429/503/422 becomes the row's "failed" reason verbatim (a 422
-  that lists errors, as their messages: `api.js`'s `errorMessage`); there is
-  no retry.
-- **Nothing is persisted.** The question and the generated answer are
-  never saved.
 
 ## The panel's shell (KAN-394): one docked panel, slots to plug into
 
@@ -2174,7 +2204,11 @@ sends just that:
   option list (a dropdown's chosen value) is «shown». Structure, labels,
   options, ids, names and classes stay, so it loads in an engine test. The
   form's own element when the fields share one, else the body;
-  `HTML_MAX` (500,000 characters), cut past it;
+  `HTML_MAX` (500,000 characters), cut past it. **Opt-in, ticked by
+  default** (KAN-456's decision, built in KAN-478): the card's "Include the
+  page's layout (no answers)" box; unticked, `finalize(..., { layout:
+  false })` leaves `html` out of both the preview and what Send sends
+  (`report/send {marked, note, layout}`);
 - the student's note, optional (`NOTE_MAX`).
 
 **Personal values never leave the browser, by design.** Values come out
@@ -2211,7 +2245,10 @@ had nothing to fill.
 **Nothing is sent but on Send**, one report per press: once sent, the card
 says "Sent. Thanks for telling WorkIt." with Back and no second Send; a
 new report means opening it again. Signed out, Send says "Sign in to WorkIt
-to send a report." The toolbar popup's Report a problem sends the page's
+to send a report." Past the account's daily cap (30 reports, 50 job
+system requests, KAN-478) the API answers 429, and the card and the popup
+show its sentence ("You've sent a lot of reports today. Try again
+tomorrow."). The toolbar popup's Report a problem sends the page's
 parts, its context and the note only (`sendReport`). **The Web Store
 listing's privacy practices must declare it** (the posting link, the form's
 structure and the student's note leave the extension): for Lisul, before
@@ -2329,7 +2366,7 @@ text boxes), and any cover letter field (label or name "cover letter").
   `redo`): the answer is cleared and handed to their Claude again with the
   request as its `rewrite` reason, the flag card's own path, so the row
   waits in the blue box until the new answer lands. Not offered on the
-  student's own words, a pasted or saved answer, or the essay route's.
+  student's own words, or a pasted or saved answer.
 - **Undo rewrite**, under the row while it waits and after the new answer
   lands: the answer it had goes back into the field and is saved again
   through the paste route (`batch/paste`), so their Claude isn't handed the
@@ -2473,7 +2510,7 @@ reason in red and a skipped row's in gray.
 
 Each filled row carries its **Source** (KAN-375, `GLOSSARY.md`): the Fill
 engine's Plan names each planned answer's (`plan.sources`: profile,
-student, saved, guessed), the essay route's answers are "ai", the
+student, saved, guessed), the
 student's own Claude's (the connector) "claude", and a value the student
 types after the fill "student", and one pasted in a waiting row's card
 "pasted". The overlay shows it as a badge (Profile,
@@ -2613,8 +2650,7 @@ openness covers:
   Greenhouse forms (Arc Boat Company's, Pure Storage's, 2026-10-22) with a
   dummy profile and sent nothing; what no test reaches is the Chrome glue:
   `injectFill`'s MAIN-world load, `fill/plan` and `fill/field` through
-  `executeScript`, the essay round trip (`essay/generate` → the live API →
-  the filled field), and the resume's `.../bytes` fetch. Load it unpacked,
+  `executeScript`, and the resume's `.../bytes` fetch. Load it unpacked,
   sign in as a test student, run it on a Greenhouse posting with an essay
   question, and never press Submit. If a fill stops, the background
   service worker's console (`chrome://extensions` → this extension →

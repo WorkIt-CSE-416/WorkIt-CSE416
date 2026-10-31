@@ -31,7 +31,6 @@ from app.routers.company_jobs import router as company_jobs_router
 from app.routers.connector import added_router as connector_added_router
 from app.routers.connector import router as connector_router
 from app.routers.documents import router as documents_router
-from app.routers.essay_answer import router as essay_answer_router
 from app.routers.extension_config import router as extension_config_router
 from app.routers.fill_events import router as fill_events_router
 from app.routers.fill_reports import router as fill_reports_router
@@ -47,6 +46,7 @@ from app.routers.scout import router as scout_router
 from app.routers.sent_resumes import router as sent_resumes_router
 from app.routers.tailor import router as tailor_router
 from app.routers.tracker import router as tracker_router
+from app.routers.uninstall_answers import router as uninstall_answers_router
 from app.routers.writing_samples import router as writing_samples_router
 
 logger = logging.getLogger(__name__)
@@ -116,7 +116,6 @@ app.include_router(assistant_router)
 app.include_router(preferences_router)
 app.include_router(autofill_answers_router)
 app.include_router(notifications_router)
-app.include_router(essay_answer_router)
 app.include_router(connector_router)
 app.include_router(connector_added_router)
 app.include_router(writing_samples_router)
@@ -126,6 +125,7 @@ app.include_router(fill_events_router)
 app.include_router(job_system_requests_router)
 app.include_router(extension_config_router)
 app.include_router(tracker_router)
+app.include_router(uninstall_answers_router)
 # The connector's MCP server and its OAuth endpoints (app/connector/server.py).
 app.router.routes.extend(CONNECTOR_ROUTES)
 

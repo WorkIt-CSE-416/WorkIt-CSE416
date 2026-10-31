@@ -11,8 +11,9 @@
 // went, so the overlay shows each field's own result: a field showing
 // something other than its planned answer is failed. A fill that brings on new
 // questions (Eightfold's follow-ups, Workday's new panels) is planned again
-// with them and goes on. Questions that need a written answer wait for the
-// student's one Generate click, then go to the essay-answer route.
+// with them and goes on. Questions that need a written answer go to the
+// student's own Claude through the connector, or their paste on Written
+// Answers (written-answers.js): WorkIt calls no model.
 //
 // Workday asks a step at a time: each step is filled as it shows, the
 // student checks it and presses Save and Continue (or, in a batch tab or
@@ -192,12 +193,10 @@
         window.WIA.groups?.planned(name, byName.get(name)?.label ?? name, answers[name]);
         if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false, sources[name] ?? "guessed");
       }
-      // Outside a batch tab only the essay route writes (Generate): a choice or a one-line draft is the student's there.
-      const toWrite = batch ? rows.written : rows.written.filter((q) => q.generate);
-      const yours = batch ? rows.yours : [...rows.yours, ...rows.written.filter((q) => !q.generate)];
-      for (const q of toWrite) written.set(q.name, q);
-      await writing.showRows(toWrite, isNew);
-      for (const q of yours) {
+      // The student's Claude writes these, on any tab (KAN-470): WorkIt calls no model.
+      for (const q of rows.written) written.set(q.name, q);
+      await writing.showRows(rows.written, isNew);
+      for (const q of rows.yours) {
         if (!isNew(q.name)) continue;
         status.register(q.name, q.label, q.required);
         status.setStatus(q.name, q.required ? "failed" : "skipped", "WorkIt has no answer for this. Answer it yourself.");
