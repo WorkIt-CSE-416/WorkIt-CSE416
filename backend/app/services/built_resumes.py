@@ -27,6 +27,7 @@ resume answers `NotFound`), and flushes but never commits.
 """
 
 import dataclasses
+import datetime
 import json
 import re
 import uuid
@@ -36,7 +37,7 @@ from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.autofill_answers import Autofill_Answers
-from app.models.bank import Bank_Bullet_Variant
+from app.models.bank import Bank_Bullet_Variant, Experience_Bank
 from app.models.built_resume import (
     Built_Resume,
     Built_Resume_Bullet,
@@ -167,6 +168,26 @@ async def touch(session: AsyncSession, resume_id: uuid.UUID) -> None:
     was. now() is the transaction's start, so a resume made and written in
     one request stays unedited, its `updated_at` equal to its `created_at`."""
     await session.execute(update(Built_Resume).where(Built_Resume.id == resume_id).values(updated_at=func.now()))
+
+
+async def changed_at(
+    session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID
+) -> tuple[datetime.datetime, datetime.datetime]:
+    """When anything the resume's page prints last changed, and now, in one
+    read (KAN-391): the resume's own `updated_at` (its choices, a typed
+    bullet, its name), the bank's (every entry, bullet and skill edit marks
+    it through `clear_embedding` or `write_entry`) and the profile's (the
+    header). NotFound for a resume that is not the applicant's."""
+    row = (await session.execute(
+        select(func.greatest(Built_Resume.updated_at, Experience_Bank.updated_at, Applicant_Profile.updated_at),
+               func.now())
+        .select_from(Built_Resume)
+        .join(Applicant_Profile, Applicant_Profile.id == Built_Resume.applicant_id)
+        .outerjoin(Experience_Bank, Experience_Bank.applicant_id == Built_Resume.applicant_id)
+        .where(Built_Resume.id == resume_id, Built_Resume.applicant_id == applicant_id))).first()
+    if row is None:
+        raise NotFound
+    return row[0], row[1]
 
 
 async def rename(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID, name: str) -> Built_Resume:
