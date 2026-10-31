@@ -36,7 +36,9 @@ const count = (value, max = 10_000) => Math.max(0, Math.min(max, Math.round(Numb
  * The event for one fill: `counts` as the page's fill.js gave them, each part
  * forced to its shape, with `site` (the page's Plan's job system) checked
  * against the engine's reading of the frame. Null for a fill with nothing
- * in it (no field, no error), which is no fill at all (a closed job's page).
+ * in it (no field, no error), which is no fill at all (a closed job's page),
+ * unless it is a stepped system's last step (Review): that one ends the fill.
+ * A stepped system's `step` (from 1) and `final_step` go as they came.
  */
 export function eventOf(url, counts = {}, batch = false) {
   const site = /^[a-z][a-z0-9_-]{0,23}$/.test(counts.site ?? "") ? counts.site : jobOf(url)?.site;
@@ -52,7 +54,9 @@ export function eventOf(url, counts = {}, batch = false) {
     errors,
     duration_ms: count(counts.duration_ms, MAX_DURATION_MS) || 1,
   };
-  if (!event.fields && !Object.keys(errors).length) return null;
+  if (Number.isInteger(counts.step) && counts.step >= 1) event.step = Math.min(counts.step, 100);
+  if (typeof counts.final_step === "boolean") event.final_step = counts.final_step;
+  if (!event.fields && !Object.keys(errors).length && event.final_step !== true) return null;
   return event;
 }
 
