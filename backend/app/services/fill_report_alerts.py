@@ -31,8 +31,7 @@ QUIET = datetime.timedelta(hours=1)
 
 def admin_emails() -> list[str]:
     """The emails on WORKIT_ADMINS, lower-cased, in order."""
-    entries = (entry.strip().lower() for entry in get_settings().workit_admins.split(","))
-    return [entry for entry in entries if "@" in entry]
+    return [entry for entry in get_settings().admins if "@" in entry]
 
 
 def _email(groups: list) -> tuple[str, str]:
