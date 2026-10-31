@@ -188,11 +188,18 @@ function testCopy(hosts: string[], open: boolean): string {
   return dir;
 }
 
+/** The name of the webapp's Supabase session cookie. */
+export const SESSION_COOKIE = "sb-zhdrvdrojipkluhzgsea-auth-token";
+
+/** The session cookie's value, as @supabase/ssr writes it, for a fake token expiring `expiresIn` seconds from now. */
+export function sessionCookie(accessToken = "test-access-token", expiresIn = 3600): string {
+  const session = { access_token: accessToken, refresh_token: "test-refresh-token", expires_at: Math.floor(Date.now() / 1000) + expiresIn };
+  return `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`;
+}
+
 /** The webapp's Supabase session cookie, as background/webapp-session.js reads it, for a fake token. */
-export async function signIn(context: BrowserContext, accessToken = "test-access-token"): Promise<void> {
-  const session = { access_token: accessToken, refresh_token: "test-refresh-token", expires_at: Math.floor(Date.now() / 1000) + 3600 };
-  const value = `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`;
-  await context.addCookies([{ name: "sb-zhdrvdrojipkluhzgsea-auth-token", value, url: "http://localhost:3000/" }]);
+export async function signIn(context: BrowserContext, accessToken = "test-access-token", expiresIn = 3600): Promise<void> {
+  await context.addCookies([{ name: SESSION_COOKIE, value: sessionCookie(accessToken, expiresIn), url: "http://localhost:3000/" }]);
 }
 
 /** A page of the webapp (localhost:3000), from which a test sends the messages the webapp sends. */

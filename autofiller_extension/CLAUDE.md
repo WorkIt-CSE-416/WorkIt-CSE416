@@ -1434,16 +1434,25 @@ bare origin with no path at all — only confirmed working against an actual
 page path (`/dashboard`) during that same live test, so the bare-origin
 case is avoided rather than assumed safe.
 
-**No refresh is attempted here on purpose.** Supabase rotates the
-refresh_token on each use. If this extension refreshed independently and
-the webapp's own `src/proxy.ts` refreshed around the same time, one of the
-two would present an already-rotated refresh_token and fail — which could
-sign the user out of the actual webapp over something happening in the
-background here. `getSession()` just reads what's there; an expired
-access_token means the popup asks the user to revisit a WorkIt tab (which
-refreshes it) rather than this extension trying to fix it quietly. See
-Open Items for what a from-scratch refresh story would need to look like
-if this turns out to be too conservative in practice.
+**The extension never rotates the token; the webapp does, on request
+(KAN-465).** Supabase rotates the refresh_token on each use. If this
+extension refreshed independently and the webapp's own `src/proxy.ts`
+refreshed around the same time, one of the two would present an
+already-rotated refresh_token and fail, which could sign the student out
+of the webapp. So the extension never sends the refresh token anywhere.
+Instead, `auth.js`'s `refreshSession` calls the webapp's
+`GET <web_origin>/api/session/refresh` (`frontend/src/app/api/session/
+refresh/route.ts`) with the cookie, and reads the cookie again. The route
+rotates the session when it is within three minutes of expiry and sets the
+new cookie; only the webapp writes it, so there is no race. The extension
+asks when `getSession()` finds the access token within two minutes of
+`expires_at`, and when an API call gets a 401 (`api.js`'s `apiRequest`
+then retries once with the new token). Callers holding the same token
+share one request, and one that left the token unchanged (the webapp
+unreachable) isn't asked again for 30 seconds. With no valid refresh
+token, Supabase clears the cookie and the route answers 401, so
+`getSession()` returns null and the panel shows Sign in to WorkIt. Tested
+in `test/session-refresh.extension.spec.ts`.
 
 **Two host families until KAN-296.** Production runs on Cloudflare
 (`workitjobs.ai`, `api.workitjobs.ai`). Vercel is retired, but its projects
@@ -2517,13 +2526,6 @@ openness covers:
   Worth a quick recheck against `node_modules/@supabase/ssr/src/
   cookies.ts` and `utils/chunker.ts` after any `@supabase/ssr` or
   `@supabase/supabase-js` version bump in `frontend/package.json`.
-- **No refresh story if the access token goes stale between WorkIt
-  visits.** Right now that's "ask the user to reopen a WorkIt tab" (see
-  Auth section's reasoning on refresh_token rotation). If that proves too
-  rough in practice, the safer fix is having the *webapp* do the
-  refreshing it already does (`src/proxy.ts`) and this extension only
-  ever reading, never writing, the cookie — not independent refresh logic
-  here.
 - **Six job systems not yet checked live through the loaded extension
   (KAN-341).** Lever, Ashby, Rippling, Workable and Eightfold filled live
   forms through this fill path in a test browser, not the loaded
