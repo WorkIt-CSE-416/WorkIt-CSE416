@@ -26,10 +26,11 @@ SYSTEM_HOSTS = {
     "workday": ("myworkdayjobs.com", "myworkdaysite.com"),
     # Oracle Recruiting Cloud's candidate experience (the engine's oracle.ts).
     "oracle": ("oraclecloud.com",),
-    # TikTok and ByteDance's careers sites: one form, behind the site's own
-    # sign-in, which the student goes through (the extension never signs in).
-    # Only these hosts, never the rest of tiktok.com or bytedance.com.
-    "tiktok": ("lifeattiktok.com", "careers.tiktok.com", "jobs.bytedance.com", "joinbytedance.com"),
+    # TikTok and ByteDance's careers sites, and TikTok USDS's (the US joint
+    # venture's own list): one form, behind the site's own sign-in, which the
+    # student goes through (the extension never signs in). Only these hosts,
+    # never the rest of tiktok.com or bytedance.com.
+    "tiktok": ("lifeattiktok.com", "careers.tiktok.com", "jobs.bytedance.com", "joinbytedance.com", "careers.tiktokusds.com"),
     # SmartRecruiters' postings and their one-click form (jobs.smartrecruiters.com).
     "smartrecruiters": ("smartrecruiters.com",),
     # SAP SuccessFactors' career sites (the engine's successfactors.ts).

@@ -44,6 +44,7 @@ GREENHOUSE = "https://job-boards.greenhouse.io/acme/jobs/7"
         ("https://explore.jobs.netflix.net/careers/job/790", "eightfold"),
         ("https://acme.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/1", "oracle"),
         ("https://lifeattiktok.com/search/7350", "tiktok"),
+        ("https://careers.tiktokusds.com/usds/position/7679251399185778949/detail", "tiktok"),
         ("https://career4.successfactors.com/career?company=acme&career_job_req_id=1", "successfactors"),
         ("https://careers-acme.icims.com/jobs/1/engineer/job", "icims"),
         ("https://www.linkedin.com/jobs/view/4012345678", None),
