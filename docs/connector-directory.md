@@ -15,18 +15,19 @@ connector**. Any paid Claude plan can submit. Escalations: `mcp-review@anthropic
 
 ## Before you send
 
-1. **Deploy the connector.** On 2026-10-25, `https://api.workitjobs.ai/mcp`
-   and `/.well-known/oauth-authorization-server` answer 404: the KAN-369
-   branch is not deployed. Deploy it, run the branch's migrations on the
-   shared database (among them `b4d6f8a0c223_connector_oauth`, the three
-   connector tables, and the written-answers one), and set
-   `CONNECTOR_API_URL=https://api.workitjobs.ai` and
-   `CONNECTOR_WEB_URL=https://workitjobs.ai` on the API.
+1. **The connector is deployed.** Checked 2026-10-31: `https://api.workitjobs.ai/mcp`
+   answers 401 without a token, `/.well-known/oauth-authorization-server`
+   answers 200, and `https://workitjobs.ai/connect/claude/add` redirects to the
+   Add Custom Connector link below. Before you send, check once more that
+   the API has `CONNECTOR_API_URL=https://api.workitjobs.ai` and
+   `CONNECTOR_WEB_URL=https://workitjobs.ai`.
 2. **Fill the Privacy Policy's open items.** `/privacy` has a section on the
-   connector (what Claude reads, what WorkIt keeps, how to stop it), but its
-   `[TEAM TO DECIDE]` marks (operator's legal name, privacy contact email,
-   retention after an account closes) are still open. Anthropic rejects a
-   submission with an incomplete privacy policy.
+   connector (what Claude reads, what WorkIt keeps, how to stop it), but on
+   2026-10-31 it still shows 11 `[TEAM TO DECIDE]` marks: the operator's legal
+   name, the contact and privacy-request emails, the minimum age, the
+   retention period, where data is stored, the AI model providers, what the
+   logs hold, privacy rights by region, legal requests, and how users hear of
+   changes. Anthropic rejects a submission with an incomplete privacy policy.
 3. **Make the reviewer account** (see "Test & launch" below) and check it
    once through Claude yourself.
 4. **Test every tool in Claude** as a custom connector (Auto Apply's Add to
@@ -55,11 +56,11 @@ one custom connector.
 | Remote server over HTTPS | `https://api.workitjobs.ai/mcp`, Streamable HTTP, stateless | `app/connector/server.py` (after deploy) |
 | OAuth 2.0 for a user's account | WorkIt's own OAuth 2.1 server: discovery metadata, dynamic client registration, PKCE, refresh rotation, revocation | `app/connector/oauth.py`, consent page `/connect/claude` |
 | Every tool has a `title` and `readOnlyHint` or `destructiveHint` | Yes, checked by a test for every tool | `tests/test_connector.py` |
-| Read and write in separate tools | One read tool, one write tool | `app/connector/tools.py` |
+| Read and write in separate tools | Four read tools (`get_*`), five write tools (`save_*`); none does both | `app/connector/tools.py`, `briefs.py`, `style.py` |
 | Tool names of 64 characters or fewer | Yes, tested | same test |
 | Descriptions say what a tool does, no instructions to Claude | Yes; the writing rules are an MCP prompt only | `tools.py` docstring |
 | Actionable errors, not generic ones | Each refusal is a tool error with the reason ("The answer to 'question_7' is 812 characters; the form takes at most 600.") | `pipeline.save_answers` |
-| Collect no conversation data beyond the tool's need | The tools take a job id and answers only; nothing reads Claude's chats, memory or files | `tools.py` |
+| Collect no conversation data beyond the tool's need | The tools take only what they save: answers, a fact question, a review, company facts with their source pages, a style card. Nothing reads Claude's chats, memory or files | `tools.py`, `briefs.py`, `style.py` |
 | First-party API | WorkIt's own API and database | |
 | No money transfer, no AI image, video or audio | None | |
 | Privacy policy URL | `https://workitjobs.ai/privacy` (open items: see above) | `frontend/src/app/(landing)/privacy/page.tsx` |
@@ -78,13 +79,20 @@ These sync from the server. Expect:
 | Tool | Title | Annotations |
 |---|---|---|
 | `get_next_application` | Get the next application | `readOnlyHint: true`, `openWorldHint: false` |
+| `get_review_task` | Get a review task | `readOnlyHint: true`, `openWorldHint: false` |
+| `get_research_task` | Get a company to research | `readOnlyHint: true`, `openWorldHint: false` |
+| `get_writing_samples` | Get my writing samples | `readOnlyHint: true`, `openWorldHint: false` |
 | `save_answers` | Save answers | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false` |
 | `save_fact_question` | Ask the student for a fact | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false` |
+| `save_review` | Save review | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false` |
+| `save_company_brief` | Save a company brief | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false` |
+| `save_style_card` | Save my style card | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false` |
 
 Prompt: `write_my_workit_answers`, titled "Write my WorkIt answers".
 
-If KAN-379 to KAN-382 add tools before you send, check each one shows a title
-and is in the right group (the test fails on a tool without them).
+`test_every_tool_carries_the_annotations_anthropics_directory_asks_for`
+(`backend/tests/test_connector.py`) fails on a tool without a title or
+these hints, so a tool added before you send needs a row here too.
 
 `save_answers` is marked not destructive: it fills an application's
 unanswered written questions, deletes nothing, sends nothing to an employer,
@@ -92,6 +100,15 @@ and the student reviews every answer in the form before they submit. Claude
 may still ask before each save. `save_fact_question` is not destructive
 either: it keeps a question for the student on one unanswered question
 (KAN-369) and changes nothing else until the student answers it.
+`save_review` replaces only the earlier review of the same application.
+`save_company_brief` replaces the shared brief only with one that scores
+higher on checked facts (KAN-382), and `save_style_card` replaces only the
+student's own earlier card (KAN-384).
+
+`save_company_brief` has `openWorldHint: false` although WorkIt reads each
+fact's page: Claude does the web research itself, and WorkIt only reads the
+pages Claude names, on the company's own site or a fixed list of news sites,
+to check each quote. If the reviewer asks, this is the reason.
 
 ## 3. Listing
 
@@ -105,7 +122,7 @@ either: it keeps a question for the student on one unanswered question
   >
   > WorkIt never submits an application. The student reads every answer in the form, changes what they want, and submits it themselves. Claude sees only the application it is writing for: never the student's contact details, self-identification answers or resume files. WorkIt calls no AI model for the connector; Claude writes with the student's own Claude plan.
   >
-  > Tools: get_next_application (read-only) returns the next application with written questions unanswered. save_answers saves answers to that application's questions, all or none, and refuses an answer that is empty, too long for the form, or for a question the application doesn't ask.
+  > Tools: get_next_application (read-only) returns the next application with written questions unanswered. save_answers saves answers to that application's questions, all or none, and refuses an answer that is empty, too long for the form, or for a question the application doesn't ask. get_research_task and save_company_brief build a short brief on each company, of facts WorkIt checks word for word on their source pages. get_writing_samples and save_style_card let Claude write in the student's own voice from samples they gave. get_review_task and save_review check finished answers before the student reads them.
 - **Categories:** pick the closest to Productivity and Career (the form's list decides).
 - **Documentation URL:** `https://workitjobs.ai/docs/mcp`
 - **Privacy policy URL:** `https://workitjobs.ai/privacy`
@@ -146,7 +163,10 @@ either: it keeps a question for the student on one unanswered question
 - Personal health data: **No**. Sponsored content: **No**.
 - What it holds: the job posting and questions of one application, the
   student's experience bank and skills (no contact details, no links), and
-  the answers Claude saves. Tokens are stored as SHA-256 hashes. Deleting a
+  the answers Claude saves; the student's own writing samples (optional) and
+  the style card built from them; Claude's reviews of the answers; and
+  company briefs, which hold public facts about employers only, shared by
+  every student applying there. Tokens are stored as SHA-256 hashes. Deleting a
   WorkIt account deletes its tokens and saved answers.
 
 ## 8. Test & launch
