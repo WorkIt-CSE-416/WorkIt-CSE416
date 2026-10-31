@@ -9,7 +9,8 @@ The admins are the emails on WORKIT_ADMINS (an account id there names no
 inbox). Mail goes through services/email.py's SES sender, which needs the
 sending machine's IAM role; while SES is in its sandbox it reaches only the
 addresses SES has verified. When no admin's send is accepted, nothing is
-stamped, so the next run tries again.
+stamped, so the next run tries again. It flushes the stamps and never
+commits: the script does.
 """
 
 import datetime
@@ -76,5 +77,5 @@ async def alert_new_groups(db: AsyncSession, *, now: datetime.datetime | None = 
         .where(Fill_Report.signature.in_([g.signature for g in groups]), Fill_Report.alerted_at.is_(None), Fill_Report.created_at <= now)
         .values(alerted_at=now)
     )
-    await db.commit()
+    await db.flush()
     return len(groups)

@@ -34,9 +34,11 @@ def _masked(address: str) -> str:
 
 async def _run(args, notice: Notice):
     async with get_sessionmaker()() as db:
-        return await broadcast(
-            db, args.campaign, notice, to=args.to, dry_run=args.dry_run, rate=args.rate
+        report = await broadcast(
+            db, args.campaign, notice, commit=db.commit, to=args.to, dry_run=args.dry_run, rate=args.rate
         )
+        await db.commit()
+        return report
 
 
 def main(argv: list[str] | None = None) -> int:

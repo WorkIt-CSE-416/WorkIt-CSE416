@@ -129,7 +129,7 @@ async def test_a_dry_run_counts_every_active_account_and_sends_nothing(database,
     await _everyone(database)
 
     async with database() as session:
-        report = await notices.broadcast(session, "privacy-2026-11", NOTICE, dry_run=True, sleep=no_wait)
+        report = await notices.broadcast(session, "privacy-2026-11", NOTICE, commit=session.commit, dry_run=True, sleep=no_wait)
 
     assert report.recipients == 3  # the disabled membership is left out
     assert report.sent == 0
@@ -142,9 +142,9 @@ async def test_a_run_reaches_each_account_once_and_a_rerun_sends_nothing(databas
     await _everyone(database)
 
     async with database() as session:
-        first = await notices.broadcast(session, "privacy-2026-11", NOTICE, sleep=no_wait)
+        first = await notices.broadcast(session, "privacy-2026-11", NOTICE, commit=session.commit, sleep=no_wait)
     async with database() as session:
-        again = await notices.broadcast(session, "privacy-2026-11", NOTICE, sleep=no_wait)
+        again = await notices.broadcast(session, "privacy-2026-11", NOTICE, commit=session.commit, sleep=no_wait)
 
     assert first.sent == 3
     assert sorted(ses.recipients()) == ["lee@example.com", "rae@example.com", "sam@example.com"]
@@ -158,7 +158,7 @@ async def test_a_test_list_replaces_the_accounts(database, ses):
 
     async with database() as session:
         report = await notices.broadcast(
-            session, "privacy-test", NOTICE, to=["me@example.com", "ME@example.com"], sleep=no_wait
+            session, "privacy-test", NOTICE, commit=session.commit, to=["me@example.com", "ME@example.com"], sleep=no_wait
         )
 
     assert report.sent == 1
@@ -170,7 +170,7 @@ async def test_a_bounced_or_complaining_account_is_skipped(database, ses):
     ses.suppressed = [{"EmailAddress": "sam@example.com", "Reason": "BOUNCE"}]
 
     async with database() as session:
-        report = await notices.broadcast(session, "privacy-2026-11", NOTICE, sleep=no_wait)
+        report = await notices.broadcast(session, "privacy-2026-11", NOTICE, commit=session.commit, sleep=no_wait)
 
     assert report.suppressed == 1
     assert "sam@example.com" not in ses.recipients()
@@ -180,10 +180,10 @@ async def test_a_bounced_or_complaining_account_is_skipped(database, ses):
 async def test_a_refused_send_is_tried_again_on_the_next_run(database, ses):
     ses.refuse = {"me@example.com"}
     async with database() as session:
-        first = await notices.broadcast(session, "privacy-test", NOTICE, to=["me@example.com"], sleep=no_wait)
+        first = await notices.broadcast(session, "privacy-test", NOTICE, commit=session.commit, to=["me@example.com"], sleep=no_wait)
     ses.refuse = set()
     async with database() as session:
-        again = await notices.broadcast(session, "privacy-test", NOTICE, to=["me@example.com"], sleep=no_wait)
+        again = await notices.broadcast(session, "privacy-test", NOTICE, commit=session.commit, to=["me@example.com"], sleep=no_wait)
 
     assert first.failed == 1
     assert again.sent == 1
@@ -197,7 +197,7 @@ async def test_sends_are_paced_to_the_rate_limit(database, ses):
         waits.append(seconds)
 
     async with database() as session:
-        await notices.broadcast(session, "c", NOTICE, to=["a@example.com", "b@example.com"], rate=4, sleep=sleep)
+        await notices.broadcast(session, "c", NOTICE, commit=session.commit, to=["a@example.com", "b@example.com"], rate=4, sleep=sleep)
 
     assert waits == [0.25, 0.25]
 
@@ -269,8 +269,8 @@ async def test_a_closure_notice_goes_out_once(database, ses):
     import datetime
 
     async with database() as session:
-        first = await notices.send_closure_notice(session, "Sam@example.com", datetime.date(2026, 12, 1), "inactive")
-        again = await notices.send_closure_notice(session, "sam@example.com", datetime.date(2026, 12, 1), "inactive")
+        first = await notices.send_closure_notice(session, "Sam@example.com", datetime.date(2026, 12, 1), "inactive", commit=session.commit)
+        again = await notices.send_closure_notice(session, "sam@example.com", datetime.date(2026, 12, 1), "inactive", commit=session.commit)
 
     assert (first, again) == ("sent", "already_sent")
     assert ses.recipients() == ["sam@example.com"]

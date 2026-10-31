@@ -125,6 +125,7 @@ async def test_events_past_the_retention_period_are_deleted(accounts, database):
     # KAN-482's daily purge, whose RETENTION names this table.
     async with database() as session:
         counts = await retention.purge(session, now=now)
+        await session.commit()
     assert counts["fill_events"] == 1
     # The 91-day-old one is gone; the 89-day-old one stays.
     assert await _count(database) == 1

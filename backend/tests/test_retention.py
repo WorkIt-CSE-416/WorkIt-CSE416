@@ -54,6 +54,7 @@ async def test_fix_reports_past_a_year_are_deleted_with_or_without_an_account(da
 
     async with database() as session:
         counts = await purge(session, now=NOW)
+        await session.commit()
 
     assert counts["fill_reports"] == 2
     async with database() as session:
@@ -79,6 +80,7 @@ async def test_ai_usage_counters_past_30_days_are_deleted(database):
 
     async with database() as session:
         counts = await purge(session, now=NOW)
+        await session.commit()
 
     assert counts["ai_usage_counters"] == 2
     async with database() as session:
@@ -110,6 +112,7 @@ async def test_read_notifications_past_90_days_are_deleted_unread_ones_kept(data
 
     async with database() as session:
         counts = await purge(session, now=NOW)
+        await session.commit()
 
     assert counts["notifications"] == 1
     async with database() as session:
@@ -131,6 +134,7 @@ async def test_fill_events_past_90_days_are_deleted(database):
             {"old": NOW - period - MINUTE, "recent": NOW - period + MINUTE},
         )
         counts = await purge(session, now=NOW)
+        await session.commit()
         names = (await session.scalars(text("SELECT name FROM fill_events"))).all()
 
     assert counts["fill_events"] == 1
@@ -150,6 +154,7 @@ async def test_a_table_that_does_not_exist_is_skipped(database, monkeypatch):
 
     async with database() as session:
         counts = await purge(session, now=NOW)
+        await session.commit()
 
     assert counts["no_such_table"] is None
     assert counts["fill_reports"] == 1

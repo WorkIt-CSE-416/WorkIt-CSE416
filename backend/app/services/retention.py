@@ -57,7 +57,7 @@ def _cutoff(rule: Rule, now: datetime.datetime) -> datetime.datetime | datetime.
 async def purge(
     db: AsyncSession, *, now: datetime.datetime | None = None, dry_run: bool = False
 ) -> dict[str, int | None]:
-    """Delete every row past its period and commit. Returns the count per
+    """Delete every row past its period and flush; the caller commits. Returns the count per
     table (None for a table that does not exist). A dry run counts the rows
     it would delete and deletes nothing."""
     now = now or datetime.datetime.now(datetime.UTC)
@@ -74,6 +74,5 @@ async def purge(
         else:
             sql = f"DELETE FROM {rule.table} WHERE {_condition(rule)}"
             counts[rule.table] = (await db.execute(text(sql), params)).rowcount
-    if not dry_run:
-        await db.commit()
+    await db.flush()
     return counts

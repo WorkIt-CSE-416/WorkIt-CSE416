@@ -47,7 +47,9 @@ async def _report(database, signature: str, at: datetime.datetime) -> None:
 
 async def _alert(database, now: datetime.datetime) -> int:
     async with database() as s:
-        return await alert_new_groups(s, now=now)
+        groups = await alert_new_groups(s, now=now)
+        await s.commit()
+        return groups
 
 
 async def test_new_groups_email_the_admins_at_most_once_an_hour(database, mailbox):

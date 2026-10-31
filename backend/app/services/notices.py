@@ -13,6 +13,10 @@ app/services/email.py's send_email, one address per message.
   same campaign skips everyone it already reached. A run killed between
   the write and the send leaves that one address marked sent: missing one
   email beats sending it twice.
+- **The caller commits.** Like every service, these flush and never commit.
+  The claim must be durable before SES is called, so `send_once` (and
+  `broadcast` and `send_closure_notice`, which call it) take the caller's
+  `commit` and await it at those two points; the scripts pass their session's `commit`.
 
 The callers are app/scripts/send_notice.py and
 app/scripts/send_closure_notice.py.
@@ -22,6 +26,7 @@ import asyncio
 import datetime
 import html
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from functools import lru_cache
 from urllib.parse import urlsplit
@@ -39,6 +44,9 @@ from app.services import email
 
 logger = logging.getLogger(__name__)
 
+# The caller's commit (a session's `commit`), awaited where a send needs its claim durable.
+Commit = Callable[[], Awaitable[None]]
+
 
 @lru_cache
 def _suppression_client():
@@ -51,8 +59,8 @@ def _normal(address: str) -> str:
 
 
 async def sync_suppressions(db: AsyncSession) -> int:
-    """Copies SES's suppression list into email_suppressions. Returns how
-    many addresses were new."""
+    """Copies SES's suppression list into email_suppressions and flushes.
+    Returns how many addresses were new."""
     client = _suppression_client()
     added = 0
     token = None
@@ -68,7 +76,7 @@ async def sync_suppressions(db: AsyncSession) -> int:
         token = page.get("NextToken")
         if not token:
             break
-    await db.commit()
+    await db.flush()
     return added
 
 
@@ -126,10 +134,13 @@ async def active_recipients(db: AsyncSession) -> list[str]:
     return sorted({_normal(address) for address in [*applicants, *members] if address})
 
 
-async def send_once(db: AsyncSession, campaign: str, address: str, subject: str, body_html: str) -> str:
+async def send_once(
+    db: AsyncSession, campaign: str, address: str, subject: str, body_html: str, *, commit: Commit
+) -> str:
     """Sends one campaign's email to one address at most once. Returns
     "sent", "already_sent", "suppressed" or "failed" (SES refused it; not
-    logged, so a re-run tries it again)."""
+    logged, so a re-run tries it again). Awaits `commit` after the claim,
+    before SES is called, and after taking a refused claim back."""
     address = _normal(address)
     if await is_suppressed(db, address):
         return "suppressed"
@@ -138,13 +149,13 @@ async def send_once(db: AsyncSession, campaign: str, address: str, subject: str,
         .values(campaign=campaign, email=address)
         .on_conflict_do_nothing(constraint="email_sends_campaign_email_key")
     )
-    await db.commit()
+    await commit()
     if not claimed.rowcount:
         return "already_sent"
     if await email.send_email(address, subject, body_html):
         return "sent"
     await db.execute(delete(Email_Send).where(Email_Send.campaign == campaign, Email_Send.email == address))
-    await db.commit()
+    await commit()
     return "failed"
 
 
@@ -169,6 +180,7 @@ async def broadcast(
     campaign: str,
     notice: Notice,
     *,
+    commit: Commit,
     to: list[str] | None = None,
     dry_run: bool = False,
     rate: float = 1.0,
@@ -187,7 +199,7 @@ async def broadcast(
 
     await sync_suppressions(db)
     for address in recipients:
-        outcome = await send_once(db, campaign, address, notice.subject, body_html)
+        outcome = await send_once(db, campaign, address, notice.subject, body_html, commit=commit)
         setattr(report, outcome, getattr(report, outcome) + 1)
         if outcome in ("sent", "failed"):
             await sleep(1 / rate)
@@ -211,9 +223,13 @@ def closure_notice(close_on: datetime.date, reason: str) -> Notice:
     )
 
 
-async def send_closure_notice(db: AsyncSession, address: str, close_on: datetime.date, reason: str) -> str:
+async def send_closure_notice(
+    db: AsyncSession, address: str, close_on: datetime.date, reason: str, *, commit: Commit
+) -> str:
     """Sends the closure email for one account, once per closing date.
     Returns send_once's outcome."""
     notice = closure_notice(close_on, reason)
     await sync_suppressions(db)
-    return await send_once(db, f"closure-{close_on.isoformat()}", address, notice.subject, notice_html(notice))
+    return await send_once(
+        db, f"closure-{close_on.isoformat()}", address, notice.subject, notice_html(notice), commit=commit
+    )
