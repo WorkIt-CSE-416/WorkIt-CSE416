@@ -7,6 +7,8 @@
 //   again each time the view opens and when the student comes back to the tab.
 // - Open the panel by itself: whether a batch tab's panel opens once its fill
 //   is done (background panel-settings.js; panel.js's autoOpen reads it).
+// - Send fill numbers (KAN-476): whether each fill's counts go to WorkIt
+//   (background fill-events.js); on unless the student turns it off.
 // - Report a problem: the report card (report.js's window.WIA.reportCard.open(), KAN-403).
 // - Workday Sign-Up: opens the extension's own options page. The password is
 //   never typed here: the panel lives in the employer's page.
@@ -59,6 +61,12 @@ window.WIA = window.WIA || {};
         </label>
       </div>
       <div class="group">
+        <label class="switch">
+          <input type="checkbox" data-fill-numbers checked />
+          <span><strong>Send fill numbers</strong><small>After each fill, WorkIt gets its counts: how many fields filled and failed, and the errors. Never your answers.</small></span>
+        </label>
+      </div>
+      <div class="group">
         <h3>Report a problem</h3>
         <p>Tell WorkIt what went wrong on this page. You see what is sent first.</p>
         <button type="button" data-report-open>Report a problem</button>
@@ -77,6 +85,9 @@ window.WIA = window.WIA || {};
     view.querySelector("[data-signup]").addEventListener("click", () => send({ type: "workday/signup-open" }));
     view.querySelector("[data-auto-open]").addEventListener("change", (event) => {
       void send({ type: "settings/auto-open", on: event.target.checked });
+    });
+    view.querySelector("[data-fill-numbers]").addEventListener("change", (event) => {
+      void send({ type: "settings/fill-numbers", on: event.target.checked });
     });
     view.querySelector("[data-claude]").addEventListener("click", window.WIA.ui.trusted(pressClaude));
 
@@ -114,6 +125,7 @@ window.WIA = window.WIA || {};
     const answer = await send({ type: "settings/read" });
     if (!answer?.ok) return showClaude(null);
     panel.slot("settings").querySelector("[data-auto-open]").checked = answer.autoOpen !== false;
+    panel.slot("settings").querySelector("[data-fill-numbers]").checked = answer.fillNumbers !== false;
     showClaude(answer.claude, { signedIn: answer.signedIn });
   }
 

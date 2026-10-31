@@ -1488,7 +1488,10 @@ the row names the signed-in sender, who alone can read it back. The popup's Requ
 (KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
 the host alone, no account in the row. The off switch (KAN-467) reads `GET
 /extension/config` (`routers/extension_config.py`), public and sent with no
-token: it names only the job systems turned off. The rest are older:
+token: it names only the job systems turned off. Every fill sends `POST
+/fill-events` (KAN-476, `routers/fill_events.py`; "Fill numbers" below):
+counts and error names only, with the sender for the backend's daily cap.
+The rest are older:
 
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
@@ -2367,10 +2370,44 @@ its messages. The gear shows it in place of the tabs; Back returns.
   (`workday/signup-open`). No password field is ever in the panel: it
   lives in the employer's page.
 
+- **Send fill numbers** (on by default, KAN-476): `fill_numbers` in
+  chrome.storage.local (background `fill-events.js`). Off, no fill sends
+  its event.
+
 Tests: `test/panel-settings.extension.spec.ts` (the Claude connection with
 Disconnect and Add to Claude; auto-open off keeps a batch tab's panel
 closed; the gear and Back, Report, Workday Sign-Up opening the options
 page and no password field in the panel).
+
+## Fill numbers (KAN-476, decided in KAN-454): one event per fill
+
+After every fill, single or batch, the extension sends one event to `POST
+/fill-events`, for the website's `/admin/fill-health`: the job system, the
+engine's and the extension's versions, `single` or `batch`, the field
+counts (fields, filled, guessed, needs you, failed), each failed field's
+error name with a count (report-parts.js ERRORS: report.js's name for the
+field, else NoAnswer; a failed `_error` note counts Error) and the
+duration. **Never a value, a label, an answer or the page's link.**
+
+- `src/content/fill-event.js` counts off the checklist (lib-status.js);
+  content-script.js calls `start()` as a fill begins and `sent(site)` once
+  it settles: once per page outside Workday and Oracle, once per step on
+  them (each step is its own fill). A page with no field and no error (a
+  closed job, a page that isn't a form) sends nothing; nor does a step
+  WorkIt couldn't plan (a sign-in or email gate). The student's edits
+  after the fill send nothing; Fill Again is a new fill.
+- `src/background/fill-events.js` builds the event: the job system is
+  the Plan's (checked against a name pattern) else the engine's `jobOf`,
+  `batch` is `inBatch` (never the page's word), each count clamped. It
+  never throws: a lost event is a lost number, never a failed fill. Its
+  one API call is `sendFillEvent` in api.js.
+- On for everyone; the panel's settings have the opt-out (Send fill
+  numbers). Kept 90 days (the backend's daily purge, KAN-482).
+
+Tests: `test/fill-events.extension.spec.ts` (a single fill's one event with
+a broken name box's Readback, a batch's one per tab, the opt-out). The fake
+API checks every event any test sends (`fillEventProblems`: a key outside
+the shape, or any of the student's values in it).
 
 ## The résumé's card (KAN-399; on the Resume/CV row since KAN-424)
 
