@@ -53,6 +53,17 @@ async function apiUrl(session) {
   return site.api;
 }
 
+// The panel's words when the API can't be used (KAN-466): one sentence for
+// no answer in time, no network, and the API being down, never the browser's
+// "Failed to fetch".
+const NO_ANSWER = "WorkIt didn't answer. Try again in a minute.";
+// How long a call may take before it fails with NO_ANSWER: most answer in well under a second.
+const TIMEOUT_MS = 20_000;
+/** For a file's bytes and an upload, which can be megabytes. */
+const FILE_TIMEOUT_MS = 60_000;
+/** For an essay draft, a model's whole answer. */
+const DRAFT_TIMEOUT_MS = 90_000;
+
 class ApiError extends Error {
   /** @param {number} status */
   constructor(status, message) {
@@ -67,24 +78,26 @@ class ApiError extends Error {
  * non-2xx response into an ApiError. Returns the raw Response so each
  * caller decides how to read the body — `.json()` for every other endpoint
  * in this file, `.arrayBuffer()` for the one that returns a file
- * (getResumeFileBytes).
+ * (getResumeFileBytes). Every call fails after `timeoutMs` (KAN-466).
  * @param {string} path
- * @param {RequestInit} [init]
+ * @param {RequestInit & { timeoutMs?: number }} [options]
  */
-async function apiRequest(path, init = {}) {
+async function apiRequest(path, { timeoutMs = TIMEOUT_MS, ...init } = {}) {
   const session = await getSession();
   if (!session) throw new ApiError(401, "Not signed in");
 
   const base = await apiUrl(session);
   const response = await fetch(`${base}${path}`, {
     ...init,
+    // Also bounds reading the body (apiFetch's .json()).
+    signal: AbortSignal.timeout(timeoutMs),
     headers: {
       // A FormData body (uploadResume) sets its own multipart type, with its boundary.
       ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       Authorization: `Bearer ${session.access_token}`,
       ...init.headers,
     },
-  });
+  }).catch(unanswered);
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -111,7 +124,18 @@ export function errorMessage(status, body) {
   if (typeof detail?.message === "string" && detail.message) return detail.message;
   if (Array.isArray(detail) && detail.length) return detail.map((e) => e?.msg ?? String(e)).join("; ");
   // No words from the route: a plain sentence, never the status code (KAN-401); the status stays on ApiError.
-  return "WorkIt's server couldn't do that just now.";
+  // A 5xx with none is the API (or Cloudflare in front of it) down.
+  return status >= 500 ? NO_ANSWER : "WorkIt's server couldn't do that just now.";
+}
+
+/**
+ * A call that got no answer: past its time (TimeoutError), or no network or
+ * no API (fetch's TypeError, "Failed to fetch"), as ApiError(0, NO_ANSWER).
+ * Any other error is thrown as it is.
+ */
+function unanswered(error) {
+  if (error?.name === "TimeoutError" || error?.name === "AbortError" || error instanceof TypeError) throw new ApiError(0, NO_ANSWER);
+  throw error;
 }
 
 /**
@@ -120,7 +144,7 @@ export function errorMessage(status, body) {
  */
 async function apiFetch(path, init = {}) {
   const response = await apiRequest(path, init);
-  return response.json();
+  return response.json().catch(unanswered);
 }
 
 /**
@@ -132,8 +156,8 @@ async function apiFetch(path, init = {}) {
  * @param {string} path
  */
 async function apiFetchBinary(path) {
-  const response = await apiRequest(path);
-  return response.arrayBuffer();
+  const response = await apiRequest(path, { timeoutMs: FILE_TIMEOUT_MS });
+  return response.arrayBuffer().catch(unanswered);
 }
 
 // Who is signed in, kept a short while per session token (a batch asked it
@@ -692,7 +716,7 @@ export async function uploadResume(applicantId, file) {
   const form = new FormData();
   const bytes = Uint8Array.from(atob(file.base64), (c) => c.charCodeAt(0));
   form.append("file", new Blob([bytes], { type: file.mimeType }), file.filename);
-  return apiFetch(`/applicants/${applicantId}/resumes`, { method: "POST", body: form });
+  return apiFetch(`/applicants/${applicantId}/resumes`, { method: "POST", body: form, timeoutMs: FILE_TIMEOUT_MS });
 }
 
 export async function recordSentResume(applicantId, jobId, resume) {
@@ -819,6 +843,7 @@ export async function saveAutofillAnswers(applicantId, changed) {
 export async function generateEssayAnswer(applicantId, { question, companyName, jobTitle, maxLength }) {
   return apiFetch(`/applicants/${applicantId}/essay-answer`, {
     method: "POST",
+    timeoutMs: DRAFT_TIMEOUT_MS,
     body: JSON.stringify({
       question,
       company_name: companyName,
