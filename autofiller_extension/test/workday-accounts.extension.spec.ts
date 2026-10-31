@@ -233,14 +233,16 @@ test("a fix report from Workday's sign-in, with the password filled, never carri
   expect(workdays.signIns).toEqual([]);
 });
 
-test("Not Now with no Workday password: nothing is pressed, and a password set later in Options is filled on the waiting page", async () => {
+test("Not Now with no Workday password: nothing is pressed, and a password set later in Options is filled on the waiting Sign In", async () => {
   test.setTimeout(120_000);
   const workdays = new FakeWorkdays(["workday-caci"]);
-  const page = await startWith(workdays, false, { id: "wd-0", apply_url: workdays.signInUrl(0) });
-  const caci = await page(workdays.signInUrl(0));
+  const page = await startWith(workdays, false, { id: "wd-0", apply_url: workdays.signInUrl(0, "signin") });
+  const caci = await page(workdays.signInUrl(0, "signin"));
   await overlay(caci).locator(".moment.workday-accounts [data-dismiss]").click({ timeout: 30_000 });
   await saveWorkdaySignup(loaded!);
-  await expect.poll(() => box(caci, "verifyPassword").inputValue(), { timeout: 30_000 }).toBe(WORKDAY_SIGNUP.password);
+  await expect.poll(() => box(caci, "password").inputValue(), { timeout: 30_000 }).toBe(WORKDAY_SIGNUP.password);
+  // No account is known at this company: the panel points a new candidate to Create Account.
+  await expect(overlay(caci).locator(".row").filter({ hasText: "New here? Press Create Account instead" })).toBeVisible();
   await caci.waitForTimeout(3000);
   expect(workdays.signIns).toEqual([]);
 });

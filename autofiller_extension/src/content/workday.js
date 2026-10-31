@@ -360,7 +360,9 @@ window.WIA = window.WIA || {};
               ? "WorkIt filled your Workday email and password, kept only in this browser. Press Create Account, then open the link Workday emails you. WorkIt fills each step once you're signed in."
               : create
                 ? "WorkIt filled the login it saved for this company's Workday. If you made the account already, press Sign In instead. WorkIt fills each step once you're signed in."
-                : "WorkIt filled your sign-in for this company's Workday. Press Sign In. WorkIt fills each step once you're signed in.");
+                : login.fresh
+                  ? "WorkIt filled your Workday email and password. New here? Press Create Account instead, and WorkIt fills them there. Else press Sign In. WorkIt fills each step once you're signed in."
+                  : "WorkIt filled your sign-in for this company's Workday. Press Sign In. WorkIt fills each step once you're signed in.");
         } while (again);
       } finally {
         busy = false;
