@@ -119,6 +119,11 @@ class Settings(BaseSettings):
     # no one is an admin. There is no admin role in the database: the team is a handful of developers.
     workit_admins: str = ""
 
+    # Per-account daily caps on the extension's writes (KAN-478, app/services/daily_caps.py): one
+    # account in a loop can't fill the database. Past one, the route answers 429. Days are UTC.
+    fill_report_daily_cap: int = 30
+    job_system_request_daily_cap: int = 50
+
     # The oldest extension version the API still serves (KAN-466): a request whose
     # X-WorkIt-Extension header names an older one gets 426, and the panel asks the
     # student to update. Raise it only when a change breaks older builds; the default

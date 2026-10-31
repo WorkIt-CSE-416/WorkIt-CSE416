@@ -52,6 +52,8 @@ export class FakeApi {
   readonly pasted: { jobId: string; name: string; answer: string }[] = [];
   /** Set to refuse the next pastes with these reasons, as WorkIt's checks do (422, reasons by question). */
   refusePastes: string[] | null = null;
+  /** Set to refuse the next reports with this status and detail, as the daily cap does (429, KAN-478). */
+  refuseReports: { status: number; detail: string } | null = null;
   /** The problem reports the extension sent (POST /fill-reports, KAN-403), each as its body, in order. */
   readonly reports: unknown[] = [];
   /** The job system requests the popup sent (POST /job-system-requests, KAN-369), each as its body, in order. */
@@ -172,6 +174,7 @@ export class FakeApi {
     }
     if (headers.authorization !== `Bearer ${this.token}`) return { status: 401, json: { detail: "Not signed in" } };
     if (path === "/fill-reports" && method === "POST") {
+      if (this.refuseReports) return { status: this.refuseReports.status, json: { detail: this.refuseReports.detail } };
       this.reports.push(JSON.parse(body.toString()));
       return { status: 201, json: { stored: true } };
     }
