@@ -1179,7 +1179,8 @@ Find files with a directory listing; these are the rules for where code goes.
   plain values, nothing to rotate — a run from anywhere without that role
   (local dev, GitHub Actions) has `send_email` log and return `False`,
   same as a bounced send. **Still open: the SES account is in its
-  sandbox** (production access not yet requested), so a real send to an
+  sandbox** (production access not yet requested; the request text is in
+  `docs/email-sending.md`), so a real send to an
   address SES hasn't individually verified is rejected the same
   best-effort way. The AWS/EC2-side setup (SES identity, the IAM role,
   the instance, the crontab) is a human runbook, run by hand, not code:
@@ -1191,6 +1192,17 @@ Find files with a directory listing; these are the rules for where code goes.
   `--dry-run` builds and reports every digest, writing and sending
   nothing. Tests: `tests/test_job_alerts.py`, `tests/test_notifications.py`,
   `tests/test_email.py`.
+- **Notices to every user** (KAN-483, `services/notices.py`;
+  `docs/email-sending.md` has the SES and DNS steps). `scripts/send_notice.py`
+  sends one notice to every active account (applicants plus active company
+  members), one message per address, paced by `--rate`; `--campaign` keys
+  the send log `email_sends`, so a re-run reaches only the addresses it
+  missed. A real run needs `--to` (a test list) or `--all-accounts`.
+  `scripts/send_closure_notice.py` sends the one closure email. Both first
+  copy SES's account suppression list into `email_suppressions`, and
+  nothing (including the job-alert email) is sent to an address on it.
+  Every notice link must be https on workitjobs.ai (`check_link`). Tests:
+  `tests/test_notices.py`, with a fake SES.
 - **The autofiller calls no model** (KAN-470): the essay-answer route
   (KAN-164) is gone. A question that needs writing is the student's own
   Claude's, through the connector, or their paste on Written Answers, on a
