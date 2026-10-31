@@ -44,9 +44,11 @@ repo `WorkIt-CSE-416/fill-engine` and sits here as the submodule
 `fill-engine/`, **pinned to a tag**. A person moves the pin (`git -C
 autofiller_extension/fill-engine checkout vX.Y.Z`, commit the gitlink), so
 a change to the engine reaches students only when someone here chooses it.
-Moving the pin also means changing `ENGINE_VERSION` in
-`src/background/report.js` (what a problem report names);
-`test/report.extension.spec.ts` fails until it matches `git describe --tags`.
+Nothing else changes with the pin: `ENGINE_VERSION` (`src/background/engine.js`,
+what a problem report and a fill event name) is the bundle's own `version`
+(the engine's package.json version and a hash of its src/), and
+`test/report.extension.spec.ts` checks a report carries what
+`node build.mjs --version` prints in the submodule.
 **A checkout needs `git submodule update --init` once**, or Chrome can't
 load `fill-engine/dist/engine.js` and every fill fails. The extension never
 builds it: `dist/engine.js` is committed in the engine repo.
