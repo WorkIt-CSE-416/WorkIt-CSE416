@@ -19,6 +19,7 @@ app/scripts/send_closure_notice.py.
 """
 
 import asyncio
+import datetime
 import html
 import logging
 from dataclasses import dataclass, field
@@ -191,3 +192,28 @@ async def broadcast(
         if outcome in ("sent", "failed"):
             await sleep(1 / rate)
     return report
+
+
+def closure_notice(close_on: datetime.date, reason: str) -> Notice:
+    """The one account-closure email: "your account will be closed on
+    <date> because <reason>". `reason` reads after "because"."""
+    day = f"{close_on:%B} {close_on.day}, {close_on.year}"
+    return Notice(
+        subject=f"Your WorkIt account will be closed on {day}",
+        body=(
+            f"Your WorkIt account will be closed on {day} because {reason.strip().rstrip('.')}.\n\n"
+            "Until then you can sign in as usual, save anything you want to keep, "
+            "or delete the account yourself in Settings. After that date your account "
+            "and its data are deleted."
+        ),
+        link=f"{get_settings().web_url.rstrip('/')}/settings",
+        link_text="Open Settings",
+    )
+
+
+async def send_closure_notice(db: AsyncSession, address: str, close_on: datetime.date, reason: str) -> str:
+    """Sends the closure email for one account, once per closing date.
+    Returns send_once's outcome."""
+    notice = closure_notice(close_on, reason)
+    await sync_suppressions(db)
+    return await send_once(db, f"closure-{close_on.isoformat()}", address, notice.subject, notice_html(notice))

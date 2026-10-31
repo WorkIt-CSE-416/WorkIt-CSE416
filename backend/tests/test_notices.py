@@ -249,3 +249,28 @@ async def test_the_scripts_dry_run_prints_the_count(database, ses, tmp_path, cap
     out = capsys.readouterr().out
     assert "[dry run] 3 recipients" in out
     assert ses.sent == []
+
+
+# --- the account-closure email ---
+
+
+def test_the_closure_notice_names_the_date_and_the_reason():
+    import datetime
+
+    notice = notices.closure_notice(datetime.date(2026, 12, 1), "it has been inactive for two years")
+
+    assert notice.subject == "Your WorkIt account will be closed on December 1, 2026"
+    body = notices.notice_html(notice)
+    assert "December 1, 2026 because it has been inactive for two years" in body
+    assert notice.link.startswith("https://workitjobs.ai/")
+
+
+async def test_a_closure_notice_goes_out_once(database, ses):
+    import datetime
+
+    async with database() as session:
+        first = await notices.send_closure_notice(session, "Sam@example.com", datetime.date(2026, 12, 1), "inactive")
+        again = await notices.send_closure_notice(session, "sam@example.com", datetime.date(2026, 12, 1), "inactive")
+
+    assert (first, again) == ("sent", "already_sent")
+    assert ses.recipients() == ["sam@example.com"]
