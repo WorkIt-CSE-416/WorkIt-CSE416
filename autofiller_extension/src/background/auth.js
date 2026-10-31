@@ -73,24 +73,31 @@ function confirmSignedOut() {
  * Returns the session the cookie now holds: a new one, null when the
  * webapp signed the student out (no valid refresh token: the route clears
  * the cookie), or `stale` again when the webapp couldn't be reached.
- * Called by getSession near expiry, and by api.js after a 401.
+ * Called by getSession near expiry, and by api.js after a 401 with `force`:
+ * the route rotates a token only near its expiry, and a refused one may be
+ * far from it, so `force=1` asks it to rotate regardless (KAN-465).
  * @param {import("../shared/types.js").Session} stale
+ * @param {{ force?: boolean }} [options]
  * @returns {Promise<import("../shared/types.js").Session | null>}
  */
-export async function refreshSession(stale) {
-  const fresh = refreshing?.from === stale.access_token && Date.now() - refreshing.at < RETRY_AFTER_MS;
+export async function refreshSession(stale, { force = false } = {}) {
+  // A forced refresh shares only a forced one: one that wasn't may have left the token as it was.
+  const fresh = refreshing?.from === stale.access_token && Date.now() - refreshing.at < RETRY_AFTER_MS && (refreshing.force || !force);
   if (!fresh) {
-    const asked = { from: stale.access_token, at: Date.now(), settled: 0, done: askWebapp(stale.web_origin) };
+    const asked = { from: stale.access_token, at: Date.now(), force, settled: 0, done: askWebapp(stale.web_origin, force) };
     asked.done.finally(() => (asked.settled = Date.now()));
     refreshing = asked;
   }
   return refreshing.done;
 }
 
-/** @param {string} origin */
-async function askWebapp(origin) {
+/**
+ * @param {string} origin
+ * @param {boolean} force
+ */
+async function askWebapp(origin, force) {
   try {
-    await fetch(`${origin}/api/session/refresh`, { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    await fetch(`${origin}/api/session/refresh${force ? "?force=1" : ""}`, { credentials: "include", cache: "no-store", signal: AbortSignal.timeout(10_000) });
   } catch (error) {
     console.warn("auth: the webapp's session refresh failed", error);
   }

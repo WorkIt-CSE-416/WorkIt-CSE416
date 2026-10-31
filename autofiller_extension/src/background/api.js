@@ -113,9 +113,10 @@ async function apiRequest(path, { timeoutMs = TIMEOUT_MS, ...init } = {}) {
     },
   }).catch(unanswered);
   let response = await send(session.access_token);
-  // A refused token (expired early, or revoked): the webapp refreshes the session once (auth.js), then one retry.
+  // A refused token (expired early, or revoked): the webapp refreshes the session once, forced since the
+  // token may be far from its expiry (auth.js), then one retry.
   if (response.status === 401) {
-    const renewed = await refreshSession(session);
+    const renewed = await refreshSession(session, { force: true });
     if (!renewed) throw new ApiError(401, "Not signed in");
     if (renewed.access_token !== session.access_token) response = await send(renewed.access_token);
   }
