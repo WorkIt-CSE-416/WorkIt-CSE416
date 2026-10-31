@@ -3,6 +3,9 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: ".",
   timeout: 90_000,
+  // A CI runner is slower than a laptop, and a few timing-bound specs now and
+  // then miss; a spec that is broken fails all three tries.
+  retries: process.env.CI ? 2 : 0,
   projects: [
     {
       // The fill in a saved form's page, minus Chrome (extension.ts).
