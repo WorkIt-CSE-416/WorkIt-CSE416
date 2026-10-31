@@ -146,7 +146,7 @@ class Settings(BaseSettings):
     # Where a job-alert email's links point — the production app by
     # default, overridden in the scheduled workflow's own env for a
     # preview or local run.
-    web_url: str = "https://workit-web-gamma.vercel.app"
+    web_url: str = "https://workitjobs.ai"
 
     @property
     def app_url(self) -> str:
