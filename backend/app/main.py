@@ -48,6 +48,7 @@ from app.routers.tailor import router as tailor_router
 from app.routers.tracker import router as tracker_router
 from app.routers.uninstall_answers import router as uninstall_answers_router
 from app.routers.writing_samples import router as writing_samples_router
+from app.services import daily_caps
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,12 @@ async def not_found(request: Request, exc: pipeline.NotFound) -> JSONResponse:
 @app.exception_handler(pipeline.WrongStage)
 async def wrong_stage(request: Request, exc: pipeline.WrongStage) -> JSONResponse:
     return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
+@app.exception_handler(daily_caps.OverDailyCap)
+async def over_daily_cap(request: Request, exc: daily_caps.OverDailyCap) -> JSONResponse:
+    """A write past its account's daily cap (app/services/daily_caps.py), from any route."""
+    return JSONResponse(status_code=429, content={"detail": str(exc)})
 
 
 @app.exception_handler(RequestValidationError)
