@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import {
-  answerBank, answerFlag, anyFormAnswerBank, dropOwnAnswer, getAutofillProfile, warmProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
+  answerBank, answerFlag, anyFormAnswerBank, dropOwnAnswer, getAutofillProfile, warmProfile, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
@@ -31,9 +31,11 @@ import { forgetShownWorkableDraft } from "./tab-load.js";
 import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
 import { popupHome, showNextJob } from "./popup-home.js";
-import { followTrackedTab, forgetTracked, isTracked, markTracked, track, trackState } from "./track.js";
+import { followTrackedTab, forgetTracked, isTracked, markTracked, openForWriting, track, trackState, writingJob } from "./track.js";
 import { allowTabSite, allowedSites, pageJobUrl, removeSite, syncSites } from "./site-access.js";
 import { fetchText, planReads } from "./plan-reads.js";
+import { treeStore } from "./stored-data.js";
+import { installed, setUninstallPage } from "./install.js";
 import { remoteConfig, turnedOff } from "./remote-config.js";
 import { TEST_HOOKS } from "../shared/config.js";
 
@@ -52,6 +54,15 @@ async function markAnySubmitted(tabId) {
   return (await inBatch(tabId)) ? markSubmitted(tabId) : markTracked(tabId);
 }
 
+/**
+ * The job whose application holds tab `tabId`'s written questions: a batch
+ * tab's, or one the student opened themselves and asked their Claude to
+ * write for (KAN-470, track.js writingJob). Null for any other tab.
+ */
+async function applicationJob(tabId) {
+  return (await jobInTab(tabId)) ?? (await writingJob(tabId));
+}
+
 // The submit watches a page's fill asked for while its tab wasn't tracked (batch/watch): started by Track on WorkIt.
 const unwatched = new Map();
 
@@ -63,16 +74,8 @@ function engineIn(sender) {
   });
 }
 
-// The nested prompts the engine read on each Workday tenant (fill/plan, fill/page), kept for its next fill.
-const WORKDAY_TREES_KEY = "workday_trees";
-const workdayTrees = {
-  async load() {
-    return (await chrome.storage.local.get(WORKDAY_TREES_KEY))[WORKDAY_TREES_KEY] ?? {};
-  },
-  async save(saved) {
-    await chrome.storage.local.set({ [WORKDAY_TREES_KEY]: { ...(await this.load()), ...saved } });
-  },
-};
+// The nested prompts the engine read on each Workday tenant (fill/plan, fill/page), kept for its next fill, capped (stored-data.js).
+const workdayTrees = treeStore(chrome.storage.local);
 
 /** Today in the student's own time zone, as the engine's rules read it ("YYYY-MM-DD"). */
 function today() {
@@ -94,16 +97,6 @@ async function handleMessage(message, sender) {
     case "profile/get": {
       const profile = await getAutofillProfile({ force: Boolean(message.force) });
       return { profile };
-    }
-
-    case "essay/generate": {
-      const { answer, uses_left } = await generateEssayAnswer(message.applicantId, {
-        question: message.question,
-        companyName: message.companyName,
-        jobTitle: message.jobTitle,
-        maxLength: message.maxLength,
-      });
-      return { answer, usesLeft: uses_left };
     }
 
     // The content script's fill (content-script.js): the Plan for the page
@@ -217,14 +210,29 @@ async function handleMessage(message, sender) {
     case "batch/closed":
       return closeClosedTab(sender.tab.id);
 
+    // A form the student opened themselves (KAN-470): they asked their Claude to write its
+    // questions, which then go the batch tab's way (batch/questions below). Its job gets an
+    // application (track.js openForWriting); a fill on the page that asked to watch its
+    // submit (batch/watch) starts watching, as after Track on WorkIt.
+    case "written/open": {
+      if (await jobInTab(sender.tab.id)) return {};
+      await openForWriting({ tabId: sender.tab.id, url: (await pageJobUrl(sender.tab.id, sender.frameId ?? 0, sender.url ?? "")) ?? sender.url ?? "" });
+      const waiting = unwatched.get(sender.tab.id);
+      if (waiting) {
+        unwatched.delete(sender.tab.id);
+        await engineIn({ tab: sender.tab, frameId: waiting.frameId })("watchSubmit", waiting.site, waiting.key).catch(() => {});
+      }
+      return {};
+    }
+
     // A batch tab's questions that need writing (KAN-377): sent to the API for
     // the student's own Claude to answer through the connector
     // (batch/questions), then the answers saved so far (batch/answers), which
     // the tab fills. The job is the batch's own for that tab, never the message's.
     case "batch/questions":
     case "batch/answers": {
-      const jobId = await jobInTab(sender.tab.id);
-      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const jobId = await applicationJob(sender.tab.id);
+      if (!jobId) throw new Error("This tab has no application at WorkIt");
       const { id } = await me();
       const questions = message.type === "batch/questions"
         ? await askQuestions(id, jobId, message.questions)
@@ -250,8 +258,8 @@ async function handleMessage(message, sender) {
     // before their Claude's. Kept as the application's answer and saved for
     // later forms. The job is the batch's own for that tab, never the message's.
     case "batch/own-answer": {
-      const jobId = await jobInTab(sender.tab.id);
-      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const jobId = await applicationJob(sender.tab.id);
+      if (!jobId) throw new Error("This tab has no application at WorkIt");
       const { id } = await me();
       await saveOwnAnswer(id, jobId, { name: message.name, label: message.label, answer: message.answer, own: message.own === true });
       return {};
@@ -259,8 +267,8 @@ async function handleMessage(message, sender) {
 
     // Undo on a batch tab's guess card (card-guess.js): takes back an answer saved with "batch/own-answer".
     case "batch/own-answer-undo": {
-      const jobId = await jobInTab(sender.tab.id);
-      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const jobId = await applicationJob(sender.tab.id);
+      if (!jobId) throw new Error("This tab has no application at WorkIt");
       const { id } = await me();
       await dropOwnAnswer(id, jobId, message.name);
       return {};
@@ -268,8 +276,8 @@ async function handleMessage(message, sender) {
 
     // A batch tab's flag card (card-flag.js): Keep or Rewrite with Claude on an answer the pre-submit review flagged.
     case "batch/flag": {
-      const jobId = await jobInTab(sender.tab.id);
-      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const jobId = await applicationJob(sender.tab.id);
+      if (!jobId) throw new Error("This tab has no application at WorkIt");
       if (message.action !== "keep" && message.action !== "rewrite") throw new Error("Unknown flag answer");
       const { id } = await me();
       await answerFlag(id, jobId, message.action, message.name);
@@ -278,8 +286,8 @@ async function handleMessage(message, sender) {
 
     // A written answer's Rewrite (KAN-424, overlay.js): another version from the student's Claude, with how to change it.
     case "batch/redo": {
-      const jobId = await jobInTab(sender.tab.id);
-      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const jobId = await applicationJob(sender.tab.id);
+      if (!jobId) throw new Error("This tab has no application at WorkIt");
       const { id } = await me();
       const steer = typeof message.steer === "string" ? message.steer.trim().slice(0, 300) : "";
       await answerFlag(id, jobId, "redo", message.name, steer || undefined);
@@ -290,8 +298,8 @@ async function handleMessage(message, sender) {
     // Written Answers page's route, so it passes the same checks. A refusal is an answer, not an error:
     // its reasons show in the card. The job is the batch's own for that tab, never the message's.
     case "batch/paste": {
-      const jobId = await jobInTab(sender.tab.id);
-      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const jobId = await applicationJob(sender.tab.id);
+      if (!jobId) throw new Error("This tab has no application at WorkIt");
       const { id } = await me();
       try {
         const { left } = await savePastedAnswer(id, jobId, message.name, message.answer);
@@ -390,7 +398,7 @@ async function handleMessage(message, sender) {
     // The link is the webapp's, which redirects to Claude's dialog (the
     // install link is built there, from the API's address).
     case "moment/claude": {
-      if (!(await jobInTab(sender.tab.id))) return { show: false };
+      if (!(await applicationJob(sender.tab.id))) return { show: false };
       const [session, { id }] = await Promise.all([getSession(), me()]);
       if (await connectorAdded(id)) return { show: false };
       if (!(await claimMoment(id, "claude"))) return { show: false };
@@ -472,7 +480,7 @@ async function handleMessage(message, sender) {
     case "report/preview":
       return previewReport(sender, message.draft);
     case "report/send":
-      return sendPreviewed(sender, { marked: message.marked, note: message.note });
+      return sendPreviewed(sender, { marked: message.marked, note: message.note, layout: message.layout });
     // The panel's settings view (panel-settings.js, KAN-402): the Claude connection and auto-open.
     case "settings/read":
       return readSettings();
@@ -631,6 +639,11 @@ chrome.runtime.onStartup.addListener(resumeOnce);
 resumeOnce();
 // The job systems WorkIt turned off (KAN-467), read as the worker starts; a fill or panel reads it again once 15 minutes old.
 void remoteConfig();
+
+// Install, update and uninstall (install.js, KAN-471): onboarding's extension step on a first install, stored data
+// migrated on every update, and the uninstall survey's URL kept current.
+chrome.runtime.onInstalled.addListener((details) => void installed(details).catch((error) => console.warn("[install] not handled:", error.message)));
+chrome.runtime.onStartup.addListener(() => void setUninstallPage().catch(() => {}));
 
 // The panel's choices per site (panel.js): { top, collapsed, hidden }, by host name.
 const PANEL_SITES_KEY = "panel_sites";

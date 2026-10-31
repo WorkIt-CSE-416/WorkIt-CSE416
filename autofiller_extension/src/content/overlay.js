@@ -17,7 +17,6 @@ window.WIA = window.WIA || {};
     saved: "Saved Answer",
     guessed: "Guessed",
     claude: "Claude",
-    ai: "AI",
     pasted: "Pasted",
   };
   // Phosphor's Sparkle (fill), the mark WorkIt puts on everything AI wrote (frontend/src/components/icons.tsx).
@@ -115,7 +114,7 @@ window.WIA = window.WIA || {};
       .source svg { width: 11px; height: 11px; }
       .source[data-source="guessed"] { background: var(--color-panel); color: var(--color-warning); border: 1px solid var(--color-warning-strong); }
       .source[data-source="student"] { background: var(--color-positive-tint); color: var(--color-positive-ink); }
-      .source[data-source="claude"], .source[data-source="ai"] { background: var(--color-brand-tint); color: var(--color-brand-ink); }
+      .source[data-source="claude"] { background: var(--color-brand-tint); color: var(--color-brand-ink); }
       .reason { color: var(--color-danger); font-size: var(--text-note); margin-top: 2px; }
       .reason.note { color: var(--color-ink-meta); }
       /* An answer the student's Claude's pre-submit review flagged (KAN-369): theirs to read before they submit. */
@@ -171,7 +170,7 @@ window.WIA = window.WIA || {};
       const source = document.createElement("span");
       source.className = "source";
       source.dataset.source = field.source;
-      source.innerHTML = field.source === "claude" || field.source === "ai" ? SPARKLE : "";
+      source.innerHTML = field.source === "claude" ? SPARKLE : "";
       source.append(SOURCE_LABEL[field.source]);
       text.appendChild(source);
       if (field.source === "guessed") el.dataset.guessed = "";
@@ -247,7 +246,7 @@ window.WIA = window.WIA || {};
     const open = Object.assign(document.createElement("a"), { href: CLAUDE_START_URL, target: "_blank", rel: "noreferrer" });
     open.innerHTML = SPARKLE;
     open.append("Write with Claude");
-    open.addEventListener("click", () => copy(CLAUDE_TRIGGER));
+    open.addEventListener("click", window.WIA.ui.trusted(() => copy(CLAUDE_TRIGGER)));
     const hint = Object.assign(document.createElement("span"), { className: "hint", textContent: "Press Enter in Claude (or paste)" });
     start.append(open, hint);
     return start;
@@ -305,23 +304,26 @@ window.WIA = window.WIA || {};
   }
 
   /**
-   * The one opt-in gate for every detected essay question on the page at
-   * once (never a per-question prompt — one decision for the whole batch).
-   * Nothing is generated until the student clicks Generate; `onDismiss`
-   * fires just as explicitly on Not Now, so a declined batch still resolves
-   * to a definite state rather than sitting at "needs_generation" forever.
-   * The banner removes itself once a choice is made — calling this again
-   * (a second "Autofill This Page" run) rebuilds it fresh.
+   * The one opt-in gate for every question that needs writing on a form the
+   * student opened themselves (never a per-question prompt; one decision
+   * for the page). WorkIt writes nothing itself (KAN-470): Write with Claude
+   * hands the questions to the student's own Claude through the connector,
+   * or to their paste on Written Answers. Nothing goes to WorkIt until they
+   * press it; `onDismiss` fires just as explicitly on Not Now, so a declined
+   * page still resolves to a definite state rather than sitting at
+   * "needs_generation" forever. The banner removes itself once a choice is
+   * made; calling this again (a second "Autofill This Page" run) rebuilds it.
    * @param {{ count: number, onGenerate: () => void, onDismiss: () => void }} options
    */
   function promptForEssays({ count, onGenerate, onDismiss }) {
     if (!root || count <= 0) return;
     const banner = root.querySelector(".essay-banner");
     banner.hidden = false;
+    const many = count !== 1;
     banner.innerHTML = `
-      <p>${count} essay question${count === 1 ? "" : "s"} found — generate answer${count === 1 ? "" : "s"} with AI from your experience bank?</p>
+      <p>${count} question${many ? "s need" : " needs"} writing. Your Claude can write ${many ? "them" : "it"} from your experience, or you can paste your own on Written Answers.</p>
       <div class="row">
-        <button type="button" data-generate>${SPARKLE}Generate</button>
+        <button type="button" data-generate>${SPARKLE}Write with Claude</button>
         <button type="button" data-dismiss>Not Now</button>
       </div>
     `;
@@ -333,10 +335,10 @@ window.WIA = window.WIA || {};
       hide();
       onGenerate();
     }));
-    banner.querySelector("[data-dismiss]").addEventListener("click", () => {
+    banner.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => {
       hide();
       onDismiss();
-    });
+    }));
   }
 
   /** A new moment card at the top of the panel's list (KAN-387); removed by its own buttons. */
@@ -378,7 +380,7 @@ window.WIA = window.WIA || {};
     `);
     if (!card) return;
     const error = card.querySelector(".error");
-    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
     card.querySelector("[data-save]").addEventListener("click", window.WIA.ui.trusted(async () => {
       const answers = Object.fromEntries([...card.querySelectorAll("select")].filter((s) => s.value).map((s) => [s.name, s.value]));
       error.hidden = true;
@@ -410,8 +412,8 @@ window.WIA = window.WIA || {};
     if (!card) return;
     const add = card.querySelector("[data-add]");
     add.href = url;
-    add.addEventListener("click", () => card.remove());
-    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    add.addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
   }
 
   /**
@@ -432,8 +434,8 @@ window.WIA = window.WIA || {};
     if (!card) return;
     const add = card.querySelector("[data-add]");
     add.href = url;
-    add.addEventListener("click", () => card.remove());
-    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    add.addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
   }
 
   /**
@@ -454,13 +456,14 @@ window.WIA = window.WIA || {};
       </div>
     `);
     if (!card) return;
-    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
     // The extension's Workday Sign-Up page (src/options/), in a tab of its own; the card stays for the answer.
-    card.querySelector("[data-signup]").addEventListener("click", () => chrome.runtime.sendMessage({ type: "workday/signup-open" }));
-    card.querySelector("[data-allow]").addEventListener("click", () => {
+    card.querySelector("[data-signup]").addEventListener("click", window.WIA.ui.trusted(() => chrome.runtime.sendMessage({ type: "workday/signup-open" })));
+    // Allows account creation at every company: the student's own press only, never the page's (KAN-469).
+    card.querySelector("[data-allow]").addEventListener("click", window.WIA.ui.trusted(() => {
       card.remove();
       onAllow();
-    });
+    }));
   }
 
   /**
@@ -526,7 +529,7 @@ window.WIA = window.WIA || {};
         <div class="list"></div>
       </div>
     `;
-    tab.querySelector(".list").addEventListener("click", jump);
+    tab.querySelector(".list").addEventListener("click", window.WIA.ui.trusted(jump));
     tab.querySelector(".list").addEventListener("keydown", jump);
     unsubscribe = window.WIA.status.subscribe(render);
     render(window.WIA.status.summary());

@@ -8,6 +8,8 @@
 // earlier, since-replaced approach (an independent sign-in) and why this
 // one won out.
 
+import { SUPABASE_SESSION_COOKIE_KEY } from "../shared/config.js";
+import { keepFor } from "./account-data.js";
 import { readWebappSession } from "./webapp-session.js";
 
 // Refresh this long before the access token expires, so a call never goes out with one about to lapse.
@@ -28,8 +30,10 @@ let refreshing = null;
  */
 export async function getSession() {
   const session = await readWebappSession();
-  if (session && session.expires_at - Date.now() / 1000 < REFRESH_MARGIN_S) return refreshSession(session);
-  return session;
+  const current = session && session.expires_at - Date.now() / 1000 < REFRESH_MARGIN_S ? await refreshSession(session) : session;
+  // A sign-out or another account's sign-in clears the last account's data (account-data.js).
+  await keepFor(current).catch((error) => console.warn("[account] not cleared:", error.message));
+  return current;
 }
 
 /**
@@ -66,3 +70,9 @@ async function askWebapp(origin) {
   }
   return readWebappSession();
 }
+
+// The webapp's session cookie (or one of its chunks) changed: a sign-out clears the account's data now,
+// not at the next call that reads the session.
+chrome.cookies.onChanged.addListener(({ cookie }) => {
+  if (cookie.name.startsWith(SUPABASE_SESSION_COOKIE_KEY)) getSession().catch(() => {});
+});

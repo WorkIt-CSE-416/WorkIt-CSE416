@@ -165,6 +165,9 @@ GitHub's runners structurally cannot send the real mail anymore. The live
 run is a crontab entry on that instance, daily at 13:13 UTC (off the
 hour, same reasoning as the scrape's own cron), running the same
 `app.scripts.send_job_alerts` this workflow calls.
+The same instance runs `app.scripts.send_fill_report_alerts` hourly
+(KAN-478; e.g. `17 * * * *`), which emails the admins new fix report
+groups through the same SES sender and role.
 
 This workflow still exists for two things, both free of real AWS access:
 a PR that touches the digest, the script, `email.py` or this workflow

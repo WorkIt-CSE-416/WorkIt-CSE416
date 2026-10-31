@@ -145,12 +145,12 @@ export async function previewReport(sender, draft = {}) {
 }
 
 /** Sends the report this tab's card previewed, with the fields the student marked wrong and their note; the preview is then gone. */
-export async function sendPreviewed(sender, { marked = [], note = null } = {}) {
+export async function sendPreviewed(sender, { marked = [], note = null, layout = true } = {}) {
   const key = previewKey(sender);
   const { [key]: report } = await chrome.storage.session.get(key);
   if (!report) throw new Error("Open the report again: its preview is gone.");
   const names = Array.isArray(marked) ? marked.filter((name) => typeof name === "string") : [];
-  await sendFillReport(finalize(report, { marked: names, note: typeof note === "string" ? note.slice(0, NOTE_MAX) : null }));
+  await sendFillReport(finalize(report, { marked: names, note: typeof note === "string" ? note.slice(0, NOTE_MAX) : null, layout: layout !== false }));
   await chrome.storage.session.remove(key);
   return {};
 }

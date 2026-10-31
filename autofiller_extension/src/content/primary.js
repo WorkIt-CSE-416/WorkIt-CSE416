@@ -179,7 +179,7 @@ window.WIA = window.WIA || {};
       }),
     });
     confirm.querySelector("[data-yes]").addEventListener("click", window.WIA.ui.trusted(() => void fillAgain()));
-    confirm.querySelector("[data-no]").addEventListener("click", () => (confirm.hidden = true));
+    confirm.querySelector("[data-no]").addEventListener("click", window.WIA.ui.trusted(() => (confirm.hidden = true)));
     // The question sits over the button it would change.
     made.button.before(confirm);
     parts = { ...made, confirm };

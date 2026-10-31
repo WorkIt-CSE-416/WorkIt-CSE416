@@ -3,9 +3,8 @@
 // profiles.py, bank.py, preferences.py, autofill_answers.py, auto_apply.py,
 // documents.py)
 // — straight from the extension's background service worker instead of a
-// Server Action. Two routes are new, built for this extension specifically
-// because no existing one was safe/usable from here: essay-answer
-// generation (no way to hold a model key client-side) and
+// Server Action. One route is new, built for this extension specifically
+// because no existing one was safe/usable from here:
 // getResumeFileBytes (a signed Storage URL lives outside this extension's
 // host_permissions and Storage's own CORS policy proved unreliable from a
 // chrome-extension:// origin — see that function's own doc comment).
@@ -17,15 +16,15 @@
 // CORS on the FastAPI app for this extension's origin is the fallback.
 
 import { DEV_API_URL, PROD_SITES } from "../shared/config.js";
+import { PROFILE_CACHE_KEY as CACHE_KEY } from "./account-data.js";
 import { getSession, refreshSession } from "./auth.js";
 
-const CACHE_KEY = "workit_autofill_profile";
 // Re-fetch after this long even on a cache hit, so a profile edit made in
 // the webapp shows up here without an explicit "refresh" click.
 const CACHE_TTL_MS = 10 * 60 * 1000;
 // A profile older than CACHE_TTL_MS but younger than this is used while a fresh one is fetched.
 const STALE_OK_MS = 24 * 60 * 60 * 1000;
-/** The profile fetch under way, if any (getAutofillProfile): its callers share it. */
+/** The profile fetch under way, if any, and the account it is for (getAutofillProfile): that account's callers share it. */
 let fetching = null;
 
 /** Resolved once per service-worker lifetime, not on every call. */
@@ -76,8 +75,6 @@ const UPDATE = "Please update WorkIt. Restart Chrome to get the new version. If 
 const TIMEOUT_MS = 20_000;
 /** For a file's bytes and an upload, which can be megabytes. */
 const FILE_TIMEOUT_MS = 60_000;
-/** For an essay draft, a model's whole answer. */
-const DRAFT_TIMEOUT_MS = 90_000;
 
 class ApiError extends Error {
   /** @param {number} status */
@@ -530,27 +527,33 @@ export async function getAutofillProfile({ force = false } = {}) {
   // Past its ten minutes but under a day old: used at once, and fetched again behind (a cold API
   // took 4-9 s to answer, live), so the next call has the fresh one. Older ones are waited for.
   if (!force && age < STALE_OK_MS) {
-    if (!fetching) refetch().catch((error) => console.warn("[profile] not fetched again:", error.message));
+    if (!fetching) refetch(session).catch((error) => console.warn("[profile] not fetched again:", error.message));
     return cached;
   }
 
-  // A fetch already under way (write early's, another tab's Plan) is waited for, not asked again;
-  // a forced one starts afresh, since it may follow an edit the one under way began before.
-  if (!force && fetching) return fetching;
-  return refetch();
+  // A fetch already under way (write early's, another tab's Plan) is waited for, not asked again, when it is
+  // this account's; a forced one starts afresh, since it may follow an edit the one under way began before.
+  if (!force && fetching && fetching.userId === session.user_id) return fetching.run;
+  return refetch(session);
 }
 
-/** Fetches the profile and caches it; callers meanwhile share it (`fetching`). */
-async function refetch() {
+/**
+ * Fetches the profile and caches it; callers meanwhile share it (`fetching`).
+ * Cached only while the account it is for is still signed in: one that
+ * signed out (or changed) as it was fetched leaves nothing behind (KAN-469).
+ */
+async function refetch(session) {
   const run = fetchAutofillProfile().then(async (fresh) => {
-    await chrome.storage.local.set({ [CACHE_KEY]: fresh });
+    const now = await getSession();
+    if (now && now.user_id === session.user_id) await chrome.storage.local.set({ [CACHE_KEY]: fresh });
     return fresh;
   });
-  fetching = run;
+  const mine = { run, userId: session.user_id };
+  fetching = mine;
   try {
     return await run;
   } finally {
-    if (fetching === run) fetching = null;
+    if (fetching === mine) fetching = null;
   }
 }
 
@@ -855,29 +858,17 @@ export async function saveAutofillAnswers(applicantId, changed) {
 }
 
 /**
- * POST .../essay-answer — a drafted answer to one open-ended application
- * question, grounded in the applicant's experience bank. Never looked up
- * against a stored job posting: `question`/`companyName`/`jobTitle` are
- * read straight off the ATS page's own DOM by content-script.js, since the
- * posting may not be one WorkIt has scraped or a company has posted here.
- * Throws `ApiError` (429 at today's limit, 503 if the model's down, 422 if
- * the draft isn't grounded in the bank) the same as every other call here —
- * background.js's existing message wrapper turns that into `{ ok: false,
- * error, status }` with no new handling needed.
+ * POST .../applications — a job's Auto Apply button: queues the job, and
+ * answers its stage (one with an application keeps its stage; a saved one
+ * is queued). A form the student opened themselves uses it when they ask
+ * their Claude to write its questions (KAN-470): the questions are kept on
+ * an application.
  * @param {string} applicantId
- * @param {{ question: string, companyName: string | null, jobTitle: string | null, maxLength: number | null }} options
+ * @param {string} jobId
+ * @returns {Promise<{ job_id: string, stage: string }>}
  */
-export async function generateEssayAnswer(applicantId, { question, companyName, jobTitle, maxLength }) {
-  return apiFetch(`/applicants/${applicantId}/essay-answer`, {
-    method: "POST",
-    timeoutMs: DRAFT_TIMEOUT_MS,
-    body: JSON.stringify({
-      question,
-      company_name: companyName,
-      job_title: jobTitle,
-      max_length: maxLength,
-    }),
-  });
+export async function queueJob(applicantId, jobId) {
+  return apiFetch(`/applicants/${applicantId}/applications`, { method: "POST", body: JSON.stringify({ job_id: jobId }) });
 }
 
 export { ApiError, me, getResumes as uploadedResumes, getBuiltResumes as builtResumes, uploadedResumeFile, builtResumeFile };

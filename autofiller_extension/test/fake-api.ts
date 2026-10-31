@@ -52,6 +52,8 @@ export class FakeApi {
   readonly pasted: { jobId: string; name: string; answer: string }[] = [];
   /** Set to refuse the next pastes with these reasons, as WorkIt's checks do (422, reasons by question). */
   refusePastes: string[] | null = null;
+  /** Set to refuse the next reports with this status and detail, as the daily cap does (429, KAN-478). */
+  refuseReports: { status: number; detail: string } | null = null;
   /** The problem reports the extension sent (POST /fill-reports, KAN-403), each as its body, in order. */
   readonly reports: unknown[] = [];
   /** The job system requests the popup sent (POST /job-system-requests, KAN-369), each as its body, in order. */
@@ -126,7 +128,7 @@ export class FakeApi {
   /** How many reads of the Claude connection fail (a server error) before one answers. */
   connectorDown = 0;
 
-  /** `profile`: the student's profile fields that differ from STUDENT's. */
+  /** `profile`: the student's profile fields that differ from STUDENT's (another student: their id, name, email). */
   constructor(private profile: Partial<Omit<typeof STUDENT, "answers">> & { answers?: Record<string, string | null> } = {}) {
     this.answers = { ...(profile.answers ?? STUDENT.answers) };
   }
@@ -172,6 +174,7 @@ export class FakeApi {
     }
     if (headers.authorization !== `Bearer ${this.token}`) return { status: 401, json: { detail: "Not signed in" } };
     if (path === "/fill-reports" && method === "POST") {
+      if (this.refuseReports) return { status: this.refuseReports.status, json: { detail: this.refuseReports.detail } };
       this.reports.push(JSON.parse(body.toString()));
       return { status: 201, json: { stored: true } };
     }
@@ -210,9 +213,10 @@ export class FakeApi {
       this.appliedAt.set(id, new Date().toISOString());
       return { json: { applied_at: this.appliedAt.get(id), sent_resume_id: null } };
     }
-    if (path === "/auth/me") return { json: { id: STUDENT.id, email: STUDENT.email, full_name: STUDENT.full_name, account_type: "applicant" } };
+    const account = { ...STUDENT, ...this.profile };
+    if (path === "/auth/me") return { json: { id: account.id, email: account.email, full_name: account.full_name, account_type: "applicant" } };
 
-    const me = `/applicants/${STUDENT.id}`;
+    const me = `/applicants/${account.id}`;
     if (!path.startsWith(`${me}/`)) return { status: 403, json: { detail: "Not yours" } };
     const route = path.slice(me.length);
     if (route === "/profile") {
@@ -281,6 +285,15 @@ export class FakeApi {
       const next = [...this.stages].find(([id, stage]) => open(stage) && !skip.has(id) && (!only.size || only.has(id)));
       if (next) this.events.push(`next:${next[0]}`);
       return { json: next ? this.application(next[0]) : null };
+    }
+    // A job's Auto Apply button (pipeline.py's queue_job): a listed job with no application, or a saved one, is
+    // queued; one at any other stage keeps it. A job WorkIt doesn't list is a 404.
+    if (route === "/applications" && method === "POST") {
+      const { job_id: id } = JSON.parse(body.toString());
+      if (!this.postings.has(id)) return { status: 404, json: { detail: "That job isn't open any more." } };
+      const stage = this.stages.get(id);
+      if (!stage || (stage as string) === "saved") this.stages.set(id, "queued");
+      return { json: { job_id: id, stage: this.stages.get(id) } };
     }
     // The queued applications, newest first, as GET .../applications?stage=queued answers them.
     if (route === "/applications" && method === "GET" && url.searchParams.get("stage") === "queued") {

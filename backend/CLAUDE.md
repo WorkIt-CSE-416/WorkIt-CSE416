@@ -387,7 +387,12 @@ Find files with a directory listing; these are the rules for where code goes.
   **Admins** are the emails or account ids on `WORKIT_ADMINS`
   (`app/config.py`; `deps.get_admin`, 403 to anyone else): there is no
   admin role in the database. They list (`GET /admin/fill-reports`, newest
-  first, `?job_system=&status=`), read, triage (`PATCH`, status new /
+  first, `?job_system=&status=&engine_version=&signature=`), see them
+  grouped (KAN-478: `GET /admin/fill-report-groups`, one line per
+  `signature`, "<job system>:<field kind>:<error>" of the first field that
+  went wrong, else the first marked one as `Marked`, stored on the row by
+  `schemas/fill_reports.py`'s `signature_of`, migration `b2d4f6a8c013`,
+  with its count and engine versions), read, triage (`PATCH`, status new /
   triaged / fixed and a note) and export a report: `GET
   /admin/fill-reports/{id}/brief` is the Markdown fix brief
   (`services/fill_brief.py`, format in `../docs/fill-reports.md`;
@@ -397,7 +402,26 @@ Find files with a directory listing; these are the rules for where code goes.
   -m app.scripts.fill_report <id>` (or `--latest`) writes the brief, the
   fixture, its question set and the report to `fill-reports/` (gitignored)
   and names the engine commit the report's engine version was built from.
-  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`.
+  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`,
+  `tests/test_fill_report_groups.py`.
+  **Admin alerts** (KAN-478, `services/fill_report_alerts.py`, run by
+  `app/scripts/send_fill_report_alerts.py` hourly from the job alerts' EC2
+  crontab, migration `c5e7a9b1d024`): a group (signature) none of whose
+  reports an alert has named (`alerted_at`) emails the emails on
+  `WORKIT_ADMINS` through `services/email.py`, at most once an hour, then
+  stamps its reports. No admin's send accepted (no IAM role, SES sandbox
+  refusing an unverified address) stamps nothing, so the next run retries.
+  The migration stamps the reports already stored. Links use `WEB_URL`.
+  Tests: `tests/test_fill_report_alerts.py`.
+  **Daily caps per account** (KAN-478, `services/daily_caps.py`, table
+  `daily_counts`, migration `bafdca0d9501`): 30 fix reports and 50 job
+  system requests a UTC day (`FILL_REPORT_DAILY_CAP`,
+  `JOB_SYSTEM_REQUEST_DAILY_CAP`); the next is a 429 whose sentence the
+  extension shows. `take_daily` runs after the body is validated (a 422
+  costs nothing) and is one upsert that goes up only under the cap, so
+  concurrent requests can't slip past it. A new capped write adds a
+  `Capped` kind, its `<kind>_daily_cap` setting and its sentence.
+  Tests: `tests/test_daily_caps.py`.
   **Job system requests from the extension's popup** (KAN-369,
   `routers/job_system_requests.py`, table `job_system_requests`, migration
   `d8a3f5c1e7b2`): `POST /job-system-requests {"host"}` stores the host of
@@ -407,6 +431,18 @@ Find files with a directory listing; these are the rules for where code goes.
   needs a sign-in. The team ranks the next job systems with `SELECT host,
   count(*) FROM job_system_requests GROUP BY host`; nothing reads it in the
   app. Tests: `tests/test_job_system_requests.py`.
+  **The uninstall survey** (KAN-471, `routers/uninstall_answers.py`, table
+  `uninstall_answers`, migration `4403f420a47c`): removing the extension
+  opens the webapp's `/uninstalled`, whose one question goes to `POST
+  /uninstall-answers {"reason", "detail"?, "version"?}`. **The one write
+  route with no sign-in**, so it is capped twice: `PER_SENDER_PER_DAY` per
+  sender (the address the webapp's server forwards as `x-workit-client-ip`,
+  counted in memory as a hash and never stored; per process, and a direct
+  caller can set the header) and `PER_DAY` for everyone, counted in the
+  table, the bound that always holds. 429 past either. The row names no
+  account or address; a reason the CHECK doesn't list is 422 first. The
+  team reads `SELECT reason, count(*) FROM uninstall_answers GROUP BY
+  reason`. Tests: `tests/test_uninstall_answers.py`.
   **The per-job-system off switch** (KAN-467, `routers/extension_config.py`,
   table `disabled_job_systems`, migration `a7c3e9d1f467`): when a job
   system's markup changes and fills break, an admin turns it off with `PUT
@@ -1155,26 +1191,12 @@ Find files with a directory listing; these are the rules for where code goes.
   `--dry-run` builds and reports every digest, writing and sending
   nothing. Tests: `tests/test_job_alerts.py`, `tests/test_notifications.py`,
   `tests/test_email.py`.
-- **The autofiller's essay-answer generation** (KAN-164) is
-  `routers/essay_answer.py` (`POST /applicants/{id}/essay-answer`) over
-  `services/essay_answer.py` — the first route `autofiller_extension/`
-  needed, since the extension cannot hold a model key itself. The Chrome
-  extension reads an open-ended application question straight off the ATS
-  page's own DOM (no `job_posting_id`: the posting may not be one WorkIt
-  has scraped or a company has posted) and sends the literal question text,
-  plus whatever company name/job title it could read from the page and the
-  field's own HTML `maxlength`. The model drafts a short paragraph grounded
-  in the whole bank (not a ranked subset — a student's bank is small enough
-  to use whole, unlike Tailor's posting-ranked bullets); a draft that fails
-  `truth_rule.invented` against the whole bank's bullets and skills, or
-  holds an identity placeholder, answers 422 and counts nothing — there is
-  no safe fallback text to show instead, the way the assistant's `none`
-  action has one. Nothing is stored: the question text is never saved
-  (`models/CLAUDE.md`'s "autofill_answers" section explains why, and
-  already anticipates this feature as the reason a company's own question
-  would eventually get its own JSONB-backed slot). One `ESSAY` use per
-  generated answer (cap 5, share 10%: on top of the spec's four shares plus
-  the assistant's, following the same accepted-overshoot precedent).
+- **The autofiller calls no model** (KAN-470): the essay-answer route
+  (KAN-164) is gone. A question that needs writing is the student's own
+  Claude's, through the connector, or their paste on Written Answers, on a
+  batch tab and on a form they opened themselves alike
+  (`auto_apply/written.py`). `tests/test_model_sizes.py` lists every route
+  that asks for a model.
 - **The Applications Tracker's own writes** (KAN-413,
   `../docs/email_tracker.md`) are `routers/tracker.py` over
   `queries/tracker.py`: the stage menu (`PUT .../applications/{job_id}/stage`,
