@@ -1132,26 +1132,12 @@ Find files with a directory listing; these are the rules for where code goes.
   `--dry-run` builds and reports every digest, writing and sending
   nothing. Tests: `tests/test_job_alerts.py`, `tests/test_notifications.py`,
   `tests/test_email.py`.
-- **The autofiller's essay-answer generation** (KAN-164) is
-  `routers/essay_answer.py` (`POST /applicants/{id}/essay-answer`) over
-  `services/essay_answer.py` — the first route `autofiller_extension/`
-  needed, since the extension cannot hold a model key itself. The Chrome
-  extension reads an open-ended application question straight off the ATS
-  page's own DOM (no `job_posting_id`: the posting may not be one WorkIt
-  has scraped or a company has posted) and sends the literal question text,
-  plus whatever company name/job title it could read from the page and the
-  field's own HTML `maxlength`. The model drafts a short paragraph grounded
-  in the whole bank (not a ranked subset — a student's bank is small enough
-  to use whole, unlike Tailor's posting-ranked bullets); a draft that fails
-  `truth_rule.invented` against the whole bank's bullets and skills, or
-  holds an identity placeholder, answers 422 and counts nothing — there is
-  no safe fallback text to show instead, the way the assistant's `none`
-  action has one. Nothing is stored: the question text is never saved
-  (`models/CLAUDE.md`'s "autofill_answers" section explains why, and
-  already anticipates this feature as the reason a company's own question
-  would eventually get its own JSONB-backed slot). One `ESSAY` use per
-  generated answer (cap 5, share 10%: on top of the spec's four shares plus
-  the assistant's, following the same accepted-overshoot precedent).
+- **The autofiller calls no model** (KAN-470): the essay-answer route
+  (KAN-164) is gone. A question that needs writing is the student's own
+  Claude's, through the connector, or their paste on Written Answers, on a
+  batch tab and on a form they opened themselves alike
+  (`auto_apply/written.py`). `tests/test_model_sizes.py` lists every route
+  that asks for a model.
 - **The Applications Tracker's own writes** (KAN-413,
   `../docs/email_tracker.md`) are `routers/tracker.py` over
   `queries/tracker.py`: the stage menu (`PUT .../applications/{job_id}/stage`,
