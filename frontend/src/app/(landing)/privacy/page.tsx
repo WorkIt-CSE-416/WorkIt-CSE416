@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { LegalPage, TeamToDecide } from "../legal-page";
+import { LegalPage } from "../legal-page";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -8,10 +8,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * The public Privacy Policy, a draft for the team to review. Every statement
- * describes what the code does today; a business decision the code cannot
- * answer is a TeamToDecide placeholder, never a guess. The answers filled in
- * on 2026-10-31 are the team's decisions recorded on KAN-462. Change this page
+ * The public Privacy Policy. Every statement describes what the code does
+ * today; the business decisions in it (operator, age, retention, privacy
+ * rights) are the team's, recorded on KAN-462 on 2026-10-31. Change this page
  * together with the behaviour it describes.
  */
 export default function PrivacyPage() {
@@ -188,8 +187,9 @@ export default function PrivacyPage() {
 
       <h2>How Long We Keep Information</h2>
       <p>
-        We keep your information while your account exists. Request logs are deleted within 30 days.{" "}
-        <TeamToDecide>retention period after an account closes, and for backups</TeamToDecide>
+        We keep your information while your account exists. When you close your account, we delete
+        your information within 30 days, and delete it from our backups within a further 30 days.
+        Request logs are deleted within 30 days.
       </p>
 
       <h2>Your Choices</h2>
@@ -203,12 +203,13 @@ export default function PrivacyPage() {
           everything linked to it, for good. For other privacy requests, email{" "}
           <a href="mailto:team@workitjobs.ai">team@workitjobs.ai</a>.
         </li>
-        <li>
-          <TeamToDecide>
-            privacy rights by region (for example GDPR or CCPA) and how to use them
-          </TeamToDecide>
-        </li>
       </ul>
+
+      <h2>Your Privacy Rights</h2>
+      <p>
+        Wherever you live, you can ask to see, correct, export or delete your information. Email{" "}
+        <a href="mailto:team@workitjobs.ai">team@workitjobs.ai</a>, and we answer within 30 days.
+      </p>
 
       <h2>Security</h2>
       <p>
