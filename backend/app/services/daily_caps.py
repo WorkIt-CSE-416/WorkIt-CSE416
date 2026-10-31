@@ -26,12 +26,15 @@ from app.models.daily_counts import Daily_Count
 class Capped(StrEnum):
     FILL_REPORT = "fill_report"
     JOB_SYSTEM_REQUEST = "job_system_request"
+    FILL_EVENT = "fill_event"
 
 
 # What the 429 says, which the extension shows as it is.
 REFUSALS = {
     Capped.FILL_REPORT: "You've sent a lot of reports today. Try again tomorrow.",
     Capped.JOB_SYSTEM_REQUEST: "You've sent a lot of requests today. Try again tomorrow.",
+    # Never shown: the extension drops a refused fill event.
+    Capped.FILL_EVENT: "This account sent its fill numbers for today.",
 }
 
 

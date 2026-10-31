@@ -1,6 +1,6 @@
 """
 fill_events' queries, behind routers/fill_events.py (KAN-476): store one
-fill's numbers within an account's daily cap, and the admins' per-system,
+fill's numbers, and the admins' per-system,
 per-day rates. Events past 90 days go in the daily purge
 (services/retention.py RETENTION, KAN-482).
 """
@@ -13,20 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fill_events import Fill_Event
 
-# The most events one account sends in 24 hours: five batch tabs filling all day stay far below it.
-DAILY_CAP = 500
 
-
-async def store_event(db: AsyncSession, event: dict, account_id: uuid.UUID) -> uuid.UUID | None:
-    '''adds the event from this account and commits, answering its id; None (nothing stored) past DAILY_CAP'''
-    now = datetime.datetime.now(datetime.UTC)
-    sent = await db.scalar(
-        select(func.count()).select_from(Fill_Event)
-        .where(Fill_Event.account_id == account_id, Fill_Event.created_at > now - datetime.timedelta(days=1))
-    )
-    if (sent or 0) >= DAILY_CAP:
-        return None
-    row = Fill_Event(**event, account_id=account_id)
+async def store_event(db: AsyncSession, event: dict) -> uuid.UUID:
+    '''adds the event and commits (with the route's daily count, services/daily_caps.py), answering its id'''
+    row = Fill_Event(**event)
     db.add(row)
     await db.commit()
     return row.id

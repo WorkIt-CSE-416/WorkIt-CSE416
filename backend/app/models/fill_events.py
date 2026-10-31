@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, func, text
+from sqlalchemy import DateTime, Index, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,24 +16,19 @@ class Fill_Event(Base):
     versions, how many fields the fill had and how many were filled, guessed,
     left needing the student and failed, the failed fields' error names with
     a count each, and how long the fill took. Never a field's value, an
-    answer or the posting's link. It names its sender only to cap how many a
-    day one account sends (it goes with the account). Kept 90 days
+    answer, the posting's link or the account (the daily cap per account
+    counts in daily_counts, services/daily_caps.py). Kept 90 days
     (services/retention.py RETENTION, KAN-482's daily purge). Shape checked
     in app/schemas/fill_events.py.
     """
 
     __tablename__ = "fill_events"
-    __table_args__ = (
-        Index("ix_fill_events_created_at", "created_at"),
-        Index("ix_fill_events_account_id_created_at", "account_id", "created_at"),
-    )
+    __table_args__ = (Index("ix_fill_events_created_at", "created_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())
-    account_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("auth.users.id", ondelete="CASCADE", name="fill_events_account_id_fkey"))
     job_system: Mapped[str] = mapped_column(String(24))
     engine_version: Mapped[str] = mapped_column(String(64))
     extension_version: Mapped[str] = mapped_column(String(32))

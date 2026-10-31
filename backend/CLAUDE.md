@@ -414,9 +414,10 @@ Find files with a directory listing; these are the rules for where code goes.
   The migration stamps the reports already stored. Links use `WEB_URL`.
   Tests: `tests/test_fill_report_alerts.py`.
   **Daily caps per account** (KAN-478, `services/daily_caps.py`, table
-  `daily_counts`, migration `bafdca0d9501`): 30 fix reports and 50 job
-  system requests a UTC day (`FILL_REPORT_DAILY_CAP`,
-  `JOB_SYSTEM_REQUEST_DAILY_CAP`); the next is a 429 whose sentence the
+  `daily_counts`, migration `bafdca0d9501`): 30 fix reports, 50 job
+  system requests and 2,000 fill events (KAN-476) a UTC day
+  (`FILL_REPORT_DAILY_CAP`, `JOB_SYSTEM_REQUEST_DAILY_CAP`,
+  `FILL_EVENT_DAILY_CAP`); the next is a 429 whose sentence the
   extension shows. `take_daily` runs after the body is validated (a 422
   costs nothing) and is one upsert that goes up only under the cap, so
   concurrent requests can't slip past it. A new capped write adds a
@@ -430,8 +431,9 @@ Find files with a directory listing; these are the rules for where code goes.
   `guessed`, `needs_you`, `failed`), the error names with a count each
   (fix reports' `ErrorName`) and `duration_ms`. **Never a value, an answer
   or a link**: every part is a pattern, a count or a listed name, and any
-  other key is 422. The row names its sender only for the cap
-  (`DAILY_CAP` a rolling 24 hours, 429 past it) and goes with the account.
+  other key is 422. The row names no account; each account sends at most
+  `FILL_EVENT_DAILY_CAP` (2,000) a UTC day through `take_daily` (the
+  `fill_event` kind; 429 past it, which the extension drops).
   It is on for every student; the extension's settings have the opt-out.
   **Kept 90 days**: KAN-482's daily purge deletes older rows
   (`services/retention.py` RETENTION's `fill_events` rule). Admins read

@@ -2,7 +2,7 @@
 Fill numbers (KAN-476, decided in KAN-454): after every fill the extension
 sends one event with the job system, the engine and extension versions, the
 field counts, the error names and how long it took; never a value. The API
-stores it with its sender, caps each account's events a day, the daily
+stores it naming no account, caps each account's events a day, the daily
 purge deletes events past 90 days (KAN-482), and gives admins per-system, per-day rates at
 GET /admin/fill-health.
 """
@@ -18,7 +18,6 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.deps import get_current_account
 from app.main import app
-from app.queries import fill_events as queries
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.services import retention
 
@@ -77,17 +76,17 @@ async def _count(database) -> int:
         return (await session.execute(text("SELECT count(*) FROM fill_events"))).scalar_one()
 
 
-async def _seed(database, account_id: uuid.UUID, at: datetime.datetime, **changes) -> None:
+async def _seed(database, at: datetime.datetime, **changes) -> None:
     event = {**EVENT, **changes}
     async with database() as session:
         await session.execute(
             text(
-                "INSERT INTO fill_events (account_id, created_at, job_system, engine_version, extension_version, mode,"
-                " fields, filled, guessed, needs_you, failed, errors, duration_ms) VALUES (:account_id, :at, :job_system,"
+                "INSERT INTO fill_events (created_at, job_system, engine_version, extension_version, mode,"
+                " fields, filled, guessed, needs_you, failed, errors, duration_ms) VALUES (:at, :job_system,"
                 " :engine_version, :extension_version, :mode, :fields, :filled, :guessed, :needs_you, :failed,"
                 " CAST(:errors AS jsonb), :duration_ms)"
             ),
-            {**event, "account_id": account_id, "at": at, "errors": json.dumps(event["errors"])},
+            {**event, "at": at, "errors": json.dumps(event["errors"])},
         )
         await session.commit()
 
@@ -111,7 +110,7 @@ async def test_an_event_is_stored_and_one_carrying_anything_else_is_refused(acco
 
 
 async def test_an_account_sends_at_most_the_daily_cap(accounts, database, monkeypatch):
-    monkeypatch.setattr(queries, "DAILY_CAP", 2)
+    monkeypatch.setattr(get_settings(), "fill_event_daily_cap", 2)
     assert [(await _send(EVENT)).status_code for _ in range(3)] == [201, 201, 429]
     assert await _count(database) == 2
     # Another account has its own cap.
@@ -120,10 +119,9 @@ async def test_an_account_sends_at_most_the_daily_cap(accounts, database, monkey
 
 
 async def test_events_past_the_retention_period_are_deleted(accounts, database):
-    student = accounts(STUDENT)
     now = datetime.datetime.now(datetime.UTC)
-    await _seed(database, student, now - datetime.timedelta(days=91))
-    await _seed(database, student, now - datetime.timedelta(days=89))
+    await _seed(database, now - datetime.timedelta(days=91))
+    await _seed(database, now - datetime.timedelta(days=89))
     # KAN-482's daily purge, whose RETENTION names this table.
     async with database() as session:
         counts = await retention.purge(session, now=now)
@@ -133,14 +131,13 @@ async def test_events_past_the_retention_period_are_deleted(accounts, database):
 
 
 async def test_fill_health_is_per_system_per_day_for_admins_only(accounts, database):
-    student = accounts(STUDENT)
     day = datetime.datetime.now(datetime.UTC).replace(hour=12, minute=0, second=0, microsecond=0)
     # Greenhouse today: three fills, two with no failed field.
-    await _seed(database, student, day, failed=0, errors={}, fields=10, needs_you=1)
-    await _seed(database, student, day, failed=0, errors={}, fields=10, needs_you=0)
-    await _seed(database, student, day, failed=2, errors={"Readback": 2, "FillError": 1}, fields=10, needs_you=3)
+    await _seed(database, day, failed=0, errors={}, fields=10, needs_you=1)
+    await _seed(database, day, failed=0, errors={}, fields=10, needs_you=0)
+    await _seed(database, day, failed=2, errors={"Readback": 2, "FillError": 1}, fields=10, needs_you=3)
     # Workday yesterday, on another engine version: every fill failed somewhere.
-    await _seed(database, student, day - datetime.timedelta(days=1), job_system="workday", engine_version="v0.3.1", failed=1, errors={"FillError": 1})
+    await _seed(database, day - datetime.timedelta(days=1), job_system="workday", engine_version="v0.3.1", failed=1, errors={"FillError": 1})
 
     async with _api() as api:
         assert (await api.get("/admin/fill-health")).status_code == 403
