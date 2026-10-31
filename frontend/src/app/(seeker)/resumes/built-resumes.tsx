@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowsDownUpIcon, FileTextIcon, TagIcon } from "@phosphor-icons/react/ssr";
-import { startTransition, useOptimistic, useState } from "react";
+import { startTransition, useEffect, useEffectEvent, useOptimistic, useState } from "react";
 
 import { FacetLabel, facetClasses, FieldFacet, type FacetOption } from "@/components/field-facet";
 import {
@@ -25,6 +25,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SearchField } from "@/components/ui/search-field";
 import { generateResume, listBuiltResumes, type BuiltResume } from "@/lib/built-resume-actions";
 import { listResumes, type ResumeItem } from "@/lib/resume-actions";
+import { takeResumesStale } from "@/lib/resumes-stale";
 
 import { BuiltResumeRow } from "./built-resume-row";
 import { DuplicateResumeDialog } from "./duplicate-resume-dialog";
@@ -77,6 +78,9 @@ type Row =
       primary: boolean;
       built: BuiltResume;
     };
+
+const readLists = () => Promise.all([listBuiltResumes(), listResumes()]);
+type Lists = Awaited<ReturnType<typeof readLists>>;
 
 /**
  * The Resumes view of Resumes & Experiences: its header, then one list of
@@ -170,11 +174,21 @@ export function BuiltResumes({
 
   // Both lists, every time: one primary star spans them.
   async function reload() {
-    const [built, uploads] = await Promise.all([listBuiltResumes(), listResumes()]);
+    show(await readLists());
+  }
+  function show([built, uploads]: Lists) {
     if (built.data) setResumes(built.data);
     if (!uploads.error) setUploaded(uploads.resumes);
     setError(built.error ?? uploads.error);
   }
+
+  // A Back here shows the router's copy of the list, from before the editor
+  // or Tailor changed a resume; those mark it stale rather than clearing the
+  // copy (lib/resumes-stale.ts), so the list is read again once.
+  const showRead = useEffectEvent(show);
+  useEffect(() => {
+    if (takeResumesStale()) void readLists().then(showRead);
+  }, []);
 
   // A deleted resume leaves the list first and the delete runs behind it
   // (KAN-388). A failed delete ends the transition with the row still in
