@@ -8,15 +8,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { STUDENT } from "./extension";
 import { SavedForms } from "./fake-job-systems";
-import { loadExtension, menuItem, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { loadExtension, menuItem, signIn, tokenFor, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 const COOKIE = "sb-zhdrvdrojipkluhzgsea-auth-token";
 const pdf = (words: string) => Buffer.from(`%PDF-1.4\n% ${words}\n%%EOF\n`).toString("base64");
 const BASE = { id: "built-base", name: "Base Resume", job_posting_id: null, pdf: pdf("base resume of the first student") };
-
-/** An access token for `sub`, shaped as Supabase's (its id is all the extension reads unverified). */
-const tokenFor = (sub: string) => `header.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.signature`;
 
 let loaded: Loaded;
 test.afterEach(() => loaded?.close());

@@ -3,7 +3,7 @@
 // data, extension.ts's STUDENT) and an auto-apply queue held in memory, with
 // the stage rules of backend/app/auto_apply/pipeline.py.
 import { STUDENT } from "./extension";
-import type { Handler } from "./loaded-extension";
+import { TEST_TOKEN, type Handler } from "./loaded-extension";
 
 export type Stage = "queued" | "needs_you" | "skipped" | "applied";
 /** `form_url`: the employer's form the API names (KAN-376); its apply_url when left out, as for a hiring system's posting. */
@@ -193,7 +193,7 @@ export class FakeApi {
   }
 
   /** The access token the API takes (signIn's): change it to expire the one the student signed in with. */
-  token = "test-access-token";
+  token = TEST_TOKEN;
 
   readonly handler: Handler = ({ url, method, headers, body }) => {
     if (url.host !== "localhost:8000") return undefined;
