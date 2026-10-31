@@ -16,15 +16,15 @@
 // CORS on the FastAPI app for this extension's origin is the fallback.
 
 import { DEV_API_URL, PROD_SITES } from "../shared/config.js";
+import { PROFILE_CACHE_KEY as CACHE_KEY } from "./account-data.js";
 import { getSession, refreshSession } from "./auth.js";
 
-const CACHE_KEY = "workit_autofill_profile";
 // Re-fetch after this long even on a cache hit, so a profile edit made in
 // the webapp shows up here without an explicit "refresh" click.
 const CACHE_TTL_MS = 10 * 60 * 1000;
 // A profile older than CACHE_TTL_MS but younger than this is used while a fresh one is fetched.
 const STALE_OK_MS = 24 * 60 * 60 * 1000;
-/** The profile fetch under way, if any (getAutofillProfile): its callers share it. */
+/** The profile fetch under way, if any, and the account it is for (getAutofillProfile): that account's callers share it. */
 let fetching = null;
 
 /** Resolved once per service-worker lifetime, not on every call. */
@@ -527,27 +527,33 @@ export async function getAutofillProfile({ force = false } = {}) {
   // Past its ten minutes but under a day old: used at once, and fetched again behind (a cold API
   // took 4-9 s to answer, live), so the next call has the fresh one. Older ones are waited for.
   if (!force && age < STALE_OK_MS) {
-    if (!fetching) refetch().catch((error) => console.warn("[profile] not fetched again:", error.message));
+    if (!fetching) refetch(session).catch((error) => console.warn("[profile] not fetched again:", error.message));
     return cached;
   }
 
-  // A fetch already under way (write early's, another tab's Plan) is waited for, not asked again;
-  // a forced one starts afresh, since it may follow an edit the one under way began before.
-  if (!force && fetching) return fetching;
-  return refetch();
+  // A fetch already under way (write early's, another tab's Plan) is waited for, not asked again, when it is
+  // this account's; a forced one starts afresh, since it may follow an edit the one under way began before.
+  if (!force && fetching && fetching.userId === session.user_id) return fetching.run;
+  return refetch(session);
 }
 
-/** Fetches the profile and caches it; callers meanwhile share it (`fetching`). */
-async function refetch() {
+/**
+ * Fetches the profile and caches it; callers meanwhile share it (`fetching`).
+ * Cached only while the account it is for is still signed in: one that
+ * signed out (or changed) as it was fetched leaves nothing behind (KAN-469).
+ */
+async function refetch(session) {
   const run = fetchAutofillProfile().then(async (fresh) => {
-    await chrome.storage.local.set({ [CACHE_KEY]: fresh });
+    const now = await getSession();
+    if (now && now.user_id === session.user_id) await chrome.storage.local.set({ [CACHE_KEY]: fresh });
     return fresh;
   });
-  fetching = run;
+  const mine = { run, userId: session.user_id };
+  fetching = mine;
   try {
     return await run;
   } finally {
-    if (fetching === run) fetching = null;
+    if (fetching === mine) fetching = null;
   }
 }
 

@@ -22,7 +22,7 @@ window.WIA = window.WIA || {};
   window.WIA.panelSettings = true;
   const panel = window.WIA.panel;
   if (!panel) return;
-  const { send } = window.WIA.ui;
+  const { send, trusted } = window.WIA.ui;
 
   const CSS = `
     [data-slot="settings"] .group { padding: 10px 0; border-top: 1px solid var(--color-border-subtle); }
@@ -71,14 +71,14 @@ window.WIA = window.WIA || {};
       <button type="button" data-back>Back</button>
       `,
     );
-    view.querySelector("[data-back]").addEventListener("click", () => panel.showSettings(false));
+    view.querySelector("[data-back]").addEventListener("click", trusted(() => panel.showSettings(false)));
     // KAN-403's card, the same as the header's ⚑ opens.
-    view.querySelector("[data-report-open]").addEventListener("click", () => window.WIA.reportCard?.open());
-    view.querySelector("[data-signup]").addEventListener("click", () => send({ type: "workday/signup-open" }));
+    view.querySelector("[data-report-open]").addEventListener("click", trusted(() => window.WIA.reportCard?.open()));
+    view.querySelector("[data-signup]").addEventListener("click", trusted(() => send({ type: "workday/signup-open" })));
     view.querySelector("[data-auto-open]").addEventListener("change", (event) => {
       void send({ type: "settings/auto-open", on: event.target.checked });
     });
-    view.querySelector("[data-claude]").addEventListener("click", window.WIA.ui.trusted(pressClaude));
+    view.querySelector("[data-claude]").addEventListener("click", trusted(pressClaude));
 
     // Read again each time the ⋯ menu's Settings opens the view (panel.onView).
     panel.onView((name, shown) => {
