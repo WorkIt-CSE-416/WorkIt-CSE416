@@ -49,9 +49,10 @@ window.WIA = window.WIA || {};
    * @param {import("../shared/types.js").Source} [source]  where its planned answer comes from
    * @param {"todo" | "done"} [note]  the row is the panel's message, not a field (content-script.js's note):
    *   "todo" for something the student must do, "done" for news that asks nothing of them
+   * @param {string} [off]  the Fields to autofill category the student switched off (KAN-480): left blank for them
    */
-  function register(key, label, required, source, note) {
-    results.set(key, { key, label, required, status: "pending", ...(source ? { source } : {}), ...(note ? { note } : {}) });
+  function register(key, label, required, source, note, off) {
+    results.set(key, { key, label, required, status: "pending", ...(source ? { source } : {}), ...(note ? { note } : {}), ...(off ? { off } : {}) });
     notify();
   }
 
@@ -165,13 +166,15 @@ window.WIA = window.WIA || {};
    * student ("todo"), or a field the page shows now that failed, that the
    * review flagged, or that is required and still empty after the fill (a
    * question for a written answer they haven't asked their Claude for
-   * counts; one waiting on their Claude does not, see waitingOnClaude). A
-   * required field "skipped" (the form doesn't ask it) and a guess are not.
+   * counts; one waiting on their Claude does not, see waitingOnClaude), or,
+   * required or not, still empty because its Fields to autofill category is
+   * off (`off`, KAN-480). A required field "skipped" (the form doesn't ask
+   * it) and a guess are not.
    * @param {import("../shared/types.js").FieldResult} row
    */
   function needsYou(row) {
     if (row.note) return row.note === "todo";
-    if (!(row.status === "failed" || row.flag || row.required)) return false;
+    if (!(row.status === "failed" || row.flag || row.required || row.off)) return false;
     if (!shown(row)) return false;
     if (row.status === "failed" || row.flag) return true;
     if (row.status === "needs_generation") return !row.claude;

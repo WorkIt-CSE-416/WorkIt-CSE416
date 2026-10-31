@@ -604,6 +604,11 @@ export async function sendFillReport(report) {
   return apiFetch("/fill-reports", { method: "POST", body: JSON.stringify(report) });
 }
 
+/** POST /fill-events — one fill's numbers (KAN-476), as background/fill-events.js builds them. */
+export async function sendFillEvent(event) {
+  return apiFetch("/fill-events", { method: "POST", body: JSON.stringify(event) });
+}
+
 /**
  * PUT .../applications/{job_id}/questions — the questions a batch tab's form
  * needs written (KAN-377), for the student's own Claude to answer through

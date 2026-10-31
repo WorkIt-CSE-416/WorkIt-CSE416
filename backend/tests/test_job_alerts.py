@@ -30,6 +30,8 @@ class FakeDB:
     def __init__(self):
         self.added = []
         self.commit = AsyncMock()
+        # No address is suppressed (email_suppressions is looked up by key).
+        self.get = AsyncMock(return_value=None)
 
     def add(self, row):
         self.added.append(row)
@@ -113,3 +115,27 @@ def test_send_job_alert_keeps_the_notification_when_the_email_fails(monkeypatch)
     assert result is True
     assert len(db.added) == 1
     db.commit.assert_awaited_once()
+
+
+def test_digest_links_point_at_workitjobs_ai_by_default(monkeypatch):
+    # KAN-483: every email link uses workitjobs.ai, never the old Vercel host.
+    monkeypatch.delenv("WEB_URL", raising=False)
+    from app.config import Settings
+
+    html = job_alerts._digest_html([job("7", GH + "7")], Settings(_env_file=None).web_url)
+
+    assert 'href="https://workitjobs.ai/jobs/7"' in html
+    assert "vercel.app" not in html
+
+
+def test_send_job_alert_emails_no_suppressed_address(monkeypatch):
+    # KAN-483: an address that bounced or complained gets the bell, never the email.
+    monkeypatch.setattr(job_alerts, "fetch_recommended", fake_recommended([job("1", GH + "1")], []))
+    monkeypatch.setattr(job_alerts, "send_email", AsyncMock(return_value=True))
+    db = FakeDB()
+    db.get = AsyncMock(return_value=object())
+
+    assert asyncio.run(job_alerts.send_job_alert(db, ACCOUNT)) is True
+
+    assert len(db.added) == 1
+    job_alerts.send_email.assert_not_called()
