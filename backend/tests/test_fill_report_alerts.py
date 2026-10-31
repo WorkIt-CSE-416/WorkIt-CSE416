@@ -93,3 +93,19 @@ async def test_a_refused_send_is_tried_again_next_run(database, mailbox):
     sent.clear()
     assert await _alert(database, NOW + datetime.timedelta(minutes=5)) == 1
     assert len(sent) == 2
+
+
+def test_alert_links_point_at_workitjobs_ai_by_default(monkeypatch):
+    # KAN-483: no email link uses the old Vercel host.
+    from types import SimpleNamespace
+
+    from app.config import Settings
+
+    monkeypatch.delenv("WEB_URL", raising=False)
+    monkeypatch.setattr(fill_report_alerts, "get_settings", lambda: Settings(_env_file=None))
+    group = SimpleNamespace(signature="greenhouse:text:missing", job_system="greenhouse", count=2)
+
+    _, body = fill_report_alerts._email([group])
+
+    assert 'href="https://workitjobs.ai/admin/fill-reports?signature=' in body
+    assert "vercel.app" not in body
