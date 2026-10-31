@@ -2111,6 +2111,15 @@ rendered: it is an employer page's markup). `lib/fill-reports.ts` is the
 pure half (shapes, the list's query, `node --test`), `fill-report-queries.ts`
 the server-only reads, `fill-report-actions.ts` the triage.
 
+`/admin/fill-health` (fill numbers, KAN-476) is the same kind of page: per
+job system per day (UTC), the extension's fills, the share with no failed
+field, the needs-you rate and the top error names, filtered by days and
+engine version, from `GET /admin/fill-health` under the same
+`WORKIT_ADMINS` gate (403 → the 404). A job system that breaks shows as its
+No Failed Field share dropping. `lib/fill-health.ts` is its pure half (the
+query, the percent; `node --test`); its read is `getFillHealth` in
+`fill-report-queries.ts`.
+
 ## Screens, design and motion
 
 - **Screens**: before changing how a screen behaves (Jobs page and filters, job
