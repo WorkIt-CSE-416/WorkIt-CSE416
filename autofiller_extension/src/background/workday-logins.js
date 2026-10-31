@@ -94,6 +94,19 @@ export function workdayLogin(tenant, email, { create }) {
   });
 }
 
+/**
+ * The Options page's Remove (src/options/): drops one tenant's saved login.
+ * Through here, not written by the page, so it never races a Create Account
+ * saving another tenant's login (serially). The message names only the tenant.
+ */
+export function removeLogin(tenant) {
+  return changeLogins((logins) => {
+    if (!logins[tenant]) return;
+    delete logins[tenant];
+    return { save: true };
+  });
+}
+
 /** A tenant's login copied from the student's Workday sign-up. */
 function fromSignup(signup) {
   return { email: signup.email, password: signup.password, signup: true };

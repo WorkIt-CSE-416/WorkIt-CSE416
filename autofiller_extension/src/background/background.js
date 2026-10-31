@@ -28,7 +28,7 @@ import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof
 import { watchEmbeddedForms } from "./embedded-forms.js";
 import { injectFill } from "../shared/content-scripts.js";
 import { forgetShownWorkableDraft } from "./tab-load.js";
-import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
+import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, removeLogin, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
 import { popupHome, showNextJob } from "./popup-home.js";
 import { followTrackedTab, forgetTracked, isTracked, markTracked, track, trackState } from "./track.js";
@@ -440,6 +440,9 @@ async function handleMessage(message, sender) {
       return { sites: await allowedSites() };
     case "sites/remove":
       return removeSite(message.origin);
+    // The Options page's Remove on one company's saved Workday login (src/options/). Only that page may.
+    case "workday/remove-login":
+      return fromOptions(sender) ? removeLogin(message.tenant) : { error: "not_options" };
     case "panel/fill":
       await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
       return {};
@@ -745,6 +748,9 @@ const RUNNER_MESSAGES = {
 
 /** Whether a message comes from the extension's own popup page (its URL), not a content script on a page. */
 const fromPopup = (sender) => sender.id === chrome.runtime.id && (sender.url ?? "").startsWith(chrome.runtime.getURL("src/popup/"));
+
+/** Whether a message comes from the extension's own options page (its URL), not a content script on a page. */
+const fromOptions = (sender) => sender.id === chrome.runtime.id && (sender.url ?? "").startsWith(chrome.runtime.getURL("src/options/"));
 
 /** Whether the student pinned the extension to the toolbar; null where Chrome can't say. */
 async function pinned() {

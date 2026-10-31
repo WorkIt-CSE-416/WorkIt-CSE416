@@ -4,6 +4,7 @@
 // the loaded extension, on the fake Workday tenants (fake-job-systems.ts).
 // Made-up credentials only. The password must never reach the WorkIt API:
 // every request to it is recorded and searched for the password.
+import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays } from "./fake-job-systems";
@@ -79,6 +80,51 @@ test("the sign-up page's checklist gates Save; Save and Clear keep the login in 
   await expect.poll(stored).toBeNull();
   expect(api.sent.length).toBeGreaterThan(0);
   expect(api.sent.filter((s) => s.includes(PASSWORD))).toEqual([]);
+});
+
+test("Saved Company Logins lists each company's login with Copy, Remove and Export, all from this browser", async () => {
+  test.setTimeout(60_000);
+  const api = recordApi();
+  loaded = await loadExtension([api.handler, new FakeApi().handler, webapp], { focused: true });
+  await signIn(loaded.context);
+  // Made up: one company's login copied from the sign-up, one generated before KAN-479 (it exists nowhere else).
+  const older = "Older-Generated-Pass-8#q";
+  await loaded.worker.evaluate(([password, older]) => chrome.storage.local.set({ workday_logins: {
+    "caci.wd1.myworkdayjobs.com": { email: "made.up.student@example.org", password, signup: true, signedIn: true },
+    "wd5.myworkdaysite.com/xcel": { email: "made.up.student@example.org", password: older },
+  } }), [PASSWORD, older]);
+  const page = await loaded.context.newPage();
+  await page.goto(SIGNUP_PAGE);
+  await expect(page.locator("text=Removing the extension deletes them")).toBeVisible();
+  const row = (tenant: string) => page.locator(`#logins li[data-tenant="${tenant}"]`);
+  await expect(page.locator("#logins li")).toHaveCount(2, { timeout: 15_000 });
+  await expect(row("caci.wd1.myworkdayjobs.com")).toContainText("made.up.student@example.org");
+  // No password shows on the page.
+  expect(await page.locator("body").innerText()).not.toContain(PASSWORD);
+
+  // What Copy writes to the clipboard, kept by the page itself (a test can't be granted clipboard reading on an extension page).
+  await page.evaluate(() => {
+    const write = navigator.clipboard.writeText.bind(navigator.clipboard);
+    navigator.clipboard.writeText = (text: string) => ((window as any).__copied = text, write(text));
+  });
+  await row("wd5.myworkdaysite.com/xcel").getByRole("button", { name: /Copy/ }).click();
+  await expect(page.locator("#logins-said")).toContainText("Copied");
+  expect(await page.evaluate(() => (window as any).__copied)).toBe(older);
+
+  const [download] = await Promise.all([page.waitForEvent("download"), page.locator("#logins-export").click()]);
+  const csv = readFileSync(await download.path(), "utf8");
+  expect(csv.split("\r\n")).toEqual([
+    "name,url,username,password",
+    `"Workday (caci.wd1.myworkdayjobs.com)","https://caci.wd1.myworkdayjobs.com/","made.up.student@example.org","${PASSWORD}"`,
+    `"Workday (wd5.myworkdaysite.com/xcel)","https://wd5.myworkdaysite.com/xcel/","made.up.student@example.org","${older}"`,
+    "",
+  ]);
+
+  await row("caci.wd1.myworkdayjobs.com").getByRole("button", { name: /Remove/ }).click();
+  await expect(page.locator("#logins li")).toHaveCount(1);
+  const saved = await loaded.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins);
+  expect(Object.keys(saved)).toEqual(["wd5.myworkdaysite.com/xcel"]);
+  expect(api.sent.filter((s) => s.includes(PASSWORD) || s.includes(older))).toEqual([]);
 });
 
 test("a saved sign-up is used for Create Account and Sign In at every company, and never sent to WorkIt", async () => {
