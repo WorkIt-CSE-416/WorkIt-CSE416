@@ -168,3 +168,36 @@ async def test_a_dry_run_counts_what_it_would_delete_and_deletes_nothing(databas
     assert counts["fill_reports"] == 1
     async with database() as session:
         assert await _notes(session) == {"old", "recent"}
+
+
+async def test_the_job_logs_a_count_per_table_and_never_a_row(database, caplog):
+    from app.scripts.purge_old_data import run
+
+    year = datetime.timedelta(days=365)
+    async with database() as session:
+        await _fill_report(session, "secret note", NOW - year - MINUTE)
+        await session.commit()
+
+    with caplog.at_level("INFO"):
+        await run(dry_run=False, now=NOW)
+
+    assert "fill_reports: 1 deleted" in caplog.text
+    assert "ai_usage_counters: 0 deleted" in caplog.text
+    assert "notifications: 0 deleted" in caplog.text
+    assert "secret note" not in caplog.text
+
+
+async def test_a_dry_run_of_the_job_says_would_delete(database, caplog):
+    from app.scripts.purge_old_data import run
+
+    year = datetime.timedelta(days=365)
+    async with database() as session:
+        await _fill_report(session, "old", NOW - year - MINUTE)
+        await session.commit()
+
+    with caplog.at_level("INFO"):
+        await run(dry_run=True, now=NOW)
+
+    assert "[dry run] fill_reports: 1 would be deleted" in caplog.text
+    async with database() as session:
+        assert await _notes(session) == {"old"}
