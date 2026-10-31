@@ -6,7 +6,7 @@
 // convenience layer. There's no session to own anymore (auth.js's own
 // comment explains why) — just the cache.
 
-import { getSession } from "./auth.js";
+import { getSession, watchSessionCookie } from "./auth.js";
 import {
   answerBank, answerFlag, anyFormAnswerBank, dropOwnAnswer, getAutofillProfile, warmProfile, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
   writingSamples, writtenAnswers,
@@ -559,6 +559,8 @@ watchEmbeddedForms();
 // The employer sites the student allowed keep their scripts; one whose permission went is dropped (site-access.js).
 syncSites().catch((error) => console.warn("[sites] the allowed sites weren't synced:", error.message));
 chrome.permissions.onRemoved.addListener(() => void syncSites().catch(() => {}));
+// A sign-out clears the account's data (auth.js, KAN-469).
+watchSessionCookie();
 watchWorkdaySends();
 
 // A batch tab that moves to a job system's page for a sent application

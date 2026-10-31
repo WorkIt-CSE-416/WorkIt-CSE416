@@ -97,8 +97,14 @@ async function askWebapp(origin) {
   return readWebappSession();
 }
 
-// The webapp's session cookie (or one of its chunks) changed: a sign-out clears the account's data now,
-// not at the next call that reads the session.
-chrome.cookies.onChanged.addListener(({ cookie }) => {
-  if (cookie.name.startsWith(SUPABASE_SESSION_COOKIE_KEY)) getSession().catch(() => {});
-});
+/**
+ * Watches the webapp's session cookie (and its chunks): a sign-out clears the
+ * account's data then, not at the next call that reads the session. Called
+ * by background.js, so importing this file (tests do, outside Chrome)
+ * registers nothing.
+ */
+export function watchSessionCookie() {
+  chrome.cookies.onChanged.addListener(({ cookie }) => {
+    if (cookie.name.startsWith(SUPABASE_SESSION_COOKIE_KEY)) getSession().catch(() => {});
+  });
+}
