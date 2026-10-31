@@ -9,7 +9,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays } from "./fake-job-systems";
 import { CONTENT_SCRIPT_FILES, ENGINE_FILES } from "../src/shared/content-scripts.js";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded, menuItem, saveWorkdaySignup, WORKDAY_SIGNUP } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded, menuItem, saveWorkdaySignup, WORKDAY_SIGNUP, type Handler } from "./loaded-extension";
 
 let loaded: Loaded | undefined;
 test.afterEach(async () => {
@@ -32,8 +32,12 @@ async function start(workdays: FakeWorkdays, ...jobs: { id: string; apply_url: s
 }
 
 async function startWith(workdays: FakeWorkdays, signup: boolean, ...jobs: { id: string; apply_url: string }[]): Promise<(url: string) => Promise<Page>> {
+  return startWithAll(workdays, signup, [], ...jobs);
+}
+
+async function startWithAll(workdays: FakeWorkdays, signup: boolean, handlers: Handler[], ...jobs: { id: string; apply_url: string }[]): Promise<(url: string) => Promise<Page>> {
   const api = new FakeApi().queue(...jobs);
-  loaded = await loadExtension([api.handler, webapp, workdays.handler]);
+  loaded = await loadExtension([...handlers, api.handler, webapp, workdays.handler]);
   await signIn(loaded.context);
   if (signup) await saveWorkdaySignup(loaded);
   const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
@@ -150,23 +154,68 @@ test("two companies' Create Account at once each keep the login their account wa
   }
 });
 
-test("with no Workday password set, nothing is pressed and none is made up; once the student sets one, the account is made with it", async () => {
+test("fresh profile: the consent card asks for the one Workday password, nothing is pressed until it's saved, and it goes nowhere else", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  // Every request to the WorkIt API, every log line, and every message a page sends the worker: none may hold the password.
+  const seen: string[] = [];
+  const api: Handler = ({ url, method, headers, body }) => {
+    if (url.host === "localhost:8000") seen.push(`${method} ${url.href} ${JSON.stringify(headers)} ${body.toString("utf8")}`);
+    return undefined;
+  };
+  const page = await startWithAll(workdays, false, [api], { id: "wd-0", apply_url: workdays.signInUrl(0) });
+  loaded!.context.on("console", (m) => seen.push(m.text()));
+  loaded!.worker.on("console", (m) => seen.push(m.text()));
+  await loaded!.worker.evaluate(() => {
+    (globalThis as any).__messages = [];
+    chrome.runtime.onMessage.addListener((m) => void (globalThis as any).__messages.push(JSON.stringify(m)));
+  });
+  const caci = await page(workdays.signInUrl(0));
+  const card = overlay(caci).locator(".moment.workday-accounts");
+  await expect(card).toContainText("ticks the box that you agree to the company's terms", { timeout: 30_000 });
+  await expect(card).toContainText("Removing the extension deletes the passwords");
+  await expect(card.locator("[data-email]")).toHaveValue("test.person@example.com");
+  const save = card.locator("[data-allow]");
+  await expect(save).toHaveText("Save and Sign Me In");
+  await expect(save).toBeDisabled();
+
+  // Nothing pressed, no password made up, while the card waits.
+  await caci.waitForTimeout(3000);
+  expect(await box(caci, "password").inputValue()).toBe("");
+  expect(workdays.signIns).toEqual([]);
+  expect(await loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins ?? {})).toEqual({});
+  await expect(overlay(caci).locator(".row").filter({ hasText: "Set the one Workday password" })).toBeVisible();
+
+  // Workday's rules gate Save; Show shows what was typed.
+  const password = card.locator("[data-password]");
+  await password.fill("short1");
+  await expect(card.locator("[data-rule=length]")).toHaveAttribute("data-met", "false");
+  await expect(save).toBeDisabled();
+  await password.fill(WORKDAY_SIGNUP.password);
+  for (const rule of ["length", "upper", "lower", "number", "special"]) await expect(card.locator(`[data-rule=${rule}]`)).toHaveAttribute("data-met", "true");
+  await card.locator("[data-show]").click();
+  await expect(password).toHaveAttribute("type", "text");
+  await save.click();
+
+  // Saved in this browser; the account is made with it.
+  await caci.waitForURL(workdays.url(0), { timeout: 30_000 });
+  expect(workdays.signIns).toEqual([{ host: "caci.wd1.myworkdayjobs.com", view: "create", ...WORKDAY_SIGNUP }]);
+  expect(await loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_signup")).workday_signup)).toEqual(WORKDAY_SIGNUP);
+  seen.push(...await loaded!.worker.evaluate(() => (globalThis as any).__messages as string[]));
+  expect(seen.length).toBeGreaterThan(0);
+  expect(seen.filter((s) => s.includes(WORKDAY_SIGNUP.password))).toEqual([]);
+});
+
+test("Not Now with no Workday password: nothing is pressed, and a password set later in Options is filled on the waiting page", async () => {
   test.setTimeout(120_000);
   const workdays = new FakeWorkdays(["workday-caci"]);
   const page = await startWith(workdays, false, { id: "wd-0", apply_url: workdays.signInUrl(0) });
   const caci = await page(workdays.signInUrl(0));
-  await allow(caci);
-  await expect(overlay(caci).locator(".row").filter({ hasText: "Set the one Workday password" })).toBeVisible({ timeout: 30_000 });
-  await caci.waitForTimeout(3000);
-  expect(await box(caci, "email").inputValue()).toBe("test.person@example.com");
-  expect(await box(caci, "password").inputValue()).toBe("");
-  expect(workdays.signIns).toEqual([]);
-  expect(await loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins ?? {})).toEqual({});
-
-  // Set on the Workday Sign-Up page (here, straight into storage as that page does): the waiting page goes on with it.
+  await overlay(caci).locator(".moment.workday-accounts [data-dismiss]").click({ timeout: 30_000 });
   await saveWorkdaySignup(loaded!);
-  await caci.waitForURL(workdays.url(0), { timeout: 30_000 });
-  expect(workdays.signIns).toEqual([{ host: "caci.wd1.myworkdayjobs.com", view: "create", ...WORKDAY_SIGNUP }]);
+  await expect.poll(() => box(caci, "verifyPassword").inputValue(), { timeout: 30_000 }).toBe(WORKDAY_SIGNUP.password);
+  await caci.waitForTimeout(3000);
+  expect(workdays.signIns).toEqual([]);
 });
 
 test("a refused sign-in stays refused when the page loads again: Sign In isn't pressed with it", async () => {

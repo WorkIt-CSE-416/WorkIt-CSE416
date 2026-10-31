@@ -37,7 +37,7 @@ window.WIA = window.WIA || {};
   const VERIFY_PAGE = /verification (email|link)|verify your (account|email)/i;
   const SIGNED_IN = "WorkIt fills each step once you're signed in.";
   // No Workday email and password set yet (KAN-479): WorkIt makes no account until the student sets one.
-  const SET_SIGNUP = "Set the one Workday password WorkIt uses at every company: Set One Password on WorkIt's card, or Workday Sign-Up in Settings.";
+  const SET_SIGNUP = "Set the one Workday password WorkIt uses at every company, on WorkIt's card in this panel or in Workday Sign-Up in Settings.";
   const WONT_TRY = "WorkIt won't try again, so your account doesn't lock. Sign in yourself, or press Forgot Password.";
   // How long a press gets to send the form before Workday is taken to have dropped it, and the most presses.
   const SEND_WAIT = 10_000;
@@ -272,8 +272,10 @@ window.WIA = window.WIA || {};
   /**
    * Fills Workday's sign-in whenever it shows, until the application's
    * first step does. `onView(reason)`: the sign-in's view changed (Create
-   * Account or Sign In), with what is left for the student. `ask(onAllow)`:
-   * shows the once-only ask to make and sign in to accounts for the student.
+   * Account or Sign In), with what is left for the student. `ask(details, onAllow)`:
+   * shows the once-only ask to make and sign in to accounts for the student,
+   * which asks for their one Workday password too when none is set
+   * (`details.needsSignup`).
    */
   function watchSignIn(onView, ask) {
     /**
@@ -335,11 +337,14 @@ window.WIA = window.WIA || {};
             if (login.password && !login.refused) typeInto("password", login.password);
             if (login.password && !login.refused && create) typeInto("verifyPassword", login.password);
           }
-          if (login.ok && !login.forMe && !asked) {
+          // Before anything is pressed: the student's yes, and their one Workday password if none is set (KAN-479).
+          if (login.ok && (!login.forMe || login.needsSignup) && !asked) {
             asked = true;
-            ask(async () => {
+            ask({ email: login.email, needsSignup: login.needsSignup }, async () => {
               await chrome.runtime.sendMessage({ type: "workday/allow" });
               login.forMe = true;
+              // A password the student just set on the card is this page's login now: ask for it again.
+              if (login.needsSignup) loginView = null;
               noted = null;
               fillSignIn();
             });

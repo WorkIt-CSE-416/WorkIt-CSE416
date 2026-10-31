@@ -175,7 +175,7 @@ async function handleMessage(message, sender) {
     case "workday/allow":
       return allowForMe();
 
-    // The consent card's Set One Password (overlay.js): the Workday Sign-Up page (src/options/).
+    // The panel's Settings > Workday Sign-Up (panel-settings.js): the Workday Sign-Up page (src/options/).
     case "workday/signup-open":
       return chrome.runtime.openOptionsPage();
 
