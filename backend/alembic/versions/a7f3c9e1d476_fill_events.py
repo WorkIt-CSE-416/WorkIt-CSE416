@@ -1,7 +1,7 @@
 """fill_events: one fill's numbers from the extension (KAN-476)
 
 Revision ID: a7f3c9e1d476
-Revises: d9b579e66623
+Revises: a7c3e9d1f467
 Create Date: 2026-10-31 18:00:00.000000
 
 One row per fill the extension ran, single or batch: the job system, the
@@ -22,7 +22,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'a7f3c9e1d476'
-down_revision: Union[str, Sequence[str], None] = 'd9b579e66623'
+down_revision: Union[str, Sequence[str], None] = 'a7c3e9d1f467'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
