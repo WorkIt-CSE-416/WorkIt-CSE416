@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models.fill_reports import Fill_Report
+from app.schemas.fill_reports import Signature
 from app.services.email import send_email
 from app.services.notices import check_link
 
@@ -39,8 +40,8 @@ def _email(groups: list) -> tuple[str, str]:
     noun = "group" if len(groups) == 1 else "groups"
     items = []
     for g in groups:
-        _, kind, error = g.signature.split(":")
-        what = " · ".join(html.escape(part) for part in (g.job_system, kind or "no field", error or "no error"))
+        signature = Signature.parse(g.signature)
+        what = " · ".join(html.escape(part) for part in (g.job_system, signature.field_kind or "no field", signature.error or "no error"))
         reports = "1 report" if g.count == 1 else f"{g.count} reports"
         link = check_link(f"{base}/admin/fill-reports?signature={quote(g.signature, safe='')}")
         items.append(f'<li><a href="{html.escape(link)}">{what}</a>: {reports}</li>')
