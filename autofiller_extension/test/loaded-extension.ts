@@ -183,6 +183,18 @@ function testCopy(hosts: string[], open: boolean): string {
   return dir;
 }
 
+/**
+ * A made-up Workday registration email and password (KAN-479), as the
+ * student sets on the Workday Sign-Up page or the consent card: no real
+ * account anywhere has it. The email is the fake profile's.
+ */
+export const WORKDAY_SIGNUP = { email: "test.person@example.com", password: "Made-Up-Workday-Pass-7!" };
+
+/** Saves WORKDAY_SIGNUP in the loaded extension, as the Workday Sign-Up page does (chrome.storage.local). */
+export function saveWorkdaySignup(loaded: Loaded): Promise<void> {
+  return loaded.worker.evaluate((signup) => chrome.storage.local.set({ workday_signup: signup }), WORKDAY_SIGNUP);
+}
+
 /** The webapp's Supabase session cookie, as background/webapp-session.js reads it, for a fake token. */
 export async function signIn(context: BrowserContext, accessToken = "test-access-token"): Promise<void> {
   const session = { access_token: accessToken, refresh_token: "test-refresh-token", expires_at: Math.floor(Date.now() / 1000) + 3600 };

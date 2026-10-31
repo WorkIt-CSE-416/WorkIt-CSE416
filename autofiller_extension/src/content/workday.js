@@ -36,6 +36,8 @@ window.WIA = window.WIA || {};
   // Workday's page text, not only its alerts, may say a new account waits for verification (as Apply reads it).
   const VERIFY_PAGE = /verification (email|link)|verify your (account|email)/i;
   const SIGNED_IN = "WorkIt fills each step once you're signed in.";
+  // No Workday email and password set yet (KAN-479): WorkIt makes no account until the student sets one.
+  const SET_SIGNUP = "Set the one Workday password WorkIt uses at every company: Set One Password on WorkIt's card, or Workday Sign-Up in Settings.";
   const WONT_TRY = "WorkIt won't try again, so your account doesn't lock. Sign in yourself, or press Forgot Password.";
   // How long a press gets to send the form before Workday is taken to have dropped it, and the most presses.
   const SEND_WAIT = 10_000;
@@ -347,15 +349,13 @@ window.WIA = window.WIA || {};
           noted = view;
           onView(!login.ok
             ? "Sign in yourself. WorkIt fills each step once you're signed in."
-            : create && login.made && login.signup
-              ? "WorkIt filled your Workday sign-up email and password, kept only in this browser. Press Create Account, then open the link Workday emails you. WorkIt fills each step once you're signed in."
+            : login.needsSignup
+              ? `${SET_SIGNUP} New here? Once it's set, WorkIt fills it in Create Account. Else sign in yourself. WorkIt fills each step once you're signed in.`
             : create && login.made
-              ? "WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link Workday emails you. WorkIt fills each step once you're signed in."
+              ? "WorkIt filled your Workday email and password, kept only in this browser. Press Create Account, then open the link Workday emails you. WorkIt fills each step once you're signed in."
               : create
                 ? "WorkIt filled the login it saved for this company's Workday. If you made the account already, press Sign In instead. WorkIt fills each step once you're signed in."
-                : login.password
-                  ? "WorkIt filled your sign-in for this company's Workday. Press Sign In. WorkIt fills each step once you're signed in."
-                  : "WorkIt has no password saved for this company's Workday. New here? Press Create Account, and WorkIt fills a new one. Else sign in yourself. WorkIt fills each step once you're signed in.");
+                : "WorkIt filled your sign-in for this company's Workday. Press Sign In. WorkIt fills each step once you're signed in.");
         } while (again);
       } finally {
         busy = false;
@@ -478,6 +478,13 @@ window.WIA = window.WIA || {};
       fillSignIn();
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
+    // The student set their Workday email and password (Options or the card): ask for the login again.
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local" || !("workday_signup" in changes) || !login?.needsSignup || workdayStep()) return;
+      loginView = null;
+      noted = null;
+      fillSignIn();
+    });
     fillSignIn();
   }
 

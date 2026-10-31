@@ -2,13 +2,14 @@
 // end in the loaded extension (loaded-extension.ts), on the fake Workday
 // tenants (fake-job-systems.ts). Once the student allows it, the extension
 // fills each company's Create Account or Sign In, ticks its terms box and
-// presses the button itself; a step only the student can do (Workday's email,
-// a refused password) is told to them, and nothing is pressed twice.
+// presses the button itself, with the one Workday email and password the
+// student set (KAN-479); a step only the student can do (Workday's email, a
+// refused password) is told to them, and nothing is pressed twice.
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays } from "./fake-job-systems";
 import { CONTENT_SCRIPT_FILES, ENGINE_FILES } from "../src/shared/content-scripts.js";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded, menuItem } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded, menuItem, saveWorkdaySignup, WORKDAY_SIGNUP } from "./loaded-extension";
 
 let loaded: Loaded | undefined;
 test.afterEach(async () => {
@@ -25,11 +26,16 @@ async function firstName(page: Page, workdays: FakeWorkdays, n = 0): Promise<unk
 const overlay = (p: Page) => p.locator("#workit-autofiller-overlay-host");
 const box = (p: Page, id: string) => p.locator(`[data-automation-id=${id}]`);
 
-/** Loads the extension with `workdays` and starts a batch of `jobs`. */
+/** Loads the extension with `workdays`, the student's Workday sign-up saved (unless `signup` is false), and starts a batch of `jobs`. */
 async function start(workdays: FakeWorkdays, ...jobs: { id: string; apply_url: string }[]): Promise<(url: string) => Promise<Page>> {
+  return startWith(workdays, true, ...jobs);
+}
+
+async function startWith(workdays: FakeWorkdays, signup: boolean, ...jobs: { id: string; apply_url: string }[]): Promise<(url: string) => Promise<Page>> {
   const api = new FakeApi().queue(...jobs);
   loaded = await loadExtension([api.handler, webapp, workdays.handler]);
   await signIn(loaded.context);
+  if (signup) await saveWorkdaySignup(loaded);
   const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
   await app.goto("http://localhost:3000/auto-apply");
   await sendFromWebapp(app, { type: "run/open" });
@@ -50,7 +56,7 @@ async function skip(page: Page): Promise<void> {
   await (await menuItem(overlay(page), "Skip")).click();
 }
 
-test("allowed once, makes each company's Workday account itself, terms box shown, and signs in later", async () => {
+test("allowed once, makes each company's Workday account itself with the student's one login, terms box shown, and signs in later", async () => {
   test.setTimeout(180_000);
   const workdays = new FakeWorkdays(["workday-caci", "workday-xcel"]);
   const page = await start(workdays,
@@ -64,16 +70,16 @@ test("allowed once, makes each company's Workday account itself, terms box shown
   await caci.waitForURL(workdays.url(0), { timeout: 30_000 });
   // A batch tab saves the filled step itself (Fill to Review), so the name shows on the step or was saved from it.
   await expect.poll(() => firstName(caci, workdays), { timeout: 30_000 }).toBe("Test");
-  const caciPassword = workdays.signIns[0]?.password;
+  const caciPassword = WORKDAY_SIGNUP.password;
   expect(workdays.signIns).toEqual([{ host: "caci.wd1.myworkdayjobs.com", view: "create", email: "test.person@example.com", password: caciPassword }]);
   expect(workdays.agreed).toEqual([true]);
 
-  // The next company opens on Sign In with nothing saved: it switches to Create Account and makes it, without asking again.
+  // The next company opens on Sign In with nothing saved: it switches to Create Account and makes it with the same login, without asking again.
   await skip(caci);
   const xcel = await page(workdays.signInUrl(1, "signin"));
   await expect.poll(() => workdays.signIns.length, { timeout: 30_000 }).toBe(2);
   expect(workdays.signIns[1]).toMatchObject({ host: "xcelenergy.wd1.myworkdayjobs.com", view: "create", email: "test.person@example.com" });
-  expect(workdays.signIns[1].password).not.toBe(caciPassword);
+  expect(workdays.signIns[1].password).toBe(caciPassword);
   expect(workdays.agreed).toEqual([true, true]);
   await expect(overlay(xcel).locator(".moment.workday-accounts")).toHaveCount(0);
 
@@ -119,14 +125,15 @@ test("a sign-in Workday refuses is never pressed again, and the student is told"
   expect(workdays.signIns.map((s) => s.view)).toEqual(["create", "signin"]);
 });
 
-test("two companies' Create Account at once each keep the password their account was made with", async () => {
+test("two companies' Create Account at once each keep the login their account was made with", async () => {
   test.setTimeout(120_000);
   const workdays = new FakeWorkdays(["workday-caci", "workday-xcel"]);
   loaded = await loadExtension([new FakeApi().handler, webapp, workdays.handler]);
   await signIn(loaded.context);
+  await saveWorkdaySignup(loaded);
   await loaded.worker.evaluate(() => chrome.storage.local.set({ workday_accounts_for_me: true }));
   for (const n of [0, 1]) await (await loaded.context.newPage()).goto(workdays.signInUrl(n));
-  // Both fills start together (Autofill This Page in two tabs), so both new passwords are saved at once.
+  // Both fills start together (Autofill This Page in two tabs), so both companies' logins are saved at once.
   await loaded.worker.evaluate(async ([engine, scripts]) => {
     const tabs = await chrome.tabs.query({ url: "https://*/__fake__/signin*" });
     await Promise.all(tabs.map(async ({ id }) => {
@@ -141,6 +148,25 @@ test("two companies' Create Account at once each keep the password their account
     expect(view).toBe("create");
     expect(saved[host]?.password).toBe(password);
   }
+});
+
+test("with no Workday password set, nothing is pressed and none is made up; once the student sets one, the account is made with it", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  const page = await startWith(workdays, false, { id: "wd-0", apply_url: workdays.signInUrl(0) });
+  const caci = await page(workdays.signInUrl(0));
+  await allow(caci);
+  await expect(overlay(caci).locator(".row").filter({ hasText: "Set the one Workday password" })).toBeVisible({ timeout: 30_000 });
+  await caci.waitForTimeout(3000);
+  expect(await box(caci, "email").inputValue()).toBe("test.person@example.com");
+  expect(await box(caci, "password").inputValue()).toBe("");
+  expect(workdays.signIns).toEqual([]);
+  expect(await loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins ?? {})).toEqual({});
+
+  // Set on the Workday Sign-Up page (here, straight into storage as that page does): the waiting page goes on with it.
+  await saveWorkdaySignup(loaded!);
+  await caci.waitForURL(workdays.url(0), { timeout: 30_000 });
+  expect(workdays.signIns).toEqual([{ host: "caci.wd1.myworkdayjobs.com", view: "create", ...WORKDAY_SIGNUP }]);
 });
 
 test("a refused sign-in stays refused when the page loads again: Sign In isn't pressed with it", async () => {

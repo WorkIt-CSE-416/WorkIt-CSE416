@@ -11,7 +11,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays } from "./fake-job-systems";
 import { STEPS, type Field, type Step } from "../fill-engine/test/fake-workday";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, saveWorkdaySignup } from "./loaded-extension";
 
 let loaded: Loaded | undefined;
 test.afterEach(async () => {
@@ -79,6 +79,7 @@ async function walk(steps: Step[], inPlace: boolean): Promise<void> {
   };
   loaded = await loadExtension([counted, api.handler, webapp, workdays.handler]);
   await signIn(loaded.context);
+  await saveWorkdaySignup(loaded);
   const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
   await app.goto("http://localhost:3000/auto-apply");
   await sendFromWebapp(app, { type: "run/open" });
@@ -148,6 +149,7 @@ for (const inPlace of [false, true]) {
     const api = new FakeApi().queue({ id: "wd-0", apply_url: workdays.signInUrl(0) });
     loaded = await loadExtension([api.handler, webapp, workdays.handler]);
     await signIn(loaded.context);
+    await saveWorkdaySignup(loaded);
     const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
     await app.goto("http://localhost:3000/auto-apply");
     await sendFromWebapp(app, { type: "run/open" });
