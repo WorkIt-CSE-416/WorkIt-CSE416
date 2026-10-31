@@ -93,7 +93,8 @@ const readOffPage = (job) => engine.stepped(job.site) || READ_OFF_PAGE.has(job.s
  */
 export function signInFirst(url) {
   const job = jobOf(url);
-  return job?.site === "tiktok" && !job.onForm && /^\/(login|create-?account|register)\b/i.test(new URL(url).pathname);
+  // TikTok USDS keeps its pages, sign-in too, under /usds.
+  return job?.site === "tiktok" && !job.onForm && /^(\/usds)?\/(login|create-?account|register)\b/i.test(new URL(url).pathname);
 }
 
 /** The link to open for an application: its form, where the engine covers the job system. */

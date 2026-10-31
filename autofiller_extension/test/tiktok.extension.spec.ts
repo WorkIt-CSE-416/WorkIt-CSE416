@@ -21,14 +21,16 @@ const SIGN_IN_PAGE = `<!doctype html><html><head><title>Sign in</title></head><b
   <form><div class="atsx-form-item"><input id="login-email" class="atsx-input" placeholder="Email">
   <input id="login-password" type="password" class="atsx-input" placeholder="Password"></div><button type="button">Sign in</button></form></body></html>`;
 
-/** A fake lifeattiktok.com: the form shows once `signedIn`, else the site sends the tab to its sign-in. Every POST is kept and refused. */
+/** A fake lifeattiktok.com (or another TikTok site, its pages under `base`): the form shows once `signedIn`, else the
+ * site sends the tab to its sign-in. Every POST is kept and refused. */
 class FakeTikTok {
+  constructor(readonly host = "lifeattiktok.com", readonly base = "") {}
   signedIn = false;
   /** The job closed: its pages are the site's "404 Page not found". */
   closed = false;
   readonly submissions: string[] = [];
   readonly handler: Handler = ({ url, method }) => {
-    if (url.host !== "lifeattiktok.com") return undefined;
+    if (url.host !== this.host) return undefined;
     if (method !== "GET") {
       this.submissions.push(url.href);
       return { status: 403, body: "" };
@@ -37,12 +39,13 @@ class FakeTikTok {
     if (url.pathname === "/fake-tiktok-widgets.js") {
       return { headers: { "content-type": "text/javascript" }, body: readFileSync(join(ENGINE_TEST, "fake-tiktok-widgets.js"), "utf8") };
     }
-    if (url.pathname === "/login") return html(SIGN_IN_PAGE);
+    if (url.pathname === `${this.base}/login`) return html(SIGN_IN_PAGE);
     if (this.closed) return html("<!doctype html><p>404 Page not found</p><p>Oops! We can't find your page.</p>");
-    if (url.pathname === `/resume/${JOB}/apply`) {
-      return html(this.signedIn ? readFileSync(join(FIXTURE, "form.html"), "utf8") : `<script>location.replace(${JSON.stringify(SIGN_IN)})</script>`);
+    if (url.pathname === `${this.base}/resume/${JOB}/apply`) {
+      const signIn = `https://${this.host}${this.base}/login?redirect_path=/resume/${JOB}/apply`;
+      return html(this.signedIn ? readFileSync(join(FIXTURE, "form.html"), "utf8") : `<script>location.replace(${JSON.stringify(signIn)})</script>`);
     }
-    if (url.pathname === `/search/${JOB}`) return html(readFileSync(join(FIXTURE, "posting.html"), "utf8"));
+    if (url.pathname === `/search/${JOB}` || url.pathname === `${this.base}/position/${JOB}/detail`) return html(readFileSync(join(FIXTURE, "posting.html"), "utf8"));
     return { status: 404, body: "" };
   };
 }
@@ -119,4 +122,24 @@ test("a closed TikTok job says it is closed, not that the fill failed", async ()
 
   await expect.poll(() => panelText(page), { timeout: 30_000 }).toContain("This job is closed");
   expect(tiktok.submissions).toEqual([]);
+});
+
+test("TikTok USDS's careers site shows the edge tab on its posting, and its form fills to review once the student signs in", async () => {
+  test.setTimeout(120_000);
+  // careers.tiktokusds.com keeps its pages under /usds (live, 2026-10-31); the form is the engine's rebuilt one.
+  const usds = new FakeTikTok("careers.tiktokusds.com", "/usds");
+  usds.signedIn = true;
+  loaded = await loadExtension([new FakeApi().handler, webapp, usds.handler]);
+  await signIn(loaded.context);
+  const page = await loaded.context.newPage();
+  await page.goto(`https://careers.tiktokusds.com/usds/position/${JOB}/detail`);
+  const host = page.locator("#workit-autofiller-overlay-host");
+  await expect(host.getByRole("button", { name: "Show WorkIt panel" })).toBeVisible({ timeout: 15_000 });
+
+  await page.goto(`https://careers.tiktokusds.com/usds/resume/${JOB}/apply`);
+  await host.getByRole("button", { name: "Show WorkIt panel" }).click();
+  await host.getByRole("button", { name: "Autofill This Page" }).click();
+  await expect.poll(() => page.evaluate(() => (document.querySelector("#name") as HTMLInputElement | null)?.value).catch(() => null), { timeout: 60_000 })
+    .toBe("Test Person");
+  expect(usds.submissions).toEqual([]);
 });

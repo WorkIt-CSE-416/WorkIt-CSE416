@@ -56,7 +56,9 @@ test("reads a TikTok form's questions off the page, and asks no job API for them
 });
 
 test("on TikTok's sign-in the Plan is the student's sign-in, with nothing to fill", async () => {
-  for (const url of [TIKTOK_SIGN_IN, TIKTOK_FORM]) {
+  // TikTok USDS's sign-in sits under its site's /usds (live, 2026-10-31).
+  const usdsSignIn = "https://careers.tiktokusds.com/usds/login?redirect_path=%2Fresume%2F7679251399185778949%2Fapply";
+  for (const url of [TIKTOK_SIGN_IN, TIKTOK_FORM, usdsSignIn]) {
     const prepared = await planFill({ url, profile: STUDENT, today: "2026-10-26", call: onSignIn, fetchText: async () => "" });
     expect(prepared, url).toEqual({ covered: true, site: "tiktok", signIn: SIGN_IN_LINE });
   }

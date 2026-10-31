@@ -266,8 +266,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
 - **TikTok's form is behind the site's own sign-in, the student's
   (KAN-369).** TikTok and ByteDance share one form and the engine's
   `"tiktok"` Filler (`lifeattiktok.com`, `careers.tiktok.com`,
-  `jobs.bytedance.com`, `joinbytedance.com`); a posting's form
-  (`/resume/<id>/apply`) sends a signed-out student to
+  `jobs.bytedance.com`, `joinbytedance.com`, and TikTok USDS's
+  `careers.tiktokusds.com`, whose pages sit under `/usds`, KAN-472); a
+  posting's form (`/resume/<id>/apply`) sends a signed-out student to
   `/login?redirect_path=...`. WorkIt never signs in there and never types
   an email or password: on the sign-in (`engine.js`'s `signInFirst`, or the
   engine's `readQuestions` throwing `Handoff` on a page with a password
