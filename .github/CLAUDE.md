@@ -200,22 +200,30 @@ bounced send.
 
 Keeps the Store listing in step with `autofiller_extension/` (its own
 `CLAUDE.md` has the extension itself), so published users run what a PR
-here actually reviewed, never a build off someone's machine. Two jobs:
+here actually reviewed, never a build off someone's machine. Against the
+Chrome Web Store API's **v2** endpoints (`chromewebstore.googleapis.com`)
+— v1.1 (`www.googleapis.com/chromewebstore`) stopped taking requests on
+2026-10-15. v2's resource name is `publishers/<PUBLISHER_ID>/items/<id>`,
+never the item id alone, and upload/publish each return a `state`-style
+enum (`uploadState`, `state`) rather than v1.1's `status` array. Two jobs:
 
 - **`check-version-bump`**, every PR touching the extension: fails unless
-  `autofiller_extension/manifest.json`'s `version` is strictly greater
-  than `main`'s (`dpkg --compare-versions`). The Store API refuses a
-  re-upload of a version it already has, so this catches a forgotten bump
-  before merge rather than after, with no PR left open to fix it from.
-  **The bump is a one-line, by-hand part of the PR**, on purpose — not
-  something this workflow writes and commits itself, which would need
-  write-back permissions and risks a loop for little gained.
-- **`publish`**, on push to `main` (or by hand): packages only what
-  ships — `manifest.json`, `icons/`, `fonts/`, `src/`, and the
-  `fill-engine` submodule's committed `dist/` bundle alone, never its
-  TypeScript source, tests, or this repo's own `test/`/`CLAUDE.md`/
-  `README.md` — then pushes it through the Chrome Web Store API and
-  submits it for review.
+  `autofiller_extension/store/store.json`'s `version` is strictly greater
+  than `main`'s (`dpkg --compare-versions`) — the Store package's own
+  version (`store/build.mjs`, KAN-463, writes it over whatever
+  `manifest.json`'s own `version` says, which is the unpacked dev build's
+  only; the two are deliberately separate numbers, so bumping the wrong
+  one here is a real, easy mistake). The Store API refuses a re-upload of
+  a version it already has, so this catches a forgotten bump before merge
+  rather than after, with no PR left open to fix it from. **The bump is a
+  one-line, by-hand part of the PR**, on purpose — not something this
+  workflow writes and commits itself, which would need write-back
+  permissions and risks a loop for little gained.
+- **`publish`**, on push to `main` (or by hand): runs `store/build.mjs`
+  (the same Store package `extension-store-build` already builds and
+  checks in CI, above — never a second, ad-hoc zip step here) and pushes
+  the result through the Chrome Web Store API, then submits it for
+  review.
 
 **This does not make an update live by itself.** The extension asks for
 sensitive permissions (`cookies`, several hosts), so Google reviews every
@@ -228,11 +236,13 @@ not a re-run.
   `CHROME_REFRESH_TOKEN` (a Google Cloud OAuth client with the Chrome Web
   Store API enabled, and a refresh token for the account that owns the
   Store listing — a one-time human setup, not reproducible from this
-  file) and `CHROME_EXTENSION_ID` (the Store item id; this extension
-  pins it via `manifest.json`'s `key`, so it matches the id Chrome
-  already assigns the unpacked dev build,
-  `cpklhdkoafegnndlafmiceehfloodjgi`).
-  **All four must be Actions *secrets*, never Actions *variables*:**
+  file), `CHROME_EXTENSION_ID` (the Store item id; this extension pins it
+  via `manifest.json`'s `key`, so it matches the id Chrome already
+  assigns the unpacked dev build, `cpklhdkoafegnndlafmiceehfloodjgi`) and
+  **`CHROME_PUBLISHER_ID`** (Publisher > Settings in the Developer
+  Dashboard — a different value from the item id, and new with the v2
+  endpoints above; v1.1 never needed it).
+  **All five must be Actions *secrets*, never Actions *variables*:**
   a repo variable's value is plaintext, readable by anyone with
   Settings access and unmasked in logs — found live on 2026-10-31, all
   three sensitive values set as variables instead (the fourth, the

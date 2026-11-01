@@ -3,21 +3,29 @@ name: Publish extension to Chrome Web Store
 # KAN-447: keeps the Chrome Web Store listing in step with this repo, so
 # published users run the same code reviewed in a PR here, never something
 # built by hand on a developer's machine. autofiller_extension/CLAUDE.md
-# has the extension itself; this file is the publishing half.
+# has the extension itself (its "Extension ID" section has the Store
+# build, store/build.mjs, KAN-463); this file is the publishing half,
+# against the Chrome Web Store API's v2 endpoints
+# (chromewebstore.googleapis.com) -- v1.1 (www.googleapis.com/chromewebstore)
+# stopped taking requests on 2026-10-15.
 #
 # Two jobs:
 # - check-version-bump (every PR touching the extension): autofiller_
-#   extension/manifest.json's version must be strictly higher than main's,
-#   or the Store API below refuses the re-upload after merge with no PR
-#   left open to fix it from. A version bump is a deliberate one-line change
-#   in the same PR as the rest, not something this workflow writes itself.
-# - publish (push to main, or by hand): packages the extension and pushes
-#   it to the Store via its API, then submits it for review. This does NOT
-#   make the update live by itself — the extension asks for sensitive
-#   permissions (cookies, several hosts), so Google's manual review still
-#   gates when (or whether) it actually reaches users, same as a first
-#   submission. A failed review needs a human in the Developer Dashboard,
-#   not a retry here.
+#   extension/store/store.json's version must be strictly higher than
+#   main's, or the Store API below refuses the re-upload after merge with
+#   no PR left open to fix it from. This is the Store package's own
+#   version (build.mjs writes it over whatever autofiller_extension/
+#   manifest.json's own version says, which is the unpacked dev build's
+#   only -- the two are deliberately separate numbers). A version bump is
+#   a deliberate one-line change in the same PR as the rest, not something
+#   this workflow writes itself.
+# - publish (push to main, or by hand): builds the Store package
+#   (store/build.mjs) and pushes it to the Store via its API, then
+#   submits it for review. This does NOT make the update live by itself —
+#   the extension asks for sensitive permissions (cookies, several hosts),
+#   so Google's manual review still gates when (or whether) it actually
+#   reaches users, same as a first submission. A failed review needs a
+#   human in the Developer Dashboard, not a retry here.
 on:
   pull_request:
     branches: [main]
@@ -46,13 +54,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: manifest.json's version must increase
+      - name: store.json's version must increase
         run: |
-          OLD=$(git show origin/main:autofiller_extension/manifest.json | jq -r .version)
-          NEW=$(jq -r .version autofiller_extension/manifest.json)
+          OLD=$(git show origin/main:autofiller_extension/store/store.json | jq -r .version)
+          NEW=$(jq -r .version autofiller_extension/store/store.json)
           echo "main: $OLD -> this branch: $NEW"
           if ! dpkg --compare-versions "$NEW" gt "$OLD"; then
-            echo "::error file=autofiller_extension/manifest.json::version ($NEW) must be greater than main's ($OLD) or the Chrome Web Store will refuse this upload once merged."
+            echo "::error file=autofiller_extension/store/store.json::version ($NEW) must be greater than main's ($OLD) or the Chrome Web Store will refuse this upload once merged."
             exit 1
           fi
 
@@ -64,22 +72,24 @@ jobs:
         with:
           submodules: true
 
-      # Only what manifest.json and the shipped files actually reference —
-      # never this repo's own test/, CLAUDE.md or README.md, and only the
-      # fill-engine submodule's committed dist/ bundle, not its TypeScript
-      # source or tests (autofiller_extension/CLAUDE.md, "The Fill engine").
-      - name: Package the extension
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # The Store package: everything manifest.json and the shipped files
+      # reference, never this repo's own test/, CLAUDE.md or README.md —
+      # store/build.mjs (KAN-463) is the one place that's packaged, shared
+      # with CI's own check of it (.github/CLAUDE.md, "extension-store-build").
+      - name: Build the Store package
+        id: build
         working-directory: autofiller_extension
-        run: |
-          mkdir -p /tmp/package/fill-engine
-          cp manifest.json /tmp/package/
-          cp -r icons fonts src /tmp/package/
-          cp -r fill-engine/dist /tmp/package/fill-engine/
-          (cd /tmp/package && zip -rq /tmp/extension.zip .)
+        run: echo "zip=$(node store/build.mjs)" >> "$GITHUB_OUTPUT"
 
       # A short-lived access token from the stored refresh token
       # (autofiller_extension's own publishing setup, not a user's
-      # sign-in) — refresh tokens don't expire, access tokens do.
+      # sign-in) — refresh tokens don't expire, access tokens do. This
+      # token endpoint is plain OAuth 2, unrelated to the Store API's own
+      # v1.1/v2 split below.
       - name: Get an access token
         id: token
         env:
@@ -100,40 +110,59 @@ jobs:
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
+      # The Chrome Web Store API's v2 resource name is publishers/<PUBLISHER_ID>/items/<EXTENSION_ID>,
+      # never the item id alone (v1.1's shape, which stopped taking requests 2026-10-15). The publisher
+      # id is Publisher > Settings in the Developer Dashboard — a different value from the item id.
       - name: Upload the new version
         env:
           TOKEN: ${{ steps.token.outputs.token }}
+          PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
           EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          ZIP: ${{ steps.build.outputs.zip }}
         run: |
-          RESPONSE=$(curl -sS -X PUT \
+          NAME="publishers/$PUBLISHER_ID/items/$EXTENSION_ID"
+          RESPONSE=$(curl -sS -X POST \
             -H "Authorization: Bearer $TOKEN" \
-            -H "x-goog-api-version: 2" \
-            -T /tmp/extension.zip \
-            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$EXTENSION_ID")
+            -T "$ZIP" \
+            "https://chromewebstore.googleapis.com/upload/v2/$NAME:upload")
           echo "$RESPONSE"
-          if [ "$(echo "$RESPONSE" | jq -r .uploadState)" != "SUCCESS" ]; then
-            echo "::error::Upload failed: $RESPONSE"
+          STATE=$(echo "$RESPONSE" | jq -r .uploadState)
+          # An upload that's still being processed is asked again, not failed outright: fetchStatus's
+          # lastAsyncUploadState is the same enum (SUCCEEDED/IN_PROGRESS/FAILED), read until it settles.
+          for _ in 1 2 3 4 5; do
+            [ "$STATE" != "IN_PROGRESS" ] && break
+            sleep 5
+            STATE=$(curl -sS -H "Authorization: Bearer $TOKEN" "https://chromewebstore.googleapis.com/v2/$NAME:fetchStatus" | jq -r .lastAsyncUploadState)
+          done
+          if [ "$STATE" != "SUCCEEDED" ]; then
+            echo "::error::Upload didn't succeed (state: $STATE): $RESPONSE"
             exit 1
           fi
 
       # Submits the uploaded version for Google's review. This is not the
       # same as going live: a sensitive-permission extension like this one
-      # is reviewed by hand on Google's side regardless, so "OK" here means
-      # "queued", not "published". ITEM_PENDING_REVIEW is the normal,
-      # non-error outcome while an earlier submission is still in review.
+      # is reviewed by hand on Google's side regardless, so a successful
+      # call here means "queued", not "published". PENDING_REVIEW is the
+      # normal, non-error outcome while an earlier submission is still in
+      # review; PUBLISHED/PUBLISHED_TO_TESTERS mean review was skipped or
+      # cleared immediately. REJECTED, CANCELLED and the unspecified
+      # default are the only real failures.
       - name: Submit for review
         env:
           TOKEN: ${{ steps.token.outputs.token }}
+          PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
           EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
         run: |
           RESPONSE=$(curl -sS -X POST \
             -H "Authorization: Bearer $TOKEN" \
-            -H "x-goog-api-version: 2" \
             -H "Content-Length: 0" \
-            "https://www.googleapis.com/chromewebstore/v1.1/items/$EXTENSION_ID/publish")
+            "https://chromewebstore.googleapis.com/v2/publishers/$PUBLISHER_ID/items/$EXTENSION_ID:publish")
           echo "$RESPONSE"
-          STATUS=$(echo "$RESPONSE" | jq -r '.status[0]')
-          if [ "$STATUS" != "OK" ] && [ "$STATUS" != "ITEM_PENDING_REVIEW" ]; then
-            echo "::error::Submitting for review failed: $RESPONSE"
-            exit 1
-          fi
+          STATE=$(echo "$RESPONSE" | jq -r .state)
+          case "$STATE" in
+            PENDING_REVIEW|PUBLISHED|PUBLISHED_TO_TESTERS|STAGED) ;;
+            *)
+              echo "::error::Submitting for review failed (state: $STATE): $RESPONSE"
+              exit 1
+              ;;
+          esac
