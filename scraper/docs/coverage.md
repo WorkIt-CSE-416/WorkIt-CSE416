@@ -6,10 +6,11 @@ Every number here was measured on 2026-10-27 unless it says otherwise.
 
 **Built:** the board report by source and by cause, `build_boards.py --resolve`,
 Lever's EU boards, the two-read closing rule, a second read first for a board
-with a miss, and four new measures in `metrics.json` (what a wider shortlist
-would keep, whether paged lists are newest first, boards missed once, why boards
-went unread). **Next:** the steps below, each decided by the measure it names,
-and the changes proposed from Freehire's design.
+with a miss, four new measures in `metrics.json` (what a wider shortlist would
+keep, whether paged lists are newest first, boards missed once, why boards went
+unread), and daily discovery that commits new boards directly to main
+(`discovery_pr.py`, no PR bottleneck). **Next:** the steps below, each decided
+by the measure it names, and the changes proposed from Freehire's design.
 
 ## Where we stood
 
@@ -81,7 +82,8 @@ The rules that keep it safe:
 | Measure | The board report, the widening steps, list order, boards missed once, why boards went unread | Built | Itself |
 | Fix the doors | Lever EU; `--resolve` for short links, Greenhouse and iCIMS behind company sites | Built; the first `--resolve` run is still to do | The `boards.csv` diff it makes |
 | Close on two reads | Below | Built | `boards_missed_once` in metrics.json |
-| Workday arrival scan | Read every board's newest pages each run; read whole the boards with the most shown roles | Not built | `newest_first` in metrics.json |
+| Discovery to main | Daily discovery commits new boards directly to main; no PR review bottleneck; rejection ledger and `validate_catalog` stay as gates | Built | Itself |
+| Workday arrival scan | Read every board's newest pages each run; read whole the boards with the most shown roles; daily full sweep for closings | Not built | `newest_first` in metrics.json |
 | New readers | SuccessFactors, then Eightfold and JazzHR; then TikTok and ByteDance (one system), Amazon and Apple | Not built | The cause table; each one's robots.txt first |
 | Boards beyond the lists | Careers pages of companies the lists name; proved slug guesses; staffing firms left out | Not built | Coverage against Jobright's lists |
 | Facts | Entry-level H-1B filing history as its own fact; "Software Engineer I" by the years its description asks | Not built | `widening` in metrics.json |
@@ -107,6 +109,12 @@ today's 265 boards in 12. It then needs three rules:
 3. A self-check: a complete read that finds a new posting older than the last
    arrival scan proves the scan missed it, and that board goes back to
    complete reads only.
+
+**Daily full sweep for closings.** Seven of eight daily runs do arrival scans
+only (~3 minutes for Workday). One run a day does a complete read of every
+board, so a closed posting stays at most 24 hours. That run needs a longer CI
+timeout (`timeout-minutes: 60`) or a split across two consecutive runs. New
+postings appear every 3 hours; closings clear daily.
 
 ## Closing on two complete reads
 

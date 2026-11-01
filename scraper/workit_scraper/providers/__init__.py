@@ -39,7 +39,14 @@ from workit_scraper.providers.model import (
     Provider,
     TooLarge,
 )
-from workit_scraper.providers.registry import PROVIDERS, describe, job_url, listing_url, robots_urls
+from workit_scraper.providers.registry import (
+    PROVIDERS,
+    describe,
+    job_url,
+    listing_url,
+    name_url,
+    robots_urls,
+)
 from workit_scraper.providers.systems.ashby import ashby
 from workit_scraper.providers.systems.bamboohr import bamboohr, describe_bamboohr
 from workit_scraper.providers.systems.greenhouse import describe_greenhouse, greenhouse
@@ -107,6 +114,7 @@ __all__ = [
     "job_url",
     "lever",
     "listing_url",
+    "name_url",
     "oracle",
     "plain_lines",
     "plain_text",

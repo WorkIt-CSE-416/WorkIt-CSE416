@@ -34,6 +34,12 @@ RUN_EVERY = timedelta(hours=3)
 REST_AFTER = 3
 REST_FIRST = timedelta(hours=6)
 REST_LONGEST = timedelta(hours=24)
+#: A board whose kept postings hash to the same fingerprint as its last read
+#: rests after the first unchanged read, doubling from FINGERPRINT_FIRST to
+#: FINGERPRINT_LONGEST. No threshold: a board just read with identical content
+#: needs no second look in three hours.
+FINGERPRINT_FIRST = timedelta(hours=4)
+FINGERPRINT_LONGEST = timedelta(hours=24)
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +76,12 @@ class BoardReads:
     #: posting seen there and not at the last was missed once, and is still shown
     #: (`Store.is_listed`).
     prior_read_at: str | None = None
+    #: Hex CRC32 of the sorted kept `external_id` values from the last complete read.
+    fingerprint: str | None = None
+    #: Consecutive complete reads whose kept postings hashed to the same fingerprint.
+    unchanged_reads: int = 0
+    #: ISO timestamp: the board rests until this time when its fingerprint is unchanged.
+    fingerprint_until: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +117,16 @@ class Store:
             key
             for key, health in self.health.items()
             if health.rest_until is not None and _at(health.rest_until) > at
+        }
+
+    def fingerprint_resting(self, now: str) -> set[str]:
+        """The boards not asked for this run, because their kept postings have
+        not changed since the last read."""
+        at = _at(now)
+        return {
+            key
+            for key, reads in self.boards.items()
+            if reads.fingerprint_until is not None and _at(reads.fingerprint_until) > at
         }
 
     def is_listed(self, job: Job) -> bool:
@@ -154,8 +176,9 @@ class Store:
 
     def to_read(self, boards: list[Board], now: str, *, everything: bool = False) -> list[Board]:
         """The boards this run reads, least recently read first: every one, except
-        resting boards (`resting`) and quiet boards not due today (all of the quiet
-        ones with `everything`, for `--full`).
+        resting boards (`resting`), fingerprint-resting boards
+        (`fingerprint_resting`, skipped with `everything`), and quiet boards not
+        due today (all of the quiet ones with `everything`, for `--full`).
 
         The last run asked 191 boards that said "no such board" and 12 that failed,
         every run, since boards.csv keeps every board. A board that goes unread
@@ -186,9 +209,12 @@ class Store:
         hot = {job.board_key for job in self.jobs}
         missed = self.missed_once()
         resting = self.resting(now)
+        fp_resting = set() if everything else self.fingerprint_resting(now)
         due = []
         for board in boards:
             if board.key in resting:
+                continue
+            if board.key in fp_resting:
                 continue
             reads = self.boards.get(board.key)
             if (
@@ -229,6 +255,7 @@ def update(
     now: str,
     *,
     missing: Iterable[str] = (),
+    fingerprints: dict[str, str] | None = None,
 ) -> Store:
     """Fold one scrape into the store.
 
@@ -248,6 +275,12 @@ def update(
     `stats.unread` gives each board this run left unread one more miss in a row,
     and the REST_AFTER-th and later a rest (`rest_for`). A board left for a later
     run (`Outcome.DEFERRED`) has no reason there, and its count stays.
+
+    `fingerprints` maps each board key to the hex CRC32 of its sorted kept
+    external_ids (`__main__` computes it after `classify_job`). When a board's
+    fingerprint matches its previous read's, `unchanged_reads` increments and
+    the board rests (`fingerprint_rest`). None (the default) treats every board
+    as changed, which is the correct fallback for test helpers and `--offline`.
     """
     before = {job.key: job for job in previous.jobs} if previous else {}
     merged = []
@@ -264,12 +297,23 @@ def update(
     merged += [job for key, job in before.items() if key not in seen]
 
     boards = dict(previous.boards) if previous else {}
+    fp = fingerprints or {}
     for key in read:
-        old = boards.get(key)
+        prev = boards.get(key)
+        new_fp = fp.get(key)
+        if prev and prev.fingerprint is not None and new_fp == prev.fingerprint:
+            unchanged = prev.unchanged_reads + 1
+        else:
+            unchanged = 0
+        rest = fingerprint_rest(unchanged)
+        until = (_at(now) + rest).isoformat() if rest else None
         boards[key] = BoardReads(
-            first_read_at=old.first_read_at if old else now,
+            first_read_at=prev.first_read_at if prev else now,
             last_read_at=now,
-            prior_read_at=old.last_read_at if old else None,
+            prior_read_at=prev.last_read_at if prev else None,
+            fingerprint=new_fp,
+            unchanged_reads=unchanged,
+            fingerprint_until=until,
         )
     for key in missing:
         reads = boards.get(key)
@@ -278,7 +322,14 @@ def update(
         if reads.missing_at is None:
             boards[key] = replace(reads, missing_at=now)
         else:
-            boards[key] = replace(reads, last_read_at=now, prior_read_at=reads.missing_at)
+            boards[key] = replace(
+                reads,
+                last_read_at=now,
+                prior_read_at=reads.missing_at,
+                fingerprint=None,
+                unchanged_reads=0,
+                fingerprint_until=None,
+            )
     health = dict(previous.health) if previous else {}
     for key in read:
         health.pop(key, None)
@@ -306,6 +357,21 @@ def rest_for(failures: int) -> timedelta | None:
     if failures < REST_AFTER:
         return None
     return min(REST_FIRST * 2 ** (failures - REST_AFTER), REST_LONGEST)
+
+
+def fingerprint(external_ids: Iterable[str]) -> str:
+    """8-char hex CRC32 of the sorted strings in `external_ids`, joined with ``\\0``."""
+    joined = "\0".join(sorted(external_ids))
+    return f"{zlib.crc32(joined.encode()) & 0xFFFFFFFF:08x}"
+
+
+def fingerprint_rest(unchanged_reads: int) -> timedelta | None:
+    """How long a board unchanged `unchanged_reads` times rests: none on the
+    first read (nothing to compare), then FINGERPRINT_FIRST, doubling each
+    unchanged read up to FINGERPRINT_LONGEST."""
+    if unchanged_reads < 1:
+        return None
+    return min(FINGERPRINT_FIRST * 2 ** (unchanged_reads - 1), FINGERPRINT_LONGEST)
 
 
 def reread_missing_logos(run: Store, version: int) -> Store:
@@ -336,6 +402,10 @@ def carry(job: Job, before: dict[str, Job]) -> Job:
     old = before.get(job.key)
     if not old:
         return job
+    if job.shortlist_tags is not None:
+        # The inline reader just evaluated the whole text, including rejection.
+        # Never resurrect its old page, but keep a date the new list omitted.
+        return replace(job, posted_at=job.posted_at or old.posted_at)
     provider = PROVIDERS.get(job.ats)
     if provider and provider.page_title and job.page is None and old.page is not None:
         # An iCIMS listing's title is its URL's slug; its page gave the real one.
