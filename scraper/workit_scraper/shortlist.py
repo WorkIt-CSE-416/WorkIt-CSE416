@@ -1000,12 +1000,23 @@ def classify_with_description(title: str, description: str | None) -> tuple[Tag,
     result = classify(title)
     if result:
         return result
-    if not description or not title or SENIOR.search(title):
+    if not description:
+        return ()
+    found = _fallback_fields(title)
+    if not found:
         return ()
     years = min_years(description)
     if years is not None and years > 1:
         return ()
     if years is None and not EARLY_EXPERIENCE.search(description):
+        return ()
+    return (Tag.NEW_GRAD, *found)
+
+
+def _fallback_fields(title: str) -> tuple[Tag, ...]:
+    """The fields of a title the description fallback may keep, or () for one it
+    never keeps whatever the description says."""
+    if not title or SENIOR.search(title):
         return ()
     words = PLACE.sub(" ", AUDIENCE.sub(" ", title))
     if LEADS.search(words):
@@ -1018,7 +1029,27 @@ def classify_with_description(title: str, description: str | None) -> tuple[Tag,
     # not fills one.
     if not found or found[0] is Tag.OTHER or found[0] is Tag.HR:
         return ()
-    return (Tag.NEW_GRAD, *found)
+    return found
+
+
+def may_keep(title: str, full: str | None) -> bool:
+    """Whether `classify_with_description` could keep a posting, read from the
+    whole plain text of its description (`text.plain_text`) before the parse that
+    builds its `Page`. The run keeps about 7% of what it scans, and the parse costs
+    about 30 times this check, so a reader whose list sends descriptions parses
+    only what passes (`text._listed_page`).
+
+    Never False for a posting `classify_with_description` keeps from its stored
+    description: that is lines of the whole text under fixed headings
+    (`sections.kept`), so a low-experience phrase in it is in the whole too, and
+    `min_years` of the whole is at most the stored part's.
+    It can be True for one the stored text then drops; the shortlist still decides."""
+    if classify(title):
+        return True
+    if not full or not _fallback_fields(title):
+        return False
+    years = min_years(full)
+    return (years is not None and years <= 1) or bool(EARLY_EXPERIENCE.search(full))
 
 
 #: The steps a wider shortlist could take, in order, and what each would add
