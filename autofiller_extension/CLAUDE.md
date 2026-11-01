@@ -1182,7 +1182,10 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   system with no `SUBMIT_REQUESTS` row (Workday, Eightfold, Rippling: no
   submit request of theirs is recorded) is marked from the page's hint
   alone (its confirmation notice), weaker but no worse than before the
-  proof; a page script there can fake it. Add a row only from a recorded
+  proof; a page script there can fake it. Workday's notice counts only on
+  a page with no step form and no sign-in: GE Aerospace's Create Account
+  page names the "Thank you for applying" email, and was marked Applied
+  with nothing sent (KAN-485). Add a row only from a recorded
   submit request. `webRequest` shows no install warning (Chrome's permissions
   list gives none; the hosts are already in `host_permissions`, which it
   also needs, for the request and its initiator), so adding it doesn't
