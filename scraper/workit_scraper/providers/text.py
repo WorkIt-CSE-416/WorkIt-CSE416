@@ -70,16 +70,14 @@ def plain_lines(markup: str | None) -> list[tuple[str, str]]:
     """
     if not markup:
         return []
-    parser = _TextOnly()
-    parser.feed(html.unescape(markup))
-    parser.close()
+    parser = _parsed(markup)
     text = "".join(piece for piece, _ in parser.parts)
     # The tags open around each character, to read each line's role from.
     around = [tags for piece, tags in parser.parts for _ in piece]
     lines, start = [], 0
     for raw in text.splitlines(keepends=True):
         body = raw.rstrip("\r\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029")
-        line = re.sub(r"[ \t\xa0]+", " ", body).strip()
+        line = _squeezed(body)
         if line:
             tags = [around[start + k] for k, char in enumerate(body) if not char.isspace()]
             lines.append((line, _line_role(tags)))
@@ -98,10 +96,25 @@ def _line_role(tags: list[tuple[str, ...]]) -> str:
     return "p"
 
 
+def _parsed(markup: str) -> _TextOnly:
+    parser = _TextOnly()
+    parser.feed(html.unescape(markup))
+    parser.close()
+    return parser
+
+
+def _squeezed(line: str) -> str:
+    return re.sub(r"[ \t\xa0]+", " ", line).strip()
+
+
 def plain_text(markup: str | None) -> str | None:
     """Plain text from a description that may be HTML, whole: a line wherever a
-    block ended."""
-    return "\n".join(line for line, _ in plain_lines(markup)) or None
+    block ended. `plain_lines`'s lines without their roles, which cost about five
+    times the rest of the parse."""
+    if not markup:
+        return None
+    text = "".join(piece for piece, _ in _parsed(markup).parts)
+    return "\n".join(line for raw in text.splitlines() if (line := _squeezed(raw))) or None
 
 
 def _described(markup: str | None) -> tuple[str | None, tuple[str, ...]]:
