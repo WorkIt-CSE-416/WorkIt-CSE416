@@ -83,11 +83,11 @@ step, Tailor, a view that only waited.
    answers the same run as one JSON body and stays for other callers.
 6. **The review opens on the tailored resume**, compiled, in the editor
    on Tailor's page, with a Suggestions panel beside it (below,
-   "Suggestions"): one row per change to accept or reject, with Accept
-   All and Reject All under them. The run's keyword match before and after
+   "Suggestions"): one row per change with Undo, and Undo All under
+   them. The run's keyword match before and after
    is kept with the record but not shown: Choose Keywords already showed
    the match. Each change's line is tinted on the resume
-   until its card is handled. The student edits directly, and editing a
+   until the student undoes it. The student edits directly, and editing a
    changed item removes its mark and card.
 
 ## What is removed
@@ -95,7 +95,7 @@ step, Tailor, a view that only waited.
 | Today | After |
 |---|---|
 | `propose()` returns change cards (reword, order) | The run applies the changes itself |
-| Accept and reject per card, before saving | The change is saved; its card's Accept keeps it, Reject undoes it |
+| Accept and reject per card, before saving | The change is saved; its card's Undo reverts it |
 | `POST .../tailor/done` | Gone: the run saves |
 | "Have you used X?" questions, and `show_skill` changes | Gone: step 4 picks the skills before the run |
 | Yes added the skill to the experience bank | A picked skill stays on the tailored resume only |
@@ -218,9 +218,9 @@ response lists each change with what it replaced, by handle and id:
 - **The run saves the tailored resume before the editor opens**, so the
   editor, the PDF and Fit to One Page work on it as on any built resume.
   The record only colours and undoes; the resume never depends on it.
-- **Accept, Reject or an edit drops that change from the record**, so its
+- **Undo or an edit drops that change from the record**, so its
   tint and card go. The record stays while it holds the run's match, so
-  the panel keeps the score once every card is handled.
+  the panel keeps the score once every card is gone.
 - **The record lives in `sessionStorage`** (per tab, wrapped in
   try/catch), so a reload in the same tab keeps the suggestions; a new tab
   or device starts with none and the page says so in one line.
@@ -276,7 +276,7 @@ weight.
   At the right, Download, secondary: Finish is the page's one filled
   button, and a filled Download beside it competed. No "Not on This Resume" on
   this page: putting a hidden line back is the editor's own page's work,
-  and a run's own removals have Reject. It sat under the page, below a
+  and a run's own removals have Undo. It sat under the page, below a
   two-page resume, then for a day was a toolbar button with a modal,
   which cluttered the review. Two
   rows were weighed and refused: the toolbar sticks over the page, so a
@@ -333,17 +333,15 @@ weight.
   under the top and the panel keeps its corners. The column itself
   scrolled until 2026-10-26, which carried the rounded corners off with
   the list. The top holds the title, its count and the type filter.
-  Under the list, Reject All and Accept All, red and green as on each
-  row, in reach rather than in a "…" menu at the top, where nobody found
-  them. The top showed the run's keyword match as a thin row over a
+  Under the list, Undo All, in reach rather than in a "…" menu at the
+  top, where nobody found it. The top showed the run's keyword match as a thin row over a
   meter until 2026-10-26; it repeated Choose Keywords' match, and the
   meter read as a progress bar.
 - **A brand-tint panel of white sections.** The panel is the brand tint
   with its pale ring, the editor's bar's colour, so the two read as one
   review and its white sections stand apart; it was grey (`app`) until
   the user found it muted. On a phone the sheet is white and the sections
-  grey. Reject is the danger tint with red text (Button `decline`) and
-  Accept the green fill (`positive`), so the two read apart at a glance.
+  grey.
 - **The toolbar shows and hides the panel** (Suggestions, `panelOpen` in
   the editor, which owns the grid). Hidden, the page takes the whole
   width and no line stays highlighted. A phone opens the panel as a sheet
@@ -360,8 +358,7 @@ weight.
   heading with the entry's title, its organization, how many suggestions
   it holds and a caret. Under a hairline, each suggestion is always open:
   its type's round badge and name ("Removed bullet", "Added skill ·
-  Languages"), a green check (Accept) and a red cross (Reject) at its end,
-  as Google Docs answers a suggestion, and under them a white card with an
+  Languages"), Undo at its end, and under them a white card with an
   outline holding the words, one row for each thing that changed under a
   hairline (`ChangeCard`): each moved bullet with its place before and
   after as an amber tag ("3 → 1"), a rewording's Before and After lines or
@@ -371,8 +368,7 @@ weight.
   to read). Only sections fold: each row folded too, with a plus and a
   minus, until 2026-10-26, and a fold inside a folding section read as
   nested and odd. The card was one grey box, which read as a chat message
-  and ran three moves together as one; Accept and Reject were full buttons
-  under it, which read heavy. Pointing at a row highlights its lines and
+  and ran three moves together as one. Pointing at a row highlights its lines and
   turns it faint grey, never brand (a purple row read as selected); a click
   on its name also scrolls the page to them (on a phone, closing the
   sheet). Hover never scrolls: it made the page swim as the pointer
@@ -394,10 +390,13 @@ weight.
   and removed types were designed against sample changes, removed before
   this shipped. A run that adds or drops a line needs its `TailorEdit`
   kind, its `changesOf` mapping and its revert (`revertOf`).
-- **Accept keeps the change** (it is saved already): the card and its
-  dots go. **Reject undoes it** through the choices PATCH (`revertOf`,
-  above) and drops it. Reject All is one PATCH (`revertAll`), each
-  bullet's parts merged into one row. Accept All empties the list.
+- **Undo reverts a change** through the choices PATCH (`revertOf`, above)
+  and drops it, so its card and dots go. Undo All is one PATCH
+  (`revertAll`), each bullet's parts merged into one row. **There is no
+  Accept** (KAN-499): every change is saved before the review opens, so
+  Accept did nothing to the resume and two buttons asked for a choice with
+  one action behind it. A change stays marked until it is undone or its
+  line is edited.
 - **Only Tailor's page reviews.** The editor takes the panel as a prop
   (`suggestions`); without it, as on `/resumes/[id]`, it shows no dots or
   tints, and the top bar's Scout opens its assistant. On this page Scout
@@ -480,7 +479,7 @@ them:
 4. **The editor marks and reverts. Built.** `resumes/[resumeId]/
    tailor-review.tsx`: `marksOf` tints the lines (green a new wording or
    skill, amber a moved bullet) on Tailor's page; the Suggestions panel
-   offers each change's Accept and Reject; `revertOf` builds the choices
+   offers each change's Undo; `revertOf` builds the choices
    PATCH; `untouched` drops a
    change the student's own PATCH touches, and `reverted` drops a reverted
    one. An order is read against the current choices: every bullet at

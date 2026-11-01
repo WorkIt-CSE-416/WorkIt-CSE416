@@ -2299,10 +2299,11 @@ with no proposals to accept and no Done (2026-10-25).
   reworded blue, removed red, moved amber, and its count); under it one white section per resume entry, top to bottom
   as on the page, each heading with the entry's title, organization,
   count and a caret, and each suggestion a row with its type's badge and
-  a green ✓ and a red ✕, always open over its change (only sections
+  Undo, always open over its change (only sections
   fold): a white outlined card with one row per thing that changed (each
   moved bullet with an amber "3 → 1" tag), and under the
-  list Reject All and Accept All. Pointing at a row highlights its lines;
+  list Undo All. Accept and Reject sat there until KAN-499: the change is
+  saved already, so Accept did nothing to the resume. Pointing at a row highlights its lines;
   only a click on its name scrolls the page to them. On a phone the panel is a sheet opened by
   "Suggestions (n)". With no record (a new tab or device) the editor
   shows alone, with a line saying the suggestions live in the tab that ran
@@ -2640,9 +2641,9 @@ student who opened a resume from Experiences landed on another view.
   skill green (`positive`, bordered in `positive-ink`), a new wording blue
   (`advanced`), an entry's bullets in a new order amber (`warning-fill`,
   bordered in `warning-strong`). There the page has no "Not on This
-  Resume" (a run's own removals have Reject), and the top bar's Scout
+  Resume" (a run's own removals have Undo), and the top bar's Scout
   stays the job search chat. The panel sits in the column beside the
-  page; on a phone it is a sheet from the bottom bar. Reject goes through the choices PATCH
+  page; on a phone it is a sheet from the bottom bar. Undo goes through the choices PATCH
   (the wording back to the source's, the old order, the skill hidden),
   and any later edit of a changed item drops that change's mark. The
   run's record is in sessionStorage (`tailorEditsKey`, under
@@ -2669,7 +2670,7 @@ student who opened a resume from Experiences landed on another view.
   (`backend/CLAUDE.md`). It never cuts Education, Skills, an entry's first
   bullet, or the top Experience and Projects entry.
 - **"Not on This Resume"** (`tray.tsx`) under the page (not on Tailor's
-  review, where a run's own removals have Reject): entries the resume
+  review, where a run's own removals have Undo): entries the resume
   does not show (hidden, or added to the bank after Generate), hidden
   bullets of shown entries, and hidden skills. One click puts one back; an
   entry joins the end of its section with its bullets.

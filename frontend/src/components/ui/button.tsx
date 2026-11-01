@@ -125,8 +125,8 @@ export const buttonVariants = cva(
          *  equivalent: its palette has no success role. */
         positive:
           "bg-positive text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
-        /** Danger tint with red text: declining something offered, such as
-         *  Tailor's Reject beside a `positive` Accept. Quieter than
+        /** Danger tint with red text: declining something offered, beside
+         *  a `positive`. Quieter than
          *  `destructive`, so the pair reads as two choices, not two alarms.
          *  WorkIt-only. */
         decline:

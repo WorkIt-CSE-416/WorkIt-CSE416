@@ -2,13 +2,12 @@
 
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
+  ArrowUUpLeftIcon,
   ArrowsDownUpIcon,
   CaretDownIcon,
-  CheckIcon,
   MinusIcon,
   PencilSimpleIcon,
   PlusIcon,
-  XIcon,
 } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
@@ -50,9 +49,10 @@ import { TailorJobLine } from "./tailor-header";
  * is highlighted only while its suggestion is pointed at, focused or open.
  * The panel has a section per resume entry, top to bottom as on the page,
  * each counting its suggestions; each suggestion is a row with its type's
- * badge (added, reworded, removed, moved: a colour and a glyph) that opens
- * to its before and after with Accept, which keeps the saved change, and
- * Reject, which undoes it. A dropdown in the heading row filters by type. The editor owns the state and
+ * badge (added, reworded, removed, moved: a colour and a glyph) over its
+ * before and after, with Undo, which reverts the change. Every change is
+ * saved already, so there is nothing to accept (KAN-499). A dropdown in the
+ * heading row filters by type. The editor owns the state and
  * lays the panel out (`suggestions`); this file draws it.
  *
  * The record lives in this tab's sessionStorage, so a new tab or device has
@@ -168,10 +168,8 @@ function SuggestionsPanel({
   bank,
   choices,
   saving,
-  accept,
-  reject,
-  acceptAll,
-  rejectAll,
+  undo,
+  undoAll,
   focused,
   focus,
   show,
@@ -297,8 +295,7 @@ function SuggestionsPanel({
                           saving={saving}
                           onFocus={focus}
                           onShow={() => show(change.key)}
-                          onAccept={() => accept(change.edit)}
-                          onReject={() => reject(change.edit)}
+                          onUndo={() => undo(change.edit)}
                         />
                       </li>
                     ))}
@@ -310,21 +307,15 @@ function SuggestionsPanel({
         </div>
       ) : (
         <p className="text-note text-ink-meta">
-          You handled every suggestion. Edit anything else on the resume.
+          No suggestions left. Edit anything else on the resume.
         </p>
       )}
       {/* Every change at once, in reach under the list rather than in a
-          "…" menu at the top, where nobody found them. Red undoes, green
-          keeps, as on each row */}
+          "…" menu at the top, where nobody found it */}
       {changes.length > 0 && (
-        <div className="grid shrink-0 grid-cols-2 gap-2 pt-1">
-          <Button variant="decline" disabled={saving} onClick={rejectAll}>
-            <XIcon aria-hidden /> Reject All
-          </Button>
-          <Button variant="positive" disabled={saving} onClick={acceptAll}>
-            <CheckIcon aria-hidden /> Accept All
-          </Button>
-        </div>
+        <Button variant="secondary" className="shrink-0" disabled={saving} onClick={undoAll}>
+          <ArrowUUpLeftIcon aria-hidden /> Undo All
+        </Button>
       )}
     </section>
   );
@@ -420,8 +411,9 @@ function KindBadge({ kind, small = false }: { kind: ChangeKind; small?: boolean 
 
 /**
  * One suggestion, a row in its entry's section, always open: its type's
- * badge and name, ✓ Accept and ✕ Reject at its end, as Google Docs answers
- * a suggestion, and under them the change (`ChangeBody`). A click on it
+ * badge and name, Undo at its end, and under them the change (`ChangeBody`).
+ * Accept and Reject sat there until KAN-499: the change is saved already,
+ * so Accept did nothing to the resume. A click on it
  * shows its lines on the page (`onShow`: highlighted and scrolled to; on a
  * phone the sheet closes); pointing at it highlights them without
  * scrolling. Each row folded on its own, with a plus and a minus, until
@@ -440,8 +432,7 @@ function Suggestion({
   saving,
   onFocus,
   onShow,
-  onAccept,
-  onReject,
+  onUndo,
 }: {
   change: Change;
   bank: Bank;
@@ -453,8 +444,7 @@ function Suggestion({
   saving: boolean;
   onFocus: (key: string | null) => void;
   onShow: () => void;
-  onAccept: () => void;
-  onReject: () => void;
+  onUndo: () => void;
 }) {
   return (
     <div
@@ -481,30 +471,15 @@ function Suggestion({
           </span>
           <span className="sr-only">, show on the resume</span>
         </button>
-        {/* Green keeps, red undoes. They were full Accept and Reject
-            buttons under the change, which read heavy */}
-        <span className="flex shrink-0 items-center gap-0.5 pt-1.5">
+        <span className="shrink-0 pt-1.5">
           <Button
             variant="ghost"
-            size="icon-sm"
-            aria-label={`Accept: ${title(change)}`}
-            title="Accept"
+            size="xs"
+            aria-label={`Undo: ${title(change)}`}
             disabled={saving}
-            onClick={onAccept}
-            className="text-positive-ink hover:bg-positive-tint"
+            onClick={onUndo}
           >
-            <CheckIcon aria-hidden weight="bold" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Reject: ${title(change)}`}
-            title="Reject"
-            disabled={saving}
-            onClick={onReject}
-            className="text-danger hover:bg-danger-tint"
-          >
-            <XIcon aria-hidden weight="bold" />
+            <ArrowUUpLeftIcon aria-hidden /> Undo
           </Button>
         </span>
       </div>

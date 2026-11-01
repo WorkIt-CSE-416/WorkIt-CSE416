@@ -122,7 +122,7 @@ import { Tray } from "./tray";
  * in Scout's panel from the top bar's Scout (`ScoutTakeover`), or in a
  * sheet on a phone, and acts through the same saves. On Tailor's page
  * (`suggestions`), each change the run made is tinted and has a card in
- * the Suggestions panel beside the page, to accept or reject; an edit of
+ * the Suggestions panel beside the page, to undo; an edit of
  * a changed item through `apply` drops that change.
  *
  * THE FIRST PDF STREAMS IN (KAN-368). The page starts the render and hands
@@ -1264,12 +1264,8 @@ export function Editor({
       bank,
       choices,
       saving,
-      // Accept keeps the saved change and drops it from the record
-      accept: (edit) =>
-        setReview({ ...reviewing, edits: reviewing.edits.filter((e) => e !== edit) }),
-      reject: (edit) => void apply(revertOf({ edit }, choices), { edit }),
-      acceptAll: () => setReview({ ...reviewing, edits: [] }),
-      rejectAll: () => void apply(revertAll(reviewing.edits, choices)),
+      undo: (edit) => void apply(revertOf({ edit }, choices), { edit }),
+      undoAll: () => void apply(revertAll(reviewing.edits, choices)),
       focused,
       focus: setFocused,
       show: (key) => {
@@ -1456,7 +1452,7 @@ export function Editor({
         </div>
         {/* Putting an item back renders again, so it waits for the first. */}
         {/* Not on Tailor's review: putting a hidden line back is the
-            editor's own page's work, and a run's own removals have Reject.
+            editor's own page's work, and a run's own removals have Undo.
             A toolbar button and modal for it there cluttered the review */}
         {rendered && !suggestions && <Tray bank={bank} choices={choices} onPutBack={apply} />}
       </div>

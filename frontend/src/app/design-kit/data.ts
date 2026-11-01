@@ -559,7 +559,7 @@ export const BUTTON_VARIANTS = [
   { variant: "ghost", note: "Brand text action, no chrome" },
   { variant: "section", note: "Section action, muted, beside a heading" },
   { variant: "positive", note: "Accepting an offer — WorkIt-only" },
-  { variant: "decline", note: "Declining beside a positive: Tailor's Reject — WorkIt-only" },
+  { variant: "decline", note: "Declining beside a positive — WorkIt-only" },
   { variant: "destructive", note: "UNMEASURED" },
   { variant: "link", note: "UNMEASURED" },
 ] as const;
