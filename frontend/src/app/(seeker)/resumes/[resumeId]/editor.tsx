@@ -1975,6 +1975,23 @@ function SlimBar({
       {rendered && rendered.page_count > 1 && (
         <PagesChip pages={rendered.page_count} linesOver={rendered.lines_over} />
       )}
+      {rendered && rendered.page_count > 1 && (
+        // Over one page only, in the warning sign's own amber, so the fix
+        // stands beside the count it answers, before Add Experiences. It
+        // sat inside the chip's popover until 2026-11-01, one click away,
+        // and was missed. Add Experiences' own variant and size, so the two
+        // share one shape and differ only in color
+        <Button
+          variant="secondary"
+          size="sm"
+          title="Hide the least useful lines until the resume fits on one page"
+          className="bg-warning-strong hover:bg-warning-strong/90 border-warning-strong text-white hover:text-white"
+          disabled={saving}
+          onClick={onFit}
+        >
+          <ScissorsIcon aria-hidden /> Fit to One Page
+        </Button>
+      )}
       {experiences && (
         // A button of the bar's own weight, as Download is: it is the way to
         // add to the resume, not a label. Tinted while its panel is open
@@ -1989,20 +2006,6 @@ function SlimBar({
           onClick={experiences.onToggle}
         >
           <StackIcon aria-hidden /> Add Experiences
-        </Button>
-      )}
-      {rendered && rendered.page_count > 1 && (
-        // Over one page only, in the warning sign's own amber, so the fix
-        // stands beside the count it answers. It sat inside the chip's
-        // popover until 2026-11-01, one click away, and was missed
-        <Button
-          size="sm"
-          title="Hide the least useful lines until the resume fits on one page"
-          className="bg-warning-strong hover:bg-warning-strong/90 border-transparent text-white"
-          disabled={saving}
-          onClick={onFit}
-        >
-          <ScissorsIcon aria-hidden /> Fit to One Page
         </Button>
       )}
       {experiences?.cut && (

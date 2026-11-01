@@ -2642,7 +2642,8 @@ student who opened a resume from Experiences landed on another view.
   over one page, the page count as an amber chip with a warning sign
   ("⚠ 2 pages"; its title says by how much, the render's `lines_over`, an
   estimate), and **Fit to One Page** as a filled button in the warning
-  sign's amber (`warning-strong`) right after Add Experiences. The chip
+  sign's amber (`warning-strong`) just before Add Experiences, in its
+  variant and size, so the two share one shape (36 px, 8 px corners). The chip
   opens nothing: until 2026-11-01 it was a popover with Fit inside, and
   students missed the fix a click away. White text on that amber is about
   3.2:1, under the 4.5:1 small text wants; `warning-deep` (4.9:1) is the
