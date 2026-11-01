@@ -207,6 +207,15 @@ export async function updateChoices(
   });
 }
 
+/** When anything the resume's page prints last changed, and the database's
+ *  clock now (KAN-391): the editor asks on a return to its tab after a
+ *  while away, and reloads only if something changed while it was hidden. */
+export async function resumeChangedAt(
+  resumeId: string,
+): Promise<Result<{ changed_at: string; now: string }>> {
+  return call<{ changed_at: string; now: string }>(`/${id(resumeId)}/changed-at`);
+}
+
 /** One edit rendered and never saved (KAN-391): a typed line or choice
  *  changes, made to the editor's copy in memory, so the API reads nothing
  *  but the resume's row. What the edit changed in the copy comes back with

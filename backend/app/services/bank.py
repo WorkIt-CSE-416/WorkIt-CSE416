@@ -299,11 +299,14 @@ async def write_entry(
     """A partial edit written with no read first (the editor's typed line,
     KAN-391): `current` is the entry as the caller holds it, the merged
     entry is checked whole as `edit_entry` checks it, and only the fields
-    the edit changes are written, so a stale `current` never writes back
-    an old value. One statement updates the row, if it is the applicant's,
-    and marks the bank embedding stale; NotFound for another's entry."""
+    the edit names are written, so a stale `current` never writes back an
+    old value. Each named field is written even when `current` already
+    holds it: `current` can predate a save still on its way, so an old
+    value typed back over that save matched it and was dropped. One
+    statement updates the row, if it is the applicant's, and marks the bank
+    embedding stale; NotFound for another's entry."""
     merged = EntryFields.model_validate({**current, **changes, "section": current["section"]}).model_dump()
-    values = {k: v for k, v in merged.items() if k != "section" and v != current.get(k)}
+    values = {k: merged[k] for k in changes if k != "section"}
     if not values:
         return
     edited = (
