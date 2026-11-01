@@ -323,8 +323,12 @@ def update(
             boards[key] = replace(reads, missing_at=now)
         else:
             boards[key] = replace(
-                reads, last_read_at=now, prior_read_at=reads.missing_at,
-                fingerprint=None, unchanged_reads=0, fingerprint_until=None,
+                reads,
+                last_read_at=now,
+                prior_read_at=reads.missing_at,
+                fingerprint=None,
+                unchanged_reads=0,
+                fingerprint_until=None,
             )
     health = dict(previous.health) if previous else {}
     for key in read:

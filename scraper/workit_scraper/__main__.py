@@ -341,7 +341,10 @@ def main(argv: list[str] | None = None) -> int:
             rest = "" if args.full else " (quiet ones rest; --full reads all)"
             print(f"scraping {len(due)} of {len(boards)} boards{rest}")
             print(f"{len(previous.resting(now)):,} boards rest after going unread")
-            print(f"{len(previous.fingerprint_resting(now)):,} boards rest after an unchanged fingerprint\n")
+            print(
+                f"{len(previous.fingerprint_resting(now)):,} boards rest after an unchanged"
+                " fingerprint\n"
+            )
             boards = due
         else:
             print(f"scraping {len(boards)} boards\n")
@@ -414,7 +417,12 @@ def main(argv: list[str] | None = None) -> int:
             fp_resting=fp_resting,
         )
         print_metrics(
-            run.stats, fresh, by_ats, steps=steps, missed=missed, resting=resting,
+            run.stats,
+            fresh,
+            by_ats,
+            steps=steps,
+            missed=missed,
+            resting=resting,
             fp_resting=fp_resting,
         )
         print(f"\n{len(found):,} stored postings not in the feed: {_reasons(found)}")

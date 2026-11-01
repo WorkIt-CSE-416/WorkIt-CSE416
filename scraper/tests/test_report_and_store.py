@@ -236,12 +236,21 @@ class TestFingerprint:
     board = Board("greenhouse", "acme", "Acme")
 
     def read(
-        self, previous: Store | None, now: str, *jobs: Job, fp: str | None = None,
+        self,
+        previous: Store | None,
+        now: str,
+        *jobs: Job,
+        fp: str | None = None,
     ) -> Store:
         key = self.board.key
         fingerprints = {key: fp} if fp is not None else None
         return store.update(
-            previous, list(jobs), [key], RunStats(), now, fingerprints=fingerprints,
+            previous,
+            list(jobs),
+            [key],
+            RunStats(),
+            now,
+            fingerprints=fingerprints,
         )
 
     def test_first_read_gets_fingerprint_no_rest(self):
@@ -378,7 +387,11 @@ class TestFingerprint:
         # Now make the board fail 3 times to enter health rest.
         for i in range(3):
             run = store.update(
-                run, [], [], RunStats(unread={self.board.key: "403"}), _plus(TUE, 5 + i),
+                run,
+                [],
+                [],
+                RunStats(unread={self.board.key: "403"}),
+                _plus(TUE, 5 + i),
             )
         assert self.board.key in run.health
         # Fingerprint rest has expired (TUE + 4h < TUE + 8h), but health rest blocks.
@@ -396,7 +409,12 @@ class TestFingerprint:
         assert run.boards[self.board.key].fingerprint == fp
         # Second: closes its postings and clears fingerprint fields.
         run = store.update(
-            run, [], [], RunStats(), _plus(THU, 3), missing=[self.board.key],
+            run,
+            [],
+            [],
+            RunStats(),
+            _plus(THU, 3),
+            missing=[self.board.key],
         )
         reads = run.boards[self.board.key]
         assert reads.fingerprint is None
