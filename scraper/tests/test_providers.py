@@ -271,6 +271,38 @@ class TestListedPage:
         assert classify_with_description(analyst.title, analyst.description)
         assert intern.facts.min_years == 5
 
+    def test_a_posting_that_now_asks_for_more_is_not_kept_on_its_old_page(
+        self, monkeypatch
+    ) -> None:
+        # Kept on "0-1 years", then the employer asks for "5+": the new list has no
+        # page for it, and `store.carry` must not bring back the stored one, or the
+        # shortlist keeps it on its old description.
+        def read(requirements: str) -> Job:
+            posted = "2026-10-08 10:41:07 UTC"
+            serve(
+                monkeypatch,
+                {
+                    "offers": [
+                        offer(
+                            2,
+                            "Data Analyst",
+                            "Tampa",
+                            [],
+                            requirements=requirements,
+                            published_at=posted,
+                        )
+                    ]
+                },
+            )
+            [job] = providers.recruitee("hardrockdigital", "Hard Rock Digital")
+            return job
+
+        kept = read("<p>0-1 years of experience.</p>")
+        changed = store.carry(read("<p>5+ years of experience.</p>"), {kept.key: kept})
+        assert changed.page is None
+        assert not classify_with_description(changed.title, changed.description)
+        assert changed.posted_at == kept.posted_at
+
 
 class TestBambooHR:
     LIST = {

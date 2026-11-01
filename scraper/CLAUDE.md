@@ -198,6 +198,12 @@ robots and pacing.
   day, vanishes at "30+ Days Ago", or falls back to midnight. Oracle did fall
   back on its second run until 2026-10-26: a list that dates a posting at all,
   only roughly, needs `page_date`.
+- **Never carry a page for a provider whose list sends descriptions** (no
+  `Provider.job_url`): the list is its only source, so a listing with no page
+  is one the shortlist cannot keep now (`text._listed_page`), not one whose
+  page is unread. Carried, a posting kept on "0-1 years" stayed on the Jobs
+  page with its old description after the employer asked for "5+" (found in
+  review, 2026-11-01). Only its date is carried.
 - **Bump `providers.PAGE_VERSION` whenever a `Page` starts holding something
   new, or a fact's pattern changes**, or stored postings never get it.
   `with_page` re-reads any page under an older version, once per kept
