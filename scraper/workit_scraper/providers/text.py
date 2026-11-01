@@ -8,7 +8,9 @@ import re
 from collections.abc import Iterable
 from html.parser import HTMLParser
 
-from workit_scraper import details
+# `shortlist` as a module, never `from shortlist import may_keep`: imported first,
+# the shortlist loads the readers, and so this, before it defines `may_keep`.
+from workit_scraper import details, shortlist
 from workit_scraper.providers.model import PAGE_VERSION, Page
 from workit_scraper.sections import kept
 
@@ -153,6 +155,31 @@ def _page(
         facts=facts,
         offices=offices,
         requisition=requisition,
+    )
+
+
+def _listed_page(
+    title: str,
+    markup: str | None,
+    *,
+    stated_type: str | None = None,
+    stated_style: str | None = None,
+    stated_pay: details.Pay | None = None,
+) -> Page | None:
+    """The `Page` of a posting whose list sends its description (Ashby, Lever,
+    Recruitee, TikTok, Jibe), or None when the shortlist cannot keep it
+    (`shortlist.may_keep`). The run drops about 93% of what it scans, and
+    building a Page took most of a lane's time when every posting got one."""
+    if not shortlist.may_keep(title, plain_text(markup)):
+        return None
+    full, roles = _described(markup)
+    return _page(
+        title,
+        full,
+        roles=roles,
+        stated_type=stated_type,
+        stated_style=stated_style,
+        stated_pay=stated_pay,
     )
 
 

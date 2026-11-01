@@ -8,6 +8,10 @@ were measured on.
 
 from __future__ import annotations
 
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 
 from workit_scraper.providers import Job
@@ -873,3 +877,10 @@ class TestMayKeep:
     )
     def test_drops_what_no_description_could_keep(self, title, desc):
         assert not may_keep(title, desc)
+
+    @pytest.mark.parametrize("first", ["workit_scraper.shortlist", "workit_scraper.providers"])
+    def test_either_module_imports_first(self, first):
+        # The readers' `text` calls this module, which reads their `Job`; a test
+        # process has both loaded already, so only a fresh one sees the order.
+        root = Path(__file__).resolve().parent.parent
+        subprocess.run([sys.executable, "-c", f"import {first}"], check=True, cwd=root)

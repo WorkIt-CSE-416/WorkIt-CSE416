@@ -30,7 +30,10 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
 from workit_scraper.details import Facts, min_years
-from workit_scraper.providers import Job
+
+# From the module, not the package: `providers.text` imports this module while
+# `workit_scraper.providers` is still loading, before the package names `Job`.
+from workit_scraper.providers.model import Job
 
 
 class Tag(StrEnum):
