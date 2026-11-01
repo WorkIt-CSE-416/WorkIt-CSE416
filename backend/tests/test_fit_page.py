@@ -293,3 +293,34 @@ async def test_bullets_rank_on_the_wording_the_resume_shows(database):
     # The texts are ranked as given: no bank row holds them
     assert ranks[entry.bullets[0].id] > 0
     assert ranks[entry.bullets[1].id] == 0
+
+
+def test_a_fit_render_that_fails_once_is_tried_again(monkeypatch):
+    from fastapi import HTTPException
+
+    from app.routers import built_resumes as route
+    from app.services.resume_render import TectonicUnavailable
+
+    calls = []
+
+    def flaky(view, identity, template):
+        calls.append(view)
+        if len(calls) == 1:
+            raise TectonicUnavailable("tectonic timed out")
+        return Rendered(b"%PDF", 1)
+
+    monkeypatch.setattr(route, "render", flaky)
+    assert asyncio.run(route._render(sample.VIEW, sample.IDENTITY, "jakes", tries=2)).page_count == 1
+    assert len(calls) == 2
+
+    # A render that fails twice is a 503
+    def broken(view, identity, template):
+        calls.append(view)
+        raise TectonicUnavailable("tectonic failed")
+
+    calls.clear()
+    monkeypatch.setattr(route, "render", broken)
+    with pytest.raises(HTTPException) as failed:
+        asyncio.run(route._render(sample.VIEW, sample.IDENTITY, "jakes", tries=2))
+    assert failed.value.status_code == 503
+    assert len(calls) == 2

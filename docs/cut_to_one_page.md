@@ -85,8 +85,9 @@ loop touches the database twice in all:
   already takes a view (`fit_to_one_page`'s `render` argument), so the
   confirm render needs no save first.
 - **One write, at the end:** every cut together through `fit_changes` and
-  `update_choices`, in one transaction. If a render fails (503), Fit
-  writes nothing, and the resume is as it was.
+  `update_choices`, in one transaction. A render that fails is tried once
+  more; if it fails again (503), Fit writes nothing, and the resume is as
+  it was.
 
 ### Measuring from the boxes
 

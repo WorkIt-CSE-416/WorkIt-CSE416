@@ -748,7 +748,9 @@ Find files with a directory listing; these are the rules for where code goes.
   Page is `POST .../fit` (`fit_to_one_page`; the design is
   `docs/cut_to_one_page.md`, the code `services/fit_page.py`). It reads
   the resume once, cuts it in memory and saves every cut together at the
-  end, so a failed render saves nothing. The order: bullets down to two
+  end, so a failed render saves nothing; each render gets a second try
+  first (`FIT_RENDER_TRIES` in the router), since one failed compile
+  would otherwise throw away the whole run. The order: bullets down to two
   per entry, then to one, section by section (Awards, Certifications,
   Leadership, Projects, Experience), then whole entries (Leadership,
   Projects, Experience), with Skills, Awards and Certifications, and

@@ -73,7 +73,8 @@ POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, undo,
        the last render by prediction; a render confirms, about two in all.
        It saves every cut together at the end. `undo` is the PATCH
        .../choices body that shows them all again.
-       503 like render; a failed render saves nothing.
+       Each render gets a second try (FIT_RENDER_TRIES); 503 like render
+       when one fails twice, and then nothing is saved.
 GET    /applicants/{id}/built-resumes/{rid}/docx   -> the Word file, as an attachment:
        the editor's Download Word, which keeps nothing (KAN-267)
 GET    /applicants/{id}/built-resumes/{rid}/tex    -> the LaTeX source, as an attachment:
@@ -274,12 +275,23 @@ async def render_pdf(
 RENDER_FAILED = "The PDF could not be made. Try again, or download the Word file."
 
 
-async def _render(view, identity: HeaderIdentity, template: str) -> Rendered:
-    try:
-        return await asyncio.to_thread(render, view, identity, template)
-    except TectonicUnavailable as exc:
-        logger.error("resume render failed: %s", exc)
-        raise HTTPException(503, RENDER_FAILED) from exc
+# Fit to One Page renders two or three times in one request and saves only
+# at the end, so one failed compile would throw away the whole run: each of
+# its renders gets a second try. A compile that fails twice fails the
+# request, with nothing saved.
+FIT_RENDER_TRIES = 2
+
+
+async def _render(view, identity: HeaderIdentity, template: str, tries: int = 1) -> Rendered:
+    for attempt in range(1, tries + 1):
+        try:
+            return await asyncio.to_thread(render, view, identity, template)
+        except TectonicUnavailable as exc:
+            if attempt == tries:
+                logger.error("resume render failed: %s", exc)
+                raise HTTPException(503, RENDER_FAILED) from exc
+            logger.warning("resume render failed, trying again: %s", exc)
+    raise AssertionError("tries must be at least 1")
 
 
 def _render_response(
@@ -307,7 +319,7 @@ async def fit(
     identity = await _identity(session, applicant_id)
 
     async def draw(view) -> Rendered:
-        return await _render(view, identity, resume.template)
+        return await _render(view, identity, resume.template, tries=FIT_RENDER_TRIES)
 
     cuts, rendered = await service.fit_to_one_page(session, applicant_id, resume_id, draw)
     await _commit(session, "Failed to save the resume")
