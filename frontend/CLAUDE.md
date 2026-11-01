@@ -1427,6 +1427,23 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Turning it on needs every write to call `revalidatePath` in its server
   action first, which Next's `revalidatePath.md` says clears every visited
   page from the client cache.
+- **Every resume write clears the router's copies, but the editor's saves
+  never do** (KAN-443). A Back to the Resumes page showed the list from
+  before an edit, rename or delete. Each write action in
+  `lib/built-resume-actions.ts` and `lib/resume-actions.ts` calls
+  `resumesChanged` or `revalidatingResumes` (`lib/resume-revalidate.ts`)
+  once it worked. **In Next 16.3 any `revalidatePath` in an action also
+  renders the current page again in its answer, whatever path it names**
+  (`revalidate.js`: "TODO: only revalidate if the path matches"), so:
+  the editor's per-edit saves (`saveLine`, `updateChoices`) and Fit never
+  call it, or every edit would compile the PDF again and hold the save
+  queue behind it; they, and the Tailor run (a route handler, whose
+  revalidation never reaches the browser), call `markResumesStale`
+  (`lib/resumes-stale.ts`), and the Resumes list reads itself again on
+  mount when it is set. A screen whose write already revalidates calls no
+  `router.refresh()` after it (the editor's title, the upload's page),
+  which would render the page twice. The upload page's Delete passes
+  `leaving`: rendered again, that page is a 404 before its push.
 - **Every other seeker Back goes to the page that opened it**
   (`(seeker)/back-link.tsx`, KAN-363): `BackLink`, or `useBack` for a
   control drawn its own way (the editor's phone arrow), given the page's
@@ -1684,7 +1701,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   outlive the database it describes (another tab's edit, a reload).
   Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
   own text undo runs. An open line is saved first, so Undo takes back
-  what was just typed.
+  what was just typed. **A rename in the title is a step too**
+  (KAN-443, `TitleHistoryContext` in `resume-title.tsx`, provided by the
+  editor round its title row): it shows at once, saves behind it, and a
+  failed save puts the name before it back and drops the step. Its step
+  keeps no state or PDF, since no PDF prints the name, so Undo and Redo
+  only save. Undo skipped the title until then.
 - **An editor tab reads the resume again when it changed elsewhere**
   (KAN-391), quietly, through `reload` with no notice, which also clears
   Undo. Each save that lands is announced on a `BroadcastChannel`
@@ -1736,7 +1758,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   A "Tailored N" button per Tailor wording came first, then This Resume's
   Wording beside Original; the user wanted Original alone (2026-10-29).
   The API still accepts a switch to any wording the resume can show.
-- **The editor's page has a zoom** (`Zoom` on the slim bar, both pages):
+- **The editor's page has a zoom** (`Zoom` in `[resumeId]/zoom.tsx`, on
+  the slim bar of both pages; an upload's page has the same control for a
+  PDF, opening at 100% and kept in its state only, never stored):
   steps of the page's printed size, 100% being 816px (8.5in at 96px an
   inch), opening at 125% (1020px), capped by its column, kept per browser through
   `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`). The page filled its column

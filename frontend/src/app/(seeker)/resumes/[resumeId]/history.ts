@@ -24,9 +24,13 @@ export const HISTORY_STEPS = 25;
  *  Redo; older ones still undo, through a render. Tunable as above. */
 export const PDF_STEPS = 7;
 
-/** An edit as the editor sends it: choice changes or a typed line. */
+/** An edit as the editor sends it: choice changes, a typed line, or the
+ *  resume's name, which the title saves (./resume-title.tsx) and no PDF
+ *  prints, so its step never keeps a state or a PDF. */
 export type Edit =
-  { changes: ChoicesUpdate } | { line: { item_id: string; kind: string; text: string } };
+  | { changes: ChoicesUpdate }
+  | { line: { item_id: string; kind: string; text: string } }
+  | { name: string };
 
 /** One step: the edit (`redo`) and its reverse (`undo`), and, once its
  *  render landed, the editor's state and PDF on each side of it. */

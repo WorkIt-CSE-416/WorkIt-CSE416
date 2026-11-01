@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { createContext, use, useEffect, useRef, useState } from "react";
 
 import { PencilIcon } from "@/components/icons";
 import { renameBuiltResume } from "@/lib/built-resume-actions";
@@ -11,6 +10,24 @@ import { cn } from "@/lib/cn";
  *  does not move a letter. */
 const BOX = "text-subtitle text-ink rounded-control -mx-2 px-2 py-1 font-semibold";
 
+/** A rename for Undo or Redo to make; `drop` takes its step out of the
+ *  history when the save fails. */
+export type ApplyName = (name: string, drop: () => void) => void;
+
+/**
+ * The editor's Undo and Redo, as the title reaches them (./editor.tsx
+ * provides it round the title row). `record` keeps a rename as a step and
+ * answers how to drop it again; `attach` hands the editor the title's own
+ * rename, which Undo and Redo call with the step's name. Outside an editor
+ * there is none, and a rename keeps no step.
+ */
+export type TitleHistory = {
+  record: (from: string, to: string) => () => void;
+  attach: (apply: ApplyName | null) => void;
+};
+
+export const TitleHistoryContext = createContext<TitleHistory | null>(null);
+
 /**
  * A built resume's name over the page, in the editor's title row, on its
  * own page (an h1, the page's title) and on Tailor's review step (an h2
@@ -19,12 +36,25 @@ const BOX = "text-subtitle text-ink rounded-control -mx-2 px-2 py-1 font-semibol
  * shows a faint outline and a pencil when pointed at, and a click turns it
  * into a field with the same box. Enter or a click away saves it
  * (`renameBuiltResume`), Esc puts the old name back, and an empty name is
- * not saved. The title shows the new name as soon as the save answers:
- * the page reads it again (`router.refresh`) a moment later, and in that
- * moment the old name flashed back. It was a grey
- * small-capitals label, "RESUME · <name>", which the user found hard to
- * read and could not rename. The editor's own page had a plain h1 at
- * heading size until KAN-411 gave it Tailor's title row.
+ * not saved.
+ *
+ * **A rename shows at once and saves behind it**, as every other edit in
+ * the editor does: the field closes on the new name, the save goes, and a
+ * save that fails puts back the name before it, with the API's reason
+ * under the title. Saves run one at a time, in order, so a quick second
+ * rename never lands under the first. While any is on its way the title
+ * keeps its own name over the page's: each action renders the page again
+ * in its answer (`lib/resume-revalidate.ts`), so the first one's answer
+ * would show its name while the second is still saving. It calls no
+ * `router.refresh()`, which would compile the PDF a second time.
+ *
+ * **A rename is a step of the editor's Undo and Redo** (`TitleHistory`):
+ * Undo saves the name before it, Redo the name after, and a step whose
+ * save fails leaves the history. Until then Undo skipped the title and
+ * took back the edit before it. It was a grey small-capitals label,
+ * "RESUME · <name>", which the user found hard to read and could not
+ * rename. The editor's own page had a plain h1 at heading size until
+ * KAN-411 gave it Tailor's title row.
  */
 export function ResumeTitle({
   resumeId,
@@ -35,37 +65,63 @@ export function ResumeTitle({
   name: string;
   as?: "h1" | "h2";
 }) {
-  const router = useRouter();
-  // The saved name, ahead of the page's own until its refresh lands
+  const history = use(TitleHistoryContext);
+  // The name the student last gave, ahead of the page's own while saving
   const [shown, setShown] = useState(name);
+  const [saving, setSaving] = useState(0);
   const [prev, setPrev] = useState(name);
   if (name !== prev) {
     setPrev(name);
-    setShown(name);
+    if (saving === 0) setShown(name);
   }
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [saving, startSaving] = useTransition();
+  // The saves, one at a time; `latest` is the newest name sent, so only a
+  // failure of that one puts a name back (an older one's is already gone)
+  const saves = useRef<Promise<void>>(Promise.resolve());
+  const latest = useRef(name);
   // Enter or Esc hands focus back to the title, which the field replaced;
   // a click away leaves it where the click put it
   const refocus = useRef(false);
+  // Whether the field is open: Enter closes it at once, and the blur its
+  // removal can fire must not save the name a second time
+  const open = useRef(false);
   const close = (focus: boolean) => {
+    open.current = false;
     refocus.current = focus;
     setDraft(null);
   };
 
-  function save(focus: boolean) {
-    if (draft === null || saving) return;
-    const next = draft.trim();
-    if (!next || next === shown) return close(focus);
+  /** Shows `next` and saves it; `drop` takes its step out of the history
+   *  if the save fails. */
+  function rename(next: string, before: string, drop?: () => void) {
     setError(null);
-    startSaving(async () => {
+    setShown(next);
+    latest.current = next;
+    setSaving((n) => n + 1);
+    saves.current = saves.current.then(async () => {
       const { error } = await renameBuiltResume(resumeId, next);
-      if (error) return setError(error);
-      setShown(next);
-      router.refresh();
-      close(focus);
+      setSaving((n) => n - 1);
+      if (!error) return;
+      drop?.();
+      if (latest.current !== next) return;
+      latest.current = before;
+      setShown(before);
+      setError(error);
     });
+  }
+
+  useEffect(() => {
+    history?.attach((next, drop) => rename(next, latest.current, drop));
+    return () => history?.attach(null);
+  });
+
+  function save(focus: boolean) {
+    if (draft === null || !open.current) return;
+    const next = draft.trim();
+    close(focus);
+    if (!next || next === shown) return;
+    rename(next, shown, history?.record(shown, next));
   }
 
   return (
@@ -81,7 +137,10 @@ export function ResumeTitle({
                 el.focus();
               }
             }}
-            onClick={() => setDraft(shown)}
+            onClick={() => {
+              open.current = true;
+              setDraft(shown);
+            }}
             className={cn(
               BOX,
               "group hover:bg-panel hover:ring-border-subtle focus-visible:ring-brand-ring flex min-w-0 items-center gap-2 text-left transition-colors duration-150 hover:ring-1 focus-visible:ring-2 focus-visible:outline-none",
@@ -98,8 +157,6 @@ export function ResumeTitle({
           required
           maxLength={80}
           value={draft}
-          disabled={saving}
-          aria-invalid={error ? true : undefined}
           onChange={(event) => setDraft(event.target.value)}
           onFocus={(event) => event.target.select()}
           onBlur={() => save(false)}
@@ -110,10 +167,7 @@ export function ResumeTitle({
               close(true);
             }
           }}
-          className={cn(
-            BOX,
-            "bg-panel ring-brand-ring aria-invalid:ring-danger w-full min-w-0 ring-2 outline-none disabled:opacity-60",
-          )}
+          className={cn(BOX, "bg-panel ring-brand-ring w-full min-w-0 ring-2 outline-none")}
         />
       )}
       {error && (
