@@ -60,6 +60,11 @@ PUT    /applicants/{id}/built-resumes/{rid}/lines  LineSave -> LineSaved
        (`profile` answered). 422 {detail} for text it cannot save (an
        empty title, a GPA that is not a number, a kind not typed here),
        404 for an item that is not the applicant's.
+GET    /applicants/{id}/built-resumes/{rid}/changed-at -> ResumeChanged {changed_at, now}
+       When anything the page prints last changed (the resume, the bank,
+       the profile) and the database's clock, in one read: the editor asks
+       on a return to its tab after a while away (KAN-391). 404 for a
+       resume that is not the applicant's.
 POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, undo, render}
        Fit to One Page: hides coursework, bullets and whole entries, least
        useful first (resume_view.fit_order), and renders again until the
@@ -117,6 +122,7 @@ from app.schemas.built_resume import (
     LineSaved,
     RenderBox,
     RenderResponse,
+    ResumeChanged,
 )
 from app.schemas.keywords import KeywordMatchResponse
 from app.schemas.profile import ApplicantProfileResponse, ApplicantProfileUpdate
@@ -308,6 +314,19 @@ async def fit(
         undo=ChoicesUpdate(**service.fit_changes(cuts, hide=False)),
         render=_render_response(rendered, resume.name, identity, resume.template),
     )
+
+
+@router.get("/{resume_id}/changed-at", response_model=ResumeChanged)
+async def changed_at(
+    resume_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> ResumeChanged:
+    try:
+        changed, now = await service.changed_at(session, applicant_id, resume_id)
+    except NotFound:
+        raise HTTPException(404, "Resume not found")
+    return ResumeChanged(changed_at=changed, now=now)
 
 
 @router.get("/{resume_id}/choices", response_model=ChoicesResponse)
