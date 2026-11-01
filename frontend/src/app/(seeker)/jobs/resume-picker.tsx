@@ -32,7 +32,7 @@ import { LocalDate } from "../local-time";
  * resume list and an upload with the Resumes page's rules (KAN-267), so
  * the three dialogs never drift apart on the limit, the replace step or a
  * duplicate. The Experiences view's Choose a Resume to Show
- * (../bank/resume-bar.tsx, KAN-361) shows its list too, with no job
+ * (../experiences/resume-bar.tsx, KAN-361) shows its list too, with no job
  * posting: it builds its own `Choice` rows from the bank's resumes.
  */
 
@@ -121,8 +121,8 @@ const order = (a: Choice, b: Choice) =>
   Date.parse(b.at ?? "0") - Date.parse(a.at ?? "0");
 
 /** A pickable card: the Resumes page's card box (`RESUME_ROW`), tinted
- *  while it holds the pick. The Experiences view's Not From an Upload row
- *  draws itself with it too, since it sits in the same radio group. */
+ *  while it holds the pick. The Experiences view's All Experiences row draws
+ *  itself with it too, since it sits in the same radio group. */
 export function pickRowClasses(picked: boolean) {
   return cn(
     RESUME_ROW,

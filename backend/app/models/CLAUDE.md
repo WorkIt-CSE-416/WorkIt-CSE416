@@ -270,7 +270,7 @@ change here must keep:
   catalog keys (`services/skill_catalog.py` `key`) of the skills the
   student deleted, or took out of the parse preview: a resume reading
   (`import_upload`, the preview) and Tailor's "Have you used X?" never add
-  them again. The student adding one by hand (POST .../bank/skills) takes
+  them again. The student adding one by hand (POST .../experiences/skills) takes
   it off the list. The clean-up script's deletes are not the student's and
   are not remembered.
 - **Section fields are plain nullable columns on `bank_entries`**, not a
@@ -319,7 +319,7 @@ change here must keep:
   the GPA and coursework toggles; the words always come from the bank (ADR
   0001). Never copy bank text onto a built resume.
 - **No choice row means not on the resume**, for entries, bullets and skills
-  alike, so what is added to the bank after Generate waits in the tray.
+  alike, so what is added to the bank after Generate stays off in the editor's Experiences picker.
   Deleting a bank item cascades to its choice rows.
 - **A base resume has no `job_posting_id`; a tailored one has one**, unique
   per applicant and posting (`built_resumes_applicant_posting_key`; NULLs are

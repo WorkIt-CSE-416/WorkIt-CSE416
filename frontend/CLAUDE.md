@@ -1647,8 +1647,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   saved resume, so it waits for the saves sent before it. **A save that
   fails puts the saved resume back** (`reload`): once the saves before it
   answer, the bank, the choices and a PDF read from the database replace
-  the copy, and the bar says the change was not saved. A refusal (404,
-  422) needs no reload: the render refuses it too and says why. A choice
+  the copy, and the bar says the change was not saved. A render that
+  fails for any reason but a refusal (a timeout, a 503 compile, the
+  network) is sent once more after 500 ms (`renderEdit`): it writes
+  nothing and reads no database, so a retry costs one compile and keeps
+  the Undo steps a reload clears. If it fails again it reloads too,
+  saying the change was not shown: its save went
+  beside it and may have landed, and taking the change off the page left
+  a hidden bullet showing that the download left out. A save's 422
+  needs no reload (`unsaved`): the render reads the line as the save
+  does, so it refuses it too, takes it off the page and says why. A
+  save's 404 reloads: the render reads the editor's copy and the save
+  the database, so an entry deleted in another tab still rendered here,
+  and the page kept a change no refusal was shown for. A choice
   change's plain fields (shown, position, the toggles) go into the
   choices at once (`mergeChoices`) and are merged again over each answer
   until their own lands, so a second quick move computes from the first.
@@ -1679,6 +1690,25 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Undo does); the phone's bar shows the same Undo and Redo. The fit
   response still names what it hid (`hidden`), for a list that puts each
   one back.
+- **An editor tab reads the resume again when it changed elsewhere**
+  (KAN-391), quietly, through `reload` with no notice, which also clears
+  Undo. Each save that lands is announced on a `BroadcastChannel`
+  (`RESUME_CHANNEL`, `{ resumeId, shared }`; `shared` for an entry's field
+  or the header, which every resume prints), and only a signal goes: each
+  tab's copy stays in its memory. A tab that hears one marks its copy
+  `stale` and reads it again only while it shows and is idle (no line
+  open, nothing on its way; `refresh`, called again on leaving a line and
+  in `drawn`), so ten hidden tabs cost one reload, the one looked at. A
+  tab hidden for `CHECK_AFTER_MS` (5 minutes) asks on its return when the
+  page last changed (`resumeChangedAt`, `GET .../changed-at`: the resume,
+  the bank and the profile, one read) and reloads only if that is after
+  it hid, read against the database's clock; a quicker switch reads
+  nothing. The time away is measured from timestamps, never timers, which
+  Chrome throttles in a hidden tab. **Still open:** the Experiences page
+  and Tailor do not announce their writes, so an editor tab learns of
+  them only after 5 minutes away; the bar says "Saving…" while a quiet
+  reload runs; and two tabs editing within the same few seconds still
+  need a version check on each save.
 - **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
   text is kept per line (`drafts`, by box key) and drawn over the line
   until the PDF that prints it has painted: the selected line as its
@@ -1697,8 +1727,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   old drawing. **A line left is still editable while its PDF is on its
   way**: its typed text carries the line's `data-box` and reopens the
   line on a click, with what was typed; until then the text took the
-  click and the press closed the line. A line reopened and left as it was
-  sends nothing again (`lastSent`). Desktop only: the phone types in a
+  click and the press closed the line. While it is on its way, a line
+  left again is compared with what was last sent (`lastSent`), never with
+  the PDF on screen: left as it was, it sends nothing again, and typed
+  back to the old text, it sends that. Compared with the PDF, which still
+  printed the old text, the typed-back line sent nothing and the first
+  edit came back when its PDF landed. Desktop only: the phone types in a
   sheet.
 - **A bullet's one wording button is Original** (`LineActions`), shown
   only while the bullet shows another wording (Tailor's, or one typed on
@@ -1719,7 +1753,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   editor design (KAN-411): the title row (`heading`, `ResumeTitle`
   renamed in place) and the slim toolbar (`SlimBar`). Only the review
   passes `suggestions` (the panel, and with it the margin dots and tints,
-  the view switch in the title row, no Not on This Resume, and Scout's
+  the view switch in the title row, no Experiences picker, and Scout's
   panel left to the job chat), `original` and `phoneBar`. A change for the review goes behind
   one of these props, and a change to the bar or the title row changes
   both pages, so the two never drift into two editors again: until
@@ -1966,18 +2000,17 @@ are in `docs/auth.md`.
   the app's life and would show a PDF from before an edit. An upload's card opened its Storage link in
   a new tab until then (`lib/preview-resume.ts`, now gone), so an upload
   left the app and a DOCX simply downloaded.
-- **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
-  `../docs/bank_by_resume.md`): a Showing card names the pick, drawn as
+- **The Experiences view opens on All Experiences, and filters to one
+  resume** (KAN-343, KAN-440, ADR 0005, `../docs/bank_by_resume.md`): a
+  Showing card names the pick, drawn as
   the Resumes page draws a resume (KAN-363), and its Change Resume opens
-  the shared resume list (KAN-361, KAN-406, `(seeker)/bank/resume-bar.tsx`
-  over `(seeker)/jobs/resume-picker.tsx`'s `ResumeLists`), with Not From an
-  Upload as a card under the list (`pickRowClasses`, drawn as its
-  cards), in its radio group, while anything no
-  upload owns exists or while it is the pick. The page opens on
-  `?resume=`, else the starred resume, else the newest. A pick applies on Show Resume, never on a row
+  the shared resume list (KAN-361, KAN-406, `(seeker)/experiences/resume-bar.tsx`
+  over `(seeker)/jobs/resume-picker.tsx`'s `ResumeLists`), with All
+  Experiences as a card over the list, in its radio group. The page opens on
+  `?resume=`, else All Experiences. A pick applies on Show Resume, never on a row
   click, so the arrow keys can move it. The dropdown it replaced had no
   search and cut long names short. The rules (which items a pick shows, the opening pick, the "Also
-  used in" line) live in `(seeker)/bank/holdings.ts` and read only the
+  used in" line) live in `(seeker)/experiences/holdings.ts` and read only the
   API's `resume_ids`; never work out a resume's items in a component.
   Intake always gets the whole bank. Add sends the pick (`createEntry`,
   `addSkill`), so the new item belongs to that upload or shows on that
@@ -1988,9 +2021,10 @@ are in `docs/auth.md`.
   editor, or the upload's own page, `/resumes/uploaded/[id]`); Rename,
   Download, Make Primary and Delete stay on the Resumes view, so the page
   never shows a resume deleted from under it. All Experiences was removed
-  (2026-10-23). **Every item must show under some pick**: Not From an
-  Upload holds what no upload owns (intake's, or one that came from
-  several uploads before ADR 0005). It was removed too at first, which
+  (2026-10-23) and came back (KAN-440): copies group by the API's
+  `copy_group` (`rowsOf`), never by a rule in the browser. **Every item must show under All Experiences**: a copy no resume holds, with
+  bullets its row does not show, stays a row of its own (`rowsOf`). Not From
+  an Upload did this job until KAN-440; removed once too early, it
   left 96 entries and 242 skills of 8 students that every reader used but
   no student could see, edit or delete, so it came back (2026-10-24).
   Clear All (KAN-352) deletes what a card shows, from the whole bank, as
@@ -2015,7 +2049,7 @@ are in `docs/auth.md`.
   upload page's Delete still wait for the API behind a busy button: they
   confirm a count or leave the page.
 - **The Experiences view has a section nav** (KAN-349,
-  `(seeker)/bank/section-nav.tsx`): one sticky row of links to the seven
+  `(seeker)/experiences/section-nav.tsx`): one sticky row of links to the seven
   section cards, each with its count under the current pick, the one in
   view lit. It is one row at every width, scrolling sideways where it does
   not fit, so its height never changes; every section card's `scroll-mt-16`

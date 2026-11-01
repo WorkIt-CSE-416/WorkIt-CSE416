@@ -18,17 +18,17 @@ export const metadata: Metadata = {
 };
 
 /**
- * /bank, the experience bank (KAN-206), shown as the Experiences view of
+ * /experiences, the experience bank (KAN-206), shown as the Experiences view of
  * Resumes & Experiences (KAN-249; the header's switcher leads to Resumes at
  * /resumes): every entry in the seven sections, kept once, that built
  * resumes draw from. Live from the API's `GET /applicants/{id}/bank`; when
  * that fails the page says so and offers a retry, never fixture rows. The
  * page is the bank itself: the sections and Skills. Intake, with Import
  * inside its chat, lives in Scout's panel (bank-screen.tsx), opened by Fill
- * With Scout, the view's primary action beside the switcher. The route
- * stays /bank, so the Jobs page's /bank?import=1 still lands.
+ * With Scout, the view's primary action beside the switcher. It was
+ * /bank until KAN-440, which next.config.ts redirects here.
  */
-export default async function BankPage({ searchParams }: PageProps<"/bank">) {
+export default async function BankPage({ searchParams }: PageProps<"/experiences">) {
   await connection();
   // The Jobs page's "Import Your Resume" (?import=1) starts the import here.
   const params = await searchParams;
@@ -54,7 +54,7 @@ export default async function BankPage({ searchParams }: PageProps<"/bank">) {
           /* A plain link, not <Link>: a full reload is what re-runs the fetch. */
           action={
             // eslint-disable-next-line @next/next/no-html-link-for-pages -- the reload is the point
-            <a href="/bank" className={buttonClasses({ variant: "secondary", size: "sm" })}>
+            <a href="/experiences" className={buttonClasses({ variant: "secondary", size: "sm" })}>
               Try Again
             </a>
           }
