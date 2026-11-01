@@ -215,7 +215,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
 - **SAP SuccessFactors** (`successfactors.js`, KAN-369). The manifest runs on
   the career sites' `/career*` and `/portalcareer*` pages of
   `*.successfactors.com|.eu` and `*.sapsf.com|.eu` (backend
-  AUTO_APPLY_HOSTS the same four). A posting usually lives on the
+  AUTO_APPLY_HOSTS the same four, plus the career sites `*.jobs2web.com`
+  and jobs.sap.com, which the engine's `jobOf` takes: KAN-491, the feed's
+  ASSA ABLOY postings were refused without them). A posting usually lives on the
   employer's own career site (jobs.sap.com, `*.jobs2web.com`, a branded
   host), where the extension doesn't run: its Apply goes on to the career
   site's sign-in. The sign-in and its Create an Account page are the
