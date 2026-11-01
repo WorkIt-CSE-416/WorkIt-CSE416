@@ -84,8 +84,13 @@ one render:
   heading's, plus the header's. It ignores the empty space at the foot of
   page 1 that a block moved whole to page 2 leaves: once the resume fits,
   nothing moves.
-- **The page** fits while the predicted height is at most page 1's text
-  height: the bottom of page 1's text area, less its top.
+- **The page** fits while the predicted height is at most the text
+  height. The boxes cannot give it, so the render reports it: `MARKS`
+  also writes `\textheight` and the top of the text area to `resume.pos`
+  at shipout, and `Rendered` carries them. Nothing is hard-coded and
+  `jakes.tex` stays byte for byte. The preamble's paper size, margins and
+  font size option all set the text height, so a value copied from it
+  would go wrong without warning when any of them changed.
 - **A skill line's width** is read from each skill's box (`x0`, `x1`). A
   wrapped line is trimmed by dropping skills from its cut order until the
   widths, with the space after each comma, fit on one line. Its saving is
@@ -226,10 +231,11 @@ left, else the next entry.
   put-back render (show the last cut again, keep it shown if the page
   still fits) would fix that for one more render. Measure how often it
   happens on real resumes before adding it.
-- **The measuring is tied to Jake's template.** "The usual space between
-  items" is read from the render, not hard-coded, but a new template with
-  a different layout (columns, a side bar) needs its own check that the
-  prediction still holds.
+- **The prediction assumes a one-column layout.** Every height, width
+  and space is read from the render, never from `jakes.py`. But removing
+  an item moves the rest up only when items stack in one column at a
+  fixed width, with skills printed one line per group. A template with
+  columns or a side bar breaks that and needs its own prediction.
 - **Bullets come last on purpose.** Up to 75% of entries can go before a
   single extra bullet does. A resume a few lines over loses one entry, not
   bullets across every entry. If real resumes come back too thin, move
