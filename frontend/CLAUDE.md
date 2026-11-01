@@ -1687,9 +1687,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   what was just typed. **Fit to One Page is one step like any edit**:
   Undo shows what it hid, Redo hides it again (`hideAgain`). It has no
   Undo Fit button of its own (gone 2026-11-01, a second way to do what
-  Undo does); the phone's bar shows the same Undo and Redo. The fit
-  response still names what it hid (`hidden`), for a list that puts each
-  one back.
+  Undo does); the phone's bar shows the same Undo and Redo. **Cut From
+  Resume** lists what every fit in the tab cut, read from each fit's
+  `undo` body (`addCuts` in `model.ts`, tested in `cuts.test.ts`), kept in
+  memory like Undo, and puts each item back as an ordinary pick
+  (`docs/screens.md`, Cut From Resume).
 - **An editor tab reads the resume again when it changed elsewhere**
   (KAN-391), quietly, through `reload` with no notice, which also clears
   Undo. Each save that lands is announced on a `BroadcastChannel`

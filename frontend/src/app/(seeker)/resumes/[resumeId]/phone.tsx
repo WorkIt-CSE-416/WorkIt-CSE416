@@ -9,6 +9,7 @@ import {
   HandPointingIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
+  ScissorsIcon,
   XIcon,
 } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
@@ -24,10 +25,10 @@ import { DownloadMenu, DownloadNotes, type ResumeDownload } from "../download-me
 import { useBack } from "../../back-link";
 import { EDITOR_PARENT } from "./back";
 import { FitNotice } from "./fit-notice";
-import { lineName, shortPageLabel, type Line } from "./model";
+import { cutRows, isBack, lineName, shortPageLabel, type FitCuts, type Line } from "./model";
 import type { HistoryTools } from "./editor";
 import { boxKey, kindLabel } from "./pdf-pages";
-import { ExperiencesPicker } from "./experiences-picker";
+import { CutPicker, ExperiencesPicker } from "./experiences-picker";
 
 /**
  * The phone editor (KAN-219, the KAN-201 prototype's variant A). The page
@@ -114,6 +115,7 @@ export function PhoneEditor({
   onApply,
   onFit,
   history,
+  cuts,
 }: {
   /** Null until the first render lands (./editor.tsx streams it in). */
   rendered: RenderedPdf | null;
@@ -156,12 +158,16 @@ export function PhoneEditor({
   onFit: () => void;
   /** Undo and Redo, the desktop bar's: a Fit to One Page is one step. */
   history: HistoryTools;
+  /** What Fit to One Page cut, for Cut From Resume. */
+  cuts: FitCuts;
 }) {
   const back = useBack(EDITOR_PARENT);
   const snapshot = useSyncExternalStore(subscribeViewport, viewportSnapshot, () => "0|0");
   const [height, top] = snapshot.split("|").map(Number);
   const [zoom, setZoom] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [cutOpen, setCutOpen] = useState(false);
+  const cutLeft = !cutRows(bank, choices, cuts).every(isBack);
   const [asking, setAsking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -301,6 +307,16 @@ export function PhoneEditor({
             >
               Add Experiences
             </Button>
+            {cutLeft && (
+              <Button
+                variant="secondary"
+                className="text-warning hover:text-warning flex-1"
+                disabled={!rendered}
+                onClick={() => setCutOpen(true)}
+              >
+                <ScissorsIcon aria-hidden /> Cut From Resume
+              </Button>
+            )}
             {/* The primary action, filled as on the desktop bar. */}
             <Button disabled={!rendered} onClick={() => setAsking(true)}>
               <SparkleIcon /> Ask Scout
@@ -386,6 +402,17 @@ export function PhoneEditor({
         <Sheet onClose={() => suggestions.onOpenChange(false)} title="Suggestions">
           <div className={TAP}>{suggestions.panel}</div>
         </Sheet>
+      )}
+
+      {cutOpen && (
+        <>
+          <div className="absolute inset-0 z-30 bg-black/25" onClick={() => setCutOpen(false)} />
+          <Sheet onClose={() => setCutOpen(false)} title="Cut From Resume">
+            <div className={TAP}>
+              <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={onApply} />
+            </div>
+          </Sheet>
+        </>
       )}
 
       {pickerOpen && (

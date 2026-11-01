@@ -181,9 +181,10 @@ with the failure it prevents.
   proposals and no Done, and the editor marks each change and reverts it.
   Holds the skill placement rule. Read it before changing Tailor or its
   screen.
-- `docs/cut_to_one_page.md` — a draft, not built: Fit to One Page on a
-  resume with a job posting cuts by the posting's rank (entries, then
-  skills from 10%, 50% and 75% of entries cut), not by position. Read it
+- `docs/cut_to_one_page.md` — a draft, not built: Fit to One Page cuts
+  one item per render until the resume is one page, entries first, then
+  skills from 10%, 50% and 75% of entries cut, by the posting's rank on a
+  resume with a job posting and by position on one without. Read it
   before changing Fit to One Page.
 - `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
   built: each edit renders from the editor's copy with no database read

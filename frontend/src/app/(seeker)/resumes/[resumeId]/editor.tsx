@@ -62,9 +62,13 @@ import {
 import { Assistant } from "./assistant";
 import { FitToast } from "./fit-notice";
 import {
+  addCuts,
+  cutRows,
   HEADER,
+  isBack,
   LINK_FIELDS,
   lineOf,
+  NO_CUTS,
   mergeChoices,
   move,
   withWording,
@@ -99,7 +103,7 @@ import {
   untouched,
   useTailorReview,
 } from "./tailor-review";
-import { ExperiencesPicker } from "./experiences-picker";
+import { CutPicker, ExperiencesPicker } from "./experiences-picker";
 
 /**
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
@@ -142,6 +146,13 @@ import { ExperiencesPicker } from "./experiences-picker";
 // The attribute on the parts of the editor a press may land on without
 // clearing the selected line
 const KEEPS_SELECTION = "data-keeps-selection";
+
+/** The panel's mark while it shows Cut From Resume: Fit's scissors, amber. */
+const CUT_MARK = (
+  <span className="bg-warning-tint text-warning flex size-8 shrink-0 items-center justify-center rounded-2xl">
+    <ScissorsIcon aria-hidden className="size-4.5" weight="duotone" />
+  </span>
+);
 
 /** The panel's mark while it shows the Experiences picker: the toolbar
  *  button's glyph, so what opened it is what it wears, and not Scout's. */
@@ -492,18 +503,21 @@ export function Editor({
   // is the way back, and a switch only took up the panel's top. Closed, it
   // goes back to the assistant, so the top bar's Scout always opens Scout
   const scoutOpen = useScout().open;
-  const [panelView, setPanelView] = useState<"scout" | "experiences">("scout");
+  const [panelView, setPanelView] = useState<"scout" | "experiences" | "cut">("scout");
   const [panelWasOpen, setPanelWasOpen] = useState(scoutOpen);
   if (panelWasOpen !== scoutOpen) {
     setPanelWasOpen(scoutOpen);
     if (!scoutOpen) setPanelView("scout");
   }
   const showScout = useCallback(() => setPanelView("scout"), []);
-  const showExperiences = () => {
-    if (scoutOpen && panelView === "experiences") return setScoutOpen(false);
-    setPanelView("experiences");
+  const showPanel = (view: "experiences" | "cut") => {
+    if (scoutOpen && panelView === view) return setScoutOpen(false);
+    setPanelView(view);
     setScoutOpen(true);
   };
+  // What Fit to One Page cut, for Cut From Resume: every fit in this tab,
+  // kept in memory like Undo, since the page's choices say what is still off
+  const [cuts, setCuts] = useState(NO_CUTS);
   const [zoom, setZoom] = useZoom();
   // The column beside the page, the panel or the original, sized to the
   // window from wherever its top is
@@ -1088,6 +1102,7 @@ export function Editor({
       lastPdf.current = data.render;
       keepRendered(data.render);
       const hid = data.undo.bullets?.length || data.undo.entries?.length;
+      if (hid) setCuts((c) => addCuts(c, data.undo));
       const fresh = await getChoices(resumeId);
       if (fresh.data) keepChoices(fresh.data);
       // Fit is one step like any edit: Undo (the button or Cmd+Z) shows what
@@ -1494,6 +1509,7 @@ export function Editor({
           onApply={apply}
           onFit={fit}
           history={history}
+          cuts={cuts}
         />
         {fitToast}
       </>
@@ -1521,7 +1537,16 @@ export function Editor({
         // toolbar button and modal for it there cluttered the review. It
         // waits for the first render, since a pick renders again
         rendered && !suggestions
-          ? { open: scoutOpen && panelView === "experiences", onToggle: showExperiences }
+          ? {
+              open: scoutOpen && panelView === "experiences",
+              onToggle: () => showPanel("experiences"),
+              // Only while something Fit cut is still off the page, or its
+              // panel is open
+              cut:
+                (scoutOpen && panelView === "cut") || !cutRows(bank, choices, cuts).every(isBack)
+                  ? { open: scoutOpen && panelView === "cut", onToggle: () => showPanel("cut") }
+                  : null,
+            }
           : null
       }
       zoom={<Zoom zoom={zoom} onZoom={setZoom} />}
@@ -1609,13 +1634,27 @@ export function Editor({
           back to the assistant, which stays mounted under it, for its chat */}
       {rendered && !suggestions && (
         <ScoutTakeover
-          mark={panelView === "experiences" ? EXPERIENCES_MARK : undefined}
-          away={panelView === "experiences" ? showScout : undefined}
-          title={panelView === "experiences" ? "Experiences" : "Scout"}
+          mark={
+            panelView === "experiences"
+              ? EXPERIENCES_MARK
+              : panelView === "cut"
+                ? CUT_MARK
+                : undefined
+          }
+          away={panelView !== "scout" ? showScout : undefined}
+          title={
+            panelView === "experiences"
+              ? "Experiences"
+              : panelView === "cut"
+                ? "Cut From Resume"
+                : "Scout"
+          }
           subtitle={
             panelView === "experiences"
               ? "Pick what this resume shows"
-              : "Edits this resume as you talk"
+              : panelView === "cut"
+                ? "Put back what Fit to One Page hid"
+                : "Edits this resume as you talk"
           }
         >
           <div data-keeps-selection className="flex min-h-0 flex-1 flex-col">
@@ -1625,6 +1664,11 @@ export function Editor({
             {panelView === "experiences" && (
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4">
                 <ExperiencesPicker bank={bank} choices={choices} onApply={apply} />
+              </div>
+            )}
+            {panelView === "cut" && (
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4">
+                <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={apply} />
               </div>
             )}
           </div>
@@ -1782,7 +1826,12 @@ function Bar({
 
 /** The toolbar's Experiences (KAN-440): whether Scout's panel shows the
  *  picker now. */
-type ExperiencesTools = { open: boolean; onToggle: () => void };
+type ExperiencesTools = {
+  open: boolean;
+  onToggle: () => void;
+  /** Cut From Resume, only after a fit cut something still off the page. */
+  cut: { open: boolean; onToggle: () => void } | null;
+};
 
 /** The slim bar's review tools: the changes left, and which column shows
  *  beside the page. */
@@ -1944,6 +1993,22 @@ function SlimBar({
           onClick={experiences.onToggle}
         >
           <StackIcon aria-hidden /> Add Experiences
+        </Button>
+      )}
+      {experiences?.cut && (
+        // Beside Add Experiences, in the same weight, amber as Fit is
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-pressed={experiences.cut.open}
+          title="Put back what Fit to One Page cut"
+          className={cn(
+            "text-warning hover:text-warning",
+            experiences.cut.open && "border-warning/50 bg-warning-tint hover:bg-warning-tint",
+          )}
+          onClick={experiences.cut.onToggle}
+        >
+          <ScissorsIcon aria-hidden /> Cut From Resume
         </Button>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">

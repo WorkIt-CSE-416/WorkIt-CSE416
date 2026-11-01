@@ -314,6 +314,76 @@ export function pickSkill(row: PickedSkill, on: boolean): ChoicesUpdate {
   };
 }
 
+/** What Fit to One Page cut from this resume, read from each fit's `undo`
+ *  body: whole entries, bullets and Education's coursework lines. */
+export type FitCuts = { entries: string[]; bullets: string[]; coursework: string[] };
+
+export const NO_CUTS: FitCuts = { entries: [], bullets: [], coursework: [] };
+
+/** `cuts` with one more fit's cuts added: a second fit adds to the first. */
+export function addCuts(cuts: FitCuts, undo: ChoicesUpdate): FitCuts {
+  const add = (list: string[], ids: string[]) => [...new Set([...list, ...ids])];
+  const entries = undo.entries ?? [];
+  return {
+    entries: add(
+      cuts.entries,
+      entries.filter((e) => e.shown !== undefined).map((e) => e.entry_id),
+    ),
+    coursework: add(
+      cuts.coursework,
+      entries.filter((e) => e.show_coursework !== undefined).map((e) => e.entry_id),
+    ),
+    bullets: add(
+      cuts.bullets,
+      (undo.bullets ?? []).map((b) => b.bullet_id),
+    ),
+  };
+}
+
+/** One row of Cut From Resume: a picker row with only the bullets Fit cut,
+ *  the copies Fit cut whole (`cutIds`), and its coursework line if Fit cut
+ *  that. */
+export type CutEntry = PickedEntry & {
+  cutIds: string[];
+  coursework: { entry_id: string; on: boolean } | null;
+};
+
+/**
+ * Cut From Resume's rows: each entry Fit cut something from, as the
+ * Experiences picker shows it (`pickerEntries`), so a row says whether it
+ * is back on the page. A row stays after it is added back, ticked, so a
+ * click that put the wrong one back can take it off again.
+ */
+export function cutRows(bank: Bank, choices: Choices, cuts: FitCuts): CutEntry[] {
+  const entry = new Map(choices.entries.map((c) => [c.entry_id, c]));
+  return pickerEntries(bank, choices).flatMap((row) => {
+    const ids = [row.entry, ...row.copies].map((e) => e.id);
+    const cutIds = ids.filter((id) => cuts.entries.includes(id));
+    const bullets = row.bullets.filter((b) => cuts.bullets.includes(b.id));
+    const course = ids.find((id) => cuts.coursework.includes(id));
+    if (cutIds.length === 0 && bullets.length === 0 && !course) return [];
+    return [
+      {
+        ...row,
+        bullets,
+        cutIds,
+        coursework: course
+          ? { entry_id: course, on: entry.get(course)?.show_coursework === true }
+          : null,
+      },
+    ];
+  });
+}
+
+/** True when everything Fit cut from the row is on the page again. */
+export function isBack(row: CutEntry) {
+  return (
+    (row.cutIds.length === 0 || row.on) &&
+    row.bullets.every((b) => b.on) &&
+    (!row.coursework || row.coursework.on)
+  );
+}
+
 /** The page-count chip: "1 page", or "2 pages · 3 lines over 1 page". */
 /** The phone's short count, "3 lines over" (or "2 pages" with no estimate),
  *  for its top bar beside the back arrow. */

@@ -2729,6 +2729,19 @@ student who opened a resume from Experiences landed on another view.
   of a long resume, then a Hidden panel that listed only what was missing;
   students could not see their bank beside the resume, and "Hidden" was false
   for an item they had never hidden.
+- **Cut From Resume** (`CutPicker` in `experiences-picker.tsx`): what Fit to
+  One Page cut, in the Experiences picker's layout but amber, Fit's own
+  color, with its scissors as the panel's mark. Its toolbar button sits
+  beside Add Experiences and shows only while something a fit cut is still
+  off the page (or its panel is open); on a phone it is a sheet beside Add
+  Experiences. Groups by section, all open, each "1 of 3 added back"; no
+  resume or group filters, since a fit cuts a few items. A whole entry Fit
+  cut has its own tick and comes back as the copy Fit cut; an entry Fit only
+  trimmed lists just its cut bullets; a cut coursework line has a tick of
+  its own. A tick goes through the same save as any pick, so Undo takes it
+  back. A row stays once it is back, ticked, so a wrong tick can be undone
+  here too. The list is every fit in the tab, read from each fit's `undo`
+  body (`addCuts`), kept in memory as Undo is, so a reload forgets it.
 - Skills can be hidden but not moved: they print grouped, and a move
   inside a group is still open.
 - A failed render shows "This Resume Isn't Loading Right Now" with the API's
