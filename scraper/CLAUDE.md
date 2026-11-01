@@ -557,7 +557,15 @@ scraper standard-library-only.
   names none. A pool board is proposed only when it lists a posting
   `shortlist.pick` keeps, under the name its own hiring system gives it
   (`Provider.read_name`); one its system does not name stays `needs_company`.
-  Its `--pool-limit` and `--pool-offset` are its own, apart from `--limit`'s
+  **So does one named like a careers page or a program**
+  (`board_read.NOT_A_COMPANY`): Greenhouse gave 25 of 242 sampled boards such
+  a name ("Careers at KKR", "Referrals Only"), and a pool board takes its name
+  straight onto every card. **Each pool board has a fixed day of the pass**
+  (`--pool-days`, `--pool-day`, `discover_boards.on_day`: a stable hash of
+  its key). Never pick the day's boards by an offset modulo the pool's size:
+  the size changes as boards join `boards.csv`, and that read about 77% of the
+  pool in a 16-day pass. `--pool-limit` is only a guard on a run's time, kept
+  above the largest day. These are the pool's own, apart from `--limit`'s
   20 a day, and the review marks a tenth of each run's pool boards, at least
   five, for a person to check (`discovery_review.sampled`). Never name a pool
   board from anything else: a slug, a page's other text, a search result.

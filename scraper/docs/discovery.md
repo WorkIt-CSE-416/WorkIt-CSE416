@@ -16,10 +16,12 @@ checking only the first ones.
 
 **The open-jobs pool** (ADR 0007, proposed) is a third source: open-jobs'
 frozen list of about 15,600 boards on Greenhouse, Workable, Ashby and Lever
-that `boards.csv` lacks, read 1,000 a day (`discovery_pr.POOL_LIMIT`, about 5
-minutes), so one pass takes about 16 days. A pool board is proposed only when
-it lists a posting the shortlist keeps, under the name its own hiring system
-gives it. Its review row shows those titles, and its Ownership column says
+that `boards.csv` lacks, read over a 16-day pass (`discovery_pr.POOL_DAYS`):
+each board has a fixed day, from a hash of its key, so about 1,000 are read a
+day (about 7 minutes) and every board once a pass. A pool board is proposed
+only when it lists a posting the shortlist keeps, under the name its own
+hiring system gives it, and that name is not a careers page or a program
+("Careers at KKR", "Referrals Only"): such a board stays `needs_company`. Its review row shows those titles, and its Ownership column says
 either **Sample** or "trusted if its batch's sample holds". Check every
 Sample board's name on the company's own website. If one is wrong, check all
 the pool boards with the same Validated time and remove the wrong rows. A

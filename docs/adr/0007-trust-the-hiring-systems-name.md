@@ -12,15 +12,17 @@ are on Greenhouse, Workable, Ashby and Lever and missing from
 a name (a board under the wrong name puts another company's name on real
 cards).
 
-Daily discovery reads 1,000 pool boards a run (`discovery_pr.POOL_LIMIT`),
-so it passes over the pool in about 16 days and asks a quiet board again on
-the next pass. A pool board is proposed only when:
+Daily discovery reads each pool board on a fixed day of a 16-day pass
+(`discovery_pr.POOL_DAYS`), about 1,000 a run, and asks a quiet board again
+on the next pass. A pool board is proposed only when:
 
 1. it lists a posting `shortlist.pick` keeps, so it would put a card on the
    Jobs page now; and
 2. its hiring system names the company itself (`Provider.read_name`):
    Greenhouse's and Workable's board record, Lever's and Ashby's board page
-   title. A board it does not name stays unproposed.
+   title. A board it does not name stays unproposed, and so does one whose
+   name is a careers page or a program (`board_read.NOT_A_COMPANY`: about 1
+   Greenhouse board in 10, such as "Careers at KKR").
 
 The review page marks a fixed random sample of each run's pool boards, a
 tenth and at least five (`discovery_review.sampled`). A person checks those
