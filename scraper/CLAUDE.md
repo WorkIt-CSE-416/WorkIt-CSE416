@@ -163,6 +163,19 @@ Workday's list has no description, exact date or places. So
 `__main__.with_page` reads each *kept* posting's page once, through the same
 robots and pacing.
 
+- **A list that sends descriptions builds a `Page` only for a posting the
+  shortlist may keep** (`text._listed_page`, `shortlist.may_keep`: Ashby,
+  Lever, Recruitee, TikTok, Jibe). Until 2026-11-01 every posting got one, and
+  building it (HTML to lines, sections, facts) was most of each lane's time:
+  a run keeps about 7% of ~235,000 postings, and the lanes share one CPU, so
+  one lane's parsing slowed them all. On 50 live boards the change kept the
+  same postings with the same pages, and the readers ran 7.6 times faster.
+  `may_keep` reads the whole plain text and **must never be False for a posting
+  `classify_with_description` keeps** from its stored description, or that
+  posting is lost with no error (`TestMayKeep`). `text` reads it as
+  `shortlist.may_keep`, never `from shortlist import may_keep`: imported first,
+  the shortlist loads the readers before it defines the name.
+
 - **A fact only the list states rides on the `Job` to the page read.**
   Rippling's list has each office's work model and its job's own record has
   none, so `rippling` sets `Job.work_style` and `describe_rippling` reads the
@@ -424,7 +437,10 @@ including `build_boards.py`'s fetches from GitHub.
 
 **Speed comes from lanes and quiet boards, never from less pacing.** One lane
 per provider (`__main__.scrape`), so a worker waiting out Lever's delay never
-blocks Greenhouse. Quiet boards rest (`Store.to_read`): a board that has never
+blocks Greenhouse. **More workers in a lane are no fix by themselves**: the
+lanes' threads share one CPU, and on 2026-10-30 no lane was near its pace
+limit (Lever 0.3 requests a second against its 1, Ashby 0.6 against 10), so
+compare a lane's requests a second with its pace before adding any. Quiet boards rest (`Store.to_read`): a board that has never
 had a kept posting is read on one run in `QUIET_EVERY`, staggered by key over
 the run's three-hour slot (`RUN_EVERY`), and always after `QUIET_LONGEST` (a
 day), so a first posting there can appear about nine hours late; `--full` reads
