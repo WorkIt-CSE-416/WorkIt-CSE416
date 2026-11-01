@@ -340,7 +340,8 @@ def main(argv: list[str] | None = None) -> int:
             due = previous.to_read(boards, now, everything=args.full)
             rest = "" if args.full else " (quiet ones rest; --full reads all)"
             print(f"scraping {len(due)} of {len(boards)} boards{rest}")
-            print(f"{len(previous.resting(now)):,} boards rest after going unread\n")
+            print(f"{len(previous.resting(now)):,} boards rest after going unread")
+            print(f"{len(previous.fingerprint_resting(now)):,} boards rest after an unchanged fingerprint\n")
             boards = due
         else:
             print(f"scraping {len(boards)} boards\n")
@@ -363,7 +364,17 @@ def main(argv: list[str] | None = None) -> int:
         # scanned, so the funnel on the page stays honest about how wide the net was.
         fresh = [job for job in scanned if classify_job(job)]
         stats = replace(stats, kept=len(fresh))
-        run = store.update(previous, fresh, read, stats, now, missing=missing)
+        # Hash each board's kept posting IDs so unchanged boards can rest.
+        by_board: dict[str, list[str]] = {}
+        for j in fresh:
+            by_board.setdefault(j.board_key, []).append(j.external_id)
+        fingerprints = {key: store.fingerprint(ids) for key, ids in by_board.items()}
+        # A board read OK with zero kept postings hashes an empty list.
+        for key in read:
+            fingerprints.setdefault(key, store.fingerprint([]))
+        run = store.update(
+            previous, fresh, read, stats, now, missing=missing, fingerprints=fingerprints
+        )
         # Only boards with a job on the page need a logo, and each is read once --
         # except that a newer reader reads the ones that had none again, once.
         # Recruitee has none we read (`Provider.logo_page`).
@@ -389,6 +400,7 @@ def main(argv: list[str] | None = None) -> int:
         steps = widening(scanned)
         missed = len(run.missed_once())
         resting = {key: run.health[key].why for key in run.resting(run.scraped_at)}
+        fp_resting = len(run.fingerprint_resting(run.scraped_at))
         write_metrics(
             run.stats,
             fresh,
@@ -399,8 +411,12 @@ def main(argv: list[str] | None = None) -> int:
             missed=missed,
             resting=resting,
             closings=Counter(found.values()),
+            fp_resting=fp_resting,
         )
-        print_metrics(run.stats, fresh, by_ats, steps=steps, missed=missed, resting=resting)
+        print_metrics(
+            run.stats, fresh, by_ats, steps=steps, missed=missed, resting=resting,
+            fp_resting=fp_resting,
+        )
         print(f"\n{len(found):,} stored postings not in the feed: {_reasons(found)}")
 
     print(
@@ -473,6 +489,7 @@ def write_metrics(
     missed: int | None = None,
     resting: dict[str, str] | None = None,
     closings: Counter[str] | None = None,
+    fp_resting: int | None = None,
 ) -> None:
     """metrics.json: the run's totals and each provider's share, so a change to one
     provider can be measured run against run (the scheduled run keeps it a week),
@@ -500,6 +517,8 @@ def write_metrics(
         payload["resting"] = unread_by_provider(resting)
     if closings is not None:
         payload["closings"] = {why: closings[why] for why in feed.REASONS}
+    if fp_resting is not None:
+        payload["boards_fingerprint_resting"] = fp_resting
     path.write_text(json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8")
 
 
@@ -511,6 +530,7 @@ def print_metrics(
     steps: dict[str, int] | None = None,
     missed: int | None = None,
     resting: dict[str, str] | None = None,
+    fp_resting: int | None = None,
 ) -> None:
     columns = ("boards", "ok", "missing", "skipped", "failed", "deferred")
     print(f"\n{'provider':11s}" + "".join(f"{c:>9s}" for c in columns), end="")
@@ -542,6 +562,8 @@ def print_metrics(
             print(f"  {count:>9,}  {step}")
     if missed is not None:
         print(f"\n{missed:,} boards hold a posting missed once; their next complete read decides")
+    if fp_resting is not None:
+        print(f"{fp_resting:,} boards rest after an unchanged fingerprint")
 
 
 if __name__ == "__main__":

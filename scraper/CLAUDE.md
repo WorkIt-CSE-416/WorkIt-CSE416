@@ -485,6 +485,17 @@ delay a close: "no such board" closes on its second answer, before the third.
 sweep fit in one run. The page's "postings scanned" counts what this run read,
 so it is lower on a run that rested quiet boards or ran out of Workday time.
 
+**A board whose kept postings have not changed rests too** (KAN-502,
+`store.fingerprint`, `store.fingerprint_rest`). After each complete read,
+`__main__` hashes the sorted `external_id` values of the postings
+`classify_job` kept, with `zlib.crc32`. When the hash matches the previous
+read's, `unchanged_reads` increments and the board rests: 4 hours after the
+first unchanged read, doubling each time to a 24-hour cap. A changed hash
+resets the count to zero. `--full` overrides fingerprint rest (reads every
+working board); health rest still blocks `--full` (broken boards stay broken).
+The fingerprint fields live on `BoardReads`; an old store without them loads
+cleanly through `_known`.
+
 ## `boards.csv` is a seed, not a conclusion
 
 Discovery collects ATS board candidates from public curated lists and other
