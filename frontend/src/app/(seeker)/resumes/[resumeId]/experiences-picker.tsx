@@ -432,9 +432,11 @@ export function CutPicker({
   );
 }
 
-/** An entry Fit cut from: its own tick when Fit cut it whole, one on each
- *  bullet Fit cut while the entry is on, and one on its coursework line. A
- *  whole entry comes back as the copy Fit cut, not another upload's. */
+/** An entry Fit cut from, showing only what Fit cut. A whole entry is the
+ *  bank's row with its own tick, and comes back as the copy Fit cut, not
+ *  another upload's. Fit trimmed only some of it: the entry's name as a
+ *  label, then a tick on each cut bullet and on a cut coursework line, with
+ *  nothing else of the entry, which is still on the page. */
 function CutRow({
   row,
   bank,
@@ -445,16 +447,13 @@ function CutRow({
   onApply: (changes: ChoicesUpdate) => void;
 }) {
   const { entry, on, coursework } = row;
-  const whole = row.cutIds.length > 0;
-  const courses = coursework && bank.entries.find((e) => e.id === coursework.entry_id)?.coursework;
-  return (
-    <EntryRow
-      entry={entry}
-      muted={!on}
-      bullets={on ? row.bullets : []}
-      open={!whole}
-      lead={
-        whole ? (
+  if (row.cutIds.length > 0) {
+    return (
+      <EntryRow
+        entry={entry}
+        muted={!on}
+        bullets={[]}
+        lead={
           <Checkbox
             checked={on}
             onCheckedChange={(next) =>
@@ -467,20 +466,29 @@ function CutRow({
             aria-label={`${entry.title} on this resume`}
             className={CUT_PICK}
           />
-        ) : undefined
-      }
-      bulletLead={(bullet) => (
-        <Checkbox
-          checked={row.bullets.find((b) => b.id === bullet.id)?.on ?? false}
-          onCheckedChange={(next) => onApply(pickBullet(bullet.id, next))}
-          aria-label={`Bullet on this resume: ${bullet.text}`}
-          className={CUT_PICK}
-        />
-      )}
-      note={
-        coursework &&
-        on && (
-          <label className="text-note text-ink-muted mt-1 flex items-start gap-2">
+        }
+      />
+    );
+  }
+  const courses = coursework && bank.entries.find((e) => e.id === coursework.entry_id)?.coursework;
+  const name = [entry.title, entry.organization].filter(Boolean).join(" · ");
+  return (
+    <div>
+      <p className="text-note text-ink-meta break-words">{name}</p>
+      <ul className="text-body text-ink-muted mt-1.5 flex max-w-[75ch] flex-col gap-1">
+        {row.bullets.map((bullet) => (
+          <li key={bullet.id} className="flex items-start gap-2 break-words">
+            <Checkbox
+              checked={bullet.on}
+              onCheckedChange={(next) => onApply(pickBullet(bullet.id, next))}
+              aria-label={`Bullet on this resume: ${bullet.text}`}
+              className={CUT_PICK}
+            />
+            <span className="min-w-0 flex-1">{bullet.text}</span>
+          </li>
+        ))}
+        {coursework && (
+          <li className="flex items-start gap-2 break-words">
             <Checkbox
               checked={coursework.on}
               onCheckedChange={(next) =>
@@ -488,14 +496,15 @@ function CutRow({
                   entries: [{ entry_id: coursework.entry_id, show_coursework: next }],
                 })
               }
+              aria-label="Coursework on this resume"
               className={CUT_PICK}
             />
-            <span className="pt-0.5">
+            <span className="min-w-0 flex-1">
               Coursework{courses?.length ? `: ${courses.join(", ")}` : ""}
             </span>
-          </label>
-        )
-      }
-    />
+          </li>
+        )}
+      </ul>
+    </div>
   );
 }

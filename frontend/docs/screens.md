@@ -2720,7 +2720,11 @@ student who opened a resume from Experiences landed on another view.
   a "Not on This Resume" tick, read as a settings page. The rows
   are the Experiences page's (`EntryRow`), one per job however many copies
   the bank holds, with the copy that prints as the row. Turning a row off
-  takes every copy that prints. A bullet has a control only while its entry
+  takes every copy that prints. **A bullet keeps its place on or off**:
+  the resume's order, then bullets with no row in the bank's order. Off
+  bullets went to the end until 2026-11-01, so a tick moved the list under
+  the pointer and the next click hit another bullet (a student saw a
+  bullet "missing" and a second one come back). A bullet has a control only while its entry
   is on, and an entry with every bullet off stays on as a heading, as a
   line's Hide leaves it. Each pick goes through the same save and render as
   any edit, so Undo takes it back. It only picks: typing stays on the PDF.
@@ -2735,10 +2739,12 @@ student who opened a resume from Experiences landed on another view.
   beside Add Experiences and shows only while something a fit cut is still
   off the page (or its panel is open); on a phone it is a sheet beside Add
   Experiences. Groups by section, all open, each "1 of 3 added back"; no
-  resume or group filters, since a fit cuts a few items. A whole entry Fit
-  cut has its own tick and comes back as the copy Fit cut; an entry Fit only
-  trimmed lists just its cut bullets; a cut coursework line has a tick of
-  its own. A tick goes through the same save as any pick, so Undo takes it
+  resume or group filters, since a fit cuts a few items. **It shows only
+  what Fit cut.** A whole entry Fit cut is the bank's row with its own tick,
+  and comes back as the copy Fit cut. An entry Fit only trimmed is its name
+  as a label and a tick on each cut bullet or coursework line, with none of
+  the entry's other details: it is still on the page, and drawn whole it
+  read as an entry that was cut. A tick goes through the same save as any pick, so Undo takes it
   back. A row stays once it is back, ticked, so a wrong tick can be undone
   here too. The list is every fit in the tab, read from each fit's `undo`
   body (`addCuts`), kept in memory as Undo is, so a reload forgets it.

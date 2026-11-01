@@ -182,7 +182,8 @@ with the failure it prevents.
   Holds the skill placement rule. Read it before changing Tailor or its
   screen.
 - `docs/cut_to_one_page.md` — a draft, not built: Fit to One Page cuts
-  one item per render until the resume is one page, entries first, then
+  one item at a time, each checked by a prediction from one render and
+  confirmed by a render at the end, entries first, then
   skills from 10%, 50% and 75% of entries cut, by the posting's rank on a
   resume with a job posting and by position on one without. Read it
   before changing Fit to One Page.

@@ -9,8 +9,10 @@ percentages; only the order inside a step differs:
 - **A resume with no job posting** (a generated or base resume) is cut by
   position: the bottom entry and the last bullet go first, as today.
 
-Both can now cut skills. Fit renders after every single cut and stops the
-moment the resume is one page.
+Both can now cut skills. Fit checks the page after every single cut by
+prediction, not by rendering: it renders once at the start, predicts each
+cut's effect from that render's boxes, and renders once at the end to
+confirm.
 
 Read `backend/CLAUDE.md` (Fit to One Page) and `docs/tailor_resume.md`
 first. This design reuses the keyword match's whole-word check; it adds no
@@ -25,23 +27,72 @@ model call.
 - No LLM and no embedding model. Fit to One Page stays free and spends no
   AI use.
 
-## The loop: one cut, then check
+## The loop: predict each cut, render to confirm
 
-`fit_to_one_page` (`services/built_resumes.py`) becomes:
+A render takes 0.3 to 0.8 s (`resume_render/CLAUDE.md`), so Fit does not
+render after each cut. It renders at the start of a cycle and at its end,
+and checks every cut in between by subtraction.
 
-1. Render the resume. If it is one page, stop: cut nothing.
-2. Make the next cut on the list (below), and save it.
-3. Render again. If it is one page, stop.
-4. Else go back to step 2, until no cut is left.
+`fit_to_one_page` (`services/built_resumes.py`) runs cycles:
 
-Each cut is checked before the next one is made, so Fit never hides an
-item the page did not need. This replaces today's batches: no cuts taken
-by `lines_over`, no `FIT_ROUNDS` limit, and no put-back of a batch's extra
-cuts (`FIT_PUT_BACK`), since a one-at-a-time loop never overshoots.
+1. **Render.** If the resume is one page, stop. On the first cycle that
+   means Fit cuts nothing.
+2. **Measure** every item from this render's boxes (below).
+3. **Cut by prediction.** Take the next cut on the list (below), subtract
+   its height from the predicted height, and check the prediction against
+   the page. Repeat until the prediction fits on one page or no cut is
+   left. Nothing renders and nothing saves during this step.
+4. **Save** this cycle's cuts together, as one change.
+5. **Render to confirm.** If the resume is one page, stop. If it is still
+   over, this render starts the next cycle: go to step 2.
 
-When no cut is left (every floor below is reached) and the resume is
-still over one page, Fit stops and keeps the cuts it made. The editor's
-page count shows the student that it is still over.
+Each cycle measures from its own first render, so a prediction's error
+never carries into the next cycle. Most runs take one cycle, two renders.
+
+**Every cycle cuts at least one item.** If the prediction already fits
+but the render says the page is over, step 3 still takes the next cut.
+Without this rule, a prediction that is wrong by a line would render the
+same resume forever.
+
+**Fit stops when no cut is left** (every floor below is reached), with
+the resume still over one page. It keeps the cuts it made, and the
+editor's page count shows the student that it is still over.
+
+This replaces today's batches: no cuts taken by `lines_over`, no
+`FIT_ROUNDS` limit, and no put-back renders (`FIT_PUT_BACK`). The
+prediction stops at the first cut that fits, so it overshoots by at most
+its own error, about one line.
+
+### Measuring from the boxes
+
+The render gives a box for every bullet, skill and entry field, with its
+page and position (`Rendered.boxes`, PDF points, `y` growing down). From
+one render:
+
+- **An item's height** is the distance from its top to the top of the
+  next item on the same page, so it includes the space after it. Today's
+  `lines_over` counts only the lines inside boxes and runs short, because
+  headings and the space between entries have no box; a distance has no
+  such gap. The last item on a page uses its own box height plus the
+  usual space between items of its kind.
+- **An entry's height** runs from its first field's top to the next
+  entry's top; its bullets are part of it.
+- **A section heading's height** is the gap above the section's first
+  entry, less the usual space between entries. When a cut empties a
+  section, the heading goes too.
+- **The predicted height** is the sum of every item's height, plus each
+  heading's, plus the header's. It ignores the empty space at the foot of
+  page 1 that a block moved whole to page 2 leaves: once the resume fits,
+  nothing moves.
+- **The page** fits while the predicted height is at most page 1's text
+  height: the bottom of page 1's text area, less its top.
+- **A skill line's width** is read from each skill's box (`x0`, `x1`). A
+  wrapped line is trimmed by dropping skills from its cut order until the
+  widths, with the space after each comma, fit on one line. Its saving is
+  one line's height for each line it no longer wraps onto.
+
+A cut never changes how another line wraps, because the text width stays
+fixed. That is what makes the subtraction safe.
 
 ## Every score reads this resume only
 
@@ -122,7 +173,8 @@ never Education. "Cut" counts the entries hidden so far in this run.
 3. **From 10% of entries cut: trim wrapped skill lines.** A skill line that
    runs onto two or more lines loses skills until it fits on one line. A
    skill cut from a one-line group saves no line, so it is never made
-   here. Whether a line wraps is read from the last render's skill boxes.
+   here. Whether a line wraps, and how many skills it must lose, is read
+   from the cycle's render ("Measuring from the boxes").
 4. **From 50% of entries cut: cut one whole skill line.**
 5. **From 75% of entries cut: cut one more whole skill line.**
 6. **Bullets, last.** An entry over two bullets loses bullets down to two.
@@ -145,11 +197,16 @@ left, else the next entry.
 - `fit_order` takes the scores as arguments (bullet ranks and skill levels,
   or none for the position order) and stays a pure function, so
   `tests/test_fit_order.py` can test it with no database. It gives the next
-  cut from the current view, the cuts made so far and the last render's
-  skill boxes.
-- `fit_to_one_page` runs the one-cut loop above. `FIT_STEPS`,
-  `FIT_ROUNDS`, `FIT_PUT_BACK` and the batching by `_cut_lines` and
-  `lines_over` go.
+  cut from the current view and the cuts made so far.
+- A pure measuring function: from a render's boxes, each item's height,
+  each heading's height, each skill line's widths and the page's text
+  height. A pure prediction then takes those and a list of cuts and says
+  whether the page fits. Both test from saved boxes, with no Tectonic.
+- `fit_to_one_page` runs the cycles above. `FIT_STEPS`, `FIT_ROUNDS`,
+  `FIT_PUT_BACK` and the batching by `_cut_lines` and `lines_over` go.
+- A test that renders real resumes and checks the prediction against the
+  confirm render, so a template change that breaks the measuring fails
+  in CI, not in front of a student.
 - A ranking function that takes the view's bullets (id and text) and the
   posting text, and ranks the text it is given. Tailor keeps
   `rank_bullets`; it ranks before any rewrite, so the bank's wording is
@@ -162,13 +219,17 @@ left, else the next entry.
 
 ## Still open
 
-- **One render per cut is slow on a long resume.** A render takes about
-  0.3 to 0.5 s warm on a Mac and 0.8 s in the container image
-  (`resume_render/CLAUDE.md`). A resume that needs 20 cuts waits 6 to
-  16 s, and today's batches needed two to six renders. Measure on real
-  resumes; if it is too slow, cut several items per render while
-  `lines_over` is large and one at a time near the end, which still never
-  overshoots.
+- **Stretchy space.** TeX can stretch or shrink some vertical space a
+  little, so near the page's foot a prediction can be off by about a
+  line. A second cycle catches a prediction that is too hopeful. One that
+  is too careful costs the student one item the page had room for; a
+  put-back render (show the last cut again, keep it shown if the page
+  still fits) would fix that for one more render. Measure how often it
+  happens on real resumes before adding it.
+- **The measuring is tied to Jake's template.** "The usual space between
+  items" is read from the render, not hard-coded, but a new template with
+  a different layout (columns, a side bar) needs its own check that the
+  prediction still holds.
 - **Bullets come last on purpose.** Up to 75% of entries can go before a
   single extra bullet does. A resume a few lines over loses one entry, not
   bullets across every entry. If real resumes come back too thin, move

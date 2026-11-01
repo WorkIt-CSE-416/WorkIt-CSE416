@@ -4,7 +4,7 @@ import { test } from "node:test";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices } from "@/lib/built-resume-actions";
 
-import { NO_CUTS, addCuts, cutRows, isBack } from "./model.ts";
+import { NO_CUTS, addCuts, cutRows, isBack, pickerEntries } from "./model.ts";
 
 const entry = (id: string, bullets: string[]) => ({
   id,
@@ -84,4 +84,21 @@ test("a row put back stays, ticked", () => {
   const rows = cutRows(bank, back, cuts);
   assert.equal(rows.length, 3);
   assert.equal(rows.every(isBack), true);
+});
+
+test("a bullet keeps its place in the picker when it is ticked off", () => {
+  const order = (c: Choices) =>
+    pickerEntries(bank, c)
+      .find((r) => r.entry.id === "e1")!
+      .bullets.map((b) => b.id);
+  const allOn: Choices = {
+    ...choices,
+    bullets: choices.bullets.map((b) => ({ ...b, shown: true })),
+  };
+  const firstOff: Choices = {
+    ...allOn,
+    bullets: allOn.bullets.map((b) => (b.bullet_id === "b1" ? { ...b, shown: false } : b)),
+  };
+  assert.deepEqual(order(allOn), ["b1", "b2", "b3"]);
+  assert.deepEqual(order(firstOff), ["b1", "b2", "b3"]);
 });

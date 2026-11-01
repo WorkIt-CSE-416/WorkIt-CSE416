@@ -247,8 +247,11 @@ export type PickedSkill = { skill: Skill; copies: Skill[]; on: boolean; shownIds
  * The whole bank as the Experiences picker shows it (KAN-440): the resume is
  * the part of the bank that is on. Copies are one row, as in All Experiences,
  * and the row is the copy that prints, so a row and the page agree. Bullets
- * read in print order, then the ones that are off in the bank's order. A
- * bullet's words are this resume's own where it has them.
+ * keep their place whether on or off: the resume's order for a bullet with a
+ * row on it, then the rest in the bank's order. Off bullets went to the end
+ * until 2026-11-01, so a tick moved the list under the pointer and the next
+ * click landed on another bullet. A bullet's words are this resume's own
+ * where it has them.
  */
 export function pickerEntries(bank: Bank, choices: Choices): PickedEntry[] {
   const entry = new Map(choices.entries.map((c) => [c.entry_id, c]));
@@ -256,16 +259,19 @@ export function pickerEntries(bank: Bank, choices: Choices): PickedEntry[] {
   const prints = (e: BankEntry) => entry.get(e.id)?.shown === true;
   return rowsOf(ALL, bank.entries, bank.resumes, prints).map((row) => {
     const shownIds = [row.entry, ...row.copies].filter(prints).map((e) => e.id);
-    const printed = ordered(row.entry.bullets, (id) => bullet.get(id));
-    const off = row.entry.bullets.filter((b) => !bullet.get(b.id)?.shown);
+    const placed = ordered(row.entry.bullets, (id) => {
+      const c = bullet.get(id);
+      return c && { ...c, shown: true };
+    });
+    const rowless = row.entry.bullets.filter((b) => !bullet.has(b.id));
     return {
       ...row,
       on: shownIds.length > 0,
       shownIds,
-      bullets: [...printed, ...off].map((b) => ({
+      bullets: [...placed, ...rowless].map((b) => ({
         id: b.id,
         text: bullet.get(b.id)?.text ?? b.text,
-        on: !off.includes(b),
+        on: bullet.get(b.id)?.shown === true,
       })),
     };
   });
