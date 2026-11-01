@@ -34,6 +34,8 @@ class Repository:
         self.exit_code = 0
         self.on_discover = None
         self.excluded = None
+        self.resolution = None
+        self.resolution_offset = None
         self.real_command = publishing.command
         monkeypatch.setattr(publishing, "command", self.command)
         monkeypatch.setattr(publishing.discover_boards, "main", self.discover)
@@ -47,6 +49,9 @@ class Repository:
     def discover(self, args):
         assert "--apply" not in args
         assert "--resolve" in args
+        assert args[args.index("--resolve-limit") + 1] == "100"
+        assert args[args.index("--resolve-seconds") + 1] == "120"
+        self.resolution_offset = int(args[args.index("--resolve-offset") + 1])
         self.excluded = json.loads(Path(args[args.index("--exclude") + 1]).read_text())
         Path(args[args.index("--report") + 1]).write_text(
             json.dumps(
@@ -54,6 +59,7 @@ class Repository:
                     "generated_at": "2026-10-28T12:00:00+00:00",
                     "candidates": self.rows,
                     "channel_failures": [] if not self.exit_code else [{"error": "TimeoutError"}],
+                    "resolution": self.resolution,
                 }
             )
         )
@@ -158,6 +164,29 @@ def test_no_candidates_creates_no_commit(repository):
     assert repo.run() == 0
     after = repo.git("ls-remote", "origin", "refs/heads/main").split()[0]
     assert before == after
+
+
+def test_resolution_cursor_advances_even_without_new_boards(repository):
+    repo = repository
+    before = repo.show_main(publishing.CATALOG)
+    repo.resolution = {"next_offset": 100}
+    assert repo.run() == 0
+    assert repo.resolution_offset == 0
+    assert json.loads(repo.show_main(publishing.RESOLUTION_STATE)) == {"next_offset": 100}
+    repo.resolution = {"next_offset": 103, "timed_out": True}
+    assert repo.run() == 0
+    assert repo.resolution_offset == 100
+    assert json.loads(repo.show_main(publishing.RESOLUTION_STATE)) == {"next_offset": 103}
+    assert repo.show_main(publishing.CATALOG) == before
+
+
+def test_resolution_timeout_publishes_successes_and_cursor_together(repository):
+    repo = repository
+    repo.rows = [candidate("acme")]
+    repo.resolution = {"next_offset": 2, "timed_out": True}
+    assert repo.run() == 0
+    assert "lever,acme,Acme" in repo.show_main(publishing.CATALOG)
+    assert json.loads(repo.show_main(publishing.RESOLUTION_STATE)) == {"next_offset": 2}
 
 
 def test_partial_failure_still_commits_successes(repository):

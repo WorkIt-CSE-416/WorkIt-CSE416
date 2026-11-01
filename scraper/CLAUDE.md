@@ -529,6 +529,16 @@ before merging them. Postings are always scraped from the employer.
 
 ## Discovery review contract
 
+Indirect-link resolution is bounded separately from board validation:
+`board_resolve.resolve_links` owns grouping, three-attempt retries and deadline
+checks for both commands. Discovery defaults to 100 groups / 120 seconds and
+resumes from `discovery-resolution.json` on main; never restore per-posting
+resolution loops before those bounds. Commit the next offset together with new
+boards, including cursor-only progress when nothing new was found.
+Short links stay separate by URL because one company's links can name different
+boards. Budget exhaustion keeps completed discoveries and still writes the report
+and publishes successes. Operation and counters: `docs/discovery.md`.
+
 `discover_boards.py` collects candidate boards on demand and through the daily
 `discovery_pr.py` workflow, separately from the three-hour scrape. It uses the
 existing provider registry, robots checks, pacing, and HTTP client. Keep the
