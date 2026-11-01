@@ -1214,6 +1214,16 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   can open a real posting in a batch tab with the fake student's profile
   and read what the form shows. It never submits; never commit one that
   runs in CI. This is how Stripe's form-less link was found.
+- **Live rehearsals** (KAN-324): `test/live/rehearse.live.ts` runs batches
+  of 5 real postings through `run/open` picks, against the local WorkIt API
+  of `../auto-apply/rehearsals/stack/serve.py` (a Docker Postgres, a dummy
+  test student, no Supabase), and records each tab's state, panel rows,
+  fill report and every non-GET request a page sent (the proof no submit
+  went out). `test/live/panel.live.ts` does the same from the panel for a
+  posting a batch can't open. Run by hand with `-c live/live.config.ts`;
+  `*.live.ts` matches no CI project. A Workday tab stays needs_you while it
+  walks its steps, so a tab counts as settled only once its state and panel
+  stay still. Results: `../auto-apply/rehearsals/`.
 - **Tests** (`test/batch.extension.spec.ts`; KAN-373's resume, Skip,
   Workday slot and sign-in in `test/batch-sessions.extension.spec.ts`,
   with fake Workday tenants and sign-in pages in `fake-job-systems.ts`;
