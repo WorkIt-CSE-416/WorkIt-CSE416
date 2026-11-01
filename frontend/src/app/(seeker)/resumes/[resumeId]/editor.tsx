@@ -104,6 +104,7 @@ import {
   useTailorReview,
 } from "./tailor-review";
 import { CutPicker, ExperiencesPicker } from "./experiences-picker";
+import { keepFitCuts, readFitCuts } from "./fit-cuts";
 
 /**
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
@@ -516,8 +517,17 @@ export function Editor({
     setScoutOpen(true);
   };
   // What Fit to One Page cut, for Cut From Resume: every fit in this tab,
-  // kept in memory like Undo, since the page's choices say what is still off
+  // kept in sessionStorage (./fit-cuts.ts), so a reload keeps it
   const [cuts, setCuts] = useState(NO_CUTS);
+  // The latest list for a fit's queued job, whose closure can predate the
+  // fit before it
+  const cutsNow = useRef(NO_CUTS);
+  // Restored after mount, never in the first render, which must match the
+  // server's (it has no sessionStorage)
+  useEffect(() => {
+    cutsNow.current = readFitCuts(resumeId);
+    setCuts(cutsNow.current);
+  }, [resumeId]);
   const [zoom, setZoom] = useZoom();
   // The column beside the page, the panel or the original, sized to the
   // window from wherever its top is
@@ -1102,7 +1112,11 @@ export function Editor({
       lastPdf.current = data.render;
       keepRendered(data.render);
       const hid = data.undo.bullets?.length || data.undo.entries?.length;
-      if (hid) setCuts((c) => addCuts(c, data.undo));
+      if (hid) {
+        cutsNow.current = addCuts(cutsNow.current, data.undo);
+        setCuts(cutsNow.current);
+        keepFitCuts(resumeId, cutsNow.current);
+      }
       const fresh = await getChoices(resumeId);
       if (fresh.data) keepChoices(fresh.data);
       // Fit is one step like any edit: Undo (the button or Cmd+Z) shows what

@@ -1690,7 +1690,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Undo does); the phone's bar shows the same Undo and Redo. **Cut From
   Resume** lists what every fit in the tab cut, read from each fit's
   `undo` body (`addCuts` in `model.ts`, tested in `cuts.test.ts`), kept in
-  memory like Undo, and puts each item back as an ordinary pick
+  sessionStorage per resume (`fit-cuts.ts`), so a reload in the same tab
+  keeps it, and puts each item back as an ordinary pick. Unlike Undo's
+  steps it may outlive the page: it is read against the resume's choices
+  each time, so an item already back only shows ticked
   (`docs/screens.md`, Cut From Resume).
 - **An editor tab reads the resume again when it changed elsewhere**
   (KAN-391), quietly, through `reload` with no notice, which also clears

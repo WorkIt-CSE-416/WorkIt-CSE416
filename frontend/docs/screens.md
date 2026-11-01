@@ -2747,7 +2747,10 @@ student who opened a resume from Experiences landed on another view.
   read as an entry that was cut. A tick goes through the same save as any pick, so Undo takes it
   back. A row stays once it is back, ticked, so a wrong tick can be undone
   here too. The list is every fit in the tab, read from each fit's `undo`
-  body (`addCuts`), kept in memory as Undo is, so a reload forgets it.
+  body (`addCuts`), kept in sessionStorage per resume (`fit-cuts.ts`): a
+  reload in the same tab keeps it, a new tab starts without it. It was in
+  memory for a day; a reload lost it. Undo is still empty after a reload,
+  which is fine: each item has its own tick.
 - Skills can be hidden but not moved: they print grouped, and a move
   inside a group is still open.
 - A failed render shows "This Resume Isn't Loading Right Now" with the API's
