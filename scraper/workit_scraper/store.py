@@ -336,10 +336,6 @@ def carry(job: Job, before: dict[str, Job]) -> Job:
     old = before.get(job.key)
     if not old:
         return job
-    if job.shortlist_tags is not None:
-        # The inline reader just evaluated the whole text, including rejection.
-        # Never resurrect its old page, but keep a date the new list omitted.
-        return replace(job, posted_at=job.posted_at or old.posted_at)
     provider = PROVIDERS.get(job.ats)
     if provider and provider.page_title and job.page is None and old.page is not None:
         # An iCIMS listing's title is its URL's slug; its page gave the real one.

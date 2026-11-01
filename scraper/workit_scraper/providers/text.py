@@ -111,49 +111,6 @@ def _described(markup: str | None) -> tuple[str | None, tuple[str, ...]]:
     return "\n".join(line for line, _ in lines) or None, tuple(role for _, role in lines)
 
 
-def _listing_page(
-    title: str,
-    markup: str | None,
-    *,
-    stated_type: str | None = None,
-    stated_style: str | None = None,
-    stated_pay: details.Pay | None = None,
-) -> tuple[tuple[str, ...], Page | None]:
-    """Classify inline text before extracting expensive card facts.
-
-    Ambiguous titles need full text but no per-character HTML roles.
-    Rejected listings still retain their identity for board completeness.
-    """
-    # Providers register while shortlist imports Job; defer this import.
-    from workit_scraper.shortlist import (
-        classify,
-        classify_with_description,
-        description_categories,
-    )
-
-    tags = classify(title)
-    if not tags and description_categories(title):
-        parser = _TextOnly()
-        parser.feed(html.unescape(markup or ""))
-        parser.close()
-        full = "".join(piece for piece, _ in parser.parts)
-        full = "\n".join(
-            line for raw in full.splitlines() if (line := re.sub(r"[ \t\xa0]+", " ", raw).strip())
-        )
-        tags = classify_with_description(title, full)
-    if not tags:
-        return (), None
-    full, roles = _described(markup)
-    return tuple(str(tag) for tag in tags), _page(
-        title,
-        full,
-        roles=roles,
-        stated_type=stated_type,
-        stated_style=stated_style,
-        stated_pay=stated_pay,
-    )
-
-
 def cap(plain: str | None) -> str | None:
     """At most DESCRIPTION_CHARS, cut at a word: what is stored for Scout."""
     if plain is None or len(plain) <= DESCRIPTION_CHARS:

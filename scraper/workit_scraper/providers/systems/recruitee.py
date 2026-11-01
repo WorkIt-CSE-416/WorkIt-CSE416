@@ -10,7 +10,8 @@ from workit_scraper.providers.fetch import _iso
 from workit_scraper.providers.model import Job, Provider
 from workit_scraper.providers.registry import listing_url
 from workit_scraper.providers.text import (
-    _listing_page,
+    _described,
+    _page,
     _places,
 )
 
@@ -21,13 +22,8 @@ def recruitee(token: str, company: str) -> list[Job]:
     jobs = []
     for row in payload.get("offers") or []:
         title = (row.get("title") or "").strip()
-        markup = "<br>".join(row.get(field) or "" for field in ("description", "requirements"))
-        shortlist_tags, page = _listing_page(
-            title,
-            markup,
-            stated_type=details.job_type_label(row.get("employment_type_code")),
-            stated_style=_recruitee_work_style(row),
-            stated_pay=_recruitee_pay(row),
+        full, roles = _described(
+            "<br>".join(row.get(field) or "" for field in ("description", "requirements"))
         )
         jobs.append(
             Job(
@@ -40,8 +36,14 @@ def recruitee(token: str, company: str) -> list[Job]:
                 location=_recruitee_location(row),
                 department=row.get("department") or None,
                 posted_at=_iso(row.get("published_at") or row.get("created_at")),
-                shortlist_tags=shortlist_tags,
-                page=page,
+                page=_page(
+                    title,
+                    full,
+                    roles=roles,
+                    stated_type=details.job_type_label(row.get("employment_type_code")),
+                    stated_style=_recruitee_work_style(row),
+                    stated_pay=_recruitee_pay(row),
+                ),
             )
         )
     return jobs

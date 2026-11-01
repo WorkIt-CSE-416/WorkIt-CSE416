@@ -16,7 +16,7 @@ from workit_scraper import details
 from workit_scraper.providers import fetch
 from workit_scraper.providers.fetch import _iso
 from workit_scraper.providers.model import Incomplete, Job, Provider, TooLarge
-from workit_scraper.providers.text import _listing_page, _place
+from workit_scraper.providers.text import _described, _page, _place
 
 #: Postings per Jibe request (its own page asks for 10).
 JIBE_PAGE = 100
@@ -63,13 +63,11 @@ def jibe(token: str, company: str, *, pace: Callable[[str], None] = lambda url: 
         if row.get("ats_code") != "icims":
             continue
         title = (row.get("title") or "").strip()
-        markup = "<br>".join(
-            row.get(part) or "" for part in ("description", "responsibilities", "qualifications")
-        )
-        shortlist_tags, page = _listing_page(
-            title,
-            markup,
-            stated_type=details.job_type_label(row.get("employment_type")),
+        full, roles = _described(
+            "<br>".join(
+                row.get(part) or ""
+                for part in ("description", "responsibilities", "qualifications")
+            )
         )
         jobs.append(
             Job(
@@ -85,8 +83,12 @@ def jibe(token: str, company: str, *, pace: Callable[[str], None] = lambda url: 
                 or row.get("full_location")
                 or None,
                 posted_at=_iso(row.get("posted_date")),
-                shortlist_tags=shortlist_tags,
-                page=page,
+                page=_page(
+                    title,
+                    full,
+                    roles=roles,
+                    stated_type=details.job_type_label(row.get("employment_type")),
+                ),
             )
         )
     return jobs

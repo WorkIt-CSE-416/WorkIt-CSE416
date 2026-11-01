@@ -30,7 +30,7 @@ from workit_scraper.providers.systems.workday import WORKDAY_CAP
 from workit_scraper.shortlist import (
     WIDENING_STEPS,
     classify,
-    classify_job,
+    classify_with_description,
     pick,
     widening_step,
 )
@@ -361,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
         # marketing and senior roles included -- would make jobs.json tens of megabytes
         # and tell us nothing we display. `stats.postings` still counts everything
         # scanned, so the funnel on the page stays honest about how wide the net was.
-        fresh = [job for job in scanned if classify_job(job)]
+        fresh = [job for job in scanned if classify_with_description(job.title, job.description)]
         stats = replace(stats, kept=len(fresh))
         run = store.update(previous, fresh, read, stats, now, missing=missing)
         # Only boards with a job on the page need a logo, and each is read once --
@@ -433,12 +433,12 @@ def _per_provider(stats: RunStats, kept: list[Job], roles: Counter[str]) -> dict
 def widening(scanned: list[Job]) -> dict[str, int]:
     """Every posting this run scanned, under the first step of a wider shortlist that
     would keep it (`shortlist.widening_step`). A run scans only what it reads, so
-    compare steps with each other, not with a run that rested more boards.
-    Inline eligibility is reused without parsing descriptions again."""
+    compare steps with each other, not with a run that rested more boards. Each
+    distinct (title, description) pair is read once."""
+    pairs = Counter((job.title, job.description) for job in scanned)
     steps = Counter[str]()
-    for job in scanned:
-        step = "kept" if classify_job(job) else widening_step(job.title)
-        steps[step] += 1
+    for (title, desc), count in pairs.items():
+        steps[widening_step(title, desc)] += count
     return {step: steps[step] for step in WIDENING_STEPS}
 
 

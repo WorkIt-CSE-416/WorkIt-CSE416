@@ -106,7 +106,7 @@ class Job:
     location: str | None = None
     department: str | None = None
     posted_at: str | None = None
-    #: None for an unread detail page or an inline listing rejected before parsing.
+    #: None only for a posting whose own page is not read yet (`Provider.job_url`).
     page: Page | None = None
     # None until `store.update` stamps them; every job read back from jobs.json has both.
     first_seen_at: str | None = None
@@ -114,9 +114,6 @@ class Job:
     #: The work model its list states, for a provider whose posting's own page does
     #: not (Rippling): the page's facts are read with it (`describe_rippling`).
     work_style: str | None = None
-    #: Inline list's full-text eligibility, before display sections/capping.
-    #: None: legacy or detail-only reader; (): evaluated and rejected.
-    shortlist_tags: tuple[str, ...] | None = None
 
     @property
     def board_key(self) -> str:
@@ -154,8 +151,6 @@ class Job:
         # Only our own fields: `key` is derived, and older files carry columns we
         # no longer keep (`tags`, and the flat card facts before `Page`).
         known = {f.name: row[f.name] for f in fields(cls) if f.name in row}
-        if known.get("shortlist_tags") is not None:
-            known["shortlist_tags"] = tuple(known["shortlist_tags"])
         page = known.get("page")
         return cls(**{**known, "page": Page.from_row(page) if isinstance(page, dict) else None})
 

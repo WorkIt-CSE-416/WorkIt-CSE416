@@ -8,7 +8,7 @@ from collections.abc import Callable
 from workit_scraper.providers import fetch
 from workit_scraper.providers.model import Incomplete, Job, Provider
 from workit_scraper.providers.registry import listing_url
-from workit_scraper.providers.text import _listing_page, _place
+from workit_scraper.providers.text import _described, _page, _place
 
 #: Postings per TikTok request; it takes 200 (lifeattiktok.com itself asks for 12).
 TIKTOK_PAGE = 200
@@ -57,8 +57,9 @@ def tiktok(
     jobs = []
     for job_id, row in rows.items():
         title = (row.get("title") or "").strip()
-        markup = "\n\n".join(row.get(part) or "" for part in ("description", "requirement"))
-        shortlist_tags, page = _listing_page(title, markup)
+        full, roles = _described(
+            "\n\n".join(row.get(part) or "" for part in ("description", "requirement"))
+        )
         jobs.append(
             Job(
                 ats="tiktok",
@@ -70,8 +71,7 @@ def tiktok(
                 location=_tiktok_place(row.get("city_info")),
                 department=_tiktok_root(row.get("job_category")),
                 # The search gives no date.
-                shortlist_tags=shortlist_tags,
-                page=page,
+                page=_page(title, full, roles=roles),
             )
         )
     return jobs

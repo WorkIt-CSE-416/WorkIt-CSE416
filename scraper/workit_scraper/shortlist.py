@@ -1000,37 +1000,25 @@ def classify_with_description(title: str, description: str | None) -> tuple[Tag,
     result = classify(title)
     if result:
         return result
-    found = description_categories(title)
-    if not found or not description:
+    if not description or not title or SENIOR.search(title):
         return ()
     years = min_years(description)
     if years is not None and years > 1:
         return ()
     if years is None and not EARLY_EXPERIENCE.search(description):
         return ()
-    return (Tag.NEW_GRAD, *found)
-
-
-def description_categories(title: str) -> tuple[Tag, ...]:
-    """Fields eligible for the description fallback, before reading any text."""
-    if not title or SENIOR.search(title):
-        return ()
     words = PLACE.sub(" ", AUDIENCE.sub(" ", title))
     if LEADS.search(words):
         return ()
     found = categories(title)
-    # A vague field is insufficient evidence; an unstaged HR title may recruit
-    # for an early-career program rather than be an early-career position.
-    if not found or found[0] in (Tag.OTHER, Tag.HR):
+    # A title naming no specific field ("Specialist") is `other`; when the only
+    # evidence is the description's experience level, that is too vague to keep.
+    # HR is blocked for the same reason as in `classify`: a recruiter whose title
+    # has no personal stage word ("University Recruiter") recruits for a program,
+    # not fills one.
+    if not found or found[0] is Tag.OTHER or found[0] is Tag.HR:
         return ()
-    return found
-
-
-def classify_job(job: Job, description: str | None = None) -> tuple[Tag, ...]:
-    """Use the inline reader's full-text decision, or classify legacy/detail pages."""
-    if job.shortlist_tags is not None:
-        return tuple(Tag(tag) for tag in job.shortlist_tags)
-    return classify_with_description(job.title, description or job.description)
+    return (Tag.NEW_GRAD, *found)
 
 
 #: The steps a wider shortlist could take, in order, and what each would add
@@ -1124,7 +1112,7 @@ def pick(jobs: list[Job], *, is_new: Callable[[Job], bool]) -> list[Role]:
         lead = _lead(copies, oldest)
         postings = [lead, *(job for job in copies if job is not lead)]
         lead_description = next((job.description for job in postings if job.description), None)
-        tags = classify_job(lead, lead_description)
+        tags = classify_with_description(lead.title, lead_description)
         if not tags:
             continue
         locations = tuple(dict.fromkeys(place for job in postings for place in job.places))
