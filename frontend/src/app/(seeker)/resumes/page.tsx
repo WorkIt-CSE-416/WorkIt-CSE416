@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * /resumes, the Resumes view of Resumes & Experiences (KAN-249; /bank is
+ * /resumes, the Resumes view of Resumes & Experiences (KAN-249; /experiences is
  * the other view, behind the header's switcher): the base resumes the bank
  * makes (KAN-207), the tailored ones and the student's uploads (My
  * Profile's until 2026-10-18), in one scrolling list with a Type filter

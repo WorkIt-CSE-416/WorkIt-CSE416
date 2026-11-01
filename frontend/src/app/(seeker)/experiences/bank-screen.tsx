@@ -11,7 +11,6 @@ import {
   Fragment,
   startTransition,
   useEffect,
-  useMemo,
   useOptimistic,
   useRef,
   useState,
@@ -23,6 +22,7 @@ import {
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import { Button } from "@/components/ui/button";
+import { SearchField } from "@/components/ui/search-field";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { IconButton } from "@/components/ui/icon-button";
@@ -48,19 +48,26 @@ import {
 import { DeleteConfirm } from "../resumes/delete-confirm";
 import { ClearAll } from "./clear-all";
 import { EntryEditor } from "./entry-editor";
+import { EntryRow } from "./entry-row";
 import { editSteps } from "./entry-save";
-import { holderOf, NONE, openingPick, shows, uploadIds, usedIn, type Pick } from "./holdings";
-import { Intake, type IntakeFocus } from "./intake";
 import {
-  draftOf,
-  emptyDraft,
-  entryDetails,
-  formatDates,
-  missingFacts,
-  SECTIONS,
-  type EntryDraft,
-} from "./sections";
+  ALL,
+  holderOf,
+  openingPick,
+  otherVersions,
+  rowMatches,
+  rowsOf,
+  shows,
+  skillMatches,
+  skillRows,
+  usedIn,
+  type BankRow,
+  type Pick,
+} from "./holdings";
+import { Intake, type IntakeFocus } from "./intake";
+import { draftOf, emptyDraft, missingFacts, SECTIONS, type EntryDraft } from "./sections";
 import { ResumeBar } from "./resume-bar";
+import { SECTION_ICONS, SectionMark } from "./section-icons";
 import { SectionNav } from "./section-nav";
 
 /**
@@ -78,16 +85,14 @@ import { SectionNav } from "./section-nav";
  * no card of its own: the title's Fill With Scout and each section's +
  * already say where to start.
  *
- * The Showing card (KAN-343, KAN-361, docs/bank_by_resume.md) shows one
- * resume's entries and skills at a time, picked from the shared resume
- * table (`resume-bar.tsx`): it opens on the URL's `?resume=`, else the
- * starred resume, else the newest. An upload's entries are its own (ADR
- * 0005); a built resume's are the ones it shows, which an entry's "Also used
- * in" line names. Not From an Upload shows what no upload owns, so nothing
- * in the bank is out of reach. Add saves into the picked resume (or into no
- * upload, under Not From an Upload), so the new item stays in view. A
- * student with no resume sees the whole bank and no card. Intake always sees
- * the whole bank.
+ * It opens on All Experiences, the whole bank with copies shown once, so
+ * nothing is out of reach (KAN-440). The Showing card (KAN-343, KAN-361,
+ * docs/bank_by_resume.md) narrows it to one resume, picked from the shared
+ * resume table (`resume-bar.tsx`), or the URL's `?resume=`. An upload's entries
+ * are its own (ADR 0005); a built resume's are the ones it shows. Add saves
+ * into the picked resume, or into no upload under All Experiences, so the new
+ * item stays in view. A student with no resume sees no card. Intake always
+ * sees the whole bank.
  */
 
 type Editing = { kind: "new"; section: Section } | { kind: "edit"; entry: BankEntry } | null;
@@ -114,6 +119,10 @@ export function BankScreen({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<BankEntry | null>(null);
+  // The search box's words (KAN-440). It narrows what the page shows and
+  // opens what it finds, since a word may be in a bullet.
+  const [query, setQuery] = useState("");
+  const searching = query.trim() !== "";
   // The section whose Clear All confirm is open (KAN-352).
   const [clearing, setClearing] = useState<Section | null>(null);
   // The section in edit mode (KAN-363): its entries show their pencils and
@@ -128,16 +137,9 @@ export function BankScreen({
   const scoutOpen = useScout().open;
   const marked = scoutOpen ? focus : null;
 
-  const uploads = useMemo(() => uploadIds(bank.resumes), [bank.resumes]);
   // A resume deleted since the pick reads as the page's opening pick.
-  const current =
-    (pick === NONE && bank.resumes.length > 0) || bank.resumes.some((r) => r.id === pick)
-      ? pick
-      : openingPick(bank.resumes, undefined);
+  const current = openingPick(bank.resumes, pick);
   const picked = bank.resumes.find((r) => r.id === current) ?? null;
-  const unowned =
-    bank.entries.filter((e) => shows(NONE, e, uploads)).length +
-    bank.skills.filter((s) => shows(NONE, s, uploads)).length;
   const ownsNothing =
     picked?.kind === "uploaded" &&
     !bank.entries.some((e) => e.resume_ids.includes(picked.id)) &&
@@ -155,11 +157,11 @@ export function BankScreen({
   }, [pick]);
 
   // Scout works on the whole bank: an entry it visits that the pick hides
-  // switches the page to a resume that holds it, or to Not From an Upload,
-  // so the mark and the scroll land.
+  // switches the page to a resume that holds it, or to All Experiences, so
+  // the mark and the scroll land.
   const markedEntryRow = bank.entries.find((e) => e.id === marked?.entryId);
   const holder =
-    markedEntryRow && !shows(current, markedEntryRow, uploads)
+    markedEntryRow && !shows(current, markedEntryRow)
       ? holderOf(markedEntryRow, bank.resumes)
       : null;
   // Set during render, as React's "adjusting state when a prop changes"
@@ -197,6 +199,36 @@ export function BankScreen({
     url.searchParams.delete("import");
     window.history.replaceState(null, "", `${url.pathname}${url.search}`);
   }, [autoImport]);
+
+  // What the page draws now: a group's entries under the pick, its rows, and
+  // the skills, each narrowed by the search box.
+  const entriesIn = (id: Section) =>
+    bank.entries.filter((e) => e.section === id && shows(current, e));
+  const rowsIn = (id: Section, prefer?: string) =>
+    rowsOf(current, entriesIn(id), bank.resumes, (e) => e.id === prefer).filter(
+      (row) => !searching || rowMatches(row, query),
+    );
+  const skillsNow = skillRows(
+    current,
+    bank.skills.filter((s) => shows(current, s)),
+  ).filter((s) => !searching || skillMatches(s, query));
+  // A group draws a card while it has rows, is being added to, or Scout is on it
+  const drawn = (id: Section) =>
+    rowsIn(id).length > 0 ||
+    (editing?.kind === "new" && editing.section === id) ||
+    marked?.section === id;
+  const rowsFound = SECTIONS.reduce((n, s) => n + rowsIn(s.id).length, 0);
+  const emptySections = SECTIONS.filter((s) => !drawn(s.id));
+  const navSections = [
+    ...SECTIONS.filter((s) => drawn(s.id)).map((s) => ({
+      id: s.id,
+      label: s.label,
+      count: rowsIn(s.id).length,
+    })),
+    ...(searching && skillsNow.length === 0
+      ? []
+      : [{ id: "skills" as const, label: "Skills", count: skillsNow.length }]),
+  ];
 
   async function reload(): Promise<string | null> {
     const { data, error } = await getBank();
@@ -298,7 +330,7 @@ export function BankScreen({
         />
       </ScoutTakeover>
       {bank.resumes.length > 0 && (
-        <ResumeBar resumes={bank.resumes} value={current} unowned={unowned} onChange={setPick} />
+        <ResumeBar resumes={bank.resumes} value={current} onChange={setPick} />
       )}
       {pageError && (
         <p role="alert" className="text-note text-danger">
@@ -306,27 +338,23 @@ export function BankScreen({
         </p>
       )}
       {picked && ownsNothing && <LinkUpload resumeId={picked.id} reload={reload} />}
-      <SectionNav
-        sections={[
-          ...SECTIONS.map((s) => ({
-            id: s.id,
-            label: s.label,
-            count: bank.entries.filter((e) => e.section === s.id && shows(current, e, uploads))
-              .length,
-          })),
-          {
-            id: "skills",
-            label: "Skills",
-            count: bank.skills.filter((s) => shows(current, s, uploads)).length,
-          },
-        ]}
-      />
+      {(bank.entries.length > 0 || bank.skills.length > 0) && (
+        <SearchField
+          id="experiences-search"
+          label="Search your experiences"
+          placeholder="Search your experiences"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      )}
+      <SectionNav sections={navSections} />
       {SECTIONS.map((section) => {
-        const entries = bank.entries.filter(
-          (e) => e.section === section.id && shows(current, e, uploads),
-        );
+        const entries = entriesIn(section.id);
         const adding = editing?.kind === "new" && editing.section === section.id;
         const here = marked?.section === section.id ? marked : null;
+        const rows = rowsIn(section.id, here?.entryId);
+        // A group with nothing in it is a word on the quiet line below
+        if (!drawn(section.id)) return null;
         // An empty card has nothing to edit, so its last delete ends the mode.
         const editable = editMode === section.id && entries.length > 0;
         return (
@@ -341,7 +369,11 @@ export function BankScreen({
             className="scroll-mt-16 transition-colors duration-200"
           >
             <div className="flex items-center justify-between gap-3">
-              <h2 id={`bank-${section.id}`} className="text-subtitle text-ink">
+              <h2
+                id={`bank-${section.id}`}
+                className="text-subtitle text-ink flex min-w-0 items-center gap-2.5"
+              >
+                <SectionMark id={section.id} />
                 {section.label}
               </h2>
               {!adding && (
@@ -351,6 +383,10 @@ export function BankScreen({
                   addTooltip="Add an entry"
                   hasItems={entries.length > 0}
                   editable={editable}
+                  // A row in All Experiences stands for its copies, on
+                  // several resumes, and a search hides rows the bulk delete
+                  // would still take: Clear All belongs to one resume's view
+                  clearable={current !== ALL && !searching}
                   clearing={clearing === section.id}
                   onAdd={() => open({ kind: "new", section: section.id })}
                   onEdit={() => setEditMode(section.id)}
@@ -388,35 +424,41 @@ export function BankScreen({
             )}
 
             <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-              {entries.map((entry) => (
-                <ScoutMarked
-                  key={entry.id}
-                  id={`entry-${entry.id}`}
-                  active={here?.entryId === entry.id}
-                >
-                  {editing?.kind === "edit" && editing.entry.id === entry.id ? (
-                    <EditEntry
-                      entry={entry}
-                      usedIn={usedIn(current, entry, bank.resumes)}
-                      onShowResume={(id) => showResume(id, entry.id)}
-                      saving={saving}
-                      error={error}
-                      onSave={(draft) => save(draft)}
-                      onCancel={() => open(null)}
-                      onDeleted={async () => {
-                        open(null);
-                        const reloadError = await reload();
-                        if (reloadError) setPageError(reloadError);
-                      }}
-                    />
-                  ) : (
-                    <EntryView
-                      entry={entry}
-                      onEdit={editable ? () => open({ kind: "edit", entry }) : undefined}
-                    />
-                  )}
-                </ScoutMarked>
-              ))}
+              {rows.map((row) => {
+                const { entry } = row;
+                return (
+                  <ScoutMarked
+                    key={entry.id}
+                    id={`entry-${entry.id}`}
+                    active={here?.entryId === entry.id}
+                  >
+                    {editing?.kind === "edit" && editing.entry.id === entry.id ? (
+                      <EditEntry
+                        entry={entry}
+                        usedIn={usedIn(current, entry, bank.resumes)}
+                        onShowResume={(id) => showResume(id, entry.id)}
+                        saving={saving}
+                        error={error}
+                        onSave={(draft) => save(draft)}
+                        onCancel={() => open(null)}
+                        onDeleted={async () => {
+                          open(null);
+                          const reloadError = await reload();
+                          if (reloadError) setPageError(reloadError);
+                        }}
+                      />
+                    ) : (
+                      <EntryView
+                        row={row}
+                        resumes={bank.resumes}
+                        open={searching || here?.entryId === entry.id}
+                        onEdit={editable ? () => open({ kind: "edit", entry }) : undefined}
+                        onShowResume={showResume}
+                      />
+                    )}
+                  </ScoutMarked>
+                );
+              })}
             </ul>
 
             {adding && (
@@ -436,14 +478,76 @@ export function BankScreen({
         );
       })}
 
-      <SkillsCard
-        skills={bank.skills.filter((s) => shows(current, s, uploads))}
-        resumeId={picked?.id}
-        resumes={bank.resumes}
-        pick={current}
-        reload={reload}
-        removeSkill={removeSkill}
-      />
+      {searching && rowsFound === 0 && skillsNow.length === 0 && (
+        <p className="text-body text-ink-meta px-1">
+          No experiences match &ldquo;{query.trim()}&rdquo;.
+        </p>
+      )}
+
+      {/* Kept mounted while a search hides it: its form holds what is typed */}
+      <div className={cn(searching && skillsNow.length === 0 && "hidden")}>
+        <SkillsCard
+          skills={skillsNow}
+          resumeId={picked?.id}
+          resumes={bank.resumes}
+          pick={current}
+          reload={reload}
+          removeSkill={removeSkill}
+        />
+      </div>
+
+      {!searching && emptySections.length > 0 && (
+        <EmptySections
+          sections={emptySections}
+          picked={picked !== null}
+          onAdd={(id) => {
+            open({ kind: "new", section: id });
+            requestAnimationFrame(() =>
+              document.getElementById(`section-${id}`)?.scrollIntoView({ block: "start" }),
+            );
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The groups with nothing in them, as one quiet line under the page (KAN-440):
+ * each took a full card that said "Nothing here yet", and three of them pushed
+ * Skills off the screen. Each word adds to its group, which opens its card.
+ */
+function EmptySections({
+  sections,
+  picked,
+  onAdd,
+}: {
+  sections: readonly { id: Section; label: string }[];
+  /** A resume is picked, so the line says "from this resume". */
+  picked: boolean;
+  onAdd: (id: Section) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-1 gap-y-1 px-1">
+      <span className="text-note text-ink-meta mr-1">
+        {picked ? "Nothing from this resume in" : "Nothing yet in"}
+      </span>
+      {sections.map(({ id, label }) => {
+        const Glyph = SECTION_ICONS[id];
+        return (
+          <Button
+            key={id}
+            variant="ghost"
+            size="xs"
+            aria-label={`Add an Entry to ${label}`}
+            onClick={() => onAdd(id)}
+          >
+            <Glyph aria-hidden className="text-brand" />
+            {label}
+            <PlusIcon aria-hidden className="text-ink-meta" />
+          </Button>
+        );
+      })}
     </div>
   );
 }
@@ -551,6 +655,7 @@ function SectionActions({
   addTooltip,
   hasItems,
   editable,
+  clearable = true,
   clearing,
   onAdd,
   onEdit,
@@ -564,6 +669,8 @@ function SectionActions({
   hasItems: boolean;
   /** In edit mode. */
   editable: boolean;
+  /** False leaves Clear All out of edit mode. */
+  clearable?: boolean;
   /** Clear All's confirm is open, so the button gives way to it. */
   clearing: boolean;
   onAdd: () => void;
@@ -573,7 +680,7 @@ function SectionActions({
 }) {
   return (
     <div className="flex items-center gap-3">
-      {editable && !clearing && (
+      {editable && clearable && !clearing && (
         <Button variant="section" onClick={onClear}>
           <TrashIcon aria-hidden /> Clear All
         </Button>
@@ -685,65 +792,63 @@ function EditEntry({
   );
 }
 
-/** An entry as the bank shows it: the title, its facts and bullets, the
- *  dates, and in its section's edit mode one pencil (KAN-363). Delete Entry
- *  is in the editor the pencil opens, with the other resumes a save
- *  changes. */
+/** An entry as the bank shows it (`EntryRow`), and in its section's edit
+ *  mode one pencil (KAN-363). Delete Entry is in the editor the pencil
+ *  opens, with the other resumes a save changes. What the entry lacks stays
+ *  in view while it is closed: it stops a Generate. So does a copy with
+ *  other bullets: All Experiences shows one copy, so the note is the way to
+ *  the others. */
 function EntryView({
-  entry,
+  row,
+  resumes,
+  open,
   onEdit,
+  onShowResume,
 }: {
-  entry: BankEntry;
+  row: BankRow<BankEntry>;
+  resumes: BankResume[];
+  /** Scout is working on it, or a search found it: a bullet may be why. */
+  open: boolean;
   /** Set in the section's edit mode, which shows the pencil. */
   onEdit?: () => void;
+  onShowResume: (id: Pick, entryId: string) => void;
 }) {
-  const dates = formatDates(entry);
+  const { entry } = row;
   const missing = missingFacts(entry);
-  const place = [entry.organization, entry.location].filter(Boolean).join(" · ");
-  const details = entryDetails(entry);
-
+  const versions = otherVersions(row, resumes);
   return (
-    <div>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-body text-ink font-medium break-words">{entry.title}</p>
-          {/* A narrow column puts the dates under the title: beside it, they
-              never shrink and left the title a few letters wide on a phone. */}
-          {dates && <p className="text-note text-ink-meta @xl/main:hidden">{dates}</p>}
-          {place && <p className="text-note text-ink-muted break-words">{place}</p>}
-          {details.map((line) => (
-            <p key={line} className="text-note text-ink-meta break-words">
-              {line}
+    <EntryRow
+      entry={entry}
+      open={open}
+      actions={
+        onEdit && (
+          <IconButton label="Edit Entry" tooltip="Edit this entry" onClick={onEdit}>
+            <PencilSimpleIcon aria-hidden className="size-4" />
+          </IconButton>
+        )
+      }
+      note={
+        <>
+          {versions.length > 0 && (
+            <p className="text-note text-ink-meta mt-1 pl-6">
+              Other bullets on{" "}
+              <ResumeLinks
+                resumes={versions}
+                onShow={(id) =>
+                  onShowResume(id, versions.find((v) => v.id === id)?.entryId ?? entry.id)
+                }
+              />
             </p>
-          ))}
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {dates && <span className="text-note text-ink-meta hidden @xl/main:inline">{dates}</span>}
-          {onEdit && (
-            <IconButton label="Edit Entry" tooltip="Edit this entry" onClick={onEdit}>
-              <PencilSimpleIcon aria-hidden className="size-4" />
-            </IconButton>
           )}
-        </div>
-      </div>
-
-      {entry.bullets.length > 0 && (
-        <ul className="text-body text-ink-muted mt-1.5 flex list-disc flex-col gap-1 pl-5">
-          {entry.bullets.map((b) => (
-            <li key={b.id} className="break-words">
-              {b.text}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {missing.length > 0 && (
-        <p className="text-note text-warning mt-1">
-          No {missing.join(" or ")} yet. Add {missing.length > 1 ? "them" : "it"} before you
-          Generate a resume.
-        </p>
-      )}
-    </div>
+          {missing.length > 0 && (
+            <p className="text-note text-warning mt-1">
+              No {missing.join(" or ")} yet. Add {missing.length > 1 ? "them" : "it"} before you
+              Generate a resume.
+            </p>
+          )}
+        </>
+      }
+    />
   );
 }
 
@@ -771,6 +876,22 @@ function AlsoChanges({
   resumes: { id: string; name: string }[];
   onShow: (id: string) => void;
 }) {
+  return (
+    <p className="rounded-control bg-well text-note text-ink-muted px-3 py-2">
+      Saving also changes this entry on <ResumeLinks resumes={resumes} onShow={onShow} />
+    </p>
+  );
+}
+
+/** Resumes named as links, "A, B and 2 more": each shows that resume here
+ *  (`?resume=`), and a Cmd or Ctrl click opens it in a new tab. */
+function ResumeLinks({
+  resumes,
+  onShow,
+}: {
+  resumes: { id: string; name: string }[];
+  onShow: (id: string) => void;
+}) {
   const rest = resumes.slice(ALSO_SHOWN);
   const shown = resumes.slice(0, ALSO_SHOWN);
 
@@ -782,8 +903,7 @@ function AlsoChanges({
   }
 
   return (
-    <p className="rounded-control bg-well text-note text-ink-muted px-3 py-2">
-      Saving also changes this entry on{" "}
+    <>
       {shown.map((r, i) => (
         // Two resumes can share a name, but never an id.
         <Fragment key={r.id}>
@@ -805,7 +925,7 @@ function AlsoChanges({
           <span title={rest.map((r) => r.name).join(", ")}>{rest.length} more</span>
         </>
       )}
-    </p>
+    </>
   );
 }
 
@@ -891,7 +1011,8 @@ function SkillsCard({
   return (
     <Card as="section" id="section-skills" aria-labelledby="bank-skills" className="scroll-mt-16">
       <div className="flex items-center justify-between gap-3">
-        <h2 id="bank-skills" className="text-subtitle text-ink">
+        <h2 id="bank-skills" className="text-subtitle text-ink flex min-w-0 items-center gap-2.5">
+          <SectionMark id="skills" />
           Skills
         </h2>
         {!formOpen && (
@@ -900,6 +1021,10 @@ function SkillsCard({
             addLabel="Add Skill"
             addTooltip="Add a skill"
             hasItems={skills.length > 0}
+            // A chip in All Experiences stands for every copy of its name:
+            // Clear All belongs to one resume's view. Its pencil and × act on
+            // the one copy, so a skill no resume holds can still be edited
+            clearable={pick !== ALL}
             editable={editable}
             clearing={clearing}
             onAdd={() => {
@@ -947,8 +1072,8 @@ function SkillsCard({
                   <span
                     key={skill.id}
                     className={cn(
-                      "rounded-control text-note text-ink inline-flex items-center gap-1.5 border px-2 py-1",
-                      editingId === skill.id ? "border-brand" : "border-border-subtle",
+                      "rounded-control bg-brand-tint text-note text-brand-ink inline-flex items-center gap-1.5 border px-2 py-1",
+                      editingId === skill.id ? "border-brand" : "border-transparent",
                     )}
                   >
                     {skill.name}

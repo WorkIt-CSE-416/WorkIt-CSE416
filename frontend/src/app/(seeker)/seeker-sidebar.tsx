@@ -59,7 +59,7 @@ import { INBOX_LIVE } from "./inbox/live";
  * Resumes & Experiences sits right after the Applications Tracker, beside
  * the work it feeds: every application goes out with a resume. It sat just
  * above My Profile, after Calendar, until KAN-426. It is one row for two
- * views, Resumes (/resumes) and Experiences (/bank, where resume facts are
+ * views, Resumes (/resumes) and Experiences (/experiences, where resume facts are
  * kept, KAN-206), lit on either (`also`) and on the resume editor under
  * /resumes. They were two rows, Experience Bank and My Resumes, until
  * KAN-249 merged them behind one switcher. Its glyph is FileText, the one
@@ -84,7 +84,7 @@ const GROUPS: SidebarNavGroup[] = [
       },
       {
         href: "/resumes",
-        also: ["/bank"],
+        also: ["/experiences"],
         label: "Resumes & Experiences",
         short: "Resumes",
         Icon: FileTextIcon,

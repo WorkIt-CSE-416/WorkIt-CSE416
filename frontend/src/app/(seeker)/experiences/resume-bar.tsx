@@ -1,6 +1,6 @@
 "use client";
 
-import { NotePencilIcon } from "@phosphor-icons/react/ssr";
+import { StackIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -16,17 +16,16 @@ import {
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { FIELD_LABEL } from "@/components/ui/text-field";
 import type { BankResume } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
 import { pickRowClasses, ResumeLists, type Choice } from "../jobs/resume-picker";
-import { NONE, type Pick } from "./holdings";
+import { ALL, type Pick } from "./holdings";
 
 const TYPE = { uploaded: "Uploaded", base: "Base", tailored: "Tailored" } as const;
 
-/** What Not From an Upload holds, under its name on the card and in the dialog. */
-const NONE_NOTE = "What you added yourself, or what came from several uploads";
+/** What All Experiences holds, under its name on the card and in the dialog. */
+const ALL_NOTE = "Everything from your resumes and what you added, with copies shown once";
 
 /** The card's name, stretched over the card (`after:inset-0`) so the whole
  *  card is its target, as a Resumes row's is; the star and Change Resume
@@ -52,8 +51,8 @@ function choicesOf(resumes: BankResume[]): Choice[] {
 const keyOf = (r: BankResume) => `${r.kind === "uploaded" ? "uploaded" : "built"}:${r.id}`;
 
 /**
- * The Experiences view's resume control (KAN-361, KAN-363): "Showing" over
- * a card that names the pick, drawn as the Resumes page draws a resume
+ * The Experiences view's resume control (KAN-361, KAN-363): a card that
+ * names the pick, drawn as the Resumes page draws a resume
  * (`components/resume-row.tsx`: the file mark, the name, the meta line, the
  * primary star), with Change Resume inside it. The whole card opens the
  * resume, as a row there does: a built resume in the editor, an upload on
@@ -62,8 +61,9 @@ const keyOf = (r: BankResume) => `${r.kind === "uploaded" ? "uploaded" : "built"
  * card says what the page shows, and a delete from it would leave the page
  * on a resume that is gone. Change Resume opens the
  * resume list every resume dialog shares (../jobs/resume-picker, KAN-406),
- * and Not From an Upload is a row of its own under that table while
- * anything no upload owns exists.
+ * All Experiences (KAN-440) is the page's opening view, so the card is a
+ * filter: Show All returns to it from any resume, and it is a pick of its own
+ * above the table.
  *
  * It was loose text with Change Resume at the far edge of the page and Not
  * From an Upload as a link under it (KAN-361), which looked like no resume
@@ -74,22 +74,19 @@ const keyOf = (r: BankResume) => `${r.kind === "uploaded" ? "uploaded" : "built"
 export function ResumeBar({
   resumes,
   value,
-  unowned,
   onChange,
 }: {
   resumes: BankResume[];
   value: Pick;
-  /** How many entries and skills no upload owns. */
-  unowned: number;
   onChange: (pick: Pick) => void;
 }) {
   const [choosing, setChoosing] = useState(false);
   const picked = resumes.find((r) => r.id === value) ?? null;
-  const name = picked?.name ?? "Not From an Upload";
+  const all = !picked;
+  const name = picked?.name ?? "All Experiences";
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className={FIELD_LABEL}>Showing</span>
       {/* Change Resume wraps to a line of its own on a phone: beside the
           name, it left "The Allen In…" of a tailored resume's name. */}
       <Card
@@ -103,7 +100,7 @@ export function ResumeBar({
         {picked ? (
           <PdfIcon className="size-5 shrink-0" />
         ) : (
-          <NotePencilIcon aria-hidden className="text-ink-meta size-5 shrink-0" />
+          <StackIcon aria-hidden className="text-brand size-5 shrink-0" weight="duotone" />
         )}
         <div className="min-w-0 flex-1 basis-40">
           {!picked ? (
@@ -124,7 +121,7 @@ export function ResumeBar({
           )}
           <p className="text-note text-ink-meta truncate" title={picked?.posting ?? undefined}>
             {!picked
-              ? NONE_NOTE
+              ? ALL_NOTE
               : picked.posting
                 ? `Tailored for ${picked.posting}`
                 : `${TYPE[picked.kind]} resume`}
@@ -135,20 +132,21 @@ export function ResumeBar({
             <PrimaryStar name={picked.name} primary />
           </span>
         )}
-        <Button
-          variant="secondary"
-          size="sm"
-          className="relative z-10 ml-auto"
-          onClick={() => setChoosing(true)}
-        >
-          Change Resume
-        </Button>
+        <div className="relative z-10 ml-auto flex items-center gap-2">
+          {!all && (
+            <Button variant="ghost" size="sm" onClick={() => onChange(ALL)}>
+              Show All
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" onClick={() => setChoosing(true)}>
+            {all ? "Filter by Resume" : "Change Resume"}
+          </Button>
+        </div>
       </Card>
       {choosing && (
         <ChooseResume
           resumes={resumes}
           value={value}
-          unowned={unowned}
           onShow={(pick) => {
             setChoosing(false);
             onChange(pick);
@@ -162,22 +160,21 @@ export function ResumeBar({
 
 /**
  * Choose a Resume to Show: the shared list, mounted only while open, so
- * each opening starts on the current pick (else the primary resume, else
- * the first). Not From an Upload is a card under the list, in the same
- * radio group, since it is no resume and the shared list holds resumes
- * only. A click or the arrow keys move the pick; nothing changes on the
- * page until Show Resume, so Cancel leaves it as it was.
+ * each opening starts on the current pick. All Experiences sits over the
+ * list, in the same radio group, since it is no resume and the shared list
+ * holds resumes only. A click or the arrow keys move the pick; nothing changes
+ * on the page until Show Resume, so Cancel leaves it as it was.
+ * The resume editor's Experiences picker opens this same dialog: a student
+ * picks a resume here, never from a dropdown (KAN-361).
  */
-function ChooseResume({
+export function ChooseResume({
   resumes,
   value,
-  unowned,
   onShow,
   onCancel,
 }: {
   resumes: BankResume[];
   value: Pick;
-  unowned: number;
   onShow: (pick: Pick) => void;
   onCancel: () => void;
 }) {
@@ -185,59 +182,55 @@ function ChooseResume({
   const current = resumes.find((r) => r.id === value);
   const start = current ?? resumes.find((r) => r.primary) ?? resumes[0];
   const [picked, setPicked] = useState<string | null>(
-    value === NONE ? NONE : start ? keyOf(start) : null,
+    value === ALL ? ALL : start ? keyOf(start) : null,
   );
   const choice = choices.find((c) => c.key === picked);
-  const none = picked === NONE;
+  const all = picked === ALL;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+      {/* A column, so the footer stays put and the middle scrolls: the
+          whole dialog scrolled, and the All Experiences row over the shared
+          list's fixed height pushed Cancel and Show past the window */}
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="text-subtitle font-semibold">Choose a Resume to Show</DialogTitle>
           <DialogDescription>
             Experiences shows the entries and skills this resume holds.
           </DialogDescription>
         </DialogHeader>
-        <ResumeLists
-          name="bank-resume"
-          choices={choices}
-          empty="None yet. Generate or upload one on Resumes."
-          picked={picked}
-          onPick={setPicked}
-        />
-        {/* Shown while anything no upload owns exists, or while it is the
-            pick, so the dialog can always show it again. Every item must
-            show under some pick (holdings.ts). */}
-        {(unowned > 0 || value === NONE) && (
-          // Drawn as the list's cards are (`pickRowClasses`): it is a
-          // pick in the same radio group, a sibling of theirs.
-          <label className={cn(pickRowClasses(none), "mt-0")}>
+        <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1">
+          {/* Drawn as the list's cards are: a pick in the same radio group. */}
+          <label className={cn(pickRowClasses(all), "mt-0")}>
             <input
               type="radio"
               name="bank-resume"
-              value={NONE}
-              checked={none}
-              onChange={() => setPicked(NONE)}
+              value={ALL}
+              checked={all}
+              onChange={() => setPicked(ALL)}
               className="accent-brand shrink-0"
             />
             <span className="min-w-0 flex-1">
-              <span className="text-label text-ink block">Not From an Upload</span>
-              <span className="text-note text-ink-meta block">{NONE_NOTE}</span>
-            </span>
-            <span className="text-note text-ink-meta shrink-0">
-              {unowned} {unowned === 1 ? "item" : "items"}
+              <span className="text-label text-ink block">All Experiences</span>
+              <span className="text-note text-ink-meta block">{ALL_NOTE}</span>
             </span>
           </label>
-        )}
+          <ResumeLists
+            name="bank-resume"
+            choices={choices}
+            empty="None yet. Generate or upload one on Resumes."
+            picked={picked}
+            onPick={setPicked}
+          />
+        </div>
         <DialogFooter>
           <Button variant="secondary" onClick={onCancel}>
             Cancel
           </Button>
           <Button
             onClick={() =>
-              none
-                ? onShow(NONE)
+              all
+                ? onShow(ALL)
                 : choice &&
                   onShow(
                     "builtResumeId" in choice.source
@@ -245,9 +238,9 @@ function ChooseResume({
                       : choice.source.uploadedResumeId,
                   )
             }
-            disabled={!choice && !none}
+            disabled={!choice && !all}
           >
-            Show Resume
+            {all ? "Show All" : "Show Resume"}
           </Button>
         </DialogFooter>
       </DialogContent>

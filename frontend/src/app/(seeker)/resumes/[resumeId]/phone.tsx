@@ -23,9 +23,9 @@ import { DownloadMenu, DownloadNotes, type ResumeDownload } from "../download-me
 import { useBack } from "../../back-link";
 import { EDITOR_PARENT } from "./back";
 import { FitNotice } from "./fit-notice";
-import { lineName, shortPageLabel, tray, type Line } from "./model";
+import { lineName, shortPageLabel, type Line } from "./model";
 import { boxKey, kindLabel } from "./pdf-pages";
-import { Tray } from "./tray";
+import { ExperiencesPicker } from "./experiences-picker";
 
 /**
  * The phone editor (KAN-219, the KAN-201 prototype's variant A). The page
@@ -160,13 +160,12 @@ export function PhoneEditor({
   const snapshot = useSyncExternalStore(subscribeViewport, viewportSnapshot, () => "0|0");
   const [height, top] = snapshot.split("|").map(Number);
   const [zoom, setZoom] = useState(false);
-  const [trayOpen, setTrayOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
   const order = pageOrder(rendered?.boxes ?? []);
   const at = selected ? order.indexOf(selected) : -1;
-  const waiting = tray(bank, choices).length;
 
   // Bring the selected line to the middle of the page area, also after an arrow press
   useEffect(() => {
@@ -284,9 +283,9 @@ export function PhoneEditor({
               variant="secondary"
               className="flex-1"
               disabled={!rendered}
-              onClick={() => setTrayOpen(true)}
+              onClick={() => setPickerOpen(true)}
             >
-              Not on This Resume {waiting > 0 && <span className="text-ink-meta">({waiting})</span>}
+              Add Experiences
             </Button>
             {/* The primary action, filled as on the desktop bar. */}
             <Button disabled={!rendered} onClick={() => setAsking(true)}>
@@ -375,17 +374,12 @@ export function PhoneEditor({
         </Sheet>
       )}
 
-      {trayOpen && (
+      {pickerOpen && (
         <>
-          <div className="absolute inset-0 z-30 bg-black/25" onClick={() => setTrayOpen(false)} />
-          <Sheet onClose={() => setTrayOpen(false)} title="Not on This Resume">
+          <div className="absolute inset-0 z-30 bg-black/25" onClick={() => setPickerOpen(false)} />
+          <Sheet onClose={() => setPickerOpen(false)} title="Experiences">
             <div className={TAP}>
-              <Tray bank={bank} choices={choices} onPutBack={onApply} />
-              {waiting === 0 && (
-                <p className="text-body text-ink-meta">
-                  Everything in your bank is on this resume.
-                </p>
-              )}
+              <ExperiencesPicker bank={bank} choices={choices} onApply={onApply} />
             </div>
           </Sheet>
         </>

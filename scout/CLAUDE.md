@@ -238,7 +238,7 @@ address or a friend's link goes too. Rules:
 - **New event types** go in `workit_scout/schemas.py` and
   `frontend/src/components/scout/stream.ts` together. Intake's extra
   `draft` line is the backend's (`app/schemas/intake.py`) and the bank
-  page's (`(seeker)/bank/intake.tsx`), since its draft is the bank's entry
+  page's (`(seeker)/experiences/intake.tsx`), since its draft is the bank's entry
   schema, which this package may not import.
 - **Intake reuses this package's model, not its prompt.** Its frozen prompt
   and turn live in the backend (`app/services/intake.py`), for the same

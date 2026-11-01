@@ -77,8 +77,9 @@ export async function TopMatches({
         <p className="text-body text-ink-meta mt-3">
           {top === "empty" ? (
             <>
-              Add what you have done to your <TextLink href="/bank">experience bank</TextLink>, and
-              your best-fitting jobs show up here.
+              Add what you have done to your{" "}
+              <TextLink href="/experiences">experience bank</TextLink>, and your best-fitting jobs
+              show up here.
             </>
           ) : top === null ? (
             "Your matches aren't loading right now. Check back in a few minutes."

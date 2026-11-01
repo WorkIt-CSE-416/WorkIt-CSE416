@@ -119,11 +119,11 @@ applicant_profiles
   text then shows in place of the original; deleting the variant brings
   the original back (`ON DELETE SET NULL`).
 - **No choice row, not on the resume.** Generate writes a row for everything
-  in the bank at that moment; what is added later waits in the editor's tray
+  in the bank at that moment; what is added later stays off in the editor's Experiences picker
   instead of appearing on old resumes. Bullets and skills follow the same
   rule as entries, so a bullet added to an entry already on a resume waits
   too. A copy of an entry (same section, title, organization and months)
-  gets a row with `shown` false, so it waits in the tray as well.
+  gets a row with `shown` false; the picker shows the two as one row.
 - **Base or tailored by `job_posting_id`.** Null is a base resume. A posting
   has at most one tailored resume per student (a unique key; NULLs distinct).
   Deleting the posting deletes its tailored resume; sent resumes keep their

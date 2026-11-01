@@ -703,7 +703,7 @@ function TailorError({ error }: { error: { message: string; status: number | nul
     <div role="alert" className="text-note text-danger mt-2">
       <p>{error.message}</p>
       {error.status === 409 && error.message.toLowerCase().includes("bank") && (
-        <ButtonLink href="/bank" size="sm" className="mt-2">
+        <ButtonLink href="/experiences" size="sm" className="mt-2">
           Fill My Bank
         </ButtonLink>
       )}

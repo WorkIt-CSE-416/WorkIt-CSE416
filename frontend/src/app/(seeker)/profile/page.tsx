@@ -49,7 +49,7 @@ import { useProfileCache } from "../profile-cache";
  * dropzone) moved to the Resumes view's Your Uploaded Resumes card on 2026-10-18,
  * beside the base resumes, and Application
  * Settings (an Autofill switch that saved nothing) went the same day. Resume
- * facts are edited in the experience bank (/bank), never here (KAN-211).
+ * facts are edited in the experience bank (/experiences), never here (KAN-211).
  *
  *   identity        an open band under the title: the photo, the name and
  *                   headline, and Edit (to Settings), closed by a hairline
@@ -218,7 +218,7 @@ export default function ProfilePage() {
           <ButtonLink href="/resumes" variant="secondary">
             Open Resumes
           </ButtonLink>
-          <ButtonLink href="/bank" variant="secondary">
+          <ButtonLink href="/experiences" variant="secondary">
             Open Experiences
           </ButtonLink>
         </div>
