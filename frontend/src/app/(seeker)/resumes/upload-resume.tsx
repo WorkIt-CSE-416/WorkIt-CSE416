@@ -131,7 +131,7 @@ export function useResumeUpload({
       {shownImport && (
         <p className="text-note text-ink-muted" aria-live="polite">
           {importSummary(shownImport, shownImport.filename)}{" "}
-          <Link href="/bank" className="text-brand hover:text-brand-hover underline">
+          <Link href="/experiences" className="text-brand hover:text-brand-hover underline">
             Open Experiences
           </Link>
         </p>

@@ -170,10 +170,10 @@ with the failure it prevents.
 - `docs/bank_by_resume.md` — KAN-343's design, built, as revised by ADR
   0005: each upload owns its own entries and skills (no merge, no
   duplicate check across resumes; an import replaces what the upload
-  owned), and the Experiences view's Showing card picks one resume from
-  the shared resume list (KAN-361, KAN-406), showing what the picked one
-  owns or shows, with Not From an Upload as a card of its own under it
-  (KAN-363). Add saves into the picked resume.
+  owned), and the Experiences view opens on All Experiences, copies shown
+  once (KAN-440), with a Showing card that filters to one resume from the
+  shared resume list (KAN-361, KAN-406), showing what the picked one owns
+  or shows. Add saves into the picked resume.
   Read it before changing import, the bank's API shape or the Experiences
   view.
 - `docs/tailor_resume.md` — Tailor's redesign, built (2026-10-25): the student picks a resume and the missing keywords to

@@ -602,6 +602,48 @@ async def test_a_save_with_a_stale_copy_writes_only_the_typed_field(student):
     assert saved["organization"] == "Campus Center"
 
 
+async def test_an_old_value_typed_back_over_a_stale_copy_is_saved(student):
+    # The editor's copy predates the save before: "Math Tutor" went in,
+    # then "Tutor" was typed back while the copy still said "Tutor"
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+    tutor = next(e for e in copy["entries"] if e["title"] == "Tutor")
+
+    assert (await _type(client, me, resume_id, tutor["id"], "title", "Math Tutor", copy)).status_code == 200
+    res = await _type(client, me, resume_id, tutor["id"], "title", "Tutor", copy)
+    assert res.status_code == 200, res.text
+    assert _entry(await _bank(client, me), "Tutor")["id"] == tutor["id"]
+
+async def test_changed_at_moves_with_an_edit_to_the_bank_the_resume_or_the_header(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    tutor = _entry(await _bank(client, me), "Tutor")["id"]
+
+    async def changed():
+        res = await client.get(f"{me}/built-resumes/{resume_id}/changed-at")
+        assert res.status_code == 200, res.text
+        return res.json()["changed_at"]
+
+    before = await changed()
+    assert (await _type(client, me, resume_id, tutor, "title", "Math Tutor")).status_code == 200
+    after_entry = await changed()
+    assert after_entry > before
+    hide = {"entries": [{"entry_id": tutor, "shown": False}]}
+    assert (await client.patch(f"{me}/built-resumes/{resume_id}/choices", json=hide)).status_code == 200
+    after_choice = await changed()
+    assert after_choice > after_entry
+    assert (await _type(client, me, resume_id, "header", "linkedin_url", "linkedin.com/in/sam")).status_code == 200
+    assert await changed() > after_choice
+
+
+async def test_changed_at_is_404_for_a_resume_that_is_not_there(student):
+    client, me = student
+    res = await client.get(f"{me}/built-resumes/00000000-0000-0000-0000-000000000000/changed-at")
+    assert res.status_code == 404
+
 async def test_a_typed_header_field_with_a_copy_prints_at_once(student):
     _tectonic_or_skip()
     client, me = student

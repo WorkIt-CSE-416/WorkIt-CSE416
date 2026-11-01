@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 /**
  * The line a bank entry's Delete opens on Experiences: what goes and what
  * stays, then the red Delete and Keep It. It stays beside the Resumes view
- * though only `/bank` imports it now, as the shared header does: the two
+ * though only `/experiences` imports it now, as the shared header does: the two
  * routes are one page's views. A resume asks in `DeleteResumeConfirm`,
  * below, with the same words and buttons.
  *

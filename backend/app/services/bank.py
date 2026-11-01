@@ -113,6 +113,12 @@ def copy_key(entry: Bank_Entry) -> tuple:
     )
 
 
+def copy_group(entry: Bank_Entry) -> str:
+    """`copy_key` as one string, for the API: entries that are copies of one
+    share it. The browser groups by it and holds no copy of the rule."""
+    return "|".join(str(part) for part in copy_key(entry))
+
+
 def _newest_first(entry: Bank_Entry) -> tuple:
     # Python sorts ascending, so dates sort by their negated ordinal and a
     # missing date (0) goes after every real one.
@@ -299,11 +305,14 @@ async def write_entry(
     """A partial edit written with no read first (the editor's typed line,
     KAN-391): `current` is the entry as the caller holds it, the merged
     entry is checked whole as `edit_entry` checks it, and only the fields
-    the edit changes are written, so a stale `current` never writes back
-    an old value. One statement updates the row, if it is the applicant's,
-    and marks the bank embedding stale; NotFound for another's entry."""
+    the edit names are written, so a stale `current` never writes back an
+    old value. Each named field is written even when `current` already
+    holds it: `current` can predate a save still on its way, so an old
+    value typed back over that save matched it and was dropped. One
+    statement updates the row, if it is the applicant's, and marks the bank
+    embedding stale; NotFound for another's entry."""
     merged = EntryFields.model_validate({**current, **changes, "section": current["section"]}).model_dump()
-    values = {k: v for k, v in merged.items() if k != "section" and v != current.get(k)}
+    values = {k: merged[k] for k in changes if k != "section"}
     if not values:
         return
     edited = (
@@ -725,6 +734,7 @@ def entry_response(entry: Entry, resume_ids: list[uuid.UUID] | None = None) -> E
         "id": entry.row.id,
         "bullets": [BulletResponse.model_validate(b) for b in entry.bullets],
         "resume_ids": resume_ids or [],
+        "copy_group": copy_group(entry.row),
     })
 
 

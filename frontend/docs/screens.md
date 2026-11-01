@@ -55,7 +55,7 @@ API would refuse, so a stale link narrows by what was valid instead of erroring.
 An empty experience bank gets a card above the /jobs feed, "Add Your
 Experiences" or, with an upload, "Import Your Resume"
 (`jobs/bank-prompt.tsx`, stories 22 and 102): with an uploaded resume,
-"Import Your Resume" opens `/bank?import=1`, which runs Import Again at
+"Import Your Resume" opens `/experiences?import=1`, which runs Import Again at
 once (one click; it writes into the bank, ADR 0003). An upload imports
 itself, so the card shows only for an upload the parser read nothing in or
 one from before KAN-240. With none, Upload a Resume (to `/resumes`) and Add What You Did. It streams in its own Suspense
@@ -1801,16 +1801,16 @@ shows initials.
 ## Resumes & Experiences
 
 One sidebar row, above My Profile, for one page in two views (KAN-249):
-**Resumes** (`/resumes`, the row's link) and **Experiences** (`/bank`, the
+**Resumes** (`/resumes`, the row's link) and **Experiences** (`/experiences`, the
 experience bank). Both draw one header (`resumes/header.tsx`; it stays
-beside the Resumes view though `/bank` imports it too, since the two routes
+beside the Resumes view though `/experiences` imports it too, since the two routes
 are one page's views, not two consumers), laid out as Home's is: the view's own title and line on the left ("Resumes",
 "Experiences"), and at the top right, level with the foot of that block, a
 segmented switcher between the two views, then on Experiences its
 primary action, Fill With Scout; on a narrow page the controls
 wrap under the title. A shared "Resumes & Experiences" title on both views
 said less about where the student was. The views stay two routes, so every link to either still
-lands (the Jobs page's `/bank?import=1` included), and the switcher is plain
+lands (the Jobs page's `/experiences?import=1` included), and the switcher is plain
 links, since each view reads its own data on the server; the sidebar row is
 lit on both (`also` in `app-sidebar.tsx`) and in the editor under
 `/resumes`. They were two pages and two rows, Experience Bank and My
@@ -1818,15 +1818,17 @@ Resumes, each with a button pointing at the other; a student building a
 resume went back and forth between them. "Experiences" is the name students
 see for the experience bank; the glossary term stays.
 
-## Experiences (`/bank`)
+## Experiences (`/experiences`)
 
-`(seeker)/bank` (KAN-206). The experience bank is where resume facts are
+`(seeker)/experiences` (KAN-206). The experience bank is where resume facts are
 kept, once (`GLOSSARY.md`), and the only place they are edited: the
 Resumes view keeps the uploads, and its upload note links here.
 
 **Layout, top to bottom**: the shared header (above) with Fill With Scout,
-the Showing card (the picked resume, drawn as the Resumes page draws one,
-with Change Resume in it; a click on it opens the resume), the section
+the Showing card (All Experiences, where the page opens, with Filter by
+Resume; or the picked resume, drawn as the Resumes page draws one, with
+Show All and Change Resume in it, and a click on it opens the resume), the
+section
 nav, then the section cards and Skills. An entry's editor names the other
 built resumes a save changes too (KAN-363); a name in it shows that resume
 here.
@@ -1837,6 +1839,35 @@ long bank is one click from end to end. The page is the filled-out bank itself.
 The resumes it makes moved out in KAN-249 (Resumes, below). At the foot of
 the bank, as settled on 2026-10-13, a student editing entries scrolled past
 every section to reach a resume, and the page read as two pages in one.
+
+**The page was `/bank` until KAN-440**; `next.config.ts` redirects it, query
+included, so old links and `?import=1` land. The API's route stays `/bank`.
+
+**Each experience group wears one icon** (`section-icons.tsx`, KAN-440) in
+the section nav, on its card and in the resume editor's panel, on a brand
+tint beside its heading. The bank is the one page where brand colour marks
+structure: skill chips, bullet counts, chevrons and bullet marks. Skill group
+names stay neutral: in brand they blended with the chips under them. Text takes `brand-ink`, icons `brand`; the entry's
+title and bullets stay ink, so the words still lead. It read all white and
+grey before.
+
+**One search box** under the card finds an entry by any word in it, bullets
+included, or a skill by its name or group; every word must match. It opens
+what it finds, since a word may be in a bullet, and turns Clear All off, which
+would still take the rows a search hides. **A group with nothing in it is one
+quiet line** under the page, each word adding to its group, and leaves the
+section nav: three "Nothing here yet" cards pushed Skills off the screen.
+
+**The resume dialog's footer stays put** (`ChooseResume`): its middle scrolls,
+since the whole dialog scrolling put Cancel and Show past a short window.
+
+**Every entry is one row, `EntryRow`** (`bank/entry-row.tsx`, KAN-440),
+here and in the resume editor's panel, so the two never drift apart. It
+opens closed: title, place, dates, a school's degree and a bullet count. A
+press opens the other details and the bullets, which stop at 75 characters a
+line (a 1440px page ran them past 130). What an entry lacks stays in view
+while closed, since it stops a Generate, and the row Scout is working on
+stays open. Every entry fully open made a bank of six entries a long page.
 
 **Intake lives in Scout's panel** (2026-10-13), where Scout does: the bar's
 Scout button or Fill With Scout opens it. On this page the panel shows
@@ -1965,7 +1996,7 @@ in Docs (suggested answers in the chat, not a banner).
   trash, so a card read as a row of controls before what it holds.
 - **Clear All empties a card** (KAN-352): in the card's edit mode, on each
   section card and on Skills. It deletes
-  what the card shows in one call (`POST .../bank/entries/delete` or
+  what the card shows in one call (`POST .../experiences/entries/delete` or
   `.../skills/delete`, all or none), after a confirm (`bank/clear-all.tsx`)
   that names the count and the built resumes that show them
   (`builtShowing` in `holdings.ts`, from the bank's `resume_ids`). It
@@ -2288,8 +2319,8 @@ with no proposals to accept and no Done (2026-10-25).
   for the page: at the left Undo and Redo (UI only for now, disabled)
   and, idle, the page count when over one page as an amber chip with a
   warning sign and a caret (its click offers Fit to One Page); at the
-  right Download, secondary. No "Not on This Resume" on this page
-  (the editor's own page keeps it); while a line is open, its moves, Hide and its choices with "Esc
+  right Download, secondary. No Experiences picker on this page
+  (the editor's own page has it); while a line is open, its moves, Hide and its choices with "Esc
   when done"; no Ask Scout and no Done. Each changed line has a small
   purple dot in the page's margin and is highlighted (its tint, a 1px dark
   border, rounded, after Quinncia) only while its suggestion is pointed
@@ -2640,8 +2671,8 @@ student who opened a resume from Experiences landed on another view.
   text shows, on the lines of the suggestion in focus or open: an added
   skill green (`positive`, bordered in `positive-ink`), a new wording blue
   (`advanced`), an entry's bullets in a new order amber (`warning-fill`,
-  bordered in `warning-strong`). There the page has no "Not on This
-  Resume" (a run's own removals have Undo), and the top bar's Scout
+  bordered in `warning-strong`). There the page has no Experiences
+  picker (a run's own removals have Undo), and the top bar's Scout
   stays the job search chat. The panel sits in the column beside the
   page; on a phone it is a sheet from the bottom bar. Undo goes through the choices PATCH
   (the wording back to the source's, the old order, the skill hidden),
@@ -2669,11 +2700,33 @@ student who opened a resume from Experiences landed on another view.
   re-rendering until the page fits and putting back what it did not need
   (`backend/CLAUDE.md`). It never cuts Education, Skills, an entry's first
   bullet, or the top Experience and Projects entry.
-- **"Not on This Resume"** (`tray.tsx`) under the page (not on Tailor's
-  review, where a run's own removals have Undo): entries the resume
-  does not show (hidden, or added to the bank after Generate), hidden
-  bullets of shown entries, and hidden skills. One click puts one back; an
-  entry joins the end of its section with its bullets.
+- **The Experiences picker** (`experiences-picker.tsx`, KAN-440): the whole
+  bank beside the PDF, where a student picks what the resume shows. The
+  resume is the part of the bank that is on, so each entry, bullet and skill
+  has one control, and adding and hiding are one act. **Add Experiences** on
+  the toolbar, a secondary button as Download is, always there on this page, opens it in Scout's panel, under its own
+  mark, since it is not Scout. The panel shows one thing at a time and holds
+  no switch: the top bar's Scout goes back to the assistant (`away`, in
+  `scout-store`), and a Scout / Experiences switch only took up the panel's
+  top. The panel closed goes back to Scout. **It opens as one line for each
+  group**, its mark, name and "2 of 3 added", and a press opens the group's rows:
+  every entry at once was too much to read. **Two controls narrow it**: a
+  resume button that opens the shared resume dialog (`ChooseResume`, as the
+  page's Showing card does), never a dropdown, and Filters at the row's right
+  (`FieldFacet`), groups only. A narrowed list opens its groups, since it is
+  already short. A row of tabs, then a menu that also held every resume and
+  a "Not on This Resume" tick, read as a settings page. The rows
+  are the Experiences page's (`EntryRow`), one per job however many copies
+  the bank holds, with the copy that prints as the row. Turning a row off
+  takes every copy that prints. A bullet has a control only while its entry
+  is on, and an entry with every bullet off stays on as a heading, as a
+  line's Hide leaves it. Each pick goes through the same save and render as
+  any edit, so Undo takes it back. It only picks: typing stays on the PDF.
+  Not on Tailor's review, where a run's own removals have Undo. **It was
+  "Not on This Resume", a wall of buttons under the page**, past both pages
+  of a long resume, then a Hidden panel that listed only what was missing;
+  students could not see their bank beside the resume, and "Hidden" was false
+  for an item they had never hidden.
 - Skills can be hidden but not moved: they print grouped, and a move
   inside a group is still open.
 - A failed render shows "This Resume Isn't Loading Right Now" with the API's
@@ -2683,7 +2736,7 @@ student who opened a resume from Experiences landed on another view.
   LaTeX render without awaiting it; `editor.tsx` reads it with `use()` inside
   a `<Suspense>` around the page area only, over a Letter-sized skeleton with
   its own error state, so Back, the title and the bar do not wait on the
-  compile. Line editing, the assistant and the tray stay off until it lands, and
+  compile. Line editing, the assistant and the Experiences picker stay off until it lands, and
   the phone's "Click a line" is not offered when the first render failed. pdf.js starts
   downloading as the editor mounts. The editor and an upload's page each have
   a `loading.tsx` in their own frame.
@@ -2702,8 +2755,8 @@ student who opened a resume from Experiences landed on another view.
   "Tap a line to edit it.", or, over one page, the bar's amber group in its
   place, short to fit there: "3 lines over" and "Fit" (named Fit to One
   Page for a screen reader). The toast spells it out. The selected line
-  scrolls to the middle of the page area. The tray opens from a bottom
-  button in its own sheet (with a scrim). The layout is a fixed layer over
+  scrolls to the middle of the page area. The Experiences picker opens
+  from a bottom button in its own sheet (with a scrim). The layout is a fixed layer over
   the seeker shell, **sized to `window.visualViewport`** (height, moved down
   by its offset): the iOS keyboard covers the layout viewport instead of
   shrinking it, so a layout sized to the window would put the sheet behind
@@ -2716,7 +2769,8 @@ student who opened a resume from Experiences landed on another view.
   bar's Scout, in Scout's panel** (KAN-411): the editor takes the panel
   over (`ScoutTakeover`, as the Experience Bank does with intake), under
   "Scout · Edits this resume as you talk", so the page has one way to
-  Scout. The panel's header and X close it. Until the first render lands
+  Scout. It shares the panel with the Experiences picker (above), and stays
+  mounted under it. The panel's header and X close it. Until the first render lands
   the panel stays Scout's job chat, since the assistant reads the page
   count and acts through renders. Not on Tailor's review, whose Scout
   stays the job chat. Until KAN-411 it opened from Ask Scout in the
@@ -2749,7 +2803,7 @@ Scout, the job assistant, lives in `components/scout/`; its brain is the repo's
 `scout/`, so read `scout/CLAUDE.md` first. `scout-store` holds the one chat per
 tab (a module store, so no provider). `scout-panel` docks beside the page, never
 over it, and opens only on a click (the Jobs page's Import Your Resume
-counts: `/bank?import=1` opens it on arrival, then drops the param). A page
+counts: `/experiences?import=1` opens it on arrival, then drops the param). A page
 can take it over (`scout-takeover.tsx`: the Experience Bank's intake, the
 resume editor's assistant): the
 page's content replaces the chat and the panel widens to 448px. It stays mounted and opens in two moves: its

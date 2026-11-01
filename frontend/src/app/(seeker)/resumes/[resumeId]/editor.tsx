@@ -7,9 +7,8 @@ import {
   ArrowUpIcon,
   CloudSlashIcon,
   EyeSlashIcon,
-  MagnifyingGlassMinusIcon,
-  MagnifyingGlassPlusIcon,
   ScissorsIcon,
+  StackIcon,
   WarningIcon,
 } from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
@@ -18,13 +17,14 @@ import {
   use,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
 import { ChevronDownIcon } from "@/components/icons";
+import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -37,6 +37,7 @@ import {
   fitToOnePage,
   getChoices,
   renderResumePdf,
+  resumeChangedAt,
   saveLine,
   updateChoices,
   type Choices,
@@ -48,7 +49,7 @@ import {
 } from "@/lib/built-resume-actions";
 import type { Result } from "@/lib/applicant-call";
 import { cn } from "@/lib/cn";
-import { EDITOR_ZOOM_KEY, readLocalDraft, writeLocalDraft } from "@/lib/local-drafts";
+import { markResumesStale } from "@/lib/resumes-stale";
 
 import {
   DownloadMenu,
@@ -58,6 +59,8 @@ import {
 } from "../download-menu";
 import { Assistant } from "./assistant";
 import { FitToast } from "./fit-notice";
+import { Zoom, useZoom, zoomWidth } from "./zoom";
+import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import {
   HEADER,
   LINK_FIELDS,
@@ -97,7 +100,7 @@ import {
   untouched,
   useTailorReview,
 } from "./tailor-review";
-import { Tray } from "./tray";
+import { ExperiencesPicker } from "./experiences-picker";
 
 /**
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
@@ -141,47 +144,19 @@ import { Tray } from "./tray";
 // clearing the selected line
 const KEEPS_SELECTION = "data-keeps-selection";
 
+/** The panel's mark while it shows the Experiences picker: the toolbar
+ *  button's glyph, so what opened it is what it wears, and not Scout's. */
+const EXPERIENCES_MARK = (
+  <span className="bg-brand-tint text-brand flex size-8 shrink-0 items-center justify-center rounded-2xl">
+    <StackIcon aria-hidden className="size-4.5" weight="duotone" />
+  </span>
+);
+
 // Letter is 612 pt wide and Jake's text ends at 576 pt; field type is set in
 // cqw of the page so it matches the PDF's at any width.
 const PAGE_WIDTH = 612;
 const RIGHT_EDGE = 576;
 const pt = (points: number) => `${(points / PAGE_WIDTH) * 100}cqw`;
-
-/** The zoom steps, in percent of the page's printed size: 100% is 8.5in
- *  at 96 CSS px an inch (816px), as a browser's PDF viewer draws it. The
- *  page never grows past its column, so a high step on a narrow screen
- *  stops at the column's width. Each page draws again at its new width
- *  (`PageCanvas`), so text stays sharp at every step. */
-const ZOOMS = [50, 75, 90, 100, 125, 150];
-const DEFAULT_ZOOM = 125;
-const zoomWidth = (zoom: number) => `${(816 * zoom) / 100}px`;
-
-/** The page's zoom, kept per browser (`EDITOR_ZOOM_KEY`). The server and
- *  hydration draw the default, then the browser's own step. */
-const zoomListeners = new Set<() => void>();
-// The pick this tab made, so the zoom still moves when storage refuses it
-let pickedZoom: number | null = null;
-function readZoom() {
-  if (pickedZoom != null) return pickedZoom;
-  const kept = readLocalDraft<number>(EDITOR_ZOOM_KEY);
-  return kept && ZOOMS.includes(kept) ? kept : DEFAULT_ZOOM;
-}
-function useZoom() {
-  const zoom = useSyncExternalStore(
-    (listener) => {
-      zoomListeners.add(listener);
-      return () => zoomListeners.delete(listener);
-    },
-    readZoom,
-    () => DEFAULT_ZOOM,
-  );
-  const set = (to: number) => {
-    pickedZoom = to;
-    writeLocalDraft(EDITOR_ZOOM_KEY, to);
-    zoomListeners.forEach((listener) => listener());
-  };
-  return [zoom, set] as const;
-}
 
 // Latin Modern Roman, the face Tectonic sets Jake's Resume in (GUST Font
 // License), subset to Latin; loaded on the editor page only
@@ -236,24 +211,61 @@ type Draft = { key: string; text: string };
  *  rejects: a failure is its `error`. */
 type FirstRender = ReturnType<typeof renderResumePdf>;
 
+/** The API refused the edit (a resume or item not found, a line it cannot
+ *  read): sent again it answers the same. */
+const refused = (status: number | null) => status === 404 || status === 422;
+
+/** A save that failed leaves the page unlike the database, unless the
+ *  render refused the edit too. Only a 422 is sure to: both read the line
+ *  the same way. A 404 can be the save's alone, since the render reads the
+ *  editor's copy and the save the database: an entry deleted in another
+ *  tab still renders here. */
+const unsaved = (status: number | null) => status !== 422;
+
+/** How long a failed render waits before it is sent once more. */
+const RETRY_AFTER_MS = 500;
+
+/** How long a tab stays hidden before its return asks whether the resume
+ *  changed elsewhere (`resumeChangedAt`): a quick switch reads nothing. */
+const CHECK_AFTER_MS = 5 * 60_000;
+
+/** The editor tabs' channel: each save that lands is announced on it, so
+ *  another tab showing the resume reads it again. Only a signal: each tab's
+ *  copy stays in its memory and comes from the database. */
+const RESUME_CHANNEL = "workit:resume-edits";
+
+/** The bar's line after a save or a render failed and `reload` ran. */
+const lostChange = (why: string | null, failed: "saved" | "shown") =>
+  `Your last change could not be ${failed}${why ? ` (${why})` : ""}. The page shows your saved resume.`;
+
 /** An edit's render (`renderEdit`, KAN-391) through `/api/resume-edit`, a
  *  route handler: as a server action it waited behind the edit's save,
- *  since Next runs one client's actions one at a time. */
+ *  since Next runs one client's actions one at a time. A failure that is
+ *  not a refusal (the network, a compile timed out) is sent once more:
+ *  the render writes nothing and reads no database, so the same copy
+ *  renders the same page. */
 async function renderEdit(
   resumeId: string,
   edit: { line: { item_id: string; kind: string; text: string } } | { changes: ChoicesUpdate },
   source?: ResumeCopy,
 ): Promise<Result<EditRendered>> {
-  try {
-    const res = await fetch("/api/resume-edit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resumeId, edit, source }),
-    });
-    return (await res.json()) as Result<EditRendered>;
-  } catch {
-    return { data: null, error: "Could not reach the server.", status: null };
-  }
+  const body = JSON.stringify({ resumeId, edit, source });
+  const send = async (): Promise<Result<EditRendered>> => {
+    try {
+      const res = await fetch("/api/resume-edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+      return (await res.json()) as Result<EditRendered>;
+    } catch {
+      return { data: null, error: "Could not reach the server.", status: null };
+    }
+  };
+  const first = await send();
+  if (first.data || refused(first.status)) return first;
+  await new Promise((resolve) => setTimeout(resolve, RETRY_AFTER_MS));
+  return send();
 }
 
 /** What the last PDF printed beside the resume's own content: its header,
@@ -440,6 +452,24 @@ export function Editor({
   // Suggestions panel, the original resume, or nothing, when the page
   // takes the room
   const [side, setSide] = useState<"suggestions" | "original" | null>("suggestions");
+  // What the editor shows in Scout's panel (KAN-440): the assistant, or the
+  // Experiences picker, opened from the toolbar. The panel shows one at a
+  // time, so they share it, and there is no switch in it: the top bar's Scout
+  // is the way back, and a switch only took up the panel's top. Closed, it
+  // goes back to the assistant, so the top bar's Scout always opens Scout
+  const scoutOpen = useScout().open;
+  const [panelView, setPanelView] = useState<"scout" | "experiences">("scout");
+  const [panelWasOpen, setPanelWasOpen] = useState(scoutOpen);
+  if (panelWasOpen !== scoutOpen) {
+    setPanelWasOpen(scoutOpen);
+    if (!scoutOpen) setPanelView("scout");
+  }
+  const showScout = useCallback(() => setPanelView("scout"), []);
+  const showExperiences = () => {
+    if (scoutOpen && panelView === "experiences") return setScoutOpen(false);
+    setPanelView("experiences");
+    setScoutOpen(true);
+  };
   const [zoom, setZoom] = useZoom();
   // The column beside the page, the panel or the original, sized to the
   // window from wherever its top is
@@ -464,7 +494,11 @@ export function Editor({
   /** Runs a save after every save before it. Saves have their own queue,
    *  beside the renders': a render never waits for a write, nor a write
    *  for a compile. */
+  // Each save changes the resume's edited day, which the Resumes page
+  // shows, so it marks that list stale: a revalidation here would render
+  // this page, PDF and all, again on every edit (lib/resume-revalidate.ts).
   const queueSave = useCallback((job: () => Promise<unknown>) => {
+    markResumesStale();
     saves.current = saves.current.then(job).catch(() => undefined);
   }, []);
 
@@ -541,15 +575,35 @@ export function Editor({
     [countSteps],
   );
 
+  // A rename in the title is a step too (./resume-title.tsx): the title
+  // records it and hands over its own rename, which Undo and Redo call
+  const applyName = useRef<ApplyName | null>(null);
+  const titleHistory = useMemo<TitleHistory>(
+    () => ({
+      record: (from, to) => {
+        const step = record({ name: to });
+        step.undo = { name: from };
+        return () => forget(step);
+      },
+      attach: (apply) => {
+        applyName.current = apply;
+      },
+    }),
+    [forget, record],
+  );
+
   /**
-   * Puts the saved resume back after a save failed (KAN-391): once every
-   * save sent before has answered, the bank, the choices and a PDF read
-   * from the database replace the editor's copy, and every draft but the
-   * selected line's goes. The page showed the edit before it was saved, so
-   * this is how a failed write undoes it.
+   * Puts the saved resume back after a save or a render failed, or after it
+   * changed elsewhere (KAN-391; `notice` null, quiet):
+   * once every save sent before has answered, the bank, the choices and a
+   * PDF read from the database replace the editor's copy, and every draft
+   * but the selected line's goes. The page showed the edit before it was
+   * saved, so this is how a failed write undoes it; after a failed render
+   * the save may still have gone through, so only the database can say
+   * what the page should show.
    */
   const reload = useCallback(
-    (why: string | null) => {
+    (notice: string | null) => {
       void enqueue(async () => {
         await saves.current;
         const current = begin();
@@ -575,17 +629,83 @@ export function Editor({
         if (!current()) return;
         setSaving(false);
         if (pdf.data) keepRendered(pdf.data);
-        setError(
-          `Your last change could not be saved${why ? ` (${why})` : ""}. The page shows your saved resume.`,
-        );
+        setError(notice);
       });
     },
     [begin, countSteps, enqueue, keepChoices, keepRendered, resumeId],
   );
 
+  // Another editor tab's save, or a long time away (KAN-391): `stale` marks
+  // a copy to read again once the tab is idle, `hiddenAt` when it hid
+  const stale = useRef(false);
+  const hiddenAt = useRef<number | null>(null);
+  const channel = useRef<BroadcastChannel | null>(null);
+
+  /** Reads a stale copy again, quietly, once the tab shows, no line is open
+   *  and no edit is on its way: a reload under an edit would read the
+   *  database before that edit's save. Busy, it waits: leaving a line and
+   *  each PDF painted (`drawn`) call it again. */
+  const refresh = useCallback(() => {
+    if (!stale.current || document.hidden) return;
+    const busy =
+      selectedNow.current !== null || onTheirWay.current.size > 0 || unanswered.current.size > 0;
+    if (busy) return;
+    stale.current = false;
+    reload(null);
+  }, [reload]);
+
+  /** Tells the other editor tabs a save landed: `shared` for what every
+   *  resume prints (an entry's field, the header), else this resume's only. */
+  const announce = useCallback(
+    (shared: boolean) => channel.current?.postMessage({ resumeId, shared }),
+    [resumeId],
+  );
+
+  useEffect(() => {
+    const ours =
+      typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(RESUME_CHANNEL);
+    channel.current = ours;
+    if (ours)
+      ours.onmessage = (event: MessageEvent<{ resumeId: string; shared: boolean }>) => {
+        if (event.data.resumeId !== resumeId && !event.data.shared) return;
+        // Hidden, it only marks the copy: ten tabs cost one reload, the one
+        // looked at
+        stale.current = true;
+        refresh();
+      };
+    const seen = async () => {
+      if (document.hidden) {
+        hiddenAt.current = Date.now();
+        // A save still on its way lands after the tab hid, and is its own
+        void saves.current.then(() => {
+          if (document.hidden) hiddenAt.current = Date.now();
+        });
+        return;
+      }
+      const away = hiddenAt.current;
+      hiddenAt.current = null;
+      if (stale.current || away === null || Date.now() - away < CHECK_AFTER_MS) return refresh();
+      // Another device, or a page that does not announce: one small read
+      const { data } = await resumeChangedAt(resumeId);
+      if (!data) return;
+      // The database's clock read against this one, so a skewed clock
+      // neither misses a change nor takes the tab's own saves for one
+      const offset = Date.parse(data.now) - Date.now();
+      if (Date.parse(data.changed_at) <= away + offset) return;
+      stale.current = true;
+      refresh();
+    };
+    document.addEventListener("visibilitychange", seen);
+    return () => {
+      document.removeEventListener("visibilitychange", seen);
+      ours?.close();
+      channel.current = null;
+    };
+  }, [refresh, resumeId]);
+
   /** Saves a typed line, in the save queue. The answer's bullet variant and
-   *  profile go into the editor's state; a failure other than a refusal
-   *  puts the saved resume back. */
+   *  profile go into the editor's state; a failure the render does not
+   *  share puts the saved resume back (`unsaved`). */
   const sendLine = useCallback(
     (line: { item_id: string; kind: string; text: string }, source?: ResumeCopy) =>
       queueSave(async () => {
@@ -595,9 +715,10 @@ export function Editor({
           keepChoices(confirmed.current);
         }
         if (data?.profile) setHeader(data.profile);
-        if (!data && status !== 404 && status !== 422) reload(error);
+        if (data) announce(line.kind !== "bullet");
+        if (!data && unsaved(status)) reload(lostChange(error, "saved"));
       }),
-    [keepChoices, queueSave, reload, resumeId],
+    [announce, keepChoices, queueSave, reload, resumeId],
   );
 
   /** Saves choice changes, in the save queue. */
@@ -605,9 +726,10 @@ export function Editor({
     (changes: ChoicesUpdate) =>
       queueSave(async () => {
         const { error, status } = await updateChoices(resumeId, changes);
-        if (error && status !== 404 && status !== 422) reload(error);
+        if (!error) announce(false);
+        if (error && unsaved(status)) reload(lostChange(error, "saved"));
       }),
-    [queueSave, reload, resumeId],
+    [announce, queueSave, reload, resumeId],
   );
 
   /** `record: false` for an Undo or Redo sent as an edit (`travel`). */
@@ -643,9 +765,12 @@ export function Editor({
           step.before = settled();
           step.pdfBefore = lastPdf.current;
         }
-        const { data, error } = await renderEdit(resumeId, { changes }, copy());
+        const { data, error, status } = await renderEdit(resumeId, { changes }, copy());
         unanswered.current.delete(id);
         answered(id);
+        // A render that failed twice for any other reason (a timeout, a
+        // compile) says nothing of the save beside it
+        if (!data && !refused(status)) reload(lostChange(error, "shown"));
         // Refused: the change and its swap leave the page
         keepChoices(data?.choices ?? confirmed.current);
         if (!data) setSwaps((s) => s.filter((x) => x.id !== id));
@@ -680,6 +805,7 @@ export function Editor({
       keepChoices,
       keepRendered,
       record,
+      reload,
       resumeId,
       sendChoices,
       setReview,
@@ -717,12 +843,13 @@ export function Editor({
           step.before = before;
           step.pdfBefore = lastPdf.current;
         }
-        const { data, error } = await renderEdit(
+        const { data, error, status } = await renderEdit(
           resumeId,
           { line: { item_id, kind, text } },
           copy(),
         );
         answered(key);
+        if (!data && !refused(status)) reload(lostChange(error, "shown"));
         // Refused: the page shows what is saved, unless the student is
         // still on the line to fix it
         if (!data && key !== selectedNow.current) drop(key);
@@ -767,6 +894,7 @@ export function Editor({
       keepChoices,
       keepRendered,
       record,
+      reload,
       resumeId,
       sendLine,
       setReview,
@@ -780,15 +908,19 @@ export function Editor({
     [saveText],
   );
 
-  /** Saves typed text when it differs from what the line prints, and from
-   *  what was last sent for it: a line reopened while its PDF is on its
-   *  way and left as it was sends nothing again. */
+  /** Saves typed text when it differs from what the line prints, or, while
+   *  its PDF is on its way, from what was last sent for it: the page still
+   *  prints the text before, so a line reopened and typed back to it sent
+   *  nothing and the sent text came back. Left as it was, it sends nothing
+   *  again. */
   const save = useCallback(
     async (typed: Draft) => {
       const shown = rendered?.boxes.find((b) => boxKey(b) === typed.key)?.text;
       const text = typed.text.trim();
-      if (shown === undefined || text === shown) return;
-      if (onTheirWay.current.has(typed.key) && lastSent.current.get(typed.key) === text) return;
+      const onItsWay = onTheirWay.current.has(typed.key)
+        ? lastSent.current.get(typed.key)
+        : undefined;
+      if (shown === undefined || text === (onItsWay ?? shown)) return;
       const { item_id, kind } = splitKey(typed.key);
       await saveText(item_id, kind, text);
     },
@@ -813,8 +945,9 @@ export function Editor({
       placed.current = null;
       selectedNow.current = key;
       setSelected(key);
+      if (key === null) refresh();
     },
-    [drop, flush],
+    [drop, flush, refresh],
   );
 
   useEffect(() => {
@@ -864,6 +997,7 @@ export function Editor({
         const pdf = back ? step.pdfBefore : step.pdfAfter;
         const saved = back ? step.after : step.before;
         if (!edit) return;
+        if ("name" in edit) return applyName.current?.(edit.name, () => forget(step));
         if (state && pdf && saved?.printed) {
           restore(state, pdf);
           const source = {
@@ -886,7 +1020,7 @@ export function Editor({
         }
       });
     },
-    [apply, countSteps, enqueue, restore, saveText, select, sendChoices, sendLine],
+    [apply, countSteps, enqueue, forget, restore, saveText, select, sendChoices, sendLine],
   );
 
   // Cmd+Z (Ctrl+Z) undoes, Shift+Cmd+Z or Ctrl+Y redoes; inside a field the
@@ -932,12 +1066,14 @@ export function Editor({
       started.current = performance.now();
       const before = settled();
       const pdfBefore = lastPdf.current;
+      markResumesStale();
       const { data, error } = await fitToOnePage(resumeId);
       if (!current()) return;
       if (!data) {
         setSaving(false);
         return setError(error);
       }
+      announce(false);
       lastPdf.current = data.render;
       keepRendered(data.render);
       const hid = data.undo.bullets?.length || data.undo.entries?.length;
@@ -1170,6 +1306,7 @@ export function Editor({
       const kept = s.filter((x) => onTheirWay.current.has(x.id));
       return kept.length === s.length ? s : kept;
     });
+    refresh();
     if (started.current == null) return;
     setElapsed(Math.round(performance.now() - started.current));
     started.current = null;
@@ -1376,6 +1513,15 @@ export function Editor({
       onClose={() => select(null)}
       onFit={fit}
       onUndoFit={undoFit}
+      experiences={
+        // Not on Tailor's review: choosing what a resume shows is the
+        // editor's own page's work, a run's own removals have Undo, and a
+        // toolbar button and modal for it there cluttered the review. It
+        // waits for the first render, since a pick renders again
+        rendered && !suggestions
+          ? { open: scoutOpen && panelView === "experiences", onToggle: showExperiences }
+          : null
+      }
       zoom={<Zoom zoom={zoom} onZoom={setZoom} />}
       history={{
         canUndo: steps.undo > 0,
@@ -1450,11 +1596,6 @@ export function Editor({
             />
           ))}
         </div>
-        {/* Putting an item back renders again, so it waits for the first. */}
-        {/* Not on Tailor's review: putting a hidden line back is the
-            editor's own page's work, and a run's own removals have Undo.
-            A toolbar button and modal for it there cluttered the review */}
-        {rendered && !suggestions && <Tray bank={bank} choices={choices} onPutBack={apply} />}
       </div>
       {/* The assistant lives in Scout's panel, opened from the top bar's
           Scout (`ScoutTakeover`), so the page has one way to it. Not on
@@ -1466,11 +1607,29 @@ export function Editor({
           found two Scout buttons on one page one too many. It waits for the
           first render, as that button did: the assistant reads its page
           count and acts through renders, so until then the panel is
-          Scout's job chat */}
+          Scout's job chat. The Experiences picker shares the panel (KAN-440):
+          the toolbar's Experiences opens it, and the top bar's Scout goes
+          back to the assistant, which stays mounted under it, for its chat */}
       {rendered && !suggestions && (
-        <ScoutTakeover title="Scout" subtitle="Edits this resume as you talk">
+        <ScoutTakeover
+          mark={panelView === "experiences" ? EXPERIENCES_MARK : undefined}
+          away={panelView === "experiences" ? showScout : undefined}
+          title={panelView === "experiences" ? "Experiences" : "Scout"}
+          subtitle={
+            panelView === "experiences"
+              ? "Pick what this resume shows"
+              : "Edits this resume as you talk"
+          }
+        >
           <div data-keeps-selection className="flex min-h-0 flex-1 flex-col">
-            {assistant("flex-1")}
+            <div className={cn("flex min-h-0 flex-1 flex-col", panelView !== "scout" && "hidden")}>
+              {assistant("flex-1")}
+            </div>
+            {panelView === "experiences" && (
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4">
+                <ExperiencesPicker bank={bank} choices={choices} onApply={apply} />
+              </div>
+            )}
           </div>
         </ScoutTakeover>
       )}
@@ -1506,7 +1665,9 @@ export function Editor({
   return (
     <div className="mt-4 flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="min-w-0 flex-1">{heading}</div>
+        <div className="min-w-0 flex-1">
+          <TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>
+        </div>
         {reviewTools && <SideSwitch review={reviewTools} />}
       </div>
       {grid}
@@ -1568,6 +1729,7 @@ function Bar({
   onClose,
   onFit,
   onUndoFit,
+  experiences,
   zoom,
   history,
 }: {
@@ -1587,6 +1749,7 @@ function Bar({
   onClose: () => void;
   onFit: () => void;
   onUndoFit: () => void;
+  experiences: ExperiencesTools | null;
   zoom: ReactNode;
   history: HistoryTools;
 }) {
@@ -1599,6 +1762,7 @@ function Bar({
       download={download}
       onFit={onFit}
       onUndoFit={onUndoFit}
+      experiences={experiences}
       zoom={zoom}
       history={history}
       editing={
@@ -1626,6 +1790,10 @@ function Bar({
     />
   );
 }
+
+/** The toolbar's Experiences (KAN-440): whether Scout's panel shows the
+ *  picker now. */
+type ExperiencesTools = { open: boolean; onToggle: () => void };
 
 /** The slim bar's review tools: the changes left, and which column shows
  *  beside the page. */
@@ -1719,6 +1887,7 @@ function SlimBar({
   onFit,
   onUndoFit,
   editing,
+  experiences,
   zoom,
   history,
 }: {
@@ -1731,6 +1900,8 @@ function SlimBar({
   onUndoFit: () => void;
   /** The open line's label and actions, or nothing while idle. */
   editing: ReactNode;
+  /** The editor's own page only; null on Tailor's review. */
+  experiences: ExperiencesTools | null;
   /** The page's zoom control (`Zoom`), on the editor's own page only. */
   zoom?: ReactNode;
   history?: HistoryTools;
@@ -1778,6 +1949,22 @@ function SlimBar({
           <ArrowUUpLeftIcon aria-hidden /> Undo Fit
         </Button>
       )}
+      {experiences && (
+        // A button of the bar's own weight, as Download is: it is the way to
+        // add to the resume, not a label. Tinted while its panel is open
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-pressed={experiences.open}
+          title="Pick what this resume shows"
+          className={cn(
+            experiences.open && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
+          )}
+          onClick={experiences.onToggle}
+        >
+          <StackIcon aria-hidden /> Add Experiences
+        </Button>
+      )}
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {status}
         {zoom}
@@ -1785,51 +1972,6 @@ function SlimBar({
             button. In the brand fill too, the two competed */}
         <DownloadMenu download={download} />
       </div>
-    </div>
-  );
-}
-
-/** Zoom out, the zoom as a menu of its steps, and zoom in, as a PDF
- *  viewer has them. After KAN-421 widened every seeker page to 1440px,
- *  the page filled its column and took most of the screen; it now opens
- *  at 125% and the student picks. */
-function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) => void }) {
-  const at = ZOOMS.indexOf(zoom);
-  return (
-    <div className="flex shrink-0 items-center gap-0.5">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Zoom out"
-        title="Zoom out"
-        disabled={at <= 0}
-        onClick={() => onZoom(ZOOMS[at - 1])}
-      >
-        <MagnifyingGlassMinusIcon aria-hidden />
-      </Button>
-      <select
-        aria-label="Zoom"
-        value={zoom}
-        onChange={(e) => onZoom(Number(e.target.value))}
-        className="text-note text-ink-muted hover:bg-ink/5 h-7 cursor-pointer appearance-none rounded-md bg-transparent px-1.5 text-center font-medium tabular-nums"
-      >
-        {ZOOMS.map((step) => (
-          <option key={step} value={step}>
-            {step}%
-          </option>
-        ))}
-      </select>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Zoom in"
-        title="Zoom in"
-        disabled={at >= ZOOMS.length - 1}
-        onClick={() => onZoom(ZOOMS[at + 1])}
-      >
-        <MagnifyingGlassPlusIcon aria-hidden />
-      </Button>
-      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
     </div>
   );
 }
@@ -2069,7 +2211,7 @@ function LineActions({
       )}
       {!typed(line) && (
         <span className="text-note text-ink-meta">
-          Change this in <TextLink href="/bank">Experiences</TextLink>.
+          Change this in <TextLink href="/experiences">Experiences</TextLink>.
         </span>
       )}
     </>

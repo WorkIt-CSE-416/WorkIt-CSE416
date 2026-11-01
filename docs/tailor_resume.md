@@ -274,8 +274,8 @@ weight.
   and a caret ("⚠ 2 pages ⌄", over one page only), which reads as a
   problem to open and offers Fit to One Page, and Undo Fit after a fit.
   At the right, Download, secondary: Finish is the page's one filled
-  button, and a filled Download beside it competed. No "Not on This Resume" on
-  this page: putting a hidden line back is the editor's own page's work,
+  button, and a filled Download beside it competed. No Experiences picker (once "Not
+  on This Resume") on this page: putting a hidden line back is the editor's own page's work,
   and a run's own removals have Undo. It sat under the page, below a
   two-page resume, then for a day was a toolbar button with a modal,
   which cluttered the review. Two

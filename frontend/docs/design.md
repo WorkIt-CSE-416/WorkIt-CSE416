@@ -206,6 +206,12 @@ the assistant wore two marks. An ESLint rule refuses Phosphor's
 
 ## Colour
 
+**Small brand text is `text-brand-ink`, and a brand glyph `text-brand`**: on
+`--color-brand-tint`, `brand-ink` reads 6.80:1 (`globals.css`). The Experiences
+page's group labels and marks use the pair (KAN-440). Keep a reading's own
+words in ink, and siblings drawn alike: every card's heading wears the same
+mark.
+
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
 Home's Up Next, the Applications list, grid, Status filter and
 application page (and the archived board), and the Calendar alike. A stage

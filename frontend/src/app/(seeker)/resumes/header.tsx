@@ -23,7 +23,7 @@ const VIEWS: Record<ResumesView, { title: string; description: string }> = {
  * the Resumes view's buttons sit on its filter row since KAN-362). It is drawn
  * as Home's is: a <header> whose controls sit at the right, level
  * with the foot of the title's block, and wrap under it where the page is
- * narrow. The views are two routes, /resumes and /bank, so every link to
+ * narrow. The views are two routes, /resumes and /experiences, so every link to
  * either still lands; the switcher is plain links between them, not a
  * shallow move, since each view reads its own data on the server.
  *
@@ -45,7 +45,7 @@ export function ResumesHeader({ view, action }: { view: ResumesView; action?: Re
           value={view}
           options={[
             { value: "resumes", label: VIEWS.resumes.title, href: "/resumes" },
-            { value: "experiences", label: VIEWS.experiences.title, href: "/bank" },
+            { value: "experiences", label: VIEWS.experiences.title, href: "/experiences" },
           ]}
         />
         {action}

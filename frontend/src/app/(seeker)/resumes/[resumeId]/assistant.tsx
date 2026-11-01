@@ -142,7 +142,7 @@ export function Assistant({
     setSaid((s) => [...s, { role: "user", content: label }]);
     const reply = {
       fit: "Fitting it to one page.",
-      hide: "Hidden. It waits in Not on This Resume if you want it back.",
+      hide: "Done. Turn it back on under Experiences if you want it.",
       move_up: "Moved it up.",
     }[action];
     act(action, line, reply);

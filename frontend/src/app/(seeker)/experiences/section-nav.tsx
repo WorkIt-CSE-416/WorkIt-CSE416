@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 
+import type { Section } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_BLEED, SEEKER_GUTTER } from "../gutter";
+import { SECTION_ICONS } from "./section-icons";
 
 /** How long a click's glide may run before its link is parked, for a
  *  browser with no `scrollend`, which parks it as the glide ends. */
@@ -40,11 +42,11 @@ const GLIDE_MS = 1500;
 export function SectionNav({
   sections,
 }: {
-  sections: readonly { id: string; label: string; count: number }[];
+  sections: readonly { id: Section | "skills"; label: string; count: number }[];
 }) {
   const navRef = useRef<HTMLElement>(null);
   const rowRef = useRef<HTMLUListElement>(null);
-  const [current, setCurrent] = useState(sections[0]?.id);
+  const [current, setCurrent] = useState<string>(sections[0]?.id);
   const [stuck, setStuck] = useState(false);
   // Whether links run past the row's start or end, which then fades out.
   const [more, setMore] = useState({ start: false, end: false });
@@ -162,6 +164,7 @@ export function SectionNav({
         style={{ maskImage: fade(more) }}
       >
         {sections.map(({ id, label, count }) => {
+          const Glyph = SECTION_ICONS[id];
           const lit = id === current;
           return (
             <li key={id} className="shrink-0">
@@ -175,6 +178,7 @@ export function SectionNav({
                   lit ? "bg-brand-tint text-brand" : "text-ink-meta hover:bg-well hover:text-ink",
                 )}
               >
+                <Glyph aria-hidden className={cn("size-4", !lit && "text-brand")} />
                 {label}
                 <span className="font-normal tabular-nums">
                   {count}
