@@ -4,7 +4,7 @@ import { test } from "node:test";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices } from "@/lib/built-resume-actions";
 
-import { NO_CUTS, addCuts, cutRows, isBack, pickerEntries } from "./model.ts";
+import { NO_CUTS, addCuts, cutLeft, cutRows, cutSkills, isBack, pickerEntries } from "./model.ts";
 
 const entry = (id: string, bullets: string[]) => ({
   id,
@@ -18,11 +18,14 @@ const entry = (id: string, bullets: string[]) => ({
 
 const bank = {
   entries: [entry("e1", ["b1", "b2", "b3"]), entry("e2", ["b4"]), entry("edu", [])],
-  skills: [],
+  skills: [
+    { id: "go", name: "Go", group: "Languages", resume_ids: [] },
+    { id: "rust", name: "Rust", group: "Languages", resume_ids: [] },
+  ],
   resumes: [],
 } as unknown as Bank;
 
-/** e1 on with b3 off, e2 off, edu on with its coursework off. */
+/** e1 on with b3 off, e2 off, edu on with its coursework off, Go off. */
 const choices: Choices = {
   entries: [
     { entry_id: "e1", shown: true, position: 0, show_gpa: false, show_coursework: false },
@@ -36,7 +39,10 @@ const choices: Choices = {
     variant_id: null,
     text: null,
   })),
-  skills: [],
+  skills: [
+    { skill_id: "go", shown: false, position: 0 },
+    { skill_id: "rust", shown: true, position: 1 },
+  ],
   variants: [],
 };
 
@@ -46,10 +52,40 @@ const cuts = addCuts(NO_CUTS, {
     { entry_id: "edu", show_coursework: true },
   ],
   bullets: [{ bullet_id: "b3", shown: true }],
+  skills: [{ skill_id: "go", shown: true }],
 });
 
-test("a fit's undo body sorts into entries, bullets and coursework", () => {
-  assert.deepEqual(cuts, { entries: ["e2"], bullets: ["b3"], coursework: ["edu"] });
+test("a fit's undo body sorts into entries, bullets, coursework and skills", () => {
+  assert.deepEqual(cuts, {
+    entries: ["e2"],
+    bullets: ["b3"],
+    coursework: ["edu"],
+    skills: ["go"],
+  });
+});
+
+test("each skill Fit cut is listed, and Cut From Resume stays until it is back", () => {
+  assert.deepEqual(
+    cutSkills(bank, choices, cuts).map((s) => [s.skill.id, s.on]),
+    [["go", false]],
+  );
+  // Everything else put back, the skill still off: something is left
+  const allButSkill: Choices = {
+    ...choices,
+    entries: choices.entries.map((e) => ({ ...e, shown: true, show_coursework: true })),
+    bullets: choices.bullets.map((b) => ({ ...b, shown: true })),
+  };
+  assert.equal(cutLeft(bank, allButSkill, cuts), true);
+  const all: Choices = {
+    ...allButSkill,
+    skills: allButSkill.skills.map((s) => ({ ...s, shown: true })),
+  };
+  assert.equal(cutLeft(bank, all, cuts), false);
+  // It stays listed once back, ticked
+  assert.deepEqual(
+    cutSkills(bank, all, cuts).map((s) => [s.skill.id, s.on]),
+    [["go", true]],
+  );
 });
 
 test("a second fit adds to the first, each id once", () => {

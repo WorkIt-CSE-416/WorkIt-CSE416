@@ -2705,9 +2705,9 @@ student who opened a resume from Experiences landed on another view.
   then whole entries, least needed section first, with skills, awards,
   certifications and schools on schedules, by the posting's rank on a
   tailored resume and by position on any other. It always reaches one
-  page. Its `undo` can hold skills; Cut From Resume lists entries and
-  bullets only, so a cut skill comes back by Undo or the Experiences
-  picker.
+  page. Cut From Resume lists everything it cut: entries and bullets by
+  section, and skills in a Skills group, a card a skill group, each with
+  its own tick (`cutSkills`, `CutSkills`).
 - **The Experiences picker** (`experiences-picker.tsx`, KAN-440): the whole
   bank beside the PDF, where a student picks what the resume shows. The
   resume is the part of the bank that is on, so each entry, bullet and skill

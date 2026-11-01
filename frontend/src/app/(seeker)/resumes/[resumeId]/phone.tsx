@@ -25,7 +25,7 @@ import { DownloadMenu, DownloadNotes, type ResumeDownload } from "../download-me
 import { useBack } from "../../back-link";
 import { EDITOR_PARENT } from "./back";
 import { FitNotice } from "./fit-notice";
-import { cutRows, isBack, lineName, shortPageLabel, type FitCuts, type Line } from "./model";
+import { cutLeft as anyCutLeft, lineName, shortPageLabel, type FitCuts, type Line } from "./model";
 import type { HistoryTools } from "./editor";
 import { boxKey, kindLabel } from "./pdf-pages";
 import { CutPicker, ExperiencesPicker } from "./experiences-picker";
@@ -167,7 +167,7 @@ export function PhoneEditor({
   const [zoom, setZoom] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [cutOpen, setCutOpen] = useState(false);
-  const cutLeft = !cutRows(bank, choices, cuts).every(isBack);
+  const cutLeft = anyCutLeft(bank, choices, cuts);
   const [asking, setAsking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 

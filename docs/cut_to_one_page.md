@@ -370,8 +370,9 @@ two Projects, one Leadership):
   marker's shrink (`resume_render/CLAUDE.md`); the page stays the same
   with and without markers.
 - `Cut.kind` is `bullet`, `entry` or `skill`; the response's `undo` holds
-  skills too. The editor's Cut From Resume lists entries and bullets
-  only, so a cut skill comes back by Undo or the Experiences picker.
+  skills too, and the editor's Cut From Resume lists them in a Skills
+  group beside the entries and bullets, so everything Fit cut can be put
+  back there.
 - Tests: `tests/test_fit_page.py` (the plan, the check, and real renders:
   one page in at most three renders, at most one cut too many) and
   `tests/test_resume_editor.py`.

@@ -19,6 +19,7 @@ import { SECTION_ICONS, SectionMark } from "../../experiences/section-icons";
 import { SECTIONS, sectionOf } from "../../experiences/sections";
 import {
   cutRows,
+  cutSkills,
   isBack,
   pickBullet,
   pickEntry,
@@ -26,6 +27,7 @@ import {
   pickerSkills,
   pickSkill,
   type CutEntry,
+  type CutSkill,
   type FitCuts,
   type PickedEntry,
   type PickedSkill,
@@ -389,11 +391,12 @@ export function CutPicker({
   onApply: (changes: ChoicesUpdate) => void;
 }) {
   const rows = cutRows(bank, choices, cuts);
+  const skills = cutSkills(bank, choices, cuts);
   const [closed, setClosed] = useState<string[]>([]);
   const press = (id: string) =>
     setClosed((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
 
-  if (rows.length === 0) {
+  if (rows.length === 0 && skills.length === 0) {
     return <p className="text-body text-ink-meta">Nothing was cut from this resume.</p>;
   }
   return (
@@ -428,7 +431,60 @@ export function CutPicker({
           </PickerGroup>
         );
       })}
+      {skills.length > 0 && (
+        <PickerGroup
+          id="skills"
+          label="Skills"
+          on={skills.filter((s) => s.on).length}
+          total={skills.length}
+          open={!closed.includes("skills")}
+          onPress={() => press("skills")}
+          cut
+        >
+          <CutSkills skills={skills} onApply={onApply} />
+        </PickerGroup>
+      )}
     </div>
+  );
+}
+
+/** The skills Fit cut, a card for each group as the resume prints them,
+ *  each skill with its own tick. */
+function CutSkills({
+  skills,
+  onApply,
+}: {
+  skills: CutSkill[];
+  onApply: (changes: ChoicesUpdate) => void;
+}) {
+  const groups = new Map<string, CutSkill[]>();
+  for (const row of skills) {
+    const key = row.skill.group ?? "";
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+  return (
+    <ul className="flex flex-col gap-2">
+      {[...groups].map(([group, rows]) => (
+        <li key={group} className="ring-warning/25 bg-panel rounded-xl px-3 py-2.5 ring-1">
+          {group && <p className="text-note text-ink-meta mb-1.5 break-words">{group}</p>}
+          <ul className="text-body text-ink-muted flex flex-col gap-1">
+            {rows.map(({ skill, on }) => (
+              <li key={skill.id} className="flex items-start gap-2 break-words">
+                <Checkbox
+                  checked={on}
+                  onCheckedChange={(next) =>
+                    onApply({ skills: [{ skill_id: skill.id, shown: next }] })
+                  }
+                  aria-label={`${skill.name} on this resume`}
+                  className={CUT_PICK}
+                />
+                <span className="min-w-0 flex-1">{skill.name}</span>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -24,6 +24,8 @@ export function readFitCuts(resumeId: string): FitCuts {
       entries: ids(kept.entries),
       bullets: ids(kept.bullets),
       coursework: ids(kept.coursework),
+      // A list kept before Fit cut skills has none
+      skills: ids(kept.skills),
     };
   } catch {
     return NO_CUTS;

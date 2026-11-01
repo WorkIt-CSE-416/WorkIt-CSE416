@@ -1705,8 +1705,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Undo shows what it hid, Redo hides it again (`hideAgain`). It has no
   Undo Fit button of its own (gone 2026-11-01, a second way to do what
   Undo does); the phone's bar shows the same Undo and Redo. **Cut From
-  Resume** lists what every fit in the tab cut, read from each fit's
-  `undo` body (`addCuts` in `model.ts`, tested in `cuts.test.ts`), kept in
+  Resume** lists what every fit in the tab cut, entries, bullets and
+  skills (`cutRows`, `cutSkills`; `cutLeft` says whether its button
+  shows), read from each fit's `undo` body (`addCuts` in `model.ts`,
+  tested in `cuts.test.ts`), kept in
   sessionStorage per resume (`fit-cuts.ts`), so a reload in the same tab
   keeps it, and puts each item back as an ordinary pick. Unlike Undo's
   steps it may outlive the page: it is read against the resume's choices

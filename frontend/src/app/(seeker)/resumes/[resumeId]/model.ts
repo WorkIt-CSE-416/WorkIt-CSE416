@@ -321,10 +321,16 @@ export function pickSkill(row: PickedSkill, on: boolean): ChoicesUpdate {
 }
 
 /** What Fit to One Page cut from this resume, read from each fit's `undo`
- *  body: whole entries, bullets and Education's coursework lines. */
-export type FitCuts = { entries: string[]; bullets: string[]; coursework: string[] };
+ *  body: whole entries, bullets and skills (docs/cut_to_one_page.md), and
+ *  Education's coursework lines, which fits before KAN-320 cut. */
+export type FitCuts = {
+  entries: string[];
+  bullets: string[];
+  coursework: string[];
+  skills: string[];
+};
 
-export const NO_CUTS: FitCuts = { entries: [], bullets: [], coursework: [] };
+export const NO_CUTS: FitCuts = { entries: [], bullets: [], coursework: [], skills: [] };
 
 /** `cuts` with one more fit's cuts added: a second fit adds to the first. */
 export function addCuts(cuts: FitCuts, undo: ChoicesUpdate): FitCuts {
@@ -342,6 +348,10 @@ export function addCuts(cuts: FitCuts, undo: ChoicesUpdate): FitCuts {
     bullets: add(
       cuts.bullets,
       (undo.bullets ?? []).map((b) => b.bullet_id),
+    ),
+    skills: add(
+      cuts.skills,
+      (undo.skills ?? []).map((s) => s.skill_id),
     ),
   };
 }
@@ -387,6 +397,27 @@ export function isBack(row: CutEntry) {
     (row.cutIds.length === 0 || row.on) &&
     row.bullets.every((b) => b.on) &&
     (!row.coursework || row.coursework.on)
+  );
+}
+
+/** One skill Fit cut, and whether it is on the page again. It is the skill
+ *  Fit cut, not the picker's row of its copies, so it comes back as itself. */
+export type CutSkill = { skill: Skill; on: boolean };
+
+/** Cut From Resume's skills, in the bank's order. Like an entry's row, one
+ *  stays once it is back, ticked. */
+export function cutSkills(bank: Bank, choices: Choices, cuts: FitCuts): CutSkill[] {
+  const shown = new Map(choices.skills.map((c) => [c.skill_id, c.shown]));
+  return bank.skills
+    .filter((s) => cuts.skills.includes(s.id))
+    .map((skill) => ({ skill, on: shown.get(skill.id) === true }));
+}
+
+/** True while anything Fit cut is still off the page: Cut From Resume's
+ *  button shows only then (or while its panel is open). */
+export function cutLeft(bank: Bank, choices: Choices, cuts: FitCuts) {
+  return (
+    !cutRows(bank, choices, cuts).every(isBack) || cutSkills(bank, choices, cuts).some((s) => !s.on)
   );
 }
 

@@ -61,9 +61,8 @@ import { Zoom, useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import {
   addCuts,
-  cutRows,
+  cutLeft,
   HEADER,
-  isBack,
   LINK_FIELDS,
   lineOf,
   NO_CUTS,
@@ -1543,7 +1542,7 @@ export function Editor({
               // Only while something Fit cut is still off the page, or its
               // panel is open
               cut:
-                (scoutOpen && panelView === "cut") || !cutRows(bank, choices, cuts).every(isBack)
+                (scoutOpen && panelView === "cut") || cutLeft(bank, choices, cuts)
                   ? { open: scoutOpen && panelView === "cut", onToggle: () => showPanel("cut") }
                   : null,
             }
