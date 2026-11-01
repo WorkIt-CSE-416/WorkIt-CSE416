@@ -8,12 +8,19 @@ were measured on.
 
 from __future__ import annotations
 
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
 from workit_scraper.providers import Job
 from workit_scraper.shortlist import (
     CATEGORY_TAGS,
     Tag,
     classify,
     classify_with_description,
+    may_keep,
     pick,
     widening_step,
 )
@@ -831,3 +838,49 @@ class TestClassifyWithDescription:
             " including 1+ years with Go and familiarity with Kubernetes."
         )
         assert classify_with_description("Software Engineer", desc) == ()
+
+
+class TestMayKeep:
+    """`may_keep` picks the postings a reader parses, so it must never drop one
+    `classify_with_description` keeps: a posting it drops never gets a description
+    for the shortlist to read."""
+
+    @pytest.mark.parametrize(
+        ("title", "desc"),
+        [
+            ("Software Engineer Intern", "Requirements: 5 years of experience."),
+            ("Software Engineer", "Requirements: 0-2 years of experience in software engineering."),
+            ("Data Scientist", "Experience: 0+ years in data science."),
+            ("Account Executive", "No experience required. We will train you."),
+            ("Product Manager", "Qualifications: 1+ years of relevant work experience."),
+        ],
+    )
+    def test_never_drops_what_the_shortlist_keeps(self, title, desc):
+        assert classify_with_description(title, desc)
+        assert may_keep(title, desc)
+
+    def test_a_low_phrase_beside_a_higher_floor_is_still_parsed(self):
+        # The stored description can lose the "5+ years" line to `sections.kept`,
+        # and then the shortlist keeps it on "1+ years"; the whole text cannot tell.
+        desc = "5+ years of backend experience, including 1+ years with Kubernetes."
+        assert may_keep("Software Engineer", desc)
+
+    @pytest.mark.parametrize(
+        ("title", "desc"),
+        [
+            ("Senior Software Engineer", "Requirements: 0-2 years of experience."),
+            ("Specialist", "0-2 years of experience."),
+            ("Recruiting Manager", "0-2 years of experience in talent management."),
+            ("Software Engineer", "Requirements: 5-10 years of software engineering experience."),
+            ("Software Engineer", None),
+        ],
+    )
+    def test_drops_what_no_description_could_keep(self, title, desc):
+        assert not may_keep(title, desc)
+
+    @pytest.mark.parametrize("first", ["workit_scraper.shortlist", "workit_scraper.providers"])
+    def test_either_module_imports_first(self, first):
+        # The readers' `text` calls this module, which reads their `Job`; a test
+        # process has both loaded already, so only a fresh one sees the order.
+        root = Path(__file__).resolve().parent.parent
+        subprocess.run([sys.executable, "-c", f"import {first}"], check=True, cwd=root)
