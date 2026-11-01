@@ -471,10 +471,8 @@ export function Editor({
     setScoutOpen(true);
   };
   const [zoom, setZoom] = useZoom();
-  // The column beside the page, the panel or the original, sized to the
-  // window from wherever its top is
+  // The Suggestions panel, sized to the window from wherever its top is
   const fitPanel = useFitToWindow();
-  const fitOriginal = useFitToWindow();
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -1424,6 +1422,8 @@ export function Editor({
       setActive(null);
       setFocused(null);
     }
+    // The comparison only reads (`comparing`): an open line saves and closes
+    if (to === "original") select(null);
     setSide(to);
   };
 
@@ -1537,10 +1537,13 @@ export function Editor({
     onSide: showSide,
     hasOriginal: Boolean(original),
   };
-  // The column beside the page sticks level with the toolbar over the page,
-  // as tall as the window allows below its top (`useFitToWindow`)
-  const sideColumn =
-    "overflow-y-auto overscroll-contain @4xl/main:sticky @4xl/main:top-2 @4xl/main:max-h-(--fit-height)";
+  // The two resumes side by side only read: a plain heading over each in
+  // place of the toolbar, no click targets and no marks. They scroll with
+  // the page, together, so a line stays level with its twin. The tailored
+  // one kept its toolbar, and the original a card with a Read Only tag and a
+  // scroll of its own, until the user found that heavy for a comparison
+  const comparing = Boolean(shownOriginal);
+  const compareHeading = "text-label text-ink font-semibold";
 
   const grid = (
     <div
@@ -1552,7 +1555,7 @@ export function Editor({
       )}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        {bar}
+        {comparing ? <h2 className={compareHeading}>Tailored Resume</h2> : bar}
         {error && (
           <p role="alert" className="text-note text-danger">
             {error}
@@ -1581,6 +1584,7 @@ export function Editor({
             <PdfPages
               pdf={pdf.pdf}
               boxes={pdf.boxes}
+              readOnly={comparing}
               selected={selected}
               onSelect={onLine}
               overlay={overlay}
@@ -1651,9 +1655,10 @@ export function Editor({
       )}
       {/* The original beside the page; under it on a narrow screen */}
       {shownOriginal && (
-        <div ref={fitOriginal} className={sideColumn}>
+        <section className="flex min-w-0 flex-col gap-2">
+          <h2 className={compareHeading}>Original Resume</h2>
           {shownOriginal}
-        </div>
+        </section>
       )}
       {fitToast}
     </div>
@@ -1681,7 +1686,10 @@ export function Editor({
  * `main`, not the window, so the listener captures) and on resize, once a
  * frame. Before the page scrolls the column's top sits under the title
  * row; stuck, at its `top`; a fixed cap fitted one and not the other.
- * Never under 240px, so a short window still shows the panel's top.
+ * Its top is read no higher than where it sticks: at the page's end the
+ * grid pushes a sticky column up past that, and reading that top grew the
+ * cap, so the panel kept growing as the page scrolled. Never under 240px,
+ * so a short window still shows the panel's top.
  */
 function useFitToWindow(foot = 24) {
   const [el, setEl] = useState<HTMLElement | null>(null);
@@ -1690,7 +1698,10 @@ function useFitToWindow(foot = 24) {
     let frame = 0;
     const fit = () => {
       frame = 0;
-      const room = window.innerHeight - el.getBoundingClientRect().top - foot;
+      const stuck =
+        (el.closest("main")?.getBoundingClientRect().top ?? 0) +
+        (parseFloat(getComputedStyle(el).top) || 0);
+      const room = window.innerHeight - Math.max(el.getBoundingClientRect().top, stuck) - foot;
       el.style.setProperty("--fit-height", `${Math.max(240, Math.round(room))}px`);
     };
     const queue = () => {

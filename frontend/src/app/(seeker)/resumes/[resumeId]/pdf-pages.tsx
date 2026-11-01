@@ -153,6 +153,7 @@ export function PageSkeleton() {
 export function PdfPages({
   pdf,
   boxes,
+  readOnly = false,
   selected,
   onSelect,
   onDrawn,
@@ -169,6 +170,9 @@ export function PdfPages({
   /** base64, as the render response sends it */
   pdf: string;
   boxes: RenderBox[];
+  /** The pages alone, with no click targets, marks or dots: the comparison
+   *  with the original resume. The boxes wait, so leaving it draws at once. */
+  readOnly?: boolean;
   selected: string | null;
   onSelect: (key: string) => void;
   /** Called once every page of this `pdf` has painted. */
@@ -201,7 +205,7 @@ export function PdfPages({
   } | null>(null);
   // The boxes of the PDF on screen, where the moves on their way put them
   const strips = swaps?.(doc?.boxes ?? []) ?? [];
-  const shown = (doc?.boxes ?? []).map((box) => afterStrips(box, strips));
+  const shown = readOnly ? [] : (doc?.boxes ?? []).map((box) => afterStrips(box, strips));
   // Each overlaid line's first box, top to bottom, with what it moves by
   const lives = overlaid
     .map((key) => shown.find((b) => boxKey(b) === key))

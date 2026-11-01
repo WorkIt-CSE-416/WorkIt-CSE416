@@ -83,8 +83,8 @@ step, Tailor, a view that only waited.
    answers the same run as one JSON body and stays for other callers.
 6. **The review opens on the tailored resume**, compiled, in the editor
    on Tailor's page, with a Suggestions panel beside it (below,
-   "Suggestions"): one row per change with Undo, and Undo All under
-   them. The run's keyword match before and after
+   "Suggestions"): one row per change with Undo, and Undo All by the
+   filter. The run's keyword match before and after
    is kept with the record but not shown: Choose Keywords already showed
    the match. Each change's line is tinted on the resume
    until the student undoes it. The student edits directly, and editing a
@@ -310,11 +310,13 @@ weight.
   read as an order to follow, so each section counts its own instead.
 - **Original sets the source resume beside the tailored one**, in place
   of the panel, the two at one width, so a line reads against its twin.
-  Its label is a bar the toolbar's shape and height, level with it, so
-  the pages start level and the two read as a pair (its outline a border,
-  not the toolbar's ring: the column scrolls and clipped a ring's sides): a history glyph in
-  brand, "Original Resume" in ink, and a Read Only tag. It was a grey
-  line of label type, which the user found too quiet. The source (the
+  **The comparison only reads:** a plain heading over each, Tailored
+  Resume and Original Resume, with no toolbar on either, and no click
+  targets or marks on the tailored page, since a line opened with no
+  toolbar has no tools. The two scroll with the page, together, so a line
+  stays level with its twin. The tailored page kept its toolbar, and the
+  original a toolbar-shaped card with a Read Only tag and a scroll of its
+  own, until the user found that heavy (KAN-499). The source (the
   record's `source`) draws read-only through step 1's preview loader
   (`OriginalResume` in `resume-preview.tsx`), kept for the page's life so
   a second look shows at once; the record keeps the source's id, not its
@@ -325,16 +327,22 @@ weight.
 - **The panel's top stays put and only its sections scroll** under it:
   the column beside the page caps the panel's height at the window below
   the column's top, less 24px, measured on every scroll and resize
-  (`useFitToWindow` in the editor; the original resume's column too), and
-  the section list scrolls inside. A fixed cap, the window less 15rem,
+  (`useFitToWindow` in the editor), and
+  the section list scrolls inside. The column's top is read no higher than
+  where it sticks: at the page's end the grid pushes a sticky column up
+  past that, and reading that top grew the cap, so the panel kept growing
+  as the page scrolled (KAN-499). The list is `relative`: a card's sr-only
+  label is absolute, and with no positioned box there the list did not
+  clip it, so the labels of cards past its fold stretched the page's
+  scroll, 600 px with 16 cards. A fixed cap, the window less 15rem,
   ran the panel's foot below the window before the page scrolled and
   left a gap under it once it stuck, after the title row grew. The list
   scrolls inside, so the scroll bar starts
   under the top and the panel keeps its corners. The column itself
   scrolled until 2026-10-26, which carried the rounded corners off with
-  the list. The top holds the title, its count and the type filter.
-  Under the list, Undo All, in reach rather than in a "…" menu at the
-  top, where nobody found it. The top showed the run's keyword match as a thin row over a
+  the list. The top holds the title, its count, the type filter and Undo
+  All, an icon button with a tooltip, so it stays in sight: a full-width
+  button under the list took a row from it. The top showed the run's keyword match as a thin row over a
   meter until 2026-10-26; it repeated Choose Keywords' match, and the
   meter read as a progress bar.
 - **A brand-tint panel of white sections.** The panel is the brand tint

@@ -2314,7 +2314,9 @@ with no proposals to accept and no Done (2026-10-25).
   resume's name row holds the view switch at its right, Resume Only (the
   page alone at full width), Suggestions (with its count) or Original,
   which sets the source resume beside the tailored one at one width in
-  place of the panel, under a toolbar-like bar with a Read Only tag. The
+  place of the panel: a plain heading over each, Tailored Resume and
+  Original Resume, no toolbars, no click targets or marks on the page, and
+  the two scroll together (KAN-499). The
   top row sits in the brand tint, rounded. The toolbar holds only tools
   for the page: at the left Undo and Redo (UI only for now, disabled)
   and, idle, the page count when over one page as an amber chip with a
@@ -2332,9 +2334,10 @@ with no proposals to accept and no Done (2026-10-25).
   count and a caret, and each suggestion a row with its type's badge and
   Undo, always open over its change (only sections
   fold): a white outlined card with one row per thing that changed (each
-  moved bullet with an amber "3 → 1" tag), and under the
-  list Undo All. Accept and Reject sat there until KAN-499: the change is
-  saved already, so Accept did nothing to the resume. Pointing at a row highlights its lines;
+  moved bullet with an amber "3 → 1" tag). Undo All is an icon button with
+  a tooltip beside the type filter. Accept and Reject sat on each row until
+  KAN-499: the change is saved already, so Accept did nothing to the resume.
+  Pointing at a row highlights its lines;
   only a click on its name scrolls the page to them. On a phone the panel is a sheet opened by
   "Suggestions (n)". With no record (a new tab or device) the editor
   shows alone, with a line saying the suggestions live in the tab that ran

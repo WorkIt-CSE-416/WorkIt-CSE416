@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
@@ -230,7 +231,7 @@ function SuggestionsPanel({
       {/* The top stays put and only the sections under it scroll, so the
           scroll bar starts under it and the panel keeps its rounded corners */}
       <div className="flex shrink-0 flex-col gap-2.5 pb-1">
-        <div className="flex min-h-8 items-center gap-1">
+        <div className="flex min-h-8 items-center gap-2">
           <h2
             id="suggestions-heading"
             className="text-subtitle text-ink mr-auto flex items-center gap-2 font-semibold max-sm:sr-only"
@@ -238,12 +239,28 @@ function SuggestionsPanel({
             Suggestions <Count n={changes.length} />
           </h2>
           {changes.length > 0 && <TypeFilter only={only} counts={counts} onChange={setOnly} />}
+          {/* Every change at once, an icon beside the filter so it stays in
+              sight: a full-width button under the list took a row from it */}
+          {changes.length > 0 && (
+            <IconButton
+              label="Undo All"
+              variant="outline"
+              className="size-9 shrink-0"
+              disabled={saving}
+              onClick={undoAll}
+            >
+              <ArrowUUpLeftIcon aria-hidden className="size-4" />
+            </IconButton>
+          )}
         </div>
       </div>
       {changes.length > 0 ? (
+        // relative: each card's sr-only label is absolute, and with no
+        // positioned box here the list did not clip it, so the labels of
+        // cards past its fold stretched the page's scroll (KAN-499)
         <div
           ref={list}
-          className="-mr-1.5 flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain pr-1.5"
+          className="relative -mr-1.5 flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain pr-1.5"
         >
           {groups.map((group) => {
             const isOpen = !closed.has(group.where);
@@ -309,13 +326,6 @@ function SuggestionsPanel({
         <p className="text-note text-ink-meta">
           No suggestions left. Edit anything else on the resume.
         </p>
-      )}
-      {/* Every change at once, in reach under the list rather than in a
-          "…" menu at the top, where nobody found it */}
-      {changes.length > 0 && (
-        <Button variant="secondary" className="shrink-0" disabled={saving} onClick={undoAll}>
-          <ArrowUUpLeftIcon aria-hidden /> Undo All
-        </Button>
       )}
     </section>
   );
