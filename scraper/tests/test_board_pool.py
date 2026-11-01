@@ -74,6 +74,36 @@ def test_reported_name_obeys_robots_and_never_guesses(monkeypatch):
     assert board_read.reported_name(Board("bamboohr", "acme", "acme"), Robots()) is None
 
 
+# Names Greenhouse gave boards on 2026-11-01: 25 of 242 sampled were like these.
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Careers at KKR",
+        "C3 AI Ascend Internship Program: Summer 2027",
+        "BitGo Internships and New Grads",
+        "Rubrik Job Board",
+        "Referrals Only",
+        "Join Our Talent Community",
+        "BGE Inc. Campus Recruiting",
+        "Graphcore Early Careers",
+        "Gelber Group Handshake",
+        "Philadelphia Phillies - Baseball Operations",
+        "SanMar- External",
+    ],
+)
+def test_a_careers_page_or_program_is_no_company_name(monkeypatch, name):
+    monkeypatch.setattr(providers.fetch, "_get_text", lambda url: json.dumps({"name": name}))
+    assert board_read.reported_name(Board("greenhouse", "acme", "acme"), Robots()) is None
+
+
+@pytest.mark.parametrize(
+    "name", ["KKR", "Handshake", "Invitation Homes", "2020 Companies", "Ben & Jerry's", "C3.ai"]
+)
+def test_a_company_name_is_kept(monkeypatch, name):
+    monkeypatch.setattr(providers.fetch, "_get_text", lambda url: json.dumps({"name": name}))
+    assert board_read.reported_name(Board("greenhouse", "acme", "acme"), Robots()) == name
+
+
 def test_open_jobs_channel_keeps_only_pool_systems_and_names_no_one():
     payload = {
         "ats": {
