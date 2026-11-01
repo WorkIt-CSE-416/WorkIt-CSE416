@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import zlib
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -112,6 +113,16 @@ def rotated(rows: list[Candidate], offset: int) -> list[Candidate]:
     return rows[offset:] + rows[:offset]
 
 
+def on_day(rows: list[Candidate], days: int, day: int) -> list[Candidate]:
+    """The pool boards read on `day` of a pass of `days`: a board's day is a stable
+    hash of its key, so boards joining or leaving the pool never move another's,
+    and each pass reads every board once. A rotation by an offset taken modulo the
+    pool's size jumped as the pool shrank and read about 77% of it in 16 days."""
+    return [
+        row for row in rows if zlib.crc32(f"{row.ats}/{row.token}".encode()) % days == day % days
+    ]
+
+
 def positive(value: str) -> int:
     number = int(value)
     if number < 1:
@@ -201,10 +212,16 @@ def main(argv: list[str] | None = None) -> int:
         help="maximum open-jobs pool boards to read (--channel openjobs)",
     )
     parser.add_argument(
-        "--pool-offset",
+        "--pool-days",
+        type=positive,
+        default=1,
+        help="days in one pass of the pool; each day reads its share (--pool-day)",
+    )
+    parser.add_argument(
+        "--pool-day",
         type=nonnegative,
         default=0,
-        help="rotate the pool before applying --pool-limit",
+        help="which day of the pass to read, taken modulo --pool-days",
     )
     parser.add_argument(
         "--exclude", type=Path, help="review ledger; rejected boards are skipped before validation"
@@ -318,7 +335,7 @@ def main(argv: list[str] | None = None) -> int:
         validate(row, robots)
         print(f"{row.ats}/{row.token}: {row.status}")
     # Most pool boards list no early-career posting, so only proposals are printed.
-    for row in rotated(pool, args.pool_offset)[: args.pool_limit]:
+    for row in on_day(pool, args.pool_days, args.pool_day)[: args.pool_limit]:
         validate_pooled(row, robots)
         if row.status == "validated":
             print(f"{row.ats}/{row.token}: pool, named {row.companies[0]!r}")

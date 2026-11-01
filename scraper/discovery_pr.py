@@ -23,10 +23,14 @@ LEDGER = "scraper/discovery-review.json"
 REVIEW = "scraper/discovery-review.md"
 RESOLUTION_STATE = "scraper/discovery-resolution.json"
 FILES = (CATALOG, LEDGER, REVIEW, RESOLUTION_STATE)
-#: open-jobs pool boards read per day: ~15,700 boards, so one pass in about 16
-#: days, and a pool board without an early-career posting is asked again then.
-#: The 2026-10-29 sample read about 0.4 seconds a board, so ~7 minutes a run.
-POOL_LIMIT = 1000
+#: Days in one pass of the open-jobs pool: each day reads the boards whose key
+#: hashes to it (`discover_boards.on_day`), and a pool board without an
+#: early-career posting is asked again a pass later.
+POOL_DAYS = 16
+#: A guard on a run's time, never meant to bite: the 15,532 pool boards of
+#: 2026-11-01 come to 930 to 1,005 a day, and one a day past it would wait a
+#: whole pass. At the 2026-10-29 sample's 0.4 seconds a board, ~8 minutes a run.
+POOL_LIMIT = 1200
 
 
 def command(args: list[str], cwd: Path) -> str:
@@ -130,8 +134,10 @@ def run(root: Path, repository: str, *, publishing: bool = False) -> int:
                     str(now.date().toordinal() * 20),
                     "--pool-limit",
                     str(POOL_LIMIT),
-                    "--pool-offset",
-                    str(now.date().toordinal() * POOL_LIMIT),
+                    "--pool-days",
+                    str(POOL_DAYS),
+                    "--pool-day",
+                    str(now.date().toordinal()),
                     "--boards",
                     str(worktree / CATALOG),
                     "--exclude",

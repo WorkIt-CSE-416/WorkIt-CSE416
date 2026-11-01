@@ -2,6 +2,7 @@
 posting, under the name its hiring system gives it, and a sample is checked."""
 
 import json
+import zlib
 
 import pytest
 
@@ -178,14 +179,26 @@ def test_pool_has_its_own_limit_and_named_leads_keep_theirs(tmp_path, monkeypatc
     swap_provider("greenhouse", read=lambda token, _: [job("Software Engineer Intern", token)])
     swap_provider("lever", read=lambda *_: [])
     report = tmp_path / "report.json"
-    args = ["--channel", "openjobs", "--limit", "1", "--pool-limit", "2", "--pool-offset", "4"]
-    assert (
-        discovery.main([*args, "--boards", str(tmp_path / "b.csv"), "--report", str(report)]) == 0
-    )
+    args = ["--channel", "openjobs", "--limit", "1", "--pool-days", "2", "--pool-day", "3"]
+    args += ["--pool-limit", "9", "--boards", str(tmp_path / "b.csv"), "--report", str(report)]
+    assert discovery.main(args) == 0
     status = {row["token"]: row["status"] for row in json.loads(report.read_text())["candidates"]}
-    # Offset 4 of 5 starts at p4, then wraps to p0.
-    assert [t for t, s in status.items() if t.startswith("p") and s == "validated"] == ["p0", "p4"]
+    # Day 3 of a 2-day pass is day 1: the pool boards whose key hashes there.
+    day = [f"p{i}" for i in range(5) if zlib.crc32(f"greenhouse/p{i}".encode()) % 2 == 1]
+    assert [t for t, s in status.items() if t.startswith("p") and s == "validated"] == day
     assert sum(s == "validated" for t, s in status.items() if t.startswith("n")) == 1
+
+
+def test_a_pool_board_keeps_its_day_as_the_pool_changes():
+    # An offset taken modulo the pool's size jumped as boards joined boards.csv,
+    # and a 16-day pass read about 77% of the pool.
+    pool = [pool_row(f"b{i}") for i in range(300)]
+    days = [discovery.on_day(pool, 16, day) for day in range(16)]
+    assert sorted(row.token for day in days for row in day) == sorted(row.token for row in pool)
+    smaller = pool[100:]
+    for number, rows in enumerate(days):
+        assert discovery.on_day(smaller, 16, number) == [row for row in rows if row in smaller]
+    assert discovery.on_day(pool, 16, 16) == days[0]
 
 
 def pool_record(token, at=AT):
