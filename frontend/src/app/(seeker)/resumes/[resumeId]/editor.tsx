@@ -72,7 +72,6 @@ import {
   type HeaderField,
   type Line,
 } from "./model";
-import { keepFitUndo, readFitUndo } from "./fit-undo";
 import { hideAgain, push, reverseChoices, reverseLine, type Edit, type Step } from "./history";
 import {
   afterStrips,
@@ -398,7 +397,6 @@ export function Editor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
-  const [fitUndo, setFitUndo] = useState<ChoicesUpdate | null>(null);
   // The resume's PDF and Word downloads, here since KAN-258 (../download-menu.tsx)
   const download = useResumeDownload(resumeId);
   // Tailor's changes awaiting review; `apply` reads the newest through a ref
@@ -941,10 +939,11 @@ export function Editor({
       lastPdf.current = data.render;
       keepRendered(data.render);
       const hid = data.undo.bullets?.length || data.undo.entries?.length;
-      rememberFitUndo(hid ? data.undo : null);
       const fresh = await getChoices(resumeId);
       if (fresh.data) keepChoices(fresh.data);
-      // Fit is one step: its Undo shows what it hid, its Redo hides it again
+      // Fit is one step like any edit: Undo (the button or Cmd+Z) shows what
+      // it hid, Redo hides it again. It had an Undo Fit button of its own
+      // until 2026-11-01, a second way to do what Undo does.
       if (hid && fresh.data) {
         push(undos.current, {
           undo: { changes: data.undo },
@@ -959,24 +958,6 @@ export function Editor({
       }
       if (current()) setSaving(false);
     });
-  }
-
-  function rememberFitUndo(undo: ChoicesUpdate | null) {
-    setFitUndo(undo);
-    keepFitUndo(resumeId, undo);
-  }
-
-  // A Fit's Undo from before a reload comes back after mount, never in the
-  // first render, which must match the server's (it has no sessionStorage).
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- a one-time restore from storage
-    setFitUndo(readFitUndo(resumeId));
-  }, [resumeId]);
-
-  function undoFit() {
-    if (!fitUndo) return;
-    void apply(fitUndo);
-    rememberFitUndo(null);
   }
 
   const box = rendered?.boxes.find((b) => boxKey(b) === selected);
@@ -1294,6 +1275,13 @@ export function Editor({
     setSide(to);
   };
 
+  const history: HistoryTools = {
+    canUndo: steps.undo > 0,
+    canRedo: steps.redo > 0,
+    onUndo: () => travel(true),
+    onRedo: () => travel(false),
+  };
+
   if (phone) {
     const start = line && box && startText(line, box);
     return (
@@ -1325,7 +1313,6 @@ export function Editor({
           saving={saving}
           elapsed={elapsed}
           error={error}
-          fitUndo={fitUndo}
           download={download}
           bar={phoneBar}
           suggestions={
@@ -1356,7 +1343,7 @@ export function Editor({
           onFlush={() => flush()}
           onApply={apply}
           onFit={fit}
-          onUndoFit={undoFit}
+          history={history}
         />
         {fitToast}
       </>
@@ -1373,20 +1360,13 @@ export function Editor({
       rendered={rendered}
       saving={saving}
       elapsed={elapsed}
-      fitUndo={fitUndo}
       download={download}
       onApply={apply}
       onSaveHeader={addContact}
       onClose={() => select(null)}
       onFit={fit}
-      onUndoFit={undoFit}
       zoom={<Zoom zoom={zoom} onZoom={setZoom} />}
-      history={{
-        canUndo: steps.undo > 0,
-        canRedo: steps.redo > 0,
-        onUndo: () => travel(true),
-        onRedo: () => travel(false),
-      }}
+      history={history}
     />
   );
   const reviewTools: ReviewTools | null = reviewing && {
@@ -1565,13 +1545,11 @@ function Bar({
   rendered,
   saving,
   elapsed,
-  fitUndo,
   download,
   onApply,
   onSaveHeader,
   onClose,
   onFit,
-  onUndoFit,
   zoom,
   history,
 }: {
@@ -1584,13 +1562,11 @@ function Bar({
   rendered: RenderedPdf | null;
   saving: boolean;
   elapsed: number | null;
-  fitUndo: ChoicesUpdate | null;
   download: ResumeDownload;
   onApply: (changes: ChoicesUpdate) => void;
   onSaveHeader: (field: HeaderField, text: string) => void;
   onClose: () => void;
   onFit: () => void;
-  onUndoFit: () => void;
   zoom: ReactNode;
   history: HistoryTools;
 }) {
@@ -1599,10 +1575,8 @@ function Bar({
       rendered={rendered}
       saving={saving}
       elapsed={elapsed}
-      fitUndo={fitUndo}
       download={download}
       onFit={onFit}
-      onUndoFit={onUndoFit}
       zoom={zoom}
       history={history}
       editing={
@@ -1645,8 +1619,9 @@ type ReviewTools = {
 const SLIM_BAR =
   "bg-panel/95 ring-border-subtle sticky top-2 z-20 flex min-h-10 flex-wrap items-center gap-2 rounded-xl px-2 py-1 ring-1 backdrop-blur";
 
-/** The editor's Undo and Redo (./history.ts), for the slim bar. */
-type HistoryTools = {
+/** The editor's Undo and Redo (./history.ts), for the slim bar and the
+ *  phone's bar. */
+export type HistoryTools = {
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -1656,8 +1631,8 @@ type HistoryTools = {
 /**
  * Undo and Redo, first on the slim bar in both its states (KAN-391: until
  * then disabled, UI only). Each goes back or forward one step of
- * `HISTORY_STEPS`; Cmd+Z and Shift+Cmd+Z do the same off a field. Undo Fit
- * stays its own button after a fit.
+ * `HISTORY_STEPS`; Cmd+Z and Shift+Cmd+Z do the same off a field. A Fit to
+ * One Page is one step too; its own Undo Fit button went on 2026-11-01.
  */
 function History({ tools }: { tools?: HistoryTools }) {
   return (
@@ -1694,7 +1669,7 @@ function History({ tools }: { tools?: HistoryTools }) {
  * two editor designs). Over the page with the column beside it starting
  * level, holding only tools for the page: Undo and Redo (`History`), then,
  * idle, the page count as a chip that offers Fit to One Page (over one
- * page only) and Undo Fit after a fit, and Download at the right,
+ * page only), and Download at the right,
  * secondary, since Finish is the review's one filled button. Not on This
  * Resume was a button here with a modal for a day; the review does not
  * need it (see the grid). No "Click a line to edit it." hint: the
@@ -1718,10 +1693,8 @@ function SlimBar({
   rendered,
   saving,
   elapsed,
-  fitUndo,
   download,
   onFit,
-  onUndoFit,
   editing,
   zoom,
   history,
@@ -1729,10 +1702,8 @@ function SlimBar({
   rendered: RenderedPdf | null;
   saving: boolean;
   elapsed: number | null;
-  fitUndo: ChoicesUpdate | null;
   download: ResumeDownload;
   onFit: () => void;
-  onUndoFit: () => void;
   /** The open line's label and actions, or nothing while idle. */
   editing: ReactNode;
   /** The page's zoom control (`Zoom`), on the editor's own page only. */
@@ -1776,11 +1747,6 @@ function SlimBar({
           disabled={saving}
           onFit={onFit}
         />
-      )}
-      {fitUndo && (
-        <Button variant="ghost" size="xs" onClick={onUndoFit} disabled={saving}>
-          <ArrowUUpLeftIcon aria-hidden /> Undo Fit
-        </Button>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {status}

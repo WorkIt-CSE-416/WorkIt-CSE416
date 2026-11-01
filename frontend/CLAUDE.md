@@ -1673,7 +1673,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   outlive the database it describes (another tab's edit, a reload).
   Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
   own text undo runs. An open line is saved first, so Undo takes back
-  what was just typed.
+  what was just typed. **Fit to One Page is one step like any edit**:
+  Undo shows what it hid, Redo hides it again (`hideAgain`). It has no
+  Undo Fit button of its own (gone 2026-11-01, a second way to do what
+  Undo does); the phone's bar shows the same Undo and Redo. The fit
+  response still names what it hid (`hidden`), for a list that puts each
+  one back.
 - **The live page, step 1** (KAN-391, `../docs/live_page.md`): typed
   text is kept per line (`drafts`, by box key) and drawn over the line
   until the PDF that prints it has painted: the selected line as its

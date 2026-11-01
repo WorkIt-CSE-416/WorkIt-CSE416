@@ -3,6 +3,7 @@
 import {
   ArrowLeftIcon,
   ArrowUUpLeftIcon,
+  ArrowUUpRightIcon,
   CaretLeftIcon,
   CaretRightIcon,
   HandPointingIcon,
@@ -24,6 +25,7 @@ import { useBack } from "../../back-link";
 import { EDITOR_PARENT } from "./back";
 import { FitNotice } from "./fit-notice";
 import { lineName, shortPageLabel, tray, type Line } from "./model";
+import type { HistoryTools } from "./editor";
 import { boxKey, kindLabel } from "./pdf-pages";
 import { Tray } from "./tray";
 
@@ -101,7 +103,6 @@ export function PhoneEditor({
   saving,
   elapsed,
   error,
-  fitUndo,
   download,
   bar,
   suggestions,
@@ -112,7 +113,7 @@ export function PhoneEditor({
   onFlush,
   onApply,
   onFit,
-  onUndoFit,
+  history,
 }: {
   /** Null until the first render lands (./editor.tsx streams it in). */
   rendered: RenderedPdf | null;
@@ -132,7 +133,6 @@ export function PhoneEditor({
   saving: boolean;
   elapsed: number | null;
   error: string | null;
-  fitUndo: ChoicesUpdate | null;
   /** The resume's downloads, the same as the desktop sticky bar's. */
   download: ResumeDownload;
   /** The page's own row under the buttons (Tailor's note when it has no
@@ -154,7 +154,8 @@ export function PhoneEditor({
   onFlush: () => void;
   onApply: (changes: ChoicesUpdate) => void;
   onFit: () => void;
-  onUndoFit: () => void;
+  /** Undo and Redo, the desktop bar's: a Fit to One Page is one step. */
+  history: HistoryTools;
 }) {
   const back = useBack(EDITOR_PARENT);
   const snapshot = useSyncExternalStore(subscribeViewport, viewportSnapshot, () => "0|0");
@@ -218,11 +219,24 @@ export function PhoneEditor({
           </span>
         </div>
         <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
-          {fitUndo && (
-            <Button variant="secondary" size="sm" onClick={onUndoFit} disabled={saving}>
-              <ArrowUUpLeftIcon aria-hidden /> Undo
-            </Button>
-          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-label="Undo"
+            disabled={!history.canUndo}
+            onClick={history.onUndo}
+          >
+            <ArrowUUpLeftIcon aria-hidden />
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-label="Redo"
+            disabled={!history.canRedo}
+            onClick={history.onRedo}
+          >
+            <ArrowUUpRightIcon aria-hidden />
+          </Button>
           <div className="ml-auto flex gap-2">
             <DownloadMenu download={download} />
             <Button

@@ -2611,9 +2611,12 @@ student who opened a resume from Experiences landed on another view.
   over one page, the page count as an amber chip with a warning sign and
   a caret ("⚠ 2 pages ⌄"), which reads as a problem to open; its popover
   says by how much (the render's `lines_over`, an estimate) and offers
-  Fit to One Page. Then Undo Fit, which shows again everything Fit hid
-  (the response's `undo` body), kept in sessionStorage per resume
-  (`fit-undo.ts`), so a reload in the same tab still offers it. A
+  Fit to One Page. A fit is one Undo step like any edit: Undo (or Cmd+Z)
+  shows again everything it hid (the response's `undo` body), and Redo
+  hides it again. Its own Undo Fit button, kept in sessionStorage per
+  resume, went on 2026-11-01: it was a second way to do what Undo does.
+  The response still names what Fit hid (`hidden`), for a list that puts
+  each one back. A
   one-page resume shows no count: a green "1 page" said what the page
   itself shows. No "Click a line to edit it." hint: the pointer's own
   highlight on a line says so. In both states the bar says "Saving…" or

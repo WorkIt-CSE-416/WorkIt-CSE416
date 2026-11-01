@@ -272,7 +272,8 @@ weight.
   for now (the editor keeps no history yet, so both stay disabled,
   2026-10-26), then the page count as an amber chip with a warning sign
   and a caret ("⚠ 2 pages ⌄", over one page only), which reads as a
-  problem to open and offers Fit to One Page, and Undo Fit after a fit.
+  problem to open and offers Fit to One Page; Undo takes a fit back
+  (Undo Fit, a button of its own, went on 2026-11-01).
   At the right, Download, secondary: Finish is the page's one filled
   button, and a filled Download beside it competed. No "Not on This Resume" on
   this page: putting a hidden line back is the editor's own page's work,
