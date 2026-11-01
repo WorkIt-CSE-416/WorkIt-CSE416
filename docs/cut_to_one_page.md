@@ -1,18 +1,21 @@
 # Cut to One Page
 
 A draft design, not built. It changes what Fit to One Page (KAN-218) cuts
-and how it stops. Every resume follows the same steps, floors and entry
-percentages; only the order inside a step differs:
+and how it stops. Every resume follows the same section order, steps,
+floors and entry percentages; only the order inside a section differs:
 
 - **A resume with a job posting** (every tailored resume) is cut by rank:
   what the posting cares about least goes first.
 - **A resume with no job posting** (a generated or base resume) is cut by
   position: the bottom entry and the last bullet go first, as today.
 
-Both can now cut skills. Fit checks the page after every single cut by
+Sections give way in a fixed order, the least needed first: Awards,
+Certifications, Education, Leadership, Projects, Experience. Fit can now
+cut skills and Education. It checks the page after every single cut by
 prediction, not by rendering: it renders once at the start, predicts each
 cut's effect from that render's boxes, and renders once at the end to
-confirm.
+confirm. It reads the database once at the start and writes once, after
+the resume is one page.
 
 Read `backend/CLAUDE.md` (Fit to One Page) and `docs/tailor_resume.md`
 first. This design reuses the keyword match's whole-word check; it adds no
@@ -22,8 +25,6 @@ model call.
 
 - A cut hides an item on this resume only. It never deletes it from the
   experience bank.
-- Education is never cut. Its coursework line is still the first cut when
-  the resume has Experience.
 - No LLM and no embedding model. Fit to One Page stays free and spends no
   AI use.
 
@@ -42,9 +43,10 @@ and checks every cut in between by subtraction.
    its height from the predicted height, and check the prediction against
    the page. Repeat until the prediction fits on one page or no cut is
    left. Nothing renders and nothing saves during this step.
-4. **Save** this cycle's cuts together, as one change.
-5. **Render to confirm.** If the resume is one page, stop. If it is still
-   over, this render starts the next cycle: go to step 2.
+4. **Render to confirm**, from the view with every cut so far applied in
+   memory. If the resume is one page, stop. If it is still over, this
+   render starts the next cycle: go to step 2.
+5. **Save** every cut of every cycle together, once, after the loop ends.
 
 Each cycle measures from its own first render, so a prediction's error
 never carries into the next cycle. Most runs take one cycle, two renders.
@@ -62,6 +64,26 @@ This replaces today's batches: no cuts taken by `lines_over`, no
 `FIT_ROUNDS` limit, and no put-back renders (`FIT_PUT_BACK`). The
 prediction stops at the first cut that fits, so it overshoots by at most
 its own error, about one line.
+
+### One read, one write
+
+Today each round saves its cuts and reads the resume back
+(`update_choices`, then `load_view`) before it renders: two database round
+trips per round, and a failed render can leave half a fit saved. The new
+loop touches the database twice in all:
+
+- **One read, at the start:** the resume's view (`load_view`: its choices
+  and the bank they point at), its posting when `job_posting_id` is set,
+  and the header identity the render prints. The bullet ranking is one
+  more query, but it sends the view's texts as parameters and reads no
+  table ("By rank", below).
+- **Everything between is in memory.** A cut is applied to the view by a
+  pure function that returns the view without the cut items; `render`
+  already takes a view (`fit_to_one_page`'s `render` argument), so the
+  confirm render needs no save first.
+- **One write, at the end:** every cut together through `fit_changes` and
+  `update_choices`, in one transaction. If a render fails (503), Fit
+  writes nothing, and the resume is as it was.
 
 ### Measuring from the boxes
 
@@ -110,7 +132,28 @@ ranked on the bullets Tailor rewrote for it, as the student sees them.
 The scores are computed once, from the first view, before the first cut.
 A cut never changes another item's score.
 
-## The order inside a step
+## The section order
+
+Entries, and bullets in the last step, are cut one section at a time, the
+least needed section first:
+
+**Awards → Certifications → Education → Leadership → Projects →
+Experience**
+
+A section gives way down to its floor (below) before the next section
+loses anything. Inside a section, the order is by rank or by position
+(next).
+
+This reverses a lesson in `backend/CLAUDE.md`: today every section gives a
+little before any section gives a lot, because emptying one section first
+left a long resume lopsided. Here that is the intent: Awards and
+Certifications matter less than the student's work, so they go first.
+
+Coursework has no rule of its own any more. Today it was the first cut
+whenever the resume had Experience; now it stays with its Education entry
+and goes only when that entry goes.
+
+## The order inside a section
 
 ### With a job posting: by rank
 
@@ -133,9 +176,9 @@ bullets. Two, because each entry keeps at least two bullets (below), so
 these are the bullets that stay if the entry stays. A mean over every
 bullet would punish an entry for one weak bullet that a cut can remove; a
 sum would favour long entries. An entry with fewer than two bullets uses
-what it has; an entry with none scores 0. The lowest-scored entry goes
-first, across all cuttable sections at once. Ties: the bottom entry of
-its section first.
+what it has; an entry with none scores 0, which is most Education,
+Awards and Certifications entries. The lowest-scored entry of the section
+goes first. Ties: the bottom entry first.
 
 **Skills.** Each skill is checked with the whole-word rule
 (`keywords._shows`, with the skill catalog's other spellings,
@@ -157,32 +200,30 @@ bullet 0 and gives no level 2, so it uses the position order instead.
 
 ### With no job posting: by position
 
-- **Bullets:** an entry's last bullet first, as today.
-- **Entries:** the bottom entry of a section first. Sections take turns,
-  one entry each, in today's order: Leadership, Awards, Certifications,
-  Projects, Experience, then round again, skipping a section at its
-  floor. Taking turns keeps today's lesson: a rule that emptied one
-  section before the others gave anything left a long resume lopsided.
+- **Bullets:** an entry's last bullet first, as today; the bottom entry's
+  bullets before the top entry's.
+- **Entries:** the bottom entry of the section first.
 - **Skills:** the last skill of a wrapped line first; a whole skill line,
   the bottom line first.
 
 ## The steps
 
-The percentages count entries in the cuttable sections (Experience,
-Projects, Leadership, Awards, Certifications) at the start of the run,
-never Education. "Cut" counts the entries hidden so far in this run.
+The percentages count every entry the resume shows at the start of the
+run, Education included. "Cut" counts the entries hidden so far in this
+run.
 
-1. **Coursework**, as today.
-2. **Entries**, by the order above. This is the main cut and goes on
-   through every step below.
-3. **From 10% of entries cut: trim wrapped skill lines.** A skill line that
+1. **Entries**, in the section order, then by rank or position inside
+   each section. This is the main cut and goes on through every step
+   below.
+2. **From 10% of entries cut: trim wrapped skill lines.** A skill line that
    runs onto two or more lines loses skills until it fits on one line. A
    skill cut from a one-line group saves no line, so it is never made
    here. Whether a line wraps, and how many skills it must lose, is read
    from the cycle's render ("Measuring from the boxes").
-4. **From 50% of entries cut: cut one whole skill line.**
-5. **From 75% of entries cut: cut one more whole skill line.**
-6. **Bullets, last.** An entry over two bullets loses bullets down to two.
+3. **From 50% of entries cut: cut one whole skill line.**
+4. **From 75% of entries cut: cut one more whole skill line.**
+5. **Bullets, last**, in the section order. An entry over two bullets
+   loses bullets down to two.
 
 Cuts of different kinds interleave by the step they are allowed in: once
 10% of entries are gone, the next cut is a wrapped skill trim if one is
@@ -193,9 +234,11 @@ left, else the next entry.
 - **Each shown entry keeps at least two bullets.** An entry with fewer
   than two to start with keeps all of them.
 - **The Skills section keeps at least one line.**
-- **Experience and Projects each keep one entry**: the top-scored one with
-  a posting, the top one without, so the page never loses a whole section
-  that carries the student's work.
+- **Education, Projects and Experience each keep one entry**: the
+  top-scored one with a posting, the top one without. A resume with no
+  school, or none of the student's work, is not a resume. Awards,
+  Certifications and Leadership can go empty, and their headings go with
+  them.
 
 ## What changes in code
 
@@ -208,7 +251,11 @@ left, else the next entry.
   height. A pure prediction then takes those and a list of cuts and says
   whether the page fits. Both test from saved boxes, with no Tectonic.
 - `fit_to_one_page` runs the cycles above. `FIT_STEPS`, `FIT_ROUNDS`,
-  `FIT_PUT_BACK` and the batching by `_cut_lines` and `lines_over` go.
+  `FIT_PUT_BACK` and the batching by `_cut_lines` and `lines_over` go,
+  and so do the save and `load_view` inside each round.
+- A pure function that applies cuts to a view and returns the smaller
+  view, for the confirm render. The one save at the end goes through
+  `fit_changes` as today.
 - A test that renders real resumes and checks the prediction against the
   confirm render, so a template change that breaks the measuring fails
   in CI, not in front of a student.
@@ -219,8 +266,10 @@ left, else the next entry.
   resume shows its own wording; this design does not change Tailor.)
 - `Cut.kind` gains `"skill"`. `fit_changes` and the choices PATCH hide a
   skill the way they hide a bullet.
-- `backend/CLAUDE.md` (Fit to One Page), the comment above `FIT_STEPS`, and
-  "Education and Skills are never cut" change with the code.
+- `backend/CLAUDE.md` (Fit to One Page: the steps, "never cut one section
+  to one-line entries before the others give anything", the put-back),
+  the comment above `FIT_STEPS`, and "Education and Skills are never cut"
+  change with the code.
 
 ## Still open
 
@@ -240,6 +289,13 @@ left, else the next entry.
   single extra bullet does. A resume a few lines over loses one entry, not
   bullets across every entry. If real resumes come back too thin, move
   bullet trims ahead of the 50% step.
+- **Coursework as a cut of its own.** A long coursework line could be
+  hidden before its Education entry goes. This design drops that rule;
+  bring it back as a step if Education entries go too often.
+- **Edits during a fit.** The write at the end hides items by id. If the
+  student edits the resume in another tab while Fit runs, Fit's cuts land
+  on the newer resume, which it did not measure. The editor waits for
+  Fit's answer, so this needs a second tab.
 - **Skill levels on a resume with no posting.** Level 1 (backed by a
   bullet) needs no posting. A later change could order its skills by
   levels 1 and 0 before position.
