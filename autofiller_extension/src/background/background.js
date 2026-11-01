@@ -624,6 +624,14 @@ function resumeOnce() {
 chrome.runtime.onStartup.addListener(resumeOnce);
 resumeOnce();
 
+// A fresh Chrome Web Store install (never an update, and never a browser
+// update, which fire "update"/"chrome_update" instead) opens the setup page
+// once, so a student who never opens the popup still sees how to use this.
+chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+  if (reason !== "install") return;
+  await chrome.tabs.create({ url: `${await webappOrigin()}/extension-setup` });
+});
+
 // The panel's choices per site (panel.js): { top, collapsed, hidden }, by host name.
 const PANEL_SITES_KEY = "panel_sites";
 async function panelSite(url, change) {

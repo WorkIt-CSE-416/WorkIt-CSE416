@@ -27,6 +27,14 @@ async function webappUrl() {
   return PROD_SITES[0].web;
 }
 
+/** How to use the extension (KAN-495): opened automatically on a fresh
+ *  install (background.js's onInstalled) and, here, on demand — signed in
+ *  or not, since a student who skipped it the first time may still want it. */
+async function openSetupPage() {
+  const base = await webappUrl();
+  chrome.tabs.create({ url: `${base}/extension-setup` });
+}
+
 function renderLoginView(errorText) {
   const template = document.getElementById("login-template");
   root.replaceChildren(template.content.cloneNode(true));
@@ -41,6 +49,8 @@ function renderLoginView(errorText) {
     const base = await webappUrl();
     chrome.tabs.create({ url: `${base}/login` });
   });
+
+  root.querySelector("#setup-button").addEventListener("click", openSetupPage);
 }
 
 /**
@@ -80,6 +90,7 @@ function renderSignedIn(profile) {
     chrome.tabs.create({ url: `${base}/auto-apply` });
     window.close();
   });
+  root.querySelector("#setup-button").addEventListener("click", openSetupPage);
 }
 
 /** The popup's home: what the student is doing, and its next step (popup/home). */
