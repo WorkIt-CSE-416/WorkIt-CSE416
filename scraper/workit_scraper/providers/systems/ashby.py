@@ -13,6 +13,7 @@ from workit_scraper.providers.text import (
     _described,
     _page,
     _work_style,
+    title_name,
 )
 
 
@@ -74,4 +75,8 @@ PROVIDER = Provider(
     logo_page="https://jobs.ashbyhq.com/{}",
     # The square mark, not `logoWordmarkImageUrl`: the card's tile is square.
     logo_pattern=re.compile(r'"logoSquareImageUrl":"(https://app\.ashbyhq\.com/api/images/[^"]+)"'),
+    # "Joko Jobs": the board page's title. Its JSON API is under /api/, which
+    # jobs.ashbyhq.com's robots.txt disallows.
+    name_url="https://jobs.ashbyhq.com/{token}",
+    read_name=lambda text: title_name(text, " Jobs"),
 )

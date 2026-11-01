@@ -16,6 +16,7 @@ from workit_scraper.providers.text import (
     _place,
     _places,
     _work_style,
+    json_name,
 )
 
 
@@ -120,4 +121,7 @@ PROVIDER = Provider(
     logo_pattern=re.compile(
         r'"logo":"(https://workablehr\.s3\.amazonaws\.com/uploads/account/logo/[^"]+)"'
     ),
+    # The widget's own feed: {"name": "SAP Fioneer", "jobs": [...]}.
+    name_url="https://apply.workable.com/api/v1/widget/accounts/{token}",
+    read_name=json_name,
 )

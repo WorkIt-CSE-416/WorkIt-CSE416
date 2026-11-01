@@ -14,6 +14,7 @@ from workit_scraper.providers.text import (
     _page,
     _work_style,
     plain_text,
+    title_name,
 )
 
 
@@ -93,4 +94,7 @@ PROVIDER = Provider(
         r'class="main-header-logo"[^>]*>\s*<img[^>]*\ssrc="'
         r'(https://lever-client-logos\.s3(?:[.-]us-west-2)?\.amazonaws\.com/[^"]+)"'
     ),
+    # The board page's title is the company's name alone ("Palantir Technologies").
+    name_url="https://{site}/{slug}",
+    read_name=title_name,
 )

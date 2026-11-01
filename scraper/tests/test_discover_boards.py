@@ -4,6 +4,7 @@ import os
 import pytest
 
 import discover_boards as discovery
+from workit_scraper import board_resolve
 from workit_scraper.discovery_channels import CollectionResult, Evidence
 from workit_scraper.providers import BoardNotFound, Incomplete
 
@@ -557,3 +558,242 @@ def test_negative_offset_rejected_before_network(monkeypatch):
             ["--url", "https://jobs.lever.co/acme", "--company", "Acme", "--offset", "-1"]
         )
     assert error.value.code == 2
+
+
+# --- Resolve step -----------------------------------------------------------
+
+
+class ResolveWeb:
+    """Answers by URL: bytes for a 200, a str for a redirect (raised as a 302),
+    else a 404."""
+
+    def __init__(self, answers):
+        self.answers = answers
+        self.asked = []
+
+    def __call__(self, url):
+        import urllib.error
+
+        self.asked.append(url)
+        answer = self.answers.get(url)
+        if isinstance(answer, bytes):
+            return answer
+        if isinstance(answer, str):
+            raise urllib.error.HTTPError(answer, 302, "redirect", None, None)
+        raise urllib.error.HTTPError(url, 404, "Not Found", None, None)
+
+
+def test_resolve_short_link_to_board(tmp_path, monkeypatch, swap_provider):
+    """A short link that redirects to a known board URL adds it as evidence."""
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    swap_provider("greenhouse", read=lambda *_: [])
+    web = ResolveWeb({"https://go.vansh.nyc/o": "https://job-boards.greenhouse.io/acme/jobs/123"})
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [Evidence("https://go.vansh.nyc/o", "Acme", "curated")], []
+        ),
+    )
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    monkeypatch.setattr(discovery.web, "get", lambda url, **kw: web(url))
+    discovery.main(
+        [
+            "--channel",
+            "curated",
+            "--resolve",
+            "--apply",
+            "--boards",
+            str(boards),
+            "--report",
+            str(report),
+        ]
+    )
+    assert "greenhouse,acme,Acme" in boards.read_text()
+
+
+def test_resolve_greenhouse_careers_page(tmp_path, monkeypatch, swap_provider):
+    """A ?gh_jid= URL proved against the Greenhouse API adds the board."""
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    swap_provider("greenhouse", read=lambda *_: [])
+    api_url = "https://boards-api.greenhouse.io/v1/boards/waymo/jobs/8189848"
+    web = ResolveWeb({api_url: b"{}"})
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [Evidence("https://careers.withwaymo.com/jobs?gh_jid=8189848", "Waymo", "curated")], []
+        ),
+    )
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    monkeypatch.setattr(discovery.web, "get", lambda url, **kw: web(url))
+    discovery.main(
+        [
+            "--channel",
+            "curated",
+            "--resolve",
+            "--apply",
+            "--boards",
+            str(boards),
+            "--report",
+            str(report),
+        ]
+    )
+    assert "greenhouse,waymo,Waymo" in boards.read_text()
+
+
+def test_resolve_unresolvable_stays_unmatched(tmp_path, monkeypatch):
+    """A URL that cannot be resolved stays in unmatched, no board is added."""
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    web = ResolveWeb({})
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [Evidence("https://example.com/careers/apply", "Unknown", "curated")], []
+        ),
+    )
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    monkeypatch.setattr(discovery.web, "get", lambda url, **kw: web(url))
+    discovery.main(
+        [
+            "--channel",
+            "curated",
+            "--resolve",
+            "--apply",
+            "--boards",
+            str(boards),
+            "--report",
+            str(report),
+        ]
+    )
+    assert not boards.exists()
+    data = json.loads(report.read_text())
+    assert any(u["url"] == "https://example.com/careers/apply" for u in data["unmatched"])
+
+
+def test_resolve_not_called_without_flag(tmp_path, monkeypatch):
+    """Without --resolve, unmatched evidence is not resolved."""
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [Evidence("https://go.vansh.nyc/o", "Acme", "curated")], []
+        ),
+    )
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    discovery.main(
+        [
+            "--channel",
+            "curated",
+            "--boards",
+            str(boards),
+            "--report",
+            str(report),
+        ]
+    )
+    assert not boards.exists()
+    data = json.loads(report.read_text())
+    assert data["unmatched"][0]["url"] == "https://go.vansh.nyc/o"
+
+
+def test_resolution_limit_does_not_block_direct_boards(tmp_path, monkeypatch, swap_provider):
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    swap_provider("lever", read=lambda *_: [])
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [
+                Evidence("https://careers.acme.com/?gh_jid=1", "Acme", "curated"),
+                Evidence("https://jobs.lever.co/delta/123", "Delta", "curated"),
+            ],
+            [],
+        ),
+    )
+    monkeypatch.setattr(discovery.web, "get", lambda *_a, **_k: pytest.fail("budget is zero"))
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    assert (
+        discovery.main(
+            [
+                "--channel",
+                "curated",
+                "--resolve",
+                "--resolve-limit",
+                "0",
+                "--apply",
+                "--boards",
+                str(boards),
+                "--report",
+                str(report),
+            ]
+        )
+        == 0
+    )
+    assert "lever,delta,Delta" in boards.read_text()
+    assert json.loads(report.read_text())["resolution"] == {
+        "total": 1,
+        "attempted": 0,
+        "deferred": 1,
+        "timed_out": False,
+        "next_offset": 0,
+    }
+
+
+def test_resolution_deadline_keeps_successes_and_continues_validation(
+    tmp_path,
+    monkeypatch,
+    swap_provider,
+):
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    swap_provider("greenhouse", read=lambda *_: [])
+    swap_provider("lever", read=lambda *_: [])
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [
+                Evidence("https://careers.acme.com/?gh_jid=1", "Acme", "curated"),
+                Evidence("https://careers.beta.com/?gh_jid=2", "Beta", "curated"),
+                Evidence("https://jobs.lever.co/delta/123", "Delta", "curated"),
+            ],
+            [],
+        ),
+    )
+    clock = [0.0]
+    monkeypatch.setattr(board_resolve.time, "monotonic", lambda: clock[0])
+    asked = []
+
+    def get(url, **kwargs):
+        asked.append(url)
+        clock[0] = 2.0
+        return b"{}"
+
+    monkeypatch.setattr(discovery.web, "get", get)
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    assert (
+        discovery.main(
+            [
+                "--channel",
+                "curated",
+                "--resolve",
+                "--resolve-seconds",
+                "1",
+                "--apply",
+                "--boards",
+                str(boards),
+                "--report",
+                str(report),
+            ]
+        )
+        == 0
+    )
+    catalog = boards.read_text()
+    assert "greenhouse,acme,Acme" in catalog
+    assert "lever,delta,Delta" in catalog
+    assert "Beta" not in catalog
+    assert len(asked) == 1
+    resolution = json.loads(report.read_text())["resolution"]
+    assert resolution["timed_out"] is True
+    assert resolution["deferred"] == 1

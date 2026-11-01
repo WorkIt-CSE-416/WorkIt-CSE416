@@ -14,6 +14,31 @@ supply leads; no search API credentials are needed. The validation limit is 20,
 with a UTC-day offset that rotates through candidates rather than repeatedly
 checking only the first ones.
 
+**The open-jobs pool** (ADR 0007, proposed) is a third source: open-jobs'
+frozen list of about 15,600 boards on Greenhouse, Workable, Ashby and Lever
+that `boards.csv` lacks, read over a 16-day pass (`discovery_pr.POOL_DAYS`):
+each board has a fixed day, from a hash of its key, so about 1,000 are read a
+day (about 7 minutes) and every board once a pass. A pool board is proposed
+only when it lists a posting the shortlist keeps, under the name its own
+hiring system gives it, and that name is not a careers page or a program
+("Careers at KKR", "Referrals Only"): such a board stays `needs_company`. Its review row shows those titles, and its Ownership column says
+either **Sample** or "trusted if its batch's sample holds". Check every
+Sample board's name on the company's own website. If one is wrong, check all
+the pool boards with the same Validated time and remove the wrong rows. A
+local preview of 40 pool boards:
+
+```sh
+python3 discover_boards.py --channel openjobs --pool-limit 40 --report /tmp/pool.json
+```
+
+**The repository must let GitHub Actions open pull requests** (Settings →
+Actions → General → Workflow permissions → "Allow GitHub Actions to create and
+approve pull requests"). With it off, the first scheduled run (2026-10-29)
+pushed `codex/board-discovery-after-0` and then failed at `gh pr create` with
+"GitHub Actions is not permitted to create or approve pull requests", so no PR
+appeared. A PR opened with `github.token` also starts no other workflow, so CI
+does not run on it until a person pushes to the branch or closes and reopens it.
+
 The workflow maintains **one rolling PR**. Validated candidates become proposed
 rows in `scraper/boards.csv`, accompanied by `scraper/discovery-review.json`
 (the durable decision and evidence ledger) and generated
@@ -76,6 +101,35 @@ still fail the run visibly. A malformed report or publishing conflict must not
 silently replace review decisions.
 
 ## Local discovery
+
+### Bounded indirect-link resolution
+
+Daily discovery uses `--resolve` with a separate budget of 100 groups or 120
+seconds, whichever is reached first. Careers links are grouped by hiring system,
+hostname and attributed company; at most three distinct posting links are tried,
+stopping after a successful board proof. This discovers one board per careers
+group, as the legacy builder does. A group is not a claim that a company has only
+one board: other explicit board URLs and different host/system groups remain
+independent candidates. Short links are grouped only by exact URL, since links
+for the same company can lead to different boards.
+
+The shared resolver in `workit_scraper/board_resolve.py` serves both commands.
+Groups are sorted for a stable rotation. `scraper/discovery-resolution.json`
+stores the next group offset on main, advanced past the groups actually attempted
+and committed together with discoveries. It advances even when no new boards are
+found. A group interrupted by the deadline is retried on the next pass, so one
+slow group cannot block all later groups. Local runs can choose `--resolve-limit`,
+`--resolve-offset`, and `--resolve-seconds`; `--resolve-limit 0` skips resolution.
+These budgets are independent of `--limit` and `--pool-limit` for board validation.
+
+The deadline is checked before robots checks, pacing and HTTP requests. An
+already-running operation may finish after the deadline, but no subsequent
+resolution operation starts. Completed discoveries and direct-board links still
+proceed through validation and publication. The JSON report's `resolution` field
+records total, attempted and deferred groups, the next offset, and whether the
+time budget was reached. Budget exhaustion is normal deferral, not a source
+failure. A changed input list can shift offset positions; later passes revisit
+groups rather than treating an offset as proof a company was processed forever.
 
 Run these commands from `scraper/` with Python 3.12 or newer:
 
