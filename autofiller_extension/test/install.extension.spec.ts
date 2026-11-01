@@ -1,7 +1,8 @@
-// Install, update and uninstall (KAN-471), in the loaded extension: an
-// install opens onboarding's extension step, an update migrates what an
-// older version stored (stored-data.js; its rules are stored-data.spec.ts),
-// and removing the extension opens WorkIt's one-question survey.
+// Install, update and uninstall (KAN-471, KAN-495), in the loaded
+// extension: an install opens the extension setup page, an update
+// migrates what an older version stored (stored-data.js; its rules are
+// stored-data.spec.ts), and removing the extension opens WorkIt's
+// one-question survey.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,7 +11,7 @@ import { MAX_WORKDAY_TREES, STORAGE_VERSION, STORAGE_VERSION_KEY } from "../src/
 import { loadExtension, webapp, type Loaded } from "./loaded-extension";
 
 const WEB = "http://localhost:3000";
-const ONBOARDING = `${WEB}/onboarding/applicant?step=extension`;
+const SETUP = `${WEB}/extension-setup`;
 
 let loaded: Loaded;
 test.afterEach(() => loaded?.close());
@@ -18,14 +19,14 @@ test.afterEach(() => loaded?.close());
 /** The URLs of the context's open tabs. */
 const urls = (context: BrowserContext) => context.pages().map((page) => page.url());
 
-test("installing opens onboarding's extension step on WorkIt", async () => {
+test("installing opens the extension setup page on WorkIt", async () => {
   loaded = await loadExtension([webapp], { welcome: true });
 
-  await expect.poll(() => urls(loaded.context), { timeout: 15_000 }).toContain(ONBOARDING);
+  await expect.poll(() => urls(loaded.context), { timeout: 15_000 }).toContain(SETUP);
   expect(await loaded.worker.evaluate((key) => chrome.storage.local.get(key), STORAGE_VERSION_KEY)).toEqual({ [STORAGE_VERSION_KEY]: STORAGE_VERSION });
 });
 
-test("an update migrates the unversioned storage, and opens no onboarding tab", async () => {
+test("an update migrates the unversioned storage, and opens no setup tab", async () => {
   // A kept profile, started again with a newer version: an update to Chrome (onInstalled's reason "update").
   const profile = mkdtempSync(join(tmpdir(), "workit-update-"));
   try {
@@ -52,7 +53,7 @@ test("an update migrates the unversioned storage, and opens no onboarding tab", 
     expect(Array.isArray(kept)).toBe(true);
     expect(kept).toHaveLength(MAX_WORKDAY_TREES);
     await loaded.worker.evaluate(() => new Promise((done) => setTimeout(done, 1000)));
-    expect(urls(loaded.context)).not.toContain(ONBOARDING);
+    expect(urls(loaded.context)).not.toContain(SETUP);
   } finally {
     await loaded.close();
     rmSync(profile, { recursive: true, force: true });
