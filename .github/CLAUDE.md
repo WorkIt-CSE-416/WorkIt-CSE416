@@ -224,6 +224,22 @@ not a re-run.
   pins it via `manifest.json`'s `key`, so it matches the id Chrome
   already assigns the unpacked dev build,
   `cpklhdkoafegnndlafmiceehfloodjgi`).
+  **All four must be Actions *secrets*, never Actions *variables*:**
+  a repo variable's value is plaintext, readable by anyone with
+  Settings access and unmasked in logs — found live on 2026-10-31, all
+  three sensitive values set as variables instead (the fourth, the
+  Store item id, under a typo'd name a variable never read by this
+  workflow at all). Fixed by resetting the OAuth client secret, minting
+  a fresh refresh token (Google's Desktop-app loopback flow:
+  `accounts.google.com/o/oauth2/v2/auth` with `redirect_uri=
+  http://localhost:<port>`, copy the `code` off the failed redirect's
+  address bar, then `POST oauth2.googleapis.com/token` for the
+  `refresh_token` — the OAuth Playground's "use your own credentials"
+  only works for a *Web application* client, which this one isn't),
+  deleting the leaked variables, and `gh secret set`-ing all four as
+  secrets. The workflow already read `secrets.*`, never `vars.*`, the
+  whole time — so this cost no code change, only means the publish job
+  silently couldn't have authenticated until the real secrets existed.
 - **The API can only update an existing Store item.** The very first
   submission — store listing, screenshots, privacy-practice
   justifications — is a one-time manual step in the Dashboard; this
