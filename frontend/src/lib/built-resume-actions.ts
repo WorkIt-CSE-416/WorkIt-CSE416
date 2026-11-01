@@ -3,6 +3,7 @@
 import { applicantCall, encodeId, type Result } from "@/lib/applicant-call";
 import type { BankEntry, Skill } from "@/lib/bank-actions";
 import type { ApplicantProfile } from "@/lib/profile-actions";
+import { revalidatingResumes } from "@/lib/resume-revalidate";
 
 /**
  * Built resumes (backend/app/routers/built_resumes.py), as server actions.
@@ -10,6 +11,11 @@ import type { ApplicantProfile } from "@/lib/profile-actions";
  * `error: string | null` and never throws. Files come back as base64, which
  * the browser turns into a download: a resume is tens of KB, far under
  * Vercel's 4.5 MB response limit.
+ *
+ * A write the Resumes page shows (Generate, Rename, Delete, the star) goes
+ * through `revalidatingResumes`, so a Back to a list of resumes reads it
+ * again. The editor's per-edit saves and Fit do not: each would render the
+ * editor's page, PDF and all, again (`lib/resume-revalidate.ts`).
  */
 
 export type BuiltResume = {
@@ -100,7 +106,9 @@ export async function listBuiltResumes(): Promise<Result<BuiltResume[]>> {
 /** Generate: a base resume with everything in the bank, "Resume #N" when
  *  no name is given. No limit: only uploads count toward the 5. */
 export async function generateResume(name?: string): Promise<Result<BuiltResume>> {
-  return call<BuiltResume>("", { method: "POST", body: JSON.stringify(name ? { name } : {}) });
+  return revalidatingResumes(
+    call<BuiltResume>("", { method: "POST", body: JSON.stringify(name ? { name } : {}) }),
+  );
 }
 
 /** A new name for the resume (KAN-258); its sent resumes keep theirs. */
@@ -108,18 +116,20 @@ export async function renameBuiltResume(
   resumeId: string,
   name: string,
 ): Promise<Result<BuiltResume>> {
-  return call<BuiltResume>(`/${id(resumeId)}`, {
-    method: "PATCH",
-    body: JSON.stringify({ name }),
-  });
+  return revalidatingResumes(
+    call<BuiltResume>(`/${id(resumeId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  );
 }
 
 export async function deleteBuiltResume(resumeId: string): Promise<{ error: string | null }> {
-  return call<null>(`/${id(resumeId)}`, { method: "DELETE" });
+  return revalidatingResumes(call<null>(`/${id(resumeId)}`, { method: "DELETE" }));
 }
 
 export async function setDefaultBuiltResume(resumeId: string): Promise<{ error: string | null }> {
-  return call(`/${id(resumeId)}/default`, { method: "PUT" });
+  return revalidatingResumes(call(`/${id(resumeId)}/default`, { method: "PUT" }));
 }
 
 /** The PDF, for the editor's preview and its Download PDF. Kept nowhere. */
