@@ -71,12 +71,13 @@ async def test_an_entry_with_only_a_section_and_title_is_read_back(student):
 
 async def test_copies_of_an_entry_share_a_copy_group(student):
     client, bank = student
-    job = {"section": "experience", "title": "Engineer", "organization": "Acme", "start_month": "2025-01-01"}
+    job = {"section": "experience", "title": "Engineer", "organization": "Acme", "start_month": "2025-01",
+           "end_kind": "present"}
     await client.post(f"{bank}/entries", json=job)
     # Case and outer spaces do not make a new job; other months do
     same = {**job, "title": " engineer ", "organization": "ACME"}
     await client.post(f"{bank}/entries", params={"allow_duplicate": "true"}, json=same)
-    await client.post(f"{bank}/entries", json={**job, "start_month": "2026-01-01"})
+    await client.post(f"{bank}/entries", params={"allow_duplicate": "true"}, json={**job, "start_month": "2026-01"})
 
     groups = [e["copy_group"] for e in (await client.get(bank)).json()["entries"]]
     assert len(groups) == 3 and all(groups)
