@@ -35,7 +35,7 @@ import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any
 
 # The bank's sections in resume order: models/dto.py's bank_section, whose
 # members compare equal to these strings. Skills come last, as their own list.
@@ -238,77 +238,3 @@ def view_from_reading(entries: Iterable[Any], skills: Iterable[tuple[str, str | 
         tuple(ViewSection(s, tuple(by_section[s])) for s in SECTIONS if s in by_section),
         tuple(ViewSkill(next(ids), name, group) for name, group in skills),
     )
-
-
-# Fit to One Page (KAN-218): what it cuts, least useful first. A base resume
-# has no job posting to rank against, so section and place stand in for
-# relevance: Leadership & Activities, Awards and Certifications give way
-# before Projects, Projects before Experience, and within a section the
-# bottom (oldest) entry before the top. Career-centre advice the order
-# follows: drop coursework once there is experience, keep 3 to 5 bullets on
-# the newest roles and 1 or 2 on older ones, and drop a weak entry whole
-# rather than cut every entry to one line (the first rule hid bullets
-# section by section and left a long resume a list of one-line entries).
-# Education and Skills are never cut, nor an entry's first bullet, nor the
-# top entry of Experience or Projects.
-LOW_SECTIONS = ("leadership", "awards", "certifications")
-FIT_SECTIONS = (*LOW_SECTIONS, "projects", "experience")
-
-
-def _per_section(experience: Any, projects: Any, low: Any) -> dict[str, Any]:
-    return {"experience": experience, "projects": projects, **dict.fromkeys(LOW_SECTIONS, low)}
-
-
-# Each step, in order: hide coursework (only beside Experience: with none,
-# it is a student's best evidence), cap each entry's bullets (the top
-# entry's cap, then every other entry's), or keep only the top entries of
-# each section. A step runs only past what the steps before it cut.
-FIT_STEPS = (
-    ("coursework", None),
-    ("bullets", _per_section((5, 4), (3, 3), (2, 2))),
-    ("bullets", _per_section((4, 3), (3, 2), (1, 1))),
-    ("entries", _per_section(4, 3, 2)),
-    ("bullets", _per_section((3, 2), (2, 2), (1, 1))),
-    ("entries", _per_section(3, 2, 1)),
-    ("bullets", _per_section((3, 2), (2, 1), (1, 1))),
-    ("entries", _per_section(2, 1, 0)),
-    ("bullets", _per_section((2, 1), (1, 1), (1, 1))),
-)
-
-
-@dataclass(frozen=True)
-class Cut:
-    '''One thing Fit to One Page hides: a bullet, a whole entry, or an
-    entry's coursework line (`kind` "bullet", "entry" or "coursework").'''
-
-    kind: Literal["bullet", "entry", "coursework"]
-    id: uuid.UUID
-
-
-def fit_order(view: ResumeView) -> list[Cut]:
-    '''What Fit to One Page hides from this view, in the order it hides
-    it (FIT_STEPS). Within a step: sections least useful first, the bottom
-    entry first, an entry's last bullet first.'''
-    by_section = {s.section: s.entries for s in view.sections}
-    shown = {e.id: list(e.bullets) for entries in by_section.values() for e in entries}
-    gone: set[uuid.UUID] = set()
-    order: list[Cut] = []
-    for kind, limits in FIT_STEPS:
-        if kind == "coursework":
-            if not by_section.get("experience"):
-                continue
-            order.extend(Cut(kind, e.id) for e in reversed(by_section.get("education", ())) if e.coursework)
-            continue
-        for section in FIT_SECTIONS:
-            entries = [e for e in by_section.get(section, ()) if e.id not in gone]
-            if kind == "entries":
-                floor = 0 if section in LOW_SECTIONS else 1
-                for entry in reversed(entries[max(limits[section], floor):]):
-                    gone.add(entry.id)
-                    order.append(Cut("entry", entry.id))
-                continue
-            for rank, entry in reversed(list(enumerate(entries))):
-                cap = max(1, limits[section][0 if rank == 0 else 1])
-                while len(shown[entry.id]) > cap:
-                    order.append(Cut("bullet", shown[entry.id].pop().id))
-    return order

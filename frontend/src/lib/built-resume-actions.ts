@@ -273,8 +273,8 @@ export async function saveLine(
 }
 
 /** Fit to One Page: the bullets it hid, `undo` (the PATCH body that shows
- *  everything it hid again, whole entries and coursework too) and the
- *  render after, which can still be 2 pages when nothing more could go. */
+ *  everything it hid again, whole entries and skills too) and the render
+ *  after, one page (docs/cut_to_one_page.md). */
 export async function fitToOnePage(resumeId: string): Promise<
   Result<{
     hidden: string[];

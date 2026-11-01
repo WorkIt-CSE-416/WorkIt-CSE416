@@ -191,7 +191,7 @@ async def test_render_says_how_many_lines_run_past_one_page(student):
     assert body["lines_over"] > 0
 
 
-async def test_fit_to_one_page_trims_every_entry_before_gutting_one_and_undo_brings_it_all_back(student):
+async def test_fit_to_one_page_trims_bullets_section_by_section_and_undo_brings_it_all_back(student):
     _tectonic_or_skip()
     client, me = student
     await _fill_bank(client, me)
@@ -204,23 +204,28 @@ async def test_fit_to_one_page_trims_every_entry_before_gutting_one_and_undo_bri
     body = res.json()
     assert body["render"]["page_count"] == 1
     hidden = body["hidden"]
-    # Coursework goes first, then each entry's last bullets; every entry
-    # keeps its first bullets, and more of them the more useful it is.
-    assert body["undo"]["entries"][0]["show_coursework"] is True
+    # With no job posting, each entry loses its last bullets first, and a
+    # section goes down to two bullets an entry before the next loses any
+    # (docs/cut_to_one_page.md): Leadership, then Projects, then the bottom
+    # job, then the top one.
     kept = {}
     for title, ids in made.items():
         gone = [b for b in ids if b in hidden]
         assert gone == ids[len(ids) - len(gone):]
         kept[title] = len(ids) - len(gone)
-    assert kept["Newer Job"] >= kept["Older Job"] >= kept["Big Project"] >= kept["Club Lead"] >= 1
-    assert kept["Newer Job"] >= 3
+    order = ["Club Lead", "Big Project", "Older Job", "Newer Job"]
+    assert kept["Club Lead"] < 9
+    for i, title in enumerate(order):
+        if kept[title] < 9:
+            assert all(kept[before] <= 2 for before in order[:i]), kept
+    # Coursework no longer goes first
+    assert "Relevant Coursework: Data Structures, Algorithms" in await _lines(client, me, resume_id)
     shown = {c["bullet_id"]: c["shown"] for c in (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()["bullets"]}
     assert all(shown[b] is False for b in hidden)
 
     # Undo is the editor's PATCH with the response's `undo` body
     await client.patch(f"{me}/built-resumes/{resume_id}/choices", json=body["undo"])
     assert (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["page_count"] == 2
-    assert "Relevant Coursework: Data Structures, Algorithms" in await _lines(client, me, resume_id)
 
 
 async def test_fit_on_a_one_page_resume_hides_nothing(student):

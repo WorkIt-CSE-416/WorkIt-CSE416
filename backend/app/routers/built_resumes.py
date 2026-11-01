@@ -66,10 +66,12 @@ GET    /applicants/{id}/built-resumes/{rid}/changed-at -> ResumeChanged {changed
        on a return to its tab after a while away (KAN-391). 404 for a
        resume that is not the applicant's.
 POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, undo, render}
-       Fit to One Page: hides coursework, bullets and whole entries, least
-       useful first (resume_view.fit_order), and renders again until the
-       resume is one page or nothing is left to cut, then shows again the
-       last round's cuts it turns out not to need. `undo` is the PATCH
+       Fit to One Page (docs/cut_to_one_page.md): hides bullets, whole
+       entries and skills in services/fit_page.py's order (by the posting's
+       rank on a tailored resume, by position on any other) until a render
+       is one page, which it always reaches. Each cut is checked against
+       the last render by prediction; a render confirms, about two in all.
+       It saves every cut together at the end. `undo` is the PATCH
        .../choices body that shows them all again.
        503 like render; a failed render saves nothing.
 GET    /applicants/{id}/built-resumes/{rid}/docx   -> the Word file, as an attachment:

@@ -64,8 +64,16 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   (`box_lines`, `WRAPPED_LINE`). Section headings and the space
   between entries have no box, and blocks move whole across the page
   break, so it can run several lines short (`line_count` is the shared
-  count): the editor's chip shows it, and Fit to One Page re-renders and
-  puts back what it did not need rather than trust it.
+  count): the editor's chip shows it. Fit to One Page does not use it.
+- **The markers also measure the page for Fit to One Page**
+  (`docs/cut_to_one_page.md`): `MARKS` writes the text area's top,
+  height and right edge (`Rendered.area`), read from TeX, so a change to
+  the paper, margins or font size needs no constant anywhere; each start
+  marker writes `\pagetotal` and `\pageshrink` as it is set
+  (`Rendered.shrinks`), how far the page's glue can squeeze; and
+  `\wipoint` marks where each skill line starts (`Rendered.points`), with
+  no box. None of them adds a node: the page stays the same with and
+  without markers, which `tests/test_resume_render.py` checks.
 - **Page count and missing characters come from Tectonic itself**: the page
   count from XeTeX's "Output written on ... (N pages" log line
   (`--keep-logs`), the missing characters from its "Missing character: There

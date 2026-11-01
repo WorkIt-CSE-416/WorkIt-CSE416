@@ -745,18 +745,29 @@ Find files with a directory listing; these are the rules for where code goes.
   row-less bullets. Typed wording is the resume's one local variant
   (`bank_bullet_variants.built_resume_id`); typing the original back
   deletes it; another resume's local variant is never offered. Fit to One
-  Page is `POST .../fit` (`fit_to_one_page`, order from
-  `resume_view.fit_order`), which renders between rounds, so it is slow
-  (two to six renders, about 0.3 s each) and its tests need Tectonic. It cuts in steps
-  (`FIT_STEPS`): coursework, then bullets past a cap per entry, then the
-  bottom entries of a section, each step across every section before the
-  next goes deeper. Never cut one section to one-line entries before the
-  others give anything: the first rule did, and a long resume came back a
-  list of one-line entries. Once it fits, it shows the last round's cuts
-  again one at a time while the page still fits (`FIT_PUT_BACK`):
-  `lines_over` runs short (a resume 7 lines over was still 6 over after
-  about 8 lines were hidden), and without it a test resume lost 3 items
-  it had room for. Undo sends the response's `undo` body. Tests:
+  Page is `POST .../fit` (`fit_to_one_page`; the design is
+  `docs/cut_to_one_page.md`, the code `services/fit_page.py`). It reads
+  the resume once, cuts it in memory and saves every cut together at the
+  end, so a failed render saves nothing. The order: bullets down to two
+  per entry, then to one, section by section (Awards, Certifications,
+  Leadership, Projects, Experience), then whole entries (Leadership,
+  Projects, Experience), with Skills, Awards and Certifications, and
+  Education on schedules opened by the share of those entries cut, and at
+  the last the floors (one skill line, one job, one school) too, so it
+  always reaches one page. A tailored resume is cut by its posting's rank
+  (`fit_scores`: `tailor.rank_shown` on the wording the resume shows, and
+  skill levels by whole word); any other by position. Each cut is checked
+  against the last render by subtraction (`Page.fits`), and a render
+  confirms: about two renders, three when a prediction runs a line
+  hopeful. Two things learned measuring it: the distance between two
+  items' tops varies (a tall character pushes a line 1.7 pt lower), so a
+  height is measured to the next item's top, not guessed from its box;
+  and TeX squeezes the glue between list items (about 2 pt a bullet)
+  rather than break the document's last page, so the check counts each
+  item's shrink, which the markers record (`Rendered.shrinks`). Without
+  the shrink it cut 2 to 4 bullets too many. Undo sends the response's
+  `undo` body. Tests: `tests/test_fit_page.py` (the plan, the check, and
+  real renders: two renders, at most one cut too many),
   `tests/test_resume_editor.py`.
 - **Only a send is a sent resume; a download keeps nothing** (KAN-267).
   The editor's Download takes `GET .../built-resumes/{rid}/render` (the PDF,

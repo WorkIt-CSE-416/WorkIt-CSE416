@@ -181,7 +181,7 @@ with the failure it prevents.
   proposals and no Done, and the editor marks each change and reverts it.
   Holds the skill placement rule. Read it before changing Tailor or its
   screen.
-- `docs/cut_to_one_page.md` — a draft, not built: Fit to One Page cuts
+- `docs/cut_to_one_page.md` — Fit to One Page, built (KAN-320): it cuts
   one item at a time, each checked by a prediction from one render and
   confirmed by a render at the end, with one database read and one write;
   bullets to two per entry, then to one, then whole entries (Leadership

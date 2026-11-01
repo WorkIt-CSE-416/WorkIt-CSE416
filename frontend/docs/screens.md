@@ -2700,13 +2700,14 @@ student who opened a resume from Experiences landed on another view.
   fix. On a phone it does not show while a line's sheet is open, which it
   would cover. The editor notices the change while rendering (the last
   count is kept in state), not in an effect.
-- **Fit to One Page is the API's** (`POST .../fit`): it cuts least useful
-  first, in steps across every section: coursework (beside Experience),
-  then bullets past a cap per entry, then the bottom entries of
-  Leadership, Awards and Certifications before Projects and Experience,
-  re-rendering until the page fits and putting back what it did not need
-  (`backend/CLAUDE.md`). It never cuts Education, Skills, an entry's first
-  bullet, or the top Experience and Projects entry.
+- **Fit to One Page is the API's** (`POST .../fit`,
+  `docs/cut_to_one_page.md`): bullets down to two per entry, then one,
+  then whole entries, least needed section first, with skills, awards,
+  certifications and schools on schedules, by the posting's rank on a
+  tailored resume and by position on any other. It always reaches one
+  page. Its `undo` can hold skills; Cut From Resume lists entries and
+  bullets only, so a cut skill comes back by Undo or the Experiences
+  picker.
 - **The Experiences picker** (`experiences-picker.tsx`, KAN-440): the whole
   bank beside the PDF, where a student picks what the resume shows. The
   resume is the part of the bank that is on, so each entry, bullet and skill

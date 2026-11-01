@@ -1096,7 +1096,8 @@ export function Editor({
       announce(false);
       lastPdf.current = data.render;
       keepRendered(data.render);
-      const hid = data.undo.bullets?.length || data.undo.entries?.length;
+      const hid =
+        data.undo.bullets?.length || data.undo.entries?.length || data.undo.skills?.length;
       if (hid) {
         cutsNow.current = addCuts(cutsNow.current, data.undo);
         setCuts(cutsNow.current);

@@ -1,7 +1,8 @@
 # Cut to One Page
 
-A draft design, not built. It changes what Fit to One Page (KAN-218) cuts
-and how it stops. Every resume follows the same section order, stages,
+Built (KAN-320): `backend/app/services/fit_page.py`, run by
+`built_resumes.fit_to_one_page`. It changed what Fit to One Page (KAN-218)
+cuts and how it stops. Every resume follows the same section order, stages,
 floors and entry percentages, and is cut until it is one page; only the
 order inside a section differs:
 
@@ -58,9 +59,9 @@ but the render says the page is over, step 3 still takes the next cut.
 Without this rule, a prediction that is wrong by a line would render the
 same resume forever.
 
-**Fit always ends at one page**: the stages ("The stages") go on until
-only the floors are left (one Experience entry with one bullet, one
-school, one skill line, and the header), and those fit.
+**Fit always ends at one page**: the stages ("The stages") go on, past
+the floors if they must (stage 4, under "Floors"), until the page fits.
+At the very worst only the header is left, and it fits.
 
 This replaces today's batches: no cuts taken by `lines_over`, no
 `FIT_ROUNDS` limit, and no put-back renders (`FIT_PUT_BACK`). The
@@ -94,20 +95,32 @@ page and position (`Rendered.boxes`, PDF points, `y` growing down). From
 one render:
 
 - **An item's height** is the distance from its top to the top of the
-  next item on the same page, so it includes the space after it. Today's
-  `lines_over` counts only the lines inside boxes and runs short, because
+  next item on the same page, so it includes the space after it. The old
+  `lines_over` counted only the lines inside boxes and ran short, because
   headings and the space between entries have no box; a distance has no
-  such gap. The last item on a page uses its own box height plus the
-  usual space between items of its kind.
+  such gap. It is measured, never guessed from the box: two bullets'
+  tops sat 12.2 pt apart or 13.9 pt apart in one render, as a tall
+  character pushes a line down. The last item in its entry or section, or
+  one at a page break, uses its boxes' extent plus the usual space
+  between items of its kind.
 - **An entry's height** runs from its first field's top to the next
   entry's top; its bullets are part of it.
 - **A section heading's height** is the gap above the section's first
   entry, less the usual space between entries. When a cut empties a
   section, the heading goes too.
 - **The predicted height** is the sum of every item's height, plus each
-  heading's, plus the header's. It ignores the empty space at the foot of
-  page 1 that a block moved whole to page 2 leaves: once the resume fits,
-  nothing moves.
+  heading's, plus the header's (`Page.used`). It is a sum, not a reading
+  of where the last line landed: it ignores the empty space at the foot of
+  page 1 that a block moved whole to page 2 leaves, since once the resume
+  fits, nothing moves.
+- **What the glue can give.** TeX squeezes the space between list items
+  (about 2 pt a bullet in Jake's) rather than break the document's last
+  page, so a page holds more than its height. Each start marker records
+  `\pagetotal` and `\pageshrink` as it is set (`Rendered.shrinks`); an
+  item's shrink is the page's shrink from its marker to the next. The
+  page fits while the predicted height, less what the remaining items'
+  glue can give, is at most the text height. Without this, Fit cut 2 to 4
+  bullets the page had room for.
 - **The page** fits while the predicted height is at most the text
   height. The boxes cannot give it, so the render reports it: `MARKS`
   also writes `\textheight` and the top of the text area to `resume.pos`
@@ -115,10 +128,12 @@ one render:
   `jakes.tex` stays byte for byte. The preamble's paper size, margins and
   font size option all set the text height, so a value copied from it
   would go wrong without warning when any of them changed.
-- **A skill line's width** is read from each skill's box (`x0`, `x1`). A
-  wrapped line is trimmed by dropping skills from its cut order until the
-  widths, with the space after each comma, fit on one line. Its saving is
-  one line's height for each line it no longer wraps onto.
+- **A skill line's width** is read from each skill's box (`x0`, `x1`),
+  its left edge from a `\wipoint` at the line's start (`Rendered.points`),
+  which also gives the label's width. A wrapped line is trimmed by
+  dropping skills from its cut order until the label, the widths and the
+  spaces between them fit on one line. Its saving is one line's height
+  for each line it no longer wraps onto.
 
 A cut never changes how another line wraps, because the text width stays
 fixed. That is what makes the subtraction safe.
@@ -201,7 +216,7 @@ same way when their schedule opens.
 | Level | The skill appears in |
 |---|---|
 | 2 | the posting's job sections (`job_part`) |
-| 1 | not the posting, but a shown bullet or an entry's tools |
+| 1 | not the posting, but one of the resume's shown bullets |
 | 0 | neither |
 
 Lower levels go first. Inside a level, the skill at the end of its group
@@ -291,7 +306,8 @@ the rest with their school.
 
 ## Floors
 
-Three limits hold through every stage:
+Three limits hold through stages 1 to 3 (stage 4, below, is the one
+exception):
 
 - **Experience keeps at least one entry**: the top-scored one with a
   posting, the top one without. A resume needs one job.
@@ -303,10 +319,22 @@ holds until stage 2, one bullet per entry until stage 3. Leadership and
 Projects can go empty in stage 3, and Awards and Certifications at 10%,
 their headings with them.
 
-**Fit always ends at one page.** What never goes is the header, one
-Experience entry with one bullet, one school and one skill line, and
-those fit on a page. Stage 3 and the schedules go on until they are all
-that is left, at the latest.
+**Stage 4, the last resort: the floors go too.** There is always room to
+cut to one page. When stage 3 and every schedule cut are done (or cannot
+open) and the page is still over, the floors give way one at a time, in
+this order:
+
+1. **Skills**: the last skill line, so the whole Skills section goes.
+2. **Projects**: any entry still left, lowest-ranked (or bottom) first.
+3. **Experience**: its last entry.
+4. **Education**: its last school.
+
+Before stage 4, a small resume first runs its schedules to their floors
+("When stage 3 runs out first"): skill lines go until one is left, then
+schools until one is left. Only then does stage 4 start.
+
+**Fit always ends at one page.** After stage 4, only the header is left,
+and it fits. On a real resume Fit stops long before that.
 
 **Example.** Two Experience entries, two Projects, one Leadership entry
 and two Awards, each job, project and role with six long bullets, at a
@@ -322,46 +350,39 @@ two Projects, one Leadership):
    Then Projects go from the lowest-ranked, and so on until the page
    fits.
 
-## What changes in code
+## The code
 
-- `fit_order` takes the scores as arguments (bullet ranks and skill levels,
-  or none for the position order) and stays a pure function, so
-  `tests/test_fit_order.py` can test it with no database. It gives the next
-  cut from the current view and the cuts made so far.
-- A pure measuring function: from a render's boxes, each item's height,
-  each heading's height, each skill line's widths and the page's text
-  height. A pure prediction then takes those and a list of cuts and says
-  whether the page fits. Both test from saved boxes, with no Tectonic.
-- `fit_to_one_page` runs the cycles above. `FIT_STEPS`, `FIT_ROUNDS`,
-  `FIT_PUT_BACK` and the batching by `_cut_lines` and `lines_over` go,
-  and so do the save and `load_view` inside each round.
-- A pure function that applies cuts to a view and returns the smaller
-  view, for the confirm render. The one save at the end goes through
-  `fit_changes` as today.
-- A test that renders real resumes and checks the prediction against the
-  confirm render, so a template change that breaks the measuring fails
-  in CI, not in front of a student.
-- A ranking function that takes the view's bullets (id and text) and the
-  posting text, and ranks the text it is given. Tailor keeps
-  `rank_bullets`; it ranks before any rewrite, so the bank's wording is
-  what it should read. (It differs from the source resume only where that
-  resume shows its own wording; this design does not change Tailor.)
-- `Cut.kind` gains `"skill"`. `fit_changes` and the choices PATCH hide a
-  skill the way they hide a bullet.
-- `backend/CLAUDE.md` (Fit to One Page: the steps, "never cut one section
-  to one-line entries before the others give anything", the put-back),
-  the comment above `FIT_STEPS`, and "Education and Skills are never cut"
-  change with the code.
+- `services/fit_page.py`, pure (no database, no render): `plan` (every
+  cut, in order, as steps; a step is one bullet or entry, or the skills a
+  line loses together), `Page` (one render measured: `used`, `saved`,
+  `shrink`, `fits`), `apply_cuts` (the view with cuts made, for the
+  confirm render), `skill_levels`, and `fit`, the loop.
+- `built_resumes.fit_to_one_page` reads the view, gets the scores
+  (`fit_scores`), runs `fit_page.fit` and saves the cuts through
+  `fit_changes` and `update_choices`. `fit_scores` returns None (position
+  order) with no posting, one no longer listed, or one with no
+  description; it reads the posting's cached keywords only and spends no
+  AI use.
+- `tailor.rank_shown` ranks the view's wording, sent as parameters;
+  Tailor keeps `rank_bullets`, which ranks before any rewrite.
+- The renderer reports the text area, each skill line's start and each
+  marker's shrink (`resume_render/CLAUDE.md`); the page stays the same
+  with and without markers.
+- `Cut.kind` is `bullet`, `entry` or `skill`; the response's `undo` holds
+  skills too. The editor's Cut From Resume lists entries and bullets
+  only, so a cut skill comes back by Undo or the Experiences picker.
+- Tests: `tests/test_fit_page.py` (the plan, the check, and real renders:
+  one page in at most three renders, at most one cut too many) and
+  `tests/test_resume_editor.py`.
 
 ## Still open
 
-- **Stretchy space.** TeX can stretch or shrink some vertical space a
-  little, so near the page's foot a prediction can be off by about a
-  line. A second cycle catches a prediction that is too hopeful. One that
-  is too careful costs the student one item the page had room for; a
-  put-back render (show the last cut again, keep it shown if the page
-  still fits) would fix that for one more render. Measure how often it
-  happens on real resumes before adding it.
+- **A prediction can still be off by a line.** On real renders it hit
+  the exact cut, or was one too careful (one item the page had room
+  for), or two too hopeful (caught by a second cycle, one cut too many).
+  A put-back render (show the last cut again, keep it shown if the page
+  still fits) would win back the one item for one more render. Measure
+  how often it happens on students' resumes before adding it.
 - **The prediction assumes a one-column layout.** Every height, width
   and space is read from the render, never from `jakes.py`. But removing
   an item moves the rest up only when items stack in one column at a
