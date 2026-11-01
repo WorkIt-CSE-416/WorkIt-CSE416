@@ -7,25 +7,33 @@ import { Logo } from "@/components/logo";
 
 export const metadata: Metadata = {
   title: "Set Up the Extension",
-  description: "How to use the WorkIt extension to autofill job applications.",
+  description: "How to set up WorkIt's extension and account before your first autofill.",
 };
 
 const STEPS: { title: string; body: ReactNode }[] = [
   {
-    title: "Sign in to WorkIt",
-    body: "The extension has no sign-in of its own — it uses whichever WorkIt session is already open in your browser.",
+    title: "Turn off other autofillers, and pin WorkIt",
+    body: "Turn off any other job-application autofiller (Simplify, Jobright, and similar tools), so only WorkIt fills your forms — two autofillers on one page can fight over the same field. Then pin WorkIt: click the puzzle-piece icon beside your address bar, then the pin beside WorkIt, so it stays one click away.",
   },
   {
-    title: "Open a job posting",
-    body: "Go to a job posting on a hiring system WorkIt fills, such as Greenhouse, Lever or Workday.",
+    title: "Create your free WorkIt account",
+    body: "Sign up with Google, LinkedIn, or your email — it takes a minute.",
   },
   {
-    title: "Click the WorkIt icon",
-    body: "Click the WorkIt icon in your Chrome toolbar. Pin it so it stays one click away.",
+    title: "Confirm your email, if you signed up with one",
+    body: "Signed up with Google or LinkedIn? You're already confirmed — skip this. Signed up with email and password? Click the confirmation link WorkIt emails you before you sign in.",
   },
   {
-    title: "Press “Autofill This Page”",
-    body: "Review every field it fills, then press the hiring system’s own Submit button yourself — WorkIt never submits for you.",
+    title: "Finish onboarding",
+    body: "WorkIt walks you through your résumé, your school, and your job preferences.",
+  },
+  {
+    title: "Add your experience",
+    body: "Open the Resumes & Experiences page and add your work history and skills, so WorkIt has real detail to write into each application.",
+  },
+  {
+    title: "Try the practice application, then go live",
+    body: "Onboarding ends with a safe practice run — no real company sees it — so you can watch the extension work first. After that, open a real job posting, click the WorkIt icon, and press Autofill This Page. Review every field, then press the hiring site's own Submit yourself — WorkIt never submits for you.",
   },
 ];
 
@@ -43,10 +51,10 @@ export default function ExtensionSetupPage() {
       <div className="w-full max-w-2xl">
         <Logo size="card" className="mx-auto" />
 
-        <h1 className="text-title text-ink mt-4 text-center">Set Up the WorkIt Extension</h1>
+        <h1 className="text-title text-ink mt-4 text-center">Thanks for Choosing WorkIt</h1>
         <p className="text-body text-ink-muted mt-2 text-center">
-          The extension fills each application form in its own tab. You review every tab and press
-          the form&apos;s Submit yourself; it never submits for you.
+          We help make your job search easier and less stressful. Before WorkIt can start filling
+          out applications for you, set up your browser with the steps below.
         </p>
 
         <ol className="mt-8 flex flex-col gap-4">
@@ -66,9 +74,12 @@ export default function ExtensionSetupPage() {
           ))}
         </ol>
 
-        <div className="mt-8 flex justify-center">
-          <ButtonLink href="/login" size="lg">
-            Open WorkIt
+        <div className="mt-8 flex justify-center gap-3">
+          <ButtonLink href="/signup" size="lg">
+            Create Your Account
+          </ButtonLink>
+          <ButtonLink href="/login" variant="secondary" size="lg">
+            I Already Have One
           </ButtonLink>
         </div>
       </div>
