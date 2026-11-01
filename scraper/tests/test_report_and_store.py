@@ -229,5 +229,191 @@ class TestRest:
         assert store.load(path).health == run.health
 
 
+class TestFingerprint:
+    """A board whose kept postings hash identically on consecutive reads rests,
+    doubling from 4 hours to 24 hours. A changed fingerprint resets the count."""
+
+    board = Board("greenhouse", "acme", "Acme")
+
+    def read(
+        self, previous: Store | None, now: str, *jobs: Job, fp: str | None = None,
+    ) -> Store:
+        key = self.board.key
+        fingerprints = {key: fp} if fp is not None else None
+        return store.update(
+            previous, list(jobs), [key], RunStats(), now, fingerprints=fingerprints,
+        )
+
+    def test_first_read_gets_fingerprint_no_rest(self):
+        fp = store.fingerprint(["a", "b"])
+        run = self.read(None, MON, fp=fp)
+        reads = run.boards[self.board.key]
+        assert reads.fingerprint == fp
+        assert reads.unchanged_reads == 0
+        assert reads.fingerprint_until is None
+
+    def test_second_read_same_ids_rests_four_hours(self):
+        fp = store.fingerprint(["a", "b"])
+        run = self.read(self.read(None, MON, fp=fp), TUE, fp=fp)
+        reads = run.boards[self.board.key]
+        assert reads.unchanged_reads == 1
+        assert reads.fingerprint_until == _plus(TUE, 4)
+
+    def test_third_unchanged_rests_eight_hours(self):
+        fp = store.fingerprint(["x"])
+        run = self.read(None, MON, fp=fp)
+        run = self.read(run, TUE, fp=fp)
+        run = self.read(run, _plus(TUE, 5), fp=fp)
+        reads = run.boards[self.board.key]
+        assert reads.unchanged_reads == 2
+        assert reads.fingerprint_until == _plus(TUE, 5 + 8)
+
+    def test_cap_at_24_hours(self):
+        fp = store.fingerprint([])
+        run = self.read(None, MON, fp=fp)
+        for i in range(1, 8):
+            run = self.read(run, _plus(MON, i * 25), fp=fp)
+        reads = run.boards[self.board.key]
+        assert reads.unchanged_reads == 7
+        # 4h * 2^6 = 256h, capped to 24h
+        assert reads.fingerprint_until == _plus(MON, 7 * 25 + 24)
+
+    def test_changed_fingerprint_resets_count(self):
+        fp1 = store.fingerprint(["a"])
+        fp2 = store.fingerprint(["a", "b"])
+        run = self.read(self.read(None, MON, fp=fp1), TUE, fp=fp1)
+        assert run.boards[self.board.key].unchanged_reads == 1
+        run = self.read(run, THU, fp=fp2)
+        reads = run.boards[self.board.key]
+        assert reads.unchanged_reads == 0
+        assert reads.fingerprint == fp2
+        assert reads.fingerprint_until is None
+
+    def test_fingerprint_resting_board_excluded_from_to_read(self):
+        fp = store.fingerprint(["a"])
+        j = job("a", token="acme")
+        run = self.read(self.read(None, MON, j, fp=fp), TUE, j, fp=fp)
+        assert run.boards[self.board.key].fingerprint_until is not None
+        # Within rest window: excluded
+        assert run.to_read([self.board], _plus(TUE, 2)) == []
+        # After rest window: included (board is hot, so quiet stagger does not apply)
+        assert run.to_read([self.board], _plus(TUE, 5)) == [self.board]
+
+    def test_full_reads_fingerprint_resting_boards(self):
+        fp = store.fingerprint(["a"])
+        j = job("a", token="acme")
+        run = self.read(self.read(None, MON, j, fp=fp), TUE, j, fp=fp)
+        assert run.to_read([self.board], _plus(TUE, 2), everything=True) == [self.board]
+
+    def test_round_trip(self, tmp_path: Path):
+        fp = store.fingerprint(["a", "b"])
+        run = self.read(self.read(None, MON, fp=fp), TUE, fp=fp)
+        path = tmp_path / "jobs.json"
+        store.save(run, path)
+        loaded = store.load(path)
+        assert loaded.boards == run.boards
+
+    def test_old_store_without_fingerprint_loads_and_does_not_rest(self, tmp_path: Path):
+        run = scrape(None, MON, job("1"))
+        path = tmp_path / "jobs.json"
+        store.save(run, path)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        # Simulate an old store that has no fingerprint fields
+        for reads in payload["boards"].values():
+            reads.pop("fingerprint", None)
+            reads.pop("unchanged_reads", None)
+            reads.pop("fingerprint_until", None)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        loaded = store.load(path)
+        for reads in loaded.boards.values():
+            assert reads.fingerprint is None
+            assert reads.unchanged_reads == 0
+            assert reads.fingerprint_until is None
+        # The first read after loading an old store must not trigger rest,
+        # because old.fingerprint is None and the condition requires it not None.
+        fp = store.fingerprint(["1"])
+        updated = self.read(loaded, TUE, job("1", token="acme"), fp=fp)
+        reads = updated.boards[self.board.key]
+        assert reads.unchanged_reads == 0
+        assert reads.fingerprint_until is None
+
+    def test_empty_board_fingerprints_and_rests(self):
+        # A board read OK with zero kept postings hashes the empty list.
+        fp = store.fingerprint([])
+        run = self.read(None, MON, fp=fp)
+        assert run.boards[self.board.key].fingerprint == fp
+        assert run.boards[self.board.key].unchanged_reads == 0
+        # Second empty read: rests 4 hours.
+        run = self.read(run, TUE, fp=fp)
+        assert run.boards[self.board.key].unchanged_reads == 1
+        assert run.boards[self.board.key].fingerprint_until == _plus(TUE, 4)
+
+    def test_a_missed_posting_changes_the_fingerprint_so_it_cannot_rest(self):
+        # A board with postings a and b. The next read sees only a: the fingerprint
+        # changes (b is gone), so unchanged_reads resets and the board does not rest.
+        # This proves missed-once and fingerprint rest are mutually exclusive.
+        fp_ab = store.fingerprint(["a", "b"])
+        fp_a = store.fingerprint(["a"])
+        j_a = job("a", token="acme")
+        j_b = job("b", token="acme")
+        run = self.read(None, MON, j_a, j_b, fp=fp_ab)
+        run = self.read(run, TUE, j_a, fp=fp_a)
+        reads = run.boards[self.board.key]
+        assert reads.unchanged_reads == 0
+        assert reads.fingerprint_until is None
+        assert run.missed_once() == {self.board.key}
+
+    def test_fingerprint_is_order_independent(self):
+        assert store.fingerprint(["b", "a"]) == store.fingerprint(["a", "b"])
+        assert store.fingerprint(["c", "a", "b"]) == store.fingerprint(["a", "b", "c"])
+
+    def test_health_rest_blocks_even_when_fingerprint_rest_expired(self):
+        # A board that failed 3 times is health-resting. Even if its fingerprint
+        # rest has expired, health rest still blocks it -- including with --full.
+        fp = store.fingerprint(["a"])
+        j = job("a", token="acme")
+        run = self.read(self.read(None, MON, j, fp=fp), TUE, j, fp=fp)
+        # Board is fingerprint-resting until TUE + 4h.
+        assert run.fingerprint_resting(_plus(TUE, 2)) == {self.board.key}
+        # Now make the board fail 3 times to enter health rest.
+        for i in range(3):
+            run = store.update(
+                run, [], [], RunStats(unread={self.board.key: "403"}), _plus(TUE, 5 + i),
+            )
+        assert self.board.key in run.health
+        # Fingerprint rest has expired (TUE + 4h < TUE + 8h), but health rest blocks.
+        assert run.to_read([self.board], _plus(TUE, 8)) == []
+        # Even --full cannot override health rest.
+        assert run.to_read([self.board], _plus(TUE, 8), everything=True) == []
+
+    def test_second_missing_clears_fingerprint_fields(self):
+        fp = store.fingerprint(["a"])
+        j = job("a", token="acme")
+        run = self.read(self.read(None, MON, j, fp=fp), TUE, j, fp=fp)
+        assert run.boards[self.board.key].fingerprint == fp
+        # First "no such board": noted, fingerprint stays.
+        run = store.update(run, [], [], RunStats(), THU, missing=[self.board.key])
+        assert run.boards[self.board.key].fingerprint == fp
+        # Second: closes its postings and clears fingerprint fields.
+        run = store.update(
+            run, [], [], RunStats(), _plus(THU, 3), missing=[self.board.key],
+        )
+        reads = run.boards[self.board.key]
+        assert reads.fingerprint is None
+        assert reads.unchanged_reads == 0
+        assert reads.fingerprint_until is None
+
+    def test_fingerprint_rest_doubling_sequence(self):
+        rests = [store.fingerprint_rest(n) for n in range(6)]
+        assert rests == [
+            None,
+            timedelta(hours=4),
+            timedelta(hours=8),
+            timedelta(hours=16),
+            timedelta(hours=24),
+            timedelta(hours=24),
+        ]
+
+
 def _plus(at: str, hours: int) -> str:
     return (datetime.fromisoformat(at) + timedelta(hours=hours)).isoformat()
