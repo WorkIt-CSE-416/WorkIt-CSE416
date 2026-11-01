@@ -23,10 +23,8 @@ import {
   type ReactNode,
 } from "react";
 
-import { ChevronDownIcon } from "@/components/icons";
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -1975,12 +1973,7 @@ function SlimBar({
     <div data-keeps-selection className={SLIM_BAR}>
       <History tools={history} />
       {rendered && rendered.page_count > 1 && (
-        <PagesChip
-          pages={rendered.page_count}
-          linesOver={rendered.lines_over}
-          disabled={saving}
-          onFit={onFit}
-        />
+        <PagesChip pages={rendered.page_count} linesOver={rendered.lines_over} />
       )}
       {experiences && (
         // A button of the bar's own weight, as Download is: it is the way to
@@ -1996,6 +1989,20 @@ function SlimBar({
           onClick={experiences.onToggle}
         >
           <StackIcon aria-hidden /> Add Experiences
+        </Button>
+      )}
+      {rendered && rendered.page_count > 1 && (
+        // Over one page only, in the warning sign's own amber, so the fix
+        // stands beside the count it answers. It sat inside the chip's
+        // popover until 2026-11-01, one click away, and was missed
+        <Button
+          size="sm"
+          title="Hide the least useful lines until the resume fits on one page"
+          className="bg-warning-strong hover:bg-warning-strong/90 border-transparent text-white"
+          disabled={saving}
+          onClick={onFit}
+        >
+          <ScissorsIcon aria-hidden /> Fit to One Page
         </Button>
       )}
       {experiences?.cut && (
@@ -2063,47 +2070,24 @@ function SideSwitch({ review }: { review: ReviewTools }) {
   );
 }
 
-/** The page count as a small amber chip with a warning sign and a caret,
- *  so it reads as a problem to open; its click offers Fit to One Page. As
- *  bare text ("2 pages") nobody took it for a button. */
-function PagesChip({
-  pages,
-  linesOver,
-  disabled,
-  onFit,
-}: {
-  pages: number;
-  linesOver: number;
-  disabled: boolean;
-  onFit: () => void;
-}) {
-  const [open, setOpen] = useState(false);
+/** The page count as a small amber chip with a warning sign. It names the
+ *  problem; the Fit to One Page button beside Add Experiences fixes it, so
+ *  the chip opens nothing. It was a popover with that button inside until
+ *  2026-11-01; students missed the fix a click away. Its title says by how
+ *  much (the render's `lines_over`, an estimate). */
+function PagesChip({ pages, linesOver }: { pages: number; linesOver: number }) {
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="bg-warning-tint text-warning text-note focus-visible:ring-brand-ring hover:ring-warning-fill flex items-center gap-1.5 rounded-full py-1 pr-2 pl-2 font-medium transition-shadow hover:ring-1 focus-visible:ring-2 focus-visible:outline-none">
-        <WarningIcon aria-hidden weight="fill" className="text-warning-strong size-4 shrink-0" />
-        {pages} pages
-        <ChevronDownIcon className="size-3.5" />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="flex w-72 flex-col gap-3">
-        <p className="text-note text-ink-muted">
-          {linesOver > 0
-            ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2.`
-            : `It runs to ${pages} pages.`}{" "}
-          Fit to One Page hides the least useful lines until it fits.
-        </p>
-        <Button
-          size="sm"
-          disabled={disabled}
-          onClick={() => {
-            setOpen(false);
-            onFit();
-          }}
-        >
-          <ScissorsIcon aria-hidden /> Fit to One Page
-        </Button>
-      </PopoverContent>
-    </Popover>
+    <span
+      title={
+        linesOver > 0
+          ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2`
+          : `It runs to ${pages} pages`
+      }
+      className="bg-warning-tint text-warning text-note flex items-center gap-1.5 rounded-full py-1 pr-2.5 pl-2 font-medium"
+    >
+      <WarningIcon aria-hidden weight="fill" className="text-warning-strong size-4 shrink-0" />
+      {pages} pages
+    </span>
   );
 }
 

@@ -271,8 +271,8 @@ weight.
   has since KAN-411. At the left, Undo and Redo, UI only
   for now (the editor keeps no history yet, so both stay disabled,
   2026-10-26), then the page count as an amber chip with a warning sign
-  and a caret ("⚠ 2 pages ⌄", over one page only), which reads as a
-  problem to open and offers Fit to One Page; Undo takes a fit back
+  ("⚠ 2 pages", over one page only) and an amber Fit to One Page button
+  (in a popover behind the chip until 2026-11-01); Undo takes a fit back
   (Undo Fit, a button of its own, went on 2026-11-01).
   At the right, Download, secondary: Finish is the page's one filled
   button, and a filled Download beside it competed. No Experiences picker (once "Not

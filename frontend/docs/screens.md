@@ -2318,7 +2318,7 @@ with no proposals to accept and no Done (2026-10-25).
   top row sits in the brand tint, rounded. The toolbar holds only tools
   for the page: at the left Undo and Redo (UI only for now, disabled)
   and, idle, the page count when over one page as an amber chip with a
-  warning sign and a caret (its click offers Fit to One Page); at the
+  warning sign, then Fit to One Page in amber; at the
   right Download, secondary. No Experiences picker on this page
   (the editor's own page has it); while a line is open, its moves, Hide and its choices with "Esc
   when done"; no Ask Scout and no Done. Each changed line has a small
@@ -2639,10 +2639,14 @@ student who opened a resume from Experiences landed on another view.
   Coursework; at the right, "Esc when done" in place of a Done button,
   since Escape or a click off the page already saves and closes. A press
   on a bar button keeps focus in the field. With no line selected, only
-  over one page, the page count as an amber chip with a warning sign and
-  a caret ("⚠ 2 pages ⌄"), which reads as a problem to open; its popover
-  says by how much (the render's `lines_over`, an estimate) and offers
-  Fit to One Page. A fit is one Undo step like any edit: Undo (or Cmd+Z)
+  over one page, the page count as an amber chip with a warning sign
+  ("⚠ 2 pages"; its title says by how much, the render's `lines_over`, an
+  estimate), and **Fit to One Page** as a filled button in the warning
+  sign's amber (`warning-strong`) right after Add Experiences. The chip
+  opens nothing: until 2026-11-01 it was a popover with Fit inside, and
+  students missed the fix a click away. White text on that amber is about
+  3.2:1, under the 4.5:1 small text wants; `warning-deep` (4.9:1) is the
+  fallback if that matters more than matching the sign. A fit is one Undo step like any edit: Undo (or Cmd+Z)
   shows again everything it hid (the response's `undo` body), and Redo
   hides it again. Its own Undo Fit button, kept in sessionStorage per
   resume, went on 2026-11-01: it was a second way to do what Undo does.

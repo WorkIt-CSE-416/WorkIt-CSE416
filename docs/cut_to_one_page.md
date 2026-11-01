@@ -10,8 +10,9 @@ floors and entry percentages; only the order inside a section differs:
   position: the bottom entry and the last bullet go first, as today.
 
 Sections give way in a fixed order, the least needed first: Awards,
-Certifications, Education, Leadership, Projects, Experience. Fit can now
-cut skills and Education. It checks the page after every single cut by
+Certifications, Leadership, Projects, Experience. Skills and Education
+can now be cut too, each on its own schedule, opened as more of those
+entries go. It checks the page after every single cut by
 prediction, not by rendering: it renders once at the start, predicts each
 cut's effect from that render's boxes, and renders once at the end to
 confirm. It reads the database once at the start and writes once, after
@@ -137,12 +138,15 @@ A cut never changes another item's score.
 Entries, and bullets in the last step, are cut one section at a time, the
 least needed section first:
 
-**Awards → Certifications → Education → Leadership → Projects →
-Experience**
+**Awards → Certifications → Leadership → Projects → Experience**
 
 A section gives way down to its floor (below) before the next section
 loses anything. Inside a section, the order is by rank or by position
-(next).
+(next). Awards and Certifications can be deleted entirely.
+
+Education and Skills are not in this order. Each has its own schedule,
+opened by how many entries the order above has cut ("The steps"), so the
+student's school and skills go only once most of the rest is gone.
 
 This reverses a lesson in `backend/CLAUDE.md`: today every section gives a
 little before any section gives a lot, because emptying one section first
@@ -152,6 +156,9 @@ Certifications matter less than the student's work, so they go first.
 Coursework has no rule of its own any more. Today it was the first cut
 whenever the resume had Experience; now it stays with its Education entry
 and goes only when that entry goes.
+
+In this note, a **skill line** is one group as it prints ("Languages:
+Python, Java"), and an **Education entry** is one school.
 
 ## The order inside a section
 
@@ -178,7 +185,8 @@ bullet would punish an entry for one weak bullet that a cut can remove; a
 sum would favour long entries. An entry with fewer than two bullets uses
 what it has; an entry with none scores 0, which is most Education,
 Awards and Certifications entries. The lowest-scored entry of the section
-goes first. Ties: the bottom entry first.
+goes first. Ties: the bottom entry first. Education entries are ranked the
+same way when their schedule opens.
 
 **Skills.** Each skill is checked with the whole-word rule
 (`keywords._shows`, with the skill catalog's other spellings,
@@ -208,37 +216,66 @@ bullet 0 and gives no level 2, so it uses the position order instead.
 
 ## The steps
 
-The percentages count every entry the resume shows at the start of the
-run, Education included. "Cut" counts the entries hidden so far in this
-run.
+The percentages count the entries in the section order (Awards,
+Certifications, Leadership, Projects, Experience) at the start of the
+run. Education is not counted: its own cuts are opened by the count, so
+counting them would let Education open its own next cut. "Cut" counts the
+entries hidden so far in this run.
 
-1. **Entries**, in the section order, then by rank or position inside
-   each section. This is the main cut and goes on through every step
-   below.
-2. **From 10% of entries cut: trim wrapped skill lines.** A skill line that
-   runs onto two or more lines loses skills until it fits on one line. A
-   skill cut from a one-line group saves no line, so it is never made
-   here. Whether a line wraps, and how many skills it must lose, is read
-   from the cycle's render ("Measuring from the boxes").
-3. **From 50% of entries cut: cut one whole skill line.**
-4. **From 75% of entries cut: cut one more whole skill line.**
-5. **Bullets, last**, in the section order. An entry over two bullets
-   loses bullets down to two.
+**Entries** are the main cut: the section order, then rank or position
+inside each section, from the first cut to the last. The Skills and
+Education schedules open alongside them:
+
+| Entries cut | Skills | Education |
+|---|---|---|
+| 10% | Trim wrapped skill lines | Delete wrapped bullets |
+| 50% | Delete one skill line | |
+| 75% | Delete one more skill line | |
+| 80% | | Delete one Education entry |
+| 85% | Delete one more skill line | |
+| 90% | | Delete one more Education entry |
+| 95% | Delete one more skill line | |
+
+- **Trim wrapped skill lines.** A skill line that runs onto two or more
+  lines loses skills until it fits on one line. A skill cut from a
+  one-line group saves no line, so it is never made.
+- **Delete wrapped bullets in Education.** An Education bullet that runs
+  onto two or more lines is deleted whole. A one-line bullet stays.
+- **Delete a skill line**: the line with the lowest total level, or the
+  bottom line with no posting. After 75%, one more line each 10%.
+- **Delete an Education entry**: the lowest-scored school, or the bottom
+  one with no posting. From 80%, one more each 10%.
+- Whether a line wraps, and how many skills it must lose, is read from
+  the cycle's render ("Measuring from the boxes").
+
+**Bullets go last**, in the section order, once every entry cut the
+floors allow is made: an entry over two bullets loses bullets down to
+two.
 
 Cuts of different kinds interleave by the step they are allowed in: once
-10% of entries are gone, the next cut is a wrapped skill trim if one is
-left, else the next entry.
+a percentage is reached, its Skills and Education cuts come before the
+next entry. Each opened cut is made once; the next percentage opens the
+next one.
 
 ## Floors
 
 - **Each shown entry keeps at least two bullets.** An entry with fewer
-  than two to start with keeps all of them.
-- **The Skills section keeps at least one line.**
-- **Education, Projects and Experience each keep one entry**: the
-  top-scored one with a posting, the top one without. A resume with no
-  school, or none of the student's work, is not a resume. Awards,
-  Certifications and Leadership can go empty, and their headings go with
-  them.
+  than two to start with keeps all of them. Education's wrapped bullets
+  are the one exception: they can go below two, since a school is read by
+  its name and degree, not its bullets.
+- **Skills keeps at least one line**, whatever the schedule opens.
+- **Education keeps at least one entry**, whatever the schedule opens.
+- **Projects and Experience each keep one entry**: the top-scored one
+  with a posting, the top one without. A resume with none of the
+  student's work is not a resume.
+- **Awards, Certifications and Leadership can go empty**, and their
+  headings go with them.
+
+**The floors can keep a schedule from opening.** A resume with two
+Experience entries, two Projects and one Leadership entry has five
+counted entries, and the floors let only three go (60%). Its 75% skill
+cut and its Education entry cuts never open. Fit then moves to the
+bullets, and stops with the resume over one page if they are not enough.
 
 ## What changes in code
 
