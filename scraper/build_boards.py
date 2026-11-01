@@ -42,8 +42,7 @@ import json
 import re
 from collections import Counter
 from collections.abc import Callable, Iterable
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
@@ -52,11 +51,15 @@ from workit_scraper.board_resolve import (
     GH_JID,
     ICIMS_HERE,
     SHORTENER,
-    TRIES,
+    ResolveLink,
     _get,
-    greenhouse_board,
-    icims_board,
-    unshortened,
+    resolve_links,
+)
+from workit_scraper.board_resolve import (
+    greenhouse_board as greenhouse_board,
+)
+from workit_scraper.board_resolve import (
+    icims_board as icims_board,
 )
 from workit_scraper.catalog import BOARDS_CSV, load_boards, write_boards
 from workit_scraper.discovery_sources import SOURCES
@@ -208,42 +211,19 @@ def resolve(
     """The boards behind the unread links of the kinds `--resolve` maps, each proved:
     a short link by where it leads, a careers page by the board that holds its
     posting. Open postings are tried first."""
+    result = resolve_links(
+        [
+            ResolveLink(x.link, x.company, active=x.active)
+            for x in unread
+            if x.active or not SHORTENER.search(x.link)
+        ],
+        robots,
+        get,
+    )
     found: dict[tuple[str, str], str] = {}
-    short = [x for x in unread if SHORTENER.search(x.link) and x.active]
-    with ThreadPoolExecutor(8) as pool:
-        targets = list(pool.map(lambda x: unshortened(x.link, robots, get), short))
-    led = [replace(x, link=t) for x, t in zip(short, targets, strict=True) if t]
-    for listing in led:
-        for key in tokens(listing.link):
-            found.setdefault(key, listing.company or key[1])
-    print(f"  {len(short):,} open short links: {len(led):,} led somewhere, {len(found):,} boards")
-
-    readers = {"greenhouse": greenhouse_board, "icims": icims_board}
-    groups: dict[tuple[str, str, str], list[Listing]] = {}
-    for listing in [x for x in unread if not SHORTENER.search(x.link)] + led:
-        if tokens(listing.link):
-            continue
-        ats = "greenhouse" if GH_JID.search(listing.link) else None
-        ats = ats or ("icims" if ICIMS_HERE.search(listing.link) else None)
-        if ats:
-            host = urlsplit(listing.link).hostname or ""
-            groups.setdefault((ats, host, listing.company), []).append(listing)
-
-    def one(group: tuple[tuple[str, str, str], list[Listing]]) -> tuple[str, str, str] | None:
-        (ats, _, company), listings = group
-        for listing in sorted(listings, key=lambda x: not x.active)[:TRIES]:
-            if token := readers[ats](listing.link, listing.company, robots, get):
-                return ats, token, company
-        return None
-
-    with ThreadPoolExecutor(8) as pool:
-        proved = [hit for hit in pool.map(one, groups.items()) if hit]
-    for ats, token, company in proved:
-        found.setdefault((ats, token), company or token)
-    for ats in readers:
-        tried = sum(1 for key in groups if key[0] == ats)
-        hits = sum(1 for hit in proved if hit[0] == ats)
-        print(f"  {ats} behind a company's site: {tried:,} companies tried, {hits:,} proved")
+    for hit in result.hits:
+        found.setdefault((hit.ats, hit.token), hit.link.company or hit.token)
+    print(f"  resolved {result.attempted} groups: {len(found)} boards")
     return found
 
 

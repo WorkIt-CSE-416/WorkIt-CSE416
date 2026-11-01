@@ -4,6 +4,7 @@ import os
 import pytest
 
 import discover_boards as discovery
+from workit_scraper import board_resolve
 from workit_scraper.discovery_channels import CollectionResult, Evidence
 from workit_scraper.providers import BoardNotFound, Incomplete
 
@@ -695,3 +696,104 @@ def test_resolve_not_called_without_flag(tmp_path, monkeypatch):
     assert not boards.exists()
     data = json.loads(report.read_text())
     assert data["unmatched"][0]["url"] == "https://go.vansh.nyc/o"
+
+
+def test_resolution_limit_does_not_block_direct_boards(tmp_path, monkeypatch, swap_provider):
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    swap_provider("lever", read=lambda *_: [])
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [
+                Evidence("https://careers.acme.com/?gh_jid=1", "Acme", "curated"),
+                Evidence("https://jobs.lever.co/delta/123", "Delta", "curated"),
+            ],
+            [],
+        ),
+    )
+    monkeypatch.setattr(discovery.web, "get", lambda *_a, **_k: pytest.fail("budget is zero"))
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    assert (
+        discovery.main(
+            [
+                "--channel",
+                "curated",
+                "--resolve",
+                "--resolve-limit",
+                "0",
+                "--apply",
+                "--boards",
+                str(boards),
+                "--report",
+                str(report),
+            ]
+        )
+        == 0
+    )
+    assert "lever,delta,Delta" in boards.read_text()
+    assert json.loads(report.read_text())["resolution"] == {
+        "total": 1,
+        "attempted": 0,
+        "deferred": 1,
+        "timed_out": False,
+        "next_offset": 0,
+    }
+
+
+def test_resolution_deadline_keeps_successes_and_continues_validation(
+    tmp_path,
+    monkeypatch,
+    swap_provider,
+):
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    swap_provider("greenhouse", read=lambda *_: [])
+    swap_provider("lever", read=lambda *_: [])
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [
+                Evidence("https://careers.acme.com/?gh_jid=1", "Acme", "curated"),
+                Evidence("https://careers.beta.com/?gh_jid=2", "Beta", "curated"),
+                Evidence("https://jobs.lever.co/delta/123", "Delta", "curated"),
+            ],
+            [],
+        ),
+    )
+    clock = [0.0]
+    monkeypatch.setattr(board_resolve.time, "monotonic", lambda: clock[0])
+    asked = []
+
+    def get(url, **kwargs):
+        asked.append(url)
+        clock[0] = 2.0
+        return b"{}"
+
+    monkeypatch.setattr(discovery.web, "get", get)
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    assert (
+        discovery.main(
+            [
+                "--channel",
+                "curated",
+                "--resolve",
+                "--resolve-seconds",
+                "1",
+                "--apply",
+                "--boards",
+                str(boards),
+                "--report",
+                str(report),
+            ]
+        )
+        == 0
+    )
+    catalog = boards.read_text()
+    assert "greenhouse,acme,Acme" in catalog
+    assert "lever,delta,Delta" in catalog
+    assert "Beta" not in catalog
+    assert len(asked) == 1
+    resolution = json.loads(report.read_text())["resolution"]
+    assert resolution["timed_out"] is True
+    assert resolution["deferred"] == 1

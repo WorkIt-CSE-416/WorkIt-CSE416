@@ -21,7 +21,8 @@ from workit_scraper.discovery_review import reconcile, render_review, validate_c
 CATALOG = "scraper/boards.csv"
 LEDGER = "scraper/discovery-review.json"
 REVIEW = "scraper/discovery-review.md"
-FILES = (CATALOG, LEDGER, REVIEW)
+RESOLUTION_STATE = "scraper/discovery-resolution.json"
+FILES = (CATALOG, LEDGER, REVIEW, RESOLUTION_STATE)
 #: open-jobs pool boards read per day: ~15,700 boards, so one pass in about 16
 #: days, and a pool board without an early-career posting is asked again then.
 #: The 2026-10-29 sample read about 0.4 seconds a board, so ~7 minutes a run.
@@ -36,7 +37,7 @@ def git(root: Path, *args: str) -> str:
     return command(["git", *args], root)
 
 
-def read_ledger(path: Path) -> dict:
+def read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
 
@@ -92,6 +93,13 @@ def run(root: Path, repository: str, *, publishing: bool = False) -> int:
                 else {}
             )
             validate_catalog(base, main_ledger)
+            resolution_path = worktree / RESOLUTION_STATE
+            resolution_state = read_json(resolution_path)
+            if not isinstance(resolution_state, dict):
+                raise ValueError("resolution state must be an object")
+            resolution_offset = resolution_state.get("next_offset", 0)
+            if type(resolution_offset) is not int or resolution_offset < 0:
+                raise ValueError("resolution next_offset must be a nonnegative integer")
             # Write the ledger to the worktree so discover_boards reads it
             # via --exclude, even when main has no ledger yet.
             (worktree / LEDGER).write_text(
@@ -108,6 +116,12 @@ def run(root: Path, repository: str, *, publishing: bool = False) -> int:
                     "--channel",
                     "openjobs",
                     "--resolve",
+                    "--resolve-limit",
+                    str(discover_boards.RESOLVE_LIMIT),
+                    "--resolve-seconds",
+                    str(discover_boards.RESOLVE_SECONDS),
+                    "--resolve-offset",
+                    str(resolution_offset),
                     "--months",
                     "1",
                     "--limit",
@@ -131,11 +145,24 @@ def run(root: Path, repository: str, *, publishing: bool = False) -> int:
             )
             update = reconcile(base, base, main_ledger, report)
             validate_catalog(update.boards, update.ledger)
-            if not update.added and update.ledger == main_ledger:
+            next_resolution_state = resolution_state
+            if report.get("resolution") is not None:
+                next_offset = report["resolution"]["next_offset"]
+                if type(next_offset) is not int or next_offset < 0:
+                    raise ValueError("reported resolution next_offset must be nonnegative")
+                next_resolution_state = {"next_offset": next_offset}
+            if (
+                not update.added
+                and update.ledger == main_ledger
+                and next_resolution_state == resolution_state
+            ):
                 print("No new candidates")
                 return result
             write_update(worktree, base_content, update)
             (worktree / REVIEW).write_text(render_review(update, base), encoding="utf-8")
+            resolution_path.write_text(
+                json.dumps(next_resolution_state, indent=2) + "\n", encoding="utf-8"
+            )
             if publishing:
                 publish(worktree)
             else:

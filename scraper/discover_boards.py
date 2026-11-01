@@ -11,21 +11,13 @@ import argparse
 import json
 from collections import Counter
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
 from workit_scraper import shortlist, web
 from workit_scraper.board_read import ReadStatus, read_board, reported_name
-from workit_scraper.board_resolve import (
-    GH_JID,
-    ICIMS_HERE,
-    SHORTENER,
-    greenhouse_board,
-    icims_board,
-    unshortened,
-)
+from workit_scraper.board_resolve import Resolution, ResolveLink, resolve_links
 from workit_scraper.catalog import BOARDS_CSV, add_boards, load_boards, same_file
 from workit_scraper.discovery_channels import (
     CHANNELS,
@@ -134,76 +126,35 @@ def nonnegative(value: str) -> int:
     return number
 
 
+# Resolution is separate from the limit on complete board validations.
+RESOLVE_LIMIT = 100
+RESOLVE_SECONDS = 120
+
+
 def resolve_evidence(
     evidence: list[Evidence],
     robots: Robots,
     get: Callable[[str], bytes],
-) -> list[Evidence]:
-    """Resolve unmatched evidence URLs and return new Evidence for any boards found.
-
-    Short links are followed to their destination, then ``board_keys`` extracts
-    the board.  Career pages with ``?gh_jid=`` or ``icims`` are proved against
-    the ATS API.  Each resolved board becomes an Evidence whose URL
-    ``board_keys`` recognises, entering the normal pipeline.
-    """
-    unmatched = [e for e in evidence if not board_keys(e.url)]
-    resolved: list[Evidence] = []
-
-    # --- short links --------------------------------------------------------
-    short = [e for e in unmatched if SHORTENER.search(e.url)]
-    with ThreadPoolExecutor(8) as pool:
-        targets = list(pool.map(lambda e: unshortened(e.url, robots, get), short))
-    remaining: list[Evidence] = []
-    for ev, target in zip(short, targets, strict=True):
-        if not target:
-            continue
-        keys = board_keys(target)
-        if keys:
-            resolved.append(Evidence(target, ev.company, ev.source))
-        else:
-            # Destination is not a known board URL; check as a careers page.
-            remaining.append(Evidence(target, ev.company, ev.source))
-    short_boards = len(resolved)
-    print(
-        f"resolve: {len(short)} short links,"
-        f" {sum(1 for t in targets if t)} led somewhere,"
-        f" {short_boards} boards"
+    *,
+    limit: int = RESOLVE_LIMIT,
+    offset: int = 0,
+    seconds: int = RESOLVE_SECONDS,
+) -> Resolution:
+    """Resolve a bounded window; the shared resolver owns grouping and retries."""
+    result = resolve_links(
+        [ResolveLink(e.url, e.company, e.source) for e in evidence],
+        robots,
+        get,
+        limit=limit,
+        offset=offset,
+        seconds=seconds,
     )
-
-    # Careers pages: original unmatched (minus short links) plus unshortened
-    # destinations that still didn't match.
-    careers = [e for e in unmatched if not SHORTENER.search(e.url)] + remaining
-
-    # --- Greenhouse behind a company's site ---------------------------------
-    gh_count, gh_proved = 0, 0
-    for ev in careers:
-        if not GH_JID.search(ev.url):
-            continue
-        gh_count += 1
-        token = greenhouse_board(ev.url, ev.company, robots, get)
-        if token:
-            gh_proved += 1
-            resolved.append(
-                Evidence(f"https://job-boards.greenhouse.io/{token}", ev.company, ev.source)
-            )
-    if gh_count:
-        print(f"resolve: greenhouse behind a company's site: {gh_count} tried, {gh_proved} proved")
-
-    # --- iCIMS behind a company's site --------------------------------------
-    ic_count, ic_proved = 0, 0
-    for ev in careers:
-        if not ICIMS_HERE.search(ev.url) or GH_JID.search(ev.url):
-            continue
-        ic_count += 1
-        token = icims_board(ev.url, ev.company, robots, get)
-        if token:
-            ic_proved += 1
-            url = f"https://{token}.icims.com/jobs/1/job"
-            resolved.append(Evidence(url, ev.company, ev.source))
-    if ic_count:
-        print(f"resolve: icims behind a company's site: {ic_count} tried, {ic_proved} proved")
-
-    return resolved
+    print(
+        f"resolve: {result.attempted}/{result.total} groups attempted, "
+        f"{len(result.hits)} evidence rows, {result.deferred} groups deferred"
+        + (" (time budget reached)" if result.timed_out else "")
+    )
+    return result
 
 
 def rejected_boards(path: Path | None) -> set[str]:
@@ -267,6 +218,24 @@ def main(argv: list[str] | None = None) -> int:
         " before extracting candidates",
     )
     parser.add_argument(
+        "--resolve-limit",
+        type=nonnegative,
+        default=RESOLVE_LIMIT,
+        help="maximum indirect-link groups to resolve before board validation",
+    )
+    parser.add_argument(
+        "--resolve-offset",
+        type=nonnegative,
+        default=0,
+        help="rotate stable resolution groups before applying their budget",
+    )
+    parser.add_argument(
+        "--resolve-seconds",
+        type=positive,
+        default=RESOLVE_SECONDS,
+        help="stop starting resolution requests after this many seconds",
+    )
+    parser.add_argument(
         "--apply",
         action="store_true",
         help="add validated boards locally; review company ownership before committing",
@@ -312,12 +281,23 @@ def main(argv: list[str] | None = None) -> int:
             failures.append(SourceFailure(channel, channel, detail))
     for failure in failures:
         print(f"{failure.channel}: {failure.source}: {failure.error}")
+    resolution = None
     if args.resolve:
 
         def resolve_get(url: str) -> bytes:
             return web.get(url, timeout=30)
 
-        evidence.extend(resolve_evidence(evidence, robots, resolve_get))
+        resolution = resolve_evidence(
+            evidence,
+            robots,
+            resolve_get,
+            limit=args.resolve_limit,
+            offset=args.resolve_offset,
+            seconds=args.resolve_seconds,
+        )
+        evidence.extend(
+            Evidence(hit.url, hit.link.company, hit.link.source) for hit in resolution.hits
+        )
     rows = candidates(evidence)
     known = {(b.ats, b.token) for b in load_boards(args.boards)} if args.boards.exists() else set()
     eligible, pool = [], []
@@ -352,6 +332,14 @@ def main(argv: list[str] | None = None) -> int:
         "generated_at": datetime.now(UTC).isoformat(),
         "candidates": [asdict(r) for r in rows],
         "channel_failures": [asdict(f) for f in failures],
+        "resolution": (
+            {
+                key: getattr(resolution, key)
+                for key in ("total", "attempted", "deferred", "timed_out", "next_offset")
+            }
+            if resolution is not None
+            else None
+        ),
         "unmatched": [asdict(e) for e in evidence if not board_keys(e.url)],
     }
     args.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
