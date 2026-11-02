@@ -83,11 +83,11 @@ step, Tailor, a view that only waited.
    answers the same run as one JSON body and stays for other callers.
 6. **The review opens on the tailored resume**, compiled, in the editor
    on Tailor's page, with a Suggestions panel beside it (below,
-   "Suggestions"): one row per change to accept or reject, with Accept
-   All and Reject All under them. The run's keyword match before and after
+   "Suggestions"): one row per change with Undo, and Undo All by the
+   filter. The run's keyword match before and after
    is kept with the record but not shown: Choose Keywords already showed
    the match. Each change's line is tinted on the resume
-   until its card is handled. The student edits directly, and editing a
+   until the student undoes it. The student edits directly, and editing a
    changed item removes its mark and card.
 
 ## What is removed
@@ -95,7 +95,7 @@ step, Tailor, a view that only waited.
 | Today | After |
 |---|---|
 | `propose()` returns change cards (reword, order) | The run applies the changes itself |
-| Accept and reject per card, before saving | The change is saved; its card's Accept keeps it, Reject undoes it |
+| Accept and reject per card, before saving | The change is saved; its card's Undo reverts it |
 | `POST .../tailor/done` | Gone: the run saves |
 | "Have you used X?" questions, and `show_skill` changes | Gone: step 4 picks the skills before the run |
 | Yes added the skill to the experience bank | A picked skill stays on the tailored resume only |
@@ -218,9 +218,9 @@ response lists each change with what it replaced, by handle and id:
 - **The run saves the tailored resume before the editor opens**, so the
   editor, the PDF and Fit to One Page work on it as on any built resume.
   The record only colours and undoes; the resume never depends on it.
-- **Accept, Reject or an edit drops that change from the record**, so its
+- **Undo or an edit drops that change from the record**, so its
   tint and card go. The record stays while it holds the run's match, so
-  the panel keeps the score once every card is handled.
+  the panel keeps the score once every card is gone.
 - **The record lives in `sessionStorage`** (per tab, wrapped in
   try/catch), so a reload in the same tab keeps the suggestions; a new tab
   or device starts with none and the page says so in one line.
@@ -251,14 +251,32 @@ weight.
   toolbar with the page's tools. Every change is saved as it is made, so
   Finish saves nothing, and suggestions not handled stay as the run made
   them. There was no Finish until 2026-10-26, so the review had no end.
-- **Under it, the resume's name**, spanning the page and the panel, with
-  the view switch at its right end over the column it changes: one
-  switch of three, Resume Only (the page alone at full width, to edit
-  with nothing beside it), Suggestions (with its count) or Original
-  (`SideSwitch`, on `SegmentedToggle`). One is always chosen: the page
-  alone was first reached by pressing the chosen option again, which
-  nobody would find. It sat in the toolbar until 2026-10-26; it changes
-  what is shown, not the page, so it left. Then two columns that start
+- **The page is laid out as a Google Doc** (KAN-499), copied row by row.
+  Under the top row comes the name's row: the resume's name over the job, as
+  a Doc's name sits over its menus, and at its right the document's actions,
+  the Original and Suggestions icons where Docs has version history and
+  comments, in WorkIt's own marks (`FileIcon`, the file every resume wears,
+  and a lightbulb, since the sparkle read as Scout's beside the top bar's),
+  then Download where Docs has Share. Each icon is tinted while its
+  column is open and closes it when pressed again, and the page alone at full
+  width is both closed. Under that, the toolbar is Docs' grey pill with no
+  outline and dark grey buttons, holding only tools for the page from the left: Undo, Redo, zoom,
+  then the page count. A three-way switch, then labelled buttons inside the
+  toolbar, held the view; the user found both unlike Docs. The name sat in
+  the top row for a moment, which pushed the step and Finish out of place.
+  **Formatting follows Docs too** (KAN-435). The pill changes with what the
+  student is doing: with a line open it holds font size, line spacing,
+  alignment and margins beside the line's own tools; with none open it holds
+  Undo, Redo, zoom and, at its end, Hide Suggestions, Sections and Format
+  Options, since all of it at once ran to two rows. Format Options opens a panel in the Suggestions column,
+  as Docs' opens beside its page (`page-format.tsx`). One column shows at a
+  time. A Format icon in the name's row was weighed and refused: the pill had
+  the room, and formatting is a tool for the page, not a view of it.
+  **The page runs to its edges:** a 16px gutter and no width cap, where
+  Home's cap and the seekers' gutter left about 50px each side. The resume
+  stops at its zoom, centred in its column. A tab with no record has no
+  icons, and the rest stays where it is.
+  Then two columns that start
   level: the toolbar and the page, and beside them the panel,
   "Suggestions" with its count in a filled pill at its top. The name renames in place (`ResumeTitle`): it
   reads as text, shows a faint outline and a pencil when pointed at, and a
@@ -276,7 +294,7 @@ weight.
   At the right, Download, secondary: Finish is the page's one filled
   button, and a filled Download beside it competed. No Experiences picker (once "Not
   on This Resume") on this page: putting a hidden line back is the editor's own page's work,
-  and a run's own removals have Reject. It sat under the page, below a
+  and a run's own removals have Undo. It sat under the page, below a
   two-page resume, then for a day was a toolbar button with a modal,
   which cluttered the review. Two
   rows were weighed and refused: the toolbar sticks over the page, so a
@@ -293,28 +311,36 @@ weight.
   own page (whose top bar Scout opens its assistant, KAN-411): on this
   page the panel holds the column beside the page, and a second AI entry
   beside it split the page. No Download while a line is open.
-- **Dots, then highlights.** Each changed line has a small dot (8px) in
-  the page's left margin, brand purple whatever the change: in each
-  type's colour the amber dots read as one more signal among the
-  highlights, so a dot says only that a line changed and the panel says
-  how. A removed line is not on the page, so it has none. Dots on one
-  line (skills) stack like coins. A line is
-  highlighted only while its suggestion is pointed at, focused or open,
-  as Quinncia draws one: the tint carried 1px past the line, a 1px border
-  in the mark's dark shade (`positive-ink`, `warning-strong`) at half
-  strength, rounded; at full strength it read too thick. A line being
-  typed in keeps only its tint, so the field's 1.5px ring is its one
-  outline. A
-  click on a dot or on a changed line opens its suggestion (and its
-  section). Dots and cards were numbered until 2026-10-26: the numbers
-  read as an order to follow, so each section counts its own instead.
+- **Changes show on the resume, with a popup, as Docs shows suggestions**
+  (KAN-499). Every changed line is tinted in its type's colour, green added,
+  blue reworded, amber moved, with an outline while its card is pointed at or
+  open. A click on one opens its line and a small card beside it
+  (`SuggestionPopup`): the change and an Undo icon, the same as the panel's row, so a
+  student can settle one change with the panel closed. The click leaves the
+  panel as it is: it opened the panel for a moment, which took the column
+  from a student who had closed it. **Hide Suggestions** on the toolbar takes
+  the tints and the popup off the page when so many lines changed that they
+  get in the way of reading it; the changes stay, and so does the panel.
+  The card closes with its X, on
+  Esc, on leaving the line, or once the student types. It sits under the line,
+  or over it when the window cannot show all of it there. That is measured
+  against the window, not the page: a rule of "over it near the page's foot"
+  cut the card off at the window's foot higher up the page. An 8px dot in the margin marked each line
+  until the user found the dots apart from the words they marked; a phone
+  keeps them, since a tap there opens a sheet. Dots and cards were numbered
+  until 2026-10-26: the numbers read as an order to follow, so each section
+  counts its own.
 - **Original sets the source resume beside the tailored one**, in place
   of the panel, the two at one width, so a line reads against its twin.
-  Its label is a bar the toolbar's shape and height, level with it, so
-  the pages start level and the two read as a pair (its outline a border,
-  not the toolbar's ring: the column scrolls and clipped a ring's sides): a history glyph in
-  brand, "Original Resume" in ink, and a Read Only tag. It was a grey
-  line of label type, which the user found too quiet. The source (the
+  **The comparison only reads:** a plain heading over each, Tailored
+  Resume and Original Resume, with no toolbar on either, and no click
+  targets or marks on the tailored page, since a line opened with no
+  toolbar has no tools. The two scroll with the page, together, so a line
+  stays level with its twin. The toolbar goes with it, so the Original
+  Resume heading has an X, as the panel has, which is the way out. The
+  tailored page kept its toolbar, and the
+  original a toolbar-shaped card with a Read Only tag and a scroll of its
+  own, until the user found that heavy (KAN-499). The source (the
   record's `source`) draws read-only through step 1's preview loader
   (`OriginalResume` in `resume-preview.tsx`), kept for the page's life so
   a second look shows at once; the record keeps the source's id, not its
@@ -325,26 +351,33 @@ weight.
 - **The panel's top stays put and only its sections scroll** under it:
   the column beside the page caps the panel's height at the window below
   the column's top, less 24px, measured on every scroll and resize
-  (`useFitToWindow` in the editor; the original resume's column too), and
-  the section list scrolls inside. A fixed cap, the window less 15rem,
+  (`useFitToWindow` in the editor), and
+  the section list scrolls inside. The column's top is read no higher than
+  where it sticks: at the page's end the grid pushes a sticky column up
+  past that, and reading that top grew the cap, so the panel kept growing
+  as the page scrolled (KAN-499). The list is `relative`: a card's sr-only
+  label is absolute, and with no positioned box there the list did not
+  clip it, so the labels of cards past its fold stretched the page's
+  scroll, 600 px with 16 cards. Neither the page nor the list bounces at
+  its end (`data-no-bounce`, y only, so the trackpad's swipe back still
+  works): a hard scroll stretched the page and carried the panels with it. A fixed cap, the window less 15rem,
   ran the panel's foot below the window before the page scrolled and
   left a gap under it once it stuck, after the title row grew. The list
   scrolls inside, so the scroll bar starts
   under the top and the panel keeps its corners. The column itself
   scrolled until 2026-10-26, which carried the rounded corners off with
-  the list. The top holds the title, its count and the type filter.
-  Under the list, Reject All and Accept All, red and green as on each
-  row, in reach rather than in a "…" menu at the top, where nobody found
-  them. The top showed the run's keyword match as a thin row over a
+  the list. The top holds the title, its count, the type filter and Undo
+  All, an icon button with a tooltip, so it stays in sight: a full-width
+  button under the list took a row from it. The top showed the run's keyword match as a thin row over a
   meter until 2026-10-26; it repeated Choose Keywords' match, and the
   meter read as a progress bar.
 - **A brand-tint panel of white sections.** The panel is the brand tint
   with its pale ring, the editor's bar's colour, so the two read as one
   review and its white sections stand apart; it was grey (`app`) until
   the user found it muted. On a phone the sheet is white and the sections
-  grey. Reject is the danger tint with red text (Button `decline`) and
-  Accept the green fill (`positive`), so the two read apart at a glance.
-- **The toolbar shows and hides the panel** (Suggestions, `panelOpen` in
+  grey.
+- **The toolbar shows and hides the panel, and its X closes it**, as Docs'
+  comments panel does (Suggestions, `side` in
   the editor, which owns the grid). Hidden, the page takes the whole
   width and no line stays highlighted. A phone opens the panel as a sheet
   from its own button.
@@ -360,8 +393,7 @@ weight.
   heading with the entry's title, its organization, how many suggestions
   it holds and a caret. Under a hairline, each suggestion is always open:
   its type's round badge and name ("Removed bullet", "Added skill ·
-  Languages"), a green check (Accept) and a red cross (Reject) at its end,
-  as Google Docs answers a suggestion, and under them a white card with an
+  Languages"), Undo at its end, and under them a white card with an
   outline holding the words, one row for each thing that changed under a
   hairline (`ChangeCard`): each moved bullet with its place before and
   after as an amber tag ("3 → 1"), a rewording's Before and After lines or
@@ -371,8 +403,7 @@ weight.
   to read). Only sections fold: each row folded too, with a plus and a
   minus, until 2026-10-26, and a fold inside a folding section read as
   nested and odd. The card was one grey box, which read as a chat message
-  and ran three moves together as one; Accept and Reject were full buttons
-  under it, which read heavy. Pointing at a row highlights its lines and
+  and ran three moves together as one. Pointing at a row highlights its lines and
   turns it faint grey, never brand (a purple row read as selected); a click
   on its name also scrolls the page to them (on a phone, closing the
   sheet). Hover never scrolls: it made the page swim as the pointer
@@ -394,10 +425,13 @@ weight.
   and removed types were designed against sample changes, removed before
   this shipped. A run that adds or drops a line needs its `TailorEdit`
   kind, its `changesOf` mapping and its revert (`revertOf`).
-- **Accept keeps the change** (it is saved already): the card and its
-  dots go. **Reject undoes it** through the choices PATCH (`revertOf`,
-  above) and drops it. Reject All is one PATCH (`revertAll`), each
-  bullet's parts merged into one row. Accept All empties the list.
+- **Undo reverts a change** through the choices PATCH (`revertOf`, above)
+  and drops it, so its card and dots go. Undo All is one PATCH
+  (`revertAll`), each bullet's parts merged into one row. **There is no
+  Accept** (KAN-499): every change is saved before the review opens, so
+  Accept did nothing to the resume and two buttons asked for a choice with
+  one action behind it. A change stays marked until it is undone or its
+  line is edited.
 - **Only Tailor's page reviews.** The editor takes the panel as a prop
   (`suggestions`); without it, as on `/resumes/[id]`, it shows no dots or
   tints, and the top bar's Scout opens its assistant. On this page Scout
@@ -480,7 +514,7 @@ them:
 4. **The editor marks and reverts. Built.** `resumes/[resumeId]/
    tailor-review.tsx`: `marksOf` tints the lines (green a new wording or
    skill, amber a moved bullet) on Tailor's page; the Suggestions panel
-   offers each change's Accept and Reject; `revertOf` builds the choices
+   offers each change's Undo; `revertOf` builds the choices
    PATCH; `untouched` drops a
    change the student's own PATCH touches, and `reverted` drops a reverted
    one. An order is read against the current choices: every bullet at

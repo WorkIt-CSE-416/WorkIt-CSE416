@@ -39,10 +39,10 @@ const content: FeatureContent = {
     {
       eyebrow: "Tailor",
       title: "Tailored to each job posting",
-      body: "Tailor compares your resume with the job posting and suggests changes: a bullet to rewrite, one to cut, a skill to add. Nothing changes until you accept it.",
+      body: "Tailor compares your resume with the job posting and suggests changes: a bullet to rewrite, one to cut, a skill to add. Every change is marked on the resume, and you can undo it.",
       points: [
         "See the keyword match before and after",
-        "Accept or reject every change",
+        "Undo any change with one click",
         "A missing skill is added only when you say you have it",
       ],
     },
@@ -57,7 +57,7 @@ const content: FeatureContent = {
     steps: [
       { title: "Fill your bank", body: "Upload a resume or add your experience by hand." },
       { title: "Build a resume", body: "WorkIt lays out a resume from your bank." },
-      { title: "Tailor it", body: "Open a job posting and accept the changes that fit." },
+      { title: "Tailor it", body: "Open a job posting and keep the changes that fit." },
       { title: "Apply with it", body: "WorkIt keeps a copy of the resume you sent." },
     ],
   },

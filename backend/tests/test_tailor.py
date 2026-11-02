@@ -679,6 +679,20 @@ async def test_a_run_saves_the_tailored_resume_and_leaves_the_source(student, da
     assert bank["entries"][0]["bullets"][1]["text"] == "Wrote billing services in python"
 
 
+async def test_a_new_tailored_resume_takes_the_sources_page_settings(student, database, use_model):
+    posting = await _seed_posting(database)
+    use_model(reply(rewords=[("b2", "Built Python billing services")]))
+    settings = {"font_size": 12, "line_spacing": 1.15, "side_margin": 0.75, "top_margin": 0.75, "alignment": "justified", "section_spacing": 4, "entry_spacing": 2, "accent": "#14532D", "bullet": "dash", "show_divider": False, "header_alignment": "left"}
+    await student.client.put(f"{student.me}/built-resumes/{student.base}/page-settings", json=settings)
+
+    tailored = (await student.tailor(posting)).json()["resume"]
+
+    async with database() as session:
+        row = await session.scalar(
+            text("SELECT page_settings FROM built_resumes WHERE id = :id"), {"id": tailored["id"]})
+    assert {name: row[name] for name in settings} == settings
+
+
 async def test_a_reword_edit_names_the_wording_it_replaced_for_revert(student, database, use_model):
     posting = await _seed_posting(database)
     use_model(reply(rewords=[("b2", "Built Python billing services")]))
