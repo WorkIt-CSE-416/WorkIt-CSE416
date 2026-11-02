@@ -57,7 +57,13 @@ from app.schemas.built_resume import (
 )
 from app.services.bank import Bank, NotFound, copy_key, get_entry, load_bank
 from app.services.postings import LISTED
-from app.services.resume_render import HeaderIdentity, Rendered, line_count
+from app.services.resume_render import (
+    DEFAULT_PAGE,
+    HeaderIdentity,
+    PageSettings,
+    Rendered,
+    line_count,
+)
 from app.services.resume_view import (
     BulletChoice,
     Choices,
@@ -200,6 +206,26 @@ async def rename(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid
     # expired would lazy-load, which fails in async code.
     await session.refresh(resume)
     return resume
+
+
+def page_of(resume: Built_Resume) -> PageSettings:
+    """How the resume's page is set (KAN-435)."""
+    return PageSettings(**resume.page_settings)
+
+
+async def save_page(
+    session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID, settings: dict
+) -> None:
+    """The page's settings in one UPDATE whose WHERE checks the resume is
+    the applicant's: the editor saves beside its render and reads nothing
+    back. Raises NotFound."""
+    found = await session.scalar(
+        update(Built_Resume)
+        .where(Built_Resume.id == resume_id, Built_Resume.applicant_id == applicant_id)
+        .values(page_settings=settings)
+        .returning(Built_Resume.id))
+    if found is None:
+        raise NotFound
 
 
 async def list_resumes(session: AsyncSession, applicant_id: uuid.UUID) -> list[Built_Resume]:
@@ -352,18 +378,23 @@ async def _choices_of(session: AsyncSession, resume_ids: list[uuid.UUID]) -> dic
 
 
 async def same_resume(
-    session: AsyncSession, applicant_id: uuid.UUID, bank: Bank, view: ResumeView, template: str = DEFAULT_TEMPLATE
+    session: AsyncSession, applicant_id: uuid.UUID, bank: Bank, view: ResumeView, template: str = DEFAULT_TEMPLATE,
+    page: PageSettings = DEFAULT_PAGE,
 ) -> Built_Resume | None:
     """The applicant's built resume (base or tailored) that prints the same
-    as `view` in `template` today, if any. `bank` is the applicant's, loaded
-    once by the caller. Compares the views themselves: equal views are what
+    as `view` in `template`, set by `page`, today, if any. `bank` is the
+    applicant's, loaded once by the caller. Compares the views themselves: equal views are what
     an equal content hash would say, without hashing either."""
     resumes = await list_resumes(session, applicant_id)
     choices = await _choices_of(session, [r.id for r in resumes])
     # Each resume as it prints, its own skills included: without them a
     # tailored resume could read as equal to a new base resume.
     bank = await load_bank(session, applicant_id, local_to=[r.id for r in resumes])
-    return next((r for r in resumes if r.template == template and build_view(bank, choices[r.id]) == view), None)
+    return next(
+        (r for r in resumes
+         if r.template == template and page_of(r) == page and build_view(bank, choices[r.id]) == view),
+        None,
+    )
 
 
 async def update_choices(
@@ -731,7 +762,7 @@ def _cut_lines(cut: Cut, view: ResumeView, rendered: Rendered) -> int:
         ids = {str(cut.id)}
     boxes = [b for b in rendered.boxes
              if b.item_id in ids and (cut.kind != "coursework" or b.kind == "coursework")]
-    return max(1, line_count(boxes))
+    return max(1, line_count(boxes, rendered.wrapped_line))
 
 
 async def fit_to_one_page(

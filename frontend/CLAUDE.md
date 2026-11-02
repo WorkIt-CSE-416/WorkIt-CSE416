@@ -1684,7 +1684,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   trading places (`swapOf`, `swapsOn`, `Strip` in `pdf-pages.tsx`): a
   swap is kept by item, not by position, so a PDF that lands before its
   own still shows it, and one the page already shows draws nothing.
-  "Saved, N ms" times the render.
+  A phone's "Saved, N ms" times the render.
 - **Undo and Redo live in the tab's memory, never in browser storage**
   (KAN-391, `(seeker)/resumes/[resumeId]/history.ts`, tested with
   `node --test`). Each edit records a step: the edit and its reverse,

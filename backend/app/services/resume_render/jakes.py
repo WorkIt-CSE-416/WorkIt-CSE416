@@ -12,9 +12,11 @@ box carries the words it covers (`Box.text`).
 '''
 
 from app.services.resume_render import (
+    DEFAULT_PAGE,
     HEADER,
     MARKS,
     HeaderIdentity,
+    PageSettings,
     escape,
     escape_url,
     mark,
@@ -43,7 +45,7 @@ def _marked(item_id, kind: str, latex: str, text: str, marks: bool, printed: Pri
     return mark(item_id, kind, latex) if marks else latex
 
 
-def _header(identity: HeaderIdentity, marks: bool, printed: Printed) -> list[str]:
+def _header(identity: HeaderIdentity, marks: bool, printed: Printed, page: PageSettings) -> list[str]:
     # The identity comes from the profile; its markers use HEADER as the id,
     # and each field's profile column as the kind
     def slot(kind: str, latex: str, text: str) -> str:
@@ -63,11 +65,17 @@ def _header(identity: HeaderIdentity, marks: bool, printed: Printed) -> list[str
         slot(field, rf"\href{{{escape_url(u)}}}{{\underline{{{escape(link_text(u))}}}}}", link_text(u))
         for field, u in identity.links
     ]
-    name = slot("full_name", rf"\textbf{{\Huge \scshape {escape(identity.name)}}}", identity.name)
-    lines = [r"\begin{center}", rf"{name} \\ \vspace{{1pt}}"]
+    # The page's settings, each only when it differs, so Jake's own page
+    # writes his own header
+    shape = rf"\textbf{{\Huge \scshape {escape(identity.name)}}}"
+    if page.accent != DEFAULT_PAGE.accent:
+        shape = rf"\textcolor{{wiaccent}}{{{shape}}}"
+    name = slot("full_name", shape, identity.name)
+    box = {"left": "flushleft", "center": "center", "right": "flushright"}[page.header_alignment]
+    lines = [rf"\begin{{{box}}}", rf"{name} \\ \vspace{{1pt}}"]
     if contact:
         lines.append(r"\small " + " $|$ ".join(contact))
-    lines.append(r"\end{center}")
+    lines.append(rf"\end{{{box}}}")
     return lines
 
 
@@ -113,19 +121,25 @@ def _skills(view: ResumeView, marks: bool, printed: Printed) -> str:
     return r" \\ ".join(rows)
 
 
-def body(view: ResumeView, identity: HeaderIdentity, *, marks: bool = True, printed: Printed = None) -> str:
+def body(
+    view: ResumeView, identity: HeaderIdentity, *, marks: bool = True, printed: Printed = None,
+    page: PageSettings = DEFAULT_PAGE,
+) -> str:
     lines = [MARKS] if marks else []
-    lines += _header(identity, marks, printed)
+    lines += _header(identity, marks, printed, page)
+    blocks: dict[str, list[str]] = {}
     for section in view.sections:
-        lines += [rf"\section{{{escape(SECTION_LABELS[section.section])}}}", r"\resumeSubHeadingListStart"]
+        block = [rf"\section{{{escape(SECTION_LABELS[section.section])}}}", r"\resumeSubHeadingListStart"]
         for entry in section.entries:
-            lines += _entry(entry, marks, printed)
-        lines.append(r"\resumeSubHeadingListEnd")
+            block += _entry(entry, marks, printed)
+        blocks[section.section] = [*block, r"\resumeSubHeadingListEnd"]
     if view.skills:
-        lines += [
+        blocks["skills"] = [
             rf"\section{{{SKILLS_LABEL}}}",
             r"\begin{itemize}[leftmargin=0.15in, label={}]",
             rf"\small{{\item{{{_skills(view, marks, printed)}}}}}",
             r"\end{itemize}",
         ]
+    for name in page.section_order:
+        lines += blocks.get(name, [])
     return "\n".join(lines)

@@ -12,7 +12,7 @@ import {
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
 import { facetClasses } from "@/components/field-facet";
-import { ChevronDownIcon, FilterIcon } from "@/components/icons";
+import { ChevronDownIcon, CloseIcon, FilterIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +20,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices } from "@/lib/built-resume-actions";
@@ -35,6 +34,7 @@ import {
   useTailorReview,
   type Change,
   type ChangeKind,
+  type SuggestionPopupApi,
   type SuggestionsApi,
 } from "../../../resumes/[resumeId]/tailor-review";
 import { OriginalResume } from "./resume-preview";
@@ -42,12 +42,18 @@ import type { JobListing } from "../../listings";
 import { TailorJobLine } from "./tailor-header";
 
 /**
- * Tailor's review step (docs/tailor_resume.md, "Suggestions"), kept quiet
- * after Quinncia's resume review: the tailored resume under its name and
- * the editor's slim toolbar (`SlimBar`), and beside it the Suggestions
- * panel or, from the toolbar's View Original, the source resume
- * (`original`). Each changed line has a small dot in the page's margin and
- * is highlighted only while its suggestion is pointed at, focused or open.
+ * Tailor's review step (docs/tailor_resume.md, "Suggestions"), laid out as
+ * a Google Doc is (KAN-499), under the step's row (`TailorReviewBar`): the
+ * resume's name over its job, as a Doc's name sits over its menus, with the
+ * document's actions at the row's right, the toolbar (`SlimBar`) as Docs'
+ * pill, and beside the page the Suggestions panel, closed with its X as
+ * Docs' comments are, or the source resume (`original`).
+ * Each changed line is tinted by its type on the page, as a Doc marks a
+ * suggestion in its text, with an outline while its suggestion is pointed at,
+ * focused or open. A click on one opens a small card beside it
+ * (`SuggestionPopup`) and the panel, if nothing is beside the page. A phone
+ * tints only the open line and keeps a margin dot per line. Desktop had the
+ * dots until the user found them apart from the words they marked.
  * The panel has a section per resume entry, top to bottom as on the page,
  * each counting its suggestions; each suggestion is a row with its type's
  * badge (added, reworded, removed, moved: a colour and a glyph) over its
@@ -88,7 +94,7 @@ export function TailorReview({
       <Editor
         {...editor}
         heading={
-          <div className="flex min-w-0 flex-col gap-0.5">
+          <div className="flex min-w-0 flex-col">
             <ResumeTitle resumeId={editor.resumeId} name={name} />
             <TailorJobLine job={job} />
           </div>
@@ -96,6 +102,7 @@ export function TailorReview({
         original={record?.source && <OriginalResume source={record.source} />}
         phoneBar={noRecord}
         suggestions={(api) => <SuggestionsPanel {...api} />}
+        suggestionPopup={(api) => <SuggestionPopup {...api} />}
       />
     </>
   );
@@ -171,6 +178,7 @@ function SuggestionsPanel({
   saving,
   undo,
   undoAll,
+  close,
   focused,
   focus,
   show,
@@ -231,7 +239,7 @@ function SuggestionsPanel({
       {/* The top stays put and only the sections under it scroll, so the
           scroll bar starts under it and the panel keeps its rounded corners */}
       <div className="flex shrink-0 flex-col gap-2.5 pb-1">
-        <div className="flex min-h-8 items-center gap-2">
+        <div className="flex min-h-8 items-center gap-1.5">
           <h2
             id="suggestions-heading"
             className="text-subtitle text-ink mr-auto flex items-center gap-2 font-semibold max-sm:sr-only"
@@ -252,6 +260,15 @@ function SuggestionsPanel({
               <ArrowUUpLeftIcon aria-hidden className="size-4" />
             </IconButton>
           )}
+          {/* A phone's sheet has its own X */}
+          <IconButton
+            label="Close Suggestions"
+            tooltip="Close"
+            className="size-9 shrink-0 max-sm:hidden"
+            onClick={close}
+          >
+            <CloseIcon className="size-4.5" />
+          </IconButton>
         </div>
       </div>
       {changes.length > 0 ? (
@@ -260,7 +277,7 @@ function SuggestionsPanel({
         // cards past its fold stretched the page's scroll (KAN-499)
         <div
           ref={list}
-          className="relative -mr-1.5 flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain pr-1.5"
+          className="relative -mr-1.5 flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-none pr-1.5"
         >
           {groups.map((group) => {
             const isOpen = !closed.has(group.where);
@@ -481,19 +498,51 @@ function Suggestion({
           </span>
           <span className="sr-only">, show on the resume</span>
         </button>
-        <span className="shrink-0 pt-1.5">
-          <Button
-            variant="ghost"
-            size="xs"
-            aria-label={`Undo: ${title(change)}`}
+        <span className="shrink-0 pt-2">
+          <IconButton
+            label={`Undo: ${title(change)}`}
+            tooltip="Undo"
+            className="size-7"
             disabled={saving}
             onClick={onUndo}
           >
-            <ArrowUUpLeftIcon aria-hidden /> Undo
-          </Button>
+            <ArrowUUpLeftIcon aria-hidden className="size-4.5" />
+          </IconButton>
         </span>
       </div>
       <div className="pr-3 pl-[2.875rem]">
+        <ChangeBody change={change} bank={bank} choices={choices} />
+      </div>
+    </div>
+  );
+}
+
+/** A changed line's card beside the line: what changed, and Undo, as Docs
+ *  answers a suggestion beside its text. It says the same as the panel's
+ *  row, so a student can settle one change with the panel closed. */
+function SuggestionPopup({ edit, bank, choices, saving, undo, close }: SuggestionPopupApi) {
+  const change = changesOf([edit], bank)[0];
+  return (
+    <div className="flex flex-col gap-2 p-3">
+      <div className="flex items-center gap-2">
+        <KindBadge kind={change.kind} small />
+        <span className="text-note text-ink min-w-0 flex-1 truncate font-semibold">
+          {title(change)}
+        </span>
+        <IconButton
+          label={`Undo: ${title(change)}`}
+          tooltip="Undo"
+          className="size-6 shrink-0"
+          disabled={saving}
+          onClick={undo}
+        >
+          <ArrowUUpLeftIcon aria-hidden className="size-4.5" />
+        </IconButton>
+        <IconButton label="Close" className="size-6 shrink-0" onClick={close}>
+          <CloseIcon className="size-4" />
+        </IconButton>
+      </div>
+      <div className="max-h-48 overflow-y-auto overscroll-none">
         <ChangeBody change={change} bank={bank} choices={choices} />
       </div>
     </div>

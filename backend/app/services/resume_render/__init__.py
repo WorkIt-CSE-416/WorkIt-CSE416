@@ -1,13 +1,15 @@
 '''
 Built resumes as Jake's Resume, compiled by Tectonic (ADR 0002, KAN-204).
 
-    render(view, identity, template)  a built resume view -> Rendered
+    render(view, identity, template, page)  a built resume view -> Rendered
                         (PDF bytes, page count, characters the font lacks,
                         a box for each marked line)
-    latex(view, identity, template)   the same resume as a .tex source, unmarked
+    latex(view, identity, template, page)   the same resume as a .tex source, unmarked
+    PageSettings        how the page is set: type, spacing, margins, style (KAN-435)
     escape(text)        the one way applicant text enters the LaTeX
     pdf_title(text)     the PDF's Title, as hex digits only
-    jakes_document(b)   Jake's preamble, byte for byte, around body b
+    jakes_document(b, page)  Jake's preamble around body b, byte for byte
+                        at the default page settings
     MARKS, mark(id, kind, latex)  position markers a template's body uses
     line_count(boxes)   the distinct lines of text some boxes sit on
     compile_document(tex)  a whole document -> Rendered, offline and untrusted
@@ -28,6 +30,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 TEMPLATE = HERE / "jakes.tex"
 BODY_MARKER = "\n%%BODY%%\n"
+BEGIN_DOCUMENT = "\n\\begin{document}\n"
 # Built by scripts/fetch_tectonic.py: the pinned binary (Linux) and the warm
 # package cache. Gitignored
 VENDOR = HERE.parents[2] / "vendor" / "tectonic"
@@ -93,7 +96,8 @@ NAME_ASCENT, NAME_DESCENT = 21.0, 5.0
 # they show: full_name, phone_number, email, linkedin_url, github_url,
 # portfolio_url, other_url
 HEADER = "header"
-# The distance between a wrapped line's baselines in Jake's bullets, in points
+# The distance between a wrapped line's baselines in Jake's bullets, in
+# points; `PageSettings.wrapped_line` on any other page
 WRAPPED_LINE = 12.0
 _SP_PER_POINT = 65536 * 72.27 / 72  # scaled points in one PDF point
 
@@ -106,6 +110,80 @@ def mark(item_id, kind: str, latex: str) -> str:
         return latex
     name = f"{item_id}.{kind}"
     return rf"\wimark{{{name}}}{{s}}{latex}\wiend{{{name}}}"
+
+
+# What a student can pick (KAN-435): fixed lists, so a value never needs
+# escape() and the warm-up can cache every font a page can reach
+FONT_SIZES = (10, 11, 12)
+LINE_SPACINGS = (1.0, 1.15, 1.3)
+MARGINS = (0.5, 0.75, 1.0)
+ALIGNMENTS = ("left", "justified")
+# Points added over each section heading and after each entry's bullets
+SECTION_SPACINGS = (0, 4, 8, 12)
+ENTRY_SPACINGS = (0, 2, 4, 6)
+# Name and section headings, as RGB from 0 to 1 (the `color` package Jake's
+# preamble loads has no HTML model). Dark, so each prints as text and stays
+# legible to a recruiter's scan
+ACCENTS = {
+    "#000000": "0,0,0",
+    "#1E3A5F": "0.118,0.227,0.373",
+    "#14532D": "0.078,0.325,0.176",
+    "#7F1D1D": "0.498,0.114,0.114",
+    "#4C1D95": "0.298,0.114,0.584",
+}
+BULLETS = ("dot", "dash")
+HEADER_ALIGNMENTS = ("left", "center", "right")
+# Every section, as the page prints them unless the student drags them; the
+# bank's sections (resume_view.SECTIONS), then the skills
+SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", "certifications", "skills")
+# \\small's \\baselineskip in each of article's sizes, in TeX points: a
+# bullet's lines
+_SMALL_LEADING = {10: 11.0, 11: WRAPPED_LINE, 12: 13.6}
+
+
+@dataclass(frozen=True)
+class PageSettings:
+    '''How a built resume's page is set (KAN-435). The defaults are Jake's
+    own page: 11 pt, single spacing, half-inch margins, ragged right, black
+    headings over a rule, dot bullets, a centred header. Margins are in
+    inches: `side_margin` left and right, `top_margin` top and bottom. A
+    value off the lists raises ValueError: this is the one guard before these
+    reach the LaTeX.'''
+
+    font_size: int = 11
+    line_spacing: float = 1.0
+    side_margin: float = 0.5
+    top_margin: float = 0.5
+    alignment: str = "left"
+    section_spacing: int = 0
+    entry_spacing: int = 0
+    accent: str = "#000000"
+    bullet: str = "dot"
+    show_divider: bool = True
+    header_alignment: str = "center"
+    section_order: tuple[str, ...] = SECTION_ORDER
+
+    def __post_init__(self) -> None:
+        # Stored as a JSON list, and frozen here
+        object.__setattr__(self, "section_order", tuple(self.section_order))
+        if sorted(self.section_order) != sorted(SECTION_ORDER):
+            raise ValueError(f"unknown page settings {self!r}")
+        allowed = (
+            (self.font_size, FONT_SIZES), (self.line_spacing, LINE_SPACINGS), (self.side_margin, MARGINS),
+            (self.top_margin, MARGINS), (self.alignment, ALIGNMENTS), (self.section_spacing, SECTION_SPACINGS),
+            (self.entry_spacing, ENTRY_SPACINGS), (self.accent, ACCENTS), (self.bullet, BULLETS),
+            (self.show_divider, (True, False)), (self.header_alignment, HEADER_ALIGNMENTS),
+        )
+        if any(value not in choices for value, choices in allowed):
+            raise ValueError(f"unknown page settings {self!r}")
+
+    @property
+    def wrapped_line(self) -> float:
+        '''The distance between a wrapped bullet's baselines, in points.'''
+        return _SMALL_LEADING[self.font_size] * self.line_spacing
+
+
+DEFAULT_PAGE = PageSettings()
 
 
 class TectonicUnavailable(RuntimeError):
@@ -147,18 +225,19 @@ class Box:
     text: str = ""
 
 
-def box_lines(box: Box) -> int:
+def box_lines(box: Box, wrapped_line: float = WRAPPED_LINE) -> int:
     '''How many lines of text a box covers: 1, or more for a wrapped line.'''
-    return 1 + max(0, round((box.y1 - box.y0 - ASCENT - DESCENT) / WRAPPED_LINE))
+    return 1 + max(0, round((box.y1 - box.y0 - ASCENT - DESCENT) / wrapped_line))
 
 
-def line_count(boxes) -> int:
+def line_count(boxes, wrapped_line: float = WRAPPED_LINE) -> int:
     '''The distinct lines of text these boxes sit on: a heading's title and
     dates share one, a wrapped box counts each of its lines.'''
     baselines = set()
     for box in boxes:
         top = box.y0 + ASCENT
-        baselines.update((box.page, round(top + i * WRAPPED_LINE)) for i in range(box_lines(box)))
+        baselines.update(
+            (box.page, round(top + i * wrapped_line)) for i in range(box_lines(box, wrapped_line)))
     return len(baselines)
 
 
@@ -171,6 +250,8 @@ class Rendered:
     missing_characters: tuple[str, ...] = ()
     # One box per marked line, in page order; empty for an unmarked body
     boxes: tuple[Box, ...] = ()
+    # The page's `PageSettings.wrapped_line`, which reads the boxes
+    wrapped_line: float = WRAPPED_LINE
 
     @property
     def lines_over(self) -> int:
@@ -180,31 +261,32 @@ class Rendered:
         its lines. Section headings have no box and blocks move whole across the
         page break, so it can run several lines short; Fit to One Page
         re-renders rather than trust it.'''
-        return line_count(box for box in self.boxes if box.page >= 2)
+        return line_count((box for box in self.boxes if box.page >= 2), self.wrapped_line)
 
 
-def render(view, identity: HeaderIdentity, template: str) -> Rendered:
+def render(view, identity: HeaderIdentity, template: str, page: PageSettings = DEFAULT_PAGE) -> Rendered:
     '''
-    A built resume view (services/resume_view.py) as a PDF in `template`.
-    Raises ValueError for a template id it does not know, and
+    A built resume view (services/resume_view.py) as a PDF in `template`, set
+    by `page`. Raises ValueError for a template id it does not know, and
     TectonicUnavailable when the compile cannot run or fails.
     '''
     printed: dict[str, str] = {}
-    rendered = compile_document(_document(view, identity, template, marks=True, printed=printed))
+    rendered = compile_document(_document(view, identity, template, page, marks=True, printed=printed))
     boxes = tuple(replace(b, text=printed.get(f"{b.item_id}.{b.kind}", "")) for b in rendered.boxes)
-    return replace(rendered, boxes=boxes)
+    return replace(rendered, boxes=boxes, wrapped_line=page.wrapped_line)
 
 
-def latex(view, identity: HeaderIdentity, template: str) -> str:
+def latex(view, identity: HeaderIdentity, template: str, page: PageSettings = DEFAULT_PAGE) -> str:
     '''
     The LaTeX source `render` compiles, without the position markers, so the
     student can take it to Overleaf. Raises ValueError like `render`.
     '''
-    return _document(view, identity, template, marks=False)
+    return _document(view, identity, template, page, marks=False)
 
 
 def _document(
-    view, identity: HeaderIdentity, template: str, *, marks: bool, printed: dict[str, str] | None = None
+    view, identity: HeaderIdentity, template: str, page: PageSettings, *, marks: bool,
+    printed: dict[str, str] | None = None,
 ) -> str:
     # Imported here: the template modules import escape() from this one
     from app.services.resume_render import jakes
@@ -213,7 +295,9 @@ def _document(
     # out, since pdfLaTeX (Overleaf's default) ignores an xdvipdfmx special
     # and warns about it.
     title = _titled(identity) if marks else ""
-    templates = {"jakes": lambda v, i: jakes_document(title + jakes.body(v, i, marks=marks, printed=printed))}
+    templates = {
+        "jakes": lambda v, i: jakes_document(title + jakes.body(v, i, marks=marks, printed=printed, page=page), page)
+    }
     if template not in templates:
         raise ValueError(f"unknown template {template!r}")
     return templates[template](view, identity)
@@ -262,9 +346,62 @@ def escape_url(url: str) -> str:
     return url.translate(_URL_TABLE)
 
 
-def jakes_document(body: str) -> str:
-    '''Jake's template with `body` (already LaTeX) after \\begin{document}.'''
+def _page_lines(page: PageSettings) -> list[str]:
+    '''What a page's settings add after Jake's preamble, before
+    \\begin{document}: only what differs from his page.'''
+    lines = []
+    if page.side_margin != DEFAULT_PAGE.side_margin:
+        more = page.side_margin - DEFAULT_PAGE.side_margin
+        lines += [
+            rf"\addtolength{{\oddsidemargin}}{{{more}in}}",
+            rf"\addtolength{{\evensidemargin}}{{{more}in}}",
+            rf"\addtolength{{\textwidth}}{{{-2 * more}in}}",
+        ]
+    if page.top_margin != DEFAULT_PAGE.top_margin:
+        more = page.top_margin - DEFAULT_PAGE.top_margin
+        lines += [
+            rf"\addtolength{{\topmargin}}{{{more}in}}",
+            rf"\addtolength{{\textheight}}{{{-2 * more}in}}",
+        ]
+    if page.line_spacing != DEFAULT_PAGE.line_spacing:
+        lines.append(rf"\linespread{{{page.line_spacing}}}")
+    if page.alignment == "justified":
+        # Takes back the preamble's \raggedright. \sloppy keeps a line that
+        # cannot stretch inside the margin, and no word is hyphenated: a split
+        # word reads as two to a hiring system
+        lines += [r"\makeatletter\@rightskip=\z@skip\rightskip=\@rightskip\makeatother",
+                  r"\sloppy\hyphenpenalty=10000"]
+    if page.accent != DEFAULT_PAGE.accent:
+        lines.append(rf"\definecolor{{wiaccent}}{{rgb}}{{{ACCENTS[page.accent]}}}")
+    if (page.accent != DEFAULT_PAGE.accent or not page.show_divider
+            or page.section_spacing != DEFAULT_PAGE.section_spacing):
+        lines.append(_section_format(page))
+    if page.entry_spacing != DEFAULT_PAGE.entry_spacing:
+        lines.append(rf"\renewcommand{{\resumeItemListEnd}}{{\end{{itemize}}\vspace{{{page.entry_spacing - 5}pt}}}}")
+    if page.bullet == "dash":
+        # Second level: Jake's bullets are a list inside the section's list
+        lines.append(r"\renewcommand{\labelitemii}{--}")
+    return lines
+
+
+def _section_format(page: PageSettings) -> str:
+    '''Jake's \\titleformat for sections, with the page's space over them, its
+    accent, and the rule under them or none.'''
+    accent = r"\color{wiaccent}" if page.accent != DEFAULT_PAGE.accent else ""
+    rule_color = accent or r"\color{black}"
+    rule = rf"{rule_color}\titlerule " if page.show_divider else ""
+    space = page.section_spacing - 4
+    return rf"\titleformat{{\section}}{{\vspace{{{space}pt}}\scshape\raggedright\large{accent}}}{{}}{{0em}}{{}}[{rule}\vspace{{-5pt}}]"
+
+
+def jakes_document(body: str, page: PageSettings = DEFAULT_PAGE) -> str:
+    '''Jake's template with `body` (already LaTeX) after \\begin{document},
+    set by `page`: at the defaults, his template byte for byte.'''
     template = TEMPLATE.read_text(encoding="utf-8")
+    if page != DEFAULT_PAGE:
+        template = template.replace("letterpaper,11pt", f"letterpaper,{page.font_size}pt", 1)
+        added = "\n".join(_page_lines(page))
+        template = template.replace(BEGIN_DOCUMENT, f"\n{added}{BEGIN_DOCUMENT}", 1)
     return template.replace(BODY_MARKER, f"\n{body}\n", 1)
 
 

@@ -325,6 +325,10 @@ change here must keep:
   per applicant and posting (`built_resumes_applicant_posting_key`; NULLs are
   distinct, so base resumes are many). No built resume counts toward the
   limit of 5, which is uploads only (`../services/built_resumes.py`).
+- **`built_resumes.page_settings` is JSONB, `{}` at Jake's own page**
+  (KAN-435): the fields of `resume_render.PageSettings`, a field left out at
+  its default. Read it through `built_resumes.page_of`. The schema's lists
+  check it on the way in, so the column holds no value the renderer refuses.
 - **The default resume is two pointers, at most one set.**
   `applicant_profiles.default_resume_id` (an uploaded resume) and
   `default_built_resume_id` (a base or tailored resume; tailored since

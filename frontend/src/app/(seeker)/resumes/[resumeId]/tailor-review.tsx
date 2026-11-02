@@ -48,6 +48,8 @@ export type SuggestionsApi = {
   saving: boolean;
   undo: (edit: TailorEdit) => void;
   undoAll: () => void;
+  /** Closes the panel; the toolbar's Suggestions opens it again. */
+  close: () => void;
   focused: string | null;
   focus: (key: string | null) => void;
   /** Opens a card and brings its lines into view (on a phone it also
@@ -55,6 +57,16 @@ export type SuggestionsApi = {
   show: (key: string) => void;
   active: string | null;
   open: (key: string | null) => void;
+};
+
+/** What the editor hands the popup beside a changed line it has open. */
+export type SuggestionPopupApi = {
+  edit: TailorEdit;
+  bank: Bank;
+  choices: Choices;
+  saving: boolean;
+  undo: () => void;
+  close: () => void;
 };
 
 /** A line's mark, the colour of its change's type (`ChangeKind`): `added`

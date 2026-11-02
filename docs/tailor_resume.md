@@ -251,14 +251,32 @@ weight.
   toolbar with the page's tools. Every change is saved as it is made, so
   Finish saves nothing, and suggestions not handled stay as the run made
   them. There was no Finish until 2026-10-26, so the review had no end.
-- **Under it, the resume's name**, spanning the page and the panel, with
-  the view switch at its right end over the column it changes: one
-  switch of three, Resume Only (the page alone at full width, to edit
-  with nothing beside it), Suggestions (with its count) or Original
-  (`SideSwitch`, on `SegmentedToggle`). One is always chosen: the page
-  alone was first reached by pressing the chosen option again, which
-  nobody would find. It sat in the toolbar until 2026-10-26; it changes
-  what is shown, not the page, so it left. Then two columns that start
+- **The page is laid out as a Google Doc** (KAN-499), copied row by row.
+  Under the top row comes the name's row: the resume's name over the job, as
+  a Doc's name sits over its menus, and at its right the document's actions,
+  the Original and Suggestions icons where Docs has version history and
+  comments, in WorkIt's own marks (`FileIcon`, the file every resume wears,
+  and a lightbulb, since the sparkle read as Scout's beside the top bar's),
+  then Download where Docs has Share. Each icon is tinted while its
+  column is open and closes it when pressed again, and the page alone at full
+  width is both closed. Under that, the toolbar is Docs' grey pill with no
+  outline and dark grey buttons, holding only tools for the page from the left: Undo, Redo, zoom,
+  then the page count. A three-way switch, then labelled buttons inside the
+  toolbar, held the view; the user found both unlike Docs. The name sat in
+  the top row for a moment, which pushed the step and Finish out of place.
+  **Formatting follows Docs too** (KAN-435). The pill changes with what the
+  student is doing: with a line open it holds font size, line spacing,
+  alignment and margins beside the line's own tools; with none open it holds
+  Undo, Redo, zoom and, at its end, Hide Suggestions, Sections and Format
+  Options, since all of it at once ran to two rows. Format Options opens a panel in the Suggestions column,
+  as Docs' opens beside its page (`page-format.tsx`). One column shows at a
+  time. A Format icon in the name's row was weighed and refused: the pill had
+  the room, and formatting is a tool for the page, not a view of it.
+  **The page runs to its edges:** a 16px gutter and no width cap, where
+  Home's cap and the seekers' gutter left about 50px each side. The resume
+  stops at its zoom, centred in its column. A tab with no record has no
+  icons, and the rest stays where it is.
+  Then two columns that start
   level: the toolbar and the page, and beside them the panel,
   "Suggestions" with its count in a filled pill at its top. The name renames in place (`ResumeTitle`): it
   reads as text, shows a faint outline and a pencil when pointed at, and a
@@ -293,28 +311,34 @@ weight.
   own page (whose top bar Scout opens its assistant, KAN-411): on this
   page the panel holds the column beside the page, and a second AI entry
   beside it split the page. No Download while a line is open.
-- **Dots, then highlights.** Each changed line has a small dot (8px) in
-  the page's left margin, brand purple whatever the change: in each
-  type's colour the amber dots read as one more signal among the
-  highlights, so a dot says only that a line changed and the panel says
-  how. A removed line is not on the page, so it has none. Dots on one
-  line (skills) stack like coins. A line is
-  highlighted only while its suggestion is pointed at, focused or open,
-  as Quinncia draws one: the tint carried 1px past the line, a 1px border
-  in the mark's dark shade (`positive-ink`, `warning-strong`) at half
-  strength, rounded; at full strength it read too thick. A line being
-  typed in keeps only its tint, so the field's 1.5px ring is its one
-  outline. A
-  click on a dot or on a changed line opens its suggestion (and its
-  section). Dots and cards were numbered until 2026-10-26: the numbers
-  read as an order to follow, so each section counts its own instead.
+- **Changes show on the resume, with a popup, as Docs shows suggestions**
+  (KAN-499). Every changed line is tinted in its type's colour, green added,
+  blue reworded, amber moved, with an outline while its card is pointed at or
+  open. A click on one opens its line and a small card beside it
+  (`SuggestionPopup`): the change and an Undo icon, the same as the panel's row, so a
+  student can settle one change with the panel closed. The click leaves the
+  panel as it is: it opened the panel for a moment, which took the column
+  from a student who had closed it. **Hide Suggestions** on the toolbar takes
+  the tints and the popup off the page when so many lines changed that they
+  get in the way of reading it; the changes stay, and so does the panel.
+  The card closes with its X, on
+  Esc, on leaving the line, or once the student types. It sits under the line,
+  or over it when the window cannot show all of it there. That is measured
+  against the window, not the page: a rule of "over it near the page's foot"
+  cut the card off at the window's foot higher up the page. An 8px dot in the margin marked each line
+  until the user found the dots apart from the words they marked; a phone
+  keeps them, since a tap there opens a sheet. Dots and cards were numbered
+  until 2026-10-26: the numbers read as an order to follow, so each section
+  counts its own.
 - **Original sets the source resume beside the tailored one**, in place
   of the panel, the two at one width, so a line reads against its twin.
   **The comparison only reads:** a plain heading over each, Tailored
   Resume and Original Resume, with no toolbar on either, and no click
   targets or marks on the tailored page, since a line opened with no
   toolbar has no tools. The two scroll with the page, together, so a line
-  stays level with its twin. The tailored page kept its toolbar, and the
+  stays level with its twin. The toolbar goes with it, so the Original
+  Resume heading has an X, as the panel has, which is the way out. The
+  tailored page kept its toolbar, and the
   original a toolbar-shaped card with a Read Only tag and a scroll of its
   own, until the user found that heavy (KAN-499). The source (the
   record's `source`) draws read-only through step 1's preview loader
@@ -334,7 +358,9 @@ weight.
   as the page scrolled (KAN-499). The list is `relative`: a card's sr-only
   label is absolute, and with no positioned box there the list did not
   clip it, so the labels of cards past its fold stretched the page's
-  scroll, 600 px with 16 cards. A fixed cap, the window less 15rem,
+  scroll, 600 px with 16 cards. Neither the page nor the list bounces at
+  its end (`data-no-bounce`, y only, so the trackpad's swipe back still
+  works): a hard scroll stretched the page and carried the panels with it. A fixed cap, the window less 15rem,
   ran the panel's foot below the window before the page scrolled and
   left a gap under it once it stuck, after the title row grew. The list
   scrolls inside, so the scroll bar starts
@@ -350,7 +376,8 @@ weight.
   review and its white sections stand apart; it was grey (`app`) until
   the user found it muted. On a phone the sheet is white and the sections
   grey.
-- **The toolbar shows and hides the panel** (Suggestions, `panelOpen` in
+- **The toolbar shows and hides the panel, and its X closes it**, as Docs'
+  comments panel does (Suggestions, `side` in
   the editor, which owns the grid). Hidden, the page takes the whole
   width and no line stays highlighted. A phone opens the panel as a sheet
   from its own button.

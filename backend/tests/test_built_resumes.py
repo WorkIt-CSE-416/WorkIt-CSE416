@@ -292,6 +292,15 @@ async def test_generate_matches_a_resume_only_on_what_it_prints(student):
     assert (res.status_code, res.json()["detail"]["built_resume_id"]) == (409, first)
 
 
+async def test_generate_is_no_duplicate_of_a_resume_set_on_another_page(student):
+    client, me = student
+    await _fill_bank(client, me)
+    first = await _generate(client, me)
+    settings = {"font_size": 12, "line_spacing": 1.15, "side_margin": 0.75, "top_margin": 0.75, "alignment": "justified", "section_spacing": 4, "entry_spacing": 2, "accent": "#14532D", "bullet": "dash", "show_divider": False, "header_alignment": "left"}
+    assert (await client.put(f"{me}/built-resumes/{first}/page-settings", json=settings)).status_code == 204
+    assert (await client.post(f"{me}/built-resumes", json={})).status_code == 201
+
+
 class _FakeBucket:
     def upload(self, path, contents, options):
         return {"path": path}
@@ -594,7 +603,7 @@ async def test_render_reports_a_long_resume_and_the_characters_the_font_lacks(st
 async def test_render_answers_503_when_tectonic_is_missing(student, monkeypatch):
     from app.services.resume_render import TectonicUnavailable
 
-    def missing(view, identity, template):
+    def missing(view, identity, template, page):
         raise TectonicUnavailable("no tectonic binary")
 
     monkeypatch.setattr("app.routers.built_resumes.render", missing)

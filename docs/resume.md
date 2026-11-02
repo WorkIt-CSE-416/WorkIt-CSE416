@@ -156,6 +156,11 @@ applicant_profiles
   `default_built_resume_id` → `built_resumes.id`, sits beside it, both
   `ON DELETE SET NULL`, with a check that at most one is set. Setting one
   clears the other. Deleting the default leaves no default, as before.
+- **Page settings are stored, not a template copy** (KAN-435):
+  `built_resumes.page_settings` holds the type, spacing, margins and style
+  (`resume_render.PageSettings`), each from a fixed list, and `{}` is Jake's
+  own page. A tailored
+  resume takes its source's. The Word file ignores them.
 - **The template id is stored, not the template.** `jakes` is the only one;
   a second template is its own slice. The Word file is one plain layout with
   no id.
@@ -175,8 +180,9 @@ keeps nothing.
   resume nulls the link and keeps the sent resume, with the name it had.
   At most one source is set (`sent_resumes_one_source`).
 - **Repeats merge by a hash taken before rendering**: the view, the template
-  id and the header's identity text (sha256), within one job posting. The
-  name is not in the hash: it is not printed on the page.
+  id, the page settings when they differ from Jake's page (so an older hash
+  still matches) and the header's identity text (sha256), within one job
+  posting. The name is not in the hash: it is not printed on the page.
 - **Sent resumes kept before KAN-267** keep their PDF (or Word file) in
   Storage, some with no job posting (downloads), and open as before.
 
