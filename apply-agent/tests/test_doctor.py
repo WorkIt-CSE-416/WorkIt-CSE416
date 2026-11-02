@@ -167,7 +167,7 @@ def test_claude_logged_in_says_whose_login(tmp_path):
 def test_claude_logged_out_fails_with_how_to_log_in(tmp_path):
     found = check(machine(tmp_path, claude=claude_status(loggedIn=False)), "claude")
     assert found.level == doctor.FAIL
-    assert "claude auth login" in found.fix
+    assert "claude auth login" in found.fix and "your own Claude plan" in found.fix
 
 
 def test_no_claude_cli_fails_with_how_to_install_it(tmp_path):
@@ -403,6 +403,7 @@ def test_with_no_profile_every_check_still_runs_and_the_profile_says_how_to_make
     assert "ok    Chrome: 141.0.7390.55" in lines
     profile_line = next(line for line in lines if line.startswith("fail  Applicant profile:"))
     assert str(missing) in profile_line and "applicant-profile.template.yaml" in profile_line
+    assert "uv run apply rehearse <url>" in profile_line and "Test Person sample data" in profile_line
     assert not any("Traceback" in line or "Error" in line for line in lines)
 
 
@@ -421,7 +422,7 @@ def test_the_engine_bundle_there_is_ok(tmp_path):
 def test_no_chromium_for_the_tests_warns_with_how_to_install_it(tmp_path):
     found = check(machine(tmp_path, playwright=tmp_path / "ms-playwright"), "Chromium for tests")
     assert found.level == doctor.WARN
-    assert "playwright install chromium" in found.fix
+    assert "playwright install chromium" in found.fix and "apply-agent/" in found.fix
 
 
 def test_chromium_for_the_tests_installed_is_ok(tmp_path):

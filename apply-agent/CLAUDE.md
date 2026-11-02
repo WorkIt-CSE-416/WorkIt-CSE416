@@ -46,6 +46,10 @@ folder. The repairer works on the submodule path in its Repair worktree.
 Run `git submodule update --init` once per checkout. Without it, Apply
 cannot fill a form, and `uv run apply doctor` says so.
 
+`README.md` is a teammate's setup path, from a clone to a rehearsal. Its
+steps and doctor's fix lines say the same thing. When you change one,
+change the other.
+
 ## The data folder (`APPLY_HOME`)
 
 **Personal data is never in the repo.** WorkIt is a public repo. All of a
