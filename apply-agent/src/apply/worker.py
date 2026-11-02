@@ -55,7 +55,7 @@ from apply.model import (
 )
 from apply.presubmit import replan, review
 from apply.profile import ApplicantProfile
-from apply.records import Filled
+from apply.records import SECRET, Filled
 
 SENT = HOME / "sent"
 
@@ -369,6 +369,9 @@ class _Planned:
         self.questions = self.questions + list(questions)
         planned = plan(self.questions, posting, profile, self._bank, posting_text=self.posting_text,
                        employer_text=f"{self.text}\n{self.material or ''}", today=self._today)
+        # A secret (a password the Filler types itself) is never Claude's to draft nor the Answer bank's to keep:
+        # it stays blank in the plan (Answer optional questions too had sent an optional one to Claude).
+        planned.drafts = [q for q in planned.drafts if not (SECRET.search(q.label) or SECRET.search(q.name))]
         self.banked = planned.banked
         self.accepted = planned.accepted
         if planned.not_eligible:
