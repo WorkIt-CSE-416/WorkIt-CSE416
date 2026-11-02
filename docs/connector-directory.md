@@ -21,18 +21,16 @@ connector**. Any paid Claude plan can submit. Escalations: `mcp-review@anthropic
    Add Custom Connector link below. Before you send, check once more that
    the API has `CONNECTOR_API_URL=https://api.workitjobs.ai` and
    `CONNECTOR_WEB_URL=https://workitjobs.ai`.
-2. **Fill the Privacy Policy's open items.** `/privacy` has a section on the
-   connector (what Claude reads, what WorkIt keeps, how to stop it), but on
-   2026-10-31 it still shows 11 `[TEAM TO DECIDE]` marks: the operator's legal
-   name, the contact and privacy-request emails, the minimum age, the
-   retention period, where data is stored, the AI model providers, what the
-   logs hold, privacy rights by region, legal requests, and how users hear of
-   changes. Anthropic rejects a submission with an incomplete privacy policy.
+2. **Deploy the finished Privacy Policy.** `/privacy` has a section on the
+   connector (what Claude reads, what WorkIt keeps, how to stop it), and
+   the KAN-462 answers fill every open item on `/privacy` and `/terms`
+   (contact email `team@workitjobs.ai`). Anthropic rejects a submission
+   with an incomplete privacy policy, so deploy them before you send.
 3. **Make the reviewer account** (see "Test & launch" below) and check it
    once through Claude yourself.
 4. **Test every tool in Claude** as a custom connector (Auto Apply's Add to
-   Claude button, or the link below), and once in MCP Inspector. The form
-   asks you to confirm both.
+   Claude button, or the link below), and once in MCP Inspector, with the
+   steps in "Reviewer test steps" below. The form asks you to confirm both.
 5. After approval, Anthropic gives the listing's slug. Set
    `CLAUDE_CONNECTOR_LINK=https://claude.ai/directory/connectors/<slug>` on
    the webapp; every Add to Claude button then opens the listing.
@@ -126,7 +124,7 @@ to check each quote. If the reviewer asks, this is the reason.
 - **Categories:** pick the closest to Productivity and Career (the form's list decides).
 - **Documentation URL:** `https://workitjobs.ai/docs/mcp`
 - **Privacy policy URL:** `https://workitjobs.ai/privacy`
-- **Support contact:** the team's support email (to decide; the same one the Privacy Policy names).
+- **Support contact:** `team@workitjobs.ai` (the address the Privacy Policy names).
 - **Icon:** `frontend/public/workit-icon.svg` (export a square PNG if the form asks for one).
 - **Slug** (permanent): `workit`
 
@@ -192,12 +190,95 @@ Text for the form (fill the bracketed parts):
 > 2. Click Connect. You are sent to WorkIt's sign-in. Sign in with: email [reviewer email], password [reviewer password]. Click Allow on the Connect Claude page.
 > 3. In a chat with the WorkIt connector on, run the prompt "Write my WorkIt answers", or call get_next_application directly. It returns an open application with its job posting, unanswered written questions and the account's experience.
 > 4. Call save_answers with that job_id and an answer for each question name. It answers how many were saved and how many are left; get_next_application then moves to the next application. Try an empty answer or an unknown question name to see the refusals.
-> 5. The account holds [N] open applications with questions. If they run out, sign in at https://workitjobs.ai, open Auto Apply, and start a new batch (this step needs the WorkIt Chrome extension), or email [support contact] and we reset the account.
+> 5. The account holds [N] open applications with questions. If they run out, sign in at https://workitjobs.ai, open Auto Apply, and start a new batch (this step needs the WorkIt Chrome extension), or email team@workitjobs.ai and we reset the account.
 >
 > The connector never submits an application and never contacts an employer.
 
 Confirm you ran every tool as a custom connector in Claude, and in MCP
 Inspector (`npx @modelcontextprotocol/inspector`, Streamable HTTP, the URL above).
+
+## Reviewer test steps
+
+Run these before sending, signed in as the reviewer account, once in Claude
+and once in MCP Inspector. The form's test-account field gets the short
+version above; this is the full check. Nothing here submits an application
+or contacts an employer.
+
+### Reviewer test account
+
+Lisul makes the account and sends the form; nobody else creates it.
+
+1. Sign up at `https://workitjobs.ai/signup` as a student, with an address
+   that forwards to the team Gmail (for example a `team+reviewer@` alias, if
+   Cloudflare Email Routing has a route for it). Not the shared team test
+   account (`frontend/CLAUDE.md`).
+2. Finish onboarding with a sample resume from `frontend/public/resumes/`,
+   so the experience bank has entries and skills.
+3. On Profile, add one or two Writing Samples (any short text the team
+   wrote), so `get_writing_samples` and `save_style_card` have something to
+   work on.
+4. Install the WorkIt extension, open Auto Apply, and start a batch (or the
+   onboarding practice batch) until at least three open applications hold
+   written questions. Leave every one unsubmitted.
+5. Write down the email, password and the number of open applications for
+   the form's bracketed parts.
+6. After your own test, disconnect Claude in Settings > Sign-In & Security >
+   Connected Apps, so the reviewer starts from a clean connection. Answers
+   you saved stay on the applications; start a fresh batch if fewer than
+   three are left unanswered.
+
+### In Claude
+
+Add the connector (Settings > Connectors > Add custom connector, URL
+`https://api.workitjobs.ai/mcp`, or the install link above), click Connect,
+sign in as the reviewer and click Allow on the Connect Claude page. In a new
+chat with WorkIt turned on, type each prompt and check the result. Read
+tools run with no permission prompt; Claude asks before each `save_*` tool
+unless you allowed it.
+
+| # | Tool | Type this in Claude | Expected result |
+|---|---|---|---|
+| 1 | `get_research_task` | `Use WorkIt's get_research_task tool and tell me which company it returns and why.` | A company from an open application, with a `reason` of `missing`, `stale`, `weak` or `unnamed`, its score, the categories it lacks and the allowed news sites. `company: null` once every company has a current brief. |
+| 2 | `save_company_brief` | `Research that company on its own website and save a brief of at least 3 facts with save_company_brief, each with its page URL and a word-for-word quote.` | `kept` counts the facts that passed, `dropped` lists each failed fact with its reason (quote not on the page, site not allowed, number not in the quote). `saved: true` when at least 3 facts pass and the score beats the kept brief. |
+| 3 | `get_next_application` | `Use WorkIt's get_next_application tool and show me the company, job title and questions it returns.` | A `job_id`, the company, title and job posting, the unanswered questions (each with `name`, `kind` and `max_length`), the experience bank and skills, and the company brief. If it returns `research_first` with a company name instead, run steps 1 and 2 for that company and ask again. |
+| 4 | `save_fact_question` | `For one of those questions, use save_fact_question to ask me for one fact about my first experience entry that the answer would need.` | `left` counts the questions still unanswered. The question shows on WorkIt's Written Answers page (`/auto-apply/answers`) and in the application's tab. A `name` the application doesn't have is refused with that reason. |
+| 5 | `save_answers` | `Write an answer to each remaining question from my experience and save them with save_answers.` | `saved` and `left` counts, and `read_first` naming the answers to read before Submit. The answers show in the application's open tab in Chrome. |
+| 5b | `save_answers` (refusals) | `Call save_answers for that job with an empty answer to the first question, then with a question name of "not_a_question".` | Two tool errors, nothing saved: `The answer to '<name>' is empty.` and `The application has no question named 'not_a_question'. Use the names get_next_application gave.` |
+| 6 | `get_review_task` | `Use WorkIt's get_review_task tool and show me the application and answers it returns.` | An application whose questions are all answered, each answer with its question, `own` flag and `version`. `job_id: null` when none is waiting. |
+| 7 | `save_review` | `Review those answers against my experience and save the review with save_review, passing back each answer's version.` | `flagged` counts the answers the tab now marks as needing the student (0 when none is wrong); `changed` lists any answer edited since step 6. |
+| 8 | `get_writing_samples` | `Use WorkIt's get_writing_samples tool and show me what it returns.` | The samples added on Profile, word for word, and `style_card: null` before step 9. |
+| 9 | `save_style_card` | `Build a short style card from those samples and save it with save_style_card.` | `saved: true`. Running step 8 again shows the card. An empty card is refused with `The style card is empty.` |
+| 10 | prompt `write_my_workit_answers` | Pick "Write my WorkIt answers" from the connector's prompts (the + menu), then send. | Claude runs the tools above in order on each open application, saves the answers, and stops after 5 applications with a message to start a new chat. |
+
+### In MCP Inspector
+
+1. Run `npx @modelcontextprotocol/inspector` and open the URL it prints.
+2. Transport **Streamable HTTP**, URL `https://api.workitjobs.ai/mcp`.
+3. Open the authentication settings and run the OAuth flow (the guided or
+   quick flow). It registers a client at `/register`, opens WorkIt's
+   sign-in; sign in as the reviewer and click Allow. Then **Connect**.
+   Without a token the server answers 401.
+4. **Tools > List Tools**: nine tools. Click each and check its annotations
+   against the table in "2. Tools": the four `get_*` tools `readOnlyHint:
+   true`, the five `save_*` tools `readOnlyHint: false` and
+   `destructiveHint: false`, all `openWorldHint: false`.
+5. Run each tool with the arguments below and check the result matches the
+   Claude table. Leave `chat` empty.
+
+| Tool | Arguments | Expected |
+|---|---|---|
+| `get_research_task` | none | As row 1. |
+| `save_company_brief` | `company` from that result, `facts` a list of 3 objects `{category, fact, url, quote}` | As row 2; a made-up quote comes back in `dropped`. |
+| `get_next_application` | none | As row 3. |
+| `save_fact_question` | `job_id`, `name` of one question, `question`, `about` = the first line of one entry in `experience` | As row 4. |
+| `save_answers` | `job_id`, `answers: [{"name": "<question name>", "answer": ""}]` | The empty-answer refusal (row 5b). A real text answer also needs `plan` and `unsupported`, which the prompt builds; save one through Claude instead. |
+| `get_review_task` | none | As row 6. |
+| `save_review` | `job_id`, `problems: []`, `versions` from `get_review_task` | `flagged: 0`. |
+| `get_writing_samples` | none | As row 8. |
+| `save_style_card` | `card: "Short sentences, plain words."` | `saved: true`. |
+
+6. **Prompts > List Prompts**: `write_my_workit_answers`, titled "Write my
+   WorkIt answers"; **Get Prompt** returns its text.
 
 ## 9. Compliance
 

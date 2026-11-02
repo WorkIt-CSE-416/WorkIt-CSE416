@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { LegalPage, TeamToDecide } from "../legal-page";
+import { LegalPage } from "../legal-page";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -8,9 +8,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * The public Privacy Policy, a draft for the team to review. Every statement
- * describes what the code does today; a business decision the code cannot
- * answer is a TeamToDecide placeholder, never a guess. Change this page
+ * The public Privacy Policy. Every statement describes what the code does
+ * today; the business decisions in it (operator, age, retention, privacy
+ * rights) are the team's, recorded on KAN-462 on 2026-10-31. Change this page
  * together with the behaviour it describes.
  */
 export default function PrivacyPage() {
@@ -19,8 +19,9 @@ export default function PrivacyPage() {
       <p>
         WorkIt (<a href="https://workitjobs.ai">workitjobs.ai</a>) helps students find job postings,
         build and tailor resumes, fill job applications and track them. This policy says what
-        information WorkIt collects, why, who it shares it with, and the choices you have. WorkIt is
-        operated by <TeamToDecide>legal name of the operator</TeamToDecide>.
+        information WorkIt collects, why, who it shares it with, and the choices you have.
+        &ldquo;WorkIt&rdquo;, &ldquo;we&rdquo; and &ldquo;us&rdquo; mean WorkIt, a project run by
+        its student founders.
       </p>
 
       <h2>Information You Give Us</h2>
@@ -78,8 +79,9 @@ export default function PrivacyPage() {
           to apply daily limits.
         </li>
         <li>
-          <strong>Server logs.</strong> Our hosting providers keep standard request logs.{" "}
-          <TeamToDecide>what these logs hold and how long they are kept</TeamToDecide>
+          <strong>Server logs.</strong> Our hosting providers, Cloudflare and Supabase, keep
+          standard request logs: your IP address, the time, the address requested, the status code
+          and basic browser details. These logs are deleted within 30 days.
         </li>
       </ul>
 
@@ -110,12 +112,12 @@ export default function PrivacyPage() {
         model providers.
       </p>
       <p>
-        The providers WorkIt is set up to use include Google (Gemini) and Groq. Job matching sends
-        text to Google (Gemini) only when that is turned on.{" "}
-        <TeamToDecide>the final list of AI model providers</TeamToDecide> Some of these
-        providers&apos; free plans let them use the text they receive to improve their services.
-        Because we remove your identity details first, that text does not include your name or
-        contact details.
+        The AI model providers WorkIt uses are Google (Gemini) and Groq. Job matching sends text to
+        Google (Gemini) only when that is turned on. If you add the WorkIt connector to your own
+        Claude account, your Claude (Anthropic) also reads what the connector gives it, as the
+        section on the connector below says. Some of these providers&apos; free plans let them use
+        the text they receive to improve their services. Because we remove your identity details
+        first, that text does not include your name or contact details.
       </p>
       <p>
         AI output can be wrong. WorkIt checks that tailored resume text and written answers do not
@@ -177,17 +179,17 @@ export default function PrivacyPage() {
           not send it for you.
         </li>
         <li>
-          <strong>When the law requires it.</strong>{" "}
-          <TeamToDecide>how WorkIt answers legal requests</TeamToDecide>
+          <strong>When the law requires it.</strong> We answer a request for your information only
+          when it comes with valid legal process, such as a subpoena, court order or search warrant.
+          We tell you about the request before we share anything, unless the law does not let us.
         </li>
       </ul>
 
       <h2>How Long We Keep Information</h2>
       <p>
-        We keep your information while your account exists.{" "}
-        <TeamToDecide>
-          retention period after an account closes, and for backups and logs
-        </TeamToDecide>
+        We keep your information while your account exists. When you close your account, we delete
+        your information within 30 days, and delete it from our backups within a further 30 days.
+        Request logs are deleted within 30 days.
       </p>
 
       <h2>Your Choices</h2>
@@ -198,15 +200,16 @@ export default function PrivacyPage() {
         </li>
         <li>
           You can delete your account in Settings. Deleting it deletes its profile, its files and
-          everything linked to it, for good. For other privacy requests, contact{" "}
-          <TeamToDecide>contact email for privacy requests</TeamToDecide>.
-        </li>
-        <li>
-          <TeamToDecide>
-            privacy rights by region (for example GDPR or CCPA) and how to use them
-          </TeamToDecide>
+          everything linked to it, for good. For other privacy requests, email{" "}
+          <a href="mailto:team@workitjobs.ai">team@workitjobs.ai</a>.
         </li>
       </ul>
+
+      <h2>Your Privacy Rights</h2>
+      <p>
+        Wherever you live, you can ask to see, correct, export or delete your information. Email{" "}
+        <a href="mailto:team@workitjobs.ai">team@workitjobs.ai</a>, and we answer within 30 days.
+      </p>
 
       <h2>Security</h2>
       <p>
@@ -217,24 +220,29 @@ export default function PrivacyPage() {
 
       <h2>Children</h2>
       <p>
-        WorkIt is for students looking for jobs and internships. You must be at least{" "}
-        <TeamToDecide>minimum age</TeamToDecide> to use it.
+        WorkIt is for students looking for jobs and internships. You must be at least 16 years old
+        to use it.
       </p>
 
       <h2>Where Your Information Is Stored</h2>
       <p>
-        <TeamToDecide>the country or region where data is stored and processed</TeamToDecide>
+        WorkIt stores your information in the United States. Our database, sign-in and file storage
+        run on Supabase in Amazon Web Services&apos; us-east-1 region (Northern Virginia). Our API
+        runs on Cloudflare in eastern North America, and requests to WorkIt pass through
+        Cloudflare&apos;s worldwide network on the way. The AI model providers above may process the
+        text we send them in other countries.
       </p>
 
       <h2>Changes to This Policy</h2>
       <p>
-        When we change this policy, we update the date at the top of this page.{" "}
-        <TeamToDecide>how users are told about important changes</TeamToDecide>
+        When we change this policy, we update the date at the top of this page. Before an important
+        change takes effect, we tell you by email and with a notice in WorkIt, at least 14 days
+        ahead.
       </p>
 
       <h2>Contact</h2>
       <p>
-        Questions about this policy: <TeamToDecide>contact email</TeamToDecide>
+        Questions about this policy: <a href="mailto:team@workitjobs.ai">team@workitjobs.ai</a>
       </p>
     </LegalPage>
   );
