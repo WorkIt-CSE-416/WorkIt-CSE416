@@ -113,11 +113,15 @@ globalThis.WIA = globalThis.WIA || {};
       .map((v) => v.trim())
       .sort((a, b) => b.length - a.length);
 
-  /** The report Send sends: `report` (the background's preview) with the fields the student marked wrong and their note. */
-  function finalize(report, { marked = [], note = null } = {}) {
+  /**
+   * The report Send sends: `report` (the background's preview) with the fields the student marked wrong and their note,
+   * and the page's layout (`html`) only while `layout`, the card's "Include the page's layout" box, is ticked (KAN-456).
+   */
+  function finalize(report, { marked = [], note = null, layout = true } = {}) {
     const wrong = new Set(marked);
     const text = typeof note === "string" && note.trim() ? note.trim().slice(0, NOTE_MAX) : null;
-    return { ...report, fields: report.fields.map((field) => (wrong.has(field.name) ? { ...field, marked: true } : field)), note: text };
+    const { html, ...rest } = report;
+    return { ...rest, ...(layout && html !== undefined ? { html } : {}), fields: report.fields.map((field) => (wrong.has(field.name) ? { ...field, marked: true } : field)), note: text };
   }
 
   globalThis.WIA.reportParts = Object.freeze({ ERRORS, TRIGGERS, FIELD_PARTS, TIMELINE_PARTS, NOTE_MAX, HTML_MAX, shapeOf, redactor, quoted, finalize });

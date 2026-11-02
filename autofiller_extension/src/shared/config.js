@@ -12,8 +12,14 @@
 // page's normal CORS rules instead of bypassing them, and chrome.cookies
 // can't read the session there. Web origins also go in
 // externally_connectable.matches.
+//
+// The Store build (store/build.mjs, KAN-463) sets both to null, so the
+// published extension never asks a dev server for anything: every user of
+// these skips a null one. It also sets TEST_HOOKS false.
 export const DEV_API_URL = "http://localhost:8000";
 export const DEV_WEB_URL = "http://localhost:3000";
+/** Whether the background puts the tests' hooks on its global (background.js): never in the Store build. */
+export const TEST_HOOKS = true;
 
 // The deployed webapp origins, each paired with its own API. Cloudflare
 // first, then Vercel, which stays live until the KAN-296 cutover. Both

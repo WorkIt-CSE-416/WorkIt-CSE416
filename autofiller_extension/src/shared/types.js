@@ -160,13 +160,13 @@
  * "skipped" is an optional field with nothing to fill it from — distinct
  * from "failed", which only ever means a required field that couldn't be
  * filled. This split is the direct fix for JobRight's Minor(s) bug: an
- * empty optional field is a non-event, not a red flag. "needs_generation"
- * is its own fourth state: an open-ended question WorkIt could draft an
- * answer for but hasn't, pending the student's one opt-in click in the
- * overlay (the Fill engine's Plan, content-script.js,
- * overlay.js's promptForEssays) — never "pending", since nothing in the
- * normal fill pass is ever going to resolve it on its own.
- * @typedef {"pending" | "filled" | "failed" | "skipped" | "needs_generation"} FieldStatus
+ * empty optional field is a non-event, not a red flag. "needs_writing"
+ * is its own fourth state: an open-ended question that needs a written
+ * answer, from the student's Claude (Write with Claude, overlay.js's
+ * promptForEssays) or their own paste; WorkIt writes none itself — never
+ * "pending", since nothing in the normal fill pass is ever going to
+ * resolve it on its own.
+ * @typedef {"pending" | "filled" | "failed" | "skipped" | "needs_writing"} FieldStatus
  */
 
 /**
@@ -202,7 +202,6 @@
  * planned answer (its `sources`): the student's profile, their own answer to
  * the question ("student"), a saved answer, or a guess (WorkIt's default, or
  * no fact of theirs). "student" is also a value the student typed after the
- * fill; "claude" an answer their own Claude wrote (the connector); "ai" one
- * the essay route wrote.
- * @typedef {"profile" | "student" | "saved" | "guessed" | "claude" | "ai" | "pasted"} Source
+ * fill; "claude" an answer their own Claude wrote (the connector).
+ * @typedef {"profile" | "student" | "saved" | "guessed" | "claude" | "pasted"} Source
  */

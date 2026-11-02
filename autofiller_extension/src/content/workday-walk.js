@@ -83,7 +83,7 @@ window.WIA = window.WIA || {};
     if (r.key === "_step") return null;
     if (r.note) return r.note === "todo" ? `${r.label}: ${r.reason ?? "it needs you"}` : null;
     if (r.status === "failed") return `${r.label} needs you`;
-    if (r.status === "pending" || r.status === "needs_generation") return `${r.label} is still waiting for an answer`;
+    if (r.status === "pending" || r.status === "needs_writing") return `${r.label} is still waiting for an answer`;
     if (r.flag) return `${r.label} was flagged`;
     if (r.status === "filled" && r.source === "guessed") return `check WorkIt's guess for ${r.label}`;
     return null;

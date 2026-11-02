@@ -1,0 +1,43 @@
+name: Fill engine token
+
+# Called by ci.yml, extension-nightly.yml and live-canary.yml: whether the
+# FILL_ENGINE_TOKEN secret (read access to the private WorkIt-CSE-416/fill-engine
+# submodule) is set. A job that needs the engine runs only when it is, so
+# without it that job shows as skipped, never as passing tests, and this job's
+# summary says SKIPPED and what was.
+on:
+  workflow_call:
+    inputs:
+      skipped:
+        description: What doesn't run without the token, for the summary.
+        type: string
+        required: true
+    outputs:
+      set:
+        description: "'true' when FILL_ENGINE_TOKEN is set."
+        value: ${{ jobs.check.outputs.set }}
+    secrets:
+      FILL_ENGINE_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      set: ${{ steps.check.outputs.set }}
+    steps:
+      - id: check
+        env:
+          TOKEN: ${{ secrets.FILL_ENGINE_TOKEN }}
+          SKIPPED: ${{ inputs.skipped }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            echo "set=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "set=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SKIPPED: $SKIPPED. FILL_ENGINE_TOKEN is not set."
+            printf '## SKIPPED: %s\n\nFILL_ENGINE_TOKEN is not set, so this did not run. Nothing was tested.\n' "$SKIPPED" >> "$GITHUB_STEP_SUMMARY"
+          fi

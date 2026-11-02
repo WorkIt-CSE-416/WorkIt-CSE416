@@ -1,0 +1,6 @@
+{
+  "name": "WorkIt",
+  "version": "1.0.0",
+  "description": "Fills job applications from your WorkIt profile and résumé. You start every fill, and it never submits for you.",
+  "default_title": "WorkIt"
+}

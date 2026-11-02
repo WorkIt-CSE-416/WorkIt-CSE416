@@ -94,7 +94,7 @@ window.WIA = window.WIA || {};
     if (field.note) return status.needsYou(field) ? "needs-you" : "note";
     if (status.needsYou(field)) return "needs-you";
     if (status.toCheck(field)) return "check";
-    if (field.status === "needs_generation" && field.claude) return "waiting";
+    if (field.status === "needs_writing" && field.claude) return "waiting";
     if (field.status === "pending" && window.WIA.phase === "filling") return "filling";
     if (field.status === "filled") return "filled";
     return field.required ? "not-asked" : "empty";
@@ -294,7 +294,7 @@ window.WIA = window.WIA || {};
     const note = Object.assign(document.createElement("div"), { className: "box-note" });
     const start = window.WIA.overlay?.startClaude?.();
     if (start) note.append(start);
-    const link = fields.find((f) => f.status === "needs_generation" && f.link)?.link;
+    const link = fields.find((f) => f.status === "needs_writing" && f.link)?.link;
     const rest = Object.assign(document.createElement("p"), { textContent: "Or press a question to paste or type its answer" });
     if (link) rest.append(", or use ", Object.assign(document.createElement("a"), { href: link.href, textContent: link.text, target: "_blank", rel: "noreferrer" }));
     rest.append(".");
@@ -313,11 +313,11 @@ window.WIA = window.WIA || {};
     const shut = folded.has(kind);
     const toggle = Object.assign(document.createElement("button"), { type: "button", className: "box-toggle", textContent: title });
     toggle.setAttribute("aria-expanded", String(!shut));
-    toggle.addEventListener("click", () => {
+    toggle.addEventListener("click", window.WIA.ui.trusted(() => {
       if (folded.has(kind)) folded.delete(kind);
       else folded.add(kind);
       window.WIA.overlay?.refresh?.();
-    });
+    }));
     const head = Object.assign(document.createElement("h3"), { className: "box-head" });
     head.append(toggle);
     for (const r of rows) r.hidden = shut && !r.matches("[data-current], [data-open]");
@@ -332,11 +332,11 @@ window.WIA = window.WIA || {};
     const head = Object.assign(document.createElement("button"), { type: "button", className: "group-head", textContent: label });
     head.dataset.mark = name === "filled" ? "filled" : "empty";
     head.setAttribute("aria-expanded", String(opened.has(name)));
-    head.addEventListener("click", () => {
+    head.addEventListener("click", window.WIA.ui.trusted(() => {
       if (opened.has(name)) opened.delete(name);
       else opened.add(name);
       window.WIA.overlay?.refresh?.();
-    });
+    }));
     for (const r of rows) r.hidden = !opened.has(name);
     el.append(head, ...rows);
     return el;

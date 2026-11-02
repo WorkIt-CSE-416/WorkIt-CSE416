@@ -6,8 +6,10 @@
 // - el(tag, className, text) and button(label, onPress): the panel's nodes.
 // - trusted(onPress): a click listener that acts on the student's own clicks
 //   only (event.isTrusted). The panel lives in the employer's page, whose
-//   scripts can dispatch clicks; every panel action that changes something
-//   takes its clicks through this (button() does).
+//   scripts can dispatch clicks; every click listener in the panel takes its
+//   clicks through this (button() does), down to a fold or a Not Now
+//   (KAN-469). The one exception is submit-warning.js's watch on the
+//   employer's own Submit, which holds the page's clicks too.
 window.WIA = window.WIA || {};
 
 (function () {

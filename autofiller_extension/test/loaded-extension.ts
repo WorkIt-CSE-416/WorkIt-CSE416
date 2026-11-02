@@ -18,13 +18,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type BrowserContext, type Locator, type Page, type Worker } from "@playwright/test";
 import { CERT, KEY } from "./fake-tls";
+import { manifestId } from "../store/extension-id.mjs";
 
 export const EXTENSION = join(__dirname, "..");
-/** manifest.json's `key` pins this id. */
-export const EXTENSION_ID = "cpklhdkoafegnndlafmiceehfloodjgi";
+/** The id manifest.json's `key` pins (store/extension-id.mjs). */
+export const EXTENSION_ID = manifestId(EXTENSION);
 
 export type Request = { url: URL; method: string; headers: IncomingHttpHeaders; body: Buffer };
-export type Reply = { status?: number; headers?: Record<string, string>; body?: string | Buffer; json?: unknown };
+/** `drop`: close the connection with no answer, as an API that is unreachable (the browser's "Failed to fetch"). */
+export type Reply = { status?: number; headers?: Record<string, string>; body?: string | Buffer; json?: unknown; drop?: true };
 /** Answers a request, or returns undefined to pass it to the next handler. */
 export type Handler = (request: Request) => Reply | undefined | Promise<Reply | undefined>;
 
@@ -68,6 +70,7 @@ export async function startFakeNet(handlers: Handler[], extension = EXTENSION, l
       reply = { status: 500, body: String(error) };
     }
     reply ??= { status: 404, body: "" };
+    if (reply.drop) return void incoming.socket.destroy();
     // Saved pages load module scripts from another origin (Greenhouse's CDN), which only run with CORS
     // headers; Playwright's route.fulfill adds them itself, and the saved responses don't keep them.
     const cors = incoming.headers.origin ? { "access-control-allow-origin": incoming.headers.origin, "access-control-allow-credentials": "true" } : {};
@@ -94,6 +97,9 @@ export async function startFakeNet(handlers: Handler[], extension = EXTENSION, l
     ],
     asked,
     close() {
+      // A handler that never answers (an API that hangs) keeps its connection open: close it too.
+      http.closeAllConnections();
+      https.closeAllConnections();
       http.close();
       https.close();
     },
@@ -117,11 +123,15 @@ export async function loadExtension(
     grantHosts = [] as string[],
     closedPanel = false,
     live = false,
+    welcome = false,
+    version = undefined as string | undefined,
   } = {},
 ): Promise<Loaded> {
   // A copy, so its panel's and marks' shadow roots can be open for Playwright's locators (which can't reach a
   // closed one); `closedPanel` keeps the student's closed roots, for the tests of what the page can reach.
-  const copy = testCopy(grantHosts, !closedPanel);
+  // `welcome`: the install opens onboarding's extension step (install.js), as for a student; off, every other test's tabs are its own.
+  // `version`: the manifest's version in the copy, so a second start on a kept `profile` is an update to Chrome.
+  const copy = testCopy(grantHosts, !closedPanel, welcome, version);
   const net = await startFakeNet(handlers, copy, live);
   // `profile`: a Chromium profile folder to start (again) with, which the caller keeps; else a new one, removed on close.
   const profile = kept ?? mkdtempSync(join(tmpdir(), "workit-extension-"));
@@ -167,20 +177,50 @@ export function openPanel(source: string, file = "src/content/panel.js"): string
   return open;
 }
 
+const INSTALL_FILE = "src/background/install.js";
+
+/** install.js's source with no onboarding tab on install, for the tests that don't test it (`welcome`). */
+function noWelcome(source: string): string {
+  const quiet = source.replace('details.reason === "install"', "false");
+  if (quiet === source) throw new Error(`${INSTALL_FILE} no longer checks details.reason === "install": update noWelcome`);
+  return quiet;
+}
+
 /**
  * A copy of the extension to load: its panel's and marks' roots open when `open` (see
  * openPanel), and allowed to read `hosts` too: what activeTab grants when the
  * student presses the toolbar icon on a page outside the manifest's hosts,
- * which a test can't press. Same key, so the same extension id.
+ * which a test can't press, and with no onboarding tab on install unless
+ * `welcome`. Same key, so the same extension id.
  */
-function testCopy(hosts: string[], open: boolean): string {
+function testCopy(hosts: string[], open: boolean, welcome: boolean, version?: string): string {
   const dir = mkdtempSync(join(tmpdir(), "workit-extension-copy-"));
   for (const part of ["src", "icons", "fonts", "fill-engine/dist"]) cpSync(join(EXTENSION, part), join(dir, part), { recursive: true });
   const manifest = JSON.parse(readFileSync(join(EXTENSION, "manifest.json"), "utf8"));
   manifest.host_permissions.push(...hosts);
+  if (version) manifest.version = version;
   writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest));
   if (open) for (const file of CLOSED_ROOT_FILES) writeFileSync(join(dir, file), openPanel(readFileSync(join(dir, file), "utf8"), file));
+  if (!welcome) writeFileSync(join(dir, INSTALL_FILE), noWelcome(readFileSync(join(dir, INSTALL_FILE), "utf8")));
   return dir;
+}
+
+/** The name of the webapp's Supabase session cookie. */
+export const SESSION_COOKIE = "sb-zhdrvdrojipkluhzgsea-auth-token";
+
+/** An access token for the account `sub`, shaped as Supabase's: its `sub` is all the extension reads (unverified). */
+export const tokenFor = (sub: string) => `header.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.signature`;
+
+/**
+ * The signed-in student's token (extension.ts's STUDENT, and so the cached profile's id). A token with no
+ * `sub` signs in as no account, whose cached profile is never this one's: every read would fetch it again.
+ */
+export const TEST_TOKEN = tokenFor("00000000-0000-0000-0000-000000000001");
+
+/** The session cookie's value, as @supabase/ssr writes it, for a fake token expiring `expiresIn` seconds from now. */
+export function sessionCookie(accessToken = TEST_TOKEN, expiresIn = 3600): string {
+  const session = { access_token: accessToken, refresh_token: "test-refresh-token", expires_at: Math.floor(Date.now() / 1000) + expiresIn };
+  return `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`;
 }
 
 /**
@@ -196,10 +236,8 @@ export function saveWorkdaySignup(loaded: Loaded): Promise<void> {
 }
 
 /** The webapp's Supabase session cookie, as background/webapp-session.js reads it, for a fake token. */
-export async function signIn(context: BrowserContext, accessToken = "test-access-token"): Promise<void> {
-  const session = { access_token: accessToken, refresh_token: "test-refresh-token", expires_at: Math.floor(Date.now() / 1000) + 3600 };
-  const value = `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`;
-  await context.addCookies([{ name: "sb-zhdrvdrojipkluhzgsea-auth-token", value, url: "http://localhost:3000/" }]);
+export async function signIn(context: BrowserContext, accessToken = TEST_TOKEN, expiresIn = 3600): Promise<void> {
+  await context.addCookies([{ name: SESSION_COOKIE, value: sessionCookie(accessToken, expiresIn), url: "http://localhost:3000/" }]);
 }
 
 /** A page of the webapp (localhost:3000), from which a test sends the messages the webapp sends. */

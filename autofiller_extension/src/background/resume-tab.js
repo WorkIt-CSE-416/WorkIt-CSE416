@@ -18,10 +18,11 @@
 // left out).
 
 import { ApiError, builtResumeFile, builtResumes, getAutofillProfile, me, recordSentResume, uploadResume, uploadedResumeFile, uploadedResumes } from "./api.js";
+import { TAB_RESUMES_KEY } from "./account-data.js";
 import { getSession } from "./auth.js";
 import { applicationForTab } from "./panel-top.js";
 
-const KEY = "resume_by_tab";
+const KEY = TAB_RESUMES_KEY;
 const OPEN = ["queued", "needs_you"];
 
 async function kept() {

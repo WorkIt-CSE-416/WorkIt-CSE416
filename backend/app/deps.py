@@ -281,7 +281,7 @@ async def get_company_member(
 
 def is_admin(account: AuthenticatedAccount) -> bool:
     '''whether the account is one of WorkIt's admins: its email or id is on WORKIT_ADMINS (app/config.py)'''
-    allowed = {entry.strip().lower() for entry in get_settings().workit_admins.split(",") if entry.strip()}
+    allowed = set(get_settings().admins)
     return str(account.email).lower() in allowed or str(account.id).lower() in allowed
 
 

@@ -66,6 +66,24 @@
         <ul id="sites" class="sites"></ul>
         <p id="sites-said" class="muted" role="status"></p>
       </section>
+      <section class="card" aria-labelledby="fields-title">
+        <h2 id="fields-title">Fields to Autofill</h2>
+        <p class="muted">
+          Turn off a kind of field and WorkIt leaves it blank for you to answer, and lists it under
+          Needs Your Answer. Turning one off never deletes what you saved.
+        </p>
+        <div id="fields" class="switches"></div>
+      </section>
+      <section class="card" aria-labelledby="tab-title">
+        <h2 id="tab-title">WorkIt Tab</h2>
+        <p class="muted">
+          The WorkIt tab sits on the right edge of every job application WorkIt can fill. Alt+W and
+          WorkIt's toolbar button open the panel even where the tab is hidden.
+        </p>
+        <label class="switch"><input type="checkbox" id="tab-everywhere" /> Show the WorkIt tab on job pages</label>
+        <h3>Hidden on These Sites</h3>
+        <ul id="hidden-sites" class="sites"></ul>
+      </section>
     </main>
     <script type="module" src="options.js"></script>
   </body>

@@ -17,7 +17,6 @@ window.WIA = window.WIA || {};
     saved: "Saved Answer",
     guessed: "Guessed",
     claude: "Claude",
-    ai: "AI",
     pasted: "Pasted",
   };
   // Phosphor's Sparkle (fill), the mark WorkIt puts on everything AI wrote (frontend/src/components/icons.tsx).
@@ -56,9 +55,9 @@ window.WIA = window.WIA || {};
         all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500;
         display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: var(--radius-control);
       }
-      .essay-banner button[data-generate] { background: var(--color-advanced); color: var(--color-on-brand); }
+      .essay-banner button[data-write-claude] { background: var(--color-advanced); color: var(--color-on-brand); }
       .essay-banner button[data-dismiss] { background: var(--color-panel); color: var(--color-ink); border: 1px solid var(--color-border-subtle); }
-      .essay-banner button[data-generate] svg { width: 12px; height: 12px; }
+      .essay-banner button[data-write-claude] svg { width: 12px; height: 12px; }
       .essay-banner button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       /* A moment's card (KAN-387): something onboarding left for the form that first needs it. */
       .moment { padding: 10px 12px; background: var(--color-brand-tint); border-radius: var(--radius-card); }
@@ -128,7 +127,7 @@ window.WIA = window.WIA || {};
       .source svg { width: 11px; height: 11px; }
       .source[data-source="guessed"] { background: var(--color-panel); color: var(--color-warning); border: 1px solid var(--color-warning-strong); }
       .source[data-source="student"] { background: var(--color-positive-tint); color: var(--color-positive-ink); }
-      .source[data-source="claude"], .source[data-source="ai"] { background: var(--color-brand-tint); color: var(--color-brand-ink); }
+      .source[data-source="claude"] { background: var(--color-brand-tint); color: var(--color-brand-ink); }
       .reason { color: var(--color-danger); font-size: var(--text-note); margin-top: 2px; }
       .reason.note { color: var(--color-ink-meta); }
       /* An answer the student's Claude's pre-submit review flagged (KAN-369): theirs to read before they submit. */
@@ -184,7 +183,7 @@ window.WIA = window.WIA || {};
       const source = document.createElement("span");
       source.className = "source";
       source.dataset.source = field.source;
-      source.innerHTML = field.source === "claude" || field.source === "ai" ? SPARKLE : "";
+      source.innerHTML = field.source === "claude" ? SPARKLE : "";
       source.append(SOURCE_LABEL[field.source]);
       text.appendChild(source);
       if (field.source === "guessed") el.dataset.guessed = "";
@@ -196,9 +195,9 @@ window.WIA = window.WIA || {};
     const made = (open ? window.WIA.resumeCard?.card(field) : null) ?? window.WIA.rowCard?.for(field) ?? null;
     const card = open || field.status !== "failed" ? made : null;
     // The waiting box's head says once how their Claude writes these (groups.js), so its rows don't each say it.
-    const waitLine = field.status === "needs_generation" && field.claude && /^Waiting for your Claude/.test(field.reason ?? "");
-    // needs_generation's reason says who writes it (a batch tab: the student's Claude, KAN-377).
-    if (!card && !waitLine && (field.status === "failed" || field.status === "skipped" || field.status === "needs_generation" || field.status === "pending") && field.reason) {
+    const waitLine = field.status === "needs_writing" && field.claude && /^Waiting for your Claude/.test(field.reason ?? "");
+    // needs_writing's reason says who writes it (a batch tab: the student's Claude, KAN-377).
+    if (!card && !waitLine && (field.status === "failed" || field.status === "skipped" || field.status === "needs_writing" || field.status === "pending") && field.reason) {
       const reason = document.createElement("div");
       reason.className = field.status === "failed" ? "reason" : "reason note";
       reason.textContent = field.reason;
@@ -211,8 +210,8 @@ window.WIA = window.WIA || {};
     if (card) text.appendChild(card);
     // The waiting card (card-waiting.js), a paste box, on the opened row only (KAN-424). A flagged answer sent back
     // to their Claude (Rewrite) stays in the red box, under no waiting box's head, so its row keeps Write with Claude.
-    if (field.status === "needs_generation" && field.claude && field.flag) text.appendChild(startClaude());
-    if (field.status === "needs_generation" && field.claude && open && window.WIA.waitingCard) text.appendChild(window.WIA.waitingCard.card(field));
+    if (field.status === "needs_writing" && field.claude && field.flag) text.appendChild(startClaude());
+    if (field.status === "needs_writing" && field.claude && open && window.WIA.waitingCard) text.appendChild(window.WIA.waitingCard.card(field));
     // The flag card (card-flag.js): the reason, the flagged sentence, Keep / Rewrite with Claude / Edit myself.
     if (field.flag && window.WIA.flagCard) {
       el.dataset.flagged = "";
@@ -260,7 +259,7 @@ window.WIA = window.WIA || {};
     const open = Object.assign(document.createElement("a"), { href: CLAUDE_START_URL, target: "_blank", rel: "noreferrer" });
     open.innerHTML = SPARKLE;
     open.append("Write with Claude");
-    open.addEventListener("click", () => copy(CLAUDE_TRIGGER));
+    open.addEventListener("click", window.WIA.ui.trusted(() => copy(CLAUDE_TRIGGER)));
     const hint = Object.assign(document.createElement("span"), { className: "hint", textContent: "Press Enter in Claude (or paste)" });
     start.append(open, hint);
     return start;
@@ -318,23 +317,26 @@ window.WIA = window.WIA || {};
   }
 
   /**
-   * The one opt-in gate for every detected essay question on the page at
-   * once (never a per-question prompt — one decision for the whole batch).
-   * Nothing is generated until the student clicks Generate; `onDismiss`
-   * fires just as explicitly on Not Now, so a declined batch still resolves
-   * to a definite state rather than sitting at "needs_generation" forever.
-   * The banner removes itself once a choice is made — calling this again
-   * (a second "Autofill This Page" run) rebuilds it fresh.
-   * @param {{ count: number, onGenerate: () => void, onDismiss: () => void }} options
+   * The one opt-in gate for every question that needs writing on a form the
+   * student opened themselves (never a per-question prompt; one decision
+   * for the page). WorkIt writes nothing itself (KAN-470): Write with Claude
+   * hands the questions to the student's own Claude through the connector,
+   * or to their paste on Written Answers. Nothing goes to WorkIt until they
+   * press it; `onDismiss` fires just as explicitly on Not Now, so a declined
+   * page still resolves to a definite state rather than sitting at
+   * "needs_writing" forever. The banner removes itself once a choice is
+   * made; calling this again (a second "Autofill This Page" run) rebuilds it.
+   * @param {{ count: number, onWriteWithClaude: () => void, onDismiss: () => void }} options
    */
-  function promptForEssays({ count, onGenerate, onDismiss }) {
+  function promptForEssays({ count, onWriteWithClaude, onDismiss }) {
     if (!root || count <= 0) return;
     const banner = root.querySelector(".essay-banner");
     banner.hidden = false;
+    const many = count !== 1;
     banner.innerHTML = `
-      <p>${count} essay question${count === 1 ? "" : "s"} found — generate answer${count === 1 ? "" : "s"} with AI from your experience bank?</p>
+      <p>${count} question${many ? "s need" : " needs"} writing. Your Claude can write ${many ? "them" : "it"} from your experience, or you can paste your own on Written Answers.</p>
       <div class="row">
-        <button type="button" data-generate>${SPARKLE}Generate</button>
+        <button type="button" data-write-claude>${SPARKLE}Write with Claude</button>
         <button type="button" data-dismiss>Not Now</button>
       </div>
     `;
@@ -342,14 +344,14 @@ window.WIA = window.WIA || {};
       banner.hidden = true;
       banner.innerHTML = "";
     };
-    banner.querySelector("[data-generate]").addEventListener("click", window.WIA.ui.trusted(() => {
+    banner.querySelector("[data-write-claude]").addEventListener("click", window.WIA.ui.trusted(() => {
       hide();
-      onGenerate();
+      onWriteWithClaude();
     }));
-    banner.querySelector("[data-dismiss]").addEventListener("click", () => {
+    banner.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => {
       hide();
       onDismiss();
-    });
+    }));
   }
 
   /** A new moment card at the top of the panel's list (KAN-387); removed by its own buttons. */
@@ -391,7 +393,7 @@ window.WIA = window.WIA || {};
     `);
     if (!card) return;
     const error = card.querySelector(".error");
-    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
     card.querySelector("[data-save]").addEventListener("click", window.WIA.ui.trusted(async () => {
       const answers = Object.fromEntries([...card.querySelectorAll("select")].filter((s) => s.value).map((s) => [s.name, s.value]));
       error.hidden = true;
@@ -423,8 +425,8 @@ window.WIA = window.WIA || {};
     if (!card) return;
     const add = card.querySelector("[data-add]");
     add.href = url;
-    add.addEventListener("click", () => card.remove());
-    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    add.addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
   }
 
   /**
@@ -445,8 +447,8 @@ window.WIA = window.WIA || {};
     if (!card) return;
     const add = card.querySelector("[data-add]");
     add.href = url;
-    add.addEventListener("click", () => card.remove());
-    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    add.addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
   }
 
   // Workday's own password rules, as the Workday Sign-Up page's checklist (src/options/options.js) asks.
@@ -495,7 +497,7 @@ window.WIA = window.WIA || {};
       </div>
     `);
     if (!card) return;
-    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
     const allow = card.querySelector("[data-allow]");
     const emailBox = card.querySelector("[data-email]");
     const passwordBox = card.querySelector("[data-password]");
@@ -513,14 +515,15 @@ window.WIA = window.WIA || {};
       emailBox.addEventListener("input", check);
       passwordBox.addEventListener("input", check);
       const show = card.querySelector("[data-show]");
-      show.addEventListener("click", () => {
+      show.addEventListener("click", window.WIA.ui.trusted(() => {
         const shown = passwordBox.type === "password";
         passwordBox.type = shown ? "text" : "password";
         show.textContent = shown ? "Hide" : "Show";
         show.setAttribute("aria-pressed", String(shown));
-      });
+      }));
       check();
     }
+    // Allows account creation at every company: the student's own press only, never the page's (KAN-469).
     allow.addEventListener("click", window.WIA.ui.trusted(async () => {
       if (needsSignup) {
         check();
@@ -598,7 +601,7 @@ window.WIA = window.WIA || {};
         <div class="list"></div>
       </div>
     `;
-    tab.querySelector(".list").addEventListener("click", jump);
+    tab.querySelector(".list").addEventListener("click", window.WIA.ui.trusted(jump));
     tab.querySelector(".list").addEventListener("keydown", jump);
     unsubscribe = window.WIA.status.subscribe(render);
     render(window.WIA.status.summary());

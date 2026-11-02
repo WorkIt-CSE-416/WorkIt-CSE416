@@ -15,10 +15,10 @@
 //    engine) — an unfilled optional field renders as "skipped", a neutral
 //    state, never "failed".
 //
-// A fourth status, "needs_generation", is the essay-question feature's own:
-// an open-ended question WorkIt can offer to draft (never fill) until the
-// student opts in via the overlay's batch prompt — see content-script.js and
-// overlay.js's promptForEssays.
+// A fourth status, "needs_writing", is the written questions' own: one
+// waiting for the student's Claude or their paste on Written Answers, or, on
+// a form they opened themselves, for them to ask for that in the overlay's
+// prompt (written-answers.js, overlay.js's promptForEssays).
 window.WIA = window.WIA || {};
 
 (function () {
@@ -49,9 +49,10 @@ window.WIA = window.WIA || {};
    * @param {import("../shared/types.js").Source} [source]  where its planned answer comes from
    * @param {"todo" | "done"} [note]  the row is the panel's message, not a field (content-script.js's note):
    *   "todo" for something the student must do, "done" for news that asks nothing of them
+   * @param {string} [off]  the Fields to autofill category the student switched off (KAN-480): left blank for them
    */
-  function register(key, label, required, source, note) {
-    results.set(key, { key, label, required, status: "pending", ...(source ? { source } : {}), ...(note ? { note } : {}) });
+  function register(key, label, required, source, note, off) {
+    results.set(key, { key, label, required, status: "pending", ...(source ? { source } : {}), ...(note ? { note } : {}), ...(off ? { off } : {}) });
     notify();
   }
 
@@ -109,11 +110,11 @@ window.WIA = window.WIA || {};
     const filled = required.filter((r) => r.status === "filled");
     const failed = all.filter((r) => r.status === "failed");
     // A required one of these still counts toward requiredTotal above (and
-    // stays un-filled in the percent) until the student generates an
-    // answer or dismisses the batch prompt — same honesty rule as every
+    // stays un-filled in the percent) until an answer is written or the
+    // student dismisses the prompt — same honesty rule as every
     // other required-but-unresolved field, just with a third way to
     // resolve it besides WorkIt already having the data.
-    const essay = all.filter((r) => r.status === "needs_generation");
+    const essay = all.filter((r) => r.status === "needs_writing");
 
     return {
       total: all.length,
@@ -165,16 +166,18 @@ window.WIA = window.WIA || {};
    * student ("todo"), or a field the page shows now that failed, that the
    * review flagged, or that is required and still empty after the fill (a
    * question for a written answer they haven't asked their Claude for
-   * counts; one waiting on their Claude does not, see waitingOnClaude). A
-   * required field "skipped" (the form doesn't ask it) and a guess are not.
+   * counts; one waiting on their Claude does not, see waitingOnClaude), or,
+   * required or not, still empty because its Fields to autofill category is
+   * off (`off`, KAN-480). A required field "skipped" (the form doesn't ask
+   * it) and a guess are not.
    * @param {import("../shared/types.js").FieldResult} row
    */
   function needsYou(row) {
     if (row.note) return row.note === "todo";
-    if (!(row.status === "failed" || row.flag || row.required)) return false;
+    if (!(row.status === "failed" || row.flag || row.required || row.off)) return false;
     if (!shown(row)) return false;
     if (row.status === "failed" || row.flag) return true;
-    if (row.status === "needs_generation") return !row.claude;
+    if (row.status === "needs_writing") return !row.claude;
     return row.status === "pending" && window.WIA.phase !== "filling";
   }
 
@@ -182,7 +185,7 @@ window.WIA = window.WIA || {};
   const toCheck = (row) => !row.note && row.status === "filled" && (row.source === "guessed" || Boolean(window.WIA.unseenAnswers?.has(row.key)));
 
   /** A required question waiting for the student's Claude: nothing for them to fix yet, but not ready either. */
-  const waitingOnClaude = (row) => !row.note && row.required && row.status === "needs_generation" && Boolean(row.claude);
+  const waitingOnClaude = (row) => !row.note && row.required && row.status === "needs_writing" && Boolean(row.claude);
 
   /** How many rows need the student now (needsYou): the number every count line shows. */
   const needsYouCount = () => Array.from(results.values()).filter(needsYou).length;

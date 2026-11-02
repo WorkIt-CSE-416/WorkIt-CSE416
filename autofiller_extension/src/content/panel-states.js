@@ -7,6 +7,9 @@
 //   applied on WorkIt", Next job → while another tab needs the student, and
 //   I didn't submit this, which sets the application back.
 //
+// - A job system WorkIt turned off (KAN-467): "WorkIt can't fill <system>
+//   right now" in place of the fill's button.
+//
 // `start()` is what the launcher and the toolbar call in place of
 // panel.fillButton before a fill. Loaded after panel.js wherever it is
 // (manifest, SHELL_FILES, CONTENT_SCRIPT_FILES); the first copy stays.
@@ -34,6 +37,10 @@ window.WIA = window.WIA || {};
     [data-slot="primary"] > [data-kept-hidden] { display: none !important; }
   `;
 
+  // Why a job system is off, for the student (the fill's row says the same, content-script.js).
+  const UNAVAILABLE_SAID = (name) => `WorkIt turned off its ${name} fill while it fixes a problem. Fill this application yourself, or try again later.`;
+  window.WIA.unavailableSaid = UNAVAILABLE_SAID;
+
   let styled = false;
   const panel = () => window.WIA.panel;
   function style() {
@@ -52,7 +59,21 @@ window.WIA = window.WIA || {};
     if (answer?.ok && !answer.signedIn) return showSignedOut();
     signedOut = false;
     frame()?.removeAttribute("data-signed-out");
+    const off = await send({ type: "fill/available" });
+    if (off?.ok && off.unavailable) return showUnavailable(off.unavailable);
     panel().fillButton(panel().startLabel());
+  }
+
+  /** A job system WorkIt turned off (KAN-467, background/remote-config.js): said in place of the fill's button. */
+  function showUnavailable(name) {
+    const place = panel().slot("primary");
+    if (!place) return;
+    const card = document.createElement("div");
+    card.className = "state-unavailable";
+    card.innerHTML = `<div class="state-line" role="status"></div><div class="state-said"></div>`;
+    card.querySelector(".state-line").textContent = `WorkIt can't fill ${name} right now`;
+    card.querySelector(".state-said").textContent = UNAVAILABLE_SAID(name);
+    place.replaceChildren(card);
   }
 
   function showSignedOut() {
@@ -106,15 +127,14 @@ window.WIA = window.WIA || {};
       if (!answer?.ok) say("WorkIt couldn't go to the next job. Try again.");
     }));
     // The student's own click only, as I submitted this (decision 1012).
-    card.querySelector("[data-unsubmit]").addEventListener("click", async (event) => {
-      if (!event.isTrusted) return;
+    card.querySelector("[data-unsubmit]").addEventListener("click", window.WIA.ui.trusted(async (event) => {
       const button = event.currentTarget;
       button.disabled = true;
       const answer = await send({ type: "batch/unsubmitted" });
       button.disabled = false;
       if (!answer?.ok) return say("WorkIt couldn't set it back. Try again.");
       unsent();
-    });
+    }));
     const line = await send({ type: "panel/batch-line" });
     if (card.isConnected) card.querySelector("[data-next-job]").hidden = !line?.line?.next;
   }

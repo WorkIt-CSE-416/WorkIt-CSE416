@@ -40,13 +40,15 @@ const FORWARDED = [
   "AI_TAILOR_CAP",
   "AI_PARSING_CAP",
   "AI_ASSISTANT_CAP",
-  "AI_ESSAY_CAP",
   "AI_TAILOR_SHARE",
   "AI_INTAKE_SHARE",
   "AI_SCOUT_SHARE",
   "AI_PARSING_SHARE",
   "AI_ASSISTANT_SHARE",
-  "AI_ESSAY_SHARE",
+  "FILL_REPORT_DAILY_CAP",
+  "JOB_SYSTEM_REQUEST_DAILY_CAP",
+  "FILL_EVENT_DAILY_CAP",
+  "MIN_EXTENSION_VERSION",
   // The connector (KAN-377): unforwarded, its OAuth issuer and MCP address
   // were http://localhost:8000, so no student's Claude could sign in.
   "CONNECTOR_API_URL",

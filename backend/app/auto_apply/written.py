@@ -54,8 +54,7 @@ from app.schemas.applications import (
     WrittenQuestion,
 )
 from app.services import bank as experience
-from app.services.bank import Bank, load_bank
-from app.services.essay_answer import bank_context
+from app.services.bank import Bank, bank_context, load_bank
 
 
 async def ask_questions(
@@ -392,7 +391,7 @@ async def answer_fact(
 
 def _heading(entry) -> str:
     """An entry's heading line as the connector's experience writes it
-    (services/essay_answer.bank_context)."""
+    (services/bank.bank_context)."""
     return ", ".join(p for p in (entry.row.title, entry.row.organization) if p)
 
 

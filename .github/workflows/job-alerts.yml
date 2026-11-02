@@ -25,6 +25,7 @@ on:
       - "backend/app/scripts/send_job_alerts.py"
       - "backend/app/services/job_alerts.py"
       - "backend/app/services/email.py"
+      - "backend/app/services/notices.py"
       - "backend/app/models/notification.py"
 
 # One run at a time: two runs at once would double-send the same applicant.
