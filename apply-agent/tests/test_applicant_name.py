@@ -5,13 +5,12 @@ applicant's."""
 import json
 
 import pytest
+from conftest import FIXTURES, POLICIES
+from fakes import FakeClaude
 
 from apply import answering, essays, gates, home, story_map, writing
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
-
-from conftest import FIXTURES, POLICIES
-from fakes import FakeClaude
 
 PROFILE = FIXTURES / "planner-profile.yaml"  # Test Person, of Example State University
 CLUB = "## Example Robotics Club (Sep 2025-present; C++)"

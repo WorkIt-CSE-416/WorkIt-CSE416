@@ -34,7 +34,6 @@ step goes on. It is read back like any other.
 import json
 import re
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
@@ -44,11 +43,21 @@ from apply import feed, fill_engine
 from apply.accounts import Accounts
 from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
-from apply.model import Answers, FillError, Handoff, MoreQuestions, Question, QuestionSet, Readback
 from apply.home import HOME
+from apply.model import (
+    Answers,
+    FillError,
+    Handoff,
+    MoreQuestions,
+    Question,
+    QuestionSet,
+    Readback,
+)
 
 if TYPE_CHECKING:
-    from apply.rescue import Rescue  # which imports Claude fill, which imports the job systems' modules
+    from apply.rescue import (
+        Rescue,  # which imports Claude fill, which imports the job systems' modules
+    )
 
 MAIL_SEARCH = "from:(myworkday.com OR otp.workday.com)"  # Workday mails from both
 WORKDAY = "myworkday.com"  # Workday's own hosts, which a mailed link may go to besides the tenant's
@@ -242,7 +251,7 @@ class WorkdayFiller:
         account = page.locator(f'[data-identifier="{self._accounts.login}"], [data-email="{self._accounts.login}"]')
         # A Worker profile that used it before may come straight back, signed in, without the
         # chooser; and Workday may take its time over that (over 20 s on Snap's tenant, live).
-        on_google = lambda: page.url.startswith("https://accounts.google.com/")  # noqa: E731
+        on_google = lambda: page.url.startswith("https://accounts.google.com/")
         try:
             shown = _until(page, lambda: _on_step(page) and "in" or account.first.is_visible() and "chooser"
                            or on_google() and _google_asks(page) and "asks", GOOGLE_WAIT)
@@ -365,7 +374,7 @@ def _send(page: Page, form: Locator, outcome) -> str:
     sent = []
     # The form goes to the tenant's host outside its /wday/ API (.../register, live).
     on_request = lambda r: r.method != "GET" and urlsplit(r.url).hostname == host \
-        and not urlsplit(r.url).path.startswith("/wday/") and sent.append(r.url)  # noqa: E731
+        and not urlsplit(r.url).path.startswith("/wday/") and sent.append(r.url)
     page.on("request", on_request)
     try:
         for _ in range(SEND_CLICKS):

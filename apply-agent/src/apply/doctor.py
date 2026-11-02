@@ -16,12 +16,18 @@ from typing import TextIO
 
 from apply import cover_letter
 from apply.adapters import Mailbox, Tracker, Usage
+from apply.browsers import (
+    CHROME,
+    WorkerBrowsers,
+    google_account,
+    in_use,
+    web_google_account,
+)
 from apply.fill_engine import ENGINE
-from apply.browsers import CHROME, WorkerBrowsers, google_account, in_use, web_google_account
 from apply.gmail import live_mailbox
+from apply.home import CODE
 from apply.model import Status
 from apply.orchestrator import SUBMITTING
-from apply.home import CODE
 from apply.profile import ApplicantProfile, load_policies
 from apply.records import BRANCH, CLONE
 from apply.sheet import NoSheet, live_tracker

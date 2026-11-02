@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from functools import cache
 
 import yaml
+
 from apply.home import CODE
 
 # A form's note that bans AI-written text says nothing about the question's type.

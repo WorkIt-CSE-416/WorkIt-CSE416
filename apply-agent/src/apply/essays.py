@@ -23,10 +23,19 @@ from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
-from apply import answering, cover_letter, description, probe, sameness, stock, story_map, writing
-from apply.applicant import as_applicant
+from apply import (
+    answering,
+    cover_letter,
+    description,
+    probe,
+    sameness,
+    stock,
+    story_map,
+    writing,
+)
 from apply import home as data_folder  # essays.home() is the applicant's town
 from apply.adapters import Claude
+from apply.applicant import as_applicant
 from apply.model import Posting, Question, one_line
 from apply.profile import ApplicantProfile
 from apply.records import SECRET

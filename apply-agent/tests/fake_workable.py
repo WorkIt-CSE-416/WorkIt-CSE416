@@ -9,9 +9,8 @@ import re
 from contextlib import contextmanager
 from pathlib import Path
 
-from playwright.sync_api import Route, sync_playwright
-
 from fakes import Submission
+from playwright.sync_api import Route, sync_playwright
 
 UPLOAD_GRANT = re.compile(r"^https://apply\.workable\.com/api/v1/jobs/(\w+)/form/upload/(\w+)\?")
 STORAGE = "https://workable-application-form.s3.us-east-1.amazonaws.com"

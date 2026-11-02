@@ -6,16 +6,16 @@ before is filled."""
 import json
 import threading
 
+from conftest import FIXTURES
+from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
+from test_matches import NOW, NoBrowser, feed_record
+
 from apply.adapters import Adapters
 from apply.cli import main
 from apply.feed import SimplifyFeed
 from apply.fillers import FILLERS, MoreQuestions
 from apply.model import Question
 from apply.tracker import InMemoryTracker, Row
-
-from conftest import FIXTURES
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
-from test_matches import NOW, NoBrowser, feed_record
 
 PROFILE = FIXTURES / "planner-profile.yaml"
 NAME = Question("first", "First Name", "text", required=True)

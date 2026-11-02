@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from apply.model import Answers, Posting, Question, QuestionSet, Readback, Status
 from apply.home import HOME
+from apply.model import Answers, Posting, Question, QuestionSet, Readback, Status
 
 
 @dataclass(frozen=True)

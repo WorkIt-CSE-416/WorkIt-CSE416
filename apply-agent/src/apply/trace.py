@@ -32,6 +32,7 @@ import traceback
 from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
+
 from apply.home import HOME
 
 TRACES = HOME / "traces"

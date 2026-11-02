@@ -8,16 +8,23 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from fakes import ScriptedUsage
 
 from apply import claude_fill, cli, eightfold, home
 from apply.adapters import Drive, UsageReading
 from apply.model import Status
 from apply.notify import RecordingNotifier
-from apply.repair import FIXED, MISSING, NEEDS_LISUL, NOT_A_BUG, OPEN, RepairRequest, RepairRequests
+from apply.repair import (
+    FIXED,
+    MISSING,
+    NEEDS_LISUL,
+    NOT_A_BUG,
+    OPEN,
+    RepairRequest,
+    RepairRequests,
+)
 from apply.repairer import Repairer, repair_later
 from apply.tracker import InMemoryTracker, Row
-
-from fakes import ScriptedUsage
 
 TODAY = date(2026, 10, 16)
 PLANNER = "apply-agent/src/apply/planner.py"

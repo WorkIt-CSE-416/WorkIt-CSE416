@@ -6,12 +6,12 @@ import threading
 import urllib.error
 from datetime import date
 
+from fakes import FakeClaude
+
 from apply import brief, essays
 from apply.adapters import Drive
 from apply.claude_cli import ClaudeError
 from apply.model import Posting, Question
-
-from fakes import FakeClaude
 
 CLOUDFLARE = Posting("gh", "Cloudflare", "Software Engineer Intern", "https://job-boards.greenhouse.io/cloudflare/jobs/1")
 TODAY = date(2026, 10, 19)

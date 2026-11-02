@@ -7,23 +7,30 @@ from pathlib import Path
 
 import pytest
 import yaml
-
-from apply import worker
-from apply.adapters import Adapters
-from apply.cli import main
-from apply.feed import SimplifyFeed
-from apply.model import Posting
-from apply.profile import ApplicantProfile
-from apply.tracker import InMemoryTracker
-from apply.workable import WorkableFiller
-
-from apply.answer_bank import AnswerBank
-from apply.model import Question
-
-from conftest import AMPLIFY_URL, ARC_FORM, FIXTURES, FORMS, PERRY_FORM, PERRY_URL, PURE_STORAGE_FORM, RHOMBUS_FORM, XCIMER_FORM
+from conftest import (
+    AMPLIFY_URL,
+    ARC_FORM,
+    FIXTURES,
+    FORMS,
+    PERRY_FORM,
+    PERRY_URL,
+    PURE_STORAGE_FORM,
+    RHOMBUS_FORM,
+    XCIMER_FORM,
+)
 from fake_lever import FakeLeverServer
 from fake_workable import FakeWorkableServer
 from fakes import FakeClaude, FakeClock, FakeJobServer, FakeMailbox, ScriptedUsage
+
+from apply import worker
+from apply.adapters import Adapters
+from apply.answer_bank import AnswerBank
+from apply.cli import main
+from apply.feed import SimplifyFeed
+from apply.model import Posting, Question
+from apply.profile import ApplicantProfile
+from apply.tracker import InMemoryTracker
+from apply.workable import WorkableFiller
 
 DATACOR_FORM = FORMS / "greenhouse-datacor"
 

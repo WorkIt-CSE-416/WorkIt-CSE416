@@ -14,8 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from apply import brief, description
-from apply.model import Posting, one_line
 from apply.home import HOME
+from apply.model import Posting, one_line
 
 MODEL = "sonnet"
 CACHE = HOME / "default-probes"

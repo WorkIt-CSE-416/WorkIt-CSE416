@@ -8,16 +8,28 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
+from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
-from collections.abc import Callable
-from contextlib import contextmanager
-
 import yaml
 
-from apply import (bot_signals, dashboard, doctor, employer_mail, essays, orchestrator, own_application, rehearsal,
-                   schedule, story_map, trace, walls, writing)
+from apply import (
+    bot_signals,
+    dashboard,
+    doctor,
+    employer_mail,
+    essays,
+    home,
+    orchestrator,
+    own_application,
+    rehearsal,
+    schedule,
+    story_map,
+    trace,
+    walls,
+)
 from apply.adapters import Adapters
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
@@ -26,14 +38,14 @@ from apply.claude_cli import ClaudeCLI
 from apply.clock import SystemClock
 from apply.feed import live_feed
 from apply.gmail import live_mailbox
+from apply.home import HOME
 from apply.keychain import MacKeychain
 from apply.match_queue import match_queue
 from apply.notify import SET_UP, TEST_PUSH, MacNotifier, RecordingNotifier, live_phone
-from apply import home
-from apply.home import HOME
 from apply.profile import OVERRIDE, ApplicantProfile, load_policies
 from apply.records import FolderRecords, GitRecords
-from apply.repair import FOLDER as REPAIRS, RepairRequests
+from apply.repair import FOLDER as REPAIRS
+from apply.repair import RepairRequests
 from apply.repairer import Repairer, repair_later
 from apply.sheet import SHEET_ID, live_tracker
 from apply.tracker import InMemoryTracker
@@ -437,7 +449,7 @@ def live_repairer(branch: str | None = None, push: bool = True) -> Repairer:
     """The Repairer over the live Repair requests, merging into `branch`,
     else policies.yaml's repair.branch, else the branch Apply runs from."""
     policy = load_policies().get("repair") or {}
-    git = lambda *a: subprocess.run(["git", "-C", str(CHECKOUT), *a], check=True, capture_output=True, text=True).stdout.strip()  # noqa: E731
+    git = lambda *a: subprocess.run(["git", "-C", str(CHECKOUT), *a], check=True, capture_output=True, text=True).stdout.strip()
     claude = ClaudeCLI()
     return Repairer(
         repo=Path(git("rev-parse", "--show-toplevel")), requests=RepairRequests(REPAIRS), claude=claude, usage=claude,

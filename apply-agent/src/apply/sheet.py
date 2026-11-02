@@ -12,9 +12,16 @@ from pathlib import Path
 import gspread
 from gspread.utils import rowcol_to_a1
 
-from apply.model import Outcome, Status
-from apply.tracker import LISULS, AnswerRow, EmployerAccount, Row, check_new, check_writable
 from apply.home import HOME
+from apply.model import Outcome, Status
+from apply.tracker import (
+    LISULS,
+    AnswerRow,
+    EmployerAccount,
+    Row,
+    check_new,
+    check_writable,
+)
 
 APPLICATIONS = "Applications"
 REQUESTS = "Requests"

@@ -40,10 +40,17 @@ from datetime import date
 from pathlib import Path
 
 from apply.adapters import Notifier, Tracker, Usage, UsageLimitHit
+from apply.home import CODE, HOME
 from apply.model import Status, one_line
 from apply.orchestrator import FIVE_HOUR_STOP, WEEKLY_STOP
-from apply.repair import FIXED, MISSING, NEEDS_LISUL, NOT_A_BUG, OPEN, RepairRequest, RepairRequests
-from apply.home import CODE, HOME
+from apply.repair import (
+    FIXED,
+    MISSING,
+    NEEDS_LISUL,
+    NOT_A_BUG,
+    RepairRequest,
+    RepairRequests,
+)
 
 APPLY = CODE
 # Where each Repair's worktree is made, outside every checkout.
@@ -393,7 +400,7 @@ class Repairer:
                     return f"{shown} lost every test"
                 before = "" if status == "A" else self._git(engine, "show", f"{base}:{path}")
                 after = self._git(engine, "show", f"{head}:{path}")
-                names = lambda text: {name for _, name in ENGINE_TEST.findall(text)}  # noqa: E731
+                names = lambda text: {name for _, name in ENGINE_TEST.findall(text)}
                 if lost := sorted(names(before) - names(after)):
                     return f"{shown} lost {', '.join(lost)}"
                 if len(ENGINE_ASSERTION.findall(after)) < len(ENGINE_ASSERTION.findall(before)):

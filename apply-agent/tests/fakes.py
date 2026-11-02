@@ -19,8 +19,8 @@ from playwright.sync_api import Route, sync_playwright
 
 from apply import answering, fill_engine, gates
 from apply.adapters import Drive, UsageReading
-from apply.model import Question
 from apply.gmail import on_hosts
+from apply.model import Question
 
 # Greenhouse loads reCAPTCHA Enterprise and asks it for a token at submit.
 # Ashby's GraphQL endpoint, and the query its page (and the engine) reads a Question set with.

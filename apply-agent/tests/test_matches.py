@@ -12,6 +12,9 @@ from datetime import date, datetime
 from pathlib import Path
 
 import pytest
+from conftest import FIXTURES
+from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
+from test_run_answers import profile_with
 
 from apply.adapters import Adapters
 from apply.cli import main
@@ -19,10 +22,6 @@ from apply.feed import SimplifyFeed
 from apply.fillers import FILLERS
 from apply.model import Status
 from apply.tracker import InMemoryTracker, Row
-
-from conftest import FIXTURES
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
-from test_run_answers import profile_with
 
 NOW = datetime(2026, 10, 15, 9, 30)
 DAY = 86_400

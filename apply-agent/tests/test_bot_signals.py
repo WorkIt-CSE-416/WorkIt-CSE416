@@ -3,16 +3,16 @@ browser for a bot, noted on each Tracker row beside how the browser ran."""
 
 import json
 
+from conftest import FIXTURES
+from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
+from test_matches import NOW, NoBrowser, feed_record
+
 from apply.adapters import Adapters
 from apply.cli import main
 from apply.feed import SimplifyFeed
 from apply.fillers import FILLERS
 from apply.model import Question, Status
 from apply.tracker import InMemoryTracker, Row
-
-from conftest import FIXTURES
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
-from test_matches import NOW, NoBrowser, feed_record
 
 
 class SecurityCodeFiller:

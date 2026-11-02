@@ -7,16 +7,15 @@ import json
 from contextlib import contextmanager
 from datetime import datetime
 
+from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
 from playwright.sync_api import sync_playwright
+from test_matches import feed_record
+from test_run_answers import profile_with
 
 from apply.adapters import Adapters
 from apply.cli import main
 from apply.feed import SimplifyFeed
 from apply.tracker import InMemoryTracker, Row
-
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
-from test_matches import feed_record
-from test_run_answers import profile_with
 
 TIKTOK = "https://lifeattiktok.com/search/7668642761473902901"
 

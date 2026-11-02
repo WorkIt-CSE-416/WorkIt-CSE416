@@ -35,16 +35,16 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from apply import ashby, eightfold, greenhouse, lever, trace, workday
-from apply.rescue import Rescue
 from apply.accounts import NEEDS_SIGN_IN, Accounts
 from apply.adapters import Adapters, JobSite, SetupError, Tracker
 from apply.model import Posting, Status, one_line
 from apply.orchestrator import CALIBRATION, WORKERS, by_filler, keep_repair_requests
 from apply.profile import ApplicantProfile
 from apply.records import Record
-from apply.tracker import Row
 from apply.request import resolve
+from apply.rescue import Rescue
 from apply.submit_guard import guard, lift, renote
+from apply.tracker import Row
 from apply.worker import Result, apply_to, named
 
 # Claude fill's cost, which ends its reason; a rehearsal shows it as tokens.
@@ -167,8 +167,8 @@ def rehearse(
             done = done or Rehearsed(Posting("", "", "", url), FAILED, "the rehearsal stopped")
             finished.put(done)
             try:
-                answers = lambda: [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]  # noqa: E731
-                fill = lambda page, q, a: _fill_answer(page, q, a, adapters, profile, n, done, out)  # noqa: E731
+                answers = lambda: [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]
+                fill = lambda page, q, a: _fill_answer(page, q, a, adapters, profile, n, done, out)
                 while site.hold(release, done.posting.job_system, submitted, done.warning(), bool(done.problems),
                                 answers, fill):  # Fill again
                     with gate:
@@ -266,7 +266,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                 )
             except SetupError as error:  # the Mac's setup, not Apply's code: its one line says how to fix it
                 result = Result(Status.FAILED, f"setup: {error}")
-            except BaseException as error:  # noqa: BLE001 - a rehearsal reports every failure on its line
+            except BaseException as error:
                 where = "".join(traceback.format_exception(error))
                 result = Result(Status.FAILED, f"{type(error).__name__}: {error}", traceback=where)
                 # The line says what failed; the log keeps where, for the fix.
@@ -308,7 +308,7 @@ def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Ada
         filled = Rescue(adapters.claude, sms_opt_in=profile.policy("sms_opt_in") is True,
                         marketing_opt_in=profile.policy("marketing_opt_in") is True).field(
             page, question, answer, RuntimeError("left blank: the applicant answered it in the Apply window after the form was filled"))
-    except Exception as error:  # noqa: BLE001 - the page is his either way
+    except Exception as error:
         filled, why = False, f"{type(error).__name__}: {error}"
     else:
         why = "Claude couldn't find the field or it wouldn't take the answer"
@@ -463,7 +463,7 @@ class _Kept:
         yield self._page
 
     def hold(self, release: threading.Event, job_system: str = "", submitted: Callable[[object], None] = lambda page: None,
-             warning: str = "", wrong: bool = True, answers: Callable[[], list[tuple[str, str]]] = lambda: [],
+             warning: str = "", wrong: bool = True, answers: Callable[[], list[tuple[str, str]]] = list,
              fill: Callable[[object, str, str], None] = lambda page, question, answer: None) -> bool:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its

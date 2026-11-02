@@ -21,7 +21,6 @@ from apply.feed import normalize_url
 from apply.model import NOT_A_POSTING, Posting, Status
 from apply.worker import Result
 
-
 # Every Request's Application ID starts so; Feed ids are UUIDs.
 REQUEST = "request-"
 # A LinkedIn job, linked to directly or picked in search results.

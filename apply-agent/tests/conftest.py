@@ -14,12 +14,12 @@ FIXTURES = Path(__file__).parent / "fixtures"
 os.environ["APPLY_HOME"] = tempfile.mkdtemp(prefix="apply-test-home-")
 atexit.register(shutil.rmtree, os.environ["APPLY_HOME"], True)
 
-from apply import browsers, cli, cover_letter, gates, home, profile  # noqa: E402
-from apply.fill_engine import ENGINE_DIR  # noqa: E402
-from apply.model import Kind, Posting, Question  # noqa: E402
+from fake_lever import FakeLeverServer
+from fakes import FakeJobServer
 
-from fake_lever import FakeLeverServer  # noqa: E402
-from fakes import FakeJobServer  # noqa: E402
+from apply import browsers, cli, cover_letter, gates, home, profile
+from apply.fill_engine import ENGINE_DIR
+from apply.model import Kind, Posting, Question
 
 # Saved forms live in the Fill engine (the extension's submodule), which is tested on them too.
 FORMS = ENGINE_DIR / "test" / "fixtures" / "forms"

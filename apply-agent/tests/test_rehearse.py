@@ -12,7 +12,46 @@ from pathlib import Path
 
 import pytest
 import yaml
+from conftest import (
+    ANDURIL_URL,
+    ARC_FORM,
+    ARC_URL,
+    IMMUTA_FORM,
+    IMMUTA_URL,
+    PURE_STORAGE_FORM,
+    PURE_STORAGE_URL,
+    SKYDIO_FORM,
+    SKYDIO_URL,
+)
+from fake_bamboohr import FakeBambooServer
+from fake_jobvite import URL as JOBVITE_URL
+from fake_jobvite import FakeJobviteServer
+from fake_lever import FakeLeverServer
+from fake_paylocity import URL as PAYLOCITY_URL
+from fake_paylocity import FakePaylocityServer
+from fake_workday import EXPERIENCE_STEPS, FakeWorkdayServer
+from fakes import (
+    FakeClaude,
+    FakeClock,
+    FakeJobServer,
+    FakeMailbox,
+    RecordingBoard,
+    ScriptedUsage,
+)
 from playwright.sync_api import sync_playwright
+from test_claude_fill import (
+    ANSWERED,
+    ESSAY,
+    LUNAR_FORM,
+    LUNAR_URL,
+    BambooDriver,
+    JobviteDriver,
+    PaylocityDriver,
+    SendingDriver,
+)
+from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_URL, World
+from test_greenhouse_filler import board_listing_schools
+from test_run_answers import profile_with
 
 from apply import rehearsal
 from apply.adapters import Adapters
@@ -29,20 +68,6 @@ from apply.records import FolderRecords
 from apply.repair import RepairRequests
 from apply.tracker import InMemoryTracker
 from apply.workday import WorkdayFiller
-
-from conftest import (ANDURIL_URL, ARC_FORM, ARC_URL, IMMUTA_FORM, IMMUTA_URL, PURE_STORAGE_FORM, PURE_STORAGE_URL, SKYDIO_FORM,
-                      SKYDIO_URL)
-from fake_bamboohr import FakeBambooServer
-from fake_jobvite import URL as JOBVITE_URL, FakeJobviteServer
-from fake_paylocity import URL as PAYLOCITY_URL, FakePaylocityServer
-from fake_lever import FakeLeverServer
-from fake_workday import EXPERIENCE_STEPS, FakeWorkdayServer
-from fakes import FakeClaude, FakeClock, FakeJobServer, FakeMailbox, RecordingBoard, ScriptedUsage
-from test_claude_fill import (ANSWERED, ESSAY, LUNAR_FORM, LUNAR_URL, BambooDriver, JobviteDriver, PaylocityDriver,
-                              SendingDriver)
-from test_greenhouse_filler import board_listing_schools
-from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_URL, World
-from test_run_answers import profile_with
 
 NOW = datetime(2026, 10, 15, 9, 30)
 

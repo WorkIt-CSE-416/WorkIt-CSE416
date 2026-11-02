@@ -5,15 +5,14 @@ is FakeImap holding the sample mails; nothing connects to the real Gmail."""
 from datetime import date, datetime
 
 import pytest
+from fakes import FakeClock
+from test_employer_mail import ARC, GLEAN, PURE, RAMP, SAMPLES, tracker
+from test_gmail import FakeImap
 
 from apply.adapters import Adapters
 from apply.cli import main
 from apply.gmail import GmailMailbox
 from apply.model import Outcome, Status
-
-from fakes import FakeClock
-from test_employer_mail import ARC, GLEAN, PURE, RAMP, SAMPLES, tracker
-from test_gmail import FakeImap
 
 NOW = datetime(2026, 10, 16, 18, 0)
 

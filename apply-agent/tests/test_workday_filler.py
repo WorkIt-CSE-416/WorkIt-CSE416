@@ -3,21 +3,27 @@ sign-in step) and the fake Workday's steps after it (tests/fake_workday.py)."""
 
 from dataclasses import replace
 from datetime import datetime
-from pathlib import Path
 
 import pytest
+from conftest import FIXTURES, FORMS
+from fake_workday import (
+    EDUCATION,
+    EXPERIENCE_STEPS,
+    FIELDS_OF_STUDY,
+    MY_EXPERIENCE,
+    STEPS,
+    FakeWorkdayServer,
+    Field,
+)
+from fakes import FakeClaude, FakeClock, FakeMailbox
 
+from apply import workday
 from apply.accounts import Accounts
 from apply.claude_fill import OnePage
 from apply.keychain import InMemoryKeychain
 from apply.model import FillError, Handoff, MoreQuestions
 from apply.rescue import Rescue
-from apply import workday
 from apply.workday import WorkdayFiller
-
-from conftest import FIXTURES, FORMS
-from fake_workday import EDUCATION, EXPERIENCE_STEPS, FIELDS_OF_STUDY, MY_EXPERIENCE, STEPS, FakeWorkdayServer, Field
-from fakes import FakeClaude, FakeClock, FakeMailbox
 
 CACI_FORM = FORMS / "workday-caci"
 CACI_URL = "https://caci.wd1.myworkdayjobs.com/external/job/Florham-Park-NJ-US/Software-Engineering-Intern---Summer-2027_332543"

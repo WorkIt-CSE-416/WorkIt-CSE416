@@ -42,7 +42,18 @@ from playwright.sync_api import Page
 
 from apply.adapters import JobSite
 from apply.answer_bank import LISUL, AnswerBank
-from apply.model import Answers, FillError, Handoff, MoreQuestions, NoForm, Posting, Question, QuestionSet, Readback, Site
+from apply.model import (
+    Answers,
+    FillError,
+    Handoff,
+    MoreQuestions,
+    NoForm,
+    Posting,
+    Question,
+    QuestionSet,
+    Readback,
+    Site,
+)
 from apply.profile import ApplicantProfile
 
 # The Fill engine's checkout: the extension's submodule, so one engine pin serves both.

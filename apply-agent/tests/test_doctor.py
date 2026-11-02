@@ -9,15 +9,16 @@ import os
 import plistlib
 import subprocess
 from dataclasses import replace
+from datetime import datetime
+
+from fakes import FakeMailbox, ScriptedUsage
 
 from apply import doctor
+from apply.adapters import UsageReading
 from apply.model import Status
 from apply.orchestrator import SUBMITTING
-from apply.tracker import InMemoryTracker, Row
-from apply.adapters import UsageReading
-from datetime import datetime
-from fakes import FakeMailbox, ScriptedUsage
 from apply.profile import ApplicantProfile
+from apply.tracker import InMemoryTracker, Row
 
 
 def chrome(tmp_path, version="141.0.7390.55"):

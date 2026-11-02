@@ -14,6 +14,7 @@ from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
 from apply.model import Answers, Handoff, QuestionSet, Readback
 
+
 class RipplingFiller:
     def question_set(self, url: str, site: JobSite) -> QuestionSet:
         return fill_engine.fetched_question_set(url, site)

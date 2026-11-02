@@ -8,11 +8,10 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from conftest import APPLY
 
 from apply import schedule
 from apply.cli import main
-
-from conftest import APPLY
 
 UV = "/opt/homebrew/bin/uv"
 PROJECT = Path("/Users/test-person/apply-repo/apply")

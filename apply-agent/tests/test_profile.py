@@ -4,10 +4,9 @@ import sys
 import threading
 
 import pytest
+from conftest import APPLY, FIXTURES
 
 from apply.profile import ApplicantProfile
-
-from conftest import APPLY, FIXTURES
 
 TEMPLATE = APPLY / "applicant-profile.template.yaml"
 

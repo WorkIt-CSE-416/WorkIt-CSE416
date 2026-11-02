@@ -11,10 +11,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from playwright.sync_api import Route, sync_playwright
-
 from fake_lever import _load_responses, _multipart
 from fakes import Submission
+from playwright.sync_api import Route, sync_playwright
 
 # The form renders reCAPTCHA's checkbox and waits for its callback; this one is
 # ticked at once.

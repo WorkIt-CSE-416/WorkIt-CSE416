@@ -6,6 +6,16 @@ and its page."""
 from datetime import date
 
 import pytest
+from fakes import FakeClock, FakeMailbox, ScriptedUsage
+from test_answers_tab import (  # noqa: F401 (fixtures)
+    NoFrames,
+    board,
+    files,
+    post,
+    window,
+)
+from test_matches import NOW, feed_record
+from test_requests import Pages, run
 
 from apply.adapters import Adapters
 from apply.answer_bank import AnswerBank
@@ -16,11 +26,6 @@ from apply.feed import SimplifyFeed
 from apply.model import Status
 from apply.own_application import REASON, own_id
 from apply.tracker import InMemoryTracker
-
-from fakes import FakeClock, FakeMailbox, ScriptedUsage
-from test_answers_tab import NoFrames, board, files, post, window  # noqa: F401 (fixtures)
-from test_matches import NOW, feed_record
-from test_requests import Pages, run
 
 # Cisco's thank-you page after a Workday submit: drawn by script, so a plain fetch shows nothing.
 THANK_YOU = ("https://careers.cisco.com/global/en/applythankyou?status=success&jobSeqNo=CISCISGLOBAL2026800EXTERNALENGLOBAL"

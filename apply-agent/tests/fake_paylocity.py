@@ -19,9 +19,8 @@ import base64
 import json
 from contextlib import contextmanager
 
-from playwright.sync_api import Route, sync_playwright
-
 from fakes import Submission
+from playwright.sync_api import Route, sync_playwright
 
 URL = "https://recruiting.paylocity.com/Recruiting/Jobs/Apply/4450421"
 SEND_URL = "https://recruiting.paylocity.com/Recruiting/Jobs/Apply/4450421/Send"

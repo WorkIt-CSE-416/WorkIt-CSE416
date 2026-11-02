@@ -9,6 +9,8 @@ import os
 import urllib.request
 
 import pytest
+from conftest import FIXTURES
+from trackers import FakeSpreadsheet
 
 from apply import cli, dashboard, home, orchestrator, rehearsal, sheet
 from apply.browsers import WorkerBrowsers
@@ -21,9 +23,6 @@ from apply.notify import MacNotifier, NtfyNotifier, RecordingNotifier
 from apply.profile import ApplicantProfile
 from apply.records import FolderRecords, GitRecords
 from apply.tracker import InMemoryTracker
-
-from conftest import FIXTURES
-from trackers import FakeSpreadsheet
 
 
 class _Opened(list):
@@ -306,7 +305,6 @@ def test_workers_run_headless_unless_policies_yaml_says_otherwise(tmp_path):
 
 
 def test_an_answer_typed_in_the_window_goes_to_the_trackers_answer_cell_or_the_profile(tmp_path):
-    from apply.answers_tab import AnswersTab
     from apply.model import Status
     from apply.tracker import InMemoryTracker, Row
 

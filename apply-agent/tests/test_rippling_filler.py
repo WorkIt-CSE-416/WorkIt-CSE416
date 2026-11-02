@@ -1,16 +1,15 @@
 """Seam 2: the Rippling Filler against Rippling's saved job API answers and a fake Rippling form."""
 
 import pytest
-
-from apply import company, request
-from apply.fillers import FILLERS
-from apply.model import Handoff, Posting, Question
-from apply.fill_engine import plan
-from apply.profile import ApplicantProfile
-from apply.rippling import RipplingFiller
-
 from conftest import APPLY, FIXTURES, FORMS
 from fake_rippling import FakeRipplingServer
+
+from apply import company, request
+from apply.fill_engine import plan
+from apply.fillers import FILLERS
+from apply.model import Handoff, Posting, Question
+from apply.profile import ApplicantProfile
+from apply.rippling import RipplingFiller
 
 RIPPLING_FORM = FORMS / "rippling-rippling"
 RIPPLING_URL = "https://ats.rippling.com/rippling/jobs/a07e4e46-3721-4934-b57b-0d58412e22ba"

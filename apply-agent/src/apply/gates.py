@@ -38,8 +38,8 @@ RESTATED = 0.6  # share of the first sentence's words taken from the question th
 
 COUNTS = {"one": 1, "a single": 1, "two": 2, "a couple of": 2, "three": 3, "four": 4, "five": 5, "a few": 3}
 _NUM = r"(\d[\d,]*|one|two|three|four|five|a single|a couple of|a few)"
-RANGE = re.compile(rf"\b{_NUM}\s*(?:-|–|to|or)\s*{_NUM}\s*(?:short\s+)?(words?|sentences?|characters?|chars)\b", re.I)
-SINGLE = re.compile(rf"\b{_NUM}\s*(?:short\s+)?(words?|sentences?|characters?|chars)\b", re.I)
+RANGE = re.compile(rf"\b{_NUM}\s*(?:-|–|to|or)\s*{_NUM}\s*(?:short\s+)?(words?|sentences?|characters?|chars)\b", re.IGNORECASE)
+SINGLE = re.compile(rf"\b{_NUM}\s*(?:short\s+)?(words?|sentences?|characters?|chars)\b", re.IGNORECASE)
 
 WORD = re.compile(r"[A-Za-z0-9][\w'’-]*")
 # A run of capitalized words: a name of two or more words ("Hitachi Rail", "Google Cloud Run").
@@ -52,7 +52,7 @@ OPENERS = {"a", "an", "the", "in", "at", "on", "for", "with", "during", "after",
            "but", "and", "also", "from", "by", "to", "of", "both", "each", "every", "one", "what", "why", "how",
            "dear", "sincerely", "best", "thanks", "thank", "yes", "no"}
 DATE = re.compile(r"\b(?:spring|summer|fall|autumn|winter|january|february|march|april|may|june|july|august|"
-                  r"september|october|november|december|(?:19|20)\d\d)\b", re.I)
+                  r"september|october|november|december|(?:19|20)\d\d)\b", re.IGNORECASE)
 STOP = OPENERS | {"you", "your", "me", "is", "are", "was", "were", "be", "been", "do", "did", "does", "have", "has",
                   "had", "would", "will", "can", "could", "like", "about", "tell", "us", "why", "which", "who", "am",
                   "not", "than", "into", "out", "up"}

@@ -6,16 +6,23 @@ import json
 import shutil
 from pathlib import Path
 
+import pytest
+from fakes import FakeClaude, FakeClock, FakeMailbox, Killed, ScriptedUsage
+from test_claude_answers import (
+    AUTONOMY,
+    NOW,
+    PROFILE,
+    PROJECT,
+    SARONIC,
+    Browser,
+    ResearchForm,
+)
+
 from apply.adapters import Adapters
 from apply.cli import main
 from apply.feed import SimplifyFeed
 from apply.fillers import FILLERS
 from apply.tracker import InMemoryTracker, Row
-
-import pytest
-
-from fakes import FakeClaude, FakeClock, FakeMailbox, Killed, ScriptedUsage
-from test_claude_answers import NOW, PROFILE, SARONIC, AUTONOMY, PROJECT, Browser, ResearchForm
 
 EDITED = "I want to build the autonomy stack for Saronic's surface vessels, starting from the planner I wrote for our Micromouse."
 

@@ -10,25 +10,52 @@ import re
 import shutil
 import subprocess
 import tempfile
-from datetime import date
-from urllib.error import HTTPError
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
+from datetime import date
 from pathlib import Path
+from urllib.error import HTTPError
 
-from apply import brief, browsers, company, cover_letter, description, eligibility, essays, sameness
-from apply.gates import UNTRACED_NUMBER
+from apply import (
+    brief,
+    browsers,
+    company,
+    cover_letter,
+    description,
+    eligibility,
+    essays,
+    sameness,
+)
 from apply.adapters import Claude, JobSite, UsageLimitHit
 from apply.answer_bank import LISUL, AnswerBank
+from apply.fill_engine import (
+    company_specific,
+    left_blank,
+    not_called_for,
+    plan,
+    posting_ai_trap,
+    posting_bans_ai,
+    readback_problems,
+    remember,
+    trap_handoff,
+)
 from apply.fillers import Filler, Handoff, MoreQuestions
-from apply.model import FillError
-from apply.model import Closed, NOT_A_POSTING, NotAPosting, Posting, Question, Status, is_company, one_line
-from apply.fill_engine import (company_specific, left_blank, not_called_for, plan, posting_ai_trap, posting_bans_ai, readback_problems,
-                               remember, trap_handoff)
+from apply.gates import UNTRACED_NUMBER
+from apply.home import HOME
+from apply.model import (
+    NOT_A_POSTING,
+    Closed,
+    FillError,
+    NotAPosting,
+    Posting,
+    Question,
+    Status,
+    is_company,
+    one_line,
+)
 from apply.presubmit import replan, review
 from apply.profile import ApplicantProfile
 from apply.records import Filled
-from apply.home import HOME
 
 SENT = HOME / "sent"
 
@@ -147,7 +174,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 with site.open(posting.url):  # its posting shows while it waits, nothing typed
                     before_fill()
             before_fill()
-            before_fill = lambda: None  # noqa: E731 - once per Application
+            before_fill = lambda: None
         try:
             questions = filler.question_set(posting.url, site)
         except HTTPError as error:
@@ -164,7 +191,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 if rehearse and attempt == 0 and (stop := planned.add(questions)):
                     return stop
                 before_fill()
-                before_fill = lambda: None  # noqa: E731 - once per Application
+                before_fill = lambda: None
                 while True:
                     try:
                         readback = filler.fill(page, planned.questions, planned.answers)

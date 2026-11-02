@@ -14,9 +14,8 @@ from email.policy import default as email_policy
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from playwright.sync_api import Route, sync_playwright
-
 from fakes import Submission
+from playwright.sync_api import Route, sync_playwright
 
 # Lever's form asks hCaptcha for a token at submit; this one always passes.
 HCAPTCHA_STUB = """

@@ -8,19 +8,18 @@ from pathlib import Path
 
 import pytest
 import yaml
+from conftest import FIXTURES
+from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
+from test_matches import NOW, NoBrowser, feed_record
 
 from apply.adapters import Adapters
 from apply.cli import main
 from apply.feed import SimplifyFeed
 from apply.fillers import FILLERS
-from apply.model import Handoff, Question, Status
 from apply.keychain import InMemoryKeychain
+from apply.model import Handoff, Question, Status
 from apply.notify import NtfyNotifier, RecordingNotifier, live_phone, waiting
 from apply.tracker import InMemoryTracker
-
-from conftest import FIXTURES
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
-from test_matches import NOW, NoBrowser, feed_record
 
 
 class FakePoster:

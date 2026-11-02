@@ -51,9 +51,18 @@ from typing import Protocol
 from urllib.parse import parse_qs, urlsplit
 
 from apply import dock_app
-from apply.focus import KEEPER
 from apply.answers_tab import AnswersTab, Refused
-from apply.dashboard_page import ANSWERS, APPLIED, HISTORY, INBOX, NO_RUN, PAGE, STYLE, TABS
+from apply.dashboard_page import (
+    ANSWERS,
+    APPLIED,
+    HISTORY,
+    INBOX,
+    NO_RUN,
+    PAGE,
+    STYLE,
+    TABS,
+)
+from apply.focus import KEEPER
 from apply.model import one_line
 from apply.tracker import cell_options
 
@@ -662,7 +671,9 @@ def _fills_in_place(item: dict, question: str) -> bool:
     """Whether Lisul's answer goes into the open form of the item's Worker:
     a rehearsed form's field (a run's Missing fact goes on from its Tracker
     row, and what an essay asked him is written into the essay next time)."""
-    from apply.essays import ASK  # imported here: essays imports the adapters, which import this module
+    from apply.essays import (
+        ASK,  # imported here: essays imports the adapters, which import this module
+    )
     return item.get("from") != "tracker" and str(item.get("status")) != "missing fact" \
         and isinstance(item.get("worker"), int) and item["worker"] >= 0 and not question.startswith(ASK)
 

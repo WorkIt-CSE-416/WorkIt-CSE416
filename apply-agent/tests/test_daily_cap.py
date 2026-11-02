@@ -6,14 +6,14 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
+from test_claude_answers import NOW, PROFILE, Browser, ResearchForm
+
 from apply.adapters import Adapters
 from apply.cli import main
 from apply.feed import SimplifyFeed
 from apply.fillers import FILLERS
 from apply.tracker import InMemoryTracker
-
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
-from test_claude_answers import NOW, PROFILE, Browser, ResearchForm
 
 
 class Runs:

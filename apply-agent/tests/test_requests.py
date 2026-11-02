@@ -9,6 +9,10 @@ import json
 from contextlib import contextmanager
 from datetime import date
 
+from conftest import FIXTURES
+from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
+from test_matches import NOW, BlankPage, EmptyFormFiller, feed_record, tracked
+
 from apply.adapters import Adapters
 from apply.cli import main
 from apply.feed import LIVE, SimplifyFeed
@@ -16,10 +20,6 @@ from apply.fillers import FILLERS
 from apply.model import Status
 from apply.request import request_id, resolve
 from apply.tracker import InMemoryTracker, Row
-
-from conftest import FIXTURES
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
-from test_matches import NOW, BlankPage, EmptyFormFiller, feed_record, tracked
 
 
 class Pages:

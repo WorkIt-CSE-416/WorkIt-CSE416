@@ -21,7 +21,6 @@ from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
 from apply.model import Answers, Handoff, NoForm, QuestionSet, Readback, one_line
 
-
 # Where Ashby says it couldn't submit the form: its failure notice ("We couldn't
 # submit your application": reCAPTCHA took the browser for a bot, or another
 # error; a Bot signal) or an employer's block message.

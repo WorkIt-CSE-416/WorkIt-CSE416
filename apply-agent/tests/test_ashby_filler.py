@@ -4,16 +4,29 @@ import time
 from datetime import date
 
 import pytest
+from conftest import (
+    AMPLIFY_FORM,
+    AMPLIFY_URL,
+    APPLY,
+    COHERE_FORM,
+    COHERE_URL,
+    FIXTURES,
+    HARVEY_FORM,
+    HARVEY_URL,
+    PATREON_FORM,
+    PATREON_URL,
+    SEMGREP_FORM,
+    SEMGREP_URL,
+    SKYDIO_FORM,
+    SKYDIO_URL,
+)
+from fakes import FakeJobServer
 
 from apply import bot_signals
 from apply.ashby import AshbyFiller
-from apply.model import Handoff, Posting, Question
 from apply.fill_engine import plan
+from apply.model import Handoff, Posting, Question
 from apply.profile import ApplicantProfile
-
-from conftest import (AMPLIFY_FORM, AMPLIFY_URL, APPLY, COHERE_FORM, COHERE_URL, FIXTURES, HARVEY_FORM, HARVEY_URL, PATREON_FORM, PATREON_URL,
-                      SEMGREP_FORM, SEMGREP_URL, SKYDIO_FORM, SKYDIO_URL)
-from fakes import FakeJobServer
 
 
 def test_fills_and_reads_back_a_saved_form_and_stops_before_submit(ashby_server, one_pager):
@@ -374,12 +387,11 @@ def test_amplify_s_whole_form_fills_in_seconds_one_save_at_a_time(one_pager):
                SCHOOL: "Example State University", START_DAY: "2027-05-24"}  # as the saved form's searches offer
     answers = {q.name: answers[q.name] for q in questions if q.name in answers}
     filler = AshbyFiller()
-    with FakeJobServer(AMPLIFY_FORM) as server:
-        with server.open(AMPLIFY_URL) as page:
-            in_flight = _saves_in_flight(page)
-            started = time.monotonic()
-            readback = filler.fill(page, questions, answers)
-            seconds = time.monotonic() - started
+    with FakeJobServer(AMPLIFY_FORM) as server, server.open(AMPLIFY_URL) as page:
+        in_flight = _saves_in_flight(page)
+        started = time.monotonic()
+        readback = filler.fill(page, questions, answers)
+        seconds = time.monotonic() - started
 
     assert readback == {**answers, RESUME: "one-pager.pdf"}
     assert max(in_flight) == 1, in_flight

@@ -19,7 +19,11 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from ruamel.yaml.scalarstring import FoldedScalarString, LiteralScalarString, SingleQuotedScalarString
+from ruamel.yaml.scalarstring import (
+    FoldedScalarString,
+    LiteralScalarString,
+    SingleQuotedScalarString,
+)
 
 from apply import answering, stock
 from apply.answer_bank import AnswerBank, Entry
@@ -129,7 +133,9 @@ class AnswersTab:
     def _offers(self) -> list[dict]:
         """Each held Application's essays whose Question type takes a Stock
         answer and has none kept yet."""
-        from apply import essays  # imported here: essays imports the adapters, which import this tab
+        from apply import (
+            essays,  # imported here: essays imports the adapters, which import this tab
+        )
         if self._rows is None:
             try:
                 self._rows = list(self._held()) if self._held else []

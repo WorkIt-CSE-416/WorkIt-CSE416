@@ -4,11 +4,11 @@ back with `apply trace`, so what went wrong in a run can be seen afterwards."""
 import json
 from datetime import date
 
-from apply import cli, trace
-from apply.submit_guard import DriveGuard
-
 from conftest import PERRY_FORM, PERRY_URL
 from fake_workable import FakeWorkableServer
+
+from apply import cli, trace
+from apply.submit_guard import DriveGuard
 
 TODAY = date(2026, 10, 20)
 WORKABLE_SUBMIT = "https://apply.workable.com/api/v1/jobs/D309E69A5B/apply"

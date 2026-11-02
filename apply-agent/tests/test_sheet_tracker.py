@@ -3,17 +3,15 @@ at once, and Lisul sorting and filtering the Sheet while they write."""
 
 import multiprocessing
 from dataclasses import replace
+from datetime import date
 from pathlib import Path
 
 import pytest
-
-from datetime import date
+from trackers import FakeSpreadsheet, tracker_and_lisul
 
 from apply.model import Outcome, Status
 from apply.sheet import ANSWERS, APPLICATIONS, TABS, SheetTracker
 from apply.tracker import AnswerRow, Row
-
-from trackers import FakeSpreadsheet, tracker_and_lisul
 
 
 def row(application_id: str) -> Row:

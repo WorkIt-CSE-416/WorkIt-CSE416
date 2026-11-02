@@ -11,7 +11,15 @@ from pathlib import Path
 from gspread.utils import rowcol_to_a1
 
 from apply.model import Status
-from apply.sheet import APPLICATIONS, DEFAULT_LOCK, HEADERS, live_tracker_sheet, locked, replace_rules, tidy_applications
+from apply.sheet import (
+    APPLICATIONS,
+    DEFAULT_LOCK,
+    HEADERS,
+    live_tracker_sheet,
+    locked,
+    replace_rules,
+    tidy_applications,
+)
 
 # The tabs ranked from a research results file.
 TOP_500 = "Top 500"

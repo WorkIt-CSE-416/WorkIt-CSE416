@@ -20,8 +20,6 @@ from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
 from apply.model import Answers, Handoff, Posting, QuestionSet, Readback
 
-
-
 API = "https://boards-api.greenhouse.io/v1/boards"
 GH_JID = re.compile(r"[?&]gh_jid=(\d+)")
 # Greenhouse's security code: who mails it, and the step that asks for it (the

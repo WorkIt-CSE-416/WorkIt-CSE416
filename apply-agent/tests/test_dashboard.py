@@ -13,13 +13,23 @@ from contextlib import contextmanager
 from datetime import datetime
 
 import pytest
-
 from playwright.sync_api import sync_playwright
 
-from apply import dashboard
+from apply import dashboard, rehearsal
 from apply.browsers import WorkerBrowsers
-from apply import rehearsal
-from apply.dashboard import READY, CdpFrames, Dashboard, NoFrames, grid, is_view, jpeg_size, raise_window, summary, to_page, verdict
+from apply.dashboard import (
+    READY,
+    CdpFrames,
+    Dashboard,
+    NoFrames,
+    grid,
+    is_view,
+    jpeg_size,
+    raise_window,
+    summary,
+    to_page,
+    verdict,
+)
 
 JPEG = b"\xff\xd8\xff\xe0 a frame"
 
@@ -851,7 +861,7 @@ def test_a_tracker_missing_fact_brings_the_options_its_form_offered():
 
 
 def test_a_window_that_never_ran_says_what_apply_does_and_the_first_steps(window):
-    with Dashboard(0, NoFrames(), past=lambda: []) as board:
+    with Dashboard(0, NoFrames(), past=list) as board:
         window.goto(board.url)
         window.wait_for_selector("#inbox .empty-state", timeout=10_000)
         text = window.inner_text("#inbox")
@@ -863,6 +873,7 @@ def test_a_window_that_never_ran_says_what_apply_does_and_the_first_steps(window
 
 def test_with_no_run_and_nothing_waiting_the_inbox_says_when_apply_runs_next(window):
     from datetime import date
+
     from apply.model import Status
     today = date.today()
     rows = [held_row(status=Status.SUBMITTED, date_applied=today, reason="")]
@@ -1121,7 +1132,7 @@ def test_an_optional_question_saved_blank_is_skipped_and_a_file_is_attached_but_
 def test_history_lists_each_decision_newest_first_with_why(window, tmp_path):
     resume = tmp_path / "Lisul Resume.pdf"
     resume.write_bytes(b"%PDF-1.4 resume")
-    clock = iter(datetime(2026, 10, 20, 9, m) for m in range(0, 60))
+    clock = iter(datetime(2026, 10, 20, 9, m) for m in range(60))
     with Dashboard(1, FakeFrames({}), now=lambda: next(clock)) as board:
         board.update(0, company="Skydio", role="Autonomy Intern", job_system="ashby", posting_url="https://s.example/1",
                      status="filling", files=[{"label": "Résumé", "name": resume.name, "path": str(resume)}])

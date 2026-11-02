@@ -47,12 +47,23 @@ from urllib.parse import urlsplit
 from playwright.sync_api import Page
 
 from apply import bot_signals, description
-from apply.account_pages import FIELDS as ACCOUNT_FIELDS, PROMPT as ACCOUNT_PROMPT, SENDS, AccountPages
+from apply.account_pages import FIELDS as ACCOUNT_FIELDS
+from apply.account_pages import PROMPT as ACCOUNT_PROMPT
+from apply.account_pages import SENDS, AccountPages
 from apply.accounts import Accounts
 from apply.adapters import Claude, JobSite
 from apply.attach import RESUME, attach_resume, clear_pop_up, pass_jobvite_gate
 from apply.confirmation import wait_for_confirmation
-from apply.model import Answers, Closed, Handoff, MoreQuestions, NotAPosting, Question, QuestionSet, Readback
+from apply.model import (
+    Answers,
+    Closed,
+    Handoff,
+    MoreQuestions,
+    NotAPosting,
+    Question,
+    QuestionSet,
+    Readback,
+)
 from apply.submit_guard import DriveGuard
 
 MODEL = "haiku"

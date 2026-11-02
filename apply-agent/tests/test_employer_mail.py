@@ -6,15 +6,14 @@ mailbox over FakeImap, as `apply mail` reads them."""
 from datetime import date, datetime
 
 import pytest
+from conftest import FIXTURES
+from test_gmail import FakeImap
 
 from apply.employer_mail import Kind, classify, sync
 from apply.gmail import GmailMailbox, Mail
 from apply.model import Outcome, Status
 from apply.orchestrator import INTERRUPTED_SUBMIT
 from apply.tracker import InMemoryTracker, Row
-
-from conftest import FIXTURES
-from test_gmail import FakeImap
 
 SAMPLES = FIXTURES / "employer-mail"
 ARRIVED = datetime(2026, 10, 16, 9, 0)

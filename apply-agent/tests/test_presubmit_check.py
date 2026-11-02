@@ -5,9 +5,9 @@ import re
 
 import pytest
 
-from apply.model import Posting, Question
 from apply import fill_engine
 from apply.fill_engine import readback_problems
+from apply.model import Posting, Question
 from apply.presubmit import replan, review
 
 INTERESTS = Question("cards[a][field0]", "Areas of interest", "multi_select",
@@ -88,7 +88,7 @@ def test_review_sees_the_options_so_a_range_answer_is_not_called_wrong():
     review(claude, Posting("r", "Rhombus", "Intern", "https://jobs.lever.co/r/1"), [gpa, school],
            {"gpa": "3.6 - 4.0", "school": "College 7"})
 
-    rows = json.loads(re.search(r"<form>(.*)</form>", claude.prompts[0], re.S).group(1))
+    rows = json.loads(re.search(r"<form>(.*)</form>", claude.prompts[0], re.DOTALL).group(1))
     assert rows == [{"question": "What is your GPA?", "answer": "3.6 - 4.0", "options": ["Below 3.0", "3.0 - 3.59", "3.6 - 4.0"]},
                     {"question": "Which university?", "answer": "College 7"}]
 
@@ -104,7 +104,7 @@ def test_review_is_shown_the_boxes_ticked_apart_from_the_options_offered():
     review(claude, Posting("p", "Palantir", "Intern", "https://jobs.lever.co/p/1"), [languages],
            {"lang": ["English (ENG)", "Spanish (SPA)", "Other"]})
 
-    rows = json.loads(re.search(r"<form>(.*)</form>", claude.prompts[0], re.S).group(1))
+    rows = json.loads(re.search(r"<form>(.*)</form>", claude.prompts[0], re.DOTALL).group(1))
     assert rows == [{"question": "Language Skill(s) (Check all that apply)", "ticked": ["English (ENG)", "Spanish (SPA)", "Other"]}]
 
 
@@ -118,7 +118,7 @@ def test_an_agreement_picked_from_options_is_shown_to_the_review_though_it_menti
     review(claude, Posting("c", "CesiumAstro", "Intern", "https://jobs.lever.co/c/1"), [agreement, password],
            {"nda": "I agree with the above obligations.", "pw": "hunter2"})
 
-    rows = json.loads(re.search(r"<form>(.*)</form>", claude.prompts[0], re.S).group(1))
+    rows = json.loads(re.search(r"<form>(.*)</form>", claude.prompts[0], re.DOTALL).group(1))
     assert [row["answer"] for row in rows] == ["I agree with the above obligations.", "(secret)"]
 
 
@@ -231,7 +231,7 @@ def test_review_is_told_which_answers_are_lisuls_own():
     review(claude, Posting("s", "Semgrep", "Intern", "https://jobs.ashbyhq.com/semgrep/1"), [question],
            {"left": "My water bottle and my wallet"}, own={"left"})
 
-    rows = json.loads(re.search(r"<form>(.*)</form>", claude.prompts[0], re.S).group(1))
+    rows = json.loads(re.search(r"<form>(.*)</form>", claude.prompts[0], re.DOTALL).group(1))
     assert rows == [{"question": "What is currently to the immediate left of your computer?",
                      "answer": "My water bottle and my wallet", "his_own_answer": True}]
     assert "his_own_answer" in claude.systems[0]

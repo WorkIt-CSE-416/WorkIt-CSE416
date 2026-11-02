@@ -20,8 +20,8 @@ from pathlib import Path
 
 from playwright.sync_api import Route, sync_playwright
 
-from apply.ashby import EDUCATION
 from apply import fill_engine
+from apply.ashby import EDUCATION
 
 PLACE = ".ashby-application-form-input-autocomplete"  # a box whose options come from a search (a city, a school)
 

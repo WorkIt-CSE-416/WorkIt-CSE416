@@ -7,6 +7,9 @@ from contextlib import contextmanager
 from datetime import datetime
 
 import pytest
+from conftest import ARC_URL, FIXTURES
+from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
+from test_run_answers import profile_with
 
 from apply import company, rehearsal
 from apply.adapters import Adapters
@@ -15,10 +18,6 @@ from apply.eligibility import graduate_only
 from apply.feed import SimplifyFeed
 from apply.profile import ApplicantProfile
 from apply.tracker import InMemoryTracker
-
-from conftest import ARC_URL, FIXTURES
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
-from test_run_answers import profile_with
 
 # Snap's "2027 Generative Media Research Intern" (Workday R0047179), as its CXS API sent it on 2026-10-16.
 SNAP = """

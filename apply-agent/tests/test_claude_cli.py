@@ -12,12 +12,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
+from conftest import FIXTURES
 
 from apply import claude_cli
 from apply.adapters import Drive, UsageLimitHit
 from apply.claude_cli import ClaudeCLI, ClaudeError, run_claude
-
-from conftest import FIXTURES
 
 SCHEMA = {"type": "object", "properties": {"answer": {"type": "string"}}}
 FIVE_HOUR_RESET = datetime.fromtimestamp(1792050600)

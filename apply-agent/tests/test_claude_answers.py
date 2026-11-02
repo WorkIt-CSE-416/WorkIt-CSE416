@@ -10,8 +10,29 @@ from pathlib import Path
 
 import pytest
 import yaml
+from conftest import FIXTURES, POLICIES, research_form
+from fakes import (
+    PLAN_STORIES,
+    FakeClaude,
+    FakeClock,
+    FakeMailbox,
+    RecordingBoard,
+    ScriptedUsage,
+)
 
-from apply import answering, cover_letter, essays, gates, home, presubmit, probe, sameness, stock, story_map, worker, writing
+from apply import (
+    answering,
+    cover_letter,
+    essays,
+    home,
+    presubmit,
+    probe,
+    sameness,
+    stock,
+    story_map,
+    worker,
+    writing,
+)
 from apply.adapters import Adapters
 from apply.answer_bank import AnswerBank
 from apply.cli import main
@@ -24,10 +45,6 @@ from apply.notify import RecordingNotifier
 from apply.profile import ApplicantProfile
 from apply.records import InMemoryRecords
 from apply.tracker import AnswerRow, InMemoryTracker, Row
-
-from conftest import FIXTURES
-from fakes import PLAN_STORIES, FakeClaude, FakeClock, FakeMailbox, RecordingBoard, ScriptedUsage
-from conftest import POLICIES, research_form
 
 NOW = datetime(2026, 10, 15, 9, 30)
 PROFILE = FIXTURES / "planner-profile.yaml"
@@ -1688,7 +1705,7 @@ def test_a_held_rows_essay_cell_shows_each_essays_plan(monkeypatch):
     row = run(monkeypatch, form, claude, company="Saronic", site=LOOKOUT_PAGE)
 
     assert row.status == "held"
-    assert re.search(rf"\nPlan: [a-z-]+ \| [^\n]* \| A point only his own facts support\.\n(Checks: [^\n]*\n)?Named: ",
+    assert re.search(r"\nPlan: [a-z-]+ \| [^\n]* \| A point only his own facts support\.\n(Checks: [^\n]*\n)?Named: ",
                      row.essay)
 
 

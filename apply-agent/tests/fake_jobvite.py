@@ -16,9 +16,8 @@ import base64
 import json
 from contextlib import contextmanager
 
-from playwright.sync_api import Route, sync_playwright
-
 from fakes import Submission
+from playwright.sync_api import Route, sync_playwright
 
 URL = "https://jobs.jobvite.com/tylertech/job/oAVOAfwD/apply"
 SEND_URL = "https://jobs.jobvite.com/tylertech/job/oAVOAfwD/submitApplication"

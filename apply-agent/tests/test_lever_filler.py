@@ -1,11 +1,20 @@
 """Seam 2: the Lever Filler against a saved Lever form."""
 
-from apply.lever import LeverFiller
-
 import pytest
-
-from conftest import HERMEUS_FORM, HERMEUS_URL, IMMUTA_URL, RHOMBUS_FORM, RHOMBUS_URL, SHIELD_AI_FORM, SHIELD_AI_URL, XCIMER_FORM, XCIMER_URL
+from conftest import (
+    HERMEUS_FORM,
+    HERMEUS_URL,
+    IMMUTA_URL,
+    RHOMBUS_FORM,
+    RHOMBUS_URL,
+    SHIELD_AI_FORM,
+    SHIELD_AI_URL,
+    XCIMER_FORM,
+    XCIMER_URL,
+)
 from fake_lever import FakeLeverServer
+
+from apply.lever import LeverFiller
 
 WORK_AUTH_CARD = "cards[db60ba3f-3128-46de-8310-9d3a73d8a6c8]"
 RHOMBUS_CARD = "cards[172bc91a-073a-4fe0-b995-520a2ed2e1a0]"

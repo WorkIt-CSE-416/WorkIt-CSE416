@@ -6,11 +6,10 @@ the Google Sheet Tracker over a real scratch Sheet (skipped without credentials)
 from datetime import date
 
 import pytest
+from trackers import tracker_and_lisul
 
 from apply.model import Outcome, Status
 from apply.tracker import AnswerRow, EmployerAccount, Row
-
-from trackers import tracker_and_lisul
 
 
 @pytest.fixture(params=["memory", "sheet", "checkbox-sheet", "live-sheet"])

@@ -7,6 +7,9 @@ import threading
 from datetime import date
 
 import pytest
+from conftest import FIXTURES
+from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
+from test_matches import NOW, NoBrowser, feed_record
 
 from apply.adapters import Adapters
 from apply.cli import main
@@ -15,10 +18,6 @@ from apply.fillers import FILLERS
 from apply.model import Question
 from apply.notify import MacNotifier, RecordingNotifier
 from apply.tracker import EmployerAccount, InMemoryTracker
-
-from conftest import FIXTURES
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
-from test_matches import NOW, NoBrowser, feed_record
 
 
 class ScriptedFiller:

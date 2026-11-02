@@ -3,21 +3,28 @@
 import json
 import re
 import shutil
-
 from datetime import datetime
 
 import fake_greenhouse
+import pytest
+from conftest import (
+    ANDURIL_FORM,
+    ANDURIL_URL,
+    ARC_FORM,
+    ARC_URL,
+    COINBASE_FORM,
+    COINBASE_URL,
+    PURE_STORAGE_FORM,
+    PURE_STORAGE_URL,
+)
+from fakes import FakeClock, FakeJobServer, FakeMailbox
+
 from apply.accounts import Accounts
 from apply.fill_engine import job_of
 from apply.greenhouse import SECURITY_CODE_SEARCH, GreenhouseFiller, board_behind
 from apply.model import FillError, Handoff, Posting, Status
 from apply.orchestrator import by_filler
 from apply.worker import Result
-
-import pytest
-
-from conftest import ANDURIL_FORM, ANDURIL_URL, ARC_FORM, ARC_URL, COINBASE_FORM, COINBASE_URL, PURE_STORAGE_FORM, PURE_STORAGE_URL
-from fakes import FakeClock, FakeJobServer, FakeMailbox
 
 
 @pytest.fixture

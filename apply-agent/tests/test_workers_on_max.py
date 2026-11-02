@@ -1,19 +1,26 @@
 """Seam 1: whole runs with several Workers, Max usage limits and interruptions."""
 
-from datetime import date, datetime
+from datetime import datetime
 
 import pytest
+from conftest import ARC_FORM, ARC_URL, FIXTURES
+from fakes import (
+    FakeClaude,
+    FakeClock,
+    FakeJobServer,
+    FakeMailbox,
+    Killed,
+    RecordingBoard,
+    ScriptedUsage,
+)
+from test_claude_answers import ResearchForm
+from test_claude_answers import run as run_form
 
 from apply.adapters import Adapters, UsageReading
 from apply.cli import main
 from apply.model import Posting
 from apply.orchestrator import INTERRUPTED_SUBMIT
 from apply.tracker import InMemoryTracker
-
-from conftest import ARC_FORM, ARC_URL, FIXTURES
-from fakes import FakeClaude, FakeClock, FakeJobServer, FakeMailbox, Killed, RecordingBoard, ScriptedUsage
-from test_claude_answers import ResearchForm
-from test_claude_answers import run as run_form
 
 START = datetime(2026, 10, 15, 9, 30)
 RESET = datetime(2026, 10, 16, 10, 0)  # a day later, so it shows in Date applied

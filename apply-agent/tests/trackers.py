@@ -10,7 +10,17 @@ from pathlib import Path
 import pytest
 from gspread.utils import a1_to_rowcol, rowcol_to_a1
 
-from apply.sheet import ANSWER_COLUMNS, ANSWERS, APPLICATIONS, COLUMNS, REQUESTS, TABS, SheetTracker, lay_out, open_sheet
+from apply.sheet import (
+    ANSWER_COLUMNS,
+    ANSWERS,
+    APPLICATIONS,
+    COLUMNS,
+    REQUESTS,
+    TABS,
+    SheetTracker,
+    lay_out,
+    open_sheet,
+)
 from apply.tracker import InMemoryTracker
 
 

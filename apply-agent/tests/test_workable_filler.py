@@ -3,15 +3,14 @@
 import json
 
 import pytest
+from conftest import ENFOS_FORM, ENFOS_URL, PERRY_FORM, PERRY_URL, SCOUT_FORM, SCOUT_URL
+from fake_workable import FakeWorkableServer
 
 from apply import workable
 from apply.fillers import FILLERS
 from apply.model import FillError, Posting, Question
 from apply.request import resolve
 from apply.workable import WorkableFiller
-
-from conftest import ENFOS_FORM, ENFOS_URL, PERRY_FORM, PERRY_URL, SCOUT_FORM, SCOUT_URL
-from fake_workable import FakeWorkableServer
 
 
 @pytest.fixture

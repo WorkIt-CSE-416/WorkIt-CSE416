@@ -4,12 +4,11 @@ which Keychain has none for. With a fake Keychain and a fake mailbox."""
 from datetime import datetime
 
 import pytest
+from fakes import FakeClock, FakeMailbox
 
 from apply.accounts import Accounts
 from apply.keychain import InMemoryKeychain
 from apply.model import Handoff
-
-from fakes import FakeClock, FakeMailbox
 
 SITE = "caci.wd1.myworkdayjobs.com"
 EMAIL = "test.person@example.com"

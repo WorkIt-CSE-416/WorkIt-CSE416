@@ -3,11 +3,11 @@ Apply reads from it."""
 
 import threading
 
+from trackers import FakeSpreadsheet
+
 from apply.model import Status
 from apply.sheet import APPLICATIONS, TABS, SheetTracker, locked, tidy_applications
 from apply.tracker import Row
-
-from trackers import FakeSpreadsheet
 
 
 def filled_sheet(tmp_path):

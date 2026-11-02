@@ -1,11 +1,9 @@
 """The live JobSite's browsers, run headless on a local page (no network)."""
 
 import json
+import os
 import threading
 import urllib.request
-
-
-import os
 
 import pytest
 

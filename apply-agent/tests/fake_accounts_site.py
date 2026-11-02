@@ -14,9 +14,8 @@ import json
 from contextlib import contextmanager
 from urllib.parse import parse_qs, urlsplit
 
-from playwright.sync_api import Route, sync_playwright
-
 from fakes import Submission
+from playwright.sync_api import Route, sync_playwright
 
 HOST = "https://jobs.smartrecruiters.com"
 URL = f"{HOST}/Acme/7431-software-engineer-intern"

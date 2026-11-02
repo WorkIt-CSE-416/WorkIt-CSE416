@@ -6,12 +6,11 @@ from datetime import date, datetime
 
 import pytest
 import yaml
+from fakes import FakeClaude, FakeClock
 
 from apply import home, story_map
 from apply.adapters import Adapters
 from apply.cli import main
-
-from fakes import FakeClaude, FakeClock
 
 BANK = """# Story bank
 

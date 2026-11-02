@@ -10,17 +10,16 @@ import re
 from datetime import timedelta
 
 import pytest
-
-from apply import account_pages, rehearsal
-from apply.keychain import InMemoryKeychain
-from apply.profile import ApplicantProfile
-from apply.tracker import EmployerAccount
-
 from fake_accounts_site import CODE, SEARCH, URL, FakeAccountsSite
 from fakes import FakeClaude
 from test_employer_accounts import EMAIL, NOW, World
 from test_matches import feed_record
 from test_rehearse import adapters
+
+from apply import account_pages, rehearsal
+from apply.keychain import InMemoryKeychain
+from apply.profile import ApplicantProfile
+from apply.tracker import EmployerAccount
 
 SITE = "jobs.smartrecruiters.com"
 QUESTIONS = [

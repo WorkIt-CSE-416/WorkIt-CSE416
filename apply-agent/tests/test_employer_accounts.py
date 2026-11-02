@@ -10,6 +10,10 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import yaml
+from conftest import FIXTURES, FORMS
+from fake_workday import STEPS, FakeWorkdayServer, Field
+from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
+from test_matches import feed_record
 
 from apply.adapters import Adapters
 from apply.cli import main
@@ -17,11 +21,6 @@ from apply.feed import SimplifyFeed
 from apply.keychain import InMemoryKeychain
 from apply.notify import RecordingNotifier
 from apply.tracker import EmployerAccount, InMemoryTracker
-
-from conftest import FIXTURES, FORMS
-from fake_workday import STEPS, FakeWorkdayServer, Field
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
-from test_matches import feed_record
 
 PROFILE = FIXTURES / "planner-profile.yaml"
 EMAIL = "test.person@example.com"

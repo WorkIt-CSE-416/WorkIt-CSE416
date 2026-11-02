@@ -8,9 +8,18 @@ would through the MCP tools, and each drive costs the tokens a test gives it.
 
 import json
 import re
+from datetime import datetime
 
 import pytest
-from datetime import datetime
+from conftest import FIXTURES, FORMS
+from fake_bamboohr import FakeBambooServer
+from fake_jobvite import URL as JOBVITE_URL
+from fake_jobvite import FakeJobviteServer
+from fake_paylocity import HOW_HEARD, FakePaylocityServer
+from fake_paylocity import URL as PAYLOCITY_URL
+from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
+from test_matches import feed_record
+from test_run_answers import profile_with
 
 from apply import claude_fill
 from apply.adapters import Adapters, UsageLimitHit
@@ -19,14 +28,6 @@ from apply.cli import main
 from apply.feed import SimplifyFeed
 from apply.records import InMemoryRecords
 from apply.tracker import InMemoryTracker, Row
-
-from conftest import FIXTURES, FORMS
-from fake_bamboohr import FakeBambooServer
-from fake_jobvite import URL as JOBVITE_URL, FakeJobviteServer
-from fake_paylocity import HOW_HEARD, URL as PAYLOCITY_URL, FakePaylocityServer
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
-from test_matches import feed_record
-from test_run_answers import profile_with
 
 LUNAR_FORM = FORMS / "bamboohr-lunaroutpost"
 LUNAR_URL = "https://lunaroutpost.bamboohr.com/careers/398"

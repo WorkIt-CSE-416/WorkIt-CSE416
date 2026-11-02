@@ -12,9 +12,8 @@ import re
 from contextlib import contextmanager
 from pathlib import Path
 
-from playwright.sync_api import Route, sync_playwright
-
 from fakes import Submission
+from playwright.sync_api import Route, sync_playwright
 
 API = re.compile(r"https://ats\.rippling\.com/api/v1/board/([^/]+)/jobs/([0-9a-f-]{36})")
 # What the fake parser reads from any résumé.

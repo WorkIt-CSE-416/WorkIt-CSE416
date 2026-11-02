@@ -39,11 +39,10 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urljoin, urlsplit
 
+from fakes import FakeMailbox, Submission
 from playwright.sync_api import Route, sync_playwright
 
 from apply.fill_engine import ENGINE_DIR
-
-from fakes import FakeMailbox, Submission
 
 MAIL_SEARCH = "from:(myworkday.com OR otp.workday.com)"  # Workday mails from both
 EMPTY = (None, "", [], False)

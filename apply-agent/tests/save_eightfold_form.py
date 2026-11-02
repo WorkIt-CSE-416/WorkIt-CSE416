@@ -73,7 +73,7 @@ def save(url: str, out: Path, country: str = "") -> None:
             page.wait_for_load_state("networkidle")
             with page.expect_response(lambda r: UPLOAD in r.url, timeout=60_000) as uploaded:
                 page.locator("input[type=file]").first.set_input_files(resume)
-                page.locator("[role=dialog]").get_by_role("button", name=re.compile(r"^\s*I (acknowledge|agree)\s*$", re.I)).evaluate("b => b.click()")  # a notice may lie over it
+                page.locator("[role=dialog]").get_by_role("button", name=re.compile(r"^\s*I (acknowledge|agree)\s*$", re.IGNORECASE)).evaluate("b => b.click()")  # a notice may lie over it
             parsed = uploaded.value.text()  # the HAR can miss this body
             page.wait_for_load_state("networkidle")
             if country:

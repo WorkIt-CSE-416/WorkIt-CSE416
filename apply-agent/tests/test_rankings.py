@@ -4,11 +4,11 @@ file, as Lisul reads them in the Sheet."""
 import json
 import re
 
+from trackers import FakeSpreadsheet
+
 from apply import rankings
 from apply.rankings import RANKED_HEADERS, write_rankings
 from apply.sheet import APPLICATIONS, TABS
-
-from trackers import FakeSpreadsheet
 
 
 def company(rank: int, name: str | None = None, **fields) -> dict:

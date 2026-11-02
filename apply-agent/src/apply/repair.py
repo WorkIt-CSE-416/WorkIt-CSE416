@@ -19,8 +19,8 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from apply.model import Posting, Status, one_line
 from apply.home import HOME
+from apply.model import Posting, Status, one_line
 from apply.records import SECRET, Filled
 
 # Where live Repair requests are kept (gitignored).

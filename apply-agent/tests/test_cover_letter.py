@@ -6,13 +6,11 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from conftest import FIXTURES, POLICIES
 
 from apply import cover_letter
 from apply.model import Posting
 from apply.profile import ApplicantProfile
-
-from conftest import FIXTURES
-from conftest import POLICIES
 
 PROFILE = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", POLICIES)
 POSTING = Posting("p", "Figma", "Software Engineer Intern", "https://jobs.example.com/1")

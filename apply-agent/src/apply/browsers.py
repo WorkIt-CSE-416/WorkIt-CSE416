@@ -27,9 +27,7 @@ from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
-from playwright.sync_api import BrowserContext, Page
-
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import BrowserContext, Page, sync_playwright
 
 from apply import trace
 from apply.focus import KEEPER

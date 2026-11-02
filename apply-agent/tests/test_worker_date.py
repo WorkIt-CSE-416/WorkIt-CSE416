@@ -3,13 +3,13 @@
 from contextlib import contextmanager
 from datetime import date
 
+from conftest import APPLY, FIXTURES
+from fakes import FakeClaude
+
 from apply.fillers import Handoff
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
 from apply.worker import apply_to
-
-from conftest import APPLY, FIXTURES
-from fakes import FakeClaude
 
 ACKNOWLEDGEMENT = Question(
     "ack", "Acknowledgement: you will promptly share changes with your recruiter. "

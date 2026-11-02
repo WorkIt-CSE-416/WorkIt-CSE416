@@ -9,7 +9,13 @@ from apply.ashby import AshbyFiller
 from apply.eightfold import EightfoldFiller
 from apply.greenhouse import GreenhouseFiller
 from apply.lever import LeverFiller
-from apply.model import Answers, Handoff, MoreQuestions, QuestionSet, Readback  # noqa: F401 (Fillers raise them)
+from apply.model import (  # noqa: F401 (Fillers raise them)
+    Answers,
+    Handoff,
+    MoreQuestions,
+    QuestionSet,
+    Readback,
+)
 from apply.rippling import RipplingFiller
 from apply.workable import WorkableFiller
 from apply.workday import WorkdayFiller

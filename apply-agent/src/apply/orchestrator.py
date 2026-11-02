@@ -13,10 +13,18 @@ from datetime import date, datetime, timedelta
 
 from apply import bot_signals, greenhouse, oracle, trace, walls
 from apply.accounts import Accounts, failed_sites
-from apply.adapters import Adapters, Claude, JobSite, SetupError, UsageLimitHit, UsageReading
+from apply.adapters import (
+    Adapters,
+    Claude,
+    JobSite,
+    SetupError,
+    UsageLimitHit,
+    UsageReading,
+)
 from apply.answer_bank import Entry
 from apply.answer_bank import key as bank_key
 from apply.claude_fill import ClaudeFill, OnePage
+from apply.feed import repost_keys
 from apply.fillers import FILLERS
 from apply.match_queue import match_queue, over_employer_limits
 from apply.model import Posting, Status, one_line
@@ -24,9 +32,8 @@ from apply.notify import TITLE, WAITING, summary, used_again, waiting
 from apply.profile import ApplicantProfile
 from apply.records import Record
 from apply.repair import requests_for
-from apply.rescue import Rescue
-from apply.feed import repost_keys
 from apply.request import is_request, resolve
+from apply.rescue import Rescue
 from apply.tracker import AnswerRow, EmployerAccount, Row, options_cell
 from apply.worker import Result, apply_to, named
 
@@ -515,7 +522,7 @@ def by_filler(
     oracle_sign_in = None
     if posting.job_system == "oracle":  # its emailed one-time code, by plain code
         last_name = profile.get("identity.legal_last_name")
-        oracle_sign_in = lambda page: oracle.sign_in(page, signing_in, last_name, agree)  # noqa: E731
+        oracle_sign_in = lambda page: oracle.sign_in(page, signing_in, last_name, agree)
 
     def sign_in(page) -> None:
         if no_mail:

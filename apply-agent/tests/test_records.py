@@ -4,6 +4,10 @@ Records they link to."""
 import json
 from datetime import datetime
 
+from conftest import ARC_FORM, FIXTURES
+from fakes import FakeClaude, FakeClock, FakeJobServer, FakeMailbox, ScriptedUsage
+from test_matches import NoBrowser, feed_record
+
 from apply.adapters import Adapters
 from apply.cli import main
 from apply.feed import SimplifyFeed
@@ -11,10 +15,6 @@ from apply.fillers import FILLERS
 from apply.model import Question
 from apply.records import InMemoryRecords
 from apply.tracker import InMemoryTracker
-
-from conftest import ARC_FORM, FIXTURES
-from fakes import FakeClaude, FakeClock, FakeJobServer, FakeMailbox, ScriptedUsage
-from test_matches import NoBrowser, feed_record
 
 PNG = b"\x89PNG\r\n\x1a\n"
 

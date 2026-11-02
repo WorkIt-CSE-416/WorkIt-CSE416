@@ -5,12 +5,11 @@ import html
 import json
 
 import pytest
+from conftest import FORMS
 from playwright.sync_api import sync_playwright
 
 from apply import company, description
 from apply.model import Posting
-
-from conftest import FORMS
 
 ARC = Posting("arc", "Arc Boat Company", "Software Engineering Intern", "https://boards.greenhouse.io/arc/jobs/1")
 

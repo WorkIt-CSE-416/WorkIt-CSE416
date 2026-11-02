@@ -20,17 +20,16 @@ an email Oracle would write to:
 import base64
 import html
 import itertools
-import json
 import threading
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from fake_lever import _load_responses
+from fakes import FakeMailbox, Submission
 from playwright.sync_api import Route, sync_playwright
 
 from apply.oracle import MAIL_SEARCH
-from fake_lever import _load_responses
-from fakes import FakeMailbox, Submission
 
 # Put on the saved Oracle pages: sends the email step to the fake.
 EMAIL_STEP_SCRIPT = r"""
