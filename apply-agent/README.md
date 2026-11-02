@@ -103,6 +103,13 @@ Apply opens each form and plans its answers, then waits. Press Start in the
 Apply window, and the Workers fill all the forms at once, each in its own
 Chrome. Nothing is sent.
 
+## Tests
+
+CI runs ruff and only the fast test files (no browser, network or `claude`
+CLI). The Filler tests need Chromium, so run the ones that your change
+touches on your Mac, with `-k`: `uv run pytest tests/test_workday_filler.py
+-k <name>`. Never run the full suite for a small change (over 20 minutes).
+
 ## More setup
 
 - [docs/accounts-setup.md](docs/accounts-setup.md): Gmail, Keychain, Google

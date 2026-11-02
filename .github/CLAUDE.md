@@ -62,17 +62,20 @@ typecheck, the same stale-`dist/` check, and its tests, on every PR.
 
 The `apply` job (KAN-535) lints and tests Apply (`apply-agent/`) on
 Ubuntu: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
-files. The list holds only the files that need no browser, no network and
-no `claude` CLI (about 570 tests, 12 s with the install, timed in a Linux
-container on 2026-11-02). The full suite takes more than 20 minutes and
-most of it opens Chromium. The tests read the engine's saved forms, so the
-job needs the fill-engine submodule: it needs `FILL_ENGINE_TOKEN` and is
-skipped without it. It runs only on a PR that touches `apply-agent/`, the
-engine pointer, `ci.yml` or `engine-token.yml` (the `changes` job).
-The other test files fail in that container and are not in the list:
-most need Chromium or the macOS `security` tool, and `test_eightfold_filler.py`,
-`test_worker_date.py` and three tests in `test_claude_answers.py` fail on
-the Mac too.
+files. The list holds only the 44 files that need no browser, no network
+and no `claude` CLI: about 770 tests (28 skipped), 10 s of pytest and 14 s
+with `uv sync --locked` and ruff, timed in a Linux container
+(`ghcr.io/astral-sh/uv:python3.12-bookworm`) on 2026-11-02. The tests read
+the engine's saved forms, so the job needs the fill-engine submodule: it
+needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
+that touches `apply-agent/`, the engine pointer, `ci.yml` or
+`engine-token.yml` (the `changes` job).
+**CI does not run the other 28 test files**, which hold the Filler tests
+(`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
+`test_rehearse.py` and more). Most of them need Chromium or the macOS
+`security` tool. The full suite takes more than 20
+minutes. Run the files that a change touches on a Mac, with `-k`
+(`apply-agent/CLAUDE.md`, Testing).
 
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
