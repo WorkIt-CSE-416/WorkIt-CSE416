@@ -116,3 +116,6 @@ h2 { margin: 0 0 8px; font-size: 18px; }
 .sites { list-style: none; margin: 16px 0 0; padding: 0; }
 .sites li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--color-border-subtle); }
 .sites li button { width: auto; margin: 0; }
+.sites li .buttons { display: flex; gap: 8px; flex-shrink: 0; }
+.sites li strong { font-weight: var(--text-label--font-weight); }
+.sites li > span:first-child { min-width: 0; overflow-wrap: anywhere; }

@@ -514,7 +514,7 @@
       note("_step", "Sign in to continue", reason);
       window.WIA.phase = "step";
       report();
-    }, (onAllow) => overlay.askWorkdayAccounts({ onAllow }));
+    }, (details, onAllow) => overlay.askWorkdayAccounts({ ...details, onAllow }));
   }
   let step = await workday.stepAfter("");
   for (;;) {

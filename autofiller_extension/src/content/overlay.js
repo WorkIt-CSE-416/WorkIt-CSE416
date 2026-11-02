@@ -81,6 +81,19 @@ window.WIA = window.WIA || {};
       .moment [data-secondary] { background: var(--color-panel); color: var(--color-ink); border: 1px solid var(--color-border-subtle); }
       .moment [data-secondary]:hover { background: var(--color-hover); }
       .moment button:focus-visible, .moment a:focus-visible, .moment select:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+      .moment input {
+        display: block; width: 100%; box-sizing: border-box; margin-top: 3px; padding: 5px 6px; font: inherit; font-size: var(--text-note);
+        color: var(--color-ink); background: var(--color-panel);
+        border: 1px solid var(--color-border-control); border-radius: var(--radius-control);
+      }
+      .moment input:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+      .moment .password { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+      .moment .password input { margin-top: 0; }
+      .moment .rules { list-style: none; padding: 0; }
+      .moment .rules li::before { content: "○ "; }
+      .moment .rules li[data-met="true"] { color: var(--color-positive-ink); }
+      .moment .rules li[data-met="true"]::before { content: "✓ "; }
+      .moment [data-primary]:disabled { opacity: 0.5; cursor: default; }
       .moment .error { color: var(--color-danger); }
       .moment ul { margin: 0 0 8px; padding-left: 16px; font-size: var(--text-note); color: var(--color-ink-muted); }
       .moment li span { color: var(--color-ink-meta); }
@@ -436,31 +449,90 @@ window.WIA = window.WIA || {};
     card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
   }
 
+  // Workday's own password rules, as the Workday Sign-Up page's checklist (src/options/options.js) asks.
+  const WORKDAY_RULES = {
+    length: ["At least 12 characters", (p) => p.length >= 12],
+    upper: ["An uppercase letter", (p) => /[A-Z]/.test(p)],
+    lower: ["A lowercase letter", (p) => /[a-z]/.test(p)],
+    number: ["A number", (p) => /[0-9]/.test(p)],
+    special: ["A special character", (p) => /[^A-Za-z0-9\s]/.test(p)],
+  };
+
   /**
-   * The Workday accounts ask (KAN-369), on the first company's Workday
-   * Create Account or Sign In until the student answers: Sign Me In calls
-   * `onAllow` (the extension then presses Create Account or Sign In at every
-   * company, workday.js); Not Now closes it for this page.
-   * @param {{ onAllow: () => void }} options
+   * The Workday accounts ask (KAN-369, KAN-479), shown before WorkIt presses
+   * any Create Account (the Chrome Web Store's prominent disclosure), on the
+   * first company's Workday Create Account or Sign In until the student
+   * answers. With no Workday email and password set (`needsSignup`), it asks
+   * for them here: the email prefilled from the profile, the password typed
+   * by the student, with Show and Workday's rules; Save and Sign Me In writes
+   * them straight to chrome.storage.local (`workday_signup`, never in a
+   * message) and then calls `onAllow`. Nothing is pressed until they are
+   * saved. With them set, Sign Me In calls `onAllow`. Not Now closes it for
+   * this page.
+   * @param {{ email: string, needsSignup: boolean, onAllow: () => void }} options
    */
-  function askWorkdayAccounts({ onAllow }) {
+  function askWorkdayAccounts({ email, needsSignup, onAllow }) {
+    const fields = needsSignup ? `
+      <label>Workday Email
+        <input type="email" data-email value="${escape(email ?? "")}" autocomplete="off">
+      </label>
+      <label>One Password for Every Company's Workday</label>
+      <div class="password">
+        <input type="password" data-password autocomplete="new-password" spellcheck="false" aria-label="One Password for Every Company's Workday">
+        <button type="button" data-secondary data-show aria-pressed="false">Show</button>
+      </div>
+      <ul class="rules" aria-label="Your password needs">
+        ${Object.entries(WORKDAY_RULES).map(([name, [words]]) => `<li data-rule="${name}" data-met="false">${words}</li>`).join("")}
+      </ul>` : "";
     const card = momentCard("workday-accounts", `
       <h2>Let WorkIt Sign You In to Workday</h2>
-      <p>Each company's Workday asks you to make an account. WorkIt can make it and sign you in, here and at every company from now on. It fills your email and a new password made for that company alone, or the one password you set in Workday Sign-Up, kept only in this browser. It ticks the box that you agree to the company's terms and privacy notice, and presses Create Account or Sign In. Each time, the panel names the box it ticked.</p>
+      <p>Each company's Workday asks you to make an account. WorkIt can make it and sign you in, here and at every company from now on, with one email and password you set${needsSignup ? " here" : " in Workday Sign-Up"}. It ticks the box that you agree to the company's terms and privacy notice, and presses Create Account or Sign In. Each time, the panel names the box it ticked.</p>
+      ${fields}
+      <p>Your password stays in this browser: WorkIt never sends it anywhere. Removing the extension deletes the passwords it saved for each company.</p>
       <div class="actions">
-        <button type="button" data-primary data-allow>Sign Me In</button>
+        <button type="button" data-primary data-allow ${needsSignup ? "disabled" : ""}>${needsSignup ? "Save and Sign Me In" : "Sign Me In"}</button>
         <button type="button" data-secondary data-dismiss>Not Now</button>
-        <button type="button" data-secondary data-signup>Set One Password</button>
       </div>
     `);
     if (!card) return;
     card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
-    // The extension's Workday Sign-Up page (src/options/), in a tab of its own; the card stays for the answer.
-    card.querySelector("[data-signup]").addEventListener("click", () => chrome.runtime.sendMessage({ type: "workday/signup-open" }));
-    card.querySelector("[data-allow]").addEventListener("click", () => {
+    const allow = card.querySelector("[data-allow]");
+    const emailBox = card.querySelector("[data-email]");
+    const passwordBox = card.querySelector("[data-password]");
+    // Lets Save go only when the email looks right and every rule holds.
+    const check = () => {
+      let all = true;
+      for (const [name, [, holds]] of Object.entries(WORKDAY_RULES)) {
+        const met = holds(passwordBox.value);
+        card.querySelector(`[data-rule=${name}]`).dataset.met = String(met);
+        all &&= met;
+      }
+      allow.disabled = !all || !emailBox.value.trim() || !emailBox.validity.valid;
+    };
+    if (needsSignup) {
+      emailBox.addEventListener("input", check);
+      passwordBox.addEventListener("input", check);
+      const show = card.querySelector("[data-show]");
+      show.addEventListener("click", () => {
+        const shown = passwordBox.type === "password";
+        passwordBox.type = shown ? "text" : "password";
+        show.textContent = shown ? "Hide" : "Show";
+        show.setAttribute("aria-pressed", String(shown));
+      });
+      check();
+    }
+    allow.addEventListener("click", window.WIA.ui.trusted(async () => {
+      if (needsSignup) {
+        check();
+        if (allow.disabled) return;
+        allow.disabled = true;
+        // Straight to this browser's storage, as the Workday Sign-Up page writes it: never in a message.
+        await chrome.storage.local.set({ workday_signup: { email: emailBox.value.trim(), password: passwordBox.value } });
+        passwordBox.value = "";
+      }
       card.remove();
       onAllow();
-    });
+    }));
   }
 
   /**

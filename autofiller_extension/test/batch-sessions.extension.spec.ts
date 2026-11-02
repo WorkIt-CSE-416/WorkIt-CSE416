@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { expect, test, type Page, type Worker } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays, SavedForms } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, menuItem } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, menuItem, saveWorkdaySignup, WORKDAY_SIGNUP } from "./loaded-extension";
 
 type Tab = { id: number; url?: string; group: string | null; autoDiscardable: boolean };
 
@@ -171,7 +171,7 @@ test("Workday applications fill one at a time while other job systems fill besid
   expect([...forms.submissions, ...workdays.submissions]).toEqual([]);
 });
 
-test("on Workday's sign-in, fills the student's email and a password of its own for each company, kept only in the browser", async () => {
+test("on Workday's sign-in, fills the student's one login at a new company and an older saved login where one is kept, only in the browser", async () => {
   test.setTimeout(180_000);
   const workdays = new FakeWorkdays(["workday-caci", "workday-xcel"]);
   const api = new FakeApi().queue(
@@ -187,6 +187,10 @@ test("on Workday's sign-in, fills the student's email and a password of its own 
   };
   loaded = await loadExtension([spy, api.handler, webapp, workdays.handler]);
   await signIn(loaded.context);
+  await saveWorkdaySignup(loaded);
+  // Made up: a password generated for Xcel alone by an install from before KAN-479; its account was made with it.
+  const older = { email: "test.person@example.com", password: "Older-Generated-Xcel-Pass-3#" };
+  await loaded.worker.evaluate((login) => chrome.storage.local.set({ workday_logins: { "xcelenergy.wd1.myworkdayjobs.com": login } }), older);
   await sendFromWebapp(await openWebapp(), { type: "run/open" });
   const page = async (url: string) => {
     await expect.poll(() => loaded!.context.pages().some((p) => p.url() === url), { timeout: 30_000 }).toBe(true);
@@ -198,14 +202,12 @@ test("on Workday's sign-in, fills the student's email and a password of its own 
 
   // The first company's posting has no form: the batch tab presses Apply, then Apply Manually, which loads Create Account as a new page.
   await page(workdays.postingUrl(0));
-  // Create Account there: the email, and a new strong password typed twice.
+  // Create Account there: the student's one email and password, typed twice, and no new password made.
   const caci = await page(workdays.signInUrl(0));
-  await expect.poll(() => box(caci, "verifyPassword").inputValue(), { timeout: 30_000 }).not.toBe("");
-  expect(await box(caci, "email").inputValue()).toBe("test.person@example.com");
-  const caciPassword = await box(caci, "password").inputValue();
-  expect(caciPassword).toMatch(/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z\d]).{16,}$/);
-  expect(await box(caci, "verifyPassword").inputValue()).toBe(caciPassword);
-  expect(await saved()).toEqual({ "caci.wd1.myworkdayjobs.com": { email: "test.person@example.com", password: caciPassword } });
+  await expect.poll(() => box(caci, "verifyPassword").inputValue(), { timeout: 30_000 }).toBe(WORKDAY_SIGNUP.password);
+  expect(await box(caci, "email").inputValue()).toBe(WORKDAY_SIGNUP.email);
+  expect(await box(caci, "password").inputValue()).toBe(WORKDAY_SIGNUP.password);
+  expect(await saved()).toEqual({ "xcelenergy.wd1.myworkdayjobs.com": older, "caci.wd1.myworkdayjobs.com": { ...WORKDAY_SIGNUP, signup: true } });
   // It waits for the student in Needs you, and never presses Create Account itself.
   await expect(panel(caci)).toBeVisible();
   await expect.poll(async () => (await tabs(loaded!.worker)).find((t) => t.url === workdays.signInUrl(0))?.group).toBe("Needs you");
@@ -216,28 +218,24 @@ test("on Workday's sign-in, fills the student's email and a password of its own 
   await caci.waitForURL(workdays.url(0));
   // A batch tab saves the filled step itself (Fill to Review), so the name shows on the step or was saved from it.
   await expect.poll(() => firstName(caci, workdays), { timeout: 30_000 }).toBe("Test");
-  expect(workdays.signIns).toEqual([{ host: "caci.wd1.myworkdayjobs.com", view: "create", email: "test.person@example.com", password: caciPassword }]);
+  expect(workdays.signIns).toEqual([{ host: "caci.wd1.myworkdayjobs.com", view: "create", ...WORKDAY_SIGNUP }]);
 
-  // The next company opens on Sign In, with no login saved there: only the email is filled.
+  // The next company opens on Sign In, where an older login is saved: it fills that one, not the student's new one.
   await skip(caci);
   const xcel = await page(workdays.signInUrl(1, "signin"));
-  await expect.poll(() => box(xcel, "email").inputValue(), { timeout: 30_000 }).toBe("test.person@example.com");
-  await expect(xcel.locator("#workit-autofiller-overlay-host .row").filter({ hasText: "New here?" })).toBeVisible();
-  expect(await box(xcel, "password").inputValue()).toBe("");
-  // The student switches to Create Account, which Workday draws twice: the company gets a password of its own.
-  await box(xcel, "createAccountLink").click();
-  await xcel.waitForTimeout(1500);
-  await expect.poll(() => box(xcel, "verifyPassword").inputValue(), { timeout: 30_000 }).not.toBe("");
-  const xcelPassword = await box(xcel, "password").inputValue();
-  expect(xcelPassword).not.toBe(caciPassword);
+  await expect.poll(() => box(xcel, "password").inputValue(), { timeout: 30_000 }).toBe(older.password);
+  expect(await box(xcel, "email").inputValue()).toBe(older.email);
+  await box(xcel, "click_filter").click();
+  await xcel.waitForURL(workdays.url(1));
+  expect(workdays.signIns[1]).toEqual({ host: "xcelenergy.wd1.myworkdayjobs.com", view: "signin", ...older });
 
-  // Back on the first company later, its Sign In takes the saved login.
+  // Back on the first company later, its Sign In takes the same login.
   await skip(xcel);
   const again = await page(workdays.signInUrl(0, "signin"));
-  await expect.poll(() => box(again, "password").inputValue(), { timeout: 30_000 }).toBe(caciPassword);
-  expect(await box(again, "email").inputValue()).toBe("test.person@example.com");
+  await expect.poll(() => box(again, "password").inputValue(), { timeout: 30_000 }).toBe(WORKDAY_SIGNUP.password);
+  expect(await box(again, "email").inputValue()).toBe(WORKDAY_SIGNUP.email);
 
   // Neither password went anywhere but the company's own Workday.
-  expect(sent.filter((r) => r.includes(caciPassword) || r.includes(xcelPassword))).toEqual([]);
+  expect(sent.filter((r) => r.includes(WORKDAY_SIGNUP.password) || r.includes(older.password))).toEqual([]);
   expect(workdays.submissions).toEqual([]);
 });

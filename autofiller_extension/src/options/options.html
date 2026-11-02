@@ -14,7 +14,7 @@
         <p class="muted">
           Each company's Workday asks you to make an account before you apply. Set one email and
           password here, and WorkIt uses them to make your account and sign you in at every company.
-          Without one, WorkIt makes a new password for each company.
+          WorkIt makes no Workday account until you set them.
         </p>
         <form id="signup-form" autocomplete="off">
           <label for="signup-email">Registration Email</label>
@@ -39,7 +39,23 @@
           </div>
           <p id="signup-said" class="muted" role="status"></p>
         </form>
-        <p class="note">Your password stays in this browser. WorkIt never sends or saves it anywhere else.</p>
+        <p class="note">
+          A new password applies to the companies WorkIt makes an account at after you change it: each
+          company's Workday keeps its own account. Your password stays in this browser. WorkIt never
+          sends or saves it anywhere else.
+        </p>
+      </section>
+      <section class="card" aria-labelledby="logins-title">
+        <h2 id="logins-title">Saved Company Logins</h2>
+        <p class="muted">
+          The Workday login WorkIt keeps for each company, the one it signs you in with there. Removing
+          the extension deletes them, so export them first if you need them.
+        </p>
+        <ul id="logins" class="sites"></ul>
+        <div class="actions">
+          <button type="button" id="logins-export" class="secondary">Export</button>
+        </div>
+        <p id="logins-said" class="muted" role="status"></p>
       </section>
       <section class="card" aria-labelledby="sites-title">
         <h2 id="sites-title">Sites You Allowed</h2>
