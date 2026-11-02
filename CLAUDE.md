@@ -293,5 +293,6 @@ with the failure it prevents.
   `docs/agents/issue-tracker.md`.
 - **Triage labels:** the five default roles, as Jira labels under their own
   names. `docs/agents/triage-labels.md`.
-- **Domain docs:** single-context, one `GLOSSARY.md` and `docs/adr/` at the
-  root, created with the first settled term or decision. `docs/agents/domain.md`.
+- **Domain docs:** multi-context. `GLOSSARY-MAP.md` at the root names two
+  contexts: WorkIt (`GLOSSARY.md`, `docs/adr/`) and Apply
+  (`apply-agent/GLOSSARY.md`, `apply-agent/docs/adr/`). `docs/agents/domain.md`.
