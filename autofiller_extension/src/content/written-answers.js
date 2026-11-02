@@ -13,6 +13,9 @@ window.WIA = window.WIA || {};
   "use strict";
 
   const WRITE_IT = "Write this answer yourself.";
+  // A practice form's written question (KAN-507): no Claude writes it, since a practice job has no application at WorkIt.
+  const PRACTICE_WITH_CLAUDE = "Practice form: write this one yourself. On a real application, your Claude writes answers like this.";
+  const PRACTICE_NO_CLAUDE = "Write this one yourself. To let your Claude write answers like this, go back to Add Claude in WorkIt's setup.";
   const TRIGGER = window.WIA.overlay.CLAUDE_TRIGGER;
   // Each row waiting for the student's Claude also has the overlay's Write with Claude.
   const WAIT_FOR_CLAUDE = `Waiting for your Claude: run "${TRIGGER}" in Claude, or write it yourself.`;
@@ -165,6 +168,12 @@ window.WIA = window.WIA || {};
         ...(q.kind ? { kind: q.kind, options: q.options } : {}),
       }));
       let reply = await send({ type: "batch/questions", questions }).catch((error) => ({ ok: false, error: error.message }));
+      // A practice form (KAN-507): the question is the student's, and the row says who writes such answers on real ones.
+      if (reply.ok && reply.practice) {
+        const reason = reply.claude ? PRACTICE_WITH_CLAUDE : PRACTICE_NO_CLAUDE;
+        for (const q of prepared.written) status.setStatus(q.name, q.required ? "failed" : "skipped", reason);
+        return;
+      }
       if (!reply.ok) {
         for (const q of prepared.written) status.setStatus(q.name, q.required ? "failed" : "skipped", WRITE_IT);
         return;

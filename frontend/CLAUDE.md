@@ -1800,7 +1800,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   keeps it, and puts each item back as an ordinary pick. Unlike Undo's
   steps it may outlive the page: it is read against the resume's choices
   each time, so an item already back only shows ticked
-  (`docs/screens.md`, Cut From Resume). **A rename in the title is a step too**
+  (`docs/screens.md`, Cut From Resume). It is on Tailor's page too, in the
+  column beside the page (`Side`), since Fit is. **A revert never waits for a
+  compile** (KAN-524): `apply` drops a change's card and marks at the click,
+  draws a reworded line's old words over the page (`wordsBack`) and puts the
+  card back if the render refuses, and Suggestions' Undo buttons stay on while
+  `saving`, or each Undo locked the rest for a compile, which takes seconds
+  on the deployed API (`docs/live_page.md`). **A page setting never queues a
+  compile a newer one replaced** (`applyPage`, `pageJobs`), or a few clicks on
+  a size stacked a compile each; a skipped step undoes through a render. **A rename in the title is a step too**
   (KAN-443, `TitleHistoryContext` in `resume-title.tsx`, provided by the
   editor round its title row): it shows at once, saves behind it, and a
   failed save puts the name before it back and drops the step. Its step
@@ -2247,6 +2255,16 @@ are in `docs/auth.md`.
   them through the same PATCH; My Profile still edits all nine. A new
   self-identification question goes into `SELF_ID_KEYS` too, and into the
   extension's copy of the options (`autofiller_extension/src/background/self-id.js`).
+- **Onboarding's Add Claude page is optional and before Practice** (KAN-507,
+  `onboarding/applicant/claude-step.tsx`): the install link from
+  `claudeConnectorLink()`, read in `page.tsx` and passed down, and
+  `getClaudeConnected` asked every 3 seconds while the page shows, so the
+  line turns done without a reload. Skip goes on to the practice batch.
+  The wizard's pages are `WIZARD_PAGES` in `steps.ts`, the rail's marks
+  `ONBOARDING_STEPS`; `railStep` maps one to the other (Availability under
+  Profile, Add Claude under Practice), so a new page needs no rail mark.
+  The extension's add-Claude moment (KAN-387) already skips a student whose
+  connector is added: keep that check there, not a flag set here.
 - **Writing samples are edited in My Profile only** (`(seeker)/profile/writing-samples.tsx`,
   `lib/writing-samples-actions.ts`, KAN-387): the extension's ask after a
   first written batch links to `/profile#writing-samples`, which opens Add.

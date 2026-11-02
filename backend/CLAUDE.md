@@ -494,7 +494,11 @@ Find files with a directory listing; these are the rules for where code goes.
   in `routers/applications.py`, `queries/applications.py`
   `listed_job_by_link`): the extension's toolbar popup on a site it can't
   fill saves the feed's listed job whose apply link is the page, the exact
-  link first, else the same link without query, fragment and trailing
+  link first, else **the same Greenhouse job in any link form** (KAN-526,
+  `greenhouse_job`: boards. or job-boards. host, the `embed/job_app?for=&token=`
+  form, a company page's `?gh_jid=`; Greenhouse job ids are unique across
+  boards, so the id alone decides, as the Fill engine's `jobOf` does), else
+  the same link without query, fragment and trailing
   slash (SQL `split_part`/`rtrim`, no index: the feed is small), **but only
   when exactly one listed job has that bare link** (KAN-424): many postings
   carry their id only in the query (36 Waymo jobs share

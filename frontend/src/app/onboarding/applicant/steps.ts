@@ -3,7 +3,8 @@
  * (./onboarding-form): the role, the resume, then the questions every
  * application asks, right after the resume (KAN-372; the resume was last
  * from KAN-275), then the extension's install and a practice batch on
- * WorkIt's own practice forms (KAN-378). Intake, on a page of its own, was a step until the resume
+ * WorkIt's own practice forms (KAN-378), with the optional Add Claude page
+ * before it (KAN-507). Intake, on a page of its own, was a step until the resume
  * step replaced it.
  *
  * The rail counts the whole journey (KAN-259). The wizard used to say "Step 2
@@ -18,6 +19,41 @@
  * the questions every application asks.
  */
 export const ONBOARDING_STEPS = ["Role", "Resume", "Profile", "Extension", "Practice"] as const;
+
+/**
+ * The wizard's pages, in order: more than the rail's marks (railStep).
+ * Claude, the optional Add Claude page (KAN-507), comes after the extension
+ * and before the practice batch, so the practice form's written question
+ * meets a student who has just chosen whether their Claude writes such
+ * answers. On the rail it sits under Practice, as Availability sits under
+ * Profile.
+ */
+export const WIZARD_PAGES = [
+  "Role",
+  "Resume",
+  "Profile",
+  "Availability",
+  "Extension",
+  "Claude",
+  "Practice",
+] as const;
+
+type Page = (typeof WIZARD_PAGES)[number];
+
+const MARK: Record<Page, (typeof ONBOARDING_STEPS)[number]> = {
+  Role: "Role",
+  Resume: "Resume",
+  Profile: "Profile",
+  Availability: "Profile",
+  Extension: "Extension",
+  Claude: "Practice",
+  Practice: "Practice",
+};
+
+/** The rail mark (an ONBOARDING_STEPS index) a wizard page lights. */
+export function railStep(page: number): number {
+  return ONBOARDING_STEPS.indexOf(MARK[WIZARD_PAGES[page]]);
+}
 
 /** The extension step's link: the tab the WorkIt extension opens on install
  *  (KAN-471, autofiller_extension/src/background/install.js). */
@@ -38,8 +74,7 @@ export function startStep(
   saved: boolean,
   finished = false,
 ): number {
-  // The wizard's fifth page: Availability has no mark on the rail (ONBOARDING_STEPS).
-  if (param === "extension" && (saved || finished)) return 4;
+  if (param === "extension" && (saved || finished)) return WIZARD_PAGES.indexOf("Extension");
   if (!saved) return 0;
   if (param === "2") return 2;
   return 0;
