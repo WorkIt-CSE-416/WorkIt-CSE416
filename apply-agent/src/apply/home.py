@@ -5,7 +5,7 @@ Applicant profile, Answer bank, Story bank, voice, policies override, company
 briefs) and everything Apply writes (Traces, rehearsals, Repairs, Worker
 profiles). Every data path derives from it, read once at import.
 
-CODE is the apply/ folder of the checkout: only generic inputs live there (the
+CODE is Apply's folder in the checkout (apply-agent/): only generic inputs live there (the
 answering guides, the default policies, the profile template, and SAMPLE, the
 Test Person data a first run starts from).
 """

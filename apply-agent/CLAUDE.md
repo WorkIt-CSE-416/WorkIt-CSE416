@@ -86,6 +86,16 @@ into it and the window shows "Sample data".
 - Kill only the processes you started, by PID. Other people's rehearsals
   can run on the same Mac.
 
+## Repairs
+
+A Repair is Claude's fix to Apply's own code for a fill bug (`GLOSSARY.md`,
+`docs/adr/0002`). Repairs are off: `policies.default.yaml` sets
+`repair.max_per_day: 0`. When you turn them on in your data folder, a Repair
+merges into the branch Apply runs from (or `repair.branch`) and pushes to
+this checkout's `origin`, the WorkIt repo. It also moves the engine pointer
+`autofiller_extension/fill-engine` on that branch, which is the extension's
+pointer too. Keep Repairs off on `main`.
+
 ## The privacy gate
 
 `scripts/privacy_gate.py` scans the files for personal data (phone numbers,

@@ -1,6 +1,6 @@
 # Setting up Records and run notifications
 
-Or run `./scripts/setup-wizard.sh` from `apply/`: it walks through every one-time setup step (Gmail, Records, notifications, Worker profile sign-in, live runs, the schedule), skipping what's already done.
+Or run `./scripts/setup-wizard.sh` from `apply-agent/`: it walks through every one-time setup step (Gmail, Records, notifications, Worker profile sign-in, live runs, the schedule), skipping what's already done.
 
 This is a one-time checklist that takes about 5 minutes. Apply keeps each Application's Record (its planned answers, the answers read back from the page and a screenshot of the filled form) in a separate private GitHub repo of your own, here `<you>/apply-records` (`<you>` is your GitHub username). The Tracker row's Record link opens that Application's folder there. This is optional: until `records_remote` is set (step 3), Records stay in the data folder's `records/` and `apply doctor` says Records are off. After each run, Apply also shows one macOS notification with the run's counts.
 
@@ -44,7 +44,7 @@ On its first save, Apply clones the repo to `~/.config/apply/apply-records`. Eac
 
 macOS shows notifications from `osascript` under **Script Editor**:
 
-- [ ] From `apply/` in your checkout, run:
+- [ ] From `apply-agent/` in your checkout, run:
 
   ```sh
   APPLY_TEST_NOTIFY=1 uv run pytest -q tests/test_notification.py -k real

@@ -1,6 +1,6 @@
 # Setting up sign-in: Gmail, Keychain and Google
 
-Or run `./scripts/setup-wizard.sh` from `apply/`: it walks through every one-time setup step (Gmail, Records, notifications, Worker profile sign-in, live runs, the schedule), skipping what's already done.
+Or run `./scripts/setup-wizard.sh` from `apply-agent/`: it walks through every one-time setup step (Gmail, Records, notifications, Worker profile sign-in, live runs, the schedule), skipping what's already done.
 
 This is a one-time checklist that takes about 10 minutes. Workday, Oracle and similar job systems make you sign in before they show their questions. Apply signs in for you without spending any tokens:
 
@@ -21,7 +21,7 @@ App passwords need 2-Step Verification on the Google account you apply with.
   security add-generic-password -s apply-gmail -a you@gmail.com -w
   ```
 
-- [ ] Check it from `apply/`: `APPLY_TEST_GMAIL=you@gmail.com uv run pytest tests/test_gmail.py -k real`. This signs in to Gmail and runs one search. It reads no mail and changes nothing.
+- [ ] Check it from `apply-agent/`: `APPLY_TEST_GMAIL=you@gmail.com uv run pytest tests/test_gmail.py -k real`. This signs in to Gmail and runs one search. It reads no mail and changes nothing.
 
 `apply mail` uses the same app password to read your recent employer mail; without it, it says so and stops.
 
@@ -42,7 +42,7 @@ See the Worker profile step of the main setup checklist. Sign each profile in wi
 
 ## Check the setup: `apply doctor`
 
-Run `uv run apply doctor` from `apply/` before a run, and again after any change here. It checks, read-only and in a few seconds, everything a run needs: the `claude` login, Chrome's version, each Worker profile's Google sign-in (read from its files, so Chrome never opens, and a profile a run has open is skipped), the Gmail app password, the Applicant profile's required facts, the Tracker Sheet, a dry-run push of the Records repo, `live_runs` and the Calibration run's progress. Each check prints one line, ok, warn or fail, with how to fix it, and any fail makes it exit non-zero. Add `--usage` to read Claude's Max usage too, at the cost of one tiny Haiku call.
+Run `uv run apply doctor` from `apply-agent/` before a run, and again after any change here. It checks, read-only and in a few seconds, everything a run needs: the `claude` login, Chrome's version, each Worker profile's Google sign-in (read from its files, so Chrome never opens, and a profile a run has open is skipped), the Gmail app password, the Applicant profile's required facts, the Tracker Sheet, a dry-run push of the Records repo, `live_runs` and the Calibration run's progress. Each check prints one line, ok, warn or fail, with how to fix it, and any fail makes it exit non-zero. Add `--usage` to read Claude's Max usage too, at the cost of one tiny Haiku call.
 
 ## What a sign-in Handoff means
 

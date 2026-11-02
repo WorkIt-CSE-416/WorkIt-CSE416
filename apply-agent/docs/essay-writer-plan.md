@@ -23,7 +23,7 @@ Settled with Lisul on 2026-10-22 ("yes to all"). The interview to fill the Story
 
    A question that fits none gets the general fallback. "Structured history" is not an essay: it's resume facts typed into a shape.
    *Sources:* taxonomy.md, lengths-forms.md.
-2. **No Claude Code skill.** Plain guidance files in `apply/answering/` are read by `essays.py`: `README.md` (rules for every answer) and `types/<type>.md`. Each type file opens with front matter that code reads: `company_link` (`same-kind` / `never`), `stock` (true/false), `high_stakes`, `length` (default words, when the form states none) and `match` (phrases that identify the type).
+2. **No Claude Code skill.** Plain guidance files in `apply-agent/answering/` are read by `essays.py`: `README.md` (rules for every answer) and `types/<type>.md`. Each type file opens with front matter that code reads: `company_link` (`same-kind` / `never`), `stock` (true/false), `high_stakes`, `length` (default words, when the form states none) and `match` (phrases that identify the type).
    *Sources:* skill-architecture.md. The skill probe failed: skills don't load under `--disable-slash-commands`, a skill costs 13x the input tokens, and the model ignored the skill's instructions.
 3. **Pipeline per form** (changed by decision 15):
    1. **Plan:** one call that picks, per question, its type, its parts, its main story, its company fact and an angle away from the typical answer, and fills the type's slots, each with the Story bank or brief lines that back it, quoted.

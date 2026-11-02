@@ -15,7 +15,7 @@ REQUESTS_EVERY = 5 * 60
 # Where Lisul's launchd agents and their logs live.
 AGENTS = Path.home() / "Library" / "LaunchAgents"
 LOGS = Path.home() / "Library" / "Logs" / "apply"
-# The apply/ folder, which uv runs `apply` from.
+# Apply's folder (apply-agent/), which uv runs `apply` from.
 PROJECT = Path(__file__).resolve().parents[2]
 
 
@@ -45,7 +45,7 @@ def jobs(daily_sweep_at: str) -> list[Job]:
 
 def plist(job: Job, *, uv: str, project: Path, logs: Path, path: str) -> str:
     """The launchd plist (XML) that runs `job` with `uv` from the `project`
-    (the apply/ folder), logging to `logs`, with PATH `path` (launchd's own
+    (Apply's folder, apply-agent/), logging to `logs`, with PATH `path` (launchd's own
     has neither uv's folder nor claude's)."""
     log = str(logs / f"{job.name}.log")
     spec = {
@@ -149,7 +149,7 @@ class Launchctl:
 
 def live(daily_sweep_at: str) -> Scheduler:
     """The Scheduler over ~/Library and the real launchctl, running this
-    checkout's apply/ with the uv and PATH of the shell that installs it."""
+    checkout's apply-agent/ with the uv and PATH of the shell that installs it."""
     return Scheduler(jobs(daily_sweep_at), Launchctl(), agents=AGENTS, logs=LOGS, uv=shutil.which("uv") or "uv",
                      project=PROJECT, path=os.environ.get("PATH", ""))
 

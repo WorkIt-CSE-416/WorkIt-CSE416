@@ -40,7 +40,7 @@ If Google refuses to create a key ("Service account key creation is disabled"), 
 
 ## 6. Lay out the Sheet
 
-- [ ] From `apply/` in your checkout, run this with your Sheet's URL:
+- [ ] From `apply-agent/` in your checkout, run this with your Sheet's URL:
 
   ```sh
   uv run python -m apply.sheet setup "https://docs.google.com/spreadsheets/d/<id>/edit"
@@ -71,9 +71,9 @@ Apply writes every column except four, which are yours. Apply only reads them an
 - Run `apply mail` to read your recent employer mail (read-only). It fills two of Apply's columns: **Confirmation received**, the day a mail showed the Application arrived, and **Suggested outcome** (rejected, OA or interview), what the latest mail says came of it. It never touches **Outcome**: copy the suggestion there when you agree. A Handoff row an employer's mail shows arrived becomes Submitted. A Sheet set up before these columns gets them at the end of its header row on the first write.
 - To add a Posting yourself, paste its link into the next empty row of the **Requests** tab. Apply picks it up and removes the link once the Application has its own row.
 - **Employer accounts** lists every login Apply created for you. The passwords are in macOS Keychain, never in the Sheet.
-- **Answers** lists the Answer bank: every one-off question Claude answered for you (a question no profile fact or rule covers), with the answer every form now gets, the company that first asked and when. Edit **Answer** to change it, or tick **Reviewed** once you agree. The next run copies your change into `apply/answer-bank.yaml` (as yours: `source: lisul`), and every form from then on sends it word for word. Leave **Claude's draft** as it is: an Answer that differs from it is how Apply sees your edit. For a select-all-that-apply question, separate the options with `;`.
+- **Answers** lists the Answer bank: every one-off question Claude answered for you (a question no profile fact or rule covers), with the answer every form now gets, the company that first asked and when. Edit **Answer** to change it, or tick **Reviewed** once you agree. The next run copies your change into the data folder's `answer-bank.yaml` (as yours: `source: lisul`), and every form from then on sends it word for word. Leave **Claude's draft** as it is: an Answer that differs from it is how Apply sees your edit. For a select-all-that-apply question, separate the options with `;`.
 - Sort and filter inside a filter view. That sorts only your view and never moves rows. **Data → Sort sheet** is also safe between Apply's writes, because rows are found by Application ID, but it reorders the Sheet for everyone.
-- **Bot signals** says how the Worker's Chrome ran on a filled form (`headless` or `headed`, set by `worker_headless` in `apply/policies.yaml`) and any Bot signal the job system showed, as in `headless: captcha`. `apply signals` counts them per mode and job system. A Sheet set up before this column gets its **Bot signals** header added at the end of the header row the first time Apply writes one.
+- **Bot signals** says how the Worker's Chrome ran on a filled form (`headless` or `headed`, set by `worker_headless` in the data folder's `policies.yaml`) and any Bot signal the job system showed, as in `headless: captcha`. `apply signals` counts them per mode and job system. A Sheet set up before this column gets its **Bot signals** header added at the end of the header row the first time Apply writes one.
 - To write the ranked tabs (**Top 500**, **Not open yet** and **Quant**) from a research results file, run `uv run python -m apply.rankings <results-file>` (the file's format is `RankedCompany` in `apply/src/apply/rankings.py`). It also tidies Applications as setup does, linking the Postings of rows added since. A rerun replaces each ranked tab's rows and never changes a cell on Applications.
 - Don't rename the Tracker's tabs or its header cells. Apply finds its columns by those names. Moving columns or adding your own columns is fine.
 
