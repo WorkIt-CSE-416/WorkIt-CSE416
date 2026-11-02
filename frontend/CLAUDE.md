@@ -31,14 +31,18 @@ them). Notes the scripts don't say:
   `npm ci` in a `node:22` container before pushing.
 - `typecheck` runs `next typegen` first because `LayoutProps`/`PageProps` are
   generated route types that do not exist on a fresh clone; bare `tsc` fails.
-- **Tests are Node's own runner** (`node --test`, Node 24 strips the types;
-  on Node 22 add `--experimental-strip-types`, or every test fails with
-  "Unknown file extension .ts"),
-  for pure modules only: `npm test`, or one file with
-  `node --test src/lib/autofill-answers.test.ts`. A test sits beside its
-  module as `<name>.test.ts` and imports it with the `.ts` extension
+- **Tests are Node's own runner** (`node --test`), for pure modules only:
+  `npm test`, or one file with `node --experimental-strip-types --test
+  src/lib/autofill-answers.test.ts`. `npm test` passes the flag itself:
+  Node 24 strips the types anyway, but Node 22 before 22.18 does not, and
+  every test failed with "Unknown file extension .ts". A test sits beside
+  its module as `<name>.test.ts` and imports it with the `.ts` extension
   (`allowImportingTsExtensions` in tsconfig), so the module under test must
-  use relative imports, not `@/`. There is no component or browser runner.
+  use relative imports with the `.ts` extension too, not `@/` and not a
+  bare path: Node resolves no extension, and `model.ts`'s bare import of
+  `holdings` failed `cuts.test.ts` with "Cannot find module" (2026-11-01).
+  A type-only import can use `@/`, since it is erased. There is no
+  component or browser runner.
 - **To test a resume upload**, use a file from `frontend/public/resumes/`.
   The folder is git-ignored because it holds real people's resumes, so put
   your own there once, in the primary checkout: `npm run worktree` and every
@@ -1700,7 +1704,19 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   outlive the database it describes (another tab's edit, a reload).
   Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
   own text undo runs. An open line is saved first, so Undo takes back
-  what was just typed. **A rename in the title is a step too**
+  what was just typed. **Fit to One Page is one step like any edit**:
+  Undo shows what it hid, Redo hides it again (`hideAgain`). It has no
+  Undo Fit button of its own (gone 2026-11-01, a second way to do what
+  Undo does); the phone's bar shows the same Undo and Redo. **Cut From
+  Resume** lists what every fit in the tab cut, entries, bullets and
+  skills (`cutRows`, `cutSkills`; `cutLeft` says whether its button
+  shows), read from each fit's `undo` body (`addCuts` in `model.ts`,
+  tested in `cuts.test.ts`), kept in
+  sessionStorage per resume (`fit-cuts.ts`), so a reload in the same tab
+  keeps it, and puts each item back as an ordinary pick. Unlike Undo's
+  steps it may outlive the page: it is read against the resume's choices
+  each time, so an item already back only shows ticked
+  (`docs/screens.md`, Cut From Resume). **A rename in the title is a step too**
   (KAN-443, `TitleHistoryContext` in `resume-title.tsx`, provided by the
   editor round its title row): it shows at once, saves behind it, and a
   failed save puts the name before it back and drops the step. Its step

@@ -94,7 +94,7 @@ export function TailorReview({
         }
         original={record?.source && <OriginalResume source={record.source} />}
         phoneBar={noRecord}
-        suggestions={(api) => <SuggestionsPanel {...api} />}
+        suggestions={SuggestionsPanel}
       />
     </>
   );

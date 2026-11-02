@@ -20,13 +20,12 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentType,
   type ReactNode,
 } from "react";
 
-import { ChevronDownIcon } from "@/components/icons";
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -62,9 +61,12 @@ import { FitToast } from "./fit-notice";
 import { Zoom, useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import {
+  addCuts,
+  cutLeft,
   HEADER,
   LINK_FIELDS,
   lineOf,
+  NO_CUTS,
   mergeChoices,
   move,
   withWording,
@@ -75,7 +77,6 @@ import {
   type HeaderField,
   type Line,
 } from "./model";
-import { keepFitUndo, readFitUndo } from "./fit-undo";
 import { hideAgain, push, reverseChoices, reverseLine, type Edit, type Step } from "./history";
 import {
   afterStrips,
@@ -100,7 +101,8 @@ import {
   untouched,
   useTailorReview,
 } from "./tailor-review";
-import { ExperiencesPicker } from "./experiences-picker";
+import { CutPicker, ExperiencesPicker } from "./experiences-picker";
+import { keepFitCuts, readFitCuts } from "./fit-cuts";
 
 /**
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
@@ -143,6 +145,13 @@ import { ExperiencesPicker } from "./experiences-picker";
 // The attribute on the parts of the editor a press may land on without
 // clearing the selected line
 const KEEPS_SELECTION = "data-keeps-selection";
+
+/** The panel's mark while it shows Cut From Resume: Fit's scissors, amber. */
+const CUT_MARK = (
+  <span className="bg-warning-tint text-warning flex size-8 shrink-0 items-center justify-center rounded-2xl">
+    <ScissorsIcon aria-hidden className="size-4.5" weight="duotone" />
+  </span>
+);
 
 /** The panel's mark while it shows the Experiences picker: the toolbar
  *  button's glyph, so what opened it is what it wears, and not Scout's. */
@@ -309,7 +318,7 @@ export function Editor({
    *  editor's state (./tailor-review.tsx). Only Tailor's page passes it, so
    *  only there are changes tinted: a mark with no card to act on would
    *  mean nothing. */
-  suggestions?: (api: SuggestionsApi) => ReactNode;
+  suggestions?: ComponentType<SuggestionsApi>;
   /** The title row's title (`ResumeTitle`, renamed in place), over the
    *  page and the column beside it; on Tailor's review the Suggestions or
    *  Original switch sits at its right (`SideSwitch`). */
@@ -323,6 +332,19 @@ export function Editor({
 }) {
   // Null until the first render lands (FirstRenderPane hands it over).
   const [rendered, setRendered] = useState<RenderedPdf | null>(null);
+  // What the next request's copy is built from (KAN-391): the bank and
+  // choices as the newest answer left them, with the changes on their way
+  // merged in, and the header the newest PDF printed. A ref, so a request
+  // that waited for the one before reads what that one left, before React
+  // has drawn it.
+  const held = useRef<Held>({
+    bank: initialBank,
+    choices: initialChoices,
+    printed: null,
+  });
+  // The newest PDF any render answered, which a step keeps for an instant
+  // Undo; newer than `rendered` while a newer request owns the page
+  const lastPdf = useRef<RenderedPdf | null>(null);
   const adopt = useCallback((first: RenderedPdf) => {
     held.current.printed ??= printedBy(first);
     lastPdf.current ??= first;
@@ -345,16 +367,6 @@ export function Editor({
     headerNow.current = header;
   });
   const [choices, setChoices] = useState(initialChoices);
-  // What the next request's copy is built from (KAN-391): the bank and
-  // choices as the newest answer left them, with the changes on their way
-  // merged in, and the header the newest PDF printed. A ref, so a request
-  // that waited for the one before reads what that one left, before React
-  // has drawn it.
-  const held = useRef<Held>({
-    bank: initialBank,
-    choices: initialChoices,
-    printed: null,
-  });
   // Undo and Redo (./history.ts): the steps, kept in this tab's memory
   const undos = useRef<Step<Held, RenderedPdf>[]>([]);
   const redos = useRef<Step<Held, RenderedPdf>[]>([]);
@@ -363,9 +375,6 @@ export function Editor({
     () => setSteps({ undo: undos.current.length, redo: redos.current.length }),
     [],
   );
-  // The newest PDF any render answered, which a step keeps for an instant
-  // Undo; newer than `rendered` while a newer request owns the page
-  const lastPdf = useRef<RenderedPdf | null>(null);
   // The choices as the API last answered them, and the changes sent since
   const confirmed = useRef(initialChoices);
   const unanswered = useRef(new Map<string, ChoicesUpdate>());
@@ -410,7 +419,6 @@ export function Editor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
-  const [fitUndo, setFitUndo] = useState<ChoicesUpdate | null>(null);
   // The resume's PDF and Word downloads, here since KAN-258 (../download-menu.tsx)
   const download = useResumeDownload(resumeId);
   // Tailor's changes awaiting review; `apply` reads the newest through a ref
@@ -458,18 +466,30 @@ export function Editor({
   // is the way back, and a switch only took up the panel's top. Closed, it
   // goes back to the assistant, so the top bar's Scout always opens Scout
   const scoutOpen = useScout().open;
-  const [panelView, setPanelView] = useState<"scout" | "experiences">("scout");
+  const [panelView, setPanelView] = useState<"scout" | "experiences" | "cut">("scout");
   const [panelWasOpen, setPanelWasOpen] = useState(scoutOpen);
   if (panelWasOpen !== scoutOpen) {
     setPanelWasOpen(scoutOpen);
     if (!scoutOpen) setPanelView("scout");
   }
   const showScout = useCallback(() => setPanelView("scout"), []);
-  const showExperiences = () => {
-    if (scoutOpen && panelView === "experiences") return setScoutOpen(false);
-    setPanelView("experiences");
+  const showPanel = (view: "experiences" | "cut") => {
+    if (scoutOpen && panelView === view) return setScoutOpen(false);
+    setPanelView(view);
     setScoutOpen(true);
   };
+  // What Fit to One Page cut, for Cut From Resume: every fit in this tab,
+  // kept in sessionStorage (./fit-cuts.ts), so a reload keeps it
+  const [cuts, setCuts] = useState(NO_CUTS);
+  // The latest list for a fit's queued job, whose closure can predate the
+  // fit before it
+  const cutsNow = useRef(NO_CUTS);
+  // Restored after mount, never in the first render, which must match the
+  // server's (it has no sessionStorage)
+  useEffect(() => {
+    cutsNow.current = readFitCuts(resumeId);
+    setCuts(cutsNow.current);
+  }, [resumeId]);
   const [zoom, setZoom] = useZoom();
   // The column beside the page, the panel or the original, sized to the
   // window from wherever its top is
@@ -1076,11 +1096,18 @@ export function Editor({
       announce(false);
       lastPdf.current = data.render;
       keepRendered(data.render);
-      const hid = data.undo.bullets?.length || data.undo.entries?.length;
-      rememberFitUndo(hid ? data.undo : null);
+      const hid =
+        data.undo.bullets?.length || data.undo.entries?.length || data.undo.skills?.length;
+      if (hid) {
+        cutsNow.current = addCuts(cutsNow.current, data.undo);
+        setCuts(cutsNow.current);
+        keepFitCuts(resumeId, cutsNow.current);
+      }
       const fresh = await getChoices(resumeId);
       if (fresh.data) keepChoices(fresh.data);
-      // Fit is one step: its Undo shows what it hid, its Redo hides it again
+      // Fit is one step like any edit: Undo (the button or Cmd+Z) shows what
+      // it hid, Redo hides it again. It had an Undo Fit button of its own
+      // until 2026-11-01, a second way to do what Undo does.
       if (hid && fresh.data) {
         push(undos.current, {
           undo: { changes: data.undo },
@@ -1095,24 +1122,6 @@ export function Editor({
       }
       if (current()) setSaving(false);
     });
-  }
-
-  function rememberFitUndo(undo: ChoicesUpdate | null) {
-    setFitUndo(undo);
-    keepFitUndo(resumeId, undo);
-  }
-
-  // A Fit's Undo from before a reload comes back after mount, never in the
-  // first render, which must match the server's (it has no sessionStorage).
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- a one-time restore from storage
-    setFitUndo(readFitUndo(resumeId));
-  }, [resumeId]);
-
-  function undoFit() {
-    if (!fitUndo) return;
-    void apply(fitUndo);
-    rememberFitUndo(null);
   }
 
   const box = rendered?.boxes.find((b) => boxKey(b) === selected);
@@ -1393,29 +1402,31 @@ export function Editor({
     setActive(card);
     setSuggestionsOpen(true);
   };
-  const panel =
-    reviewing &&
-    suggestions?.({
-      record: reviewing,
-      pageOrder,
-      bank,
-      choices,
-      saving,
+  const Suggestions = suggestions;
+  const panel = reviewing && Suggestions && (
+    <Suggestions
+      record={reviewing}
+      pageOrder={pageOrder}
+      bank={bank}
+      choices={choices}
+      saving={saving}
       // Accept keeps the saved change and drops it from the record
-      accept: (edit) =>
-        setReview({ ...reviewing, edits: reviewing.edits.filter((e) => e !== edit) }),
-      reject: (edit) => void apply(revertOf({ edit }, choices), { edit }),
-      acceptAll: () => setReview({ ...reviewing, edits: [] }),
-      rejectAll: () => void apply(revertAll(reviewing.edits, choices)),
-      focused,
-      focus: setFocused,
-      show: (key) => {
+      accept={(edit) =>
+        setReview({ ...reviewing, edits: reviewing.edits.filter((e) => e !== edit) })
+      }
+      reject={(edit) => void apply(revertOf({ edit }, choices), { edit })}
+      acceptAll={() => setReview({ ...reviewing, edits: [] })}
+      rejectAll={() => void apply(revertAll(reviewing.edits, choices))}
+      focused={focused}
+      focus={setFocused}
+      show={(key) => {
         setActive(key);
         setSuggestionsOpen(false);
-      },
-      active,
-      open: setActive,
-    });
+      }}
+      active={active}
+      open={setActive}
+    />
+  );
   // Beside the page, the toolbar's Suggestions shows and hides the panel;
   // the phone opens it as a sheet from its own button
   const shownPanel = side === "suggestions" && panel;
@@ -1429,6 +1440,13 @@ export function Editor({
       setFocused(null);
     }
     setSide(to);
+  };
+
+  const history: HistoryTools = {
+    canUndo: steps.undo > 0,
+    canRedo: steps.redo > 0,
+    onUndo: () => travel(true),
+    onRedo: () => travel(false),
   };
 
   if (phone) {
@@ -1462,7 +1480,6 @@ export function Editor({
           saving={saving}
           elapsed={elapsed}
           error={error}
-          fitUndo={fitUndo}
           download={download}
           bar={phoneBar}
           suggestions={
@@ -1493,7 +1510,8 @@ export function Editor({
           onFlush={() => flush()}
           onApply={apply}
           onFit={fit}
-          onUndoFit={undoFit}
+          history={history}
+          cuts={cuts}
         />
         {fitToast}
       </>
@@ -1510,29 +1528,31 @@ export function Editor({
       rendered={rendered}
       saving={saving}
       elapsed={elapsed}
-      fitUndo={fitUndo}
       download={download}
       onApply={apply}
       onSaveHeader={addContact}
       onClose={() => select(null)}
       onFit={fit}
-      onUndoFit={undoFit}
       experiences={
         // Not on Tailor's review: choosing what a resume shows is the
         // editor's own page's work, a run's own removals have Reject, and a
         // toolbar button and modal for it there cluttered the review. It
         // waits for the first render, since a pick renders again
         rendered && !suggestions
-          ? { open: scoutOpen && panelView === "experiences", onToggle: showExperiences }
+          ? {
+              open: scoutOpen && panelView === "experiences",
+              onToggle: () => showPanel("experiences"),
+              // Only while something Fit cut is still off the page, or its
+              // panel is open
+              cut:
+                (scoutOpen && panelView === "cut") || cutLeft(bank, choices, cuts)
+                  ? { open: scoutOpen && panelView === "cut", onToggle: () => showPanel("cut") }
+                  : null,
+            }
           : null
       }
       zoom={<Zoom zoom={zoom} onZoom={setZoom} />}
-      history={{
-        canUndo: steps.undo > 0,
-        canRedo: steps.redo > 0,
-        onUndo: () => travel(true),
-        onRedo: () => travel(false),
-      }}
+      history={history}
     />
   );
   const reviewTools: ReviewTools | null = reviewing && {
@@ -1616,13 +1636,27 @@ export function Editor({
           back to the assistant, which stays mounted under it, for its chat */}
       {rendered && !suggestions && (
         <ScoutTakeover
-          mark={panelView === "experiences" ? EXPERIENCES_MARK : undefined}
-          away={panelView === "experiences" ? showScout : undefined}
-          title={panelView === "experiences" ? "Experiences" : "Scout"}
+          mark={
+            panelView === "experiences"
+              ? EXPERIENCES_MARK
+              : panelView === "cut"
+                ? CUT_MARK
+                : undefined
+          }
+          away={panelView !== "scout" ? showScout : undefined}
+          title={
+            panelView === "experiences"
+              ? "Experiences"
+              : panelView === "cut"
+                ? "Cut From Resume"
+                : "Scout"
+          }
           subtitle={
             panelView === "experiences"
               ? "Pick what this resume shows"
-              : "Edits this resume as you talk"
+              : panelView === "cut"
+                ? "Put back what Fit to One Page hid"
+                : "Edits this resume as you talk"
           }
         >
           <div data-keeps-selection className="flex min-h-0 flex-1 flex-col">
@@ -1632,6 +1666,11 @@ export function Editor({
             {panelView === "experiences" && (
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4">
                 <ExperiencesPicker bank={bank} choices={choices} onApply={apply} />
+              </div>
+            )}
+            {panelView === "cut" && (
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4">
+                <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={apply} />
               </div>
             )}
           </div>
@@ -1726,13 +1765,11 @@ function Bar({
   rendered,
   saving,
   elapsed,
-  fitUndo,
   download,
   onApply,
   onSaveHeader,
   onClose,
   onFit,
-  onUndoFit,
   experiences,
   zoom,
   history,
@@ -1746,13 +1783,11 @@ function Bar({
   rendered: RenderedPdf | null;
   saving: boolean;
   elapsed: number | null;
-  fitUndo: ChoicesUpdate | null;
   download: ResumeDownload;
   onApply: (changes: ChoicesUpdate) => void;
   onSaveHeader: (field: HeaderField, text: string) => void;
   onClose: () => void;
   onFit: () => void;
-  onUndoFit: () => void;
   experiences: ExperiencesTools | null;
   zoom: ReactNode;
   history: HistoryTools;
@@ -1762,10 +1797,8 @@ function Bar({
       rendered={rendered}
       saving={saving}
       elapsed={elapsed}
-      fitUndo={fitUndo}
       download={download}
       onFit={onFit}
-      onUndoFit={onUndoFit}
       experiences={experiences}
       zoom={zoom}
       history={history}
@@ -1797,7 +1830,12 @@ function Bar({
 
 /** The toolbar's Experiences (KAN-440): whether Scout's panel shows the
  *  picker now. */
-type ExperiencesTools = { open: boolean; onToggle: () => void };
+type ExperiencesTools = {
+  open: boolean;
+  onToggle: () => void;
+  /** Cut From Resume, only after a fit cut something still off the page. */
+  cut: { open: boolean; onToggle: () => void } | null;
+};
 
 /** The slim bar's review tools: the changes left, and which column shows
  *  beside the page. */
@@ -1813,8 +1851,9 @@ type ReviewTools = {
 const SLIM_BAR =
   "bg-panel/95 ring-border-subtle sticky top-2 z-20 flex min-h-10 flex-wrap items-center gap-2 rounded-xl px-2 py-1 ring-1 backdrop-blur";
 
-/** The editor's Undo and Redo (./history.ts), for the slim bar. */
-type HistoryTools = {
+/** The editor's Undo and Redo (./history.ts), for the slim bar and the
+ *  phone's bar. */
+export type HistoryTools = {
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -1824,8 +1863,8 @@ type HistoryTools = {
 /**
  * Undo and Redo, first on the slim bar in both its states (KAN-391: until
  * then disabled, UI only). Each goes back or forward one step of
- * `HISTORY_STEPS`; Cmd+Z and Shift+Cmd+Z do the same off a field. Undo Fit
- * stays its own button after a fit.
+ * `HISTORY_STEPS`; Cmd+Z and Shift+Cmd+Z do the same off a field. A Fit to
+ * One Page is one step too; its own Undo Fit button went on 2026-11-01.
  */
 function History({ tools }: { tools?: HistoryTools }) {
   return (
@@ -1862,7 +1901,7 @@ function History({ tools }: { tools?: HistoryTools }) {
  * two editor designs). Over the page with the column beside it starting
  * level, holding only tools for the page: Undo and Redo (`History`), then,
  * idle, the page count as a chip that offers Fit to One Page (over one
- * page only) and Undo Fit after a fit, and Download at the right,
+ * page only), and Download at the right,
  * secondary, since Finish is the review's one filled button. Not on This
  * Resume was a button here with a modal for a day; the review does not
  * need it (see the grid). No "Click a line to edit it." hint: the
@@ -1886,10 +1925,8 @@ function SlimBar({
   rendered,
   saving,
   elapsed,
-  fitUndo,
   download,
   onFit,
-  onUndoFit,
   editing,
   experiences,
   zoom,
@@ -1898,10 +1935,8 @@ function SlimBar({
   rendered: RenderedPdf | null;
   saving: boolean;
   elapsed: number | null;
-  fitUndo: ChoicesUpdate | null;
   download: ResumeDownload;
   onFit: () => void;
-  onUndoFit: () => void;
   /** The open line's label and actions, or nothing while idle. */
   editing: ReactNode;
   /** The editor's own page only; null on Tailor's review. */
@@ -1941,16 +1976,23 @@ function SlimBar({
     <div data-keeps-selection className={SLIM_BAR}>
       <History tools={history} />
       {rendered && rendered.page_count > 1 && (
-        <PagesChip
-          pages={rendered.page_count}
-          linesOver={rendered.lines_over}
-          disabled={saving}
-          onFit={onFit}
-        />
+        <PagesChip pages={rendered.page_count} linesOver={rendered.lines_over} />
       )}
-      {fitUndo && (
-        <Button variant="ghost" size="xs" onClick={onUndoFit} disabled={saving}>
-          <ArrowUUpLeftIcon aria-hidden /> Undo Fit
+      {rendered && rendered.page_count > 1 && (
+        // Over one page only, in the warning sign's own amber, so the fix
+        // stands beside the count it answers, before Add Experiences. It
+        // sat inside the chip's popover until 2026-11-01, one click away,
+        // and was missed. Add Experiences' own variant and size, so the two
+        // share one shape and differ only in color
+        <Button
+          variant="secondary"
+          size="sm"
+          title="Hide the least useful lines until the resume fits on one page"
+          className="bg-warning-strong hover:bg-warning-strong/90 border-warning-strong text-white hover:text-white"
+          disabled={saving}
+          onClick={onFit}
+        >
+          <ScissorsIcon aria-hidden /> Fit to One Page
         </Button>
       )}
       {experiences && (
@@ -1967,6 +2009,22 @@ function SlimBar({
           onClick={experiences.onToggle}
         >
           <StackIcon aria-hidden /> Add Experiences
+        </Button>
+      )}
+      {experiences?.cut && (
+        // Beside Add Experiences, in the same weight, amber as Fit is
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-pressed={experiences.cut.open}
+          title="Put back what Fit to One Page cut"
+          className={cn(
+            "text-warning hover:text-warning",
+            experiences.cut.open && "border-warning/50 bg-warning-tint hover:bg-warning-tint",
+          )}
+          onClick={experiences.cut.onToggle}
+        >
+          <ScissorsIcon aria-hidden /> Cut From Resume
         </Button>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -2018,47 +2076,24 @@ function SideSwitch({ review }: { review: ReviewTools }) {
   );
 }
 
-/** The page count as a small amber chip with a warning sign and a caret,
- *  so it reads as a problem to open; its click offers Fit to One Page. As
- *  bare text ("2 pages") nobody took it for a button. */
-function PagesChip({
-  pages,
-  linesOver,
-  disabled,
-  onFit,
-}: {
-  pages: number;
-  linesOver: number;
-  disabled: boolean;
-  onFit: () => void;
-}) {
-  const [open, setOpen] = useState(false);
+/** The page count as a small amber chip with a warning sign. It names the
+ *  problem; the Fit to One Page button beside Add Experiences fixes it, so
+ *  the chip opens nothing. It was a popover with that button inside until
+ *  2026-11-01; students missed the fix a click away. Its title says by how
+ *  much (the render's `lines_over`, an estimate). */
+function PagesChip({ pages, linesOver }: { pages: number; linesOver: number }) {
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="bg-warning-tint text-warning text-note focus-visible:ring-brand-ring hover:ring-warning-fill flex items-center gap-1.5 rounded-full py-1 pr-2 pl-2 font-medium transition-shadow hover:ring-1 focus-visible:ring-2 focus-visible:outline-none">
-        <WarningIcon aria-hidden weight="fill" className="text-warning-strong size-4 shrink-0" />
-        {pages} pages
-        <ChevronDownIcon className="size-3.5" />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="flex w-72 flex-col gap-3">
-        <p className="text-note text-ink-muted">
-          {linesOver > 0
-            ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2.`
-            : `It runs to ${pages} pages.`}{" "}
-          Fit to One Page hides the least useful lines until it fits.
-        </p>
-        <Button
-          size="sm"
-          disabled={disabled}
-          onClick={() => {
-            setOpen(false);
-            onFit();
-          }}
-        >
-          <ScissorsIcon aria-hidden /> Fit to One Page
-        </Button>
-      </PopoverContent>
-    </Popover>
+    <span
+      title={
+        linesOver > 0
+          ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2`
+          : `It runs to ${pages} pages`
+      }
+      className="bg-warning-tint text-warning text-note flex items-center gap-1.5 rounded-full py-1 pr-2.5 pl-2 font-medium"
+    >
+      <WarningIcon aria-hidden weight="fill" className="text-warning-strong size-4 shrink-0" />
+      {pages} pages
+    </span>
   );
 }
 

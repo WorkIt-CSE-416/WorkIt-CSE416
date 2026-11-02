@@ -18,11 +18,17 @@ import { ChooseResume } from "../../experiences/resume-bar";
 import { SECTION_ICONS, SectionMark } from "../../experiences/section-icons";
 import { SECTIONS, sectionOf } from "../../experiences/sections";
 import {
+  cutRows,
+  cutSkills,
+  isBack,
   pickBullet,
   pickEntry,
   pickerEntries,
   pickerSkills,
   pickSkill,
+  type CutEntry,
+  type CutSkill,
+  type FitCuts,
   type PickedEntry,
   type PickedSkill,
 } from "./model";
@@ -30,6 +36,11 @@ import {
 /** The checkbox's own edge all but vanishes on white, and an empty box says
  *  as much as a ticked one here. */
 const PICK = "border-ink-meta mt-1";
+/** Cut From Resume's checkbox: amber where the picker's is the brand. */
+const CUT_PICK = cn(
+  PICK,
+  "data-checked:border-warning-deep data-checked:bg-warning-deep data-checked:text-white",
+);
 
 /**
  * The Experiences picker (KAN-440), in Scout's panel on the desktop and in a
@@ -207,6 +218,7 @@ function PickerGroup({
   open,
   onPress,
   children,
+  cut = false,
 }: {
   id: Section | "skills";
   label: string;
@@ -215,6 +227,8 @@ function PickerGroup({
   open: boolean;
   onPress: () => void;
   children: ReactNode;
+  /** Cut From Resume's group: amber, and "added back". */
+  cut?: boolean;
 }) {
   return (
     <section aria-label={label}>
@@ -225,15 +239,24 @@ function PickerGroup({
           onClick={onPress}
           className="hover:bg-well focus-visible:ring-brand-ring rounded-control flex w-full items-center gap-2 px-1.5 py-1.5 text-left outline-none focus-visible:ring-2"
         >
-          <SectionMark id={id} className="size-7" />
-          <span className="text-label text-brand-ink min-w-0 flex-1 truncate font-semibold">
+          <SectionMark id={id} className={cn("size-7", cut && "bg-warning-tint text-warning")} />
+          <span
+            className={cn(
+              "text-label min-w-0 flex-1 truncate font-semibold",
+              cut ? "text-warning" : "text-brand-ink",
+            )}
+          >
             {label}
           </span>
           <span className="text-note text-ink-meta shrink-0 tabular-nums">
-            {on} of {total} added
+            {on} of {total} {cut ? "added back" : "added"}
           </span>
           <ChevronDownIcon
-            className={cn("text-brand size-4 shrink-0 transition-transform", !open && "-rotate-90")}
+            className={cn(
+              "size-4 shrink-0 transition-transform",
+              cut ? "text-warning" : "text-brand",
+              !open && "-rotate-90",
+            )}
           />
         </button>
       </h3>
@@ -344,6 +367,200 @@ function SkillGroups({
           </ul>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Cut From Resume: what Fit to One Page cut, in the Experiences picker's
+ * layout but amber, the fit's own color (./fit-notice.tsx), so it reads as
+ * Fit's list and not the bank. A tick puts an item back on the page, as one
+ * Undo step like any pick. A row stays once it is back, ticked, so a wrong
+ * click can be taken back here too. It has no resume or group filters: a
+ * fit cuts a few items, never a bank's worth.
+ */
+export function CutPicker({
+  bank,
+  choices,
+  cuts,
+  onApply,
+}: {
+  bank: Bank;
+  choices: Choices;
+  cuts: FitCuts;
+  onApply: (changes: ChoicesUpdate) => void;
+}) {
+  const rows = cutRows(bank, choices, cuts);
+  const skills = cutSkills(bank, choices, cuts);
+  const [closed, setClosed] = useState<string[]>([]);
+  const press = (id: string) =>
+    setClosed((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
+
+  if (rows.length === 0 && skills.length === 0) {
+    return <p className="text-body text-ink-meta">Nothing was cut from this resume.</p>;
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-note text-ink-meta px-1.5">
+        Fit to One Page hid these to fit the page. Tick one to put it back.
+      </p>
+      {SECTIONS.map((section) => {
+        const group = rows.filter((row) => row.entry.section === section.id);
+        if (group.length === 0) return null;
+        return (
+          <PickerGroup
+            key={section.id}
+            id={section.id}
+            label={sectionOf(section.id).label}
+            on={group.filter(isBack).length}
+            total={group.length}
+            open={!closed.includes(section.id)}
+            onPress={() => press(section.id)}
+            cut
+          >
+            <ul className="flex flex-col gap-2">
+              {group.map((row) => (
+                <li
+                  key={row.entry.id}
+                  className="ring-warning/25 bg-panel rounded-xl px-3 py-2.5 ring-1"
+                >
+                  <CutRow row={row} bank={bank} onApply={onApply} />
+                </li>
+              ))}
+            </ul>
+          </PickerGroup>
+        );
+      })}
+      {skills.length > 0 && (
+        <PickerGroup
+          id="skills"
+          label="Skills"
+          on={skills.filter((s) => s.on).length}
+          total={skills.length}
+          open={!closed.includes("skills")}
+          onPress={() => press("skills")}
+          cut
+        >
+          <CutSkills skills={skills} onApply={onApply} />
+        </PickerGroup>
+      )}
+    </div>
+  );
+}
+
+/** The skills Fit cut, a card for each group as the resume prints them,
+ *  each skill with its own tick. */
+function CutSkills({
+  skills,
+  onApply,
+}: {
+  skills: CutSkill[];
+  onApply: (changes: ChoicesUpdate) => void;
+}) {
+  const groups = new Map<string, CutSkill[]>();
+  for (const row of skills) {
+    const key = row.skill.group ?? "";
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+  return (
+    <ul className="flex flex-col gap-2">
+      {[...groups].map(([group, rows]) => (
+        <li key={group} className="ring-warning/25 bg-panel rounded-xl px-3 py-2.5 ring-1">
+          {group && <p className="text-note text-ink-meta mb-1.5 break-words">{group}</p>}
+          <ul className="text-body text-ink-muted flex flex-col gap-1">
+            {rows.map(({ skill, on }) => (
+              <li key={skill.id} className="flex items-start gap-2 break-words">
+                <Checkbox
+                  checked={on}
+                  onCheckedChange={(next) =>
+                    onApply({ skills: [{ skill_id: skill.id, shown: next }] })
+                  }
+                  aria-label={`${skill.name} on this resume`}
+                  className={CUT_PICK}
+                />
+                <span className="min-w-0 flex-1">{skill.name}</span>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** An entry Fit cut from, showing only what Fit cut. A whole entry is the
+ *  bank's row with its own tick, and comes back as the copy Fit cut, not
+ *  another upload's. Fit trimmed only some of it: the entry's name as a
+ *  label, then a tick on each cut bullet and on a cut coursework line, with
+ *  nothing else of the entry, which is still on the page. */
+function CutRow({
+  row,
+  bank,
+  onApply,
+}: {
+  row: CutEntry;
+  bank: Bank;
+  onApply: (changes: ChoicesUpdate) => void;
+}) {
+  const { entry, on, coursework } = row;
+  if (row.cutIds.length > 0) {
+    return (
+      <EntryRow
+        entry={entry}
+        muted={!on}
+        bullets={[]}
+        lead={
+          <Checkbox
+            checked={on}
+            onCheckedChange={(next) =>
+              onApply(
+                next
+                  ? { entries: row.cutIds.map((entry_id) => ({ entry_id, shown: true })) }
+                  : pickEntry(row, false),
+              )
+            }
+            aria-label={`${entry.title} on this resume`}
+            className={CUT_PICK}
+          />
+        }
+      />
+    );
+  }
+  const courses = coursework && bank.entries.find((e) => e.id === coursework.entry_id)?.coursework;
+  const name = [entry.title, entry.organization].filter(Boolean).join(" · ");
+  return (
+    <div>
+      <p className="text-note text-ink-meta break-words">{name}</p>
+      <ul className="text-body text-ink-muted mt-1.5 flex max-w-[75ch] flex-col gap-1">
+        {row.bullets.map((bullet) => (
+          <li key={bullet.id} className="flex items-start gap-2 break-words">
+            <Checkbox
+              checked={bullet.on}
+              onCheckedChange={(next) => onApply(pickBullet(bullet.id, next))}
+              aria-label={`Bullet on this resume: ${bullet.text}`}
+              className={CUT_PICK}
+            />
+            <span className="min-w-0 flex-1">{bullet.text}</span>
+          </li>
+        ))}
+        {coursework && (
+          <li className="flex items-start gap-2 break-words">
+            <Checkbox
+              checked={coursework.on}
+              onCheckedChange={(next) =>
+                onApply({
+                  entries: [{ entry_id: coursework.entry_id, show_coursework: next }],
+                })
+              }
+              aria-label="Coursework on this resume"
+              className={CUT_PICK}
+            />
+            <span className="min-w-0 flex-1">
+              Coursework{courses?.length ? `: ${courses.join(", ")}` : ""}
+            </span>
+          </li>
+        )}
+      </ul>
     </div>
   );
 }

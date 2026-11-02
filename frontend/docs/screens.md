@@ -2318,7 +2318,7 @@ with no proposals to accept and no Done (2026-10-25).
   top row sits in the brand tint, rounded. The toolbar holds only tools
   for the page: at the left Undo and Redo (UI only for now, disabled)
   and, idle, the page count when over one page as an amber chip with a
-  warning sign and a caret (its click offers Fit to One Page); at the
+  warning sign, then Fit to One Page in amber; at the
   right Download, secondary. No Experiences picker on this page
   (the editor's own page has it); while a line is open, its moves, Hide and its choices with "Esc
   when done"; no Ask Scout and no Done. Each changed line has a small
@@ -2639,12 +2639,20 @@ student who opened a resume from Experiences landed on another view.
   Coursework; at the right, "Esc when done" in place of a Done button,
   since Escape or a click off the page already saves and closes. A press
   on a bar button keeps focus in the field. With no line selected, only
-  over one page, the page count as an amber chip with a warning sign and
-  a caret ("⚠ 2 pages ⌄"), which reads as a problem to open; its popover
-  says by how much (the render's `lines_over`, an estimate) and offers
-  Fit to One Page. Then Undo Fit, which shows again everything Fit hid
-  (the response's `undo` body), kept in sessionStorage per resume
-  (`fit-undo.ts`), so a reload in the same tab still offers it. A
+  over one page, the page count as an amber chip with a warning sign
+  ("⚠ 2 pages"; its title says by how much, the render's `lines_over`, an
+  estimate), and **Fit to One Page** as a filled button in the warning
+  sign's amber (`warning-strong`) just before Add Experiences, in its
+  variant and size, so the two share one shape (36 px, 8 px corners). The chip
+  opens nothing: until 2026-11-01 it was a popover with Fit inside, and
+  students missed the fix a click away. White text on that amber is about
+  3.2:1, under the 4.5:1 small text wants; `warning-deep` (4.9:1) is the
+  fallback if that matters more than matching the sign. A fit is one Undo step like any edit: Undo (or Cmd+Z)
+  shows again everything it hid (the response's `undo` body), and Redo
+  hides it again. Its own Undo Fit button, kept in sessionStorage per
+  resume, went on 2026-11-01: it was a second way to do what Undo does.
+  The response still names what Fit hid (`hidden`), for a list that puts
+  each one back. A
   one-page resume shows no count: a green "1 page" said what the page
   itself shows. No "Click a line to edit it." hint: the pointer's own
   highlight on a line says so. In both states the bar says "Saving…" or
@@ -2692,13 +2700,14 @@ student who opened a resume from Experiences landed on another view.
   fix. On a phone it does not show while a line's sheet is open, which it
   would cover. The editor notices the change while rendering (the last
   count is kept in state), not in an effect.
-- **Fit to One Page is the API's** (`POST .../fit`): it cuts least useful
-  first, in steps across every section: coursework (beside Experience),
-  then bullets past a cap per entry, then the bottom entries of
-  Leadership, Awards and Certifications before Projects and Experience,
-  re-rendering until the page fits and putting back what it did not need
-  (`backend/CLAUDE.md`). It never cuts Education, Skills, an entry's first
-  bullet, or the top Experience and Projects entry.
+- **Fit to One Page is the API's** (`POST .../fit`,
+  `docs/cut_to_one_page.md`): bullets down to two per entry, then one,
+  then whole entries, least needed section first, with skills, awards,
+  certifications and schools on schedules, by the posting's rank on a
+  tailored resume and by position on any other. It always reaches one
+  page. Cut From Resume lists everything it cut: entries and bullets by
+  section, and skills in a Skills group, a card a skill group, each with
+  its own tick (`cutSkills`, `CutSkills`).
 - **The Experiences picker** (`experiences-picker.tsx`, KAN-440): the whole
   bank beside the PDF, where a student picks what the resume shows. The
   resume is the part of the bank that is on, so each entry, bullet and skill
@@ -2717,7 +2726,11 @@ student who opened a resume from Experiences landed on another view.
   a "Not on This Resume" tick, read as a settings page. The rows
   are the Experiences page's (`EntryRow`), one per job however many copies
   the bank holds, with the copy that prints as the row. Turning a row off
-  takes every copy that prints. A bullet has a control only while its entry
+  takes every copy that prints. **A bullet keeps its place on or off**:
+  the resume's order, then bullets with no row in the bank's order. Off
+  bullets went to the end until 2026-11-01, so a tick moved the list under
+  the pointer and the next click hit another bullet (a student saw a
+  bullet "missing" and a second one come back). A bullet has a control only while its entry
   is on, and an entry with every bullet off stays on as a heading, as a
   line's Hide leaves it. Each pick goes through the same save and render as
   any edit, so Undo takes it back. It only picks: typing stays on the PDF.
@@ -2726,6 +2739,24 @@ student who opened a resume from Experiences landed on another view.
   of a long resume, then a Hidden panel that listed only what was missing;
   students could not see their bank beside the resume, and "Hidden" was false
   for an item they had never hidden.
+- **Cut From Resume** (`CutPicker` in `experiences-picker.tsx`): what Fit to
+  One Page cut, in the Experiences picker's layout but amber, Fit's own
+  color, with its scissors as the panel's mark. Its toolbar button sits
+  beside Add Experiences and shows only while something a fit cut is still
+  off the page (or its panel is open); on a phone it is a sheet beside Add
+  Experiences. Groups by section, all open, each "1 of 3 added back"; no
+  resume or group filters, since a fit cuts a few items. **It shows only
+  what Fit cut.** A whole entry Fit cut is the bank's row with its own tick,
+  and comes back as the copy Fit cut. An entry Fit only trimmed is its name
+  as a label and a tick on each cut bullet or coursework line, with none of
+  the entry's other details: it is still on the page, and drawn whole it
+  read as an entry that was cut. A tick goes through the same save as any pick, so Undo takes it
+  back. A row stays once it is back, ticked, so a wrong tick can be undone
+  here too. The list is every fit in the tab, read from each fit's `undo`
+  body (`addCuts`), kept in sessionStorage per resume (`fit-cuts.ts`): a
+  reload in the same tab keeps it, a new tab starts without it. It was in
+  memory for a day; a reload lost it. Undo is still empty after a reload,
+  which is fine: each item has its own tick.
 - Skills can be hidden but not moved: they print grouped, and a move
   inside a group is still open.
 - A failed render shows "This Resume Isn't Loading Right Now" with the API's

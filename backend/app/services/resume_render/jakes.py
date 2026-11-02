@@ -101,6 +101,9 @@ def _entry(entry: ViewEntry, marks: bool, printed: Printed) -> list[str]:
 
 def _skills(view: ResumeView, marks: bool, printed: Printed) -> str:
     rows = []
+    # Each line's start, before its label: Fit to One Page reads the left
+    # edge from it to tell how many skills a wrapped line must lose
+    start = r"\wipoint{skillrow}" if marks else ""
     for label, skills in skill_lines(view.skills):
         # Each skill's comma stays inside its markers: a marker between two
         # characters drops the kerning between them ("NumPy," moved 0.08 pt)
@@ -109,7 +112,7 @@ def _skills(view: ResumeView, marks: bool, printed: Printed) -> str:
             for i, s in enumerate(skills)
             for comma in ["," if i < len(skills) - 1 else ""]
         )
-        rows.append(rf"\textbf{{{escape(label)}}}{{: {names}}}" if label else names)
+        rows.append(start + (rf"\textbf{{{escape(label)}}}{{: {names}}}" if label else names))
     return r" \\ ".join(rows)
 
 

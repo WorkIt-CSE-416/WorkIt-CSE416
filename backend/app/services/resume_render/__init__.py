@@ -10,6 +10,7 @@ Built resumes as Jake's Resume, compiled by Tectonic (ADR 0002, KAN-204).
     jakes_document(b)   Jake's preamble, byte for byte, around body b
     MARKS, mark(id, kind, latex)  position markers a template's body uses
     line_count(boxes)   the distinct lines of text some boxes sit on
+    box_extent(boxes)   how tall some boxes stand, page by page
     compile_document(tex)  a whole document -> Rendered, offline and untrusted
     compile_pdf(tex)    the same, PDF bytes only
 
@@ -69,16 +70,33 @@ _TABLE = str.maketrans({**_SPECIAL, "\n": " ", "\r": " "})
 # not the margin. The \/ before each end marker puts back the italic
 # correction the marker would otherwise take from an italic field (dates
 # moved 0.4 to 0.8 pt without it). The first line records the text's right
-# edge, where a wrapped line ends. tests/test_resume_render.py checks the page
-# is the same with and without markers.
+# edge, where a wrapped line ends; the second the text area's top and height,
+# which Fit to One Page measures against (docs/cut_to_one_page.md), read from
+# TeX so a change to the paper, margins or font size never needs a constant
+# here. Each start marker also notes how tall the page under construction
+# stands and how much its glue can shrink at that point: when a page is
+# nearly full TeX squeezes the space between list items (about 2 pt a
+# bullet in Jake's), so the page holds more than its height, and Fit to One
+# Page counts what each item can give. \wipoint records where a line starts
+# without making a box: a skill line's start, the left edge its label begins
+# at. tests/test_resume_render.py checks the page is the same with and
+# without markers.
 _MARK_LINES = (
     r"\newwrite\wipos\immediate\openout\wipos=\jobname.pos",
     r"\immediate\write\wipos{right \the\dimexpr1in+\hoffset+\oddsidemargin+\textwidth\relax}",
+    r"\immediate\write\wipos{area \the\dimexpr1in+\voffset+\topmargin+\headheight+\headsep\relax\space\the\textheight}",
+    # \pagetotal and \pageshrink are read as the marker is set (the
+    # \expandafter puts their values in the \write), the position at shipout
     (
-        r"\def\wimark#1#2{\leavevmode\pdfsavepos"
-        r"\write\wipos{#1 #2 \the\pdflastxpos\space\the\pdflastypos\space\thepage}}"
+        r"\def\wimark#1#2{\leavevmode\pdfsavepos\edef\wiat{\the\pagetotal\space\the\pageshrink}"
+        r"\expandafter\wiwrite\expandafter{\wiat}{#1 #2}}"
     ),
+    r"\def\wiwrite#1#2{\write\wipos{#2 \the\pdflastxpos\space\the\pdflastypos\space\thepage\space #1}}",
     r"\def\wiend#1{\/\wimark{#1}{e}}",
+    (
+        r"\def\wipoint#1{\leavevmode\pdfsavepos"
+        r"\write\wipos{point #1 \the\pdflastxpos\space\the\pdflastypos\space\thepage}}"
+    ),
 )
 MARKS = "\n".join(_MARK_LINES)
 # Letter only (the spec), in PDF points; a box's y counts down from the top
@@ -152,6 +170,16 @@ def box_lines(box: Box) -> int:
     return 1 + max(0, round((box.y1 - box.y0 - ASCENT - DESCENT) / WRAPPED_LINE))
 
 
+def box_extent(boxes) -> float:
+    '''How tall these boxes stand, in points: on each page, from the top of
+    the highest to the foot of the lowest, summed over the pages.'''
+    spans: dict[int, tuple[float, float]] = {}
+    for box in boxes:
+        top, foot = spans.get(box.page, (box.y0, box.y1))
+        spans[box.page] = (min(top, box.y0), max(foot, box.y1))
+    return sum(foot - top for top, foot in spans.values())
+
+
 def line_count(boxes) -> int:
     '''The distinct lines of text these boxes sit on: a heading's title and
     dates share one, a wrapped box counts each of its lines.'''
@@ -163,6 +191,39 @@ def line_count(boxes) -> int:
 
 
 @dataclass(frozen=True)
+class Point:
+    '''Where a \\wipoint landed: its name ("skillrow"), its page, and the
+    line's start in PDF points from the page's top left.'''
+
+    name: str
+    page: int
+    x: float
+    y: float
+
+
+@dataclass(frozen=True)
+class Shrink:
+    '''At one start marker ("<id>.<kind>"), as it was set: its page as
+    shipped, how tall the page then under construction stood (\\pagetotal)
+    and how far its glue could shrink (\\pageshrink), in points.'''
+
+    name: str
+    page: int
+    total: float
+    shrink: float
+
+
+@dataclass(frozen=True)
+class TextArea:
+    '''The page's text area in PDF points from the page's top left: where
+    its first line may start, how tall it is, and its right edge.'''
+
+    top: float
+    height: float
+    right: float
+
+
+@dataclass(frozen=True)
 class Rendered:
     pdf: bytes
     page_count: int
@@ -171,6 +232,12 @@ class Rendered:
     missing_characters: tuple[str, ...] = ()
     # One box per marked line, in page order; empty for an unmarked body
     boxes: tuple[Box, ...] = ()
+    # Each \wipoint, in page order, and the text area MARKS reports; None
+    # from an unmarked body
+    points: tuple[Point, ...] = ()
+    area: TextArea | None = None
+    # Each start marker's page total and shrink, in page order
+    shrinks: tuple[Shrink, ...] = ()
 
     @property
     def lines_over(self) -> int:
@@ -304,8 +371,33 @@ def compile_document(tex: str, *, cache: Path | None = None, offline: bool = Tru
         # TeX can run twice (a changed .aux), warning twice: keep each once
         missing = dict.fromkeys(chr(int(code, 16)) for code in _MISSING_RE.findall(result.stderr))
         positions = Path(work) / "resume.pos"
-        boxes = _boxes(positions.read_text(encoding="utf-8")) if positions.exists() else ()
-        return Rendered(pdf.read_bytes(), int(pages[1]), tuple(missing), boxes)
+        text = positions.read_text(encoding="utf-8") if positions.exists() else ""
+        return Rendered(pdf.read_bytes(), int(pages[1]), tuple(missing), _boxes(text), *_marks(text))
+
+
+def _tex_points(dimen: str) -> float:
+    '''A TeX dimension as \\the writes it ("542.025pt") in PDF points.'''
+    return float(dimen.removesuffix("pt")) * 72 / 72.27
+
+
+def _marks(positions: str) -> tuple[tuple[Point, ...], TextArea | None, tuple[Shrink, ...]]:
+    '''resume.pos's points, text area and start markers' shrink (see MARKS).'''
+    points = []
+    shrinks = []
+    right = top = height = None
+    for line in positions.splitlines():
+        parts = line.split()
+        if parts[:1] == ["right"] and len(parts) == 2:
+            right = _tex_points(parts[1])
+        elif parts[:1] == ["area"] and len(parts) == 3:
+            top, height = _tex_points(parts[1]), _tex_points(parts[2])
+        elif parts[:1] == ["point"] and len(parts) == 5:
+            x, y = int(parts[2]) / _SP_PER_POINT, int(parts[3]) / _SP_PER_POINT
+            points.append(Point(parts[1], int(parts[4]), round(x, 2), round(PAGE_HEIGHT - y, 2)))
+        elif len(parts) == 7 and parts[1] == "s":
+            shrinks.append(Shrink(parts[0], int(parts[4]), _tex_points(parts[5]), _tex_points(parts[6])))
+    area = TextArea(round(top, 2), round(height, 2), round(right, 2)) if None not in (right, top, height) else None
+    return tuple(points), area, tuple(shrinks)
 
 
 def _boxes(positions: str) -> tuple[Box, ...]:
@@ -323,10 +415,9 @@ def _boxes(positions: str) -> tuple[Box, ...]:
     for line in positions.splitlines():
         parts = line.split()
         if parts[:1] == ["right"]:
-            # TeX points, "542.025pt"
-            right = float(parts[1].removesuffix("pt")) * 72 / 72.27
+            right = _tex_points(parts[1])
             continue
-        if len(parts) != 5:
+        if parts[:1] in (["area"], ["point"]) or len(parts) not in (5, 7):
             continue
         name, end, x, y, page = parts[0], parts[1] == "e", int(parts[2]) / _SP_PER_POINT, \
             int(parts[3]) / _SP_PER_POINT, int(parts[4])

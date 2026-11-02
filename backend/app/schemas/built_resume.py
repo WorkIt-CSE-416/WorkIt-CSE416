@@ -272,10 +272,10 @@ class EditRendered(BaseModel):
 
 
 class FitResponse(BaseModel):
-    """Fit to One Page (KAN-218): the bullets it hid, in the order it hid
-    them; `undo`, the PATCH .../choices body that shows everything it hid
-    again (whole entries and coursework lines too); and the render after,
-    which can still be 2 pages when nothing more could be cut."""
+    """Fit to One Page (KAN-218, KAN-320): the bullets it hid, in the order
+    it hid them; `undo`, the PATCH .../choices body that shows everything it
+    hid again (whole entries and skills too); and the render after, one
+    page."""
 
     hidden: list[UUID]
     undo: ChoicesUpdate

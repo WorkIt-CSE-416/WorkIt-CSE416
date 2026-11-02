@@ -55,19 +55,20 @@ from app.schemas.built_resume import (
     SkillChoiceResponse,
     VariantResponse,
 )
+from app.services import fit_page, postings, tailor
+from app.services import keywords as kw
 from app.services.bank import Bank, NotFound, copy_key, get_entry, load_bank
+from app.services.fit_page import Cut
 from app.services.postings import LISTED
-from app.services.resume_render import HeaderIdentity, Rendered, line_count
+from app.services.resume_render import HeaderIdentity, Rendered
 from app.services.resume_view import (
     BulletChoice,
     Choices,
-    Cut,
     EntryChoice,
     ResumeView,
     SkillChoice,
     all_chosen,
     build_view,
-    fit_order,
 )
 
 MAX_RESUMES = 5
@@ -700,38 +701,35 @@ async def list_variants(
     return list(rows)
 
 
-FIT_ROUNDS = 8
-# After the page fits, the last round's cuts it can show again, most useful
-# first, one render each (about 0.3 s): `lines_over` misses headings and the
-# blocks that move whole between pages, so a round can hide several too many
-FIT_PUT_BACK = 4
-
-
 def fit_changes(cuts: list[Cut], hide: bool) -> dict[str, list[dict]]:
     """Cuts as update_choices arguments: hidden with hide=True, shown again
-    with hide=False (Fit's Undo sends that as its PATCH body)."""
+    with hide=False (the editor's Undo sends that as its PATCH body)."""
     entries: list[dict] = []
     bullets: list[dict] = []
+    skills: list[dict] = []
     for cut in cuts:
         if cut.kind == "bullet":
             bullets.append({"bullet_id": cut.id, "shown": not hide})
         elif cut.kind == "entry":
             entries.append({"entry_id": cut.id, "shown": not hide})
         else:
-            entries.append({"entry_id": cut.id, "show_coursework": not hide})
-    return {"entries": entries, "bullets": bullets}
+            skills.append({"skill_id": cut.id, "shown": not hide})
+    return {"entries": entries, "bullets": bullets, "skills": skills}
 
 
-def _cut_lines(cut: Cut, view: ResumeView, rendered: Rendered) -> int:
-    """About how many lines hiding `cut` saves, read from the last render."""
-    if cut.kind == "entry":
-        entry = next(e for s in view.sections for e in s.entries if e.id == cut.id)
-        ids = {str(cut.id), *(str(b.id) for b in entry.bullets)}
-    else:
-        ids = {str(cut.id)}
-    boxes = [b for b in rendered.boxes
-             if b.item_id in ids and (cut.kind != "coursework" or b.kind == "coursework")]
-    return max(1, line_count(boxes))
+async def fit_scores(session: AsyncSession, resume: Built_Resume, view: ResumeView) -> fit_page.Scores | None:
+    """What Fit to One Page ranks by on a resume with a job posting: each
+    shown bullet's rank and each skill's level against the posting, read
+    from this resume's view alone. None (cut by position) with no posting,
+    one no longer listed, or one with no description to rank against. It
+    reads the cached keywords only: Fit spends no AI use extracting any."""
+    if resume.job_posting_id is None:
+        return None
+    job = await postings.listed(session, resume.job_posting_id, keywords=True)
+    if job is None or tailor.weak_match(job):
+        return None
+    text = tailor.posting_text(job, kw.cached(job) or [])
+    return fit_page.Scores(await tailor.rank_shown(session, view, text), fit_page.skill_levels(view, text))
 
 
 async def fit_to_one_page(
@@ -740,49 +738,15 @@ async def fit_to_one_page(
     resume_id: uuid.UUID,
     render: Callable[[ResumeView], Awaitable[Rendered]],
 ) -> tuple[list[Cut], Rendered]:
-    """Hide what `fit_order` names, least useful first, until the resume
-    renders on one page or nothing is left to cut. Each round hides about as
-    many lines as the render says run over, by each cut's own boxes, then
-    renders again, so a resume a few lines over costs two renders, not one
-    per bullet. Once it fits, the last round's cuts after its first go back
-    one at a time, most useful first, while it still fits (FIT_PUT_BACK).
-    Returns the cuts (Undo shows them again) and the last render."""
-    hidden: list[Cut] = []
-    batch: list[Cut] = []
-    _, view = await load_view(session, applicant_id, resume_id)
-    rendered = await render(view)
-    for _ in range(FIT_ROUNDS):
-        if rendered.page_count <= 1:
-            break
-        candidates = fit_order(view)
-        if not candidates:
-            break
-        need, batch = max(1, rendered.lines_over), []
-        for cut in candidates:
-            batch.append(cut)
-            need -= _cut_lines(cut, view, rendered)
-            if need <= 0:
-                break
-        await update_choices(session, applicant_id, resume_id, **fit_changes(batch, hide=True))
-        hidden.extend(batch)
-        _, view = await load_view(session, applicant_id, resume_id)
-        rendered = await render(view)
-    if rendered.page_count <= 1:
-        # Never the round's first cut (the page needed at least one), nor a
-        # bullet whose entry stays hidden: showing it changes nothing
-        hidden_entries = {c.id for c in hidden if c.kind == "entry"}
-        entry_of = {b.id: e.row.id for e in (await load_bank(session, applicant_id)).entries for b in e.bullets}
-        tries = [c for c in reversed(batch[1:]) if entry_of.get(c.id) not in hidden_entries]
-        for cut in tries[:FIT_PUT_BACK]:
-            await update_choices(session, applicant_id, resume_id, **fit_changes([cut], hide=False))
-            _, trial = await load_view(session, applicant_id, resume_id)
-            tried = await render(trial)
-            if tried.page_count > 1:
-                await update_choices(session, applicant_id, resume_id, **fit_changes([cut], hide=True))
-                break
-            hidden.remove(cut)
-            rendered = tried
-    return hidden, rendered
+    """Fit to One Page (docs/cut_to_one_page.md): read the resume once, cut
+    it in memory until a render is one page (`fit_page.fit`), then save
+    every cut together. A render that fails (503) saves nothing. Returns the
+    cuts (Undo shows them again) and the last render."""
+    resume, view = await load_view(session, applicant_id, resume_id)
+    cuts, rendered = await fit_page.fit(view, await fit_scores(session, resume, view), render)
+    if cuts:
+        await update_choices(session, applicant_id, resume_id, **fit_changes(cuts, hide=True))
+    return cuts, rendered
 
 
 async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -> HeaderIdentity:
