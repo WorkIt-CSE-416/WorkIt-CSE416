@@ -69,7 +69,7 @@ export function Agenda({
                       event={event}
                       openHref={openHref}
                       side="bottom"
-                      className="group/agenda bg-app hover:bg-hover rounded-card focus-visible:ring-brand-ring ease-glide flex items-center gap-3 px-3 py-2.5 transition-[background-color,transform] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.99]"
+                      className="group/agenda bg-panel hover:bg-hover rounded-card focus-visible:ring-brand-ring ease-glide flex items-center gap-3 px-3 py-2.5 transition-[background-color,transform] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.99]"
                     >
                       <span className="text-note text-ink-meta w-16 shrink-0">
                         {timeOf(event) ?? "All Day"}

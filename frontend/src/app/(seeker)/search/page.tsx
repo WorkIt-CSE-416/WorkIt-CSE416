@@ -100,7 +100,7 @@ function ResultCountSkeleton() {
   return (
     <span
       aria-hidden="true"
-      className="bg-muted text-note inline-flex animate-pulse rounded-full px-2 py-0.5 text-transparent"
+      className="bg-ink/6 text-note inline-flex animate-pulse rounded-full px-2 py-0.5 text-transparent"
     >
       00 Roles
     </span>

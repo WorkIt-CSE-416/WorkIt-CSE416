@@ -59,12 +59,17 @@ export function IconButton({
   variant = "quiet",
   className,
   type = "button",
+  disabled,
   children,
   ...props
 }: IconButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger
+        // `disabled` on the trigger only stops the tooltip: the button itself
+        // takes it through `render`, or a disabled button still clicks.
+        render={<button disabled={disabled} />}
+        disabled={disabled}
         type={type}
         aria-label={label}
         className={cn(

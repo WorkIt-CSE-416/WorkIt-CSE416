@@ -9,6 +9,11 @@ import { cn } from "@/lib/cn";
 
 import { askScoutAbout, SCOUT_LAUNCHER_ID, setScoutOpen, useScout } from "./scout-store";
 
+/** Whether Ask Scout works. Off (2026-11-02) while it does not: every Ask Scout
+ *  button stays in its place, greyed out and not clickable, and the panel's
+ *  hint to use it is hidden. Set it to true to bring them back at once. */
+export const ASK_SCOUT_LIVE = false;
+
 /** A job's "Ask Scout": opens the panel and asks about that role. An outlined
  *  icon beside Save (KAN-519), 36px as Save is, or `quiet`, a bare glyph as on
  *  the job's own card. Its tooltip says what the click will do, since the mark
@@ -28,6 +33,7 @@ export function AskScoutButton({
       tooltip="Ask Scout whether this role fits you"
       variant={quiet ? "quiet" : "outline"}
       className={quiet ? undefined : "size-9 shrink-0"}
+      disabled={!ASK_SCOUT_LIVE}
       onClick={() => askScoutAbout(job)}
     >
       <SparkleIcon className="size-4" />

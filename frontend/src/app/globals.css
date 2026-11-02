@@ -150,7 +150,7 @@
    * lightness order the mockups drew is kept — card lightest, then well, then
    * page — with the page a shade deeper than it was (96% against the old 97.5%)
    * so a white card has an edge to sit on now that the hue difference is gone. */
-  --color-app: #f5f5f5; /* page behind the cards; uploaded-file row */
+  --color-app: #f5f5f5; /* seeker page ground, behind the cards; uploaded-file row */
   --color-panel: #ffffff; /* top bar, cards and secondary buttons */
   --color-well: #f7f7f7; /* recessed area — the resume dropzone, match rail */
 
@@ -964,6 +964,11 @@ body {
  * shows past the end. */
 body:has([data-shell]) {
   background: var(--color-panel);
+}
+
+/* The seeker shell's page is --color-app (app/(seeker)/layout.tsx). */
+body:has([data-shell="seeker"]) {
+  background: var(--color-app);
 }
 
 /* The auth screens' sky is white overhead, so a bounce past their top opens

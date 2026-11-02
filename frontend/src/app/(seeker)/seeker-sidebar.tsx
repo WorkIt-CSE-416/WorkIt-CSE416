@@ -95,7 +95,8 @@ const GROUPS: SidebarNavGroup[] = [
       // (KAN-428, ./inbox/live.ts).
       ...(INBOX_LIVE ? [{ href: "/inbox", label: "Inbox", Icon: TrayIcon }] : []),
       // Back since KAN-413: interviews, assessments and offers are stored.
-      { href: "/calendar", label: "Calendar", Icon: CalendarDotsIcon },
+      // Greyed out (2026-11-02) while it does not work.
+      { href: "/calendar", label: "Calendar", Icon: CalendarDotsIcon, disabled: true },
       { href: "/profile", label: "My Profile", short: "Profile", Icon: UserCircleIcon },
     ],
   },

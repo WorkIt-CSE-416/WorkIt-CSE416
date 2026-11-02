@@ -127,7 +127,7 @@ export function JobsRailFrame({
           className={cn(
             "flex min-h-0 flex-1 flex-col @4xl/main:flex-row",
             split &&
-              "@4xl/main:border-border @4xl/main:rounded-t-card @4xl/main:mx-6 @4xl/main:overflow-hidden @4xl/main:border @4xl/main:border-b-0 lg:@4xl/main:mx-8",
+              "@4xl/main:bg-panel @4xl/main:border-border @4xl/main:rounded-t-card @4xl/main:mx-6 @4xl/main:overflow-hidden @4xl/main:border @4xl/main:border-b-0 lg:@4xl/main:mx-8",
           )}
         >
           <JobsRail
@@ -286,9 +286,21 @@ function JobsRail({
             "@4xl/main:border-border-subtle @4xl/main:flex @4xl/main:h-15 @4xl/main:shrink-0 @4xl/main:flex-col @4xl/main:justify-center @4xl/main:border-b @4xl/main:py-0",
         )}
       >
-        <h2 className="text-body text-ink font-semibold">
-          {showable ? listTitle(showable) : "Jobs"}
-        </h2>
+        {showable || error ? (
+          <h2 className="text-body text-ink font-semibold">
+            {showable ? listTitle(showable) : "Jobs"}
+          </h2>
+        ) : (
+          // The title's and the count's lines, as bars over the list's own.
+          <div aria-hidden="true">
+            <div className="flex h-5 items-center">
+              <Skeleton className="h-3.5 w-24" />
+            </div>
+            <div className="mt-0.5 flex h-[15px] items-center">
+              <Skeleton className="h-2.5 w-14" />
+            </div>
+          </div>
+        )}
         {showable && (
           <p className="text-meta text-ink-meta mt-0.5">
             {showable.jobs.length} {showable.jobs.length === 1 ? "role" : "roles"}

@@ -94,7 +94,7 @@ export function FeedHeader({
       data-stuck={stuck || undefined}
       style={{ "--feed-lift": `${lift}px` } as CSSProperties}
       className={cn(
-        "bg-panel sticky top-[calc(var(--feed-lift)*-1)] z-10 pt-6 pb-4 md:top-0",
+        "bg-app sticky top-[calc(var(--feed-lift)*-1)] z-10 pt-6 pb-4 md:top-0",
         !flush && [
           "after:bg-border-subtle after:absolute after:inset-x-0 after:bottom-0 after:h-px after:opacity-0 after:transition-opacity after:duration-200 data-stuck:after:opacity-100",
           "-mt-6 -mb-4",

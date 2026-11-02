@@ -23,7 +23,7 @@ import { takeResumesStale } from "@/lib/resumes-stale";
 
 import { BuiltResumeRow } from "./built-resume-row";
 import { DuplicateResumeDialog } from "./duplicate-resume-dialog";
-import { ResumesHeader } from "./header";
+import { RESUMES_SEARCH, ResumesHeader } from "./header";
 import { ResumeList } from "./resume-list";
 import { ShortLabel, UploadedRow, useResumeUpload } from "./upload-resume";
 
@@ -266,19 +266,23 @@ export function BuiltResumes({
 
   return (
     <>
-      <ResumesHeader view="resumes" />
+      <ResumesHeader
+        view="resumes"
+        search={
+          <SearchField
+            id="resumes-search"
+            label="Search resumes"
+            placeholder="Search by name or job"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className={RESUMES_SEARCH}
+          />
+        }
+      />
 
-      {/* The search, then the filters with the buttons at the right, above
-          the card: the Applications page's FilterBar, row for row. */}
-      <div className="mt-6 flex flex-col gap-3">
-        <SearchField
-          id="resumes-search"
-          label="Search resumes"
-          placeholder="Search by name or job"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          className="w-full @lg/main:w-64"
-        />
+      {/* The filters with the buttons at the right, above the card: the
+          Applications page's FilterBar, row for row. */}
+      <div className="mt-3 flex flex-col gap-3">
         {/* Below 42rem the row is two even rows, the dropdowns, then the
             buttons; wrapped as one flex row it left the buttons at the
             right of a line of their own. */}

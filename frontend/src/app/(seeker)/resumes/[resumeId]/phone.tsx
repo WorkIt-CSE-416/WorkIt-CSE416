@@ -17,6 +17,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { SparkleIcon } from "@/components/icons";
+import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
 import { Button } from "@/components/ui/button";
 import type { Bank } from "@/lib/bank-actions";
 import type {
@@ -340,7 +341,7 @@ export function PhoneEditor({
               </Button>
             )}
             {/* The primary action, filled as on the desktop bar. */}
-            <Button disabled={!rendered} onClick={() => setAsking(true)}>
+            <Button disabled={!ASK_SCOUT_LIVE || !rendered} onClick={() => setAsking(true)}>
               <SparkleIcon /> Ask Scout
             </Button>
           </div>
@@ -405,7 +406,7 @@ export function PhoneEditor({
             ))}
           <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
             {actions}
-            <Button size="sm" onClick={() => setAsking(true)}>
+            <Button size="sm" disabled={!ASK_SCOUT_LIVE} onClick={() => setAsking(true)}>
               <SparkleIcon /> Ask Scout About This Line
             </Button>
           </div>

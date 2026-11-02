@@ -1,4 +1,5 @@
 import { ArrowRightIcon } from "@/components/icons";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { ButtonLink } from "@/components/ui/button";
 import { TextLink } from "@/components/ui/text-link";
 import { cn } from "@/lib/cn";
@@ -115,7 +116,7 @@ export async function TopMatches({
 }
 
 /** The heading with only its way onward, where there is nothing to pick:
- *  the empty and failed states, and the skeleton. */
+ *  the empty and failed states. */
 function StaticHeading() {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -142,8 +143,19 @@ function StaticHeading() {
  *  Activity jumped by that much when the jobs arrived (KAN-368). */
 export function TopMatchesSkeleton({ className }: { className?: string }) {
   return (
-    <SectionCard aria-labelledby="top-matches" aria-busy="true" className={className}>
-      <StaticHeading />
+    <SectionCard aria-label="Top Matches" aria-busy="true" className={className}>
+      {/* StaticHeading's lines and its button, each a bar. */}
+      <div aria-hidden="true" className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex h-[22px] items-center">
+            <Skeleton className="h-4 w-28" />
+          </div>
+          <div className="mt-1 flex h-5 items-center">
+            <Skeleton className="h-3.5 w-60 max-w-full" />
+          </div>
+        </div>
+        <Skeleton className="h-9 w-44" />
+      </div>
       <ul aria-hidden="true" className={cn(LIST, "@4xl/main:overflow-hidden")}>
         {Array.from({ length: 6 }, (_, i) => (
           <li

@@ -23,17 +23,23 @@ import { SeekerNotificationsBell } from "./seeker-notifications-bell";
 import { SeekerSidebar } from "./seeker-sidebar";
 
 /**
- * Chrome shared by every signed-in seeker screen: one white surface, ruled
- * into regions by hairlines (--color-border-subtle). The section panel runs
- * the full height on the left, flush with the window; beside it, the top bar
- * along the top, and under the bar the page itself.
+ * Chrome shared by every signed-in seeker screen, ruled into regions by
+ * hairlines (--color-border-subtle). The section panel runs the full height
+ * on the left, flush with the window; beside it, the top bar along the top,
+ * and under the bar the page itself.
+ *
+ * THE PANEL AND THE BAR ARE WHITE AND THE PAGE IS GREY (--color-app,
+ * 2026-11-02), after Simplify and Jobright: with the page white too, white
+ * cards blended into it. Anything that sits on the page and needs its own
+ * edge is white; a sticky bar is the page's grey, so it hides what scrolls
+ * under it without showing as a strip.
  *
  * IT WAS THREE FLOATING PANELS until 2026-10-27: white rounded panels 12px
  * apart on a lavender ground (--color-frame), after a dashboard the user had
  * pointed at. The user then found the frame wasted room, about 36px of every
  * width and height went to lavender and gaps, and the three boxes read as
- * separate containers rather than one app. Keep it flat: no ground colour,
- * no gaps, no rounded or shadowed shell panels.
+ * separate containers rather than one app. Keep it flat: no gaps, no rounded
+ * or shadowed shell panels.
  *
  * THE PANEL IS AN 88px RAIL THAT IS ALWAYS OPEN (RAIL in
  * @/components/app-sidebar): an icon over each section's name. It was a
@@ -77,10 +83,10 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * fits itself to what is left.
  */
 
-/** The bar's Scout button is archived (2026-11-01). Scout stays: Ask Scout and
- *  Fill With Scout still open its panel. The resume editor's assistant has no
- *  other way in on a laptop, so it waits for this. Set it to true to bring the
- *  button back. */
+/** The bar's Scout button is archived (2026-11-01). Scout stays: Fill With
+ *  Scout still opens its panel. The resume editor's assistant has no other way
+ *  in on a laptop, so it waits for this. Set it to true to bring the button
+ *  back. */
 const SCOUT_LAUNCHER_LIVE = false;
 
 export default async function AppLayout({
@@ -112,7 +118,7 @@ export default async function AppLayout({
     <RailSidebarProvider
       className="bg-panel h-svh"
       /* Read by the canvas rule in globals.css, which paints the overscroll
-         strip white to match. */
+         strip the page's grey to match. */
       data-shell="seeker"
       style={
         {
@@ -200,7 +206,7 @@ export default async function AppLayout({
           <SidebarInset
             id="content"
             tabIndex={-1}
-            className="bg-panel min-h-0 min-w-0 flex-1 [scrollbar-gutter:stable] overflow-x-clip overflow-y-auto overscroll-y-none focus:outline-none"
+            className="bg-app min-h-0 min-w-0 flex-1 [scrollbar-gutter:stable] overflow-x-clip overflow-y-auto overscroll-y-none focus:outline-none"
           >
             {/* The page, and the container it breaks on. */}
             <div data-scout-page className="@container/main flex w-full flex-1 flex-col">

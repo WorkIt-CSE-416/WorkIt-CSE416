@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 
 import { Composer, Message, Typing, ScoutMark } from "./chat";
 import { ReplyText } from "./reply-text";
+import { ASK_SCOUT_LIVE } from "./scout-buttons";
 import { closeScout, sendToScout, useScout } from "./scout-store";
 import { SCOUT_SLOT_ID } from "./scout-takeover";
 import type { ScoutMessage } from "./stream";
@@ -233,10 +234,12 @@ function Suggestions({ onPick, disabled }: { onPick: (text: string) => void; dis
         disabled={disabled}
         onClick={() => onPick("Which jobs am I a top match for?")}
       />
-      <p className="text-note text-ink-meta flex items-start gap-2 px-2 pt-2 pb-1">
-        <ChatCircleIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-        Click &ldquo;Ask Scout&rdquo; on any job for insights on that role.
-      </p>
+      {ASK_SCOUT_LIVE && (
+        <p className="text-note text-ink-meta flex items-start gap-2 px-2 pt-2 pb-1">
+          <ChatCircleIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+          Click &ldquo;Ask Scout&rdquo; on any job for insights on that role.
+        </p>
+      )}
     </div>
   );
 }

@@ -2455,11 +2455,11 @@ const SLIM_BAR = cn(
 );
 
 /** The bar on Tailor's review, as Google Docs draws its own (KAN-499): a
- *  grey pill with no outline, its tools from the left. Both bars' buttons are
- *  dark grey, as Docs' are, and only a pressed one takes the brand. The page
- *  count's amber chip keeps its colour. */
+ *  pill, its tools from the left, white and ruled since the page's ground
+ *  went grey. Both bars' buttons are dark grey, as Docs' are, and only a
+ *  pressed one takes the brand. The page count's amber chip keeps its colour. */
 const DOCS_BAR = cn(
-  "bg-app sticky top-2 z-20 flex min-h-11 flex-wrap items-center gap-2 rounded-full px-3 py-1",
+  "bg-panel ring-border-subtle sticky top-2 z-20 flex min-h-11 flex-wrap items-center gap-2 rounded-full px-3 py-1 ring-1",
   "[&_button:not([aria-pressed=true]):not([data-bar-action])]:text-ink-muted [&_button:not([aria-pressed=true]):not([data-bar-action]):hover]:text-ink",
 );
 

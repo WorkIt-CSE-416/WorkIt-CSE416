@@ -1173,9 +1173,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   default view, and `?view=board` opens it. `applications/board.tsx` stays;
   `docs/screens.md`, Applications, says how to bring it back.
 - **The seeker shell is flat, and its panel is a rail that is always
-  open** (2026-10-27, `docs/design.md`, The two shells): one white surface,
-  the 88px rail, the bar, the page and Scout's panel ruled apart by
-  hairlines, with no lavender frame, gaps, rounded corners or shadows. Each
+  open** (2026-10-27, `docs/design.md`, The two shells): the 88px rail, the
+  bar, the page and Scout's panel ruled apart by hairlines, with no lavender
+  frame, gaps, rounded corners or shadows. **The rail and the bar are white
+  and the page is `--color-app` grey** (2026-11-02, after Simplify and
+  Jobright), or white cards blended into a white page. So a control on the
+  page takes `bg-panel`, never `bg-app` or `bg-well` (it vanishes), and a
+  sticky bar on the page takes `bg-app`, or it shows as a white strip. Each
   rail tile is an icon over its name (an item's `short` where the name does
   not fit), and below md the rail is a sheet of full-name rows. On hover
   and press only the fills move; the icon stays still (KAN-426), since a
@@ -1234,12 +1238,29 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   sooner than 300 ms after the shell's first frame, so a fast page can land
   up to about 300 ms later on a hard load; only slow pages gain. The real
   signed-in spread is unmeasured.
+- **The seeker pages stand on a grey ground** (`bg-app` on `<main>`,
+  2026-11-02, after Simplify and Jobright): all white left cards and panels
+  with nothing to sit on. The top bar and sidebar stay white, and the company
+  shell is unchanged. A sticky bar on the ground is `bg-app`, not `bg-panel`,
+  or a white band shows when it sticks. A surface that lies on the ground is
+  `bg-panel`, and a soft fill meant for white or grey is see-through ink
+  (`bg-ink/5`, the Segmented Control's track): a solid `bg-app` or `bg-well`
+  vanishes into the ground. Skeletons are `bg-ink/6` for the same reason.
+- **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
+  2026-11-02): it lands on the row at once, because the slide read as
+  confusing. Only the hover fill glides.
 - **A slow seeker page gets a `loading.tsx` drawn in its own frame**
   (KAN-368). Every seeker route is dynamic, and Next prefetches a dynamic
   route only down to a loading boundary, so a click changed nothing on screen
   until the page's reads were done. Give a page one only if it is slow:
   React holds a shown fallback for 300 ms, so a fast page gets slower. A
   skeleton stands at the height of what replaces it, so nothing below jumps.
+  **A skeleton shows no heading or line of text the page replaces**: a real
+  About the Role among the bars stood out as the one finished thing on the
+  page. Draw the title as `SectionHeadingSkeleton` (`ui/section-heading.tsx`)
+  and name the section with `aria-label`. What stays real is what works or
+  stays the same while it waits: the top bar's title, Back, tabs, filters, the
+  Tailor steps, and a sentence that says what a long wait is doing.
   A page with two long reads streams each in its own `<Suspense>` over a
   skeleton of its shape, and starts every read before its first `await` (the
   Home: only the account is awaited). **Settings' modal has no
@@ -1639,10 +1660,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
   **The bar's Scout button is archived** (`SCOUT_LAUNCHER_LIVE` in
-  `(seeker)/layout.tsx`, 2026-11-01): Ask Scout and Fill With Scout still open
-  the panel, and closing it leaves focus on the page, since no launcher takes
-  it back. The editor's assistant has no other way in on a laptop, so it is out
-  of reach until the flag is on or the toolbar gets a button.
+  `(seeker)/layout.tsx`, 2026-11-01): Fill With Scout still opens the panel,
+  and closing it leaves focus on the page, since no launcher takes it back.
+  The editor's assistant has no other way in on a laptop, so it is out of reach
+  until the flag is on or the toolbar gets a button. **Ask Scout is greyed
+  out** (`ASK_SCOUT_LIVE` in `components/scout/scout-buttons.tsx`, 2026-11-02,
+  it does not work): every job's button and the phone editor's two buttons
+  stay in place, disabled, the panel's hint is hidden, and the flag brings
+  them back. The phone editor has no other way into its assistant. **The
+  Calendar's sidebar row is greyed out too** (`disabled` on a nav item,
+  `seeker-sidebar.tsx`): /calendar still answers, and Home's Up Next links to it. The landing page still describes
+  it.
 - **The company table (`app/company/table.tsx`) and the Applications list
   (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in

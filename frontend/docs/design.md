@@ -7,15 +7,17 @@ a shell, a page layout, a colour token or a `ui/` component.
 ## The two shells
 
 The two shells are separate layouts on purpose, and they no longer look
-alike. The seeker shell is flat: one white surface, the section panel
-flush with the window's left edge and running the full height with the logo
-in its header, the top bar along the top beside it, and the page under the
-bar, ruled apart by `--color-border-subtle` hairlines. The panel's header
+alike. The seeker shell is flat: the section panel flush with the window's
+left edge and running the full height with the logo in its header, the top
+bar along the top beside it, and the page under the bar, ruled apart by
+`--color-border-subtle` hairlines. The panel and the bar are white and the
+page is `--color-app` grey (2026-11-02, after Simplify and Jobright), since
+white cards blended into a white page. The panel's header
 and the bar are both 64px with their bottom rule, so the two rules run as
 one line. It floated until 2026-10-27, each part a white `rounded-shell`
 panel 12px apart on the lavender `--color-frame`; the user found that
 frame wasted room and read as three separate containers, so keep it flat:
-no ground colour, no gaps, no rounded or shadowed shell panels. Scout's
+no gaps, no rounded or shadowed shell panels. Scout's
 panel docks at the right the same way, with a left rule. The panel is the
 rail (below). The company shell is still docked: a full-width bar with the
 lavender corner cell (`components/sidebar-brand.tsx`, company only now) over

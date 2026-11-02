@@ -1897,11 +1897,11 @@ One sidebar row, above My Profile, for one page in two views (KAN-249):
 **Resumes** (`/resumes`, the row's link) and **Experiences** (`/experiences`, the
 experience bank). Both draw one header (`resumes/header.tsx`; it stays
 beside the Resumes view though `/experiences` imports it too, since the two routes
-are one page's views, not two consumers), laid out as Home's is: the view's own title and line on the left ("Resumes",
-"Experiences"), and at the top right, level with the foot of that block, a
-segmented switcher between the two views, then on Experiences its
-primary action, Fill With Scout; on a narrow page the controls
-wrap under the title. A shared "Resumes & Experiences" title on both views
+are one page's views, not two consumers), laid out as the Jobs page's and the
+Applications Tracker's top row is: the view's search on the left and the
+segmented switcher between the two views at the right, after Experiences'
+primary action, Fill With Scout; on a phone the search takes its own line.
+The title is in the top bar. A shared "Resumes & Experiences" title on both views
 said less about where the student was. The views stay two routes, so every link to either still
 lands (the Jobs page's `/experiences?import=1` included), and the switcher is plain
 links, since each view reads its own data on the server; the sidebar row is

@@ -69,7 +69,7 @@ export function JobActionBar({
       ref={barRef}
       data-stuck={stuck || undefined}
       className={cn(
-        "bg-panel relative z-10 -mt-6 mb-3 flex flex-wrap items-center justify-between gap-2 pt-6 pb-3 md:sticky md:top-0",
+        "bg-app in-data-split:@4xl/main:bg-panel relative z-10 -mt-6 mb-3 flex flex-wrap items-center justify-between gap-2 pt-6 pb-3 md:sticky md:top-0",
         "after:bg-border-subtle after:absolute after:inset-x-0 after:bottom-0 after:h-px after:opacity-0 after:transition-opacity after:duration-200 data-stuck:after:opacity-100",
         SEEKER_BLEED,
         SEEKER_GUTTER,
