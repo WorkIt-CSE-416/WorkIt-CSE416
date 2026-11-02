@@ -24,6 +24,17 @@ fi
 npm ci --prefix frontend
 (cd backend && uv sync)
 
+# The Fill engine is a private submodule: the extension and Apply both load
+# it. Without read access to it the clone fails, so a failure only warns.
+git submodule update --init ||
+  echo "warning: the Fill engine submodule did not load; the extension and Apply cannot fill forms" >&2
+
+# Apply (apply-agent/) has its own Python project. Skip it until its code is
+# in the branch.
+if [ -f apply-agent/pyproject.toml ]; then
+  (cd apply-agent && uv sync)
+fi
+
 # Resume PDFs need Tectonic and its warm cache in backend/vendor/, once per
 # checkout. Without it every resume shows "This Resume Isn't Loading Right
 # Now". Only branches with resume rendering have the script; on a Mac it

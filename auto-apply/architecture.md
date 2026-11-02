@@ -26,6 +26,11 @@ built. It replaces the earlier `design.md`.
 > fill in that tab ("The first fill", 8.3, KAN-305); the application stays
 > `queued`. Everything else is a plan. The exact function names are a
 > sketch, to be settled when each step is built.
+>
+> **Not `apply-agent/`.** `apply-agent/` is Apply, a separate Python agent
+> for developers that fills forms in its own Chrome with Claude's answers
+> and keeps its data in files, not in WorkIt; it shares only the Fill
+> engine with the extension (`apply-agent/CLAUDE.md`).
 
 ## Terms
 
