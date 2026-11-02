@@ -240,11 +240,14 @@ def test_an_approved_claude_fill_hold_is_filled_again_with_lisuls_edited_essay_a
     with FakeBambooServer(LUNAR_FORM) as server:
         [held] = run(server, profile, lunar_match(), tracker=tracker,
                      claude=FakeClaude(driver=BambooDriver(), essays={"Tell us why": "Claude's draft."}))
-        tracker.edit_as_lisul(held.application_id, approve=True, essay=f"## {ESSAY}\nMy own words about rovers.")
+        # He rewrites the one essay; the form's other essay (Additional Comments) he keeps as held.
+        assert "Claude's draft." in held.essay
+        tracker.edit_as_lisul(held.application_id, approve=True,
+                              essay=held.essay.replace("Claude's draft.", "My own words about rovers."))
 
         [row] = run(server, profile, lunar_match(), tracker=tracker, claude=FakeClaude(driver=BambooDriver()))
 
-    assert (held.status, row.status) == ("held", "submitted")
+    assert (held.status, row.status) == ("held", "submitted"), row.reason
     [sent] = server.submissions
     assert sent.application["customQuestions[4197]"] == "My own words about rovers."
 
