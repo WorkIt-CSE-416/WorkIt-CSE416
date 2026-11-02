@@ -50,8 +50,8 @@ import { TailorJobLine } from "./tailor-header";
  * Docs' comments are, or the source resume (`original`).
  * Each changed line is tinted by its type on the page, as a Doc marks a
  * suggestion in its text, with an outline while its suggestion is pointed at,
- * focused or open. A click on one opens a small card beside it
- * (`SuggestionPopup`) and the panel, if nothing is beside the page. A phone
+ * focused or open. A click on one opens the panel and scrolls to its
+ * suggestion, outlined as its line is. A phone
  * tints only the open line and keeps a margin dot per line. Desktop had the
  * dots until the user found them apart from the words they marked.
  * The panel has a section per resume entry, top to bottom as on the page,
@@ -65,6 +65,13 @@ import { TailorJobLine } from "./tailor-header";
  * The record lives in this tab's sessionStorage, so a new tab or device has
  * no suggestions: the editor shows alone, with a line that says why.
  */
+
+/** The small card beside a clicked line (`SuggestionPopup`) is archived
+ *  (2026-11-01): a click opens the panel instead, so one place holds every
+ *  suggestion. To bring it back, turn this on and take `setSide` out of the
+ *  editor's `onLine`, or the panel opens under the card. */
+const POPUP_LIVE = false;
+
 export function TailorReview({
   name,
   job,
@@ -102,7 +109,7 @@ export function TailorReview({
         original={record?.source && <OriginalResume source={record.source} />}
         phoneBar={noRecord}
         suggestions={(api) => <SuggestionsPanel {...api} />}
-        suggestionPopup={(api) => <SuggestionPopup {...api} />}
+        suggestionPopup={POPUP_LIVE ? (api) => <SuggestionPopup {...api} /> : undefined}
       />
     </>
   );
@@ -483,8 +490,14 @@ function Suggestion({
         if (!e.currentTarget.contains(e.relatedTarget)) onFocus(null);
       }}
       // Grey while pointed at or shown on the page, never brand: a row in
-      // purple read as selected for something else
-      className={cn("scroll-mt-2 pb-3 transition-colors", (lit || current) && "bg-ink/[0.03]")}
+      // purple read as selected for something else. The one shown on the page
+      // is also outlined as its lines are, so a click on a line lands on a
+      // card that is plain to see among the others
+      className={cn(
+        "scroll-mt-2 rounded-lg pb-3 transition-[background-color,box-shadow]",
+        (lit || current) && "bg-ink/[0.03]",
+        current && "ring-ink/25 ring-1 ring-inset",
+      )}
     >
       <div className="flex items-start gap-1 pr-2">
         <button

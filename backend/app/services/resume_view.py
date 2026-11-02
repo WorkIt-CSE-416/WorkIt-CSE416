@@ -16,6 +16,9 @@ and nowhere else:
   built resume. A bullet whose choice names a variant (Tailor's wording, or
   the resume's own) shows that variant's text instead; `BulletChoice.text`
   carries it, loaded with the choice.
+- **Bold and italic live in the resume's own wording** (KAN-435), as `**` and
+  `*` around the words. `ViewBullet.text` is always the plain words, for every
+  reader (Tailor, keywords, Word); only the PDF reads `marked`.
 - **Order:** sections in `SECTIONS` order, each entry by its choice's
   position within its section, each bullet by its position within its
   entry, skills by position. Ties keep the bank's order. An empty section is
@@ -31,6 +34,7 @@ from __future__ import annotations
 
 import datetime
 import itertools
+import re
 import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -40,6 +44,33 @@ from typing import Any, Literal
 # The bank's sections in resume order: models/dto.py's bank_section, whose
 # members compare equal to these strings. Skills come last, as their own list.
 SECTIONS = ("education", "experience", "projects", "leadership", "awards", "certifications")
+
+# The same pattern as the editor's text-marks.ts. A marker needs a letter
+# beside it, so "5 * 3" and a lone "*" stay what they are
+_MARK = re.compile(
+    r"\*\*\*(?=\S)(.+?)(?<=\S)\*\*\*"
+    r"|\*\*(?=\S)(.+?)(?<=\S)\*\*"
+    r"|\*(?=[^\s*])(.+?)(?<=[^\s*])\*"
+)
+
+
+def runs(text: str, bold: bool = False, italic: bool = False) -> list[tuple[str, bool, bool]]:
+    '''A marked wording as (words, bold, italic), in order.'''
+    found: list[tuple[str, bool, bool]] = []
+    at = 0
+    for match in _MARK.finditer(text):
+        if match.start() > at:
+            found.append((text[at:match.start()], bold, italic))
+        group = match.lastindex
+        found += runs(match[group], bold or group != 3, italic or group != 2)
+        at = match.end()
+    if at < len(text):
+        found.append((text[at:], bold, italic))
+    return found
+
+
+def unmarked(text: str) -> str:
+    return "".join(words for words, _, _ in runs(text))
 
 
 @dataclass(frozen=True)
@@ -76,7 +107,8 @@ class Choices:
 @dataclass(frozen=True)
 class ViewBullet:
     id: uuid.UUID
-    text: str
+    text: str  # the plain words
+    marked: str | None = None  # the wording with its markers, when it has any
 
 
 @dataclass(frozen=True)
@@ -132,6 +164,15 @@ def _ordered(items: Iterable[Any], key: Mapping[uuid.UUID, Any]) -> list[Any]:
     return sorted(chosen, key=lambda item: key[item.id].position)
 
 
+def _bullet(bullet: Any, wording: str | None) -> ViewBullet:
+    # Only the resume's own wording is read for markers: the bank's text is
+    # what the student or an upload wrote, stars and all
+    if not wording:
+        return ViewBullet(bullet.id, bullet.text)
+    plain = unmarked(wording)
+    return ViewBullet(bullet.id, plain, wording if plain != wording else None)
+
+
 def build_view(bank: Any, choices: Choices) -> ResumeView:
     '''`bank` has `.entries` (each with `.row` and `.bullets`) and `.skills`,
     in the bank's order (services/bank.py's load_bank).'''
@@ -161,7 +202,7 @@ def build_view(bank: Any, choices: Choices) -> ResumeView:
                 link=row.link,
                 issuer=row.issuer,
                 award_date=row.award_date,
-                bullets=tuple(ViewBullet(b.id, choices.bullets[b.id].text or b.text) for b in bullets),
+                bullets=tuple(_bullet(b, choices.bullets[b.id].text) for b in bullets),
             ))
         if entries:
             sections.append(ViewSection(section, tuple(entries)))
@@ -203,7 +244,8 @@ def view_from_json(data: Mapping[str, Any]) -> ResumeView:
             **{k: datetime.date.fromisoformat(e[k]) if e[k] else None for k in _DATES},
             **{k: Decimal(e[k]) if e[k] is not None else None for k in _DECIMALS},
             "coursework": tuple(e["coursework"]),
-            "bullets": tuple(ViewBullet(uuid.UUID(b["id"]), b["text"]) for b in e["bullets"]),
+            # A snapshot kept before KAN-435 has no "marked"
+            "bullets": tuple(ViewBullet(uuid.UUID(b["id"]), b["text"], b.get("marked")) for b in e["bullets"]),
         })
 
     return ResumeView(

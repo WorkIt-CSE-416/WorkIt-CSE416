@@ -442,6 +442,7 @@ export const ANIMATIONS: {
     | "dots"
     | "ping"
     | "shimmer"
+    | "line"
     | "toast";
   role: string;
 }[] = [
@@ -516,6 +517,12 @@ export const ANIMATIONS: {
     cls: "animate-shimmer",
     demo: "shimmer",
     role: "A band of light crossing what Scout is working on: the bank row its panel is filling",
+  },
+  {
+    token: "--animate-rewrite",
+    cls: "animate-rewrite",
+    demo: "line",
+    role: "A line written over, held and faded: the bullets on Tailor's loader, staggered 200ms",
   },
   {
     token: "--animate-toast-in",

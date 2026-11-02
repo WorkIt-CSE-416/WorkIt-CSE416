@@ -845,7 +845,8 @@ async def test_a_render_takes_the_token_of_the_paths_applicant_only(student, dat
 # Page settings (KAN-435): the render and the save go side by side
 
 SETTINGS = {"font_size": 12, "line_spacing": 1.15, "side_margin": 0.75, "top_margin": 0.75, "alignment": "justified", "section_spacing": 4, "entry_spacing": 2, "accent": "#14532D", "bullet": "dash", "show_divider": False, "header_alignment": "left",
-            "section_order": ["skills", "education", "experience", "projects", "leadership", "awards", "certifications"]}
+            "section_order": ["skills", "education", "experience", "projects", "leadership", "awards", "certifications"],
+            "font_family": "tinos", "name_size": 22, "heading_size": 13, "title_size": 11.5, "body_size": None}
 
 
 async def test_page_settings_render_from_the_copy_and_save_on_their_own(student):
