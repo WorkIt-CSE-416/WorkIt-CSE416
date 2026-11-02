@@ -988,7 +988,8 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   `window.WIA.showField`, made for every fill, batch or popup): the field
   scrolls to the middle, takes focus and gets the ring, and the row is marked current. A press on a
   button, link or box inside the row, or anywhere in its row card, keeps
-  its own behaviour. A field the page doesn't show gets "WorkIt can't find
+  its own behaviour. Only the student's own press or Enter moves the page
+  (`isTrusted`, KAN-513). A field the page doesn't show gets "WorkIt can't find
   this field on the page." under its row for a few seconds; on Workday one
   keyed to another step (keys start with the step) says "This is on
   Workday's <step> step." (each step's fill starts the panel's rows again,

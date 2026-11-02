@@ -68,8 +68,11 @@ test("pressing the row scrolls to its field and focuses it; a click the page mak
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.locator("#first_name").focus();
 
-  // A click no student made (the test copy's root is open, so a script can reach the row).
-  await rowOf(page, POLICY).locator(".label").evaluate((label: HTMLElement) => label.click());
+  // A click and an Enter no student made (the test copy's root is open, so a script can reach the row).
+  await rowOf(page, POLICY).locator(".label").evaluate((label: HTMLElement) => {
+    label.click();
+    label.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  });
   await expect(page.locator(`#${POLICY}`)).not.toBeFocused();
   await expect(page.locator("#first_name")).toBeFocused();
 
