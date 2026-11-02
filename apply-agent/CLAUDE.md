@@ -37,9 +37,11 @@ section). A fix to filling goes into the engine, not into Apply.
 
 Apply loads the engine bundle from the extension's submodule:
 `autofiller_extension/fill-engine/dist/engine.js`. Apply has no submodule
-of its own, so one engine pin serves both. An environment variable can
-point Apply at another bundle; `src/apply/fill_engine.py` names it. The
-repairer and the engine checks read the same path.
+of its own, so one engine pin serves both. To use another engine checkout
+(for example, a branch of the engine that you work on), set
+`APPLY_FILL_ENGINE` to its folder. Apply then loads `dist/engine.js` from that
+folder. The tests read the saved forms (`test/fixtures/`) from the same
+folder. The repairer works on the submodule path in its Repair worktree.
 
 Run `git submodule update --init` once per checkout. Without it, Apply
 cannot fill a form, and `uv run apply doctor` says so.

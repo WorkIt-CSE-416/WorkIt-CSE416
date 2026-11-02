@@ -1,6 +1,6 @@
 """Save a live Eightfold Posting's form for offline tests. Never submits.
 
-    uv run python tests/save_eightfold_form.py <posting-url> fill-engine/test/fixtures/forms/eightfold-<name> [<country>]
+    uv run python tests/save_eightfold_form.py <posting-url> ../autofiller_extension/fill-engine/test/fixtures/forms/eightfold-<name> [<country>]
 
 Writes <out-dir>/page.har (the form page, the assets it loads, its questions
 and, with <country>, the States Eightfold loads for it) and

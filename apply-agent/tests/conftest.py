@@ -15,13 +15,14 @@ os.environ["APPLY_HOME"] = tempfile.mkdtemp(prefix="apply-test-home-")
 atexit.register(shutil.rmtree, os.environ["APPLY_HOME"], True)
 
 from apply import browsers, cli, cover_letter, gates, home, profile  # noqa: E402
+from apply.fill_engine import ENGINE_DIR  # noqa: E402
 from apply.model import Kind, Posting, Question  # noqa: E402
 
 from fake_lever import FakeLeverServer  # noqa: E402
 from fakes import FakeJobServer  # noqa: E402
 
-# Saved forms live in the Fill engine (the fill-engine submodule), which is tested on them too.
-FORMS = APPLY / "fill-engine" / "test" / "fixtures" / "forms"
+# Saved forms live in the Fill engine (the extension's submodule), which is tested on them too.
+FORMS = ENGINE_DIR / "test" / "fixtures" / "forms"
 ARC_FORM = FORMS / "greenhouse-arc"
 ARC_URL = "https://job-boards.greenhouse.io/arcboatcompany/jobs/5442881008"
 PURE_STORAGE_FORM = FORMS / "greenhouse-purestorage"
@@ -32,7 +33,7 @@ POLICIES = APPLY / "policies.default.yaml"  # the default policies: they hold no
 # The real Question sets saved by the application-questions research (58 forms: 30 Greenhouse,
 # 18 Ashby, 10 Lever), kept in the Fill engine, whose planner is tested on them.
 RESEARCH_FORMS = {f["company"]: f for f in json.loads(
-    (APPLY / "fill-engine" / "test" / "fixtures" / "planner" / "research-forms.json").read_text())}
+    (ENGINE_DIR / "test" / "fixtures" / "planner" / "research-forms.json").read_text())}
 # Each job system's field types, reduced to the planner's kinds. Ashby's Boolean
 # is a Yes/No choice. Education blocks and hidden fields aren't questions.
 KINDS: dict[str, Kind] = {

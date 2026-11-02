@@ -1,7 +1,7 @@
 """Save a live form on a job system with no Filler, for Claude fill's
 offline tests. Read-only: never submits.
 
-    uv run python tests/save_page.py <posting-url> fill-engine/test/fixtures/forms/<name> ["<button to click>" ...]
+    uv run python tests/save_page.py <posting-url> ../autofiller_extension/fill-engine/test/fixtures/forms/<name> ["<button to click>" ...]
 
 Writes <out-dir>/page.har: every GET the page makes to its own site (hosts
 sharing the posting's domain, plus its job system's static host in ALSO,

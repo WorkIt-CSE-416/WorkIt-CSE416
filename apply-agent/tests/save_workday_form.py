@@ -2,7 +2,7 @@
 Filler's offline tests. Read-only: types nothing, signs in to nothing, submits
 nothing.
 
-    uv run python tests/save_workday_form.py <posting-url> fill-engine/test/fixtures/forms/<name>
+    uv run python tests/save_workday_form.py <posting-url> ../autofiller_extension/fill-engine/test/fixtures/forms/<name>
 
 Writes <out-dir>/page.har: every GET the posting makes to Workday's own hosts
 while it is opened and Apply, then Apply Manually, are clicked, and its sign-in

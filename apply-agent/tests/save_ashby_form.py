@@ -1,6 +1,6 @@
 """Save a live Ashby Posting's form for offline tests. Read-only: never submits.
 
-    uv run python tests/save_ashby_form.py <posting-url> fill-engine/test/fixtures/forms/<name> [<city> [<school>]]
+    uv run python tests/save_ashby_form.py <posting-url> ../autofiller_extension/fill-engine/test/fixtures/forms/<name> [<city> [<school>]]
 
 Writes <out-dir>/page.har (the form page, the Ashby assets it loads and the
 answers to the page's own read-only GraphQL queries) and <out-dir>/questions.json

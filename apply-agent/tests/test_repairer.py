@@ -20,10 +20,10 @@ from apply.tracker import InMemoryTracker, Row
 from fakes import ScriptedUsage
 
 TODAY = date(2026, 10, 16)
-PLANNER = "apply/src/apply/planner.py"
-PLANNER_TEST = "apply/tests/test_planner.py"
+PLANNER = "apply-agent/src/apply/planner.py"
+PLANNER_TEST = "apply-agent/tests/test_planner.py"
 FAILED_ID = "6e2de8e6"
-GREENHOUSE = "apply/src/apply/greenhouse.py"
+GREENHOUSE = "apply-agent/src/apply/greenhouse.py"
 GREENHOUSE_CODE = """from apply.confirmation import wait_for_confirmation
 
 SUBMIT = "Submit application"
@@ -37,7 +37,7 @@ class GreenhouseFiller:
         page.click(SUBMIT)
         wait_for_confirmation(page, lambda: True)
 """
-ENGINE = "apply/fill-engine"
+ENGINE = "autofiller_extension/fill-engine"
 ENGINE_FILLER = "src/greenhouse.ts"
 ENGINE_TEST = "test/greenhouse.spec.ts"
 ENGINE_FILES = {
@@ -80,17 +80,17 @@ def engine_origin(tmp_path: Path) -> Path:
 @pytest.fixture
 def repo(tmp_path: Path, engine_origin: Path) -> Path:
     """Apply's repo: the integration branch checked out, pushed to a bare
-    origin, with the Fill engine as the submodule apply/fill-engine."""
+    origin, with the Fill engine as the submodule autofiller_extension/fill-engine."""
     origin, repo = tmp_path / "origin.git", tmp_path / "repo"
     subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True)
     files = {
         PLANNER: "RULES = []\n",
         PLANNER_TEST: "def test_email():\n    assert True\n    assert 1 == 1\n",
-        "apply/src/apply/submit_guard.py": "BLOCK = True\n",
+        "apply-agent/src/apply/submit_guard.py": "BLOCK = True\n",
         GREENHOUSE: GREENHOUSE_CODE,
-        "apply/tests/conftest.py": "FIXTURES = 'fixtures'\n",
-        "apply/applicant-profile.yaml": "identity:\n  email: lisul@example.com\n",
-        "apply/tests/fixtures/feed.json": "[]\n",
+        "apply-agent/tests/conftest.py": "FIXTURES = 'fixtures'\n",
+        "apply-agent/applicant-profile.yaml": "identity:\n  email: lisul@example.com\n",
+        "apply-agent/tests/fixtures/feed.json": "[]\n",
     }
     new_repo(repo, "apply-livefill", files)
     git(repo, "-c", "protocol.file.allow=always", "submodule", "add", "-q", "-b", "main", str(engine_origin), ENGINE)
@@ -113,7 +113,7 @@ class FakeClaude:
 
     def work(self, **session) -> Drive:
         self.sessions.append(session)
-        self._edit(session["folder"].parent)  # the worktree; the session starts in its apply/
+        self._edit(session["folder"].parent)  # the worktree; the session starts in its apply-agent/
         if self._capped:
             return Drive(None, 81, 7_000_000, capped=True)
         return Drive({"verdict": self._verdict, "summary": "Answer school questions from the profile."}, 12, 300_000)
@@ -196,7 +196,7 @@ class World:
 
 
 def engine_commits(*changes: tuple[str, str | None], message: str = "Pick a school from the list"):
-    """An edit that commits each change inside the Fill engine (apply/fill-engine)."""
+    """An edit that commits each change inside the Fill engine (autofiller_extension/fill-engine)."""
     def edit(folder: Path) -> None:
         commits(*changes, message=message)(folder / ENGINE)
     return edit
@@ -359,7 +359,7 @@ def test_the_session_gets_the_request_the_rules_and_only_the_tools_it_needs(repo
 
     [session] = claude.sessions
     folder = tmp_path / "worktrees" / "keyerror-planner-fit-abc123"
-    assert session["folder"] == folder / "apply"  # where `uv run pytest` runs; edits reach the whole worktree
+    assert session["folder"] == folder / "apply-agent"  # where `uv run pytest` runs; edits reach the whole worktree
     assert session["model"] == "sonnet" and (session["max_turns"], session["max_tokens"]) == (80, 6_000_000)
     assert "KeyError: 'school'" in session["prompt"] and "Traceback ..." in session["prompt"]
     for rule in ("failing test first", "invent a fact about the applicant", "Co-Authored-By", "submit_guard.py"):
@@ -368,16 +368,16 @@ def test_the_session_gets_the_request_the_rules_and_only_the_tools_it_needs(repo
     bash = [rule for rule in session["allowed"] if rule.startswith("Bash")]
     git_commands = ("git add", "git commit", "git diff", "git status", "git log")
     assert sorted(bash) == sorted(f"Bash({c}:*)" for c in (
-        "uv run pytest", *git_commands, *(c.replace("git", "git -C fill-engine") for c in git_commands),
-        "npm --prefix fill-engine test", "npm --prefix fill-engine run build"))
+        "uv run pytest", *git_commands, *(c.replace("git", "git -C ../autofiller_extension/fill-engine") for c in git_commands),
+        "npm --prefix ../autofiller_extension/fill-engine test", "npm --prefix ../autofiller_extension/fill-engine run build"))
     edits = [rule for rule in session["allowed"] if rule.startswith(("Edit", "Write"))]
     # Only Apply's code, tests and docs, and the engine's code, tests and bundle, in its own worktree...
-    assert sorted(edits) == sorted([*(f"Edit(/{folder}/apply/{part}/**)" for part in ("src/apply", "tests", "docs")),
+    assert sorted(edits) == sorted([*(f"Edit(/{folder}/apply-agent/{part}/**)" for part in ("src/apply", "tests", "docs")),
                                     *(f"Edit(/{folder}/{ENGINE}/{part}/**)" for part in ("src", "test", "dist"))])
     # ...and never a conftest.py (which its own `uv run pytest` would run) nor a protected path.
     denied = session["denied"]
     assert f"Edit(/{folder}/**/conftest.py)" in denied
-    for path in ("apply/src/apply/submit_guard.py", "apply/tests/test_repairer.py",
+    for path in ("apply-agent/src/apply/submit_guard.py", "apply-agent/tests/test_repairer.py",
                  f"{ENGINE}/package.json", f"{ENGINE}/playwright.config.ts", f"{ENGINE}/test/build.ts"):
         assert f"Edit(/{folder}/{path})" in denied
     # The applicant's own files live in the data folder: a Repair may read them, never change them.
@@ -385,7 +385,7 @@ def test_the_session_gets_the_request_the_rules_and_only_the_tools_it_needs(repo
     for name in ("applicant-profile.yaml", "story-bank.md", "answer-bank.yaml"):
         assert f"Read(/{home.HOME / name})" in session["allowed"]
         assert str(home.HOME / name) in session["system"]
-    assert "npm --prefix fill-engine test" in session["system"]
+    assert "npm --prefix ../autofiller_extension/fill-engine test" in session["system"]
     assert "conftest.py" in session["system"] and "GreenhouseFiller.submit" in session["system"]
     profiles = Path(session["env"]["APPLY_PROFILES"])
     assert not profiles.is_relative_to(home.HOME / "profiles")  # never a Worker profile
@@ -393,16 +393,16 @@ def test_the_session_gets_the_request_the_rules_and_only_the_tools_it_needs(repo
 
 
 @pytest.mark.parametrize("protected", [
-    "apply/src/apply/submit_guard.py", "apply/applicant-profile.yaml", "apply/policies.yaml", "apply/story-bank.md",
-    "apply/src/apply/orchestrator.py", "apply/src/apply/presubmit.py", "apply/src/apply/keychain.py",
-    "apply/src/apply/accounts.py", "apply/src/apply/repairer.py", "apply/pyproject.toml", "README.md",
+    "apply-agent/src/apply/submit_guard.py", "apply-agent/applicant-profile.yaml", "apply-agent/policies.yaml", "apply-agent/story-bank.md",
+    "apply-agent/src/apply/orchestrator.py", "apply-agent/src/apply/presubmit.py", "apply-agent/src/apply/keychain.py",
+    "apply-agent/src/apply/accounts.py", "apply-agent/src/apply/repairer.py", "apply-agent/pyproject.toml", "README.md",
     # What sends the form, checks it was sent, signs in or reads mail, and what holds an Application or rules it out.
-    "apply/src/apply/confirmation.py", "apply/src/apply/browsers.py", "apply/src/apply/gmail.py",
-    "apply/src/apply/walls.py", "apply/src/apply/eligibility.py", "apply/src/apply/essays.py",
-    "apply/answer-bank.yaml", "apply/src/apply/account_pages.py", "apply/src/apply/oracle.py",
+    "apply-agent/src/apply/confirmation.py", "apply-agent/src/apply/browsers.py", "apply-agent/src/apply/gmail.py",
+    "apply-agent/src/apply/walls.py", "apply-agent/src/apply/eligibility.py", "apply-agent/src/apply/essays.py",
+    "apply-agent/answer-bank.yaml", "apply-agent/src/apply/account_pages.py", "apply-agent/src/apply/oracle.py",
     # Code its own `uv run pytest` would run before any gate: a conftest.py anywhere, or pytest's config.
-    "apply/tests/conftest.py", "apply/tests/workday/conftest.py", "apply/src/apply/conftest.py", "apply/conftest.py",
-    "apply/tests/pytest.ini", "apply/tests/tox.ini",
+    "apply-agent/tests/conftest.py", "apply-agent/tests/workday/conftest.py", "apply-agent/src/apply/conftest.py", "apply-agent/conftest.py",
+    "apply-agent/tests/pytest.ini", "apply-agent/tests/tox.ini",
 ])
 def test_a_repair_that_touches_a_protected_path_waits_for_lisul_on_its_branch(repo, tmp_path, protected):
     world = World(repo, tmp_path, FakeClaude(commits((PLANNER, "RULES = ['school']\n"), (protected, "changed\n"))))
@@ -447,7 +447,7 @@ def test_a_repair_that_changes_how_a_filler_submits_waits_for_lisul(repo, tmp_pa
     assert world.integration(GREENHOUSE) == GREENHOUSE_CODE.rstrip("\n")
 
 
-CLAUDE_FILL = "apply/src/apply/claude_fill.py"
+CLAUDE_FILL = "apply-agent/src/apply/claude_fill.py"
 
 
 @pytest.mark.parametrize("old, new, changed", [
@@ -472,7 +472,7 @@ def test_a_repair_that_changes_how_claude_fill_is_guarded_waits_for_lisul(repo, 
     assert world.integration(CLAUDE_FILL) == guarded.rstrip("\n")
 
 
-EIGHTFOLD = "apply/src/apply/eightfold.py"
+EIGHTFOLD = "apply-agent/src/apply/eightfold.py"
 
 
 def test_a_repair_that_changes_how_eightfold_submits_waits_for_lisul(repo, tmp_path):
@@ -494,7 +494,7 @@ def test_a_repair_that_changes_how_eightfold_submits_waits_for_lisul(repo, tmp_p
     (commits((PLANNER_TEST, "def test_email():\n    assert True\n")), "lost"),
     (commits((PLANNER_TEST, None)), "lost"),
     (commits((PLANNER_TEST, "def test_other():\n    assert True\n    assert 1 == 1\n")), "lost"),
-    (commits(("apply/tests/fixtures/feed.json", "[1]\n")), "saved form"),
+    (commits(("apply-agent/tests/fixtures/feed.json", "[1]\n")), "saved form"),
     (commits((PLANNER, "RULES = ['school']\n"), message="Fix school\n\nCo-Authored-By: Claude <noreply@anthropic.com>"),
      "commit message"),
 ])
@@ -536,7 +536,7 @@ def test_a_missing_fact_no_profile_entry_answers_stays_lisuls(repo, tmp_path):
 
 def test_the_integration_branch_moving_during_a_repair_still_merges(repo, tmp_path):
     def fix_while_lisul_commits(folder: Path) -> None:
-        (repo / "apply/src/apply/lever.py").write_text("QUIRKS = []\n")
+        (repo / "apply-agent/src/apply/lever.py").write_text("QUIRKS = []\n")
         git(repo, "add", ".")
         git(repo, "commit", "-q", "-m", "Fill a Lever quirk")
         FIX(folder)
@@ -547,7 +547,7 @@ def test_the_integration_branch_moving_during_a_repair_still_merges(repo, tmp_pa
 
     assert done.status == FIXED
     assert world.integration() == "RULES = ['school']"
-    assert world.integration("apply/src/apply/lever.py") == "QUIRKS = []"
+    assert world.integration("apply-agent/src/apply/lever.py") == "QUIRKS = []"
 
 
 def test_repairs_stop_at_the_days_cap_and_wait_for_tomorrow(repo, tmp_path):

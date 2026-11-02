@@ -1,6 +1,8 @@
 """The Fill engine (ADR 0004): fills a form from inside its page. It lives in
-the fill-engine submodule as one built bundle, dist/engine.js, which sets the
-page's global `FillEngine`; this loads it into a Playwright page and calls it.
+the extension's submodule (autofiller_extension/fill-engine in the WorkIt
+checkout, or the engine checkout that $APPLY_FILL_ENGINE names) as one built
+bundle, dist/engine.js, which sets the page's global `FillEngine`; this loads
+it into a Playwright page and calls it.
 
 The bundle is run through page.evaluate rather than added as a <script> tag, so
 a page's Content-Security-Policy can't block it. A page that navigates loses
@@ -23,6 +25,7 @@ FillEngine.call, which returns the value or the error by name.
 import base64
 import json
 import mimetypes
+import os
 import re
 import subprocess
 import threading
@@ -41,7 +44,10 @@ from apply.answer_bank import LISUL, AnswerBank
 from apply.model import Answers, FillError, Handoff, MoreQuestions, NoForm, Posting, Question, QuestionSet, Readback, Site
 from apply.profile import ApplicantProfile
 
-ENGINE = Path(__file__).parents[2] / "fill-engine" / "dist" / "engine.js"
+# The Fill engine's checkout: the extension's submodule, so one engine pin serves both.
+ENGINE_DIR = Path(os.environ.get("APPLY_FILL_ENGINE")
+                  or Path(__file__).resolve().parents[3] / "autofiller_extension" / "fill-engine")
+ENGINE = ENGINE_DIR / "dist" / "engine.js"
 
 # Calls the engine in the page through its dispatcher: {value}, or {error: {name, message}}.
 CALL = "({name, args}) => FillEngine.call(name, args)"

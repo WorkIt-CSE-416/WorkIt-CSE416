@@ -1,6 +1,6 @@
 """Save a live Lever Posting's form for offline tests. Read-only: never submits.
 
-    uv run python tests/save_lever_form.py <apply-url> fill-engine/test/fixtures/forms/<name> "<location>"
+    uv run python tests/save_lever_form.py <apply-url> ../autofiller_extension/fill-engine/test/fixtures/forms/<name> "<location>"
 
 Writes <out-dir>/page.har: the /apply page (its HTML carries the Question set),
 the Lever scripts it runs, and the answer to one location search for

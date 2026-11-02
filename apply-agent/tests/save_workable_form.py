@@ -1,6 +1,6 @@
 """Save a live Workable Posting's form for offline tests. Read-only: never submits.
 
-    uv run python tests/save_workable_form.py <apply-url> fill-engine/test/fixtures/forms/<name>
+    uv run python tests/save_workable_form.py <apply-url> ../autofiller_extension/fill-engine/test/fixtures/forms/<name>
 
 Writes <out-dir>/page.har: the /apply page, the Workable scripts it runs and
 the API answers it reads (the form's Question set among them). Each dropdown

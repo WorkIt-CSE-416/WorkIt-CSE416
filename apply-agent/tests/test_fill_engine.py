@@ -103,3 +103,23 @@ def test_a_question_keeps_the_help_text_and_limit_the_engine_reads():
     assert (question.description, question.max_length) == ("Please answer in 3-4 sentences.", 1500)
     [bare] = fill_engine.question_set([{k: v for k, v in found.items() if k not in ("description", "maxLength")}])
     assert (bare.description, bare.max_length) == ("", None)
+
+
+def engine_bundle(**env):
+    """The bundle a fresh Apply process loads, with the given environment."""
+    import os
+    import subprocess
+    import sys
+    code = "from apply.fill_engine import ENGINE; print(ENGINE)"
+    run = subprocess.run([sys.executable, "-c", code], env={**os.environ, **env}, capture_output=True, text=True, check=True)
+    return run.stdout.strip()
+
+
+def test_apply_loads_the_extensions_engine_from_the_workit_checkout():
+    bundle = engine_bundle(APPLY_FILL_ENGINE="")
+    assert bundle == str(APPLY.resolve().parent / "autofiller_extension" / "fill-engine" / "dist" / "engine.js")
+    assert fill_engine.ENGINE.is_file()
+
+
+def test_apply_fill_engine_points_apply_at_another_engine_checkout(tmp_path):
+    assert engine_bundle(APPLY_FILL_ENGINE=str(tmp_path)) == str(tmp_path / "dist" / "engine.js")

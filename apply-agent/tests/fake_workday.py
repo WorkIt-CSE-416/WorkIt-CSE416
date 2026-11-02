@@ -41,6 +41,8 @@ from urllib.parse import parse_qs, quote, urljoin, urlsplit
 
 from playwright.sync_api import Route, sync_playwright
 
+from apply.fill_engine import ENGINE_DIR
+
 from fakes import FakeMailbox, Submission
 
 MAIL_SEARCH = "from:(myworkday.com OR otp.workday.com)"  # Workday mails from both
@@ -240,7 +242,7 @@ document.querySelector('[data-automation-id=click_filter]').onclick = () => {
 
 # The fake's own application step pages: widgets in Workday's DOM shapes. The
 # Fill engine's fake Workday serves the same script, so it lives in its repo.
-STEP_SCRIPT = (Path(__file__).parents[1] / "fill-engine" / "test" / "fake-workday-step.js").read_text()
+STEP_SCRIPT = (ENGINE_DIR / "test" / "fake-workday-step.js").read_text()
 
 # Put on the saved posting pages when the Worker profile already started this
 # application: Workday then offers Continue Application in place of Apply.

@@ -1,6 +1,6 @@
 """Save a live Greenhouse Posting's form for offline tests. Read-only: never submits.
 
-    uv run python tests/save_form.py <posting-url> fill-engine/test/fixtures/forms/<name> ["<location>" ["<school>"]]
+    uv run python tests/save_form.py <posting-url> ../autofiller_extension/fill-engine/test/fixtures/forms/<name> ["<location>" ["<school>"]]
 
 Writes <out-dir>/page.har (the form page and the Greenhouse assets it loads)
 and <out-dir>/questions.json (the Job Board API Question set). If the form asks
