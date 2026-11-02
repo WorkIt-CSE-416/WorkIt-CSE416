@@ -206,8 +206,30 @@ def test_reads_a_dropdowns_options_beside_a_prompt_workday_preset():
     assert "Country Phone Code" not in [q.label for q in questions]  # Workday answered it already
 
 
+# A nested prompt other than How Did You Hear About Us?, whose sources the engine never reads but searches
+# for (KAN-369): its choices are read, and a tenant's tree of them saved.
+SOURCE = "Source"
+
+
 def test_reads_and_fills_a_prompt_whose_search_box_is_bare():
     # Snap's prompts' search boxes carry neither an automation id nor a type attribute (seen live).
+    steps = [("My Information", [
+        Field("source", SOURCE, "prompt", True, ("Company Website", "LinkedIn"), bare=True),
+    ])]
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps) as server, OnePage(server) as site:
+        [question] = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            readback = filler.fill(page, [question], {question.name: "LinkedIn"})
+
+    assert question.options == ("Company Website", "LinkedIn")
+    assert readback == {question.name: "LinkedIn"}
+
+
+def test_how_did_you_hear_is_searched_for_its_answer_never_read():
+    # Reading its sources took 14 s on Adobe (live): the engine searches the prompt for the answer instead.
     steps = [("My Information", [
         Field("source", "How Did You Hear About Us?", "prompt", True, ("Company Website", "LinkedIn"), bare=True),
     ])]
@@ -219,7 +241,7 @@ def test_reads_and_fills_a_prompt_whose_search_box_is_bare():
         with site.open(CACI_URL) as page:
             readback = filler.fill(page, [question], {question.name: "LinkedIn"})
 
-    assert question.options == ("Company Website", "LinkedIn")
+    assert question.options == ()
     assert readback == {question.name: "LinkedIn"}
 
 
@@ -414,7 +436,7 @@ def test_picks_a_nested_prompts_answer_from_inside_its_category_and_reads_it_bac
     # Workday's own How Did You Hear About Us? lists categories first; each opens
     # its own list of sources (seen live: left empty, the step wouldn't save).
     steps = [("My Information", [
-        Field("source", "How Did You Hear About Us?", "prompt", True,
+        Field("source", SOURCE, "prompt", True,
               tree=(("University", ("Career Fair", "Professor")),
                     ("Website", ("Company Website", "Workday.com")),
                     ("Job Board", ("Indeed", "LinkedIn")),
@@ -437,7 +459,7 @@ def test_picks_a_nested_prompts_answer_from_inside_its_category_and_reads_it_bac
 def test_reads_a_nested_prompt_whose_category_holds_a_choice_of_its_own_name():
     # Axiom's Employee Referral category lists Employee Referral among its sources (seen live).
     steps = [("My Information", [
-        Field("source", "How Did You Hear About Us?", "prompt", True,
+        Field("source", SOURCE, "prompt", True,
               tree=(("Career Websites", ("Corporate Website",)),
                     ("Employee Referral", ("Connection In The Company", "Employee Referral")),
                     ("Job Sites", ("Indeed", "LinkedIn")))),
@@ -461,9 +483,9 @@ SOURCES = (("University", ("Career Fair", "Professor")),
 
 
 def apply_once(tree, answer):
-    """One Application's How Did You Hear About Us?, on a new Filler: its options,
+    """One Application's nested Source prompt, on a new Filler: its options,
     readback, what was sent, and how many categories Workday was asked to open."""
-    steps = [("My Information", [Field("source", "How Did You Hear About Us?", "prompt", True, tree=tree)])]
+    steps = [("My Information", [Field("source", SOURCE, "prompt", True, tree=tree)])]
     keychain = InMemoryKeychain()
     filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
     with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps) as server, OnePage(server) as site:
@@ -484,7 +506,7 @@ def test_a_later_application_on_the_tenant_picks_from_its_saved_categories_witho
     assert first[3] == 3  # the first read opened each category with choices
     assert options == first[0]
     assert read == 0 and opened == 1  # only the answer's own category, to pick it
-    assert readback == {"My Information / How Did You Hear About Us?": "Company Website"}
+    assert readback == {f"My Information / {SOURCE}": "Company Website"}
     assert sent == ["Company Website"]
 
 
@@ -497,7 +519,7 @@ def test_a_saved_choice_moved_to_another_category_is_found_by_reading_the_catego
     _, readback, sent, _, _ = apply_once(moved, "Company Website")
     options, _, _, read, _ = apply_once(moved, "LinkedIn")
 
-    assert readback == {"My Information / How Did You Hear About Us?": "Company Website"}
+    assert readback == {f"My Information / {SOURCE}": "Company Website"}
     assert sent == ["Company Website"]
     assert read == 0  # the tree read again was saved
     assert options == ("Career Fair", "Professor", "Workday.com", "Company Website", "Indeed", "LinkedIn", "Other")
