@@ -823,20 +823,27 @@ export async function fillPage({ call, site, questions, answers, accepted, state
  *   (KAN-369), which the connector shows Claude and takes only.
  * - `yours`: questions WorkIt has no answer for (Missing facts, and a draft
  *   that is a file).
- * - `notes`: what the Plan leaves to the student and why (an AI trap or ban,
- *   a video), and a screener the student would not pass.
+ * - `notes`: what the Plan leaves to the student and why that is no one
+ *   field's (an AI trap in the posting, a honeypot), and a screener the
+ *   student would not pass.
+ * - `handed`: the fields the Plan leaves to the student (an AI policy or ban,
+ *   a video, a list with no answer that fits), each with its `reason`, which
+ *   doesn't repeat its label (KAN-513): the field's own row says it, so the
+ *   panel lists it once and its row takes the student to it.
  * A form that bans AI-written text never has `written`: the Plan hands its
  * essays off instead, so nothing AI-written goes where it is banned.
  * - `off`: the answers held back because their Fields to autofill category is
  *   off (KAN-480, holdBack), each with its category's words (`categoryLabel`).
- * @returns {{ written: Row[], yours: Row[], notes: string[], off: (Row & { category: string, categoryLabel: string })[] }}
+ * @returns {{ written: Row[], yours: Row[], notes: string[], handed: (Row & { reason: string })[], off: (Row & { category: string, categoryLabel: string })[] }}
  * @typedef {{ name: string, label: string, required: boolean, max_length?: number | null }} Row
  */
-export function planRows({ plan }) {
+export function planRows({ plan, questions = [] }) {
   const row = (q) => ({ name: q.name, label: q.label, required: q.required });
   const drafts = plan.drafts ?? [];
   const toClaude = (q) => q.kind !== "file" && !tooManyOptions(q);
-  const notes = [...(plan.handoffs ?? [])];
+  const byName = new Map(questions.map((q) => [q.name, q]));
+  const handed = Object.entries(plan.handed ?? {}).filter(([name]) => byName.has(name));
+  const notes = (plan.handoffs ?? []).filter((text) => !handed.some(([, h]) => h.handoff === text));
   if (plan.not_eligible) notes.push(`You may not meet this requirement: ${plan.not_eligible}`);
   return {
     written: [
@@ -845,6 +852,7 @@ export function planRows({ plan }) {
     ],
     yours: [...plan.missing, ...drafts.filter((q) => !toClaude(q))].map(row),
     notes,
+    handed: handed.map(([name, h]) => ({ ...row(byName.get(name)), reason: h.reason })),
     off: plan.off ?? [],
   };
 }

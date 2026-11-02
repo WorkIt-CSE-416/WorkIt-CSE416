@@ -133,6 +133,28 @@ def mark(item_id, kind: str, latex: str) -> str:
 # What a student can pick (KAN-435): fixed lists, so a value never needs
 # escape() and the warm-up can cache every font a page can reach
 FONT_SIZES = (10, 11, 12)
+# A size per kind of text: typed, so a lowest and a highest point in place of a
+# list, in half points. None follows `font_size`, as Jake's does
+NAME_SIZES = (14, 36)
+HEADING_SIZES = (9, 18)
+TITLE_SIZES = (8, 16)
+BODY_SIZES = (8, 14)
+# Each family's files in Tectonic's bundle: regular, bold, italic, bold italic.
+# Tinos, Arimo, Carlito and Caladea match Times New Roman, Arial, Calibri and
+# Cambria letter for letter, so a student gets the look recruiters know, in
+# fonts the bundle may ship. Latin Modern, Jake's, needs no entry
+FONT_FAMILIES = {
+    "tinos": ("Tinos-Regular.ttf", "Tinos-Bold.ttf", "Tinos-Italic.ttf", "Tinos-BoldItalic.ttf"),
+    "caladea": ("Caladea-Regular.ttf", "Caladea-Bold.ttf", "Caladea-Italic.ttf", "Caladea-BoldItalic.ttf"),
+    "eb_garamond": (
+        "EBGaramond-Regular.otf", "EBGaramond-Bold.otf", "EBGaramond-Italic.otf", "EBGaramond-BoldItalic.otf",
+    ),
+    "charter": ("XCharter-Roman.otf", "XCharter-Bold.otf", "XCharter-Italic.otf", "XCharter-BoldItalic.otf"),
+    "arimo": ("Arimo-Regular.ttf", "Arimo-Bold.ttf", "Arimo-Italic.ttf", "Arimo-BoldItalic.ttf"),
+    "carlito": ("Carlito-Regular.ttf", "Carlito-Bold.ttf", "Carlito-Italic.ttf", "Carlito-BoldItalic.ttf"),
+    "open_sans": ("OpenSans-Regular.ttf", "OpenSans-Bold.ttf", "OpenSans-Italic.ttf", "OpenSans-BoldItalic.ttf"),
+    "lato": ("Lato-Regular.ttf", "Lato-Bold.ttf", "Lato-Italic.ttf", "Lato-BoldItalic.ttf"),
+}
 LINE_SPACINGS = (1.0, 1.15, 1.3)
 MARGINS = (0.5, 0.75, 1.0)
 ALIGNMENTS = ("left", "justified")
@@ -159,14 +181,20 @@ SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", 
 _SMALL_LEADING = {10: 11.0, 11: WRAPPED_LINE, 12: 13.6}
 
 
+def _on_scale(size: float | None, scale: tuple[int, int]) -> bool:
+    return size is None or (
+        isinstance(size, (int, float)) and scale[0] <= size <= scale[1] and size * 2 % 1 == 0
+    )
+
+
 @dataclass(frozen=True)
 class PageSettings:
     '''How a built resume's page is set (KAN-435). The defaults are Jake's
     own page: 11 pt, single spacing, half-inch margins, ragged right, black
     headings over a rule, dot bullets, a centred header. Margins are in
     inches: `side_margin` left and right, `top_margin` top and bottom. A
-    value off the lists raises ValueError: this is the one guard before these
-    reach the LaTeX.'''
+    value off the lists, or a size off its scale, raises ValueError: this is
+    the one guard before these reach the LaTeX.'''
 
     font_size: int = 11
     line_spacing: float = 1.0
@@ -180,6 +208,11 @@ class PageSettings:
     show_divider: bool = True
     header_alignment: str = "center"
     section_order: tuple[str, ...] = SECTION_ORDER
+    font_family: str = "latin_modern"
+    name_size: float | None = None
+    heading_size: float | None = None
+    title_size: float | None = None
+    body_size: float | None = None
 
     def __post_init__(self) -> None:
         # Stored as a JSON list, and frozen here
@@ -191,14 +224,20 @@ class PageSettings:
             (self.top_margin, MARGINS), (self.alignment, ALIGNMENTS), (self.section_spacing, SECTION_SPACINGS),
             (self.entry_spacing, ENTRY_SPACINGS), (self.accent, ACCENTS), (self.bullet, BULLETS),
             (self.show_divider, (True, False)), (self.header_alignment, HEADER_ALIGNMENTS),
+            (self.font_family, ("latin_modern", *FONT_FAMILIES)),
         )
-        if any(value not in choices for value, choices in allowed):
+        sizes = (
+            (self.name_size, NAME_SIZES), (self.heading_size, HEADING_SIZES),
+            (self.title_size, TITLE_SIZES), (self.body_size, BODY_SIZES),
+        )
+        if any(value not in choices for value, choices in allowed) or not all(_on_scale(*size) for size in sizes):
             raise ValueError(f"unknown page settings {self!r}")
 
     @property
     def wrapped_line(self) -> float:
         '''The distance between a wrapped bullet's baselines, in points.'''
-        return _SMALL_LEADING[self.font_size] * self.line_spacing
+        lead = _leading(self.body_size) if self.body_size else _SMALL_LEADING[self.font_size]
+        return lead * self.line_spacing
 
 
 DEFAULT_PAGE = PageSettings()
@@ -413,10 +452,51 @@ def escape_url(url: str) -> str:
     return url.translate(_URL_TABLE)
 
 
+def _leading(size: float) -> float:
+    # Jake's own ratio: \\small's 10 on 12
+    return size * 1.2
+
+
+def type_size(size: float) -> str:
+    '''LaTeX for a type size in points, where his commands name one.'''
+    return rf"\fontsize{{{size:g}}}{{{_leading(size):g}}}\selectfont"
+
+
+def _font_lines(family: str) -> list[str]:
+    '''A family's shapes, named straight to the bundle's files: fontspec
+    would add its load time to every edit's compile. Small capitals where the
+    file has them; without them a heading prints in plain capitals and lower
+    case. Behind a test for XeTeX: the student's .tex file may open on
+    Overleaf, whose default is pdfLaTeX, and there it keeps Jake's font.'''
+    regular, bold, italic, both = FONT_FAMILIES[family]
+
+    def shape(series: str, form: str, face: str, more: str = "") -> str:
+        return rf'\DeclareFontShape{{TU}}{{wi}}{{{series}}}{{{form}}}{{<->"[{face}]:mapping=tex-text{more}"}}{{}}'
+
+    return [
+        r"\ifdefined\XeTeXversion",
+        r"\DeclareFontFamily{TU}{wi}{}",
+        shape("m", "n", regular), shape("bx", "n", bold), shape("m", "it", italic), shape("bx", "it", both),
+        shape("m", "sc", regular, ";+smcp"), shape("bx", "sc", bold, ";+smcp"),
+        r"\DeclareFontShape{TU}{wi}{m}{sl}{<->ssub*wi/m/it}{}",
+        r"\DeclareFontShape{TU}{wi}{bx}{sl}{<->ssub*wi/bx/it}{}",
+        r"\renewcommand{\rmdefault}{wi}",
+        r"\fi",
+    ]
+
+
 def _page_lines(page: PageSettings) -> list[str]:
     '''What a page's settings add after Jake's preamble, before
     \\begin{document}: only what differs from his page.'''
     lines = []
+    if page.font_family != DEFAULT_PAGE.font_family:
+        lines += _font_lines(page.font_family)
+    # Jake sets an entry's top row in \\normalsize and everything else that is
+    # not a heading in \\small, so these two reach all of it from one place
+    if page.title_size:
+        lines.append(rf"\renewcommand{{\normalsize}}{{{type_size(page.title_size)}}}")
+    if page.body_size:
+        lines.append(rf"\renewcommand{{\small}}{{{type_size(page.body_size)}}}")
     if page.side_margin != DEFAULT_PAGE.side_margin:
         more = page.side_margin - DEFAULT_PAGE.side_margin
         lines += [
@@ -440,7 +520,7 @@ def _page_lines(page: PageSettings) -> list[str]:
                   r"\sloppy\hyphenpenalty=10000"]
     if page.accent != DEFAULT_PAGE.accent:
         lines.append(rf"\definecolor{{wiaccent}}{{rgb}}{{{ACCENTS[page.accent]}}}")
-    if (page.accent != DEFAULT_PAGE.accent or not page.show_divider
+    if (page.accent != DEFAULT_PAGE.accent or not page.show_divider or page.heading_size
             or page.section_spacing != DEFAULT_PAGE.section_spacing):
         lines.append(_section_format(page))
     if page.entry_spacing != DEFAULT_PAGE.entry_spacing:
@@ -458,7 +538,8 @@ def _section_format(page: PageSettings) -> str:
     rule_color = accent or r"\color{black}"
     rule = rf"{rule_color}\titlerule " if page.show_divider else ""
     space = page.section_spacing - 4
-    return rf"\titleformat{{\section}}{{\vspace{{{space}pt}}\scshape\raggedright\large{accent}}}{{}}{{0em}}{{}}[{rule}\vspace{{-5pt}}]"
+    size = type_size(page.heading_size) if page.heading_size else r"\large"
+    return rf"\titleformat{{\section}}{{\vspace{{{space}pt}}\scshape\raggedright{size}{accent}}}{{}}{{0em}}{{}}[{rule}\vspace{{-5pt}}]"
 
 
 def jakes_document(body: str, page: PageSettings = DEFAULT_PAGE) -> str:

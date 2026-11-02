@@ -602,7 +602,7 @@ window.WIA = window.WIA || {};
       </div>
     `;
     tab.querySelector(".list").addEventListener("click", window.WIA.ui.trusted(jump));
-    tab.querySelector(".list").addEventListener("keydown", jump);
+    tab.querySelector(".list").addEventListener("keydown", window.WIA.ui.trusted(jump));
     unsubscribe = window.WIA.status.subscribe(render);
     render(window.WIA.status.summary());
   }

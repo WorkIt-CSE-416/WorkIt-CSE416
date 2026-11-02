@@ -150,6 +150,13 @@ function Specimen({ cls, demo }: { cls: string; demo: Demo }) {
           />
         </span>
       );
+    case "line":
+      // Looping, so it needs no Replay.
+      return (
+        <span className="bg-brand-tint block h-1.5 w-56 overflow-hidden rounded-full">
+          <span className={cn("bg-brand block h-full origin-left rounded-full", cls)} />
+        </span>
+      );
     case "bell":
       // Hover-driven like the bar's, so it needs no Replay.
       return (

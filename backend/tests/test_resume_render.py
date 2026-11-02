@@ -15,19 +15,29 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
+from typing import get_args
 
 import pytest
 from pdfminer.high_level import extract_pages, extract_text
 from pdfminer.pdfpage import PDFPage
+from pdfminer.pdftypes import resolve1
+from pdfminer.psparser import literal_name
 
+from app.schemas.built_resume import PageSettings as ApiPageSettings
 from app.services import resume_render
 from app.services.resume_render import (
     ALIGNMENTS,
+    BODY_SIZES,
     DEFAULT_PAGE,
+    FONT_FAMILIES,
     FONT_SIZES,
+    HEADING_SIZES,
     LINE_SPACINGS,
     MARGINS,
+    NAME_SIZES,
     TEMPLATE,
+    TITLE_SIZES,
+    WRAPPED_LINE,
     PageSettings,
     TectonicUnavailable,
     box_lines,
@@ -455,6 +465,8 @@ def test_page_settings_go_after_jakes_preamble_and_only_when_they_differ() -> No
 
 
 @pytest.mark.parametrize("settings", [
+    {"font_family": "Comic Sans"}, {"name_size": 99}, {"heading_size": 99}, {"title_size": 99}, {"body_size": 99},
+    {"body_size": 10.25}, {"body_size": 7.5}, {"body_size": float("nan")}, {"body_size": "10"},
     {"font_size": 13}, {"line_spacing": 2.0}, {"side_margin": 0.1}, {"top_margin": 2.0}, {"alignment": r"\\input{/etc/passwd}"},
 ])
 def test_a_page_setting_off_the_lists_never_reaches_the_latex(settings) -> None:
@@ -464,6 +476,10 @@ def test_a_page_setting_off_the_lists_never_reaches_the_latex(settings) -> None:
 
 @pytest.mark.parametrize("page", [
     *(PageSettings(font_size=size) for size in FONT_SIZES),
+    *(PageSettings(font_family=family) for family in FONT_FAMILIES),
+    PageSettings(name_size=NAME_SIZES[0], heading_size=HEADING_SIZES[0], title_size=TITLE_SIZES[0], body_size=BODY_SIZES[0]),
+    PageSettings(name_size=NAME_SIZES[-1], heading_size=HEADING_SIZES[-1], title_size=TITLE_SIZES[-1], body_size=BODY_SIZES[-1]),
+    PageSettings(name_size=31.5, heading_size=15.5, title_size=13.5, body_size=8.5),
     *(PageSettings(line_spacing=spacing) for spacing in LINE_SPACINGS),
     *(PageSettings(side_margin=margin, top_margin=margin) for margin in MARGINS),
     *(PageSettings(alignment=alignment) for alignment in ALIGNMENTS),
@@ -590,3 +606,59 @@ def test_a_moved_section_order_compiles_offline_with_its_boxes() -> None:
     skill = min(b.y0 for b in rendered.boxes if b.kind == "skill")
     bullet = min(b.y0 for b in rendered.boxes if b.kind == "bullet")
     assert skill < bullet
+
+
+def _fonts(page: PDFPage) -> list[str]:
+    fonts = resolve1(page.resources.get("Font", {}))
+    return [literal_name(resolve1(font)["BaseFont"]) for font in fonts.values()]
+
+
+def test_a_family_goes_after_the_preamble_and_only_under_xetex() -> None:
+    tex = jakes_document("x", PageSettings(font_family="tinos"))
+    test, regular, end = tex.index(r"\ifdefined\XeTeXversion"), tex.index("Tinos-Regular.ttf"), tex.index(r"\begin{document}")
+    assert test < regular < end
+    # On Overleaf, whose default is pdfLaTeX, the .tex file keeps Jake's font
+    assert tex.index(r"\renewcommand{\rmdefault}{wi}") < tex.index("\n" + r"\fi" + "\n", regular)
+    assert "XeTeXversion" not in jakes_document("x", PageSettings(font_size=12))
+
+
+@pytest.mark.parametrize("family", FONT_FAMILIES)
+def test_each_family_prints_in_its_own_font(family: str) -> None:
+    _tectonic_or_skip()
+    pdf = render(VIEW, IDENTITY, "jakes", PageSettings(font_family=family)).pdf
+    names = {name.split("+")[-1] for page in PDFPage.get_pages(io.BytesIO(pdf)) for name in _fonts(page)}
+    # The file's name, less its style: Tinos, EBGaramond, XCharter
+    assert any(name.startswith(FONT_FAMILIES[family][0].split("-")[0]) for name in names), names
+    assert not any("LMRoman" in name for name in names), names
+
+
+def test_a_kind_of_text_takes_its_own_size_and_leaves_the_others() -> None:
+    tex = jakes_document("x", PageSettings(body_size=9.5))
+    assert r"\renewcommand{\small}{\fontsize{9.5}{11.4}\selectfont}" in tex
+    assert r"\renewcommand{\normalsize}" not in tex
+    assert PageSettings(body_size=9.5).wrapped_line == pytest.approx(11.4)
+    assert PageSettings().wrapped_line == WRAPPED_LINE
+    assert r"\fontsize{14}{16.8}\selectfont" in jakes_document("x", PageSettings(heading_size=14))
+    assert r"\fontsize{28}" in jakes_body(VIEW, IDENTITY, page=PageSettings(name_size=28))
+    assert r"\Huge" in jakes_body(VIEW, IDENTITY, page=PageSettings(body_size=9.5))
+
+
+def test_every_kind_of_text_changes_the_page_it_prints() -> None:
+    _tectonic_or_skip()
+    plain = render(VIEW, IDENTITY, "jakes", DEFAULT_PAGE).pdf
+    for page in (PageSettings(name_size=20), PageSettings(heading_size=14), PageSettings(title_size=12), PageSettings(body_size=9)):
+        assert render(VIEW, IDENTITY, "jakes", page).pdf != plain, page
+
+
+def test_the_api_takes_exactly_what_the_page_can_print() -> None:
+    family = ApiPageSettings.model_fields["font_family"].annotation
+    assert set(get_args(family)) == {"latin_modern", *FONT_FAMILIES}
+    scales = {"name_size": NAME_SIZES, "heading_size": HEADING_SIZES, "title_size": TITLE_SIZES, "body_size": BODY_SIZES}
+    for field, (low, high) in scales.items():
+        for size in (low, low + 0.5, high):
+            for settings in (ApiPageSettings, PageSettings):
+                assert getattr(settings(**{field: size}), field) == size
+        for size in (low - 0.5, low + 0.25, high + 0.5):
+            for settings in (ApiPageSettings, PageSettings):
+                with pytest.raises(ValueError):
+                    settings(**{field: size})

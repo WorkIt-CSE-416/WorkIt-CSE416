@@ -10,7 +10,7 @@ import { readUploadedPdf } from "@/lib/resume-queries";
  *
  * A route handler, not a server action: Next runs a client's server actions
  * one at a time, so a render of a second or two, or several picks in a row,
- * would hold back Use This Resume's keyword match behind them. Each id goes
+ * would hold back Next's keyword match behind them. Each id goes
  * to the API, which checks the account owns it; the only URL fetched is the
  * file link the API answers for that id.
  */

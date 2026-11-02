@@ -53,13 +53,11 @@ import { RECENT_APPLICANTS } from "./data";
  * role="progressbar" on a value nothing is progressing through — and forced a
  * client boundary on this table to do it.
  *
- * THE MATCH RAMP, not the brand. The bar reads the same --color-match-* steps
- * as the seeker's board ring and match rail (@/lib/match): one magenta hue,
- * deeper for a better match, so a score never reads as the Screening stage's
- * violet badge in the same row. A lower score is a lighter bar, not a red one,
- * so a 77% applicant still does not read as a bad applicant, only a
- * lower-ranked one. Even the lightest step is 3.22:1 on the bg-well track.
- * Length carries the magnitude; the number carries the rest.
+ * THE MATCH COLOURS, not the brand. The bar reads the same --color-match-*
+ * steps as the seeker's board ring and match rail (@/lib/match): red, yellow or
+ * green, so a score never reads as the Screening stage's violet badge in the
+ * same row. Even the yellow step is 3.03:1 on the bg-well track. Length carries
+ * the magnitude; the number carries the rest.
  *
  * The track stays, unlike the bars in ./stage-age.tsx — here there genuinely is
  * a limit, because a percentage is a ratio against one.

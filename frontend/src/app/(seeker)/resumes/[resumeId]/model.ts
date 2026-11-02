@@ -3,6 +3,7 @@ import type { ChoicesUpdate, Choices, RenderBox } from "@/lib/built-resume-actio
 import type { ApplicantProfile } from "@/lib/profile-actions";
 
 import { ALL, rowsOf, type BankRow } from "../../experiences/holdings.ts";
+import { unmarked } from "./text-marks.ts";
 
 /**
  * The editor's reading of the bank and one resume's choices (KAN-218): what
@@ -99,6 +100,12 @@ function ordered<T extends { id: string }>(
     .map((x) => x.item);
 }
 
+/** An entry's bullets that print on this resume, in order. */
+export function shownBullets(entry: BankEntry, choices: Choices) {
+  const row = new Map(choices.bullets.map((c) => [c.bullet_id, c]));
+  return ordered(entry.bullets, (id) => row.get(id)).map((b) => b.id);
+}
+
 /** The PATCH that moves a line one place up (-1) or down (1) among its
  *  shown siblings, renumbering them all so ties can never stall a move; null
  *  at either end. Entries move within their section, bullets within their
@@ -172,7 +179,10 @@ export function printedSections(bank: Bank, choices: Choices, order: string[]): 
           id: e.id,
           title: e.title,
           detail: e.organization ?? null,
-          bullets: ordered(e.bullets, bullet).map((b) => ({ id: b.id, text: wording(choices, b) })),
+          bullets: ordered(e.bullets, bullet).map((b) => ({
+            id: b.id,
+            text: unmarked(wording(choices, b)),
+          })),
         })),
       },
     ];
@@ -326,7 +336,7 @@ export function pickerEntries(bank: Bank, choices: Choices): PickedEntry[] {
       shownIds,
       bullets: [...placed, ...rowless].map((b) => ({
         id: b.id,
-        text: bullet.get(b.id)?.text ?? b.text,
+        text: unmarked(bullet.get(b.id)?.text ?? b.text),
         on: bullet.get(b.id)?.shown === true,
       })),
     };
