@@ -336,7 +336,7 @@ export function AppSidebar({
       <div className={cn("flex size-full min-h-0 flex-col", rail && "bg-panel")}>
         {isMobile && (
           <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
-            <SidebarTrigger className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent [&_svg]:size-4" />
+            <SidebarTrigger className="text-ink hover:text-brand shrink-0 hover:bg-transparent [&_svg]:size-4" />
             {rail ? <LogoLockup /> : <Logo size="bar" />}
           </SidebarHeader>
         )}

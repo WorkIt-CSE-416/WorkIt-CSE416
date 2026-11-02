@@ -44,7 +44,7 @@ export type JobView = Awaited<ReturnType<typeof loadJobView>>;
  *  it. The job page and the application's own page share it, so the two
  *  stay identical. */
 export const JOB_PAGE_WIDTH =
-  "max-w-dashboard mx-auto w-full flex-1 py-6 in-data-split:@4xl/main:px-5!";
+  "max-w-dashboard mx-auto w-full flex-1 py-6 in-data-split:@4xl/main:px-4!";
 
 /** What the application page already knows about its job from the
  *  tracker's row: its stage and when it was applied. Null when the row is
@@ -105,7 +105,7 @@ export async function loadJobView(
   };
 }
 
-/** The job's actions, for JobActionBar: Already Applied?, Auto Apply where it
+/** The job's actions, for JobActionBar: Auto Apply where it
  *  can fill the form, Tailor My Resume and Apply Now. What only keeps or sets
  *  the job aside sits on its card (JobCardActions), after Simplify, so the bar
  *  holds one row beside the tabs. */
@@ -113,17 +113,6 @@ export function JobViewActions({ view, job }: { view: JobView; job: JobListing }
   const { stage, applied, tailored } = view;
   return (
     <>
-      {/* Not for a company account (`applied` null) or a job already marked. */}
-      {applied != null && !applied.appliedAt && (
-        <ApplyButton
-          already
-          jobId={job.id}
-          title={job.title}
-          applyUrl={job.apply_url}
-          canMarkApplied
-          className="text-ink shrink-0"
-        />
-      )}
       {/* Only where auto apply can fill the form (Greenhouse for now). */}
       {job.auto_apply && (
         <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />

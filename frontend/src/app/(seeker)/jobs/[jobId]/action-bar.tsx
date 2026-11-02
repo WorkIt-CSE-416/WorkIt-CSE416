@@ -9,7 +9,7 @@ import { BackToJobs } from "./page-actions";
 
 /**
  * The job posting page's top bar: Back on the left, the job's actions on the
- * right (Already Applied?, Auto Apply, Tailor My Resume, Apply Now), held at the top of the page from md while the description scrolls
+ * right (Auto Apply, Tailor My Resume, Apply Now), held at the top of the page from md while the description scrolls
  * under it, so a seeker can apply or tailor from anywhere in a long posting
  * (2026-10-17). The actions used to sit under the title in the header card and
  * scrolled away with it.
@@ -76,7 +76,7 @@ export function JobActionBar({
         // In the split view's panel: 60px, the list heading's height, with a
         // rule that always shows, running across the pane. A narrow window
         // wraps it taller.
-        "in-data-split:@4xl/main:-mx-5! in-data-split:@4xl/main:mb-5 in-data-split:@4xl/main:px-5! in-data-split:@4xl/main:pt-3 in-data-split:@4xl/main:after:opacity-100",
+        "in-data-split:@4xl/main:-mx-4! in-data-split:@4xl/main:mb-5 in-data-split:@4xl/main:px-4! in-data-split:@4xl/main:pt-3 in-data-split:@4xl/main:after:opacity-100",
       )}
     >
       {/* The split view's list is Back's list, already on screen. */}

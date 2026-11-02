@@ -101,6 +101,7 @@ export function FeedHeader({
           SEEKER_BLEED,
         ],
         SEEKER_GUTTER,
+        flush && "pt-4 pb-3",
         className,
       )}
     >
@@ -108,7 +109,10 @@ export function FeedHeader({
 
       {/* A container, so the facets switch on the row's own width (see
           ./filters), which an open sidebar narrows, not on the window's. */}
-      <div ref={rowRef} className="@container mt-4 flex flex-wrap items-center gap-2">
+      <div
+        ref={rowRef}
+        className={cn("@container flex flex-wrap items-center gap-2", flush ? "mt-3" : "mt-4")}
+      >
         {children}
       </div>
     </div>

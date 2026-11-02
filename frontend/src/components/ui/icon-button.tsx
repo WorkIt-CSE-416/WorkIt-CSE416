@@ -29,13 +29,13 @@ const VARIANTS = {
    *  an unsized 16px glyph is still a 32px target without moving anything
    *  around it. */
   quiet:
-    "text-ink-meta hover:text-ink focus-visible:ring-brand-ring relative inline-flex items-center justify-center rounded-xs after:absolute after:-inset-2 after:content-[''] focus-visible:ring-2",
+    "text-ink hover:text-brand focus-visible:ring-brand-ring relative inline-flex items-center justify-center rounded-xs after:absolute after:-inset-2 after:content-[''] focus-visible:ring-2",
   /** Bordered — an icon action that has to hold its own beside a filled
    *  button, so it needs the same visual weight a button has. Size it at the
    *  call site: the feed card's Not Interested button is size-9, the `sm`
    *  button height (36px), to line up with the actions beside it. */
   outline:
-    "border-border-subtle bg-panel text-ink-meta hover:bg-hover hover:text-ink focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-[3px]",
+    "border-border-subtle bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-[3px]",
   /** Brand disc — an edit affordance overlapping the thing it edits. The border
    *  matches the panel behind it so the disc reads as cut out of the surface. */
   brand:

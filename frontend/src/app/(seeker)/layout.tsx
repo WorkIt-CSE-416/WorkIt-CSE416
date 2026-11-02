@@ -146,7 +146,7 @@ export default async function AppLayout({
         <header className="bg-panel border-border-subtle flex h-16 shrink-0 items-center gap-3 border-b px-3 sm:gap-4 sm:px-4">
           {/* The rail is always open from md, so the toggle only opens the
               phone's sheet. */}
-          <SidebarTrigger className="text-ink-meta hover:text-ink hover:bg-app size-10 shrink-0 rounded-full md:hidden [&_svg]:size-4" />
+          <SidebarTrigger className="text-ink hover:bg-app size-10 shrink-0 rounded-full md:hidden [&_svg]:size-4" />
 
           {/* The panel's header carries the logo from md; below that the
               panel is a sheet and the bar is the only place left for it. */}
@@ -157,7 +157,7 @@ export default async function AppLayout({
             <Logo size="mark" />
           </Link>
 
-          <div className="min-w-0 flex-1 md:pl-4 lg:pl-8">
+          <div className="min-w-0 flex-1 md:pl-2 lg:pl-4">
             <BarTitle
               home={
                 <Suspense

@@ -127,7 +127,7 @@ export function JobsRailFrame({
           className={cn(
             "flex min-h-0 flex-1 flex-col @4xl/main:flex-row",
             split &&
-              "@4xl/main:border-border @4xl/main:rounded-t-card @4xl/main:mx-8 @4xl/main:overflow-hidden @4xl/main:border @4xl/main:border-b-0 lg:@4xl/main:mx-12",
+              "@4xl/main:border-border @4xl/main:rounded-t-card @4xl/main:mx-6 @4xl/main:overflow-hidden @4xl/main:border @4xl/main:border-b-0 lg:@4xl/main:mx-8",
           )}
         >
           <JobsRail
@@ -269,12 +269,12 @@ function JobsRail({
     <aside
       aria-label="Jobs"
       className={cn(
-        "border-border-subtle shrink-0 flex-col @4xl/main:w-[clamp(20rem,27cqw,26rem)] @4xl/main:border-r",
+        "border-border-subtle shrink-0 flex-col @4xl/main:w-[clamp(20rem,30cqw,26rem)] @4xl/main:border-r",
         // Beside a job with no panel, off the sidebar by SEEKER_GUTTER less the
         // rows' own 16px, so the logos start on the page's line.
         split
           ? "@4xl/main:min-h-0"
-          : "sticky top-0 h-[calc(100svh-4rem)] self-start sm:@4xl/main:ml-4 lg:@4xl/main:ml-8",
+          : "sticky top-0 h-[calc(100svh-4rem)] self-start sm:@4xl/main:ml-2 lg:@4xl/main:ml-4",
         split && onList ? "flex" : "hidden @4xl/main:flex",
       )}
     >

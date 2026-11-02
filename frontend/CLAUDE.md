@@ -1539,6 +1539,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (KAN-365), and `custom-icons.tsx`'s `STROKE` matches it. A glyph
   Phosphor lacks goes in `components/custom-icons.tsx` with all its
   weights (`docs/design.md`, Brand and icons).
+- **An icon's colour says its job** (`docs/design.md`, Components): black to
+  click, purple when on, grey for information. Never set a clickable icon to
+  `text-ink-meta`.
 - **Anything clicked or picked is medium (500)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
   combobox rows, which `globals.css` sets by `data-slot` since they set no

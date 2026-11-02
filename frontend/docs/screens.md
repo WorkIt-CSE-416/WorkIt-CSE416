@@ -76,15 +76,14 @@ gone (no data). As the row narrows its facets step out one at a time, least used
 first, Visa is never in the row (All Filters only, asked for 2026-10-10), and
 All Filters stays at every width, a 36px icon button named by its tooltip
 (KAN-519); never stretch it across the row. The row
-is 928px at most, room for five facets: Location, Role, Workplace, Job Type
-and Date Posted. Job Type took Experience's place (KAN-284), since it is
-where Internship is picked, and Experience Level is in All Filters only. Each facet is at least 144px and as wide as its label needs,
-so Date Posted is 149px rather than cut short. While any filter is on, Clear Filters sits just before All Filters
+holds four facets: Location, Role, Workplace and Job Type. Date Posted left it
+for All Filters on 2026-11-02, for the room. Job Type took Experience's place (KAN-284), since it is
+where Internship is picked, and Experience Level is in All Filters only. Each facet is at least 144px and as wide as its label needs. While any filter is on, Clear Filters sits just before All Filters
 (KAN-252, asked for 2026-10-17), an outlined X at its height with "Clear
 filters" in its tooltip, and turns every filter off, keeping ?sort and ?q; a
 cleared /jobs with no ?sort lands on ?sort=match, since the bare URL would
 bring the saved preferences back. As the words "Clear Filters" it took
-the room of Date Posted at every width and wrapped the row on a phone. The
+a facet's room at every width and wrapped the row on a phone. The
 widths at which the facets step in leave room for it whether or not it shows,
 so a pick never pushes a facet out of the row (filters.tsx lists them). Role
 (KAN-155: the `job_roles` list, slugs like software_engineer, a job tagged with
@@ -200,8 +199,9 @@ other. Cards stays the default. It is a layout choice, so it stays with the
 browser after sign-out. The new view is in no URL: `?view=` is taken by old links
 (`readSort`).
 
-Best Match and Newest sit in the filter row as Sort (`SortMenu`), at its right
-end beside All Filters: the Sort By pills beside the view switch read as one kind
+Best Match and Newest sit in the filter row as Sort (`SortMenu`), first in the
+row, with Clear Filters and All Filters at the right end: between those two it
+read as one of them. The Sort By pills beside the view switch read as one kind
 of choice, and in words the two switches looked alike. Sort stays at every width,
 so each facet steps out one width sooner on the Jobs page, and on a phone Sort
 takes Location's place, which All Filters still holds. /search has one order, so
@@ -240,7 +240,8 @@ Simplify's, 2026-11-02): the list and the job share its edge, one rule runs
 under the list's heading and the job's action bar, both 60px, and the job's card
 is drawn flat inside it (`JOB_CARD_IN_PANEL`). The header above it has no rule: a
 full-width line under the filters read as cutting the page in two. The panel's
-pane has a 20px gutter, so the bar's one row fits at a 1280px window.
+pane has a 16px gutter, so the bar's one row fits at a 1280px window beside a
+355px list.
 
 /search has the same choice, as Cards or List: a list of compact cards
 (`compact` on `FeedList`), and a job opens beside the rail with Back. The split
@@ -286,7 +287,7 @@ with no list (a shared link) shows the newest roles. **A job's Save buttons
 follow each other**: a click writes the job's stage into the shown list, and
 `SaveJobButton` reads it, since a job can show two at once. The rail shows from
 `@4xl/main`; below that the page is as it was. It is 20rem to 26rem wide
-(`clamp(20rem,27cqw,26rem)`: 320px at a 1280px window) and the job takes the
+(`clamp(20rem,30cqw,26rem)`: 355px at a 1280px window) and the job takes the
 rest. It scrolls on its own, held to the
 page's height by the shell's 64px bar (4rem); change that with the bar's
 height.
@@ -378,16 +379,16 @@ The page has a `loading.tsx` whose header and Key Requirements skeletons
 stand at the height of what replaces them; Tailor has its own, so this one
 never stands in for it.
 The job's actions sit in one bar with Back, pinned at the top from md
-(`[jobId]/action-bar.tsx`, KAN-246), after the job's tabs (below): Already
-Applied?, Auto Apply, Tailor My Resume and Apply Now, on one row at a 1280px
+(`[jobId]/action-bar.tsx`, KAN-246), after the job's tabs (below): Auto Apply,
+Tailor My Resume and Apply Now, on one row at a 1280px
 window. Ask Scout, Not Interested and Save are bare glyphs at the top right of
 the job's card (`JobCardActions`, after Simplify): in the bar they wrapped Apply
 Now onto a row of its own. Not Interested shows on the job's own page only, and
 is inert, as on the compact card. Below that width the tabs wrap above the actions.
-**Already Applied?** (KAN-519, after Simplify) opens "Did You Apply?" with no trip
-to the employer, for a student who applied without WorkIt, and hides once the job
-is marked or on a company account. It only asks: an Applied button here once
-marked jobs on a misclick, with no undo (KAN-242).
+An Already Applied? link sat here for a day (KAN-519, after Simplify) and was
+taken out for the room it took in the bar. So "Did You Apply?" comes only through
+Apply Now. An Applied button here once marked jobs on a misclick, with no undo
+(KAN-242).
 **The job's tabs are Overview and Company** (`[jobId]/job-tabs.tsx`), in `?tab=`,
 moved in place as the application page's are. Overview is the notes, Key
 Requirements and About the Role. Company (`[jobId]/company-tab.tsx`, `GET

@@ -287,6 +287,16 @@ screen moved together: `--color-border` and `--color-border-subtle` to about the
 same mid grey, and `--color-ink-meta` to #465266 (about 7.8:1 on white). The user
 found them faint beside Simplify's. Tune the tokens, never one screen.
 
+**An icon's colour says its job** (2026-11-02), never which component drew it:
+black (`ink`) if it can be clicked, purple (`brand`) if it is on or selected, grey
+(`ink-meta`) if it only gives information (a job's facts, a field's magnifier, a
+dropdown's arrow), `ink-subtle` if it cannot be used now, and the status colour
+for a status. `IconButton` is black at rest and its `quiet` variant turns purple
+on hover, and an icon beside a label takes the label's colour. Each component
+chose for itself until then, so All Filters was grey beside a black Auto Apply. One
+exception: a segmented control's unpicked option stays grey, since black against
+grey is what says which option is on.
+
 **One scrollbar** (`globals.css`): a 4px thumb on no track, shown while the
 pointer is over what it scrolls. Style it there, never per element.
 

@@ -55,17 +55,17 @@ export function CompactJobCard({
     <article
       data-current={current || undefined}
       className={cn(
-        "hover:bg-hover relative grid grid-cols-[2.75rem_minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 px-4 py-4 transition-colors",
+        "hover:bg-hover relative grid grid-cols-[3rem_minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 px-4 py-4 transition-colors",
         current && "@4xl/main:bg-brand-tint",
       )}
     >
       <CompanyLogo
         name={job.company}
         src={jobLogo(job)}
-        className="text-label rounded-control size-11"
+        className="text-label rounded-control size-12"
       />
       <div className="min-w-0">
-        <h3 className="text-body text-ink line-clamp-2 font-semibold">
+        <h3 className="text-subtitle text-ink line-clamp-2">
           <Link
             href={`/jobs/${encodeURIComponent(job.id)}`}
             title={job.title}
@@ -89,10 +89,10 @@ export function CompactJobCard({
       {/* Under the logo and the buttons too, so these two lines take the card's
           whole width, each on one line. */}
       <div className="col-span-full min-w-0">
-        <p title={place} className="text-note text-ink-muted truncate">
+        <p title={place} className="text-label text-ink-muted truncate font-normal">
           {place}
         </p>
-        <div className="text-note mt-1 flex items-center justify-between gap-3">
+        <div className="text-label mt-1 flex items-center justify-between gap-3 font-normal">
           <p className="text-ink-muted min-w-0 truncate">
             {pay && <span className="text-ink font-medium">{pay}</span>}
             {pay && type && " · "}
