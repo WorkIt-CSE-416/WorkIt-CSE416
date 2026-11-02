@@ -37,9 +37,11 @@ section). A fix to filling goes into the engine, not into Apply.
 
 Apply loads the engine bundle from the extension's submodule:
 `autofiller_extension/fill-engine/dist/engine.js`. Apply has no submodule
-of its own, so one engine pin serves both. An environment variable can
-point Apply at another bundle; `src/apply/fill_engine.py` names it. The
-repairer and the engine checks read the same path.
+of its own, so one engine pin serves both. To use another engine checkout
+(for example, a branch of the engine that you work on), set
+`APPLY_FILL_ENGINE` to its folder. Apply then loads `dist/engine.js` from that
+folder. The tests read the saved forms (`test/fixtures/`) from the same
+folder. The repairer works on the submodule path in its Repair worktree.
 
 Run `git submodule update --init` once per checkout. Without it, Apply
 cannot fill a form, and `uv run apply doctor` says so.
@@ -74,6 +76,9 @@ into it and the window shows "Sample data".
 - Run only the tests that the change touches, with `-k`. For example,
   `tests/test_workday_filler.py` alone takes about 5 minutes; do not run
   the whole file again after each small fix.
+- Run `uv run ruff check .` here before you commit. It uses the backend's
+  ruff config. `pyproject.toml` lists the findings that Apply keeps on
+  purpose, each with its reason.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live
@@ -83,6 +88,16 @@ into it and the window shows "Sample data".
   there.
 - Kill only the processes you started, by PID. Other people's rehearsals
   can run on the same Mac.
+
+## Repairs
+
+A Repair is Claude's fix to Apply's own code for a fill bug (`GLOSSARY.md`,
+`docs/adr/0002`). Repairs are off: `policies.default.yaml` sets
+`repair.max_per_day: 0`. When you turn them on in your data folder, a Repair
+merges into the branch Apply runs from (or `repair.branch`) and pushes to
+this checkout's `origin`, the WorkIt repo. It also moves the engine pointer
+`autofiller_extension/fill-engine` on that branch, which is the extension's
+pointer too. Keep Repairs off on `main`.
 
 ## The privacy gate
 

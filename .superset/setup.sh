@@ -29,8 +29,8 @@ npm ci --prefix frontend
 git submodule update --init ||
   echo "warning: the Fill engine submodule did not load; the extension and Apply cannot fill forms" >&2
 
-# Apply (apply-agent/) has its own Python project. Skip it until its code is
-# in the branch.
+# Apply (apply-agent/) has its own Python project. Branches from before
+# Apply moved here have no apply-agent/pyproject.toml, so skip it there.
 if [ -f apply-agent/pyproject.toml ]; then
   (cd apply-agent && uv sync)
 fi

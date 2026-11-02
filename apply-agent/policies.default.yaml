@@ -1,0 +1,178 @@
+# The default policies for every run (spec #125): which Matches, how many
+# per company, and how questions are answered. Don't edit this file for one
+# applicant: put a policies.yaml in the data folder ($APPLY_HOME, default
+# ~/.config/apply); each key there overrides the key here.
+
+# Live runs: `apply run` and `apply approve-pass` (and so any scheduled Daily
+# sweep) submit for real only when this is true; while false they refuse to
+# start. Rehearsals never submit and ignore it. Keep it off here: turn it on
+# only in your own policies.yaml, once your rehearsals look right (`apply
+# doctor` warns while it is on).
+live_runs: false
+
+# Phone push: after each run, one push to the applicant's phone (the ntfy app)
+# listing the new Holds, Handoffs and Missing facts, with company, role and
+# why. Off until they turn it on; it also needs the ntfy topic in Keychain (`apply
+# push-test` says how, and sends a test push whether this is on or off).
+phone_push: false
+
+# "I certify / I agree / I acknowledge" boxes are ticked only when what they
+# certify is true of the Applicant profile. false: never tick one (each becomes
+# a Missing fact for the applicant).
+tick_consent_when_true: true
+
+# Apply applies only to US roles, so "can you work in London / outside the US?"
+# is answered No (and a sponsorship question there Yes). Without this the Fill
+# engine leaves those questions blank.
+us_roles_only: true
+
+# Opt-ins to texts, WhatsApp, marketing or job alerts.
+sms_opt_in: false
+marketing_opt_in: false
+
+compensation:
+  # A "desired salary / compensation expectations" question in words, when the
+  # Posting names its pay. When it names none, the answer is fallback_hourly in
+  # words ("$30/hr", or "$62,400/year" where the question asks for a year);
+  # with no fallback_hourly, this expectation.
+  expectation: Open to the posted range
+  # Pay asked as a figure (a number box, a list of pay ranges, "desired hourly
+  # rate") gets the middle of the Posting's own pay range, in the field's unit
+  # (an hour, or a year of 40 h x 52 weeks); a Posting that names no pay gets
+  # this hourly rate. null: no rate of your own, so such a field is left for you.
+  fallback_hourly: null
+  # "The pay is $25/hr. Does this work for you?"
+  accept_stated_rate: true
+
+# At most this many Applications to one company in any 7 days, so no employer
+# is spammed. Applications not yet submitted (queued, held, waiting on a
+# Missing fact) count too. Requests skip the cap.
+company_cap: 3
+
+# The Daily cap: at most this many Matches are applied to (submitted or held)
+# in one day, local time, counted from the Tracker's rows for today, so a bad
+# night (a Filler gone wrong, a flood of new Postings) does at most a day's
+# damage. A run that reaches it stops taking Matches, says so, and leaves the
+# rest for tomorrow; Requests and approved Holds go ahead past it (an approved
+# Hold submitted today still counts). 25 covers the Calibration run's 10 plus
+# a normal day's new internship Postings, stays half of JobCopilot's 50 a day
+# and nowhere near the mass volume Greenhouse and Ashby detect, and leaves the
+# Max plan room for the applicant's own Claude work.
+daily_cap: 25
+
+# Employers' own limits on one candidate's applications, stricter in the long
+# run than company_cap: at most `applications` to the company in any `days`
+# days, counted as company_cap counts. A Match over one is skipped (the run
+# says why) and tried again on a later run; a Request over one is applied to
+# anyway, with a warning in the run and a note on its row. A company matches
+# as in target_companies, by the first words of its name. Limits per role ("1
+# per role per year") need no entry: Apply never applies to one title twice.
+employer_limits:
+  # From please-hire-me's data/ats-field-notes.md (MIT, (c) 2026 Alex Wang): github.com/alecswang/please-hire-me
+  OpenAI: {applications: 5, days: 180}
+  Mercor: {applications: 2, days: 60}
+  Cognition: {applications: 1, days: 90}  # "1 per role per 3 months, enforced across the whole board"
+  # Read cautiously: the notes say "90 days per email domain" and give no count.
+  ElevenLabs: {applications: 1, days: 90}
+  # "1 every 6 months" for evergreen reqs only, held to every req since Apply can't tell them apart.
+  Thinking Machines: {applications: 1, days: 182}
+  # As each employer's own Ashby posting states it (fill-engine/test/fixtures/forms/ashby-*):
+  Harvey: {applications: 4, days: 30}
+  Skydio: {applications: 5, days: 60}
+
+# Feed titles in a software or AI/ML category that aren't engineering (data
+# analytics, BI, IT, operations) are dropped, unless the title also names an
+# engineering role. Each entry is a regular expression matched against the
+# lowercased title.
+not_engineering_titles: [
+  analyst, analytics, business intelligence, '\bbi\b', reporting, insights, operations, sales, client solutions,
+  marketing, finance, accounting, supply chain, human resources, '\bhr\b', governance, change management,
+  customer, '\bit\b', information technology, 'help ?desk', technician, product manag,
+]
+
+# Defense, military and ITAR roles are applied to, and questions about working
+# on them are answered Yes.
+defense_roles: true
+
+# "How did you hear about us?": the first of these a form's options contain,
+# and the text typed when the question is free text.
+how_heard:
+  prefer: [careers page, career site, company website, linkedin, job board, other]
+  text: Company careers page
+
+# Cover letters: "always" writes one wherever a form offers it, optional or
+# not (career centers say send one even when optional; research/cover-letter.md);
+# "only_when_required" writes one only where the form requires it. A company in
+# cover_letter_never gets none unless its form requires one: Amazon "doesn't
+# accept cover letters". A company matches as in target_companies.
+cover_letter: always
+cover_letter_never: [Amazon]
+
+# A form's list of roles ("Which role are you applying for?") gets the one the
+# Posting's title names, else the first of these an option's wording holds.
+target_role_wordings: [software engineer, software development, software]
+
+# Every essay on these job systems is a High-stakes essay, whose Application is
+# held, in case the job system flags AI-written text.
+high_stakes_job_systems: [ashby]
+
+# Every Application to a Target company is held for the applicant's approval.
+# A company matches when its name starts with one of these words ("Amazon Web
+# Services", but not "Metabase"). None by default; e.g. [Google, Meta, Stripe].
+target_companies: []
+
+# The Calibration run: the first this many Applications are all held, so the
+# applicant can judge Claude's answers before anything is submitted unseen.
+calibration_run: 10
+
+# Off (null) by default: an unreviewed Answer bank draft is used again on every
+# form that asks it, and each run lists those used again. Set a number N to
+# hold every Application that uses an unreviewed draft for the Nth time or
+# later, until the applicant reviews or edits it in the Answers tab.
+max_unreviewed_uses: null
+
+# Workers' Chrome runs headless (true: no window; the applicant watches every
+# Worker in the dashboard) or headed (false: a visible window per Worker, as other
+# auto-apply tools run). Runs and rehearsals both follow it. Each Tracker row
+# notes which ran, beside the Bot signals the job system showed, so `apply
+# signals` can compare the two before this is decided. Headed
+# (2026-10-17), after all three watched headless submits were blocked (#124).
+worker_headless: false
+
+# Claude fill, for job systems with no Filler, stops at this cap
+# for one Application and hands it off to the applicant. Each row it fills logs what
+# it cost ("Claude fill: ... tokens"); tune the cap from those. About 90% of
+# those tokens are cache reads, each turn re-reading the page so far. Live
+# rehearsals (2026-10-16) of Workable, Rippling, Waymo, Zipline, Optiver and
+# BambooHR forms stopped at 40 turns / 400k with the form half filled; one
+# BambooHR form that finished took 263k.
+claude_fill:
+  max_turns: 80
+  max_tokens: 1200000
+
+# Scheduled runs (`apply schedule install`, launchd): the Daily sweep, `apply
+# run`, once a day at daily_sweep_at, local time; and the Requests check,
+# `apply run --requests-only`, every 5 minutes. Keep the time quoted (YAML
+# reads a bare 07:00 as a number). 07:00 runs before the applicant's day starts,
+# so Holds and Missing facts are waiting when they first look, and the run's
+# Claude use falls in a five-hour window that resets by midday; a Mac asleep
+# at 07:00 runs it when it wakes.
+schedule:
+  daily_sweep_at: "07:00"
+
+# Records (docs/records-setup.md): each Application's Record is committed and
+# pushed to this private git repo of your own, and its Tracker link opens it
+# on GitHub. Unset, Records stay in the data folder's records/ and doctor says so.
+records_remote: null
+
+# Repairs (GLOSSARY: Repair): after each run or rehearsal, Claude fixes
+# Apply's own code for what went wrong, in a worktree of its own, and the fix
+# is merged only if it passes the gate (docs/adr/0002). At most max_per_day
+# Repairs start a day, each stopped at max_turns turns or max_tokens tokens
+# (cache reads count, as for Claude fill). branch: the integration branch a
+# Repair merges into; unset, the branch Apply runs from.
+repair:
+  max_per_day: 0
+  model: sonnet
+  max_turns: 80
+  max_tokens: 6000000
