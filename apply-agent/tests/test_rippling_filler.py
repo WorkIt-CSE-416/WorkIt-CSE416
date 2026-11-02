@@ -1,7 +1,7 @@
 """Seam 2: the Rippling Filler against Rippling's saved job API answers and a fake Rippling form."""
 
 import pytest
-from conftest import APPLY, FIXTURES, FORMS
+from conftest import FIXTURES, FORMS
 from fake_rippling import FakeRipplingServer
 
 from apply import company, request
@@ -124,7 +124,7 @@ def test_a_rippling_posting_is_filled_by_the_rippling_filler():
 
 def test_the_location_is_planned_as_rippling_s_city_search_names_it():
     # The page asks "Location", a search of Google's cities ("Woodbury, NY, USA").
-    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.yaml")
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml")
     with FakeRipplingServer(RIPPLING_FORM) as server:
         questions = RipplingFiller().question_set(RIPPLING_URL, server)
 
@@ -199,10 +199,12 @@ def test_waits_for_rippling_to_put_in_what_it_parsed_before_filling_over_it(one_
 SMS_YES = "Yes - I consent to receiving text messages"
 
 
-def test_every_rippling_form_asks_for_text_message_consent_and_lisul_gives_it(one_pager):
+def test_every_rippling_form_asks_for_text_message_consent_and_lisul_gives_it(one_pager, data_folder):
     # Shown under the questions on Rippling's, Collier's and Tive's forms (seen live 2026-10-16), never in the API.
+    # Lisul says yes to texts (sms_opt_in in his policies); the default is no.
+    (data_folder / "policies.yaml").write_text("sms_opt_in: true\n")
     filler = RipplingFiller()
-    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.yaml")
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml")
     with FakeRipplingServer(RIPPLING_FORM) as server:
         questions = filler.question_set(RIPPLING_URL, server)
         [sms] = [q for q in questions if "text message" in q.label]

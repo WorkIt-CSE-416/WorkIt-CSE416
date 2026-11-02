@@ -37,6 +37,6 @@ class Site:
 def test_a_question_for_todays_date_gets_the_date_the_worker_was_given():
     filler = OneQuestionFiller()
     posting = Posting("request-1", "", "", "https://wd1.myworkdaysite.com/recruiting/snapchat/snap/job/LA/Intern_R1")
-    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.yaml")
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
     apply_to(posting, filler, Site(), profile, FakeClaude(), today=date(2031, 3, 4))
     assert filler.answers == {"ack": "03/04/2031"}

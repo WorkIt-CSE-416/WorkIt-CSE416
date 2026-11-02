@@ -212,11 +212,13 @@ def test_a_choice_among_many_options_is_searched_for_and_reads_back():
     assert server.submissions == []
 
 
-def test_a_texts_consent_under_the_phone_field_is_asked_and_lisul_gives_it():
+def test_a_texts_consent_under_the_phone_field_is_asked_and_lisul_gives_it(data_folder):
     # Patreon (seen live, 2026-10-20): Ashby puts the consent's radios under
     # Phone, not among the form's fields, so it was never asked or ticked.
+    # Lisul says yes to texts (sms_opt_in in his policies); the default is no.
+    (data_folder / "policies.yaml").write_text("sms_opt_in: true\n")
     filler = AshbyFiller()
-    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml")
     with FakeJobServer(PATREON_FORM) as server:
         questions = filler.question_set(PATREON_URL, server)
         [sms] = [q for q in questions if "text message" in q.label]
