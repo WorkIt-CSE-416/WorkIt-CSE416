@@ -210,7 +210,7 @@ export function TopMatchesList({
           aria-label="Top Matches"
           className={cn(
             LIST,
-            "scrollbar-quiet focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2 focus-visible:outline-none",
+            "focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2 focus-visible:outline-none",
           )}
         >
           {withStage.map((row, i) => {

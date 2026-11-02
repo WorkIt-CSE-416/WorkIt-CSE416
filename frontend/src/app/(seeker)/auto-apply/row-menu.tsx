@@ -96,11 +96,11 @@ export function RowMenu<T extends ActivityItem>({
       />
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuItem onClick={() => onResume(item)}>
-          <FileTextIcon aria-hidden className="text-ink-meta size-4" />
+          <FileTextIcon aria-hidden className="text-ink size-4" />
           Change Resume
         </DropdownMenuItem>
         <DropdownMenuItem onClick={markApplied}>
-          <Applied className="text-ink-meta size-4" />I Already Applied
+          <Applied className="text-ink size-4" />I Already Applied
         </DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onClick={() => onRemove(item)}>
           <XIcon aria-hidden className="size-4" />

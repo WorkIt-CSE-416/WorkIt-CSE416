@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/ui/card";
-import { SectionHeading } from "@/components/ui/section-heading";
+import { SectionHeadingSkeleton } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
 import { BackLink } from "../../back-link";
@@ -64,10 +64,10 @@ export default function ApplicationLoading() {
           </div>
         </Card>
 
-        <section className="mt-5">
-          <SectionHeading>What You Sent</SectionHeading>
+        <div className="mt-5">
+          <SectionHeadingSkeleton />
           <Skeleton aria-hidden="true" className="mt-3 h-12 w-full" />
-        </section>
+        </div>
       </div>
     </div>
   );

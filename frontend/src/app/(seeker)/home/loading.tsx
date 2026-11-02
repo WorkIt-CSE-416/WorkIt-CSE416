@@ -1,4 +1,4 @@
-import { HomeFrame, HeadingSkeleton } from "./frame";
+import { HomeFrame } from "./frame";
 import { HeadlineSkeleton } from "./headline";
 import { StreakSkeleton } from "./streak";
 import { TopMatchesSkeleton } from "./top-matches";
@@ -27,7 +27,6 @@ import { TopMatchesSkeleton } from "./top-matches";
 export default function HomeLoading() {
   return (
     <HomeFrame
-      heading={<HeadingSkeleton />}
       tiles={<HeadlineSkeleton />}
       topMatches={<TopMatchesSkeleton className="mt-4" />}
       activity={<StreakSkeleton className="mt-4" />}

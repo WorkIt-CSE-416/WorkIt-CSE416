@@ -173,7 +173,7 @@ export default async function CompanyLayout({ children }: { children: React.Reac
           fixed element's containing block is the viewport unless an ancestor
           carries a transform, and none does.
 
-          @container/main, overscroll-contain and the skip link's target, as
+          @container/main, overscroll-y-none and the skip link's target, as
           in the seeker shell: pages break on the width beside the panel, a
           fling cannot chain onto the document, and tabIndex -1 lets the
           <main> take focus without adding a tab stop. */}
@@ -182,7 +182,7 @@ export default async function CompanyLayout({ children }: { children: React.Reac
         <SidebarInset
           id="content"
           tabIndex={-1}
-          className="@container/main flex-1 overflow-y-auto overscroll-contain focus:outline-none"
+          className="@container/main flex-1 overflow-y-auto overscroll-y-none focus:outline-none"
         >
           {children}
         </SidebarInset>

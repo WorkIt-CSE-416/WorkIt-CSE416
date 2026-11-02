@@ -204,6 +204,9 @@ export type SegmentedToggleOption = {
   label: ReactNode;
   /** Its accessible name, when `label` is abbreviated ("7D"). */
   ariaLabel?: string;
+  /** Draws the option as this glyph alone, sized by the caller (`size-4`);
+   *  `label` is then its tooltip and, as text, its accessible name. */
+  icon?: ReactNode;
 };
 
 export function SegmentedToggle({
@@ -238,16 +241,28 @@ export function SegmentedToggle({
         count={options.length}
         size={size}
       />
-      {options.map((option) => (
-        <Toggle
-          key={option.value}
-          value={option.value}
-          aria-label={option.ariaLabel}
-          className={itemClass(size, option.value === value)}
-        >
-          {option.label}
-        </Toggle>
-      ))}
+      {options.map((option) => {
+        const toggle = (
+          <Toggle
+            key={option.value}
+            value={option.value}
+            aria-label={option.icon ? String(option.label) : option.ariaLabel}
+            className={itemClass(size, option.value === value, Boolean(option.icon))}
+          >
+            {option.icon ?? option.label}
+          </Toggle>
+        );
+
+        // As SegmentedLinks does: a glyph says nothing until it is named.
+        return option.icon ? (
+          <Tooltip key={option.value}>
+            <TooltipTrigger render={toggle} />
+            <TooltipContent>{option.label}</TooltipContent>
+          </Tooltip>
+        ) : (
+          toggle
+        );
+      })}
     </ToggleGroup>
   );
 }

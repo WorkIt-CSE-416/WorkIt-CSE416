@@ -71,12 +71,13 @@ export function NotificationsMenu({
               className,
             )}
           >
-            {/* Swings on its hook once as the pointer arrives. */}
-            <BellIcon className="group-hover/bell:animate-swing size-4 origin-[50%_15%]" />
+            {/* Swings on its hook once as the pointer arrives. 24px, the sidebar
+                icons' size: with no circle round it, 16px read as too small. */}
+            <BellIcon className="group-hover/bell:animate-swing size-6 origin-[50%_15%]" />
             {unreadCount > 0 && (
               <span
                 aria-hidden
-                className="bg-brand ring-surface absolute top-1 right-1 size-2 rounded-full ring-2"
+                className="bg-brand ring-surface absolute top-1.5 right-1.5 size-2 rounded-full ring-2"
               />
             )}
           </IconButton>

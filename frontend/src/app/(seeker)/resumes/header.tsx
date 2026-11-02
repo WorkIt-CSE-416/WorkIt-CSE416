@@ -4,26 +4,14 @@ import { SegmentedLinks } from "@/components/ui/segmented-control";
 
 export type ResumesView = "resumes" | "experiences";
 
-/** Each view's own title and line, so the heading says where you are. */
-const VIEWS: Record<ResumesView, { title: string; description: string }> = {
-  resumes: {
-    title: "Resumes",
-    description: "Resumes you uploaded or made from your experiences.",
-  },
-  experiences: {
-    title: "Experiences",
-    description: "Add each thing you did once. Every resume you make draws from here.",
-  },
-};
-
 /**
- * The header the two views of Resumes & Experiences share: the view's own
- * title and line on the left, and at the top right the switcher, then the
- * view's primary action where it has one (Fill With Scout on Experiences;
- * the Resumes view's buttons sit on its filter row since KAN-362). It is drawn
- * as Home's is: a <header> whose controls sit at the right, level
- * with the foot of the title's block, and wrap under it where the page is
- * narrow. The views are two routes, /resumes and /experiences, so every link to
+ * The header the two views of Resumes & Experiences share: the view's search
+ * on the left and the switcher at the right, as on the Jobs page and the
+ * Applications Tracker, with the view's primary action before it where it has
+ * one (Fill With Scout on Experiences; the Resumes view's buttons sit on its
+ * filter row since KAN-362). On a phone the search takes a line of its own, so
+ * the switcher's words never squeeze it. The view's title is in the top bar
+ * (../bar-title.tsx). The views are two routes, /resumes and /experiences, so every link to
  * either still lands; the switcher is plain links between them, not a
  * shallow move, since each view reads its own data on the server.
  *
@@ -31,25 +19,33 @@ const VIEWS: Record<ResumesView, { title: string; description: string }> = {
  * until KAN-249: a student building a resume went back and forth between
  * them, and each page's header pointed at the other with a button of its own.
  */
-export function ResumesHeader({ view, action }: { view: ResumesView; action?: ReactNode }) {
-  const { title, description } = VIEWS[view];
+export function ResumesHeader({
+  view,
+  search,
+  action,
+}: {
+  view: ResumesView;
+  search?: ReactNode;
+  action?: ReactNode;
+}) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 className="text-heading text-ink">{title}</h1>
-        <p className="text-body text-ink-meta mt-1">{description}</p>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
+    <header className="flex flex-wrap items-center gap-3">
+      {search}
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+        {action}
         <SegmentedLinks
           label="Resumes or Experiences"
           value={view}
           options={[
-            { value: "resumes", label: VIEWS.resumes.title, href: "/resumes" },
-            { value: "experiences", label: VIEWS.experiences.title, href: "/experiences" },
+            { value: "resumes", label: "Resumes", href: "/resumes" },
+            { value: "experiences", label: "Experiences", href: "/experiences" },
           ]}
         />
-        {action}
       </div>
     </header>
   );
 }
+
+/** The width of a search in this header: the Tracker's, down to where it
+ *  takes its own line. */
+export const RESUMES_SEARCH = "min-w-48 flex-1 @lg/main:max-w-64";

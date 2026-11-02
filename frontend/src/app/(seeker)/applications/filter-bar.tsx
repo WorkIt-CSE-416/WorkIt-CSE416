@@ -22,6 +22,7 @@ import {
 } from "./field-filters";
 import { StatusIcon } from "./icons";
 import { ColumnsMenu } from "./list-controls";
+import { ViewSwitcher } from "./view-switcher";
 import {
   applicationsHref,
   DEFAULT_SORT,
@@ -104,9 +105,11 @@ export function FilterBar({
   );
 
   return (
-    <div className="mt-6 flex flex-col gap-3">
-      <div>
-        <Form action="/applications" className="w-full @lg/main:w-64">
+    <div className="flex flex-col gap-3">
+      {/* The switcher is two glyphs, so it fits beside the search at every
+          width. */}
+      <div className="flex items-center justify-between gap-3">
+        <Form action="/applications" className="min-w-0 flex-1 @lg/main:max-w-64">
           {query.view !== DEFAULT_VIEW && <input type="hidden" name="view" value={query.view} />}
           {picks.stages.length > 0 && (
             <input type="hidden" name="stage" value={picks.stages.join(",")} />
@@ -127,6 +130,7 @@ export function FilterBar({
             enterKeyHint="search"
           />
         </Form>
+        <ViewSwitcher />
       </div>
 
       {/* THE DROPDOWNS STEP OUT ONE AT A TIME, least used first, from the

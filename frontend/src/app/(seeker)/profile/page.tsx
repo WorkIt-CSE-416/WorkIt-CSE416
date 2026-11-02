@@ -138,13 +138,6 @@ export default function ProfilePage() {
 
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <div className="mb-6">
-        <h1 className="text-heading text-ink">My Profile</h1>
-        <p className="text-body text-ink-meta mt-1">
-          What employers see and what WorkIt fills in for you.
-        </p>
-      </div>
-
       {loadFailed && (
         <p
           role="status"
