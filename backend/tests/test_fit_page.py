@@ -18,7 +18,7 @@ from app.services.fit_page import (
     plan,
     skill_levels,
 )
-from app.services.resume_render import Box, Rendered, Shrink, TextArea, render, sample
+from app.services.resume_render import Box, PageSettings, Rendered, Shrink, TextArea, render, sample
 from app.services.resume_view import (
     ResumeView,
     ViewBullet,
@@ -316,24 +316,24 @@ def test_a_fit_render_that_fails_once_is_tried_again(monkeypatch):
 
     calls = []
 
-    def flaky(view, identity, template):
+    def flaky(view, identity, template, page):
         calls.append(view)
         if len(calls) == 1:
             raise TectonicUnavailable("tectonic timed out")
         return Rendered(b"%PDF", 1)
 
     monkeypatch.setattr(route, "render", flaky)
-    assert asyncio.run(route._render(sample.VIEW, sample.IDENTITY, "jakes", tries=2)).page_count == 1
+    assert asyncio.run(route._render(sample.VIEW, sample.IDENTITY, "jakes", PageSettings(), tries=2)).page_count == 1
     assert len(calls) == 2
 
     # A render that fails twice is a 503
-    def broken(view, identity, template):
+    def broken(view, identity, template, page):
         calls.append(view)
         raise TectonicUnavailable("tectonic failed")
 
     calls.clear()
     monkeypatch.setattr(route, "render", broken)
     with pytest.raises(HTTPException) as failed:
-        asyncio.run(route._render(sample.VIEW, sample.IDENTITY, "jakes", tries=2))
+        asyncio.run(route._render(sample.VIEW, sample.IDENTITY, "jakes", PageSettings(), tries=2))
     assert failed.value.status_code == 503
     assert len(calls) == 2
