@@ -19,7 +19,7 @@ from workit_scout.identity import placeholders_in
 
 from app.schemas.assistant import Action, AssistantReading, AssistantTurn
 from app.services.bank import Bank, NotFound
-from app.services.resume_view import Choices
+from app.services.resume_view import Choices, unmarked
 from app.services.truth_rule import invented
 
 # One frozen string, so providers can cache it as a prefix.
@@ -83,7 +83,7 @@ def selected_line(bank: Bank, choices: Choices, turn: AssistantTurn) -> Line | N
             for bullet in entry.bullets:
                 if bullet.id == turn.bullet_id:
                     choice = choices.bullets.get(bullet.id)
-                    return Line("bullet", (choice and choice.text) or bullet.text, bullet.text)
+                    return Line("bullet", unmarked((choice and choice.text) or bullet.text), bullet.text)
         raise NotFound
     if turn.entry_id:
         row = next((e.row for e in bank.entries if e.row.id == turn.entry_id), None)

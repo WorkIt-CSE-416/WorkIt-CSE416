@@ -7,6 +7,7 @@ section has the setup.
 
 import json
 import uuid
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -24,6 +25,7 @@ from app.models.profiles import Company_Membership, Company_Profile
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.jobs import JobListing
 from app.scripts.import_jobs import _extract_keywords, import_feed
+from app.services import keywords
 from tests import fake_models
 
 pytestmark = pytest.mark.anyio
@@ -42,6 +44,25 @@ KEYWORDS = [
 def reading(keywords) -> list[str]:
     """A ScriptedLLM script: the model's JSON reply with these keywords."""
     return [json.dumps({"keywords": keywords})]
+
+
+def test_a_keyword_reads_as_a_resume_prints_it():
+    for typed, printed in [
+        ("user research", "User Research"), ("sql", "SQL"), ("rest apis", "REST APIs"), ("ci/cd", "CI/CD"),
+        ("data structures and algorithms", "Data Structures and Algorithms"), ("front-end development", "Front-End Development"),
+        ("c++", "C++"), ("node.js", "Node.js"),
+        # A word the posting capitalized its own way stays
+        ("iOS", "iOS"), ("McKinsey consulting", "McKinsey Consulting"),
+    ]:
+        assert keywords.resume_case(typed) == printed
+
+
+def test_keywords_cached_in_lower_case_read_as_a_resume_prints_them():
+    job = SimpleNamespace(title="Designer", description="Do research.", keywords=None, keywords_hash=None)
+    job.keywords = [{"keyword": "user research", "kind": "required"}]
+    job.keywords_hash = keywords.posting_hash(job)
+
+    assert [k.keyword for k in keywords.cached(job)] == ["User Research"]
 
 
 def rate_limited() -> RateLimitError:

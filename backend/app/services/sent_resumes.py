@@ -108,7 +108,10 @@ def content_hash(
     serialize field by field in a fixed order; dates and decimals by str.
     Word files were kept with "format" in this payload until KAN-267; a PDF
     never had it, so a repeat still matches a sent resume kept before."""
-    payload = {"template": template, "identity": _identity(identity), "view": dataclasses.asdict(view), **_page(page)}
+    # An empty `marked` stays out, so a resume with no bold or italic still
+    # matches a sent resume kept before KAN-435
+    plain = dataclasses.asdict(view, dict_factory=lambda items: {k: v for k, v in items if k != "marked" or v})
+    payload = {"template": template, "identity": _identity(identity), "view": plain, **_page(page)}
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
 

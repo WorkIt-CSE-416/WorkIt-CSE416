@@ -3,6 +3,14 @@
 import { MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon } from "@phosphor-icons/react/ssr";
 import { useSyncExternalStore } from "react";
 
+import { ChevronDownIcon } from "@/components/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { EDITOR_ZOOM_KEY, readLocalDraft, writeLocalDraft } from "@/lib/local-drafts";
 
@@ -62,18 +70,24 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
       >
         <MagnifyingGlassMinusIcon aria-hidden />
       </Button>
-      <select
-        aria-label="Zoom"
-        value={zoom}
-        onChange={(e) => onZoom(Number(e.target.value))}
-        className="text-note text-ink-muted hover:bg-ink/5 h-7 cursor-pointer appearance-none rounded-md bg-transparent px-1.5 text-center font-medium tabular-nums"
-      >
-        {ZOOMS.map((step) => (
-          <option key={step} value={step}>
-            {step}%
-          </option>
-        ))}
-      </select>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label={`Zoom, ${zoom}%`}
+          render={<Button variant="ghost" size="sm" />}
+        >
+          {zoom}%
+          <ChevronDownIcon className="text-ink-meta size-3.5" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent data-keeps-selection align="center" className="w-auto min-w-24">
+          <DropdownMenuRadioGroup value={String(zoom)} onValueChange={(to) => onZoom(Number(to))}>
+            {ZOOMS.map((step) => (
+              <DropdownMenuRadioItem key={step} value={String(step)}>
+                {step}%
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Button
         variant="ghost"
         size="icon-sm"

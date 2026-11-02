@@ -12,26 +12,17 @@ import { TAILOR_STEPS, type TailorStep } from "./tailor-steps";
 import { jobLogo } from "@/lib/job-logo";
 
 /**
- * A pick step's top under its `TailorBar`: the step's title, the job it
- * tailors for (`TailorJobLine`), and the step's line (`HEADINGS` in
- * ./tailor-screen.tsx). The intro sat inside the picker card until the
- * step views (2026-10-26), where it read as the card's instructions.
+ * A pick step's top under its `TailorBar`: the step's title (`HEADINGS` in
+ * ./tailor-screen.tsx) and the job it tailors for (`TailorJobLine`). The
+ * intro sat inside the picker card until the step views (2026-10-26), where
+ * it read as the card's instructions, and then as a line here until
+ * 2026-11-01.
  */
-export function TailorHeader({
-  job,
-  title,
-  children,
-}: {
-  job: JobListing;
-  title: string;
-  /** The line under the title, sentence case. */
-  children: ReactNode;
-}) {
+export function TailorHeader({ job, title }: { job: JobListing; title: string }) {
   return (
     <>
       <h1 className="text-heading text-ink">{title}</h1>
       <TailorJobLine job={job} className="mt-1" />
-      <p className="text-body text-ink-meta mt-2 max-w-[68ch]">{children}</p>
     </>
   );
 }
@@ -108,7 +99,7 @@ export function TailorReviewBar({ job, resumeId }: { job: JobListing; resumeId: 
 /**
  * Every Tailor step's top row (2026-10-26): Back at the left, the step on
  * one line in the middle ("Choose Keywords · Step 2 of 3"), and the step's
- * way on at the right (Use This Resume, Tailor Resume, Finish), in the
+ * way on at the right (Next, Tailor Resume, Finish), in the
  * brand tint with its ring, as the Suggestions panel is, so the frame
  * stands apart from the content under it. It replaced the step timeline
  * (`TailorSteps`), the pick steps' Back above the title, and the buttons at

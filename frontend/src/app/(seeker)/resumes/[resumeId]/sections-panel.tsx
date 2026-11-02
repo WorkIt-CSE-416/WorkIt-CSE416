@@ -162,11 +162,11 @@ export function SectionsOutline({
     const open = opened.has(entry.id);
     return (
       <div>
-        <div className="flex items-start gap-1 py-1">
+        <div className="flex items-center gap-1 py-1">
           {handle}
           <button
             type="button"
-            className="focus-visible:outline-brand mt-0.5 min-w-0 flex-1 text-left focus-visible:outline-2"
+            className="focus-visible:outline-brand min-w-0 flex-1 text-left focus-visible:outline-2"
             onClick={() => toggle(entry.id)}
           >
             <span className="text-note text-ink block truncate font-semibold">{entry.title}</span>
@@ -193,9 +193,9 @@ export function SectionsOutline({
               })
             }
             row={(bullet, handle) => (
-              <div className="flex items-start gap-1">
+              <div className="flex items-center gap-1">
                 {handle}
-                <span className="text-note text-ink-muted mt-1 line-clamp-2 min-w-0 flex-1">
+                <span className="text-note text-ink-muted line-clamp-2 min-w-0 flex-1">
                   {bullet.text}
                 </span>
               </div>

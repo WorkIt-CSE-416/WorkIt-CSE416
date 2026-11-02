@@ -1390,8 +1390,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `docs/screens.md`, Applications, has the rest.
 - **Tailor is one step per view** (`(seeker)/jobs/[jobId]/tailor`,
   2026-10-26): every step opens with the same top row (`TailorBar`: Back,
-  the step, its way on). `TailorHeader` (each step's own title, the job as one line,
-  `TailorJobLine`, and the step's line) follows it on the pick steps, and
+  the step, its way on). `TailorHeader` (each step's own title and the job as one line,
+  `TailorJobLine`) follows it on the pick steps, and
   the review names the job the same way under the resume's name; the tailored resume's page has the slim
   `TailorReviewBar` instead (Back to Choose Keywords, `TailorBack`, the
   step, and Finish; the job in an sr-only h1), so the resume starts near the top, under its own name
@@ -1400,8 +1400,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   match and the picked keywords; `?step=keywords&source=<picker key>`
   opens it at Choose Keywords (the review's Back), and a run then
   replaces the posting's tailored resume. A new step joins `TAILOR_STEPS` in
-  `tailor-steps.tsx` (`docs/screens.md`, Tailor). A wait is never a step:
-  the run is a loader over Choose Keywords (`TailorRunning`), since a
+  `tailor-steps.tsx` (`docs/screens.md`, Tailor). **A pick never moves Choose Keywords' score, and nothing there picks in
+  bulk**: a score that rose with each pick, and Select All, paid the student to
+  claim skills the truth rule then lets a rewording name. A wait is never a
+  step: the run is a loader over Choose Keywords (`TailorRunning`), since a
   Tailor step that only waited read as padding to the user.
 - **/search keeps the filter row, and shows what its words filter by**
   (KAN-308). A new search from the top bar sends only ?q, so it starts
@@ -1587,6 +1589,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   toolbar has no Ask Scout. Open it only
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
+  **The bar's Scout button is archived** (`SCOUT_LAUNCHER_LIVE` in
+  `(seeker)/layout.tsx`, 2026-11-01): Ask Scout and Fill With Scout still open
+  the panel, and closing it leaves focus on the page, since no launcher takes
+  it back. The editor's assistant has no other way in on a laptop, so it is out
+  of reach until the flag is on or the toolbar gets a button.
 - **The company table (`app/company/table.tsx`) and the Applications list
   (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
@@ -1754,6 +1761,50 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   printed the old text, the typed-back line sent nothing and the first
   edit came back when its PDF landed. Desktop only: the phone types in a
   sheet.
+- **A click on a line Tailor changed opens Suggestions on its card** (the
+  editor's `onLine`, 2026-11-01), which reverses the rule that a click leaves
+  the panel alone. **The small card beside the line is archived**
+  (`POPUP_LIVE` in `tailor-suggestions.tsx`, which says how to bring it back):
+  it said what the panel says, so a student had two places to look.
+- **Bold and italic are markers in a bullet's own wording, and the field never
+  shows them** (KAN-435, `(seeker)/resumes/[resumeId]/text-marks.ts`, the API's
+  `resume_view.runs`: change the pattern in both). A bullet's open field is
+  `contentEditable`, so the weights show as they are set; `showMarked` writes
+  the wording into it and `readMarked` reads it back from each piece's computed
+  style, so it does not matter which tags the browser wrote. Bold and italic
+  are the browser's own (`document.execCommand`, deprecated with no
+  replacement, in every browser), which brings Ctrl or Cmd+B and I and text
+  undo. A textarea showing `**` until the line was left came first, and the
+  user wanted the look to change directly. Other lines stay plain fields, and
+  anything that lists a bullet as text (Sections, the Experiences picker) goes
+  through `unmarked`. Desktop only: the phone's sheet is still a textarea.
+- **A bullet being added has no box and no id until it is saved** (KAN-435,
+  `add-bullet.ts`, `newLine` in the editor, `extra` on `PdfPages`). It is drawn
+  as a box with no height under its anchor, so the live page moves the page
+  under it, and `moved` skips a box's own move: with no height it counts as
+  under itself, which drew the field a line too low, over the next bullet.
+  **A rich field needs its own React `key`**: its words are the browser's, so
+  a plain div drawn in its place took the same element and printed them twice.
+  Enter and Esc finish the line themselves, and `finishing` keeps the blur that
+  follows from saving it again: a blur alone never fires in an unfocused window.
+- **The toolbar holds what acts on the line clicked, Format Options what acts
+  on the whole resume** (`page-format.tsx`): font size beside bold, unnamed, read
+  as acting on the selection and changed the whole page, so the toolbar's size
+  names its kind of text (`RoleTools`, `textRoleOf`). `TEXT_ROLES` is the one list
+  of kinds, `sizeOf` what each prints at, read by the toolbar, the panel and the
+  open line's type (`typeOf`), so the three cannot disagree. A size is typed
+  or stepped (`SizeStepper`), and a typed one applies on Enter or on leaving the
+  field, never per key, since each change compiles the PDF. Each role's `min`
+  and `max` repeat `resume_render`'s scales. The bar's `onMouseDown` keeps the
+  focus in the open line for buttons only, so the field takes it and the line
+  stays open behind it. `FONTS` is the
+  list of families, whose `css` puts the open line in the system font the
+  PDF's matches letter for letter: with Tinos a line sat 2px off the print over
+  714px. A new page setting joins the panel only if a student needs it to fit
+  one page, to choose a font or to pick a colour. The API keeps the settings the
+  panel dropped, so a resume set that way prints as it did. The bar mutes every
+  button's words (`SLIM_BAR`, `DOCS_BAR`), so a real action there (Add Bullet,
+  `FitButton`) carries `data-bar-action`, or a filled button reads grey on purple.
 - **A bullet's one wording button is Original** (`LineActions`), shown
   only while the bullet shows another wording (Tailor's, or one typed on
   this resume): it puts the bank's text back, and Undo takes that back.
@@ -1768,6 +1819,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   inch), opening at 125% (1020px), capped by its column, kept per browser through
   `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`). The page filled its column
   until then, and KAN-421's 1440px pages made it take most of the screen.
+  Its steps are a `DropdownMenu`: a native `<select>` dropped the browser's own
+  list, in the system's blue, in the middle of the app's menus.
   The overlay and click targets are in `cqw` of each page, so they follow
   any width.
 - **Tailor's review is the resume editor with props, not a fork**
@@ -1866,8 +1919,7 @@ are in `docs/auth.md`.
   server, or a server component. A slow read the student can repeat while
   they work goes through a route handler instead, which `fetch` runs
   beside the actions: Tailor's Preview dialog (`app/api/resume-preview`)
-  renders a PDF on each resume opened, and as an action it would hold Use
-  This Resume's keyword match behind every render. Shell components start reads that do not
+  renders a PDF on each resume opened, and as an action it would hold Next's keyword match behind every render. Shell components start reads that do not
   depend on `/auth/me` together with `getCurrentAccount`
   (`account-status.tsx`, `profile-strength.tsx`), or the chip waits on two
   API calls in a row on every hard load and `router.refresh()`.

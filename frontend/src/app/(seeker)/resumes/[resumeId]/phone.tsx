@@ -399,7 +399,7 @@ export function PhoneEditor({
       {formatOpen && (
         <Sheet onClose={() => setFormatOpen(false)} title="Format Options">
           <div className={cn("flex flex-col gap-2", TAP)}>
-            <FormatOptions page={page} quick onChange={onPage} />
+            <FormatOptions page={page} onChange={onPage} />
           </div>
         </Sheet>
       )}
