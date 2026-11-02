@@ -182,3 +182,58 @@ async def test_adding_is_capped_a_day(students, monkeypatch):
     # A form already added costs nothing.
     assert refused.json()["detail"].startswith("You've added a lot of jobs today.")
 
+
+def _listing(url: str):
+    from app.schemas.jobs import JobListing
+
+    return JobListing(
+        id=url, title="Software Engineer Intern", company="Twitch", apply_url=url,
+        experience_level="student", job_type="internship", work_style="onsite", location="San Francisco, CA",
+        posted_at="2026-10-06T02:42:06+00:00", logo_url=None, description="Build Twitch.",
+    )
+
+
+async def _import(urls: list[str]) -> None:
+    from app.db import get_engine
+    from app.scripts.import_jobs import import_feed
+
+    async with get_engine().begin() as conn:
+        await import_feed(conn, [_listing(url) for url in urls])
+
+
+async def _job(database, job_id: str):
+    async with database() as session:
+        return (await session.execute(
+            text("SELECT status, added_by_student FROM job_postings WHERE id = :id"), {"id": job_id}
+        )).first()
+
+
+async def test_the_feed_import_leaves_an_added_job_open_until_the_feed_lists_its_link(students, database):
+    client, (sam, _) = students
+    url = _form()
+    job_id = (await client.post("/jobs/added-by-link", json=_page(url))).json()["job_id"]
+
+    # A feed without its link closes every scraped job it lacks, never the added one.
+    await _import([_form()])
+    assert tuple(await _job(database, job_id)) == ("published", True)
+
+    # A feed that lists it makes it a scraped job, on the feed, with the student's application kept.
+    await _import([url])
+    assert tuple(await _job(database, job_id)) == ("published", False)
+    assert job_id in await _feed_ids(client)
+    assert (await client.get(f"/applicants/{sam}/applications/{job_id}")).json()["stage"] == "needs_you"
+
+
+async def test_a_closed_jobs_form_opens_it_again_as_an_added_job(students, database):
+    client, _ = students
+    url = _form()
+    await _import([url])
+    await _import([_form()])
+    async with database() as session:
+        closed = await session.scalar(text("SELECT id FROM job_postings WHERE apply_url = :u AND status = 'closed'"), {"u": url})
+    assert closed is not None
+
+    res = (await client.post("/jobs/added-by-link", json=_page(url))).json()
+    assert res == {"job_id": str(closed), "stage": "needs_you"}
+    assert tuple(await _job(database, str(closed))) == ("published", True)
+    assert str(closed) not in await _feed_ids(client)

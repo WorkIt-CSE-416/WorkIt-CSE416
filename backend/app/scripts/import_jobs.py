@@ -303,6 +303,8 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
         stmt = insert(_jobs).values(rows[start:start + _CHUNK])
         changed = or_(
             _jobs.c.status != dto.job_post_status.published,
+            # A job a student added from its form (KAN-515) that the feed now lists.
+            _jobs.c.added_by_student.is_(True),
             *(_jobs.c[col].is_distinct_from(stmt.excluded[col]) for col in _FEED_COLUMNS),
         )
         description_changed = _jobs.c.description.is_distinct_from(stmt.excluded.description)
@@ -311,6 +313,8 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
             set_={
                 **{col: stmt.excluded[col] for col in _FEED_COLUMNS},
                 "status": dto.job_post_status.published,
+                # A job a student added (KAN-515) is the feed's now, on the Jobs page.
+                "added_by_student": False,
                 # A job closed by an earlier run and back in the feed is open
                 # again, so the date and reason it closed no longer apply.
                 "closes_at": None,
@@ -423,8 +427,10 @@ async def _close_missing(
     conn: AsyncConnection, urls: list[str], report: Report, *, allow_mass_close: bool,
     closings: dict[str, str] | None = None,
 ) -> None:
+    # Not a job a student added from its form (KAN-515): the feed never had it.
     published_scraped = and_(
-        _jobs.c.company_id.is_(None), _jobs.c.status == dto.job_post_status.published
+        _jobs.c.company_id.is_(None), _jobs.c.status == dto.job_post_status.published,
+        _jobs.c.added_by_student.is_(False),
     )
     missing = and_(published_scraped, _jobs.c.apply_url != all_(_text_array(urls)))
 
@@ -526,7 +532,7 @@ async def _embed_jobs(conn: AsyncConnection, *, limit: int | None = None) -> int
         async with conn.begin():
             batch = (await conn.execute(
                 select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
-                .where(_jobs.c.company_id.is_(None), _jobs.c.embedding.is_(None))
+                .where(_jobs.c.company_id.is_(None), _jobs.c.added_by_student.is_(False), _jobs.c.embedding.is_(None))
                 .order_by(_jobs.c.id)
                 .limit(batch_size)
             )).all()
@@ -577,6 +583,7 @@ async def _extract_keywords(conn: AsyncConnection, llm: LLM, *, limit: int) -> i
                 .where(
                     _jobs.c.company_id.is_(None),
                     _jobs.c.status == dto.job_post_status.published,
+                    _jobs.c.added_by_student.is_(False),
                     _jobs.c.keywords.is_(None),
                 )
                 .order_by(_jobs.c.id)
