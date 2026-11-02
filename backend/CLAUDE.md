@@ -1441,6 +1441,11 @@ go then. A change needs to work on Cloudflare only.
   The model selects the column with every listing and the import writes it,
   so a database without it fails every `GET /jobs` and every scheduled
   import.
+- **Apply `a3c6e9f1b274` (`built_resumes.page_settings`, KAN-435) as soon as
+  it merges.** It only adds a JSONB column whose default `{}` is Jake's own
+  page, and no code maps it yet, so it is safe for every deploy. The Format
+  menu follows in its own PR. Its model selects the column with every built
+  resume, so a database without it fails every built resume route.
 - **Batch apply's migrations (KAN-369, `d1a7c3e5f902` through
   `f4a8c1d6e273`) are on main ahead of their code**, so they can be applied
   before the deploy that maps them. The models map
