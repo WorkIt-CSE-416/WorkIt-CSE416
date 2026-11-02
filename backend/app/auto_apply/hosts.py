@@ -13,41 +13,46 @@ can use it without a cycle.
 
 import re
 
-AUTO_APPLY_HOSTS = (
-    "greenhouse.io",
-    "lever.co",
-    "ashbyhq.com",
-    "rippling.com",
-    "workable.com",
-    "eightfold.ai",
-    # Eightfold on a company's own domain (the engine's EIGHTFOLD_COMPANIES).
-    "explore.jobs.netflix.net",
-    "myworkdayjobs.com",
-    "myworkdaysite.com",
+# The hiring systems auto apply takes, by the Fill engine's own id for each
+# (jobOf's `site`, fill-engine/src/jobs.ts): the hosts its postings are on.
+SYSTEM_HOSTS = {
+    "greenhouse": ("greenhouse.io",),
+    "lever": ("lever.co",),
+    "ashby": ("ashbyhq.com",),
+    "rippling": ("rippling.com",),
+    "workable": ("workable.com",),
+    # Eightfold on a company's own domain too (the engine's EIGHTFOLD_COMPANIES).
+    "eightfold": ("eightfold.ai", "explore.jobs.netflix.net"),
+    "workday": ("myworkdayjobs.com", "myworkdaysite.com"),
     # Oracle Recruiting Cloud's candidate experience (the engine's oracle.ts).
-    "oraclecloud.com",
-    # TikTok and ByteDance's careers sites: one form, behind the site's own
-    # sign-in, which the student goes through (the extension never signs in).
-    # Only these hosts, never the rest of tiktok.com or bytedance.com.
-    "lifeattiktok.com",
-    "careers.tiktok.com",
-    "jobs.bytedance.com",
-    "joinbytedance.com",
+    "oracle": ("oraclecloud.com",),
+    # TikTok and ByteDance's careers sites, and TikTok USDS's (the US joint
+    # venture's own list): one form, behind the site's own sign-in, which the
+    # student goes through (the extension never signs in). Only these hosts,
+    # never the rest of tiktok.com or bytedance.com.
+    "tiktok": ("lifeattiktok.com", "careers.tiktok.com", "jobs.bytedance.com", "joinbytedance.com", "careers.tiktokusds.com"),
     # SmartRecruiters' postings and their one-click form (jobs.smartrecruiters.com).
-    "smartrecruiters.com",
+    "smartrecruiters": ("smartrecruiters.com",),
     # SAP SuccessFactors' career sites (the engine's successfactors.ts).
-    "successfactors.com",
-    "successfactors.eu",
-    "sapsf.com",
-    "sapsf.eu",
-    # Their Recruiting Marketing career sites (assaabloy.jobs2web.com and SAP's
-    # own jobs.sap.com), whose Apply goes on to the career site's sign-in: the
-    # engine's jobOf takes both (KAN-491). Only jobs.sap.com, never sap.com.
-    "jobs2web.com",
-    "jobs.sap.com",
+    # Plus their Recruiting Marketing career sites (assaabloy.jobs2web.com and
+    # SAP's own jobs.sap.com), whose Apply goes on to the career site's
+    # sign-in: the engine's jobOf takes both (KAN-491). Only jobs.sap.com,
+    # never sap.com.
+    "successfactors": ("successfactors.com", "successfactors.eu", "sapsf.com", "sapsf.eu", "jobs2web.com", "jobs.sap.com"),
     # iCIMS career sites, the form in their own iframe (the engine's icims.ts).
-    "icims.com",
-)
+    "icims": ("icims.com",),
+}
+
+AUTO_APPLY_HOSTS = tuple(host for hosts in SYSTEM_HOSTS.values() for host in hosts)
+
+# Each job system's name as a student knows it: the extension's "WorkIt can't
+# fill <name> right now" and the refusal of a job on a system turned off.
+JOB_SYSTEMS = {
+    "greenhouse": "Greenhouse", "lever": "Lever", "ashby": "Ashby", "rippling": "Rippling",
+    "workable": "Workable", "eightfold": "Eightfold", "smartrecruiters": "SmartRecruiters",
+    "workday": "Workday", "waymo": "Waymo", "tiktok": "TikTok", "oracle": "Oracle",
+    "icims": "iCIMS", "successfactors": "SuccessFactors",
+}
 
 # The host is one of AUTO_APPLY_HOSTS or a subdomain of it
 # (job-boards.greenhouse.io, boards.eu.greenhouse.io), or the link is a
@@ -70,6 +75,46 @@ _AUTO_APPLY_URL = re.compile(AUTO_APPLY_URL_PATTERN, re.IGNORECASE)
 def auto_apply_supported(apply_url: str) -> bool:
     """Whether auto apply takes the job posting at this apply_url."""
     return _AUTO_APPLY_URL.match(apply_url) is not None
+
+
+def _on_hosts(hosts: tuple[str, ...]) -> str:
+    return (
+        r"^https?://(?:[a-z0-9-]+\.)*(?:"
+        + "|".join(re.escape(host) for host in hosts)
+        + r")(?:[/:?#]|$)"
+    )
+
+
+# Waymo's careers site shows Greenhouse postings (?gh_jid=), which the
+# engine fills with a filler of its own, so it is a job system apart.
+_WAYMO = r"^https?://(?:careers\.withwaymo\.com|(?:www\.)?waymo\.com)(?:[/:?#]|$)"
+
+# The link pattern of each job system, for Python's re and Postgres's ~*
+# alike (no capture groups): a host of its own, and for Greenhouse a
+# company's careers page that shows its posting (?gh_jid=), Waymo's aside.
+SYSTEM_URL_PATTERNS = {
+    system: _on_hosts(hosts) for system, hosts in SYSTEM_HOSTS.items()
+} | {
+    "greenhouse": _on_hosts(SYSTEM_HOSTS["greenhouse"])
+    + r"|^https?://(?!(?:careers\.withwaymo|(?:www\.)?waymo)\.com(?:[/:?#]|$))[^/?#]+[^?#]*\?(?:[^#]*&)?gh_jid=[0-9]+(?:[&#]|$)",
+    "waymo": _WAYMO + r"[^#]*[?&]gh_jid=[0-9]+",
+}
+
+
+# Every job system has a name and a link pattern, and the two lists agree; Waymo is in
+# neither SYSTEM_HOSTS nor AUTO_APPLY_HOSTS, being Greenhouse postings on its own site.
+if set(JOB_SYSTEMS) != set(SYSTEM_URL_PATTERNS):
+    raise RuntimeError(f"hosts.py: JOB_SYSTEMS and SYSTEM_URL_PATTERNS disagree on {set(JOB_SYSTEMS) ^ set(SYSTEM_URL_PATTERNS)}")
+
+
+def systems_pattern(systems) -> str | None:
+    """One pattern for the links of any of these job systems; None for none."""
+    return "|".join(SYSTEM_URL_PATTERNS[s] for s in sorted(set(systems))) or None
+
+
+def job_system_of(url: str) -> str | None:
+    """The job system (the engine's id: "workday") auto apply fills this link with, or None."""
+    return next((s for s, p in SYSTEM_URL_PATTERNS.items() if re.match(p, url, re.IGNORECASE)), None)
 
 
 # Job boards (KAN-376): sites that list other employers' job postings. Their

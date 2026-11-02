@@ -35,6 +35,7 @@ class Fill_Report(Base):
         CheckConstraint("status IN ('new', 'triaged', 'fixed')", name="fill_reports_status_check"),
         Index("ix_fill_reports_created_at", text("created_at DESC")),
         Index("ix_fill_reports_account_id", "account_id"),
+        Index("ix_fill_reports_signature", "signature"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -47,6 +48,9 @@ class Fill_Report(Base):
     job_system: Mapped[str] = mapped_column(String(24))
     posting_url: Mapped[str] = mapped_column(Text)
     engine_version: Mapped[str] = mapped_column(String(64))
+    # The report's group, "<job system>:<field kind>:<error>" (schemas' signature_of, KAN-478).
+    # '' on a report inserted by code older than the column.
+    signature: Mapped[str] = mapped_column(String(80), server_default="")
     # [{"kind", "label_shape", "error", ...FillReportField's other parts}], as the panel previewed them.
     fields: Mapped[list] = mapped_column(JSONB)
     note: Mapped[str | None] = mapped_column(Text)
@@ -59,3 +63,5 @@ class Fill_Report(Base):
     status: Mapped[str] = mapped_column(String(16), server_default="new")
     admin_note: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # When an admin alert named this report's group (app/services/fill_report_alerts.py, KAN-478).
+    alerted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))

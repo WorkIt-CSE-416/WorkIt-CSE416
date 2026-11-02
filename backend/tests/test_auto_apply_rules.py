@@ -65,6 +65,8 @@ def test_size_zero_or_empty_input():
     "https://careers.tiktok.com/resume/7693732178706974981/apply",
     "https://jobs.bytedance.com/en/position/7678450462765254965/detail",
     "https://joinbytedance.com/search/7678450462765254965",
+    # TikTok USDS, the US joint venture's own careers site.
+    "https://careers.tiktokusds.com/usds/position/7679251399185778949/detail",
     "https://jobs.smartrecruiters.com/Acme/744000000000001-field-technician",
     "https://career4.successfactors.com/career?career_ns=job_listing&company=AcmeCo&career_job_req_id=16550",
     # SuccessFactors' Recruiting Marketing career sites, which the engine covers (KAN-491).

@@ -12,6 +12,9 @@
 // company's name only. The page asks the worker for the student's WorkIt
 // email, to prefill the box, and never shows a saved sign-up password back.
 
+import { AUTOFILL_OFF_KEY, CATEGORIES } from "../shared/autofill-categories.js";
+import { HIDDEN_EVERYWHERE_KEY, PANEL_SITES_KEY } from "../shared/panel-keys.js";
+
 const SIGNUP_KEY = "workday_signup";
 const LOGINS_KEY = "workday_logins";
 
@@ -121,6 +124,68 @@ async function listSites() {
 }
 
 listSites();
+
+// The WorkIt tab (KAN-480): Hide everywhere's switch and the sites where the student hid the tab
+// (background.js keeps them: `panel_hidden_everywhere`, and `hidden` in `panel_sites` by host name),
+// each with Remove, which shows the tab there again.
+const everywhere = document.getElementById("tab-everywhere");
+const hiddenSites = document.getElementById("hidden-sites");
+
+everywhere.addEventListener("change", async () => {
+  await chrome.storage.local.set({ [HIDDEN_EVERYWHERE_KEY]: !everywhere.checked });
+});
+
+async function listHiddenSites() {
+  const kept = await chrome.storage.local.get([HIDDEN_EVERYWHERE_KEY, PANEL_SITES_KEY]);
+  everywhere.checked = kept[HIDDEN_EVERYWHERE_KEY] !== true;
+  const sitesKept = kept[PANEL_SITES_KEY] ?? {};
+  const hidden = Object.keys(sitesKept).filter((host) => sitesKept[host]?.hidden).sort();
+  hiddenSites.replaceChildren(
+    ...hidden.map((host) => {
+      const item = document.createElement("li");
+      const name = Object.assign(document.createElement("span"), { textContent: host });
+      const remove = Object.assign(document.createElement("button"), { type: "button", className: "secondary", textContent: "Remove" });
+      remove.setAttribute("aria-label", `Remove ${host}`);
+      remove.addEventListener("click", async () => {
+        const now = (await chrome.storage.local.get(PANEL_SITES_KEY))[PANEL_SITES_KEY] ?? {};
+        now[host] = { ...now[host], hidden: false };
+        await chrome.storage.local.set({ [PANEL_SITES_KEY]: now });
+        await listHiddenSites();
+      });
+      item.append(name, remove);
+      return item;
+    }),
+  );
+  if (!hidden.length) hiddenSites.replaceChildren(Object.assign(document.createElement("li"), { className: "muted", textContent: "None." }));
+}
+
+listHiddenSites();
+
+// Fields to autofill (KAN-480, shared/autofill-categories.js): one switch a category, on unless the
+// student turned it off. Off, the fill leaves the category's fields blank; the saved answers stay.
+const fields = document.getElementById("fields");
+
+async function listFields() {
+  const kept = (await chrome.storage.local.get(AUTOFILL_OFF_KEY))[AUTOFILL_OFF_KEY];
+  const off = new Set(Array.isArray(kept) ? kept : []);
+  fields.replaceChildren(
+    ...CATEGORIES.map(({ id, label }) => {
+      const row = Object.assign(document.createElement("label"), { className: "switch" });
+      const box = Object.assign(document.createElement("input"), { type: "checkbox", checked: !off.has(id) });
+      box.dataset.category = id;
+      box.addEventListener("change", async () => {
+        const now = new Set((await chrome.storage.local.get(AUTOFILL_OFF_KEY))[AUTOFILL_OFF_KEY] ?? []);
+        if (box.checked) now.delete(id);
+        else now.add(id);
+        await chrome.storage.local.set({ [AUTOFILL_OFF_KEY]: [...now] });
+      });
+      row.append(box, ` ${label}`);
+      return row;
+    }),
+  );
+}
+
+listFields();
 
 // Saved Company Logins: each company's Workday login, read straight from chrome.storage.local.
 const logins = document.getElementById("logins");

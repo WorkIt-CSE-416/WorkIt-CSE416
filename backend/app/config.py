@@ -88,17 +88,14 @@ class Settings(BaseSettings):
     ai_intake_cap: int = 15
     ai_tailor_cap: int = 2
     ai_parsing_cap: int = 1
-    # The editor assistant (KAN-221) and the autofiller's essay-answer
-    # generation (KAN-164): each share is on top of the spec's four, which
-    # already sum to the pool, so a busy day can overshoot it by 20%.
+    # The editor assistant (KAN-221): its share is on top of the spec's
+    # four, which already sum to the pool, so a busy day can overshoot it by 10%.
     ai_assistant_cap: int = 10
-    ai_essay_cap: int = 5
     ai_tailor_share: float = 0.4
     ai_intake_share: float = 0.3
     ai_scout_share: float = 0.2
     ai_parsing_share: float = 0.1
     ai_assistant_share: float = 0.1
-    ai_essay_share: float = 0.1
 
     # The connector (KAN-377, app/connector/): where this API and the webapp
     # are reached from outside. The API's is the OAuth issuer and the MCP
@@ -121,6 +118,25 @@ class Settings(BaseSettings):
     # fill report and its fix brief (routers/fill_reports.py's /admin routes); no one else does. Unset,
     # no one is an admin. There is no admin role in the database: the team is a handful of developers.
     workit_admins: str = ""
+
+    @property
+    def admins(self) -> list[str]:
+        '''WORKIT_ADMINS parsed once for every reader (deps.is_admin, services/fill_report_alerts.py):
+        each entry stripped and lower-cased, empty ones dropped, in order.'''
+        return [entry for entry in (e.strip().lower() for e in self.workit_admins.split(",")) if entry]
+
+    # Per-account daily caps on the extension's writes (KAN-478, app/services/daily_caps.py): one
+    # account in a loop can't fill the database. Past one, the route answers 429. Days are UTC.
+    fill_report_daily_cap: int = 30
+    job_system_request_daily_cap: int = 50
+    # Fill events (KAN-476), one per fill: five batch tabs filling all day stay far below it.
+    fill_event_daily_cap: int = 2000
+
+    # The oldest extension version the API still serves (KAN-466): a request whose
+    # X-WorkIt-Extension header names an older one gets 426, and the panel asks the
+    # student to update. Raise it only when a change breaks older builds; the default
+    # refuses none. Store updates take hours to days to reach every student.
+    min_extension_version: str = "0.0.0"
 
     # The scraper's output, which app/scripts/import_jobs.py loads into the
     # database by default. Data — nothing from scraper/ is imported, so it

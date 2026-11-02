@@ -125,13 +125,15 @@ function decodeSession(raw) {
   try {
     session = JSON.parse(base64UrlDecode(decodeURIComponent(encoded)));
   } catch (error) {
-    // a half-written chunk set, or the cookie format changed — see CLAUDE.md's Open Items
-    console.warn("webapp-session: could not decode the session cookie", error);
+    // a half-written chunk set, or the cookie format changed — see CLAUDE.md's Open Items. The error's name
+    // only: JSON.parse's message can quote the cookie's text (KAN-469).
+    console.warn(`webapp-session: could not decode the session cookie (${error?.name ?? "Error"})`);
     return null;
   }
 
   if (!session?.access_token || !session?.refresh_token) {
-    console.warn("webapp-session: decoded cookie has no access_token/refresh_token", session);
+    // Never the session itself, nor its keys' values: the extension's console is readable on a shared Chrome (KAN-469).
+    console.warn("webapp-session: decoded cookie has no access_token/refresh_token");
     return null;
   }
 
@@ -147,15 +149,26 @@ function decodeSession(raw) {
  * Tries the local dev webapp first, then each deployed one in PROD_SITES
  * order. The session carries the origin it came from, so api.js can call
  * the API paired with it.
- * @returns {Promise<import("../shared/types.js").Session | null>}
+ *
+ * `unreadable` is true when no origin had a session but one had a cookie
+ * that won't decode: a chunk set half-written as the webapp rewrites it, not
+ * a sign-out, so nothing is cleared for it (auth.js).
+ * @returns {Promise<{ session: import("../shared/types.js").Session | null, unreadable: boolean }>}
  */
-export async function readWebappSession() {
-  for (const origin of [DEV_WEB_URL, ...PROD_SITES.map((site) => site.web)]) {
+export async function readSessionCookie() {
+  let unreadable = false;
+  for (const origin of [DEV_WEB_URL, ...PROD_SITES.map((site) => site.web)].filter(Boolean)) {
     const raw = await reassembleSessionCookie(origin);
     if (!raw) continue;
 
     const session = decodeSession(raw);
-    if (session) return { ...session, web_origin: origin };
+    if (session) return { session: { ...session, web_origin: origin }, unreadable: false };
+    unreadable = true;
   }
-  return null;
+  return { session: null, unreadable };
+}
+
+/** The signed-in session (readSessionCookie's), or null. */
+export async function readWebappSession() {
+  return (await readSessionCookie()).session;
 }

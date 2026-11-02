@@ -1,0 +1,41 @@
+name: Extension nightly
+
+# The extension's whole Playwright suite, the speed harness too, which the
+# `extension` job in ci.yml leaves out of PRs for time (KAN-464).
+on:
+  schedule:
+    - cron: "41 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  # Whether FILL_ENGINE_TOKEN is set: without it the suite below is skipped, and this job's summary says SKIPPED.
+  engine:
+    uses: ./.github/workflows/engine-token.yml
+    with:
+      skipped: the extension's nightly Playwright suite
+    secrets: inherit
+
+  extension:
+    needs: engine
+    if: needs.engine.outputs.set == 'true'
+    # macOS, as most students run Chrome: on Linux, Chromium asks
+    # accounts.google.com on its own and scrolls and focuses differently, so
+    # a few specs fail there only. Free on a public repo.
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: autofiller_extension/test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - uses: ./.github/actions/extension-setup
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: extension-test-results
+          path: autofiller_extension/test/test-results
+          retention-days: 7

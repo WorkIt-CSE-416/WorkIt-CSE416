@@ -23,6 +23,43 @@ The backend job installs real Tectonic with `backend/scripts/fetch_tectonic.py`
 template text test fails, never skips, when Tectonic is missing
 (`backend/app/services/resume_render/CLAUDE.md`).
 
+The `extension-store-build` job (KAN-463) builds the Chrome Web Store package
+(`autofiller_extension/store/build.mjs`), which fails if a packaged file names
+localhost, vercel.app or "Prototype", and runs `store-build.spec.ts` and
+`extension-id.spec.ts`. The package needs the private fill-engine submodule,
+which the default token can't read, so the build steps run only once a
+`FILL_ENGINE_TOKEN` secret (read access to WorkIt-CSE-416/fill-engine) is set;
+without it they show as skipped and the job checks the extension ID only.
+
+**Without `FILL_ENGINE_TOKEN`, the engine's tests are skipped, never green.**
+`ci.yml`, `extension-nightly.yml` and `live-canary.yml` each first call
+`workflows/engine-token.yml` (a reusable workflow, job `engine`), which
+answers whether the secret is set and, when it isn't, writes "SKIPPED: ..."
+to its job summary and a warning. A job that needs the engine depends on it
+(`needs.engine.outputs.set == 'true'`), so it shows as skipped instead of a
+run of tests that did nothing. Those jobs share their setup after the
+checkout (Node, `autofiller_extension/test`'s `npm ci`, Playwright's
+Chromium) in the composite action `actions/extension-setup`; the checkout
+stays in each job, since a local action can't check out its own repo.
+
+The `extension` job (KAN-464) runs the extension's Playwright suite headless
+(`autofiller_extension/test`, both projects) on the engine the submodule
+pins, and first fails if that engine commit's committed `dist/` differs from
+what its `src/` builds. It runs only on a PR touching `autofiller_extension/`
+(the engine pointer included) or `ci.yml`: the `changes` job
+(`dorny/paths-filter`) decides, and a skipped job counts as passed. It leaves
+out `speed.extension.spec.ts`, the timing harness (about 7 minutes alone),
+which `workflows/extension-nightly.yml` runs with the rest every night at
+07:41 UTC (and by hand: `gh workflow run extension-nightly.yml`). Both need
+`FILL_ENGINE_TOKEN`, as `extension-store-build` does, and are skipped
+without it. Both run on `macos-latest` (free on a public repo): on Linux, Chromium
+asks `accounts.google.com` on its own (which `practice.extension.spec.ts`'s
+request list catches) and a field a panel row scrolls to doesn't come into
+view (`panel-reopen`, `workday-show`), found in the Playwright image
+2026-10-31. On CI each spec gets two retries; a broken one fails all three.
+The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
+typecheck, the same stale-`dist/` check, and its tests, on every PR.
+
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
 `frontend/.prettierignore`, so Prettier never rewrites prose.
@@ -161,6 +198,9 @@ GitHub's runners structurally cannot send the real mail anymore. The live
 run is a crontab entry on that instance, daily at 13:13 UTC (off the
 hour, same reasoning as the scrape's own cron), running the same
 `app.scripts.send_job_alerts` this workflow calls.
+The same instance runs `app.scripts.send_fill_report_alerts` hourly
+(KAN-478; e.g. `17 * * * *`), which emails the admins new fix report
+groups through the same SES sender and role.
 
 This workflow still exists for two things, both free of real AWS access:
 a PR that touches the digest, the script, `email.py` or this workflow
@@ -191,3 +231,71 @@ bounced send.
 - **Still open:** the EC2 crontab has no built-in failure alerting the
   way this workflow's schedule trigger got from GitHub for free. Not set
   up yet (a dead-man's-switch ping or a CloudWatch alarm would do it).
+
+## Retention purge (KAN-482)
+
+`workflows/retention-purge.yml` runs `app.scripts.purge_old_data` against
+production **daily at 07:43 UTC** (off the hour, same reasoning as the
+scrape). It deletes rows past their retention period and logs a count per
+table, never a row. The periods live in one place,
+`backend/app/services/retention.py`'s `RETENTION`, and the privacy policy's
+retention section quotes the same numbers (KAN-474): change both together.
+A rule whose table does not exist yet (`fill_events`, until KAN-476) is
+skipped and logged as such.
+
+- **It never runs from a PR.** Every run reaches the production database,
+  so unlike the scrape and job alerts there is no `pull_request` trigger.
+  Only the schedule, on `main`, deletes. A manual run (Actions → Retention
+  purge → Run workflow, or `gh workflow run retention-purge.yml`) is always
+  a dry run: it logs what it would delete and deletes nothing.
+- **Secret:** `DATABASE_URL`, the one the scrape already uses.
+- **A failed scheduled run opens an issue** titled "Retention purge failed"
+  (or comments on the open one) with the run's link, so the team is told.
+  Close it once fixed. GitHub also emails whoever last edited the cron line.
+- **It stops silently after 60 days without a commit** to `main`, same as
+  the scrape. Re-enable with `gh workflow enable retention-purge.yml`.
+
+## Live canary (`workflows/live-canary.yml`, KAN-468)
+
+The saved forms under `autofiller_extension/fill-engine/test/fixtures/forms/`
+are frozen recordings, so a job system that changes its markup or API would
+otherwise surface only as students' fix reports. Each night (and by hand:
+`gh workflow run live-canary.yml`) the canary reads live forms and compares
+them with those saved forms.
+
+- **What it reads.** `autofiller_extension/test/canary/postings.json` names,
+  per job system, one board, its pinned postings and the fields its form
+  page must show. Each run lists the board's open postings with the job
+  system's public API (never the production database) and reads `count`
+  of them: the pinned ones still open, then listed ones. For each, the
+  engine's own read gives the Question set (`questionSet`), the form is
+  opened headless, and the engine's `readback` must find the `onPage`
+  fields there (Ashby's `readQuestions` too, its host's fallback). The
+  Question set must hold every field all of that system's saved
+  `question-set.json` files share, with the same kind, and no kind they
+  never have. A form that differs is read once more before it counts.
+- **It never fills.** It types nothing, uploads nothing and presses no
+  button. `test/canary.spec.ts` runs first and fails if `canary/*.mjs` calls
+  any engine function but `jobOf`, `questionSet`, `readback` or
+  `readQuestions`, or any of Playwright's fill, click or press calls.
+- **A changed form opens an issue** "Live canary: `<site>` form changed"
+  (or comments on the open one) naming each posting and its field-kind diff,
+  with the default `GITHUB_TOKEN`. A crash before the comparison opens "Live
+  canary failed". Close the issue once the engine is fixed.
+- **A closed posting is not a change.** A pinned posting the board no longer
+  lists is reported in the run's summary as "posting closed" and another
+  listed one is read instead; replace it in `postings.json` when convenient.
+- **Covered:** Greenhouse, Lever, Ashby, Rippling, Workable, the systems
+  whose form opens with no sign-in and whose saved forms have a Question
+  set.
+- **Skipped, and why:**
+  - **Workday, Oracle, iCIMS, SuccessFactors, TikTok:** the form sits behind
+    an Apply button or a sign-in, which the canary never presses.
+  - **Eightfold, Waymo:** no saved field list (Question set) to compare.
+  - **SmartRecruiters:** a bot check (and its robots.txt); so is any other
+    system that adds one.
+- **Secret:** `FILL_ENGINE_TOKEN`, as in CI: without it the canary job is
+  skipped and the `engine` job's summary says SKIPPED. The schedule runs only on `main`, and stops after 60 days
+  without a commit there (`gh workflow enable live-canary.yml`).
+- **Run it locally:** `cd autofiller_extension/test && npm ci && node
+  canary/run.mjs` writes `canary-out/report.md` and `canary-out/issues/`.

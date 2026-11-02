@@ -1,7 +1,13 @@
 import "server-only";
 
 import { apiGet } from "@/lib/api";
-import { isReportId, type FillReport, type FillReportSummary } from "@/lib/fill-reports";
+import type { FillHealth } from "@/lib/fill-health";
+import {
+  isReportId,
+  type FillReport,
+  type FillReportGroup,
+  type FillReportSummary,
+} from "@/lib/fill-reports";
 import { getAccessToken } from "@/lib/session";
 
 /**
@@ -30,6 +36,11 @@ export function listFillReports(
   return read(`/admin/fill-reports${query}`);
 }
 
+/** GET /admin/fill-report-groups with the query `groupsQuery` built (KAN-478). */
+export function listFillReportGroups(query: string): Promise<Read<{ groups: FillReportGroup[] }>> {
+  return read(`/admin/fill-report-groups${query}`);
+}
+
 export function getFillReport(id: string): Promise<Read<FillReport>> {
   return isReportId(id)
     ? read(`/admin/fill-reports/${id}`)
@@ -48,4 +59,9 @@ export function getFillFixture(id: string): Promise<Read<string>> {
   return isReportId(id)
     ? read(`/admin/fill-reports/${id}/fixture`, "text")
     : Promise.resolve({ data: null, status: 404 });
+}
+
+/** Fill numbers per job system per day (KAN-476): GET /admin/fill-health with the query `healthQuery` built. */
+export function getFillHealth(query: string): Promise<Read<FillHealth>> {
+  return read(`/admin/fill-health${query}`);
 }

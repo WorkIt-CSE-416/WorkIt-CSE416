@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { apiFetch, extractErrorMessage, homePath, type AuthenticatedAccount } from "@/lib/auth";
+import { EXTENSION_STEP_PATH } from "@/app/onboarding/applicant/steps";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET_KEY;
@@ -86,8 +87,10 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
 }
 
 /** Where a sign-in started from another page goes back to (`/login?next=`):
- *  only the connector's consent page (KAN-377), so the link can't send a
- *  student anywhere else. */
+ *  only the connector's consent page (KAN-377) and onboarding's extension
+ *  step, which the extension opens on install (KAN-471), so the link can't
+ *  send a student anywhere else. */
 function nextPath(next: FormDataEntryValue | null): string | null {
-  return typeof next === "string" && next.startsWith("/connect/claude?") ? next : null;
+  if (typeof next !== "string") return null;
+  return next.startsWith("/connect/claude?") || next === EXTENSION_STEP_PATH ? next : null;
 }

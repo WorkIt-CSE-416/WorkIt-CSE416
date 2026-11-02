@@ -10,14 +10,15 @@
 // Remove, which gives the permission back and unregisters the scripts.
 //
 // What WorkIt fills there is the Fill engine's to say (`jobOf`), as on any
-// other page: a link it covers (jobs.sap.com, a jobs2web posting), or a
-// SuccessFactors career-site posting on a branded host, which its own page
-// marks (rmkcdn.successfactors.com assets, `data-careersite-propertyid`), read
-// as the engine reads a posting marked `ats=successfactors`. A job system's
+// other page: a link it covers (jobs.sap.com, a jobs2web posting), or a job
+// system on the employer's own domain, which its page's markup names (the
+// engine's PAGE_MARKS: a SuccessFactors career-site posting's rmkcdn assets, a
+// Workday career site's candidate-experience scripts), read as the engine
+// reads a link marked `ats=<site>` (KAN-472). A job system's
 // form in an iframe (Greenhouse's embed) is filled in that frame by the
 // manifest's own content script, with or without this.
 
-import { jobOf } from "./engine.js";
+import { jobOf, markedLink, PAGE_MARKS } from "./engine.js";
 
 // The origins the student allowed from the popup, kept so the options page lists only those (not the manifest's).
 const ALLOWED_KEY = "allowed_sites";
@@ -101,10 +102,9 @@ export async function syncSites() {
 
 /**
  * The link the Fill engine reads for the page in this frame: the page's
- * own when the engine covers it, else, on a site the student allowed, a
- * SuccessFactors career-site posting its page marks, as `ats=successfactors`
- * (the engine's own mark for such a posting). Null when the engine fills
- * nothing there.
+ * own when the engine covers it, else, on a site the student allowed, the
+ * page's link marked `ats=<site>` for the job system its markup names
+ * (PAGE_MARKS). Null when the engine fills nothing there.
  * @param {number | undefined} tabId
  * @param {number} frameId
  * @param {string} url
@@ -116,13 +116,26 @@ export async function pageJobUrl(tabId, frameId, url) {
   const [read] = await chrome.scripting
     .executeScript({
       target: { tabId, frameIds: [frameId] },
-      func: () => Boolean(document.querySelector('[data-careersite-propertyid], [src*="rmkcdn.successfactors.com"], [href*="rmkcdn.successfactors.com"]')),
+      func: (marks) => Object.keys(marks).find((site) => document.querySelector(marks[site])) ?? null,
+      args: [PAGE_MARKS],
     })
     .catch(() => []);
-  if (read?.result !== true) return null;
-  const marked = new URL(url);
-  marked.searchParams.set("ats", "successfactors");
-  return jobOf(marked.href) ? marked.href : null;
+  return read?.result ? markedLink(url, read.result) : null;
+}
+
+/**
+ * The job system of the page in `tabId`'s frame `frameId` ("workday"), on
+ * its own hosts or marked on an employer's domain (pageJobUrl), else null.
+ * Content scripts can't load the engine, so they are told it: the panel
+ * (panel/where) and a fill (content-scripts.js injectFill) set it as
+ * `window.WIA.jobSystem`.
+ * @param {number | undefined} tabId
+ * @param {number} frameId
+ * @param {string} url
+ */
+export async function pageSystem(tabId, frameId, url) {
+  const link = await pageJobUrl(tabId, frameId, url);
+  return link ? (jobOf(link)?.site ?? null) : null;
 }
 
 /** Whether the page holds a frame showing a form the engine covers (an embedded Greenhouse form, say). */

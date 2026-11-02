@@ -6,7 +6,7 @@
 // to WorkIt or Send report; Request this job system (KAN-369) sends only its
 // host.
 
-import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
+import { DEV_API_URL, DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
 import { requestJobSystem, saveJobByLink } from "./api.js";
 import { jobOf } from "./engine.js";
 import { reportOf, sendReport } from "./report.js";
@@ -17,6 +17,7 @@ import { allowedOn } from "./site-access.js";
  * it answers (development), else WorkIt's site (popup.js's own rule).
  */
 export async function webappOrigin() {
+  if (DEV_WEB_URL === null) return PROD_SITES[0].web;
   try {
     const response = await fetch(DEV_WEB_URL, { signal: AbortSignal.timeout(1000) });
     if (response.ok || response.type === "opaque") return DEV_WEB_URL;
@@ -27,7 +28,7 @@ export async function webappOrigin() {
 }
 
 // WorkIt's own pages (the webapp, the API): never "a site WorkIt can't fill".
-const OWN_ORIGINS = [DEV_WEB_URL, "http://localhost:8000", ...PROD_SITES.flatMap((site) => [site.web, site.api])];
+const OWN_ORIGINS = [DEV_WEB_URL, DEV_API_URL, ...PROD_SITES.flatMap((site) => [site.web, site.api])].filter(Boolean);
 
 /**
  * Whether `url` is on a job system's host the manifest lists (its content

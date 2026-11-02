@@ -1,0 +1,88 @@
+name: Live canary
+
+# KAN-468: each night, reads live postings' forms for each job system in
+# autofiller_extension/test/canary/postings.json with the Fill engine and
+# compares their fields with the engine's saved forms. It only reads: it never
+# types, uploads or presses anything on an employer's page
+# (test/canary.spec.ts fails the run if the canary calls a fill or a click).
+# A job system whose form changed gets an issue naming the posting and the
+# field-kind diff. .github/CLAUDE.md's "Live canary" section has the why.
+on:
+  schedule:
+    # Nightly, off the hour: GitHub delays, and under load drops, runs on it.
+    - cron: "29 8 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: live-canary
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Whether FILL_ENGINE_TOKEN is set: without it the canary below is skipped, and this job's summary says SKIPPED.
+  engine:
+    uses: ./.github/workflows/engine-token.yml
+    with:
+      skipped: the live canary (no live form was read)
+    secrets: inherit
+
+  canary:
+    needs: engine
+    if: needs.engine.outputs.set == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    defaults:
+      run:
+        working-directory: autofiller_extension/test
+    steps:
+      # The engine is the private fill-engine submodule, which the default token can't read.
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - uses: ./.github/actions/extension-setup
+        with:
+          with-deps: "true"
+
+      - name: Check the canary only reads
+        run: npx playwright test canary.spec.ts --project=page
+
+      - name: Read the live forms
+        id: canary
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node canary/run.mjs canary-out
+      - if: always()
+        run: test -f canary-out/report.md && cat canary-out/report.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      # One open issue per job system: a later failing run comments on it.
+      - name: Open an issue for each changed form
+        if: always() && steps.canary.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          shopt -s nullglob
+          files=(canary-out/issues/*.md)
+          if [ ${#files[@]} -eq 0 ]; then
+            # The canary itself broke before it could say which form changed.
+            printf 'The live canary failed before it finished: %s\n' "$RUN_URL" > canary-out-failed.md
+            files=(canary-out-failed.md)
+          fi
+          for file in "${files[@]}"; do
+            site=$(basename "$file" .md)
+            if [ "$site" = canary-out-failed ]; then title="Live canary failed"; else title="Live canary: $site form changed"; fi
+            number=$(gh issue list --state open --search "in:title \"$title\"" --json number,title \
+              --jq "map(select(.title == \"$title\"))[0].number // empty")
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --body-file "$file"
+            else
+              gh issue create --title "$title" --body-file "$file"
+            fi
+          done

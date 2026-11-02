@@ -3,7 +3,7 @@
 // data, extension.ts's STUDENT) and an auto-apply queue held in memory, with
 // the stage rules of backend/app/auto_apply/pipeline.py.
 import { STUDENT } from "./extension";
-import type { Handler } from "./loaded-extension";
+import { TEST_TOKEN, type Handler } from "./loaded-extension";
 
 export type Stage = "queued" | "needs_you" | "skipped" | "applied";
 /** `form_url`: the employer's form the API names (KAN-376); its apply_url when left out, as for a hiring system's posting. */
@@ -24,6 +24,42 @@ export type Written = {
 };
 /** One flag save_review gives: its reason, or the reason with the sentence it means and whether it names the wrong company. */
 export type Flag = string | { reason: string; quote?: string; hard?: boolean };
+
+// POST /fill-events' shape (backend/app/schemas/fill_events.py): these keys only, never a value.
+const FILL_EVENT_KEYS = [
+  "job_system", "engine_version", "extension_version", "mode", "fields", "filled", "guessed", "needs_you", "skipped_by_choice", "failed", "errors", "duration_ms",
+  "step", "final_step",
+];
+const ERROR_NAMES = ["Readback", "FillError", "Handoff", "NoForm", "NoAnswer", "Error"];
+
+/** What is wrong with a fill event: a key or part outside the shape, or any of the student's values in it. */
+function fillEventProblems(event: Record<string, unknown>, profile: object): string[] {
+  const problems: string[] = [];
+  for (const key of Object.keys(event)) if (!FILL_EVENT_KEYS.includes(key)) problems.push(`unknown key ${key}`);
+  for (const key of ["fields", "filled", "guessed", "needs_you", "failed", "duration_ms"]) {
+    if (!Number.isInteger(event[key]) || (event[key] as number) < 0) problems.push(`${key} is not a count`);
+  }
+  if (!["single", "batch"].includes(event.mode as string)) problems.push(`mode ${event.mode}`);
+  // Optional (a stepped system's, KAN-476): the step's number from 1, and whether it is the last.
+  if ("step" in event && (!Number.isInteger(event.step) || (event.step as number) < 1)) problems.push(`step ${event.step}`);
+  if ("final_step" in event && typeof event.final_step !== "boolean") problems.push(`final_step ${event.final_step}`);
+  if ("skipped_by_choice" in event && (!Number.isInteger(event.skipped_by_choice) || (event.skipped_by_choice as number) < 0)) problems.push("skipped_by_choice is not a count");
+  for (const [name, count] of Object.entries((event.errors as object) ?? {})) {
+    if (!ERROR_NAMES.includes(name) || !Number.isInteger(count)) problems.push(`error ${name}`);
+  }
+  // Every string the student's profile holds (names split too), none of which may appear anywhere in it.
+  const values = new Set<string>();
+  const collect = (value: unknown) => {
+    if (typeof value === "string" && value.length >= 3) {
+      values.add(value);
+      for (const part of value.split(/\s+/)) if (part.length >= 3) values.add(part);
+    } else if (value && typeof value === "object") Object.values(value).forEach(collect);
+  };
+  collect({ ...STUDENT, resume: STUDENT.resume.filename, ...profile });
+  const text = JSON.stringify(event);
+  for (const value of values) if (!/^(yes|no|none|declined)$/i.test(value) && text.includes(value)) problems.push(`holds the student's value ${value}`);
+  return problems;
+}
 
 const RESUME_ID = "00000000-0000-0000-0000-0000000000r1";
 
@@ -52,8 +88,14 @@ export class FakeApi {
   readonly pasted: { jobId: string; name: string; answer: string }[] = [];
   /** Set to refuse the next pastes with these reasons, as WorkIt's checks do (422, reasons by question). */
   refusePastes: string[] | null = null;
+  /** Set to refuse the next reports with this status and detail, as the daily cap does (429, KAN-478). */
+  refuseReports: { status: number; detail: string } | null = null;
   /** The problem reports the extension sent (POST /fill-reports, KAN-403), each as its body, in order. */
   readonly reports: unknown[] = [];
+  /** The fill events the extension sent (POST /fill-events, KAN-476), each as its body, in order. */
+  readonly fillEvents: Record<string, unknown>[] = [];
+  /** What was wrong with any of them: a key outside routers/fill_events.py's shape, or a value of the student's in it. */
+  readonly fillEventProblems: string[] = [];
   /** The job system requests the popup sent (POST /job-system-requests, KAN-369), each as its body, in order. */
   readonly systemRequests: unknown[] = [];
   /** In order: "next:<job>" when GET .../applications/next hands a job out (its tab opens), "questions:<job>" when its questions arrive. */
@@ -101,6 +143,10 @@ export class FakeApi {
 
   /** Set to answer the profile with a server error, so a tab's fill can't plan. */
   profileDown = false;
+  /** The job systems WorkIt turned off (GET /extension/config, KAN-467), as routers/extension_config.py names them. */
+  disabledJobSystems: { job_system: string; name: string }[] = [];
+  /** Set to fail GET /extension/config, as a down API would. */
+  configDown = false;
 
   /** The student's transcript (GET .../documents, .../documents/transcript/bytes, KAN-369), or none. */
   transcript: { filename: string; base64: string } | null = null;
@@ -122,7 +168,7 @@ export class FakeApi {
   /** How many reads of the Claude connection fail (a server error) before one answers. */
   connectorDown = 0;
 
-  /** `profile`: the student's profile fields that differ from STUDENT's. */
+  /** `profile`: the student's profile fields that differ from STUDENT's (another student: their id, name, email). */
   constructor(private profile: Partial<Omit<typeof STUDENT, "answers">> & { answers?: Record<string, string | null> } = {}) {
     this.answers = { ...(profile.answers ?? STUDENT.answers) };
   }
@@ -153,15 +199,30 @@ export class FakeApi {
     return this;
   }
 
+  /** The access token the API takes (signIn's): change it to expire the one the student signed in with. */
+  token = TEST_TOKEN;
+
   readonly handler: Handler = ({ url, method, headers, body }) => {
     if (url.host !== "localhost:8000") return undefined;
     const path = url.pathname;
     this.calls.push(`${method} ${path}${url.search}`);
     if (path === "/health") return { json: { status: "ok" } };
-    if (headers.authorization !== "Bearer test-access-token") return { status: 401, json: { detail: "Not signed in" } };
+    // Public: no sign-in (routers/extension_config.py).
+    if (path === "/extension/config" && method === "GET") {
+      if (this.configDown) return { status: 503, json: { detail: "Service Unavailable" } };
+      return { json: { disabled_job_systems: this.disabledJobSystems } };
+    }
+    if (headers.authorization !== `Bearer ${this.token}`) return { status: 401, json: { detail: "Not signed in" } };
     if (path === "/fill-reports" && method === "POST") {
+      if (this.refuseReports) return { status: this.refuseReports.status, json: { detail: this.refuseReports.detail } };
       this.reports.push(JSON.parse(body.toString()));
       return { status: 201, json: { stored: true } };
+    }
+    if (path === "/fill-events" && method === "POST") {
+      const event = JSON.parse(body.toString());
+      this.fillEvents.push(event);
+      this.fillEventProblems.push(...fillEventProblems(event, this.profile));
+      return { status: 201, json: { id: `event-${this.fillEvents.length}` } };
     }
     if (path === "/job-system-requests" && method === "POST") {
       this.systemRequests.push(JSON.parse(body.toString()));
@@ -198,9 +259,10 @@ export class FakeApi {
       this.appliedAt.set(id, new Date().toISOString());
       return { json: { applied_at: this.appliedAt.get(id), sent_resume_id: null } };
     }
-    if (path === "/auth/me") return { json: { id: STUDENT.id, email: STUDENT.email, full_name: STUDENT.full_name, account_type: "applicant" } };
+    const account = { ...STUDENT, ...this.profile };
+    if (path === "/auth/me") return { json: { id: account.id, email: account.email, full_name: account.full_name, account_type: "applicant" } };
 
-    const me = `/applicants/${STUDENT.id}`;
+    const me = `/applicants/${account.id}`;
     if (!path.startsWith(`${me}/`)) return { status: 403, json: { detail: "Not yours" } };
     const route = path.slice(me.length);
     if (route === "/profile") {
@@ -269,6 +331,15 @@ export class FakeApi {
       const next = [...this.stages].find(([id, stage]) => open(stage) && !skip.has(id) && (!only.size || only.has(id)));
       if (next) this.events.push(`next:${next[0]}`);
       return { json: next ? this.application(next[0]) : null };
+    }
+    // A job's Auto Apply button (pipeline.py's queue_job): a listed job with no application, or a saved one, is
+    // queued; one at any other stage keeps it. A job WorkIt doesn't list is a 404.
+    if (route === "/applications" && method === "POST") {
+      const { job_id: id } = JSON.parse(body.toString());
+      if (!this.postings.has(id)) return { status: 404, json: { detail: "That job isn't open any more." } };
+      const stage = this.stages.get(id);
+      if (!stage || (stage as string) === "saved") this.stages.set(id, "queued");
+      return { json: { job_id: id, stage: this.stages.get(id) } };
     }
     // The queued applications, newest first, as GET .../applications?stage=queued answers them.
     if (route === "/applications" && method === "GET" && url.searchParams.get("stage") === "queued") {

@@ -33,6 +33,10 @@ for (const url of [
   "https://careers.tiktok.com/resume/7693732178706974981/apply",
   "https://jobs.bytedance.com/en/position/7678450462765254965/detail",
   "https://joinbytedance.com/search/7678450462765254965",
+  // TikTok USDS, the US joint venture's own careers site: its posting, the sign-in on the way, and its form.
+  "https://careers.tiktokusds.com/usds/position/7679251399185778949/detail",
+  "https://careers.tiktokusds.com/usds/login?redirect_path=%2Fresume%2F7679251399185778949%2Fapply",
+  "https://careers.tiktokusds.com/usds/resume/7679251399185778949/apply",
   "https://jobs.smartrecruiters.com/oneclick-ui/company/BoschGroup/publication/c45a68e0-2aa1-405f-8b08-1e60b5ae778b",
   // SuccessFactors' career sites, whose postings the API queues (KAN-491): without the host a batch tab
   // showed no panel and no line saying to press Apply and sign in (live, 2026-10-31).
