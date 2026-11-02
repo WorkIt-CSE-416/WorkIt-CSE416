@@ -1,0 +1,105 @@
+"""The Fill engine's loader on its own: what Apply asks of the engine with no page open."""
+
+import json
+
+import pytest
+from conftest import APPLY, FIXTURES, FORMS
+
+from apply import fill_engine
+from apply.model import FillError, Posting, Question
+from apply.profile import ApplicantProfile
+
+PROFILE = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
+POSTING = Posting("p", "Acme", "Software Engineer Intern", "https://job-boards.greenhouse.io/acme/jobs/1")
+
+
+def test_the_postings_text_is_read_only_when_the_engine_asks_for_it():
+    reads = []
+
+    def posting_text():
+        reads.append(1)
+        return "The pay is $30 to $40 an hour."
+
+    fill_engine.plan([Question("q1", "First Name", "text", True)], POSTING, PROFILE, posting_text=posting_text)
+    assert reads == []
+    pay = Question("q2", "What hourly rate do you expect?", "text", True)
+    fill_engine.plan([pay], POSTING, PROFILE, posting_text=posting_text)
+    assert reads == [1]
+
+
+def test_an_engine_error_comes_back_as_apply_own():
+    try:
+        fill_engine.call_without_page("parseQuestions", "bamboohr", "")
+    except FillError as error:
+        assert str(error) == "the engine has no parser for bamboohr"
+    else:
+        raise AssertionError("no FillError")
+
+
+def test_an_essay_on_a_job_system_the_policies_name_holds_its_application():
+    # The real policies name Ashby: the engine must read the Posting's link as Ashby's.
+    essay = Question("q1", "Tell us about a project you are proud of.", "textarea", True)
+    ashby = Posting("p", "Acme", "Intern", "https://jobs.ashbyhq.com/acme/00000000-0000-0000-0000-000000000000")
+    assert fill_engine.plan([essay], ashby, PROFILE).high_stakes == [essay]
+
+
+class Site:
+    """A JobSite's fetch over saved answers, recording what was asked."""
+
+    def __init__(self, answers):
+        self.answers, self.asked = answers, []
+
+    def fetch(self, url, body=None):
+        self.asked.append((url, body and json.loads(body)["operationName"]))
+        if url not in self.answers:
+            raise LookupError(f"nothing saved at {url}")
+        return self.answers[url].encode()
+
+
+def test_a_jobs_question_set_and_names_are_fetched_through_the_sites_fetch():
+    url = "https://jobs.ashbyhq.com/semgrep/1b1e3e7c-c19e-4cd0-9e8b-8d5c09a6d8e0/application"
+    graphql = "https://jobs.ashbyhq.com/api/non-user-graphql"
+    site = Site({f"{graphql}?op=ApiJobPosting": (FORMS / "ashby-semgrep" / "questions.json").read_text(),
+                 f"{graphql}?op=ApiOrganizationFromHostedJobsPageName": '{"data": {"organization": {"name": "Semgrep"}}}'})
+
+    questions = fill_engine.fetched_question_set(url, site)
+    company, title = fill_engine.job_names(url, site)
+
+    assert [q.label for q in questions][:2] == ["Name", "Email"] and company == "Semgrep" and title
+    assert site.asked[0] == (f"{graphql}?op=ApiJobPosting", "ApiJobPosting")
+
+
+def test_a_fetch_that_fails_raises_the_sites_own_error():
+    with pytest.raises(LookupError, match="nothing saved"):
+        fill_engine.job_description("https://apply.workable.com/acme/j/AB12", Site({}))
+
+
+def test_a_link_the_engine_covers_names_its_job_system_and_form():
+    assert fill_engine.job_of("https://explore.jobs.netflix.net/careers/job/790318904468") == {
+        "site": "eightfold", "pid": "790318904468", "form": "https://explore.jobs.netflix.net/careers/apply?pid=790318904468", "onForm": False}
+    assert fill_engine.job_of("https://example.com/jobs/1") is None
+
+
+def test_a_host_call_may_call_the_engine_again():
+    # The Posting's text is read only when the plan asks, and reading it makes text of HTML with the engine.
+    pay = Question("q2", "What hourly rate do you expect?", "text", True)
+    planned = fill_engine.plan([pay], POSTING, PROFILE, posting_text=lambda: fill_engine.text_of("<p>The pay is $30 to $40 an hour.</p>"))
+    assert pay in planned.missing or planned.answers
+
+
+def test_the_options_lisul_picked_for_a_missing_multi_select_are_each_ticked():
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
+    question = Question("q1", "Which offices would you work in?", "multi_select", True, ("Austin", "Boston", "Denver"))
+    fill_engine.remember(profile, POSTING, question, "Austin; Denver")  # as the Inbox joins his picks
+
+    assert fill_engine.plan([question], POSTING, profile).answers["q1"] == ["Austin", "Denver"]
+
+
+def test_a_question_keeps_the_help_text_and_limit_the_engine_reads():
+    # the essay call needs them: Figma asks for "3-4 sentences" only in a description
+    found = {"name": "q1", "label": "Why Figma?", "kind": "textarea", "required": True, "options": [],
+             "description": "Please answer in 3-4 sentences.", "maxLength": 1500}
+    [question] = fill_engine.question_set([found])
+    assert (question.description, question.max_length) == ("Please answer in 3-4 sentences.", 1500)
+    [bare] = fill_engine.question_set([{k: v for k, v in found.items() if k not in ("description", "maxLength")}])
+    assert (bare.description, bare.max_length) == ("", None)

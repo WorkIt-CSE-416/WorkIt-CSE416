@@ -1,0 +1,25 @@
+[project]
+name = "apply"
+version = "0.1.0"
+description = "Finds Summer 2027 internship Matches and submits Applications to them."
+requires-python = ">=3.12"
+dependencies = [
+    "gspread>=6.2.1",
+    "playwright>=1.55",
+    "pypdf>=6.21.4",
+    "pyyaml>=6.0.3",
+    "ruamel-yaml>=0.19.1",
+]
+
+[project.scripts]
+apply = "apply.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
