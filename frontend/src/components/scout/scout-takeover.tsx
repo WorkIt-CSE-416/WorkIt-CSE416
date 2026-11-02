@@ -24,10 +24,17 @@ export const SCOUT_SLOT_ID = "scout-slot";
 export function ScoutTakeover({
   title,
   subtitle,
+  mark,
+  away,
   children,
 }: {
   title: string;
   subtitle: string;
+  /** In place of the header's Scout mark. */
+  mark?: ReactNode;
+  /** Set while the panel shows something other than Scout (`scout-store`):
+   *  the bar's launcher calls it to go back to Scout. Keep it stable. */
+  away?: () => void;
   children: ReactNode;
 }) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
@@ -36,8 +43,8 @@ export function ScoutTakeover({
     // The panel renders in the layout, so its slot is in the DOM by now.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the DOM once mounted
     setSlot(document.getElementById(SCOUT_SLOT_ID));
-    return takeOverScout({ title, subtitle });
-  }, [title, subtitle]);
+    return takeOverScout({ title, subtitle, mark, away });
+  }, [title, subtitle, mark, away]);
 
   return slot
     ? createPortal(

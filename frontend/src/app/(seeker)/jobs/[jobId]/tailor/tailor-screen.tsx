@@ -20,6 +20,7 @@ import { Chip } from "@/components/ui/chip";
 import { cn } from "@/lib/cn";
 import { tailorEditsKey, writeSessionDraft } from "@/lib/local-drafts";
 import type { ResumeItem } from "@/lib/resume-actions";
+import { markResumesStale } from "@/lib/resumes-stale";
 import {
   matchTailor,
   type Keyword,
@@ -238,6 +239,9 @@ export function TailorScreen({
     }
     // A stream that ends with no last line lost its connection mid-run.
     if (!result) return failed("Tailor stopped before it finished. Try again.", null);
+    // The run made or replaced the posting's tailored resume through a route
+    // handler, which cannot clear the router's copies (lib/resumes-stale.ts)
+    markResumesStale();
     setPhase("compiling");
     const had = new Set(result.matched.map((k) => k.keyword));
     const match: MatchShift = {
@@ -703,7 +707,7 @@ function TailorError({ error }: { error: { message: string; status: number | nul
     <div role="alert" className="text-note text-danger mt-2">
       <p>{error.message}</p>
       {error.status === 409 && error.message.toLowerCase().includes("bank") && (
-        <ButtonLink href="/bank" size="sm" className="mt-2">
+        <ButtonLink href="/experiences" size="sm" className="mt-2">
           Fill My Bank
         </ButtonLink>
       )}

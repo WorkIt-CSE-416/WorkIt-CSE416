@@ -212,7 +212,7 @@ class LineEdit(BaseModel):
 
     item_id: UUID | Literal["header"]
     kind: str
-    text: Annotated[str, StringConstraints(max_length=2000)]
+    text: Annotated[str, StringConstraints(max_length=500)]
 
 
 class LineSave(LineEdit):
@@ -221,6 +221,16 @@ class LineSave(LineEdit):
     reads nothing; without it the entry is read first."""
 
     source: ResumeCopy | None = None
+
+
+class ResumeChanged(BaseModel):
+    """When anything the resume's page prints last changed, and the
+    database's clock now (KAN-391): the editor asks on a return to its tab
+    after a while away, and reloads only when something changed while it
+    was hidden. `now` lets it read its own clock against the database's."""
+
+    changed_at: datetime.datetime
+    now: datetime.datetime
 
 
 class LineSaved(BaseModel):

@@ -47,14 +47,16 @@ export function OpenScoutButton({ children }: { children: ReactNode }) {
  *  pressed, in the brand tint, so the bar says Scout is open. The panel hands
  *  focus back here when it closes (SCOUT_LAUNCHER_ID). */
 export function ScoutLauncher({ className }: { className?: string }) {
-  const { open } = useScout();
+  const { open, takeover } = useScout();
+  // A page showing something else in the panel: Scout is what this opens
+  const showing = open && !takeover?.away;
   return (
     <IconButton
       id={SCOUT_LAUNCHER_ID}
-      label={open ? "Close Scout" : "Open Scout"}
-      aria-pressed={open}
-      className={cn(className, open && "bg-brand-tint hover:bg-brand-tint")}
-      onClick={() => setScoutOpen(!open)}
+      label={showing ? "Close Scout" : "Open Scout"}
+      aria-pressed={showing}
+      className={cn(className, showing && "bg-brand-tint hover:bg-brand-tint")}
+      onClick={() => (open && takeover?.away ? takeover.away() : setScoutOpen(!open))}
     >
       <SparkleIcon className="text-brand size-4" />
     </IconButton>

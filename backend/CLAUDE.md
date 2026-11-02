@@ -700,7 +700,7 @@ Find files with a directory listing; these are the rules for where code goes.
   their places on built resumes go, with no warning. Deleting an upload
   deletes its rows (cascade). Upload flushes the `Resume` row first (the
   rows point at it). An item with no owner was made by the student, by
-  intake or by Tailor's "Have you used X?" (removed). Add (`POST .../bank/entries`
+  intake or by Tailor's "Have you used X?" (removed). Add (`POST .../experiences/entries`
   and `.../skills`) takes `?resume_id=`: an upload owns the new item, a
   built resume gets a shown choice row; its duplicate check and the skill
   name index (`NULLS NOT DISTINCT`) look at one owner only. `GET /bank`
@@ -786,8 +786,11 @@ Find files with a directory listing; these are the rules for where code goes.
   the row pointed at it and the resume touched; answers `variant_id`), an
   entry field through `bank.write_entry` (checked whole against the
   copy's entry, read only when no copy is sent, and only the fields the
-  edit changes written, with the embedding cleared in the same
-  statement), a header field as one `UPDATE ... RETURNING` (answers
+  edit names written, even when the copy already holds that value: the
+  copy can predate a save still on its way, and an old value typed back
+  over that save matched the copy and was dropped, so the page showed it
+  and the database kept the save before; the embedding is cleared in the
+  same statement), a header field as one `UPDATE ... RETURNING` (answers
   `profile`). `type_wording` and `update_choices`'s `_type_wording` must
   agree. Choice changes save through `PATCH .../choices`
   (`built_resumes.save_choices`): moves, hides, shows, toggles and wording
@@ -952,7 +955,7 @@ Find files with a directory listing; these are the rules for where code goes.
   discipline and start and end months, and a job's company, title, start
   and end or "current", so "dates" means a start and an end or "present".
   No hiring system asks for a project's, club role's or award's dates, so
-  intake does not; `frontend/src/app/(seeker)/bank/sections.ts` keeps the
+  intake does not; `frontend/src/app/(seeker)/experiences/sections.ts` keeps the
   same list for the bank's warnings and visits. The system prompt asks only
   the listed facts ("every other field is optional, never ask for it"):
   it used to order every section's questions as title, organization, dates,
