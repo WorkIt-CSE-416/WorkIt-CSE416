@@ -828,8 +828,13 @@ Application Questions shows and edits them (KAN-269).
 
 A student who used Apply (Lisul's own auto-apply tool, which runs the same
 Fill engine) brings its files over with
-`uv run python -m app.scripts.import_apply_profile <applicant_id> <apply_dir>`,
+`uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]`,
 so WorkIt fills forms as completely as Apply does.
+
+- **The folder is Apply's data folder** (KAN-536). Without `<apply_dir>`, the
+  import reads the folder that Apply reads: `$APPLY_HOME`, else
+  `~/.config/apply` (`import_apply_writing.apply_home`). The profile, policies,
+  answer bank, story bank, voice and company briefs are directly in it.
 
 - **Three JSONB columns on `applicant_profiles`**, each `NOT NULL DEFAULT
   '{}'` with a CHECK that it is an object (migration `7f07adcaef4e`; the

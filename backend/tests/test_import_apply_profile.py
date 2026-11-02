@@ -460,3 +460,55 @@ async def test_a_fact_workit_cannot_take_refuses_the_import_and_names_its_field(
 
     with pytest.raises(ImportRefused, match="github_url"):
         await _import(database, applicant, apply_dir)
+
+
+# --- The Apply data folder (KAN-536): $APPLY_HOME, else ~/.config/apply ---
+
+TEST_PERSON = """\
+identity:
+  legal_first_name: Test
+  legal_last_name: Person
+  email: test.person@example.com
+  phone: '+15550100199'
+files:
+  resume_pdf: Test_Person_Resume.pdf
+  unofficial_transcript_pdf: records/transcript.pdf
+"""
+
+
+def _test_person(folder):
+    """Apply's data folder as Apply keeps it: the profile, with its files inside."""
+    (folder / "records").mkdir(parents=True)
+    (folder / "applicant-profile.yaml").write_text(TEST_PERSON)
+    (folder / "Test_Person_Resume.pdf").write_bytes(PDF)
+    (folder / "records" / "transcript.pdf").write_bytes(TRANSCRIPT)
+    return folder
+
+
+@pytest.fixture
+def apply_home(tmp_path, monkeypatch):
+    """A Test Person data folder named by $APPLY_HOME."""
+    folder = _test_person(tmp_path / "apply-home")
+    monkeypatch.setenv("APPLY_HOME", str(folder))
+    return folder
+
+
+async def test_with_no_folder_the_import_reads_apply_home(running, applicant, database, apply_home, local_files):
+    report = await _import(database, applicant, None)
+
+    assert (await _get(applicant, "/fill-profile")).json()["profile"]["identity"]["legal_last_name"] == "Person"
+    assert report.resume == "Test_Person_Resume.pdf"
+    assert report.transcript == "transcript.pdf"
+
+
+async def test_with_no_apply_home_the_import_reads_the_config_folder(
+    running, applicant, database, local_files, tmp_path, monkeypatch,
+):
+    monkeypatch.delenv("APPLY_HOME", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    _test_person(tmp_path / "home" / ".config" / "apply")
+
+    report = await _import(database, applicant, None)
+
+    assert report.resume == "Test_Person_Resume.pdf"
+

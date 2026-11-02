@@ -2,12 +2,14 @@
 Bring a student's Apply files into their WorkIt record, so WorkIt's forms
 fill as completely as Apply's (models/CLAUDE.md, "The Fill engine's profile").
 
-    uv run python -m app.scripts.import_apply_profile <applicant_id> <apply_dir>
-    uv run python -m app.scripts.import_apply_profile <applicant_id> <apply_dir> --dry-run
+    uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]
+    uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>] --dry-run
 
-`apply_dir` holds Apply's applicant-profile.yaml, policies.yaml and
-answer-bank.yaml, already in the Fill engine's own shapes (Apply runs the
-same engine). One run, in one transaction:
+`apply_dir` is Apply's data folder. Without it, the import reads the folder
+Apply reads: $APPLY_HOME, else ~/.config/apply. The folder holds Apply's
+applicant-profile.yaml, policies.yaml and answer-bank.yaml, already in the
+Fill engine's own shapes (Apply runs the same engine). One run, in one
+transaction:
 
 1. `fill_profile`: the profile, but `files` (its resume and transcript come
    as WorkIt's own rows, step 5);
@@ -270,8 +272,10 @@ async def _set_transcript(
     report.transcript = source.name
 
 
-async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir: Path) -> Report:
-    """Steps 1-8 of the module docstring in the caller's session; flushes, never commits."""
+async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir: Path | None = None) -> Report:
+    """Steps 1-8 of the module docstring in the caller's session; flushes, never commits.
+    With no `apply_dir`, Apply's data folder (import_apply_writing.apply_home)."""
+    apply_dir = apply_dir or import_apply_writing.apply_home()
     profile = await session.get(Applicant_Profile, applicant_id)
     if profile is None:
         raise ImportRefused(f"No applicant {applicant_id}.")
@@ -319,14 +323,16 @@ async def _run(applicant_id: uuid.UUID, apply_dir: Path, *, dry_run: bool) -> Re
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("applicant_id", type=uuid.UUID)
-    parser.add_argument("apply_dir", type=Path)
+    parser.add_argument("apply_dir", type=Path, nargs="?",
+                        help="Apply's data folder (default: $APPLY_HOME, else ~/.config/apply)")
     parser.add_argument("--dry-run", action="store_true", help="run every step, then roll back")
     args = parser.parse_args(argv)
     if not _local(get_settings().app_url):
         print("DATABASE_URL is not on this computer: the import writes only to a local database.", file=sys.stderr)
         return 2
     try:
-        report = asyncio.run(_run(args.applicant_id, args.apply_dir.resolve(), dry_run=args.dry_run))
+        apply_dir = (args.apply_dir or import_apply_writing.apply_home()).expanduser().resolve()
+        report = asyncio.run(_run(args.applicant_id, apply_dir, dry_run=args.dry_run))
     except ImportRefused as exc:
         print(str(exc), file=sys.stderr)
         return 1
