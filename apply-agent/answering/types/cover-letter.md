@@ -38,7 +38,7 @@ slots:
 
 ## What the reader is checking
 
-In under a minute, and often only the first sentence: who he is, what proof he has, and whether this letter was written to this company. The template in `apply/src/apply/cover_letter.py` fixes the shape, and its slot rules and word caps win over anything here. Each slot name above starts with the template slot it fills (`second-proof` fills `second_proof`). Apply writes the salutation, sign-off and his name.
+In under a minute, and often only the first sentence: who he is, what proof he has, and whether this letter was written to this company. The template in `src/apply/cover_letter.py` fixes the shape, and its slot rules and word caps win over anything here. Each slot name above starts with the template slot it fills (`second-proof` fills `second_proof`). Apply writes the salutation, sign-off and his name.
 
 - "They're the very first thing we read when people apply. And when they're bad, they're definitely the last thing we read from that applicant. We just stop there." (Jason Fried, 37signals, cover-letters reader quotes)
 - "Are they applying for this job or just any job? It's pretty obvious if it's a general purpose mail merge, or a personal letter written to us about their passion for that position." (Fried)

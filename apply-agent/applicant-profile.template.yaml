@@ -1,7 +1,6 @@
-# Applicant profile TEMPLATE. Copy it to apply/applicant-profile.yaml and fill
-# it in once (#121); `apply run` reads that file. Built from the
-# application-questions research (research/application-questions.md on branch
-# research/application-questions).
+# Applicant profile TEMPLATE. Copy it to applicant-profile.yaml in the data
+# folder ($APPLY_HOME) and fill it in once; `apply run` reads that file. Built
+# from research on the questions that application forms ask.
 #
 # Never put a secret here (a password, an app password, a key or a token):
 # secrets live only in macOS Keychain or gitignored files, and Apply refuses to

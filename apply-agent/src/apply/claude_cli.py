@@ -10,7 +10,7 @@ research/max-orchestrator.md on branch research/max-orchestrator.
 Every call runs from an empty folder with auto-memory off. Run from inside
 this repo, a call loaded the parent project's auto-memory: the one live
 Pre-submit review (Haiku, CLI 2.1.300, 2026-10-15) took 2,461 input tokens,
-against 1,139 for #132's probe from an empty folder, and carried Lisul's
+against 1,139 for an earlier probe from an empty folder, and carried Lisul's
 private notes into the prompt.
 """
 

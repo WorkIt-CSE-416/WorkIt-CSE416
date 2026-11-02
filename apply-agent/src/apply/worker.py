@@ -397,7 +397,7 @@ class _Planned:
             self.brief = brief.brief(posting, self._site, self.claude, self._today, self.text, self.questions)
         ask = new if self._approved is None else []
         given = planned.answers | {d.question.name: d.answer for d in self.drafted + self.unbanked}
-        answered = {q: given[q.name] for q in self.questions if q.name in given}  # "the area you picked above" (#212)
+        answered = {q: given[q.name] for q in self.questions if q.name in given}  # "the area you picked above"
         written, drafted = essays.answer(self.claude, posting, ask, to_draft, profile, self.known(), self.text,
                                          answered=answered) if ask or to_draft else ([], [])
         if self._approved is not None:

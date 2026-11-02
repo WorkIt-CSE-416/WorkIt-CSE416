@@ -10,7 +10,7 @@ refuses (it allows 4 tries, then locks for 30 minutes), or an identity
 question other than the last name.
 
 Real up to the email step (saved 2026-10-15). The steps after it follow
-Oracle's documentation and are unverified (#124): the code page's wording,
+Oracle's documentation and are unverified: the code page's wording,
 its boxes, its buttons and the mail's sender and subject.
 """
 
