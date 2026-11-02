@@ -1409,7 +1409,12 @@ go then. A change needs to work on Cloudflare only.
   Worker's `Api` class copies the names in its `FORWARDED` list into the
   container's environment, skipping any the Worker lacks so the code's
   default applies. **A new setting the API reads must join `FORWARDED`**, or
-  the container never sees it. **A container keeps the environment it
+  the container never sees it: the connector's `CONNECTOR_*` were left out,
+  so production's OAuth issuer and MCP address read `http://localhost:8000`
+  and no student's Claude could sign in (KAN-377, found 2026-10-31). A public
+  value (the connector's two URLs) is a `vars` entry in `wrangler.jsonc`,
+  forwarded the same way; never also put its name in `CF_API_SECRETS_JSON`,
+  since a var and a secret cannot share a name. **A container keeps the environment it
   started with**, and an `Api` object that finds its container running
   attaches to it as it is, so after a secret change one instance went on
   answering with the old values (2026-10-21). `Api.fetch` therefore stores
@@ -1427,7 +1432,15 @@ go then. A change needs to work on Cloudflare only.
   model, where"); without `SCOUT_*` every Scout reply is "offline".
   `SCOUT_ENDPOINTS_LARGE` and `SCOUT_ENDPOINTS_SMALL` are optional: unset,
   each size runs on the default chain. The
-  `AI_*` usage limits are optional (defaults in `app/config.py`). **Never
+  `AI_*` usage limits are optional (defaults in `app/config.py`).
+  `WORKIT_ADMINS` names who reads fill reports; unset, no one can.
+  `TURNSTILE_SECRET_KEY` turns on signup's CAPTCHA check, and goes in only
+  with the web build's `NEXT_PUBLIC_TURNSTILE_SITE_KEY`: without the site
+  key the form sends no token, and every signup answers 400. Neither was
+  forwarded before 2026-10-31, so production signup ran with no CAPTCHA.
+  The job-alert digest's `AWS_REGION`, `SES_FROM_EMAIL` and `WEB_URL` are
+  not the container's: the digest runs on EC2 (`../.github/CLAUDE.md`, Job
+  alerts). **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
   business holding that connection. Embeddings use Ollama with
   `nomic-embed-text:v1.5` by default; see `app/services/matching/CLAUDE.md`.
@@ -1523,6 +1536,11 @@ go then. A change needs to work on Cloudflare only.
   The model selects the column with every listing and the import writes it,
   so a database without it fails every `GET /jobs` and every scheduled
   import.
+- **Apply `a3c6e9f1b274` (`built_resumes.page_settings`, KAN-435) as soon as
+  it merges.** It only adds a JSONB column whose default `{}` is Jake's own
+  page, and no code maps it yet, so it is safe for every deploy. The Format
+  menu follows in its own PR. Its model selects the column with every built
+  resume, so a database without it fails every built resume route.
 - **Batch apply's migrations (KAN-369, `d1a7c3e5f902` through
   `f4a8c1d6e273`) are on main ahead of their code**, so they can be applied
   before the deploy that maps them. The models map

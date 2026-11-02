@@ -221,11 +221,15 @@ builds it: `dist/engine.js` is committed in the engine repo.
   `test/oracle.extension.spec.ts` (the engine's fake Oracle page).
 - **SAP SuccessFactors** (`successfactors.js`, KAN-369). The manifest runs on
   the career sites' `/career*` and `/portalcareer*` pages of
-  `*.successfactors.com|.eu` and `*.sapsf.com|.eu` (backend
-  AUTO_APPLY_HOSTS the same four). A posting usually lives on the
-  employer's own career site (jobs.sap.com, `*.jobs2web.com`, a branded
-  host), where the extension doesn't run: its Apply goes on to the career
-  site's sign-in. The sign-in and its Create an Account page are the
+  `*.successfactors.com|.eu` and `*.sapsf.com|.eu`, and on the employer
+  career sites `*.jobs2web.com` and jobs.sap.com (backend AUTO_APPLY_HOSTS
+  the same six). Those two came in KAN-491: the API refused the feed's
+  ASSA ABLOY postings, and once it queued them a batch tab there had no
+  host access, so it showed no panel and its state fell to Needs you with
+  nothing saying why. There the panel says "Press Apply on this page and
+  sign in to SuccessFactors". A posting on a branded host (careers.acuityinc.com)
+  gets the panel only once the student allows the site (site-access.js);
+  its Apply goes on to the career site's sign-in. The sign-in and its Create an Account page are the
   student's: WorkIt never types an email or password there, never makes an
   account and never presses their buttons; the panel says "Sign in to
   SuccessFactors, then press Fill". Signed in, the application's fields are
@@ -615,48 +619,69 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   synthetic press (`press`) works on both, Apply's popup shows Apply
   Manually a moment after, and it loads `/apply/applyManually`, then
   Create Account/Sign In (NVIDIA's social-first, with Sign in with email).
-- **Workday Sign-Up (KAN-369).** The extension's options page
-  (`src/options/`, opened from the panel's Settings) lets the
-  student set one registration email (prefilled from their WorkIt profile,
-  `profile/get`) and one password for every company's Workday, as Jobright's
-  "Sign-up Information" does. A live checklist (12+ characters, upper, lower,
-  number, special) gates Save; Show/Hide and Clear. **The page writes the
-  login straight to `chrome.storage.local` (`workday_signup`)**: no message
-  carries it, the page never shows a saved password back, and it never
-  reaches the API, a log or the webapp
-  (`test/workday-signup.extension.spec.ts` checks every API request).
-  With one saved, `workdayLogin` gives a tenant with nothing saved that
-  login in place of a new password: Create Account copies it into the
-  tenant's `workday_logins` entry (`signup: true`, `made`, so it is pressed
-  as a new password is), and Sign In fills it as `fresh` (no account known
-  here), so it still switches to Create Account first, as with nothing
-  saved; with no switch link it presses Sign In with it, and a refusal saves
-  the copy `refused`. A tenant saved before keeps its own login. With none
-  set, everything is as below. Every press rule below holds unchanged.
-  The page opens from the popup, the consent card's Set One Password
-  (`workday/signup-open`) and the webapp's Settings > Connected Apps (the
-  same message over `externally_connectable`; it only opens the page).
+- **Workday Sign-Up (KAN-369, KAN-479): the one login for every company.**
+  Decided on KAN-453 (team, 2026-10-31): v1 fills ONE registration email and
+  password the student sets, at every company's Workday, as Jobright and
+  Simplify do; a generated password per company, saved encrypted on WorkIt,
+  is a later paid feature (KAN-481, not built). **WorkIt makes no Workday
+  account and makes up no password without it**: with none set (and nothing
+  saved for the tenant), `workdayLogin` answers `needsSignup` and no password,
+  and nothing is typed or pressed. The student sets it on the options page
+  (`src/options/`, opened from the panel's Settings and the webapp's
+  Settings > Connected Apps, `workday/signup-open`, which only opens it) or on
+  the consent card (below), which asks for it inline before any Create
+  Account: email prefilled from the profile (`profile/get`), password typed
+  by the student, Show, and Workday's rules (12+ characters, upper, lower,
+  number, special) gating Save. **Both write it straight to
+  `chrome.storage.local` (`workday_signup`)**: no message carries it to the
+  worker, the webapp or the API, the options page never shows it back, and a
+  sign-in page waiting for it goes on once it is saved
+  (`chrome.storage.onChanged` in `workday.js`). Create Account copies it
+  into the tenant's `workday_logins` entry (`signup: true`, `made`, so it is
+  pressed as a page's new login is), so a changed password applies only to
+  tenants made after the change; Sign In with nothing saved fills it as
+  `fresh` (no account known here), so it switches to Create Account first;
+  with no switch link it presses Sign In with it, and a refusal saves the
+  copy `refused`. **A tenant saved before KAN-479 keeps its own login**
+  (generated for it alone; its account was made with it). The options page's
+  Saved Company Logins lists each tenant's login (read straight from
+  storage) with Copy, Remove (`workday/remove-login`, by tenant only,
+  accepted only from the options page, run `serially` with the other
+  changes) and Export (a CSV of name, url, username, password, the columns
+  Chrome's password manager imports). Both the page and the card say that
+  removing the extension deletes the saved passwords. The one message that
+  carries a password is the worker's answer to `workday/login`, to the
+  content script that types it. Tests: `test/workday-signup.extension.spec.ts`
+  (the page, its list, every API request searched), `test/workday-accounts.extension.spec.ts`
+  (the card on a fresh profile: every API request, log line and page-to-worker
+  message searched; a fix report from the sign-in), and
+  `test/batch-sessions.extension.spec.ts` (an older tenant's login). Tests
+  that reach a Workday sign-in save `WORKDAY_SIGNUP` first
+  (`saveWorkdaySignup`, test/loaded-extension.ts).
 - **Workday sign-in (KAN-373).** On Workday's Create Account or Sign In
   form (`[data-automation-id=signInFormo]`; Workday's step bar calls it a
   step, which `workdayStep()` ignores), `workday.js` asks
   `workday/login` and types the student's email and the login
   `workday-logins.js` keeps for that company's tenant (`jobOf(url).tenant`):
-  on Create Account a new 20-character password, saved before it is typed,
-  in both boxes. Rules: **passwords live only in `chrome.storage.local`
-  (`workday_logins`)**, never in an API call, a webapp message or a log;
-  **one per tenant, never shared**; the extension never opens the
+  on Create Account the student's one login (above), saved for the tenant
+  before it is typed, in both boxes. Rules: **passwords live only in
+  `chrome.storage.local` (`workday_signup`, `workday_logins`)**, never in an
+  API call, a webapp message, a log or a fix report; the extension never opens the
   verification email: the student does. A box the student typed in is left
   alone. **Pressing for the student (KAN-369)**, as Jobright and Simplify
-  do (resume-2027 `research/workday-accounts.md`): the panel asks once
-  ("Let WorkIt Sign You In to Workday", `askWorkdayAccounts`), and Sign Me
-  In stores `workday_accounts_for_me` (`workday/allow`). From then on, at
+  do: the panel asks once, before any Create Account is pressed (the Web
+  Store's prominent-disclosure rule; "Let WorkIt Sign You In to Workday",
+  `askWorkdayAccounts`), and Sign Me In stores `workday_accounts_for_me`
+  (`workday/allow`). With no Workday login set it asks for it too (Save and
+  Sign Me In, disabled until the rules hold), and asks again on a later
+  company while none is set. From then on, at
   every company, `workday.js` presses "Sign in with email", switches to
   Create Account when nothing is saved there (to Sign In when the saved
   login has signed in, `signedIn`, set by the first `fill/plan` on the
   tenant, or made the account, `created`, set by `workday/created` when
   Workday answers the extension's Create Account by asking to verify the
   email, in an alert or the page's text), ticks the terms box and names its words in the panel, and
-  presses Create Account (only with a password made on that page, and only
+  presses Create Account (only with a login saved for the tenant on that page, and only
   once the box shows ticked, `checked` or `aria-checked`, a moment later;
   else it says to tick it and press Create Account, and keeps the
   password) or Sign In, once the boxes hold the login and the page has
@@ -667,13 +692,13 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   again, at most 3 times, and never once one went out (`workday/sent`).
   Workday's message after a press (a visible one that wasn't there at the
   press) is shown (a verification email: open it, come back and press Sign
-  In), and a refused Create Account drops its new password
+  In), and a refused Create Account drops the tenant's new copy of the login
   (`workday/forget`). **A refused Sign In is never pressed again, on any
   page** (Workday locks accounts): `workday/refused` saves `refused` on the
   tenant's login, its password is no longer typed, and it clears when the
   student signs in there (the tenant's next `fill/plan`). Every change to
   `workday_logins` runs one at a time (`serially` in `workday-logins.js`),
-  so two tenants' Create Account at once keep both passwords. Without the
+  so two tenants' Create Account at once keep both logins. Without the
   student's yes, nothing is pressed. The
   panel says "Sign in to continue" and the tab sits in Needs you until a
   step shows; then the fill goes on, in the page or (the tab is
@@ -1233,6 +1258,16 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   can open a real posting in a batch tab with the fake student's profile
   and read what the form shows. It never submits; never commit one that
   runs in CI. This is how Stripe's form-less link was found.
+- **Live rehearsals** (KAN-324): `test/live/rehearse.live.ts` runs batches
+  of 5 real postings through `run/open` picks, against the local WorkIt API
+  of `../auto-apply/rehearsals/stack/serve.py` (a Docker Postgres, a dummy
+  test student, no Supabase), and records each tab's state, panel rows,
+  fill report and every non-GET request a page sent (the proof no submit
+  went out). `test/live/panel.live.ts` does the same from the panel for a
+  posting a batch can't open. Run by hand with `-c live/live.config.ts`;
+  `*.live.ts` matches no CI project. A Workday tab stays needs_you while it
+  walks its steps, so a tab counts as settled only once its state and panel
+  stay still. Results: `../auto-apply/rehearsals/`.
 - **Tests** (`test/batch.extension.spec.ts`; KAN-373's resume, Skip,
   Workday slot and sign-in in `test/batch-sessions.extension.spec.ts`,
   with fake Workday tenants and sign-in pages in `fake-job-systems.ts`;

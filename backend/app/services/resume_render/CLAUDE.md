@@ -8,10 +8,11 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 
 ## The interface
 
-- **`render(view, identity, template)` is the one way to a PDF.** It takes a
+- **`render(view, identity, template, page)` is the one way to a PDF.** It takes a
   built resume view (`../resume_view.py`, the shape every resume feature
-  reads), the profile's `HeaderIdentity` (`built_resumes.load_header_identity`) and a template id, and returns
-  `Rendered(pdf, page_count, missing_characters, boxes)`. An unknown template
+  reads), the profile's `HeaderIdentity` (`built_resumes.load_header_identity`), a template id
+  and the resume's `PageSettings`, and returns
+  `Rendered(pdf, page_count, missing_characters, boxes, wrapped_line)`. An unknown template
   id is a `ValueError`. Add fields to `Rendered`, never a second render
   function.
 - **A template is a function from the view and identity to a LaTeX body**
@@ -20,7 +21,20 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 - **`fields.py` is how a field reads as text** (dates, GPA, headings, skill
   groups), shared by the PDF and the Word file so the two never disagree.
   Change wording there, not in a layout.
-- **`latex(view, identity, template)` is the same document's source**,
+- **`PageSettings` is how a resume's page is set** (KAN-435): font size,
+  line spacing, side and top margins, alignment, section and entry spacing,
+  accent color, bullet, the rule under section titles, header alignment and
+  section order (`section_order`, every section once, which `jakes.body` and
+  the Word file both follow),
+  each from a fixed list at the top of `__init__.py`, stored on
+  `built_resumes.page_settings`. Section and entry spacing, the accent, the
+  bullet and the rule are preamble lines; the accent on the name and the
+  header's alignment are written by `jakes._header`, which at the default
+  writes Jake's own header. A value off the lists raises `ValueError`,
+  so nothing a student sends reaches the LaTeX, and the warm cache can hold
+  every font a page can reach. The defaults are Jake's page. Word ignores
+  them: its one plain layout has no template id either.
+- **`latex(view, identity, template, page)` is the same document's source**,
   for the editor's Download LaTeX (`GET .../built-resumes/{rid}/tex`): the
   body with `marks=False`, so the student gets Jake's own `.tex` with no
   `\wimark` lines, ready for Overleaf. It shares `_document()` with
@@ -61,7 +75,9 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   same way, from the same string it escapes, never from a second rule.
 - **`Rendered.lines_over` is read from the boxes** (KAN-218): the distinct
   baselines past page 1, a wrapped box counting each line
-  (`box_lines`, `WRAPPED_LINE`). Section headings and the space
+  (`box_lines`, `Rendered.wrapped_line`, which is `PageSettings.wrapped_line`:
+  a bullet's `\small` leading at that font size, times the line spacing).
+  Section headings and the space
   between entries have no box, and blocks move whole across the page
   break, so it can run several lines short (`line_count` is the shared
   count): the editor's chip shows it, and Fit to One Page re-renders and
@@ -80,7 +96,19 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   is reused from the prototype. Its one change from the published original,
   commented in the file, skips the two pdfTeX-only `\pdfgentounicode` lines,
   which XeTeX lacks and does not need. `tests/test_resume_render.py` pins its
-  SHA-256. Never edit it to fix a layout; write the body differently. Its
+  SHA-256. Never edit it to fix a layout; write the body differently.
+  **Page settings do not edit it either** (KAN-435): `jakes_document()`
+  changes the class's size option and adds its lines (`_page_lines`) after
+  the preamble, before `\begin{document}`, in the document it writes, never
+  in the file. `\\titleformat` for sections repeats Jake's line with the
+  page's changes (`_section_format`); the `color` package has no HTML model,
+  so an accent is `rgb`. At the default page it writes Jake's template byte for byte,
+  and only a setting that differs adds a line. The margins and `\linespread`
+  must sit there: after `\begin{document}` the lists have already read the
+  width. Justified text takes back the preamble's `\raggedright`, and adds
+  `\sloppy` and no hyphenation: without them a line that cannot stretch
+  pokes into the margin, and a split word reads as two to a hiring system.
+  Its
   header comment names `to_latex.py`, a prototype file that does not exist
   here: the body goes in at `%%BODY%%` through `jakes_document()`.
 - **All applicant text goes through `escape()`**, the one escape function,
@@ -191,6 +219,11 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   render of that resume answered 503 offline (KAN-218). After pulling this
   change, run `python3 scripts/fetch_tectonic.py` again (without
   `--check`) so a local cache gets the missing files.
+- **Warming compiles the sample and the fonts in each of `FONT_SIZES`**
+  (`sample.warm_documents()`, KAN-435). Each size is its own article size
+  file and its own optical sizes, and an uncached one fails offline with
+  503. A new font size must join `FONT_SIZES` so it warms. After pulling
+  this change, run `uv run python scripts/fetch_tectonic.py` from `backend/`.
 - **Warming covers only what `sample.py` draws.** Latin Modern keeps each
   optical size in its own file, and a package fetches no font until a glyph is
   drawn: in the prototype a `\LARGE` name the warm-up missed failed offline.
@@ -213,7 +246,7 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 ## Still open
 
 - **The edit-to-PDF round trip in production, warm and cold** (KAN-209):
-  read it from the editor's bar after a save ("Saved, 412 ms", KAN-218).
+  read it on a phone after a save ("Saved, 412 ms", KAN-218).
   The team chose the HTML copy of the page for typing (research option 4)
   as step 1, with this package's PDF still the only output, and is
   considering Typst for step 2 (`docs/live_page.md`, ADR 0002's status).

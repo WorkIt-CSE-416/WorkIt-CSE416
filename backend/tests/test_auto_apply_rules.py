@@ -69,6 +69,9 @@ def test_size_zero_or_empty_input():
     "https://careers.tiktokusds.com/usds/position/7679251399185778949/detail",
     "https://jobs.smartrecruiters.com/Acme/744000000000001-field-technician",
     "https://career4.successfactors.com/career?career_ns=job_listing&company=AcmeCo&career_job_req_id=16550",
+    # SuccessFactors' Recruiting Marketing career sites, which the engine covers (KAN-491).
+    "https://assaabloy.jobs2web.com/job/Austin-Product-Management-Intern-TX-78753/1372221533/",
+    "https://jobs.sap.com/job/Walldorf-Working-Student-BW-69190/1234567801/",
     "https://careers-acme.icims.com/jobs/1234/software-intern/job",
     # A company's own careers page that embeds Greenhouse's form (filled in its iframe).
     "https://stripe.com/jobs/search?gh_jid=8257892",
@@ -97,6 +100,9 @@ def test_auto_apply_takes_every_hiring_system_the_fill_engine_fills(url):
     # Only TikTok's careers site, not the rest of tiktok.com or bytedance.com.
     "https://www.tiktok.com/@acme",
     "https://www.bytedance.com/en/news",
+    # Only SAP's jobs site, not the rest of sap.com.
+    "https://www.sap.com/products.html",
+    "https://notjobs2web.com/job/1",
 ])
 def test_auto_apply_leaves_out_other_hosts(url):
     assert not auto_apply_supported(url)

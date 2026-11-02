@@ -1,7 +1,7 @@
 "use client";
 
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { Skeleton } from "@/components/shadcn/skeleton";
 import type { RenderBox } from "@/lib/built-resume-actions";
@@ -153,6 +153,8 @@ export function PageSkeleton() {
 export function PdfPages({
   pdf,
   boxes,
+  readOnly = false,
+  popup,
   selected,
   onSelect,
   onDrawn,
@@ -162,6 +164,7 @@ export function PdfPages({
   swaps,
   placeholder,
   marks,
+  lit,
   focus,
   dots,
   onDot,
@@ -169,6 +172,12 @@ export function PdfPages({
   /** base64, as the render response sends it */
   pdf: string;
   boxes: RenderBox[];
+  /** The pages alone, with no click targets, marks or dots: the comparison
+   *  with the original resume. The boxes wait, so leaving it draws at once. */
+  readOnly?: boolean;
+  /** A small card beside one line, by its box key: Tailor's change on the
+   *  line just clicked, as Docs shows a suggestion beside its text. */
+  popup?: { line: string; node: ReactNode };
   selected: string | null;
   onSelect: (key: string) => void;
   /** Called once every page of this `pdf` has painted. */
@@ -188,6 +197,9 @@ export function PdfPages({
   placeholder?: ReactNode;
   /** Tailor's changed lines, by box key, while their changes are untouched. */
   marks?: Map<string, Mark>;
+  /** The marks in focus, which take an outline over their tint; with none
+   *  given, every mark does. */
+  lit?: Set<string>;
   /** The lines of the open suggestion, by box key, scrolled into view. */
   focus?: string[];
   /** Tailor's margin dots, by box key, and what a click on one does. */
@@ -201,7 +213,7 @@ export function PdfPages({
   } | null>(null);
   // The boxes of the PDF on screen, where the moves on their way put them
   const strips = swaps?.(doc?.boxes ?? []) ?? [];
-  const shown = (doc?.boxes ?? []).map((box) => afterStrips(box, strips));
+  const shown = readOnly ? [] : (doc?.boxes ?? []).map((box) => afterStrips(box, strips));
   // Each overlaid line's first box, top to bottom, with what it moves by
   const lives = overlaid
     .map((key) => shown.find((b) => boxKey(b) === key))
@@ -209,6 +221,7 @@ export function PdfPages({
     .map((box) => ({ ...box, by: shiftOf?.(box) ?? 0 }))
     .sort((a, b) => a.page - b.page || a.y0 - b.y0);
   const typing = selected !== null && lives.some((l) => boxKey(l) === selected);
+  const popupBox = popup && shown.find((box) => boxKey(box) === popup.line);
   // A target below an overlaid line moves with the page under it
   const moved = (box: RenderBox) =>
     lives.reduce((by, l) => (l.page === box.page && l.y1 <= box.y0 ? by + l.by : by), 0);
@@ -272,7 +285,11 @@ export function PdfPages({
       {doc.sizes.map((size, i) => (
         <div
           key={i}
-          className="bg-panel border-border-subtle @container relative w-full border shadow-sm"
+          className={cn(
+            "bg-panel border-border-subtle @container relative w-full border shadow-sm",
+            // A popup at a page's foot runs over the next page, not under it
+            popupBox?.page === i + 1 && "z-10",
+          )}
           style={{ aspectRatio: `${size.width} / ${size.height}` }}
         >
           <PageCanvas
@@ -303,7 +320,10 @@ export function PdfPages({
                     "absolute rounded-[2px] outline-offset-1 transition-colors",
                     !mark && "hover:bg-brand/5",
                     mark && MARK_TINT[mark],
-                    mark && !(selected === key && typing) && MARK_EDGE[mark],
+                    mark &&
+                      (!lit || lit.has(key)) &&
+                      !(selected === key && typing) &&
+                      MARK_EDGE[mark],
                     "focus-visible:outline-brand focus-visible:outline-2",
                     // While its line is typed in, the field's ring is the one
                     // outline: this box sits a few pixels off the field, and its
@@ -321,6 +341,16 @@ export function PdfPages({
               );
             })}
           {dots && <MarginDots boxes={shown} page={i + 1} size={size} dots={dots} onDot={onDot} />}
+          {popupBox?.page === i + 1 && (
+            <LinePopup
+              key={popup?.line}
+              top={(popupBox.y0 + moved(popupBox)) / size.height}
+              bottom={(popupBox.y1 + moved(popupBox)) / size.height}
+              left={popupBox.x0 / size.width}
+            >
+              {popup?.node}
+            </LinePopup>
+          )}
           {lives
             .filter((l) => l.page === i + 1)
             .map((l) => (
@@ -338,6 +368,85 @@ export function PdfPages({
             ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Pixels between a popup and its line, and between it and the window. */
+const POPUP_GAP = 6;
+/** A popup's shortest height: too little room scrolls it, down to this. */
+const POPUP_LEAST = 96;
+
+/**
+ * A card by a line, under it or over it, whichever the student can see all
+ * of. The room is measured against what shows: the scrolling `main` less the
+ * sticky bar (`data-page-bar`), not the page, since a page runs far past the
+ * window. It stays on its side while that side still fits, so scrolling does
+ * not flip it back and forth; with no room for it on either side, it takes
+ * the roomier one and scrolls inside. A fixed rule, over the line in the
+ * page's last 30%, cut the card off at the window's foot higher up the page.
+ * `top`, `bottom` and `left` are the line's, in fractions of the page.
+ */
+function LinePopup({
+  top,
+  bottom,
+  left,
+  children,
+}: {
+  top: number;
+  bottom: number;
+  left: number;
+  children: ReactNode;
+}) {
+  const card = useRef<HTMLDivElement>(null);
+  const [place, setPlace] = useState({ over: false, room: Infinity });
+  useLayoutEffect(() => {
+    const el = card.current;
+    const main = el?.closest("main");
+    const page = el?.parentElement;
+    if (!el || !main || !page) return;
+    const fit = () => {
+      const { top: pageTop, height } = page.getBoundingClientRect();
+      const shown = main.getBoundingClientRect();
+      const bar = main.querySelector("[data-page-bar]")?.getBoundingClientRect().bottom ?? 0;
+      const rooms = {
+        over: pageTop + height * top - Math.max(shown.top, bar) - 2 * POPUP_GAP,
+        under: Math.min(shown.bottom, innerHeight) - (pageTop + height * bottom) - 2 * POPUP_GAP,
+      };
+      const needs = el.scrollHeight;
+      const fits = (over: boolean) => (over ? rooms.over : rooms.under) >= needs;
+      setPlace((now) => {
+        const over = fits(now.over)
+          ? now.over
+          : fits(!now.over)
+            ? !now.over
+            : rooms.over > rooms.under;
+        const room = fits(over) ? Infinity : Math.max(over ? rooms.over : rooms.under, POPUP_LEAST);
+        return over === now.over && room === now.room ? now : { over, room };
+      });
+    };
+    fit();
+    main.addEventListener("scroll", fit, { passive: true });
+    window.addEventListener("resize", fit);
+    return () => {
+      main.removeEventListener("scroll", fit);
+      window.removeEventListener("resize", fit);
+    };
+  }, [top, bottom]);
+  return (
+    <div
+      ref={card}
+      data-popup
+      className="bg-panel ring-border-subtle absolute z-20 w-80 max-w-full overflow-y-auto overscroll-none rounded-xl shadow-lg ring-1"
+      style={{
+        left: `min(${left * 100}%, calc(100% - 20rem - 8px))`,
+        maxHeight: place.room === Infinity ? undefined : place.room,
+        ...(place.over
+          ? { bottom: `calc(${(1 - top) * 100}% + ${POPUP_GAP}px)` }
+          : { top: `calc(${bottom * 100}% + ${POPUP_GAP}px)` }),
+      }}
+    >
+      {children}
     </div>
   );
 }

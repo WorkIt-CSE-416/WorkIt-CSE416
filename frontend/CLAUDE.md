@@ -1135,14 +1135,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   - Logos from the Google favicon host load `unoptimized`: they are
     small PNGs already, and some 60 each went through `/_next/image`.
   - Write a `data-*` mark on `<html>` only when it changes.
-- **The legal pages, `/privacy` and `/terms`, are drafts awaiting team
-  review**, in `app/(landing)/` on the shared `legal-page.tsx` shell (one
-  readable column of text; the group's layout draws the header and footer
+- **The legal pages, `/privacy` and `/terms`**, are in `app/(landing)/`
+  on the shared `legal-page.tsx` shell (one readable column of text; the group's layout draws the header and footer
   around it, so the shell draws neither) and linked from the footer's Legal
   column. Google's OAuth brand verification
   needs both public on the site's own domain, so they render signed out and
   no redirect may catch them. Each sentence describes what the code does
-  today; a business or legal decision stays a `TeamToDecide` placeholder,
+  today; a business or legal decision is the team's (recorded on KAN-462),
   never a guess. A change to what WorkIt collects, shares or sends to a
   model updates `/privacy` in the same change, with `LEGAL_UPDATED`.
 - **The Calendar is back** (KAN-413): events added on an application's
@@ -1687,7 +1686,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   trading places (`swapOf`, `swapsOn`, `Strip` in `pdf-pages.tsx`): a
   swap is kept by item, not by position, so a PDF that lands before its
   own still shows it, and one the page already shows draws nothing.
-  "Saved, N ms" times the render.
+  A phone's "Saved, N ms" times the render.
 - **Undo and Redo live in the tab's memory, never in browser storage**
   (KAN-391, `(seeker)/resumes/[resumeId]/history.ts`, tested with
   `node --test`). Each edit records a step: the edit and its reverse,

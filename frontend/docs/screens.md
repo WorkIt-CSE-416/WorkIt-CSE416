@@ -2308,32 +2308,43 @@ with no proposals to accept and no Done (2026-10-25).
   in the same box; Enter or a click away saves, Esc cancels), the
   editor's slim toolbar over the page with the panel level beside it, and
   "Suggestions" with its count in a
-  filled pill over a 360px panel in the brand tint (the editor's bar's
+  filled pill over a 384px panel in the brand tint (the editor's bar's
   colour) of white sections that sticks beside the page, its top fixed
   and its sections scrolling under it. The
-  resume's name row holds the view switch at its right, Resume Only (the
-  page alone at full width), Suggestions (with its count) or Original,
-  which sets the source resume beside the tailored one at one width in
-  place of the panel, under a toolbar-like bar with a Read Only tag. The
+  page is laid out as a Google Doc (KAN-499), edge to edge with a 16px
+  gutter and no width cap: the resume's name over the job under the step's
+  row, with the Original and Suggestions icons and Download at that row's
+  right, as Docs keeps its comments and Share, over a filled pill toolbar of
+  Undo, Redo and zoom. The two icons
+  open what sits beside the page, each closing it when pressed again, and
+  the panel has its own X. Both closed, the page takes the full width. Original
+  sets the source resume beside the tailored one at one width in
+  place of the panel: a plain heading over each, Tailored Resume and
+  Original Resume, no toolbars, no click targets or marks on the page, and
+  the two scroll together, with an X on the Original Resume heading (KAN-499). The
   top row sits in the brand tint, rounded. The toolbar holds only tools
   for the page: at the left Undo and Redo (UI only for now, disabled)
   and, idle, the page count when over one page as an amber chip with a
   warning sign and a caret (its click offers Fit to One Page); at the
   right Download, secondary. No Experiences picker on this page
-  (the editor's own page has it); while a line is open, its moves, Hide and its choices with "Esc
-  when done"; no Ask Scout and no Done. Each changed line has a small
-  purple dot in the page's margin and is highlighted (its tint, a 1px dark
-  border, rounded, after Quinncia) only while its suggestion is pointed
-  at or open; a dot or a changed line opens it. The panel's top holds a
+  (the editor's own page has it); while a line is open, the page's settings and an entry's choices with "Esc
+  when done"; no Ask Scout and no Done. Each changed line is tinted in its
+  type's colour, with a 1px dark border, rounded, while its suggestion is
+  pointed at or open. A click on one opens a small card beside it with the
+  change and Undo, and leaves the panel as it is (KAN-499). Hide Suggestions
+  on the toolbar takes the tints and the card off the page. A phone keeps a
+  margin dot per line. The panel's top holds a
   type filter in the heading row (a dropdown of All Types
   and each change type, each with its coloured badge, added green,
   reworded blue, removed red, moved amber, and its count); under it one white section per resume entry, top to bottom
   as on the page, each heading with the entry's title, organization,
   count and a caret, and each suggestion a row with its type's badge and
-  a green ✓ and a red ✕, always open over its change (only sections
+  Undo, always open over its change (only sections
   fold): a white outlined card with one row per thing that changed (each
-  moved bullet with an amber "3 → 1" tag), and under the
-  list Reject All and Accept All. Pointing at a row highlights its lines;
+  moved bullet with an amber "3 → 1" tag). Undo All is an icon button with
+  a tooltip beside the type filter. Accept and Reject sat on each row until
+  KAN-499: the change is saved already, so Accept did nothing to the resume.
+  Pointing at a row highlights its lines;
   only a click on its name scrolls the page to them. On a phone the panel is a sheet opened by
   "Suggestions (n)". With no record (a new tab or device) the editor
   shows alone, with a line saying the suggestions live in the tab that ran
@@ -2647,9 +2658,10 @@ student who opened a resume from Experiences landed on another view.
   (`fit-undo.ts`), so a reload in the same tab still offers it. A
   one-page resume shows no count: a green "1 page" said what the page
   itself shows. No "Click a line to edit it." hint: the pointer's own
-  highlight on a line says so. In both states the bar says "Saving…" or
-  the last round trip ("Saved, 412 ms"), the measure for the production
-  check (`backend/app/services/resume_render/CLAUDE.md`, Still open). Idle, **Download** (PDF, Word or LaTeX) ends the bar,
+  highlight on a line says so. In both states the bar says "Saving…" while a save is on its way; the
+  last round trip ("Saved, 412 ms") is on a phone only now, the measure for
+  the production check (`backend/app/services/resume_render/CLAUDE.md`, Still
+  open): on the bar the user found it noise. Idle, **Download** (PDF, Word or LaTeX) ends the bar,
   secondary, so it stays in reach down a two-page resume
   (`../download-menu.tsx`, KAN-258; it was on each card of the Resumes
   view). It keeps nothing (KAN-267) and holds a PDF with characters the
@@ -2665,15 +2677,17 @@ student who opened a resume from Experiences landed on another view.
 - **On Tailor's review step the editor takes a Suggestions panel**
   (`suggestions`, a render prop; `tailor-review.tsx`,
   `../../docs/tailor_resume.md`, "Suggestions"). Only then does the page
-  carry the run's changes: a small purple dot in the margin beside each changed
-  line (`dots` on `PdfPages`), and a see-through highlight, so the PDF's
-  text shows, on the lines of the suggestion in focus or open: an added
+  carry the run's changes: a see-through tint, so the PDF's text shows, on each
+  changed line (`marks` on `PdfPages`), with a border on the lines of the
+  suggestion in focus or open (`lit`), and a card beside a clicked one
+  (`popup`), under the line or over it, whichever side the window can show
+  all of. A phone adds a margin dot per line (`dots`). The tints: an added
   skill green (`positive`, bordered in `positive-ink`), a new wording blue
   (`advanced`), an entry's bullets in a new order amber (`warning-fill`,
   bordered in `warning-strong`). There the page has no Experiences
-  picker (a run's own removals have Reject), and the top bar's Scout
+  picker (a run's own removals have Undo), and the top bar's Scout
   stays the job search chat. The panel sits in the column beside the
-  page; on a phone it is a sheet from the bottom bar. Reject goes through the choices PATCH
+  page; on a phone it is a sheet from the bottom bar. Undo goes through the choices PATCH
   (the wording back to the source's, the old order, the skill hidden),
   and any later edit of a changed item drops that change's mark. The
   run's record is in sessionStorage (`tailorEditsKey`, under
@@ -2699,6 +2713,35 @@ student who opened a resume from Experiences landed on another view.
   re-rendering until the page fits and putting back what it did not need
   (`backend/CLAUDE.md`). It never cuts Education, Skills, an entry's first
   bullet, or the top Experience and Projects entry.
+- **Moving is the Sections panel** (`sections-panel.tsx`, KAN-435): an
+  outline of what prints, as Jobright's, opened from the toolbar's end beside
+  Format Options. Sections fold to their entries and entries to their bullets,
+  and each row drags by its handle, or moves with the arrow keys on it. A
+  section's order is a page setting (`section_order`), which Word follows too;
+  an entry's or bullet's is a choice. It replaced the bar's up and down buttons,
+  which moved one line one step and could not move a section. A phone keeps
+  those buttons, since a drag there fights the scroll.
+- **Formatting is Docs' toolbar and Format Options** (`page-format.tsx`,
+  KAN-435). The bar changes with what the student is doing. With a line open
+  it holds the common page settings before the line's tools: font size as a
+  minus, the number and a plus, line spacing as a small menu, left or
+  justified, and margins as Narrow, Normal or Wide. With none open it holds
+  zoom, and at its end the panels; all of it at once ran to two rows. Format
+  Options opens the rest. A bullet or a skill has no tools of its own on the
+  bar: its kind's label, Hide and Original crowded it, so moving is the
+  Sections panel's, hiding the Experiences picker's, and a phone keeps them
+  in its sheet. Format Options holds: Style (accent color, bullets, the line under section
+  titles), Layout (header alignment), Spacing & Margins (section, entry, top
+  and bottom, side) and Reset Formatting. On Tailor's review it opens in the
+  Suggestions column, with the same X, and one column shows at a time. On the
+  editor's own page it opens in Scout's panel, as the Experiences picker does.
+  On a phone a Format button opens all of it in a sheet, with no Undo there.
+  Each pick shows on the page, saves on its own, and Undo takes it back. A
+  spacing is a segmented switch, not Jobright's slider: each change compiles
+  the PDF, so a slider would queue a compile for every step it crossed. A tick
+  in Jobright's Export modal is out of reach while editing; here the settings
+  sit beside the live page. Word stays plain. Still to come: bold and italic,
+  education order, skills layout, per-role type sizes, templates and fonts.
 - **The Experiences picker** (`experiences-picker.tsx`, KAN-440): the whole
   bank beside the PDF, where a student picks what the resume shows. The
   resume is the part of the bank that is on, so each entry, bullet and skill
@@ -2721,7 +2764,7 @@ student who opened a resume from Experiences landed on another view.
   is on, and an entry with every bullet off stays on as a heading, as a
   line's Hide leaves it. Each pick goes through the same save and render as
   any edit, so Undo takes it back. It only picks: typing stays on the PDF.
-  Not on Tailor's review, where a run's own removals have Reject. **It was
+  Not on Tailor's review, where a run's own removals have Undo. **It was
   "Not on This Resume", a wall of buttons under the page**, past both pages
   of a long resume, then a Hidden panel that listed only what was missing;
   students could not see their bank beside the resume, and "Hidden" was false

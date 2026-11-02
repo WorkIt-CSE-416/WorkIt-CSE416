@@ -10,7 +10,12 @@ import itertools
 import uuid
 from decimal import Decimal
 
-from app.services.resume_render import HeaderIdentity, jakes_document
+from app.services.resume_render import (
+    FONT_SIZES,
+    HeaderIdentity,
+    PageSettings,
+    jakes_document,
+)
 from app.services.resume_view import (
     ResumeView,
     ViewBullet,
@@ -108,22 +113,29 @@ VIEW = ResumeView(
 )
 
 
-def document() -> str:
+def document(font_size: int = PageSettings.font_size) -> str:
     from app.services.resume_render import jakes
 
-    return jakes_document(jakes.body(VIEW, IDENTITY))
+    return jakes_document(jakes.body(VIEW, IDENTITY), PageSettings(font_size=font_size))
 
 
 SIZES = ("tiny", "scriptsize", "footnotesize", "small", "normalsize", "large", "Large", "LARGE", "huge", "Huge")
 SHAPES = ("upshape", "itshape", "scshape", "slshape")
 
 
-def fonts() -> str:
+def fonts(font_size: int = PageSettings.font_size) -> str:
     '''Jake's preamble with a word in every size, shape and weight, so the
     warm-up caches every Latin Modern file a page can reach. The sample
     alone missed one (KAN-218): `\\large` upright, which a section heading
     selects only at some page breaks, failed offline once Fit to One Page
-    moved "Technical Skills" across one.'''
+    moved "Technical Skills" across one. Each font size is its own article
+    size file and its own set of optical sizes (KAN-435).'''
     words = [f"{{\\{size}\\{shape}\\{weight} Aa}}" for size in SIZES for shape in SHAPES
              for weight in ("mdseries", "bfseries")]
-    return jakes_document(" ".join(words))
+    return jakes_document(" ".join(words), PageSettings(font_size=font_size))
+
+
+def warm_documents() -> list[str]:
+    '''Every document the warm-up compiles: the sample and the fonts in each
+    size a page can pick (`FONT_SIZES`).'''
+    return [tex for size in FONT_SIZES for tex in (document(size), fonts(size))]

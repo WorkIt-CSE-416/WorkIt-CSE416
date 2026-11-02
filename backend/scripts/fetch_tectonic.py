@@ -31,7 +31,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 
 from app.services.resume_render import VENDOR, compile_pdf
-from app.services.resume_render.sample import document, fonts
+from app.services.resume_render.sample import warm_documents
 
 
 def install() -> None:
@@ -60,9 +60,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.check:
         install()
         cache.mkdir(parents=True, exist_ok=True)
-        for tex in (document(), fonts()):
+        for tex in warm_documents():
             compile_pdf(tex, cache=cache, offline=False)
-    for tex in (document(), fonts()):
+    for tex in warm_documents():
         compile_pdf(tex, cache=cache, offline=True)
     size = sum(f.stat().st_size for f in VENDOR.rglob("*") if f.is_file()) / 1e6
     print(f"tectonic and its cache ready, offline compile ok: {VENDOR} ({size:.0f} MB)")

@@ -14,10 +14,9 @@ import type { Keyword, TailorEdit, TailorSource } from "@/lib/tailor-actions";
  * sessionStorage (the Tailor screen writes it, `tailorEditsKey`). On
  * Tailor's page the editor tints each change's line (`marksOf`) and the
  * Suggestions panel (../../jobs/[jobId]/tailor/tailor-suggestions.tsx)
- * shows one card per change: Accept keeps it and drops it from the record,
- * Reject undoes it through the editor's choices PATCH (`revertOf`) and
- * drops it. The student's own edit of a changed item (`untouched`) drops
- * that change too. The API keeps no record, so a new tab or device has no
+ * shows one card per change: Undo reverts it through the editor's choices
+ * PATCH (`revertOf`) and drops it. The student's own edit of a changed item
+ * (`untouched`) drops that change too. The API keeps no record, so a new tab or device has no
  * suggestions.
  */
 
@@ -47,10 +46,10 @@ export type SuggestionsApi = {
   bank: Bank;
   choices: Choices;
   saving: boolean;
-  accept: (edit: TailorEdit) => void;
-  reject: (edit: TailorEdit) => void;
-  acceptAll: () => void;
-  rejectAll: () => void;
+  undo: (edit: TailorEdit) => void;
+  undoAll: () => void;
+  /** Closes the panel; the toolbar's Suggestions opens it again. */
+  close: () => void;
   focused: string | null;
   focus: (key: string | null) => void;
   /** Opens a card and brings its lines into view (on a phone it also
@@ -58,6 +57,16 @@ export type SuggestionsApi = {
   show: (key: string) => void;
   active: string | null;
   open: (key: string | null) => void;
+};
+
+/** What the editor hands the popup beside a changed line it has open. */
+export type SuggestionPopupApi = {
+  edit: TailorEdit;
+  bank: Bank;
+  choices: Choices;
+  saving: boolean;
+  undo: () => void;
+  close: () => void;
 };
 
 /** A line's mark, the colour of its change's type (`ChangeKind`): `added`
@@ -74,7 +83,7 @@ export type ChangeKind = "added" | "reworded" | "removed" | "moved";
 /**
  * One suggestion as the panel shows it: its type, the resume entry it sits
  * in (`where`: an entry's id, or "skills"), and its words before and after.
- * It carries the run's `edit`, which Accept and Reject act on. The run
+ * It carries the run's `edit`, which Undo acts on. The run
  * makes no added bullet or removed line yet; the types are ready for when
  * it does (sample changes of each stood in while the panel was designed).
  */
@@ -263,7 +272,7 @@ export function revertOf(target: RevertTarget, choices: Choices): ChoicesUpdate 
   return {};
 }
 
-/** One PATCH that undoes every change in `edits` (Reject All), each
+/** One PATCH that undoes every change in `edits` (Undo All), each
  *  bullet's parts merged into one row, since a bullet can hold both a new
  *  wording and a new place. */
 export function revertAll(edits: TailorEdit[], choices: Choices): ChoicesUpdate {

@@ -34,7 +34,11 @@ SYSTEM_HOSTS = {
     # SmartRecruiters' postings and their one-click form (jobs.smartrecruiters.com).
     "smartrecruiters": ("smartrecruiters.com",),
     # SAP SuccessFactors' career sites (the engine's successfactors.ts).
-    "successfactors": ("successfactors.com", "successfactors.eu", "sapsf.com", "sapsf.eu"),
+    # Plus their Recruiting Marketing career sites (assaabloy.jobs2web.com and
+    # SAP's own jobs.sap.com), whose Apply goes on to the career site's
+    # sign-in: the engine's jobOf takes both (KAN-491). Only jobs.sap.com,
+    # never sap.com.
+    "successfactors": ("successfactors.com", "successfactors.eu", "sapsf.com", "sapsf.eu", "jobs2web.com", "jobs.sap.com"),
     # iCIMS career sites, the form in their own iframe (the engine's icims.ts).
     "icims": ("icims.com",),
 }

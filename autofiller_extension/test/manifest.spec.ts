@@ -38,6 +38,10 @@ for (const url of [
   "https://careers.tiktokusds.com/usds/login?redirect_path=%2Fresume%2F7679251399185778949%2Fapply",
   "https://careers.tiktokusds.com/usds/resume/7679251399185778949/apply",
   "https://jobs.smartrecruiters.com/oneclick-ui/company/BoschGroup/publication/c45a68e0-2aa1-405f-8b08-1e60b5ae778b",
+  // SuccessFactors' career sites, whose postings the API queues (KAN-491): without the host a batch tab
+  // showed no panel and no line saying to press Apply and sign in (live, 2026-10-31).
+  "https://assaabloy.jobs2web.com/job/Dubai-Marketing-Intern-37765/1436496933/",
+  "https://jobs.sap.com/job/Walldorf-Working-Student-BW-69190/1234567801/",
 ]) {
   test(`the manifest lets the extension reach ${url}`, () => {
     expect(jobOf(url), url).not.toBeNull();

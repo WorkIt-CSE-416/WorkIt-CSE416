@@ -840,3 +840,68 @@ async def test_a_render_takes_the_token_of_the_paths_applicant_only(student, dat
     res = await client.post(f"{other}/built-resumes/{resume_id}/render", json={
         "changes": {"bullets": []}, "source": copy})
     assert res.status_code == 403
+
+
+# Page settings (KAN-435): the render and the save go side by side
+
+SETTINGS = {"font_size": 12, "line_spacing": 1.15, "side_margin": 0.75, "top_margin": 0.75, "alignment": "justified", "section_spacing": 4, "entry_spacing": 2, "accent": "#14532D", "bullet": "dash", "show_divider": False, "header_alignment": "left",
+            "section_order": ["skills", "education", "experience", "projects", "leadership", "awards", "certifications"]}
+
+
+async def test_page_settings_render_from_the_copy_and_save_on_their_own(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+
+    res = await client.post(f"{me}/built-resumes/{resume_id}/render", json={"page": SETTINGS, "source": copy})
+    assert res.status_code == 200, res.text
+    render = res.json()["render"]
+    assert render["page_settings"] == SETTINGS
+    assert render["wrapped_line"] == pytest.approx(13.6 * 1.15)
+    # Rendered, never saved
+    assert (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["page_settings"]["font_size"] == 11
+
+    assert (await client.put(f"{me}/built-resumes/{resume_id}/page-settings", json=SETTINGS)).status_code == 204
+    saved = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert saved["page_settings"] == SETTINGS
+    assert saved["pdf"]
+    assert "letterpaper,12pt" in (await client.get(f"{me}/built-resumes/{resume_id}/tex")).text
+
+
+async def test_a_copy_carries_its_page_settings_into_a_choice_edit(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = {**await _copy(client, me, resume_id), "page_settings": SETTINGS}
+
+    res = await _render_changes(client, me, resume_id, {"bullets": []}, copy)
+    assert res.status_code == 200, res.text
+    assert res.json()["render"]["page_settings"] == SETTINGS
+
+
+async def test_a_page_setting_off_the_lists_is_refused(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    for bad in ({"font_size": 13}, {"side_margin": 0.1}, {"accent": "#123456"}, {"bullet": "star"}, {"header_alignment": "justify"}, {"section_order": ["skills"]}, {"line_spacing": 2}, {"alignment": "center"}):
+        res = await client.put(f"{me}/built-resumes/{resume_id}/page-settings", json=bad)
+        assert res.status_code == 422
+
+
+async def test_page_settings_save_only_on_the_students_own_resume(student):
+    client, me = student
+    res = await client.put(f"{me}/built-resumes/{uuid.uuid4()}/page-settings", json=SETTINGS)
+    assert res.status_code == 404
+
+
+async def test_fit_to_one_page_reads_the_saved_page_settings(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    await client.put(f"{me}/built-resumes/{resume_id}/page-settings", json=SETTINGS)
+    body = (await client.post(f"{me}/built-resumes/{resume_id}/fit")).json()
+    assert body["render"]["page_settings"] == SETTINGS
