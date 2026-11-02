@@ -30,7 +30,7 @@ def test_the_daily_sweep_runs_apply_run_from_the_repo_with_uv_once_a_day_at_its_
     [sweep, _] = schedule.jobs("07:30")
 
     assert plist_of(sweep) == {
-        "Label": "com.lisul.apply.daily-sweep",
+        "Label": "local.apply.daily-sweep",
         "ProgramArguments": [UV, "run", "--project", str(PROJECT), "apply", "run"],
         "WorkingDirectory": str(PROJECT),
         "StartCalendarInterval": {"Hour": 7, "Minute": 30},
@@ -44,7 +44,7 @@ def test_the_requests_check_runs_apply_run_requests_only_every_five_minutes():
     [_, check] = schedule.jobs("07:30")
 
     assert plist_of(check) == {
-        "Label": "com.lisul.apply.requests-check",
+        "Label": "local.apply.requests-check",
         "ProgramArguments": [UV, "run", "--project", str(PROJECT), "apply", "run", "--requests-only"],
         "WorkingDirectory": str(PROJECT),
         "StartInterval": 300,
@@ -81,7 +81,7 @@ class FakeLaunchctl:
         return label in self.loaded_labels
 
 
-SWEEP, CHECK = "com.lisul.apply.daily-sweep", "com.lisul.apply.requests-check"
+SWEEP, CHECK = "local.apply.daily-sweep", "local.apply.requests-check"
 
 
 def scheduler(tmp_path: Path, launchctl: FakeLaunchctl) -> schedule.Scheduler:

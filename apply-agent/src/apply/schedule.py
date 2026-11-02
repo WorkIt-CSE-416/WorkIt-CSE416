@@ -31,7 +31,7 @@ class Job:
 
     @property
     def label(self) -> str:
-        return f"com.lisul.apply.{self.name}"
+        return f"local.apply.{self.name}"
 
 
 def jobs(daily_sweep_at: str) -> list[Job]:
