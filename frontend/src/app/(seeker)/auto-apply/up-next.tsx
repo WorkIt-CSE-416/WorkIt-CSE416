@@ -15,6 +15,7 @@ import {
   openNextApplication,
   showRunTab,
   useBrowserTabs,
+  useClosedTabs,
 } from "@/lib/autofill-extension";
 
 import { dequeueJob, queueJob, skipJob } from "./actions";
@@ -68,6 +69,7 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
   const router = useRouter();
   const toast = useToast();
   const tabs = useBrowserTabs();
+  const closedTabs = useClosedTabs();
   const [adding, setAdding] = useState(false);
   const [resumeFor, setResumeFor] = useState<ActivityItem | null>(null);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -77,7 +79,8 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
 
   const rows: QueueRow[] = items.map((item) => {
     const tab = tabs.get(item.id) ?? null;
-    return { ...item, tab, group: groupOf(item, tab) };
+    const tabClosed = !tab && closedTabs.has(item.id);
+    return { ...item, tab, tabClosed, group: groupOf(item, tab, tabClosed) };
   });
   const checked = rows.filter((row) => picked.has(row.id));
   const openable = checked.filter(canOpen);
@@ -237,7 +240,10 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
  */
 export function QueueSummary({ jobs }: { jobs: { id: string; started: boolean }[] }) {
   const tabs = useBrowserTabs();
-  const started = jobs.filter((job) => job.started || tabs.has(job.id)).length;
+  const closedTabs = useClosedTabs();
+  const started = jobs.filter(
+    (job) => job.started || tabs.has(job.id) || closedTabs.has(job.id),
+  ).length;
   const queued = jobs.length - started;
   return [
     ...(started ? [`${started} in progress`] : []),

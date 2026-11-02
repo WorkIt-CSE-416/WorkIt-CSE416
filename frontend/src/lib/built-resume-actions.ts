@@ -80,7 +80,25 @@ export type PageSettings = {
   header_alignment: "left" | "center" | "right";
   /** Every section once, `skills` among them, in print order. */
   section_order: string[];
+  font_family: FontFamily;
+  /** A size per kind of text, in points; null follows `font_size`, as Jake's
+   *  template does (`sizeOf` in page-format.tsx). */
+  name_size: number | null;
+  heading_size: number | null;
+  title_size: number | null;
+  body_size: number | null;
 };
+
+export type FontFamily =
+  | "latin_modern"
+  | "tinos"
+  | "caladea"
+  | "eb_garamond"
+  | "charter"
+  | "arimo"
+  | "carlito"
+  | "open_sans"
+  | "lato";
 
 /** The PDF, base64, what the student is warned about before saving it, and
  *  the editor's click targets. */
@@ -310,8 +328,8 @@ export async function saveLine(
 }
 
 /** Fit to One Page: the bullets it hid, `undo` (the PATCH body that shows
- *  everything it hid again, whole entries and coursework too) and the
- *  render after, which can still be 2 pages when nothing more could go. */
+ *  everything it hid again, whole entries and skills too) and the render
+ *  after, one page (docs/cut_to_one_page.md). */
 export async function fitToOnePage(resumeId: string): Promise<
   Result<{
     hidden: string[];

@@ -48,9 +48,41 @@ with JSON only: {"keywords": [{"keyword": ..., "kind": "required" | \
 - At most 20 keywords, choose the most important ones.
 - kind is "required" when the posting asks for it such as in the Requirements section, "preferred" when \
 it says nice to have, a plus, preferred or bonus, usually written under Preferred Qualifications section
-- Use the posting's own words, short: "Python", "REST APIs", "SQL". No \
+- Use the posting's own words, short, capitalized as a resume's skills list \
+writes them: "Python", "REST APIs", "SQL", "User Research". No \
 soft skills ("team player"),no degree names, no benefits, no company names, and exclude conference names if the job is asking for publications in those. \
 """
+
+# How a resume writes what a posting often leaves in lower case. The prompt
+# asks the model for this too, but thousands of postings were read before it,
+# and their keywords stay cached.
+# ponytail: a list, so an acronym it lacks reads "Xyz"; the model's own casing
+# covers every posting read from now on.
+_CASED = {word.lower(): word for word in (
+    ".NET", "2D", "3D", "AI", "API", "APIs", "AR", "AWS", "B2B", "B2C", "BI", "CAD", "CD", "CI", "CMS", "CRM", "CSS",
+    "DevOps", "ERP", "ETL", "FastAPI", "GCP", "GitHub", "GitLab", "GraphQL", "HTML", "HTTP", "IoT", "JSON", "JUnit",
+    "JavaScript", "KPI", "KPIs", "LLM", "LLMs", "ML", "MongoDB", "MySQL", "NLP", "NoSQL", "OOP", "PHP", "PostgreSQL",
+    "PowerPoint", "PyTorch", "QA", "R&D", "REST", "SAP", "SDK", "SEO", "SQL", "SaaS", "TensorFlow", "TypeScript", "UI",
+    "UML", "UX", "VR", "XML", "YAML", "iOS", "macOS",
+)}
+_SMALL = frozenset({"a", "an", "and", "for", "in", "of", "on", "or", "the", "to", "with"})
+_WORD = re.compile(r"[^\s/,()-]+")
+
+
+def resume_case(keyword: str) -> str:
+    """A keyword as a resume prints it: "user research" to "User Research",
+    "sql" to "SQL". Only a word wholly in lower case changes, so a posting's
+    own "iOS" stays. The match ignores case, so it never changes what matches,
+    and a picked keyword joins the resume's skills as this."""
+    def cased(match: re.Match[str]) -> str:
+        word = match[0]
+        if word != word.lower():
+            return word
+        if word in _SMALL and match.start() > 0:
+            return word
+        return _CASED.get(word, word[0].upper() + word[1:])
+
+    return _WORD.sub(cased, keyword)
 
 
 def _text(title: str, description: str | None) -> str:
@@ -76,14 +108,14 @@ def cached(job: Job_Post) -> list[Keyword] | None:
     came from another title or description."""
     if job.keywords is None or job.keywords_hash != posting_hash(job):
         return None
-    return [Keyword.model_validate(k) for k in job.keywords]
+    return [Keyword.model_validate({**k, "keyword": resume_case(k["keyword"])}) for k in job.keywords]
 
 
 def _cleaned(reading: KeywordReading) -> list[Keyword]:
     seen: set[str] = set()
     out: list[Keyword] = []
     for item in reading.keywords:
-        word = " ".join(item.keyword.split())[:_MAX_LENGTH].strip()
+        word = resume_case(" ".join(item.keyword.split())[:_MAX_LENGTH].strip())
         if not word or word.casefold() in seen:
             continue
         seen.add(word.casefold())

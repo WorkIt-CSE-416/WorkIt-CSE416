@@ -16,6 +16,9 @@ and nowhere else:
   built resume. A bullet whose choice names a variant (Tailor's wording, or
   the resume's own) shows that variant's text instead; `BulletChoice.text`
   carries it, loaded with the choice.
+- **Bold and italic live in the resume's own wording** (KAN-435), as `**` and
+  `*` around the words. `ViewBullet.text` is always the plain words, for every
+  reader (Tailor, keywords, Word); only the PDF reads `marked`.
 - **Order:** sections in `SECTIONS` order, each entry by its choice's
   position within its section, each bullet by its position within its
   entry, skills by position. Ties keep the bank's order. An empty section is
@@ -31,15 +34,43 @@ from __future__ import annotations
 
 import datetime
 import itertools
+import re
 import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any
 
 # The bank's sections in resume order: models/dto.py's bank_section, whose
 # members compare equal to these strings. Skills come last, as their own list.
 SECTIONS = ("education", "experience", "projects", "leadership", "awards", "certifications")
+
+# The same pattern as the editor's text-marks.ts. A marker needs a letter
+# beside it, so "5 * 3" and a lone "*" stay what they are
+_MARK = re.compile(
+    r"\*\*\*(?=\S)(.+?)(?<=\S)\*\*\*"
+    r"|\*\*(?=\S)(.+?)(?<=\S)\*\*"
+    r"|\*(?=[^\s*])(.+?)(?<=[^\s*])\*"
+)
+
+
+def runs(text: str, bold: bool = False, italic: bool = False) -> list[tuple[str, bool, bool]]:
+    '''A marked wording as (words, bold, italic), in order.'''
+    found: list[tuple[str, bool, bool]] = []
+    at = 0
+    for match in _MARK.finditer(text):
+        if match.start() > at:
+            found.append((text[at:match.start()], bold, italic))
+        group = match.lastindex
+        found += runs(match[group], bold or group != 3, italic or group != 2)
+        at = match.end()
+    if at < len(text):
+        found.append((text[at:], bold, italic))
+    return found
+
+
+def unmarked(text: str) -> str:
+    return "".join(words for words, _, _ in runs(text))
 
 
 @dataclass(frozen=True)
@@ -76,7 +107,8 @@ class Choices:
 @dataclass(frozen=True)
 class ViewBullet:
     id: uuid.UUID
-    text: str
+    text: str  # the plain words
+    marked: str | None = None  # the wording with its markers, when it has any
 
 
 @dataclass(frozen=True)
@@ -132,6 +164,15 @@ def _ordered(items: Iterable[Any], key: Mapping[uuid.UUID, Any]) -> list[Any]:
     return sorted(chosen, key=lambda item: key[item.id].position)
 
 
+def _bullet(bullet: Any, wording: str | None) -> ViewBullet:
+    # Only the resume's own wording is read for markers: the bank's text is
+    # what the student or an upload wrote, stars and all
+    if not wording:
+        return ViewBullet(bullet.id, bullet.text)
+    plain = unmarked(wording)
+    return ViewBullet(bullet.id, plain, wording if plain != wording else None)
+
+
 def build_view(bank: Any, choices: Choices) -> ResumeView:
     '''`bank` has `.entries` (each with `.row` and `.bullets`) and `.skills`,
     in the bank's order (services/bank.py's load_bank).'''
@@ -161,7 +202,7 @@ def build_view(bank: Any, choices: Choices) -> ResumeView:
                 link=row.link,
                 issuer=row.issuer,
                 award_date=row.award_date,
-                bullets=tuple(ViewBullet(b.id, choices.bullets[b.id].text or b.text) for b in bullets),
+                bullets=tuple(_bullet(b, choices.bullets[b.id].text) for b in bullets),
             ))
         if entries:
             sections.append(ViewSection(section, tuple(entries)))
@@ -203,7 +244,8 @@ def view_from_json(data: Mapping[str, Any]) -> ResumeView:
             **{k: datetime.date.fromisoformat(e[k]) if e[k] else None for k in _DATES},
             **{k: Decimal(e[k]) if e[k] is not None else None for k in _DECIMALS},
             "coursework": tuple(e["coursework"]),
-            "bullets": tuple(ViewBullet(uuid.UUID(b["id"]), b["text"]) for b in e["bullets"]),
+            # A snapshot kept before KAN-435 has no "marked"
+            "bullets": tuple(ViewBullet(uuid.UUID(b["id"]), b["text"], b.get("marked")) for b in e["bullets"]),
         })
 
     return ResumeView(
@@ -238,77 +280,3 @@ def view_from_reading(entries: Iterable[Any], skills: Iterable[tuple[str, str | 
         tuple(ViewSection(s, tuple(by_section[s])) for s in SECTIONS if s in by_section),
         tuple(ViewSkill(next(ids), name, group) for name, group in skills),
     )
-
-
-# Fit to One Page (KAN-218): what it cuts, least useful first. A base resume
-# has no job posting to rank against, so section and place stand in for
-# relevance: Leadership & Activities, Awards and Certifications give way
-# before Projects, Projects before Experience, and within a section the
-# bottom (oldest) entry before the top. Career-centre advice the order
-# follows: drop coursework once there is experience, keep 3 to 5 bullets on
-# the newest roles and 1 or 2 on older ones, and drop a weak entry whole
-# rather than cut every entry to one line (the first rule hid bullets
-# section by section and left a long resume a list of one-line entries).
-# Education and Skills are never cut, nor an entry's first bullet, nor the
-# top entry of Experience or Projects.
-LOW_SECTIONS = ("leadership", "awards", "certifications")
-FIT_SECTIONS = (*LOW_SECTIONS, "projects", "experience")
-
-
-def _per_section(experience: Any, projects: Any, low: Any) -> dict[str, Any]:
-    return {"experience": experience, "projects": projects, **dict.fromkeys(LOW_SECTIONS, low)}
-
-
-# Each step, in order: hide coursework (only beside Experience: with none,
-# it is a student's best evidence), cap each entry's bullets (the top
-# entry's cap, then every other entry's), or keep only the top entries of
-# each section. A step runs only past what the steps before it cut.
-FIT_STEPS = (
-    ("coursework", None),
-    ("bullets", _per_section((5, 4), (3, 3), (2, 2))),
-    ("bullets", _per_section((4, 3), (3, 2), (1, 1))),
-    ("entries", _per_section(4, 3, 2)),
-    ("bullets", _per_section((3, 2), (2, 2), (1, 1))),
-    ("entries", _per_section(3, 2, 1)),
-    ("bullets", _per_section((3, 2), (2, 1), (1, 1))),
-    ("entries", _per_section(2, 1, 0)),
-    ("bullets", _per_section((2, 1), (1, 1), (1, 1))),
-)
-
-
-@dataclass(frozen=True)
-class Cut:
-    '''One thing Fit to One Page hides: a bullet, a whole entry, or an
-    entry's coursework line (`kind` "bullet", "entry" or "coursework").'''
-
-    kind: Literal["bullet", "entry", "coursework"]
-    id: uuid.UUID
-
-
-def fit_order(view: ResumeView) -> list[Cut]:
-    '''What Fit to One Page hides from this view, in the order it hides
-    it (FIT_STEPS). Within a step: sections least useful first, the bottom
-    entry first, an entry's last bullet first.'''
-    by_section = {s.section: s.entries for s in view.sections}
-    shown = {e.id: list(e.bullets) for entries in by_section.values() for e in entries}
-    gone: set[uuid.UUID] = set()
-    order: list[Cut] = []
-    for kind, limits in FIT_STEPS:
-        if kind == "coursework":
-            if not by_section.get("experience"):
-                continue
-            order.extend(Cut(kind, e.id) for e in reversed(by_section.get("education", ())) if e.coursework)
-            continue
-        for section in FIT_SECTIONS:
-            entries = [e for e in by_section.get(section, ()) if e.id not in gone]
-            if kind == "entries":
-                floor = 0 if section in LOW_SECTIONS else 1
-                for entry in reversed(entries[max(limits[section], floor):]):
-                    gone.add(entry.id)
-                    order.append(Cut("entry", entry.id))
-                continue
-            for rank, entry in reversed(list(enumerate(entries))):
-                cap = max(1, limits[section][0 if rank == 0 else 1])
-                while len(shown[entry.id]) > cap:
-                    order.append(Cut("bullet", shown[entry.id].pop().id))
-    return order

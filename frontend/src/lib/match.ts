@@ -10,18 +10,16 @@
  * are a placeholder: whoever owns the matching model sets the real ones, and
  * the labels are the only place the screen states them.
  *
- * Four bands on one magenta ramp, the `--color-match-*` tokens in globals.css,
- * lightest for Weak and deepest for Excellent. A better match is a deeper
- * colour, so the bands read as one rising scale, and the ring's colour agrees
- * with its length. The ramp is its own hue on purpose. The bands used to be the
- * brand violet and a green, a yellow and a red, which are the Applied, Offer
- * and Interviewing stages' colours and the danger red: a 95% card in the
- * Interviewing column wore an Applied ring, and an Offer card drew two greens
- * that meant different things. Stages own violet, blue, amber, green and grey;
- * a score owns magenta. The tokens' note says why that hue, and measures every
- * step on white and on the rail's well.
+ * Four bands in red, yellow and green, the `--color-match-*` tokens in
+ * globals.css: red for Weak, yellow for Good, green for Strong and a deeper
+ * green for Excellent, so a score says good or bad at a glance (KAN-518). They
+ * were one magenta ramp until then, picked so a score shared no hue with a
+ * stage, but a pink ring said nothing about the fit: the user wanted the
+ * colours everyone reads without a legend. So an Offer card can draw two greens;
+ * the ring's shape and number keep it apart from the stage's chip. The tokens'
+ * note measures every step on white and on the rail's well.
  *
- * The colour only ever paints a stroke, a dot, a bar or a glyph. The tier's
+ * The colour only ever paints a stroke, a bar or a glyph. The tier's
  * words are ink-muted wherever they are printed (see `MatchRail`), so no step
  * has to pass as text.
  *
@@ -44,9 +42,9 @@ export function matchTier(score: number) {
   return tierFor(score).label;
 }
 
-/** The colour a match's ring, the dot before its tier label, the match badge
- *  and the company Dashboard's match bar draw in, as a `var()` reference for
- *  an inline style or an SVG stroke. See the note on `TIERS`. */
+/** The colour a match's ring, the match badge and the company Dashboard's
+ *  match bar draw in, as a `var()` reference for an inline style or an SVG
+ *  stroke. See the note on `TIERS`. */
 export function matchColor(score: number) {
   return tierFor(score).color;
 }

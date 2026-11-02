@@ -86,7 +86,8 @@ SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", 
 class PageSettings(BaseModel):
     """How a built resume's page is set (KAN-435): resume_render's
     PageSettings, as the API takes and answers it. Its defaults are Jake's
-    page, and each value is one of the lists the student picks from."""
+    page, and each value is one of the lists the student picks from, or a
+    typed size inside resume_render's scales, in half points."""
 
     font_size: Literal[10, 11, 12] = 11
     line_spacing: Literal[1.0, 1.15, 1.3] = 1.0
@@ -100,6 +101,14 @@ class PageSettings(BaseModel):
     show_divider: bool = True
     header_alignment: Literal["left", "center", "right"] = "center"
     section_order: list[str] = list(SECTION_ORDER)
+    font_family: Literal[
+        "latin_modern", "tinos", "caladea", "eb_garamond", "charter", "arimo", "carlito", "open_sans", "lato",
+    ] = "latin_modern"
+    # A size per kind of text; null follows `font_size`, as Jake's does
+    name_size: Annotated[float, Field(ge=14, le=36, multiple_of=0.5)] | None = None
+    heading_size: Annotated[float, Field(ge=9, le=18, multiple_of=0.5)] | None = None
+    title_size: Annotated[float, Field(ge=8, le=16, multiple_of=0.5)] | None = None
+    body_size: Annotated[float, Field(ge=8, le=14, multiple_of=0.5)] | None = None
 
     @model_validator(mode="after")
     def _every_section_once(self) -> "PageSettings":
@@ -306,10 +315,10 @@ class EditRendered(BaseModel):
 
 
 class FitResponse(BaseModel):
-    """Fit to One Page (KAN-218): the bullets it hid, in the order it hid
-    them; `undo`, the PATCH .../choices body that shows everything it hid
-    again (whole entries and coursework lines too); and the render after,
-    which can still be 2 pages when nothing more could be cut."""
+    """Fit to One Page (KAN-218, KAN-320): the bullets it hid, in the order
+    it hid them; `undo`, the PATCH .../choices body that shows everything it
+    hid again (whole entries and skills too); and the render after, one
+    page."""
 
     hidden: list[UUID]
     undo: ChoicesUpdate

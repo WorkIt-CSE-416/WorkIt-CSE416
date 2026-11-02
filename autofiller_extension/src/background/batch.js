@@ -27,6 +27,15 @@
 // filled in its restored tab or opened again; a finished one whose tab is
 // gone leaves the batch (its stage is the API's). Then the queue goes on.
 //
+// A TAB CLOSED BEFORE SUBMIT IS NOT APPLIED (KAN-512). Only a submit the job
+// system took marks an application applied. A tab the student closes (or
+// Chrome lost) before that leaves the batch, its application keeps the stage
+// its fill gave it, and its job is kept in `closed`, which run/status hands
+// Up Next so the row says "Tab Closed, Not Submitted" instead of slipping
+// back into Queued unseen. Tabs WorkIt closes itself (Skip, a closed
+// posting, Up Next's Remove) are not counted. A closed job picked again
+// opens again, even while the batch's other tabs are open.
+//
 // WORKDAY TAKES ONE SLOT (KAN-373). A Workday application runs over many
 // pages, each waiting on the student (sign-in, then Save and Continue), so
 // at most one is in the batch at a time. A queued Workday job met while one
@@ -107,8 +116,11 @@ export async function startBatch(sender, picked = []) {
     let batch = await load();
     if (batch && !batch.practice) await resume(batch, windowId);
     // A batch with no tab left has ended, and a practice one ends here: the next one starts afresh.
-    if (!batch || batch.practice || !Object.keys(batch.tabs).length) batch = { windowId, tabs: {}, opened: [], groups: {} };
+    if (!batch || batch.practice || !Object.keys(batch.tabs).length) batch = { windowId, tabs: {}, opened: [], groups: {}, closed: batch?.closed ?? [] };
     if (picked.length) {
+      // A picked job whose tab was closed opens again: only a job with a tab open now is passed over.
+      const shown = new Set(Object.values(batch.tabs).map((t) => t.jobId));
+      batch.opened = batch.opened.filter((jobId) => shown.has(jobId) || !picked.includes(jobId));
       if (!Object.keys(batch.tabs).length) batch.pickedOnly = true;
       batch.picked = [...new Set([...(batch.picked ?? []), ...picked])];
     } else {
@@ -172,6 +184,7 @@ async function resume(batch, windowId) {
     const back = open.find((t) => !taken.has(t.id) && (t.url || t.pendingUrl) === tab.url);
     if (!back) {
       if (tab.state === "filling") reopen.push(tab);
+      else noteClosed(batch, tab);
       continue;
     }
     taken.add(back.id);
@@ -292,6 +305,7 @@ async function openTab(batch, jobId, url, jobType = null) {
   await chrome.tabs.update(tab.id, { autoDiscardable: false });
   batch.windowId = tab.windowId;
   batch.tabs[tab.id] = { jobId, url, jobType, state: "filling" };
+  if (batch.closed) batch.closed = batch.closed.filter((id) => id !== jobId);
   await save(batch);
   startFill(tab.id, url);
 }
@@ -488,8 +502,10 @@ async function moveToGroup(batch, tabId, state) {
 
 /**
  * A closed batch tab leaves the batch; a filling one frees its place for the
- * next. Tabs closed with their window stay, for resume() to find again (the
- * student may reopen the window, or Chrome restore it).
+ * next. Unless its application was sent, or WorkIt closed it (`removing`),
+ * its job is kept as closed, not submitted (noteClosed). Tabs closed with
+ * their window stay, for resume() to find again (the student may reopen the
+ * window, or Chrome restore it).
  * @param {number} tabId
  * @param {{ isWindowClosing?: boolean }} [removeInfo]
  */
@@ -500,6 +516,7 @@ export function forgetTab(tabId, removeInfo = {}) {
     const tab = batch?.tabs[tabId];
     if (!tab) return;
     delete batch.tabs[tabId];
+    if (!tab.removing) noteClosed(batch, tab);
     await save(batch);
     // A Workday tab frees the Workday slot.
     if (tab.state !== "filling" && !isWorkday(tab.url)) return;
@@ -509,6 +526,20 @@ export function forgetTab(tabId, removeInfo = {}) {
       console.warn("[batch] the next application didn't open:", error.message);
     }
   });
+}
+
+/**
+ * A batch tab gone before its application was sent: the job is kept in
+ * `closed` (run/status), so Up Next shows it closed, not submitted. Its
+ * stage stays the API's: nothing here marks it applied or skipped. A sent
+ * application, and a practice job (practiceStatus says closed itself), are
+ * not kept.
+ * @param {Batch} batch
+ * @param {{ jobId: string, state: TabState }} tab
+ */
+function noteClosed(batch, tab) {
+  if (batch.practice || tab.state === "applied") return;
+  batch.closed = [...(batch.closed ?? []).filter((id) => id !== tab.jobId), tab.jobId];
 }
 
 /**
@@ -606,14 +637,16 @@ export async function inBatch(tabId) {
 /**
  * Which job postings the batch's tabs show (`jobIds`, in the order they
  * opened; `jobId` the first), for the webapp's "Working in Browser", and
- * each one's tab state (`jobs`).
- * @returns {Promise<{ jobId: string | null, jobIds: string[], jobs: { jobId: string, state: TabState }[] }>}
+ * each one's tab state (`jobs`), and the jobs whose tab was closed before
+ * their application was sent (`closed`, KAN-512).
+ * @returns {Promise<{ jobId: string | null, jobIds: string[], jobs: { jobId: string, state: TabState }[], closed: string[] }>}
  */
 export async function batchStatus() {
   const batch = await liveBatch();
   const jobs = Object.values(batch?.tabs ?? {}).map((t) => ({ jobId: t.jobId, state: t.state }));
   const jobIds = jobs.map((j) => j.jobId);
-  return { jobId: jobIds[0] ?? null, jobIds, jobs };
+  const closed = batch?.practice ? [] : (batch?.closed ?? []).filter((id) => !jobIds.includes(id));
+  return { jobId: jobIds[0] ?? null, jobIds, jobs, closed };
 }
 
 /**
@@ -636,7 +669,8 @@ export async function showBatchTab(message) {
  * Up Next's Remove on a row open in a tab (`run/close`): closes the batch's tab that shows
  * `jobId`. The close is Chrome's own, so forgetTab takes the tab out of the
  * batch and a filling one frees its place for the next, as when the
- * student closes it. The application keeps its stage: a queued one waits
+ * student closes it, but marked `removing`, so it isn't kept as closed:
+ * Up Next is removing the job. The application keeps its stage: a queued one waits
  * again, a needs_you one shows Needs You. `jobId` picks among the batch's own
  * tabs only.
  * @param {{ jobId?: string }} message
@@ -646,6 +680,12 @@ export async function closeBatchTab(message) {
   const batch = await liveBatch();
   const [id] = Object.entries(batch?.tabs ?? {}).find(([, t]) => t.jobId === message?.jobId) ?? [];
   if (id === undefined) return { closed: false };
+  await serially(async () => {
+    const saved = await load();
+    if (!saved?.tabs[id]) return;
+    saved.tabs[id].removing = true;
+    await save(saved);
+  });
   await chrome.tabs.remove(Number(id));
   return { closed: true };
 }

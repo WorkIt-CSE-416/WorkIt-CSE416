@@ -160,6 +160,7 @@ export function PdfPages({
   onDrawn,
   overlay,
   overlaid = [],
+  extra,
   shiftOf,
   swaps,
   placeholder,
@@ -186,6 +187,9 @@ export function PdfPages({
    *  key: the text field for the selected line, typed text for others. */
   overlay?: (box: RenderBox) => ReactNode;
   overlaid?: string[];
+  /** A line the PDF does not print yet, with no height: a bullet being added,
+   *  drawn like any overlaid line, with the page under it moved by `shiftOf`. */
+  extra?: RenderBox;
   /** Points an overlaid line's text is taller (or, below 0, shorter) than
    *  its box on the PDF on screen: what the page under it moves by. */
   shiftOf?: (box: RenderBox) => number;
@@ -213,7 +217,9 @@ export function PdfPages({
   } | null>(null);
   // The boxes of the PDF on screen, where the moves on their way put them
   const strips = swaps?.(doc?.boxes ?? []) ?? [];
-  const shown = readOnly ? [] : (doc?.boxes ?? []).map((box) => afterStrips(box, strips));
+  const shown = readOnly
+    ? []
+    : [...(doc?.boxes ?? []), ...(extra ? [extra] : [])].map((box) => afterStrips(box, strips));
   // Each overlaid line's first box, top to bottom, with what it moves by
   const lives = overlaid
     .map((key) => shown.find((b) => boxKey(b) === key))
@@ -224,7 +230,12 @@ export function PdfPages({
   const popupBox = popup && shown.find((box) => boxKey(box) === popup.line);
   // A target below an overlaid line moves with the page under it
   const moved = (box: RenderBox) =>
-    lives.reduce((by, l) => (l.page === box.page && l.y1 <= box.y0 ? by + l.by : by), 0);
+    lives.reduce(
+      // Never by itself: `extra` has no height, so it counts as under itself
+      (by, l) =>
+        l.page === box.page && l.y1 <= box.y0 && boxKey(l) !== boxKey(box) ? by + l.by : by,
+      0,
+    );
   const [failed, setFailed] = useState(false);
   const painted = useRef(new Set<number>());
   const drawn = useRef(onDrawn);
@@ -304,7 +315,7 @@ export function PdfPages({
             }}
           />
           {shown
-            .filter((box) => box.page === i + 1)
+            .filter((box) => box.page === i + 1 && box !== extra)
             .map((box) => {
               const key = boxKey(box);
               const mark = marks?.get(key);

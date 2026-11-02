@@ -45,7 +45,6 @@ export type SuggestionsApi = {
   pageOrder: (boxKey: string) => number;
   bank: Bank;
   choices: Choices;
-  saving: boolean;
   undo: (edit: TailorEdit) => void;
   undoAll: () => void;
   /** Closes the panel; the toolbar's Suggestions opens it again. */
@@ -64,7 +63,6 @@ export type SuggestionPopupApi = {
   edit: TailorEdit;
   bank: Bank;
   choices: Choices;
-  saving: boolean;
   undo: () => void;
   close: () => void;
 };
@@ -286,6 +284,19 @@ export function revertAll(edits: TailorEdit[], choices: Choices): ChoicesUpdate 
     skills.push(...(one.skills ?? []));
   }
   return { bullets: [...bullets.values()], skills };
+}
+
+/** The words each reworded line goes back to, by its page key: the page
+ *  draws them until the PDF that prints them lands, since a revert compiles
+ *  like any edit. */
+export function wordsBack(edits: TailorEdit[]): Record<string, string> {
+  return Object.fromEntries(
+    edits.flatMap((edit) =>
+      edit.kind === "reword" && edit.bullet_id && edit.before != null
+        ? [[`${edit.bullet_id}.bullet`, edit.before]]
+        : [],
+    ),
+  );
 }
 
 /** The changes left once the student reverts `target`, read on the

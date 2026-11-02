@@ -31,14 +31,18 @@ them). Notes the scripts don't say:
   `npm ci` in a `node:22` container before pushing.
 - `typecheck` runs `next typegen` first because `LayoutProps`/`PageProps` are
   generated route types that do not exist on a fresh clone; bare `tsc` fails.
-- **Tests are Node's own runner** (`node --test`, Node 24 strips the types;
-  on Node 22 add `--experimental-strip-types`, or every test fails with
-  "Unknown file extension .ts"),
-  for pure modules only: `npm test`, or one file with
-  `node --test src/lib/autofill-answers.test.ts`. A test sits beside its
-  module as `<name>.test.ts` and imports it with the `.ts` extension
+- **Tests are Node's own runner** (`node --test`), for pure modules only:
+  `npm test`, or one file with `node --experimental-strip-types --test
+  src/lib/autofill-answers.test.ts`. `npm test` passes the flag itself:
+  Node 24 strips the types anyway, but Node 22 before 22.18 does not, and
+  every test failed with "Unknown file extension .ts". A test sits beside
+  its module as `<name>.test.ts` and imports it with the `.ts` extension
   (`allowImportingTsExtensions` in tsconfig), so the module under test must
-  use relative imports, not `@/`. There is no component or browser runner.
+  use relative imports with the `.ts` extension too, not `@/` and not a
+  bare path: Node resolves no extension, and `model.ts`'s bare import of
+  `holdings` failed `cuts.test.ts` with "Cannot find module" (2026-11-01).
+  A type-only import can use `@/`, since it is erased. There is no
+  component or browser runner.
 - **To test a resume upload**, use a file from `frontend/public/resumes/`.
   The folder is git-ignored because it holds real people's resumes, so put
   your own there once, in the primary checkout: `npm run worktree` and every
@@ -584,9 +588,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   real employers from `scraper/boards.csv` with intern or new-grad titles,
   the only roles the scraper keeps, and their logos come from the favicon
   host. Their score chips are green, amber or red (`scoreTone` in
-  `score-tone.ts`, from the positive, warning and danger tokens), not the
-  app's magenta match bands: the team wanted the hero to show a spread of
-  fits at a glance. In the
+  `score-tone.ts`, from the positive, warning and danger tokens): the team
+  wanted the hero to show a spread of fits at a glance. In the
   pinned product tour, `Fit` (`fit.tsx`, shared with the feature pages'
   stage) scales a visual to the visual area's height
   and width, up to 1.5x (and, in the stacked stops, down to their width
@@ -1349,8 +1352,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   tab opens and closes. The header's count line (`QueueSummary`) uses the
   same rule, so change them together. **A row's
   status is one item, never a second line or an action beside it**: the
-  most urgent of Posting Closed, its written questions, its tab's state
-  or Needs You, and a click on it goes where the job is finished (its
+  most urgent of Posting Closed, its written questions, its tab's state,
+  Tab Closed, Not Submitted (its batch tab closed before WorkIt saw its
+  submit: `useClosedTabs`, KAN-512; such a row is In Progress) or Needs You, and a click on it goes where the job is finished (its
   tab, opened again if closed). A missing resume shows in the Resume
   cell, never as a status. Layers of text there (a state, an action link,
   a questions line) read as clutter. Never a column of its own for the action,
@@ -1389,8 +1393,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `docs/screens.md`, Applications, has the rest.
 - **Tailor is one step per view** (`(seeker)/jobs/[jobId]/tailor`,
   2026-10-26): every step opens with the same top row (`TailorBar`: Back,
-  the step, its way on). `TailorHeader` (each step's own title, the job as one line,
-  `TailorJobLine`, and the step's line) follows it on the pick steps, and
+  the step, its way on). `TailorHeader` (each step's own title and the job as one line,
+  `TailorJobLine`) follows it on the pick steps, and
   the review names the job the same way under the resume's name; the tailored resume's page has the slim
   `TailorReviewBar` instead (Back to Choose Keywords, `TailorBack`, the
   step, and Finish; the job in an sr-only h1), so the resume starts near the top, under its own name
@@ -1399,8 +1403,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   match and the picked keywords; `?step=keywords&source=<picker key>`
   opens it at Choose Keywords (the review's Back), and a run then
   replaces the posting's tailored resume. A new step joins `TAILOR_STEPS` in
-  `tailor-steps.tsx` (`docs/screens.md`, Tailor). A wait is never a step:
-  the run is a loader over Choose Keywords (`TailorRunning`), since a
+  `tailor-steps.tsx` (`docs/screens.md`, Tailor). **A pick never moves Choose Keywords' score, and nothing there picks in
+  bulk**: a score that rose with each pick, and Select All, paid the student to
+  claim skills the truth rule then lets a rewording name. A wait is never a
+  step: the run is a loader over Choose Keywords (`TailorRunning`), since a
   Tailor step that only waited read as padding to the user.
 - **/search keeps the filter row, and shows what its words filter by**
   (KAN-308). A new search from the top bar sends only ?q, so it starts
@@ -1518,7 +1524,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   KAN-257): every Scout or AI control, and Scout's mark in the chat and
   the panel header, draws it. An ESLint rule refuses Phosphor's sparkle
   imported anywhere else; a hand-drawn sparkle beside Lucide's had given
-  the assistant two marks (`docs/design.md`, Brand and icons).
+  the assistant two marks (`docs/design.md`, Brand and icons). Tailor My
+  Resume on a job's card and page is the one exception (`TailorIcon`,
+  KAN-518): beside Ask Scout, a second sparkle read as a second assistant.
+- **A match score is red, yellow or green, only through `matchColor()`**
+  (`lib/match.ts`, KAN-518; `docs/design.md`, Colour): a magenta ramp said
+  nothing about the fit, so the score now shares hues with the stages. The
+  ramp's pink lives on as the marketing pages' `--color-updates`: a landing
+  scene takes that, never a `--color-match-*` token, which turned amber
+  there when the bands changed.
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change
@@ -1586,6 +1600,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   toolbar has no Ask Scout. Open it only
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
+  **The bar's Scout button is archived** (`SCOUT_LAUNCHER_LIVE` in
+  `(seeker)/layout.tsx`, 2026-11-01): Ask Scout and Fill With Scout still open
+  the panel, and closing it leaves focus on the page, since no launcher takes
+  it back. The editor's assistant has no other way in on a laptop, so it is out
+  of reach until the flag is on or the toolbar gets a button.
 - **The company table (`app/company/table.tsx`) and the Applications list
   (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
@@ -1703,7 +1722,25 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   outlive the database it describes (another tab's edit, a reload).
   Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
   own text undo runs. An open line is saved first, so Undo takes back
-  what was just typed. **A rename in the title is a step too**
+  what was just typed. **Fit to One Page is one step like any edit**:
+  Undo shows what it hid, Redo hides it again (`hideAgain`). It has no
+  Undo Fit button of its own (gone 2026-11-01, a second way to do what
+  Undo does); the phone's bar shows the same Undo and Redo. **Cut From
+  Resume** lists what every fit in the tab cut, entries, bullets and
+  skills (`cutRows`, `cutSkills`; `cutLeft` says whether its button
+  shows), read from each fit's `undo` body (`addCuts` in `model.ts`,
+  tested in `cuts.test.ts`), kept in
+  sessionStorage per resume (`fit-cuts.ts`), so a reload in the same tab
+  keeps it, and puts each item back as an ordinary pick. Unlike Undo's
+  steps it may outlive the page: it is read against the resume's choices
+  each time, so an item already back only shows ticked
+  (`docs/screens.md`, Cut From Resume). It is on Tailor's page too, in the
+  column beside the page (`Side`), since Fit is. **A revert never waits for a
+  compile** (KAN-524): `apply` drops a change's card and marks at the click,
+  draws a reworded line's old words over the page (`wordsBack`) and puts the
+  card back if the render refuses, and Suggestions' Undo buttons stay on while
+  `saving`, or each Undo locked the rest for a compile, which takes seconds
+  on the deployed API (`docs/live_page.md`). **A rename in the title is a step too**
   (KAN-443, `TitleHistoryContext` in `resume-title.tsx`, provided by the
   editor round its title row): it shows at once, saves behind it, and a
   failed save puts the name before it back and drops the step. Its step
@@ -1753,6 +1790,50 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   printed the old text, the typed-back line sent nothing and the first
   edit came back when its PDF landed. Desktop only: the phone types in a
   sheet.
+- **A click on a line Tailor changed opens Suggestions on its card** (the
+  editor's `onLine`, 2026-11-01), which reverses the rule that a click leaves
+  the panel alone. **The small card beside the line is archived**
+  (`POPUP_LIVE` in `tailor-suggestions.tsx`, which says how to bring it back):
+  it said what the panel says, so a student had two places to look.
+- **Bold and italic are markers in a bullet's own wording, and the field never
+  shows them** (KAN-435, `(seeker)/resumes/[resumeId]/text-marks.ts`, the API's
+  `resume_view.runs`: change the pattern in both). A bullet's open field is
+  `contentEditable`, so the weights show as they are set; `showMarked` writes
+  the wording into it and `readMarked` reads it back from each piece's computed
+  style, so it does not matter which tags the browser wrote. Bold and italic
+  are the browser's own (`document.execCommand`, deprecated with no
+  replacement, in every browser), which brings Ctrl or Cmd+B and I and text
+  undo. A textarea showing `**` until the line was left came first, and the
+  user wanted the look to change directly. Other lines stay plain fields, and
+  anything that lists a bullet as text (Sections, the Experiences picker) goes
+  through `unmarked`. Desktop only: the phone's sheet is still a textarea.
+- **A bullet being added has no box and no id until it is saved** (KAN-435,
+  `add-bullet.ts`, `newLine` in the editor, `extra` on `PdfPages`). It is drawn
+  as a box with no height under its anchor, so the live page moves the page
+  under it, and `moved` skips a box's own move: with no height it counts as
+  under itself, which drew the field a line too low, over the next bullet.
+  **A rich field needs its own React `key`**: its words are the browser's, so
+  a plain div drawn in its place took the same element and printed them twice.
+  Enter and Esc finish the line themselves, and `finishing` keeps the blur that
+  follows from saving it again: a blur alone never fires in an unfocused window.
+- **The toolbar holds what acts on the line clicked, Format Options what acts
+  on the whole resume** (`page-format.tsx`): font size beside bold, unnamed, read
+  as acting on the selection and changed the whole page, so the toolbar's size
+  names its kind of text (`RoleTools`, `textRoleOf`). `TEXT_ROLES` is the one list
+  of kinds, `sizeOf` what each prints at, read by the toolbar, the panel and the
+  open line's type (`typeOf`), so the three cannot disagree. A size is typed
+  or stepped (`SizeStepper`), and a typed one applies on Enter or on leaving the
+  field, never per key, since each change compiles the PDF. Each role's `min`
+  and `max` repeat `resume_render`'s scales. The bar's `onMouseDown` keeps the
+  focus in the open line for buttons only, so the field takes it and the line
+  stays open behind it. `FONTS` is the
+  list of families, whose `css` puts the open line in the system font the
+  PDF's matches letter for letter: with Tinos a line sat 2px off the print over
+  714px. A new page setting joins the panel only if a student needs it to fit
+  one page, to choose a font or to pick a colour. The API keeps the settings the
+  panel dropped, so a resume set that way prints as it did. The bar mutes every
+  button's words (`SLIM_BAR`, `DOCS_BAR`), so a real action there (Add Bullet,
+  `FitButton`) carries `data-bar-action`, or a filled button reads grey on purple.
 - **A bullet's one wording button is Original** (`LineActions`), shown
   only while the bullet shows another wording (Tailor's, or one typed on
   this resume): it puts the bank's text back, and Undo takes that back.
@@ -1767,6 +1848,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   inch), opening at 125% (1020px), capped by its column, kept per browser through
   `lib/local-drafts.ts` (`EDITOR_ZOOM_KEY`). The page filled its column
   until then, and KAN-421's 1440px pages made it take most of the screen.
+  Its steps are a `DropdownMenu`: a native `<select>` dropped the browser's own
+  list, in the system's blue, in the middle of the app's menus.
   The overlay and click targets are in `cqw` of each page, so they follow
   any width.
 - **Tailor's review is the resume editor with props, not a fork**
@@ -1865,8 +1948,7 @@ are in `docs/auth.md`.
   server, or a server component. A slow read the student can repeat while
   they work goes through a route handler instead, which `fetch` runs
   beside the actions: Tailor's Preview dialog (`app/api/resume-preview`)
-  renders a PDF on each resume opened, and as an action it would hold Use
-  This Resume's keyword match behind every render. Shell components start reads that do not
+  renders a PDF on each resume opened, and as an action it would hold Next's keyword match behind every render. Shell components start reads that do not
   depend on `/auth/me` together with `getCurrentAccount`
   (`account-status.tsx`, `profile-strength.tsx`), or the chip waits on two
   API calls in a row on every hard load and `router.refresh()`.

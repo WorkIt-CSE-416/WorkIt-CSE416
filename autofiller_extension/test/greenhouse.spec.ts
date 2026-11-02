@@ -145,6 +145,64 @@ test("Undo after Looks right ×N takes back every answer it saved, and the boxes
   expect(coinbase.submissions).toEqual([]);
 });
 
+/** A Greenhouse form filled, then the guessed rows `add` makes (on the page, with window.WIA): the panel's host. */
+async function guessed<T>(context: any, add: (arg: T) => void, arg?: T) {
+  const coinbase = new FakeJobServer("greenhouse-coinbase");
+  const page = await coinbase.open(context);
+  const job = readFileSync(join(FORMS, "greenhouse-coinbase", "questions.json"), "utf8");
+  const saved = new Map(loadHar("greenhouse-coinbase").log.entries.map((e: any) => [e.request.url, e.response.content.text ?? ""]));
+  await bridge(page, async (url) => (url.startsWith("https://boards-api.greenhouse.io/") ? job : saved.get(url) ?? ""), STUDENT);
+  await inject(page);
+  await settled(page);
+  await page.evaluate(add, arg as T);
+  return { panel: page.locator("#workit-autofiller-overlay-host"), coinbase };
+}
+
+test("a guessed checkbox's card says it was checked", async ({ context }) => {
+  const PRIVACY = "I accept the privacy notice and consent to the processing of my data for this application";
+  const { panel, coinbase } = await guessed(context, () => {
+    const { status } = (window as any).WIA;
+    for (const [id, checked, shows] of [["privacy", true, "Yes"], ["texts", false, "No"]] as const) {
+      document.body.append(Object.assign(document.createElement("input"), { type: "checkbox", id, checked }));
+      status.register(id, id === "privacy" ? "I accept the privacy notice and consent to the processing of my data for this application" : "Send me texts", false, "guessed");
+      status.setStatus(id, "filled", undefined, shows);
+    }
+  });
+  await expect(panel.locator('[data-key="privacy"] .row-card')).toContainText("WorkIt guessed: Checked");
+  await expect(panel.locator('[data-key="texts"] .row-card')).toContainText("WorkIt guessed: Unchecked");
+  await expect(panel.locator(".row", { hasText: PRIVACY }).getByRole("button", { name: "Looks right" })).toBeVisible();
+  expect(coinbase.submissions).toEqual([]);
+});
+
+test("a guessed choice's card names the option picked, and every pick of a multi-select", async ({ context }) => {
+  const { panel } = await guessed(context, () => {
+    const { status } = (window as any).WIA;
+    for (const [key, label, shows] of [["heard", "Where did you hear about us?", "LinkedIn"], ["sponsor", "Will you need sponsorship?", "No"], ["langs", "Languages you use", ["Python", "Go"]]] as const) {
+      status.register(key, label, false, "guessed");
+      status.setStatus(key, "filled", undefined, shows);
+    }
+  });
+  await expect(panel.locator('[data-key="heard"] .row-card')).toContainText("WorkIt guessed: LinkedIn");
+  await expect(panel.locator('[data-key="sponsor"] .row-card')).toContainText("WorkIt guessed: No");
+  await expect(panel.locator('[data-key="langs"] .row-card')).toContainText("WorkIt guessed: Python, Go");
+});
+
+test("a guessed text's card shows the text, cut short with all of it on hover; a date and a file as they are", async ({ context }) => {
+  const LONG = "I am excited about this role because it combines distributed systems with real users, and I have built both at school and at work.";
+  const { panel } = await guessed(context, (long) => {
+    const { status } = (window as any).WIA;
+    for (const [key, label, shows] of [["why", "Why this company?", long], ["start", "Earliest start date", "05/17/2027"], ["letter", "Cover letter", "Cover_Letter.pdf"]]) {
+      status.register(key, label, false, "guessed");
+      status.setStatus(key, "filled", undefined, shows);
+    }
+  }, LONG);
+  const why = panel.locator('[data-key="why"] .row-card p').first();
+  await expect(why).toHaveText(`WorkIt guessed: ${LONG.slice(0, 80).trimEnd()}…`);
+  await expect(why).toHaveAttribute("title", LONG);
+  await expect(panel.locator('[data-key="start"] .row-card')).toContainText("WorkIt guessed: 05/17/2027");
+  await expect(panel.locator('[data-key="letter"] .row-card')).toContainText("WorkIt guessed: Cover_Letter.pdf");
+});
+
 test("leaves a job system the engine doesn't cover alone", async () => {
   const prepared = await planFill({
     url: "https://example.com/careers/apply/123", profile: STUDENT, today: "2026-10-22",
@@ -223,7 +281,9 @@ test("on a posting that bans AI-written answers, the essay is left for the stude
   const rows = await rowsFor(arcWithEssay("&lt;p&gt;Please do not use AI tools to write your application answers.&lt;/p&gt;"));
 
   expect(rows.written).toEqual([]);
-  expect(rows.notes.join(" ")).toMatch(/AI/);
+  // The essay's own row says why (KAN-513), so no note repeats it.
+  expect(rows.handed).toEqual([{ name: "question_1", label: "Why do you want to work at Arc?", required: true, reason: "The posting bans AI-written text" }]);
+  expect(rows.notes).toEqual([]);
 });
 
 test("a one-line or choice draft goes to the student's Claude", () => {

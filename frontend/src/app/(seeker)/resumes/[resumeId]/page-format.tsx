@@ -1,15 +1,8 @@
 "use client";
 
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
-import {
-  ArrowsVerticalIcon,
-  FrameCornersIcon,
-  MinusIcon,
-  PlusIcon,
-  TextAlignJustifyIcon,
-  TextAlignLeftIcon,
-} from "@phosphor-icons/react/ssr";
-import type { ReactNode } from "react";
+import { MinusIcon, PlusIcon } from "@phosphor-icons/react/ssr";
+import { useState, type ReactNode } from "react";
 
 import { ChevronDownIcon, CloseIcon } from "@/components/icons";
 import {
@@ -21,20 +14,32 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Switch } from "@/components/shadcn/switch";
 import { Button } from "@/components/ui/button";
+import { FIELD_CONTROL } from "@/components/ui/text-field";
 import { IconButton } from "@/components/ui/icon-button";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
-import type { PageSettings } from "@/lib/built-resume-actions";
+import type { FontFamily, PageSettings } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
 /**
- * How the page is set (KAN-435), as Google Docs keeps it: the common settings
- * on the toolbar while a line is open (`PageTools`), and the rest in Format
- * Options, a panel beside the page, opened from the toolbar's end. On a phone
- * everything is in one sheet (`FormatOptions` with `quick`). Each pick shows on
- * the page, saves on its own, and Undo takes it back.
+ * How the resume looks (KAN-435). **The toolbar holds what acts on the line
+ * clicked, this panel what acts on the whole resume.** The toolbar names the
+ * kind of text it changes (`SizeStepper` under "Body Text"), since a size acts on
+ * every line of that kind: an unnamed size beside bold and italic looked as if
+ * it acted on the selection, and changed the page. The panel runs in the order
+ * a student decides: the Font, then Text Sizes (every kind of text, section
+ * headings among them, which have no line to click), then Layout to fit one
+ * page, then Style. Each pick shows on the page, saves on its own, and Undo
+ * takes it back. On a phone the same panel is a sheet.
+ *
+ * It fell to five controls on 2026-11-01, which left out the two a resume
+ * builder is expected to have: the font, and a size per kind of text. Alignment,
+ * the bullet's shape and the header's alignment stayed out, with Spacing one
+ * choice over line, section and entry spacing and Margins one over top and side.
+ * The API still takes every setting, so a resume already set that way prints as
+ * it did, and Reset Formatting clears it.
  *
  * The lists are the API's (`resume_render`), so every value is one the warm
- * font cache and the LaTeX can print. A spacing is a segmented switch and not
+ * font cache and the LaTeX can print. Each is a choice or a stepper and not
  * Jobright's slider: each change compiles the PDF, so a slider would queue a
  * compile for every step it crossed.
  */
@@ -59,14 +64,121 @@ export const DEFAULT_PAGE: PageSettings = {
     "certifications",
     "skills",
   ],
+  font_family: "latin_modern",
+  name_size: null,
+  heading_size: null,
+  title_size: null,
+  body_size: null,
 };
 
-const FONT_SIZES = [10, 11, 12];
-const LINE_SPACINGS = [1, 1.15, 1.3];
-const MARGINS = [
-  { value: 0.5, label: "Narrow" },
-  { value: 0.75, label: "Normal" },
-  { value: 1, label: "Wide" },
+/** The fonts a student can pick, serif then sans, each with the look it stands
+ *  for. `css` draws it in the open line and in this list: the bundle's file by
+ *  its own name, then the system font it matches letter for letter, so a line
+ *  being typed sits close to the PDF's. Latin Modern is the page's own webfont
+ *  (`latinModern` in the editor), so it has none. */
+export const FONTS: { value: FontFamily; label: string; note: string; css?: string }[] = [
+  { value: "latin_modern", label: "Latin Modern", note: "Classic" },
+  {
+    value: "tinos",
+    label: "Tinos",
+    note: "Like Times New Roman",
+    css: 'Tinos, "Times New Roman", Times, serif',
+  },
+  {
+    value: "caladea",
+    label: "Caladea",
+    note: "Like Cambria",
+    css: "Caladea, Cambria, Georgia, serif",
+  },
+  {
+    value: "eb_garamond",
+    label: "EB Garamond",
+    note: "Like Garamond",
+    css: '"EB Garamond", Garamond, Georgia, serif',
+  },
+  { value: "charter", label: "XCharter", note: "Like Charter", css: "Charter, Georgia, serif" },
+  {
+    value: "arimo",
+    label: "Arimo",
+    note: "Like Arial",
+    css: "Arimo, Arial, Helvetica, sans-serif",
+  },
+  { value: "carlito", label: "Carlito", note: "Like Calibri", css: "Carlito, Calibri, sans-serif" },
+  { value: "open_sans", label: "Open Sans", note: "Clean", css: '"Open Sans", Arial, sans-serif' },
+  { value: "lato", label: "Lato", note: "Modern", css: "Lato, Arial, sans-serif" },
+];
+
+// \small and \large in each of article's sizes, as jakes.tex prints them
+const SMALL: Record<number, number> = { 10: 9, 11: 10, 12: 10.95 };
+const LARGE: Record<number, number> = { 10: 12, 11: 12, 12: 14.4 };
+
+export type TextRole = {
+  key: "name_size" | "heading_size" | "title_size" | "body_size";
+  label: string;
+  /** The API's limits, in points. */
+  min: number;
+  max: number;
+  /** What a press of - or + moves it. */
+  step: number;
+  /** What it prints at with no size of its own. */
+  follows: (page: PageSettings) => number;
+};
+
+/** Each kind of text with a size of its own, top to bottom as the page prints
+ *  them. */
+export const TEXT_ROLES: Record<"name" | "heading" | "title" | "body", TextRole> = {
+  name: { key: "name_size", label: "Your Name", min: 14, max: 36, step: 1, follows: () => 24.88 },
+  heading: {
+    key: "heading_size",
+    label: "Section Headings",
+    min: 9,
+    max: 18,
+    step: 1,
+    follows: (page) => LARGE[page.font_size] ?? 12,
+  },
+  title: {
+    key: "title_size",
+    label: "Job & School Titles",
+    min: 8,
+    max: 16,
+    step: 0.5,
+    follows: (page) => page.font_size,
+  },
+  body: {
+    key: "body_size",
+    label: "Body Text",
+    min: 8,
+    max: 14,
+    step: 0.5,
+    follows: (page) => SMALL[page.font_size] ?? 10,
+  },
+};
+
+/** The points a kind of text prints at on this page. */
+export const sizeOf = (role: TextRole, page: PageSettings) => page[role.key] ?? role.follows(page);
+
+/** Which kind of text a line is. A one-row entry (a project) sets its title in
+ *  body type, and Education's location sits on its title's row. */
+export function textRoleOf(kind: string, section: string | null) {
+  const twoRow = section === "education" || section === "experience" || section === "leadership";
+  if (kind === "full_name") return TEXT_ROLES.name;
+  if (kind === "title" && twoRow) return TEXT_ROLES.title;
+  if (kind === "location" && section === "education") return TEXT_ROLES.title;
+  return TEXT_ROLES.body;
+}
+
+/** A choice, and the settings it sets. */
+type Preset = { label: string; set: Partial<PageSettings> };
+
+const SPACINGS: Preset[] = [
+  { label: "Compact", set: { line_spacing: 1, section_spacing: 0, entry_spacing: 0 } },
+  { label: "Regular", set: { line_spacing: 1.15, section_spacing: 4, entry_spacing: 2 } },
+  { label: "Relaxed", set: { line_spacing: 1.3, section_spacing: 8, entry_spacing: 4 } },
+];
+const MARGINS: Preset[] = [
+  { label: "Narrow", set: { side_margin: 0.5, top_margin: 0.5 } },
+  { label: "Normal", set: { side_margin: 0.75, top_margin: 0.75 } },
+  { label: "Wide", set: { side_margin: 1, top_margin: 1 } },
 ];
 const ACCENTS = [
   { value: "#000000", label: "Black" },
@@ -76,141 +188,81 @@ const ACCENTS = [
   { value: "#4C1D95", label: "Plum" },
 ] as const;
 
-const ON = "bg-brand/10 text-brand hover:bg-brand/10 hover:text-brand";
+/** A toolbar control that is on. */
+export const ON = "bg-brand/10 text-brand hover:bg-brand/10 hover:text-brand";
 
-function Divider() {
-  return <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px shrink-0" />;
-}
-
-/** A setting's short list as a small menu on the toolbar. */
-function ToolMenu({
-  label,
-  icon,
-  value,
-  options,
-  disabled,
-  onPick,
-}: {
-  label: string;
-  icon: ReactNode;
-  /** The chosen option, or "" when none is (top and side margins differ). */
-  value: string;
-  options: { value: string; label: string }[];
-  disabled: boolean;
-  onPick: (value: string) => void;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        disabled={disabled}
-        aria-label={label}
-        title={label}
-        render={<Button variant="ghost" size="xs" className="shrink-0" />}
-      >
-        {icon}
-        <ChevronDownIcon className="text-ink-meta size-3" />
-      </DropdownMenuTrigger>
-      {/* The bar shows these while a line is open, and a press outside the
-          bar closes the line, so the menu, in a portal, counts as the bar */}
-      <DropdownMenuContent data-keeps-selection align="start" className="w-36">
-        <DropdownMenuRadioGroup value={value} onValueChange={(next) => onPick(next as string)}>
-          {options.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value}>
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-/** The toolbar's page settings, as Docs sets them on its bar, while a line
- *  is open. */
-export function PageTools({
+/** A kind of text's size, typed or a step at a time, on the toolbar and in the
+ *  panel alike. A typed size applies on Enter or on leaving the field, never on
+ *  each key, since each change compiles the PDF. It goes to the nearest half
+ *  point inside the role's limits; what is not a number, or Escape, puts the
+ *  size back. A size that follows `font_size` (10.95) shows rounded and steps to
+ *  the next whole step either way. */
+export function SizeStepper({
+  role,
   page,
   disabled,
   onChange,
 }: {
+  role: TextRole;
   page: PageSettings;
   disabled: boolean;
   onChange: (next: PageSettings) => void;
 }) {
-  const at = FONT_SIZES.indexOf(page.font_size);
+  const [typed, setTyped] = useState<string | null>(null);
+  const now = sizeOf(role, page);
+  const shown = String(now % 0.5 ? Math.round(now) : now);
+  const smaller = (Math.ceil(now / role.step) - 1) * role.step;
+  const larger = (Math.floor(now / role.step) + 1) * role.step;
+  const set = (size: number) => {
+    setTyped(null);
+    const inside = Math.min(role.max, Math.max(role.min, size));
+    if (Number.isFinite(inside) && String(inside) !== shown) {
+      onChange({ ...page, [role.key]: inside });
+    }
+  };
+  const finish = () => set(Math.round(parseFloat(typed ?? "") * 2) / 2);
   return (
-    <div className="flex shrink-0 items-center gap-0.5">
+    <div role="group" aria-label={role.label} className="flex shrink-0 items-center gap-0.5">
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label="Smaller font"
-        title="Smaller font"
-        disabled={disabled || at <= 0}
-        onClick={() => onChange({ ...page, font_size: FONT_SIZES[at - 1] })}
+        aria-label={`Smaller ${role.label}`}
+        title={`Smaller ${role.label}`}
+        disabled={disabled || smaller < role.min}
+        onClick={() => set(smaller)}
       >
         <MinusIcon aria-hidden />
       </Button>
-      <span
-        aria-label={`Font size, ${page.font_size} points`}
-        className="text-note text-ink-muted w-6 text-center font-medium tabular-nums"
-      >
-        {page.font_size}
-      </span>
+      <input
+        aria-label={`${role.label} size in points`}
+        title={`${role.min} to ${role.max} points`}
+        inputMode="decimal"
+        autoComplete="off"
+        disabled={disabled}
+        value={typed ?? shown}
+        onChange={(event) => setTyped(event.target.value)}
+        onFocus={(event) => event.target.select()}
+        onBlur={finish}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") finish();
+          // With nothing typed, Escape leaves the open line, as anywhere else
+          if (event.key === "Escape" && typed !== null) {
+            event.stopPropagation();
+            setTyped(null);
+          }
+        }}
+        className={cn(FIELD_CONTROL, "sm:text-note h-7 w-11 px-1 text-center font-medium")}
+      />
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label="Larger font"
-        title="Larger font"
-        disabled={disabled || at >= FONT_SIZES.length - 1}
-        onClick={() => onChange({ ...page, font_size: FONT_SIZES[at + 1] })}
+        aria-label={`Larger ${role.label}`}
+        title={`Larger ${role.label}`}
+        disabled={disabled || larger > role.max}
+        onClick={() => set(larger)}
       >
         <PlusIcon aria-hidden />
       </Button>
-      <Divider />
-      <ToolMenu
-        label="Line Spacing"
-        icon={<ArrowsVerticalIcon aria-hidden />}
-        value={String(page.line_spacing)}
-        options={LINE_SPACINGS.map((value) => ({
-          value: String(value),
-          label: value === 1 ? "1.0" : String(value),
-        }))}
-        disabled={disabled}
-        onPick={(value) => onChange({ ...page, line_spacing: Number(value) })}
-      />
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Align left"
-        title="Align left"
-        aria-pressed={page.alignment === "left"}
-        disabled={disabled}
-        className={cn(page.alignment === "left" && ON)}
-        onClick={() => onChange({ ...page, alignment: "left" })}
-      >
-        <TextAlignLeftIcon aria-hidden />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Justify"
-        title="Justify"
-        aria-pressed={page.alignment === "justified"}
-        disabled={disabled}
-        className={cn(page.alignment === "justified" && ON)}
-        onClick={() => onChange({ ...page, alignment: "justified" })}
-      >
-        <TextAlignJustifyIcon aria-hidden />
-      </Button>
-      <ToolMenu
-        label="Margins"
-        icon={<FrameCornersIcon aria-hidden />}
-        value={page.side_margin === page.top_margin ? String(page.side_margin) : ""}
-        options={MARGINS.map((margin) => ({ ...margin, value: String(margin.value) }))}
-        disabled={disabled}
-        onPick={(value) =>
-          onChange({ ...page, side_margin: Number(value), top_margin: Number(value) })
-        }
-      />
     </div>
   );
 }
@@ -263,49 +315,79 @@ function Setting({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** A setting's list as a switch across the panel. */
-function Choice<K extends keyof PageSettings>({
+/** A setting's choices as a switch across the panel. A page set some other
+ *  way (an older resume's own spacing) shows none of them picked. */
+function Choice({
   label,
-  name,
+  presets,
   page,
-  options,
   onChange,
 }: {
   label: string;
-  name: K;
+  presets: Preset[];
   page: PageSettings;
-  options: { value: PageSettings[K]; label: string }[];
   onChange: (next: PageSettings) => void;
 }) {
+  const picked = presets.find(({ set }) =>
+    Object.entries(set).every(([name, value]) => page[name as keyof PageSettings] === value),
+  );
   return (
     <Setting label={label}>
       <SegmentedToggle
         label={label}
         className="w-full"
-        value={String(page[name])}
-        options={options.map((option) => ({ value: String(option.value), label: option.label }))}
+        value={picked?.label ?? null}
+        options={presets.map((preset) => ({ value: preset.label, label: preset.label }))}
         onValueChange={(to) => {
-          const picked = options.find((option) => String(option.value) === to);
-          if (picked) onChange({ ...page, [name]: picked.value });
+          const next = presets.find((preset) => preset.label === to);
+          if (next) onChange({ ...page, ...next.set });
         }}
       />
     </Setting>
   );
 }
 
-const points = (values: number[]) =>
-  values.map((value) => ({ value, label: value === 0 ? "None" : `${value} pt` }));
-const marginOptions = MARGINS.map(({ value }) => ({ value, label: `${value}"` }));
-
-/** Every setting beyond the toolbar's. `quick` adds the toolbar's own too,
- *  for a phone, which has no toolbar for them. */
-export function FormatOptions({
+/** The font, each drawn in itself, with the look it stands for. */
+function FontPicker({
   page,
-  quick = false,
   onChange,
 }: {
   page: PageSettings;
-  quick?: boolean;
+  onChange: (next: PageSettings) => void;
+}) {
+  const current = FONTS.find((font) => font.value === page.font_family) ?? FONTS[0];
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={`Font, ${current.label}`}
+        render={<Button variant="secondary" className="w-full justify-between" />}
+      >
+        <span style={{ fontFamily: current.css }}>{current.label}</span>
+        <ChevronDownIcon className="text-ink-meta size-3.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent data-keeps-selection align="start" className="w-(--anchor-width)">
+        <DropdownMenuRadioGroup
+          value={current.value}
+          onValueChange={(to) => onChange({ ...page, font_family: to as FontFamily })}
+        >
+          {FONTS.map((font) => (
+            <DropdownMenuRadioItem key={font.value} value={font.value}>
+              <span style={{ fontFamily: font.css }}>{font.label}</span>
+              <span className="text-note text-ink-meta ml-auto pr-5">{font.note}</span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** The whole resume's look, in the order a student decides it. */
+export function FormatOptions({
+  page,
+  onChange,
+}: {
+  page: PageSettings;
   onChange: (next: PageSettings) => void;
 }) {
   // The order is the Sections panel's: formatting's reset leaves it
@@ -313,37 +395,21 @@ export function FormatOptions({
   const changed = JSON.stringify({ ...reset, ...page }) !== JSON.stringify(reset);
   return (
     <>
-      {quick && (
-        <Group title="Text">
-          <Choice
-            label="Font Size"
-            name="font_size"
-            page={page}
-            options={FONT_SIZES.map((value) => ({ value, label: `${value} pt` }))}
-            onChange={onChange}
-          />
-          <Choice
-            label="Line Spacing"
-            name="line_spacing"
-            page={page}
-            options={LINE_SPACINGS.map((value) => ({
-              value,
-              label: value === 1 ? "1.0" : String(value),
-            }))}
-            onChange={onChange}
-          />
-          <Choice
-            label="Alignment"
-            name="alignment"
-            page={page}
-            options={[
-              { value: "left", label: "Left" },
-              { value: "justified", label: "Justified" },
-            ]}
-            onChange={onChange}
-          />
-        </Group>
-      )}
+      <Group title="Font">
+        <FontPicker page={page} onChange={onChange} />
+      </Group>
+      <Group title="Text Sizes">
+        {Object.values(TEXT_ROLES).map((role) => (
+          <div key={role.key} className="flex items-center justify-between gap-3">
+            <span className="text-note text-ink-muted font-medium">{role.label}</span>
+            <SizeStepper role={role} page={page} disabled={false} onChange={onChange} />
+          </div>
+        ))}
+      </Group>
+      <Group title="Layout">
+        <Choice label="Spacing" presets={SPACINGS} page={page} onChange={onChange} />
+        <Choice label="Margins" presets={MARGINS} page={page} onChange={onChange} />
+      </Group>
       <Group title="Style">
         <Setting label="Accent Color">
           <div role="radiogroup" aria-label="Accent Color" className="flex items-center gap-2">
@@ -365,75 +431,19 @@ export function FormatOptions({
             ))}
           </div>
         </Setting>
-        <Choice
-          label="Bullets"
-          name="bullet"
-          page={page}
-          options={[
-            { value: "dot", label: "• Dot" },
-            { value: "dash", label: "– Dash" },
-          ]}
-          onChange={onChange}
-        />
         <label className="flex items-center justify-between gap-3">
-          <span className="text-note text-ink-muted font-medium">Line Under Section Titles</span>
+          <span className="text-note text-ink-muted font-medium">Section Lines</span>
           <Switch
             checked={page.show_divider}
             onCheckedChange={(checked) => onChange({ ...page, show_divider: checked })}
           />
         </label>
       </Group>
-      <Group title="Layout">
-        <Choice
-          label="Header Alignment"
-          name="header_alignment"
-          page={page}
-          options={[
-            { value: "left", label: "Left" },
-            { value: "center", label: "Center" },
-            { value: "right", label: "Right" },
-          ]}
-          onChange={onChange}
-        />
-      </Group>
-      <Group title="Spacing & Margins">
-        <Choice
-          label="Section Spacing"
-          name="section_spacing"
-          page={page}
-          options={points([0, 4, 8, 12])}
-          onChange={onChange}
-        />
-        <Choice
-          label="Entry Spacing"
-          name="entry_spacing"
-          page={page}
-          options={points([0, 2, 4, 6])}
-          onChange={onChange}
-        />
-        <Choice
-          label="Top & Bottom Margin"
-          name="top_margin"
-          page={page}
-          options={marginOptions}
-          onChange={onChange}
-        />
-        <Choice
-          label="Side Margins"
-          name="side_margin"
-          page={page}
-          options={marginOptions}
-          onChange={onChange}
-        />
-      </Group>
-      <Button
-        variant="secondary"
-        className="shrink-0"
-        disabled={!changed}
-        onClick={() => onChange(reset)}
-      >
-        Reset Formatting
-      </Button>
+      {changed && (
+        <Button variant="ghost" className="shrink-0" onClick={() => onChange(reset)}>
+          Reset Formatting
+        </Button>
+      )}
     </>
   );
 }

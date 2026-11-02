@@ -1,6 +1,9 @@
 // The Guessed card (KAN-369): a panel row WorkIt guessed (lib-status.js's
 // source "guessed": a policy's answer, or one with no fact of the
-// student's) gets Looks right. It makes the answer the student's (the row
+// student's) says what WorkIt guessed (KAN-511: "WorkIt guessed: Checked",
+// the option picked, the text typed cut to GUESS_MAX with all of it on
+// hover, a file's name; shown on the panel only, never sent anywhere) and
+// gets Looks right. It makes the answer the student's (the row
 // reads "You", and Next Thing That Needs You stops going to it) and, in a
 // batch tab, saves it as their own answer to the question's wording
 // ("batch/own-answer", PUT .../answers with own: true): the next form that
@@ -25,6 +28,8 @@ window.WIA = window.WIA || {};
   // The API's limits on a saved answer's field name and wording (written-answers.js's).
   const FIELD_NAME_MAX = 200;
   const LABEL_MAX = 2000;
+  // The most of a guessed answer a card shows; all of it is on hover.
+  const GUESS_MAX = 80;
 
   // A box asking the student to agree to, or acknowledge, something of the employer's.
   const CONSENT = /\b(?:i agree|agree to|consent|acknowledg|i understand|i have read|privacy (?:policy|notice|statement)|terms (?:and|&) conditions|personal (?:data|information))/i;
@@ -124,6 +129,23 @@ window.WIA = window.WIA || {};
     overlay.refresh();
   }
 
+  /** The field a row fills on the page, when the page names it by the row's key. */
+  const fieldAt = (key) => window.WIA.fieldOf?.(key) ?? document.getElementById(key) ?? document.getElementsByName(key)[0] ?? null;
+  /** A lone checkbox: the field is one, or holds just one. */
+  function isBox(key) {
+    const el = fieldAt(key);
+    if (!el) return false;
+    if (el.matches?.("input[type=checkbox]")) return true;
+    return el.querySelectorAll?.("input[type=checkbox]").length === 1 && !el.querySelector("input:not([type=checkbox]), select, textarea");
+  }
+
+  /** What WorkIt guessed, in words: Checked or Unchecked for a box, else what the field shows. */
+  function guess(r) {
+    const value = shown(r);
+    if (isBox(r.key)) return /^(?:no|false|off)?$/i.test(value) ? "Unchecked" : "Checked";
+    return Array.isArray(r.shows) ? r.shows.join(", ") : value;
+  }
+
   /** A row card (row-card.js): its one sentence, and a button when there is something to press. */
   const card = (line, label, onClick) => ({ lines: [line], buttons: label ? [{ label, primary: true, onClick }] : [] });
   /** A saved answer's card: Undo, greyed while it deletes; a failed delete says so. */
@@ -140,7 +162,12 @@ window.WIA = window.WIA || {};
     if (done === "saved" || done === "undoing" || done === "stuck") return undoCard(done, () => undoConfirm(r.key));
     if (done === "kept") return card(batch() ? "Looks right. WorkIt couldn't save it for next time." : "Looks right.");
     if (done) return null;
-    if (isGuess(r)) return card("WorkIt guessed this. Check it on the form.", "Looks right", () => confirm(r));
+    if (isGuess(r)) {
+      const value = guess(r);
+      if (!value) return card("WorkIt guessed this. Check it on the form.", "Looks right", () => confirm(r));
+      const cut = value.length > GUESS_MAX ? `${value.slice(0, GUESS_MAX).trimEnd()}…` : value;
+      return { lines: [{ text: `WorkIt guessed: ${cut}`, title: cut === value ? undefined : value }], buttons: [{ label: "Looks right", primary: true, onClick: () => confirm(r) }] };
+    }
     if (!batch() || !wasGuessed.has(r.key) || r.source !== "student" || !shown(r)) return null;
     const kept = saved.get(r.key);
     if (kept === "saved" || kept === "undoing" || kept === "stuck") return undoCard(kept, () => undoChange(r.key));
