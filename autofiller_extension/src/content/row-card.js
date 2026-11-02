@@ -54,13 +54,14 @@ window.WIA = window.WIA || {};
 
   /**
    * A sentence is its text, or { text, kind, data }: kind "meta" (small and
-   * bold), "warning", "error" or "ask" (in ink); data goes on its dataset.
+   * bold), "warning", "error" or "ask" (in ink); data goes on its dataset,
+   * title shows on hover (all of a text cut short).
    * `tone` ("warning", "danger") colours the card's edge and its highlight;
    * `highlight` is the answer's own sentence, a button (it shows it in the
    * form); `slot` is elements the card holds under its sentences (a paste
    * box), `after` under its buttons; `className` and `data` go on the card,
    * as `data` on a button.
-   * @typedef {string | { text: string, kind?: "meta" | "warning" | "error" | "ask", data?: Record<string, string> }} Line
+   * @typedef {string | { text: string, kind?: "meta" | "warning" | "error" | "ask", data?: Record<string, string>, title?: string }} Line
    * @typedef {{ title?: string, lines: Line[], quote?: string, busy?: boolean,
    *   tone?: "warning" | "danger", highlight?: { text: string, title?: string, onClick: () => void },
    *   slot?: Node[], after?: Node[], className?: string, data?: Record<string, string>,
@@ -69,8 +70,9 @@ window.WIA = window.WIA || {};
 
   /** A sentence's element. */
   function line(part) {
-    const { text, kind, data } = typeof part === "string" ? { text: part } : part;
+    const { text, kind, data, title } = typeof part === "string" ? { text: part } : part;
     const el = Object.assign(document.createElement("p"), { textContent: text });
+    if (title) el.title = title;
     if (kind) el.className = `card-${kind}`;
     Object.assign(el.dataset, data);
     return el;
