@@ -1585,8 +1585,8 @@ export function Editor({
         focused={focused}
         focus={setFocused}
         show={(key) => {
-        setActive(key);
-        setSuggestionsOpen(false);
+          setActive(key);
+          setSuggestionsOpen(false);
         }}
         active={active}
         open={setActive}
@@ -1829,22 +1829,22 @@ export function Editor({
               ? "Experiences"
               : panelView === "cut"
                 ? "Cut From Resume"
-              : panelView === "format"
-                ? "Format Options"
-                : panelView === "sections"
-                  ? "Sections"
-                  : "Scout"
+                : panelView === "format"
+                  ? "Format Options"
+                  : panelView === "sections"
+                    ? "Sections"
+                    : "Scout"
           }
           subtitle={
             panelView === "experiences"
               ? "Pick what this resume shows"
               : panelView === "cut"
                 ? "Put back what Fit to One Page hid"
-              : panelView === "format"
-                ? "Set how this page prints"
-                : panelView === "sections"
-                  ? "Drag to change the order"
-                  : "Edits this resume as you talk"
+                : panelView === "format"
+                  ? "Set how this page prints"
+                  : panelView === "sections"
+                    ? "Drag to change the order"
+                    : "Edits this resume as you talk"
           }
         >
           <div data-keeps-selection className="flex min-h-0 flex-1 flex-col">
