@@ -1349,8 +1349,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   tab opens and closes. The header's count line (`QueueSummary`) uses the
   same rule, so change them together. **A row's
   status is one item, never a second line or an action beside it**: the
-  most urgent of Posting Closed, its written questions, its tab's state
-  or Needs You, and a click on it goes where the job is finished (its
+  most urgent of Posting Closed, its written questions, its tab's state,
+  Tab Closed, Not Submitted (its batch tab closed before WorkIt saw its
+  submit: `useClosedTabs`, KAN-512; such a row is In Progress) or Needs You, and a click on it goes where the job is finished (its
   tab, opened again if closed). A missing resume shows in the Resume
   cell, never as a status. Layers of text there (a state, an action link,
   a questions line) read as clutter. Never a column of its own for the action,

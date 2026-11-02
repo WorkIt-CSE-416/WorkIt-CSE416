@@ -1276,7 +1276,15 @@ page with one action.
     (`useBrowserTabs`, which asks `run/status` every 4 seconds while the
     page shows): Filling (with a spinning ring, as Tailor's run loader),
     Ready to Submit, Needs You, Fill Failed, Submitted. With its tab closed
-    (stage needs_you) it is Needs You.
+    before WorkIt saw its submit, it is **Tab Closed, Not Submitted**
+    (amber; KAN-512): the extension's `run/status` lists it in `closed`
+    (`useClosedTabs`), its stage stays as its fill left it (never applied),
+    and a click opens it again. Without that list (another browser, an
+    older extension) a closed one with stage needs_you is Needs You.
+    "Tab Closed" was cut on 2026-10-29 as a browser detail beside a Reopen
+    link; it came back on 2026-11-01 as the one status, since a Ready
+    job whose tab closed otherwise fell back into Queued with no sign it
+    had started.
   - **Queued**: waiting, in the order the extension takes it; no status. A
     place ("#1 in Queue") was tried and cut: five fill at once, so it read
     as one at a time.
