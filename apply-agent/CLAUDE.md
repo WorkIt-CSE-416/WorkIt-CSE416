@@ -76,6 +76,9 @@ into it and the window shows "Sample data".
 - Run only the tests that the change touches, with `-k`. For example,
   `tests/test_workday_filler.py` alone takes about 5 minutes; do not run
   the whole file again after each small fix.
+- Run `uv run ruff check .` here before you commit. It uses the backend's
+  ruff config. `pyproject.toml` lists the findings that Apply keeps on
+  purpose, each with its reason.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live
