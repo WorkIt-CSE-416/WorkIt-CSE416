@@ -38,6 +38,7 @@ import {
   MedalIcon as Medal,
   MedalMilitaryIcon as MedalMilitary,
   MoneyIcon as Money,
+  NotePencilIcon as NotePencil,
   PaperPlaneTiltIcon as PaperPlaneTilt,
   PencilSimpleIcon as PencilSimple,
   PersonArmsSpreadIcon as PersonArmsSpread,
@@ -99,13 +100,21 @@ type IconProps = { className?: string };
 /* Chrome ------------------------------------------------------------------ */
 
 /** Scout and every AI action, the one mark for both (KAN-257): the top bar's
- *  launcher, the panel's header, Scout's mark in the chat, Ask Scout, Tailor
- *  My Resume and Read It Again with AI. It was a filled sparkle drawn by hand
+ *  launcher, the panel's header, Scout's mark in the chat, Ask Scout, Tailor's
+ *  own run and Read It Again with AI. It was a filled sparkle drawn by hand
  *  in the bar and the panel, beside an outlined one in the chat and on every
  *  AI button, so the assistant wore two marks. Use this, never Phosphor's
  *  `SparkleIcon` directly. */
 export function SparkleIcon({ className }: IconProps) {
   return <Sparkle aria-hidden className={className} />;
+}
+
+/** Tailor My Resume, on a job's card and its page: a page being rewritten. It
+ *  drew SparkleIcon until KAN-518, beside Ask Scout's, so the two buttons read
+ *  alike and the mark did not say what the button does. Not scissors: the
+ *  editor's Fit to One Page has them, for cutting a resume down. */
+export function TailorIcon({ className }: IconProps) {
+  return <NotePencil aria-hidden className={className} />;
 }
 
 export function SearchIcon({ className }: IconProps) {

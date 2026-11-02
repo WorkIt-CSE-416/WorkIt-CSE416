@@ -14,10 +14,10 @@ from types import SimpleNamespace
 import pytest
 
 from workit_scraper import __main__ as run
-from workit_scraper import logos, polite, providers, store
+from workit_scraper import logos, polite, providers, shortlist, store
 from workit_scraper.details import Facts, Pay
 from workit_scraper.providers import BoardNotFound, Job, Page
-from workit_scraper.shortlist import classify
+from workit_scraper.shortlist import classify, classify_with_description
 from workit_scraper.store import RunStats
 
 
@@ -203,6 +203,12 @@ class TestRecruitee:
         ]
     }
 
+    @pytest.fixture(autouse=True)
+    def parse_every_offer(self, monkeypatch) -> None:
+        # These are real offers with titles the shortlist drops; what is read from
+        # them is under test here, and which are parsed in TestListedPage.
+        monkeypatch.setattr(shortlist, "may_keep", lambda title, full: True)
+
     def jobs(self, monkeypatch) -> list[Job]:
         serve(monkeypatch, self.OFFERS)
         return providers.recruitee("hardrockdigital", "Hard Rock Digital")
@@ -239,6 +245,63 @@ class TestRecruitee:
         assert providers.systems.recruitee._recruitee_pay(row) is None  # €1,000 an hour is no wage
         row = {"salary": {"min": "25", "max": "30", "period": "hour", "currency": "EUR"}}
         assert providers.systems.recruitee._recruitee_pay(row) == Pay("EUR", 25, 30, "hour")
+
+
+class TestListedPage:
+    """A reader whose list sends descriptions builds a `Page` only for a posting the
+    shortlist may keep (`text._listed_page`): the run drops about 93% of what it
+    scans, and the parse was most of a lane's time."""
+
+    def test_only_a_posting_the_shortlist_may_keep_is_parsed(self, monkeypatch) -> None:
+        low, high = "<p>0-1 years of experience.</p>", "<p>5+ years of experience.</p>"
+        serve(
+            monkeypatch,
+            {
+                "offers": [
+                    offer(1, "Software Engineering Intern", "Tampa", [], requirements=high),
+                    offer(2, "Data Analyst", "Tampa", [], requirements=low),
+                    offer(3, "Data Analyst", "Tampa", [], requirements=high),
+                    offer(4, "Senior Software Engineer", "Tampa", [], requirements=low),
+                ]
+            },
+        )
+        jobs = providers.recruitee("hardrockdigital", "Hard Rock Digital")
+        assert [job.page is not None for job in jobs] == [True, True, False, False]
+        intern, analyst = jobs[:2]
+        assert classify_with_description(analyst.title, analyst.description)
+        assert intern.facts.min_years == 5
+
+    def test_a_posting_that_now_asks_for_more_is_not_kept_on_its_old_page(
+        self, monkeypatch
+    ) -> None:
+        # Kept on "0-1 years", then the employer asks for "5+": the new list has no
+        # page for it, and `store.carry` must not bring back the stored one, or the
+        # shortlist keeps it on its old description.
+        def read(requirements: str) -> Job:
+            posted = "2026-10-08 10:41:07 UTC"
+            serve(
+                monkeypatch,
+                {
+                    "offers": [
+                        offer(
+                            2,
+                            "Data Analyst",
+                            "Tampa",
+                            [],
+                            requirements=requirements,
+                            published_at=posted,
+                        )
+                    ]
+                },
+            )
+            [job] = providers.recruitee("hardrockdigital", "Hard Rock Digital")
+            return job
+
+        kept = read("<p>0-1 years of experience.</p>")
+        changed = store.carry(read("<p>5+ years of experience.</p>"), {kept.key: kept})
+        assert changed.page is None
+        assert not classify_with_description(changed.title, changed.description)
+        assert changed.posted_at == kept.posted_at
 
 
 class TestBambooHR:

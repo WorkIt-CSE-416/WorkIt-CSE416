@@ -20,6 +20,7 @@ from app.services.resume_render import (
     escape,
     escape_url,
     mark,
+    type_size,
 )
 from app.services.resume_render.fields import (
     SECTION_LABELS,
@@ -32,9 +33,20 @@ from app.services.resume_render.fields import (
     link_text,
     skill_lines,
 )
-from app.services.resume_view import ResumeView, ViewEntry
+from app.services.resume_view import ResumeView, ViewEntry, runs
 
 Printed = dict[str, str] | None
+
+
+def _rich(text: str) -> str:
+    '''A marked wording's LaTeX, each run escaped and set in its weight.'''
+    pieces = []
+    for words, bold, italic in runs(text):
+        latex = escape(words)
+        if italic:
+            latex = rf"\textit{{{latex}}}"
+        pieces.append(rf"\textbf{{{latex}}}" if bold else latex)
+    return "".join(pieces)
 
 
 def _marked(item_id, kind: str, latex: str, text: str, marks: bool, printed: Printed) -> str:
@@ -67,7 +79,8 @@ def _header(identity: HeaderIdentity, marks: bool, printed: Printed, page: PageS
     ]
     # The page's settings, each only when it differs, so Jake's own page
     # writes his own header
-    shape = rf"\textbf{{\Huge \scshape {escape(identity.name)}}}"
+    size = type_size(page.name_size) if page.name_size else r"\Huge"
+    shape = rf"\textbf{{{size} \scshape {escape(identity.name)}}}"
     if page.accent != DEFAULT_PAGE.accent:
         shape = rf"\textcolor{{wiaccent}}{{{shape}}}"
     name = slot("full_name", shape, identity.name)
@@ -92,14 +105,17 @@ def _entry(entry: ViewEntry, marks: bool, printed: Printed) -> list[str]:
     else:
         left = rf"\textbf{{{slot('title')}}}" + (rf" $|$ \emph{{{slot('tag')}}}" if h.tag else "")
         line = rf"\resumeProjectHeading{{{left}}}{{{slot('right')}}}"
-    items = [(entry.id, kind, text) for kind, text in details(entry)]
-    items += [(b.id, "bullet", b.text) for b in entry.bullets]
+    items = [(entry.id, kind, escape(text), text) for kind, text in details(entry)]
+    # A marked bullet's box carries its markers: the editor opens the line on
+    # them, and saves it only when they change
+    items += [(b.id, "bullet", _rich(b.marked) if b.marked else escape(b.text), b.marked or b.text)
+              for b in entry.bullets]
     if not items:
         # An empty itemize is a LaTeX error, so a list opens only around items
         return [line]
     rows = []
-    for item_id, kind, text in items:
-        body = _marked(item_id, kind, escape(text), text, marks, printed)
+    for item_id, kind, latex, text in items:
+        body = _marked(item_id, kind, latex, text, marks, printed)
         # \ignorespaces swallows the space Jake's \resumeItem puts after its
         # argument ("{#1 \vspace{-2pt}}"): when a bullet's last line is
         # full, TeX broke at that space and printed an empty line after it
@@ -109,6 +125,9 @@ def _entry(entry: ViewEntry, marks: bool, printed: Printed) -> list[str]:
 
 def _skills(view: ResumeView, marks: bool, printed: Printed) -> str:
     rows = []
+    # Each line's start, before its label: Fit to One Page reads the left
+    # edge from it to tell how many skills a wrapped line must lose
+    start = r"\wipoint{skillrow}" if marks else ""
     for label, skills in skill_lines(view.skills):
         # Each skill's comma stays inside its markers: a marker between two
         # characters drops the kerning between them ("NumPy," moved 0.08 pt)
@@ -117,7 +136,7 @@ def _skills(view: ResumeView, marks: bool, printed: Printed) -> str:
             for i, s in enumerate(skills)
             for comma in ["," if i < len(skills) - 1 else ""]
         )
-        rows.append(rf"\textbf{{{escape(label)}}}{{: {names}}}" if label else names)
+        rows.append(start + (rf"\textbf{{{escape(label)}}}{{: {names}}}" if label else names))
     return r" \\ ".join(rows)
 
 

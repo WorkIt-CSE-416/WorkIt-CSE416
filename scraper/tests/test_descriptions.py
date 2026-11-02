@@ -83,7 +83,12 @@ class TestLines:
         ]
 
     def test_the_text_is_plain_texts_line_for_line(self) -> None:
-        markup = "<p>Intro<br/>more</p><ul><li>One</li><li><p>Two</p></li></ul>"
+        # `shortlist.may_keep` reads `plain_text`, and the stored description is cut
+        # from `plain_lines`: the same words in both, inline tags and spaces too.
+        markup = (
+            "<p>Intro<br/>more</p><ul><li>One</li><li><p>Two</p></li></ul>"
+            "<p>R&amp;D:&nbsp; <b>1</b>+ years\tof experience </p>\r\nLast"
+        )
 
         assert "\n".join(line for line, _ in providers.plain_lines(markup)) == plain_text(markup)
 

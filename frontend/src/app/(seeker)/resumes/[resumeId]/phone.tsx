@@ -3,11 +3,13 @@
 import {
   ArrowLeftIcon,
   ArrowUUpLeftIcon,
+  ArrowUUpRightIcon,
   CaretLeftIcon,
   CaretRightIcon,
   HandPointingIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
+  ScissorsIcon,
   SlidersHorizontalIcon,
   XIcon,
 } from "@phosphor-icons/react/ssr";
@@ -30,10 +32,11 @@ import { DownloadMenu, DownloadNotes, type ResumeDownload } from "../download-me
 import { useBack } from "../../back-link";
 import { EDITOR_PARENT } from "./back";
 import { FitNotice } from "./fit-notice";
-import { lineName, shortPageLabel, type Line } from "./model";
+import { cutLeft as anyCutLeft, lineName, shortPageLabel, type FitCuts, type Line } from "./model";
+import type { HistoryTools } from "./editor";
 import { FormatOptions } from "./page-format";
 import { boxKey, kindLabel } from "./pdf-pages";
-import { ExperiencesPicker } from "./experiences-picker";
+import { CutPicker, ExperiencesPicker } from "./experiences-picker";
 
 /**
  * The phone editor (KAN-219, the KAN-201 prototype's variant A). The page
@@ -109,7 +112,6 @@ export function PhoneEditor({
   saving,
   elapsed,
   error,
-  fitUndo,
   download,
   bar,
   page,
@@ -122,7 +124,8 @@ export function PhoneEditor({
   onFlush,
   onApply,
   onFit,
-  onUndoFit,
+  history,
+  cuts,
 }: {
   /** Null until the first render lands (./editor.tsx streams it in). */
   rendered: RenderedPdf | null;
@@ -142,7 +145,6 @@ export function PhoneEditor({
   saving: boolean;
   elapsed: number | null;
   error: string | null;
-  fitUndo: ChoicesUpdate | null;
   /** The page's settings, in the Format sheet (./page-format.tsx). */
   page: PageSettings;
   onPage: (next: PageSettings) => void;
@@ -167,13 +169,18 @@ export function PhoneEditor({
   onFlush: () => void;
   onApply: (changes: ChoicesUpdate) => void;
   onFit: () => void;
-  onUndoFit: () => void;
+  /** Undo and Redo, the desktop bar's: a Fit to One Page is one step. */
+  history: HistoryTools;
+  /** What Fit to One Page cut, for Cut From Resume. */
+  cuts: FitCuts;
 }) {
   const back = useBack(EDITOR_PARENT);
   const snapshot = useSyncExternalStore(subscribeViewport, viewportSnapshot, () => "0|0");
   const [height, top] = snapshot.split("|").map(Number);
   const [zoom, setZoom] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [cutOpen, setCutOpen] = useState(false);
+  const cutLeft = anyCutLeft(bank, choices, cuts);
   const [formatOpen, setFormatOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
@@ -231,11 +238,24 @@ export function PhoneEditor({
           </span>
         </div>
         <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
-          {fitUndo && (
-            <Button variant="secondary" size="sm" onClick={onUndoFit} disabled={saving}>
-              <ArrowUUpLeftIcon aria-hidden /> Undo
-            </Button>
-          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-label="Undo"
+            disabled={!history.canUndo}
+            onClick={history.onUndo}
+          >
+            <ArrowUUpLeftIcon aria-hidden />
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-label="Redo"
+            disabled={!history.canRedo}
+            onClick={history.onRedo}
+          >
+            <ArrowUUpRightIcon aria-hidden />
+          </Button>
           <div className="ml-auto flex gap-2">
             <Button
               variant="secondary"
@@ -309,6 +329,16 @@ export function PhoneEditor({
             >
               Add Experiences
             </Button>
+            {cutLeft && (
+              <Button
+                variant="secondary"
+                className="text-warning hover:text-warning flex-1"
+                disabled={!rendered}
+                onClick={() => setCutOpen(true)}
+              >
+                <ScissorsIcon aria-hidden /> Cut From Resume
+              </Button>
+            )}
             {/* The primary action, filled as on the desktop bar. */}
             <Button disabled={!rendered} onClick={() => setAsking(true)}>
               <SparkleIcon /> Ask Scout
@@ -396,10 +426,21 @@ export function PhoneEditor({
         </Sheet>
       )}
 
+      {cutOpen && (
+        <>
+          <div className="absolute inset-0 z-30 bg-black/25" onClick={() => setCutOpen(false)} />
+          <Sheet onClose={() => setCutOpen(false)} title="Cut From Resume">
+            <div className={TAP}>
+              <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={onApply} />
+            </div>
+          </Sheet>
+        </>
+      )}
+
       {formatOpen && (
         <Sheet onClose={() => setFormatOpen(false)} title="Format Options">
           <div className={cn("flex flex-col gap-2", TAP)}>
-            <FormatOptions page={page} quick onChange={onPage} />
+            <FormatOptions page={page} onChange={onPage} />
           </div>
         </Sheet>
       )}

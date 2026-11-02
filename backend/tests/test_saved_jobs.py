@@ -251,3 +251,56 @@ async def test_a_bare_link_two_listed_jobs_share_names_neither(student, database
     assert (await client.post("/jobs/saved-by-link", json={"url": f"{base}?gh_jid=3&utm_source=li"})).status_code == 404
     # Its own link still finds each.
     assert (await client.post("/jobs/listed-by-link", json={"url": f"{base}?gh_jid=2"})).status_code == 200
+
+
+FIGMA = "https://boards.greenhouse.io/figma/jobs/6143238004?gh_jid=6143238004"
+
+
+@pytest.mark.parametrize("page", [
+    # Where WorkIt's link redirects: Greenhouse's other host.
+    "https://job-boards.greenhouse.io/figma/jobs/6143238004?gh_jid=6143238004",
+    "https://job-boards.greenhouse.io/figma/jobs/6143238004",
+    "https://job-boards.greenhouse.io/figma/jobs/6143238004/",
+    # The embedded form a company's own page shows.
+    "https://boards.greenhouse.io/embed/job_app?for=figma&token=6143238004",
+    "https://job-boards.greenhouse.io/embed/job_app?for=figma&token=6143238004",
+    # A company careers page that names the posting by ?gh_jid=.
+    "https://www.figma.com/careers/job/?gh_jid=6143238004",
+])
+async def test_any_greenhouse_link_to_the_same_job_finds_the_listed_job(student, database, page):
+    # Figma's intern form (KAN-526): WorkIt keeps boards.greenhouse.io, the student's tab is job-boards.
+    client, _ = student
+    async with database() as session:
+        job = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url, experience_level)"
+                " VALUES (gen_random_uuid(), 'Software Engineer Intern', 'published', 'Figma', :url, 'student')"
+                " RETURNING id"
+            ),
+            {"url": FIGMA},
+        )
+        await session.commit()
+
+    res = await client.post("/jobs/listed-by-link", json={"url": page})
+    assert res.status_code == 200
+    assert res.json()["job_id"] == str(job)
+
+
+async def test_another_greenhouse_job_on_the_same_board_is_not_the_listed_job(student, database):
+    client, _ = student
+    async with database() as session:
+        await session.execute(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url, experience_level)"
+                " VALUES (gen_random_uuid(), 'Software Engineer Intern', 'published', 'Figma', :url, 'student')"
+            ),
+            {"url": FIGMA},
+        )
+        await session.commit()
+
+    for page in (
+        "https://job-boards.greenhouse.io/figma/jobs/6143238005",
+        "https://boards.greenhouse.io/embed/job_app?for=figma&token=614323800",
+        "https://www.figma.com/careers/job/?gh_jid=61432380041",
+    ):
+        assert (await client.post("/jobs/listed-by-link", json={"url": page})).status_code == 404

@@ -26,7 +26,7 @@ back and pick other keywords.
 
 The screen shows three steps (`TAILOR_STEPS`), each under the same top
 row in the brand tint (`TailorBar`): Back, the step on one line ("Choose
-Keywords · Step 2 of 3"), and the step's way on (Use This Resume, Tailor
+Keywords · Step 2 of 3"), and the step's way on (Next, Tailor
 Resume, Finish). It replaced a step timeline and the buttons at each
 card's foot. The steps: Pick a Resume (1 below),
 Choose Keywords (3 and 4), and Review Changes (6). The run (5) is a
@@ -40,18 +40,17 @@ step, Tailor, a view that only waited.
 2. **The API builds the view** of that resume once (`build_view`). Every
    later step reads this one view.
 3. **The keyword match.** The posting's keywords (`keywords.ensure`, KAN-215)
-   are matched against the view (`keywords.match`). The screen shows the
-   matched keywords and their share ("3 of 14 keywords matched", over a
-   bar) and the missing ones, on one card.
+   are matched against the view (`keywords.match`). The screen shows the share
+   as a ring, the matched keywords beside it, and the missing ones to pick.
 4. **The student picks the missing keywords to add as skills.** A keyword
    the student does not pick is never written into the resume. A picked
    skill goes on the tailored resume only, never into the experience bank
    ("A picked skill belongs to the tailored resume", below). The missing
    keywords show Required, then Preferred. A note says a picked skill may
-   be named in the bullets. A count says how many are picked ("4 of 11
-   selected"). Select All, a small button, asks first, then picks every
-   missing keyword; Clear, beside it, drops every pick (KAN-408; one text
-   link, Add All then Clear All, until 2026-10-26).
+   be named in the bullets and that an interviewer can ask about it. A pick
+   never moves the score, and each keyword takes its own click: a score that
+   rose with each pick, and Select All, paid the student to claim skills
+   (2026-11-01).
 5. **The student clicks Tailor Resume.** One request does all of this,
    with no confirmation step:
    - places each picked skill in the resume's skills (group and position,
@@ -68,13 +67,13 @@ step, Tailor, a view that only waited.
      change replaced (below).
 
    While it waits, a loader in the middle of the window (`TailorRunning`,
-   a modal that Esc and a click outside do not close) lists the run's
-   real phases, the done ones checked. The screen runs it through
+   a modal that Esc and a click outside do not close) shows a small page being rewritten and the run's real phases as a list:
+   a check on each done, a spinner on the one running. The screen runs it through
    `/api/tailor`, which streams the API's `POST .../tailor/stream` as
-   NDJSON: the loader says Retrieving Info until the
-   `asking` line (the prompt has gone to the model), Asking AI until
-   `generating` (its answer is back and the run applies and saves it),
-   Generating Resume until `done`, then Compiling Resume while the editor
+   NDJSON: the loader reads your resume and the job until the
+   `asking` line (the prompt has gone to the model), rewrites your bullets
+   until `generating` (its answer is back and the run applies and saves it),
+   builds the tailored resume until `done`, then opens it while the editor
    loads. Every check before the model call (an empty bank, a posting
    already tailored) still answers as an HTTP status, since the route runs
    to the model call before it starts the stream; a failure after that is
@@ -286,13 +285,15 @@ weight.
   The job's logo, title and company beside Back crowded the top row.
 - **The toolbar holds only tools for the page**: the editor's slim row
   (`SlimBar`), one row over the page, the same bar the editor's own page
-  has since KAN-411. At the left, Undo and Redo, UI only
-  for now (the editor keeps no history yet, so both stay disabled,
-  2026-10-26), then the page count as an amber chip with a warning sign
-  and a caret ("⚠ 2 pages ⌄", over one page only), which reads as a
-  problem to open and offers Fit to One Page, and Undo Fit after a fit.
+  has since KAN-411. At the left, Undo and Redo, then Fit to One Page
+  (over one page only, a brand outline button with a scissors icon: an amber
+  "⚠ 2 pages ⌄" chip that opened a card holding this button came first);
+  Undo takes a fit back (Undo Fit, a button of its own, went on 2026-11-01).
+  Beside it, while something a fit cut is still off the page, Cut From
+  Resume opens its list in the column beside the page (KAN-524): Fit is on
+  this page too, so without it a fit cut lines and never said which.
   At the right, Download, secondary: Finish is the page's one filled
-  button, and a filled Download beside it competed. No Experiences picker (once "Not
+  button while no line is open, and a filled Download beside it competed. No Experiences picker (once "Not
   on This Resume") on this page: putting a hidden line back is the editor's own page's work,
   and a run's own removals have Undo. It sat under the page, below a
   two-page resume, then for a day was a toolbar button with a modal,
@@ -311,25 +312,26 @@ weight.
   own page (whose top bar Scout opens its assistant, KAN-411): on this
   page the panel holds the column beside the page, and a second AI entry
   beside it split the page. No Download while a line is open.
-- **Changes show on the resume, with a popup, as Docs shows suggestions**
-  (KAN-499). Every changed line is tinted in its type's colour, green added,
-  blue reworded, amber moved, with an outline while its card is pointed at or
-  open. A click on one opens its line and a small card beside it
-  (`SuggestionPopup`): the change and an Undo icon, the same as the panel's row, so a
-  student can settle one change with the panel closed. The click leaves the
-  panel as it is: it opened the panel for a moment, which took the column
-  from a student who had closed it. **Hide Suggestions** on the toolbar takes
-  the tints and the popup off the page when so many lines changed that they
-  get in the way of reading it; the changes stay, and so does the panel.
-  The card closes with its X, on
-  Esc, on leaving the line, or once the student types. It sits under the line,
-  or over it when the window cannot show all of it there. That is measured
-  against the window, not the page: a rule of "over it near the page's foot"
-  cut the card off at the window's foot higher up the page. An 8px dot in the margin marked each line
-  until the user found the dots apart from the words they marked; a phone
-  keeps them, since a tap there opens a sheet. Dots and cards were numbered
-  until 2026-10-26: the numbers read as an order to follow, so each section
-  counts its own.
+- **Changes show on the resume, as Docs shows suggestions** (KAN-499). Every
+  changed line is tinted in its type's colour, green added, blue reworded,
+  amber moved, with an outline while its card is pointed at or open. **A click
+  on one opens its line and Suggestions, on its card**: the panel opens if it
+  was closed, its list scrolls to the card, and the card takes the same outline
+  as the line, so the two read as one. **Hide Suggestions** on the toolbar
+  takes the tints off the page when so many lines changed that they get in the
+  way of reading it; a click then opens the line alone, and the changes stay.
+  A small card beside the clicked line (`SuggestionPopup`) did the panel's job
+  until 2026-11-01, when the user had it **archived**, so one place holds every
+  suggestion. Its code stays: `POPUP_LIVE` in `tailor-suggestions.tsx` says how
+  to bring it back. It closed with its X, on Esc, on leaving the line, or once
+  the student typed, and it sat under the line, or over it when the window
+  could not show all of it there: measured against the window, not the page,
+  since a rule of "over it near the page's foot" cut it off at the window's
+  foot higher up the page. An 8px dot in the margin marked each line until the
+  user found the dots apart from the words they marked; a phone keeps them,
+  since a tap there opens a sheet. Dots and cards were numbered until
+  2026-10-26: the numbers read as an order to follow, so each section counts
+  its own.
 - **Original sets the source resume beside the tailored one**, in place
   of the panel, the two at one width, so a line reads against its twin.
   **The comparison only reads:** a plain heading over each, Tailored
@@ -426,7 +428,11 @@ weight.
   this shipped. A run that adds or drops a line needs its `TailorEdit`
   kind, its `changesOf` mapping and its revert (`revertOf`).
 - **Undo reverts a change** through the choices PATCH (`revertOf`, above)
-  and drops it, so its card and dots go. Undo All is one PATCH
+  and drops it, so its card and dots go at the click (KAN-524), not after
+  the compile, and no Undo waits for one: on the deployed API a page with a
+  compile took 5 to 7 s to load (`live_page.md`). A reworded line's old words are drawn over the page
+  until the PDF lands (`wordsBack`); a move back or a skill shows then. A
+  change the render refuses gets its card back. Undo All is one PATCH
   (`revertAll`), each bullet's parts merged into one row. **There is no
   Accept** (KAN-499): every change is saved before the review opens, so
   Accept did nothing to the resume and two buttons asked for a choice with
