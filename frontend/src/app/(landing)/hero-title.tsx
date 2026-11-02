@@ -150,6 +150,29 @@ const SWASH: Variants = {
   gone: { opacity: 0, transition: { duration: 0.2 } },
 };
 
+/** A line of a phrase, in px within the phrase's box. */
+type Line = { left: number; bottom: number; width: number };
+
+/** The lines a phrase has wrapped to, from its words' places. */
+function linesOf(box: HTMLElement) {
+  const lines = new Map<number, Line>();
+  box.querySelectorAll<HTMLElement>("[data-word]").forEach((word) => {
+    const right = word.offsetLeft + word.offsetWidth;
+    const line = lines.get(word.offsetTop);
+    lines.set(
+      word.offsetTop,
+      line
+        ? { ...line, width: right - line.left }
+        : {
+            left: word.offsetLeft,
+            bottom: word.offsetTop + word.offsetHeight,
+            width: word.offsetWidth,
+          },
+    );
+  });
+  return [...lines.values()];
+}
+
 /**
  * One phrase: words that never break inside, each letter its own span so it
  * can roll on its own, in the brand violet, with the brush stroke under.
@@ -157,20 +180,37 @@ const SWASH: Variants = {
  */
 const Phrase = React.forwardRef<HTMLSpanElement, { text: string; first: boolean; still: boolean }>(
   function Phrase({ text, first, still }, ref) {
+    const box = React.useRef<HTMLSpanElement>(null);
+    // Once, not on each render: `popLayout` reads this ref as the swap
+    // commits, and a handle rebuilt then is empty, so the old phrase stayed
+    // in the flow and pushed the subtitle down.
+    React.useImperativeHandle(ref, () => box.current as HTMLSpanElement, []);
+    const [lines, setLines] = React.useState<Line[]>([]);
+    React.useLayoutEffect(() => {
+      const el = box.current;
+      if (!el) return;
+      const measure = () => setLines(linesOf(el));
+      measure();
+      const observer = new ResizeObserver(measure);
+      observer.observe(el);
+      return () => observer.disconnect();
+    }, []);
+
     let n = 0;
     return (
       <motion.span
-        ref={ref}
+        ref={box}
         // One line from lg up; below it a long phrase wraps between words.
         className="relative inline-block whitespace-nowrap [perspective:800px] max-lg:whitespace-normal"
         initial={first || still ? false : "hidden"}
         animate="shown"
         exit="gone"
       >
-        {text.split(" ").map((word, w, words) => (
+        {text.split(" ").map((word, w) => (
           <React.Fragment key={w}>
             {w > 0 && " "}
             <motion.span
+              data-word
               custom={{ at: n, n: word.length }}
               variants={WORD}
               className="relative inline-block whitespace-nowrap"
@@ -193,26 +233,48 @@ const Phrase = React.forwardRef<HTMLSpanElement, { text: string; first: boolean;
                   </motion.span>
                 );
               })}
-              {/* Below lg the phrase may wrap, so the stroke goes under its
-                  last word, not under a box wider than the text. */}
-              {w === words.length - 1 && <Swash first={first} className="lg:hidden" />}
             </motion.span>
           </React.Fragment>
         ))}
         {/* Under the whole phrase from lg up, where it is one line. */}
         <Swash first={first} className="max-lg:hidden" />
+        {/* Below lg the phrase may wrap, so each line has its own stroke:
+            under the whole box it ran past the text, and under the last
+            word alone it left most of the phrase bare. */}
+        {lines.map((line, i) => (
+          <Swash
+            key={i}
+            first={first}
+            className="lg:hidden"
+            style={{
+              left: line.left - line.width * 0.02,
+              top: `calc(${line.bottom}px - 0.16em)`,
+              bottom: "auto",
+              width: line.width * 1.04,
+            }}
+          />
+        ))}
       </motion.span>
     );
   },
 );
 
 /** The tapered brush stroke under the phrase, drawn in left to right. */
-function Swash({ first, className }: { first: boolean; className?: string }) {
+function Swash({
+  first,
+  className,
+  style,
+}: {
+  first: boolean;
+  className?: string;
+  style?: React.ComponentProps<typeof motion.svg>["style"];
+}) {
   const fill = React.useId();
   return (
     <motion.svg
       aria-hidden="true"
       className={cn("hero-swash", first && "hero-swash-first", className)}
+      style={style}
       viewBox="0 0 300 24"
       preserveAspectRatio="none"
       variants={SWASH}

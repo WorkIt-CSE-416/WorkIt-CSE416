@@ -286,7 +286,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   430px: twelve cards in three columns, the fit ones wider, buried each
   other, and two even columns read as a table. Unpinned, the 520px section
   left the screen before its last phase; a timed loop played whether or
-  not the reader scrolled, which the team rejected. The four tabs' labels, icons and colours are one list,
+  not the reader scrolled, which the team rejected. The scene's pin needs
+  538px of height under the header, so a phone on its side gets the still
+  block (`SHORT_QUERY`, KAN-540): pinned, its line sat behind the header.
+  The four steps run two and two, then one row from 35rem (`STEP_PILLS`):
+  in the 384px stage they wrapped three and one. The four tabs' labels, icons and colours are one list,
   `TOUR_TABS` in `tour-tabs.ts`, a plain module that both the tour and the
   bridge import: a server page cannot pass icon components to a client
   one as props. **Keep every scroll-linked range inside 0 to 1**: motion
@@ -306,8 +310,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   climbs. While the page writes itself, the status above it is a loader
   card the shape of the job card that replaces it (the team found a
   pulsing dot and a line of text too plain): a spinning ring round the
-  page icon, the section being written, a percentage, and a bar along its
-  foot edge, then a green "Resume ready". It keeps time from the page's own
+  page icon, the section being written and a percentage, then a green
+  "Resume ready"; a bar along its foot said the percentage twice, so the
+  team had it taken out (KAN-540). It keeps time from the page's own
   line count (`FIRST_LINE`, `LINE_STEP`, `LINE_FOR`), so it ends as the
   last line lands; a line added to the page needs no change there. The
   page sizes to its content; fixed to the stage's height it
@@ -336,10 +341,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`board-data.ts`), each logo a favicon tile (`favicon-logo.tsx`). Scores
   on the hero, the board and both stories are green, amber or red through
   `scoreTone` (`score-tone.ts`). Below lg the
-  stops are one row that swipes sideways, a stop at a time, the next
-  peeking in, with a 44px dot per stop under it (`StackedTour`, KAN-368),
-  because a pinned card with the resume animation does not fit a phone:
-  stacked, they took 3,290px of a 390px phone. A story's root is
+  stops are one row that swipes sideways, a stop at a time, with a 44px
+  dot per stop under it (`StackedTour`, KAN-368), because a pinned card
+  with the resume animation does not fit a phone: stacked, they took
+  3,290px of a 390px phone. Each stop fills the row, with no next stop
+  peeking in, which the team found a distraction (KAN-540); the gap stays
+  at least the row's padding, or a sliver shows. A story's root is
   `shrink-0`: as `Fit`'s flex child it shrank to its title's 380px, so
   `Fit` scaled it too little and its 520px scenes were cut at the panel
   (the Auto Apply window, the Matching card). Where `Fit` draws a story
@@ -470,7 +477,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   sorted by Best Match. Below lg it runs top to bottom in two or three
   columns. The lines under the mark are pipeline steps, so each is a
   claim. The team dropped the two cards that sat under it (Autofill for
-  Chrome, Scout): their feature pages cover them. One clock (a motion
+  Chrome, Scout): their feature pages cover them. In the 3D scene the Jobs
+  page cards keep 316px (`outletX`), which shows every title whole, and the
+  heading sits higher under a 40rem window, or the pipe's label rises into
+  its last line (KAN-540). One clock (a motion
   value, in seconds) drives every chip and moves only in view and in a
   visible tab; with reduced motion it stays at `STILL_AT`, the one still
   frame. A lane's chips are evenly spaced slots, and each takes the lane's
@@ -517,9 +527,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   carries `data-hero-text` for the job cards' placement, is hidden from
   them. From lg up "Stop filling out applications" must fit one line (the
   h1's clamp size and `max-w-6xl`). Below lg a phrase wraps between words,
-  the stroke goes under its last word (under the whole box it ran past the
-  text), and the h1 keeps four lines' room, centred, so the subtitle does
-  not jump on each swap, and "by hand." glides with the phrase. The swaps
+  each line gets its own stroke, placed from the words' measured lines
+  (`linesOf`, KAN-540): under the whole box it ran past the text, and under
+  the last word alone it left most of the phrase bare. The h1 keeps the
+  room of the most lines any phrase takes at that width, centred, so the
+  subtitle does not jump on each swap, and "by hand." glides with the
+  phrase. Those widths are in rem so they sort with `sm`: in px, a
+  `min-[720px]` lost to it and did nothing. A change to the h1's size or the
+  phrases means measuring the widths again. `Phrase` shares its ref with
+  `useImperativeHandle` and empty deps: rebuilt on each render, the ref was
+  empty as `popLayout` read it, so the old phrase stayed in the flow and
+  pushed the subtitle down on every swap. The swaps
   pause in a hidden tab, and the hidden sentence for screen readers is not
   selectable (a drag over the headline copied it as well). With reduced
   motion it rests and never swaps.
@@ -592,8 +610,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   wanted the hero to show a spread of fits at a glance. In the
   pinned product tour, `Fit` (`fit.tsx`, shared with the feature pages'
   stage) scales a visual to the visual area's height
-  and width, up to 1.5x (and, in the stacked stops, down to their width
-  only), so the 520px-wide stories fit a short laptop screen and fill a
+  and width, up to 1.5x on the feature pages and 1.15x in the tour
+  (`TOUR_FIT`: at about 1.3x on a laptop the team found its type too big
+  beside the copy; KAN-540), and, in the stacked stops, down to their width
+  only, so the 520px-wide stories fit a short laptop screen and fill a
   big one: at 1x they sat small in an area of empty colour, which the team
   flagged. Each story's stage is the height of its tallest scene, no more,
   since spare stage height is what shrinks the scale. `Fit` is a motion
@@ -601,9 +621,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   scaled div (Matching's Best Match sort) started each card from its old
   place times the scale. Under 50rem of window height the tour's padding
   tightens, so the stories keep their design size on a laptop. The visual
-  area's colour crossfades with the panel's, one layer per stop, siblings
-  of the story so its glass still blurs them: as one gradient it changed
-  in a single frame. The scene count in each title pill swaps with the
+  area has more padding over the story than under it, since a story's stage
+  keeps its tallest scene's height and at an even 16px each stop read as
+  sitting high (KAN-540). The visual area's colour crossfades with the
+  panel's, one layer per stop, siblings of the story so its glass still
+  blurs them: as one gradient it changed in a single frame. It is the
+  feature's flat tint, never the panel's gradient: the same gradient inside
+  and out made the white card look hollow (KAN-540). The title pill is
+  400px, the width of the longest caption at either size. The scene count
+  in each title pill swaps with the
   number and caption. The pinned card
   takes the height left inside the panel's padding (flex, not a height
   worked out from the window's): sized as 100dvh minus the chrome it left
@@ -803,7 +829,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   their section, the first when the statement came to loop on its own,
   since its finale was rarely on screen as the reader moved on, and the
   card flew out of nowhere). **The applications section** (`applications.tsx`)
-  pins for 280vh from lg up; the scroll cues each move to the next stop
+  pins for 280vh from lg up (tighter and at 0.68 under a 40rem window,
+  `TIGHT_QUERY`, or its eyebrow went under the header; KAN-540; below lg the
+  list and card sit side by side from md); the scroll cues each move to the next stop
   (`CUES`) and the move plays in time (`useSceneTime`, about 1.25 s a
   stop), so the card never rests between two stops. The card rides above
   a line through the four stops, flush with the line's ends at the first

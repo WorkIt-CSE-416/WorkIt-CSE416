@@ -743,10 +743,6 @@ html[data-tab-flight="flying"] .tour-tabs {
   animation: tour-spin 0.9s linear infinite;
 }
 
-.tour-sheen {
-  animation: tour-sheen 1s linear infinite;
-}
-
 /* 1.6s down the page, then 0.4s at its foot before the next pass. */
 .tour-scan {
   animation: tour-scan 2s infinite;
@@ -759,15 +755,6 @@ html[data-tab-flight="flying"] .tour-tabs {
 @keyframes tour-spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@keyframes tour-sheen {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(300%);
   }
 }
 
@@ -792,7 +779,6 @@ html[data-tab-flight="flying"] .tour-tabs {
 
 @media (prefers-reduced-motion: reduce) {
   .tour-spin,
-  .tour-sheen,
   .tour-typing {
     animation: none;
   }

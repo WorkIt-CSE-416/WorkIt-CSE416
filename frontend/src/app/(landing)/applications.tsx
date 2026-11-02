@@ -47,6 +47,9 @@ const DESKTOP_QUERY = "(min-width: 64rem)";
 /** Laptop screens 800px tall or less draw the card smaller, so the
  * heading, the route and the piles fit under the header. */
 const SHORT_QUERY = "(max-height: 50rem)";
+/** A window so short that the section ran past its box and its eyebrow went
+ * under the header, even at the short size. */
+const TIGHT_QUERY = "(max-height: 40rem)";
 /** The scroll's cues, as progress through the pinned stretch: the card
  * moves on to each stop as the scroll reaches its cue (`to` is the stop),
  * and holds the offer after. */
@@ -133,7 +136,8 @@ function PinnedApplications() {
   const ref = React.useRef<HTMLElement>(null);
   const routeRef = React.useRef<HTMLDivElement>(null);
   const short = useMediaQuery(SHORT_QUERY) === true;
-  const scale = short ? 0.78 : 1;
+  const tight = useMediaQuery(TIGHT_QUERY) === true;
+  const scale = tight ? 0.68 : short ? 0.78 : 1;
 
   // 0 when the section's top meets the screen's top, 1 when its bottom
   // meets the screen's bottom: the stretch where it is pinned.
@@ -173,11 +177,14 @@ function PinnedApplications() {
 
   return (
     <section ref={ref} id="applications" className="h-[280vh]">
-      <div className="sticky top-0 flex h-dvh flex-col pt-24 pb-8">
+      <div className="sticky top-0 flex h-dvh flex-col pt-24 pb-8 [@media(max-height:40rem)]:pt-[84px] [@media(max-height:40rem)]:pb-1">
         <div className={cn(CONTAINER, "flex min-h-0 flex-1 flex-col justify-center")}>
           <Heading />
 
-          <div ref={routeRef} className="relative isolate mt-8 shrink-0">
+          <div
+            ref={routeRef}
+            className="relative isolate mt-8 shrink-0 [@media(max-height:40rem)]:mt-3"
+          >
             {/* A faint dot grid under the route, like a map's. */}
             <div
               aria-hidden="true"
@@ -554,7 +561,9 @@ function StillApplications() {
     <section id="applications" className="py-20 sm:py-28">
       <div className={CONTAINER}>
         <Heading />
-        <div className="mt-10 grid gap-10 lg:grid-cols-[auto_1fr] lg:items-start lg:gap-16">
+        {/* Centred under the heading, then side by side from md: stacked on
+            the left, they left a tablet's right half empty. */}
+        <div className="mt-10 grid gap-10 sm:justify-items-center md:grid-cols-[auto_1fr] md:items-start md:justify-items-stretch lg:gap-16">
           <FollowedCard stage="offer" className="max-w-full" />
           <ol aria-label="Application stages" className="space-y-7">
             {stages.map((stage, i) => {
@@ -568,9 +577,11 @@ function StillApplications() {
                     <Icon className="size-[17px]" aria-hidden="true" />
                   </span>
                   <div className="min-w-0">
-                    <p className="flex items-center gap-2">
-                      <span className="text-ink font-semibold">{stage.label}</span>
-                      <span className="bg-landing-brand-100 text-landing-brand-800 rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums">
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-ink font-semibold whitespace-nowrap">
+                        {stage.label}
+                      </span>
+                      <span className="bg-landing-brand-100 text-landing-brand-800 rounded-full px-1.5 py-px text-[11px] font-semibold whitespace-nowrap tabular-nums">
                         {count} {stage.tally.unit}
                       </span>
                       {stage.soon && <SoonChip />}

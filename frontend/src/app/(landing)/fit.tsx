@@ -23,13 +23,15 @@ const MAX_FIT = 1.5;
  * in the middle of it (the team found them too small at 1x). A transform
  * from the top, with the space it frees or takes evened out by the bottom
  * margin, so the content keeps its own layout. Without a box it never
- * scales up.
+ * scales up. `max` lowers the limit where the visual sits beside copy.
  */
 export function Fit({
   box,
+  max = MAX_FIT,
   children,
 }: {
   box?: RefObject<HTMLDivElement | null>;
+  max?: number;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -55,14 +57,14 @@ export function Fit({
       const w = child?.offsetWidth ?? 0;
       const h = el.offsetHeight;
       setHeight(h);
-      setFit(w > 0 && h > 0 ? Math.min(box ? MAX_FIT : 1, roomW / w, roomH / h) : 1);
+      setFit(w > 0 && h > 0 ? Math.min(box ? max : 1, roomW / w, roomH / h) : 1);
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     observer.observe(area);
     return () => observer.disconnect();
-  }, [box]);
+  }, [box, max]);
 
   // A motion element, so motion knows its scale: a `layout` move inside a
   // plain scaled div (Matching's Best Match sort) started each card from its

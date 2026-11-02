@@ -111,7 +111,9 @@ const KEPT = hiringSystems.flatMap((system) => streams[system.name].filter((p) =
 /** Where things sit on the stage, from its size. */
 function layoutFor(w: number, h: number) {
   const pipeY = h * 0.68;
-  const outletX = w * 0.655;
+  // Leaves the Jobs page cards 316px, which shows every title whole: at
+  // 239px, near a 1024px window, they were cut short and "On site" wrapped.
+  const outletX = Math.min(w * 0.655, w - 386);
   // The couplings sit together at the intake end, like a manifold, so the
   // rest of the pipe is clear and a posting's title can be read before
   // WorkIt filters it: spread along the whole pipe they hid most titles.
@@ -213,7 +215,9 @@ function PinnedPipeline() {
           style={{ opacity: edge }}
         />
         <div className={cn(PANEL, "bg-surface relative isolate min-h-0 flex-1 overflow-hidden")}>
-          <div className="relative z-10 px-10 pt-10 xl:px-14">
+          {/* Tighter on a short window, where the pipe's label rises with
+              the pipe and met the paragraph's last line. */}
+          <div className="relative z-10 px-10 pt-10 xl:px-14 [@media(max-height:40rem)]:pt-4">
             <div className="max-w-[32rem]">
               <FocusIn>
                 <SectionHeading

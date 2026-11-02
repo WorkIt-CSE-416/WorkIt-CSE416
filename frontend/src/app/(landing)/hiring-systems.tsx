@@ -589,7 +589,7 @@ export function JobCard({
           {card.facts.map((fact) => (
             <span
               key={fact}
-              className="text-ink-muted rounded-md bg-white/70 px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-slate-900/5"
+              className="text-ink-muted rounded-md bg-white/70 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap ring-1 ring-slate-900/5"
             >
               {fact}
             </span>

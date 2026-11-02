@@ -46,6 +46,10 @@ const STOPS = Object.fromEntries(
 ) as Record<FeatureId, TourTab & { Visual: ComponentType }>;
 
 /** A stop's soft, two-blob gradient over its tint. */
+/** How far a pinned stop's story may scale up: at about 1.3 on a laptop its
+ * type crowded the copy beside it, and read as too big. */
+const TOUR_FIT = 1.15;
+
 function backdrop(id: FeatureId) {
   return featureBackdrop(FEATURES[STOPS[id].page]);
 }
@@ -270,18 +274,27 @@ function PinnedTour() {
 
             <div
               ref={boxRef}
-              className="relative isolate flex h-full min-h-0 items-center justify-center overflow-hidden rounded-[1.5rem] p-4 [@media(max-height:50rem)]:p-2"
+              // More room over the story than under it: a story's stage keeps
+              // its tallest scene's height, so the shorter scenes end above
+              // its foot, and at an even 16px each stop read as sitting high.
+              className="relative isolate flex h-full min-h-0 items-center justify-center overflow-hidden rounded-[1.5rem] px-4 pt-8 pb-3 [@media(max-height:50rem)]:px-2 [@media(max-height:50rem)]:pt-4 [@media(max-height:50rem)]:pb-1"
             >
               {/* Its colour crossfades with the panel's, one layer per stop:
                   set as one gradient it changed in a single frame while the
                   panel around it faded. Siblings of the story, never its
-                  ancestors, so the scene titles' glass still blurs them. */}
+                  ancestors, so the scene titles' glass still blurs them.
+                  The feature's flat tint, not the panel's gradient: the same
+                  gradient inside and out made the white card look hollow,
+                  a frame with the panel showing through. */}
               {features.map((feature, i) => (
                 <div
                   key={feature.id}
                   aria-hidden="true"
                   className="absolute inset-0 -z-10 transition-opacity duration-700 ease-out motion-reduce:transition-none"
-                  style={{ background: backdrop(feature.id), opacity: i === index ? 1 : 0 }}
+                  style={{
+                    background: FEATURES[STOPS[feature.id].page].tint,
+                    opacity: i === index ? 1 : 0,
+                  }}
                 />
               ))}
               <AnimatePresence mode="wait">
@@ -302,7 +315,7 @@ function PinnedTour() {
                   exit={{ opacity: 0, y: -12, filter: "blur(6px)" }}
                   transition={{ duration: reduceMotion ? 0 : 0.35, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  <Fit box={boxRef}>
+                  <Fit box={boxRef} max={TOUR_FIT}>
                     <Visual />
                   </Fit>
                 </motion.div>
@@ -322,7 +335,8 @@ function PinnedTour() {
 
 /**
  * Below lg the stops are one row that swipes sideways, a stop at a time,
- * the next one peeking in at the edge, with a dot per stop under it.
+ * each the row's full width, with a dot per stop under it: the team found
+ * the next stop peeking in at the edge a distraction from the one in view.
  * Stacked, the four stops took 3,290px of a 390px phone, almost a third of
  * the home page (KAN-368). Each story plays only while its stop is on
  * screen (story.tsx), so the stops off to the side stay still.
@@ -346,7 +360,9 @@ function StackedTour() {
       <div
         ref={rowRef}
         onScroll={onScroll}
-        className="flex snap-x snap-mandatory scroll-px-2 [scrollbar-width:none] gap-2 overflow-x-auto overscroll-x-contain px-2 sm:scroll-px-6 sm:gap-4 sm:px-6 [&::-webkit-scrollbar]:hidden"
+        // The gap is at least the row's padding, or the next stop shows at
+        // the screen's edge.
+        className="flex snap-x snap-mandatory scroll-px-2 [scrollbar-width:none] gap-2 overflow-x-auto overscroll-x-contain px-2 sm:scroll-px-6 sm:gap-6 sm:px-6 [&::-webkit-scrollbar]:hidden"
       >
         {features.map((feature, i) => {
           const { Visual } = STOPS[feature.id];
@@ -356,7 +372,7 @@ function StackedTour() {
               role="group"
               aria-roledescription="slide"
               aria-label={`${i + 1} of ${features.length}`}
-              className="w-[90%] shrink-0 snap-center overflow-hidden rounded-[2rem] p-2 sm:w-[80%] sm:p-4"
+              className="w-full shrink-0 snap-center overflow-hidden rounded-[2rem] p-2 sm:p-4"
               style={{ background: backdrop(feature.id) }}
             >
               <div className="rounded-[1.5rem] bg-white p-6">
