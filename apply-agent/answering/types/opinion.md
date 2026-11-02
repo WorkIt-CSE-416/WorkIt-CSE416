@@ -25,21 +25,21 @@ slots:
     holds: a narrow, specific view about a technology, technique, course or product, naming the concrete thing
   - name: reason
     required: true
-    holds: why he holds it, from something he built, measured, broke or saw in his own work
+    holds: why they hold it, from something they built, measured, broke or saw in their own work
   - name: did
     required: false
-    holds: what he did because of it (built, migrated, measured, chose); used when the question asks
+    holds: what they did because of it (built, migrated, measured, chose); used when the question asks
   - name: limit
     required: false
-    holds: where the view stops being true, or what it costs, from his own work
+    holds: where the view stops being true, or what it costs, from their own work
   - name: read
     required: false
-    holds: what he read that shaped the view, when it came from reading
+    holds: what they read that shaped the view, when it came from reading
 ---
 
 ## What the reader is checking
 
-A view he earned by doing, stated as a claim someone could disagree with. A consensus line, a survey or a lesson about himself fails.
+A view they earned by doing, stated as a claim someone could disagree with. A consensus line, a survey or a lesson about themselves fails.
 
 - "The first and the second statements might be true, but many people already agree with them. The third statement simply takes one side in a familiar debate." and "A good answer takes the following form: 'Most people believe in x, but the truth is the opposite of x.'" (Peter Thiel, O8)
 - "Why? What have you done to learn about it? Please be specific." (Aubrey Lear, Viget, writing the rubric into an internship question, opinion reader quotes)
@@ -48,12 +48,12 @@ A view he earned by doing, stated as a claim someone could disagree with. A cons
 
 ## Order
 
-The claim in sentence one, flat. Then the reason from his work, then what he did with it, then the limit if the sources hold one. A16 opens "Competing products work at the wrong layer of abstraction" and spends the rest on the mechanism.
+The claim in sentence one, flat. Then the reason from their work, then what they did with it, then the limit if the sources hold one. A16 opens "Competing products work at the wrong layer of abstraction" and spends the rest on the mechanism.
 
-**Something surprising he found:** the fact, then proof he acted on it. FamilyLeaf's Gmail-dots trick ends "(I am 6 down, and 6 to-go)" (A20).
-**Favorite course:** the course, the one idea it gave him, where he used it outside class. Only courses in the sources.
-**A product he would change:** the product, the one change, the user problem behind it, and what it would cost.
-**"What makes a great X":** one trait ranked first, why from the role's hard part, one moment he did it.
+**Something surprising they found:** the fact, then proof they acted on it. FamilyLeaf's Gmail-dots trick ends "(I am 6 down, and 6 to-go)" (A20).
+**Favorite course:** the course, the one idea it gave them, where they used it outside class. Only courses in the sources.
+**A product they would change:** the product, the one change, the user problem behind it, and what it would cost.
+**"What makes a great X":** one trait ranked first, why from the role's hard part, one moment they did it.
 
 ## Rules
 
@@ -61,13 +61,13 @@ Each is a yes/no check on the draft.
 
 1. **Would a reader disagree with sentence one, or at least not already agree?** "Software is built by teams, not individuals." (O10) and "Our educational system is broken and urgently needs to be fixed." (O8) fail: most people already agree. A side of a familiar debate fails too (O8).
 2. **Is the claim narrow and the thing named?** A16 names the abstraction ("The 'online disk drive' abstraction sucks, because you can't work offline"). "no one knows the best button color" (A20 Apptimize) gives no claim to test.
-3. **Is there at least one fact he observed or did, not read?** A20 FamilyLeaf has a mechanism and proof he used it. A20 Mixpanel fails: "Users have the tendency to defy your expectations all the time. If you don't listen, you won't survive."
-4. **Is it about the world or a technology, not about himself?** RC's rule (A34); both of Treen's "fascinating thing" answers broke it.
+3. **Is there at least one fact they observed or did, not read?** A20 FamilyLeaf has a mechanism and proof they used it. A20 Mixpanel fails: "Users have the tendency to defy your expectations all the time. If you don't listen, you won't survive."
+4. **Is it about the world or a technology, not about themselves?** RC's rule (A34); both of Treen's "fascinating thing" answers broke it.
 5. **Is the claim a mechanism, not a size?** "we think this is a pretty big opportunity" (A19) is a market claim with no insight behind it.
-6. **If the question asks why and what he has done, is each answered?** Viget asks both. Thiel's fellowship prompt adds "If this belief shapes the way you live, tell us how" (O9).
-7. **If the view came from reading, does it say what he read and what he tried next?** Never fake hands-on use; the read slot holds the source.
-8. **Is a limit, when there is one, tested against his own claim?** A20 smallpox: "Even if we assume that all foreign aid was completely wasted ..., it would still have saved a life for every $40,000 spent." A18: "In an ideal world ... However, today, most companies have already invested". A list of pros and cons with no pick is not a limit.
-9. **Is every slot backed?** Write only the slots the plan backs. With no limit in the sources, end on what he did. A light, true personal claim can carry a grand prompt: "Chocolate is repulsive." (O9, accepted).
+6. **If the question asks why and what they have done, is each answered?** Viget asks both. Thiel's fellowship prompt adds "If this belief shapes the way you live, tell us how" (O9).
+7. **If the view came from reading, does it say what they read and what they tried next?** Never fake hands-on use; the read slot holds the source.
+8. **Is a limit, when there is one, tested against their own claim?** A20 smallpox: "Even if we assume that all foreign aid was completely wasted ..., it would still have saved a life for every $40,000 spent." A18: "In an ideal world ... However, today, most companies have already invested". A list of pros and cons with no pick is not a limit.
+9. **Is every slot backed?** Write only the slots the plan backs. With no limit in the sources, end on what they did. A light, true personal claim can carry a grand prompt: "Chocolate is repulsive." (O9, accepted).
 
 ## Pairs
 

@@ -589,11 +589,11 @@ def test_essays_answer_a_why_question_from_his_facts_and_tie_it_to_this_company(
     [call] = [c for c in claude.calls if "essays" in c["schema"]["properties"]]
     assert call["model"] == "opus"  # Sonnet drafts lost 26-142 in paired judging
     system = call["system"]
-    assert "His feelings are his to voice" in system
+    assert "Their feelings are theirs to voice" in system
     assert "never quote <posting>" in system
     assert "sincere, specific interest in one thing of theirs" in system  # no mission fallback
-    assert "Never mention his materials" in system
-    assert "A question about his motives or interests never needs Test" in system
+    assert "Never mention their materials" in system
+    assert "A question about their motives or interests never needs Test" in system
 
 
 def test_an_essay_that_gives_away_how_it_was_written_is_drafted_again_once(monkeypatch):
@@ -1318,7 +1318,7 @@ def test_tells_and_copied_runs_are_found():
         "3 numbers (13, 80, 4,009): keep the 2 that matter most"]
     assert writing.flags("I led 13 interns in summer 2026 and kept 80% of boxes.") == []
     assert writing.flags("I'm not sure I'd have known where to look without my Systems Fundamentals course.")[0].startswith(
-        "a course credited with what he did")
+        "a course credited with what they did")
     assert writing.flags("Systems Fundamentals (CSE 220) is my favorite course because you learn the low-level stuff.") == []
     assert writing.flags("I built it. Hence, it ran. Lastly, I shipped it.") == [
         "2 signpost words (Hence, Lastly): keep at most one", '"Hence": say it plainly ("so") or drop it']
@@ -1357,7 +1357,7 @@ def test_time_counted_from_today_and_a_placeholder_are_flagged():
         'time counted from today: "This summer" (say it as the sources date it)']
     assert writing.flags("At Hitachi Rail in summer 2026 I built adapters.") == []
     assert writing.flags("WorkIt (link: [add WorkIt repo URL]) is a job app.") == [
-        'a placeholder: "[add WorkIt repo URL]" (leave out what only he can give)']
+        'a placeholder: "[add WorkIt repo URL]" (leave out what only they can give)']
 
 
 def test_the_editor_keeps_each_answer_within_its_types_length_not_a_fixed_word_count():
@@ -1867,7 +1867,7 @@ def test_the_editor_is_flagged_an_answer_that_reads_like_the_typical_one_or_reus
     flagged = [_block(c["prompt"], "flagged")["q1"] for c in claude.calls
                if "edited" in c["schema"]["properties"] and "<flagged>" in c["prompt"]]
     assert flagged and any(f.startswith("reads like the typical answer") for f in flagged[-1])
-    assert any(f.startswith("reuses his Canva answer") for f in flagged[-1])
+    assert any(f.startswith("reuses the applicant's Canva answer") for f in flagged[-1])
     assert "never add a fact" in writing.EDIT
 
 

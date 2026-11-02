@@ -60,7 +60,7 @@ KINDS = ("big-tech", "startup", "quant", "defense", "ai-lab", "edtech", "other")
 POSTING_CHARS = 4_000  # of the Posting's text, for naming its team
 SOURCE = "a brief of what the company builds, each fact with its page"
 
-SYSTEM = """You research one company for a student's internship applications, so his essays can name something real it builds. Search the web and read pages to find 8 to 12 specific facts.
+SYSTEM = """You research one company for a student's internship applications, so their essays can name something real it builds. Search the web and read pages to find 8 to 12 specific facts.
 With no <team>, find what the company as a whole builds, in this order: first 3 to 5 engineering facts: a problem its engineers solved, what made it hard and what they chose, from engineering blog posts, talks and open-source projects, and the hard problems it says it works on; then 2 to 4 product facts: what it makes and for whom; then 1 to 3 customer facts: who uses it and the industries it serves; then 1 or 2 people facts: a project its interns built, or a founder's or CTO's stated technical bet.
 With a <team>, find what that team of the company builds: its engineering posts and the problems it works on first, then its products and what it shipped in the last 12 months.
 Prefer what a careful reader of its engineering blog would know over the headline launch every applicant will quote: mark a fact headline when it is a launch its newsroom, homepage or keynote leads with. Give at most 2 facts from any one page.

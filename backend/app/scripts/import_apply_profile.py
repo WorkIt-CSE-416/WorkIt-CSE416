@@ -283,7 +283,7 @@ async def _set_transcript(
 async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir: Path | None = None) -> Report:
     """Steps 1-8 of the module docstring in the caller's session; flushes, never commits.
     With no `apply_dir`, Apply's data folder (import_apply_writing.apply_home)."""
-    apply_dir = apply_dir or import_apply_writing.apply_home()
+    apply_dir = (apply_dir or import_apply_writing.apply_home()).expanduser().resolve()
     profile = await session.get(Applicant_Profile, applicant_id)
     if profile is None:
         raise ImportRefused(f"No applicant {applicant_id}.")
@@ -321,7 +321,7 @@ def _local(url: str) -> bool:
     return (urlsplit(url).hostname or "") in ("localhost", "127.0.0.1", "::1")
 
 
-async def _run(applicant_id: uuid.UUID, apply_dir: Path, *, dry_run: bool) -> Report:
+async def _run(applicant_id: uuid.UUID, apply_dir: Path | None, *, dry_run: bool) -> Report:
     async with get_sessionmaker()() as session:
         report = await import_apply(session, applicant_id, apply_dir)
         await (session.rollback() if dry_run else session.commit())
@@ -339,8 +339,7 @@ def main(argv: list[str] | None = None) -> int:
         print("DATABASE_URL is not on this computer: the import writes only to a local database.", file=sys.stderr)
         return 2
     try:
-        apply_dir = (args.apply_dir or import_apply_writing.apply_home()).expanduser().resolve()
-        report = asyncio.run(_run(args.applicant_id, apply_dir, dry_run=args.dry_run))
+        report = asyncio.run(_run(args.applicant_id, args.apply_dir, dry_run=args.dry_run))
     except ImportRefused as exc:
         print(str(exc), file=sys.stderr)
         return 1

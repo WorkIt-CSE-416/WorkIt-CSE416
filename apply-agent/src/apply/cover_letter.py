@@ -3,7 +3,7 @@ fixed template (research/cover-letter.md, from Google's and Amazon's own
 career pages and MIT, CMU, Harvard, Berkeley, UMD and Colgate career guides).
 
 Apply sets the parts no letter should vary: the salutation, the sign-off and
-his name. Claude writes only the template's four paragraphs (SLOTS), each to
+their name. Claude writes only the template's four paragraphs (SLOTS), each to
 its own rules, in the Application's one essay call (apply.essays). The letter
 is then an essay like any other: checked for numbers no source holds and for
 words that give away how it was written, and held for Lisul when it is.
@@ -30,32 +30,32 @@ FILE_NAME = "{first}_{last}_Cover_Letter.pdf"  # beside Test_Person_Resume.pdf
 # The template's paragraphs, in order, each with what Claude must write in it.
 SLOTS = {
     "opening": (
-        "3 short sentences, at most 65 words. First: who he is (a computer science student at @SCHOOL@,"
-        " and when he graduates, as the sources say) and the role as a person would name it (the "
-        "posting's title without codes, degree levels, seasons or locations). Second: what he built most recently "
+        "3 short sentences, at most 65 words. First: who they are (a computer science student at @SCHOOL@,"
+        " and when they graduate, as the sources say) and the role as a person would name it (the "
+        "posting's title without codes, degree levels, seasons or locations). Second: what they built most recently "
         "that fits this role, said as what it did for the people who used it. Third: one specific thing this "
-        "company or team builds, from <posting> or <company>, and why it draws him, tied to what he built. Never "
+        "company or team builds, from <posting> or <company>, and why it draws them, tied to what they built. Never "
         "open on the company's mission, and never talk about the letter itself."
     ),
     "proof": (
-        "3 sentences, at most 85 words: the work this role most needs (shown by doing it, never by naming the posting), answered with his one strongest "
-        "experience for it, told as he tells a project, naming where he did it (the employer or project): the problem in plain words, what he himself did step by "
-        "step, and what it showed him or why he built it that way."
+        "3 sentences, at most 85 words: the work this role most needs (shown by doing it, never by naming the posting), answered with their one strongest "
+        "experience for it, told as they tell a project, naming where they did it (the employer or project): the problem in plain words, what they themselves did step by "
+        "step, and what it showed them or why they built it that way."
     ),
     "second_proof": (
         "2 sentences, at most 50 words: a second thing the role needs, answered with a different experience, "
-        "told the same plain way. Empty only when no other experience of his answers anything else the role needs."
+        "told the same plain way. Empty only when no other experience of their answers anything else the role needs."
     ),
     "closing": (
-        "1-2 sentences: when he is available (the internship term, as the sources say), that his resume has the "
-        "rest, that he would welcome a conversation about the role, and thanks. Restate nothing."
+        "1-2 sentences: when they are available (the internship term, as the sources say), that their resume has the "
+        "rest, that they would welcome a conversation about the role, and thanks. Restate nothing."
     ),
 }
 TEMPLATE = "Dear {company} Recruiting Team:\n\n{paragraphs}\n\nSincerely,\n{name}"
 
-RULES = """A cover letter question is the one answer written as a formal letter to the company's recruiters. Its answer fills the slots opening, proof, second_proof and closing, each to its own description; Apply adds the salutation, the sign-off and his name. Every rule above holds.
-Recruiters read it in under a minute, if at all, and often stop after the first sentence: it is 180-260 words in all, the strongest evidence first, and every sentence specific to him and to this company. Cut any sentence any applicant could send, or that the letter reads as well without.
-The resume says what he did; the letter says why it matters here. Make two points, each showing he can do work the role needs (never say what the posting asks for or stresses): the strongest in depth, the second briefly. Say what he offers, and never mention a gap or a weakness.
+RULES = """A cover letter question is the one answer written as a formal letter to the company's recruiters. Its answer fills the slots opening, proof, second_proof and closing, each to its own description; Apply adds the salutation, the sign-off and their name. Every rule above holds.
+Recruiters read it in under a minute, if at all, and often stop after the first sentence: it is 180-260 words in all, the strongest evidence first, and every sentence specific to them and to this company. Cut any sentence any applicant could send, or that the letter reads as well without.
+The resume says what they did; the letter says why it matters here. Make two points, each showing they can do work the role needs (never say what the posting asks for or stresses): the strongest in depth, the second briefly. Say what they offer, and never mention a gap or a weakness.
 It is a letter to recruiters, so it leaves out the habits <style_card> lists under "Leave out in a formal letter"; it holds no salutation, sign-off, date or address of its own."""
 
 
@@ -77,7 +77,7 @@ def schema(q: Question, ask: str) -> dict:
 
 
 def letter(given: dict, posting: Posting, profile: ApplicantProfile) -> str:
-    """The letter Claude's slots make, from salutation to his name; "" when
+    """The letter Claude's slots make, from salutation to their name; "" when
     Claude wrote none of them."""
     paragraphs = [text for slot in SLOTS if (text := " ".join(str(given.get(slot) or "").split()))]
     if not paragraphs:
@@ -86,7 +86,7 @@ def letter(given: dict, posting: Posting, profile: ApplicantProfile) -> str:
 
 
 def name(profile: ApplicantProfile) -> str:
-    """His name as the resume gives it: the name he goes by, then his last name."""
+    """Their name as the resume gives it: the name they go by, then their last name."""
     first = profile.get("identity.preferred_first_name") or profile.get("identity.legal_first_name") or ""
     last = profile.get("identity.preferred_last_name") or profile.get("identity.legal_last_name") or ""
     return f"{first} {last}".strip()

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TextIO
 
-from apply import cover_letter
+from apply import cover_letter, gates
 from apply.adapters import Mailbox, Tracker, Usage
 from apply.browsers import (
     CHROME,
@@ -82,7 +82,7 @@ class Machine:
 
 
 def diagnose(machine: Machine) -> list[Check]:
-    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _worker_profiles, _facts, _gmail, _records, _live_runs, _tracker]
+    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _worker_profiles, _facts, _resume_gate, _gmail, _records, _live_runs, _tracker]
     return [found for c in checks for found in _safely(c, machine)]
 
 
@@ -219,6 +219,21 @@ def _facts(machine: Machine) -> Check:
         return Check("Applicant profile", FAIL, f"blank: {', '.join(blank)}",
                      f"fill them in the Applicant profile in {machine.profile.folder}")
     return Check("Applicant profile", OK, f"all {len(REQUIRED)} required facts filled")
+
+
+def _resume_gate(machine: Machine) -> Check:
+    """The not-on-resume gate (gates.on_resume) reads the resume PDF's text; with none it passes every answer."""
+    name = "Not-on-resume gate"
+    if isinstance(machine.profile, NoProfile):
+        return Check(name, WARN, "unchecked: no Applicant profile to read the resume from")
+    resume = machine.profile.get("files.resume_pdf")
+    if resume is None:
+        return Check(name, WARN, "off: the Applicant profile names no resume PDF (files.resume_pdf)",
+                     "set files.resume_pdf to your resume PDF")
+    words = gates.resume_words(Path(resume))
+    if not words:
+        return Check(name, WARN, f"off: no text reads from {resume}", "export the resume as a PDF with real text, not an image")
+    return Check(name, OK, f"on: {len(words)} words read from {resume}")
 
 
 def _gmail(machine: Machine) -> Check:

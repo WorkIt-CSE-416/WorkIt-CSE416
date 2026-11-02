@@ -74,6 +74,13 @@ def test_one_error_in_one_place_is_one_cause_whatever_its_numbers_and_quotes():
     assert first.signature.startswith("timeouterror-greenhouse-pick-school-")
 
 
+def test_a_traceback_from_a_workit_checkout_names_apply_s_own_frame():
+    message = "Timeout 30000ms exceeded waiting for 'MIT'"
+    traceback = traceback_through("_pick_school", message).replace("/work/apply/", "/WorkIt-CSE416/apply-agent/")
+    request = requests_for(ARC, Result(Status.FAILED, f"TimeoutError: {message}", traceback=traceback))[0]
+    assert request.signature.startswith("timeouterror-greenhouse-pick-school-")
+
+
 def test_a_run_s_missing_fact_asks_whether_the_profile_already_answers_it():
     result = Result(Status.MISSING_FACT, "Missing fact: Email", missing_fact="Email")
 

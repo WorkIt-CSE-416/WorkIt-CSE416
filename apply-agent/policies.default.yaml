@@ -1,4 +1,4 @@
-# The default policies for every run (spec #125): which Matches, how many
+# The default policies for every run: which Matches, how many
 # per company, and how questions are answered. Don't edit this file for one
 # applicant: put a policies.yaml in the data folder ($APPLY_HOME, default
 # ~/.config/apply); each key there overrides the key here.
@@ -136,7 +136,7 @@ max_unreviewed_uses: null
 # auto-apply tools run). Runs and rehearsals both follow it. Each Tracker row
 # notes which ran, beside the Bot signals the job system showed, so `apply
 # signals` can compare the two before this is decided. Headed
-# (2026-10-17), after all three watched headless submits were blocked (#124).
+# (2026-10-17), after all three watched headless submits were blocked.
 worker_headless: false
 
 # Claude fill, for job systems with no Filler, stops at this cap

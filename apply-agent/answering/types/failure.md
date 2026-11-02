@@ -27,24 +27,24 @@ slots:
     holds: who or what it hurt (a teammate's testing, a release date, a demo, a score)
   - name: own-cause
     required: true
-    holds: the specific thing he did or didn't do that caused it
+    holds: the specific thing they did or didn't do that caused it
   - name: response
     required: true
-    holds: what he did once he found it (who he told, how he fixed or contained it)
+    holds: what they did once they found it (who they told, how they fixed or contained it)
   - name: habit
     required: true
-    holds: what he does differently since, stated as an action he takes
+    holds: what they do differently since, stated as an action they take
   - name: habit-held
     required: false
-    holds: a later time he used that habit, and what happened
+    holds: a later time they used that habit, and what happened
   - name: feeling
     required: false
-    holds: how it felt, in his own words; one short clause at most
+    holds: how it felt, in their own words; one short clause at most
 ---
 
 ## What the reader is checking
 
-That he can name a real miss, his own part in it, and what he changed. A disguised strength or a story where someone else is at fault ends the read.
+That they can name a real miss, their own part in it, and what they changed. A disguised strength or a story where someone else is at fault ends the read.
 
 - "If the story is too polished or the 'failure' is obviously a disguised success, it usually reads as low self-awareness." (Hello Interview rubric, S5)
 - "Successful failure stories own a specific thing you did or didn't do, even if the larger context was complicated." (techinterview.org, S7)
@@ -53,10 +53,10 @@ That he can name a real miss, his own part in it, and what he changed. A disguis
 
 ## Order
 
-The miss comes first, in one or two sentences, then the cost, the cause he owns, his response and the habit. Setup is one clause. An interviewer marked down a real candidate for the run-up before the mistake: "Cut first part, focus on unique problems" (S15).
+The miss comes first, in one or two sentences, then the cost, the cause they own, their response and the habit. Setup is one clause. An interviewer marked down a real candidate for the run-up before the mistake: "Cut first part, focus on unique problems" (S15).
 
-**Hardest bug:** the symptom and why it was hard to see; what he tried and how each was ruled out; the root cause in one plain sentence; the fix and how he checked it. The own-cause slot can be the assumption he made that hid the bug.
-**Disagreement:** the two positions, stated fairly; how he raised it; what settled it (data, a test, a prototype); what happened.
+**Hardest bug:** the symptom and why it was hard to see; what they tried and how each was ruled out; the root cause in one plain sentence; the fix and how they checked it. The own-cause slot can be the assumption they made that hid the bug.
+**Disagreement:** the two positions, stated fairly; how they raised it; what settled it (data, a test, a prototype); what happened.
 **Sentence stem** ("complete this sentence..."): start with the exact stem.
 
 ## Rules
@@ -66,7 +66,7 @@ Each is a yes/no check on the draft.
 1. **Is the miss in the first two sentences?** Readers decide early, and the judge in S15 asked for exactly this.
 2. **Is a real consequence named?** "I don't think it caused a major issue" (S5, POOR) reads as no failure at all.
 3. **Does one sentence own a specific act or omission?** "I gave an aggressive estimate and didn't ask many questions about edge cases" (S5, GREAT) passes. Blaming requirements, a manager or "the team" fails: "there wasn't enough clarity at the beginning" (S6, POOR); "There was nothing I could do" (Spolsky's example of a bad answer).
-4. **Is it free of any phrase that sounds like covering himself?** An interviewer flagged "leaving a paper trail" because it suggests "gathering information where you can assign blame to somebody else" (S15).
+4. **Is it free of any phrase that sounds like covering themselves?** An interviewer flagged "leaving a paper trail" because it suggests "gathering information where you can assign blame to somebody else" (S15).
 5. **Does it avoid defending the original call?** "I still think the implementation itself was solid" (S6, POOR) undoes the ownership.
 6. **Is the habit an action, not a slogan?** "Writing down assumptions before I began coding and checking them with whoever would use the work" (S5, GREAT) passes. "Communicate more", "be more careful", "test better" and "projects are unpredictable" all fail (S5, S6, S7).
 7. **Is it a real failure?** Working too hard, caring too much, and a typo in a PR all fail (S7).

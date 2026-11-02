@@ -106,7 +106,7 @@ Settled with Lisul on 2026-10-22 ("yes to all"). The interview to fill the Story
     *Sources:* g-sameness.md.
 14. **Bugs fixed first:**
     - the question's description, limit, field kind and required flag now reach the essay call (they were dropped);
-    - answers given earlier on the same form now reach the essay call (#212);
+    - answers given earlier on the same form now reach the essay call;
     - research `sample.py` no longer treats ", UK" as a US state, and now reads SF, NYC and LA as US.
 
     *Sources:* g-inputs.md.

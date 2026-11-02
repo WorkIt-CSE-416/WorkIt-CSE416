@@ -94,9 +94,9 @@ def test_with_lisuls_profile_the_prompts_say_lisul_and_stony_brook_as_before(tes
 
     draft = next(c for c in calls if "essays" in c["schema"]["properties"])
     assert "as Lisul, in the first person" in draft["system"]
-    assert "never needs Lisul: answer it from what he did" in draft["system"]
-    assert "reads as Lisul typed it himself" in draft["system"]
-    assert "a computer science student at Stony Brook University, and when he graduates" in json.dumps(draft["schema"])
+    assert "never needs Lisul: answer it from what they did" in draft["system"]
+    assert "reads as Lisul typed it themselves" in draft["system"]
+    assert "a computer science student at Stony Brook University, and when they graduate" in json.dumps(draft["schema"])
     editor = next(c for c in calls if "edited" in c["schema"]["properties"])
     assert editor["system"].startswith("You edit Lisul's written answers")
     for call in calls:

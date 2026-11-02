@@ -21,18 +21,18 @@ slots:
     holds: one to three duties or stack items this role needs, quoted from the posting or the Company brief
   - name: proof
     required: true
-    holds: for each need, one episode from his own work where he did it, with what he did and a size or result
+    holds: for each need, one episode from their own work where they did it, with what they did and a size or result
   - name: why-this-role
     required: false
-    holds: a true, small reason for this role over others, or a plain answer to the reader's likely worry about him
+    holds: a true, small reason for this role over others, or a plain answer to the reader's likely worry about them
   - name: other-part
     required: asked
-    holds: the answer to any extra part the question asks (a weakness, work he is not interested in), taken from the sources
+    holds: the answer to any extra part the question asks (a weakness, work they are not interested in), taken from the sources
 ---
 
 ## What the reader is checking
 
-Whether he can do this role's work, shown by things he has done. Fit is judged on skills, so trait claims and values talk do not count.
+Whether they can do this role's work, shown by things they have done. Fit is judged on skills, so trait claims and values talk do not count.
 
 - "Every letter says 'I would be a good fit for your company and my skills match your job description'. That is obvious" (agotterer, hiring on HN)
 - A letter should say "why you want this particular job and not just any job"; "you can tell if someone's just blasting them out and there's nothing specific about the role". (Jason Fried, 37signals CEO)
@@ -46,7 +46,7 @@ The role's needs in one sentence, then one proof per need, then why-this-role if
 
 **Short trailing ask** ("in 1-2 sentences, what makes you a fit"): one need and one proof.
 **"What makes a great X":** rank one quality first, then prove it. C3 picks "two points that I believe are particularly relevant"; Silverman praised the same move: "the candidate offered up an opinion as to which experiences I should focus on" (C2).
-**Extra part** (a weakness, what he is not interested in): answer it plainly from the sources, after the proof.
+**Extra part** (a weakness, what they are not interested in): answer it plainly from the sources, after the proof.
 
 ## Rules
 
@@ -55,8 +55,8 @@ Each is a yes/no check on the draft.
 1. **Does the first sentence name what the role does, not just its title?** E12 ("Your posting on LinkedIn for a Sales and Marketing Coordinator recently caught my eye") names only the title.
 2. **Does each fit claim have an episode in the same or the next sentence?** E12's "exceptional attention to detail" is a bare trait; E13 follows its trait with "a 200-page grant proposal" and "(The result? A five-year, $1.5 million grant award.)"
 3. **Are the needs this posting's, not generic engineering traits?** jkingsbery's method: "going through each item in the job description and saying something very brief about how that's a thing I've done before." (E15)
-4. **Is any need he cannot prove left out?** Do not claim it. Steve Tuck on early-career materials: "it is hard to describe robust experiences if you haven't had them." (E16) Fewer needs, each proven, beats more.
-5. **Is it about what he can do, not what he will gain?** E12's only motive is "personal and professional development". C3's author: "If you're starting too many sentences with 'I like...' or 'I want...' then you're doing it wrong."
+4. **Is any need they cannot prove left out?** Do not claim it. Steve Tuck on early-career materials: "it is hard to describe robust experiences if you haven't had them." (E16) Fewer needs, each proven, beats more.
+5. **Is it about what they can do, not what they will gain?** E12's only motive is "personal and professional development". C3's author: "If you're starting too many sentences with 'I like...' or 'I want...' then you're doing it wrong."
 6. **Does it answer the role, not the company?** A why-company answer here misses the question (E16).
 7. **Is every sentence from this application?** "... and that's why I want to work in finance" sent to an advertising team ends the read (E15).
 8. **Is every part of the question answered?** An unanswered weakness part is a skipped part.

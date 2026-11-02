@@ -8,10 +8,10 @@ match: []
 slots:
   - name: answer
     required: true
-    holds: the direct answer to the exact question, in plain words (the thing, the choice, what he would do)
+    holds: the direct answer to the exact question, in plain words (the thing, the choice, what they would do)
   - name: episode
     required: true
-    holds: one backed episode or fact from the sources that supports the answer, with his own part in it
+    holds: one backed episode or fact from the sources that supports the answer, with their own part in it
   - name: result
     required: false
     holds: what came of the episode, with its number when the sources give one
@@ -19,7 +19,7 @@ slots:
 
 ## What the reader is checking
 
-That he answered the exact question asked, every part of it, and that one real fact stands behind the answer. This guide is the fallback: first check whether the question is really a nearby type (a project, a failure, an opinion, why this company) and use that guide if so.
+That they answered the exact question asked, every part of it, and that one real fact stands behind the answer. This guide is the fallback: first check whether the question is really a nearby type (a project, a failure, an opinion, why this company) and use that guide if so.
 
 - "The best answers are the most matter of fact." (Paul Graham, YC)
 - "your email covers things you did, but nothing about 'why Puma' or other simple questions we ask [...] our HN post includes 'what you'd like to build next?' which you conveniently skipped." (html5cat, hiring at Puma, D1)
@@ -31,7 +31,7 @@ That he answered the exact question asked, every part of it, and that one real f
 The answer in the first sentence, then the episode (most of the words), then the result if the sources give one. End on the episode or the result.
 
 **Multi-part:** one or two sentences per part, in the order asked. Each part gets its own answer; one episode may serve several parts.
-**Scenario** ("you notice a coworker doing X; what do you do?"): what he would do first, then why, then one real time he did something like it as the episode.
+**Scenario** ("you notice a coworker doing X; what do you do?"): what they would do first, then why, then one real time they did something like it as the episode.
 **Yes/no or factual** ("have you worked professionally?"): the bare answer first ("Yes."), then the backing facts in the form's own format.
 
 ## Rules

@@ -17,24 +17,24 @@ match:
 slots:
   - name: pick
     required: asked
-    holds: "light questions only: the thing asked for (the book, the food, the nerdiest thing), as one past act or one concrete preference he has stated"
+    holds: "light questions only: the thing asked for (the book, the food, the nerdiest thing), as one past act or one concrete preference they have stated"
   - name: pick-detail
     required: false
-    holds: "light questions only: one small detail that makes the pick his (a count, a place, why, in his words)"
+    holds: "light questions only: one small detail that makes the pick theirs (a count, a place, why, in their words)"
   - name: now
     required: asked
-    holds: "serious questions only: where he is now, in one plain sentence (what he studies, the work he does)"
+    holds: "serious questions only: where they are now, in one plain sentence (what they study, the work they do)"
   - name: shaping-events
     required: asked
-    holds: "serious questions only: one or two facts only he has, told as events with their details"
+    holds: "serious questions only: one or two facts only @NAME@ has, told as events with their details"
   - name: next
     required: false
-    holds: "serious questions only: what he is after next, as a kind of work"
+    holds: "serious questions only: what they are after next, as a kind of work"
 ---
 
 ## What the reader is checking
 
-Two kinds of question, read two ways. A light question ("nerdiest thing about you", "favorite book", "fun fact") checks that he can answer lightly, briefly and truly. A serious one ("tell us about yourself", "what makes you unique") checks for a true, specific picture of him beyond the resume.
+Two kinds of question, read two ways. A light question ("nerdiest thing about you", "favorite book", "fun fact") checks that they can answer lightly, briefly and truly. A serious one ("tell us about yourself", "what makes you unique") checks for a true, specific picture of them beyond the resume.
 
 - On applicants who wrote "10 sentences explaining that they like 'Inception' because they're a project manager": "It doesn't feel like the appropriate tone or communication style for a question about your favorite movie [...] if I can tell you used AI, clients can too." (Matt Stauffer, CEO of Tighten, C5)
 - "Avoid a history lesson." (Yangshun Tay, ex-Meta Staff Engineer, O19)
@@ -45,7 +45,7 @@ Two kinds of question, read two ways. A light question ("nerdiest thing about yo
 ## Order
 
 **Light:** the pick in the first sentence, then at most one detail. One or two sentences in all, even when the form allows more. Nothing after it: no tie to the job, no lesson. The serious slots stay empty.
-**Serious:** where he is now in one sentence, then one or two shaping events with their details (most of the words), then what he is after next if the sources say. The light slots stay empty.
+**Serious:** where @NAME@ is now in one sentence, then one or two shaping events with their details (most of the words), then what @NAME@ is after next if the sources say. The light slots stay empty.
 **Multi-part** ("what makes you unique, and one or two events that shaped you"): answer each part in the order asked; the events fill shaping-events.
 
 ## Rules

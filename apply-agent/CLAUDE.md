@@ -2,10 +2,6 @@
 
 Loaded on top of the root `../CLAUDE.md` when you work in `apply-agent/`.
 
-> **Status.** The code is not here yet. Apply moves here from Lisul's resume
-> repo as a fresh copy (KAN-534, spec KAN-527), after its personal data is
-> split out. Until then this folder holds only this file and `.gitignore`.
-
 ## What Apply is
 
 Apply is a command-line agent that applies to job postings for one person.
@@ -31,7 +27,11 @@ not the root ones, for its terms (root `GLOSSARY-MAP.md`).
   folder, not the WorkIt database. It does not call the WorkIt API.
 
 Both Apply and the extension fill forms with the same Fill engine (next
-section). A fix to filling goes into the engine, not into Apply.
+section). A fix to how a field is read, planned from the profile, filled
+or read back goes into the engine, not into Apply. Apply's own plan rules
+(next section) are Apply-side checks, not fill fixes: they decide what
+Claude may draft and what Apply's own read-back accepts, and the extension
+has neither.
 
 ## The Fill engine
 
@@ -39,26 +39,43 @@ Apply loads the engine bundle from the extension's submodule:
 `autofiller_extension/fill-engine/dist/engine.js`. Apply has no submodule
 of its own, so one engine pin serves both. To use another engine checkout
 (for example, a branch of the engine that you work on), set
-`APPLY_FILL_ENGINE` to its folder. Apply then loads `dist/engine.js` from that
-folder. The tests read the saved forms (`test/fixtures/`) from the same
-folder. The repairer works on the submodule path in its Repair worktree.
+`APPLY_FILL_ENGINE` to its folder (`~` is expanded). Apply then loads
+`dist/engine.js` from that folder. The tests read the saved forms
+(`test/fixtures/`) from the same folder. The repairer works on the submodule path in its Repair worktree.
 
 Run `git submodule update --init` once per checkout. Without it, Apply
 cannot fill a form, and `uv run apply doctor` says so.
 
 Apply adds three rules to the engine's plan (`fill_engine.plan` and
-`worker._Planned.add`):
+`worker._Planned.add`). They stay in Apply: each one is about Claude (what
+it drafts, the forms that Claude fill reads) or about Apply's own
+read-back. The engine's `fillEach` already accepts the wording that a
+try-list picked, so the extension needs none of them.
 
 - A secret question (a password) is never sent to Claude to draft. It
   stays blank for the Filler.
 - A Workday try-list answer (`a|b|c`) accepts each of its wordings in the
-  read-back, because the fill takes the first one that it finds.
+  read-back, because the fill takes the first one that it finds. Only the
+  How did you hear question (and a "Details" list right after it) gets a
+  try-list; another answer with a `|` must show whole. Keep
+  `fill_engine.HOW_HEARD` the same as the engine's `HOW_HEARD` (`rules.ts`).
 - A form that Claude fill reads is planned with the company and role that
   its page names, when the link names none.
 
 `README.md` is a teammate's setup path, from a clone to a rehearsal. Its
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.
+
+## Prompts and gates
+
+- Every prompt names the applicant as `@NAME@` and their school as
+  `@SCHOOL@`; `applicant.as_applicant` puts in the profile's own values.
+  Say "they" for the applicant, or `@NAME@` where "they" already means the
+  company or the sources. Never write a person's name, pronoun or project
+  into a prompt or its examples.
+- The not-on-resume gate (`gates.on_resume`) reads the text of the
+  profile's resume PDF. With no PDF, or one with no text, the gate passes
+  every answer; `apply doctor` shows this as "Not-on-resume gate: off".
 
 ## The data folder (`APPLY_HOME`)
 
@@ -93,10 +110,12 @@ into it and the window shows "Sample data".
 - Run `uv run ruff check .` here before you commit. It uses the backend's
   ruff config. `pyproject.toml` lists the findings that Apply keeps on
   purpose, each with its reason.
-- CI (the `apply` job in `../.github/workflows/ci.yml`) runs ruff and a
-  fixed list of fast test files: the files that need no browser, no network
-  and no `claude` CLI. When you add a test file that needs none of them, add
-  it to that list.
+- CI (the `apply` job in `../.github/workflows/ci.yml`) runs ruff and only
+  a fixed list of fast test files: the files that need no browser, no
+  network and no `claude` CLI. When you add a test file that needs none of
+  them, add it to that list. CI never runs the Filler tests
+  (`test_*_filler.py`, `test_claude_fill.py` and the other files that open
+  Chromium). Run the ones that your change touches on your Mac, with `-k`.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live

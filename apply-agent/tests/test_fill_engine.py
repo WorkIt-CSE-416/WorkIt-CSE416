@@ -1,11 +1,13 @@
 """The Fill engine's loader on its own: what Apply asks of the engine with no page open."""
 
 import json
+from datetime import date
 
 import pytest
 from conftest import APPLY, FIXTURES, FORMS
 
 from apply import fill_engine
+from apply.answer_bank import AnswerBank
 from apply.model import FillError, Posting, Question
 from apply.profile import ApplicantProfile
 
@@ -37,6 +39,19 @@ def test_a_workday_try_list_answer_is_shown_by_whichever_of_its_wordings_the_pag
     assert len(tries) > 1
     assert fill_engine.readback_problems([heard], planned.answers, {"q1": tries[1].title()}, planned.accepted) == []
     assert fill_engine.readback_problems([heard], planned.answers, {"q1": "Somewhere else"}, planned.accepted)
+
+
+def test_a_workday_answer_with_a_bar_that_is_no_try_list_must_show_whole(tmp_path):
+    # Only the how-heard plan is a try-list; any other answer that holds a "|" is meant as it is.
+    posting = Posting("w", "Acme", "Intern", "https://acme.wd1.myworkdayjobs.com/en-US/careers/job/Intern_R1")
+    shell = Question("q1", "Which shell do you use?", "text", True)
+    bank = AnswerBank(tmp_path / "answer-bank.yaml")
+    bank.add(shell, "zsh|bash", "Acme", date(2026, 11, 2))
+    planned = fill_engine.plan([shell], posting, PROFILE, bank)
+
+    assert planned.answers["q1"] == "zsh|bash"
+    assert "q1" not in planned.accepted
+    assert fill_engine.readback_problems([shell], planned.answers, {"q1": "bash"}, planned.accepted)
 
 
 def test_an_engine_error_comes_back_as_apply_own():
@@ -135,3 +150,7 @@ def test_apply_loads_the_extensions_engine_from_the_workit_checkout():
 
 def test_apply_fill_engine_points_apply_at_another_engine_checkout(tmp_path):
     assert engine_bundle(APPLY_FILL_ENGINE=str(tmp_path)) == str(tmp_path / "dist" / "engine.js")
+
+
+def test_apply_fill_engine_may_start_at_the_home_folder(tmp_path):
+    assert engine_bundle(APPLY_FILL_ENGINE="~/fill-engine", HOME=str(tmp_path)) == str(tmp_path / "fill-engine" / "dist" / "engine.js")
