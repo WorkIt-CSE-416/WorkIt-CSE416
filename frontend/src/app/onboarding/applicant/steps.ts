@@ -26,14 +26,21 @@ export const EXTENSION_STEP_PATH = "/onboarding/applicant?step=extension";
 /**
  * The step ./page opens on, from its `?step=`: "2" opens Profile, the third
  * step, and "extension" the extension's install step, which the extension
- * links to when it is added. Either only with saved answers (`saved`): the
- * first step holds the answers that must be given, and a seeker who never
- * gave them starts there.
+ * links to when it is added. "2" only with saved answers (`saved`): the
+ * first step holds the answers that must be given, and Profile's Next saves
+ * them as preferences, so a seeker who never gave them starts there.
+ * "extension" also for a seeker who finished onboarding (`finished`): its
+ * steps save nothing, and loading the extension must never send a finished
+ * seeker back to fill in everything again (2026-11-01).
  */
-export function startStep(param: string | string[] | undefined, saved: boolean): number {
+export function startStep(
+  param: string | string[] | undefined,
+  saved: boolean,
+  finished = false,
+): number {
+  // The wizard's fifth page: Availability has no mark on the rail (ONBOARDING_STEPS).
+  if (param === "extension" && (saved || finished)) return 4;
   if (!saved) return 0;
   if (param === "2") return 2;
-  // The wizard's fifth page: Availability has no mark on the rail (ONBOARDING_STEPS).
-  if (param === "extension") return 4;
   return 0;
 }
