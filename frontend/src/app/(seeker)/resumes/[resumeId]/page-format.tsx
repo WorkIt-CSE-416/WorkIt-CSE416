@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { FIELD_CONTROL } from "@/components/ui/text-field";
 import { IconButton } from "@/components/ui/icon-button";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
+import type { BankEntry } from "@/lib/bank-actions";
 import type { FontFamily, PageSettings } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
@@ -33,10 +34,12 @@ import { cn } from "@/lib/cn";
  *
  * It fell to five controls on 2026-11-01, which left out the two a resume
  * builder is expected to have: the font, and a size per kind of text. Alignment,
- * the bullet's shape and the header's alignment stayed out, with Spacing one
- * choice over line, section and entry spacing and Margins one over top and side.
- * The API still takes every setting, so a resume already set that way prints as
- * it did, and Reset Formatting clears it.
+ * the bullet's shape and the header's alignment went with them, and came back a
+ * day later beside Date Format and Education Order, once Jobright's panel showed
+ * they were missed. Spacing stays one choice over line, section and entry
+ * spacing, and Margins one over top and side: five sliders were the overload.
+ * The API still takes each of those on its own, so a resume already set that way
+ * prints as it did, and Reset Formatting clears it.
  *
  * The lists are the API's (`resume_render`), so every value is one the warm
  * font cache and the LaTeX can print. Each is a choice or a stepper and not
@@ -69,6 +72,8 @@ export const DEFAULT_PAGE: PageSettings = {
   heading_size: null,
   title_size: null,
   body_size: null,
+  date_format: "short",
+  education_first: "school",
 };
 
 /** The fonts a student can pick, serif then sans, each with the look it stands
@@ -76,7 +81,7 @@ export const DEFAULT_PAGE: PageSettings = {
  *  its own name, then the system font it matches letter for letter, so a line
  *  being typed sits close to the PDF's. Latin Modern is the page's own webfont
  *  (`latinModern` in the editor), so it has none. */
-export const FONTS: { value: FontFamily; label: string; note: string; css?: string }[] = [
+export const FONTS: Option<FontFamily>[] = [
   { value: "latin_modern", label: "Latin Modern", note: "Classic" },
   {
     value: "tinos",
@@ -157,11 +162,21 @@ export const TEXT_ROLES: Record<"name" | "heading" | "title" | "body", TextRole>
 /** The points a kind of text prints at on this page. */
 export const sizeOf = (role: TextRole, page: PageSettings) => page[role.key] ?? role.follows(page);
 
+/** Whether an Education entry prints its degree over its school, as the API's
+ *  `degree_leads` decides: with no degree line, the school stays on top. */
+export const degreeLeads = (entry: BankEntry, page: PageSettings) =>
+  page.education_first === "degree" &&
+  entry.section === "education" &&
+  Boolean(entry.degree || entry.field_of_study || entry.organization);
+
 /** Which kind of text a line is. A one-row entry (a project) sets its title in
- *  body type, and Education's location sits on its title's row. */
-export function textRoleOf(kind: string, section: string | null) {
+ *  body type, and Education's location sits on its title's row. `degreeFirst`
+ *  swaps a school and its degree line (`degreeLeads`), and their type with them. */
+export function textRoleOf(kind: string, section: string | null, degreeFirst = false) {
   const twoRow = section === "education" || section === "experience" || section === "leadership";
   if (kind === "full_name") return TEXT_ROLES.name;
+  if (degreeFirst && kind === "degree") return TEXT_ROLES.title;
+  if (degreeFirst && kind === "title") return TEXT_ROLES.body;
   if (kind === "title" && twoRow) return TEXT_ROLES.title;
   if (kind === "location" && section === "education") return TEXT_ROLES.title;
   return TEXT_ROLES.body;
@@ -169,6 +184,8 @@ export function textRoleOf(kind: string, section: string | null) {
 
 /** A choice, and the settings it sets. */
 type Preset = { label: string; set: Partial<PageSettings> };
+/** A row of a setting's menu, with a note at its right. */
+type Option<Value> = { value: Value; label: string; note: string; css?: string };
 
 const SPACINGS: Preset[] = [
   { label: "Compact", set: { line_spacing: 1, section_spacing: 0, entry_spacing: 0 } },
@@ -179,6 +196,29 @@ const MARGINS: Preset[] = [
   { label: "Narrow", set: { side_margin: 0.5, top_margin: 0.5 } },
   { label: "Normal", set: { side_margin: 0.75, top_margin: 0.75 } },
   { label: "Wide", set: { side_margin: 1, top_margin: 1 } },
+];
+const HEADERS: Preset[] = [
+  { label: "Left", set: { header_alignment: "left" } },
+  { label: "Center", set: { header_alignment: "center" } },
+  { label: "Right", set: { header_alignment: "right" } },
+];
+const TEXT_ALIGNMENTS: Preset[] = [
+  { label: "Left", set: { alignment: "left" } },
+  { label: "Justified", set: { alignment: "justified" } },
+];
+const BULLETS: Preset[] = [
+  { label: "• Dot", set: { bullet: "dot" } },
+  { label: "– Dash", set: { bullet: "dash" } },
+];
+const EDUCATION_ORDERS: Preset[] = [
+  { label: "School First", set: { education_first: "school" } },
+  { label: "Degree First", set: { education_first: "degree" } },
+];
+const DATE_FORMATS: Option<PageSettings["date_format"]>[] = [
+  { value: "short", label: "Short Month", note: "Aug. 2018" },
+  { value: "long", label: "Full Month", note: "August 2018" },
+  { value: "year", label: "Year Only", note: "2018" },
+  { value: "numeric", label: "Numeric", note: "08/2018" },
 ];
 const ACCENTS = [
   { value: "#000000", label: "Black" },
@@ -347,33 +387,35 @@ function Choice({
   );
 }
 
-/** The font, each drawn in itself, with the look it stands for. */
-function FontPicker({
-  page,
-  onChange,
+/** A setting's menu: the font, each drawn in itself with the look it stands
+ *  for, and the date format, each with how a date reads. */
+function OptionMenu<Value extends string>({
+  label,
+  value,
+  options,
+  onPick,
 }: {
-  page: PageSettings;
-  onChange: (next: PageSettings) => void;
+  label: string;
+  value: Value;
+  options: Option<Value>[];
+  onPick: (value: Value) => void;
 }) {
-  const current = FONTS.find((font) => font.value === page.font_family) ?? FONTS[0];
+  const current = options.find((option) => option.value === value) ?? options[0];
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label={`Font, ${current.label}`}
+        aria-label={`${label}, ${current.label}`}
         render={<Button variant="secondary" className="w-full justify-between" />}
       >
         <span style={{ fontFamily: current.css }}>{current.label}</span>
         <ChevronDownIcon className="text-ink-meta size-3.5" />
       </DropdownMenuTrigger>
       <DropdownMenuContent data-keeps-selection align="start" className="w-(--anchor-width)">
-        <DropdownMenuRadioGroup
-          value={current.value}
-          onValueChange={(to) => onChange({ ...page, font_family: to as FontFamily })}
-        >
-          {FONTS.map((font) => (
-            <DropdownMenuRadioItem key={font.value} value={font.value}>
-              <span style={{ fontFamily: font.css }}>{font.label}</span>
-              <span className="text-note text-ink-meta ml-auto pr-5">{font.note}</span>
+        <DropdownMenuRadioGroup value={current.value} onValueChange={(to) => onPick(to as Value)}>
+          {options.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={option.value}>
+              <span style={{ fontFamily: option.css }}>{option.label}</span>
+              <span className="text-note text-ink-meta ml-auto pr-5">{option.note}</span>
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
@@ -396,7 +438,12 @@ export function FormatOptions({
   return (
     <>
       <Group title="Font">
-        <FontPicker page={page} onChange={onChange} />
+        <OptionMenu
+          label="Font"
+          value={page.font_family}
+          options={FONTS}
+          onPick={(font_family) => onChange({ ...page, font_family })}
+        />
       </Group>
       <Group title="Text Sizes">
         {Object.values(TEXT_ROLES).map((role) => (
@@ -409,6 +456,8 @@ export function FormatOptions({
       <Group title="Layout">
         <Choice label="Spacing" presets={SPACINGS} page={page} onChange={onChange} />
         <Choice label="Margins" presets={MARGINS} page={page} onChange={onChange} />
+        <Choice label="Header Alignment" presets={HEADERS} page={page} onChange={onChange} />
+        <Choice label="Text Alignment" presets={TEXT_ALIGNMENTS} page={page} onChange={onChange} />
       </Group>
       <Group title="Style">
         <Setting label="Accent Color">
@@ -431,6 +480,7 @@ export function FormatOptions({
             ))}
           </div>
         </Setting>
+        <Choice label="Bullet Icon" presets={BULLETS} page={page} onChange={onChange} />
         <label className="flex items-center justify-between gap-3">
           <span className="text-note text-ink-muted font-medium">Section Lines</span>
           <Switch
@@ -438,6 +488,22 @@ export function FormatOptions({
             onCheckedChange={(checked) => onChange({ ...page, show_divider: checked })}
           />
         </label>
+      </Group>
+      <Group title="Content">
+        <Setting label="Date Format">
+          <OptionMenu
+            label="Date Format"
+            value={page.date_format}
+            options={DATE_FORMATS}
+            onPick={(date_format) => onChange({ ...page, date_format })}
+          />
+        </Setting>
+        <Choice
+          label="Education Order"
+          presets={EDUCATION_ORDERS}
+          page={page}
+          onChange={onChange}
+        />
       </Group>
       {changed && (
         <Button variant="ghost" className="shrink-0" onClick={() => onChange(reset)}>

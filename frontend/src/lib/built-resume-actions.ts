@@ -87,6 +87,10 @@ export type PageSettings = {
   heading_size: number | null;
   title_size: number | null;
   body_size: number | null;
+  /** "Aug. 2018", "August 2018", "2018" or "08/2018". */
+  date_format: "short" | "long" | "year" | "numeric";
+  /** Which of an Education entry's two rows goes on top. */
+  education_first: "school" | "degree";
 };
 
 export type FontFamily =

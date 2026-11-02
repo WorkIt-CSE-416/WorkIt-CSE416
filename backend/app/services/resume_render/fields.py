@@ -23,27 +23,42 @@ SKILLS_LABEL = "Technical Skills"
 US_CITIZEN = "U.S. Citizen"
 # Jake's own spelling of months: "Aug. 2018", "June 2020", "Sep. 2018"
 _MONTHS = ("Jan.", "Feb.", "Mar.", "Apr.", "May", "June", "July", "Aug.", "Sep.", "Oct.", "Nov.", "Dec.")
+_FULL_MONTHS = (
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+)
 # Sections whose heading is two rows (title and place, then subtitle and
 # dates); the rest are one row, title and a tag, with the dates at the right.
 TWO_ROW = {"education", "experience", "leadership"}
 
 
-def month(day: datetime.date) -> str:
+def month(day: datetime.date, date_format: str = "short") -> str:
+    '''A month in `DATE_FORMATS`' terms: "Aug. 2018", "August 2018", "2018" or
+    "08/2018".'''
+    if date_format == "long":
+        return f"{_FULL_MONTHS[day.month - 1]} {day.year}"
+    if date_format == "year":
+        return str(day.year)
+    if date_format == "numeric":
+        return f"{day.month:02}/{day.year}"
     return f"{_MONTHS[day.month - 1]} {day.year}"
 
 
-def dates(entry: ViewEntry) -> str:
+def dates(entry: ViewEntry, date_format: str = "short") -> str:
     '''"Aug. 2018 – May 2021", "June 2020 – Present", "Expected May 2027",
     or "" when the entry has no dates.'''
     if entry.section == "awards":
-        return month(entry.award_date) if entry.award_date else ""
+        return month(entry.award_date, date_format) if entry.award_date else ""
     if entry.end_kind == "present":
         end = "Present"
     elif entry.end_month:
-        end = ("Expected " if entry.end_kind == "expected" else "") + month(entry.end_month)
+        end = ("Expected " if entry.end_kind == "expected" else "") + month(entry.end_month, date_format)
     else:
         end = ""
-    start = month(entry.start_month) if entry.start_month else ""
+    start = month(entry.start_month, date_format) if entry.start_month else ""
+    # Year only can make the two ends one: "2020 – 2020" reads as a slip
+    if date_format == "year" and start == end:
+        return start
     return f"{start} – {end}" if start and end else start or end
 
 
@@ -77,12 +92,23 @@ class Heading:
     tag: str = ""
 
 
-def heading(entry: ViewEntry) -> Heading:
-    when = dates(entry)
+def _degree_line(entry: ViewEntry) -> str:
+    degree = " in ".join(x for x in (entry.degree, entry.field_of_study) if x)
+    return ", ".join(x for x in (degree, entry.organization) if x)
+
+
+def degree_leads(entry: ViewEntry, education_first: str) -> bool:
+    '''Whether this entry prints its degree line over its school: an entry
+    with no degree line keeps the school on top, or that row would print empty.'''
+    return education_first == "degree" and entry.section == "education" and bool(_degree_line(entry))
+
+
+def heading(entry: ViewEntry, date_format: str = "short", education_first: str = "school") -> Heading:
+    when = dates(entry, date_format)
     if entry.section == "education":
-        degree = " in ".join(x for x in (entry.degree, entry.field_of_study) if x)
-        subtitle = ", ".join(x for x in (degree, entry.organization) if x)
-        return Heading(entry.title, entry.location or "", subtitle, when)
+        if degree_leads(entry, education_first):
+            return Heading(_degree_line(entry), entry.location or "", entry.title, when)
+        return Heading(entry.title, entry.location or "", _degree_line(entry), when)
     if entry.section in TWO_ROW:
         return Heading(entry.title, when, entry.organization or "", entry.location or "")
     if entry.section == "certifications":
@@ -92,12 +118,14 @@ def heading(entry: ViewEntry) -> Heading:
     return Heading(entry.title, when, tag=tag)
 
 
-def heading_fields(section: str) -> dict[str, str]:
+def heading_fields(section: str, degree_first: bool = False) -> dict[str, str]:
     '''Which entry field each of heading()'s slots shows, by slot name: the
     `kind` of the slot's click target in the editor (KAN-209). Education's
-    subtitle is the degree line, which also names the school.'''
+    subtitle is the degree line, which also names the school; `degree_first`
+    swaps the two rows (`degree_leads`).'''
     if section == "education":
-        return {"title": "title", "right": "location", "subtitle": "degree", "subright": "dates"}
+        top, under = ("degree", "title") if degree_first else ("title", "degree")
+        return {"title": top, "right": "location", "subtitle": under, "subright": "dates"}
     if section in TWO_ROW:
         return {"title": "title", "right": "dates", "subtitle": "organization", "subright": "location"}
     return {"title": "title", "tag": "organization", "right": "dates"}

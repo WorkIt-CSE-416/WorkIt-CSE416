@@ -109,6 +109,8 @@ class PageSettings(BaseModel):
     heading_size: Annotated[float, Field(ge=9, le=18, multiple_of=0.5)] | None = None
     title_size: Annotated[float, Field(ge=8, le=16, multiple_of=0.5)] | None = None
     body_size: Annotated[float, Field(ge=8, le=14, multiple_of=0.5)] | None = None
+    date_format: Literal["short", "long", "year", "numeric"] = "short"
+    education_first: Literal["school", "degree"] = "school"
 
     @model_validator(mode="after")
     def _every_section_once(self) -> "PageSettings":

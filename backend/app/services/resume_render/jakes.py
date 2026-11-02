@@ -27,6 +27,7 @@ from app.services.resume_render.fields import (
     SKILLS_LABEL,
     TWO_ROW,
     US_CITIZEN,
+    degree_leads,
     details,
     heading,
     heading_fields,
@@ -92,9 +93,9 @@ def _header(identity: HeaderIdentity, marks: bool, printed: Printed, page: PageS
     return lines
 
 
-def _entry(entry: ViewEntry, marks: bool, printed: Printed) -> list[str]:
-    h = heading(entry)
-    kinds = heading_fields(entry.section)
+def _entry(entry: ViewEntry, marks: bool, printed: Printed, page: PageSettings) -> list[str]:
+    h = heading(entry, page.date_format, page.education_first)
+    kinds = heading_fields(entry.section, degree_leads(entry, page.education_first))
 
     def slot(name: str) -> str:
         text = getattr(h, name)
@@ -147,7 +148,7 @@ def body(
     for section in view.sections:
         block = [rf"\section{{{escape(SECTION_LABELS[section.section])}}}", r"\resumeSubHeadingListStart"]
         for entry in section.entries:
-            block += _entry(entry, marks, printed)
+            block += _entry(entry, marks, printed, page)
         blocks[section.section] = [*block, r"\resumeSubHeadingListEnd"]
     if view.skills:
         blocks["skills"] = [

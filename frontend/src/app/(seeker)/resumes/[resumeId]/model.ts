@@ -380,6 +380,14 @@ export function pickSkill(row: PickedSkill, on: boolean): ChoicesUpdate {
   };
 }
 
+/** The whole skills section in one PATCH (KAN-435): off takes each skill that
+ *  prints, so the section prints no heading, and on adds each one not printing. */
+export function pickSkills(rows: PickedSkill[], on: boolean): ChoicesUpdate {
+  return {
+    skills: rows.filter((row) => row.on !== on).flatMap((row) => pickSkill(row, on).skills ?? []),
+  };
+}
+
 /** The page-count chip: "1 page", or "2 pages · 3 lines over 1 page". */
 /** The phone's short count, "3 lines over" (or "2 pages" with no estimate),
  *  for its top bar beside the back arrow. */

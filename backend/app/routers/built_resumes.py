@@ -545,7 +545,7 @@ async def download_docx(
     except NotFound:
         raise HTTPException(404, "Resume not found")
     identity = await _identity(session, applicant_id)
-    data = await asyncio.to_thread(render_docx, view, identity, service.page_of(resume).section_order)
+    data = await asyncio.to_thread(render_docx, view, identity, service.page_of(resume))
     return Response(
         data,
         media_type=DOCX_TYPE,

@@ -1807,8 +1807,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   stays open behind it. `FONTS` is the
   list of families, whose `css` puts the open line in the system font the
   PDF's matches letter for letter: with Tinos a line sat 2px off the print over
-  714px. A new page setting joins the panel only if a student needs it to fit
-  one page, to choose a font or to pick a colour. The API keeps the settings the
+  714px. A new page setting joins the panel only if a student expects it from a resume
+  builder, and keeps one control per decision: Spacing and Margins stay one
+  choice each. Degree First moves the school to the degree's row, so
+  `degreeLeads` swaps that line's type too (`textRoleOf`, `typeOf`) and must
+  agree with the API's `degree_leads`. The API keeps the settings the
   panel dropped, so a resume set that way prints as it did. The bar mutes every
   button's words (`SLIM_BAR`, `DOCS_BAR`), so a real action there (Add Bullet,
   `FitButton`) carries `data-bar-action`, or a filled button reads grey on purple.
