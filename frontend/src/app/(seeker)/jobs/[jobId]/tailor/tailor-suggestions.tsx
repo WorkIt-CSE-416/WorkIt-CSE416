@@ -182,7 +182,6 @@ function SuggestionsPanel({
   pageOrder,
   bank,
   choices,
-  saving,
   undo,
   undoAll,
   close,
@@ -261,7 +260,6 @@ function SuggestionsPanel({
               label="Undo All"
               variant="outline"
               className="size-9 shrink-0"
-              disabled={saving}
               onClick={undoAll}
             >
               <ArrowUUpLeftIcon aria-hidden className="size-4" />
@@ -333,7 +331,6 @@ function SuggestionsPanel({
                           choices={choices}
                           lit={focused === change.key}
                           current={active === change.key}
-                          saving={saving}
                           onFocus={focus}
                           onShow={() => show(change.key)}
                           onUndo={() => undo(change.edit)}
@@ -463,7 +460,6 @@ function Suggestion({
   choices,
   lit,
   current,
-  saving,
   onFocus,
   onShow,
   onUndo,
@@ -475,7 +471,6 @@ function Suggestion({
   lit: boolean;
   /** Last shown on the page, from here or from its line or dot there. */
   current: boolean;
-  saving: boolean;
   onFocus: (key: string | null) => void;
   onShow: () => void;
   onUndo: () => void;
@@ -516,7 +511,6 @@ function Suggestion({
             label={`Undo: ${title(change)}`}
             tooltip="Undo"
             className="size-7"
-            disabled={saving}
             onClick={onUndo}
           >
             <ArrowUUpLeftIcon aria-hidden className="size-4.5" />
@@ -533,7 +527,7 @@ function Suggestion({
 /** A changed line's card beside the line: what changed, and Undo, as Docs
  *  answers a suggestion beside its text. It says the same as the panel's
  *  row, so a student can settle one change with the panel closed. */
-function SuggestionPopup({ edit, bank, choices, saving, undo, close }: SuggestionPopupApi) {
+function SuggestionPopup({ edit, bank, choices, undo, close }: SuggestionPopupApi) {
   const change = changesOf([edit], bank)[0];
   return (
     <div className="flex flex-col gap-2 p-3">
@@ -546,7 +540,6 @@ function SuggestionPopup({ edit, bank, choices, saving, undo, close }: Suggestio
           label={`Undo: ${title(change)}`}
           tooltip="Undo"
           className="size-6 shrink-0"
-          disabled={saving}
           onClick={undo}
         >
           <ArrowUUpLeftIcon aria-hidden className="size-4.5" />

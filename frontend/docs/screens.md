@@ -2828,7 +2828,9 @@ student who opened a resume from Experiences landed on another view.
   color, with its scissors as the panel's mark. Its toolbar button sits
   beside Add Experiences and shows only while something a fit cut is still
   off the page (or its panel is open); on a phone it is a sheet beside Add
-  Experiences. Groups by section, all open, each "1 of 3 added back"; no
+  Experiences. Tailor's page has no Add Experiences, so there it stands
+  alone, and its list opens in the column beside the page, as Format
+  Options does (KAN-524). Groups by section, all open, each "1 of 3 added back"; no
   resume or group filters, since a fit cuts a few items. **It shows only
   what Fit cut.** A whole entry Fit cut is the bank's row with its own tick,
   and comes back as the copy Fit cut. An entry Fit only trimmed is its name
