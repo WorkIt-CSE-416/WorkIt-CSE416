@@ -47,7 +47,7 @@ export function Agenda({
 
   return (
     // Scrolls inside the page's height, as Google Calendar's Schedule does.
-    <ol className="mt-4 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain pr-1">
+    <ol className="mt-4 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-none pr-1">
       {days.map((day) => {
         const key = dayKey(day);
 

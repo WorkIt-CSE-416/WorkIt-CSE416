@@ -110,7 +110,7 @@ export function DetailPanel({
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain p-5">
+        <div className="flex-1 overflow-y-auto overscroll-none p-5">
           <h3 className="text-subtitle text-ink">Timeline</h3>
           {/* After the sheet is mostly in. */}
           <Timeline steps={steps} startDelay={120} className="mt-4" />

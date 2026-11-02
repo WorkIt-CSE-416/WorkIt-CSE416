@@ -1408,6 +1408,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   claim skills the truth rule then lets a rewording name. A wait is never a
   step: the run is a loader over Choose Keywords (`TailorRunning`), since a
   Tailor step that only waited read as padding to the user.
+- **A seeker page's title is in the top bar, and it has no description**
+  (2026-11-02, `(seeker)/bar-title.tsx`). The bar reads the title from the
+  address, so it shows before the page streams in; a new section joins `TITLES`
+  there. It is the page's h1 on a section's own page, and a plain line on a page
+  under it (a job, a resume, an application), which has its own h1. Home's title
+  is the greeting, which the layout reads with the account. **Job search is on
+  the Jobs page and /search only** (`search/job-search.tsx`): in the bar it
+  showed on every page, and it took the phone's magnifier and sheet with it.
+  Each page's own heading and line under the bar went, about 60px a page: the
+  line under Written Answers too, so that page no longer says how answers
+  reach the tab. Auto Apply keeps its queue line, which is a count, not a
+  description.
 - **/search keeps the filter row, and shows what its words filter by**
   (KAN-308). A new search from the top bar sends only ?q, so it starts
   with no filters; the row stays on /search to narrow the results. The
@@ -1486,7 +1498,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   /jobs. The choice is a cookie (`jobs/view.ts`), since `?view=` belongs to old
   links. A height set with `flex-1` on the same element does nothing: the frame
   needs `flex-none` at its fixed height, or the rail grows with its list and
-  never scrolls.
+  never scrolls. It is one panel in the page's gutters, after Simplify's,
+  rounded at the top and open at the foot of the window, with the job's card flat inside it and no rule under the filters.
+  The rail beside a job opened from Cards has no panel: it stands off the sidebar
+  by the page gutter less its rows' padding, since flush it read as one block
+  with the sidebar.
 - **The feed's loading state is its last first page** (KAN-287,
   `jobs/feed-fallback.tsx`): `FeedList` keeps the first page it drew as a
   snapshot (`jobs/feed-pages.ts`), and the Suspense fallback draws it while
@@ -1550,6 +1566,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   string class. It cannot read a class built in `cn()`, a template string or a
   variable, so keep overrides out of those too. A new box is a new size in the
   component.
+- **Nothing bounces at a scroll's end** (2026-11-02, `globals.css`): the
+  document and each shell's `<main>` take `overscroll-y-none`, Y only so the
+  trackpad's swipe back works, and a scroll box inside a page takes
+  `overscroll-none`, never `overscroll-contain`, which still bounces inside
+  itself. The resume editor's `data-no-bounce` was the first of these; the
+  rule now holds for every page.
+- **There is one scrollbar, in `globals.css`**: a 4px thumb on no track, shown
+  while the pointer is over what it scrolls. macOS's own bar drew a grey rail
+  over the job list's rows. Never set `scrollbar-width` or `scrollbar-color` on
+  an element, but for `none`: Chrome then drops these rules there.
 - **Build class strings with `cn()` from `@/lib/cn`.** Plain interpolation
   leaves both conflicting utilities in the attribute and the stylesheet's
   emit order picks the winner. `cn()` cannot merge across groups (`border` and

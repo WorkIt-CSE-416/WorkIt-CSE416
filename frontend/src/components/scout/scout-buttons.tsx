@@ -10,17 +10,24 @@ import { cn } from "@/lib/cn";
 import { askScoutAbout, SCOUT_LAUNCHER_ID, setScoutOpen, useScout } from "./scout-store";
 
 /** A job's "Ask Scout": opens the panel and asks about that role. An outlined
- *  icon beside Save (KAN-519), 36px as Save is: asking about a job is the step
- *  before applying to it, and only one control on a card can be the one being
- *  pointed at. Its tooltip says what the click will do, since the mark alone
- *  does not say what Scout will be asked. */
-export function AskScoutButton(job: { id: string; title: string; company: string }) {
+ *  icon beside Save (KAN-519), 36px as Save is, or `quiet`, a bare glyph as on
+ *  the job's own card. Its tooltip says what the click will do, since the mark
+ *  alone does not say what Scout will be asked. */
+export function AskScoutButton({
+  quiet = false,
+  ...job
+}: {
+  id: string;
+  title: string;
+  company: string;
+  quiet?: boolean;
+}) {
   return (
     <IconButton
       label={`Ask Scout about ${job.title}`}
       tooltip="Ask Scout whether this role fits you"
-      variant="outline"
-      className="size-9 shrink-0"
+      variant={quiet ? "quiet" : "outline"}
+      className={quiet ? undefined : "size-9 shrink-0"}
       onClick={() => askScoutAbout(job)}
     >
       <SparkleIcon className="size-4" />

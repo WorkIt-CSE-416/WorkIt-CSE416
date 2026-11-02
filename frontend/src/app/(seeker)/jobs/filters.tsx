@@ -418,7 +418,7 @@ function LocationFacet({
         <div className="bg-border my-1 h-px sm:mx-1 sm:my-0 sm:h-auto sm:w-px" />
 
         {/* Fixed width, so the popup keeps its size as countries are ticked
-            and the states come and go. overscroll-contain: a fling past the
+            and the states come and go. overscroll-none: a fling past the
             end of the states stops here instead of scrolling the page. */}
         <div className="flex w-full flex-col sm:w-56">
           <PanelHeading>State</PanelHeading>
@@ -430,7 +430,7 @@ function LocationFacet({
             <div
               role="group"
               aria-label={`States in ${countries.find(({ code }) => code === shown)?.label}`}
-              className="flex max-h-72 flex-col overflow-y-auto overscroll-contain"
+              className="flex max-h-72 flex-col overflow-y-auto overscroll-none"
             >
               {statesOf(shown).map(({ code, label }) => (
                 <CheckRow
@@ -547,9 +547,9 @@ function RoleFacetOptions({
         <ComboboxEmpty className="text-ink-meta text-body py-3">
           No role by that name.
         </ComboboxEmpty>
-        {/* overscroll-contain: the list's own scroll stops at its ends
+        {/* overscroll-none: the list's own scroll stops at its ends
             instead of moving the page behind it. */}
-        <ComboboxPrimitive.List className="max-h-[min(24rem,calc(var(--available-height)-3.25rem))] scroll-py-1 overflow-y-auto overscroll-contain p-1 empty:p-0">
+        <ComboboxPrimitive.List className="max-h-[min(24rem,calc(var(--available-height)-3.25rem))] scroll-py-1 overflow-y-auto overscroll-none p-1 empty:p-0">
           {(value: string) => (
             <ComboboxPrimitive.Item key={value} value={value} className={checkRowClasses}>
               {labelOf(value)}

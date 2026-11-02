@@ -167,7 +167,7 @@ and starts at the first 50.
 Clearing the search field on /search with its cross (or Escape) ends the
 search: the page goes back to /jobs as the seeker last saw it, filters, Load
 More pages and scroll place and all (KAN-228, asked for 2026-10-13). A search
-from the top bar sends only ?q, so the filters set on /jobs before it come
+from the Jobs page's field sends only ?q, so the filters set on /jobs before it come
 from RememberFeed's own copy of /jobs's address, not from /search's. Deleting
 the text by typing does not leave: the field's cross is told apart by its
 input event having no inputType (search/query-field.tsx), so backspacing to
@@ -222,6 +222,26 @@ the new list's first job. Back hides from `@4xl/main`, where the list is on
 screen. Below `@4xl/main` the switch draws a list: the rail is the page, and a job
 opens alone with Back.
 
+**A compact card puts its title and company beside its buttons and match, and runs
+where it is, its pay, type and age under them on the card's whole width**, each
+on one line, cut short with a tooltip (2026-11-02): beside the buttons every line
+wrapped, and the card stood about 50px taller. The age is short ("20d ago",
+`formatPostedShort`), in the large card's green status badge, so the pay fits
+beside it. The company and the pay are ink,
+the rest grey.
+
+**The job list has no scrollbar** (`[scrollbar-width:none]` in `jobs-rail.tsx`): a
+scrollbar always takes room, and that 8px left the open job's tint short of the
+column's edge. The wheel and trackpad still scroll it.
+
+**The split view from `@4xl/main` is one panel, rounded at the top, that runs off
+the foot of the window** in the page's gutters, with no bottom edge (after
+Simplify's, 2026-11-02): the list and the job share its edge, one rule runs
+under the list's heading and the job's action bar, both 60px, and the job's card
+is drawn flat inside it (`JOB_CARD_IN_PANEL`). The header above it has no rule: a
+full-width line under the filters read as cutting the page in two. The panel's
+pane has a 20px gutter, so the bar's one row fits at a 1280px window.
+
 /search has the same choice, as Cards or List: a list of compact cards
 (`compact` on `FeedList`), and a job opens beside the rail with Back. The split
 frame's header is the Jobs page's, with no place for its count and fact chips, so
@@ -266,7 +286,7 @@ with no list (a shared link) shows the newest roles. **A job's Save buttons
 follow each other**: a click writes the job's stage into the shown list, and
 `SaveJobButton` reads it, since a job can show two at once. The rail shows from
 `@4xl/main`; below that the page is as it was. It is 20rem to 26rem wide
-(`clamp(20rem,30cqw,26rem)`: 358px at a 1280px window) and the job takes the
+(`clamp(20rem,27cqw,26rem)`: 320px at a 1280px window) and the job takes the
 rest. It scrolls on its own, held to the
 page's height by the shell's 64px bar (4rem); change that with the bar's
 height.
@@ -359,8 +379,11 @@ stand at the height of what replaces them; Tailor has its own, so this one
 never stands in for it.
 The job's actions sit in one bar with Back, pinned at the top from md
 (`[jobId]/action-bar.tsx`, KAN-246), after the job's tabs (below): Already
-Applied?, Save, Ask Scout, Auto Apply, Tailor My Resume and Apply Now. At a 1280px
-window the tabs wrap above the actions.
+Applied?, Auto Apply, Tailor My Resume and Apply Now, on one row at a 1280px
+window. Ask Scout, Not Interested and Save are bare glyphs at the top right of
+the job's card (`JobCardActions`, after Simplify): in the bar they wrapped Apply
+Now onto a row of its own. Not Interested shows on the job's own page only, and
+is inert, as on the compact card. Below that width the tabs wrap above the actions.
 **Already Applied?** (KAN-519, after Simplify) opens "Did You Apply?" with no trip
 to the employer, for a student who applied without WorkIt, and hides once the job
 is marked or on a company account. It only asks: an Applied button here once
@@ -388,7 +411,7 @@ only the job's own Auto Apply button queues one. The
 card's own row has Not Interested, Save, Ask
 Scout, Auto Apply, Tailor My Resume and Apply Now. Tailor My Resume is the
 page's button on the card too (KAN-241): it opens `/jobs/[jobId]/tailor`
-and reads "Your Tailored Resume" once the student has one for that job
+and reads "Tailored Resume" once the student has one for that job
 posting. /jobs and /search read the built resumes once beside the first
 page (`getTailoredJobIds`) and hand each card its answer, as for Auto
 Apply; signed out, every card reads Tailor My Resume. Auto Apply shows only on a job posting the
@@ -645,7 +668,7 @@ filled primary sm button, and opens Apply Now's dialog (KAN-290). A KPI tile cen
 hides below 10.5rem of tile), keeps that header row 36px tall, pushes its
 figure to the foot, and gives the line under it a fixed `h-5`, hiding "vs
 last week" where it would wrap, so every figure in a row sits on one line.
-A scroll area inside a tile uses `scrollbar-quiet` (globals.css) and puts
+A scroll area inside a tile puts
 its edge on the tile's edge: New Matches reaches into the tile's right
 padding (`-mr-5`) and pads its rows back in (`pr-5`), so the bar runs down
 the tile's side instead of beside the Apply buttons. There is no
@@ -989,8 +1012,9 @@ Jobs card's ring, which made the same job look different by how it was
 opened. Analytics and explanations go on the Your Application tab only.
 **The bar holds the tabs once there is nothing to do**: an applied job, or a
 closed posting, has no use for Apply, Tailor, Save or Ask Scout, so the bar
-shows the tabs beside Back instead. A saved job with an open posting keeps
-the job page's actions, and its tabs sit under the header. Three tabs, each a
+shows the tabs beside Back instead, and its card has no glyphs. A saved job with
+an open posting keeps the job page's actions and its card's Ask Scout and Save,
+and its tabs sit under the header. Three tabs, each a
 URL (`?tab=emails`, `?tab=job`; **Emails**, KAN-413, lists the job's
 emails as the Inbox does, `[jobId]/emails-tab.tsx`, each opening in the
 Inbox) that moves in place (KAN-368,
@@ -1129,7 +1153,7 @@ The page is exactly the screen under the bar (`h-[calc(100svh-4rem)]`, the
 job rail's height, KAN-427). The heading and the filters stay in
 place; the frame under them takes the rest, the toolbar's row then one that may
 shrink (`grid-rows-[auto_minmax(0,1fr)]`), and the list and the open email each scroll
-inside their own column (`overflow-y-auto overscroll-contain`), so
+inside their own column (`overflow-y-auto overscroll-none`), so
 scrolling one never moves the other. The frame's floor, `min-h-80`, lets a
 very short window scroll the page instead of leaving a sliver of list.
 Below md the one column shown scrolls the same way, and Back to Inbox sits
@@ -1208,8 +1232,9 @@ at the top of the email's column.
 ## Auto Apply
 
 /auto-apply (KAN-223) is where the seeker will apply in bulk. Its sidebar row
-sits between Jobs and Applications, in the order the work goes, and its page
-uses the same heading block as every seeker screen. The pipeline it grows
+sits between Jobs and Applications, in the order the work goes, and its title
+is in the top bar, with the queue's line at the top of the page while it holds
+a job. The pipeline it grows
 into is `auto-apply/architecture.md` at the repo root. KAN-285 redrew it:
 the run button moved into the header, and both lists became tables in the
 Applications list's frame (one white card, 12px grey headings, rules between
@@ -2249,7 +2274,7 @@ The design is `../../docs/tailor_resume.md`: one click tailors and saves,
 with no proposals to accept and no Done (2026-10-25).
 
 - **Opened from "Tailor My Resume"** on the job posting page, which reads
-  "Your Tailored Resume" once the student has one for that posting.
+  "Tailored Resume" once the student has one for that posting.
 - **Each pick step has its own title** (`HEADINGS` in `tailor-screen.tsx`,
   drawn by `TailorHeader`): "Pick the Resume to Start From" and "Add the
   Keywords You Have Used". Both read "Tailor Your Resume to <job title>" over

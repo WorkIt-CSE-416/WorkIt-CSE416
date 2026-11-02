@@ -15,7 +15,7 @@ import { FeedFallback } from "./feed-fallback";
 import { FeedList } from "./feed-list";
 import { FeedTransition, PendingFeed } from "./feed-transition";
 import { JobFilters } from "./filters";
-import { JobsHeading } from "./jobs-heading";
+import { JobsTopRow } from "./jobs-top-row";
 import { ListingsError } from "./listing-card";
 import {
   filtersQuery,
@@ -312,8 +312,8 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
       {/* One transition for a filter change, so the feed dims the moment the
           row starts it (./feed-transition). */}
       <FeedTransition>
-        {/* The heading and filters stay put while the list scrolls. */}
-        <FeedHeader heading={<JobsHeading sort={sort} view={view} />}>
+        {/* The search and filters stay put while the list scrolls. */}
+        <FeedHeader top={<JobsTopRow view={view} />}>
           <JobFilters locations={locations} facets={facets} filters={filters} sort={sort} />
         </FeedHeader>
 

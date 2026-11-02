@@ -7,21 +7,19 @@ import { cn } from "@/lib/cn";
 import { SEEKER_BLEED, SEEKER_GUTTER } from "../gutter";
 
 /** How far below the panel's top edge the filter row sits once a phone has
- *  scrolled the heading away. */
+ *  scrolled the search row away. */
 const ROW_GAP = 16;
 
 /**
- * The top of a feed page (/jobs, /search): its heading and the filter row,
+ * The top of a feed page (/jobs, /search): its search row and the filter row,
  * held at the top of the page while the cards scroll under it, so the
  * filters are in reach from anywhere in a long list. It sticks to the shell's
  * <main>, the one thing that scrolls (../layout.tsx).
  *
- * BELOW md ONLY THE FILTERS STAY. On a phone the heading, subtitle and
- * filters took about 170px, near a third of what the page shows. There the
- * header sticks with a negative top as tall as everything above the filter
- * row (less ROW_GAP, the same 16px as below it), so the heading scrolls
- * away and the row stops just under the panel's edge; the height is
- * measured, since the heading wraps.
+ * BELOW md ONLY THE FILTERS STAY. On a phone the header sticks with a negative
+ * top as tall as everything above the filter row (less ROW_GAP, the same 16px
+ * as below it), so the search row scrolls away and the filters stop just under
+ * the panel's edge; the height is measured.
  * From md the whole header stays (top 0).
  *
  * A HAIRLINE MARKS IT ONCE THE LIST IS UNDER IT, fading in when the header
@@ -29,7 +27,7 @@ const ROW_GAP = 16;
  * starts below it anyway. Without it the cards were cut off by a plain white
  * edge with nothing saying the header stood apart from them.
  *
- * It takes over the page's own top padding (-mt-6 pt-6), so the heading sits
+ * It takes over the page's own top padding (-mt-6 pt-6), so the search sits
  * as far from the panel's edge stuck as it does at rest, and the feed's
  * 16px gap below the filters (pb-4 -mb-4: the feed's own mt-4 lands on it),
  * so the cards slide under white rather than up against the filters. Its
@@ -43,15 +41,15 @@ const ROW_GAP = 16;
  * every popup, which is portaled.
  *
  * `flush` is the split view's (./jobs-rail.tsx, KAN-519): the frame has no
- * page padding to take over, and the panes under it always need the rule.
+ * page padding to take over, and nothing scrolls under it, so it has no rule.
  */
 export function FeedHeader({
-  heading,
+  top,
   flush = false,
   className,
   children,
 }: {
-  heading: ReactNode;
+  top: ReactNode;
   flush?: boolean;
   className?: string;
   children: ReactNode;
@@ -97,13 +95,16 @@ export function FeedHeader({
       style={{ "--feed-lift": `${lift}px` } as CSSProperties}
       className={cn(
         "bg-panel sticky top-[calc(var(--feed-lift)*-1)] z-10 pt-6 pb-4 md:top-0",
-        "after:bg-border-subtle after:absolute after:inset-x-0 after:bottom-0 after:h-px after:transition-opacity after:duration-200 data-stuck:after:opacity-100",
-        !flush && ["-mt-6 -mb-4 after:opacity-0", SEEKER_BLEED],
+        !flush && [
+          "after:bg-border-subtle after:absolute after:inset-x-0 after:bottom-0 after:h-px after:opacity-0 after:transition-opacity after:duration-200 data-stuck:after:opacity-100",
+          "-mt-6 -mb-4",
+          SEEKER_BLEED,
+        ],
         SEEKER_GUTTER,
         className,
       )}
     >
-      {heading}
+      {top}
 
       {/* A container, so the facets switch on the row's own width (see
           ./filters), which an open sidebar narrows, not on the window's. */}

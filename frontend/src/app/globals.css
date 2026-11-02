@@ -55,8 +55,8 @@
   --color-surface-tint: #f1f7fa; /* logo tile, subtle tinted fills */
 
   /* Borders ------------------------------------------------------------- */
-  --color-border: #e3e9f0; /* card outline */
-  --color-border-subtle: #e8ebf5; /* secondary buttons, rules */
+  --color-border: #cfd5df; /* card outline */
+  --color-border-subtle: #d6dbe4; /* secondary buttons, rules */
   --color-border-control: #8a8f9a; /* input outline: 3.05:1 on surface, 3.24:1 on panel (WCAG 1.4.11) */
 
   /* Ink ----------------------------------------------------------------- */
@@ -190,7 +190,7 @@
   --color-brand-ink: #5b30c0;
 
   /* App ink -------------------------------------------------------------- */
-  --color-ink-meta: #596980; /* nav links, subtitles, dates, icon glyphs */
+  --color-ink-meta: #465266; /* nav links, subtitles, dates, icon glyphs */
 
   /* App brand ------------------------------------------------------------ */
   --color-brand-tint: #efeaff; /* skill pills, badges, avatars, company tiles —
@@ -932,6 +932,16 @@ body {
   font-weight: var(--font-weight-normal);
 }
 
+/* NO SCROLL BOUNCES (2026-11-02): a hard scroll stops at the end of the page.
+ * It stretched the page and carried the sticky panels with it. The document
+ * here, each shell's <main> with overscroll-y-none, and a scroll box inside a
+ * page with overscroll-none. Y only on the page's own scroller: on x it would
+ * take the trackpad's swipe to go back. */
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
 /* The canvas — the strip a rubber-band scroll exposes past the top or bottom of
  * the document — is painted by <body>, and <body> is in the root layout, above
  * both shells. So it cannot inherit the page colour a shell sets on itself, and
@@ -950,9 +960,8 @@ body {
  * :has() rather than a class on <body> because a nested layout cannot reach the
  * root layout's <body>; the shell announces itself and the canvas reads it.
  *
- * The alternative was overscroll-behavior: none, which ends the bounce instead
- * of colouring it. That hides this bug and the next one like it, and on the x
- * axis it would take the trackpad's swipe-to-go-back with it. */
+ * The bounce itself is off (below), so this is only for what a browser still
+ * shows past the end. */
 body:has([data-shell]) {
   background: var(--color-panel);
 }
@@ -1293,14 +1302,46 @@ body:has([data-skyline]) {
   }
 }
 
-/* A scroll area's bar, thin and quiet (KAN-173): a thin --color-ink-faint
- * thumb on no track. macOS already fades its overlay bar out between
- * scrolls; this mostly tames the always-on 15px gutter on Windows and Linux.
- * Pair it with the area's edge on its container's edge (the Dashboard's New
- * Matches bleeds into its tile's right padding and pads its rows back in), so
- * the bar runs down the tile's side rather than between the content and its
- * padding, where it crowded the rows' buttons. */
-@utility scrollbar-quiet {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-ink-faint) transparent;
+/* EVERY SCROLLBAR IS ONE THIN THUMB ON NO TRACK, shown only while the pointer
+ * is over what it scrolls (2026-11-02). macOS's own bar grew a grey rail over
+ * the job list's rows when the pointer reached it, and Windows and Linux kept
+ * a 15px gutter (KAN-173). A fixed width here replaces both: 8px of room, a 4px
+ * thumb (the 2px border, clipped). Never set `scrollbar-width` or
+ * `scrollbar-color` on an element to restyle it: Chrome then ignores these
+ * rules there. `none` is fine, and hides the bar. Touch screens keep their own
+ * bars. The bar takes room now, so the page keeps its 8px whether or not it
+ * scrolls (`scrollbar-gutter` on the shell's <main>), or pages jump sideways. */
+@media (pointer: fine) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background-clip: padding-box;
+  }
+
+  :hover::-webkit-scrollbar-thumb {
+    background-color: var(--color-ink-faint);
+  }
+
+  ::-webkit-scrollbar-thumb:hover,
+  ::-webkit-scrollbar-thumb:active {
+    background-color: var(--color-ink-muted);
+  }
+}
+
+/* Firefox has none of the above. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ink-faint) transparent;
+  }
 }

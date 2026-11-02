@@ -38,6 +38,7 @@ import {
 } from "../jobs/listings";
 import type { JobsView } from "../jobs/view";
 import { ViewSwitch } from "../jobs/view-switch";
+import { JobSearch } from "./job-search";
 import { SearchFacts } from "./search-facts";
 
 export const metadata: Metadata = {
@@ -46,7 +47,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * /search, where the top bar's field lands with the query as ?q. It asks the
+ * /search, where the Jobs page's field lands with the query as ?q. It asks the
  * same live feed as /jobs (../jobs/listings) for what the query names: the
  * API reads it with the role resolver (KAN-155), so "swe intern stripe" is
  * software engineer internships at Stripe or that mention it, a typo
@@ -189,20 +190,12 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
   const filters = readFilters(params);
   const view = await getJobsView();
 
-  /* The heading and subtitle every state shares, at /jobs's sizes. */
-  const subtitle = (
-    <p className="text-body text-ink-meta mt-1">
-      Roles from today&apos;s feed, matched by role, company and description.
-    </p>
-  );
-
   /* Reached by submitting an empty field, or by the URL alone. No filters and
      no count, since nothing has been searched for them to narrow or count. */
   if (!query) {
     return (
       <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-        <h1 className="text-heading text-ink">Search Jobs</h1>
-        {subtitle}
+        <JobSearch />
 
         <EmptyState
           Icon={SearchIcon}
@@ -234,38 +227,25 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
       {/* One transition for a filter change, so the results dim the moment
           the row starts it (../jobs/feed-transition). */}
       <FeedTransition>
-        {/* The heading and filters stay put while the results scroll, as on
-            /jobs. */}
+        {/* The search and filters stay put while the results scroll, as on
+            /jobs. The heading, "Results for" the query, is in the top bar
+            (../bar-title.tsx). The count's slot is a fixed width (88px holds
+            "9,999 Roles": it counts every match, not the page shown), so the
+            row does not move when the count lands. It is a live region, so a
+            screen reader hears how many roles a search found. */}
         <FeedHeader
-          heading={
-            <>
-              {/* The heading runs inline, so the count follows its last word however
-                  far a long query wraps it. As the end of a flex row it was pushed to
-                  the far edge whenever the heading wrapped, where it read as
-                  belonging to nothing.
-
-                  The count's slot is a fixed width (88px holds "9,999 Roles": it
-                  counts every match now, not the page shown), held
-                  whether it shows the placeholder, a count or nothing at all, so a
-                  long query wraps at the same word before and after the results land
-                  and nothing below moves. It is centred on the heading's x-height
-                  (align-middle, against the wrapper's own text-heading) rather than
-                  sitting on the baseline, where the pill hung below the heading's
-                  letters. The count is a live region, so a screen reader hears how
-                  many roles a search found once they land. */}
-              <div className="text-heading break-words">
-                <h1 className="text-heading text-ink inline">Results for “{query}”</h1>
-                <span role="status" className="ml-3 inline-flex w-22 align-middle">
-                  <Suspense key={key} fallback={<ResultCountSkeleton />}>
-                    <ResultCount count={count} />
-                  </Suspense>
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-                {subtitle}
+          top={
+            <div className="flex items-center gap-3">
+              <JobSearch />
+              <span role="status" className="inline-flex w-22 shrink-0">
+                <Suspense key={key} fallback={<ResultCountSkeleton />}>
+                  <ResultCount count={count} />
+                </Suspense>
+              </span>
+              <div className="ml-auto">
                 <ViewSwitch view={view} listOnly />
               </div>
-            </>
+            </div>
           }
         >
           <JobFilters locations={getJobLocations()} facets={getJobFacets()} filters={filters} />

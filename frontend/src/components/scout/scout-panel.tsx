@@ -165,7 +165,7 @@ export function ScoutPanel() {
             composer rather than being ruled off from them. */}
             <div
               ref={log}
-              className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-16px),transparent)] px-4 py-4"
+              className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-none [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-16px),transparent)] px-4 py-4"
             >
               <Bubble>Hi, I&apos;m Scout! You&apos;ve just unlocked your chat with me.</Bubble>
               <Suggestions onPick={sendToScout} disabled={answering} />

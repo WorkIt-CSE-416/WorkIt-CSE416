@@ -39,13 +39,11 @@ export default function JobLoading() {
   );
 }
 
-/** The bar's actions while they load: Save, Ask Scout, Tailor My
- *  Resume and Apply Now, each its sm button's 36px. */
+/** The bar's actions while they load: Tailor My Resume and Apply Now, each its
+ *  sm button's 36px. */
 function ActionsSkeleton() {
   return (
     <span aria-hidden="true" className="flex flex-wrap items-center justify-end gap-2">
-      <Skeleton className="size-9" />
-      <Skeleton className="size-9" />
       <Skeleton className="h-9 w-40" />
       <Skeleton className="h-9 w-28" />
     </span>

@@ -21,13 +21,16 @@ rail (below). The company shell is still docked: a full-width bar with the
 lavender corner cell (`components/sidebar-brand.tsx`, company only now) over
 a full-bleed panel. `app-sidebar.tsx` draws both, as `variant="rail"` or
 the default `docked`. Their other shared parts (the bell, the account menu,
-the search field) are in `src/components`, and what is left is each bar's
-search target and copy. Each bar's search is a GET `next/form`
-to its own results page: `/search` for a seeker, `/company/applicants` for a
-company. The seeker field is `(seeker)/search/query-field.tsx`, a client
-component that shows `?q` while on /search and empties elsewhere, because a
-layout never receives searchParams. Lift a `<TopBar>` out only if they are
-still near-identical once both sides are real screens.
+the search field) are in `src/components`. The company bar's search is a GET
+`next/form` to `/company/applicants`. **The seeker bar has no search: it holds
+the page's title** (`(seeker)/bar-title.tsx`, 2026-11-02). Job search showed on
+every page there, so it moved to the Jobs page and /search
+(`(seeker)/search/job-search.tsx`), and each page's heading and description went:
+the title moved up, and the description is gone, to give every page about 60px.
+Pages add no heading or description of their own under the bar. The field is
+`(seeker)/search/query-field.tsx`, a client component that shows `?q` while on
+/search, because the split frame is drawn by a layout, which never receives
+searchParams.
 
 Seeker pages break on the width they actually get, not the window's: the
 shell renders them inside `@container/main`. A layout that splits into
@@ -53,8 +56,8 @@ Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
 The seeker bar shows the signed-in account's real photo, with the full name
-and email beside it from lg, at 40px like the bar's grey-filled round
-bell and search controls (`(seeker)/bar.ts`); it reads `getCurrentAccount()` in
+and email beside it from lg, at 40px like the bar's bare ink bell
+(`(seeker)/bar.ts`); it reads `getCurrentAccount()` in
 `lib/session.ts`, cached per render. The whole block is the trigger of
 `components/account-menu.tsx`, passed in as its `children`, and opens
 Settings, Help and Sign Out (with the account header only below lg, where the
@@ -278,6 +281,14 @@ and dates. `font-normal`, the body's default and `--text-hero` all read it,
 so never write a literal 400.
 
 ## Components
+
+**Borders and small text were darkened on 2026-11-02**, in the tokens, so every
+screen moved together: `--color-border` and `--color-border-subtle` to about the
+same mid grey, and `--color-ink-meta` to #465266 (about 7.8:1 on white). The user
+found them faint beside Simplify's. Tune the tokens, never one screen.
+
+**One scrollbar** (`globals.css`): a 4px thumb on no track, shown while the
+pointer is over what it scrolls. Style it there, never per element.
 
 `components/save-button.tsx` is the one Save control on every job surface.
 

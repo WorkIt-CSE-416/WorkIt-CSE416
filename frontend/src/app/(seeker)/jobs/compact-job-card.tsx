@@ -2,11 +2,12 @@ import Link from "next/link";
 
 import { CompanyLogo } from "@/components/company-logo";
 import { MatchBadge } from "@/components/match-badge";
+import { Badge } from "@/components/ui/badge";
 import { jobLogo } from "@/lib/job-logo";
 import { cn } from "@/lib/cn";
 
 import type { ApplicationStage } from "../auto-apply/actions";
-import { formatPosted } from "./format";
+import { formatPostedShort } from "./format";
 import { listingFacts } from "./listing-card";
 import type { JobListing } from "./listings";
 import { NotInterestedButton } from "./not-interested-button";
@@ -19,13 +20,14 @@ function stated(...facts: unknown[]): string[] {
 
 /**
  * One role as a compact card (KAN-519, after Simplify's list), in the rail
- * beside a job's page, the split view and /search's list: the title first, then
- * the company, where and how it works, then its pay, type and age, with Not
- * Interested and Save at the top right as bare glyphs and its match under them.
- * Rows are split by a hairline by their list, not boxed, and the open job is the
- * whole row tinted. A fact the posting does not state closes up, where the large
- * card keeps its empty slot. Long titles and places wrap rather than cut off
- * mid-word: the two buttons narrow the text, and a cut line said little.
+ * beside a job's page, the split view and /search's list. The title and the
+ * company sit beside Not Interested, Save and the match, and where it is, its
+ * pay, type and age run under them on the card's whole width: beside the buttons
+ * every line wrapped (2026-11-02). Each of those is one line, cut short with its
+ * whole text in a tooltip. Ink says what a student scans for (the company and the
+ * pay) and grey the rest. Rows are split by a hairline by their list, not boxed,
+ * and the open job is the whole row tinted. A fact the posting does not state
+ * closes up, where the large card keeps its empty slot.
  *
  * The score stays, since it is what a student scans the list for. Tailor, Auto
  * Apply, Ask Scout and Apply Now sit on the open job.
@@ -45,12 +47,15 @@ export function CompactJobCard({
   current?: boolean;
 }) {
   const facts = listingFacts(job);
+  const place = stated(facts.location, facts.workStyle).join(" · ");
+  const [pay] = stated(facts.salary);
+  const [type] = stated(facts.jobType);
 
   return (
     <article
       data-current={current || undefined}
       className={cn(
-        "hover:bg-hover relative grid grid-cols-[2.75rem_minmax(0,1fr)_auto] gap-3 px-4 py-4 transition-colors",
+        "hover:bg-hover relative grid grid-cols-[2.75rem_minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 px-4 py-4 transition-colors",
         current && "@4xl/main:bg-brand-tint",
       )}
     >
@@ -60,7 +65,7 @@ export function CompactJobCard({
         className="text-label rounded-control size-11"
       />
       <div className="min-w-0">
-        <h3 className="text-body text-ink line-clamp-3 font-medium">
+        <h3 className="text-body text-ink line-clamp-2 font-semibold">
           <Link
             href={`/jobs/${encodeURIComponent(job.id)}`}
             title={job.title}
@@ -70,19 +75,8 @@ export function CompactJobCard({
             {job.title}
           </Link>
         </h3>
-        <p className="text-note text-ink-muted mt-1 truncate">{job.company}</p>
-        <p className="text-note text-ink-muted mt-1 line-clamp-2">
-          {stated(facts.location, facts.workStyle).join(" · ")}
-        </p>
-        <p className="text-note text-ink-meta mt-1 line-clamp-2">
-          {stated(facts.salary, facts.jobType).join(" · ")}
-          {/* The clock moves between the server render and hydration. */}
-          {job.posted_at && (
-            <span suppressHydrationWarning>
-              {stated(facts.salary, facts.jobType).length > 0 && " · "}
-              {formatPosted(job.posted_at)}
-            </span>
-          )}
+        <p title={job.company} className="text-label text-ink mt-0.5 truncate">
+          {job.company}
         </p>
       </div>
       <div className="relative z-2 flex flex-col items-end gap-2">
@@ -91,6 +85,28 @@ export function CompactJobCard({
           <SaveJobButton jobId={job.id} title={job.title} stage={stage} quiet />
         </div>
         {job.match != null && <MatchBadge score={job.match} />}
+      </div>
+      {/* Under the logo and the buttons too, so these two lines take the card's
+          whole width, each on one line. */}
+      <div className="col-span-full min-w-0">
+        <p title={place} className="text-note text-ink-muted truncate">
+          {place}
+        </p>
+        <div className="text-note mt-1 flex items-center justify-between gap-3">
+          <p className="text-ink-muted min-w-0 truncate">
+            {pay && <span className="text-ink font-medium">{pay}</span>}
+            {pay && type && " · "}
+            {type}
+          </p>
+          {/* The clock moves between the server render and hydration. */}
+          {job.posted_at && (
+            <span className="flex shrink-0">
+              <Badge variant="status" tone="positive">
+                <span suppressHydrationWarning>{formatPostedShort(job.posted_at)}</span>
+              </Badge>
+            </span>
+          )}
+        </div>
       </div>
     </article>
   );

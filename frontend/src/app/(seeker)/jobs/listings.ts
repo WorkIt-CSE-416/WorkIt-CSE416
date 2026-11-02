@@ -409,7 +409,7 @@ export async function isApplicant(): Promise<boolean> {
 }
 
 /** The job ids the seeker has a tailored resume for, so each card's Tailor
- *  button can read "Your Tailored Resume" as the job's page does. Empty when
+ *  button can read "Tailored Resume" as the job's page does. Empty when
  *  it can't be read (signed out, the API down): every button then reads
  *  Tailor My Resume, and Tailor itself shows the real one. */
 export async function getTailoredJobIds(): Promise<string[]> {

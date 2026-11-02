@@ -226,3 +226,19 @@ export function formatMinYears(years: number) {
 export function formatPosted(uploadedAt: string) {
   return `${formatDistanceToNowStrict(new Date(uploadedAt))} ago`;
 }
+
+const SHORT_UNIT: Record<string, string> = {
+  second: "s",
+  minute: "m",
+  hour: "h",
+  day: "d",
+  month: "mo",
+  year: "y",
+};
+
+/** "20d ago", "2mo ago": for the compact card, where "2 months ago" cut the
+ *  pay short beside it. */
+export function formatPostedShort(uploadedAt: string) {
+  const [count, unit] = formatDistanceToNowStrict(new Date(uploadedAt)).split(" ");
+  return `${count}${SHORT_UNIT[unit.replace(/s$/, "")]} ago`;
+}

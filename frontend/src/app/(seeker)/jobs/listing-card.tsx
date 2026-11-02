@@ -70,7 +70,7 @@ import { jobLogo } from "@/lib/job-logo";
  * its description; Apply Now opens the page's own Apply dialog (./apply-button,
  * KAN-290). Tailor
  * My Resume is the page's own button (KAN-241): it opens Tailor for this
- * role, and reads "Your Tailored Resume" once the seeker has one for it.
+ * role, and reads "Tailored Resume" once the seeker has one for it.
  */
 export function ListingCard({
   job,
@@ -126,7 +126,7 @@ export function ListingCard({
             size="sm"
           >
             <TailorIcon className="size-4" />
-            {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
+            {tailored ? "Tailored Resume" : "Tailor My Resume"}
           </ButtonLink>
 
           {/* The job posting page's own dialog (KAN-290): which resume to

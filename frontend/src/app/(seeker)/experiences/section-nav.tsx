@@ -160,7 +160,7 @@ export function SectionNav({
         role="list"
         // A touch screen swipes the row, so it needs no bar; a mouse
         // needs one, with room under the links.
-        className="scrollbar-quiet flex gap-1 overflow-x-auto pb-1 pointer-coarse:[scrollbar-width:none] pointer-coarse:pb-0"
+        className="flex gap-1 overflow-x-auto pb-1 pointer-coarse:[scrollbar-width:none] pointer-coarse:pb-0"
         style={{ maskImage: fade(more) }}
       >
         {sections.map(({ id, label, count }) => {

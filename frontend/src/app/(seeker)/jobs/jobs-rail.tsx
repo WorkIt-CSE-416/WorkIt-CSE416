@@ -29,7 +29,7 @@ import {
   type Sort,
 } from "./filter-query";
 import { JobFilters } from "./filters";
-import { JobsHeading } from "./jobs-heading";
+import { JobsTopRow } from "./jobs-top-row";
 import { nextPage } from "./list-pages";
 import type { JobFacets, JobLocationOption } from "./listings";
 import { isFresh, readShownList, rememberList, subscribe, type ShownList } from "./shown-list";
@@ -103,7 +103,7 @@ export function JobsRailFrame({
         {split && filterOptions && (
           <FeedHeader
             flush
-            heading={<JobsHeading sort={sort} view="split" />}
+            top={<JobsTopRow view="split" />}
             className={cn("@4xl/main:shrink-0", !onList && "hidden @4xl/main:block")}
           >
             <JobFilters
@@ -119,7 +119,17 @@ export function JobsRailFrame({
             />
           </FeedHeader>
         )}
-        <PendingFeed className="flex min-h-0 flex-1 flex-col @4xl/main:flex-row">
+        {/* The split view from @4xl/main is one rounded panel, in the page's
+            gutters, after Simplify's: the list and the job share its edge, and
+            nothing but the panel divides the filters from them. It runs off the
+            foot of the window, open, so the two columns get every pixel. */}
+        <PendingFeed
+          className={cn(
+            "flex min-h-0 flex-1 flex-col @4xl/main:flex-row",
+            split &&
+              "@4xl/main:border-border @4xl/main:rounded-t-card @4xl/main:mx-8 @4xl/main:overflow-hidden @4xl/main:border @4xl/main:border-b-0 lg:@4xl/main:mx-12",
+          )}
+        >
           <JobsRail
             list={list}
             currentId={jobId ? decodeURIComponent(jobId) : undefined}
@@ -132,7 +142,7 @@ export function JobsRailFrame({
             data-job-scroller={split || undefined}
             className={cn(
               "flex min-w-0 flex-1 flex-col",
-              split && "@4xl/main:min-h-0 @4xl/main:overflow-y-auto",
+              split && "@4xl/main:min-h-0 @4xl/main:overflow-y-auto @4xl/main:overscroll-none",
             )}
           >
             {children}
@@ -259,13 +269,26 @@ function JobsRail({
     <aside
       aria-label="Jobs"
       className={cn(
-        "border-border-subtle shrink-0 flex-col @4xl/main:w-[clamp(20rem,30cqw,26rem)] @4xl/main:border-r",
-        split ? "@4xl/main:min-h-0" : "sticky top-0 h-[calc(100svh-4rem)] self-start",
+        "border-border-subtle shrink-0 flex-col @4xl/main:w-[clamp(20rem,27cqw,26rem)] @4xl/main:border-r",
+        // Beside a job with no panel, off the sidebar by SEEKER_GUTTER less the
+        // rows' own 16px, so the logos start on the page's line.
+        split
+          ? "@4xl/main:min-h-0"
+          : "sticky top-0 h-[calc(100svh-4rem)] self-start sm:@4xl/main:ml-4 lg:@4xl/main:ml-8",
         split && onList ? "flex" : "hidden @4xl/main:flex",
       )}
     >
-      <div className="px-4 pt-4 pb-3">
-        <h2 className="text-label text-ink">{showable ? listTitle(showable) : "Jobs"}</h2>
+      {/* In the panel, the job's action bar's height, so one rule runs across. */}
+      <div
+        className={cn(
+          "px-4 pt-4 pb-3",
+          split &&
+            "@4xl/main:border-border-subtle @4xl/main:flex @4xl/main:h-15 @4xl/main:shrink-0 @4xl/main:flex-col @4xl/main:justify-center @4xl/main:border-b @4xl/main:py-0",
+        )}
+      >
+        <h2 className="text-body text-ink font-semibold">
+          {showable ? listTitle(showable) : "Jobs"}
+        </h2>
         {showable && (
           <p className="text-meta text-ink-meta mt-0.5">
             {showable.jobs.length} {showable.jobs.length === 1 ? "role" : "roles"}
@@ -277,13 +300,22 @@ function JobsRail({
       <div
         ref={scroller}
         className={cn(
-          "relative min-h-0 flex-1 pb-4",
-          !split || !onList ? "overflow-y-auto overscroll-contain" : "@4xl/main:overflow-y-auto",
+          // No bar here: its 8px of room left the open job's tint short of the
+          // column's edge, and only a bar that takes room can be styled.
+          "relative min-h-0 flex-1 [scrollbar-width:none] pb-4",
+          !split || !onList
+            ? "overflow-y-auto overscroll-none"
+            : "@4xl/main:overflow-y-auto @4xl/main:overscroll-none",
         )}
       >
         {showable ? (
           <>
-            <ul className="divide-border-subtle border-border-subtle divide-y border-y">
+            <ul
+              className={cn(
+                !split && "divide-border-subtle border-border-subtle divide-y border-y",
+                split && "max-@4xl/main:divide-border-subtle max-@4xl/main:divide-y",
+              )}
+            >
               {showable.jobs.map((job) => (
                 <li key={job.id} data-open={job.id === openId || undefined}>
                   <CompactJobCard

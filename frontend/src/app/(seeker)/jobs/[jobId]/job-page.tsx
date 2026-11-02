@@ -11,6 +11,7 @@ import {
   JOB_PAGE_WIDTH,
   JobViewActions,
   JobViewBody,
+  JobCardActions,
   JobViewHeader,
   loadJobView,
 } from "./job-view";
@@ -49,7 +50,7 @@ export async function JobPage({ jobId, listed = false }: { jobId: string; listed
       <JobActionBar tabs={<JobTabs />}>
         <JobViewActions view={view} job={job} />
       </JobActionBar>
-      <JobViewHeader job={job} />
+      <JobViewHeader job={job} actions={<JobCardActions view={view} job={job} notInterested />} />
       <JobTabPanes
         overview={<JobViewBody view={view} job={job} />}
         company={<CompanyTab name={job.company} company={view.company} />}

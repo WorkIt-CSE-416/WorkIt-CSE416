@@ -9,8 +9,7 @@ import { BackToJobs } from "./page-actions";
 
 /**
  * The job posting page's top bar: Back on the left, the job's actions on the
- * right (Save, Ask Scout, Auto Apply, Tailor My Resume, Apply
- * Now), held at the top of the page from md while the description scrolls
+ * right (Already Applied?, Auto Apply, Tailor My Resume, Apply Now), held at the top of the page from md while the description scrolls
  * under it, so a seeker can apply or tailor from anywhere in a long posting
  * (2026-10-17). The actions used to sit under the title in the header card and
  * scrolled away with it.
@@ -25,8 +24,8 @@ import { BackToJobs } from "./page-actions";
  * (/applications/[jobId], KAN-256) draws this bar too, and goes back to
  * Applications.
  *
- * BELOW md IT SCROLLS AWAY. On a phone the six actions wrap to three rows
- * beside Back, about 150px held over a 812px screen; the Jobs page stopped
+ * BELOW md IT SCROLLS AWAY. On a phone the actions wrap to rows beside Back,
+ * a lot to hold over a 812px screen; the Jobs page stopped
  * holding its heading on a phone for the same reason.
  */
 export function JobActionBar({
@@ -74,6 +73,10 @@ export function JobActionBar({
         "after:bg-border-subtle after:absolute after:inset-x-0 after:bottom-0 after:h-px after:opacity-0 after:transition-opacity after:duration-200 data-stuck:after:opacity-100",
         SEEKER_BLEED,
         SEEKER_GUTTER,
+        // In the split view's panel: 60px, the list heading's height, with a
+        // rule that always shows, running across the pane. A narrow window
+        // wraps it taller.
+        "in-data-split:@4xl/main:-mx-5! in-data-split:@4xl/main:mb-5 in-data-split:@4xl/main:px-5! in-data-split:@4xl/main:pt-3 in-data-split:@4xl/main:after:opacity-100",
       )}
     >
       {/* The split view's list is Back's list, already on screen. */}
