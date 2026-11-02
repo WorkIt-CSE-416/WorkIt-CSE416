@@ -455,6 +455,11 @@ export function Editor({
   // print that edit's old text. Saves run one at a time in their own queue
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const saves = useRef<Promise<unknown>>(Promise.resolve());
+  // How many jobs the queue has been given, and which of those waiting are a
+  // page's settings: a page's compile goes only if no newer page is next
+  const jobs = useRef(0);
+  const pageJobs = useRef(new Set<number>());
+  const skippedPage = useRef(false);
   // Each typed bullet's saved wording, which the render could not know
   const wordings = useRef(new Map<string, { variant_id: string | null; text: string }>());
   // The moves on their way, shown on the page at once (./pdf-pages.tsx)
@@ -593,6 +598,7 @@ export function Editor({
 
   /** Runs a request after every request before it has answered. */
   const enqueue = useCallback(<T,>(job: () => Promise<T>): Promise<T> => {
+    jobs.current += 1;
     const run = queue.current.then(job);
     queue.current = run.catch(() => undefined);
     return run;
@@ -864,13 +870,25 @@ export function Editor({
       if (step) step.undo = { page: pageNow.current };
       keepPage(settings);
       sendPage(settings);
+      const job = jobs.current + 1;
+      pageJobs.current.add(job);
       return enqueue(async () => {
+        pageJobs.current.delete(job);
+        // Each click on a size or a font is a compile, one at a time, and
+        // the next page replaces this one whole, so five quick clicks compile
+        // the first and the last. A skipped step keeps no PDF, and neither
+        // does the step's before after it: Undo renders those
+        if (pageJobs.current.has(job + 1)) {
+          skippedPage.current = true;
+          return;
+        }
         const current = begin();
         started.current = performance.now();
         if (step) {
           step.before = settled();
-          step.pdfBefore = lastPdf.current;
+          step.pdfBefore = skippedPage.current ? null : lastPdf.current;
         }
+        skippedPage.current = false;
         const { data, error } = await renderEdit(resumeId, { page: settings }, copy());
         if (data) {
           lastPdf.current = data.render;

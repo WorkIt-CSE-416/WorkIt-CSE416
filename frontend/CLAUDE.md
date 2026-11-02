@@ -1740,7 +1740,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   draws a reworded line's old words over the page (`wordsBack`) and puts the
   card back if the render refuses, and Suggestions' Undo buttons stay on while
   `saving`, or each Undo locked the rest for a compile, which takes seconds
-  on the deployed API (`docs/live_page.md`). **A rename in the title is a step too**
+  on the deployed API (`docs/live_page.md`). **A page setting never queues a
+  compile a newer one replaced** (`applyPage`, `pageJobs`), or a few clicks on
+  a size stacked a compile each; a skipped step undoes through a render. **A rename in the title is a step too**
   (KAN-443, `TitleHistoryContext` in `resume-title.tsx`, provided by the
   editor round its title row): it shows at once, saves behind it, and a
   failed save puts the name before it back and drops the step. Its step
