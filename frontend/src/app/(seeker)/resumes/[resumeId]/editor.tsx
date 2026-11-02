@@ -20,6 +20,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentType,
   type ReactNode,
 } from "react";
 
@@ -317,7 +318,7 @@ export function Editor({
    *  editor's state (./tailor-review.tsx). Only Tailor's page passes it, so
    *  only there are changes tinted: a mark with no card to act on would
    *  mean nothing. */
-  suggestions?: (api: SuggestionsApi) => ReactNode;
+  suggestions?: ComponentType<SuggestionsApi>;
   /** The title row's title (`ResumeTitle`, renamed in place), over the
    *  page and the column beside it; on Tailor's review the Suggestions or
    *  Original switch sits at its right (`SideSwitch`). */
@@ -331,6 +332,19 @@ export function Editor({
 }) {
   // Null until the first render lands (FirstRenderPane hands it over).
   const [rendered, setRendered] = useState<RenderedPdf | null>(null);
+  // What the next request's copy is built from (KAN-391): the bank and
+  // choices as the newest answer left them, with the changes on their way
+  // merged in, and the header the newest PDF printed. A ref, so a request
+  // that waited for the one before reads what that one left, before React
+  // has drawn it.
+  const held = useRef<Held>({
+    bank: initialBank,
+    choices: initialChoices,
+    printed: null,
+  });
+  // The newest PDF any render answered, which a step keeps for an instant
+  // Undo; newer than `rendered` while a newer request owns the page
+  const lastPdf = useRef<RenderedPdf | null>(null);
   const adopt = useCallback((first: RenderedPdf) => {
     held.current.printed ??= printedBy(first);
     lastPdf.current ??= first;
@@ -353,16 +367,6 @@ export function Editor({
     headerNow.current = header;
   });
   const [choices, setChoices] = useState(initialChoices);
-  // What the next request's copy is built from (KAN-391): the bank and
-  // choices as the newest answer left them, with the changes on their way
-  // merged in, and the header the newest PDF printed. A ref, so a request
-  // that waited for the one before reads what that one left, before React
-  // has drawn it.
-  const held = useRef<Held>({
-    bank: initialBank,
-    choices: initialChoices,
-    printed: null,
-  });
   // Undo and Redo (./history.ts): the steps, kept in this tab's memory
   const undos = useRef<Step<Held, RenderedPdf>[]>([]);
   const redos = useRef<Step<Held, RenderedPdf>[]>([]);
@@ -371,9 +375,6 @@ export function Editor({
     () => setSteps({ undo: undos.current.length, redo: redos.current.length }),
     [],
   );
-  // The newest PDF any render answered, which a step keeps for an instant
-  // Undo; newer than `rendered` while a newer request owns the page
-  const lastPdf = useRef<RenderedPdf | null>(null);
   // The choices as the API last answered them, and the changes sent since
   const confirmed = useRef(initialChoices);
   const unanswered = useRef(new Map<string, ChoicesUpdate>());
@@ -1401,29 +1402,31 @@ export function Editor({
     setActive(card);
     setSuggestionsOpen(true);
   };
-  const panel =
-    reviewing &&
-    suggestions?.({
-      record: reviewing,
-      pageOrder,
-      bank,
-      choices,
-      saving,
+  const Suggestions = suggestions;
+  const panel = reviewing && Suggestions && (
+    <Suggestions
+      record={reviewing}
+      pageOrder={pageOrder}
+      bank={bank}
+      choices={choices}
+      saving={saving}
       // Accept keeps the saved change and drops it from the record
-      accept: (edit) =>
-        setReview({ ...reviewing, edits: reviewing.edits.filter((e) => e !== edit) }),
-      reject: (edit) => void apply(revertOf({ edit }, choices), { edit }),
-      acceptAll: () => setReview({ ...reviewing, edits: [] }),
-      rejectAll: () => void apply(revertAll(reviewing.edits, choices)),
-      focused,
-      focus: setFocused,
-      show: (key) => {
+      accept={(edit) =>
+        setReview({ ...reviewing, edits: reviewing.edits.filter((e) => e !== edit) })
+      }
+      reject={(edit) => void apply(revertOf({ edit }, choices), { edit })}
+      acceptAll={() => setReview({ ...reviewing, edits: [] })}
+      rejectAll={() => void apply(revertAll(reviewing.edits, choices))}
+      focused={focused}
+      focus={setFocused}
+      show={(key) => {
         setActive(key);
         setSuggestionsOpen(false);
-      },
-      active,
-      open: setActive,
-    });
+      }}
+      active={active}
+      open={setActive}
+    />
+  );
   // Beside the page, the toolbar's Suggestions shows and hides the panel;
   // the phone opens it as a sheet from its own button
   const shownPanel = side === "suggestions" && panel;
