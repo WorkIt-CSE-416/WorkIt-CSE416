@@ -63,6 +63,9 @@ ENGINE = ENGINE_DIR / "dist" / "engine.js"
 
 # Calls the engine in the page through its dispatcher: {value}, or {error: {name, message}}.
 CALL = "({name, args}) => FillEngine.call(name, args)"
+# The engine's how-heard question (its rules.ts HOW_HEARD), whose Workday plan is a try-list.
+HOW_HEARD = re.compile(r"how did you (first )?(hear|learn|connect|find)|where did you (hear|learn|find out)"
+                       r"|how did you find out|how did you come across|how you (heard|learned|found)")
 NAVIGATED = re.compile(r"context was destroyed|navigat|FillEngine is not defined", re.IGNORECASE)
 CALLS = 5  # times a call is made, each cut short by a navigation, before its error stands
 
@@ -215,9 +218,15 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         # A Workday prompt whose choices were never read (How Did You Hear About Us?) is answered with a try-list,
         # "careers site|linkedin|other": the fill searches each in turn and takes the first found, so the page
         # shows one of them, and that one shows the answer.
-        for name, answer in answers.items():
-            if isinstance(answer, str) and "|" in answer:
-                accepted[name] = (*accepted.get(name, ()), *answer.split("|"))
+        # Only that plan is a try-list: another answer with a "|" (the Answer bank's, say) must show whole.
+        # So is a "Details" list right after it, which the engine answers the same way.
+        listed = list(questions)
+        for before, question in zip([None, *listed], listed, strict=False):
+            source = HOW_HEARD.search(question.label.lower()) or (
+                question.label.strip().lower() == "details" and before and HOW_HEARD.search(before.label.lower()))
+            answer = answers.get(question.name)
+            if isinstance(answer, str) and "|" in answer and source:
+                accepted[question.name] = (*accepted.get(question.name, ()), *answer.split("|"))
     return Plan(
         answers=answers,
         essays=result["essays"], missing=result["missing"], not_eligible=result["not_eligible"],

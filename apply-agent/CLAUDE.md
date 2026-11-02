@@ -52,7 +52,9 @@ Apply adds three rules to the engine's plan (`fill_engine.plan` and
 - A secret question (a password) is never sent to Claude to draft. It
   stays blank for the Filler.
 - A Workday try-list answer (`a|b|c`) accepts each of its wordings in the
-  read-back, because the fill takes the first one that it finds.
+  read-back, because the fill takes the first one that it finds. Only the
+  How did you hear question (and a "Details" list right after it) gets a
+  try-list; another answer with a `|` must show whole.
 - A form that Claude fill reads is planned with the company and role that
   its page names, when the link names none.
 
