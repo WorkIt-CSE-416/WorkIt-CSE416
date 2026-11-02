@@ -32,6 +32,8 @@ from apply.tracker import InMemoryTracker, Row
 LUNAR_FORM = FORMS / "bamboohr-lunaroutpost"
 LUNAR_URL = "https://lunaroutpost.bamboohr.com/careers/398"
 ESSAY = "Tell us why you are interested in working at Lunar Outpost!"
+# Long enough for its length check (at least 60% of the 70 words a short essay is asked for).
+WHY_LUNAR = " ".join(["I build lunar rover software.", *FakeClaude.MORE])
 YES_NO = ["Yes", "No"]
 
 # What Haiku reads off the saved form once "Apply for This Job" is clicked: every
@@ -179,14 +181,14 @@ def test_a_match_on_a_job_system_without_a_filler_is_filled_by_claude_and_submit
 
 def test_a_request_on_a_job_system_without_a_filler_is_filled_and_held_for_its_essay(tmp_path):
     profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items()})
-    claude = FakeClaude(driver=BambooDriver(), essays={"Tell us why": "I build lunar rover software."})
+    claude = FakeClaude(driver=BambooDriver(), essays={"Tell us why": WHY_LUNAR})
 
     with FakeBambooServer(LUNAR_FORM) as server:
         [row] = run(server, profile, requests=[LUNAR_URL], claude=claude)
 
     assert row.status == "held"
     assert f"High-stakes essay: '{ESSAY}'" in row.reason
-    assert row.essay == f"## {ESSAY}\nI build lunar rover software."
+    assert row.essay.startswith(f"## {ESSAY}\n") and WHY_LUNAR in row.essay
     assert server.submissions == []
     assert row.record  # what was filled is kept, for Lisul to check
 

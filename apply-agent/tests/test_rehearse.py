@@ -44,6 +44,7 @@ from test_claude_fill import (
     ESSAY,
     LUNAR_FORM,
     LUNAR_URL,
+    WHY_LUNAR,
     BambooDriver,
     JobviteDriver,
     PaylocityDriver,
@@ -160,7 +161,7 @@ def test_holds_do_not_stop_a_rehearsal_and_claude_fill_never_clicks_submit(monke
     profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items() if q != "Date Available"},
                            **{"logistics.earliest_start_date": None})
     (tmp_path / "policies.yaml").write_text("calibration_run: 10\n")  # a run would hold its first 10
-    claude = FakeClaude(driver=BambooDriver(), essays={"Tell us why": "I build lunar rover software."},
+    claude = FakeClaude(driver=BambooDriver(), essays={"Tell us why": WHY_LUNAR},
                         drive_tokens=[18_000, 31_500], ask_tokens=1_000)
 
     with FakeBambooServer(LUNAR_FORM) as server:
@@ -172,7 +173,8 @@ def test_holds_do_not_stop_a_rehearsal_and_claude_fill_never_clicks_submit(monke
     assert f"High-stakes essay: '{ESSAY}'" in done.why
     assert "Calibration run: Application 1 of 10" in done.why
     assert done.missing == ("Date Available",)
-    assert done.tokens == 18_000 + 31_500 + 3 * 1_000  # two drives, the essay, its editor's pass and the Pre-submit review
+    # Two drives, then 1,000 for each other call: the essay's probe, plan, draft, checks and editor's passes, and the review.
+    assert done.tokens == 18_000 + 31_500 + 1_000 * (len(claude.calls) - 2)
     assert "Claude fill:" not in done.why  # its cost is in the tokens, not among the holds
     assert server.submissions == []
 

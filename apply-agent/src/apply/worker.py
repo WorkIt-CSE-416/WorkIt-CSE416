@@ -183,6 +183,10 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
             raise
         # No API for it: what the Filler read off the open posting page (Claude fill), else the plain fetch.
         planned.text = read or getattr(filler, "posting_text", "") or fetched
+        # A Request on a job system with no Filler: its link named no company, but its open page did
+        # (Claude fill). Planned with that name, "why <company>?" is the High-stakes essay it is.
+        company, title = getattr(filler, "names", None) or ("", "")
+        planned.posting = posting = replace(posting, company=posting.company or company, title=posting.title or title)
         # A rehearsal shows its form while Claude writes its answers; a run opens it only once they're written.
         if not rehearse and (stop := planned.add(questions)):
             return stop
