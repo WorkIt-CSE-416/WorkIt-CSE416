@@ -323,11 +323,14 @@ enum (`uploadState`, `state`) rather than v1.1's `status` array. Two jobs:
   one-line, by-hand part of the PR**, on purpose — not something this
   workflow writes and commits itself, which would need write-back
   permissions and risks a loop for little gained.
-- **`publish`**, on push to `main` (or by hand): runs `store/build.mjs`
-  (the same Store package `extension-store-build` already builds and
-  checks in CI, above — never a second, ad-hoc zip step here) and pushes
-  the result through the Chrome Web Store API, then submits it for
-  review.
+- **`publish`**, on push to `main` (or by hand — **main only**: a push
+  trigger is already branch-filtered, but `workflow_dispatch` has no such
+  filter on GitHub's side, so the job itself checks `github.ref ==
+  'refs/heads/main'` or a dispatch from any other branch would submit
+  unreviewed code for real Store review). Runs `store/build.mjs` (the
+  same Store package `extension-store-build` already builds and checks
+  in CI, above — never a second, ad-hoc zip step here) and pushes the
+  result through the Chrome Web Store API, then submits it for review.
 
 **This does not make an update live by itself.** The extension asks for
 sensitive permissions (`cookies`, several hosts), so Google reviews every
@@ -345,8 +348,15 @@ not a re-run.
   assigns the unpacked dev build, `cpklhdkoafegnndlafmiceehfloodjgi`) and
   **`CHROME_PUBLISHER_ID`** (Publisher > Settings in the Developer
   Dashboard — a different value from the item id, and new with the v2
-  endpoints above; v1.1 never needed it).
-  **All five must be Actions *secrets*, never Actions *variables*:**
+  endpoints above; v1.1 never needed it) and **`FILL_ENGINE_TOKEN`** (a
+  PAT with read access to the private `WorkIt-CSE-416/fill-engine` repo
+  — the same secret `ci.yml`'s `extension-store-build` job uses; without
+  it `publish`'s checkout can't read the submodule at all, since the
+  default `GITHUB_TOKEN` has no cross-repo access, and the job fails at
+  checkout rather than silently skipping, unlike CI's own gentler
+  `engine-token.yml` skip-when-unset pattern — a real publish with no
+  engine isn't something to skip quietly).
+  **All six must be Actions *secrets*, never Actions *variables*:**
   a repo variable's value is plaintext, readable by anyone with
   Settings access and unmasked in logs — found live on 2026-10-31, all
   three sensitive values set as variables instead (the fourth, the

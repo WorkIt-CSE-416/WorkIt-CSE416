@@ -19,13 +19,18 @@ name: Publish extension to Chrome Web Store
 #   only -- the two are deliberately separate numbers). A version bump is
 #   a deliberate one-line change in the same PR as the rest, not something
 #   this workflow writes itself.
-# - publish (push to main, or by hand): builds the Store package
-#   (store/build.mjs) and pushes it to the Store via its API, then
-#   submits it for review. This does NOT make the update live by itself —
-#   the extension asks for sensitive permissions (cookies, several hosts),
-#   so Google's manual review still gates when (or whether) it actually
-#   reaches users, same as a first submission. A failed review needs a
-#   human in the Developer Dashboard, not a retry here.
+# - publish (push to main, or by hand -- **main only**, even by hand: a
+#   workflow_dispatch from any other branch would otherwise submit
+#   unreviewed code for real Store review): builds the Store package
+#   (store/build.mjs, which needs the private fill-engine submodule --
+#   FILL_ENGINE_TOKEN, same secret ci.yml's extension-store-build job
+#   uses, since the default GITHUB_TOKEN can't read it) and pushes it to
+#   the Store via its API, then submits it for review. This does NOT
+#   make the update live by itself — the extension asks for sensitive
+#   permissions (cookies, several hosts), so Google's manual review
+#   still gates when (or whether) it actually reaches users, same as a
+#   first submission. A failed review needs a human in the Developer
+#   Dashboard, not a retry here.
 on:
   pull_request:
     branches: [main]
@@ -65,12 +70,18 @@ jobs:
           fi
 
   publish:
-    if: github.event_name != 'pull_request'
+    # push is already restricted to main (this file's own `on.push.branches`); workflow_dispatch has
+    # no such filter on GitHub's side, so without this a dispatch from any branch would submit
+    # unreviewed code to the Store for real review. check-version-bump (pull_request) never gets here.
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
+      # fill-engine is private: the default GITHUB_TOKEN can't read it, so this checkout's submodule
+      # step fails without FILL_ENGINE_TOKEN (same secret ci.yml's extension-store-build job uses).
       - uses: actions/checkout@v4
         with:
           submodules: true
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
