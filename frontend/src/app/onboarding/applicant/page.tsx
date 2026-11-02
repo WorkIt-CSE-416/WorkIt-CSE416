@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { getSavedFilters } from "@/app/(seeker)/jobs/listings";
 import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
+import { claudeConnectorLink } from "@/lib/claude-connector";
 import { getProfile } from "@/lib/profile-actions";
 import { getCurrentAccount, getSessionUser } from "@/lib/session";
 
@@ -80,6 +81,7 @@ export default async function ApplicantOnboardingPage({
           : undefined
       }
       email={user.email}
+      claudeLink={claudeConnectorLink()}
       startStep={startStep(params.step, saved != null, account?.onboarding_completed === true)}
     />
   );

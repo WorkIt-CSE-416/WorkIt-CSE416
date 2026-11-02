@@ -107,7 +107,8 @@ export function ExtensionStep({ state }: { state: ExtensionState | null }) {
   );
 }
 
-function Line({
+/** One numbered line of a setup step, its check turned on once `done` (also ./claude-step). */
+export function Line({
   n,
   title,
   done,
