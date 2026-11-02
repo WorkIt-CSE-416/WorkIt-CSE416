@@ -32,17 +32,18 @@ import {
 import { savePreferences } from "./actions";
 import { AvailabilityStep } from "./availability-step";
 import { ChoiceTile } from "./choice-tile";
+import { ClaudeStep, useClaudeConnected } from "./claude-step";
 import { LinkFields, LINKS, LocationField, NO_CONTACT, type Contact } from "./contact-fields";
 import { ExtensionStep, useExtensionState } from "./extension-step";
 import { nextPracticeTab, practiceDone, PracticeStep, usePracticeStatus } from "./practice-step";
 import { ResumeStep } from "./resume-step";
 import { Field, fieldId, RoleStep } from "./role-step";
 import { SignedInAs } from "./signed-in-as";
-import { ONBOARDING_STEPS } from "./steps";
+import { ONBOARDING_STEPS, railStep, WIZARD_PAGES } from "./steps";
 import { StoryPanel } from "./story-panel";
 
 /**
- * The applicant onboarding wizard (KAN-231): six short steps, each one's
+ * The applicant onboarding wizard (KAN-231): seven short pages, each one's
  * question on the left (./story-panel) and the fields answering it on the
  * right, under the step rail (./steps.ts). Each new question takes focus, so
  * a screen reader hears it.
@@ -89,16 +90,23 @@ import { StoryPanel } from "./story-panel";
  * step's picks and goes on. The rest of the Application answers live on My
  * Profile.
  *
- * STEPS 5 AND 6 ARE THE EXTENSION (KAN-378). Step 4 asks the seeker to add
+ * PAGES 5 AND 7 ARE THE EXTENSION (KAN-378). Page 5 asks the seeker to add
  * the WorkIt extension and pin it (./extension-step), and turns each line
- * done as the page sees it, asking the extension every 1.5 seconds. Step 5
+ * done as the page sees it, asking the extension every 1.5 seconds. Page 7
  * runs a practice batch on WorkIt's own practice forms (lib/practice-form,
  * ./practice-step): the extension fills them into the Ready and Needs you
  * tab groups and the seeker submits each one, which sends nothing. Once
  * both are submitted it says the seeker is ready, and Find Jobs opens the
- * Jobs page in its Best Match order. A first real batch then fills the
- * factual fields only: a batch tab leaves written answers to the seeker
- * until Claude is added.
+ * Jobs page in its Best Match order.
+ *
+ * BETWEEN THEM, THE OPTIONAL ADD CLAUDE PAGE (KAN-507, ./claude-step): the
+ * install link opens Claude's Add Custom Connector dialog filled in for
+ * WorkIt, and the line turns done once the seeker's Claude signs in, asking
+ * WorkIt every 3 seconds. Skip goes on to the practice batch. Without
+ * Claude, a batch fills the factual fields only and leaves written answers
+ * to the seeker. It comes before the practice batch, whose Lumen form asks
+ * a written question, so the seeker meets that question knowing who writes
+ * such answers; on the rail it sits under Practice (./steps.ts).
  *
  * `initial`, `initialAnswers` and `initialContact` are what the seeker saved, so a finished
  * seeker who comes back edits them rather than starting over.
@@ -151,6 +159,14 @@ const STEPS: { question: ReactNode; line: string }[] = [
   {
     question: (
       <>
+        Then, let <strong>your Claude write your answers</strong>, if you want.
+      </>
+    ),
+    line: "Optional. WorkIt never runs a model: your own Claude writes them.",
+  },
+  {
+    question: (
+      <>
         Last, try a <strong>practice batch</strong> before a real one.
       </>
     ),
@@ -158,13 +174,14 @@ const STEPS: { question: ReactNode; line: string }[] = [
   },
 ];
 
-/** The steps by name, in ONBOARDING_STEPS' order. */
-const ROLE = 0;
-const RESUME = 1;
-const PROFILE = 2;
-const AVAILABILITY = 3;
-const EXTENSION = 4;
-const PRACTICE = 5;
+/** The wizard's pages by name (./steps.ts WIZARD_PAGES). */
+const ROLE = WIZARD_PAGES.indexOf("Role");
+const RESUME = WIZARD_PAGES.indexOf("Resume");
+const PROFILE = WIZARD_PAGES.indexOf("Profile");
+const AVAILABILITY = WIZARD_PAGES.indexOf("Availability");
+const EXTENSION = WIZARD_PAGES.indexOf("Extension");
+const CLAUDE = WIZARD_PAGES.indexOf("Claude");
+const PRACTICE = WIZARD_PAGES.indexOf("Practice");
 
 export function OnboardingForm({
   roles,
@@ -174,6 +191,7 @@ export function OnboardingForm({
   initialAnswers = NO_ANSWERS,
   initialContact = NO_CONTACT,
   email,
+  claudeLink,
   startStep = 0,
 }: {
   roles: PickOption[];
@@ -187,6 +205,8 @@ export function OnboardingForm({
   initialContact?: Contact;
   /** Who is signed in, for the line at the foot (./signed-in-as). */
   email: string | null;
+  /** The connector's install link (lib/claude-connector.ts), read on the server, for the Add Claude page. */
+  claudeLink: string;
   /** The step to open on: Profile for ?step=2 (./page). */
   startStep?: number;
 }) {
@@ -223,6 +243,7 @@ export function OnboardingForm({
   const [error, setError] = useState<string | null>(null);
 
   const extension = useExtensionState(step === EXTENSION);
+  const claude = useClaudeConnected(step === CLAUDE);
   const practice = usePracticeStatus(step === PRACTICE);
   const done = practiceDone(practice);
   const practiceTab = nextPracticeTab(practice);
@@ -238,7 +259,9 @@ export function OnboardingForm({
         ? resume != null || savedResume != null
         : step === EXTENSION
           ? extension?.installed === true
-          : true;
+          : step === CLAUDE
+            ? claude === true
+            : true;
 
   // EACH NEW QUESTION TAKES FOCUS, so a screen reader reads it out. Focus used
   // to stay on the footer's button, which only changed its label, and the new
@@ -462,8 +485,8 @@ export function OnboardingForm({
           <Stepper
             size="lg"
             steps={ONBOARDING_STEPS}
-            // Availability is Profile's second page on the rail (./steps.ts).
-            current={step > PROFILE ? step - 1 : step}
+            // Availability sits under Profile, Add Claude under Practice (./steps.ts).
+            current={railStep(step)}
           />
         </div>
 
@@ -491,6 +514,7 @@ export function OnboardingForm({
             />
           )}
           {step === EXTENSION && <ExtensionStep state={extension} />}
+          {step === CLAUDE && <ClaudeStep added={claude} link={claudeLink} />}
           {step === PRACTICE && <PracticeStep states={practice} />}
           {step === PROFILE && (
             <ProfileStep
@@ -541,6 +565,11 @@ export function OnboardingForm({
                     goTo(EXTENSION);
                   }}
                 >
+                  Skip
+                </Button>
+              )}
+              {step === CLAUDE && (
+                <Button variant="outline" size="lg" onClick={() => goTo(PRACTICE)}>
                   Skip
                 </Button>
               )}

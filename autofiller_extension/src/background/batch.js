@@ -623,6 +623,12 @@ export async function batchTabIds() {
   return Object.keys((await load())?.tabs ?? {}).map(Number);
 }
 
+/** Whether a tab is a practice batch's (KAN-378): its written questions stay the student's (KAN-507). */
+export async function inPractice(tabId) {
+  const batch = await load();
+  return Boolean(batch?.practice && batch.tabs[tabId]);
+}
+
 /** Whether a tab is one of the batch's, for a fill injected again (Workday's next page). */
 export async function inBatch(tabId) {
   return Boolean((await load())?.tabs[tabId]);

@@ -1390,12 +1390,21 @@ fill and groups as a real one, and `practice/status` says where each is.
   `host_permissions`) and `submitPractice` marks the job submitted and
   takes its tab out of the batch and its group. Real submit detection is
   KAN-374's.
+- **A practice form's written question stays the student's** (KAN-507). A
+  practice job has no application at WorkIt, so no Claude can write it:
+  `batch/questions` on a practice tab (`inPractice`) answers
+  `{ practice: true, claude }` from the connector check instead of asking
+  the API, and the row says either that their Claude writes such answers
+  on a real application or to go back to onboarding's Add Claude page,
+  which comes right before Practice.
 - **`ping` also answers `pinned`** (`chrome.action.getUserSettings().isOnToolbar`,
   null where Chrome can't say), for onboarding's install step.
 - **Tests** (`test/practice.extension.spec.ts`): the loaded extension fills
   both practice forms, served from the webapp's own module, into Ready and
   Needs you; the student's Submit on each reaches `/thanks` with no data,
-  and nothing reaches any host but WorkIt's site and API.
+  and nothing reaches any host but WorkIt's site and API. Lumen's row says
+  how to add Claude, or, with the connector added, that Claude writes such
+  answers on real applications.
 
 ## Install, update and uninstall (KAN-471, KAN-495)
 
