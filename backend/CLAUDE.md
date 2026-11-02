@@ -756,7 +756,9 @@ Find files with a directory listing; these are the rules for where code goes.
   Projects, Experience), with Skills, Awards and Certifications, and
   Education on schedules opened by the share of those entries cut, and at
   the last the floors (one skill line, one job, one school) too, so it
-  always reaches one page. A tailored resume is cut by its posting's rank
+  always reaches one page. A cut never leaves an entry with no bullets:
+  the cut of an entry's last bullet takes the entry (the last school
+  keeps its bullet instead). A tailored resume is cut by its posting's rank
   (`fit_scores`: `tailor.rank_shown` on the wording the resume shows, and
   skill levels by whole word); any other by position. Each cut is checked
   against the last render by subtraction (`Page.fits`), and a render

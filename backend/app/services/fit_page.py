@@ -401,11 +401,24 @@ def plan(view: ResumeView, scores: Scores | None, page: Page) -> list[Step]:
             steps.append(tuple(cuts))
             gone.update(c.id for c in cuts)
 
+    # Fit never leaves an entry it emptied: the cut that would take an
+    # entry's last bullet takes the whole entry instead, or, where a floor
+    # keeps the entry, leaves that bullet. An entry that had no bullets to
+    # start with is not emptied by Fit and stays.
+    owner = {b.id: e for s in view.sections for e in s.entries for b in e.bullets}
+
+    def take_bullet(bullet_id: uuid.UUID, kept: bool = False) -> None:
+        entry = owner[bullet_id]
+        if any(b.id not in gone and b.id != bullet_id for b in entry.bullets):
+            take(Cut("bullet", bullet_id))
+        elif not kept:
+            take(Cut("entry", entry.id))
+
     # Stages 1 and 2: bullets down to two per entry, then to one
     for cap in (2, 1):
         for section in BULLET_ORDER:
             for bullet_id in _bullets_over(by_section.get(section, ()), cap, gone, scores):
-                take(Cut("bullet", bullet_id))
+                take_bullet(bullet_id)
 
     rows = [(i, list(skills)) for i, (_, skills) in enumerate(page.rows())]
     schools = list(by_section.get("education", ()))
@@ -448,8 +461,10 @@ def plan(view: ResumeView, scores: Scores | None, page: Page) -> list[Step]:
         elif event == "education_wrapped":
             for entry in reversed(schools):
                 for bullet in reversed(entry.bullets):
-                    if page.wrapped(bullet.id):
-                        take(Cut("bullet", bullet.id))
+                    if entry.id not in gone and page.wrapped(bullet.id):
+                        # The last school keeps its last bullet: Education keeps one entry
+                        last = all(e.id in gone for e in schools if e.id != entry.id)
+                        take_bullet(bullet.id, kept=last)
         elif event == "skill_line":
             if sum(1 for _, skills in rows if skills) > 1:
                 skill_line()
@@ -466,6 +481,8 @@ def plan(view: ResumeView, scores: Scores | None, page: Page) -> list[Step]:
         if section == "experience":
             order = order[:-1]
         for entry in order:
+            if entry.id in gone:
+                continue
             take(Cut("entry", entry.id))
             cut_count += 1
             while pending and cut_count / len(counted) >= pending[0][0]:

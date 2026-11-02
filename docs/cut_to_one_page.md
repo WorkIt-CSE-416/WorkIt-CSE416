@@ -286,6 +286,8 @@ wrapped bullets.
   and 2.
 - **Delete wrapped bullets in Education.** An Education bullet that runs
   onto two or more lines is deleted whole. A one-line bullet stays.
+  Deleting a school's last bullet deletes the school (below), except on
+  the last school left, which keeps that bullet.
 - **Delete a skill line**: the line with the lowest total level, or the
   bottom line with no posting. After 75%, one more line each 10%.
 - **Delete an Education entry**: the lowest-scored school, or the bottom
@@ -304,6 +306,17 @@ fits. A schedule never waits on an entry that cannot go.
 Education's bullets are not cut in stages 1 and 2; Education is not in
 the section order. They go only by its schedule: wrapped ones at 10%,
 the rest with their school.
+
+## No entry is left empty
+
+Fit never leaves an entry it emptied of bullets. The cut that would take
+an entry's last bullet takes the whole entry instead, in any section.
+Where a floor keeps the entry (the last school), that bullet stays
+instead. In the stages above only Education's wrapped bullets can empty
+an entry, since stages 1 and 2 keep one bullet an entry, but the rule
+holds for every section (`take_bullet` in `plan`). An entry with no
+bullets to start with (most schools, awards and certifications) was not
+emptied by Fit and stays.
 
 ## Floors
 

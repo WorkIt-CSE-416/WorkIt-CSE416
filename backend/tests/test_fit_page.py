@@ -158,6 +158,19 @@ def test_a_small_resume_still_cuts_to_the_header():
     assert apply_cuts(view, [Cut("entry", i) for i in everything]) == ResumeView()
 
 
+def test_a_cut_never_leaves_an_entry_with_no_bullets():
+    view, names = _view(education=[1, 2], experience=[1] * 10)
+    ids = {v: k for k, v in names.items()}
+    wrapped = {ids["education0.b0"], ids["education1.b0"], ids["education1.b1"]}
+    order = _names(plan(view, None, _Layout(view, wrapped_bullets=wrapped)), names)
+    # At 10%, the bottom school's wrapped bullets go; its last takes the
+    # school with it. The last school left keeps its last bullet (Education
+    # keeps one entry) until the school itself goes at the very end.
+    assert order[1:3] == ["bullet:education1.b1", "entry:education1"]
+    assert "bullet:education1.b0" not in order and "bullet:education0.b0" not in order
+    assert order[-1] == "entry:education0"
+
+
 def test_education_bullets_go_only_by_its_schedule():
     view, names = _view(education=[4], experience=[4])
     order = _names(plan(view, None, _Layout(view)), names)
