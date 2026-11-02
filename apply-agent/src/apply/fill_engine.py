@@ -58,7 +58,7 @@ from apply.profile import ApplicantProfile
 
 # The Fill engine's checkout: the extension's submodule, so one engine pin serves both.
 ENGINE_DIR = Path(os.environ.get("APPLY_FILL_ENGINE")
-                  or Path(__file__).resolve().parents[3] / "autofiller_extension" / "fill-engine")
+                  or Path(__file__).resolve().parents[3] / "autofiller_extension" / "fill-engine").expanduser()
 ENGINE = ENGINE_DIR / "dist" / "engine.js"
 
 # Calls the engine in the page through its dispatcher: {value}, or {error: {name, message}}.

@@ -150,3 +150,7 @@ def test_apply_loads_the_extensions_engine_from_the_workit_checkout():
 
 def test_apply_fill_engine_points_apply_at_another_engine_checkout(tmp_path):
     assert engine_bundle(APPLY_FILL_ENGINE=str(tmp_path)) == str(tmp_path / "dist" / "engine.js")
+
+
+def test_apply_fill_engine_may_start_at_the_home_folder(tmp_path):
+    assert engine_bundle(APPLY_FILL_ENGINE="~/fill-engine", HOME=str(tmp_path)) == str(tmp_path / "fill-engine" / "dist" / "engine.js")

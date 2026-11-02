@@ -39,7 +39,7 @@ Apply loads the engine bundle from the extension's submodule:
 `autofiller_extension/fill-engine/dist/engine.js`. Apply has no submodule
 of its own, so one engine pin serves both. To use another engine checkout
 (for example, a branch of the engine that you work on), set
-`APPLY_FILL_ENGINE` to its folder. Apply then loads `dist/engine.js` from that
+`APPLY_FILL_ENGINE` to its folder (`~` is expanded). Apply then loads `dist/engine.js` from that
 folder. The tests read the saved forms (`test/fixtures/`) from the same
 folder. The repairer works on the submodule path in its Repair worktree.
 
