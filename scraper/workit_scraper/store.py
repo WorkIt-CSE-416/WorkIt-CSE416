@@ -322,9 +322,13 @@ def carry(job: Job, before: dict[str, Job]) -> Job:
     """A freshly listed posting with the page its stored self already had.
 
     A Greenhouse, Workable or BambooHR listing has no page; the one read before
-    stands until a newer PAGE_VERSION reads it again. Ashby, Lever and Recruitee
-    bring a fresh page every read, which always wins -- facts an employer changed
-    must not linger. A BambooHR listing has no date either: its page gave it one.
+    stands until a newer PAGE_VERSION reads it again. A provider whose list sends
+    the description (no `Provider.job_url`: Ashby, Lever, Recruitee, TikTok, Jibe)
+    never has its page carried: the list is its only source, so facts an employer
+    changed must not linger, and no page means the shortlist cannot keep it now
+    (`text._listed_page`). Carried, a posting kept on "0-1 years" stayed on the
+    page after the employer asked for "5+". A BambooHR listing has no date
+    either: its page gave it one.
 
     A Workday or Oracle listing's date is the reverse (`Provider.page_date`): it
     has one, but only roughly -- Workday's counted back from "Posted 3 Days Ago",
@@ -337,6 +341,8 @@ def carry(job: Job, before: dict[str, Job]) -> Job:
     if not old:
         return job
     provider = PROVIDERS.get(job.ats)
+    if provider and provider.job_url is None:
+        return replace(job, posted_at=job.posted_at or old.posted_at)
     if provider and provider.page_title and job.page is None and old.page is not None:
         # An iCIMS listing's title is its URL's slug; its page gave the real one.
         job = replace(job, title=old.title)
