@@ -15,7 +15,7 @@ dependencies = [
 apply = "apply.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff==0.16.8"]
 
 [build-system]
 requires = ["hatchling"]
@@ -23,3 +23,7 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# The backend's ruff config (backend/pyproject.toml), so both Python projects lint alike.
+[tool.ruff.lint]
+ignore = ["B008", "BLE001", "SIM103"]
