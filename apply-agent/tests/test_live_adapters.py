@@ -142,7 +142,7 @@ def test_apply_rehearse_uses_the_live_adapters_gmail_and_keychain_but_never_the_
     looked_up = []
     monkeypatch.setattr(MacKeychain, "password", lambda self, account: looked_up.append((self._service, account)) or "app")
     rehearsals, exits = [], []
-    monkeypatch.setattr(rehearsal, "rehearse", lambda urls, adapters, profile, workers, on_done, submitted_to:
+    monkeypatch.setattr(rehearsal, "rehearse", lambda urls, adapters, profile, workers, on_done, submitted_to, together:
                         rehearsals.append((urls, adapters, workers, submitted_to)))
     monkeypatch.setattr(os, "_exit", exits.append)
 
@@ -249,7 +249,7 @@ def test_a_runs_window_shows_its_answer_bank_and_profile_in_the_answers_tab(monk
     profile = a_profile_with_a_bank(tmp_path / "mine")
     monkeypatch.setattr(MacKeychain, "password", lambda self, account: "app")
     monkeypatch.setattr(cli, "live_tracker", InMemoryTracker)
-    monkeypatch.setattr(rehearsal, "rehearse", lambda urls, adapters, profile, workers, on_done, submitted_to: None)
+    monkeypatch.setattr(rehearsal, "rehearse", lambda urls, adapters, profile, workers, on_done, submitted_to, together: None)
     monkeypatch.setattr(os, "_exit", lambda code: None)
     boards = []
     stop = dashboard.Dashboard.__exit__
@@ -269,7 +269,7 @@ def test_a_live_run_fills_postings_on_the_sites_lisul_signed_the_worker_profiles
     rehearsals = []
     monkeypatch.setattr(cli, "live_tracker", InMemoryTracker)
     monkeypatch.setattr(rehearsal, "rehearse",
-                        lambda urls, adapters, profile, workers, on_done, submitted_to: rehearsals.append(adapters))
+                        lambda urls, adapters, profile, workers, on_done, submitted_to, together: rehearsals.append(adapters))
     monkeypatch.setattr(os, "_exit", lambda code: None)
 
     cli.main(["rehearse", "https://lifeattiktok.com/search/1", "--profile", str(FIXTURES / "profile.yaml")])

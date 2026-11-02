@@ -96,7 +96,7 @@ def test_nothing_secret_is_written_to_a_record(monkeypatch):
     tracker = run(NoBrowser(), records, feed=json.dumps([feed_record()]).encode())
 
     [row] = tracker.rows()
-    assert row.status == "submitted"
+    assert row.status == "submitted", row.reason
     written = b"".join(records.files(row.record).values())
     assert SignUpFormFiller.PASSWORD.encode() not in written
     assert str(FIXTURES).encode() not in written  # files by name, not their path on Lisul's Mac

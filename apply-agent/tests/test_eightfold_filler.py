@@ -3,22 +3,21 @@ Lockheed Martin's own form pages fetched (saved 2026-10-20). Its filling is
 proved on the live forms by rehearsing them (apply rehearse <link>)."""
 
 import json
-from pathlib import Path
 
 import pytest
+from conftest import FORMS
 
 from apply.eightfold import EightfoldFiller, _dom_id, form_url
 from apply.fill_engine import job_names, job_of
 from apply.model import MoreQuestions, Posting
 
-SETS = Path(__file__).parent / "fixtures" / "question-sets"
 NETFLIX = "https://explore.jobs.netflix.net/careers/job/790318904468"
 LOCKHEED = "https://lockheedmartin.eightfold.ai/careers/job/996477106402"
 
 
 def read(name: str) -> tuple[EightfoldFiller, dict]:
     filler = EightfoldFiller()
-    questions = filler._parse(json.loads((SETS / f"eightfold-{name}.json").read_text()))
+    questions = filler._parse(json.loads((FORMS / f"eightfold-{name}" / "questions.json").read_text()))
     return filler, {q["questionId"]: q for q in questions}
 
 

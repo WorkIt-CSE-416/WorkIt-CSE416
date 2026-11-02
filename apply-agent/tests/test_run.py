@@ -183,7 +183,7 @@ def test_run_submits_an_ashby_match_and_tracks_it(ashby_server, one_pager):
     application = sent.application
     assert application["_systemfield_name"] == "Test Person"
     assert application["_systemfield_email"] == "test.person@example.com"
-    assert application["6165f03b-05a6-4df2-be8d-7a7cda5b110c"] == "+1 555 010 0199"  # Phone Number
+    assert application["6165f03b-05a6-4df2-be8d-7a7cda5b110c"] == "5550100199"  # Phone Number: the national number, as the engine plans every phone
     assert application["c844e287-5fe4-4294-9317-9f17ca09f26e"] == "https://www.linkedin.com/in/test-person"
     assert application["e3b7defc-c91c-4b8a-bde2-b838f2ed0a6f"] == ["May 2027"]  # start month(s), a multi-select
     assert application["6740d716-7398-44bc-acc7-f6c9ab74edd5"] is False  # prior US government employment
@@ -202,7 +202,7 @@ def test_run_submits_a_lever_match_and_tracks_it(lever_server, one_pager):
     [sent] = lever_server.submissions
     application = sent.application
     assert (application["name"], application["email"]) == ("Test Person", "test.person@example.com")
-    assert application["phone"] == "+1 555 010 0199"
+    assert application["phone"] == "5550100199"  # the national number
     assert application["location"] == "Columbus, OH, USA"
     assert application["urls[LinkedIn]"] == "https://www.linkedin.com/in/test-person"
     assert application[f"{IMMUTA_WORK_AUTH_CARD}[field0]"] == "Yes"  # authorized to work in the US
@@ -253,7 +253,8 @@ def test_the_dashboard_tile_of_each_worker_says_what_it_applied_to_and_how_it_en
     assert board.captions[0].pop("posting_url").startswith("http")  # so the window can link the Posting
     assert board.captions[0].pop("application_id")
     assert board.captions == {0: {"company": "Arc", "role": "Software Engineer Intern", "job_system": "greenhouse",
-                                  "status": "submitted", "line": "submitted", "why": "", "drafted": []}}
+                                  "status": "submitted", "line": "submitted", "why": "", "drafted": [],
+                                  "choices": {}, "required": {}}}
 
 
 def test_a_failed_application_and_a_wrong_answer_leave_repair_requests(monkeypatch, tmp_path):

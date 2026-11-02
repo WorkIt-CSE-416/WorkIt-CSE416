@@ -526,13 +526,15 @@ def test_a_readback_mismatch_that_survives_the_retry_is_held(monkeypatch):
 
 
 class ReformatsPhones(ResearchForm):
-    """The page shows a phone number its own way: "+15550100199" reads back as "(555) 010-0199"."""
+    """The page's phone mask takes a number only as it writes one, "(555) 010-0199":
+    typed any other way, it keeps the first six digits, "(555) 010-"."""
 
     def fill(self, page, questions, answers):
         readback = super().fill(page, questions, answers)
         phone = next(q.name for q in questions if q.label.startswith("Phone"))
-        digits = "".join(c for c in readback[phone] if c.isdigit())[-10:]
-        readback[phone] = f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+        if not re.fullmatch(r"\(\d{3}\) \d{3}-\d{4}", readback[phone]):
+            digits = "".join(c for c in readback[phone] if c.isdigit())[-10:]
+            readback[phone] = f"({digits[:3]}) {digits[3:6]}-"
         return readback
 
 
@@ -1008,6 +1010,7 @@ def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_joins_the
 def test_a_rehearsal_lists_an_essays_question_for_lisul_and_holds_the_essay_with_it():
     planned = worker._Planned.__new__(worker._Planned)
     planned.questions, planned._rehearse, planned._approved = [], True, None
+    planned.missing, planned._on_missing = (), lambda *heard: None
     assert planned._missing([], [f"Essay fact: {DECISION}"]) is None
     assert planned.missing == (f"Essay fact: {DECISION}",)
     essay = essays.Essay(Question("p", PROJECT, "textarea", True), "",
