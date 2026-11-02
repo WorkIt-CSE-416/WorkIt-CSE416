@@ -14,8 +14,9 @@ const BATCH_KEY = "workit_batch";
  * @typedef {"filling" | "ready" | "needs_you" | "failed" | "applied"} TabState
  * @typedef {{
  *   windowId: number,
- *   tabs: Record<string, { jobId: string, url: string, jobType?: string | null, state: TabState }>,
+ *   tabs: Record<string, { jobId: string, url: string, jobType?: string | null, state: TabState, removing?: boolean }>,
  *   opened: string[],
+ *   closed?: string[],
  *   held?: { jobId: string, url: string, jobType?: string | null }[],
  *   groups: { ready?: number, needs_you?: number },
  *   practice?: { jobs: { jobId: string, url: string }[], submitted: string[] },
@@ -26,6 +27,8 @@ const BATCH_KEY = "workit_batch";
  * `wroteWithClaude`: an answer it wrote has filled in (KAN-387, the samples ask).
  * `picked`: the jobs the student picked in Up Next, opened first;
  * `pickedOnly`: the batch started from picks, so it opens nothing else (batch.js).
+ * `closed`: the jobs whose tab went before their application was sent (KAN-512), kept
+ * across batches until the job opens again; `removing`: a tab WorkIt itself is closing (run/close).
  */
 
 // One change to the batch at a time: two tabs finishing together would
