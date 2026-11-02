@@ -888,9 +888,7 @@ export function Intake({
           </div>
         )}
         {importing ? (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pb-4">
-            {importer}
-          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pb-4">{importer}</div>
         ) : (
           // No frame of its own: the panel is the chat's surface, and the
           // lines fade out under the preview.
