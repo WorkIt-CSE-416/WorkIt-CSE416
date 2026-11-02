@@ -59,7 +59,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     // The sidebar's Applications glyph.
     icon: KanbanIcon,
     tint: "var(--color-danger-tint)",
-    glow: "var(--color-match-good)",
+    glow: "var(--color-updates)",
   }),
   scout: feature("scout", {
     name: "Scout",

@@ -174,15 +174,26 @@ export const COLOR_GROUPS: ColorGroup[] = [
   },
   {
     title: "Match",
-    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc and dot on a job's match rail, and the bar on the company Dashboard's Recent Applicants. One magenta ramp, deeper for a better match, in a hue no stage, status or brand colour uses, so a score never reads as where an application stands. Strokes, dots and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
+    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc on a job's match rail, and the bar on the company Dashboard's Recent Applicants. Red, yellow and green, so a score says good or bad with no legend. Strokes and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
     tokens: [
       {
         token: "--color-match-excellent",
-        role: "Excellent Match, the deepest step · 9.73:1 on white",
+        role: "→ --color-positive-ink · Excellent Match, deep green · 5.35:1 on white",
       },
-      { token: "--color-match-strong", role: "Strong Match · 6.98:1 on white" },
-      { token: "--color-match-good", role: "Good Match · 4.95:1 on white" },
-      { token: "--color-match-weak", role: "Weak Match, the lightest step · 3.45:1 on white" },
+      {
+        token: "--color-match-strong",
+        role: "→ --color-positive-hover · Strong Match, green · 3.81:1 on white",
+      },
+      { token: "--color-match-good", role: "Good Match, yellow · 3.24:1 on white" },
+      { token: "--color-match-weak", role: "→ --color-danger · Weak Match, red · 5.77:1 on white" },
+    ],
+  },
+  {
+    title: "Updates",
+    note: "The marketing pages' pink: the tour's Updates stop, the Tracker feature and the glow behind the Jobs page's cards in the hiring-systems stream. No signed-in screen uses it.",
+    tokens: [
+      { token: "--color-updates", role: "Fills, glows and glyphs · 4.95:1 on white" },
+      { token: "--color-updates-ink", role: "The same pink as text on its tint · 6.98:1 on white" },
     ],
   },
   {

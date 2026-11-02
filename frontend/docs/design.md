@@ -197,12 +197,17 @@ violet hero.
 
 **Scout and every AI action share one mark** (KAN-257): `SparkleIcon`,
 Phosphor's sparkle, on the top bar's launcher, Ask Scout, Fill With Scout,
-Tailor My Resume and Read It Again with AI, and inside Scout's
+Tailor's own run and Read It Again with AI, and inside Scout's
 mark (`components/scout/chat.tsx`), the gradient tile beside every
 assistant line and in Scout's panel header. The bar and the panel drew a
 filled sparkle by hand while the chat and the AI buttons drew Lucide's, so
 the assistant wore two marks. An ESLint rule refuses Phosphor's
 `SparkleIcon` imported anywhere but `icons.tsx`.
+
+**Tailor My Resume is the one exception** (KAN-518): the button on a job's
+card and page draws `TailorIcon`, a page being rewritten. It only opens
+Tailor, and beside Ask Scout a second sparkle read as a second assistant
+and did not say what the button does. Scissors stay Fit to One Page's.
 
 ## Colour
 
@@ -225,14 +230,20 @@ say the same thing about an application (the grid and list, and the board
 when it returns): its role, company, date and match
 score (KAN-256). There is no progress bar; it only restated the stage.
 
-A match score has its own colour and never borrows a stage's. The four
-`--color-match-*` tokens in `globals.css` are one magenta ramp, deeper for a
-better match, read only through `matchColor()` in `lib/match.ts`: the
-Applications match badge, the job page's match rail and the company Dashboard's match bar.
-They paint strokes, dots and bars, never text; the tier words stay ink-muted.
-Stages and statuses own violet, blue, amber, green, grey and red, so a new
-score display takes `matchColor()` and a new stage display takes its stage
-map, never the other's.
+A match score is red, yellow or green (KAN-518): Weak red, Good yellow,
+Strong green and Excellent a deeper green, so it says good or bad with no
+legend. The four `--color-match-*` tokens in `globals.css` are read only
+through `matchColor()` in `lib/match.ts`: the Applications match badge, the
+job page's match rail, Tailor's ring and the company Dashboard's match bar.
+They paint strokes and bars, never text; the tier words stay ink-muted, with
+no dot before them, since the ring beside them already carries the colour. A
+magenta ramp held these tokens until KAN-518, so a score would share no hue
+with a stage. A pink ring said nothing about the fit, so the score now shares
+green and red with the Offer and Rejected stages, and its shape, a ring or a
+bar with a number, keeps it apart from a stage's chip. A new score display
+takes `matchColor()` and a new stage display takes its stage map, never the
+other's. The marketing pages' pink, which borrowed that ramp, is
+`--color-updates`.
 
 Intake's step chips say what became of each section with a corner badge
 in two of those (KAN-257): a check on `--color-step-done` green, a dash on
