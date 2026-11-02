@@ -68,6 +68,7 @@ education:
   full_time_available_from: Need to return to school and available upon graduation
   plans_masters_after_bachelors: Not planning one right now
   plans_masters_if_no_maybe: false
+  planned_further_degree:
   second_major_planned:
   gpa_cumulative: 3.7
   gpa_scale: 4.0
