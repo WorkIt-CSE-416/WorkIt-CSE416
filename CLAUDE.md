@@ -248,6 +248,8 @@ with the failure it prevents.
   with `npm run worktree -- --env-only`.
 - Superset workspaces run `.superset/setup.sh` on creation: that same
   `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`,
+  then `git submodule update --init` and, once the branch has Apply,
+  `uv sync` in `apply-agent/` (`npm run worktree` does these two as well),
   then `backend/scripts/fetch_tectonic.py` where the branch has it: without
   that once-per-checkout step every resume showed "This Resume Isn't Loading
   Right Now". It only warns on failure (a Mac needs `brew install tectonic`).
