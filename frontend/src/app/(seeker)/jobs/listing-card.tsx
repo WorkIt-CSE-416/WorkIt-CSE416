@@ -1,6 +1,6 @@
 import { CloudSlashIcon, ProhibitIcon } from "@phosphor-icons/react/ssr";
 
-import { SparkleIcon } from "@/components/icons";
+import { TailorIcon } from "@/components/icons";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -134,7 +134,7 @@ export function ListingCard({
             variant="secondary"
             size="sm"
           >
-            <SparkleIcon className="size-4" />
+            <TailorIcon className="size-4" />
             {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
           </ButtonLink>
 

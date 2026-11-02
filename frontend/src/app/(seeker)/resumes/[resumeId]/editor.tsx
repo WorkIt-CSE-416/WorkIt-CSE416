@@ -13,7 +13,8 @@ import {
   ScissorsIcon,
   SlidersHorizontalIcon,
   StackIcon,
-  WarningIcon,
+  TextBIcon,
+  TextItalicIcon,
 } from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
 import {
@@ -24,20 +25,20 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type ComponentType,
   type ReactNode,
 } from "react";
 
-import { ChevronDownIcon, CloseIcon, FileIcon } from "@/components/icons";
+import { CloseIcon, FileIcon, PlusIcon } from "@/components/icons";
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 import { TextLink } from "@/components/ui/text-link";
-import { getBank, type Bank } from "@/lib/bank-actions";
+import { addBullet, getBank, type Bank } from "@/lib/bank-actions";
 import {
   fitToOnePage,
   getChoices,
@@ -64,6 +65,7 @@ import {
   useResumeDownload,
   type ResumeDownload,
 } from "../download-menu";
+import { bulletPlaced, NEW_BULLET } from "./add-bullet";
 import { Assistant } from "./assistant";
 import { FitToast } from "./fit-notice";
 import { Zoom, useZoom, zoomWidth } from "./zoom";
@@ -74,6 +76,7 @@ import {
   lineOf,
   mergeChoices,
   move,
+  shownBullets,
   withWording,
   swapOf,
   typed,
@@ -93,9 +96,22 @@ import {
   PdfPages,
   type Strip,
 } from "./pdf-pages";
-import { DEFAULT_PAGE, FormatOptions, PageTools, PanelButton, SidePanel } from "./page-format";
+import {
+  DEFAULT_PAGE,
+  FONTS,
+  FormatOptions,
+  ON,
+  PanelButton,
+  SidePanel,
+  SizeStepper,
+  sizeOf,
+  TEXT_ROLES,
+  textRoleOf,
+  type TextRole,
+} from "./page-format";
 import { PhoneEditor, usePhone } from "./phone";
 import { SectionsOutline } from "./sections-panel";
+import { readMarked, runs, showMarked, unmarked } from "./text-marks";
 import {
   cardsOf,
   editKey,
@@ -178,27 +194,17 @@ const latinModern = localFont({
   display: "swap",
 });
 
-// \small in each of article's sizes, as jakes.tex's bullets print it
-const SMALL_TYPE: Record<number, number> = { 10: 9, 11: 10, 12: 10.95 };
-
-/** Jake's type for each kind of line on a page of `body` pt: its size in
- *  points, and whether it is bold or italic. Body text is the page's font
- *  size, the rest \small, the name \Huge at every size. */
-function typeOf(kind: string, section: string | null, body: number) {
-  const small = SMALL_TYPE[body];
-  const twoRow = section === "education" || section === "experience" || section === "leadership";
+/** Jake's type for each kind of line on this page: its size in points, and
+ *  whether it is bold or italic. */
+function typeOf(kind: string, section: string | null, page: PageSettings) {
+  const size = sizeOf(textRoleOf(kind, section), page);
   // \scshape has no bold small capitals in Latin Modern, so the name prints bold
-  if (kind === "full_name") return { size: 24.88, bold: true, italic: false };
-  if (kind === "title") return { size: twoRow ? body : small, bold: true, italic: false };
-  if (kind === "organization") return { size: small, bold: false, italic: true };
-  // Education's location is the heading's right slot, upright at 11 pt
-  if (kind === "location")
-    return {
-      size: section === "education" ? body : small,
-      bold: false,
-      italic: section !== "education",
-    };
-  return { size: small, bold: false, italic: false };
+  if (kind === "full_name") return { size, bold: true, italic: false };
+  if (kind === "title") return { size, bold: true, italic: false };
+  if (kind === "organization") return { size, bold: false, italic: true };
+  // Education's location is the heading's right slot, upright
+  if (kind === "location") return { size, bold: false, italic: section !== "education" };
+  return { size, bold: false, italic: false };
 }
 
 // Where a field's first baseline sits below its top, in ems: Latin Modern's
@@ -206,10 +212,36 @@ function typeOf(kind: string, section: string | null, body: number) {
 // em content area. A box's top is its first baseline less ASCENT (the API's
 // resume_render), more for the name.
 const LINE_HEIGHT = 1.2;
+// A box's height for one line (`boxAscent`'s 8 pt over a baseline and the
+// API's 3 pt under it), and how far left of a bullet's text its dot sits
+const BOX_HEIGHT = 11;
+const DOT_GAP = 8.5;
 const fieldBaseline = (lineHeight: number) => 1.127 - (1.417 - lineHeight) / 2;
 const boxAscent = (kind: string) => (kind === "full_name" ? 21 : 8);
 
-/** Lines that wrap: typed in a textarea as wide as the text column. */
+/** The open line's field: a bullet's is a rich one, the others plain. */
+type LineField = HTMLInputElement | HTMLTextAreaElement | HTMLDivElement;
+
+/** How the open line's field is outlined. The ring alone: a shadow read as a
+ *  soft second edge under the line. 1.5px: at 2px the user found it too thick
+ *  over the page's fine type. */
+const FIELD_RING =
+  "ring-brand resize-none overflow-hidden rounded-[2px] ring-[1.5px] outline-none field-sizing-content";
+
+/** A bullet being added (`startBullet`): which entry it joins, the shown
+ *  bullet it follows (none: it goes last), the box it is drawn under, and
+ *  where its text starts. `sent` once it left the field; `id` once saved. */
+type Adding = {
+  entry: string;
+  after: string | null;
+  anchor: string;
+  x0: number;
+  text: string;
+  sent: boolean;
+  id: string | null;
+};
+
+/** Lines that wrap: typed in a field as wide as the text column. */
 const WRAPS = new Set(["bullet", "coursework", "honors"]);
 
 const DEFAULT_WRAPPED_LINE = 12;
@@ -421,6 +453,8 @@ export function Editor({
   // left before the PDF that prints it has painted. The page draws it over
   // the line until then, so leaving a line never shows its old text.
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [adding, setAdding] = useState<Adding | null>(null);
+  const finishing = useRef(false);
   // How many lines each wrapping draft shows, for the live page's shift
   const [draftLines, setDraftLines] = useState<Record<string, number>>({});
   // What is on its way, by line key or change id, counted: a line's draft
@@ -1173,6 +1207,69 @@ export function Editor({
     pending.current = { key, text };
   }
 
+  /** Add Bullet: an empty line under the open bullet, or at the foot of the
+   *  open entry's, in place at once, with the page under it moved down. Nothing
+   *  is written until it has words, so a line left empty leaves no trace in the
+   *  bank: a saved placeholder would stay there if the tab closed. */
+  function startBullet(open: Line) {
+    if (adding || !rendered || (open.kind !== "bullet" && open.kind !== "entry")) return;
+    const after =
+      open.kind === "bullet" ? open.bullet.id : (shownBullets(open.entry, choices).at(-1) ?? null);
+    const anchor = after
+      ? `${after}.bullet`
+      : `${open.entry.id}.${rendered.boxes.findLast((b) => b.item_id === open.entry.id)?.kind}`;
+    const anchorBox = rendered.boxes.find((b) => boxKey(b) === anchor);
+    if (!anchorBox) return;
+    // An entry with no bullets yet takes the column the page's bullets use
+    const column = rendered.boxes.find((b) => b.kind === "bullet")?.x0 ?? anchorBox.x0 + 18;
+    select(null);
+    finishing.current = false;
+    setAdding({
+      entry: open.entry.id,
+      after,
+      anchor,
+      x0: after ? anchorBox.x0 : column,
+      text: "",
+      sent: false,
+      id: null,
+    });
+  }
+
+  /** The new bullet leaves its field. Empty, it was never there. Otherwise the
+   *  bank takes its plain words, this resume its place and any bold or italic,
+   *  and its text stays drawn until the PDF prints it (`drawn`). */
+  async function finishBullet(typed: string) {
+    // Once: the field's blur follows Enter as it goes
+    if (!adding || finishing.current) return;
+    finishing.current = true;
+    const text = typed.trim();
+    const plain = unmarked(text).trim();
+    if (!plain) return setAdding(null);
+    setAdding({ ...adding, text, sent: true });
+    const { data, error } = await addBullet(adding.entry, plain);
+    if (!data) {
+      setAdding(null);
+      return setError(error);
+    }
+    setAdding((now) => now && { ...now, id: data.id });
+    const entries = held.current.bank.entries.map((e) =>
+      e.id === adding.entry ? { ...e, bullets: [...e.bullets, data] } : e,
+    );
+    held.current.bank = { ...held.current.bank, entries };
+    setBank(held.current.bank);
+    const entry = entries.find((e) => e.id === adding.entry);
+    await apply(
+      bulletPlaced(
+        // Without the new bullet, which has no row yet
+        entry ? shownBullets(entry, held.current.choices) : [],
+        data.id,
+        adding.after,
+        text === plain ? undefined : text,
+      ),
+    );
+    if (!lastPdf.current?.boxes.some((b) => b.item_id === data.id)) setAdding(null);
+  }
+
   function fit() {
     select(null);
     return enqueue(async () => {
@@ -1233,6 +1330,20 @@ export function Editor({
 
   const box = rendered?.boxes.find((b) => boxKey(b) === selected);
   const line = box ? lineOf(bank, box) : null;
+  // A bullet being added has no box yet: it is drawn under its anchor, with no
+  // height of its own, so everything below the anchor moves
+  const anchorBox = adding && rendered?.boxes.findLast((b) => boxKey(b) === adding.anchor);
+  const newBox: RenderBox | undefined =
+    adding && anchorBox
+      ? {
+          ...anchorBox,
+          item_id: NEW_BULLET.item_id,
+          kind: NEW_BULLET.kind,
+          x0: adding.x0,
+          y0: anchorBox.y1,
+          text: "",
+        }
+      : undefined;
   // The live page (KAN-391): while a wrapping line's typed text differs from
   // what the PDF prints, the page under it moves by the lines it gained or
   // lost. When the next PDF lands with that text, the shift is 0 again;
@@ -1240,11 +1351,15 @@ export function Editor({
   const overlaid = [
     ...(line && typed(line) && selected ? [selected] : []),
     ...Object.keys(drafts).filter((k) => k !== selected),
+    ...(newBox ? [NEW_BULLET.key] : []),
   ];
   // What the page under an overlaid line moves by, against the box of the
   // PDF on screen: the lines its typed text gained or lost, 0 once that PDF
   // prints the text
   const shiftOf = (target: RenderBox) => {
+    if (boxKey(target) === NEW_BULLET.key) {
+      return (draftLines[NEW_BULLET.key] ?? 1) * (rendered?.wrapped_line ?? DEFAULT_WRAPPED_LINE);
+    }
     const text = drafts[boxKey(target)];
     const lines = draftLines[boxKey(target)];
     if (text === undefined || !lines || !WRAPS.has(target.kind) || text.trim() === target.text) {
@@ -1315,7 +1430,7 @@ export function Editor({
     const look = typeOf(
       target.kind,
       of?.kind === "entry" || of?.kind === "bullet" ? of.entry.section : null,
-      settings.font_size,
+      settings,
     );
     const wraps = WRAPS.has(target.kind);
     // A wrapping line's field steps as the page's lines do
@@ -1332,6 +1447,7 @@ export function Editor({
         look.italic && "italic",
       ),
       style: {
+        fontFamily: FONTS.find((font) => font.value === settings.font_family)?.css,
         fontSize: pt(look.size),
         lineHeight: pt(look.size * lineHeight),
         // Puts the text's baseline on the PDF's
@@ -1350,6 +1466,7 @@ export function Editor({
    *  or a line's typed text while the PDF that prints it is on its way. */
   function overlay(target: RenderBox) {
     const key = boxKey(target);
+    if (key === NEW_BULLET.key) return newLine(target);
     if (key === selected) return field(target);
     const text = drafts[key];
     if (text === undefined) return null;
@@ -1366,15 +1483,117 @@ export function Editor({
         className={cn(look.className, "cursor-text break-words whitespace-pre-wrap")}
         style={look.style}
       >
-        {text}
+        {target.kind === "bullet" ? wordsOf(text) : text}
       </div>
+    );
+  }
+
+  function wordsOf(text: string) {
+    return runs(text).map((run, i) => (
+      <span key={i} className={cn(run.bold && "font-bold", run.italic && "italic")}>
+        {run.text}
+      </span>
+    ));
+  }
+
+  /** The bullet being added: its field, then its words until the PDF prints
+   *  them, one line under its anchor, with the dot the page gives a bullet. */
+  function newLine(target: RenderBox) {
+    if (!adding) return null;
+    const look = lineLook(target);
+    const step = rendered?.wrapped_line ?? DEFAULT_WRAPPED_LINE;
+    const settings = rendered?.page_settings ?? DEFAULT_PAGE;
+    return (
+      <div className="relative" style={{ paddingTop: pt(step - BOX_HEIGHT) }}>
+        <span
+          aria-hidden
+          className={cn(latinModern.className, "text-ink absolute")}
+          style={{ ...look.style, left: pt(-DOT_GAP), width: undefined, textAlign: undefined }}
+        >
+          {settings.bullet === "dash" ? "–" : "•"}
+        </span>
+        {adding.sent ? (
+          <div
+            aria-hidden
+            className={cn(look.className, "break-words whitespace-pre-wrap")}
+            style={look.style}
+          >
+            {wordsOf(adding.text)}
+          </div>
+        ) : (
+          richLine(adding.text, (text) => setAdding((now) => now && { ...now, text }), {
+            "aria-label": "New Bullet",
+            attach: (element) => {
+              focusAt(NEW_BULLET.key, element);
+              return measure(NEW_BULLET.key, NEW_BULLET.kind, element);
+            },
+            onBlur: (e) => void finishBullet(readMarked(e.currentTarget)),
+            // Either key saves it, or drops it while empty
+            onKeyDown: (e) => {
+              if (e.key !== "Enter" && e.key !== "Escape") return;
+              e.preventDefault();
+              void finishBullet(readMarked(e.currentTarget));
+            },
+            className: cn(
+              look.className,
+              FIELD_RING,
+              "before:text-ink-meta empty:before:content-['New_Bullet']",
+            ),
+            style: look.style,
+          })
+        )}
+      </div>
+    );
+  }
+
+  /** A rich field, so bold and italic show in the words as they are set
+   *  (KAN-435): a textarea showed their markers until the line was left. React
+   *  holds no children here; `showMarked` keeps it to `value`, so a change from
+   *  elsewhere (Undo on its suggestion) still reaches it. The browser gives it
+   *  Ctrl or Cmd+B and I, and text undo. */
+  function richLine(
+    value: string,
+    onText: (text: string) => void,
+    {
+      attach,
+      className,
+      ...rest
+    }: Omit<ComponentProps<"div">, "ref" | "onInput" | "onPaste" | "onDrop"> & {
+      attach: (element: LineField | null) => (() => void) | undefined;
+    },
+  ) {
+    return (
+      <div
+        {...rest}
+        // Its own element: its words are the browser's, so a plain div drawn in
+        // its place by React (the line's words on their way) would keep them
+        // and add its own beside them
+        key="rich-line"
+        ref={(element) => {
+          if (element) showMarked(element, value);
+          return attach(element);
+        }}
+        role="textbox"
+        aria-multiline
+        contentEditable
+        suppressContentEditableWarning
+        className={cn(className, "min-h-lh break-words whitespace-pre-wrap")}
+        onInput={(e) => onText(readMarked(e.currentTarget))}
+        // Plain words on one line only: a paste would bring its own fonts
+        onPaste={(e) => {
+          e.preventDefault();
+          const words = e.clipboardData.getData("text/plain").replace(/\s+/g, " ");
+          document.execCommand("insertText", false, words);
+        }}
+        onDrop={(e) => e.preventDefault()}
+      />
     );
   }
 
   /** Focuses a field once per selection, with the caret where the press
    *  landed on the PDF (the field's text sits over the same glyphs), or at
    *  the end. */
-  function focusAt(key: string, element: HTMLInputElement | HTMLTextAreaElement | null) {
+  function focusAt(key: string, element: LineField | null) {
     if (!element || placed.current === key) return;
     placed.current = key;
     element.focus({ preventScroll: true });
@@ -1382,6 +1601,18 @@ export function Editor({
     const origin = pages.current?.getBoundingClientRect();
     const caret =
       at && origin && document.caretPositionFromPoint?.(origin.left + at.x, origin.top + at.y);
+    if (element instanceof HTMLDivElement) {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      range.collapse(false);
+      if (caret && element.contains(caret.offsetNode)) {
+        range.setStart(caret.offsetNode, caret.offset);
+        range.collapse(true);
+      }
+      getSelection()?.removeAllRanges();
+      getSelection()?.addRange(range);
+      return;
+    }
     const offset = caret && caret.offsetNode === element ? caret.offset : element.value.length;
     element.setSelectionRange(offset, offset);
   }
@@ -1391,33 +1622,34 @@ export function Editor({
     if (start == null || !line) return null;
     const key = boxKey(target);
     const look = lineLook(target);
+    const value = drafts[key] ?? start;
+    const attach = (element: LineField | null) => {
+      focusAt(key, element);
+      return measure(key, target.kind, element);
+    };
     const common = {
-      ref: (element: HTMLInputElement | HTMLTextAreaElement | null) => {
-        focusAt(key, element);
-        return measure(key, target.kind, element);
-      },
-      value: drafts[key] ?? start,
       "aria-label": kindLabel(target.kind),
       onBlur: () => flush(),
-      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-        type(key, e.target.value),
       // Enter saves the line and clears the selection, back to the page
-      onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      onKeyDown: (e: React.KeyboardEvent) => {
         if (e.key !== "Enter") return;
         e.preventDefault();
         select(null);
       },
-      className: cn(
-        look.className,
-        // The ring alone outlines it: a shadow read as a soft second edge
-        // under the line. 1.5px: at 2px the user found it too thick over
-        // the page's fine type.
-        "ring-brand resize-none overflow-hidden rounded-[2px] ring-[1.5px] outline-none",
-        "field-sizing-content",
-      ),
+      className: cn(look.className, FIELD_RING),
       style: look.style,
     };
-    return WRAPS.has(target.kind) ? <textarea {...common} rows={1} /> : <input {...common} />;
+    if (target.kind === "bullet") {
+      return richLine(value, (text) => type(key, text), { ...common, attach });
+    }
+    const text = {
+      ...common,
+      ref: attach,
+      value,
+      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+        type(key, e.target.value),
+    };
+    return WRAPS.has(target.kind) ? <textarea {...text} rows={1} /> : <input {...text} />;
   }
 
   /** Called when every page of a new PDF has painted: a line whose save
@@ -1433,6 +1665,8 @@ export function Editor({
       const kept = s.filter((x) => onTheirWay.current.has(x.id));
       return kept.length === s.length ? s : kept;
     });
+    // The page prints the new bullet now, so its drawn text goes
+    setAdding((now) => (now?.id && rendered?.boxes.some((b) => b.item_id === now.id) ? null : now));
     refresh();
     if (started.current == null) return;
     setElapsed(Math.round(performance.now() - started.current));
@@ -1509,21 +1743,25 @@ export function Editor({
   const openEdit = reviewing?.edits.find((edit) => editKey(edit) === active);
   const focus = openEdit ? linesOf(openEdit, choices) : undefined;
   // The change on the open line, in a small card beside it, until the
-  // student types, closes it or leaves the line
+  // student types, closes it or leaves the line. Archived: Tailor's review
+  // passes no `suggestionPopup` (POPUP_LIVE in tailor-suggestions.tsx)
   const popupCard =
     showMarks && selected && selected !== closedPopup && drafts[selected] === undefined
       ? cards?.get(selected)
       : undefined;
   const popupEdit = reviewing?.edits.find((edit) => editKey(edit) === popupCard);
-  /** A click on a line selects it, and a changed one also opens its popup.
-   *  The panel stays as it is: it opened here too for a moment, and took the
-   *  column from a student who had closed it. */
+  /** A click on a line selects it, and a changed one also opens Suggestions
+   *  beside the page, on that line's card (`SuggestionsPanel` scrolls to
+   *  it), unless Hide Suggestions has taken the marks off the page. While
+   *  the popup was live the panel stayed as it was: the popup said the same
+   *  thing, and the panel took the column from a student who had closed it. */
   const onLine = (key: string) => {
     select(selected === key ? null : key);
     const card = cards?.get(key);
     if (!card) return;
     setActive(card);
     setClosedPopup(null);
+    if (showMarks) setSide("suggestions");
   };
   /** A click on a margin dot opens its card (on a phone, in the sheet). */
   const onDot = (key: string) => {
@@ -1683,6 +1921,8 @@ export function Editor({
       download={download}
       onApply={apply}
       onSaveHeader={addContact}
+      composing={Boolean(adding && !adding.sent)}
+      onAddBullet={() => line && startBullet(line)}
       onClose={() => select(null)}
       onFit={fit}
       onUndoFit={undoFit}
@@ -1760,7 +2000,11 @@ export function Editor({
           // left a line once it was open. A line's own target opens that
           // line, and the field and the margin dots keep it
           onPointerDown={(e) => {
-            if (!(e.target as Element).closest("[data-box], [data-popup], input, textarea, button"))
+            if (
+              !(e.target as Element).closest(
+                "[data-box], [data-popup], input, textarea, button, [contenteditable]",
+              )
+            )
               select(null);
           }}
         >
@@ -1774,6 +2018,7 @@ export function Editor({
               onSelect={onLine}
               overlay={overlay}
               overlaid={overlaid}
+              extra={newBox}
               shiftOf={shiftOf}
               swaps={swapsOn}
               onDrawn={drawn}
@@ -1969,6 +2214,8 @@ function Bar({
   download,
   onApply,
   onSaveHeader,
+  composing,
+  onAddBullet,
   onClose,
   onFit,
   onUndoFit,
@@ -1989,6 +2236,9 @@ function Bar({
   download: ResumeDownload;
   onApply: (changes: ChoicesUpdate) => void;
   onSaveHeader: (field: HeaderField, text: string) => void;
+  /** A bullet is being added: its field is the open line. */
+  composing: boolean;
+  onAddBullet: () => void;
   onClose: () => void;
   onFit: () => void;
   onUndoFit: () => void;
@@ -2011,30 +2261,115 @@ function Bar({
       format={format}
       zoom={zoom}
       history={history}
-      lineOpen={Boolean(line && box)}
+      lineOpen={composing || Boolean(line && box)}
+      composing={composing}
       editing={
-        // A bullet or a skill has no tools here: its kind's label, Hide and
-        // Original crowded the bar for what the page, the popup and the
-        // Sections and Experiences panels already say. An entry keeps its
-        // GPA and coursework choices, and the header its missing contacts
-        line &&
-        box &&
-        line.kind !== "bullet" &&
-        line.kind !== "skill" && (
-          <LineActions
-            line={line}
-            choices={choices}
-            header={header}
-            onApply={onApply}
-            onSaveHeader={onSaveHeader}
-            onHide={(changes) => {
-              onApply(changes);
-              onClose();
-            }}
-          />
+        // What acts on the line clicked: its kind of text's size, named, then a
+        // bullet's bold, italic and Add Bullet. A kind's label, Hide and
+        // Original crowded the bar for what the page and the Sections and
+        // Experiences panels already say. An entry keeps its GPA and
+        // coursework choices, and the header its missing contacts
+        composing ? (
+          <>
+            <RoleTools role={TEXT_ROLES.body} format={format} />
+            <MarkTools />
+          </>
+        ) : (
+          line &&
+          box && (
+            <>
+              <RoleTools
+                role={textRoleOf(box.kind, "entry" in line ? line.entry.section : null)}
+                format={format}
+              />
+              {line.kind === "bullet" && <MarkTools />}
+              {(line.kind === "bullet" || line.kind === "entry") && (
+                <Button size="sm" data-bar-action className="shrink-0" onClick={onAddBullet}>
+                  <PlusIcon aria-hidden /> Add Bullet
+                </Button>
+              )}
+              {(line.kind === "entry" || line.kind === "header") && (
+                <LineActions
+                  line={line}
+                  choices={choices}
+                  header={header}
+                  onApply={onApply}
+                  onSaveHeader={onSaveHeader}
+                  onHide={(changes) => {
+                    onApply(changes);
+                    onClose();
+                  }}
+                />
+              )}
+            </>
+          )
         )
       }
     />
+  );
+}
+
+/** The size of the kind of text clicked, under its name: it changes every line
+ *  of that kind, and an unnamed size looked as if it changed the selection. */
+function RoleTools({ role, format }: { role: TextRole; format: FormatTools }) {
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <span className="text-note text-ink-muted pl-1 font-medium">{role.label}</span>
+      <SizeStepper
+        role={role}
+        page={format.page}
+        disabled={format.disabled}
+        onChange={format.onChange}
+      />
+      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
+    </div>
+  );
+}
+
+/** Bold and italic for the open bullet, lit while the selection has them,
+ *  as Docs does. The bar keeps the focus in the field, so the browser acts on
+ *  the selection and the field reports the change as typing. */
+function MarkTools() {
+  const [on, setOn] = useState({ bold: false, italic: false });
+  useEffect(() => {
+    const read = () =>
+      setOn({
+        bold: document.queryCommandState("bold"),
+        italic: document.queryCommandState("italic"),
+      });
+    read();
+    document.addEventListener("selectionchange", read);
+    return () => document.removeEventListener("selectionchange", read);
+  }, []);
+  const press = (mark: "bold" | "italic") => {
+    document.execCommand(mark);
+    setOn((was) => ({ ...was, [mark]: document.queryCommandState(mark) }));
+  };
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Bold"
+        title="Bold"
+        aria-pressed={on.bold}
+        className={cn(on.bold && ON)}
+        onClick={() => press("bold")}
+      >
+        <TextBIcon aria-hidden />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Italic"
+        title="Italic"
+        aria-pressed={on.italic}
+        className={cn(on.italic && ON)}
+        onClick={() => press("italic")}
+      >
+        <TextItalicIcon aria-hidden />
+      </Button>
+    </div>
   );
 }
 
@@ -2068,9 +2403,12 @@ type ReviewTools = {
 };
 
 /** The slim bar's box: a quiet white row, not the brand-tinted bar. */
+/** Every button on the bar reads muted, but for its real actions
+ *  (`data-bar-action`), which keep their own colour: a filled button's words
+ *  would be grey on purple. */
 const SLIM_BAR = cn(
   "bg-panel/95 ring-border-subtle sticky top-2 z-20 flex min-h-10 flex-wrap items-center gap-2 rounded-xl px-2 py-1 ring-1 backdrop-blur",
-  "[&_button:not([aria-pressed=true]):not(.text-warning)]:text-ink-muted [&_button:not([aria-pressed=true]):not(.text-warning):hover]:text-ink",
+  "[&_button:not([aria-pressed=true]):not([data-bar-action])]:text-ink-muted [&_button:not([aria-pressed=true]):not([data-bar-action]):hover]:text-ink",
 );
 
 /** The bar on Tailor's review, as Google Docs draws its own (KAN-499): a
@@ -2079,7 +2417,7 @@ const SLIM_BAR = cn(
  *  count's amber chip keeps its colour. */
 const DOCS_BAR = cn(
   "bg-app sticky top-2 z-20 flex min-h-11 flex-wrap items-center gap-2 rounded-full px-3 py-1",
-  "[&_button:not([aria-pressed=true]):not(.text-warning)]:text-ink-muted [&_button:not([aria-pressed=true]):not(.text-warning):hover]:text-ink",
+  "[&_button:not([aria-pressed=true]):not([data-bar-action])]:text-ink-muted [&_button:not([aria-pressed=true]):not([data-bar-action]):hover]:text-ink",
 );
 
 /** The editor's Undo and Redo (./history.ts), for the slim bar. */
@@ -2129,18 +2467,21 @@ function History({ tools }: { tools?: HistoryTools }) {
  * review (KAN-411: the editor's own page had a brand-tinted full bar until
  * then, with a hint, a Done button and an amber Fit group, so a student saw
  * two editor designs). Over the page with the column beside it starting
- * level, holding only tools for the page: Undo and Redo (`History`), then,
- * idle, the page count as a chip that offers Fit to One Page (over one
- * page only) and Undo Fit after a fit, and Download at the right,
+ * level, holding only tools for the page: Undo and Redo (`History`), then
+ * Fit to One Page (over one page only, `FitButton`), Undo Fit after a fit
+ * and, idle, Download at the right,
  * secondary, since Finish is the review's one filled button. Not on This
  * Resume was a button here with a modal for a day; the review does not
  * need it (see the grid). No "Click a line to edit it." hint: the
  * pointer's own highlight on a line says so. On Tailor's review it is Docs'
  * bar (`DOCS_BAR`, KAN-499): a filled pill of Undo, Redo and zoom from the
- * left, with Download and the view icons (`ReviewButtons`) in the name's row. With a line open: the page's
- * settings, an entry's or the header's own choices, and "Esc when done" in
- * place of a Done button, since Escape or a click off the
- * page already saves and closes.
+ * left, with Download and the view icons (`ReviewButtons`) in the name's row. With a line open: the text's
+ * own tools (a bullet's bold and italic) or an entry's or the header's
+ * choices, and "Esc when done" in place of a Done button, since Escape or a
+ * click off the page already saves and closes. The page's settings (font
+ * size, spacing, margins) sat here too until 2026-11-01: beside bold and
+ * italic they looked as if they acted on the selection, and they change the
+ * whole page, so they are Format Options' alone.
  *
  * Download sat in the page's top row beside Finish for a day; the user
  * wanted it back with the page's tools. No Ask Scout: on the editor's own
@@ -2159,6 +2500,7 @@ function SlimBar({
   onFit,
   onUndoFit,
   lineOpen,
+  composing,
   editing,
   experiences,
   docs = false,
@@ -2174,6 +2516,8 @@ function SlimBar({
   onUndoFit: () => void;
   /** Whether a line is open. */
   lineOpen: boolean;
+  /** Whether that line is a bullet being added. */
+  composing: boolean;
   /** The open line's own tools, if it has any. */
   editing: ReactNode;
   /** The editor's own page only; null on Tailor's review. */
@@ -2182,9 +2526,7 @@ function SlimBar({
    *  Download in the name's row. By the page, not the run's record, which
    *  is read after mount, so nothing moves when it lands. */
   docs?: boolean;
-  /** The page's settings: `PageTools` while a line is open, in zoom's place,
-   *  since a student reaches for them while editing and the bar fills up
-   *  otherwise; and the ways to the panels at the bar's end while none is. */
+  /** The ways to the panels, at the bar's end while no line is open. */
   format?: FormatTools;
   /** The page's zoom control (`Zoom`), on the editor's own page only. */
   zoom?: ReactNode;
@@ -2202,6 +2544,15 @@ function SlimBar({
       <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
     </>
   );
+  // Gone while a bullet is being added: a fit would read a resume without it
+  const fitButton = !composing && rendered && rendered.page_count > 1 && (
+    <FitButton
+      pages={rendered.page_count}
+      linesOver={rendered.lines_over}
+      disabled={saving}
+      onFit={onFit}
+    />
+  );
   if (lineOpen) {
     return (
       <div
@@ -2214,13 +2565,9 @@ function SlimBar({
         }}
       >
         <History tools={history} />
-        {format && (
-          <>
-            <PageTools page={format.page} disabled={format.disabled} onChange={format.onChange} />
-            {editing && <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />}
-          </>
-        )}
+        {docsZoom}
         {editing}
+        {fitButton}
         <div className="ml-auto flex items-center gap-2">
           {status}
           <span className="text-note text-ink-meta">
@@ -2234,14 +2581,7 @@ function SlimBar({
     <div data-keeps-selection data-page-bar className={box}>
       <History tools={history} />
       {docsZoom}
-      {rendered && rendered.page_count > 1 && (
-        <PagesChip
-          pages={rendered.page_count}
-          linesOver={rendered.lines_over}
-          disabled={saving}
-          onFit={onFit}
-        />
-      )}
+      {fitButton}
       {fitUndo && (
         <Button variant="ghost" size="xs" onClick={onUndoFit} disabled={saving}>
           <ArrowUUpLeftIcon aria-hidden /> Undo Fit
@@ -2350,10 +2690,13 @@ function ReviewButtons({ review }: { review: ReviewTools }) {
   );
 }
 
-/** The page count as a small amber chip with a warning sign and a caret,
- *  so it reads as a problem to open; its click offers Fit to One Page. As
- *  bare text ("2 pages") nobody took it for a button. */
-function PagesChip({
+/** The way back to one page, on the bar only while the resume runs over it.
+ *  It is the action itself: an amber "2 pages" chip with a caret came first,
+ *  whose click opened a card holding this button, which the user found one
+ *  step too many (2026-11-01). The count and what it does are in its title. A
+ *  brand outline, since it is a choice the student may pass on, and Add Bullet
+ *  beside it is the bar's one fill. */
+function FitButton({
   pages,
   linesOver,
   disabled,
@@ -2364,33 +2707,22 @@ function PagesChip({
   disabled: boolean;
   onFit: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const over =
+    linesOver > 0
+      ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2.`
+      : `It runs to ${pages} pages.`;
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="bg-warning-tint text-warning text-note focus-visible:ring-brand-ring hover:ring-warning-fill flex items-center gap-1.5 rounded-full py-1 pr-2 pl-2 font-medium transition-shadow hover:ring-1 focus-visible:ring-2 focus-visible:outline-none">
-        <WarningIcon aria-hidden weight="fill" className="text-warning-strong size-4 shrink-0" />
-        {pages} pages
-        <ChevronDownIcon className="size-3.5" />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="flex w-72 flex-col gap-3">
-        <p className="text-note text-ink-muted">
-          {linesOver > 0
-            ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2.`
-            : `It runs to ${pages} pages.`}{" "}
-          Fit to One Page hides the least useful lines until it fits.
-        </p>
-        <Button
-          size="sm"
-          disabled={disabled}
-          onClick={() => {
-            setOpen(false);
-            onFit();
-          }}
-        >
-          <ScissorsIcon aria-hidden /> Fit to One Page
-        </Button>
-      </PopoverContent>
-    </Popover>
+    <Button
+      variant="outline"
+      size="sm"
+      data-bar-action
+      className="shrink-0"
+      title={`${over} This hides the least useful lines until it fits.`}
+      disabled={disabled}
+      onClick={onFit}
+    >
+      <ScissorsIcon aria-hidden /> Fit to One Page
+    </Button>
   );
 }
 
