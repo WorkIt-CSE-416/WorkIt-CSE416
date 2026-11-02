@@ -162,12 +162,15 @@ jobs:
             tests/test_apply_home.py \
             tests/test_approve.py \
             tests/test_bot_signals.py \
+            tests/test_claude_answers.py \
             tests/test_claude_cli.py \
             tests/test_clock.py \
             tests/test_company_brief.py \
+            tests/test_company_material.py \
             tests/test_cover_letter.py \
             tests/test_daily_cap.py \
             tests/test_dock_app.py \
+            tests/test_eightfold_filler.py \
             tests/test_employer_mail.py \
             tests/test_fill_engine.py \
             tests/test_focus.py \
@@ -194,7 +197,8 @@ jobs:
             tests/test_sheet_tracker.py \
             tests/test_stock.py \
             tests/test_story_map.py \
-            tests/test_tracker_contract.py
+            tests/test_tracker_contract.py \
+            tests/test_worker_date.py
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.
