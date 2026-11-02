@@ -2105,6 +2105,16 @@ are in `docs/auth.md`.
   them through the same PATCH; My Profile still edits all nine. A new
   self-identification question goes into `SELF_ID_KEYS` too, and into the
   extension's copy of the options (`autofiller_extension/src/background/self-id.js`).
+- **Onboarding's Add Claude page is optional and before Practice** (KAN-507,
+  `onboarding/applicant/claude-step.tsx`): the install link from
+  `claudeConnectorLink()`, read in `page.tsx` and passed down, and
+  `getClaudeConnected` asked every 3 seconds while the page shows, so the
+  line turns done without a reload. Skip goes on to the practice batch.
+  The wizard's pages are `WIZARD_PAGES` in `steps.ts`, the rail's marks
+  `ONBOARDING_STEPS`; `railStep` maps one to the other (Availability under
+  Profile, Add Claude under Practice), so a new page needs no rail mark.
+  The extension's add-Claude moment (KAN-387) already skips a student whose
+  connector is added: keep that check there, not a flag set here.
 - **Writing samples are edited in My Profile only** (`(seeker)/profile/writing-samples.tsx`,
   `lib/writing-samples-actions.ts`, KAN-387): the extension's ask after a
   first written batch links to `/profile#writing-samples`, which opens Add.
