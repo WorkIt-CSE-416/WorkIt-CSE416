@@ -24,7 +24,9 @@ transaction:
 4. WorkIt's own fields from the profile's identity: name, contact email,
    phone, links, home location, and the education entry (the student's own,
    matched by school);
-5. the resume the profile names, copied into the student's folder in
+5. the resume the profile names (`files.resume_pdf`: a relative path is
+   read from the data folder, `~` is expanded, an absolute path is kept, as
+   Apply reads it), copied into the student's folder in
    LOCAL_FILES_DIR and made the default upload as
    `local:<applicant_id>/<file name>` (services/local_files.py): nothing
    goes to Storage. Without LOCAL_FILES_DIR it is left out. The unofficial
@@ -209,6 +211,12 @@ async def _set_education(session: AsyncSession, applicant_id: uuid.UUID, facts: 
         report.education = "updated"
 
 
+def _file(apply_dir: Path, named: Any) -> Path:
+    """A `files:` path as Apply reads it (profile.py's get): `~` expanded, an
+    absolute path kept, a relative one from the data folder."""
+    return (apply_dir / Path(str(named)).expanduser()).resolve()
+
+
 def _copy_local(applicant_id: uuid.UUID, source: Path) -> str:
     """Copy a file into the student's own folder in LOCAL_FILES_DIR; its storage path."""
     path = local_files.local_path(applicant_id, source.name)
@@ -224,7 +232,7 @@ async def _set_resume(
     named = (facts.get("files") or {}).get("resume_pdf")
     if not named:
         return
-    source = (apply_dir / str(named)).resolve()
+    source = _file(apply_dir, named)
     folder = get_settings().local_files_dir
     if folder is None:
         report.notes.append("resume left out: set LOCAL_FILES_DIR to attach it from this computer")
@@ -255,7 +263,7 @@ async def _set_transcript(
     named = (facts.get("files") or {}).get("unofficial_transcript_pdf")
     if not named:
         return
-    source = (apply_dir / str(named)).resolve()
+    source = _file(apply_dir, named)
     folder = get_settings().local_files_dir
     if folder is None:
         report.notes.append("transcript left out: set LOCAL_FILES_DIR to attach it from this computer")
