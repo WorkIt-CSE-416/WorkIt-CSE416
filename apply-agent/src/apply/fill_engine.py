@@ -23,6 +23,7 @@ FillEngine.call, which returns the value or the error by name.
 """
 
 import base64
+import functools
 import json
 import mimetypes
 import os
@@ -189,12 +190,12 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
          today: date | None = None, posting_text: Callable[[], str] = lambda: "", employer_text: str = "") -> Plan:
     """The engine's plan for `questions` (see its planner). `today` is the date the form is filled
     (the system's by default). `posting_text` reads the Posting's own text, called only when the
-    engine asks for it (pay, a typed location preference). `employer_text` is what Claude would read
+    engine asks for it (pay, a typed location preference), and at most once a plan. `employer_text` is what Claude would read
     beside the form (the Posting description, Company material): an AI trap in it makes the
     Application a Handoff, and an AI ban in it bans AI-written text on the form."""
     bank = bank or AnswerBank()
     entries = {question: {"answer": entry.answer, "own": entry.source == LISUL} for question, entry in bank.answers().items()}
-    context = {"posting": posting, "today": (today or date.today()).isoformat(), "postingText": HostCall(posting_text),
+    context = {"posting": posting, "today": (today or date.today()).isoformat(), "postingText": HostCall(functools.cache(posting_text)),
                "employerText": employer_text}
     result = call_without_page("plan", list(questions), _facts(profile), profile.policies(), entries, context, questions=questions)
     return Plan(
