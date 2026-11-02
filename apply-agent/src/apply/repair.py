@@ -33,7 +33,7 @@ NOT_A_BUG = "not a bug"  # the Repair found nothing in Apply to fix: a new fact,
 
 FAILURE, MISSING, WRONG = "failure", "missing fact", "wrong answer"
 # Apply's own frames in a traceback: the module and the function.
-APPLY_FRAME = re.compile(r'File "[^"]*/apply/src/apply/(\w+)\.py", line \d+, in (\w+)')
+APPLY_FRAME = re.compile(r'File "[^"]*/src/apply/(\w+)\.py", line \d+, in (\w+)')
 QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"|“[^”]*”")
 # An essay's problem is Lisul's to judge, not Apply's code.
 ESSAY = re.compile(r"\bessays?\b", re.IGNORECASE)
