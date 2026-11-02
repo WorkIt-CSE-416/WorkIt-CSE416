@@ -101,6 +101,12 @@ Built so far (option A, the typed line only):
 - **Moves show at once:** two neighbours' strips of the page trade places
   until the PDF lands. Hide, show and wording switches show nothing until
   then.
+- **A page setting's compile is skipped when a newer one is next in the
+  queue** (each is a full replacement), so five quick clicks on a size
+  compile twice, not five times. Every click still saves. A skipped step
+  keeps no PDF, nor does the step after it on its before side, so Undo
+  renders those. Typed lines and choice changes are not skipped: a render
+  is what refuses a bad one, and each carries only its own edit.
 - **Undo and Redo work like any edit:** each step keeps the state and
   PDF on both sides, so going back or forward shows at once and only the
   save goes; an older step, past the newest 7 that keep their PDFs,
