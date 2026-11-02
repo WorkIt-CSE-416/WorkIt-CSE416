@@ -1,0 +1,22 @@
+# Apply's personal data lives in the data folder ($APPLY_HOME, default
+# ~/.config/apply/), never in the repo. These names are ignored in case
+# someone puts one in this folder by mistake. Anchored to apply-agent/.
+/applicant-profile.yaml
+/answer-bank.yaml
+/story-bank.md
+/voice.md
+/policies.yaml
+/company-briefs/
+/stock-answers.yaml
+/story-map.yaml
+/rehearsals/
+/repairs/
+/profiles/
+/ship-check/
+
+# The privacy gate's identifier list. It stays outside the repo; this line
+# stops a copy in this folder from being committed.
+private-identifiers.txt
+
+.venv/
+.pytest_cache/
