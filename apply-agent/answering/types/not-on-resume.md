@@ -19,10 +19,10 @@ slots:
     holds: the one thing, named concretely, that is not on the one-pager or in another answer on this form
   - name: act
     required: true
-    holds: what he did, as a checkable event or activity, not a trait
+    holds: what they did, as a checkable event or activity, not a trait
   - name: method
     required: true
-    holds: how he did it or the reasoning behind it (the mechanism, the trick, the calculation)
+    holds: how they did it or the reasoning behind it (the mechanism, the trick, the calculation)
   - name: result
     required: true
     holds: what came of it (a number, an outcome, a thing that now works)
@@ -31,12 +31,12 @@ slots:
     holds: a fact that makes it rare to a non-specialist (odds, selectivity, a baseline, time)
   - name: tie-back
     required: false
-    holds: how it shows in his work, one clause at most, from the sources
+    holds: how it shows in their work, one clause at most, from the sources
 ---
 
 ## What the reader is checking
 
-One new, specific thing he did, told so the reasoning shows. It need not be technical or tied to the job; a trait, a fun fact or a resume line fails.
+One new, specific thing they did, told so the reasoning shows. It need not be technical or tied to the job; a trait, a fun fact or a resume line fails.
 
 - "This kind of generic claim carries no weight. A single, specific example would be much more convincing." and "It doesn't matter if it's not the sort of thing you'd put on a resume." (Paul Graham, A2)
 - "if the answer to this question is good enough, it will make me go back and take a second look at an application that otherwise seemed unpromising." (Paul Graham on YC's hack question, A11-A15)
@@ -48,7 +48,7 @@ One new, specific thing he did, told so the reasoning shows. It need not be tech
 The thing and the act in sentence one, then the method, then the result. Rarity, if the sources hold it, sits beside the act. A13 does all four in four sentences: the broken button, the app, the proximity sensor, "saved me $600". End on the result.
 
 **Exceptional ability as bullets** (when the form asks for bullets or examples): each item is one hard thing made to work, its number and why it was hard, one or two lines each; three at most unless asked.
-**Teach us something:** the surprising claim first, the mechanism in plain words with one example, and how he came to know it (he built, measured or broke something). No moral.
+**Teach us something:** the surprising claim first, the mechanism in plain words with one example, and how they came to know it (they built, measured or broke something). No moral.
 
 ## Rules
 
@@ -71,7 +71,7 @@ The words in these belong to other people. Use them to see the shape; never borr
 **A14 vs the S11 coffee-shop line: unrelated to work, reasoned vs idle (real applicant, YC accepted; coach-rated bad).**
 - Weak: "Honestly, people are usually surprised that I really like trying new coffee shops. I make a list and rate them, so I guess I'm pretty into that."
 - Strong: "In high school, I received a ticket for not stopping at a stop sign before the intersection. I took pictures from various distances and proved to the judge, mathematically, that it would have been impossible to stop earlier than I did. The ticket was thrown out."
-- Why: neither touches the job. The strong one has an act, a method and a result; the weak one has a preference and nothing he did.
+- Why: neither touches the job. The strong one has an act, a method and a result; the weak one has a preference and nothing they did.
 
 **A15: one answer, strong specifics then a weak ending (real applicant, YC accepted).**
 - Strong part: "In Belize, I once managed to talk my way onto a plane that departed 12 minutes after I arrived at the airport."

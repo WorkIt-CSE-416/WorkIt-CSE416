@@ -12,33 +12,33 @@ match:
 slots:
   - name: opening-who
     required: true
-    holds: "opening, sentence 1: that he studies computer science at @SCHOOL@, his graduation date as the sources give it, and the posting's title said plainly"
+    holds: "opening, sentence 1: that they study computer science at @SCHOOL@, their graduation date as the sources give it, and the posting's title said plainly"
   - name: opening-built
     required: true
-    holds: "opening, sentence 2: what he built most recently that fits this role, as what it did for the people who used it"
+    holds: "opening, sentence 2: what they built most recently that fits this role, as what it did for the people who used it"
   - name: opening-company
     required: true
-    holds: "opening, sentence 3: one specific thing this company or team builds, from the posting or Company brief, and his true same-kind link to it"
+    holds: "opening, sentence 3: one specific thing this company or team builds, from the posting or Company brief, and their true same-kind link to it"
   - name: proof-problem
     required: true
-    holds: "proof: his strongest experience for the work the role most needs, where he did it, and the problem in plain words"
+    holds: "proof: their strongest experience for the work the role most needs, where they did it, and the problem in plain words"
   - name: proof-steps
     required: true
-    holds: "proof: what he himself did, step by step, with a number, scope or link when the sources give one"
+    holds: "proof: what they themselves did, step by step, with a number, scope or link when the sources give one"
   - name: proof-why
     required: false
-    holds: "proof: why he built it that way, or what it showed him, as the sources state it"
+    holds: "proof: why they built it that way, or what it showed them, as the sources state it"
   - name: second-proof
     required: false
-    holds: "second_proof: a second thing the role needs, from a different experience, with what he did"
+    holds: "second_proof: a second thing the role needs, from a different experience, with what they did"
   - name: closing-availability
     required: true
-    holds: "closing: his internship term or availability, as the sources state it"
+    holds: "closing: their internship term or availability, as the sources state it"
 ---
 
 ## What the reader is checking
 
-In under a minute, and often only the first sentence: who he is, what proof he has, and whether this letter was written to this company. The template in `src/apply/cover_letter.py` fixes the shape, and its slot rules and word caps win over anything here. Each slot name above starts with the template slot it fills (`second-proof` fills `second_proof`). Apply writes the salutation, sign-off and his name.
+In under a minute, and often only the first sentence: who they are, what proof they have, and whether this letter was written to this company. The template in `src/apply/cover_letter.py` fixes the shape, and its slot rules and word caps win over anything here. Each slot name above starts with the template slot it fills (`second-proof` fills `second_proof`). Apply writes the salutation, sign-off and their name.
 
 - "They're the very first thing we read when people apply. And when they're bad, they're definitely the last thing we read from that applicant. We just stop there." (Jason Fried, 37signals, cover-letters reader quotes)
 - "Are they applying for this job or just any job? It's pretty obvious if it's a general purpose mail merge, or a personal letter written to us about their passion for that position." (Fried)
@@ -64,10 +64,10 @@ Each is a yes/no check on the draft.
 3. **Would opening-company be false with a competitor's name in it?** L3: "I was intrigued to see that you've built your own LMS"; L11: "replicate TTL's own tesser analysis". Weak: L5's `${companyName}`, L7, D6 (Lerner: "nothing here about why this candidate is a good fit").
 4. **Is the employer, its product or "you" the subject of a sentence outside the closing?** patio11's I/you count on L4; M1's "If you are considering using Linux either in your phones or in-house".
 5. **No technology list longer than three items?** L7 lists six frameworks, L8 eleven techniques; Silverman: "The résumé in prose form" (C2).
-6. **No claim larger than his part, and nothing planned stated as done?** Fried: "'Sales increased 30% under my watch.' You didn't do that probably." L5 called a book he had not started "in the process of writing".
+6. **No claim larger than their part, and nothing planned stated as done?** Fried: "'Sales increased 30% under my watch.' You didn't do that probably." L5 called a book they had not started "in the process of writing".
 7. **No superiority or certainty?** "I more than meet the required qualifications" was rejected at once and its writer later called it "arrogant" (L11); "a hundred percent sure" (L8); "one of the top contributors" (L7).
-8. **No passion, love or excitement unless the same sentence holds something he did?** WillyF on L4: "You can write for hours about how much you love programming, but what most hiring managers are really concerned with is your end product."
-9. **Does the closing avoid what the job gives him and any moral?** Weak closes: "career opportunities it offers me" (L2), "enhance my career prospects" (L7), "personal and professional development" (L1-before).
+8. **No passion, love or excitement unless the same sentence holds something they did?** WillyF on L4: "You can write for hours about how much you love programming, but what most hiring managers are really concerned with is your end product."
+9. **Does the closing avoid what the job gives them and any moral?** Weak closes: "career opportunities it offers me" (L2), "enhance my career prospects" (L7), "personal and professional development" (L1-before).
 10. **Are at least two sentences ones no other applicant could write?** L6's AI letters "lacked personality" with no anecdote; Fried: "there is a flavor that you can taste".
 11. **Is every slot backed, and inside its cap?** Write only the slots the plan backs. With no proof-why in the sources, proof ends on the steps; M1 and L12 won with no lesson and almost no feeling. With no second experience, second_proof stays empty. With no true same-kind link for opening-company, the required slot asks @NAME@; never stretch one (Lerner: "maybe skip it", D4).
 
@@ -81,7 +81,7 @@ The words in these belong to other people. Use them to see the shape; never borr
 > - I have previous experience of embedded systems programming: during my year out I developed the software for a precision testing machine (20 000 lines of C in 6 months). I worked closely with a team of electronic and mechanical engineers during the project, which was completed on time and on budget.
 > - I am a developer for [Y] Linux, a distribution which is being increasing used for embedded systems. If you are considering using Linux either in your phones or in-house I can offer specific expertise.
 > Please do not hesitate to contact me if you need further information, and I look forward to discussing your requirements in more detail in the near future.
-- Slots: point 1 is proof (problem, scope, who he worked with); point 2 is second_proof stated as an offer to them. One feeling ("sounds very interesting"), no lesson.
+- Slots: point 1 is proof (problem, scope, who @NAME@ worked with); point 2 is second_proof stated as an offer to them. One feeling ("sounds very interesting"), no lesson.
 
 **L11 after: research scientist, technical career changer, excerpt (real applicant, reached the final round; Green: "a letter about her").**
 > I was thrilled to see the Research Scientist position at the Time Travel Laboratory (TTL). I ran the first few research studies of my PhD on a Portal 560 and always loved how accessible it made time travel [...]
@@ -114,6 +114,6 @@ The words in these belong to other people. Use them to see the shape; never borr
 **L4: the same SWE writer, two drafts (real applicant; HN judges).**
 - Weak: "I love to program. It is what I honestly believe I was born to do [...] Give me a problem to solve and I won't give up unitl it kneels before me."
 - Better, still weak: "I've written things from a cradle-to-grave web-application in J2EE (http://thegatewayproject.org/) to an x264 encoding script in Python [...]"
-- Why: the revision added proof but still said nothing about the employer, and patio11 still marked it down. Proof alone does not fix a letter that is only about him.
+- Why: the revision added proof but still said nothing about the employer, and patio11 still marked it down. Proof alone does not fix a letter that is only about them.
 
 Sources for every record above: `research/sources/answer-types/examples/cover-letters.md` (L*, M*, reader quotes) and `research/sources/answer-types/deep-examples.md` (C*, D*).

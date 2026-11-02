@@ -208,7 +208,7 @@ def test_review_is_told_the_terms_he_can_intern_are_a_profile_fact():
     review(claude, Posting("c", "Cloudflare", "Intern", "https://boards.greenhouse.io/cloudflare/jobs/1"), [terms],
            {"terms": ["Winter/Spring (January - May 2027)", "Summer (May - September 2027)"]})
 
-    assert "terms he can intern" in claude.systems[0]
+    assert "terms they can intern" in claude.systems[0]
 
 
 def test_review_is_told_a_yes_to_either_of_two_days_is_right_when_one_is():

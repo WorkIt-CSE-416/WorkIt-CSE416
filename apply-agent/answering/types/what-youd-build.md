@@ -20,18 +20,18 @@ slots:
     holds: one real problem of theirs or their users, quoted from the Company brief or the posting; a problem, not a feature label
   - name: obstacle
     required: true
-    holds: what makes it hard, from the brief or from the same kind of problem in his own work
+    holds: what makes it hard, from the brief or from the same kind of problem in their own work
   - name: first-step
     required: true
-    holds: one modest first step and what he would measure, built from a method the sources show he has used
+    holds: one modest first step and what they would measure, built from a method the sources show they have used
   - name: progress
     required: false
-    holds: his own work on the same kind of problem, with what exists now (a link, a prototype, a result)
+    holds: their own work on the same kind of problem, with what exists now (a link, a prototype, a result)
 ---
 
 ## What the reader is checking
 
-That he understands their problem and what makes it hard. A deliverable with no problem, or an edge of "better execution", reads as no insight.
+That @NAME@ understands their problem and what makes it hard. A deliverable with no problem, or an edge of "better execution", reads as no insight.
 
 - "we want to see that you're aware of the obstacles, and have at least a theory about how to overcome them." (Paul Graham, YC)
 - Of "I will write a tree class": "not a good proposal, and will be ranked with the lowest possible score." "A proposal is not just a statement of intent." (Boost reviewers, who rank GSoC proposals, E26)
@@ -40,10 +40,10 @@ That he understands their problem and what makes it hard. A deliverable with no 
 
 ## Order
 
-The problem first, then the obstacle, then his first step, then his progress if the plan backs it. Problem and obstacle together take about half the words.
+The problem first, then the obstacle, then their first step, then their progress if the plan backs it. Problem and obstacle together take about half the words.
 
 **Form lists projects or products:** pick from the list, say which, then the same order.
-**"If [company] didn't exist":** name a kind of problem, not a company; the driver from the sources; his progress on it. A brand fails: "Google" for "If not Palantir" read as prestige (A39).
+**"If [company] didn't exist":** name a kind of problem, not a company; the driver from the sources; their progress on it. A brand fails: "Google" for "If not Palantir" read as prestige (A39).
 **Multi-part ask** ("what you're proud of and what you'd build next"): answer both. D1 was rejected partly because the applicant "conveniently skipped" this part.
 
 ## Rules
@@ -56,7 +56,7 @@ Each is a yes/no check on the draft.
 4. **Is the edge more than execution?** "well-designed and easy to use" is "not an insight. You're just claiming you're going to execute well." (PG, A3) "make it easier to use" fails the same way (E27).
 5. **Is the first step modest enough for an intern's summer?** PG's strong form is a toehold: "We know that sounds impossible, but we think we can get a toehold initially by..." (A1).
 6. **Is any of it already started?** Prefer yes. A31's same project was rejected as an idea and admitted as a live tool.
-7. **Is his progress the same kind of problem?** Bolted-on work reads as a stretch. With no same-kind work, leave progress out.
+7. **Is their progress the same kind of problem?** Bolted-on work reads as a stretch. With no same-kind work, leave progress out.
 8. **Is every slot backed?** The problem is quoted from the Company brief or posting; the obstacle and first step rest on a quoted line from the brief or the Story bank. With no progress in the sources, end on the first step.
 
 ## Pairs

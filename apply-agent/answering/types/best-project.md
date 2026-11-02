@@ -19,16 +19,16 @@ match:
 slots:
   - name: project
     required: true
-    holds: what he built, for whom, and what it does, in plain words
+    holds: what they built, for whom, and what it does, in plain words
   - name: own-part
     required: true
-    holds: the parts that were his alone (what he wrote, owned or decided), or that he built it alone
+    holds: the parts that were theirs alone (what they wrote, owned or decided), or that they built it alone
   - name: hard-part
     required: true
-    holds: the specific obstacle he hit (a bug, a hardware or timing limit, a data fact), not the size of the work
+    holds: the specific obstacle they hit (a bug, a hardware or timing limit, a data fact), not the size of the work
   - name: decision
     required: true
-    holds: one engineering choice he made, with the option he rejected or the reason
+    holds: one engineering choice they made, with the option they rejected or the reason
   - name: effect
     required: true
     holds: what changed because of it (a number with its baseline, a named user effect, a result, or a link)
@@ -37,12 +37,12 @@ slots:
     holds: an honest limit on the result (what it did not do, what is still unproven)
   - name: why
     required: asked
-    holds: the real reason he picked or cares about it, in the sources; used only when the question asks why
+    holds: the real reason they picked or cares about it, in the sources; used only when the question asks why
 ---
 
 ## What the reader is checking
 
-What he personally drove, what made it hard, the choice he made, and what changed. Size alone earns nothing.
+What they personally drove, what made it hard, the choice they made, and what changed. Size alone earns nothing.
 
 - "Pride without outcomes is weak signal. Explain what was hard, what you personally drove, and what changed because of the work." (Hello Interview rubric, S1)
 - "You do not get much credit for simply naming a project with impressive scale." and "Many candidates over-focus on the build and under-explain the decisions." (Hello Interview rubric, S2 and S1)
@@ -52,7 +52,7 @@ What he personally drove, what made it hard, the choice he made, and what change
 
 ## Order
 
-Project and its effect in sentence one, then his part in one clause, the hard part, the decision, and the effect in full. A limit, if the sources hold one, sits beside the effect. The project sentence is plain and matter of fact: "CanadaKaz designed Canada's Startup Visa." (A5).
+Project and its effect in sentence one, then their part in one clause, the hard part, the decision, and the effect in full. A limit, if the sources hold one, sits beside the effect. The project sentence is plain and matter of fact: "CanadaKaz designed Canada's Startup Visa." (A5).
 
 **Two items** ("top two", "two strongest"): two compact stories, each led by its strongest fact, the stronger one first, showing different strengths. S13 put a junior-high olympiad in front of a "from 10 hours to 1 hour" result and buried it.
 **Favorite ... and why:** the why is its own sentence, from the why slot. With no backing, it holds for @NAME@.
@@ -63,7 +63,7 @@ Each is a yes/no check on the draft.
 
 1. **Does sentence one name the project and what it did?** "The best answers are the most matter of fact" (PG, quoted in S12). A5 and S13 Gordon ("I built new ranking system") lead with the thing.
 2. **Is the hard part a found obstacle, not volume, speed or scale?** S2 GREAT: "the data from one service was delayed and made the page misleading". S2 POOR fails: "there were a lot of fields, and I had to move pretty quickly".
-3. **Is there a sentence that says which parts were his?** S1 GREAT: "My lead helped me narrow the scope, and I owned the investigation, the code change in one service, and the testing plan". Spolsky's test for team work is "So what did you do?"
+3. **Is there a sentence that says which parts were theirs?** S1 GREAT: "My lead helped me narrow the scope, and I owned the investigation, the code change in one service, and the testing plan". Spolsky's test for team work is "So what did you do?"
 4. **Is at least one engineering decision shown with its reason?** S2 GREAT "added a clearer freshness indicator rather than pretending the numbers were real-time" passes. A scoping talk with a manager does not count as the decision (S3, not advanced).
 5. **Is the effect a number with a baseline, a named user effect, or a link?** S13 Gordon "from 10 hours to 1 hour"; S1 "support tickets on that issue dropped". "Shipped on time", "successful" and "people were happy" fail (S1 rubric's bad lines; A8). No number is needed if the change is named: "You do not need perfect metrics, but you should explain what improved and who benefited" (S1).
 6. **Does it end on a fact, not a trait or a feeling?** S2 POOR ends "I think it showed I can handle pressure and deliver"; A8 opens "I am passionate about". S1 GREAT's closing "It felt like..." adds nothing; the answer stands without it.
@@ -83,11 +83,11 @@ The words in these belong to other people. Use them to see the shape; never borr
 **S1: effect on users vs tidy code (coach model).** "What project are you most proud of?"
 - Weak: "...I refactored it to be much easier to read and broke some of the functions into smaller pieces. It didn't really change the product, but the code looked a lot better afterward and I enjoy that kind of work. My manager was happy that I took initiative and handled it on my own."
 - Strong: "...New users were sometimes getting stuck after email verification, and support had a manual workaround, but no one had isolated the bug yet. My lead helped me narrow the scope, and I owned the investigation, the code change in one service, and the testing plan for the edge cases I found... after we shipped it, support tickets on that issue dropped and the team stopped revisiting the same problem every release."
-- Why: the weak one's proof is a feeling and a manager's mood. The strong one fences his part and names a change someone could check.
+- Why: the weak one's proof is a feeling and a manager's mood. The strong one fences their part and names a change someone could check.
 
 **A6 and S13: the compact real-applicant form (real applicants; YC accepted, YC rejected).**
 - A6: "owned IndexedDB (the emerging w3c standard for storing data in a browser) within Chrome; edited the spec, worked closely with Mozilla and Microsoft on the design, and wrote most of the initial implementation in Chrome/WebKit..."
 - S13 Gordon: "While at IMDB, I built new ranking system where I reduced the rank generation time from 10 hours to 1 hour using Hadoop and Amazon Elastic Map Reduce."
-- Why: each is one project, his own verbs, and a checkable size, with no adjective about himself.
+- Why: each is one project, their own verbs, and a checkable size, with no adjective about themselves.
 
 Sources for every record above: `research/sources/answer-types/examples/story-facing.md` (S records) and `research/sources/answer-types/deep-examples.md` (A records).

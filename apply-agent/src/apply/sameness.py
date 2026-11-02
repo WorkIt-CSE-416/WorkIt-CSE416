@@ -302,15 +302,15 @@ def swap_survivors(text: str, company: str, competitors: list[str],
 
 # How each voice measure reads to the editor: (what it is, what to do).
 DRIFT_NOTES = {
-    "contractions": ("{v:.1f} contractions per 100 words, where he writes about {m:.1f}", "write them out"),
-    "sentence_mean": ("sentences average {v:.0f} words, where his average is {m:.0f}", "join some short ones"),
-    "sentence_spread": ("sentence lengths too even (spread {v:.0f} words, his {m:.0f})", "vary them"),
-    "ing_clauses": ("{v:.1f} \"-ing\" clauses per 100 words, where he writes about {m:.1f}",
+    "contractions": ("{v:.1f} contractions per 100 words, where the applicant writes about {m:.1f}", "write them out"),
+    "sentence_mean": ("sentences average {v:.0f} words, where the applicant's average is {m:.0f}", "join some short ones"),
+    "sentence_spread": ("sentence lengths too even (spread {v:.0f} words, the applicant's {m:.0f})", "vary them"),
+    "ing_clauses": ("{v:.1f} \"-ing\" clauses per 100 words, where the applicant writes about {m:.1f}",
                     "say them with a plain verb"),
-    "verb_nouns": ("{v:.1f} verb-nouns (-tion, -ment, -ance) per 100 words, where he writes about {m:.1f}",
+    "verb_nouns": ("{v:.1f} verb-nouns (-tion, -ment, -ance) per 100 words, where the applicant writes about {m:.1f}",
                    "use the verbs"),
-    "i_share": ("{v:.0%} of sentences have \"I\", where his have {m:.0%}",
-                "make him the subject where the sources say he did it"),
+    "i_share": ("{v:.0%} of sentences have \"I\", where the applicant's have {m:.0%}",
+                "make the applicant the subject where the sources say they did it"),
 }
 
 
@@ -332,13 +332,13 @@ def check(answer: str, *, type: str, form_answers: dict[str, str] | list[str], s
     if default:
         if (overlap := default_overlap(answer, default)) > DEFAULT_OVERLAP:
             out.append(f"reads like the typical answer: {overlap:.0%} of its 3-word runs are in it; "
-                       "build it on his own story or idea from the sources")
+                       "build it on the applicant's own story or idea from the sources")
         if shared_opening(answer, default) >= DEFAULT_OPENING:
-            out.append(f"opens like the typical answer: \"{' '.join(answer.split()[:8])} ...\"; open on his own point")
+            out.append(f"opens like the typical answer: \"{' '.join(answer.split()[:8])} ...\"; open on the applicant's own point")
     if ledger and company:
         for hit in ledger.cross_overlap(answer, company, types=None if type in COMPANY_FACING else {type}):
             how = f"\"{hit['run']} ...\"" if hit["run"] else f"{hit['overlap']:.0%} of its 5-word runs"
-            out.append(f"reuses his {hit['company']} answer ({hit['date']}): {how}; say it afresh")
+            out.append(f"reuses the applicant's {hit['company']} answer ({hit['date']}): {how}; say it afresh")
     others = form_answers if isinstance(form_answers, dict) else dict(enumerate(form_answers))
     marker = object()
     for a, b, reason in same_openings({marker: answer, **others}):

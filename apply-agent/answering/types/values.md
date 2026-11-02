@@ -16,24 +16,24 @@ slots:
     holds: exactly one of the company's values (or the mission), quoted from the Company brief in their words, picked for the strongest true story
   - name: act
     required: true
-    holds: one episode where he acted on that value, told as his own acts, with a named tool, count or duration when the sources give one
+    holds: one episode where they acted on that value, told as their own acts, with a named tool, count or duration when the sources give one
   - name: result
     required: true
-    holds: what came of it, or what others did with what he made
+    holds: what came of it, or what others did with what they made
   - name: tension
     required: false
-    holds: what acting on it cost him or pulled against (a deadline, pressure to move on, a metric that said it was fine)
+    holds: what acting on it cost them or pulled against (a deadline, pressure to move on, a metric that said it was fine)
   - name: habit
     required: false
-    holds: what he does now because of it, stated as an action
+    holds: what they do now because of it, stated as an action
   - name: lesson
     required: false
-    holds: what he took from it, specific to this episode; one clause at most
+    holds: what they took from it, specific to this episode; one clause at most
 ---
 
 ## What the reader is checking
 
-That he lives the value, shown by one thing he did. Agreeing with the value, praising it or reciting it back reads as no answer.
+That they live the value, shown by one thing they did. Agreeing with the value, praising it or reciting it back reads as no answer.
 
 - "simply inquiring as to someone's values is insufficient" (Oxide RFD 3, the company's own hiring process)
 - Of "Honesty, and integrity, and decency" as a reason to join: "We think that any company should have that. [...] That is nowhere near enough." (Bryan Cantrill, Oxide CTO, E3)
@@ -43,11 +43,11 @@ That he lives the value, shown by one thing he did. Agreeing with the value, pra
 
 ## Order
 
-Name the value once, plainly, in the company's words, then the act (most of the words), the tension inside it if the plan backs one, then the result. A habit may follow the result. The strong models E21 and E22 never use the value's word at all, because the prompt names it; when the form asks him to pick one, name it in one plain clause and move on.
+Name the value once, plainly, in the company's words, then the act (most of the words), the tension inside it if the plan backs one, then the result. A habit may follow the result. The strong models E21 and E22 never use the value's word at all, because the prompt names it; when the form asks them to pick one, name it in one plain clause and move on.
 
-**Mission question** ("why does our mission resonate"): the mission is the reason behind his act, never the content. One concrete act from the sources that serves the same end, then its result.
+**Mission question** ("why does our mission resonate"): the mission is the reason behind their act, never the content. One concrete act from the sources that serves the same end, then its result.
 **Tension question** ("a time two values pulled against each other"): name both values, the act that chose between them, and what happened (E25).
-**Violation question** ("a time the value was violated"): what happened, what he did about it, and the result (E25).
+**Violation question** ("a time the value was violated"): what happened, what they did about it, and the result (E25).
 
 ## Rules
 
@@ -56,7 +56,7 @@ Each is a yes/no check on the draft.
 1. **Is exactly one value named, in the company's own words?** Pick the value with the strongest true story, not the headline one.
 2. **Is it free of agreement and praise?** "your values of respecting the user [...] are values I place high emphasis on" (E11) and "Company's mission of 'insert mission statement' resonates with me" (E9) fail.
 3. **Is the value one the company owns, not one "any company should have"?** Honesty and integrity offered as the reason fail (E3).
-4. **Is the act his, in "I"?** A32's rejected draft wanted "a company/organization with a strong culture"; its admitted draft names a group he worked with.
+4. **Is the act theirs, in "I"?** A32's rejected draft wanted "a company/organization with a strong culture"; its admitted draft names a group they worked with.
 5. **Does the story show this value, not a different one?** A technical win stretched to fit a value it does not show fails.
 6. **Is every act concrete?** E22 names its acts ("established weekly cross-team syncs", "a shared dashboard"); E23's "a modern programming language and frameworks" names nothing.
 7. **Does it end on the result, not a moral?** E22 ends on "the collaboration framework I established became the standard for future cross-team projects" and has no lesson. E23 ends on "the importance of continuous learning in our field", a line a stranger could write.
@@ -74,7 +74,7 @@ The words in these belong to other people. Use them to see the shape; never borr
 **A32: real applicant, rejected then admitted (Recurse Center).**
 - Weak: "I want to be working for a company/organization with a strong culture and that values bringing out the best in all their employees."
 - Strong: "I want to be building strong, supportive teams. Brian J. Brennan gave a talk at JS conf called 'Being Human' (link) [...] I've worked with organizations like 'Ladies Learning Code'"
-- Why: the weak one claims the value; the strong one names it plainly and then shows where he acted on it.
+- Why: the weak one claims the value; the strong one names it plainly and then shows where they acted on it.
 
 **E11 vs E21: career-center model vs employer's model.**
 - Weak: "I really feel that your values of respecting the user, the opportunity, and each other back up your mission statement" / "and those are values I place high emphasis on in both my personal and professional life."

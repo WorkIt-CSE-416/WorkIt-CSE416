@@ -15,7 +15,7 @@ match:
 slots:
   - name: new-fact
     required: true
-    holds: one fact not used anywhere else on this form, of the kind the box's label asks for (a project or result, a link to his work, availability, a course in progress, a clarification)
+    holds: one fact not used anywhere else on this form, of the kind the box's label asks for (a project or result, a link to their work, availability, a course in progress, a clarification)
   - name: meaning
     required: false
     holds: one clause on what the fact means for the reader or what they can do with it (a link to open, a date to plan around)
@@ -46,11 +46,11 @@ Always answer, even when the box is optional: a blank box is a bug in this syste
 Each is a yes/no check on the draft.
 
 1. **Is it at most two sentences, unless the label asks for more?** The good YC answers are 23 and 31 words; the weak one is three paragraphs (A41).
-2. **Does every sentence carry a fact not already on the form?** Read every other answer first. The accepted Z Fellows applicant re-pitched traction he had given elsewhere (O20); USC lists "Another personal statement or short answer" as what does not belong (O21).
+2. **Does every sentence carry a fact not already on the form?** Read every other answer first. The accepted Z Fellows applicant re-pitched traction they had given elsewhere (O20); USC lists "Another personal statement or short answer" as what does not belong (O21).
 3. **Does it answer what the label asks?** For a bare label, it holds no "why I want to join" and no restated accomplishment (Tuck, B11). For OpenAI's or Anthropic's label, motivation or an accomplishment is the point (O21 note).
 4. **Is it free of definitions and lessons?** "Other examples of certified B Corps include Patagonia, The Honest Company and Plum Organics" is the weak answer's line (A41 Flex).
 5. **Is it free of thanks, enthusiasm and sign-offs?** None of the good answers (A41, the O20 model) has one; a line with no fact fails rule 2.
-6. **Is the fact checkable?** A name, a link or a date beats a statement about himself: Goodly names the lawyer who reviewed its documents (A41).
+6. **Is the fact checkable?** A name, a link or a date beats a statement about themselves: Goodly names the lawyer who reviewed its documents (A41).
 7. **Is every slot backed?** Write only the slots the plan backs. With no meaning line in the sources, the fact stands alone: both good A41 answers are mostly fact.
 
 ## Pairs
