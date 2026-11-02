@@ -575,6 +575,7 @@ def test_each_links_tile_on_the_dashboard_says_what_it_is_and_how_it_ended(monke
         "company": "Arc Boat Company", "role": "Software Engineering Intern", "job_system": "greenhouse",
         "status": "ready to submit", "stage": "", "line": done.line(), "why": done.why,
         "filled": done.filled, "asked": done.asked, "missing": list(done.missing), "drafted": [],
+        "choices": {}, "required": {},
     }}
     assert done.asked > 0
 
