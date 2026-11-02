@@ -179,7 +179,12 @@ builds it: `dist/engine.js` is committed in the engine repo.
   `test/speed.extension.spec.ts` times each fake step (`workday`,
   `workday-2` to `workday-5`). Its own How Did You Hear About Us? is never read: the engine
   searches it for each source in turn (WorkIt, LinkedIn, then the rest) and
-  takes the first found.
+  takes the first found. A tenant whose search lists only its categories
+  again (Flextronics') has its categories read, and a category is never
+  taken as a source (KAN-489). A dropdown answer its list lacks takes the
+  list's own name for it (Ferrovial's "United States of America"), and
+  Phone Device Type takes Telephone where a tenant offers no Mobile (Ace
+  Hardware's).
   `test/workday-steps.extension.spec.ts` walks a whole application (Apply's
   fake Workday steps, as new pages and drawn in place) from Create Account
   to Review, Fill to Review saving each step it can and the test answering
