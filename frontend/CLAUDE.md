@@ -31,14 +31,18 @@ them). Notes the scripts don't say:
   `npm ci` in a `node:22` container before pushing.
 - `typecheck` runs `next typegen` first because `LayoutProps`/`PageProps` are
   generated route types that do not exist on a fresh clone; bare `tsc` fails.
-- **Tests are Node's own runner** (`node --test`, Node 24 strips the types;
-  on Node 22 add `--experimental-strip-types`, or every test fails with
-  "Unknown file extension .ts"),
-  for pure modules only: `npm test`, or one file with
-  `node --test src/lib/autofill-answers.test.ts`. A test sits beside its
-  module as `<name>.test.ts` and imports it with the `.ts` extension
+- **Tests are Node's own runner** (`node --test`), for pure modules only:
+  `npm test`, or one file with `node --experimental-strip-types --test
+  src/lib/autofill-answers.test.ts`. `npm test` passes the flag itself:
+  Node 24 strips the types anyway, but Node 22 before 22.18 does not, and
+  every test failed with "Unknown file extension .ts". A test sits beside
+  its module as `<name>.test.ts` and imports it with the `.ts` extension
   (`allowImportingTsExtensions` in tsconfig), so the module under test must
-  use relative imports, not `@/`. There is no component or browser runner.
+  use relative imports with the `.ts` extension too, not `@/` and not a
+  bare path: Node resolves no extension, and `model.ts`'s bare import of
+  `holdings` failed `cuts.test.ts` with "Cannot find module" (2026-11-01).
+  A type-only import can use `@/`, since it is erased. There is no
+  component or browser runner.
 - **To test a resume upload**, use a file from `frontend/public/resumes/`.
   The folder is git-ignored because it holds real people's resumes, so put
   your own there once, in the primary checkout: `npm run worktree` and every

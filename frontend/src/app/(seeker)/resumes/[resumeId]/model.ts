@@ -2,7 +2,7 @@ import type { Bank, BankEntry, Bullet, Skill } from "@/lib/bank-actions";
 import type { ChoicesUpdate, Choices, RenderBox } from "@/lib/built-resume-actions";
 import type { ApplicantProfile } from "@/lib/profile-actions";
 
-import { ALL, rowsOf, type BankRow } from "../../experiences/holdings";
+import { ALL, rowsOf, type BankRow } from "../../experiences/holdings.ts";
 
 /**
  * The editor's reading of the bank and one resume's choices (KAN-218): what
