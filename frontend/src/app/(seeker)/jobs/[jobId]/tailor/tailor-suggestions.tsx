@@ -108,8 +108,8 @@ export function TailorReview({
         }
         original={record?.source && <OriginalResume source={record.source} />}
         phoneBar={noRecord}
-        suggestions={(api) => <SuggestionsPanel {...api} />}
-        suggestionPopup={POPUP_LIVE ? (api) => <SuggestionPopup {...api} /> : undefined}
+        suggestions={SuggestionsPanel}
+        suggestionPopup={POPUP_LIVE ? SuggestionPopup : undefined}
       />
     </>
   );

@@ -287,8 +287,8 @@ weight.
   (`SlimBar`), one row over the page, the same bar the editor's own page
   has since KAN-411. At the left, Undo and Redo, then Fit to One Page
   (over one page only, a brand outline button with a scissors icon: an amber
-  "⚠ 2 pages ⌄" chip that opened a card holding this button came first), and
-  Undo Fit after a fit.
+  "⚠ 2 pages ⌄" chip that opened a card holding this button came first);
+  Undo takes a fit back (Undo Fit, a button of its own, went on 2026-11-01).
   At the right, Download, secondary: Finish is the page's one filled
   button while no line is open, and a filled Download beside it competed. No Experiences picker (once "Not
   on This Resume") on this page: putting a hidden line back is the editor's own page's work,
