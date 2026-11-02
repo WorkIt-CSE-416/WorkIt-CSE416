@@ -46,6 +46,16 @@ folder. The repairer works on the submodule path in its Repair worktree.
 Run `git submodule update --init` once per checkout. Without it, Apply
 cannot fill a form, and `uv run apply doctor` says so.
 
+Apply adds three rules to the engine's plan (`fill_engine.plan` and
+`worker._Planned.add`):
+
+- A secret question (a password) is never sent to Claude to draft. It
+  stays blank for the Filler.
+- A Workday try-list answer (`a|b|c`) accepts each of its wordings in the
+  read-back, because the fill takes the first one that it finds.
+- A form that Claude fill reads is planned with the company and role that
+  its page names, when the link names none.
+
 `README.md` is a teammate's setup path, from a clone to a rehearsal. Its
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.
