@@ -45,7 +45,7 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * the rail's width, so shadcn's in-flow gap beside it matches it.
  *
  * THE BAR holds, below md, the toggle that opens the panel's sheet, then the
- * job search and, on the right, Scout, the
+ * job search and, on the right, Scout (archived, `SCOUT_LAUNCHER_LIVE`), the
  * bell, and the photo with the full name and email beside it from lg. It
  * had a "N New Roles Since Yesterday" pill from xl too; it was taken out as
  * a distraction, and a bar message comes back only when it is worth one. That last opens the
@@ -82,6 +82,12 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * window's: Scout's panel takes room beside the page when open, and the page
  * fits itself to what is left.
  */
+
+/** The bar's Scout button is archived (2026-11-01). Scout stays: Ask Scout and
+ *  Fill With Scout still open its panel. The resume editor's assistant has no
+ *  other way in on a laptop, so it waits for this. Set it to true to bring the
+ *  button back. */
+const SCOUT_LAUNCHER_LIVE = false;
 
 export default async function AppLayout({
   children,
@@ -168,7 +174,7 @@ export default async function AppLayout({
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <MobileSearch />
 
-            <ScoutLauncher className={BAR_CIRCLE} />
+            {SCOUT_LAUNCHER_LIVE && <ScoutLauncher className={BAR_CIRCLE} />}
 
             <SeekerNotificationsBell className={BAR_CIRCLE} />
 

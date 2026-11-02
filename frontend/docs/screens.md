@@ -1276,7 +1276,15 @@ page with one action.
     (`useBrowserTabs`, which asks `run/status` every 4 seconds while the
     page shows): Filling (with a spinning ring, as Tailor's run loader),
     Ready to Submit, Needs You, Fill Failed, Submitted. With its tab closed
-    (stage needs_you) it is Needs You.
+    before WorkIt saw its submit, it is **Tab Closed, Not Submitted**
+    (amber; KAN-512): the extension's `run/status` lists it in `closed`
+    (`useClosedTabs`), its stage stays as its fill left it (never applied),
+    and a click opens it again. Without that list (another browser, an
+    older extension) a closed one with stage needs_you is Needs You.
+    "Tab Closed" was cut on 2026-10-29 as a browser detail beside a Reopen
+    link; it came back on 2026-11-01 as the one status, since a Ready
+    job whose tab closed otherwise fell back into Queued with no sign it
+    had started.
   - **Queued**: waiting, in the order the extension takes it; no status. A
     place ("#1 in Queue") was tried and cut: five fill at once, so it read
     as one at a time.
@@ -2183,14 +2191,12 @@ with no proposals to accept and no Done (2026-10-25).
 
 - **Opened from "Tailor My Resume"** on the job posting page, which reads
   "Your Tailored Resume" once the student has one for that posting.
-- **Each pick step has its own title and line** (`HEADINGS` in
-  `tailor-screen.tsx`, drawn by `TailorHeader`): "Pick the Resume to Start
-  From" (WorkIt saves a tailored copy and leaves the pick as it is), and
-  "Add the Keywords You Have Used" (Tailor Resume then rewrites the
-  bullets, never adds a number or tool, and can be undone; the keyword
-  card's own note says what a picked keyword means). Both read "Tailor
-  Your Resume to <job title>" over one line about the whole flow until
-  2026-10-26.
+- **Each pick step has its own title** (`HEADINGS` in `tailor-screen.tsx`,
+  drawn by `TailorHeader`): "Pick the Resume to Start From" and "Add the
+  Keywords You Have Used". Both read "Tailor Your Resume to <job title>" over
+  one line about the whole flow until 2026-10-26, and each had a line of its
+  own under the title until 2026-11-01, on what WorkIt saves and what a run
+  does; the user had them taken out, since the controls say enough.
 - **Every step names its job in one line under its title**
   (`TailorJobLine`), the review's resume name included: the employer's
   small logo, then "Title · Company", a link to the job posting's page.
@@ -2215,15 +2221,14 @@ with no proposals to accept and no Done (2026-10-25).
   repeated what the tailored resume's name already says.
 - **One step at a time** (2026-10-26), each under the same top row in the
   brand tint (`TailorBar`): Back, the step on one line ("Pick a Resume ·
-  Step 1 of 3"), and the step's way on, Use This Resume, Tailor Resume or
-  Finish. Then the step's title, its job line and its line
-  (`TailorHeader`), then the step's own view (`TailorScreen` keeps the step in state; a
+  Step 1 of 3"), and the step's way on, Next, Tailor Resume or
+  Finish. Then the step's title and its job line (`TailorHeader`), then the step's own view (`TailorScreen` keeps the step in state; a
   reload starts at the pick). The keyword match appeared under the picker
   on one page before, so the student scrolled past the list to read it.
   Pick a Resume shows the list across the full width, and each card's
   Preview opens that resume in a dialog (below). The top row replaced a
   step timeline (`TailorSteps`, circles and lines), the pick steps' Back
-  above the title, and Use This Resume, Back and Tailor Resume at each
+  above the title, and the way on, Back and Tailor Resume at each
   card's foot. Back never loses a pick:
   the same resume picked again keeps its match and its picked keywords,
   with no second read. Review Changes is the tailored resume's own page.
@@ -2246,10 +2251,9 @@ with no proposals to accept and no Done (2026-10-25).
   tailored to this job, else the primary unless that is tailored to
   another job, else the first resume not tailored to any (`tailorFirst`):
   tailoring another job's tailored resume starts from that job's changes.
-  Use This Resume moves to Choose Keywords and reads the resume's keyword
-  match (`matchTailor`); while it reads, the Keyword Match card's place
-  says what WorkIt is doing, over the card's shape (`MatchWaiting`), not
-  made-up stages: the read is one call with none to report. A failed
+  Next moves to Choose Keywords and reads the resume's keyword
+  match (`matchTailor`); while it reads, the step's two columns say what
+  WorkIt is doing, over their shape (`MatchWaiting`), not made-up stages: the read is one call with none to report. A failed
   read returns to the pick with its error on the card. An upload is read into the bank and
   tailored as its own entries; a run changes only what the picked resume
   shows.
@@ -2267,39 +2271,50 @@ with no proposals to accept and no Done (2026-10-25).
   note and Download, as its own page does: pdf.js cannot draw one. The
   PDF comes from `GET /api/resume-preview?built=<id>` or
   `?uploaded=<id>`, a route handler, not a server action: Next runs a
-  client's actions one at a time, so each render would hold back Use
-  This Resume. Each answer is kept by its resume while the dialog stays
+  client's actions one at a time, so each render would hold back Next. Each answer is kept by its resume while the dialog stays
   mounted, so a late answer for another resume never shows and a resume
   opened again shows at once. The page's skeleton shows while it loads,
   and a failure says so in one line with Try Again.
-- **The keyword match is one calm card** (`KeywordCard`, 2026-10-26):
-  "3 of 14 keywords matched" over a bar of the same share, the matched
-  keywords as quiet tags, then Add Missing Keywords: the missing ones as
-  toggle chips (+ when off, a check when on), Required then Preferred,
-  each under its own label (`MissingKeywords`, KAN-408), with a count
-  ("4 of 11 selected"). The student picks those they have used, to add
-  as skills. A short note says a picked one goes into the resume's skills
-  and may be named in its bullets, since picking it lets the truth rule
-  pass it. Select All is a small secondary button and asks first on a
-  tinted line ("Select all 11? Only if you have used every one."); Clear
-  shows beside it once anything is picked. Back and Tailor Resume sit at
-  the card's foot. The user found the card before overloaded: a big
-  "12 of 18", required matched keywords in brand, a checkbox drawn in
-  every chip, and Add All as a text link that turned into Clear All. A
-  keyword not picked is never written in. A posting with no description
-  shows the "weak match" notice.
+- **Choose Keywords is two columns at one height** (`KeywordCard`,
+  2026-11-01): the missing keywords to pick, and what the resume shows today
+  (`MatchPanel`). The left card opens on one note (a picked keyword joins this
+  resume and may be named in its bullets, since picking it lets the truth rule
+  pass it, and an interviewer can ask about each one), then the missing
+  keywords as large toggle chips (+ when off, a check that pops when on),
+  Required then Preferred (`MissingKeywords`, KAN-408). The right card is a
+  ring in the match score's colours (`matchColor`) with the share in it, "1 of
+  9 keywords", the resume's name, and what is Already on Your Resume as quiet
+  tags. **A pick never moves the score, and nothing picks in bulk.** The ring
+  rose with each pick for an hour, and Select All took it to 100% in one
+  click: the score paid the student to claim skills. It now counts only what
+  the resume shows, Select All and Clear are gone (asking first stopped no
+  one), and each keyword takes its own click. The review shows no score, so
+  none rises later. Below lg the match comes first, as one row. With nothing
+  missing the left card says so, and a posting with no keywords shows no ring.
+  A keyword not picked is never written in. A posting with no description
+  shows the "weak match" notice. **Keywords read as a resume prints them**
+  (`keywords.resume_case`, the API's), so "user research" shows and joins the
+  skills as "User Research". It was one card until 2026-11-01, with "Keyword
+  Match", "Add Missing Keywords" and the step's title over two counts, which
+  the user found poorly designed. Before that, a big "12 of 18", required
+  matched keywords in brand, a checkbox drawn in every chip, and Add All as a
+  text link that turned into Clear All, which the user found overloaded.
 - **Tailor Resume runs once** under a loader in the middle of the window
-  (`TailorRunning`, a modal over Choose Keywords that Esc and a click
-  outside do not close, since a run cannot be stopped): a spinner, the
-  resume's name and the keyword count, and the run's phases as they
-  stream (Retrieving Info, Asking AI, Generating Resume, Compiling
-  Resume), the done ones checked. A failed run closes it and shows its
-  error on the card. It saves the posting's tailored resume, then opens
-  it in the editor on this route (`?resumeId=`). The run's record of
-  changes and its dropped count go to sessionStorage (`tailorEditsKey` in
-  `lib/local-drafts.ts`, cleared by Sign Out) for the editor's review
-  (Resume editor, below), with the keyword match before and after
-  (`MatchShift`). Like the marks, it lives in that tab only.
+  (`TailorRunning`, `tailor-running.tsx`, a modal over Choose Keywords that
+  Esc and a click outside do not close, since a run cannot be stopped): a
+  small resume standing in the brand tint whose bullets turn brand one after
+  another (`--animate-rewrite`), "Tailoring <resume>", and the run's four
+  phases as a list as they stream: a check on each done, a spinner on the one
+  running and a small dot on those to come. Under one spinner, a circle on
+  every row read as radio buttons until 2026-11-01; one sentence over a thin
+  bar was tried the same day, and the user wanted to watch the steps finish.
+  A failed run
+  closes it and shows its error on the card. It saves the posting's tailored
+  resume, then opens it in the editor on this route (`?resumeId=`). The run's
+  record of changes and its dropped count go to sessionStorage
+  (`tailorEditsKey` in `lib/local-drafts.ts`, cleared by Sign Out) for the
+  editor's review (Resume editor, below), with the keyword match before and
+  after (`MatchShift`). Like the marks, it lives in that tab only.
 - **The review is one resume with a Suggestions panel**
   (`tailor-suggestions.tsx`, `../../docs/tailor_resume.md`,
   "Suggestions"), kept quiet after Quinncia's resume review: the
@@ -2323,16 +2338,18 @@ with no proposals to accept and no Done (2026-10-25).
   Original Resume, no toolbars, no click targets or marks on the page, and
   the two scroll together, with an X on the Original Resume heading (KAN-499). The
   top row sits in the brand tint, rounded. The toolbar holds only tools
-  for the page: at the left Undo and Redo (UI only for now, disabled)
-  and, idle, the page count when over one page as an amber chip with a
-  warning sign and a caret (its click offers Fit to One Page); at the
-  right Download, secondary. No Experiences picker on this page
+  for the page: at the left Undo and Redo and, over one page,
+  Fit to One Page, a brand outline button with a scissors icon (`FitButton`,
+  with the overrun in its title: an amber "2 pages" chip with a caret came
+  first, whose click opened a card holding this button); at the right
+  Download, secondary. No Experiences picker on this page
   (the editor's own page has it); while a line is open, the page's settings and an entry's choices with "Esc
   when done"; no Ask Scout and no Done. Each changed line is tinted in its
   type's colour, with a 1px dark border, rounded, while its suggestion is
-  pointed at or open. A click on one opens a small card beside it with the
-  change and Undo, and leaves the panel as it is (KAN-499). Hide Suggestions
-  on the toolbar takes the tints and the card off the page. A phone keeps a
+  pointed at or open. A click on one opens the panel, scrolls to its
+  suggestion and outlines it as the line is; a small card beside the line did
+  this until 2026-11-01 and is archived (`POPUP_LIVE`). Hide Suggestions
+  on the toolbar takes the tints off the page. A phone keeps a
   margin dot per line. The panel's top holds a
   type filter in the heading row (a dropdown of All Types
   and each change type, each with its coloured badge, added green,
@@ -2649,13 +2666,17 @@ student who opened a resume from Experiences landed on another view.
   version, This Resume's Wording) and, on Education, Show/Hide GPA and
   Coursework; at the right, "Esc when done" in place of a Done button,
   since Escape or a click off the page already saves and closes. A press
-  on a bar button keeps focus in the field. With no line selected, only
-  over one page, the page count as an amber chip with a warning sign and
-  a caret ("⚠ 2 pages ⌄"), which reads as a problem to open; its popover
-  says by how much (the render's `lines_over`, an estimate) and offers
-  Fit to One Page. Then Undo Fit, which shows again everything Fit hid
-  (the response's `undo` body), kept in sessionStorage per resume
-  (`fit-undo.ts`), so a reload in the same tab still offers it. A
+  on a bar button keeps focus in the field. Over one page, with a line open
+  or not, **Fit to One Page** is a brand outline button with a scissors icon
+  (`FitButton`), its title saying by how much (the render's `lines_over`, an
+  estimate); only a bullet being added hides it. An amber "⚠ 2 pages ⌄" chip
+  stood here until 2026-11-01, whose click opened a card holding this button,
+  one step too many. Add Bullet, with a line open, is the bar's filled brand
+  button. A fit is one Undo step like any edit: Undo (or Cmd+Z) shows again
+  everything it hid (the response's `undo` body), and Redo hides it again.
+  Its own Undo Fit button, kept in sessionStorage per resume, went on
+  2026-11-01: it was a second way to do what Undo does. The response still
+  names what Fit hid (`hidden`), for a list that puts each one back. A
   one-page resume shows no count: a green "1 page" said what the page
   itself shows. No "Click a line to edit it." hint: the pointer's own
   highlight on a line says so. In both states the bar says "Saving…" while a save is on its way; the
@@ -2679,9 +2700,8 @@ student who opened a resume from Experiences landed on another view.
   `../../docs/tailor_resume.md`, "Suggestions"). Only then does the page
   carry the run's changes: a see-through tint, so the PDF's text shows, on each
   changed line (`marks` on `PdfPages`), with a border on the lines of the
-  suggestion in focus or open (`lit`), and a card beside a clicked one
-  (`popup`), under the line or over it, whichever side the window can show
-  all of. A phone adds a margin dot per line (`dots`). The tints: an added
+  suggestion in focus or open (`lit`). The card that sat beside a clicked one
+  (`popup`) is archived (`POPUP_LIVE` in `tailor-suggestions.tsx`). A phone adds a margin dot per line (`dots`). The tints: an added
   skill green (`positive`, bordered in `positive-ink`), a new wording blue
   (`advanced`), an entry's bullets in a new order amber (`warning-fill`,
   bordered in `warning-strong`). There the page has no Experiences
@@ -2706,14 +2726,15 @@ student who opened a resume from Experiences landed on another view.
   fix. On a phone it does not show while a line's sheet is open, which it
   would cover. The editor notices the change while rendering (the last
   count is kept in state), not in an effect.
-- **Fit to One Page is the API's** (`POST .../fit`): it cuts least useful
-  first, in steps across every section: coursework (beside Experience),
-  then bullets past a cap per entry, then the bottom entries of
-  Leadership, Awards and Certifications before Projects and Experience,
-  re-rendering until the page fits and putting back what it did not need
-  (`backend/CLAUDE.md`). It never cuts Education, Skills, an entry's first
-  bullet, or the top Experience and Projects entry.
-- **Moving is the Sections panel** (`sections-panel.tsx`, KAN-435): an
+- **Fit to One Page is the API's** (`POST .../fit`,
+  `docs/cut_to_one_page.md`): bullets down to two per entry, then one,
+  then whole entries, least needed section first, with skills, awards,
+  certifications and schools on schedules, by the posting's rank on a
+  tailored resume and by position on any other. It always reaches one
+  page. Cut From Resume lists everything it cut: entries and bullets by
+  section, and skills in a Skills group, a card a skill group, each with
+  its own tick (`cutSkills`, `CutSkills`).
+ - **Moving is the Sections panel** (`sections-panel.tsx`, KAN-435): an
   outline of what prints, as Jobright's, opened from the toolbar's end beside
   Format Options. Sections fold to their entries and entries to their bullets,
   and each row drags by its handle, or moves with the arrow keys on it. A
@@ -2721,27 +2742,56 @@ student who opened a resume from Experiences landed on another view.
   an entry's or bullet's is a choice. It replaced the bar's up and down buttons,
   which moved one line one step and could not move a section. A phone keeps
   those buttons, since a drag there fights the scroll.
-- **Formatting is Docs' toolbar and Format Options** (`page-format.tsx`,
-  KAN-435). The bar changes with what the student is doing. With a line open
-  it holds the common page settings before the line's tools: font size as a
-  minus, the number and a plus, line spacing as a small menu, left or
-  justified, and margins as Narrow, Normal or Wide. With none open it holds
-  zoom, and at its end the panels; all of it at once ran to two rows. Format
-  Options opens the rest. A bullet or a skill has no tools of its own on the
-  bar: its kind's label, Hide and Original crowded it, so moving is the
-  Sections panel's, hiding the Experiences picker's, and a phone keeps them
-  in its sheet. Format Options holds: Style (accent color, bullets, the line under section
-  titles), Layout (header alignment), Spacing & Margins (section, entry, top
-  and bottom, side) and Reset Formatting. On Tailor's review it opens in the
-  Suggestions column, with the same X, and one column shows at a time. On the
-  editor's own page it opens in Scout's panel, as the Experiences picker does.
-  On a phone a Format button opens all of it in a sheet, with no Undo there.
-  Each pick shows on the page, saves on its own, and Undo takes it back. A
-  spacing is a segmented switch, not Jobright's slider: each change compiles
-  the PDF, so a slider would queue a compile for every step it crossed. A tick
-  in Jobright's Export modal is out of reach while editing; here the settings
-  sit beside the live page. Word stays plain. Still to come: bold and italic,
-  education order, skills layout, per-role type sizes, templates and fonts.
+- **The toolbar holds what acts on the line clicked; Format Options holds what
+  acts on the whole resume** (`page-format.tsx`, KAN-435). With a line open the
+  bar shows Undo, Redo, zoom, **that line's kind of text with its size** (Your
+  Name, Job & School Titles or Body Text, `RoleTools`), and on a bullet **Bold
+  and Italic**, lit while the selection has them (or Ctrl or Cmd+B and I), and
+  Add Bullet. The size is named because it changes every line of that kind:
+  font size beside bold, unnamed, looked as if it acted on the selection, so a
+  student pressed + on a word and the whole page changed. Bold and italic change
+  the words where they stand: a bullet's field is a rich one
+  (`contentEditable`), so no marker shows. Only a bullet takes them: a title or a
+  date is printed in Jake's type. Bold or italic makes the words the resume's own
+  wording, so Original takes it off too, and Word stays plain. A phone's sheet
+  still types plain text, with the markers showing, and has no buttons yet.
+  **Format Options runs in the order a student decides**: **Font** (a menu of
+  nine, each drawn in itself with the look it stands for), **Text Sizes** (a row
+  per kind of text, Section Headings among them, which have no line to click,
+  each with a field to type the points in between - and +; the toolbar's size is
+  the same control), **Layout** (Spacing, Margins) and **Style** (Accent Color,
+  Section Lines), then Reset Formatting once anything is set. A typed size
+  applies on Enter or on leaving the field, goes to the nearest half point inside
+  its limits (Your Name 14 to 36, Section Headings 9 to 18, Job & School Titles 8
+  to 16, Body Text 8 to 14), and Escape or what is not a number puts it back. On
+  Tailor's review it opens
+  in the Suggestions column, with the same X, and one column shows at a time. On
+  the editor's own page it opens in Scout's panel, as the Experiences picker
+  does. On a phone a Format button opens it in a sheet, with no Undo there. Each
+  pick shows on the page, saves on its own, and Undo takes it back. It held
+  eleven controls in five groups until 2026-11-01, then five that left out the
+  font and a size per kind of text, which the user found missing. Spacing is one
+  choice (Compact, Regular, Relaxed) over line, section and entry spacing, and
+  Margins one over top and side. Text alignment, the bullet's shape and the
+  header's alignment stay out: a resume reads best with Jake's. The API still
+  takes all of them, so a resume already set that way prints as it did, shows no
+  choice picked, and Reset Formatting clears it. A spacing is a segmented switch,
+  not Jobright's slider: each change compiles the PDF, so a slider would queue a
+  compile for every step it crossed. Still to come: custom sections, education
+  order, skills layout and templates.
+- **Add Bullet** (KAN-435, on the toolbar with a bullet or an entry's line
+  open): an empty line under the open bullet, or at the foot of the open
+  entry's, in place at once, its dot beside it and the page under it moved down
+  (`newLine`, `extra` on `PdfPages`, a box with no height, so the live page's
+  own move makes the room). The student types, with bold and italic, and Enter,
+  Esc or a click away keeps it. **Nothing is written until it has words**, so an
+  empty line leaves no trace: a saved placeholder would stay in the bank if the
+  tab closed. Then the bank takes the plain words (`addBullet`), and this resume
+  its place and any bold or italic (`bulletPlaced`, the choices PATCH), through
+  the same save and render as any change, so Undo takes it off this resume and
+  Redo puts it back. Undo hides it, so it stays in the bank, as the Experiences
+  picker shows. It shows on no other resume by itself. A phone has no Add Bullet
+  yet.
 - **The Experiences picker** (`experiences-picker.tsx`, KAN-440): the whole
   bank beside the PDF, where a student picks what the resume shows. The
   resume is the part of the bank that is on, so each entry, bullet and skill
@@ -2760,7 +2810,11 @@ student who opened a resume from Experiences landed on another view.
   a "Not on This Resume" tick, read as a settings page. The rows
   are the Experiences page's (`EntryRow`), one per job however many copies
   the bank holds, with the copy that prints as the row. Turning a row off
-  takes every copy that prints. A bullet has a control only while its entry
+  takes every copy that prints. **A bullet keeps its place on or off**:
+  the resume's order, then bullets with no row in the bank's order. Off
+  bullets went to the end until 2026-11-01, so a tick moved the list under
+  the pointer and the next click hit another bullet (a student saw a
+  bullet "missing" and a second one come back). A bullet has a control only while its entry
   is on, and an entry with every bullet off stays on as a heading, as a
   line's Hide leaves it. Each pick goes through the same save and render as
   any edit, so Undo takes it back. It only picks: typing stays on the PDF.
@@ -2769,6 +2823,24 @@ student who opened a resume from Experiences landed on another view.
   of a long resume, then a Hidden panel that listed only what was missing;
   students could not see their bank beside the resume, and "Hidden" was false
   for an item they had never hidden.
+- **Cut From Resume** (`CutPicker` in `experiences-picker.tsx`): what Fit to
+  One Page cut, in the Experiences picker's layout but amber, Fit's own
+  color, with its scissors as the panel's mark. Its toolbar button sits
+  beside Add Experiences and shows only while something a fit cut is still
+  off the page (or its panel is open); on a phone it is a sheet beside Add
+  Experiences. Groups by section, all open, each "1 of 3 added back"; no
+  resume or group filters, since a fit cuts a few items. **It shows only
+  what Fit cut.** A whole entry Fit cut is the bank's row with its own tick,
+  and comes back as the copy Fit cut. An entry Fit only trimmed is its name
+  as a label and a tick on each cut bullet or coursework line, with none of
+  the entry's other details: it is still on the page, and drawn whole it
+  read as an entry that was cut. A tick goes through the same save as any pick, so Undo takes it
+  back. A row stays once it is back, ticked, so a wrong tick can be undone
+  here too. The list is every fit in the tab, read from each fit's `undo`
+  body (`addCuts`), kept in sessionStorage per resume (`fit-cuts.ts`): a
+  reload in the same tab keeps it, a new tab starts without it. It was in
+  memory for a day; a reload lost it. Undo is still empty after a reload,
+  which is fine: each item has its own tick.
 - Skills can be hidden but not moved: they print grouped, and a move
   inside a group is still open.
 - A failed render shows "This Resume Isn't Loading Right Now" with the API's
@@ -2852,7 +2924,8 @@ page's content replaces the chat and the panel widens to 448px. It stays mounted
 room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X
 closes it and hands focus back to the bar's launcher, which shows pressed while
-the panel is open. `chat.tsx` holds the message bubble, typing dots and
+the panel is open. The launcher is archived (`SCOUT_LAUNCHER_LIVE`, 2026-11-01),
+so Ask Scout and Fill With Scout are the ways in for now. `chat.tsx` holds the message bubble, typing dots and
 composer (with the mic, `use-speech-input`) and Scout's mark, shared with
 intake on the bank page and the editor assistant; the panel's header wears
 the same mark (KAN-257), where a brand-tint circle with a hand-drawn

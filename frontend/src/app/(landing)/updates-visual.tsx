@@ -53,7 +53,7 @@ const STAGE_H = 368;
 
 /** The notification for each scene. */
 const NOTICE: Record<Scene, { icon: PhosphorIcon; text: string; color: string }> = {
-  viewed: { icon: EyeIcon, text: "viewed your application", color: "var(--color-match-good)" },
+  viewed: { icon: EyeIcon, text: "viewed your application", color: "var(--color-updates)" },
   message: { icon: ChatCircleIcon, text: "sent you a message", color: "var(--color-brand)" },
   interview: {
     icon: CalendarCheckIcon,
@@ -78,9 +78,9 @@ const STEPS: { label: string; icon: PhosphorIcon; color: string; ink: string; at
   {
     label: "Viewed",
     icon: EyeIcon,
-    color: "var(--color-match-good)",
+    color: "var(--color-updates)",
     // The pink a step darker as text: on its own tint it was 4.1:1.
-    ink: "var(--color-match-strong)",
+    ink: "var(--color-updates-ink)",
     at: 0,
   },
   {
@@ -101,7 +101,7 @@ const STEPS: { label: string; icon: PhosphorIcon; color: string; ink: string; at
 
 export default function UpdatesVisual() {
   return (
-    <Story scenes={SCENES} rest="offer" accent="bg-match-good" stageHeight={STAGE_H}>
+    <Story scenes={SCENES} rest="offer" accent="bg-updates" stageHeight={STAGE_H}>
       {(scene) => <Board scene={scene} />}
     </Story>
   );
@@ -295,9 +295,9 @@ function ViewedUpdate() {
             transform (landing.css, .tour-scan). */}
         <span
           aria-hidden="true"
-          className="tour-scan via-match-good/25 pointer-events-none absolute inset-x-0 top-0 h-8 bg-linear-to-b from-transparent to-transparent"
+          className="tour-scan via-updates/25 pointer-events-none absolute inset-x-0 top-0 h-8 bg-linear-to-b from-transparent to-transparent"
         />
-        <span className="bg-match-good absolute -top-2 -right-2 grid size-7 place-items-center rounded-full text-white shadow-md">
+        <span className="bg-updates absolute -top-2 -right-2 grid size-7 place-items-center rounded-full text-white shadow-md">
           <EyeIcon className="size-3.5" aria-hidden="true" />
         </span>
       </div>

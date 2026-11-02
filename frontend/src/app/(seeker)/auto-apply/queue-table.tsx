@@ -35,13 +35,22 @@ import { RowMenu } from "./row-menu";
 export type QueueGroup = "progress" | "queued";
 
 /** An Up Next row: the job, its batch tab's state (`tab`, null with no tab
- *  open), and the group that puts it in. */
-export type QueueRow = ActivityItem & { tab: BatchTabState | null; group: QueueGroup };
+ *  open), whether its tab was closed before its submit was seen
+ *  (`tabClosed`, KAN-512), and the group that puts it in. */
+export type QueueRow = ActivityItem & {
+  tab: BatchTabState | null;
+  tabClosed: boolean;
+  group: QueueGroup;
+};
 
-/** A job's group: started once a tab is open on it, or once its fill left
- *  it needs_you (its tab since closed). */
-export function groupOf(item: ActivityItem, tab: BatchTabState | null): QueueGroup {
-  return tab || item.status === "failed" ? "progress" : "queued";
+/** A job's group: started once a tab is open on it, once its tab was closed
+ *  unsubmitted, or once its fill left it needs_you (its tab since closed). */
+export function groupOf(
+  item: ActivityItem,
+  tab: BatchTabState | null,
+  tabClosed = false,
+): QueueGroup {
+  return tab || tabClosed || item.status === "failed" ? "progress" : "queued";
 }
 
 /** Whether Auto Apply can open the row: no tab open on it, and its posting open. */
@@ -369,7 +378,9 @@ function Row({
  *   N Questions to Write    amber, while any wait; Filling outranks it
  *   the tab's state         Filling (with a spinning ring), Ready to
  *                           Submit, Needs You, Fill Failed, Submitted
- *   Needs You               a started job whose tab was closed
+ *   Tab Closed, Not         a job whose batch tab the student closed before
+ *   Submitted               WorkIt saw its submit (KAN-512): amber, one item
+ *   Needs You               any other started job whose tab was closed
  *   (nothing)               a queued job, whatever it holds: its group's
  *                           name says it, and its questions show once it
  *                           starts (they can be written ahead on Written
@@ -419,6 +430,11 @@ function Status({ row, onAction }: { row: QueueRow; onAction: (row: QueueRow) =>
       ) : (
         <status.Icon aria-hidden className="size-3.5 shrink-0" />
       );
+  } else if (row.tabClosed) {
+    // Not "Tab Closed · Reopen" (cut 2026-10-29 as layers of text): one item, the click reopens it.
+    label = "Tab Closed, Not Submitted";
+    ink = "text-warning";
+    glyph = <WarningIcon aria-hidden className="size-3.5 shrink-0" />;
   } else if (row.group === "progress") {
     label = "Needs You";
     ink = "text-warning";

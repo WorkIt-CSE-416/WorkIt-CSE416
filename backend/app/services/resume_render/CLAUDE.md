@@ -21,6 +21,27 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 - **`fields.py` is how a field reads as text** (dates, GPA, headings, skill
   groups), shared by the PDF and the Word file so the two never disagree.
   Change wording there, not in a layout.
+- **The font and a size per kind of text are page settings too** (KAN-435):
+  `font_family` from `FONT_FAMILIES`, and `name_size`, `heading_size`,
+  `title_size` and `body_size`, each null until set, which follows `font_size`
+  as Jake's does. **A family is written straight to its bundle files**
+  (`_font_lines`, NFSS shapes on `[file]`), never through fontspec, which would
+  load on every edit's compile: all eight compile offline in about 0.48 s, as
+  Latin Modern does. Tinos, Arimo, Carlito and Caladea match Times New Roman,
+  Arial, Calibri and Cambria letter for letter. The lines sit behind
+  `\ifdefined\XeTeXversion`, or the student's `.tex` file fails on Overleaf,
+  whose default is pdfLaTeX. Titles and body are `\normalsize` and `\small`
+  redefined after the preamble, since Jake's commands all name those two; headings
+  go in `_section_format` and the name in `jakes._header`. **A student types a
+  size**, so each has a scale in place of a list (`NAME_SIZES` and the rest, a
+  lowest and a highest point, in half points; `_on_scale`). The warm-up prints
+  every half point of every scale, the bar of the header's contact line with
+  them: that bar is math, and at 8 pt it needs `cmsy8`, which no text loads, so
+  a page failed with `Cannot proceed without .vf or "physical" font` until
+  `sample.fonts` printed it. **After pulling a new family or scale, run `python3
+  scripts/fetch_tectonic.py` again**, or that page answers 503 offline. The
+  schema's `Literal` and `Field` limits repeat these, and a test holds them
+  equal.
 - **`PageSettings` is how a resume's page is set** (KAN-435): font size,
   line spacing, side and top margins, alignment, section and entry spacing,
   accent color, bullet, the rule under section titles, header alignment and
@@ -80,8 +101,16 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   Section headings and the space
   between entries have no box, and blocks move whole across the page
   break, so it can run several lines short (`line_count` is the shared
-  count): the editor's chip shows it, and Fit to One Page re-renders and
-  puts back what it did not need rather than trust it.
+  count): the editor's chip shows it. Fit to One Page does not use it.
+- **The markers also measure the page for Fit to One Page**
+  (`docs/cut_to_one_page.md`): `MARKS` writes the text area's top,
+  height and right edge (`Rendered.area`), read from TeX, so a change to
+  the paper, margins or font size needs no constant anywhere; each start
+  marker writes `\pagetotal` and `\pageshrink` as it is set
+  (`Rendered.shrinks`), how far the page's glue can squeeze; and
+  `\wipoint` marks where each skill line starts (`Rendered.points`), with
+  no box. None of them adds a node: the page stays the same with and
+  without markers, which `tests/test_resume_render.py` checks.
 - **Page count and missing characters come from Tectonic itself**: the page
   count from XeTeX's "Output written on ... (N pages" log line
   (`--keep-logs`), the missing characters from its "Missing character: There
@@ -111,6 +140,15 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   Its
   header comment names `to_latex.py`, a prototype file that does not exist
   here: the body goes in at `%%BODY%%` through `jakes_document()`.
+- **A bullet's bold and italic are `**` and `*` in the resume's own wording**
+  (KAN-435): no column and no migration, and the bank stays plain.
+  `resume_view.runs` reads them, only from a choice's wording, never the
+  bank's text. `ViewBullet.text` is always the plain words, so Tailor, keywords,
+  the assistant and Word never see a star; `marked` is for `jakes._rich` alone.
+  A box's `text` keeps the markers, because the editor opens the line on it. A
+  star pair typed around a word prints it italic: that is the known ceiling of
+  markers in text. Empty `marked` stays out of `content_hash`, so a resume with
+  no marks still matches a sent resume kept before.
 - **All applicant text goes through `escape()`**, the one escape function,
   tested directly with `\input{/etc/passwd}` and newlines. It also turns every
   newline into a space: a blank line ends a command's argument early. Never

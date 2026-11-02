@@ -440,7 +440,7 @@ export function HiringSystems() {
           {/* The Jobs page side: the newest kept postings as clean cards,
               best match first. */}
           <ul aria-hidden="true" className="relative flex flex-col justify-center gap-2.5 lg:pl-10">
-            <li className="absolute inset-x-0 -inset-y-10 -z-10 bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--color-match-good)_16%,transparent),transparent)] lg:left-10" />
+            <li className="absolute inset-x-0 -inset-y-10 -z-10 bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--color-updates)_16%,transparent),transparent)] lg:left-10" />
             <AnimatePresence mode="popLayout" initial={false}>
               {cards.map((posting) => (
                 <JobCard key={posting.company} posting={posting} wide={isWide} />

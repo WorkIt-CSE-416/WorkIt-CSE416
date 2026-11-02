@@ -1,5 +1,5 @@
 import { CompanyLogo } from "@/components/company-logo";
-import { SparkleIcon } from "@/components/icons";
+import { TailorIcon } from "@/components/icons";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -114,7 +114,7 @@ export function JobViewActions({ view, job }: { view: JobView; job: JobListing }
         size="sm"
         className="shrink-0"
       >
-        <SparkleIcon className="size-4" />
+        <TailorIcon className="size-4" />
         {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
       </ButtonLink>
       <ApplyButton

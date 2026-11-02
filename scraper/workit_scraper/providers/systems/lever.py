@@ -10,8 +10,7 @@ from workit_scraper.providers.fetch import _iso
 from workit_scraper.providers.model import Job, Provider
 from workit_scraper.providers.registry import listing_url
 from workit_scraper.providers.text import (
-    _described,
-    _page,
+    _listed_page,
     _work_style,
     plain_text,
 )
@@ -33,7 +32,6 @@ def lever(token: str, company: str) -> list[Job]:
     for row in payload:
         categories = row.get("categories") or {}
         title = (row.get("text") or "").strip()
-        full, roles = _described(_lever_markup(row))
         jobs.append(
             Job(
                 ats="lever",
@@ -45,10 +43,9 @@ def lever(token: str, company: str) -> list[Job]:
                 location=categories.get("location"),
                 department=categories.get("team"),
                 posted_at=_iso(row.get("createdAt")),
-                page=_page(
+                page=_listed_page(
                     title,
-                    full,
-                    roles=roles,
+                    _lever_markup(row),
                     stated_type=details.job_type_label(categories.get("commitment")),
                     # Some boards put the work model in `commitment` ("Remote").
                     stated_style=_work_style(row.get("workplaceType"), categories.get("location"))

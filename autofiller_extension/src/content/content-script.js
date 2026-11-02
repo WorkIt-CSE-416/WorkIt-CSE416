@@ -203,6 +203,12 @@
         window.WIA.report?.failed(q.name, "NoAnswer");
       }
       rows.notes.forEach((text) => isNew(`_note:${text}`) && note(`_note:${text}`, "Left for you", text));
+      // A field the Plan leaves to the student is its own row, with the Plan's reason, never a note too (KAN-513).
+      for (const q of rows.handed ?? []) {
+        if (!isNew(q.name)) continue;
+        status.register(q.name, q.label, q.required);
+        status.setStatus(q.name, "failed", `${q.reason}. Answer it yourself.`);
+      }
       // A Fields to autofill category the student switched off in Options (KAN-480): left blank, theirs to answer.
       for (const q of rows.off ?? []) {
         if (!isNew(q.name)) continue;
