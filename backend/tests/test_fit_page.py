@@ -18,7 +18,15 @@ from app.services.fit_page import (
     plan,
     skill_levels,
 )
-from app.services.resume_render import Box, PageSettings, Rendered, Shrink, TextArea, render, sample
+from app.services.resume_render import (
+    Box,
+    PageSettings,
+    Rendered,
+    Shrink,
+    TextArea,
+    render,
+    sample,
+)
 from app.services.resume_view import (
     ResumeView,
     ViewBullet,
