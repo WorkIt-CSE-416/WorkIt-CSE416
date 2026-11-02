@@ -1407,7 +1407,14 @@ what storage looks like across versions.
   `(seeker)` and `(landing)` groups — no sign-in required, since a
   just-installed student may not have one yet. It explains how to use
   the extension. The popup's "Set Up WorkIt" button opens the same page
-  on demand.
+  on demand. **That page's own "I Already Have One" button is what keeps
+  a finished student's route to onboarding's Practice step alive**
+  (`frontend/CLAUDE.md`'s Architecture section, `EXTENSION_STEP_PATH`):
+  this `install.js` no longer opens `/onboarding/applicant?step=extension`
+  directly the way it did before KAN-495, so if `/extension-setup` ever
+  sends a signed-in visitor to plain `/login` instead of that path, a
+  student who already finished onboarding lands on `/home` with no way
+  back to Practice (found in review, KAN-495).
 - **Storage has a schema version** (`workit_storage_version`). Every
   install and update runs `migrateStorage`: each migration after the
   stored version, in order, once. **A change to what a stored key holds

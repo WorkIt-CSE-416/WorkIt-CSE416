@@ -19,8 +19,12 @@
  */
 export const ONBOARDING_STEPS = ["Role", "Resume", "Profile", "Extension", "Practice"] as const;
 
-/** The extension step's link: the tab the WorkIt extension opens on install
- *  (KAN-471, autofiller_extension/src/background/install.js). */
+/** The extension step's link. Not opened directly by the extension's
+ *  install anymore (that was KAN-471; its own tab is now /extension-setup,
+ *  autofiller_extension/src/background/install.js) -- reached today
+ *  through that page's "I Already Have One" button (KAN-495), so a
+ *  student who already finished onboarding still has a route to the
+ *  Practice step after it. */
 export const EXTENSION_STEP_PATH = "/onboarding/applicant?step=extension";
 
 /**

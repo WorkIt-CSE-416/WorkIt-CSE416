@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Logo } from "@/components/logo";
+import { EXTENSION_STEP_PATH } from "@/app/onboarding/applicant/steps";
 
 export const metadata: Metadata = {
   title: "Set Up the Extension",
@@ -44,6 +45,16 @@ const STEPS: { title: string; body: ReactNode }[] = [
  * tier as /connect/claude — since a just-installed student may not be
  * signed in yet, and this is instructional product UI, not a marketing
  * page.
+ *
+ * "I Already Have One" goes to `EXTENSION_STEP_PATH`
+ * (`/onboarding/applicant?step=extension`), not plain `/login`: that page's
+ * own sign-in redirect (`/login?next=`) still applies for a signed-out
+ * visitor, and a signed-in one lands straight on onboarding's Extension
+ * step, same as a brand-new one. This is deliberate, not an oversight --
+ * install.js used to open that path directly (before KAN-495), which kept
+ * a student who had *already* finished onboarding on the route to the
+ * Practice step; sending them to plain `/login` instead would drop them on
+ * /home with no way back to it (found in review, KAN-495).
  */
 export default function ExtensionSetupPage() {
   return (
@@ -78,7 +89,7 @@ export default function ExtensionSetupPage() {
           <ButtonLink href="/signup" size="lg">
             Create Your Account
           </ButtonLink>
-          <ButtonLink href="/login" variant="secondary" size="lg">
+          <ButtonLink href={EXTENSION_STEP_PATH} variant="secondary" size="lg">
             I Already Have One
           </ButtonLink>
         </div>
