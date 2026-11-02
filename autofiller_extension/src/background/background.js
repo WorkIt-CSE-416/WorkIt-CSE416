@@ -34,6 +34,7 @@ import { popupHome, showNextJob } from "./popup-home.js";
 import { followTrackedTab, forgetTracked, isTracked, markTracked, track, trackState } from "./track.js";
 import { allowTabSite, allowedSites, pageJobUrl, removeSite, syncSites } from "./site-access.js";
 import { fetchText, planReads } from "./plan-reads.js";
+import { TEST_HOOKS } from "../shared/config.js";
 
 /**
  * Calls the Fill engine in the frame that sent `sender`'s message: the
@@ -688,8 +689,11 @@ async function commandPressed(command, tab) {
 }
 chrome.commands.onCommand.addListener((command, tab) => void commandPressed(command, tab));
 // The tests' way to press the toolbar icon and the commands' keys, which Chrome gives no page a way to press.
-globalThis.workitToolbar = toolbarPressed;
-globalThis.workitCommand = commandPressed;
+// Not in the Store build (config.js).
+if (TEST_HOOKS) {
+  globalThis.workitToolbar = toolbarPressed;
+  globalThis.workitCommand = commandPressed;
+}
 
 // Messages from the popup and the content script (same extension, so this
 // channel, not the External one below).

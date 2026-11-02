@@ -92,3 +92,6 @@ backend/vendor/
 
 # Fix briefs written by backend app.scripts.fill_report (KAN-369): reports stay out of git.
 backend/fill-reports/
+
+# The Chrome Web Store package (autofiller_extension/store/build.mjs, KAN-463).
+autofiller_extension/.store-build/

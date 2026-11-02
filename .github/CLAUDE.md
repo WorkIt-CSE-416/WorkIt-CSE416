@@ -23,6 +23,14 @@ The backend job installs real Tectonic with `backend/scripts/fetch_tectonic.py`
 template text test fails, never skips, when Tectonic is missing
 (`backend/app/services/resume_render/CLAUDE.md`).
 
+The `extension-store-build` job (KAN-463) builds the Chrome Web Store package
+(`autofiller_extension/store/build.mjs`), which fails if a packaged file names
+localhost, vercel.app or "Prototype", and runs `store-build.spec.ts` and
+`extension-id.spec.ts`. The package needs the private fill-engine submodule,
+which the default token can't read, so the build steps run only once a
+`FILL_ENGINE_TOKEN` secret (read access to WorkIt-CSE-416/fill-engine) is set;
+without it the job warns and checks the extension ID only.
+
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
 `frontend/.prettierignore`, so Prettier never rewrites prose.
@@ -188,3 +196,75 @@ bounced send.
 - **Still open:** the EC2 crontab has no built-in failure alerting the
   way this workflow's schedule trigger got from GitHub for free. Not set
   up yet (a dead-man's-switch ping or a CloudWatch alarm would do it).
+
+## Publish extension to Chrome Web Store (`workflows/publish-extension.yml`, KAN-447)
+
+Keeps the Store listing in step with `autofiller_extension/` (its own
+`CLAUDE.md` has the extension itself), so published users run what a PR
+here actually reviewed, never a build off someone's machine. Against the
+Chrome Web Store API's **v2** endpoints (`chromewebstore.googleapis.com`)
+— v1.1 (`www.googleapis.com/chromewebstore`) stopped taking requests on
+2026-10-15. v2's resource name is `publishers/<PUBLISHER_ID>/items/<id>`,
+never the item id alone, and upload/publish each return a `state`-style
+enum (`uploadState`, `state`) rather than v1.1's `status` array. Two jobs:
+
+- **`check-version-bump`**, every PR touching the extension: fails unless
+  `autofiller_extension/store/store.json`'s `version` is strictly greater
+  than `main`'s (`dpkg --compare-versions`) — the Store package's own
+  version (`store/build.mjs`, KAN-463, writes it over whatever
+  `manifest.json`'s own `version` says, which is the unpacked dev build's
+  only; the two are deliberately separate numbers, so bumping the wrong
+  one here is a real, easy mistake). The Store API refuses a re-upload of
+  a version it already has, so this catches a forgotten bump before merge
+  rather than after, with no PR left open to fix it from. **The bump is a
+  one-line, by-hand part of the PR**, on purpose — not something this
+  workflow writes and commits itself, which would need write-back
+  permissions and risks a loop for little gained.
+- **`publish`**, on push to `main` (or by hand): runs `store/build.mjs`
+  (the same Store package `extension-store-build` already builds and
+  checks in CI, above — never a second, ad-hoc zip step here) and pushes
+  the result through the Chrome Web Store API, then submits it for
+  review.
+
+**This does not make an update live by itself.** The extension asks for
+sensitive permissions (`cookies`, several hosts), so Google reviews every
+submission by hand regardless of this workflow — a green run here means
+"queued for review," not "published." A failed or stuck review needs a
+human in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole),
+not a re-run.
+
+- **Secrets:** `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`,
+  `CHROME_REFRESH_TOKEN` (a Google Cloud OAuth client with the Chrome Web
+  Store API enabled, and a refresh token for the account that owns the
+  Store listing — a one-time human setup, not reproducible from this
+  file), `CHROME_EXTENSION_ID` (the Store item id; this extension pins it
+  via `manifest.json`'s `key`, so it matches the id Chrome already
+  assigns the unpacked dev build, `cpklhdkoafegnndlafmiceehfloodjgi`) and
+  **`CHROME_PUBLISHER_ID`** (Publisher > Settings in the Developer
+  Dashboard — a different value from the item id, and new with the v2
+  endpoints above; v1.1 never needed it).
+  **All five must be Actions *secrets*, never Actions *variables*:**
+  a repo variable's value is plaintext, readable by anyone with
+  Settings access and unmasked in logs — found live on 2026-10-31, all
+  three sensitive values set as variables instead (the fourth, the
+  Store item id, under a typo'd name a variable never read by this
+  workflow at all). Fixed by resetting the OAuth client secret, minting
+  a fresh refresh token (Google's Desktop-app loopback flow:
+  `accounts.google.com/o/oauth2/v2/auth` with `redirect_uri=
+  http://localhost:<port>`, copy the `code` off the failed redirect's
+  address bar, then `POST oauth2.googleapis.com/token` for the
+  `refresh_token` — the OAuth Playground's "use your own credentials"
+  only works for a *Web application* client, which this one isn't),
+  deleting the leaked variables, and `gh secret set`-ing all four as
+  secrets. The workflow already read `secrets.*`, never `vars.*`, the
+  whole time — so this cost no code change, only means the publish job
+  silently couldn't have authenticated until the real secrets existed.
+- **The API can only update an existing Store item.** The very first
+  submission — store listing, screenshots, privacy-practice
+  justifications — is a one-time manual step in the Dashboard; this
+  workflow has nothing to push to until that exists.
+- **One run at a time**, same reasoning as the other workflows: two
+  overlapping publishes could submit two versions out of order.
+- **Still open:** no notification when a submitted version clears (or
+  fails) Google's review — that's checked by hand in the Dashboard for
+  now.
