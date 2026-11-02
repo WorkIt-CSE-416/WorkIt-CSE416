@@ -1854,7 +1854,14 @@ essay-answer route (KAN-164) is gone.
 - **AI traps and bans stay the student's.** A form or posting that bans
   AI-written answers, or a posting that speaks to AI agents, makes the Plan
   hand those questions off instead: they never reach the student's Claude,
-  and the overlay lists the Plan's reason under "Left for you".
+  and the overlay lists the Plan's reason. **A handoff that is one field's
+  is that field's row, once** (KAN-513, the engine's `plan.handed`,
+  `planRows`'s `handed`): red, with the Plan's reason ("The form asks you
+  to accept its AI policy. Answer it yourself."), and pressing it goes to
+  the field as any row does. Before, the field showed twice, a "Left for
+  you" note and its row under Need Your Answer. Only a handoff that is no
+  field's (a posting that speaks to AI agents, a honeypot, a screener)
+  stays a "Left for you" note. Tests: `test/handed-off.extension.spec.ts`.
 - **A letter for an upload goes up as a PDF.** An optional cover letter
   upload is an essay under the student's `cover_letter: "always"` policy
   (often brought from Apply). Its written words, Claude's or pasted, are
