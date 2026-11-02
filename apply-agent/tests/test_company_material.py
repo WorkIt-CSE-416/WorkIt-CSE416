@@ -114,7 +114,7 @@ def test_a_workday_postings_own_text_is_read_from_the_json_its_job_page_loads(ur
 
 
 def test_a_posting_on_any_other_job_system_has_no_api_text():
-    posting = Posting("ic", "Peraton", "Software Intern", "https://careers-peraton.icims.com/jobs/172061/job")
+    posting = Posting("tl", "Peraton", "Software Intern", "https://peraton.taleo.net/careersection/ext/jobdetail.ftl?job=172061")
 
     assert company.description(posting, Site({})) == ""
 
