@@ -1734,7 +1734,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   keeps it, and puts each item back as an ordinary pick. Unlike Undo's
   steps it may outlive the page: it is read against the resume's choices
   each time, so an item already back only shows ticked
-  (`docs/screens.md`, Cut From Resume). **A rename in the title is a step too**
+  (`docs/screens.md`, Cut From Resume). It is on Tailor's page too, in the
+  column beside the page (`Side`), since Fit is. **A revert never waits for a
+  compile** (KAN-524): `apply` drops a change's card and marks at the click,
+  draws a reworded line's old words over the page (`wordsBack`) and puts the
+  card back if the render refuses, and Suggestions' Undo buttons stay on while
+  `saving`, or each Undo locked the rest for a compile, which takes seconds
+  on the deployed API (`docs/live_page.md`). **A rename in the title is a step too**
   (KAN-443, `TitleHistoryContext` in `resume-title.tsx`, provided by the
   editor round its title row): it shows at once, saves behind it, and a
   failed save puts the name before it back and drops the step. Its step

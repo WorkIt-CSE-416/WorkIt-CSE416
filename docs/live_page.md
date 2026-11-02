@@ -131,8 +131,19 @@ Still open for step 1:
 - A line split across a page break moves only its first page.
 - A line the student is still on when the tab closes is not saved.
 - Hide, show and a wording switch show nothing until the PDF lands.
-- The time on the deployed API, where a round trip is 8 to 30 ms and
-  connections stay open: not measured yet.
+- The time of one compile alone on the deployed API. A compile is nearly
+  all CPU, 0.41 CPU seconds in a laptop's 0.42 s of waiting (KAN-524,
+  2026-11-02), and the Container has 1/4 vCPU
+  (`backend/cloudflare/wrangler.jsonc`). Measured on the live site that
+  day, signed in, in the browser: the editor's page, whose load holds one
+  compile, took 5.2 to 6.7 s in 9 of 11 loads and 13 and 19 s in the other
+  two; the Resumes page, with no compile, took 0.4 to 0.8 s. So a compile
+  there is likely several seconds, and every edit that renders waits for
+  it: a revert, an Undo past the kept PDFs, and Fit to One Page twice or
+  more. Undo and Redo with kept PDFs still wait for any render ahead of
+  them in the queue. `/health/db?timing=true` showed three bands the same
+  day, about 12, 47 and 75 ms, against the 8 to 30 ms expected from ENAM, so
+  the three Containers may not be alike.
 
 ## Step 2, under consideration: edit in place on a page Typst draws
 
