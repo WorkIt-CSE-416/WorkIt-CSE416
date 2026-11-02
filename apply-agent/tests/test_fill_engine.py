@@ -27,6 +27,18 @@ def test_the_postings_text_is_read_only_when_the_engine_asks_for_it():
     assert reads == [1]
 
 
+def test_a_workday_try_list_answer_is_shown_by_whichever_of_its_wordings_the_page_shows():
+    # How Did You Hear About Us? is never read on Workday: it is answered with sources to search for in turn.
+    posting = Posting("w", "Acme", "Intern", "https://acme.wd1.myworkdayjobs.com/en-US/careers/job/Intern_R1")
+    heard = Question("q1", "How Did You Hear About Us?", "select", True)
+    planned = fill_engine.plan([heard], posting, PROFILE)
+    tries = planned.answers["q1"].split("|")
+
+    assert len(tries) > 1
+    assert fill_engine.readback_problems([heard], planned.answers, {"q1": tries[1].title()}, planned.accepted) == []
+    assert fill_engine.readback_problems([heard], planned.answers, {"q1": "Somewhere else"}, planned.accepted)
+
+
 def test_an_engine_error_comes_back_as_apply_own():
     try:
         fill_engine.call_without_page("parseQuestions", "bamboohr", "")

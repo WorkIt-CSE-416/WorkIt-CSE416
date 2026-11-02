@@ -209,11 +209,20 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
     context = {"posting": posting, "today": (today or date.today()).isoformat(), "postingText": HostCall(functools.cache(posting_text)),
                "employerText": employer_text}
     result = call_without_page("plan", list(questions), _facts(profile), profile.policies(), entries, context, questions=questions)
+    answers = {name: _answer(value) for name, value in result["answers"].items()}
+    accepted = {name: tuple(wordings) for name, wordings in result["accepted"].items()}
+    if posting.job_system == "workday":
+        # A Workday prompt whose choices were never read (How Did You Hear About Us?) is answered with a try-list,
+        # "careers site|linkedin|other": the fill searches each in turn and takes the first found, so the page
+        # shows one of them, and that one shows the answer.
+        for name, answer in answers.items():
+            if isinstance(answer, str) and "|" in answer:
+                accepted[name] = (*accepted.get(name, ()), *answer.split("|"))
     return Plan(
-        answers={name: _answer(value) for name, value in result["answers"].items()},
+        answers=answers,
         essays=result["essays"], missing=result["missing"], not_eligible=result["not_eligible"],
         high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=result["drafts"], banked=result["banked"],
-        accepted={name: tuple(wordings) for name, wordings in result["accepted"].items()},
+        accepted=accepted,
     )
 
 
