@@ -281,7 +281,9 @@ test("on a posting that bans AI-written answers, the essay is left for the stude
   const rows = await rowsFor(arcWithEssay("&lt;p&gt;Please do not use AI tools to write your application answers.&lt;/p&gt;"));
 
   expect(rows.written).toEqual([]);
-  expect(rows.notes.join(" ")).toMatch(/AI/);
+  // The essay's own row says why (KAN-513), so no note repeats it.
+  expect(rows.handed).toEqual([{ name: "question_1", label: "Why do you want to work at Arc?", required: true, reason: "The posting bans AI-written text" }]);
+  expect(rows.notes).toEqual([]);
 });
 
 test("a one-line or choice draft goes to the student's Claude", () => {
