@@ -60,6 +60,20 @@ view (`panel-reopen`, `workday-show`), found in the Playwright image
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
 
+The `apply` job (KAN-535) lints and tests Apply (`apply-agent/`) on
+Ubuntu: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
+files. The list holds only the files that need no browser, no network and
+no `claude` CLI (about 570 tests, 12 s with the install, timed in a Linux
+container on 2026-11-02). The full suite takes more than 20 minutes and
+most of it opens Chromium. The tests read the engine's saved forms, so the
+job needs the fill-engine submodule: it needs `FILL_ENGINE_TOKEN` and is
+skipped without it. It runs only on a PR that touches `apply-agent/`, the
+engine pointer, `ci.yml` or `engine-token.yml` (the `changes` job).
+The other test files fail in that container and are not in the list:
+most need Chromium or the macOS `security` tool, and `test_eightfold_filler.py`,
+`test_worker_date.py` and three tests in `test_claude_answers.py` fail on
+the Mac too.
+
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
 `frontend/.prettierignore`, so Prettier never rewrites prose.

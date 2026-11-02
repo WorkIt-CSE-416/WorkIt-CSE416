@@ -79,6 +79,10 @@ into it and the window shows "Sample data".
 - Run `uv run ruff check .` here before you commit. It uses the backend's
   ruff config. `pyproject.toml` lists the findings that Apply keeps on
   purpose, each with its reason.
+- CI (the `apply` job in `../.github/workflows/ci.yml`) runs ruff and a
+  fixed list of fast test files: the files that need no browser, no network
+  and no `claude` CLI. When you add a test file that needs none of them, add
+  it to that list.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live
