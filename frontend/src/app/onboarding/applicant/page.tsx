@@ -32,9 +32,11 @@ export const metadata: Metadata = {
  * the third step (KAN-372); intake's "Back to Pay & Visa" linked there until
  * KAN-275 took intake out of onboarding. ?step=extension opens it on the
  * extension's install step: the tab the WorkIt extension opens when it is
- * added (KAN-471), signed out by way of sign-in. Each is honoured only with
- * saved answers (./steps' startStep), since the first step holds the
- * answers that must be given and Finish on the last saves without them.
+ * added (KAN-471), signed out by way of sign-in. ?step=2 is honoured only
+ * with saved answers (./steps' startStep), since the first step holds the
+ * answers that must be given; ?step=extension also for a seeker who
+ * finished onboarding, so loading the extension never sends them back to
+ * the first step.
  *
  * The Role step's pickers offer what the Jobs page's filters offer
  * (./role-options, shared with Settings' Job Preferences).
@@ -78,7 +80,7 @@ export default async function ApplicantOnboardingPage({
           : undefined
       }
       email={user.email}
-      startStep={startStep(params.step, saved != null)}
+      startStep={startStep(params.step, saved != null, account?.onboarding_completed === true)}
     />
   );
 }
