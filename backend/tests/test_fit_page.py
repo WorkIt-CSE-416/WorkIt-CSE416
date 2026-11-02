@@ -285,6 +285,31 @@ def test_fit_reaches_one_page_in_two_renders_and_cuts_at_most_one_item_too_many(
         assert render(back, sample.IDENTITY, "jakes").page_count == 2, extra
 
 
+def test_a_dragged_section_order_cuts_about_as_much_as_the_default_order():
+    # The student can drag the sections (KAN-435). `used` once took the
+    # view's first entry for the top of the page, so with Education moved
+    # down everything above it counted twice: 68 cuts where 23 were needed.
+    _tectonic_or_skip()
+    view = _long(0)
+
+    def cuts_in(order: tuple[str, ...]) -> int:
+        page = PageSettings(section_order=order)
+
+        async def draw(v):
+            return render(v, sample.IDENTITY, "jakes", page)
+
+        cuts, rendered = asyncio.run(fit(view, None, draw))
+        assert rendered.page_count == 1
+        return len(cuts)
+
+    usual = cuts_in(PageSettings.section_order)
+    tail = ("leadership", "awards", "certifications")
+    for order in (("experience", "projects", "education", *tail, "skills"),
+                  ("experience", "projects", *tail, "skills", "education"),
+                  ("skills", "education", "experience", "projects", *tail)):
+        assert cuts_in(order) <= usual + 5, order
+
+
 def test_fit_leaves_a_one_page_resume_alone():
     _tectonic_or_skip()
     cuts, rendered = asyncio.run(fit(sample.VIEW, None, _draw))

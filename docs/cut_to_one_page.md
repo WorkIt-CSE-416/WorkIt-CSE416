@@ -110,7 +110,9 @@ one render:
   entry, less the usual space between entries. When a cut empties a
   section, the heading goes too.
 - **The predicted height** is the sum of every item's height, plus each
-  heading's, plus the header's (`Page.used`). It is a sum, not a reading
+  heading's, plus the header's: the space above the first block the page
+  prints, a section or the skills, as the student ordered them
+  (`Page.used`). It is a sum, not a reading
   of where the last line landed: it ignores the empty space at the foot of
   page 1 that a block moved whole to page 2 leaves, since once the resume
   fits, nothing moves.

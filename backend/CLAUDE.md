@@ -853,7 +853,12 @@ Find files with a directory listing; these are the rules for where code goes.
   and TeX squeezes the glue between list items (about 2 pt a bullet)
   rather than break the document's last page, so the check counts each
   item's shrink, which the markers record (`Rendered.shrinks`). Without
-  the shrink it cut 2 to 4 bullets too many. Undo sends the response's
+  the shrink it cut 2 to 4 bullets too many. The view always lists the
+  sections in `SECTIONS` order and the student can drag the page's
+  (`PageSettings.section_order`), so `Page` sorts them by where the boxes
+  landed: reading the view's first entry as the page's top counted
+  everything above Education twice, 68 cuts where 23 were needed. Undo
+  sends the response's
   `undo` body. Tests: `tests/test_fit_page.py` (the plan, the check, and
   real renders: two renders, at most one cut too many),
   `tests/test_resume_editor.py`.

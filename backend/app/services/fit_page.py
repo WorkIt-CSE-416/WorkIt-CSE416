@@ -158,9 +158,14 @@ class Page:
             (self.entry_boxes(a), self.entry_boxes(b))
             for s in view.sections for a, b in pairwise(s.entries)
         ), _ENTRY_GAP)
-        blocks = [self.section_boxes(s) for s in view.sections]
-        if self._rows:
-            blocks.append([b for s in view.skills for b in self.of(s.id)])
+        # In the order the page prints them, which the student can drag, not
+        # the view's: only two blocks that touch have a heading's gap between
+        blocks = [boxes for boxes in (
+            *(self.section_boxes(s) for s in view.sections),
+            [b for s in view.skills for b in self.of(s.id)],
+        ) if boxes]
+        blocks.sort(key=lambda boxes: min((b.page, b.y0) for b in boxes))
+        self._blocks = blocks
         heading = _median(gaps(pairwise(blocks)), _HEADING + self.entry_gap)
         self.heading = max(0.0, heading - self.entry_gap)
         pitches = [
@@ -248,18 +253,18 @@ class Page:
 
     def used(self) -> float:
         '''How tall the resume stands as one column, as the sum of the same
-        heights a cut saves: the header down to the first entry's top, every
-        entry, every other section's heading, and the skill lines with their
-        heading. A sum, not a reading of where the last line landed: a block
-        moved whole to the next page leaves empty space at the foot of the
-        page before it, which is gone once the resume fits.'''
+        heights a cut saves: the header down to the top of the first block
+        the page prints (a section or the skills, as the student ordered
+        them), every entry, every other section's heading, and the skill
+        lines with their heading. A sum, not a reading of where the last line
+        landed: a block moved whole to the next page leaves empty space at
+        the foot of the page before it, which is gone once the resume fits.'''
         if self.area is None:
             return 0.0
         entries = [e for s in self.view.sections for e in s.entries]
-        first = self.entry_boxes(entries[0]) if entries else []
-        if first:
-            total = min(b.y0 for b in first if b.page == first[0].page) - self.area.top
-            total += (first[0].page - 1) * self.area.height
+        if self._blocks:
+            page, top = min((b.page, b.y0) for b in self._blocks[0])
+            total = top - self.area.top + (page - 1) * self.area.height
             total += sum(self.entry_height(e) for e in entries)
             total += self.heading * (len(self.view.sections) - 1)
         else:
