@@ -1,10 +1,10 @@
 # CLAUDE.md
 
 Repo-wide rules, always loaded. Each code folder below (`frontend/`,
-`backend/`, `scout/`, `scraper/`, `autofiller_extension/`, `.github/`) has its
-own `CLAUDE.md` that loads on top of this one when you touch a file in it;
-read it before writing code there. A rule lives at the deepest level that
-fully contains it, with a pointer above rather than a copy.
+`backend/`, `scout/`, `scraper/`, `autofiller_extension/`, `apply-agent/`,
+`.github/`) has its own `CLAUDE.md` that loads on top of this one when you
+touch a file in it; read it before writing code there. A rule lives at the
+deepest level that fully contains it, with a pointer above rather than a copy.
 
 ## Replies
 
@@ -42,6 +42,13 @@ none.
   questions and answers, the answer bank, finish), plus the connector its
   essays come from (`backend/app/connector/`); `autofiller_extension/CLAUDE.md`
   lists every endpoint it calls.
+- `apply-agent/` — Apply (KAN-534): a Python command-line agent (uv,
+  Playwright) that fills job applications in its own Chrome workers, writes
+  answers with Claude and never submits in a rehearsal. A developer tool,
+  not a student feature. It loads the Fill engine from the extension's
+  submodule, keeps personal data only in `APPLY_HOME`, never in the repo,
+  and has its own glossary and ADRs (`GLOSSARY-MAP.md`). Read
+  `apply-agent/CLAUDE.md` before any change there.
 - `.github/` — CI and the scheduled scrape-and-import (KAN-160).
 - `docs/` — team prose that spans the repo (below).
 
@@ -241,6 +248,8 @@ with the failure it prevents.
   with `npm run worktree -- --env-only`.
 - Superset workspaces run `.superset/setup.sh` on creation: that same
   `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`,
+  then `git submodule update --init` and, once the branch has Apply,
+  `uv sync` in `apply-agent/` (`npm run worktree` does these two as well),
   then `backend/scripts/fetch_tectonic.py` where the branch has it: without
   that once-per-checkout step every resume showed "This Resume Isn't Loading
   Right Now". It only warns on failure (a Mac needs `brew install tectonic`).
@@ -286,5 +295,6 @@ with the failure it prevents.
   `docs/agents/issue-tracker.md`.
 - **Triage labels:** the five default roles, as Jira labels under their own
   names. `docs/agents/triage-labels.md`.
-- **Domain docs:** single-context, one `GLOSSARY.md` and `docs/adr/` at the
-  root, created with the first settled term or decision. `docs/agents/domain.md`.
+- **Domain docs:** multi-context. `GLOSSARY-MAP.md` at the root names two
+  contexts: WorkIt (`GLOSSARY.md`, `docs/adr/`) and Apply
+  (`apply-agent/GLOSSARY.md`, `apply-agent/docs/adr/`). `docs/agents/domain.md`.
