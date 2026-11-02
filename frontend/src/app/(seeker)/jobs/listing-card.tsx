@@ -1,4 +1,4 @@
-import { CloudSlashIcon, ProhibitIcon } from "@phosphor-icons/react/ssr";
+import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 
 import { TailorIcon } from "@/components/icons";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
@@ -7,7 +7,6 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { IconButton } from "@/components/ui/icon-button";
 
 import {
   formatExperienceLevel,
@@ -24,6 +23,7 @@ import { AutoApplyButton } from "../auto-apply/auto-apply-button";
 import { ApplyButton } from "./apply-button";
 import type { JobListing } from "./listings";
 import { MatchRail } from "./match-rail";
+import { NotInterestedButton } from "./not-interested-button";
 import { SaveJobButton } from "./save-job-button";
 import { jobLogo } from "@/lib/job-logo";
 
@@ -109,14 +109,7 @@ export function ListingCard({
          page's order. */
       actions={
         <>
-          <IconButton
-            label={`Not interested in ${job.title}`}
-            tooltip="Not interested"
-            variant="outline"
-            className="size-9"
-          >
-            <ProhibitIcon aria-hidden className="size-4" />
-          </IconButton>
+          <NotInterestedButton title={job.title} />
 
           <SaveJobButton jobId={job.id} title={job.title} stage={stage} />
 
@@ -233,7 +226,7 @@ export function ListingsSkeleton() {
                   <div className="border-border-subtle mt-3 flex justify-end gap-2 border-t pt-3">
                     <Skeleton className="size-9" />
                     <Skeleton className="size-9" />
-                    <Skeleton className="h-9 w-28" />
+                    <Skeleton className="size-9" />
                     <Skeleton className="h-9 w-28" />
                     <Skeleton className="h-9 w-36" />
                     <Skeleton className="h-9 w-24" />

@@ -32,7 +32,8 @@ import {
   ComboboxTrigger,
 } from "@/components/shadcn/combobox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
-import { Button, buttonClasses } from "@/components/ui/button";
+import { SortMenu } from "@/components/sort-menu";
+import { buttonClasses } from "@/components/ui/button";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import { IconButton } from "@/components/ui/icon-button";
 import {
@@ -53,6 +54,9 @@ import {
   NO_FILTERS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
+  SORT_OPTIONS,
+  sortHref,
+  type Sort,
 } from "./filter-query";
 import { AllFiltersPanel } from "./all-filters";
 import { useFeedTransition } from "./feed-transition";
@@ -618,11 +622,18 @@ export function JobFilters({
   locations: locationsLoading,
   facets: facetsLoading,
   filters,
+  sort,
+  list,
 }: {
   locations: Promise<JobLocationOption[]>;
   /** GET /jobs/facets: the Role and Start Date options, still loading. */
   facets: Promise<JobFacets>;
   filters: FeedFilters;
+  /** The Jobs page's order, for the row's Sort. /search has one order. */
+  sort?: Sort;
+  /** The list these filters narrow, when the row sits on a job's page beside
+   *  it (./jobs-rail.tsx): a pick then goes to that list, not this address. */
+  list?: { path: string; query: string };
 }) {
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
   // Clear Filters leaves with the last pick, so its press hands focus here.
@@ -635,10 +646,12 @@ export function JobFilters({
   const facets = useHeldOnceFilled(facetsLoading, hasFacets);
   const startFeedTransition = useFeedTransition();
   const router = useRouter();
-  const pathname = usePathname();
+  const here = usePathname();
+  const pathname = list?.path ?? here;
   // The picks show checked at once; `filters` catches up when the narrowed
   // page arrives.
   const [shown, show] = useOptimistic(filters);
+  const [shownSort, showSort] = useOptimistic(sort);
 
   /** Moves the URL's filters to these, keeping the rest of the query (?q on
    *  /search). The server draws the feed again, narrowed. */
@@ -647,7 +660,7 @@ export function JobFilters({
     // (./feed-transition).
     startFeedTransition(() => {
       show(next);
-      const query = new URLSearchParams(window.location.search);
+      const query = new URLSearchParams(list?.query ?? window.location.search);
       for (const key of FILTER_KEYS) query.delete(key);
       for (const [key, value] of filterEntries(next)) query.append(key, value);
       let search = query.toString();
@@ -656,6 +669,14 @@ export function JobFilters({
       // week and month links open it) names the default order instead.
       if (!search && pathname === "/jobs") search = "sort=match";
       router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
+    });
+  }
+
+  /** The list in this order, under the filters as they stand. */
+  function applySort(next: Sort) {
+    startFeedTransition(() => {
+      showSort(next);
+      router.push(sortHref(next, shown), { scroll: false });
     });
   }
 
@@ -723,18 +744,18 @@ export function JobFilters({
   return (
     <>
       {/* THE FACETS STEP OUT ONE AT A TIME, least used first, from the right,
-          and All Filters stays a normal button at every width. Each facet is
-          at least 144px and as wide as its label needs (Date Posted 149px:
-          at 144 sm's padding cut it to "Date Post…"), All Filters 105 and
-          Clear Filters 36, with 8px gaps, so the row fits them on one line
-          from these widths of row (the page's @container, so an open sidebar
-          or Scout counts): Location and All Filters anywhere (301px, a 360px
-          phone's row is 310), then Role from 456px, Workplace 608, Job Type
-          768 and Date Posted 920, each a few pixels over what it needs, for a
+          and All Filters stays at every width, a 36px icon named by its tooltip
+          (KAN-519; in words it took 105px of the row). Each facet is at least
+          144px and as wide as its label needs (Date Posted 149px: at 144 sm's
+          padding cut it to "Date Post…"), Clear Filters 36, with 8px gaps, so
+          the row fits them on one line from these widths of row (the page's
+          @container, so an open sidebar or Scout counts): on /search Location
+          and All Filters anywhere, then Role from 392px, Workplace 544, Job Type
+          704 and Date Posted 864, each a few pixels over what it needs, for a
           label that renders a little wider elsewhere. Those leave room for
           Clear Filters whether or not it shows, so a pick never pushes a
           facet out of the row or All Filters onto a second line (KAN-252).
-          From 920px the row holds all five facets. Job Type took Experience's place (KAN-284):
+          Job Type took Experience's place (KAN-284):
           it is where Internship is picked, and a pick out of sight emptied
           the feed (Student with Full-Time). Experience Level is in the panel
           only; until the scraper keeps experienced roles, its Entry Level
@@ -749,11 +770,25 @@ export function JobFilters({
           Filters across the row, which on a laptop with the sidebar open
           left one wide bar where four filters had fit. The panel holds
           every facet, and Salary and Start Date, which the row has no room for. */}
-      {facet.location("min-w-36")}
-      {facet.role("hidden min-w-36 @min-[28.5rem]:flex")}
-      {facet.workplace("hidden min-w-36 @min-[38rem]:flex")}
-      {facet.jobType("hidden min-w-36 @min-[48rem]:flex")}
-      {facet.datePosted("hidden min-w-36 @min-[57.5rem]:flex")}
+      {/* Sort is always in the row, so on the Jobs page each facet steps out
+          one place sooner: Sort takes Location's place on a phone. */}
+      {sort ? (
+        <>
+          {facet.location("hidden min-w-36 @min-[24.5rem]:flex")}
+          {facet.role("hidden min-w-36 @min-[34rem]:flex")}
+          {facet.workplace("hidden min-w-36 @min-[44rem]:flex")}
+          {facet.jobType("hidden min-w-36 @min-[53.5rem]:flex")}
+          {facet.datePosted("hidden min-w-36 @min-[63rem]:flex")}
+        </>
+      ) : (
+        <>
+          {facet.location("min-w-36")}
+          {facet.role("hidden min-w-36 @min-[24.5rem]:flex")}
+          {facet.workplace("hidden min-w-36 @min-[34rem]:flex")}
+          {facet.jobType("hidden min-w-36 @min-[44rem]:flex")}
+          {facet.datePosted("hidden min-w-36 @min-[54rem]:flex")}
+        </>
+      )}
 
       {/* Every pick off in one press (KAN-252), shown only while there is
           one: the panel's Clear All, without opening the panel. An outlined
@@ -777,16 +812,23 @@ export function JobFilters({
           <CloseIcon className="size-4" />
         </IconButton>
       )}
-      <Button
+      {shownSort && (
+        <SortMenu
+          value={shownSort}
+          options={SORT_OPTIONS}
+          onChange={applySort}
+          className={cn("min-w-36", !filtered && "ml-auto")}
+        />
+      )}
+      <IconButton
         ref={allFiltersButton}
-        variant="secondary"
-        size="sm"
+        label="All Filters"
+        variant="outline"
         onClick={() => setAllFiltersOpen(true)}
-        className={cn(!filtered && "ml-auto")}
+        className={cn("size-9 shrink-0", !filtered && !sort && "ml-auto")}
       >
         <FilterIcon className="size-4" />
-        All Filters
-      </Button>
+      </IconButton>
 
       <AllFiltersPanel
         open={allFiltersOpen}

@@ -1469,7 +1469,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `(seeker)/jobs/layout.tsx` so it survives job-to-job navigation. It reads
   the list `FeedList` last showed (`jobs/shown-list.ts`); a new list screen
   whose cards open job pages writes it the same way, or the rail shows the
-  last /jobs or /search list (`docs/screens.md`, Job posting page). Every
+  last /jobs or /search list (`docs/screens.md`, Job posting page). Its rows are
+  `CompactJobCard`, which a new compact list reuses. Every
   reader that pages a list of roles goes through `nextPage`
   (`jobs/list-pages.ts`), which picks the action for the list's order and
   counts the offset; the feed and the rail each had a copy until the
@@ -1478,6 +1479,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   list do, and ages by `LIST_FRESH_FOR`. The rail checks its list's age on
   every job opened, not once: checked on mount only, it sat on its skeleton
   for good once the list passed half an hour, since it stays mounted.
+- **The Jobs page's Split view is the job page's frame** (KAN-519,
+  `docs/screens.md`, Jobs page): the layout draws the header and rail, /jobs
+  draws only the first job, and a click opens that job's page, so Best Match
+  is never scored again per click. Never draw the open job with a query on
+  /jobs. The choice is a cookie (`jobs/view.ts`), since `?view=` belongs to old
+  links. A height set with `flex-1` on the same element does nothing: the frame
+  needs `flex-none` at its fixed height, or the rail grows with its list and
+  never scrolls.
 - **The feed's loading state is its last first page** (KAN-287,
   `jobs/feed-fallback.tsx`): `FeedList` keeps the first page it drew as a
   snapshot (`jobs/feed-pages.ts`), and the Suspense fallback draws it while

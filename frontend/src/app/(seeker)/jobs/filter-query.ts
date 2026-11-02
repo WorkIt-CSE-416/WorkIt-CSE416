@@ -347,6 +347,44 @@ export function readQuery(params: Params): string {
   return (first(params.q) ?? "").trim().slice(0, 200);
 }
 
+/** The two orders of the Jobs page's one list (./page, KAN-288). */
+export type Sort = "match" | "newest";
+
+/** The row's Sort, in the page's default order first. */
+export const SORT_OPTIONS: { value: Sort; label: string }[] = [
+  { value: "match", label: "Best Match" },
+  { value: "newest", label: "Newest" },
+];
+
+/** The page's order: ?sort=, else an old link's ?view= (All Jobs was the
+ *  newest first), else Best Match. */
+export function readSort(params: Params): Sort {
+  const sort = first(params.sort);
+  if (sort === "match" || sort === "newest") return sort;
+  return first(params.view) === "all" ? "newest" : "match";
+}
+
+/** The list in this order under these filters, as a URL. */
+export function sortHref(sort: Sort, filters: FeedFilters): string {
+  return `/jobs?${new URLSearchParams([["sort", sort], ...filterEntries(filters)])}`;
+}
+
+/** The query a list in this order keeps for Load More. `sort=match` keeps
+ *  Best Match's kept pages apart from the plain feed's (./feed-list). */
+export function listQuery(sort: Sort, filters: FeedFilters): string {
+  return sort === "match"
+    ? sortHref("match", filters).slice("/jobs".length)
+    : filtersQuery(filters);
+}
+
+/** A query string in the shape a page's searchParams take, so an address the
+ *  page did not arrive at reads the way its own does. */
+export function queryParams(query: string): Record<string, string[]> {
+  const params: Record<string, string[]> = {};
+  for (const [key, value] of new URLSearchParams(query)) (params[key] ??= []).push(value);
+  return params;
+}
+
 /** Whether any filter narrows the feed: what the empty state says depends on it. */
 export function isFiltered(filters: FeedFilters): boolean {
   return filterEntries(filters).length > 0;

@@ -4,6 +4,7 @@ import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../../gutter";
 import { JobActionBar } from "./action-bar";
+import { JobTabs } from "./job-tabs";
 import { JOB_PAGE_WIDTH, JobViewHeaderSkeleton } from "./job-view";
 
 /**
@@ -30,7 +31,7 @@ import { JOB_PAGE_WIDTH, JobViewHeaderSkeleton } from "./job-view";
 export default function JobLoading() {
   return (
     <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
-      <JobActionBar>
+      <JobActionBar tabs={<JobTabs />}>
         <ActionsSkeleton />
       </JobActionBar>
       <JobPageSkeleton />
@@ -38,14 +39,13 @@ export default function JobLoading() {
   );
 }
 
-/** The bar's actions while they load: Save, the menu, Ask Scout, Tailor My
+/** The bar's actions while they load: Save, Ask Scout, Tailor My
  *  Resume and Apply Now, each its sm button's 36px. */
 function ActionsSkeleton() {
   return (
     <span aria-hidden="true" className="flex flex-wrap items-center justify-end gap-2">
       <Skeleton className="size-9" />
       <Skeleton className="size-9" />
-      <Skeleton className="h-9 w-28" />
       <Skeleton className="h-9 w-40" />
       <Skeleton className="h-9 w-28" />
     </span>

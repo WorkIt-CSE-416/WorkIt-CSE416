@@ -19,8 +19,9 @@ import { SaveJobButton } from "../save-job-button";
 import { factText, toPosting } from "../to-posting";
 import { ApplyButton } from "../apply-button";
 import { JobDescription } from "./description";
+import { getCompany, type JobCompany } from "./company-tab";
 import { getRequirements, KeyRequirementsCard, type Requirement } from "./key-requirements";
-import { AppliedNote, MoreActions } from "./page-actions";
+import { AppliedNote } from "./page-actions";
 import { SentNote } from "./sent-note";
 import { jobLogo } from "@/lib/job-logo";
 
@@ -48,6 +49,9 @@ export type KnownApplication = { stage: ApplicationStage | null; appliedAt: stri
 /** No requirements to read: About the Role alone draws no card. */
 const NO_REQUIREMENTS: Promise<Requirement[]> = Promise.resolve([]);
 
+/** No Company tab: the application's page draws none. */
+const NO_COMPANY: Promise<JobCompany | null> = Promise.resolve(null);
+
 /**
  * Everything the job page reads, in parallel. `job` is null for one that has
  * closed (or never existed); `error` when the API can't be read.
@@ -70,7 +74,7 @@ export async function loadJobView(
     application,
   }: { descriptionOnly?: boolean; application?: Promise<KnownApplication> } = {},
 ) {
-  const [{ job, error }, resumes, sent, applied, stage, requirements] = await Promise.all([
+  const [{ job, error }, resumes, sent, applied, stage, requirements, company] = await Promise.all([
     getJobListing(jobId),
     listBuiltResumes(),
     listSentResumes(),
@@ -79,6 +83,7 @@ export async function loadJobView(
       : getApplied(jobId),
     application ? application.then((known) => known?.stage ?? null) : getApplicationStage(jobId),
     descriptionOnly ? NO_REQUIREMENTS : getRequirements(jobId),
+    descriptionOnly ? NO_COMPANY : getCompany(jobId),
   ]);
   // The sent resumes linked to this posting, newest first, so the first is
   // the last one sent.
@@ -91,18 +96,29 @@ export async function loadJobView(
     sent: sentHere,
     tailored: resumes.data?.some((r) => r.job_posting_id === job?.id) ?? false,
     requirements,
+    company,
   };
 }
 
-/** The job's actions, for JobActionBar: Save, the "…" menu, Ask Scout, Auto
+/** The job's actions, for JobActionBar: Already Applied?, Save, Ask Scout, Auto
  *  Apply where it can fill the form, Tailor My Resume and Apply Now. */
 export function JobViewActions({ view, job }: { view: JobView; job: JobListing }) {
   const { stage, applied, tailored } = view;
   return (
     <>
+      {/* Not for a company account (`applied` null) or a job already marked. */}
+      {applied != null && !applied.appliedAt && (
+        <ApplyButton
+          already
+          jobId={job.id}
+          title={job.title}
+          applyUrl={job.apply_url}
+          canMarkApplied
+          className="shrink-0"
+        />
+      )}
       {/* Outlined like the feed card's icon actions. */}
       <SaveJobButton jobId={job.id} title={job.title} stage={stage} />
-      <MoreActions title={job.title} />
       <AskScoutButton id={job.id} title={job.title} company={job.company} />
       {/* Only where auto apply can fill the form (Greenhouse for now). */}
       {job.auto_apply && (

@@ -30,11 +30,14 @@ import {
   getJobListings,
   getJobLocations,
   getSearchFacts,
+  getJobsView,
   getTailoredJobIds,
   isApplicant,
   type FeedPage,
   type SearchFact,
 } from "../jobs/listings";
+import type { JobsView } from "../jobs/view";
+import { ViewSwitch } from "../jobs/view-switch";
 import { SearchFacts } from "./search-facts";
 
 export const metadata: Metadata = {
@@ -67,6 +70,11 @@ export const metadata: Metadata = {
  * results on screen until the new ones arrive.
  *
  * The filters are the feed's own (../jobs/filter-query), sent with the words.
+ *
+ * The Jobs page's view choice holds here too (KAN-519), as Cards or List: the
+ * split view's pane needs the Jobs page's header above it, and this page's
+ * count and fact chips have no place there, so the open job is the job's own
+ * page beside the rail.
  */
 
 /** "128 Roles" beside the heading, every match. Nothing when there is
@@ -104,12 +112,14 @@ async function Results({
   facts: factsLoading,
   query,
   filters,
+  view,
 }: {
   results: Promise<FeedPage>;
   /** The filters the search's own words set (./search-facts). */
   facts: Promise<SearchFact[]>;
   query: string;
   filters: FeedFilters;
+  view: JobsView;
 }) {
   // The seeker's applications and tailored resumes, for the cards' Auto Apply
   // and Tailor buttons, and whether Apply Now may ask "Did You Apply?" (as
@@ -167,6 +177,7 @@ async function Results({
         stages={stages}
         tailored={tailored}
         canMarkApplied={canMarkApplied}
+        compact={view === "split"}
       />
     </>
   );
@@ -176,6 +187,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
   const params = await searchParams;
   const query = readQuery(params);
   const filters = readFilters(params);
+  const view = await getJobsView();
 
   /* The heading and subtitle every state shares, at /jobs's sizes. */
   const subtitle = (
@@ -249,7 +261,10 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
                   </Suspense>
                 </span>
               </div>
-              {subtitle}
+              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+                {subtitle}
+                <ViewSwitch view={view} listOnly />
+              </div>
             </>
           }
         >
@@ -258,7 +273,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
         <PendingFeed>
           <Suspense key={key} fallback={<ListingsSkeleton />}>
-            <Results results={results} facts={facts} query={query} filters={filters} />
+            <Results results={results} facts={facts} query={query} filters={filters} view={view} />
           </Suspense>
         </PendingFeed>
       </FeedTransition>

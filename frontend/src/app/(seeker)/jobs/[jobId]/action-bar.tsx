@@ -9,7 +9,7 @@ import { BackToJobs } from "./page-actions";
 
 /**
  * The job posting page's top bar: Back on the left, the job's actions on the
- * right (Save, the "…" menu, Ask Scout, Auto Apply, Tailor My Resume, Apply
+ * right (Save, Ask Scout, Auto Apply, Tailor My Resume, Apply
  * Now), held at the top of the page from md while the description scrolls
  * under it, so a seeker can apply or tailor from anywhere in a long posting
  * (2026-10-17). The actions used to sit under the title in the header card and
@@ -29,13 +29,22 @@ import { BackToJobs } from "./page-actions";
  * beside Back, about 150px held over a 812px screen; the Jobs page stopped
  * holding its heading on a phone for the same reason.
  */
-export function JobActionBar({ back, children }: { back?: ReactNode; children: ReactNode }) {
+export function JobActionBar({
+  back,
+  tabs,
+  children,
+}: {
+  back?: ReactNode;
+  /** The job's Overview and Company (./job-tabs), after Back. */
+  tabs?: ReactNode;
+  children: ReactNode;
+}) {
   const barRef = useRef<HTMLDivElement>(null);
   const [stuck, setStuck] = useState(false);
 
   useEffect(() => {
     const bar = barRef.current;
-    const scroller = bar?.closest("main");
+    const scroller = bar?.closest("[data-job-scroller], main");
     if (!bar || !scroller) return;
     // Stuck once the page has scrolled and the bar sits at its sticky top,
     // counted from inside the <main>'s border (clientTop), as the feed's is.
@@ -67,8 +76,10 @@ export function JobActionBar({ back, children }: { back?: ReactNode; children: R
         SEEKER_GUTTER,
       )}
     >
-      {back ?? <BackToJobs className="group/back" />}
-      <div className="flex flex-wrap items-center justify-end gap-2">{children}</div>
+      {/* The split view's list is Back's list, already on screen. */}
+      {back ?? <BackToJobs className="group/back in-data-split:@4xl/main:hidden" />}
+      {tabs}
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{children}</div>
     </div>
   );
 }

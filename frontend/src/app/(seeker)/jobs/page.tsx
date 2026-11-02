@@ -3,9 +3,10 @@ import { Suspense } from "react";
 
 import { BriefcaseIcon } from "@/components/icons";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SegmentedLinks } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 
+import { JobPage } from "./[jobId]/job-page";
+import JobLoading from "./[jobId]/loading";
 import { RememberFeed } from "./[jobId]/page-actions";
 import { BankPrompt } from "./bank-prompt";
 import { CanonicalUrl } from "./canonical-url";
@@ -14,24 +15,31 @@ import { FeedFallback } from "./feed-fallback";
 import { FeedList } from "./feed-list";
 import { FeedTransition, PendingFeed } from "./feed-transition";
 import { JobFilters } from "./filters";
+import { JobsHeading } from "./jobs-heading";
 import { ListingsError } from "./listing-card";
 import {
-  filterEntries,
   filtersQuery,
   isFiltered,
+  listQuery,
+  queryParams,
   readFilters,
+  readSort,
+  sortHref,
   type FeedFilters,
+  type Sort,
 } from "./filter-query";
 import {
   getJobFacets,
   getJobListings,
   getJobLocations,
+  getJobsView,
   getRecommendedPage,
   getSavedFilters,
   getTailoredJobIds,
   isApplicant,
   type FeedPage,
 } from "./listings";
+import { RememberShownList } from "./remember-shown-list";
 import { SEEKER_GUTTER } from "../gutter";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { getApplicationStages } from "../auto-apply/applications";
@@ -72,34 +80,26 @@ export const metadata: Metadata = {
  * most used link cost two: the first answer (after the preferences read)
  * held only the redirect, and the router then asked for the page again. Now
  * the page draws the redirect's target itself, from the address that target
- * would have (`shown` below), so every part of it (the Sort By links, the
+ * would have (`shown` below), so every part of it (the Sort menu, the
  * filter row, the list's query and Load More's key) is exactly what that
- * address draws on a reload. */
+ * address draws on a reload.
+ *
+ * TWO VIEWS OF THE LIST (KAN-519), chosen by the switch at the heading's end and kept
+ * in a cookie (./view): the large cards, or the split view. In the split view
+ * this page draws only the open job, the list's first: the layout's frame draws
+ * the heading, the filters and the list (./jobs-rail.tsx), which is what lets
+ * those stay mounted, and Best Match unscored, as one job opens after another. */
 
-type Sort = "match" | "newest";
-
-/** The page's order: ?sort=, else an old link's ?view= (All Jobs was the
- *  newest first), else Best Match. */
-function readSort(params: Record<string, string | string[] | undefined>): Sort {
-  const sort = [params.sort].flat()[0];
-  if (sort === "match" || sort === "newest") return sort;
-  return [params.view].flat()[0] === "all" ? "newest" : "match";
-}
-
-/** The list in this order under these filters, as a URL. */
-function sortHref(sort: Sort, filters: FeedFilters): string {
-  return `/jobs?${new URLSearchParams([["sort", sort], ...filterEntries(filters)])}`;
-}
-
-/** A URL's query in the shape a page's searchParams take, so the page can
- *  read an address it did not arrive at the way it reads its own. Every
- *  value is a list, which readSort and readFilters both take. */
-function paramsOf(href: string): Record<string, string[]> {
-  const params: Record<string, string[]> = {};
-  for (const [key, value] of new URL(href, "http://n").searchParams) {
-    (params[key] ??= []).push(value);
+/**
+ * This order's first page. Best Match with an empty bank (the API's 404) is the
+ * plain feed; BankPrompt above it already asks the student to fill the bank.
+ */
+async function firstPage(filters: FeedFilters, sort: Sort) {
+  if (sort === "match") {
+    const page = await getRecommendedPage(filtersQuery(filters), 0);
+    if (page) return { page, query: listQuery("match", filters), plain: false };
   }
-  return params;
+  return { page: await getJobListings(filters), query: filtersQuery(filters), plain: true };
 }
 
 /**
@@ -129,34 +129,8 @@ async function Feed({
   tailored: Promise<string[]>;
   applicant: Promise<boolean>;
 }) {
-  if (sort === "match") {
-    const [page, byJob, tailoredIds, canMarkApplied] = await Promise.all([
-      getRecommendedPage(filtersQuery(filters), 0),
-      stages,
-      tailored,
-      applicant,
-    ]);
-    if (page) {
-      // `sort=match` in Load More's query keeps its kept pages apart from
-      // the plain feed's (./feed-list).
-      const query = sortHref("match", filters).slice("/jobs".length);
-      return (
-        <Results
-          page={page}
-          filters={filters}
-          query={query}
-          retryHref={sortHref("match", filters)}
-          stages={byJob}
-          tailored={tailoredIds}
-          canMarkApplied={canMarkApplied}
-        />
-      );
-    }
-  }
-  // Newest, or Best Match with an empty bank (the API's 404): the plain
-  // feed. BankPrompt above it already asks the student to fill the bank.
-  const [page, byJob, tailoredIds, canMarkApplied] = await Promise.all([
-    getJobListings(filters),
+  const [{ page, query, plain }, byJob, tailoredIds, canMarkApplied] = await Promise.all([
+    firstPage(filters, sort),
     stages,
     tailored,
     applicant,
@@ -165,13 +139,73 @@ async function Feed({
     <Results
       page={page}
       filters={filters}
-      query={filtersQuery(filters)}
+      query={query}
       retryHref={sortHref(sort, filters)}
       stages={byJob}
       tailored={tailoredIds}
       canMarkApplied={canMarkApplied}
-      plain
+      plain={plain}
     />
+  );
+}
+
+/**
+ * The split view's side of the page (KAN-519): this list's first job, or the
+ * state that stands in for it, with the list handed to the frame's rail. The
+ * rail is the whole list below `@4xl/main`, so the job shows only from there.
+ */
+async function SplitFeed({
+  filters,
+  sort,
+  stages,
+}: {
+  filters: FeedFilters;
+  sort: Sort;
+  stages: Promise<Record<string, ApplicationStage>>;
+}) {
+  const [{ page, query, plain }, byJob] = await Promise.all([firstPage(filters, sort), stages]);
+  const { more, error } = page;
+  const jobs = page.jobs ?? [];
+  const first = jobs[0];
+  return (
+    <>
+      <RememberShownList
+        query={query}
+        source={plain ? "feed" : "recommended"}
+        jobs={jobs}
+        more={more}
+        stages={byJob}
+      />
+      {first ? (
+        <div className="hidden @4xl/main:contents">
+          <Suspense fallback={<JobLoading />}>
+            <JobPage jobId={first.id} listed />
+          </Suspense>
+        </div>
+      ) : (
+        <div className={cn("w-full", SEEKER_GUTTER)}>
+          {error != null ? (
+            <ListingsError error={error} retryHref={sortHref(sort, filters)} />
+          ) : (
+            <NoRoles filters={filters} />
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** What a list shows with no roles to show. */
+function NoRoles({ filters }: { filters: FeedFilters }) {
+  return isFiltered(filters) ? (
+    <EmptyState Icon={BriefcaseIcon} title="No Roles Match These Filters" className="mt-4">
+      Nothing in the feed fits every filter you picked. Loosen one, or clear them all.
+    </EmptyState>
+  ) : (
+    <EmptyState Icon={BriefcaseIcon} title="No Roles Yet" className="mt-4">
+      New internship and new-grad roles land here as companies post them. Check back tomorrow
+      morning.
+    </EmptyState>
   );
 }
 
@@ -199,22 +233,7 @@ function Results({
 
   if (error != null) return <ListingsError error={error} retryHref={retryHref} />;
 
-  if (jobs.length === 0 && isFiltered(filters)) {
-    return (
-      <EmptyState Icon={BriefcaseIcon} title="No Roles Match These Filters" className="mt-4">
-        Nothing in the feed fits every filter you picked. Loosen one, or clear them all.
-      </EmptyState>
-    );
-  }
-
-  if (jobs.length === 0) {
-    return (
-      <EmptyState Icon={BriefcaseIcon} title="No Roles Yet" className="mt-4">
-        New internship and new-grad roles land here as companies post them. Check back tomorrow
-        morning.
-      </EmptyState>
-    );
-  }
+  if (jobs.length === 0) return <NoRoles filters={filters} />;
 
   return (
     <>
@@ -256,9 +275,34 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
     const saved = await getSavedFilters();
     if (saved && isFiltered(saved)) canonical = sortHref("match", saved);
   }
-  const shown = canonical ? paramsOf(canonical) : params;
+  const shown = canonical ? queryParams(canonical.slice("/jobs".length)) : params;
   const sort = readSort(shown);
   const filters = readFilters(shown);
+  const view = await getJobsView();
+
+  if (view === "split") {
+    return (
+      <>
+        {canonical && <CanonicalUrl href={canonical} />}
+        <RememberFeed />
+        <div className={cn("pt-4 empty:hidden", SEEKER_GUTTER)}>
+          <Suspense fallback={null}>
+            <BankPrompt />
+          </Suspense>
+        </div>
+        <Suspense
+          key={listQuery(sort, filters)}
+          fallback={
+            <div className="hidden @4xl/main:contents">
+              <JobLoading />
+            </div>
+          }
+        >
+          <SplitFeed filters={filters} sort={sort} stages={stages} />
+        </Suspense>
+      </>
+    );
+  }
 
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
@@ -269,30 +313,8 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
           row starts it (./feed-transition). */}
       <FeedTransition>
         {/* The heading and filters stay put while the list scrolls. */}
-        <FeedHeader
-          heading={
-            <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-              <div>
-                <h1 className="text-heading text-ink">Jobs</h1>
-                <p className="text-body text-ink-meta mt-1">
-                  {sort === "match"
-                    ? "Roles that fit your preferences, ranked against your experience."
-                    : "Every open role in the feed, newest first."}
-                </p>
-              </div>
-              {/* Each order keeps the filters as they stand. */}
-              <SegmentedLinks
-                label="Sort By"
-                value={sort}
-                options={[
-                  { value: "match", label: "Best Match", href: sortHref("match", filters) },
-                  { value: "newest", label: "Newest", href: sortHref("newest", filters) },
-                ]}
-              />
-            </div>
-          }
-        >
-          <JobFilters locations={locations} facets={facets} filters={filters} />
+        <FeedHeader heading={<JobsHeading sort={sort} view={view} />}>
+          <JobFilters locations={locations} facets={facets} filters={filters} sort={sort} />
         </FeedHeader>
 
         {/* An empty bank's prompt to fill or import (./bank-prompt). Its own
@@ -310,11 +332,7 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
             key={`${sort}${filtersQuery(filters)}`}
             fallback={
               <FeedFallback
-                query={
-                  sort === "match"
-                    ? sortHref("match", filters).slice("/jobs".length)
-                    : filtersQuery(filters)
-                }
+                query={listQuery(sort, filters)}
                 altQuery={sort === "match" ? filtersQuery(filters) : undefined}
               />
             }

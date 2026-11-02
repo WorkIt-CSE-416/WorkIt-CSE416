@@ -68,6 +68,10 @@ function sentKey(sent: SentDownload): string {
  * cards in the browser drops a job marked applied itself (`onApplied`), since
  * a refresh redraws only the server's first page (./feed-list); anywhere else
  * a mark refreshes the route.
+ *
+ * `already` draws "Already Applied?" in place of Apply Now (KAN-519, after
+ * Simplify): for a student who applied without WorkIt, it opens the same dialog
+ * with no trip to the employer. It only asks, so a misclick marks nothing.
  */
 export function ApplyButton({
   jobId,
@@ -77,6 +81,7 @@ export function ApplyButton({
   applied = false,
   // showsSent: read only by Pick a Resume's Apply, hidden for now.
   onApplied,
+  already = false,
   className,
 }: {
   jobId: string;
@@ -91,6 +96,8 @@ export function ApplyButton({
   /** Takes the job off the caller's list once marked applied, in place of
    *  refreshing the route. */
   onApplied?: () => void;
+  /** "Already Applied?": asks "Did You Apply?" and leaves for nowhere. */
+  already?: boolean;
   className?: string;
 }) {
   const router = useRouter();
@@ -168,6 +175,12 @@ export function ApplyButton({
     router.refresh();
   }
 
+  function askApplied() {
+    setOpen(true);
+    setAsking(true);
+    void load();
+  }
+
   return (
     <>
       {/* sm, as every action in the bar it sits in (./action-bar.tsx): lg
@@ -178,22 +191,25 @@ export function ApplyButton({
           not marked the job gets "Did You Apply?" behind that tab, from the
           same click: a link click opens the tab itself, so no popup blocker
           stops it. The hidden steps are at the end of this file. */}
-      <a
-        href={applyUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={buttonClasses({ size: "sm", className })}
-        onClick={() => {
-          if (!canMarkApplied || applied) return;
-          setOpen(true);
-          setAsking(true);
-          void load();
-        }}
-      >
-        Apply Now
-        <ExternalLinkIcon className="size-4" />
-        <span className="sr-only"> (opens in a new tab)</span>
-      </a>
+      {already ? (
+        <Button variant="ghost" size="sm" className={className} onClick={askApplied}>
+          Already Applied?
+        </Button>
+      ) : (
+        <a
+          href={applyUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonClasses({ size: "sm", className })}
+          onClick={() => {
+            if (canMarkApplied && !applied) askApplied();
+          }}
+        >
+          Apply Now
+          <ExternalLinkIcon className="size-4" />
+          <span className="sr-only"> (opens in a new tab)</span>
+        </a>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         {/* Wide on a full-screen window, with the two resume lists side by
             side, so it fits without a scrollbar: at the dialog's default

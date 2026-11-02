@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowsDownUpIcon, FileTextIcon, TagIcon } from "@phosphor-icons/react/ssr";
+import { FileTextIcon, TagIcon } from "@phosphor-icons/react/ssr";
 import { startTransition, useEffect, useEffectEvent, useOptimistic, useState } from "react";
 
-import { FacetLabel, facetClasses, FieldFacet, type FacetOption } from "@/components/field-facet";
+import { FieldFacet, type FacetOption } from "@/components/field-facet";
 import {
   matches,
   RESUME_TYPES,
@@ -11,15 +11,9 @@ import {
   searchWords,
   type ResumeType,
 } from "@/components/resume-list";
-import { ChevronDownIcon, SearchIcon } from "@/components/icons";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
+import { SearchIcon } from "@/components/icons";
 import { useShallowParams, useShallowPush } from "@/components/shallow-routing";
+import { SortMenu } from "@/components/sort-menu";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchField } from "@/components/ui/search-field";
@@ -298,7 +292,7 @@ export function BuiltResumes({
               onChange={(values) => setTypes(values as ResumeType[])}
               className="min-w-36"
             />
-            <SortMenu value={sort} onChange={(next) => move({ sort: next })} />
+            <SortMenu value={sort} options={SORTS} onChange={(next) => move({ sort: next })} />
             <div className="col-span-2 grid grid-cols-2 gap-2 @2xl:ml-auto @2xl:flex">
               {upload.button}
               <Button size="sm" onClick={generate} disabled={generating}>
@@ -385,37 +379,5 @@ export function BuiltResumes({
       )}
       <DuplicateResumeDialog message={duplicate} onClose={() => setDuplicate(null)} />
     </>
-  );
-}
-
-/**
- * The list's order, beside the Type filter (KAN-366): one pick of three,
- * drawn as the filter's dropdown is (`facetClasses`), its button naming the
- * order in force. It never takes the filter's brand tint, which marks a
- * filter holding a pick: an order is always in force. A dropdown, not
- * the Jobs page's Sort By pills: the header already holds the Resumes or
- * Experiences pills, and two pill rows read as one kind of choice.
- */
-function SortMenu({ value, onChange }: { value: Sort; onChange: (next: Sort) => void }) {
-  const current = SORTS.find((s) => s.value === value) ?? SORTS[0];
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label={`Sort by ${current.label}`}
-        className={facetClasses(false, "min-w-36")}
-      >
-        <FacetLabel Icon={ArrowsDownUpIcon} label={current.label} active={false} count={0} />
-        <ChevronDownIcon className="text-muted-foreground size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-max min-w-(--anchor-width)">
-        <DropdownMenuRadioGroup value={value} onValueChange={(next) => onChange(next as Sort)}>
-          {SORTS.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value}>
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

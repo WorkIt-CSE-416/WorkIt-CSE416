@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 
 import { apiGet } from "@/lib/api";
@@ -16,6 +17,7 @@ import {
   type FeedFilters,
   type SavedPreferences,
 } from "./filter-query";
+import { JOBS_VIEW_COOKIE, type JobsView } from "./view";
 
 /**
  * The live feed: scraped roles from the API's `GET /jobs`, which reads the
@@ -284,6 +286,11 @@ export async function getSearchFacts(q: string): Promise<SearchFact[]> {
  *  costs the API a database connection and six counting queries, which every
  *  filter change used to pay again. */
 const COUNTS_TTL = 300;
+
+/** The Jobs page's view, from the student's choice (./view). */
+export async function getJobsView(): Promise<JobsView> {
+  return (await cookies()).get(JOBS_VIEW_COOKIE)?.value === "split" ? "split" : "cards";
+}
 
 /** The Location filter's options. Empty when the API can't be reached: the
  *  facet then shows disabled, and the feed below reports the error itself. */

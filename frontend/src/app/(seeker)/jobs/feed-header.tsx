@@ -41,8 +41,21 @@ const ROW_GAP = 16;
  *
  * Above the cards' own layers (a card's link and actions are z-2), below
  * every popup, which is portaled.
+ *
+ * `flush` is the split view's (./jobs-rail.tsx, KAN-519): the frame has no
+ * page padding to take over, and the panes under it always need the rule.
  */
-export function FeedHeader({ heading, children }: { heading: ReactNode; children: ReactNode }) {
+export function FeedHeader({
+  heading,
+  flush = false,
+  className,
+  children,
+}: {
+  heading: ReactNode;
+  flush?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
   const headerRef = useRef<HTMLDivElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
   // Everything above the filter row, less ROW_GAP: the phone's negative top.
@@ -83,10 +96,11 @@ export function FeedHeader({ heading, children }: { heading: ReactNode; children
       data-stuck={stuck || undefined}
       style={{ "--feed-lift": `${lift}px` } as CSSProperties}
       className={cn(
-        "bg-panel sticky top-[calc(var(--feed-lift)*-1)] z-10 -mt-6 -mb-4 pt-6 pb-4 md:top-0",
-        "after:bg-border-subtle after:absolute after:inset-x-0 after:bottom-0 after:h-px after:opacity-0 after:transition-opacity after:duration-200 data-stuck:after:opacity-100",
-        SEEKER_BLEED,
+        "bg-panel sticky top-[calc(var(--feed-lift)*-1)] z-10 pt-6 pb-4 md:top-0",
+        "after:bg-border-subtle after:absolute after:inset-x-0 after:bottom-0 after:h-px after:transition-opacity after:duration-200 data-stuck:after:opacity-100",
+        !flush && ["-mt-6 -mb-4 after:opacity-0", SEEKER_BLEED],
         SEEKER_GUTTER,
+        className,
       )}
     >
       {heading}

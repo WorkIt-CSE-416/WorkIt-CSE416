@@ -37,12 +37,16 @@ export function useFeedTransition(): TransitionStartFunction {
 }
 
 /** The feed, dimmed and quiet while a filter change is on its way. */
-export function PendingFeed({ children }: { children: ReactNode }) {
+export function PendingFeed({ className, children }: { className?: string; children: ReactNode }) {
   const pending = use(FeedTransitionContext)?.pending ?? false;
   return (
     <div
       aria-busy={pending}
-      className={cn("transition-opacity duration-150", pending && "pointer-events-none opacity-50")}
+      className={cn(
+        "transition-opacity duration-150",
+        pending && "pointer-events-none opacity-50",
+        className,
+      )}
     >
       {children}
     </div>

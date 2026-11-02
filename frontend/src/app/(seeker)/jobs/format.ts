@@ -224,5 +224,5 @@ export function formatMinYears(years: number) {
 }
 
 export function formatPosted(uploadedAt: string) {
-  return `Posted ${formatDistanceToNowStrict(new Date(uploadedAt))} ago`;
+  return `${formatDistanceToNowStrict(new Date(uploadedAt))} ago`;
 }
