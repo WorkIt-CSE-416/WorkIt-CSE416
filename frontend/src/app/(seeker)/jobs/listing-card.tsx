@@ -170,7 +170,9 @@ export function listingFacts(job: JobListing) {
     jobType: job.job_type ? formatJobType(job.job_type) : NOT_LISTED,
     salary: salary(job),
     workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
-    experienceLevel: job.experience_level ? formatExperienceLevel(job.experience_level) : NOT_LISTED,
+    experienceLevel: job.experience_level
+      ? formatExperienceLevel(job.experience_level)
+      : NOT_LISTED,
     ...yearsOrStart(job),
   };
 }
