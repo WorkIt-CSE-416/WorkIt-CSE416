@@ -584,9 +584,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   real employers from `scraper/boards.csv` with intern or new-grad titles,
   the only roles the scraper keeps, and their logos come from the favicon
   host. Their score chips are green, amber or red (`scoreTone` in
-  `score-tone.ts`, from the positive, warning and danger tokens), not the
-  app's magenta match bands: the team wanted the hero to show a spread of
-  fits at a glance. In the
+  `score-tone.ts`, from the positive, warning and danger tokens): the team
+  wanted the hero to show a spread of fits at a glance. In the
   pinned product tour, `Fit` (`fit.tsx`, shared with the feature pages'
   stage) scales a visual to the visual area's height
   and width, up to 1.5x (and, in the stacked stops, down to their width
@@ -1521,7 +1520,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   KAN-257): every Scout or AI control, and Scout's mark in the chat and
   the panel header, draws it. An ESLint rule refuses Phosphor's sparkle
   imported anywhere else; a hand-drawn sparkle beside Lucide's had given
-  the assistant two marks (`docs/design.md`, Brand and icons).
+  the assistant two marks (`docs/design.md`, Brand and icons). Tailor My
+  Resume on a job's card and page is the one exception (`TailorIcon`,
+  KAN-518): beside Ask Scout, a second sparkle read as a second assistant.
+- **A match score is red, yellow or green, only through `matchColor()`**
+  (`lib/match.ts`, KAN-518; `docs/design.md`, Colour): a magenta ramp said
+  nothing about the fit, so the score now shares hues with the stages. The
+  ramp's pink lives on as the marketing pages' `--color-updates`: a landing
+  scene takes that, never a `--color-match-*` token, which turned amber
+  there when the bands changed.
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change
