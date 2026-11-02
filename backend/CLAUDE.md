@@ -1350,7 +1350,15 @@ go then. A change needs to work on Cloudflare only.
   model, where"); without `SCOUT_*` every Scout reply is "offline".
   `SCOUT_ENDPOINTS_LARGE` and `SCOUT_ENDPOINTS_SMALL` are optional: unset,
   each size runs on the default chain. The
-  `AI_*` usage limits are optional (defaults in `app/config.py`). **Never
+  `AI_*` usage limits are optional (defaults in `app/config.py`).
+  `WORKIT_ADMINS` names who reads fill reports; unset, no one can.
+  `TURNSTILE_SECRET_KEY` turns on signup's CAPTCHA check, and goes in only
+  with the web build's `NEXT_PUBLIC_TURNSTILE_SITE_KEY`: without the site
+  key the form sends no token, and every signup answers 400. Neither was
+  forwarded before 2026-10-31, so production signup ran with no CAPTCHA.
+  The job-alert digest's `AWS_REGION`, `SES_FROM_EMAIL` and `WEB_URL` are
+  not the container's: the digest runs on EC2 (`../.github/CLAUDE.md`, Job
+  alerts). **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
   business holding that connection. Embeddings use Ollama with
   `nomic-embed-text:v1.5` by default; see `app/services/matching/CLAUDE.md`.

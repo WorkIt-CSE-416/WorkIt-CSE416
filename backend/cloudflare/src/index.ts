@@ -6,16 +6,24 @@ import { Container } from "@cloudflare/containers";
 // Half of max_instances in wrangler.jsonc, which leaves room for a rename
 const INSTANCES = 3;
 
-// Every name the API or Scout reads from the environment (app/config.py,
-// ../scout/workit_scout/settings.py). Set as Worker secrets by CI, plus
-// wrangler.jsonc's vars. A name the Worker lacks is not forwarded, so the
-// container falls back to the code's default, as on a laptop without it.
+// Every name the deployed API or Scout reads from the environment
+// (app/config.py, ../scout/workit_scout/settings.py). Set as Worker secrets
+// by CI, plus wrangler.jsonc's vars. A name the Worker lacks is not
+// forwarded, so the container falls back to the code's default, as on a
+// laptop without it. Left out on purpose: DIRECT_URL (migrations are local),
+// DB_POOL_SIZE (the Dockerfile sets it), the OLLAMA_* and LOCAL_FILES_DIR
+// (laptop only), SCRAPER_FEED (the import's), and AWS_REGION, SES_FROM_EMAIL
+// and WEB_URL (only the job-alert digest reads them, and it runs on EC2).
 // SCOUT_DAILY_TURNS is ignored since KAN-210; forwarded only because CI
 // still sets it.
 const FORWARDED = [
   "DATABASE_URL",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_KEY",
+  // Signup's CAPTCHA check (routers/auth.py), skipped when unset
+  "TURNSTILE_SECRET_KEY",
+  // Who reads fill reports (deps.py); unset, no one is an admin
+  "WORKIT_ADMINS",
   "SCOUT_ENDPOINTS",
   "SCOUT_ENDPOINTS_LARGE",
   "SCOUT_ENDPOINTS_SMALL",
