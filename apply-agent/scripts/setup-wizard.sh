@@ -202,7 +202,7 @@ finish() {
 # Apply's one-time setup on this Mac. Every stage checks first and skips
 # what is already done, so it's safe to run again: ./scripts/setup-wizard.sh
 APPLY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# The data folder: the applicant's own files (apply/src/apply/home.py).
+# The data folder: the applicant's own files (src/apply/home.py).
 APPLY_DATA="${APPLY_HOME:-$HOME/.config/apply}"
 # The Worker profiles, as apply.browsers finds them.
 export APPLY_PROFILES="${APPLY_PROFILES:-$APPLY_DATA/profiles}"
@@ -210,8 +210,6 @@ POLICIES="$APPLY_DATA/policies.yaml"
 SHEET_ID_FILE="$APPLY_DATA/sheet-id"
 # The Records repo: $APPLY_RECORDS_REPO (owner/name), else apply-records under your own GitHub account (stage 2).
 RECORDS="${APPLY_RECORDS_REPO:-}"
-# Where the watched-submission results are posted: the GitHub repo of this checkout's origin.
-ISSUES="$(cd "$APPLY_DIR" && gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
 
 apply_cli() { (cd "$APPLY_DIR" && uv run apply "$@"); }
 in_apply() { (cd "$APPLY_DIR" && "$@"); }
@@ -234,14 +232,10 @@ chrome_account() {
 gmail_works() { in_apply env APPLY_TEST_GMAIL="$EMAIL" uv run pytest -q tests/test_gmail.py -k real >/dev/null 2>&1; }
 banner_test() { in_apply env APPLY_TEST_NOTIFY=1 uv run pytest -q tests/test_notification.py -k real >/dev/null 2>&1; }
 
-# turn_on KEY SUBJECT sets a policies.yaml switch to true and commits just that file.
+# turn_on KEY SUBJECT sets a switch to true in the data folder's policies.yaml (never a file in the repo).
 turn_on() {
   sed -i '' "s/^$1: false$/$1: true/" "$POLICIES"
-  in_apply git commit -q -m "$2" -- policies.yaml
-  printf '  %s✓ committed%s %s\n' "$GREEN" "$RESET" "$2"
-  if in_apply git rev-parse -q --verify '@{u}' >/dev/null && confirm "Push it?"; then
-    in_apply git push -q
-  fi
+  printf '  %s✓ %s%s (%s)\n' "$GREEN" "$2" "$RESET" "$POLICIES"
 }
 
 run_wizard() {
@@ -380,10 +374,10 @@ fi
 pause
 
 # ── 7 ─────────────────────────────────────────────────────────────────────
-stage "First real submissions, watched (#124)"
+stage "First real submissions, watched"
 if ! policy_on live_runs; then
   warn "Live runs are off, so this waits for them."
-  SKIPPED+=("#124: one watched submission each on Greenhouse, Lever and Ashby")
+  SKIPPED+=("watched submissions: one watched submission each on Greenhouse, Lever and Ashby")
 elif confirm "Submit one real Application each on Greenhouse, Lever and Ashby now, watching? (about 20 min)"; then
   say "This shows whether each job system's captcha lets a Worker through."
   step "Pick one posting on each that you actually want, and paste its link. Enter skips one."
@@ -410,14 +404,11 @@ elif confirm "Submit one real Application each on Greenhouse, Lever and Ashby no
       body+=$'\n'"- ${systems[$i]} (${links[$i]}): ${!result_var:-not recorded}"
     done
     printf '\n%s\n\n' "$body"
-    if [[ -n "$ISSUES" ]] && confirm "Post this on $ISSUES#124?"; then
-      gh issue comment 124 -R "$ISSUES" --body "$body" >/dev/null && already "Posted on #124."
-    fi
   else
-    SKIPPED+=("#124: no links given")
+    SKIPPED+=("watched submissions: no links given")
   fi
 else
-  SKIPPED+=("#124: one watched submission each on Greenhouse, Lever and Ashby")
+  SKIPPED+=("watched submissions: one watched submission each on Greenhouse, Lever and Ashby")
 fi
 pause
 
