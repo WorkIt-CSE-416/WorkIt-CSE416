@@ -311,7 +311,7 @@ def test_a_workday_rehearsal_fills_my_experience_an_entry_per_job_and_school_to_
     assert saved["education"] == [{"schoolName": "Stony Brook University", "degree": "B.S.",
                                    "fieldOfStudy": ["Computer and Information Science"], "gradeAverage": "3.77",
                                    "firstYearAttended": "2024", "lastYearAttended": "2028"}]
-    assert saved["websites"] == []
+    assert saved["websites"] == [{"url": "https://test-person.example.com"}]  # the profile's portfolio
     assert server.submissions == []
 
 
