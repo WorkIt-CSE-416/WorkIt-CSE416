@@ -232,7 +232,7 @@ def test_fills_a_panel_of_each_repeating_section_per_entry_and_reads_each_back()
     with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=EXPERIENCE_STEPS) as server, OnePage(server) as site:
         questions = filler.question_set(CACI_URL, site)
         with site.open(CACI_URL) as page:
-            questions, answers, readback = fill_all(filler, page, questions, ANSWERS | EXPERIENCE)
+            questions, _answers, readback = fill_all(filler, page, questions, ANSWERS | EXPERIENCE)
             filler.submit(page)
 
     shown = {q.label: readback[q.name] for q in questions if q.name in readback}
@@ -285,7 +285,7 @@ def test_a_searched_major_is_the_tenants_own_computer_science_where_it_has_one()
     with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps) as server, OnePage(server) as site:
         questions = filler.question_set(CACI_URL, site)
         with site.open(CACI_URL) as page:
-            questions, answers, readback = fill_all(filler, page, questions, ANSWERS | EXPERIENCE)
+            questions, _answers, readback = fill_all(filler, page, questions, ANSWERS | EXPERIENCE)
 
     shown = {q.label: readback[q.name] for q in questions if q.name in readback}
     assert shown["Education 1 / Field of Study"] == "Computer Science"
@@ -369,7 +369,7 @@ def test_fills_a_follow_up_question_workday_shows_once_its_question_is_answered(
     with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps) as server, OnePage(server) as site:
         questions = filler.question_set(CACI_URL, site)
         with site.open(CACI_URL) as page:
-            questions, _, readback = fill_all(filler, page, questions, ANSWERS | {spouse: "No"})
+            questions, _, _readback = fill_all(filler, page, questions, ANSWERS | {spouse: "No"})
             filler.submit(page)
 
     assert [q.label for q in questions] == ["Are you legally authorized to work in the United States?", spouse]

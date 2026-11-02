@@ -423,7 +423,7 @@ def test_a_repair_that_touches_a_protected_path_waits_for_lisul_on_its_branch(re
     assert git(repo, "rev-parse", "apply-livefill") == before  # nothing merged
     assert git(repo, "rev-parse", "--verify", "repair/keyerror-planner-fit-abc123")  # the branch stays for Lisul
     assert world.tracker.get(FAILED_ID).status == Status.FAILED
-    [(title, message)] = world.notifier.sent
+    [(_title, message)] = world.notifier.sent
     assert "repair/keyerror-planner-fit-abc123" in message and protected in message
 
 
@@ -625,7 +625,7 @@ def test_a_repair_that_could_not_finish_waits_for_lisul_whatever_it_committed(re
     assert "blocked" in claude.sessions[0]["schema"]["properties"]["verdict"]["enum"]
     assert done.status == NEEDS_LISUL and "Answer school questions" in done.why
     assert world.integration() == "RULES = []"  # its half-done work is never merged
-    [(title, message)] = world.notifier.sent
+    [(_title, message)] = world.notifier.sent
     assert "repair/keyerror-planner-fit-abc123" in message
 
 

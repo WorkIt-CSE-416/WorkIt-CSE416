@@ -47,7 +47,7 @@ from collections.abc import Callable
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
 from apply import dock_app
@@ -449,7 +449,7 @@ class Dashboard:
         self._started = threading.Event()  # Lisul pressed Start
         self._to_fill: dict[int, list[tuple[str, str]]] = {}  # answers to fill on each Worker's open form (answered)
 
-    def __enter__(self) -> "Dashboard":
+    def __enter__(self) -> Self:
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
         return self
 
@@ -1009,7 +1009,7 @@ class CdpFrames:
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
 
-    def __enter__(self) -> "CdpFrames":
+    def __enter__(self) -> Self:
         self._thread.start()
         return self
 

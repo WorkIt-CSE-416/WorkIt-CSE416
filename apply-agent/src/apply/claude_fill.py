@@ -42,6 +42,7 @@ import time
 from collections.abc import Callable
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from typing import Self
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Page
@@ -626,7 +627,7 @@ class OnePage:
         self._stack = ExitStack()
         self._page: Page | None = None
 
-    def __enter__(self) -> "OnePage":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc) -> None:

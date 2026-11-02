@@ -602,7 +602,7 @@ def test_an_essay_that_gives_away_how_it_was_written_is_drafted_again_once(monke
 
     assert row.status == "submitted", row.reason
     assert sent_answer(form, PROJECT) == MICROMOUSE
-    first, again = asks(claude)
+    _first, again = asks(claude)
     assert list(again["schema"]["properties"]["essays"]["properties"]) == ["q1"]
     assert "my materials" in again["prompt"] and "Your posting" in again["prompt"]
 
@@ -1590,7 +1590,7 @@ def test_a_slot_failing_its_check_is_planned_again_and_a_bad_optional_quote_is_l
 
     [essay] = write_figma(claude, [PROUD])
 
-    first_call, second_call = plans(claude)
+    _first_call, second_call = plans(claude)
     assert "project: " in _block(second_call["prompt"], "replan")["q1"]["slots"]
     assert essay.text == "A project." and essay.plan.asks == ()
     assert [b.slot for b in essay.plan.slots] == ["project", "own-part", "hard-part", "decision", "effect"]

@@ -301,7 +301,7 @@ def test_the_tab_edits_the_profile_a_run_holds_so_the_runs_own_save_keeps_it(fil
 def test_an_edit_from_anywhere_but_the_page_itself_is_refused(board, files, headers):
     before = files[1].read_text()
 
-    status, reply = post(board, "/answers/bank/delete", {"question": HEARD.label}, headers)
+    status, _reply = post(board, "/answers/bank/delete", {"question": HEARD.label}, headers)
 
     assert status == 403
     assert files[1].read_text() == before

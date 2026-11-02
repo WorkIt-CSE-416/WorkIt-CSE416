@@ -174,7 +174,7 @@ def test_the_live_push_goes_to_the_topic_saved_in_keychain():
 
     live_phone(InMemoryKeychain({"ntfy.sh": "apply-k3x9-secret"}), poster).notify("Apply", "hello")
 
-    [(url, body, headers)] = poster.sent
+    [(_url, body, _headers)] = poster.sent
     assert body["topic"] == "apply-k3x9-secret"
 
 
