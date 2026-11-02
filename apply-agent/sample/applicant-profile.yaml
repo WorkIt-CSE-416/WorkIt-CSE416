@@ -158,6 +158,7 @@ screeners:
   previously_applied_to: []
   prior_us_government_employment: false
   relatives_at: {}
+  relative_of_public_official: false
   non_compete_or_conflicting_agreements: false
   outside_business_activities: false
   felony_or_pending_legal_proceedings: false

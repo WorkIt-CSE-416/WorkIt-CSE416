@@ -171,6 +171,7 @@ screeners:                     # company-specific yes/no; defaults apply unless 
   competing_offer_deadline:         # Yes/No: any offer with a deadline (Adobe)
   interview_recording_ok:           # Yes/No: may interviews be recorded or transcribed (Sierra)
   relatives_at: {}             # company -> name and relationship (freq 3)
+  relative_of_public_official:  # Yes/No: is a close relative a government official (Coinbase)
   non_compete_or_conflicting_agreements:   # Yes/No + details (freq 5)
   outside_business_activities:  # Yes/No + details
   felony_or_pending_legal_proceedings:   # Gas South, Yes/No
