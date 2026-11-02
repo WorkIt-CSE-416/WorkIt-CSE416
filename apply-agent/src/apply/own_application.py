@@ -23,7 +23,7 @@ from apply.tracker import Row
 MODEL = "haiku"
 # Every Own application's Application ID starts so.
 OWN = "own-"
-REASON = "Submitted by Lisul himself."
+REASON = "You submitted it yourself, outside Apply."
 CAP = 4_000  # characters of the page's text in the call
 LINKS = 40  # links off the page in the call
 ID_CHARS = 4  # a shorter job id is too likely to be on any page
