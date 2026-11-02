@@ -9,15 +9,15 @@ import datetime
 import uuid
 from typing import Any, NamedTuple
 
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.applications import Job_Application
-from app.models.dto import BEFORE_APPLIED, application_stage
+from app.models.dto import BEFORE_APPLIED, application_stage, job_post_status
 from app.models.jobs import Job_Post
 from app.models.sent_resume import Sent_Resume
-from app.queries.jobs.filters import LISTED
+from app.queries.jobs.filters import LISTED, OPEN
 
 # mark_applied's default: leave the application's sent resume as it is.
 KEEP: Any = object()
@@ -71,12 +71,12 @@ async def mark_applied(
 ) -> datetime.datetime | None:
     '''
     marks this job as applied and answers when, or None for a job that isn't
-    in the feed: the same jobs GET /jobs/{job_id} shows, since a seeker can't
-    apply to the rest. With `sent_resume_id` (checked by `sent_to_job`
+    open (OPEN): the feed's, and one a student added from its form (KAN-515),
+    whose tracked tab's submit marks it. With `sent_resume_id` (checked by `sent_to_job`
     first), the application names that sent resume, or none for None; the
     default leaves what it names as it is
     '''
-    listed = await db.scalar(select(Job_Post.id).where(Job_Post.id == job_id, LISTED))
+    listed = await db.scalar(select(Job_Post.id).where(Job_Post.id == job_id, OPEN))
     if listed is None:
         return None
     # A job queued, skipped or left to the applicant by auto apply becomes
@@ -204,3 +204,60 @@ async def listed_job_by_link(db: AsyncSession, url: str) -> uuid.UUID | None:
         select(Job_Post.id).where(_bare_link(Job_Post.apply_url) == _bare_link(url), LISTED).limit(2)
     )).all()
     return bare[0] if len(bare) == 1 else None
+
+
+async def job_with_link(db: AsyncSession, url: str) -> tuple[uuid.UUID, bool] | None:
+    '''
+    the job posting whose apply link is exactly `url`, outside a company's own,
+    and whether it is open (OPEN): a job a student added from that form
+    (KAN-515), or a scraped one the feed import closed. None when there is none
+    '''
+    row = (await db.execute(
+        select(Job_Post.id, OPEN.label("open")).where(Job_Post.apply_url == url, Job_Post.company_id.is_(None))
+    )).first()
+    return (row.id, row.open) if row else None
+
+
+async def add_job(db: AsyncSession, url: str, company: str, title: str) -> uuid.UUID:
+    '''
+    keeps the job a student added from its form (KAN-515) and answers its id:
+    a new row marked added_by_student, or, for a link a closed job already has,
+    that job open again as one a student added (the next import that lists the
+    link makes it a scraped job again). Flushes; the caller commits
+    '''
+    added = {"company_name": company, "title": title, "status": job_post_status.published,
+             "added_by_student": True, "closes_at": None, "closed_reason": None}
+    job_id = await db.scalar(
+        update(Job_Post)
+        .where(Job_Post.apply_url == url, Job_Post.company_id.is_(None), Job_Post.status != job_post_status.published)
+        .values(**added, updated_at=func.now())
+        .returning(Job_Post.id)
+    )
+    if job_id is None:
+        job_id = await db.scalar(
+            insert(Job_Post).values(apply_url=url, **added)
+            .on_conflict_do_nothing(index_elements=["apply_url"])
+            .returning(Job_Post.id)
+        )
+    # Another student's add of the same form at once: theirs is the job.
+    return job_id or await db.scalar(select(Job_Post.id).where(Job_Post.apply_url == url))
+
+
+async def hold_for_writing(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> application_stage:
+    '''
+    gives this applicant's application for this job the needs_you stage, as
+    Write with Claude on a form they opened themselves does (KAN-470): a new
+    one, or a saved or queued one, so a batch never opens it. One past the form
+    (applied, skipped...) keeps its stage. Answers the stage; commits
+    '''
+    await db.execute(
+        insert(Job_Application)
+        .values(applicant_id=applicant_id, job_id=job_id, stage=application_stage.needs_you, applied_at=None)
+        .on_conflict_do_update(
+            index_elements=["applicant_id", "job_id"],
+            set_={"stage": application_stage.needs_you},
+            where=Job_Application.stage.in_((application_stage.saved, application_stage.queued)),
+        )
+    )
+    await db.commit()
+    return await application_stage_of(db, applicant_id, job_id)

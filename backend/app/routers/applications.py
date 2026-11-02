@@ -42,6 +42,22 @@ The Applications board reads saved and applied jobs through auto apply's
 list, GET /applicants/{id}/applications?stage=saved&stage=applied
 (routers/auto_apply.py).
 
+POST /jobs/added-by-link     {"url", "company", "title"}: the extension's
+                             Write with Claude on a form whose job WorkIt
+                             doesn't list (KAN-515). The listed job the link
+                             is (listed_job_by_link), else the job a student
+                             added from that form, else a new one
+                             (added_by_student: on no feed, so no other
+                             student sees it), and the signed-in applicant's
+                             application for it at needs_you (a saved or
+                             queued one moves there; one past the form keeps
+                             its stage), as Write with Claude gives a listed
+                             job (KAN-470). Answers {"job_id", "stage"}. 404
+                             with the reason for a form auto apply can't
+                             fill, or on a job system WorkIt turned off
+                             (KAN-467); 429 past ADDED_JOB_DAILY_CAP new
+                             jobs a day (KAN-478).
+
 Applicant accounts only (403 for a company's); the applicant is the token's,
 never a path or body field. A job that isn't open (closed, a company's own,
 no such job) is a 404 to mark or save, as GET /jobs/{job_id} is to read.
@@ -59,12 +75,22 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auto_apply.hosts import (
+    JOB_SYSTEMS,
+    auto_apply_supported,
+    job_system_of,
+    refusal,
+)
+from app.auto_apply.queries import fetch_disabled_job_systems
 from app.db import get_session
 from app.deps import get_current_account
 from app.queries.applications import (
     KEEP,
+    add_job,
     application_stage_of,
     fetch_applied,
+    hold_for_writing,
+    job_with_link,
     listed_job_by_link,
     mark_applied,
     save_job,
@@ -72,6 +98,7 @@ from app.queries.applications import (
     unsave_job,
 )
 from app.schemas.applications import (
+    AddByLink,
     JobApplied,
     JobByLink,
     JobSaved,
@@ -80,6 +107,7 @@ from app.schemas.applications import (
     SaveByLink,
 )
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.services.daily_caps import Capped, take_daily
 
 router = APIRouter(prefix="/jobs", tags=["applications"])
 
@@ -155,6 +183,33 @@ async def post_listed_by_link(
     if job_id is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "WorkIt doesn't list this job yet.")
     return JobByLink(job_id=job_id, stage=await application_stage_of(db, applicant_id, job_id))
+
+
+@router.post("/added-by-link", response_model=JobSavedByLink)
+async def post_added_by_link(
+    body: AddByLink,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> JobSavedByLink:
+    """The job of the form the student is on, added from the page when WorkIt
+    doesn't list it, with their application at needs_you: Write with Claude
+    on a form they opened themselves (KAN-515), so their Claude can write its
+    questions through the connector."""
+    applicant_id = _applicant_only(account)
+    if not auto_apply_supported(body.url):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, refusal(body.url))
+    system = job_system_of(body.url)
+    if system in await fetch_disabled_job_systems(db):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"WorkIt can't fill {JOB_SYSTEMS[system]} right now. Try this job again later.")
+    job_id = await listed_job_by_link(db, body.url)
+    if job_id is None:
+        known = await job_with_link(db, body.url)
+        if known is not None and known[1]:
+            job_id = known[0]
+        else:
+            await take_daily(db, applicant_id, Capped.ADDED_JOB)
+            job_id = await add_job(db, body.url, body.company, body.title)
+    return JobSavedByLink(job_id=job_id, stage=await hold_for_writing(db, applicant_id, job_id))
 
 
 @router.post("/{job_id}/saved", response_model=JobSaved)

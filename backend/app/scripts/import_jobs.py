@@ -260,7 +260,7 @@ def prepare(
             # Scout reads it; the job cards don't. Absent from feeds written
             # before the scraper captured descriptions.
             "description": listing.description,
-            "experience_level": dto.experience_level(listing.experience_level),
+            "experience_level": dto.experience_level(listing.experience_level) if listing.experience_level else None,
             "work_style": listing.work_style,
             "location_raw": listing.location,
             # "San Francisco, CA" where the resolver placed a US city, for the

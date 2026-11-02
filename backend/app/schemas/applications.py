@@ -32,6 +32,16 @@ class SaveByLink(BaseModel):
     url: str = Field(max_length=2048)
 
 
+class AddByLink(BaseModel):
+    """POST /jobs/added-by-link: the form the student is on and its job's
+    company and title, as the Fill engine reads them from the job system
+    (KAN-515). Each is trimmed; a blank one is refused."""
+
+    url: str = Field(max_length=2048)
+    company: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
+
+
 class JobSavedByLink(BaseModel):
     """POST /jobs/saved-by-link: the job the link is, and its stage after the save."""
 
