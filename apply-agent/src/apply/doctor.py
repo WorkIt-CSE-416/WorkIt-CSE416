@@ -122,7 +122,7 @@ def _claude(machine: Machine) -> Check:
         return Check("claude", FAIL, f"`claude auth status` said: {' '.join(said.split())[:200]}",
                      "make sure `claude auth status` works in this shell")
     if not status.get("loggedIn"):
-        return Check("claude", FAIL, "the claude CLI isn't logged in", "run `claude auth login` with your Max account")
+        return Check("claude", FAIL, "the claude CLI isn't logged in", "run `claude auth login` with your own Claude plan")
     plan = status.get("subscriptionType") or status.get("authMethod")
     login = f"logged in as {status.get('email', '?')} ({plan})"
     if machine.usage is None:
@@ -156,7 +156,7 @@ def _chromium(machine: Machine) -> Check:
     """Only the tests need it: a warning, never a fail."""
     if not any(machine.playwright.glob("chromium-*")):
         return Check("Chromium for tests", WARN, f"not installed in {machine.playwright}; runs use Chrome, the browser "
-                                                  "tests can't run", "run `uv run playwright install chromium` in apply/")
+                                                  "tests can't run", "run `uv run playwright install chromium` in apply-agent/")
     return Check("Chromium for tests", OK, f"installed in {machine.playwright}")
 
 
@@ -209,7 +209,8 @@ TEMPLATE = CODE / "applicant-profile.template.yaml"
 def _facts(machine: Machine) -> Check:
     if isinstance(machine.profile, NoProfile):
         return Check("Applicant profile", FAIL, machine.profile.why,
-                     f"copy {TEMPLATE} to {machine.profile.path} and fill it in")
+                     "run one `uv run apply rehearse <url>` to start on the Test Person sample data, or copy "
+                     f"{TEMPLATE} to {machine.profile.path} and fill it in (README.md)")
     blank = [key for key in REQUIRED if machine.profile.get(key) in (None, "", [], {})]
     resume = machine.profile.get("files.resume_pdf")
     if resume and not Path(resume).is_file():
