@@ -26,6 +26,7 @@ import {
   pickerEntries,
   pickerSkills,
   pickSkill,
+  restoreCutEntry,
   type CutEntry,
   type CutSkill,
   type FitCuts,
@@ -536,7 +537,13 @@ function CutRow({
           <li key={bullet.id} className="flex items-start gap-2 break-words">
             <Checkbox
               checked={bullet.on}
-              onCheckedChange={(next) => onApply(pickBullet(bullet.id, next))}
+              onCheckedChange={(next) =>
+                onApply(
+                  next
+                    ? restoreCutEntry(row, pickBullet(bullet.id, true))
+                    : pickBullet(bullet.id, false),
+                )
+              }
               aria-label={`Bullet on this resume: ${bullet.text}`}
               className={CUT_PICK}
             />
@@ -548,9 +555,13 @@ function CutRow({
             <Checkbox
               checked={coursework.on}
               onCheckedChange={(next) =>
-                onApply({
-                  entries: [{ entry_id: coursework.entry_id, show_coursework: next }],
-                })
+                onApply(
+                  next
+                    ? restoreCutEntry(row, {
+                        entries: [{ entry_id: coursework.entry_id, show_coursework: true }],
+                      })
+                    : { entries: [{ entry_id: coursework.entry_id, show_coursework: false }] },
+                )
               }
               aria-label="Coursework on this resume"
               className={CUT_PICK}

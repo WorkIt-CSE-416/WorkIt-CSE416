@@ -400,6 +400,22 @@ export function isBack(row: CutEntry) {
   );
 }
 
+/** Puts a Fit-cut part back and, if the entry was later hidden, puts that
+ * entry back too. A bullet or coursework line cannot print without it. */
+export function restoreCutEntry(row: CutEntry, changes: ChoicesUpdate): ChoicesUpdate {
+  if (row.on) return changes;
+  const entries = changes.entries ?? [];
+  const hasEntry = entries.some((change) => change.entry_id === row.entry.id);
+  return {
+    ...changes,
+    entries: hasEntry
+      ? entries.map((change) =>
+          change.entry_id === row.entry.id ? { ...change, shown: true } : change,
+        )
+      : [...entries, { entry_id: row.entry.id, shown: true }],
+  };
+}
+
 /** One skill Fit cut, and whether it is on the page again. It is the skill
  *  Fit cut, not the picker's row of its copies, so it comes back as itself. */
 export type CutSkill = { skill: Skill; on: boolean };

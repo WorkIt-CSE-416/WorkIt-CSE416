@@ -4,7 +4,17 @@ import { test } from "node:test";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices } from "@/lib/built-resume-actions";
 
-import { NO_CUTS, addCuts, cutLeft, cutRows, cutSkills, isBack, pickerEntries } from "./model.ts";
+import {
+  NO_CUTS,
+  addCuts,
+  cutLeft,
+  cutRows,
+  cutSkills,
+  isBack,
+  mergeChoices,
+  pickerEntries,
+  restoreCutEntry,
+} from "./model.ts";
 
 const entry = (id: string, bullets: string[]) => ({
   id,
@@ -120,6 +130,34 @@ test("a row put back stays, ticked", () => {
   const rows = cutRows(bank, back, cuts);
   assert.equal(rows.length, 3);
   assert.equal(rows.every(isBack), true);
+});
+
+test("putting a Fit-cut part back also restores its manually hidden entry", () => {
+  const hidden = {
+    ...choices,
+    entries: choices.entries.map((entry) =>
+      entry.entry_id === "e1" || entry.entry_id === "edu" ? { ...entry, shown: false } : entry,
+    ),
+  };
+  const [experience, education] = ["e1", "edu"].map((id) =>
+    cutRows(bank, hidden, cuts).find((row) => row.entry.id === id)!,
+  );
+  const withBullet = mergeChoices(
+    hidden,
+    restoreCutEntry(experience, { bullets: [{ bullet_id: "b3", shown: true }] }),
+  );
+  const withCoursework = mergeChoices(
+    hidden,
+    restoreCutEntry(education, { entries: [{ entry_id: "edu", show_coursework: true }] }),
+  );
+
+  assert.equal(withBullet.entries.find((entry) => entry.entry_id === "e1")?.shown, true);
+  assert.equal(withBullet.bullets.find((bullet) => bullet.bullet_id === "b3")?.shown, true);
+  assert.equal(withCoursework.entries.find((entry) => entry.entry_id === "edu")?.shown, true);
+  assert.equal(
+    withCoursework.entries.find((entry) => entry.entry_id === "edu")?.show_coursework,
+    true,
+  );
 });
 
 test("a bullet keeps its place in the picker when it is ticked off", () => {
