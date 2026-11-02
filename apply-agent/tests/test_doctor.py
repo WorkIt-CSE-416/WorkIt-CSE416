@@ -354,6 +354,46 @@ def test_a_resume_that_isnt_there_fails(tmp_path):
     assert "missing.pdf" in found.detail
 
 
+def text_pdf(path, text):
+    """A one-page PDF whose page reads `text`."""
+    stream = f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET".encode()
+    objects = [b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+               b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+               b"<< /Length %d >>\nstream\n%s\nendstream" % (len(stream), stream),
+               b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+    out, offsets = b"%PDF-1.4\n", []
+    for i, body in enumerate(objects, 1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n%s\nendobj\n" % (i, body)
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1) + b"".join(b"%010d 00000 n \n" % o for o in offsets)
+    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objects) + 1, xref)
+    path.write_bytes(out)
+
+
+def test_the_not_on_resume_gate_is_on_when_the_resume_pdf_reads(tmp_path):
+    m = machine(tmp_path)
+    text_pdf(tmp_path / "resume.pdf", "Built a line following robot for the state contest")
+    found = check(m, "Not-on-resume gate")
+    assert found.level == doctor.OK
+    assert "9 words" in found.detail
+
+
+def test_the_not_on_resume_gate_is_off_when_the_resume_pdf_has_no_text(tmp_path):
+    found = check(machine(tmp_path), "Not-on-resume gate")  # resume.pdf is a bare PDF header
+    assert found.level == doctor.WARN
+    assert found.detail.startswith("off:")
+    assert "resume.pdf" in found.detail
+
+
+def test_the_not_on_resume_gate_is_off_with_no_resume_pdf(tmp_path):
+    facts = filled(tmp_path)
+    del facts["files"]
+    found = check(machine(tmp_path, profile=profile(tmp_path, facts)), "Not-on-resume gate")
+    assert found.level == doctor.WARN
+    assert found.detail.startswith("off:")
+
+
 def test_usage_is_read_only_when_asked(tmp_path):
     m = machine(tmp_path)
     assert "used" not in check(m, "claude").detail

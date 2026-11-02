@@ -58,6 +58,10 @@ Apply adds three rules to the engine's plan (`fill_engine.plan` and
 - A form that Claude fill reads is planned with the company and role that
   its page names, when the link names none.
 
+The not-on-resume gate (`gates.on_resume`) reads the text of the
+profile's resume PDF. With no PDF, or one with no text, the gate passes
+every answer; `apply doctor` shows this as "Not-on-resume gate: off".
+
 `README.md` is a teammate's setup path, from a clone to a rehearsal. Its
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.
