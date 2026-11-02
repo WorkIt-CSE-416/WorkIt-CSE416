@@ -40,6 +40,11 @@ AUTO_APPLY_HOSTS = (
     "successfactors.eu",
     "sapsf.com",
     "sapsf.eu",
+    # Their Recruiting Marketing career sites (assaabloy.jobs2web.com and SAP's
+    # own jobs.sap.com), whose Apply goes on to the career site's sign-in: the
+    # engine's jobOf takes both (KAN-491). Only jobs.sap.com, never sap.com.
+    "jobs2web.com",
+    "jobs.sap.com",
     # iCIMS career sites, the form in their own iframe (the engine's icims.ts).
     "icims.com",
 )
