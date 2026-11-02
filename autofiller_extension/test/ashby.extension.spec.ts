@@ -1,4 +1,4 @@
-// Batch apply on Ashby (KAN-370's batch, KAN-377's essay route needs it): an
+// Batch apply on Ashby (KAN-370's batch, KAN-377's written answers need it): an
 // Ashby application has no <form> element, so the batch's wait for the form
 // must find its fields some other way, or the tab fills nothing.
 import { expect, test } from "@playwright/test";

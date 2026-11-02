@@ -3,11 +3,11 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * The WorkIt Autofiller Chrome extension's id — stable because
- * autofiller_extension/manifest.json pins a dev signing key (its own
- * comment explains why that's safe to check in: it's the public half).
- * Prototype-only; a real published extension would get this from its
- * Chrome Web Store listing instead of a hardcoded constant.
+ * The WorkIt Chrome extension's id, which autofiller_extension/manifest.json's
+ * `key` (a public key, safe to check in) decides for the dev build and the
+ * Store item alike. Not edited by hand: after changing that key, run
+ * `node autofiller_extension/store/extension-id.mjs --write`
+ * (autofiller_extension/test/extension-id.spec.ts fails until this matches).
  */
 const EXTENSION_ID = "cpklhdkoafegnndlafmiceehfloodjgi";
 

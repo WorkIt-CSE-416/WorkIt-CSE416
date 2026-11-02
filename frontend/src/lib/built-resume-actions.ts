@@ -64,6 +64,24 @@ export type IdentityCopy = {
   us_citizen: boolean;
 };
 
+/** How a built resume's page is set (schemas `PageSettings`, KAN-435).
+ *  Margins are in inches, spacings in points. */
+export type PageSettings = {
+  font_size: number;
+  line_spacing: number;
+  side_margin: number;
+  top_margin: number;
+  alignment: "left" | "justified";
+  section_spacing: number;
+  entry_spacing: number;
+  accent: "#000000" | "#1E3A5F" | "#14532D" | "#7F1D1D" | "#4C1D95";
+  bullet: "dot" | "dash";
+  show_divider: boolean;
+  header_alignment: "left" | "center" | "right";
+  /** Every section once, `skills` among them, in print order. */
+  section_order: string[];
+};
+
 /** The PDF, base64, what the student is warned about before saving it, and
  *  the editor's click targets. */
 export type RenderedPdf = {
@@ -78,6 +96,10 @@ export type RenderedPdf = {
   identity: IdentityCopy | null;
   /** The resume's template id, sent back in the editor's copy. */
   template: string;
+  page_settings: PageSettings;
+  /** The distance between a wrapped bullet's baselines on this page, in
+   *  points, which reads a box's height as lines. */
+  wrapped_line: number;
 };
 
 /** The editor's copy of what its PDF is built from (schemas `ResumeCopy`,
@@ -91,6 +113,7 @@ export type ResumeCopy = {
   identity: IdentityCopy;
   template: string;
   file_name: string;
+  page_settings: PageSettings;
 };
 
 const id = encodeId;
@@ -226,8 +249,19 @@ export async function resumeChangedAt(
   return call<{ changed_at: string; now: string }>(`/${id(resumeId)}/changed-at`);
 }
 
-/** One edit rendered and never saved (KAN-391): a typed line or choice
- *  changes, made to the editor's copy in memory, so the API reads nothing
+/** The page's settings saved, never rendered: `renderEdit` shows them. */
+export async function savePageSettings(
+  resumeId: string,
+  settings: PageSettings,
+): Promise<Result<null>> {
+  return call<null>(`/${id(resumeId)}/page-settings`, {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
+/** One edit rendered and never saved (KAN-391): a typed line, choice changes
+ *  or the page's settings, made to the editor's copy in memory, so the API reads nothing
  *  but the resume's row. What the edit changed in the copy comes back with
  *  the PDF: the choices after a bullet or a choice change, the entry's own
  *  fields after an entry field (`bullets` and `resume_ids` empty), the
@@ -240,7 +274,10 @@ export type EditRendered = {
 
 export async function renderEdit(
   resumeId: string,
-  edit: { line: { item_id: string; kind: string; text: string } } | { changes: ChoicesUpdate },
+  edit:
+    | { line: { item_id: string; kind: string; text: string } }
+    | { changes: ChoicesUpdate }
+    | { page: PageSettings },
   source?: ResumeCopy,
 ): Promise<Result<EditRendered>> {
   return call<EditRendered>(`/${id(resumeId)}/render`, {

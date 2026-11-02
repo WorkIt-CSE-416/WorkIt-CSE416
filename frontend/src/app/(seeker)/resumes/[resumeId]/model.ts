@@ -123,6 +123,62 @@ export function move(bank: Bank, choices: Choices, line: Line, by: -1 | 1): Choi
     : { entries: order.map((entry_id, position) => ({ entry_id, position })) };
 }
 
+/** `items` with the one at `from` moved to `to`. */
+export function moveItem<T>(items: T[], from: number, to: number): T[] {
+  const next = [...items];
+  next.splice(to, 0, ...next.splice(from, 1));
+  return next;
+}
+
+export type PrintedEntry = {
+  id: string;
+  title: string;
+  detail: string | null;
+  bullets: { id: string; text: string }[];
+};
+export type PrintedSection = { id: string; label: string; entries: PrintedEntry[] };
+
+// `fields.py`'s SECTION_LABELS and SKILLS_LABEL, as the page prints them
+const SECTION_LABELS: Record<string, string> = {
+  education: "Education",
+  experience: "Experience",
+  projects: "Projects",
+  leadership: "Leadership & Activities",
+  awards: "Awards",
+  certifications: "Certifications",
+  skills: "Technical Skills",
+};
+
+/** What prints, section by section in `order`: the outline the Sections
+ *  panel drags. A section with nothing on the resume is left out. */
+export function printedSections(bank: Bank, choices: Choices, order: string[]): PrintedSection[] {
+  const entry = (id: string) => choices.entries.find((c) => c.entry_id === id);
+  const bullet = (id: string) => choices.bullets.find((c) => c.bullet_id === id);
+  return order.flatMap((id): PrintedSection[] => {
+    if (id === "skills") {
+      const shown = bank.skills.some((s) => choices.skills.find((c) => c.skill_id === s.id)?.shown);
+      return shown ? [{ id, label: SECTION_LABELS[id], entries: [] }] : [];
+    }
+    const entries = ordered(
+      bank.entries.filter((e) => e.section === id),
+      entry,
+    );
+    if (!entries.length) return [];
+    return [
+      {
+        id,
+        label: SECTION_LABELS[id] ?? id,
+        entries: entries.map((e) => ({
+          id: e.id,
+          title: e.title,
+          detail: e.organization ?? null,
+          bullets: ordered(e.bullets, bullet).map((b) => ({ id: b.id, text: wording(choices, b) })),
+        })),
+      },
+    ];
+  });
+}
+
 /** The choices with a change's plain fields (shown, position, the GPA
  *  and coursework toggles) set at once, for rows the resume already has
  *  (KAN-391): a second move computes from the first, and the copy sent

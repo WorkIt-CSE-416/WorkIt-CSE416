@@ -325,6 +325,10 @@ change here must keep:
   per applicant and posting (`built_resumes_applicant_posting_key`; NULLs are
   distinct, so base resumes are many). No built resume counts toward the
   limit of 5, which is uploads only (`../services/built_resumes.py`).
+- **`built_resumes.page_settings` is JSONB, `{}` at Jake's own page**
+  (KAN-435): the fields of `resume_render.PageSettings`, a field left out at
+  its default. Read it through `built_resumes.page_of`. The schema's lists
+  check it on the way in, so the column holds no value the renderer refuses.
 - **The default resume is two pointers, at most one set.**
   `applicant_profiles.default_resume_id` (an uploaded resume) and
   `default_built_resume_id` (a base or tailored resume; tailored since
@@ -792,12 +796,7 @@ Application Questions shows and edits them (KAN-269).
   is. Questions with no fixed key (a company's own screening question)
   will need their text stored, but only once the extension records what a
   student types into a form; they get their own part of the bank then,
-  with no migration, since the column is JSONB. **Still true as of the
-  essay-answer feature** (`routers/essay_answer.py`, KAN-164): that route
-  reads the question's literal text from the extension's request and never
-  writes it anywhere — it's exactly the "extension records what a student
-  types" moment this note anticipated, and persisting it is a deliberate,
-  deferred follow-up, not an oversight.
+  with no migration, since the column is JSONB.
 - **Written per key, never replaced whole.** `PATCH` merges in the database
   (`answers || new - cleared`), so a tab holding an old copy can't erase an
   answer it never loaded. The frontend sends only the answers the seeker

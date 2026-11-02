@@ -185,7 +185,10 @@ export default async function AppLayout({
         {/* min-h-0 because a flex item will not shrink below its content by
             default, which would push the column past h-svh and hand the
             scroll back to the document. overscroll-contain so a fling that
-            outruns the page does not chain onto the document. */}
+            outruns the page does not chain onto the document. A page with
+            sticky panels marks itself data-no-bounce: a hard scroll to its
+            end stretched the page and carried the panels with it. Y only,
+            so the trackpad's swipe back still works (globals.css). */}
         {/* A row, so Scout's panel docks beside the page, ruled off by its
             own border, instead of covering it; min-w-0 lets the page shrink
             for it. The panel stays mounted to glide open and closed, and a
@@ -197,7 +200,7 @@ export default async function AppLayout({
           <SidebarInset
             id="content"
             tabIndex={-1}
-            className="bg-panel min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain focus:outline-none"
+            className="bg-panel min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain focus:outline-none has-[[data-no-bounce]]:overscroll-y-none"
           >
             {/* The page, and the container it breaks on. */}
             <div data-scout-page className="@container/main flex w-full flex-1 flex-col">

@@ -40,6 +40,7 @@ from app.auto_apply.hosts import (
     AUTO_APPLY_URL_PATTERN,
     JOB_BOARD_URL_PATTERN,
     NAMED_FORM_PATTERN,
+    systems_pattern,
 )
 from app.models import dto
 from app.models.applications import Job_Application
@@ -65,6 +66,15 @@ FORM_URL = case(
 # A job posting auto apply takes: it has a form. The matches and every
 # queueing require it.
 AUTO_APPLY_SUPPORTED = FORM_URL.is_not(None)
+
+
+def not_on(job_systems: Sequence[str]) -> ColumnElement[bool]:
+    '''
+    true for a job posting whose form is on none of these job systems
+    (KAN-467: the ones WorkIt turned off), read from FORM_URL, so a job
+    board's posting naming a Workday form counts as Workday's
+    '''
+    return ~func.coalesce(FORM_URL, "").op("~*")(systems_pattern(job_systems))
 
 
 def unplaced_remote() -> ColumnElement[bool]:
@@ -179,6 +189,10 @@ class JobFilters:
     # (AUTO_APPLY_SUPPORTED): auto apply's matches always, and the Jobs
     # page's "Auto Apply Supported" filter (?auto_apply=true).
     auto_apply_only: bool = False
+    # With auto_apply_only: leave out job postings on these job systems
+    # (KAN-467: the ones WorkIt turned off, auto_apply/queries.py
+    # fetch_disabled_job_systems), so a batch never matches one.
+    disabled_job_systems: Sequence[str] = ()
     # Only these job postings: the Applications page's saved and applied
     # jobs, scored as the Jobs page scores them (KAN-256). None: any.
     job_ids: Sequence[uuid.UUID] | None = None
@@ -345,6 +359,8 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
         ))
     if filters.auto_apply_only:
         clauses.append(AUTO_APPLY_SUPPORTED)
+        if filters.disabled_job_systems:
+            clauses.append(not_on(filters.disabled_job_systems))
     if filters.job_ids is not None:
         clauses.append(Job_Post.id.in_(list(filters.job_ids)))
     return clauses

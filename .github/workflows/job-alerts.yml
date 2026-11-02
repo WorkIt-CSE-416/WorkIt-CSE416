@@ -25,6 +25,7 @@ on:
       - "backend/app/scripts/send_job_alerts.py"
       - "backend/app/services/job_alerts.py"
       - "backend/app/services/email.py"
+      - "backend/app/services/notices.py"
       - "backend/app/models/notification.py"
 
 # One run at a time: two runs at once would double-send the same applicant.
@@ -58,7 +59,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           EMBEDDING_PROVIDER: gemini
-          WEB_URL: https://workit-web-gamma.vercel.app
+          WEB_URL: https://workitjobs.ai
           DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
         run: |
           if [ -z "$DATABASE_URL" ]; then

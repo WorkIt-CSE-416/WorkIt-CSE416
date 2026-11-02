@@ -9,7 +9,7 @@ and the admins' reads (routers/fill_reports.py)."""
 
 import datetime
 import re
-from typing import Literal
+from typing import Literal, NamedTuple
 from urllib.parse import parse_qsl, urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -201,6 +201,41 @@ class FillReportRequest(BaseModel):
         return report
 
 
+class Signature(NamedTuple):
+    """
+    A report's group (KAN-478), stored as "<job system>:<field kind>:<error>"
+    (str()); `parse` splits a stored one back. The one place the text is built
+    or split: queries/fill_reports.py's groups and services/fill_report_alerts.py.
+    """
+
+    job_system: str
+    field_kind: str | None = None
+    error: str | None = None
+
+    def __str__(self) -> str:
+        return f"{self.job_system}:{self.field_kind or ''}:{self.error or ''}"
+
+    @classmethod
+    def parse(cls, text: str) -> "Signature":
+        """A stored signature's parts; '' (a report stored by code older than the column) is all empty."""
+        job_system, kind, error = (text.split(":", 2) + ["", ""])[:3]
+        return cls(job_system, kind or None, error or None)
+
+
+def signature_of(report: dict) -> str:
+    """
+    The report's group (KAN-478) for the field it is about: the first that
+    went wrong, else the first the student marked ("Marked"), else none
+    ("<job system>::"). Twenty students hitting one broken field send one
+    signature.
+    """
+    fields = report.get("fields") or []
+    field = next((f for f in fields if f.get("error")), None) or next((f for f in fields if f.get("marked")), None)
+    if field is None:
+        return str(Signature(report["job_system"]))
+    return str(Signature(report["job_system"], field["kind"], field.get("error") or "Marked"))
+
+
 class FillReportStored(BaseModel):
     id: str
 
@@ -220,6 +255,7 @@ class FillReportSummary(BaseModel):
     note: str | None
     field_count: int
     marked: list[str]
+    signature: str
 
 
 class FillReportList(BaseModel):
@@ -236,6 +272,24 @@ class FillReportDetail(FillReportSummary):
     html: str | None
     admin_note: str | None
     updated_at: datetime.datetime | None
+
+
+class FillReportGroup(BaseModel):
+    """Reports with one signature (signature_of): its parts, how many, when, the newest's id, and their engine versions."""
+
+    signature: str
+    job_system: str
+    field_kind: str | None
+    error: str | None
+    count: int
+    first_at: datetime.datetime
+    last_at: datetime.datetime
+    latest_id: str
+    engine_versions: list[str]
+
+
+class FillReportGroups(BaseModel):
+    groups: list[FillReportGroup]
 
 
 class FillReportTriage(BaseModel):

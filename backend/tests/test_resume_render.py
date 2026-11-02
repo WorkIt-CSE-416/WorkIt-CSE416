@@ -17,13 +17,20 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from pdfminer.high_level import extract_text
+from pdfminer.high_level import extract_pages, extract_text
 from pdfminer.pdfpage import PDFPage
 
 from app.services import resume_render
 from app.services.resume_render import (
+    ALIGNMENTS,
+    DEFAULT_PAGE,
+    FONT_SIZES,
+    LINE_SPACINGS,
+    MARGINS,
     TEMPLATE,
+    PageSettings,
     TectonicUnavailable,
+    box_lines,
     compile_pdf,
     escape,
     jakes_document,
@@ -420,3 +427,166 @@ def test_a_bullet_whose_last_line_is_full_has_no_empty_line_after_it():
     boxes = [b for b in render(view, IDENTITY, "jakes").boxes if b.kind == "bullet"]
     at = next(i for i, b in enumerate(boxes) if b.item_id == str(full.id))
     assert boxes[at + 1].y0 - boxes[at].y1 < 5
+
+
+def _long_bullet() -> tuple[ResumeView, str]:
+    """The sample with a first bullet that wraps at any setting."""
+    entry = next(e for s in VIEW.sections for e in s.entries if e.bullets)
+    long = replace(entry.bullets[0], text=" ".join(["Cut the build from forty to nine minutes"] * 8))
+    view = replace(VIEW, sections=tuple(
+        replace(s, entries=tuple(
+            replace(e, bullets=(long, *e.bullets[1:])) if e.id == entry.id else e for e in s.entries))
+        for s in VIEW.sections))
+    return view, str(long.id)
+
+
+def test_the_default_page_is_jakes_own() -> None:
+    assert jakes_document("x", DEFAULT_PAGE) == jakes_document("x")
+    assert jakes_document("x") == TEMPLATE.read_text(encoding="utf-8").replace("\n%%BODY%%\n", "\nx\n", 1)
+
+
+def test_page_settings_go_after_jakes_preamble_and_only_when_they_differ() -> None:
+    tex = jakes_document("x", PageSettings(font_size=12, line_spacing=1.3, side_margin=1.0, top_margin=1.0, alignment="justified"))
+    preamble = tex.split("\\begin{document}")[0]
+    assert "letterpaper,12pt" in preamble
+    assert "\\linespread{1.3}" in preamble and "\\sloppy" in preamble
+    assert "\\addtolength{\\textwidth}{-1.0in}" in preamble
+    assert "linespread" not in jakes_document("x", PageSettings(font_size=10))
+
+
+@pytest.mark.parametrize("settings", [
+    {"font_size": 13}, {"line_spacing": 2.0}, {"side_margin": 0.1}, {"top_margin": 2.0}, {"alignment": r"\\input{/etc/passwd}"},
+])
+def test_a_page_setting_off_the_lists_never_reaches_the_latex(settings) -> None:
+    with pytest.raises(ValueError):
+        PageSettings(**settings)
+
+
+@pytest.mark.parametrize("page", [
+    *(PageSettings(font_size=size) for size in FONT_SIZES),
+    *(PageSettings(line_spacing=spacing) for spacing in LINE_SPACINGS),
+    *(PageSettings(side_margin=margin, top_margin=margin) for margin in MARGINS),
+    *(PageSettings(alignment=alignment) for alignment in ALIGNMENTS),
+    PageSettings(font_size=12, line_spacing=1.3, side_margin=1.0, top_margin=1.0, alignment="justified"),
+    PageSettings(font_size=10, line_spacing=1.15, side_margin=0.75, top_margin=0.75, alignment="justified"),
+], ids=repr)
+def test_each_page_setting_compiles_offline_and_its_boxes_read_as_lines(page) -> None:
+    _tectonic_or_skip()
+    view, long_id = _long_bullet()
+    rendered = render(view, IDENTITY, "jakes", page)
+    assert rendered.wrapped_line == page.wrapped_line
+    box = next(b for b in rendered.boxes if b.item_id == long_id)
+    # A wrapped line runs to the text's right edge, inside the page's margin
+    assert box.x1 == pytest.approx(612 - page.side_margin * 72, abs=1)
+    assert box.x0 >= page.side_margin * 72
+    assert box_lines(box, rendered.wrapped_line) >= 3
+    # The box is as many lines tall as the bullet prints
+    height = box.y1 - box.y0 - resume_render.ASCENT - resume_render.DESCENT
+    assert height / (box_lines(box, rendered.wrapped_line) - 1) == pytest.approx(page.wrapped_line, abs=0.3)
+
+
+def test_justified_lines_end_at_the_margin_and_left_lines_do_not() -> None:
+    _tectonic_or_skip()
+    view, _ = _long_bullet()
+
+    def wrapped_ends(page: PageSettings) -> list[float]:
+        pdf = render(view, IDENTITY, "jakes", page).pdf
+        from pdfminer.layout import LTTextContainer, LTTextLine
+
+        ends = []
+        for layout in extract_pages(io.BytesIO(pdf)):
+            for block in layout:
+                if isinstance(block, LTTextContainer):
+                    ends += [line.x1 for line in block if isinstance(line, LTTextLine)
+                             and "Cut the build" in line.get_text()]
+        return ends[:-1]  # a bullet's last line stops where its words do
+
+    assert all(end == pytest.approx(576, abs=0.5) for end in wrapped_ends(PageSettings(alignment="justified")))
+    assert any(end < 575 for end in wrapped_ends(DEFAULT_PAGE))
+
+
+def test_a_bigger_page_setting_can_run_past_one_page() -> None:
+    _tectonic_or_skip()
+    assert render(VIEW, IDENTITY, "jakes").page_count == 1
+    assert render(VIEW, IDENTITY, "jakes", PageSettings(font_size=12, line_spacing=1.3, side_margin=1.0, top_margin=1.0)).page_count == 2
+
+
+def test_the_latex_file_prints_the_same_page_settings() -> None:
+    page = PageSettings(font_size=10, side_margin=0.75)
+    tex = resume_render.latex(VIEW, IDENTITY, "jakes", page)
+    assert "letterpaper,10pt" in tex and r"\addtolength{\textwidth}{-0.5in}" in tex
+
+
+STYLED = PageSettings(
+    section_spacing=8, entry_spacing=4, accent="#1E3A5F", bullet="dash", show_divider=False, header_alignment="left")
+
+
+def test_the_style_settings_write_only_what_differs() -> None:
+    tex = resume_render.latex(VIEW, IDENTITY, "jakes", STYLED)
+    assert r"\definecolor{wiaccent}{rgb}" in tex and r"\textcolor{wiaccent}" in tex
+    assert r"\renewcommand{\labelitemii}{--}" in tex
+    assert r"\begin{flushleft}" in tex and r"\begin{center}" not in tex
+    assert r"\vspace{4pt}\scshape" in tex and "titlerule" not in tex.split("begin{document}")[0].split("wiaccent")[-1]
+    assert r"\vspace{-1pt}}" in tex
+    plain = resume_render.latex(VIEW, IDENTITY, "jakes")
+    assert "wiaccent" not in plain and r"\begin{center}" in plain
+
+
+@pytest.mark.parametrize("page", [
+    STYLED,
+    *(PageSettings(accent=accent) for accent in resume_render.ACCENTS),
+    PageSettings(header_alignment="right"),
+    PageSettings(show_divider=False, section_spacing=12),
+    PageSettings(accent="#14532D", section_spacing=4),
+    PageSettings(bullet="dash", entry_spacing=6),
+    PageSettings(top_margin=1.0),
+    PageSettings(side_margin=1.0),
+], ids=repr)
+def test_each_style_setting_compiles_offline_with_its_text(page) -> None:
+    _tectonic_or_skip()
+    rendered = render(VIEW, IDENTITY, "jakes", page)
+    assert "Jake Ryan" in _text(rendered.pdf)
+    assert rendered.boxes
+
+
+def test_the_dash_bullet_prints_a_dash_and_no_dot() -> None:
+    _tectonic_or_skip()
+    assert "•" in _text(render(VIEW, IDENTITY, "jakes").pdf)
+    dashed = _text(render(VIEW, IDENTITY, "jakes", PageSettings(bullet="dash")).pdf)
+    assert "•" not in dashed and "– Developed" in dashed
+
+
+def test_a_top_margin_moves_the_page_down_and_leaves_its_width() -> None:
+    _tectonic_or_skip()
+    top = lambda page: min(b.y0 for b in render(VIEW, IDENTITY, "jakes", page).boxes if b.kind == "full_name")
+    assert top(PageSettings(top_margin=1.0)) == pytest.approx(top(DEFAULT_PAGE) + 36, abs=1)
+
+
+def test_header_alignment_moves_the_name() -> None:
+    _tectonic_or_skip()
+    x = lambda page: next(b.x0 for b in render(VIEW, IDENTITY, "jakes", page).boxes if b.kind == "full_name")
+    assert x(PageSettings(header_alignment="left")) < x(DEFAULT_PAGE) < x(PageSettings(header_alignment="right"))
+
+
+def test_section_order_moves_the_sections_on_the_page() -> None:
+    order = ("skills", "projects", "experience", "education", "leadership", "awards", "certifications")
+    tex = resume_render.latex(VIEW, IDENTITY, "jakes", PageSettings(section_order=order))
+    at = [tex.index(rf"\section{{{name}}}") for name in ("Technical Skills", "Projects", "Experience", "Education")]
+    assert at == sorted(at)
+    assert resume_render.latex(VIEW, IDENTITY, "jakes") == resume_render.latex(
+        VIEW, IDENTITY, "jakes", PageSettings(section_order=list(resume_render.SECTION_ORDER)))
+
+
+@pytest.mark.parametrize("order", [("skills",), ("skills", "skills"), (*resume_render.SECTION_ORDER, r"\\input")])
+def test_a_section_order_must_name_every_section_once(order) -> None:
+    with pytest.raises(ValueError):
+        PageSettings(section_order=order)
+
+
+def test_a_moved_section_order_compiles_offline_with_its_boxes() -> None:
+    _tectonic_or_skip()
+    order = ("skills", *resume_render.SECTION_ORDER[:-1])
+    rendered = render(VIEW, IDENTITY, "jakes", PageSettings(section_order=order))
+    skill = min(b.y0 for b in rendered.boxes if b.kind == "skill")
+    bullet = min(b.y0 for b in rendered.boxes if b.kind == "bullet")
+    assert skill < bullet

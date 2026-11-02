@@ -9,8 +9,8 @@ in by the router (its `get_supabase()`), so tests patch it there.
 Where a sent resume's file is (KAN-267, docs/sent_resume.md):
 
 - **From a built resume** (`send_built`): a snapshot, not a stored PDF.
-  Hash the view, template and header text before rendering; a repeat hash
-  for the same built resume and job posting returns the last sent resume.
+  Hash the view, template, page settings and header text before rendering;
+  a repeat hash for the same built resume and job posting returns the last sent resume.
   Otherwise render the PDF once (the student attaches it), and keep what it
   is made from as a `built` snapshot: gzipped JSON in `resume_snapshots`,
   about 2 KB where the PDF is 33. Sent resumes of the same content share
@@ -44,7 +44,12 @@ from app.models.resume import Resume
 from app.models.sent_resume import Resume_Snapshot, Sent_Resume
 from app.services import bank_import, built_resumes, postings, stored_files
 from app.services.bank import NotFound
-from app.services.resume_render import HeaderIdentity, render
+from app.services.resume_render import (
+    DEFAULT_PAGE,
+    HeaderIdentity,
+    PageSettings,
+    render,
+)
 from app.services.resume_view import ResumeView, view_from_json, view_from_reading
 
 BUCKET = stored_files.BUCKET
@@ -89,18 +94,29 @@ def _identity(identity: HeaderIdentity) -> dict:
     return data
 
 
-def content_hash(view: ResumeView, identity: HeaderIdentity, template: str) -> str:
+def _page(page: PageSettings) -> dict:
+    """The page settings in a hash or a snapshot: nothing at Jake's own page,
+    so a resume sent before KAN-435 still repeats, and an old snapshot reads
+    as his page."""
+    return {} if page == DEFAULT_PAGE else {"page": dataclasses.asdict(page)}
+
+
+def content_hash(
+    view: ResumeView, identity: HeaderIdentity, template: str, page: PageSettings = DEFAULT_PAGE
+) -> str:
     """Everything the PDF is made from, before it is made. Dataclasses
     serialize field by field in a fixed order; dates and decimals by str.
     Word files were kept with "format" in this payload until KAN-267; a PDF
     never had it, so a repeat still matches a sent resume kept before."""
-    payload = {"template": template, "identity": _identity(identity), "view": dataclasses.asdict(view)}
+    payload = {"template": template, "identity": _identity(identity), "view": dataclasses.asdict(view), **_page(page)}
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
 
-def _snapshot(view: ResumeView, identity: HeaderIdentity, template: str, **more: Any) -> dict:
+def _snapshot(
+    view: ResumeView, identity: HeaderIdentity, template: str, page: PageSettings = DEFAULT_PAGE, **more: Any
+) -> dict:
     return {"v": SNAPSHOT_VERSION, "template": template, "identity": _identity(identity),
-            "view": dataclasses.asdict(view), **more}
+            "view": dataclasses.asdict(view), **_page(page), **more}
 
 
 def _pack(payload: dict) -> bytes:
@@ -155,7 +171,8 @@ async def send_built(
     await _check_posting(session, job_posting_id)
     resume, view = await built_resumes.load_view(session, applicant_id, built_resume_id)
     identity = await built_resumes.load_header_identity(session, applicant_id)
-    digest = content_hash(view, identity, resume.template)
+    page = built_resumes.page_of(resume)
+    digest = content_hash(view, identity, resume.template, page)
     last = await _last_match(
         session, applicant_id, job_posting_id,
         Sent_Resume.built_resume_id == resume.id, Sent_Resume.content_hash == digest,
@@ -163,9 +180,9 @@ async def send_built(
     if last is not None:
         return Sent(last, created=False)
 
-    rendered = await asyncio.to_thread(render, view, identity, resume.template)
+    rendered = await asyncio.to_thread(render, view, identity, resume.template, page)
     snapshot_id = await _keep_snapshot(
-        session, applicant_id, digest, "built", _snapshot(view, identity, resume.template))
+        session, applicant_id, digest, "built", _snapshot(view, identity, resume.template, page))
     row = Sent_Resume(
         id=uuid.uuid4(), applicant_id=applicant_id, snapshot_id=snapshot_id, name=resume.name,
         built_resume_id=resume.id, job_posting_id=job_posting_id, content_hash=digest,
@@ -295,7 +312,8 @@ async def open_file(
     data = json.loads(gzip.decompress(await session.scalar(
         select(Resume_Snapshot.data).where(Resume_Snapshot.id == row.snapshot_id))))
     identity = HeaderIdentity(**{**data["identity"], "links": tuple(map(tuple, data["identity"]["links"]))})
-    rendered = await asyncio.to_thread(render, view_from_json(data["view"]), identity, data["template"])
+    page = PageSettings(**data.get("page", {}))
+    rendered = await asyncio.to_thread(render, view_from_json(data["view"]), identity, data["template"], page)
     return SentFile(name, pdf=rendered.pdf, rebuilt=rebuilt(row), original_text=data.get("raw_text"))
 
 

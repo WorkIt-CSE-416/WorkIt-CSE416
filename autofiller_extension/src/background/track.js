@@ -11,7 +11,11 @@
 // the job card matches a page to a posting). A tab that moves on to another
 // job's page stops being tracked, so its next submit can't mark the wrong
 // job; a thanks or confirmation page names no job and keeps it.
-import { listedJobByLink, markJobApplied, saveJob } from "./api.js";
+//
+// A tab the student asked their Claude to write for (KAN-470, openForWriting)
+// is tracked too, with `writing`: its job has an application, which keeps the
+// questions for the student's Claude and the Written Answers page.
+import { ApiError, listedJobByLink, markJobApplied, me, queueJob, recordFill, saveJob } from "./api.js";
 import { inBatch } from "./batch.js";
 import { identity } from "./panel-top.js";
 
@@ -59,7 +63,9 @@ export async function track({ tabId, url }) {
   const found = await listedJobByLink(url);
   await saveJob(found.job_id);
   const tabs = await all();
-  tabs[tabId] = { jobId: found.job_id, id: identity(url), applied: APPLIED.includes(found.stage) };
+  // A tab opened for writing (openForWriting) stays one.
+  const writing = tabs[tabId]?.jobId === found.job_id && tabs[tabId].writing;
+  tabs[tabId] = { jobId: found.job_id, id: identity(url), applied: APPLIED.includes(found.stage), ...(writing ? { writing } : {}) };
   await put(tabs);
   return { state: tabs[tabId].applied ? "applied" : "tracked" };
 }
@@ -79,6 +85,48 @@ export async function markTracked(tabId) {
     await put(tabs);
   }
   return { tracked: true };
+}
+
+const UNLISTED = "WorkIt doesn't list this job, so your Claude can't write for it here. Write this answer yourself.";
+
+/**
+ * The student asked their Claude to write a form's questions on a tab they
+ * opened themselves (KAN-470). Their Claude (through the connector) and the
+ * Written Answers page keep the questions on an application, as a batch
+ * tab's, so the job is queued (a saved one too), then moved to needs_you at
+ * once so the batch never opens it, and the tab is tracked: the student's
+ * submit there marks it applied. Answers the job's id. Throws, with words
+ * for the student, when WorkIt doesn't list the job or its application is
+ * past the form (applied, skipped).
+ * @param {{ tabId: number, url: string }} where
+ * @returns {Promise<string>}
+ */
+export async function openForWriting({ tabId, url }) {
+  const known = (await all())[tabId];
+  if (known?.writing && !known.applied) return known.jobId;
+  let found;
+  try {
+    found = await listedJobByLink(url);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) throw new Error(UNLISTED);
+    throw error;
+  }
+  const { id } = await me();
+  const { stage } = await queueJob(id, found.job_id);
+  if (stage !== "queued" && stage !== "needs_you") {
+    throw new Error(`Your application for this job is ${stage.replace("_", " ")}, so WorkIt can't keep answers for it. Write this answer yourself.`);
+  }
+  if (stage === "queued") await recordFill(id, found.job_id, "needs_you");
+  const tabs = await all();
+  tabs[tabId] = { jobId: found.job_id, id: identity(url), applied: false, writing: true };
+  await put(tabs);
+  return found.job_id;
+}
+
+/** The job of a tab opened for writing (openForWriting) and not yet marked applied, or null. */
+export async function writingJob(tabId) {
+  const tab = (await all())[tabId];
+  return tab?.writing && !tab.applied ? tab.jobId : null;
 }
 
 /** A tracked tab whose page is now another job's stops being tracked; a page that names no job keeps it. */

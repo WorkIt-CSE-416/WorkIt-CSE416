@@ -10,6 +10,7 @@ import {
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   ScissorsIcon,
+  SlidersHorizontalIcon,
   XIcon,
 } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
@@ -18,7 +19,13 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { SparkleIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import type { Bank } from "@/lib/bank-actions";
-import type { Choices, ChoicesUpdate, RenderBox, RenderedPdf } from "@/lib/built-resume-actions";
+import type {
+  Choices,
+  ChoicesUpdate,
+  PageSettings,
+  RenderBox,
+  RenderedPdf,
+} from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
 import { DownloadMenu, DownloadNotes, type ResumeDownload } from "../download-menu";
@@ -27,6 +34,7 @@ import { EDITOR_PARENT } from "./back";
 import { FitNotice } from "./fit-notice";
 import { cutLeft as anyCutLeft, lineName, shortPageLabel, type FitCuts, type Line } from "./model";
 import type { HistoryTools } from "./editor";
+import { FormatOptions } from "./page-format";
 import { boxKey, kindLabel } from "./pdf-pages";
 import { CutPicker, ExperiencesPicker } from "./experiences-picker";
 
@@ -106,6 +114,8 @@ export function PhoneEditor({
   error,
   download,
   bar,
+  page,
+  onPage,
   suggestions,
   actions,
   assistant,
@@ -135,6 +145,9 @@ export function PhoneEditor({
   saving: boolean;
   elapsed: number | null;
   error: string | null;
+  /** The page's settings, in the Format sheet (./page-format.tsx). */
+  page: PageSettings;
+  onPage: (next: PageSettings) => void;
   /** The resume's downloads, the same as the desktop sticky bar's. */
   download: ResumeDownload;
   /** The page's own row under the buttons (Tailor's note when it has no
@@ -168,6 +181,7 @@ export function PhoneEditor({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [cutOpen, setCutOpen] = useState(false);
   const cutLeft = anyCutLeft(bank, choices, cuts);
+  const [formatOpen, setFormatOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -243,6 +257,14 @@ export function PhoneEditor({
             <ArrowUUpRightIcon aria-hidden />
           </Button>
           <div className="ml-auto flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!rendered}
+              onClick={() => setFormatOpen(true)}
+            >
+              <SlidersHorizontalIcon aria-hidden /> Format
+            </Button>
             <DownloadMenu download={download} />
             <Button
               variant="secondary"
@@ -413,6 +435,14 @@ export function PhoneEditor({
             </div>
           </Sheet>
         </>
+      )}
+
+      {formatOpen && (
+        <Sheet onClose={() => setFormatOpen(false)} title="Format Options">
+          <div className={cn("flex flex-col gap-2", TAP)}>
+            <FormatOptions page={page} quick onChange={onPage} />
+          </div>
+        </Sheet>
       )}
 
       {pickerOpen && (

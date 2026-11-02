@@ -33,6 +33,13 @@
     "bindings": [{ "name": "API", "class_name": "Api" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Api"] }],
+  // Public values the API reads, forwarded to the container like the secrets
+  // (src/index.ts, FORWARDED). The connector's addresses (KAN-377): the
+  // OAuth issuer and MCP server Claude is given, and the consent page.
+  "vars": {
+    "CONNECTOR_API_URL": "https://api.workitjobs.ai",
+    "CONNECTOR_WEB_URL": "https://workitjobs.ai"
+  },
   "routes": [{ "pattern": "api.workitjobs.ai", "custom_domain": true }],
   // Served on the custom domain only: the account has no workers.dev
   // subdomain, and the CI token cannot read one.

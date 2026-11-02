@@ -44,7 +44,7 @@ test("after a fill on the student's own tab: Close and ⋯ in the header, the re
 
   // The ⋯ menu: Fill Again, Report a problem and Settings; no batch's Skip or I submitted this here.
   await host.getByRole("button", { name: "More" }).click();
-  await expect(host.getByRole("menuitem")).toHaveText(["Fill Again", "Report a problem", "Settings"]);
+  await expect(host.getByRole("menuitem")).toHaveText(["Fill Again", "Report a problem", "Settings", "Hide on this site", "Hide everywhere"]);
   await page.keyboard.press("Escape");
   await expect(host.getByRole("menuitem")).toHaveCount(0);
 
@@ -84,7 +84,7 @@ test("a batch tab's ⋯ menu holds I submitted this and Skip; the header has nei
   await expect(host.locator(".header").getByRole("button", { name: "More" })).toBeVisible();
   await expect(host.locator(".header").getByRole("button", { name: "Close" })).toBeVisible();
   await host.getByRole("button", { name: "More" }).click();
-  await expect(host.getByRole("menuitem")).toHaveText(["I submitted this", "Skip", "Fill Again", "Report a problem", "Settings"]);
+  await expect(host.getByRole("menuitem")).toHaveText(["I submitted this", "Skip", "Fill Again", "Report a problem", "Settings", "Hide on this site", "Hide everywhere"]);
   // A click the page's own script makes on the menu does nothing (trusted()).
   await host.locator("[data-skip]").evaluate((item: HTMLElement) => item.click());
   await form.waitForTimeout(500);

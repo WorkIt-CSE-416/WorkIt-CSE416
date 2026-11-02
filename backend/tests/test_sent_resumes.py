@@ -93,7 +93,7 @@ def renders(monkeypatch):
     a changed bank gives a changed file. The list counts the calls."""
     calls = []
 
-    def fake_render(view, identity, template):
+    def fake_render(view, identity, template, page):
         calls.append(view)
         bullets = [b.text for s in view.sections for e in s.entries for b in e.bullets]
         return Rendered(pdf=f"%PDF {identity.name} {bullets[:1]}".encode(), page_count=1,
@@ -164,6 +164,24 @@ async def test_a_repeat_send_of_the_same_content_returns_the_last_sent_resume(
     assert storage.files == {}
     assert len(await _snapshots(database)) == 1
     assert len((await client.get(f"{me}/sent-resumes")).json()) == 1
+
+
+async def test_a_sent_resume_keeps_the_page_settings_it_went_out_with(student, storage, renders, posting, database):
+    client, me = student
+    await _fill_bank(client, me)
+    built = await _generate(client, me)
+    settings = {"font_size": 12, "line_spacing": 1.15, "side_margin": 0.75, "top_margin": 0.75, "alignment": "justified", "section_spacing": 4, "entry_spacing": 2, "accent": "#14532D", "bullet": "dash", "show_divider": False, "header_alignment": "left"}
+    first = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))).json()
+    await client.put(f"{me}/built-resumes/{built}/page-settings", json=settings)
+
+    # A new page is new content, not a repeat of the first send
+    second = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))).json()
+
+    assert second["id"] != first["id"]
+    snapshots = await _snapshots(database)
+    assert "page" not in snapshots[0][1]
+    kept = snapshots[1][1]["page"]
+    assert {name: kept[name] for name in settings} == settings
 
 
 async def test_one_content_sent_to_many_postings_keeps_one_snapshot(student, storage, renders, posting, database):
@@ -416,7 +434,7 @@ async def test_a_fresh_render_reports_the_characters_the_font_lacks(student, sto
 async def test_nothing_is_kept_when_the_pdf_cannot_be_made(student, storage, monkeypatch, posting, database):
     from app.services.resume_render import TectonicUnavailable
 
-    def missing(view, identity, template):
+    def missing(view, identity, template, page):
         raise TectonicUnavailable("no tectonic binary")
 
     monkeypatch.setattr("app.services.sent_resumes.render", missing)
@@ -435,7 +453,7 @@ async def test_a_snapshot_that_cannot_be_rendered_again_is_503_and_stays(student
     client, me = student
     sent = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=await _generate(client, me)))).json()
 
-    def missing(view, identity, template):
+    def missing(view, identity, template, page):
         raise TectonicUnavailable("no tectonic binary")
 
     monkeypatch.setattr("app.services.sent_resumes.render", missing)

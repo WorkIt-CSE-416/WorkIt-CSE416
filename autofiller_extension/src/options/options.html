@@ -14,7 +14,7 @@
         <p class="muted">
           Each company's Workday asks you to make an account before you apply. Set one email and
           password here, and WorkIt uses them to make your account and sign you in at every company.
-          Without one, WorkIt makes a new password for each company.
+          WorkIt makes no Workday account until you set them.
         </p>
         <form id="signup-form" autocomplete="off">
           <label for="signup-email">Registration Email</label>
@@ -39,7 +39,23 @@
           </div>
           <p id="signup-said" class="muted" role="status"></p>
         </form>
-        <p class="note">Your password stays in this browser. WorkIt never sends or saves it anywhere else.</p>
+        <p class="note">
+          A new password applies to the companies WorkIt makes an account at after you change it: each
+          company's Workday keeps its own account. Your password stays in this browser. WorkIt never
+          sends or saves it anywhere else.
+        </p>
+      </section>
+      <section class="card" aria-labelledby="logins-title">
+        <h2 id="logins-title">Saved Company Logins</h2>
+        <p class="muted">
+          The Workday login WorkIt keeps for each company, the one it signs you in with there. Removing
+          the extension deletes them, so export them first if you need them.
+        </p>
+        <ul id="logins" class="sites"></ul>
+        <div class="actions">
+          <button type="button" id="logins-export" class="secondary">Export</button>
+        </div>
+        <p id="logins-said" class="muted" role="status"></p>
       </section>
       <section class="card" aria-labelledby="sites-title">
         <h2 id="sites-title">Sites You Allowed</h2>
@@ -49,6 +65,24 @@
         </p>
         <ul id="sites" class="sites"></ul>
         <p id="sites-said" class="muted" role="status"></p>
+      </section>
+      <section class="card" aria-labelledby="fields-title">
+        <h2 id="fields-title">Fields to Autofill</h2>
+        <p class="muted">
+          Turn off a kind of field and WorkIt leaves it blank for you to answer, and lists it under
+          Needs Your Answer. Turning one off never deletes what you saved.
+        </p>
+        <div id="fields" class="switches"></div>
+      </section>
+      <section class="card" aria-labelledby="tab-title">
+        <h2 id="tab-title">WorkIt Tab</h2>
+        <p class="muted">
+          The WorkIt tab sits on the right edge of every job application WorkIt can fill. Alt+W and
+          WorkIt's toolbar button open the panel even where the tab is hidden.
+        </p>
+        <label class="switch"><input type="checkbox" id="tab-everywhere" /> Show the WorkIt tab on job pages</label>
+        <h3>Hidden on These Sites</h3>
+        <ul id="hidden-sites" class="sites"></ul>
       </section>
     </main>
     <script type="module" src="options.js"></script>

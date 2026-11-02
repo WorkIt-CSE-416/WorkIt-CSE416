@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { STEPS } from "../fill-engine/test/fake-workday";
 import { FakeWorkdays, SavedForms } from "./fake-job-systems";
-import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Loaded, menuItem } from "./loaded-extension";
+import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Loaded, menuItem, saveWorkdaySignup } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 
@@ -203,6 +203,7 @@ test("between Workday steps the panel keeps something to show: never an empty Au
   const api = new FakeApi().queue({ id: "wd-0", apply_url: workdays.signInUrl(0) });
   loaded = await loadExtension([api.handler, webapp, workdays.handler]);
   await signIn(loaded.context);
+  await saveWorkdaySignup(loaded);
   const app = await loaded.context.newPage();
   await app.goto("http://localhost:3000/auto-apply");
   await sendFromWebapp(app, { type: "run/open" });

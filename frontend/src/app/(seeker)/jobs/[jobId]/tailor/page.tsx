@@ -74,13 +74,14 @@ export default async function TailorPage({
     const editorError = bank.error ?? choices.error ?? profileError;
 
     return (
-      // A WORK AREA, NOT A READING PAGE: the resume and the Suggestions
-      // panel sit side by side, so every pixel helps. No max-w-app, as on
-      // the Applications page. The content stops at Home's cap, so
-      // a very wide window does not blow the resume up. At max-w-app the
-      // resume and panel were squeezed between two wide margins.
-      <div className={cn("flex-1 py-6", SEEKER_GUTTER)}>
-        <div className="max-w-dashboard mx-auto w-full">
+      // A WORK AREA, NOT A READING PAGE, laid out as a Google Doc (KAN-499):
+      // the resume and the Suggestions panel run to the page's edges, with a
+      // 16px gutter and no width cap, since every pixel helps. The resume
+      // itself stops at its zoom, centred in its column, so a very wide
+      // window gives the page room around it and does not blow it up.
+      // Home's cap and the seekers' gutter left about 50px each side here
+      <div className="flex-1 px-4 pt-3 pb-4">
+        <div className="w-full">
           <TailorReviewBar job={job} resumeId={resume.id} />
           {bank.data && choices.data && profile ? (
             <TailorReview

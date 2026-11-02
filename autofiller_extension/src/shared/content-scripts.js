@@ -6,13 +6,15 @@
 // engine (the fill-engine submodule, pinned to a tag) must see the page's
 // React state and wrap its fetch (Ashby), which an extension's isolated world
 // can't. CONTENT_SCRIPT_FILES run in the isolated world, where chrome.runtime
-// is: lib-status/tokens/ui/report-parts/panel/row-card/overlay/card-flag/card-waiting/card-guess/letter-preview/captured-notice/workday/oracle/successfactors/icims/steps/workday-walk/written-answers/batch-tab/marks/card-failed/submit-warning/primary/progress/closed-posting populate window.WIA and content-script.js (last)
+// is: lib-status/tokens/ui/report-parts/panel/row-card/overlay/card-flag/card-waiting/card-guess/letter-preview/captured-notice/workday/oracle/successfactors/icims/steps/workday-walk/written-answers/batch-tab/marks/card-failed/submit-warning/primary/progress/closed-posting/smartrecruiters/fill-event populate window.WIA and content-script.js (last)
 // runs the fill, reaching the engine through the background
 // (background/engine.js). Content scripts can't be ES modules, so the order
 // here is what makes the globals exist.
+import { pageSystem } from "../background/site-access.js";
+
 export const ENGINE_FILES = ["fill-engine/dist/engine.js"];
 
-export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-card.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js", "src/content/row-card.js", "src/content/groups.js", "src/content/overlay.js", "src/content/card-flag.js", "src/content/card-waiting.js", "src/content/card-guess.js", "src/content/letter-preview.js", "src/content/card-written.js", "src/content/captured-notice.js", "src/content/workday.js", "src/content/oracle.js", "src/content/successfactors.js", "src/content/icims.js", "src/content/steps.js", "src/content/workday-walk.js", "src/content/written-answers.js", "src/content/batch-tab.js", "src/content/marks.js", "src/content/card-failed.js", "src/content/submit-warning.js", "src/content/primary.js", "src/content/progress.js", "src/content/closed-posting.js", "src/content/smartrecruiters.js", "src/content/content-script.js"];
+export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-card.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js", "src/content/row-card.js", "src/content/groups.js", "src/content/overlay.js", "src/content/card-flag.js", "src/content/card-waiting.js", "src/content/card-guess.js", "src/content/letter-preview.js", "src/content/card-written.js", "src/content/captured-notice.js", "src/content/workday.js", "src/content/oracle.js", "src/content/successfactors.js", "src/content/icims.js", "src/content/steps.js", "src/content/workday-walk.js", "src/content/written-answers.js", "src/content/batch-tab.js", "src/content/marks.js", "src/content/card-failed.js", "src/content/submit-warning.js", "src/content/primary.js", "src/content/progress.js", "src/content/closed-posting.js", "src/content/smartrecruiters.js", "src/content/fill-event.js", "src/content/content-script.js"];
 
 /**
  * Loads the engine into the tab, then starts the fill there. With `batch`,
@@ -27,17 +29,20 @@ export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/to
  */
 export async function injectFill(tabId, { batch = false, frameId = undefined } = {}) {
   const target = frameId === undefined ? { tabId } : { tabId, frameIds: [frameId] };
+  // The frame's job system, read with the engine here: the fill's scripts (workday.js, steps.js) need it as they load.
+  const [{ result: href }] = await chrome.scripting.executeScript({ target, func: () => location.href });
+  const jobSystem = await pageSystem(tabId, frameId ?? 0, href);
   // One fill per page, claimed in one step before anything is injected. A batch tab opened on a Workday step
   // is injected twice as its page loads (batch.js's startFill and background.js's per-page-load fill): run
   // side by side, the second's panel scripts replaced the first fill's panel, and no panel showed.
   const [{ result: claimed }] = await chrome.scripting.executeScript({
     target,
-    func: (batch) => {
+    func: (batch, jobSystem) => {
       if (window.WIA?.running) return false;
-      window.WIA = { ...window.WIA, batch, running: true };
+      window.WIA = { ...window.WIA, batch, running: true, jobSystem };
       return true;
     },
-    args: [batch],
+    args: [batch, jobSystem],
   });
   if (!claimed) return;
   const release = () => chrome.scripting.executeScript({ target, func: () => void (window.WIA.running = false) }).catch(() => {});

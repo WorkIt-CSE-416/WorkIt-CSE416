@@ -92,6 +92,12 @@ How the refresh behaves:
 
 Workable, BambooHR and Recruitee were added in KAN-171, Workday in KAN-134, and
 Rippling, iCIMS and Oracle Cloud in KAN-301.
+BambooHR's job postings are listed but never auto applied: the Fill engine has
+no BambooHR Filler. KAN-472 weighed building one or deleting its saved form
+(`fill-engine/test/fixtures/forms/bamboohr-lunaroutpost`) and took a third
+option, keeping the form with no Filler, because Apply's Claude fill tests serve
+it as their job system with no Filler, while about 105 feed jobs didn't yet
+earn a Filler (its `README.md` has the detail).
 Recruitee has so few company job boards because the GitHub lists barely mention
 it. Workday is the opposite: nearly half the lists' apply links point at it.
 

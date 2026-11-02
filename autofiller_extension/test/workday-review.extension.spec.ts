@@ -79,10 +79,10 @@ test("outside a batch, walks to Review only once the student presses Fill to Rev
   await signIn(loaded.context);
   const tab = await loaded.context.newPage();
   await tab.goto(workdays.url(0));
-  // Autofill This Page.
+  // Autofill This Page, its page's job system named as injectFill names it.
   await loaded.worker.evaluate(async ([engine, scripts]) => {
     const [{ id }] = await chrome.tabs.query({ url: "https://*/__fake__/apply/*" });
-    await chrome.scripting.executeScript({ target: { tabId: id! }, func: () => void ((window as any).WIA = { running: true }) });
+    await chrome.scripting.executeScript({ target: { tabId: id! }, func: () => void ((window as any).WIA = { running: true, jobSystem: "workday" }) });
     await chrome.scripting.executeScript({ target: { tabId: id! }, world: "MAIN", files: engine });
     void chrome.scripting.executeScript({ target: { tabId: id! }, files: scripts });
   }, [ENGINE_FILES, CONTENT_SCRIPT_FILES]);

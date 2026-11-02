@@ -15,7 +15,7 @@
  */
 
 import type { Bank } from "@/lib/bank-actions";
-import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
+import type { Choices, ChoicesUpdate, PageSettings } from "@/lib/built-resume-actions";
 
 /** How many steps Undo can go back. A first guess (2026-10-29): tune it,
  *  with `PDF_STEPS`, once students use it. */
@@ -30,7 +30,8 @@ export const PDF_STEPS = 7;
 export type Edit =
   | { changes: ChoicesUpdate }
   | { line: { item_id: string; kind: string; text: string } }
-  | { name: string };
+  | { name: string }
+  | { page: PageSettings };
 
 /** One step: the edit (`redo`) and its reverse (`undo`), and, once its
  *  render landed, the editor's state and PDF on each side of it. */

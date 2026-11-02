@@ -11,6 +11,11 @@ writing a notification or sending anything.
 One applicant's failure (an empty bank, a model/embedding hiccup, a bounced
 email) never stops the run for everyone else -- each is caught, counted,
 and logged; a broken account is tomorrow's problem, not today's run.
+
+Before sending, a real run copies SES's suppression list into
+email_suppressions (notices.sync_suppressions, KAN-483), so an address that
+bounced since the last broadcast gets no email today. A list SES can't give
+is logged, and the run sends with the suppressions it already has.
 """
 
 import argparse
@@ -24,6 +29,7 @@ from app.db import get_sessionmaker
 from app.models.profiles import Applicant_Profile
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.services.job_alerts import EmptyBank, build_digest, send_job_alert
+from app.services.notices import sync_suppressions
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -59,6 +65,13 @@ async def _run(*, dry_run: bool) -> Report:
     report = Report()
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as db:
+        if not dry_run:
+            try:
+                await sync_suppressions(db)
+                await db.commit()
+            except Exception:
+                logger.exception("could not refresh the suppression list; sending with the stored one")
+                await db.rollback()
         profiles = (
             await db.scalars(
                 select(Applicant_Profile).where(Applicant_Profile.job_alerts_enabled)

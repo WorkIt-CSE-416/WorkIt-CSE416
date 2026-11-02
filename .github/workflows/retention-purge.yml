@@ -1,0 +1,78 @@
+name: Retention purge
+
+# KAN-482: deletes data past its retention period from production, daily.
+# The periods are backend/app/services/retention.py's RETENTION, the same
+# numbers the privacy policy quotes. .github/CLAUDE.md's "Retention purge"
+# section has the why.
+#
+# It never runs from a PR, because every run reaches the production
+# database. Only the schedule, on main, deletes; a manual run is always a
+# dry run that logs counts and deletes nothing.
+on:
+  schedule:
+    # Daily, off the hour: GitHub delays, and under load drops, runs on it.
+    - cron: "43 7 * * *"
+  workflow_dispatch:
+
+# One run at a time.
+concurrency:
+  group: retention-purge
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Install the backend
+        working-directory: backend
+        run: uv sync --locked
+
+      - name: Delete data past its retention period
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Deletes only on the schedule, on main. Anything else is a dry run.
+          DRY_RUN: ${{ (github.event_name != 'schedule' || github.ref != 'refs/heads/main') && '--dry-run' || '' }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::The DATABASE_URL secret is not set (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          uv run python -m app.scripts.purge_old_data ${DRY_RUN:+"$DRY_RUN"}
+
+  # A failed scheduled run opens an issue (or comments on the open one), so
+  # the team hears about it instead of the purge stopping silently.
+  alert:
+    needs: purge
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Retention purge failed"
+          body="The daily retention purge failed: $RUN_URL"
+          number=$(gh issue list --state open --search "in:title \"$title\"" --json number,title \
+            --jq "map(select(.title == \"$title\"))[0].number // empty")
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

@@ -26,6 +26,7 @@ from app.routers.jobs import EmptyBank, fetch_recommended
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
 from app.services.email import send_email
+from app.services.notices import is_suppressed
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,10 @@ async def send_job_alert(db: AsyncSession, account: AuthenticatedAccount) -> boo
     )
     await db.commit()
 
+    if await is_suppressed(db, account.email):
+        # Bounced or complained before (app/services/notices.py): the bell
+        # still shows the digest, but no email goes out.
+        return True
     sent = await send_email(
         account.email, f"Your {len(jobs)} best job matches today", _digest_html(jobs, web_url)
     )

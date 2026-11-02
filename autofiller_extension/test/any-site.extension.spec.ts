@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
-import { SavedForms } from "./fake-job-systems";
+import { FakeWorkdays, SavedForms } from "./fake-job-systems";
 import { EXTENSION_ID, loadExtension, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
@@ -22,6 +22,8 @@ const EMBEDDING = "https://careers.anduril-example.test/open-roles/apply?gh_jid=
 const SF_HOST = "careers.acuityinc.com";
 const SF_POSTING = `https://${SF_HOST}/job/Data-and-AI-Intern-Flexible/1434321900/`;
 const SF_PAGE = readFileSync(join(__dirname, "../fill-engine/test/fixtures/forms/successfactors-acuity/posting.html"), "utf8");
+// A Workday career site on the employer's own domain: Workday's pages, marked as Workday's (fill-engine src/marks.ts).
+const WD_HOST = "careers.example-employer.com";
 // An employer site with no application WorkIt fills.
 const PLAIN_HOST = "jobs.example-employer.com";
 
@@ -151,4 +153,24 @@ test("an allowed site with nothing WorkIt fills says so, and keeps Request this 
   const again = await openPopup(await tabIdOf(page));
   await expect(again.getByRole("button", { name: `Allow WorkIt on ${PLAIN_HOST}` })).toBeHidden();
   expect(api.systemRequests).toEqual([]);
+});
+
+test("a Workday career site on an employer's own domain, once allowed, is Workday's: its step fills", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"], undefined, [{ host: WD_HOST }]);
+  await start([workdays.handler], [`https://${WD_HOST}/*`]);
+  const page = await loaded.context.newPage();
+  await page.goto(workdays.url(0));
+  await page.waitForTimeout(2500);
+  // Not allowed yet: its link names no job system, so nothing runs there.
+  await expect(hostOf(page)).toHaveCount(0);
+
+  const popup = await openPopup(await tabIdOf(page));
+  await popup.getByRole("button", { name: `Allow WorkIt on ${WD_HOST}` }).click();
+  await expect(popup.getByText("WorkIt can fill this page")).toBeVisible();
+  await expect(hostOf(page).locator(".panel")).toBeVisible();
+  await hostOf(page).getByRole("button", { name: "Fill this step" }).click();
+  await expect(page.locator("[data-automation-id='formField-legalName--firstName'] input")).toHaveValue("Test", { timeout: 60_000 });
+  await expect(page.locator("[data-automation-id='formField-legalName--lastName'] input")).toHaveValue("Person");
+  expect(workdays.submissions).toEqual([]);
 });

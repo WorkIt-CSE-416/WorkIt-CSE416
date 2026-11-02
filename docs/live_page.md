@@ -18,7 +18,7 @@ document again on each change.
 
 The round trip is the save, the network, the database read, Tectonic
 (about 0.3 to 0.5 s warm on a Mac, more on a cold instance) and the
-pdf.js draw. The editor's bar shows it after each save ("Saved, 412 ms").
+pdf.js draw. The editor's bar showed it after each save until the user found it noise; a phone still does ("Saved, 412 ms").
 Today the typed line shows at once, because the field over it is HTML
 set in Latin Modern. The rest of the page (the lines below, the page
 break, the page count) waits for the compile.
@@ -50,7 +50,9 @@ PDF takes the HTML page's place.
   field's text as `fields.py` prints it, sent by the API. It must never
   build its own order or wording: `model.ts` mirrors the order rule only
   to number siblings for a move.
-- **Its measures are Jake's.** The page copies `jakes.tex`'s margins,
+- **Its measures are Jake's, set by the page's settings** (KAN-435): the
+  field reads its size, wrapped line and right edge from the render's
+  `page_settings` and `wrapped_line`. The page copies `jakes.tex`'s margins,
   sizes, spacing and two-column headings, checked against the PDF's own
   boxes, which give each line's real position. Its fonts are the editor's
   Latin Modern files; the small capitals of the name and the section
