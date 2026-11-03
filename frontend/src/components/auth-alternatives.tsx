@@ -26,8 +26,8 @@ export function SoonBadge() {
  *
  * Each button is its own form posting to `signInWithOAuth` (#58,
  * src/lib/oauth-actions.ts), which sends the browser to the provider and back
- * through /auth/callback. A first sign-in there picks Applicant or Company
- * before landing; see that route.
+ * through /auth/callback. A first sign-in there becomes an applicant account
+ * and starts on onboarding; see that route.
  *
  * The divider's 20px and the row's 20px below it match the gap between the
  * account-type switcher and the form above.

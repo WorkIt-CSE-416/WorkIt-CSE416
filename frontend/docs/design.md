@@ -138,8 +138,14 @@ at the top right of its heading: `ui/section-link.tsx` for a link, `<Button
 variant="section">` for an action. Whether those two pages should move to
 cards as well is still open. Each page's docblock says what goes where.
 
-The auth screens (/login, /signup, /signup/choose-account-type) sit outside
-both shells. Each is its card alone over a skyline (`components/skyline.tsx`):
+The auth screens (/login, /signup, the two reset pages under /login,
+/signup/check-email and /signup/choose-account-type) sit outside both shells.
+Each is one card, `components/auth-card.tsx` (KAN-573): the logo, the h1, a
+subtitle, the page's body and a line of links under it, 360px wide
+(`max-w-auth`) on every screen, and each page exports its own `metadata`. A
+new auth page imports it and never copies its strings: six copies drifted
+until KAN-573, /signup 576px wide and /login 360px. The card sits alone over
+a skyline (`components/skyline.tsx`):
 a white sky thinning to lavender, a low sun on the left, and four rows of flat
 violet towers along the window's floor, each row paler and hazier than the one
 before it, the near ones shaded on their right faces. It is fixed, so the card

@@ -142,6 +142,12 @@ creates the profile row; on failure it resets `account_type` to `None` rather
 than deleting the auth user, since that user's Google/LinkedIn session is real
 and did not originate here.
 
+While the business side is hidden (KAN-239) there is no type to choose, so
+`/auth/callback` posts `applicant` to `/oauth/account-type` itself, refreshes
+the session so the token carries the claim, and sends the new account to
+onboarding; the "Choose Account Type" page is skipped (KAN-573). A failure
+bounces to `/login?error=oauth&reason=account_type_failed`.
+
 ## Claude's sign-in to WorkIt (the connector, KAN-377)
 
 Here WorkIt is the OAuth **server**: a student's Claude signs in to WorkIt

@@ -83,13 +83,30 @@ export async function GET(request: NextRequest) {
   }
 
   if (oauthStatus.needs_account_type) {
-    return NextResponse.redirect(`${origin}/signup/choose-account-type`);
+    // While the business side is hidden (KAN-239) there is nothing to choose,
+    // so the callback finishes the account as an applicant itself (KAN-573)
+    // instead of sending it to /signup/choose-account-type, which asked a
+    // question with no answer. To bring the choice back, redirect there again.
+    const finished = await apiFetch(
+      "/auth/oauth/account-type",
+      { method: "POST", body: JSON.stringify({ accountType: "applicant" }) },
+      data.session.access_token,
+    );
+    if (!finished.ok) {
+      const body = await finished.text().catch(() => "");
+      return bounceToLogin(origin, "account_type_failed", `${finished.status} ${body}`.trim());
+    }
+    // The token was issued before the account type existed: refresh it so it
+    // carries the claim, as chooseAccountType does.
+    await supabase.auth.refreshSession();
+    // A first OAuth sign-in is a new account: onboarding first, as signup.
+    return NextResponse.redirect(`${origin}/onboarding/applicant`);
   }
 
   if (next && oauthStatus.account) return NextResponse.redirect(`${origin}${next}`);
 
-  // A returning sign-in. A first sign-in went to choose-account-type above,
-  // which starts an applicant on onboarding. With no account the API said
+  // A returning sign-in. A first sign-in was finished above and starts on
+  // onboarding. With no account the API said
   // nothing useful, so Home's own sign-in check takes it from there.
   const destination = oauthStatus.account ? homePath(oauthStatus.account) : "/home";
   return NextResponse.redirect(`${origin}${destination}`);

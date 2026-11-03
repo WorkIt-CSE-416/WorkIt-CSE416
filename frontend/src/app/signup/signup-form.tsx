@@ -101,10 +101,10 @@ export function SignupForm({ formId }: { formId: string }) {
             if (next) setCompanyPath(next as CompanyPath);
           }}
           aria-label="Create or Join a Company"
-          /* One column below `sm`, like every paired row in the form below:
-           * at phone width a half-width tile wrapped each label onto two
-           * lines and pushed Join's Soon pill out past its edge. */
-          className="mt-2.5 grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2"
+          /* One column at every width: in the 360px card (AuthCard) a
+           * half-width tile wrapped each label onto two lines and pushed
+           * Join's Soon pill out past its edge. */
+          className="mt-2.5 grid w-full grid-cols-1 gap-2.5"
         >
           {COMPANY_PATHS.map(({ value, label, hint, icon: Icon }) => (
             <ToggleGroupItem
