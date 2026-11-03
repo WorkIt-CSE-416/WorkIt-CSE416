@@ -357,6 +357,7 @@ class _Planned:
         self.questions: list[Question] = []
         self._answers: dict = {}
         self.accepted: dict[str, tuple[str, ...]] = {}  # other wordings Lisul accepts for an answer, by Question name
+        self.blanks: dict[str, str] = {}  # fields the engine's plan leaves blank on purpose, by name: why
         self.holds: list[str] = []
         self.handoffs: list[str] = []  # what Lisul must answer himself; the rest is still filled
         self.written: list[essays.Essay] = []
@@ -430,6 +431,7 @@ class _Planned:
         planned.drafts = [q for q in planned.drafts if not (SECRET.search(q.label) or SECRET.search(q.name))]
         self.banked = planned.banked
         self.accepted = planned.accepted
+        self.blanks = planned.blanks
         if planned.not_eligible:
             return Result(Status.NOT_ELIGIBLE, planned.not_eligible)
         if planned.handoffs:  # a form Lisul finishes gets no Claude call: its one-off questions are his too
@@ -498,7 +500,7 @@ class _Planned:
             + [(str(r).split(":", 1)[0], "filled by Claude for the Filler (a Rescue)") for r in rescued]
         return verify.check(
             self.questions, self.answers, readback, self.profile, self.posting, asked=self.missing,
-            left=self.left | self._skipped, accepted=self.accepted, today=self._today, guessed=guessed, review=review,
+            left=self.left | self._skipped, blanks=self.blanks, accepted=self.accepted, today=self._today, guessed=guessed, review=review,
             essays={e.question.name: e.text for e in self.written if e.text},
             allowed=essays.sources(self.profile, self.known(), facts=True), posting_text=self.text,
             dismissed=verify.dismissed(self.posting.id))

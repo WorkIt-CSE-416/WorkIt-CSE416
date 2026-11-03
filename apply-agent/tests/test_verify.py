@@ -73,6 +73,19 @@ def test_a_blank_optional_field_is_flagged(person, tmp_path):
     assert flag.holds  # a blank optional is a bug (Lisul, 2026-11-02): it needs him, as a blank required one does
 
 
+def test_a_blank_the_engine_meant_is_a_note(person, tmp_path):
+    # Lever's "Other website" when the form asks for the portfolio elsewhere: the engine's plan says why it's blank.
+    questions, answers, readback = filled(person, tmp_path, site=None)
+
+    result = verify.check(questions, answers, readback, person, POSTING, today=TODAY, allowed="Hitachi Rail",
+                          blanks={"site": "The form asks for the website in another field"})
+
+    [flag] = result.flags
+    assert (flag.field, flag.why, flag.holds) == (
+        "Personal website", "left blank on purpose: The form asks for the website in another field", False)
+    assert result.verified and result.label() == "Verified · 1 note"
+
+
 def test_a_blank_optional_self_id_question_is_flagged(person, tmp_path):
     questions, answers, readback = filled(person, tmp_path)
     questions.append(Question("vet", "Veteran status", "select", False, ("I am not a protected veteran", "Decline")))

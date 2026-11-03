@@ -30,8 +30,8 @@ from apply.model import (
 from apply.profile import ApplicantProfile
 from apply.records import SECRET
 
-# The kinds of flag. Each holds a live run (goes to Needs you), except a guess (a note). A blank optional field
-# holds too: a blank optional is a bug (Lisul, 2026-11-02).
+# The kinds of flag. Each holds a live run (goes to Needs you), except a guess and a blank the engine's plan meant
+# and says why (notes). Any other blank optional field holds too: a blank optional is a bug (Lisul, 2026-11-02).
 BLANK, READBACK, FILE, CHOICE, DATE, PAY, PRONOUN, NAME, COMPANY, REVIEW, GUESSED = (
     "blank", "readback", "file", "choice", "date", "pay", "pronoun", "name", "company", "review", "guessed")
 # Starts each flag's part of a held row's reason.
@@ -110,7 +110,7 @@ class Verification:
 
     @property
     def notes(self) -> tuple[Flag, ...]:
-        """The flags only noted: a guess."""
+        """The flags only noted: a guess, a blank the engine's plan meant."""
         return tuple(f for f in self.flags if not f.holds and not f.dismissed)
 
     def label(self) -> str:
@@ -138,14 +138,16 @@ def verifying(verification: "Verification | None") -> dict:
 
 def check(
     questions: QuestionSet, answers: Answers, readback: Readback, profile: ApplicantProfile, posting: Posting, *,
-    asked: Iterable[str] = (), left: Iterable[str] = (), accepted: dict[str, tuple[str, ...]] | None = None,
+    asked: Iterable[str] = (), left: Iterable[str] = (), blanks: dict[str, str] | None = None, accepted: dict[str, tuple[str, ...]] | None = None,
     essays: dict[str, str] | None = None, allowed: str = "", posting_text: str = "", today: date | None = None,
     guessed: Iterable[tuple[str, str]] = (), review: Iterable[str] = (), dismissed: Iterable[tuple[str, str]] = (),
 ) -> Verification:
     """Verify one filled form. `answers` is what Apply meant to fill and
     `readback` what the page shows. `asked` names the Missing facts Lisul is
     asked already (by label) and `left` the fields Apply left blank on purpose
-    (by name): neither is flagged as blank again. `essays` is each essay's
+    (by name): neither is flagged as blank again. `blanks` is each field the
+    engine's plan leaves blank on purpose, by name, with why: a note, which
+    does not hold. `essays` is each essay's
     text by field name (a cover letter given as a file among them); a text
     area's answer is one too. `allowed` is the text an essay may draw on (the
     Story bank, the profile, the Company material): a company it names is no
@@ -158,7 +160,7 @@ def check(
                                    and isinstance(a := readback.get(q.name) or answers.get(q.name), str) and a.strip()}
     labels = {q.name: one_line(q.label) for q in questions}
     flags = (
-        _blanks(questions, answers, readback, set(asked), set(left))
+        _blanks(questions, answers, readback, set(asked), set(left), blanks or {})
         + [Flag(*_split(p), READBACK) for p in fill_engine.readback_problems(questions, answers, readback, accepted)]
         + _files(questions, answers, profile)
         + _choices(questions, readback)
@@ -227,8 +229,9 @@ def _blank(value) -> bool:
     return value in (None, "", []) or (isinstance(value, str) and not value.strip())
 
 
-def _blanks(questions, answers, readback, asked: set[str], left: set[str]) -> list[Flag]:
-    """Each field left blank that Lisul isn't asked already and Apply didn't leave blank on purpose."""
+def _blanks(questions, answers, readback, asked: set[str], left: set[str], planned: dict[str, str]) -> list[Flag]:
+    """Each field left blank that Lisul isn't asked already and Apply didn't leave blank on purpose. One the
+    engine's plan leaves blank on purpose, with why (`planned`), is a note."""
     flags = []
     answered = {_norm(q.label) for q in questions if q.name in answers}
     for q in questions:
@@ -243,6 +246,9 @@ def _blanks(questions, answers, readback, asked: set[str], left: set[str]) -> li
             continue  # an optional "other documents" upload: nothing to give it is right
         if fill_engine.not_called_for(q, questions, answers)[0]:
             continue  # a follow-up the answer before it doesn't call for
+        if q.name in planned:  # the engine meant it, and says why: only noted
+            flags.append(Flag(one_line(q.label), f"left blank on purpose: {planned[q.name]}", BLANK, holds=False))
+            continue
         # An optional one holds as a required one does, a self-ID one too: the profile answers it, a decline at least.
         flags.append(Flag(one_line(q.label), f"left blank ({'required' if q.required else 'optional'})", BLANK))
     return flags

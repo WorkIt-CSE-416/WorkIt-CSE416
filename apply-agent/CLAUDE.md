@@ -331,8 +331,12 @@ reads: it does not click, type or submit.
   blank required field does, also a voluntary self-ID field (Lisul's rule:
   a blank optional is a bug; the profile answers self-ID, a decline at
   least). Only an answer that Claude guessed (a new Answer bank draft, a
-  Rescue) is a note, which does not hold. An approved Hold is not held
-  again by a flag; the read-back still holds it.
+  Rescue) and a blank that the engine's plan meant are notes, which do
+  not hold. The plan lists each field it leaves blank on purpose, with why
+  (`Plan.blanks`: a duplicate "Other website", an "If other" follow-up to
+  another pick, an optional fact the profile lacks); the note says why.
+  An approved Hold is not held again by a flag; the read-back still holds
+  it.
 - In the window, each flag shows with its field and why, and has its own
   Dismiss (`POST /dismiss`). Apply keeps each dismissal for its
   Application in `APPLY_HOME/dismissed-flags.json` (`verify.dismiss`,
