@@ -4,7 +4,7 @@ import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import BaseModel, Field, StringConstraints, field_serializer, model_validator
 
 from app.schemas.bank import EntryResponse, SkillResponse
 from app.schemas.profile import ApplicantProfileResponse
@@ -394,3 +394,12 @@ class FitResponse(BaseModel):
     hidden: list[UUID]
     undo: ChoicesUpdate
     render: RenderResponse
+
+    # `undo` carries only the fields each change sets: a null `variant_id`
+    # is a switch to the bank's wording, so a null for every unset field
+    # made the render refuse it (422). Only `undo`: dropping every null
+    # from the response also dropped the render's null page settings
+    # (`body_size`)
+    @field_serializer("undo")
+    def _undo_sets_only(self, undo: ChoicesUpdate) -> dict:
+        return undo.model_dump(mode="json", exclude_none=True)

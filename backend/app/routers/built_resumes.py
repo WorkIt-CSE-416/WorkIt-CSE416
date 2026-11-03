@@ -347,7 +347,7 @@ def _render_response(
     )
 
 
-@router.post("/{resume_id}/fit", response_model=FitResponse, response_model_exclude_none=True)
+@router.post("/{resume_id}/fit", response_model=FitResponse)
 async def fit(
     resume_id: uuid.UUID,
     applicant_id: uuid.UUID = Depends(owned_applicant),

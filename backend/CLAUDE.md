@@ -918,10 +918,14 @@ Find files with a directory listing; these are the rules for where code goes.
   and answers one cycle's cuts (`fit_page.next_cuts`), compiling nothing
   and reading only the resume's row and its posting; the editor renders
   and saves them as any hide. `POST .../fit` stays for an editor whose API
-  sends no measure. Both answer with `response_model_exclude_none`, so each
-  change carries only the fields it sets: `variant_id: null` means a
+  sends no measure. Each change either one answers carries only the fields
+  it sets: `variant_id: null` means a
   switch to the bank's wording, and the plan's first build, which sent
-  every unset field as null, had its hides refused by the render (422). A cut never leaves an entry with no bullets:
+  every unset field as null, had its hides refused by the render (422).
+  The plan answers with `response_model_exclude_none`; `/fit` drops nulls
+  from `undo` only (`FitResponse`'s serializer), since its render must keep
+  null page settings such as `body_size`, which the route-wide flag dropped
+  (CI, 2026-11-03). A cut never leaves an entry with no bullets:
   the cut of an entry's last bullet takes the entry (the last school
   keeps its bullet instead). A tailored resume is cut by its posting's rank
   (`fit_scores`: `tailor.rank_shown` on the wording the resume shows, and
