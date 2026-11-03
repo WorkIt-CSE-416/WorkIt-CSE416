@@ -1859,10 +1859,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   nothing about the fit, so the score now shares hues with the stages. The
   ramp's pink lives on as the marketing pages' `--color-updates`: a landing
   scene takes that, never a `--color-match-*` token, which turned amber
-  there when the bands changed. **Weak is neutral ink for now** (KAN-569,
-  `--color-match-weak` in `globals.css`): the cut-offs are placeholders, so
-  every job scored Weak and every card drew red. Put it back to
-  `--color-danger` once real cut-offs are set.
+  there when the bands changed. **Weak is red** (`--color-match-weak` is
+  `--color-danger`): KAN-569 drew it in neutral ink while the cut-offs are
+  placeholders, and the user brought the bands back on 2026-11-03, since a
+  black ring read as a fault. Keep all four bands coloured.
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change

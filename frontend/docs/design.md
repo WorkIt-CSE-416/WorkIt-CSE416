@@ -725,8 +725,7 @@ say the same thing about an application (the grid and list, and the board
 when it returns): its role, company, date and match
 score (KAN-256). There is no progress bar; it only restated the stage.
 
-A match score is red, yellow or green (KAN-518): Weak red (neutral ink for
-now, below), Good yellow,
+A match score is red, yellow or green (KAN-518): Weak red, Good yellow,
 Strong green and Excellent a deeper green, so it says good or bad with no
 legend. The four `--color-match-*` tokens in `globals.css` are read only
 through `matchColor()` in `lib/match.ts`: the Applications match badge, the
@@ -739,12 +738,11 @@ green and red with the Offer and Rejected stages, and its shape, a ring or a
 bar with a number, keeps it apart from a stage's chip. A new score display
 takes `matchColor()` and a new stage display takes its stage map, never the
 other's. The marketing pages' pink, which borrowed that ramp, is
-`--color-updates`. **Weak draws in neutral ink for now** (KAN-569):
-`--color-match-weak` is `--color-ink-muted` while the cut-offs in
-`lib/match.ts` are placeholders. Every card on the Jobs page scored under 65,
-so all 50 drew a red ring and the eye had nothing to rank by. Colour stays
-for Good and above, and Weak goes back to `--color-danger` once real
-cut-offs exist.
+`--color-updates`. **Every band keeps its colour, Weak included**
+(2026-11-03). KAN-569 drew Weak in neutral ink while the cut-offs in
+`lib/match.ts` are placeholders, since every card on the Jobs page scored
+under 65 and all 50 drew a red ring. The user brought red back: a black ring
+read as a fault rather than a score.
 
 Intake's step chips say what became of each section with a corner badge
 in two of those (KAN-257): a check on `--color-step-done` green, a dash on
