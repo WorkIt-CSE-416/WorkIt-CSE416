@@ -491,6 +491,11 @@ window's card and tile. Run it with `-k`; it opens Chromium.
 
 ## Rehearsal records
 
+A Workday link is named from the Feed; one the Feed lacks is named by
+Workday's job API, its legal entity trimmed to the company
+(`workday.company_of`: "ASML US, LP. (US30)" is ASML). Unnamed, ASML's
+Record was headed "# : " in a folder named `company-...`.
+
 Every rehearsal outcome writes its Record (`rehearsals/<date>/`), a Handoff or
 a failure too, not only a filled form. A step Workday won't leave keeps what
 was planned and what each field showed up to there

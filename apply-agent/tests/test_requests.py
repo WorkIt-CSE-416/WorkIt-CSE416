@@ -394,3 +394,17 @@ def test_a_pasted_workday_link_is_named_from_the_feed_by_its_req():
     posting, result = resolve(pasted, site)
 
     assert (posting.company, posting.title, posting.url, result) == ("NVIDIA", "2027 Internships: Software Engineering", pasted, None)
+
+
+def test_a_pasted_workday_link_the_feed_lacks_is_named_by_workdays_job_api():
+    # ASML's posting isn't in the Feed; its job API names the legal entity "ASML US, LP. (US30)" (live).
+    pasted = ("https://asml.wd3.myworkdayjobs.com/en-US/asmlext1/job/San-Jose-CA-USA/"
+              "Internship---Software-Engineer-In-Test--MOD-_J-00354568")
+    api = "https://asml.wd3.myworkdayjobs.com/wday/cxs/asml/asmlext1/job/San-Jose-CA-USA/Internship---Software-Engineer-In-Test--MOD-_J-00354568"
+    job = {"hiringOrganization": {"name": "ASML US, LP. (US30)"},
+           "jobPostingInfo": {"title": "Internship - Software Engineer In Test (MOD)", "location": "San Jose, CA, USA"}}
+    site = Pages({LIVE: json.dumps([feed_record()]).encode(), api: json.dumps(job).encode()})
+
+    posting, result = resolve(pasted, site)
+
+    assert (posting.company, posting.title, result) == ("ASML", "Internship - Software Engineer In Test (MOD)", None)

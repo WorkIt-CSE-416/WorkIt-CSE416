@@ -89,10 +89,29 @@ def site_of(url: str) -> str:
 
 def names(url: str, site: JobSite) -> tuple[str, str]:
     """The company and role the Feed lists for a Workday Posting: Workday's own
-    pages name no company, or a legal entity ("2100 NVIDIA USA", live)."""
-    if found := feed.names(url, site.fetch(feed.LIVE)):
-        return found
-    raise LookupError(f"{url} isn't in the Feed")
+    pages name no company, or a legal entity ("2100 NVIDIA USA", live). One the
+    Feed lacks is named by Workday's job API, its legal entity trimmed to the
+    company (ASML's "ASML US, LP. (US30)", live): unnamed, its Record had no company."""
+    try:
+        if found := feed.names(url, site.fetch(feed.LIVE)):
+            return found
+    except Exception:
+        pass  # the Feed unreachable: the job API still names it
+    entity, title = fill_engine.job_names(url, site)
+    return company_of(entity), title
+
+
+# What a legal entity adds to the company's name: a code in brackets, a legal form, a country.
+LEGAL_PART = re.compile(r"\s*\([^)]*\)$|,?\s+(LP|LLP|LLC|L\.L\.C|Inc|Corp|Corporation|Co|Ltd|GmbH|B\.V|N\.V|S\.A|PLC)\.?$"
+                        r"|\s+(US|USA|U\.S\.A?)\.?$", re.IGNORECASE)
+
+
+def company_of(entity: str) -> str:
+    """The company a Workday legal entity names: "ASML US, LP. (US30)" is ASML."""
+    name = entity.strip()
+    while (shorter := LEGAL_PART.sub("", name).strip()) and shorter != name:
+        name = shorter
+    return name
 
 
 def next_step(page: Page, step: str) -> None:
