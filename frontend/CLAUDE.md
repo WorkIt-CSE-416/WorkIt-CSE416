@@ -1397,25 +1397,49 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   sooner than 300 ms after the shell's first frame, so a fast page can land
   up to about 300 ms later on a hard load; only slow pages gain. The real
   signed-in spread is unmeasured.
-- **The seeker pages stand on a grey ground** (`bg-app` on `<main>`,
-  2026-11-02, after Simplify and Jobright): all white left cards and panels
-  with nothing to sit on. The top bar and sidebar stay white. The company
+- **The seeker pages stand on a near-white ground** (`bg-app` on `<main>`,
+  #fcfcfc, 2026-11-03, as Simplify's is). The ground was white until
+  2026-11-02, and white cards blended into it; then grey (#f5f5f5), and the
+  user found every white card and light edge muted on it. **A card's outer
+  edge is `border-control`, as a button's is** (2026-11-03): `Card` draws
+  it, and a hand-drawn page-level surface (a calendar frame, a table box)
+  uses it too. Rules inside a card and boxes nested in one stay
+  `border-subtle` (#e8e8e8): darkening that token darkened them as well,
+  and every card read as a heavy box. The top bar and sidebar stay white. The company
   shell took the same ground, the same 1440px column and gutter
   (`company/frame.ts`) and the title in its bar (`company/bar-title.tsx`) in
   KAN-582 (`docs/design.md`, The two shells); its docked, pinned panel
   still differs. A sticky bar on the ground is `bg-app`, not `bg-panel`,
-  or a white band shows when it sticks. **The grey is the ground's alone:
-  anything on the ground, or at a card's edge, is `bg-panel`** (2026-11-03).
+  or a white band shows when it sticks. **Anything on the ground, or at a
+  card's edge, is `bg-panel`** (2026-11-03).
   A field on the ground is white with a `border-control` edge, as
   `TextField` and `SearchField` are, and a panel at a card's edge (the match
-  rail) is white with a hairline. A grey fill (`bg-well`, `bg-ink/5`) goes
-  only inside a white surface, away from its edge: the search bar's 5% wash
-  and the match rail's `bg-well` were each one shade off the ground, and both
+  rail) is white with an #e8e8e8 rule. A grey fill goes only inside a white surface, away from its
+  edge, and is `bg-well` (#f5f5f5, the old ground) or `bg-ink/5`, never
+  `bg-app` or `bg-canvas`: those are the near-white ground, and an uploaded-
+  file row or a calendar day outside the month in `bg-app` lost its fill
+  when the ground went near white. The search bar's 5% wash and the match
+  rail's `bg-well` were each one shade off the old grey ground, and both
   blended into the Jobs page. A see-through ink wash stays for a track inside
   a control (the Segmented Control's, under its white thumb). A control takes
   a `border-control` edge (KAN-556): a fill alone was a 1.1:1 edge on the
-  grey, and a card's edge is decoration only (`docs/design.md`, Components).
-  Skeletons are `bg-ink/6`, so they show on white and on grey.
+  old grey, and a rule is decoration only (`docs/design.md`, Components).
+  Outlined buttons and chips take it too (2026-11-03): a filter row in
+  `border-subtle` under the dark-edged search pill read as a mismatch, so
+  a hand-drawn button uses `border-control`, never `border-subtle`. A
+  selected or in-use edge is solid `border-brand` over `bg-brand-tint`, never
+  `brand/50` or `brand-pale`, and a hover edge is `ink-meta`, never purple
+  (`docs/design.md`, Components): a filter in use in light purple beside the
+  open job's solid brand edge read as inconsistent. Rules meet in a T, never a
+  "+": a column's edge and a row's rule never both run through the point
+  where they meet (`docs/design.md`, Components); the rail's logo header, the
+  company bar's corner and the split view's list heading each crossed one
+  until 2026-11-03. The seeker top bar's rule and the rail's edge are
+  `border-control` too (2026-11-03); the company shell keeps its lavender
+  `rail-border`. A "·" between facts is round: the "Round Dot" face in
+  `globals.css` draws U+00B7 from Georgia, since Jakarta's is square; keep
+  typing "·" and never draw a dot in markup (`docs/design.md`, Components).
+  Skeletons are `bg-ink/6`, so they show on white and on the ground.
 - **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
   2026-11-02): it lands on the row at once, because the slide read as
   confusing. Only the hover fill glides.
@@ -1741,6 +1765,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   needs `flex-none` at its fixed height, or the rail grows with its list and
   never scrolls. It is one panel in the page's gutters, after Simplify's,
   rounded at the top and open at the foot of the window, with the job's card flat inside it and no rule under the filters.
+  In the panel each job in the list is a card of its own in `border-control`,
+  the open one in brand (`SPLIT_ROW` in `jobs/jobs-rail.tsx`, 2026-11-03).
+  The panel's edge, the list's edge and the rule under the job's action bar
+  are all `border-control`; rules inside the job's own content stay light.
   The rail beside a job opened from Cards has no panel: it stands off the sidebar
   by the page gutter less its rows' padding, since flush it read as one block
   with the sidebar.
@@ -1786,13 +1814,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **An icon's colour says its job** (`docs/design.md`, Components): black to
   click, purple when on, grey for information. Never set a clickable icon to
   `text-ink-meta`.
-- **Contrast is measured on white and on the grey ground** (KAN-555,
+- **Contrast is measured on white and on `well`** (KAN-555,
   `docs/design.md`, Components): a word 4.5:1, a live glyph or chart mark
   3:1. `ink-faint` and `ink-subtle` never colour a word or a live arrow (a
   resting sort chevron, a dropdown's arrow are `ink-meta`), and
   `--color-positive` never sits under a word or a white glyph: the green
   button and done discs fill with `positive-ink`. A new grey or green is
-  checked against `--color-app` (#f5f5f5) too, where `ink-faint` is 2.85:1.
+  checked against `--color-well` (#f5f5f5, the old ground and the darkest
+  surface words sit on) too, where `ink-faint` is 2.85:1.
 - **A form's buttons sit by its kind** (`docs/design.md`, Components): a
   page or Settings form left, Save first; a dialog or a card edited in place
   right, Save last; a wizard Back on the left and the forward button on the

@@ -32,7 +32,7 @@ export default function DesignKitIndexPage() {
               padding="md"
               /* The whole card is the target, so the link fills it rather than
                * being a few words inside it. */
-              className="hover:border-brand/40 h-full transition-colors"
+              className="hover:border-ink-meta h-full transition-colors"
             >
               <Link
                 href={`/design-kit/${slug}`}

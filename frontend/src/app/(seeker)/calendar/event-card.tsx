@@ -202,7 +202,7 @@ function EventCard({
           <p className="text-caption text-ink-meta font-medium">
             {event.source === "gmail" ? "From the Email" : "Your Note"}
           </p>
-          <p className="text-note text-ink-muted bg-app rounded-control mt-1 max-h-32 overflow-y-auto px-3 py-2 whitespace-pre-line">
+          <p className="text-note text-ink-muted bg-well rounded-control mt-1 max-h-32 overflow-y-auto px-3 py-2 whitespace-pre-line">
             {event.note}
           </p>
         </div>

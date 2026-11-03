@@ -118,7 +118,7 @@ export function SignupForm({ formId }: { formId: string }) {
                * its Soon pill, so the pill reads the same as the one on the
                * divider below; disabled:opacity-100 cancels the vendored
                * toggle's whole-tile disabled:opacity-50. */
-              className="rounded-control border-border-subtle text-ink-muted hover:bg-hover hover:text-ink aria-pressed:border-brand/50 aria-pressed:bg-brand-tint aria-pressed:text-brand-ink flex h-auto flex-col items-start gap-0.5 border px-3.5 py-2.5 text-left whitespace-normal disabled:opacity-100"
+              className="rounded-control border-border-control text-ink-muted hover:bg-hover hover:text-ink aria-pressed:border-brand aria-pressed:bg-brand-tint aria-pressed:text-brand-ink flex h-auto flex-col items-start gap-0.5 border px-3.5 py-2.5 text-left whitespace-normal disabled:opacity-100"
             >
               <span className="text-label flex items-center gap-2">
                 <Icon aria-hidden className="size-4 group-disabled/toggle:opacity-50" />

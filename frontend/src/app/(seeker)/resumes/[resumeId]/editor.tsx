@@ -2715,7 +2715,7 @@ function SlimBar({
           aria-pressed={experiences.picker.open}
           title="Pick what this resume shows"
           className={cn(
-            experiences.picker.open && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
+            experiences.picker.open && "border-brand bg-brand-tint text-brand hover:bg-brand-tint",
           )}
           onClick={experiences.picker.onToggle}
         >

@@ -34,7 +34,7 @@ export const chipVariants = cva(
     variants: {
       variant: {
         choice: "",
-        suggestion: "border-brand-pale bg-panel text-brand hover:bg-brand-tint",
+        suggestion: "border-brand bg-panel text-brand hover:bg-brand-tint",
         primary: "bg-brand text-on-brand hover:bg-brand-hover border-transparent",
       },
       pressed: { true: "", false: "" },
@@ -47,7 +47,7 @@ export const chipVariants = cva(
       {
         variant: "choice",
         pressed: false,
-        class: "border-border-subtle bg-panel text-ink-muted hover:border-border hover:text-ink",
+        class: "border-border-control bg-panel text-ink-muted hover:border-ink-meta hover:text-ink",
       },
       { variant: "choice", pressed: true, class: "border-brand bg-brand-tint text-brand" },
     ],

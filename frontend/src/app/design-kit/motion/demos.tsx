@@ -56,7 +56,7 @@ function Specimen({ cls, demo }: { cls: string; demo: Demo }) {
       return (
         <span
           className={cn(
-            "bg-panel border-border-subtle rounded-card shadow-panel block h-12 w-24 border",
+            "bg-panel border-border-control rounded-card shadow-panel block h-12 w-24 border",
             cls,
           )}
         />
@@ -162,7 +162,7 @@ function Specimen({ cls, demo }: { cls: string; demo: Demo }) {
       return (
         <IconButton
           label="Notifications"
-          className="group/bell bg-app hover:bg-selected size-10 rounded-full"
+          className="group/bell bg-well hover:bg-selected size-10 rounded-full"
         >
           <BellIcon className="group-hover/bell:animate-swing size-4 origin-[50%_15%]" />
         </IconButton>
@@ -252,7 +252,7 @@ export function ReflowDemo() {
       <ul className="flex flex-wrap gap-2">
         {order.map((stage) => (
           <ViewTransition key={stage} update="reflow" default="none">
-            <li className="bg-app text-note text-ink rounded-control px-3 py-1.5 font-medium">
+            <li className="bg-well text-note text-ink rounded-control px-3 py-1.5 font-medium">
               {stage}
             </li>
           </ViewTransition>

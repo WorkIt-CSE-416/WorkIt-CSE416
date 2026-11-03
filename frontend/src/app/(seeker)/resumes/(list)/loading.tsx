@@ -41,7 +41,7 @@ export default function ResumesLoading() {
           {Array.from({ length: 4 }, (_, i) => (
             <div
               key={i}
-              className="border-border-subtle bg-app rounded-control mt-2 flex items-center gap-3 border p-2"
+              className="border-border-subtle bg-well rounded-control mt-2 flex items-center gap-3 border p-2"
             >
               <Skeleton className="size-5 shrink-0" />
               <span className="flex min-w-0 flex-1 flex-col gap-1.5 py-0.5">

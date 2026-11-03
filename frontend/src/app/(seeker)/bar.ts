@@ -6,7 +6,7 @@
  * two cannot drift. Its own module because a layout file may only export what
  * Next.js expects of one.
  */
-export const BAR_ICON = "text-ink hover:bg-app hover:text-ink size-10 rounded-full";
+export const BAR_ICON = "text-ink hover:bg-well hover:text-ink size-10 rounded-full";
 
 /** The page's title in the top bar (./bar-title.tsx): the old page heading's
  *  size, a step smaller on a phone, where the toggle, the bell and the photo

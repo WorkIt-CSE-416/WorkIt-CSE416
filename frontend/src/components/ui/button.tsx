@@ -138,10 +138,10 @@ export const buttonVariants = cva(
          *  --color-surface itself, Google and LinkedIn sank into the card
          *  (KAN-259). On a white page the two are all but the same. */
         secondary:
-          "border-border-subtle bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
+          "border-border-control bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
         /** Brand outline — an action inside an already-recessed area. */
         outline:
-          "border-brand/50 text-brand hover:bg-brand/5 focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
+          "border-brand text-brand hover:bg-brand/5 focus-visible:ring-brand-ring rounded-control border focus-visible:ring-[3px]",
         /** Positive fill — accepting an offer. The board's only green action,
          *  and the only place a control is not brand-coloured. No shadcn
          *  equivalent: its palette has no success role. */

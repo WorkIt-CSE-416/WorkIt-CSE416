@@ -39,7 +39,7 @@ export function facetClasses(active: boolean, className?: string) {
   return cn(
     buttonClasses({ variant: "secondary", size: "sm" }),
     "justify-between",
-    active && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
+    active && "border-brand bg-brand-tint text-brand hover:bg-brand-tint",
     className,
   );
 }

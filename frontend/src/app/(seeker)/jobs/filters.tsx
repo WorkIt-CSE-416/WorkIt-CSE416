@@ -97,12 +97,13 @@ import type { JobFacets, JobLocationOption } from "./listings";
 
 /** The look every facet's button shares, Select or Popover: a small
  *  secondary button that picks up a brand tint once the facet has a pick and
- *  its popup is closed, the one visible signal that it is in use. */
+ *  its popup is closed, the one visible signal that it is in use. The edge is
+ *  solid brand, as a selected card's and a pressed chip's are (2026-11-03). */
 function facetTriggerClasses(count: number, open: boolean, className?: string) {
   return cn(
     buttonClasses({ variant: "secondary", size: "sm" }),
     "h-auto justify-between",
-    count > 0 && !open && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
+    count > 0 && !open && "border-brand bg-brand-tint text-brand hover:bg-brand-tint",
     className,
   );
 }
