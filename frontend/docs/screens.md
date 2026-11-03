@@ -571,6 +571,11 @@ too, with nothing for a screen reader. A live fetch in a page calls
 
 /home is the seeker's home: sign-in lands there.
 
+**Its title is the greeting** in the top bar ("Good Evening, Alex", by the
+student's clock; `(seeker)/greeting.tsx`). Below sm it is "Hi, Alex", with
+the full line as its `title` (KAN-570): in a phone's bar the full line cut
+the name off.
+
 **Next Up, Up Next and Waiting are archived for now** (KAN-261), and the
 header's Find Jobs button is gone (the sidebar's Jobs row and the Good
 Matches tile lead there). The tracker stores no dated events yet, so Next Up and

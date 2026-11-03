@@ -154,6 +154,14 @@ is the one today; a new right-side sheet gets the look for free. **Re-running
 `shadcn add sheet` undoes both**: diff the file after any `add`, and keep
 the fork's note at the top of `SheetOverlay`.
 
+#### Sidebar is forked: the phone sheet is named "Menu"
+
+`src/components/shadcn/sidebar.tsx` names the phone's sheet "Menu" (KAN-570),
+where shadcn wrote "Sidebar": its title is the sheet's accessible name, and a
+call site cannot reach it. The toggles are named at their call sites with
+`aria-label`, which wins over shadcn's hidden "Toggle Sidebar". **Re-running
+`shadcn add sidebar` undoes the name**: diff the file after any `add`.
+
 #### The other exception: Select is wrapped, not replaced
 
 `src/components/ui/select.tsx` is a third shape, and worth knowing about before

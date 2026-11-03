@@ -1440,7 +1440,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   address, so it shows before the page streams in; a new section joins `TITLES`
   there. It is the page's h1 on a section's own page, and a plain line on a page
   under it (a job, a resume, an application), which has its own h1. Home's title
-  is the greeting, which the layout reads with the account. **Job search is on
+  is the greeting, which the layout reads with the account; below sm it is
+  "Hi, Alex" with the full line as its `title` (KAN-570), since the full line
+  cut the name off in a phone's bar. **The bell shows at every width in both
+  shells** (KAN-570): the phone bar dropped its logo mark (the sheet's header
+  has it) to make room. **Job search is on
   the Jobs page and /search only** (`search/job-search.tsx`): in the bar it
   showed on every page, and it took the phone's magnifier and sheet with it.
   Each page's own heading and line under the bar went, about 60px a page: the

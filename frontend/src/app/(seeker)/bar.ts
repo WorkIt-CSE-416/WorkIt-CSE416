@@ -9,6 +9,6 @@
 export const BAR_ICON = "text-ink hover:bg-app hover:text-ink size-10 rounded-full";
 
 /** The page's title in the top bar (./bar-title.tsx): the old page heading's
- *  size, a step smaller on a phone, where the mark and the photo share the
- *  bar. One line, cut short rather than taller than the bar. */
+ *  size, a step smaller on a phone, where the toggle, the bell and the photo
+ *  share the bar. One line, cut short rather than taller than the bar. */
 export const BAR_TITLE = "text-title md:text-heading text-ink truncate";
