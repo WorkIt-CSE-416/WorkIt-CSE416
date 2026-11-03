@@ -775,7 +775,7 @@ window.renderInbox = (state) => {
   drawRun(state);
   drawHistory(state);
   document.querySelectorAll('.note .chrome').forEach(b => b.hidden = !(state.context || {}).show);
-  const shown = JSON.stringify([state.items.map(i => [i.id, i.status, i.tone, i.questions]), (state.tiles || []).map(t => [t.posting_url, t.status]),
+  const shown = JSON.stringify([state.items.map(i => [i.id, i.status, i.tone, i.questions, i.answered]), (state.tiles || []).map(t => [t.posting_url, t.status]),
                                 state.context, state.summary, [...dismissed], Math.floor(Date.now() / 60000)]);
   if (shown === drawn) return;
   drawn = shown;
