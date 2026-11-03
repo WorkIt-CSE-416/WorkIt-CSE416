@@ -957,6 +957,19 @@ is no backfill. Only the import writes it (`../CLAUDE.md`, The feed import).
 A reason added to the CHECK goes into the import's `CLOSED_REASONS` too, or
 the import files it as `unknown`.
 
+**`unlisted` is a scraped-shape job that one student added by its link**
+(`c2e4a6b8d051`, KAN-542, `../../docs/adr/0008-unlisted-job-postings.md`):
+`company_id` NULL, with only the company, title, link and a level. No
+query that lists jobs to students returns it: `services/postings.py`'s
+`LISTED` asks for `published`, and the import's close step touches only
+`published`. Only a student with an application on it reaches it (through
+the tracker and `POST /jobs/{id}/applied`). The feed import publishes it
+when the scraper finds the same job (`../CLAUDE.md`, The feed import).
+**SQL names it as text** (`UNLISTED`, `status::text = 'unlisted'`): Postgres
+refuses a query that names an enum value its type lacks, so a query that
+named it as the enum would fail on a database without the migration (the
+same failure as `dto.BEFORE_APPLIED`'s).
+
 **`company_domain` is the employer's own website, for its logo**
 (`d9b579e66623`, KAN-442): the registered domain the scraper found
 (`goldmansachs.com`), never a careers subdomain or a hiring vendor's host
