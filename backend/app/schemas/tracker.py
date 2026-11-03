@@ -17,6 +17,10 @@ class StageChange(BaseModel):
     applied or later: a record never goes back to a bookmark or the queue."""
 
     stage: Literal["applied", "interviewing", "offer", "rejected"]
+    # The day the student really applied (the Tracker Sheet import, KAN-545):
+    # the application's applied date becomes that day. Left out, an
+    # application with no applied date gets today's.
+    applied_on: datetime.date | None = None
 
 
 class ApplyByChange(BaseModel):
