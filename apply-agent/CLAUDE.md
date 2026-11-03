@@ -303,13 +303,19 @@ reads: it does not click, type or submit.
   Rescue) is a note, which does not hold. An approved Hold is not held
   again by a flag; the read-back still holds it.
 - In the window, each flag shows with its field and why, and has its own
-  Dismiss. When Lisul dismisses every flag of a live run's Hold, it shows
-  Approve (`POST /approve` takes a `check` item that is held).
+  Dismiss (`POST /dismiss`). Apply keeps each dismissal for its
+  Application in `APPLY_HOME/dismissed-flags.json` (`verify.dismiss`,
+  `verify.dismissed`). A dismissed flag does not show after a window
+  reload or in a new window (`verify.without_dismissed`), and it does not
+  hold a new run of the same Application: `verify.check(dismissed=...)`
+  keeps it in `verification.json` with `dismissed: true`. When every flag
+  of a live run's Hold is dismissed, the Hold shows Approve.
 - The Record keeps `verification.json` and a Verification section in its
   README.
 
 **Tests.** `tests/test_verify.py`: a fake form with planted problems, a
-clean form, a live run held by a flag, and the window's states. A
+clean form, a live run held by a flag, a dismissed flag in the window and
+in a new run, and the window's states. A
 whole-run test of something else, on a saved form whose optional fields
 stay blank, uses the `blank_optionals_noted` fixture (tests/conftest.py).
 

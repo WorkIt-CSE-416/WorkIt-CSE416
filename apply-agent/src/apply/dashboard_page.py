@@ -563,8 +563,7 @@ window.openChrome = async (k) => {
 const action = (item) => {
   const k = liveTile(item), ctx = last.context || {};
   if (item.kind === 'missing fact' && ctx.answers) return null;
-  const cleared = item.kind === 'check' && item.status === 'held' && item.flags && !flagsLeft(item).length;
-  if ((item.kind === 'held' || cleared) && ctx.approve && item.application_id) return make('button', {className: 'primary', textContent: 'Approve',
+  if (item.kind === 'held' && ctx.approve && item.application_id) return make('button', {className: 'primary', textContent: 'Approve',
     title: 'It is sent at the next check', onclick: async (e) => {  // approving resolves it
       e.target.disabled = true;
       try {
@@ -589,14 +588,22 @@ const action = (item) => {
   if (item.posting_url) return make('a', {className: 'button', href: item.posting_url, target: '_blank', textContent: 'Open the posting ↗'});
   return null;
 };
-// Verifying's flags (apply.verify): each its field and why, each dismissed on its own. A Hold of a live run
-// whose every flag is dismissed can then be approved.
-const flagKey = (item, f) => `${item.id}|flag|${f.field}|${f.why}`;
-const flagsLeft = (item) => (item.flags || []).filter(f => !dismissed.has(flagKey(item, f)));
-const flagList = (item) => make('ul', {className: 'flags'}, flagsLeft(item).map(f => make('li', {},
+// Verifying's flags (apply.verify): each its field and why, each dismissed on its own. Apply keeps a dismissal
+// for the Application (verify.dismiss): its flag is gone after a reload and holds no new run. A Hold of a live
+// run whose every flag is dismissed can then be approved.
+const flagList = (item) => make('ul', {className: 'flags'}, (item.flags || []).map(f => make('li', {},
   f.field ? make('b', {textContent: f.field}) : null, make('span', {textContent: f.field ? ` ${f.why}` : f.why}),
   make('button', {className: 'tonal', textContent: 'Dismiss', title: 'Nothing to fix here: drop this flag',
-    onclick: () => { dismissed.add(flagKey(item, f)); keepDismissed(); drawInbox(); }}))));
+    onclick: async (e) => {
+      e.target.disabled = true;
+      try {
+        const reply = await fetch('/dismiss', {method: 'POST', body: JSON.stringify({id: item.id, field: f.field, why: f.why}),
+                                               headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+        const data = await reply.json();
+        if (!reply.ok) throw new Error(data.error || 'Not dismissed.');
+        refresh();
+      } catch (err) { toast(err.message || 'Apply is not answering: is it still running?'); e.target.disabled = false; }
+    }}))));
 const dismiss = (item) => make('button', {className: 'close', textContent: '×', title: 'Hide it here; your Tracker keeps it',
   ariaLabel: 'Dismiss', onclick: () => {
     dismissed.add(item.id); keepDismissed(); drawInbox();
@@ -765,8 +772,7 @@ const empty = () => {
 };
 const drawInbox = () => {
   if (!last) return;
-  const items = last.items.filter(i => !dismissed.has(i.id) && !i.answered
-                                       && !(i.flags && !flagsLeft(i).length && i.status !== 'held'));
+  const items = last.items.filter(i => !dismissed.has(i.id) && !i.answered);
   const asks = items.filter(i => i.tone === 'needs'), failed = items.filter(i => i.tone === 'failed');
   const list = document.getElementById('inbox-list');
   const keep = document.activeElement && document.activeElement.closest('.item')?.dataset.id;
@@ -820,7 +826,7 @@ window.renderInbox = (state) => {
   drawRun(state);
   drawHistory(state);
   document.querySelectorAll('.note .chrome').forEach(b => b.hidden = !(state.context || {}).show);
-  const shown = JSON.stringify([state.items.map(i => [i.id, i.status, i.tone, i.questions, i.answered]), (state.tiles || []).map(t => [t.posting_url, t.status]),
+  const shown = JSON.stringify([state.items.map(i => [i.id, i.status, i.tone, i.kind, i.flags, i.questions, i.answered]), (state.tiles || []).map(t => [t.posting_url, t.status]),
                                 state.context, state.summary, [...dismissed], Math.floor(Date.now() / 60000)]);
   if (shown === drawn) return;
   drawn = shown;

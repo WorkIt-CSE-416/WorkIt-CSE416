@@ -4,6 +4,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from test_dashboard import window  # noqa: F401 (a fixture)
 
 from apply import verify
 from apply.model import Posting, Question
@@ -202,6 +203,18 @@ def test_a_guess_is_noted_but_still_verified(person, tmp_path):
     assert result.label() == "Verified · 1 note"
 
 
+def test_a_flag_lisul_dismissed_holds_this_application_no_more(person, tmp_path):
+    verify.dismiss("p1", "Personal website", "left blank (optional)")
+    questions, answers, readback = filled(person, tmp_path, site=None)
+
+    result = verify.check(questions, answers, readback, person, POSTING, today=TODAY, allowed="Hitachi Rail",
+                          dismissed=verify.dismissed("p1"))
+
+    assert result.verified and result.label() == "Verified"
+    assert [(f.field, f.dismissed) for f in result.flags] == [("Personal website", True)]
+    assert verify.dismissed("p2") == set()  # per application: another one still flags it
+
+
 def test_every_planted_problem_is_flagged_at_once(person, tmp_path):
     essay = "Test Person built tools at Hitachi Rail. He wants to work at Stripe."
 
@@ -223,6 +236,18 @@ def test_a_live_run_holds_a_flagged_application_and_never_submits_it(monkeypatch
     assert row.status == "held"
     assert "Verify: Cover Letter: names Stripe, another company" in row.reason
     assert form.submitted == []
+
+
+def test_a_flag_dismissed_before_holds_a_new_run_of_that_application_no_more(monkeypatch):
+    from fakes import FakeClaude
+    from test_claude_answers import ResearchForm, run
+
+    letter = "I build software that has to work the first time, and I want to bring that to Stripe."
+    verify.dismiss("posting-1", "Cover Letter", "names Stripe, another company (this form is Example Co's)")
+
+    row = run(monkeypatch, ResearchForm("Varda Space"), FakeClaude(essays={"Cover Letter": letter}))
+
+    assert "Verify: " not in row.reason
 
 
 # The Apply window: a tile and a Needs you card say how verifying went.
@@ -274,3 +299,69 @@ def test_a_tracker_row_held_by_a_flag_still_needs_lisul():
 
     assert (shown["tone"], shown["kind"]) == ("needs", "check")
     assert "Why Arc?: names Stripe" in shown["why"]
+
+
+def post_dismiss(board, item, flag, token=None):
+    import json
+    import urllib.request
+    body = json.dumps({"id": item["id"], "field": flag["field"], "why": flag["why"]}).encode()
+    return urllib.request.urlopen(urllib.request.Request(board.url + "/dismiss", body,
+                                                         {"X-Apply-Token": token or board.token}))
+
+
+def test_a_flag_dismissed_in_the_window_is_kept_past_a_reload_and_a_new_window():
+    from test_dashboard import NoFrames, held_row
+
+    from apply.dashboard import Dashboard
+
+    why = "Verify: Why Arc?: names Stripe, another company"
+    with Dashboard(1, NoFrames(), approve=lambda i: "Approved.") as board:
+        board.update(0, company="Arc", role="Intern", posting_url="https://arc.example/1", application_id="arc-1",
+                     status="held", why=why, **verify.verifying(FLAGGED))
+        [item] = board.state()["items"]
+        assert item["kind"] == "check" and item["flags"] == [{"field": "Why Arc?", "why": "names Stripe, another company"}]
+
+        post_dismiss(board, item, item["flags"][0])
+
+        [item] = board.state()["items"]  # what the window reads again on a reload
+        assert item["kind"] == "held" and "flags" not in item  # every flag dismissed: his to approve
+    assert verify.dismissed("arc-1") == {("Why Arc?", "names Stripe, another company")}
+
+    # A new window, with the held row read from the Tracker: the flag stays dismissed.
+    with Dashboard(0, NoFrames(), past=lambda: [held_row(application_id="arc-1", reason=why)]) as board:
+        [item] = board.state()["items"]
+        assert item["kind"] == "held"
+
+
+def test_a_dismissal_from_anywhere_but_the_window_is_refused():
+    import urllib.error
+
+    from test_dashboard import NoFrames
+
+    from apply.dashboard import Dashboard
+
+    with Dashboard(1, NoFrames()) as board:
+        board.update(0, company="Arc", application_id="arc-1", status="held",
+                     why="Verify: Why Arc?: names Stripe, another company", **verify.verifying(FLAGGED))
+        [item] = board.state()["items"]
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            post_dismiss(board, item, item["flags"][0], token="guessed")
+    assert refused.value.code == 403 and verify.dismissed("arc-1") == set()
+
+
+def test_lisul_dismisses_a_flag_on_its_card_and_it_stays_gone_after_a_reload(window):
+    from test_dashboard import NoFrames
+
+    from apply.dashboard import Dashboard
+
+    with Dashboard(1, NoFrames(), approve=lambda i: "Approved.") as board:
+        board.update(0, company="Arc", role="Intern", posting_url="https://arc.example/1", application_id="arc-1",
+                     status="held", why="Verify: Why Arc?: names Stripe, another company", **verify.verifying(FLAGGED))
+        window.goto(board.url)
+        card = "#inbox .item:has-text('Arc')"
+        window.click(f"{card} .flags button:has-text('Dismiss')")
+        window.wait_for_selector(f"{card} button:has-text('Approve')", timeout=10_000)
+        window.reload()
+
+        window.wait_for_selector(f"{card} button:has-text('Approve')", timeout=10_000)
+        assert window.locator(f"{card} .flags li").count() == 0

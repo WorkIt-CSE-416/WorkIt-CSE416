@@ -8,13 +8,17 @@ contradict each other, an essay wrong for its question) are the Pre-submit
 review's (apply.presubmit), whose findings join the flags. Verifying only
 reads: it never clicks, types or submits."""
 
+import fcntl
+import json
+import os
 import re
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import date
 from pathlib import Path
 
 from apply import fill_engine
+from apply.home import HOME
 from apply.model import (
     Answers,
     Posting,
@@ -32,6 +36,8 @@ BLANK, READBACK, FILE, CHOICE, DATE, PAY, PRONOUN, NAME, COMPANY, REVIEW, GUESSE
     "blank", "readback", "file", "choice", "date", "pay", "pronoun", "name", "company", "review", "guessed")
 # Starts each flag's part of a held row's reason.
 PREFIX = "Verify: "
+# The flags Lisul dismissed, by Application ID: each Application's Record keeps them, past a reload or a new run.
+DISMISSED = HOME / "dismissed-flags.json"
 
 # Employers an essay may name by mistake (one written for another form), beside the policies' named companies.
 COMPANIES = (
@@ -80,6 +86,7 @@ class Flag:
     why: str
     kind: str
     holds: bool = True  # a live run holds the Application for it; a guess is only noted
+    dismissed: bool = False  # Lisul dismissed it for this Application: it holds no more
 
     def line(self) -> str:
         return f"{self.field}: {self.why}" if self.field else self.why
@@ -104,7 +111,7 @@ class Verification:
     @property
     def notes(self) -> tuple[Flag, ...]:
         """The flags only noted: a guess."""
-        return tuple(f for f in self.flags if not f.holds)
+        return tuple(f for f in self.flags if not f.holds and not f.dismissed)
 
     def label(self) -> str:
         """"Verified" (with its notes, if any), or "Verified with N items that need you"."""
@@ -133,7 +140,7 @@ def check(
     questions: QuestionSet, answers: Answers, readback: Readback, profile: ApplicantProfile, posting: Posting, *,
     asked: Iterable[str] = (), left: Iterable[str] = (), accepted: dict[str, tuple[str, ...]] | None = None,
     essays: dict[str, str] | None = None, allowed: str = "", posting_text: str = "", today: date | None = None,
-    guessed: Iterable[tuple[str, str]] = (), review: Iterable[str] = (),
+    guessed: Iterable[tuple[str, str]] = (), review: Iterable[str] = (), dismissed: Iterable[tuple[str, str]] = (),
 ) -> Verification:
     """Verify one filled form. `answers` is what Apply meant to fill and
     `readback` what the page shows. `asked` names the Missing facts Lisul is
@@ -143,7 +150,9 @@ def check(
     area's answer is one too. `allowed` is the text an essay may draw on (the
     Story bank, the profile, the Company material): a company it names is no
     other company's name. `guessed` is each (question, answer) Claude
-    guessed, and `review` each problem the Pre-submit review found."""
+    guessed, and `review` each problem the Pre-submit review found.
+    `dismissed` is each (field, why) Lisul dismissed for this Application
+    (dismissed()): its flag is kept, marked dismissed, and holds no more."""
     today = today or date.today()
     essays = dict(essays or {}) | {q.name: a for q in questions if q.kind == "textarea"
                                    and isinstance(a := readback.get(q.name) or answers.get(q.name), str) and a.strip()}
@@ -160,7 +169,52 @@ def check(
         + [Flag(*_split(p), REVIEW) for p in review]
         + [Flag(q, f"Claude guessed this answer: {one_line(a)}", GUESSED, holds=False) for q, a in guessed]
     )
+    gone = set(dismissed)
+    flags = [replace(f, holds=False, dismissed=True) if (f.field, f.why) in gone else f for f in flags]
     return Verification(tuple(dict.fromkeys(flags)), sum(1 for q in questions if q.name in readback))
+
+
+def dismissed(application_id: str) -> set[tuple[str, str]]:
+    """Each (field, why) Lisul dismissed for this Application."""
+    return {tuple(f) for f in _read_dismissed().get(str(application_id), [])}
+
+
+def dismiss(application_id: str, field: str, why: str) -> None:
+    """Lisul dismissed this flag of this Application: it holds it no more, in this run or the next."""
+    DISMISSED.parent.mkdir(parents=True, exist_ok=True)
+    with open(DISMISSED.with_suffix(".lock"), "a") as lock:  # the window's threads and other runs share the file
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        every = _read_dismissed()
+        mine = every.setdefault(str(application_id), [])
+        if [field, why] not in mine:
+            mine.append([field, why])
+        part = DISMISSED.with_suffix(".part")
+        part.write_text(json.dumps(every, indent=2, ensure_ascii=False) + "\n")
+        os.replace(part, DISMISSED)
+
+
+def _read_dismissed() -> dict[str, list[list[str]]]:
+    try:
+        return json.loads(DISMISSED.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def without_dismissed(item: dict) -> dict:
+    """A tile's caption or a window item, with the flags Lisul dismissed for its Application (dismiss()) holding
+    it no more: marked dismissed in its verification, and out of its reason."""
+    application = str(item.get("application_id") or "")
+    gone = dismissed(application) if application else set()
+    if not gone:
+        return item
+    item = dict(item)
+    if verification := item.get("verification"):
+        flags = [f | {"holds": False, "dismissed": True} if (f.get("field") or "", f["why"]) in gone else f
+                 for f in verification.get("flags") or []]
+        item["verification"] = Verification(tuple(Flag(**f) for f in flags), int(verification.get("checked") or 0)).as_json()
+    lines = {PREFIX + Flag(field, why, "").line() for field, why in gone}
+    item["why"] = "; ".join(part for part in str(item.get("why") or "").split("; ") if part not in lines)
+    return item
 
 
 def _split(problem: str) -> tuple[str, str]:

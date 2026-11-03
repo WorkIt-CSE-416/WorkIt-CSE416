@@ -105,7 +105,7 @@ def _readme(record: Record, rows: list[dict]) -> str:
         *(f"| {cell(r['question'])} | {cell(r['planned'])} | {cell(r['on_page'])} |" for r in rows),
         "",
         *(["## Verification", "", "What Apply found when it read the filled form back, before any submit:", "",
-            *(f"- {f['field'] + ': ' if f['field'] else ''}{f['why']}" + ("" if f["holds"] else " (note)")
+            *(f"- {f['field'] + ': ' if f['field'] else ''}{f['why']}" + (" (dismissed)" if f.get("dismissed") else "" if f["holds"] else " (note)")
               for f in record.verification["flags"]), ""] if record.verification and record.verification["flags"] else []),
         *(["## Claude drafted", "", "Answers to one-off questions, now in the Answer bank for you to review:", "",
             *(f"- {question} → {answer}" for question, answer in record.drafted), ""] if record.drafted else []),

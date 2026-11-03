@@ -173,7 +173,8 @@ def apply_to(
     Once the form is filled, and before any submit, it is verified
     (apply.verify): `on_verify` hears None as verifying starts, then the
     Verification. A flag that needs Lisul holds a run's Application, unless
-    Lisul approved it after he saw the flags; verifying never submits."""
+    Lisul approved it after he saw the flags, or dismissed that flag for this
+    Application before (verify.dismiss); verifying never submits."""
     planned = _Planned(posting, site, profile, claude, answered or {}, approved, rehearse, bank or AnswerBank(),
                        today or date.today(), on_files, on_missing)
     try:
@@ -499,7 +500,8 @@ class _Planned:
             self.questions, self.answers, readback, self.profile, self.posting, asked=self.missing,
             left=self.left | self._skipped, accepted=self.accepted, today=self._today, guessed=guessed, review=review,
             essays={e.question.name: e.text for e in self.written if e.text},
-            allowed=essays.sources(self.profile, self.known(), facts=True), posting_text=self.text)
+            allowed=essays.sources(self.profile, self.known(), facts=True), posting_text=self.text,
+            dismissed=verify.dismissed(self.posting.id))
 
     def _letter_file(self, text: str, folder: Path) -> Path:
         """An essay asked as an upload, as the PDF cover letter; as plain text

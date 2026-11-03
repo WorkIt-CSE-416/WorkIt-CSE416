@@ -643,11 +643,14 @@ class Dashboard:
     def state(self) -> dict:
         """Every tile's caption with its verdict, every ended Application's
         (items, newest first), and the one-line summary of them all."""
+        # Imported here: verify imports the fill engine, which imports this module.
+        from apply import verify
         with self._lock:
             captions = [dict(caption) for caption in self._captions]
             items = [dict(item) for item in reversed(self._items)]
             run = dict(self._run)
         for k, caption in enumerate(captions):
+            caption |= verify.without_dismissed(caption)  # a flag Lisul dismissed holds it no more
             caption |= verdict(caption)
             if chooser := self._frames.chooser(k):
                 caption["file"] = chooser
@@ -660,6 +663,7 @@ class Dashboard:
         with self._lock:
             answered, approved = dict(self._answered), set(self._approved)
         for item in items:
+            item |= verify.without_dismissed(item)
             item |= verdict(item)
             if item.get("kind") in ("held", "check") and item["id"] in approved:
                 item["answered"] = True  # approved here: it waits on Lisul no more
@@ -803,6 +807,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._answer()
         if parts.path == "/approve" and self.dashboard.approve:
             return self._approve()
+        if parts.path == "/dismiss":
+            return self._dismiss()
         if parts.path.startswith("/show/") and self.dashboard.show:
             return self._show(parts.path.removeprefix("/show/"))
         if parts.path.startswith("/answers/") and self.dashboard.answers:
@@ -995,6 +1001,28 @@ class _Handler(BaseHTTPRequestHandler):
             self.dashboard._approved.add(key)
         print(f"Approved in the window: {item.get('company') or 'an application'}")
         self._json(200, {"message": message})
+
+    def _dismiss(self) -> None:
+        """Lisul dismisses one flag of an Application in the Inbox, from the page itself: it is kept for that
+        Application (verify.dismiss), so it holds it no more, after a reload of the window or in a new run."""
+        # Imported here: verify imports the fill engine, which imports this module.
+        from apply import verify
+
+        token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+        if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin not in (None, self.dashboard.url):
+            return self._json(403, {"error": "Only the Apply window may dismiss a flag."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key, field, why = str(body["id"]), str(body.get("field") or ""), str(body["why"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a flag."})
+        item = next((i for i in self.dashboard.state()["items"] if str(i["id"]) == key and i.get("application_id")
+                     and {"field": field, "why": why} in (i.get("flags") or [])), None)
+        if item is None:
+            return self._json(404, {"error": "That flag no longer needs you."})
+        verify.dismiss(item["application_id"], field, why)
+        print(f"Dismissed in the window, for {item.get('company') or 'an application'}: {field}: {why}")
+        self._json(200, {"message": "Dismissed: it holds this application no more."})
 
     def _in_place(self, item: dict, key: str, question: str, answer: Path | None, message: str) -> None:
         """An answer for this form alone, not saved to his facts: a file to attach, or None for an
