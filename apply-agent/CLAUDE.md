@@ -77,6 +77,11 @@ change the other.
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".
 
+## The Apply window
+
+- The status line counts a link as "queued" only until a Worker starts it.
+  A rehearsal sends `board.run(queued=...)` each time a link starts.
+
 ## The data folder (`APPLY_HOME`)
 
 **Personal data is never in the repo.** WorkIt is a public repo. All of a

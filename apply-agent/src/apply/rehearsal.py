@@ -141,6 +141,12 @@ def rehearse(
     accounts = _Accounts(adapters, profile)
 
     writing = threading.Lock()
+    waiting = [len(urls)]  # links not started yet: the window's "queued"
+
+    def started() -> None:  # a link got its Worker: one fewer queued
+        with writing:
+            waiting[0] -= 1
+            adapters.board.run(queued=waiting[0])
 
     def one(n: int, url: str) -> None:
         site = _Kept(adapters.site, n)
@@ -162,6 +168,7 @@ def rehearse(
 
         try:
             with gate:
+                started()
                 done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, held,
                                  "getting ready" if together else "")
         except SetupError as error:  # before the form opened (no Fill engine, say): one line, no traceback

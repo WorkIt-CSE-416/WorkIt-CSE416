@@ -719,6 +719,16 @@ def test_without_together_start_is_never_asked_for(monkeypatch, tmp_path):
     assert not [r for r in board.runs if "start" in r]
 
 
+def test_the_window_counts_a_link_queued_only_until_its_worker_starts_it(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    board = RecordingBoard()
+
+    with FakeJobServer(ARC_FORM) as fake:
+        rehearse([ARC_URL, ARC_URL], fake, profile_with(tmp_path), board=board)
+
+    assert [r["queued"] for r in board.runs if "queued" in r] == [2, 1, 0]
+
+
 class SignsInToRead(StartsLate):
     """A Filler whose Question set is read only after signing in, as Workday's is."""
 
