@@ -84,6 +84,8 @@ async def test_an_unknown_link_makes_one_unlisted_posting(student, database):  #
     assert [(a["job"]["id"], a["job"]["company"], a["job"]["title"]) for a in tracker] == [
         (body["job_id"], "Lockheed Martin", "Software Engineer Intern")
     ]
+    # Not closed: the tracker shows it open, while the extension still skips it.
+    assert (tracker[0]["unlisted"], tracker[0]["open"]) == (True, False)
 
 
 async def test_an_application_already_on_the_job_keeps_its_stage(student, database):  # noqa: F811

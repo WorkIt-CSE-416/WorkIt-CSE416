@@ -965,6 +965,12 @@ query that lists jobs to students returns it: `services/postings.py`'s
 `published`. Only a student with an application on it reaches it (through
 the tracker and `POST /jobs/{id}/applied`). The feed import publishes it
 when the scraper finds the same job (`../CLAUDE.md`, The feed import).
+**An application on it reads `open: false, unlisted: true`**
+(`auto_apply/queries.py`): `open` stays `LISTED` because the extension and
+the queue skip anything not open, and Apply writes the jobs it holds as
+queued; `unlisted` is what tells the tracker the job is not closed. A
+second student who adds the same link gets the same posting, so the link
+stays unique.
 **SQL names it as text** (`UNLISTED`, `status::text = 'unlisted'`): Postgres
 refuses a query that names an enum value its type lacks, so a query that
 named it as the enum would fail on a database without the migration (the

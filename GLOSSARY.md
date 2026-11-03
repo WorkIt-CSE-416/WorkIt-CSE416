@@ -185,7 +185,7 @@ One job posting a student is following in the Applications Tracker, at one stage
 _Avoid_: Applications (as the page's name)
 
 **Unlisted job posting**:
-A job posting that one student added to the Applications Tracker by its link, because WorkIt does not list it. Only that student sees it. When WorkIt later lists the same job, the posting becomes a listed one and the student's application stays on it.
+A job posting that one student added to the Applications Tracker by its link, because WorkIt does not list it. Job search and Scout never show it; a student who adds the same link gets the same posting, with the company and title the first student gave. When WorkIt later lists the same job, the posting becomes a listed one and the student's application stays on it.
 _Avoid_: external job, custom job, manual job
 
 **Match score**:

@@ -267,6 +267,7 @@ function toApplication(
     apply_by,
     closes_at,
     open,
+    unlisted,
     match,
     highlights,
   }: Stored<Tracked>,
@@ -281,8 +282,10 @@ function toApplication(
     // A closed posting's page is gone, so its card links nowhere.
     jobHref: open ? `/jobs/${encodeURIComponent(job.id)}` : undefined,
     stage,
-    status: open ? undefined : "Posting Closed",
-    open,
+    // A job WorkIt does not list (KAN-542) is not closed, though the API's
+    // `open` is false so the extension skips it; it has no page to link to.
+    status: open || unlisted ? undefined : "Posting Closed",
+    open: open || unlisted === true,
     location: placeOf(job),
     workModel: job.work_style ? formatWorkStyle(job.work_style) : null,
     track: job.job_type ? formatJobType(job.job_type) : null,
