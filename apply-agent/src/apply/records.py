@@ -49,7 +49,9 @@ def folder(record: Record) -> str:
 
 # A question whose answer is a secret, such as an Employer account password
 # asked on the form itself. Its answer never reaches a Record.
-SECRET = re.compile(r"password|passcode|passphrase|secret|security answer|social security|\bssn\b|\bpin\b", re.IGNORECASE)
+# A security clearance question ("an active U.S. Top Secret security clearance?", Astro Mechanica's) is no secret.
+SECRET = re.compile(r"password|passcode|passphrase|(?<!top )secret(?!\s+(security\s+)?clearance)|security answer"
+                    r"|social security|\bssn\b|\bpin\b", re.IGNORECASE)
 REDACTED = "(secret, not recorded)"
 
 

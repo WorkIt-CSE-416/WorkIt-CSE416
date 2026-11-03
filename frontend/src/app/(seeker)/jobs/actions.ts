@@ -1,21 +1,18 @@
 "use server";
 
+import { cookies } from "next/headers";
+
 import { apiGet } from "@/lib/api";
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
 
 import type { ApplicationStage } from "../auto-apply/actions";
-import { feedQuery, readFilters, readQuery } from "./filter-query";
+import { getApplicationStages } from "../auto-apply/applications";
+import { feedQuery, queryParams, readFilters, readQuery } from "./filter-query";
 import { getFeedPage, getRecommendedPage, viewerToken, type FeedPage } from "./listings";
+import { JOBS_VIEW_COOKIE, type JobsView } from "./view";
 
 const SIGNED_OUT = "You're signed out. Sign in again to continue.";
 const UNREACHABLE = "Could not reach the server.";
-
-/** A query string as the record a page's searchParams would be. */
-function paramsOf(query: string): Record<string, string[]> {
-  const params: Record<string, string[]> = {};
-  for (const [key, value] of new URLSearchParams(query)) (params[key] ??= []).push(value);
-  return params;
-}
 
 /**
  * How many jobs these filters keep: the All Filters panel's "Show 128 Jobs",
@@ -27,7 +24,7 @@ function paramsOf(query: string): Record<string, string[]> {
  * just says "Show Jobs".
  */
 export async function countJobs(query: string): Promise<number | null> {
-  const params = paramsOf(query);
+  const params = queryParams(query);
   try {
     const res = await apiGet(
       `/jobs/count${feedQuery(readFilters(params), readQuery(params))}`,
@@ -53,7 +50,7 @@ export async function loadMoreJobs(query: string, offset: number): Promise<FeedP
   if (!Number.isInteger(offset) || offset < 0 || offset > MAX_OFFSET) {
     return { jobs: null, more: false, error: "That page of jobs doesn't exist." };
   }
-  const params = paramsOf(query);
+  const params = queryParams(query);
   return getFeedPage(feedQuery(readFilters(params), readQuery(params)), offset);
 }
 
@@ -139,8 +136,25 @@ export async function loadMoreRecommended(query: string, offset: number): Promis
   if (!Number.isInteger(offset) || offset < 0 || offset > MAX_OFFSET) {
     return { jobs: null, more: false, error: "That page of jobs doesn't exist." };
   }
-  const page = await getRecommendedPage(feedQuery(readFilters(paramsOf(query))), offset);
+  const page = await getRecommendedPage(feedQuery(readFilters(queryParams(query))), offset);
   return (
     page ?? { jobs: null, more: false, error: "Fill your experience bank to see your matches." }
   );
+}
+
+/** Each job's stage, for the rail's Save buttons when it fetches its list
+ *  itself (./jobs-rail.tsx). */
+export async function loadStages(): Promise<Record<string, ApplicationStage>> {
+  return getApplicationStages();
+}
+
+/** Keeps the Jobs page's view for this browser (./view). Setting a cookie in
+ *  an action draws the page again in its answer, so the switch needs no
+ *  refresh of its own. */
+export async function setJobsView(view: JobsView): Promise<void> {
+  (await cookies()).set(JOBS_VIEW_COOKIE, view === "split" ? "split" : "cards", {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: "lax",
+  });
 }

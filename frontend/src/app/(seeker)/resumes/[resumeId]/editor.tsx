@@ -455,6 +455,11 @@ export function Editor({
   // print that edit's old text. Saves run one at a time in their own queue
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const saves = useRef<Promise<unknown>>(Promise.resolve());
+  // How many jobs the queue has been given, and which of those waiting are a
+  // page's settings: a page's compile goes only if no newer page is next
+  const jobs = useRef(0);
+  const pageJobs = useRef(new Set<number>());
+  const skippedPage = useRef(false);
   // Each typed bullet's saved wording, which the render could not know
   const wordings = useRef(new Map<string, { variant_id: string | null; text: string }>());
   // The moves on their way, shown on the page at once (./pdf-pages.tsx)
@@ -593,6 +598,7 @@ export function Editor({
 
   /** Runs a request after every request before it has answered. */
   const enqueue = useCallback(<T,>(job: () => Promise<T>): Promise<T> => {
+    jobs.current += 1;
     const run = queue.current.then(job);
     queue.current = run.catch(() => undefined);
     return run;
@@ -864,13 +870,25 @@ export function Editor({
       if (step) step.undo = { page: pageNow.current };
       keepPage(settings);
       sendPage(settings);
+      const job = jobs.current + 1;
+      pageJobs.current.add(job);
       return enqueue(async () => {
+        pageJobs.current.delete(job);
+        // Each click on a size or a font is a compile, one at a time, and
+        // the next page replaces this one whole, so five quick clicks compile
+        // the first and the last. A skipped step keeps no PDF, and neither
+        // does the step's before after it: Undo renders those
+        if (pageJobs.current.has(job + 1)) {
+          skippedPage.current = true;
+          return;
+        }
         const current = begin();
         started.current = performance.now();
         if (step) {
           step.before = settled();
-          step.pdfBefore = lastPdf.current;
+          step.pdfBefore = skippedPage.current ? null : lastPdf.current;
         }
+        skippedPage.current = false;
         const { data, error } = await renderEdit(resumeId, { page: settings }, copy());
         if (data) {
           lastPdf.current = data.render;
@@ -1191,7 +1209,9 @@ export function Editor({
         const saved = back ? step.after : step.before;
         if (!edit) return;
         if ("name" in edit) return applyName.current?.(edit.name, () => forget(step));
-        if (state && pdf && saved?.printed) {
+        // Not past a page's render still queued (a skipped step's Undo sends
+        // one): it would land after this and print its settings over them
+        if (state && pdf && saved?.printed && pageJobs.current.size === 0) {
           restore(state, pdf);
           const source = {
             entries: saved.bank.entries,
@@ -2140,12 +2160,12 @@ export function Editor({
               {assistant("flex-1")}
             </div>
             {panelView === "experiences" && (
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
                 <ExperiencesPicker bank={bank} choices={choices} onApply={apply} />
               </div>
             )}
             {panelView === "cut" && (
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
                 <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={apply} />
               </div>
             )}
@@ -2220,7 +2240,7 @@ export function Editor({
   // toolbar spanned both too for a day, which put the panel under it, apart
   // from the page it reviews
   return (
-    <div data-no-bounce className={cn("flex flex-col", suggestions ? "mt-2 gap-2" : "mt-4 gap-3")}>
+    <div className={cn("flex flex-col", suggestions ? "mt-2 gap-2" : "mt-4 gap-3")}>
       <div className="flex items-center gap-4">
         <div className="min-w-0 flex-1">
           <TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>
@@ -2501,11 +2521,11 @@ const SLIM_BAR = cn(
 );
 
 /** The bar on Tailor's review, as Google Docs draws its own (KAN-499): a
- *  grey pill with no outline, its tools from the left. Both bars' buttons are
- *  dark grey, as Docs' are, and only a pressed one takes the brand. The page
- *  count's amber chip keeps its colour. */
+ *  pill, its tools from the left, white and ruled since the page's ground
+ *  went grey. Both bars' buttons are dark grey, as Docs' are, and only a
+ *  pressed one takes the brand. The page count's amber chip keeps its colour. */
 const DOCS_BAR = cn(
-  "bg-app sticky top-2 z-20 flex min-h-11 flex-wrap items-center gap-2 rounded-full px-3 py-1",
+  "bg-panel ring-border-subtle sticky top-2 z-20 flex min-h-11 flex-wrap items-center gap-2 rounded-full px-3 py-1 ring-1",
   "[&_button:not([aria-pressed=true]):not([data-bar-action])]:text-ink-muted [&_button:not([aria-pressed=true]):not([data-bar-action]):hover]:text-ink",
 );
 

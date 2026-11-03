@@ -38,7 +38,6 @@ SETTLES_MS = 10_000
 # The button that sends the application (claude_fill.SENDS): never the account's.
 SENDS = re.compile(r"\b(submit|send|apply|finish|complete|confirm)\b", re.IGNORECASE)
 ALREADY = re.compile(r"\balready\b|\bexists?\b|\bin use\b|\bregistered\b", re.IGNORECASE)
-RESEND = re.compile(r"resend|send (a )?new code|send (it )?again|didn.t (get|receive)", re.IGNORECASE)
 # Where each job system mails its codes and links from, besides the site's own domain.
 JOB_SYSTEM_MAIL = {
     "icims.com": ("icims.com",),
@@ -189,7 +188,7 @@ class AccountPages:
     def _code(self, page: Page, site: str, since: datetime, button: str, guard) -> None:
         search = mail_search(site)
         self._hold(search)
-        code = self._accounts.code(search, since, lambda: _resend(page))
+        code = self._accounts.code(search, since)
         self.release()
         if not _type_code(page, code):
             raise Handoff(f"Gmail had {site}'s code, but Apply found no box for it on the page. Sign in yourself.")
@@ -198,7 +197,7 @@ class AccountPages:
     def _link(self, page: Page, site: str, since: datetime, posting: str) -> None:
         search = mail_search(site)
         self._hold(search)
-        link = self._accounts.link(search, since, lambda: _resend(page), (site, *mail_domains(site)))
+        link = self._accounts.link(search, since, (site, *mail_domains(site)))
         self.release()
         page.goto(link)
         _settle(page)
@@ -267,12 +266,6 @@ def _type_code(page: Page, code: str) -> bool:
             return False
     boxes[0].fill(code)
     return True
-
-
-def _resend(page: Page) -> None:
-    again = page.get_by_role("button", name=RESEND).or_(page.get_by_role("link", name=RESEND))
-    if again.count():
-        again.first.click()
 
 
 def _shown(page: Page) -> str:

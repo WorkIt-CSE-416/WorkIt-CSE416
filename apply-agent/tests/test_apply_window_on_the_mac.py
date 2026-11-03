@@ -185,6 +185,17 @@ def test_closing_the_window_quits_its_chrome_so_apply_leaves_the_dock(mac, tmp_p
         assert not dashboard.window_open(profile)
 
 
+# Apply's run ended, but its window stayed open on a page with no server.
+def test_the_window_quits_when_its_run_ends_and_leaves_other_windows_alone(mac, tmp_path):
+    profile = tmp_path / "profiles" / "dashboard"
+    other = mac.chrome("http://127.0.0.1:50000", tmp_path / "profiles" / "answers")
+    with Dashboard(0, NoFrames()) as board:
+        dashboard.open_window(board.url, profile)
+        [pid] = [p for p in mac.chromes if p != other]
+
+    assert mac.quit == [pid] and other in mac.chromes
+
+
 def test_reloading_the_window_keeps_it(mac, tmp_path):
     profile = tmp_path / "profiles" / "answers"
     with Dashboard(0, NoFrames()) as board:

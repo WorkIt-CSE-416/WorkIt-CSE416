@@ -171,7 +171,7 @@ export function Inbox({ emails, jobs }: { emails: Email[]; jobs: EmailJob[] }) {
 
         <div
           className={cn(
-            "border-border-subtle overflow-y-auto overscroll-contain md:border-r",
+            "border-border-subtle overflow-y-auto overscroll-none md:border-r",
             // Below md the open email takes the whole frame.
             open && "hidden md:block",
           )}
@@ -222,7 +222,7 @@ export function Inbox({ emails, jobs }: { emails: Email[]; jobs: EmailJob[] }) {
           )}
         </div>
 
-        <div className={cn("overflow-y-auto overscroll-contain", !open && "hidden md:block")}>
+        <div className={cn("overflow-y-auto overscroll-none", !open && "hidden md:block")}>
           {open ? (
             <>
               <ShallowLink

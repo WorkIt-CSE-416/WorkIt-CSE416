@@ -610,7 +610,9 @@ Find files with a directory listing; these are the rules for where code goes.
   student, and never list banned words (that primes a model; the save
   checks them, KAN-380), and nothing on this path calls a model. **Every tool takes a title and explicit annotations** (KAN-383, Anthropic's directory refuses a tool without them): `readOnlyHint=True` on a read, so Claude runs it without asking; only `save_*` tools write, each saying `destructiveHint`; `openWorldHint=False` on all. A test lists the tools and checks each one, so a new tool without them fails. **Company
   briefs are shared by every student** (KAN-382, `auto_apply/briefs.py`,
-  tools in `connector/briefs.py`): a fact is kept only if WorkIt finds its
+  tools in `connector/briefs.py`; `GET /jobs/{id}/company`, KAN-519, shows
+  them on the job page's Company tab, with no sign-in, since they are public
+  facts): a fact is kept only if WorkIt finds its
   quote on its page, so **every page a brief cites is read through
   `services/page_fetch.py`**, never a bare `httpx` call: the URL comes from
   outside, and the fetcher is what refuses internal addresses, other

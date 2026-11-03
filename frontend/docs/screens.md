@@ -8,7 +8,7 @@ changing it.
 
 ## Jobs page, /search and filters
 
-**/jobs is one list with a Sort By control (KAN-288).** Best Match
+**/jobs is one list with a Sort dropdown in its filter row (KAN-288, KAN-519).** Best Match
 (`?sort=match`), the default, is the jobs the filters keep, scored against the
 seeker's experience bank and best first (`GET /jobs/recommended/{id}`, which
 takes the same filters as `GET /jobs`), with the match rail showing each score
@@ -74,16 +74,16 @@ showed beside it as two thin vertical lines while they scrolled under.
 jobs/filters.tsx draws the row (KAN-170); every facet filters, and Industry is
 gone (no data). As the row narrows its facets step out one at a time, least used
 first, Visa is never in the row (All Filters only, asked for 2026-10-10), and
-All Filters stays a normal button; never stretch it across the row. The row
-is 928px at most, room for five facets: Location, Role, Workplace, Job Type
-and Date Posted. Job Type took Experience's place (KAN-284), since it is
-where Internship is picked, and Experience Level is in All Filters only. Each facet is at least 144px and as wide as its label needs,
-so Date Posted is 149px rather than cut short. While any filter is on, Clear Filters sits just before All Filters
+All Filters stays at every width, a 36px icon button named by its tooltip
+(KAN-519); never stretch it across the row. The row
+holds four facets: Location, Role, Workplace and Job Type. Date Posted left it
+for All Filters on 2026-11-02, for the room. Job Type took Experience's place (KAN-284), since it is
+where Internship is picked, and Experience Level is in All Filters only. Each facet is at least 144px and as wide as its label needs. While any filter is on, Clear Filters sits just before All Filters
 (KAN-252, asked for 2026-10-17), an outlined X at its height with "Clear
 filters" in its tooltip, and turns every filter off, keeping ?sort and ?q; a
 cleared /jobs with no ?sort lands on ?sort=match, since the bare URL would
 bring the saved preferences back. As the words "Clear Filters" it took
-the room of Date Posted at every width and wrapped the row on a phone. The
+a facet's room at every width and wrapped the row on a phone. The
 widths at which the facets step in leave room for it whether or not it shows,
 so a pick never pushes a facet out of the row (filters.tsx lists them). Role
 (KAN-155: the `job_roles` list, slugs like software_engineer, a job tagged with
@@ -166,7 +166,7 @@ and starts at the first 50.
 Clearing the search field on /search with its cross (or Escape) ends the
 search: the page goes back to /jobs as the seeker last saw it, filters, Load
 More pages and scroll place and all (KAN-228, asked for 2026-10-13). A search
-from the top bar sends only ?q, so the filters set on /jobs before it come
+from the Jobs page's field sends only ?q, so the filters set on /jobs before it come
 from RememberFeed's own copy of /jobs's address, not from /search's. Deleting
 the text by typing does not leave: the field's cross is told apart by its
 input event having no inputType (search/query-field.tsx), so backspacing to
@@ -191,6 +191,68 @@ Back or Forward, or a job page's "Back" (restoreScrollOn). (seeker)/scroll-memor
 keeps each address's position, since the shell scrolls its <main> and not the
 window, so the browser can't; a page reached any other way starts at the top.
 
+**The Jobs page has two views, Cards and Split** (KAN-519): an icon switch at the
+heading's right end (`jobs/view-switch.tsx`), named by its tooltips, kept in the
+`workit-jobs-view` cookie
+(`jobs/view.ts`), so the server draws the chosen view with no flash of the
+other. Cards stays the default. It is a layout choice, so it stays with the
+browser after sign-out. The new view is in no URL: `?view=` is taken by old links
+(`readSort`).
+
+Best Match and Newest sit in the filter row as Sort (`SortMenu`), first in the
+row, with Clear Filters and All Filters at the right end: between those two it
+read as one of them. The Sort By pills beside the view switch read as one kind
+of choice, and in words the two switches looked alike. Sort stays at every width,
+so each facet steps out one width sooner on the Jobs page, and on a phone Sort
+takes Location's place, which All Filters still holds. /search has one order, so
+its row is as it was.
+
+Split shows the heading and filters over the compact list and the open job,
+each pane scrolling on its own, after Handshake. **It is the job page's frame,
+not a second list**: `jobs/layout.tsx` draws the header and the rail
+(`JobsRailFrame`) on /jobs and on a job's page, and /jobs draws only the list's
+first job, handing the list to the rail (`jobs/remember-shown-list.tsx`). A click
+opens that job's own page, so one job is one job read: the list stays mounted,
+scrolled where it was, and Best Match is not scored again. Drawn on /jobs with
+`?job=`, each click would have re-run the page's scoring. A job's page can be
+shared and reloaded as it always could, and beside a job the header reads the
+order and filters from the shown list, since the URL has none; a filter pick
+there goes to /jobs with that list's order (`list` on `JobFilters`), which opens
+the new list's first job. Back hides from `@4xl/main`, where the list is on
+screen. Below `@4xl/main` the switch draws a list: the rail is the page, and a job
+opens alone with Back.
+
+**A compact card puts its title and company beside its buttons and match, and runs
+where it is, its pay, type and age under them on the card's whole width**, each
+on one line, cut short with a tooltip (2026-11-02): beside the buttons every line
+wrapped, and the card stood about 50px taller. The age is short ("20d ago",
+`formatPostedShort`), in the large card's green status badge, so the pay fits
+beside it. The company and the pay are ink,
+the rest grey.
+
+**The job list has no scrollbar** (`[scrollbar-width:none]` in `jobs-rail.tsx`): a
+scrollbar always takes room, and that 8px left the open job's tint short of the
+column's edge. The wheel and trackpad still scroll it.
+
+**The split view from `@4xl/main` is one panel, rounded at the top, that runs off
+the foot of the window** in the page's gutters, with no bottom edge (after
+Simplify's, 2026-11-02): the list and the job share its edge, one rule runs
+under the list's heading and the job's action bar, both 60px, and the job's card
+is drawn flat inside it (`JOB_CARD_IN_PANEL`). The header above it has no rule: a
+full-width line under the filters read as cutting the page in two. The panel's
+pane has a 16px gutter, so the bar's one row fits at a 1280px window beside a
+355px list.
+
+/search has the same choice, as Cards or List: a list of compact cards
+(`compact` on `FeedList`), and a job opens beside the rail with Back. The split
+frame's header is the Jobs page's, with no place for its count and fact chips, so
+a list with `q` keeps the plain frame.
+
+**Still open:** on a fresh visit with saved filters the frame reads the bare
+address, so the filter row shows them only once `CanonicalUrl` has written it
+(about 0.4 s). A job marked applied stays in the rail until the list is drawn
+again.
+
 ## Job posting page and card
 
 **A live role opens at `/jobs/[jobId]`** (KAN-73): a click anywhere on its
@@ -204,22 +266,31 @@ The page is capped at `max-w-dashboard`, as every seeker page is
 (2026-10-27); 1024px had left its facts and checklist cramped (KAN-279).
 **A rail of jobs sits on its left** (KAN-297, after Cooper's job board): the
 roles the seeker last saw on /jobs or /search, in that list's order, the open
-one marked, each a link to its own page. Each rail card has the logo, title,
-company, when it was posted and its match, then the feed card's six facts in
-the feed card's own grid (`JobFactGrid` in `components/job-posting-card.tsx`,
-fed by `listingFacts`), two columns in a narrow rail and three from 448px of
-card: asked for 2026-10-22, when a card showed only the company and place.
-It lives in `jobs/layout.tsx`
+one marked. Each is a compact card (`jobs/compact-job-card.tsx`, KAN-519, after
+Handshake's and then Simplify's lists): a 44px logo, a title of up to three lines,
+the company, place and work style, then pay, job type and age, with Not Interested
+and Save as bare glyphs at the top right and the match under them, as the team
+asked on 2026-11-02. Rows are split by hairlines, not boxed, and the open job is
+the whole row tinted. A fact the posting does not state closes up, and long lines
+wrap rather than cut off. The card replaced the feed card's six-fact grid, asked
+for on 2026-10-22. Not Interested is the large card's button, inert as that one
+is, until something stores the choice. Tailor, Auto Apply, Ask Scout and Apply Now
+sit on the open job.
+The rail lives in `jobs/layout.tsx`
 (`jobs/jobs-rail.tsx`), above the job's segment, so it stays mounted and
 scrolled where it was while the seeker opens one job after another; Tailor
-and /jobs itself draw no rail. `FeedList` writes the list as it shows it
+draws no rail. `FeedList` writes the list as it shows it
 (`jobs/shown-list.ts`, sessionStorage `workit:shown-list`) with its own
-query and order, and the rail's Load More continues it with the same
-actions. A list over 30 minutes old is fetched again, and a job opened with
-no list (a shared link) shows the newest roles. The rail shows from
-`@4xl/main`; below that the page is as it was. Beside it the job's page
-stops at 60rem, and the rail takes the room past that, from 18rem
-to 40rem: 288px at a 1280px window. It scrolls on its own, held to the
+query, order and application stages, and the rail's Load More continues it with
+the same actions, keeping what it loads with the feed's pages so Back finds the
+list as long as it was. A list over 30 minutes old is fetched again (on /jobs,
+which fetches nothing, it stays shown), and a job opened
+with no list (a shared link) shows the newest roles. **A job's Save buttons
+follow each other**: a click writes the job's stage into the shown list, and
+`SaveJobButton` reads it, since a job can show two at once. The rail shows from
+`@4xl/main`; below that the page is as it was. It is 20rem to 26rem wide
+(`clamp(20rem,30cqw,26rem)`: 355px at a 1280px window) and the job takes the
+rest. It scrolls on its own, held to the
 page's height by the shell's 64px bar (4rem); change that with the bar's
 height.
 It is the mock's `JobDetailHeader` with the card's own facts
@@ -310,14 +381,28 @@ The page has a `loading.tsx` whose header and Key Requirements skeletons
 stand at the height of what replaces them; Tailor has its own, so this one
 never stands in for it.
 The job's actions sit in one bar with Back, pinned at the top from md
-(`[jobId]/action-bar.tsx`, KAN-246): Save, a "…" menu, Ask Scout, Auto Apply,
-Tailor My Resume and Apply Now. Below md the bar scrolls away and wraps.
+(`[jobId]/action-bar.tsx`, KAN-246), after the job's tabs (below): Auto Apply,
+Tailor My Resume and Apply Now, on one row at a 1280px
+window. Ask Scout, Not Interested and Save are bare glyphs at the top right of
+the job's card (`JobCardActions`, after Simplify): in the bar they wrapped Apply
+Now onto a row of its own. Not Interested shows on the job's own page only, and
+is inert, as on the compact card. Below that width the tabs wrap above the actions.
+An Already Applied? link sat here for a day (KAN-519, after Simplify) and was
+taken out for the room it took in the bar. So "Did You Apply?" comes only through
+Apply Now. An Applied button here once marked jobs on a misclick, with no undo
+(KAN-242).
+**The job's tabs are Overview and Company** (`[jobId]/job-tabs.tsx`), in `?tab=`,
+moved in place as the application page's are. Overview is the notes, Key
+Requirements and About the Role. Company (`[jobId]/company-tab.tsx`, `GET
+/jobs/{id}/company`) is the employer's website and the shared company brief's
+checked facts by category, each with its source. A brief exists only once a
+student's Claude has researched the company, so most jobs show the website
+alone, or "WorkIt has no notes on … yet". The application page draws no tabs. A "…" menu of Copy Link and an inert Report sat
+after Save until KAN-519, when the team removed it. Below md the bar scrolls away and wraps.
 The header card below holds who is hiring, the title and facts; its logo never
 shrinks. Its facts use the card's `JobFacts`: two rows of three fixed slots,
 two columns under 448px, with unstated facts leaving their slots empty.
-The "…" menu (`MoreActions`, `[jobId]/page-actions.tsx`) holds Copy Link
-and Report. Ask Scout asks about the role, Copy Link copies the page's link, and Report
-stays inert. Save (KAN-261) keeps the job posting in the Saved column on My
+Ask Scout, an icon beside Save (KAN-519), asks about the role. Save (KAN-261) keeps the job posting in the Saved column on My
 Applications, on the card and the page alike (`jobs/save-job-button.tsx`,
 over the drawing-only `components/save-button.tsx`): the bookmark fills at
 once and empties again, with a toast, if the API refuses, and a second
@@ -329,7 +414,7 @@ only the job's own Auto Apply button queues one. The
 card's own row has Not Interested, Save, Ask
 Scout, Auto Apply, Tailor My Resume and Apply Now. Tailor My Resume is the
 page's button on the card too (KAN-241): it opens `/jobs/[jobId]/tailor`
-and reads "Your Tailored Resume" once the student has one for that job
+and reads "Tailored Resume" once the student has one for that job
 posting. /jobs and /search read the built resumes once beside the first
 page (`getTailoredJobIds`) and hand each card its answer, as for Auto
 Apply; signed out, every card reads Tailor My Resume. Auto Apply shows only on a job posting the
@@ -337,7 +422,7 @@ API marks `auto_apply` (its hiring system is one auto apply fills:
 every hiring system the Fill engine fills, `backend/app/auto_apply/hosts.py`); every other job
 posting has no Auto Apply at all. It sits between Ask Scout and Apply
 Now on the page and the card alike (`auto-apply/auto-apply-button.tsx`):
-Ask Scout's secondary design with the sidebar's Zap glyph. A click queues
+A secondary button with the sidebar's Zap glyph. A click queues
 the job posting through the API (`POST /applicants/{id}/applications`, the
 server action `queueJob`), and the button turns to the stage it answers
 (Queued; or Skipped, Needs You, Applied for a job that already had an
@@ -586,7 +671,7 @@ filled primary sm button, and opens Apply Now's dialog (KAN-290). A KPI tile cen
 hides below 10.5rem of tile), keeps that header row 36px tall, pushes its
 figure to the foot, and gives the line under it a fixed `h-5`, hiding "vs
 last week" where it would wrap, so every figure in a row sits on one line.
-A scroll area inside a tile uses `scrollbar-quiet` (globals.css) and puts
+A scroll area inside a tile puts
 its edge on the tile's edge: New Matches reaches into the tile's right
 padding (`-mr-5`) and pads its rows back in (`pr-5`), so the bar runs down
 the tile's side instead of beside the Apply buttons. There is no
@@ -930,8 +1015,9 @@ Jobs card's ring, which made the same job look different by how it was
 opened. Analytics and explanations go on the Your Application tab only.
 **The bar holds the tabs once there is nothing to do**: an applied job, or a
 closed posting, has no use for Apply, Tailor, Save or Ask Scout, so the bar
-shows the tabs beside Back instead. A saved job with an open posting keeps
-the job page's actions, and its tabs sit under the header. Three tabs, each a
+shows the tabs beside Back instead, and its card has no glyphs. A saved job with
+an open posting keeps the job page's actions and its card's Ask Scout and Save,
+and its tabs sit under the header. Three tabs, each a
 URL (`?tab=emails`, `?tab=job`; **Emails**, KAN-413, lists the job's
 emails as the Inbox does, `[jobId]/emails-tab.tsx`, each opening in the
 Inbox) that moves in place (KAN-368,
@@ -1015,7 +1101,7 @@ The application comes from `getTracker`, so its score, resume and stage
 match its row. A job the seeker has not saved or applied to is not found. A
 closed posting has no job page (`GET /jobs/{id}` answers 404), so the header
 shows what the tracker knows, marked Closed, and the description tab says it
-is gone. The cards round elapsed time, as "Posted 8 days ago" does: cut,
+is gone. The cards round elapsed time, as "8 days ago" does: cut,
 an application sent 47 hours ago read as waiting 1 day.
 
 ## Inbox (`/inbox`)
@@ -1070,7 +1156,7 @@ The page is exactly the screen under the bar (`h-[calc(100svh-4rem)]`, the
 job rail's height, KAN-427). The heading and the filters stay in
 place; the frame under them takes the rest, the toolbar's row then one that may
 shrink (`grid-rows-[auto_minmax(0,1fr)]`), and the list and the open email each scroll
-inside their own column (`overflow-y-auto overscroll-contain`), so
+inside their own column (`overflow-y-auto overscroll-none`), so
 scrolling one never moves the other. The frame's floor, `min-h-80`, lets a
 very short window scroll the page instead of leaving a sliver of list.
 Below md the one column shown scrolls the same way, and Back to Inbox sits
@@ -1149,8 +1235,9 @@ at the top of the email's column.
 ## Auto Apply
 
 /auto-apply (KAN-223) is where the seeker will apply in bulk. Its sidebar row
-sits between Jobs and Applications, in the order the work goes, and its page
-uses the same heading block as every seeker screen. The pipeline it grows
+sits between Jobs and Applications, in the order the work goes, and its title
+is in the top bar, with the queue's line at the top of the page while it holds
+a job. The pipeline it grows
 into is `auto-apply/architecture.md` at the repo root. KAN-285 redrew it:
 the run button moved into the header, and both lists became tables in the
 Applications list's frame (one white card, 12px grey headings, rules between
@@ -1812,11 +1899,11 @@ One sidebar row, above My Profile, for one page in two views (KAN-249):
 **Resumes** (`/resumes`, the row's link) and **Experiences** (`/experiences`, the
 experience bank). Both draw one header (`resumes/header.tsx`; it stays
 beside the Resumes view though `/experiences` imports it too, since the two routes
-are one page's views, not two consumers), laid out as Home's is: the view's own title and line on the left ("Resumes",
-"Experiences"), and at the top right, level with the foot of that block, a
-segmented switcher between the two views, then on Experiences its
-primary action, Fill With Scout; on a narrow page the controls
-wrap under the title. A shared "Resumes & Experiences" title on both views
+are one page's views, not two consumers), laid out as the Jobs page's and the
+Applications Tracker's top row is: the view's search on the left and the
+segmented switcher between the two views at the right, after Experiences'
+primary action, Fill With Scout; on a phone the search takes its own line.
+The title is in the top bar. A shared "Resumes & Experiences" title on both views
 said less about where the student was. The views stay two routes, so every link to either still
 lands (the Jobs page's `/experiences?import=1` included), and the switcher is plain
 links, since each view reads its own data on the server; the sidebar row is
@@ -2190,7 +2277,7 @@ The design is `../../docs/tailor_resume.md`: one click tailors and saves,
 with no proposals to accept and no Done (2026-10-25).
 
 - **Opened from "Tailor My Resume"** on the job posting page, which reads
-  "Your Tailored Resume" once the student has one for that posting.
+  "Tailored Resume" once the student has one for that posting.
 - **Each pick step has its own title** (`HEADINGS` in `tailor-screen.tsx`,
   drawn by `TailorHeader`): "Pick the Resume to Start From" and "Add the
   Keywords You Have Used". Both read "Tailor Your Resume to <job title>" over
@@ -2387,8 +2474,8 @@ Resume and Generate Resume at the right, then the list (below). Sort
 default; Oldest First; Name (A to Z). An upload dates from its upload, a
 built resume from its last edit. It is drawn as the Type filter is, but
 never takes the filter's brand tint, since an order is always in force;
-it is a dropdown, not the Jobs page's Sort By pills, because the header
-already holds the Resumes or Experiences pills. Each resume is its card, with its own
+it is a dropdown because the header already holds the Resumes or Experiences
+pills, the shared `SortMenu`, which the Jobs page's filter row uses too. Each resume is its card, with its own
 line saying what it is ("Uploaded Oct 21", "Last edited Oct 21 · For
 <posting>") and its star, Rename, Download and Delete. With no resume at
 all the list's place holds "No Resumes Yet"; filters that hide every

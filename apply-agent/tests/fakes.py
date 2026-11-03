@@ -19,7 +19,7 @@ from playwright.sync_api import Route, sync_playwright
 
 from apply import answering, fill_engine, gates
 from apply.adapters import Drive, UsageReading
-from apply.gmail import on_hosts
+from apply.gmail import MailedCode, on_hosts
 from apply.model import Question
 
 # Greenhouse loads reCAPTCHA Enterprise and asks it for a token at submit.
@@ -665,12 +665,14 @@ class FakeMailbox:
         self._clock = clock
         self._set_up = set_up
         self._mail: list[tuple[str, datetime | None, str, str]] = []  # (search, arrived, kind, value)
+        self._senders: dict[str, str] = {}  # each code's sender domain
         self._lock = threading.Lock()
         self.looks = 0  # how many times Apply looked
 
-    def deliver(self, search: str, *, code: str = "", link: str = "") -> None:
+    def deliver(self, search: str, *, code: str = "", link: str = "", sender: str = "mail.example.com") -> None:
         arrived = self._clock.now() if self._clock else None
         with self._lock:
+            self._senders[code] = sender
             self._mail.append((search, arrived, "code" if code else "link", code or link))
 
     def unavailable(self) -> str | None:
@@ -678,6 +680,10 @@ class FakeMailbox:
 
     def find_code(self, *, search: str, since: datetime) -> str | None:
         return self._find(search, since, "code")
+
+    def find_mailed_code(self, *, search: str, since: datetime) -> MailedCode | None:
+        code = self._find(search, since, "code")
+        return MailedCode(code, self._senders[code]) if code else None
 
     def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
         link = self._find(search, since, "link")

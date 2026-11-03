@@ -91,7 +91,9 @@ never submits.** Apply runs on macOS only. Before you change code here, read
 
 7. Optional Keychain items:
    - `apply-gmail`: a Gmail app password, so Apply can read Workday and
-     Greenhouse verification codes
+     Greenhouse verification codes (also the code a job site emails after
+     you press Submit on a rehearsal's page: Apply types it in, and Submit
+     stays yours to press)
      ([docs/accounts-setup.md](docs/accounts-setup.md)).
    - `apply-ntfy`: an ntfy topic for phone notifications
      (`./scripts/setup-wizard.sh` sets it up).

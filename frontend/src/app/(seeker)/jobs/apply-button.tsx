@@ -168,6 +168,12 @@ export function ApplyButton({
     router.refresh();
   }
 
+  function askApplied() {
+    setOpen(true);
+    setAsking(true);
+    void load();
+  }
+
   return (
     <>
       {/* sm, as every action in the bar it sits in (./action-bar.tsx): lg
@@ -184,10 +190,7 @@ export function ApplyButton({
         rel="noopener noreferrer"
         className={buttonClasses({ size: "sm", className })}
         onClick={() => {
-          if (!canMarkApplied || applied) return;
-          setOpen(true);
-          setAsking(true);
-          void load();
+          if (canMarkApplied && !applied) askApplied();
         }}
       >
         Apply Now

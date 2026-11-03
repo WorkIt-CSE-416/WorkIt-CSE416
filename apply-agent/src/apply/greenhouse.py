@@ -22,6 +22,8 @@ from apply.model import Answers, Handoff, Posting, QuestionSet, Readback
 
 API = "https://boards-api.greenhouse.io/v1/boards"
 GH_JID = re.compile(r"[?&]gh_jid=(\d+)")
+# A careers page that names its Greenhouse job in its path, not in ?gh_jid= (Roblox's /jobs/8072713).
+PATH_JID = re.compile(r"/(\d{7,})/?(?:[?#].*)?$")
 # Greenhouse's security code: who mails it, and the step that asks for it (the
 # job-boards form's box per character, or the older boards form's one box).
 SECURITY_CODE_SEARCH = "from:(greenhouse-mail.io OR us.greenhouse-mail.io)"
@@ -35,7 +37,8 @@ NOT_A_BOARD = {"www", "careers", "career", "jobs", "job", "join", "apply", "work
 
 def board_behind(posting: Posting, site: JobSite) -> Posting:
     """A company careers page that embeds a Greenhouse form (its link carries
-    ?gh_jid=, as Waymo's and Epic's do) as that form's own Greenhouse link, so
+    ?gh_jid=, as Waymo's and Epic's do, or the job id in its path, as Roblox's
+    does) as that form's own Greenhouse link, so
     the Greenhouse Filler fills it instead of Claude fill. The board's name is
     guessed from the company and the host, and kept only if Greenhouse has the job."""
     if posting.job_system == "greenhouse" and "for=" not in posting.url and (token := re.search(r"[?&]token=(\d+)", posting.url)):
@@ -55,16 +58,32 @@ def board_behind(posting: Posting, site: JobSite) -> Posting:
             return posting
         on_greenhouse = (urlsplit(shown_on).hostname or "greenhouse.io").endswith("greenhouse.io")
         return posting if on_greenhouse else replace(posting, url=f"https://job-boards.greenhouse.io/embed/job_app?for={board}&token={job}")
-    if posting.job_system != "other" or not (jid := GH_JID.search(posting.url)):
+    if posting.job_system != "other":
+        return posting
+    if jid := GH_JID.search(posting.url):
+        shown_here = False
+    elif jid := PATH_JID.search(posting.url):
+        shown_here = True  # an id in the path may be another system's: Greenhouse must show the job on this host
+    else:
         return posting
     for board in _board_guesses(posting):
         try:
-            site.fetch(f"{API}/{board}/jobs/{jid[1]}")
+            job = site.fetch(f"{API}/{board}/jobs/{jid[1]}")
         except Exception:
+            continue
+        if shown_here and urlsplit(_shown_on(job)).hostname != urlsplit(posting.url).hostname:
             continue
         # The embedded form: a board with its own careers site sends its hosted job page back there.
         return replace(posting, url=f"https://job-boards.greenhouse.io/embed/job_app?for={board}&token={jid[1]}")
     return posting
+
+
+def _shown_on(job: bytes) -> str:
+    """The page the job API says a job is shown on, else ""."""
+    try:
+        return str(json.loads(job).get("absolute_url") or "")
+    except Exception:
+        return ""
 
 
 def _board_guesses(posting: Posting) -> list[str]:
@@ -124,8 +143,7 @@ class GreenhouseFiller:
             raise Handoff(NO_SECURITY_CODE.format(why=NOT_SET_UP))
         if why := self._accounts.mail_unavailable():
             raise Handoff(NO_SECURITY_CODE.format(why=why.rstrip(".")))
-        resend = page.get_by_role("button", name=re.compile(r"resend", re.IGNORECASE))
-        return self._accounts.code(SECURITY_CODE_SEARCH, since, lambda: resend.first.click() if resend.count() else None)
+        return self._accounts.code(SECURITY_CODE_SEARCH, since)
 
 
 def _asks_security_code(page: Page) -> bool:

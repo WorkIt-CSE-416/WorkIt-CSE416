@@ -29,6 +29,7 @@ from apply import (
 )
 from apply.adapters import Claude, JobSite, UsageLimitHit
 from apply.answer_bank import LISUL, AnswerBank
+from apply.applicant import as_applicant
 from apply.fill_engine import (
     company_specific,
     left_blank,
@@ -232,8 +233,9 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
         # A rehearsal shows its form while Claude writes its answers; a run opens it only once they're written.
         if not rehearse and (stop := planned.add(questions)):
             return stop
+        form_url = getattr(filler, "form_url", lambda url: url)(posting.url)  # where its form is, if not the posting
         for attempt in range(2):
-            with site.open(posting.url) as page:
+            with site.open(form_url) as page:
                 if rehearse and attempt == 0 and (stop := planned.add(questions)):
                     return stop
                 before_fill()
@@ -250,8 +252,12 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         if not (rehearse and planned.skip(error)):
                             raise
                     except Handoff as handoff:  # a rehearsal says which blanks may have stopped it
+                        # What it planned and what the page showed so far, for its Record: a step Workday won't
+                        # leave is read from it.
+                        shown = dict(getattr(filler, "shown_so_far", {}))
                         return _handed_off(handoff, missing=planned.missing, choices=planned.choices,
-                                           required=planned.required)
+                                           required=planned.required,
+                                           filled=Filled(planned.questions, planned.answers, shown, _screenshot(page)))
                 questions, answers, holds = planned.questions, planned.answers, list(planned.holds)
                 holds = [f"Not filled: {e}" for e in planned.unfilled] + holds
                 filled = Filled(questions, answers, readback, _screenshot(page))
@@ -280,7 +286,8 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     sources = essays.sources(profile, planned.known(), facts=True,
                                               types=[e.plan.type for e in planned.written if e.plan]) \
                         if planned.written or drafted else essays.profile_block(profile)
-                    found = review(claude, posting, questions, readback, sources, planned.text, planned.own())
+                    found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
+                                   planned.own())  # its reasons say the applicant's own pronouns
                     holds += [f"Pre-submit review: {p}" for p in found]
                 # For Repair requests: a field Claude filled for the Filler (apply.rescue) is its code's to fix.
                 rescued = tuple(getattr(filler, "rescued", ()))

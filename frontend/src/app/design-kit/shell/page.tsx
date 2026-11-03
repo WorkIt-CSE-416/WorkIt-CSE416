@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Logo, LogoLockup } from "@/components/logo";
 import { NotificationsMenu } from "@/components/notifications-menu";
 
-import { BAR_CIRCLE } from "../../(seeker)/bar";
+import { BAR_ICON } from "../../(seeker)/bar";
 import { SECTIONS } from "../data";
 import { AccountMenuSpecimen } from "../interactive";
 import { Group, KitPage, Row } from "../specimen";
@@ -40,7 +40,7 @@ export default function ShellPage() {
             <NotificationsMenu>
               New applicants and team activity will show up here.
             </NotificationsMenu>
-            <NotificationsMenu className={BAR_CIRCLE}>
+            <NotificationsMenu className={BAR_ICON}>
               New matches and replies from employers will show up here.
             </NotificationsMenu>
           </BarStrip>

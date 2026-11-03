@@ -48,16 +48,13 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
     // under it, so the page itself never scrolls; the Month's weeks share
     // that height and Week, Day and Agenda scroll inside their own box. A
     // window too short for that (under 32rem) lets the page scroll. The
-    // visible heading and subtitle went: the toolbar's span title says
-    // where you are, and they cost the grid a row.
+    // title is in the top bar (../bar-title.tsx).
     <div
       className={cn(
         "max-w-dashboard mx-auto flex h-[calc(100svh-4rem)] min-h-[32rem] w-full flex-col py-4",
         SEEKER_GUTTER,
       )}
     >
-      <h1 className="sr-only">Calendar</h1>
-
       <CalendarView
         applications={applications.map(({ id, role, company, logoUrl, stage, appliedOn }) => ({
           id,

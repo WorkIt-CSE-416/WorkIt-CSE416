@@ -180,17 +180,19 @@ def test_holds_do_not_stop_a_rehearsal_and_claude_fill_never_clicks_submit(monke
     assert server.submissions == []
 
 
-def test_claude_clicking_the_forms_submit_in_a_rehearsal_is_the_handoff_a_run_would_make_and_sends_nothing(
-        monkeypatch, tmp_path):
+@pytest.mark.parametrize(("names", "outcome"), [("Submit Application", "ready to submit"), ("", "handoff")])
+def test_claude_clicking_the_forms_submit_in_a_rehearsal_sends_nothing(monkeypatch, tmp_path, names, outcome):
+    # Roblox (live): a click on the submit Claude then names leaves the form filled, not sent; any other is a Handoff.
     monkeypatch.setattr(ClaudeFill, "submit", lambda self, page: pytest.fail("a rehearsal clicked Claude fill's submit"))
     profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items()},
                            **{f"answered_questions.{ESSAY}": "Lunar rovers are what I build in my spare time."})
 
     with FakeBambooServer(LUNAR_FORM) as server:
-        [done] = rehearse([LUNAR_URL], server, profile, FakeClaude(driver=SendingDriver()))
+        [done] = rehearse([LUNAR_URL], server, profile, FakeClaude(driver=SendingDriver(names=names)))
 
-    assert done.outcome == "handoff"
-    assert 'Apply blocked the "Submit Application" click while Claude filled the form' in done.why
+    assert done.outcome == outcome
+    if names == "":
+        assert 'Apply blocked the "Submit Application" click while Claude filled the form' in done.why
     assert server.submissions == []
 
 
@@ -322,9 +324,10 @@ def test_a_workday_rehearsal_stops_where_google_wants_more_than_an_account_pick(
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
 
     with FakeWorkdayServer(XCEL_FORM, google="password") as server:
-        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path))
+        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path), records=FolderRecords(tmp_path / "rehearsals"))
 
     assert done.outcome == "handoff" and "Google asked for more than an account pick" in done.why
+    assert "Rehearsal, not submitted: handoff: Google asked" in (Path(done.record) / "README.md").read_text()  # its Record too
     assert server.submissions == []
 
 
@@ -685,17 +688,21 @@ def test_a_failure_keeps_its_traceback_in_the_log(monkeypatch, tmp_path, capsys)
     assert "Traceback" in log and "blow_up" in log
 
 
-def test_a_workday_step_left_with_a_missing_fact_lists_it_where_the_rehearsal_stopped(monkeypatch):
+def test_a_workday_step_left_with_a_missing_fact_lists_it_where_the_rehearsal_stopped(monkeypatch, tmp_path):
     # Snap's degree list has B.A. and B.S., not the profile's Bachelor's Degree: no guess between them.
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
 
     world = experience_profile()
     with FakeWorkdayServer(XCEL_FORM, steps=EXPERIENCE_STEPS) as server:
-        [done] = rehearse([XCEL_URL], server, world.profile)
+        [done] = rehearse([XCEL_URL], server, world.profile, records=FolderRecords(tmp_path / "rehearsals"))
 
     assert done.outcome == "handoff" and "won't leave its 'My Experience' step" in done.why and "Degree" in done.why
     assert done.missing == ("Education 1 / Degree",)
     assert "Missing facts: Education 1 / Degree" in done.line()
+    # Its Record keeps what was planned and shown up to the step it stopped on (ASML's had none, live).
+    assert 0 < done.filled < done.asked
+    rows = json.loads((Path(done.record) / "answers.json").read_text())
+    assert any(r["question"] == "Education 1 / Degree" and r["on_page"] in (None, "") for r in rows)
     assert server.submissions == []
 
 
@@ -806,6 +813,16 @@ def test_without_together_start_is_never_asked_for(monkeypatch, tmp_path):
         rehearse([ARC_URL], fake, profile_with(tmp_path), board=board)
 
     assert not [r for r in board.runs if "start" in r]
+
+
+def test_the_window_counts_a_link_queued_only_until_its_worker_starts_it(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    board = RecordingBoard()
+
+    with FakeJobServer(ARC_FORM) as fake:
+        rehearse([ARC_URL, ARC_URL], fake, profile_with(tmp_path), board=board)
+
+    assert [r["queued"] for r in board.runs if "queued" in r] == [2, 1, 0]
 
 
 class SignsInToRead(StartsLate):

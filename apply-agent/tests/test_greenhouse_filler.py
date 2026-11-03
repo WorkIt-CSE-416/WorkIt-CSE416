@@ -334,6 +334,35 @@ def test_a_greenhouse_job_on_its_hosted_page_or_unknown_to_the_api_stays_as_it_i
     assert board_behind(posting, JobApi(absolute_url)) == posting
 
 
+class ShownOn:
+    """Greenhouse's job API with one job on one board, shown on `absolute_url`."""
+
+    def __init__(self, board: str, job: str, absolute_url: str):
+        self.job, self.absolute_url = f"{board}/jobs/{job}", absolute_url
+
+    def fetch(self, url, body=None):
+        if url == f"https://boards-api.greenhouse.io/v1/boards/{self.job}":
+            return json.dumps({"absolute_url": self.absolute_url}).encode()
+        raise OSError("HTTP 404")
+
+
+def test_a_careers_page_with_the_greenhouse_job_id_in_its_path_is_filled_on_greenhouse():
+    # Roblox (seen live): no ?gh_jid=, so Claude fill worked its embedded form for 1.2M tokens.
+    posting = Posting("p", "careers.roblox.com", "Intern", "https://careers.roblox.com/jobs/8072713")
+
+    behind = board_behind(posting, ShownOn("roblox", "8072713", "https://careers.roblox.com/jobs/8072713?gh_jid=8072713"))
+
+    assert (behind.url, behind.job_system) == ("https://job-boards.greenhouse.io/embed/job_app?for=roblox&token=8072713",
+                                               "greenhouse")
+
+
+def test_an_id_in_the_path_that_greenhouse_shows_on_another_site_stays_as_it_is():
+    # Another job system's id that happens to be a Greenhouse job of a board the guesses hit.
+    posting = Posting("p", "Roblox", "Intern", "https://careers.roblox.com/jobs/8072713")
+
+    assert board_behind(posting, ShownOn("roblox", "8072713", "https://elsewhere.example/jobs/8072713")) == posting
+
+
 class EmbedPage:
     def fetch(self, url, body=None):
         assert url == "https://boards.greenhouse.io/embed/job_app?token=6865687002"
@@ -400,14 +429,14 @@ def test_a_security_code_with_gmail_not_set_up_is_a_handoff_saying_so():
     assert not greenhouse.confirmed
 
 
-def test_a_security_code_that_never_comes_is_a_handoff_after_asking_once_more():
+def test_a_security_code_that_never_comes_is_a_handoff_and_resend_is_never_clicked():
     resent = []
     greenhouse = fake_greenhouse.FakeGreenhouse(on_resend=lambda: resent.append(True))
 
     with greenhouse.open() as page, pytest.raises(Handoff) as handoff:
         GreenhouseFiller(accounts(FakeMailbox())).submit(page)
 
-    assert resent == [True]
+    assert resent == []
     assert "greenhouse-mail.io" in str(handoff.value) and "yourself" in str(handoff.value)
     assert handoff.value.bot_signal == "security code"
     assert not greenhouse.confirmed

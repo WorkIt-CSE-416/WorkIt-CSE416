@@ -140,6 +140,10 @@ WORDS = {
     "check": ("Answer to check before sending", "Before it sends, Apply checks every answer against your facts; "
               "one didn't match."),
     "handoff": ("Finish this one yourself", "Apply got as far as it could; the rest needs a person, such as a captcha."),
+    "needs code": ("Type the emailed code", "After you pressed Submit, the job site asked for a code it emailed "
+                   "you. Apply looks for it in Gmail and types it in; this time it couldn't, so it typed nothing."),
+    "code filled": ("Code filled, not sent", "After you pressed Submit, the job site asked for a code it emailed "
+                    "you. Apply typed it in from Gmail. It never presses Submit: that's yours."),
     "failed": ("Couldn't finish", "Something went wrong. Nothing was sent; Apply keeps a note to fix it and tries again."),
     "submitted": ("Sent", "The application went in."),
     "ready to submit": ("Filled, not sent", "A practice run fills the form and stops before Submit."),
@@ -261,6 +265,11 @@ def verdict(caption: dict) -> dict[str, str]:
         site = f"{company}'s {system} site" if company and system else f"the {system} site" if system else "this job site"
         needs = {"kind": "needs sign-in", "do": f"Sign in to {site} once", "why": why,
                  "then": f"Apply remembers the sign-in for every {system or 'such'} job"}
+    elif status == "needs code":
+        needs = {"kind": "needs code", "do": WORDS["needs code"][0], "why": why,
+                 "then": "Nothing more was sent. Type the code from your email, then press Submit yourself"}
+    elif status == "code filled":
+        tone, label, kind, detail = "ready", WORDS["code filled"][0], "code filled", why
     elif status == "handoff":
         needs = {"kind": "handoff", "do": WORDS["handoff"][0], "why": plain(why),
                  "then": "Nothing was sent. Open it and finish the form, then press Submit"}
@@ -485,6 +494,14 @@ class Dashboard:
     def __exit__(self, *exc) -> None:
         self._server.shutdown()
         self._server.server_close()
+        self._quit_window()  # its page has no server now: a window left open shows a dead run
+
+    def _quit_window(self) -> None:
+        """Quit the Chrome that shows this server's window, if one does."""
+        profile = _OPENED.get(urlsplit(self.url).netloc)
+        for pid, shown in _window_chromes(profile) if profile else []:
+            if urlsplit(shown).netloc == urlsplit(self.url).netloc:
+                _quit(pid)
 
     def closed(self) -> None:
         """The window's page went away. Unless it loads again within
@@ -494,11 +511,8 @@ class Dashboard:
         gone = time.monotonic()
 
         def check() -> None:
-            profile = _OPENED.get(urlsplit(self.url).netloc)
-            if self._loaded <= gone and profile:
-                for pid, shown in _window_chromes(profile):
-                    if urlsplit(shown).netloc == urlsplit(self.url).netloc:
-                        _quit(pid)
+            if self._loaded <= gone:
+                self._quit_window()
 
         timer = threading.Timer(CLOSE_GRACE, check)
         timer.daemon = True

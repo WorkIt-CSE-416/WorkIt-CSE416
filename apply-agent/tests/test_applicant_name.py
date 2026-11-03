@@ -85,6 +85,16 @@ def test_claude_writes_as_test_person_never_as_another_applicant(test_persons_ba
     assert "Example State University" in json.dumps(draft["schema"])
 
 
+def test_every_call_says_the_applicants_own_pronouns(test_persons_bank):
+    profile = ApplicantProfile.load(PROFILE, POLICIES)
+    profile.set("identity.pronouns", "they/them/theirs")
+
+    calls = written(profile)
+
+    for call in calls:
+        assert "Test's pronouns are they/them/theirs." in call["system"]
+
+
 def test_with_lisuls_profile_the_prompts_say_lisul_and_stony_brook_as_before(test_persons_bank, tmp_path):
     profile = ApplicantProfile.load(PROFILE, POLICIES)
     profile.set("identity.preferred_first_name", "Lisul")

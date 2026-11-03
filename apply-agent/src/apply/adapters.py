@@ -19,6 +19,7 @@ from apply.records import InMemoryRecords, Record
 from apply.repair import RepairRequests
 
 if TYPE_CHECKING:
+    from apply.gmail import MailedCode
     from apply.tracker import AnswerRow, EmployerAccount, Row
 
 
@@ -151,6 +152,10 @@ class Mailbox(Protocol):
         ...
 
     def find_code(self, *, search: str, since: datetime) -> str | None: ...
+
+    def find_mailed_code(self, *, search: str, since: datetime) -> "MailedCode | None":
+        """Only a code the mail names as one, never a guess, with the sender's domain."""
+        ...
 
     def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
         """Only a link to one of `hosts` (or a host under one) counts."""

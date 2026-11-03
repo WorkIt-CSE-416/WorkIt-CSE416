@@ -5,14 +5,17 @@ from datetime import date
 
 import yaml
 
+from apply import fill_engine
 from apply.answer_bank import AnswerBank
-from apply.model import Question
+from apply.model import Posting, Question
+from apply.profile import ApplicantProfile
 from apply.tracker import AnswerRow
 
 HEARD = Question("q1", "Tell us how you heard about Zipline", "text", required=True)
 SAMPLES = Question("q2", "Will you be including a link on your resume to samples of projects you've worked on?",
                    "select", required=True, options=("Yes", "No"))
 DAY = date(2026, 10, 16)
+POSTING = Posting("p1", "Roblox", "Software Engineer Intern", "https://job-boards.greenhouse.io/roblox/jobs/1")
 
 
 def test_a_drafted_answer_is_saved_with_where_it_was_first_seen(tmp_path):
@@ -254,3 +257,20 @@ def test_a_draft_keeps_the_facts_it_drew_on_and_one_with_none_names_none(tmp_pat
     assert "facts" not in saved[HEARD.label.casefold()]
     assert AnswerBank(path).get(SAMPLES.label).facts == ("links.github_url",)
     assert AnswerBank(path).get(HEARD.label).facts == ()
+
+
+def test_none_of_a_multi_selects_options_is_an_answer(tmp_path):
+    # Roblox's partner organizations (2026-11-02): Lisul is in none, and an empty answer read as no answer.
+    path = tmp_path / "answer-bank.yaml"
+    orgs = Question("q1", "Please select if you are a member of one or more of the following national organizations:",
+                    "multi_select", False, ("Women in Computer Science (WICS)", "Society of Women Engineers (SWE)"))
+    AnswerBank(path).answer(orgs.label, [], DAY)
+
+    entry = AnswerBank(path).get(orgs.label)
+    assert (entry.answer, entry.none, entry.source) == ([], True, "lisul")
+    planned = fill_engine.plan([orgs], POSTING, ApplicantProfile({}, tmp_path, {}), AnswerBank(path))
+    assert (planned.answers, planned.drafts, planned.missing) == ({}, [], [])
+    assert planned.blanks == {"q1": "None of its options holds for you: every box stays unticked"}
+
+    AnswerBank(path).answer(orgs.label, ["Society of Women Engineers (SWE)"], DAY)  # he joined one
+    assert AnswerBank(path).get(orgs.label).none is False

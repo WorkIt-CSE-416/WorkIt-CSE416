@@ -40,7 +40,7 @@ from urllib.parse import urlsplit
 from playwright.sync_api import Locator, Page
 
 from apply import feed, fill_engine
-from apply.accounts import Accounts
+from apply.accounts import NEEDS_SIGN_IN, Accounts
 from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
 from apply.home import HOME
@@ -205,8 +205,7 @@ class WorkdayFiller:
             raise Handoff(f"Workday at {site} refused the new account: '{error}'")
         self._accounts.created(site)
         if outcome == "verify":
-            resend = page.get_by_role("button", name=re.compile(r"resend", re.IGNORECASE))
-            link = self._accounts.link(MAIL_SEARCH, since, lambda: resend.first.click(), self._link_hosts())
+            link = self._accounts.link(MAIL_SEARCH, since, self._link_hosts())
             page.goto(link)
             page.goto(self._url)
             self._start(page)
@@ -228,9 +227,9 @@ class WorkdayFiller:
         if _until(page, lambda: _error(page) and "error" or _alert(page) and "sent") == "error":
             raise self._accounts.sign_in_failed(site, f"Workday wouldn't reset the password: {_error(page)}")
         try:
-            link = self._accounts.link(MAIL_SEARCH, since, lambda: send.first.click(), self._link_hosts())
+            link = self._accounts.link(MAIL_SEARCH, since, self._link_hosts())
         except Handoff as no_mail:
-            raise self._accounts.sign_in_failed(site, f"the password reset didn't finish. {no_mail}") from None
+            raise self._accounts.sign_in_failed(site, f"the password reset didn't finish. {str(no_mail).removeprefix(NEEDS_SIGN_IN)}") from None
         page.goto(link)
         form = page.locator("[data-automation-id=signInFormo]")
         form.locator("[data-automation-id=verifyPassword]").wait_for(timeout=TIMEOUT * 1000)
@@ -298,6 +297,11 @@ class WorkdayFiller:
         for key, tree in self._state.pop("saved", {}).items():
             _save_tree(key, tree)
         return result
+
+    @property
+    def shown_so_far(self) -> Readback:
+        """What each field filled so far showed when read back: a Record's, should a step stop the fill."""
+        return dict(self._readback)
 
     @property
     def rescued(self) -> list[str]:
