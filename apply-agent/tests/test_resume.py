@@ -3,12 +3,19 @@ open page. He fixes the page himself and presses Resume, and Apply goes on
 from the step the page shows, keeping his fix, to the form's last page.
 Nothing is ever submitted. When the form's tab is gone, Resume says so."""
 
+import json
+import urllib.error
+import urllib.request
+
+import pytest
 from fake_workday import EXPERIENCE_STEPS, FakeWorkdayServer
 from fakes import RecordingBoard
+from test_dashboard import NoFrames, window  # noqa: F401 (a fixture)
 from test_employer_accounts import XCEL_FORM, XCEL_URL
 from test_rehearse import NeverSubmittingWorkday, adapters, experience_profile
 
 from apply import rehearsal
+from apply.dashboard import Dashboard, verdict
 from apply.fillers import FILLERS
 from apply.profile import ApplicantProfile
 
@@ -98,3 +105,68 @@ def test_a_paused_form_whose_tab_lisul_closed_says_resume_cannot_go_on(monkeypat
     assert done.outcome == "handoff"
     assert board.captions[0]["resume"] == {"ok": False, "why": rehearsal.TAB_CLOSED}
     assert server.submissions == []
+
+
+PAUSED = {"company": "Xcel Energy", "role": "Intern", "posting_url": XCEL_URL, "application_id": "xcel-1",
+          "job_system": "workday", "status": "handoff", "why": "Workday won't leave its 'My Experience' step: Degree"}
+
+
+def post_resume(board, key, token=None):
+    body = json.dumps({"id": key}).encode()
+    return urllib.request.urlopen(urllib.request.Request(board.url + "/resume", body,
+                                                         {"X-Apply-Token": token or board.token}))
+
+
+def test_a_paused_card_offers_resume_and_says_what_it_does():
+    shown = verdict(PAUSED | {"resume": {"ok": True}, "history": ["10:12 Paused: Workday won't leave its step"]})
+
+    assert (shown["tone"], shown["kind"]) == ("needs", "handoff")
+    assert shown["resume"] == {"ok": True, "why": ""}
+    assert "press Resume" in shown["then"] and "never presses Submit" in shown["then"]
+    assert "10:12 Paused" in shown["detail"]
+
+
+def test_resume_in_the_window_goes_to_the_paused_worker_once_and_its_item_waits_no_more():
+    with Dashboard(1, NoFrames()) as board:
+        board.update(0, **PAUSED, resume={"ok": True})
+        [item] = board.state()["items"]
+        assert item["resume"] == {"ok": True, "why": ""}
+
+        reply = json.loads(post_resume(board, item["id"]).read())
+
+        assert "Resuming" in reply["message"]
+        assert board.resumed(0) and not board.resumed(0)  # each press is given once
+        board.update(0, **{k: v for k, v in PAUSED.items() if k != "status"}, status="filling")
+        assert [i for i in board.state()["items"] if not i.get("answered")] == []  # the form fills again
+
+
+def test_resume_says_why_when_the_tab_is_gone_and_refuses_another_site():
+    with Dashboard(1, NoFrames()) as board:
+        board.update(0, **PAUSED, resume={"ok": False, "why": rehearsal.TAB_CLOSED})
+        [item] = board.state()["items"]
+
+        with pytest.raises(urllib.error.HTTPError) as gone:
+            post_resume(board, item["id"])
+        with pytest.raises(urllib.error.HTTPError) as other:
+            post_resume(board, "tile-0", token="guessed")
+
+    assert gone.value.code == 409 and json.loads(gone.value.read())["error"] == rehearsal.TAB_CLOSED
+    assert other.value.code == 403
+    assert not board.resumed(0)
+
+
+def test_the_paused_card_and_tile_show_resume_and_a_gone_tab_says_why(window):
+    with Dashboard(1, NoFrames()) as board:
+        board.update(0, **PAUSED, resume={"ok": True})
+        window.goto(board.url)
+        card = "#inbox .item:has-text('Xcel Energy')"
+        window.wait_for_selector(f"{card} button.primary:has-text('Resume')", timeout=10_000)
+        window.click(f"{card} button:has-text('Resume')")
+        window.wait_for_selector("#toast:has-text('Resuming')", timeout=10_000)
+        assert board.resumed(0)
+
+        board.update(0, **PAUSED, resume={"ok": False, "why": rehearsal.TAB_CLOSED})
+        window.wait_for_selector(f"{card} button:has-text('Resume'):disabled", timeout=10_000)
+        assert window.locator(f"{card} .then").inner_text() == rehearsal.TAB_CLOSED
+        assert window.locator("#resume-0 button").is_disabled()
+        assert window.locator("#resume-0 .why").inner_text() == rehearsal.TAB_CLOSED

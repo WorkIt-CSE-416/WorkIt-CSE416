@@ -365,7 +365,7 @@ goes on from the step that the page shows.
   sign-in) with `resume={"ok": True}`, and the hold of the paused page
   (`_Kept.hold(resume=...)`) waits. The paused link gives back its Worker
   turn (`gate`) while it waits.
-- Resume (`Board.resumed`) comes back on the same tab. The
+- Resume (`POST /resume`, `Board.resumed`) comes back on the same tab. The
   submit guard goes on again with `submit_guard.rearm`, with no reload, so
   his fixes stay. The fill loop then calls `filler.fill` again, with the
   same plan and Filler state. Apply never starts over, never submits, and
@@ -384,12 +384,18 @@ goes on from the step that the page shows.
   off, and says why. Fill again still fills the form anew.
 - Each pause and Resume is a line in `Rehearsed.history`, on the tile and
   in the Record's README (Pauses), and an event in the Trace.
+- The window: a paused item in Needs you and its tile in Live show a
+  Resume button (`.primary`), before Fix here and Open in Chrome. Both
+  send `POST /resume` (`Dashboard.resume`, with the window's token). An
+  item whose form fills again waits on him no more. A Resume that cannot
+  go on is a 409 with the why, and the button is turned off with the why
+  beside it (`.then` on the card, `.why` on the tile).
 - Live runs do not pause. A run's Handoff ends, and its Worker moves on.
 
 **Tests.** `tests/test_resume.py`: the fake Workday stops on a required
 Degree; Lisul picks it on the page, presses Resume, and the form goes to
-Review with no submit. Also a closed tab. Run it with `-k`; it opens
-Chromium.
+Review with no submit. Also a closed tab, the `/resume` route, and the
+window's card and tile. Run it with `-k`; it opens Chromium.
 
 ## Prompts and gates
 
