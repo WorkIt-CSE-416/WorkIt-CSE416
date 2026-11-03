@@ -53,7 +53,8 @@ read-back. The engine's `fillEach` already accepts the wording that a
 try-list picked, so the extension needs none of them.
 
 - A secret question (a password) is never sent to Claude to draft. It
-  stays blank for the Filler.
+  stays blank for the Filler. `records.SECRET` finds it. A security clearance
+  question ("Top Secret clearance?") is not a secret.
 - A Workday try-list answer (`a|b|c`) accepts each of its wordings in the
   read-back, because the fill takes the first one that it finds. Only the
   How did you hear question (and a "Details" list right after it) gets a
