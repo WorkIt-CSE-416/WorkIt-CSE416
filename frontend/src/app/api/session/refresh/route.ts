@@ -44,7 +44,10 @@ export async function GET(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
-    return NextResponse.json({ signed_in: false }, { status: 401, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(
+      { signed_in: false },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   let pendingCookies: { name: string; value: string; options: CookieOptions }[] = [];
