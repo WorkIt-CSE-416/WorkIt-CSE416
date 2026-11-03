@@ -26,7 +26,7 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    If you cloned without it, run `git submodule update --init` in the
    checkout.
 
-2. Install Apply. The second line is only for the tests:
+2. Install Apply. The last line is only for the tests:
 
    ```sh
    cd WorkIt-CSE416/apply-agent
@@ -36,7 +36,8 @@ never submits.** Apply runs on macOS only. Before you change code here, read
 
 3. Check the setup: `uv run apply doctor`. Each line says ok, warn or fail,
    with a fix. On a new Mac, two lines fail: "Applicant profile" (step 4
-   fixes it) and "Worker profiles" (step 6 fixes it). Fix every other fail
+   fixes it) and "Worker profiles" (step 6 fixes it; after step 4 doctor
+   lists each Worker profile, `worker-1` and on). Fix every other fail
    first. The warn lines are for optional features.
 
 ## First rehearsal: Test Person
@@ -50,7 +51,8 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    Your data folder (`APPLY_HOME`, default `~/.config/apply/`) is empty, so
    Apply copies the Test Person sample data (`sample/`) into it. The window
    says "Sample data". Apply fills the form as Test Person and stops. The
-   result is "Filled, not sent". This takes a few minutes. The record (the
+   result is "Filled, not sent". The first time takes about ten minutes,
+   because Claude researches each company before it writes. The record (the
    answers and a screenshot) is in `~/.config/apply/rehearsals/<date>/`.
    Chrome stays open on the filled form; press Ctrl-C to stop Apply.
 
@@ -63,10 +65,12 @@ never submits.** Apply runs on macOS only. Before you change code here, read
 ## Your own data
 
 5. Replace the Test Person files in `~/.config/apply/` with your own:
-   `applicant-profile.yaml` (start from `applicant-profile.template.yaml`),
+   `applicant-profile.yaml` (copy `applicant-profile.template.yaml` from
+   this folder and fill it in),
    `answer-bank.yaml`, `story-bank.md`, `voice.md`, your resume PDF and
    `company-briefs/`. A relative path under `files:` in the profile is read
-   from the data folder. Delete `sample_data: true` from the profile. Never
+   from the data folder. If you edit the sample profile instead, delete its
+   `sample_data: true` line, or the window keeps saying "Sample data". Never
    put these files in the repo.
 
    To keep test data apart from real data, set `APPLY_HOME` to another
@@ -82,7 +86,8 @@ never submits.** Apply runs on macOS only. Before you change code here, read
      --use-mock-keychain --password-store=basic
    ```
 
-   A run copies this profile to the other Workers.
+   With `APPLY_HOME` or `APPLY_PROFILES` set, use the folder that `uv run
+   apply doctor` prints. A run copies this profile to the other Workers.
 
 7. Optional Keychain items:
    - `apply-gmail`: a Gmail app password, so Apply can read Workday and
