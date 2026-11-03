@@ -4,11 +4,20 @@ import { CheckIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
 /**
- * One answer to an onboarding question: a filled tile with a box (`check`,
- * any number of the group pressed) or a dot (`radio`, one of the group) in
- * front of its label. A grey well until pressed, then the brand's tint, the
- * same pressed look as the Jobs page's filter chips, so a pick reads the same
- * here and in All Filters. The caller lays the tiles out in a grid.
+ * One answer on a one-question screen: onboarding's steps, where the tiles
+ * are the question itself (KAN-559 moved it here from the wizard's route
+ * folder). A filled tile with a box (`check`, any number of the group
+ * pressed) or a dot (`radio`, one of the group) in front of its label. A
+ * grey well until pressed, then the brand's tint, the same pressed look as
+ * the Jobs page's filter chips, so a pick reads the same here and in All
+ * Filters. The caller lays the tiles out in a grid.
+ *
+ * Not a Chip: a chip is a pill, a choice made in place in a row, at 36 or
+ * 42px; a tile is a full-width answer 44px tall (56px from lg) with the
+ * box or dot that says whether the group takes one pick or several. The lg
+ * Chip stays for a screen of short picks in a row (Salary's presets). Not
+ * a RadioRow either: that is a form's answer row, at body size, inside a
+ * fieldset.
  */
 export function ChoiceTile({
   pressed,

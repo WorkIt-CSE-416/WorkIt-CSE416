@@ -1606,6 +1606,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   string class. It cannot read a class built in `cn()`, a template string or a
   variable, so keep overrides out of those too. A new box is a new size in the
   component.
+- **A field, a radio or an answer tile comes from `ui/`** (KAN-559,
+  `docs/design.md`, Components): `TextField` (`size="lg"`, `labelIcon`) or
+  its bare `TextInput` under a heading, `TextAreaField` (`grow`) or `TextArea`,
+  `ui/radio-row.tsx`, `ui/choice-tile.tsx`, `DateField`, `MonthField`. A
+  screen never writes its own `<input>`, `<textarea>` or `FIELD_CONTROL`
+  string; the few that must are named there, and a new one joins that list.
 - **Nothing bounces at a scroll's end** (2026-11-02, `globals.css`): the
   document and each shell's `<main>` take `overscroll-y-none`, Y only so the
   trackpad's swipe back works, and a scroll box inside a page takes

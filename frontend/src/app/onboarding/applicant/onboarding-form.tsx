@@ -12,6 +12,7 @@ import type { PickOption } from "@/components/filter-controls";
 import { answerIcon } from "@/components/icons";
 import { Stepper } from "@/components/stepper";
 import { Button } from "@/components/ui/button";
+import { ChoiceTile } from "@/components/ui/choice-tile";
 import { cn } from "@/lib/cn";
 import { updateProfile } from "@/lib/profile-actions";
 import { webLink } from "@/lib/profile-links";
@@ -31,7 +32,6 @@ import {
 
 import { savePreferences } from "./actions";
 import { AvailabilityStep } from "./availability-step";
-import { ChoiceTile } from "./choice-tile";
 import { ClaudeStep, useClaudeConnected } from "./claude-step";
 import { LinkFields, LINKS, LocationField, NO_CONTACT, type Contact } from "./contact-fields";
 import { ExtensionStep, useExtensionState } from "./extension-step";

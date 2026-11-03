@@ -2222,8 +2222,10 @@ in Docs (suggested answers in the chat, not a banner).
   intake drafts: it edits a draft and hands the whole draft
   back, and the caller decides between create and edit. Only the title is
   required. Each section adds its own fields (`sections.ts` names the
-  title and organization for each). Months use the browser's month picker,
-  which falls back to a `YYYY-MM` text box where there is none.
+  title and organization for each). A month is a `MonthField`
+  (`components/month-field.tsx`, KAN-559): a year and its twelve months in
+  a popover, never the browser's month picker, which opened Chrome's own
+  chrome and drew an empty month as dashes.
   **Two columns at every width** (KAN-257): a pair of short fields shares
   a row (the start and end, with the end month under End; a degree and its
   field; a GPA and its scale), a long one takes the row, and the
@@ -2231,11 +2233,10 @@ in Docs (suggested answers in the chat, not a banner).
   page). A school leads with its degree, dates and GPA and ends with its
   optional college, location, coursework and honors. In Scout's panel the
   form had been one column of up to thirteen boxes, with the college and
-  location ahead of the dates intake was asking about. Chrome's empty
-  month prints its dashes in the placeholder grey (in ink they read as a
-  broken field), coursework is a box that grows with its text and turns a
-  line break into a comma (a one-line field cut the list off), and a GPA
-  has no spin arrows.
+  location ahead of the dates intake was asking about. Coursework is a
+  `TextAreaField` that grows with its text (`grow`) and turns a line break
+  into a comma (a one-line field cut the list off), and a GPA has no spin
+  arrows.
   **Bullets read as the list they make** (KAN-249): each is a box with its
   bullet mark drawn in, and under them a dashed box of the same size, Add
   Bullet Point, whose + sits under the marks. The box it makes takes the
@@ -3209,7 +3210,7 @@ sets it. They share All Filters' rules too, from
 `filter-query.ts`: `payUnits` picks the salary's units from the job types,
 and `statesNarrowCountries` saves United States and California as
 California. A fixed choice is a `ChoiceTile`
-(./choice-tile.tsx): a box for any-of, a dot for one-of.
+(`components/ui/choice-tile.tsx`): a box for any-of, a dot for one-of.
 
 **It sets larger than the app.** Each step is one question with the screen to
 itself, so the question is `text-hero` (40px) from lg, and the shared pickers
@@ -3457,3 +3458,7 @@ cells render through `<table.FlexRender />`. The library ships its own guides in
 post. Select-all deliberately covers the filtered rows only; both
 `getIsAllRowsSelected` and `toggleAllRowsSelected` resolve to the filtered row
 model, so a filtered list cannot select rows nobody can see.
+Its toolbar is the kit's: a `SearchField` and a `FieldFacet` per filter
+(KAN-559), as on the seeker's Applications Tracker, so none picked shows
+every row and a filter takes several picks. It drew its own 32px search and
+one-pick Selects until then, beside the top bar's `SearchField`.

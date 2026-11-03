@@ -19,14 +19,6 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Checkbox } from "@/components/shadcn/checkbox";
-import { Input } from "@/components/shadcn/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -35,8 +27,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/shadcn/table";
-import { SearchIcon, SortIcon } from "@/components/icons";
+import { FieldFacet, type Glyph } from "@/components/field-facet";
+import { SortIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 
 /* Re-exported so jobs-table.tsx's existing `import { formatDate } from
@@ -239,24 +233,13 @@ export function SortHeader({
 export type FilterSpec = {
   /** Column id the value is applied to. */
   columnId: string;
-  /** Accessible name for the trigger. The column, singular: "Stage". */
+  /** The dropdown's name, Title Case and singular: "Stage". */
   label: string;
-  /**
-   * Plural of `label`, for the row that clears the filter: "All Stages". Its
-   * own field because English will not derive it — "status" pluralises to
-   * "statuses" — and because one string cannot be both a good accessible name
-   * and good display copy. Reusing `label` for both is what had these reading
-   * "All Stage" beside "All Roles".
-   */
-  plural: string;
+  /** The dropdown's glyph, beside its name. */
+  Icon: Glyph;
+  /** None picked shows every row, as every FieldFacet does. */
   options: string[];
 };
-
-/* A value no filter option can collide with, standing for "not filtering on
- * this column". It has to be a real value rather than "" because Base UI treats
- * an empty string as a value like any other and the trigger would render blank.
- * It is never displayed — see the items map below. */
-const ALL = "__all__";
 
 /**
  * Search box, one dropdown per filter, and the selection summary.
@@ -276,8 +259,8 @@ export function TableToolbar<T extends RowData>({
   /** Hint inside the empty box, sentence case: "Search applicants". */
   searchPlaceholder: string;
   /** Accessible name for the box, Title Case like the bar's own search field:
-   *  "Search Applicants". Its own prop for the reason FilterSpec has `plural`:
-   *  one string cannot be both a sentence-case hint and a Title Case name. */
+   *  "Search Applicants". Its own prop: one string cannot be both a
+   *  sentence-case hint and a Title Case name. */
   searchLabel: string;
   filters?: FilterSpec[];
 }) {
@@ -289,54 +272,30 @@ export function TableToolbar<T extends RowData>({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        {/* The magnifier marks it as a search box, the way the bar's own
-            search field above it is marked. */}
-        <div className="relative w-full sm:max-w-64">
-          <SearchIcon className="text-ink-meta pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-          <Input
-            value={(table.getColumn(searchColumnId)?.getFilterValue() as string) ?? ""}
-            onChange={(e) => table.getColumn(searchColumnId)?.setFilterValue(e.target.value)}
-            placeholder={searchPlaceholder}
-            aria-label={searchLabel}
-            className="h-8 w-full pl-8"
-          />
-        </div>
+        {/* The kit's search field, as in the bar above it, and a FieldFacet
+            per filter, as on the seeker's Applications Tracker: the toolbar
+            drew its own 32px search and Selects until KAN-559. */}
+        <SearchField
+          id={`${searchColumnId}-search`}
+          label={searchLabel}
+          placeholder={searchPlaceholder}
+          value={(table.getColumn(searchColumnId)?.getFilterValue() as string) ?? ""}
+          onChange={(e) => table.getColumn(searchColumnId)?.setFilterValue(e.target.value)}
+          className="w-full sm:max-w-64"
+        />
 
-        {filters.map(({ columnId, label, plural, options }) => {
+        {filters.map(({ columnId, label, Icon, options }) => {
           const column = table.getColumn(columnId);
-          const value = (column?.getFilterValue() as string[] | undefined)?.[0] ?? ALL;
-
-          /* One array drives both the list and the closed trigger's text.
-             <SelectValue> renders the *value* unless Base UI can look up a
-             label for it, and the only thing it looks in is this `items` prop.
-             Without it the sentinel reached the trigger verbatim and the
-             closed filter read "__all__"; every other option was unaffected
-             because its value and its label are the same string. */
-          const items = [
-            { value: ALL, label: `All ${plural}` },
-            ...options.map((option) => ({ value: option, label: option })),
-          ];
-
           return (
-            <Select
+            <FieldFacet
               key={columnId}
-              items={items}
-              value={value}
-              onValueChange={(next) =>
-                column?.setFilterValue(next === ALL ? undefined : [next as string])
-              }
-            >
-              <SelectTrigger className="h-8 w-full sm:w-40" aria-label={label}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {items.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              label={label}
+              Icon={Icon}
+              options={options.map((option) => ({ value: option, label: option }))}
+              values={(column?.getFilterValue() as string[] | undefined) ?? []}
+              onChange={(values) => column?.setFilterValue(values.length ? values : undefined)}
+              className="w-full sm:w-40"
+            />
           );
         })}
       </div>

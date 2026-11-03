@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { PlusIcon, TrashIcon } from "@/components/icons";
+import { TextAreaField } from "@/components/text-area-field";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
-import { cn } from "@/lib/cn";
 import {
   addWritingSample,
   getWritingSamples,
@@ -159,16 +158,13 @@ export function WritingSamples() {
 
       {adding && (
         <form onSubmit={handleSubmit} className="mt-5">
-          <label htmlFor="writing-sample" className={FIELD_LABEL}>
-            Writing Sample
-          </label>
-          <textarea
+          <TextAreaField
             id="writing-sample"
+            label="Writing Sample"
             ref={box}
             rows={8}
             maxLength={MAX_LENGTH}
             placeholder="Paste something you wrote yourself."
-            className={cn(FIELD_CONTROL, "mt-1.5 block resize-y px-3.5 py-2.5")}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && !saving && setAdding(false)}

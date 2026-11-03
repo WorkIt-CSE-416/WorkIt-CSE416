@@ -11,6 +11,7 @@ import {
   type FeedFilters,
 } from "@/app/(seeker)/jobs/filter-query";
 import { SalaryPicker, SearchPicker, type PickOption } from "@/components/filter-controls";
+import { ChoiceTile } from "@/components/ui/choice-tile";
 import { Chip } from "@/components/ui/chip";
 import {
   BriefcaseIcon,
@@ -22,8 +23,6 @@ import {
   workStyleIcon,
 } from "@/components/icons";
 import { cn } from "@/lib/cn";
-
-import { ChoiceTile } from "./choice-tile";
 
 /**
  * Onboarding's first step, the job preferences, and the Field each question

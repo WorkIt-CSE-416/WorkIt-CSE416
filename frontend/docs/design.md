@@ -364,8 +364,10 @@ hours, a system calendar) in none of WorkIt's type or colours. A date is
 `components/date-field.tsx`, WorkIt's Calendar in a Popover, with Clear in
 the popover for an optional one; a time is a `<SelectField>` of quarter
 hours, as Google Calendar offers (Create Event's Start and End, the End
-list naming each choice's length); a multi-line box is
-`components/text-area-field.tsx`. **A pick that has a glyph wears it**: a
+list naming each choice's length); a month is `components/month-field.tsx`,
+the DateField pattern with a year and its twelve months (KAN-559: the
+Experiences editor's `type="month"` opened Chrome's own picker); a
+multi-line box is `components/text-area-field.tsx`. **A pick that has a glyph wears it**: a
 `<SelectField>` option takes the filter dropdowns' `Icon` and
 `iconClassName`, and draws them
 with `OptionLabel` in the list and on the closed field, so a stage or an
@@ -375,7 +377,41 @@ cuts a long name with an ellipsis. Create Event shipped first with native
 date and time inputs and plain text lists for Type and Application, which
 broke both rules. My Profile's Start Window and onboarding's Availability
 step moved to `DateField` with it; no native date or time input is left in
-`src`, so a search for `type="date"` or `type="time"` finds a regression.
+`src`, so a search for `type="date"`, `type="time"` or `type="month"`
+finds a regression.
+
+**Every field, radio and answer tile comes from `ui/`** (KAN-559), never a
+screen's own `<input>`, `<textarea>` or `FIELD_CONTROL` string:
+
+- A text field is `<TextField>`: `size="lg"` (16px type, 44px, a 14px
+  label) on onboarding's one-question screens, `labelIcon` for a glyph before
+  the label (onboarding's links). A field a section heading names (My
+  Profile's Contact & Links, onboarding's Location) is the bare box,
+  `<TextInput>`, under its heading.
+- A multi-line box is `<TextAreaField>`, with `grow` for one that grows with
+  its text (a written answer, coursework). A box a question names (Written
+  Answers' fact box) is the bare `<TextArea>`.
+- A one-pick list is `ui/radio-row.tsx`: `<RadioRow>` for a bordered answer
+  row (the uninstall survey, Written Answers), `OPTION_ROW` for the same row
+  holding a checkbox, and `<Radio>` inside a richer card (the resume
+  pickers). It is still the native radio in the brand accent: drawing a 20px
+  one is open.
+- One answer on a one-question screen is `ui/choice-tile.tsx`
+  (onboarding's steps); a pill in a row is the Chip.
+- A filter over a table is `SearchField` and `FieldFacet` (above), the
+  company tables' toolbar included.
+
+**Named exceptions**, each a control drawn for its place, not a form field:
+the resume editor's in-place lines, title rename, size stepper, phone sheet
+and skill input (`(seeker)/resumes/[resumeId]/`), which wear the page's own
+type; Scout's chat composer; the Experiences editor's bullet boxes with their
+drawn mark and the dashed Add Bullet Point (`FIELD_CONTROL` with a left
+inset); the filters' searchable combobox and pay box
+(`components/filter-controls.tsx`), parts of the pickers themselves; the
+company composer's compact location search and screening question rows; the
+Pricing page's Monthly / 3 months switch, two native radios so the page
+ships no script (the marketing pages do not use `ui/`); and the admin pages,
+an internal tool.
 
 **An application or a resume is never picked from a dropdown** (KAN-429).
 An application is picked in Choose Application
@@ -474,8 +510,10 @@ buttons (Save, Not Interested, Report, the Calendar's arrows) went to 36px
 with them.
 There is exactly one Chip, `ui/chip.tsx`, at two sizes: `default` (36px, an
 sm button's height, so they line up in a row) and `lg` (42px, a default
-button's and a text field's height, 16px type) for a screen where the chips
-are the question itself, onboarding's filter steps. Its roles: `choice` with `pressed` for filters and
+button's and a text field's height, 16px type) for a row of short picks on a
+screen built around them (onboarding's Salary presets). A fixed answer on
+onboarding's steps is a `ChoiceTile` (`ui/choice-tile.tsx`), a full-width
+tile with a box or a dot, not a chip. Its roles: `choice` with `pressed` for filters and
 toggles, `suggestion` for an offered answer, `primary` for the one most
 people take, and `ChipLink` for a filter kept in the URL. **A call site
 never changes a button's or chip's box**: a `no-restricted-syntax` rule in

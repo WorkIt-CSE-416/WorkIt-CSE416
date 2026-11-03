@@ -15,7 +15,7 @@ import { MailIcon, PencilIcon, PinIcon } from "@/components/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeading, SectionHeadingSkeleton } from "@/components/ui/section-heading";
-import { FIELD_CONTROL } from "@/components/ui/text-field";
+import { TextInput } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
@@ -477,8 +477,9 @@ function ContactSection({
                     <Icon aria-hidden className="text-brand size-5 shrink-0" />
                     {editLabel}
                   </label>
+                  {/* The bare box: the card's field heading is its label. */}
                   <div className="mt-1.5 pl-7">
-                    <input
+                    <TextInput
                       ref={i === 0 ? firstField : undefined}
                       id={`edit-${field}`}
                       type={type ?? "text"}
@@ -497,7 +498,6 @@ function ContactSection({
                       placeholder={placeholder}
                       aria-invalid={invalid || undefined}
                       aria-describedby={note}
-                      className={cn(FIELD_CONTROL, "px-3.5 py-2.5")}
                     />
                     {invalid ? (
                       <p id={note} className="text-meta text-danger mt-1">

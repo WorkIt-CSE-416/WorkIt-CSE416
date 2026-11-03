@@ -6,8 +6,11 @@ import { useState } from "react";
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { Avatar } from "@/components/avatar";
 import { DateField } from "@/components/date-field";
+import { MonthField } from "@/components/month-field";
 import { ResumeUpload } from "@/components/resume-upload";
+import { ChoiceTile } from "@/components/ui/choice-tile";
 import { RemovableChip } from "@/components/ui/chip";
+import { RadioRow } from "@/components/ui/radio-row";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import {
   Dialog,
@@ -193,6 +196,62 @@ export function DateFieldSpecimen() {
         placeholder="Pick a day"
         clearable
       />
+    </div>
+  );
+}
+
+export function MonthFieldSpecimen() {
+  const [value, setValue] = useState("");
+
+  return (
+    <div className="w-72">
+      <MonthField
+        id="dk-month"
+        label="Start Month"
+        value={value}
+        onValueChange={setValue}
+        clearable
+      />
+    </div>
+  );
+}
+
+/** Two tiles of a one-pick question and a radio list, as onboarding and
+ *  the uninstall survey draw them. */
+export function ChoiceSpecimen() {
+  const [tile, setTile] = useState("yes");
+  const [radio, setRadio] = useState("slow");
+
+  return (
+    <div className="flex w-full max-w-lg flex-col gap-5">
+      <div className="grid grid-cols-2 gap-2">
+        {["yes", "no"].map((value) => (
+          <ChoiceTile
+            key={value}
+            kind="radio"
+            pressed={tile === value}
+            onClick={() => setTile(value)}
+          >
+            {value === "yes" ? "Yes" : "No"}
+          </ChoiceTile>
+        ))}
+      </div>
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="sr-only">Why Did You Leave?</legend>
+        {[
+          ["slow", "It was slow"],
+          ["fields", "It filled fields wrong"],
+        ].map(([value, label]) => (
+          <RadioRow
+            key={value}
+            name="dk-reason"
+            checked={radio === value}
+            onChange={() => setRadio(value)}
+          >
+            {label}
+          </RadioRow>
+        ))}
+      </fieldset>
     </div>
   );
 }

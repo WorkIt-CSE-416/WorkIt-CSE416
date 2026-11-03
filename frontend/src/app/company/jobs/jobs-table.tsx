@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore, useTransition } from "react";
 
+import { StatusIcon } from "@/app/(seeker)/applications/icons";
 import { EllipsisIcon } from "@/components/icons";
 import {
   DropdownMenu,
@@ -251,7 +252,7 @@ function RowActions({ posting }: { posting: Posting }) {
 }
 
 const FILTERS: FilterSpec[] = [
-  { columnId: "status", label: "Status", plural: "Statuses", options: STATUSES },
+  { columnId: "status", label: "Status", Icon: StatusIcon, options: STATUSES },
 ];
 
 /**
