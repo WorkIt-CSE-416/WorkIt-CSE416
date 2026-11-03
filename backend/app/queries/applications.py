@@ -186,8 +186,16 @@ async def unsave_job(
 
 
 def _bare_link(link):
-    """a link without its query, fragment or trailing slash, the part that names the posting"""
-    return func.rtrim(func.split_part(func.split_part(link, "#", 1), "?", 1), "/")
+    """a link without its scheme, www., query, fragment or trailing slash, in lower case: the part that
+    names the posting (KAN-542). bare_link is the same rule in Python, for the feed import"""
+    no_scheme = func.regexp_replace(link, r"^[a-z][a-z0-9+.-]*://(www\.)?", "", "i")
+    return func.lower(func.rtrim(func.split_part(func.split_part(no_scheme, "#", 1), "?", 1), "/"))
+
+
+def bare_link(url: str) -> str:
+    """_bare_link's rule in Python: the feed import compares a few unlisted postings with the whole feed"""
+    no_scheme = re.sub(r"^[a-z][a-z0-9+.-]*://(www\.)?", "", url, flags=re.IGNORECASE)
+    return no_scheme.split("#", 1)[0].split("?", 1)[0].rstrip("/").lower()
 
 
 def greenhouse_job(url: str | None) -> str | None:

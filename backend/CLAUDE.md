@@ -499,8 +499,9 @@ Find files with a directory listing; these are the rules for where code goes.
   `greenhouse_job`: boards. or job-boards. host, the `embed/job_app?for=&token=`
   form, a company page's `?gh_jid=`; Greenhouse job ids are unique across
   boards, so the id alone decides, as the Fill engine's `jobOf` does), else
-  the same link without query, fragment and trailing
-  slash (SQL `split_part`/`rtrim`, no index: the feed is small), **but only
+  the same link without scheme, `www.`, query, fragment and trailing
+  slash, in any case (KAN-542; SQL `_bare_link`, no index: the feed is
+  small; `bare_link` is the same rule in Python), **but only
   when exactly one listed job has that bare link** (KAN-424): many postings
   carry their id only in the query (36 Waymo jobs share
   `careers.withwaymo.com/jobs`), and taking the first saved a different job
