@@ -53,7 +53,7 @@ Applications to links Lisul gives, carried exactly as a run carries a Request up
 _Avoid_: dry run, test run, preview
 
 **Emailed code**:
-The code a job system emails before it takes an Application that Lisul submitted himself from a Rehearsal's page, such as Greenhouse's 8-character security code. Apply reads it from Gmail (only a mail from the job system's senders, else the page's domain, that arrived after his press, and only a code the mail names as one) and types it into the code field. It never presses Submit, Verify or Resend after it: that stays his. With no such mail within 3 minutes, no sure code, or a code that does not fit the field, the field stays empty and the Apply window's Needs you tab tells him to type it.
+The code a job system emails before it takes an Application that Lisul submitted himself from a Rehearsal's page, such as Greenhouse's 8-character security code. Apply reads it from Gmail (only a mail from the job system's senders, else the page's domain, that arrived after his press, and only a code the mail names as one) and types it into the code field. It never presses Submit, Verify or Resend after it: that stays his. With no such mail within 3 minutes, no sure code, a code that does not fit the field, or two held pages waiting on the same senders at once (Greenhouse mails every company's code from one), the field stays empty and the Apply window's Needs you tab tells him to type it. A code typed into one page is never typed into another.
 _Avoid_: OTP, 2FA code, verification (alone)
 
 **Backlog run**:

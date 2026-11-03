@@ -127,7 +127,10 @@ into it and the window shows "Sample data".
   `email_code.py` types the code that a job system emails after his own
   Submit, and nothing more (`test_email_code.py` checks that it has no click
   or key press). Test it on the fakes only: never press Submit on a real
-  posting to make a code come.
+  posting to make a code come. Two held pages whose lookups overlap on the
+  same senders type neither code (`_join`, `CROSSED`): Greenhouse mails
+  every company's code from one sender, and the newest mail after each press
+  could be the other page's.
 - Kill only the processes you started, by PID. Other people's rehearsals
   can run on the same Mac.
 

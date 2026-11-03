@@ -17,6 +17,10 @@ never presses a button: the Submit or Verify after the code stays his.
   nothing; Lisul's own Submit then sends it.
 - No mail, no sure code, or a code that does not fit leaves the field empty
   and tells Lisul in the Apply window (Needs you). Nothing is guessed.
+- Two held pages whose code lookups overlap on the same senders (Greenhouse
+  mails every company's code from one) can't tell whose mail is whose, so
+  neither is typed. A code typed into one page is never typed into another.
+- A code step that changes while Apply types leaves the page his.
 - What it says names only the sender's domain, never the code or the mail.
 """
 
@@ -51,6 +55,16 @@ NO_MAIL = ("The job site asked for the code it emailed you, and no code email fr
            "{minutes} minutes. Type the code from your email yourself (check spam too)")
 UNSURE = ("The job site asked for the code it emailed you. The email from {sender} came, but Apply wasn't sure "
           "which part of it is the code, or it doesn't fit the field, so it left the field empty. Type it yourself")
+CROSSED = ("The job site asked for the code it emailed you, but another application you hold asked {sender} for "
+           "one at the same time, so Apply can't tell which code is this one's. Type it yourself from your email")
+NOT_TYPED = ("The job site asked for the code it emailed you. The email from {sender} came, but the code field "
+             "changed while Apply typed it. Check the field and type the code yourself")
+
+# The lookups going on, by Gmail search, and the codes Apply typed (see the
+# module's docstring): shared by every held page in this process.
+_LOCK = threading.Lock()
+_GOING: dict[str, set["EmailCode"]] = {}
+_TYPED: set[str] = set()
 
 
 def search_for(job_system: str, url: str) -> str:
@@ -78,6 +92,7 @@ class EmailCode:
         self._thread: threading.Thread | None = None
         self._found: list[MailedCode | None] = []
         self._search = ""
+        self._crossed = False  # another page's lookup on the same senders overlapped this one
 
     def pressed(self, words: str = "") -> None:
         self._press = self._clock.now()
@@ -93,7 +108,7 @@ class EmailCode:
             if why := self._mailbox.unavailable():
                 self._tell("needs code", NO_GMAIL.format(why=why.rstrip(".")))
                 return
-            self._search = search_for(self._job_system, page.url)
+            self._join(search_for(self._job_system, page.url))
             self._found = []
             self._thread = threading.Thread(target=self._look, args=(since,), daemon=True)
             self._thread.start()
@@ -101,15 +116,42 @@ class EmailCode:
         if self._thread.is_alive():
             return
         self._thread = None
+        self._leave()
         found = self._found[0] if self._found else None
         if found is None:
             senders = self._search.removeprefix("from:").strip("()").replace(" OR ", " or ")
             self._tell("needs code", NO_MAIL.format(senders=senders, minutes=int(WAIT.total_seconds() // 60)))
-        elif (boxes := self._new_boxes(page)) and _type(page, [box for _, box in boxes], found.code):
+            return
+        if not (boxes := self._new_boxes(page)):
+            return  # no empty code field left: Lisul typed the code himself meanwhile
+        if self._crossed:
+            self._tell("needs code", CROSSED.format(sender=found.sender))
+            return
+        try:
+            typed = _type(page, [box for _, box in boxes], found.code)
+        except Exception:
+            self._tell("needs code", NOT_TYPED.format(sender=found.sender))
+            return
+        if typed:
+            with _LOCK:
+                _TYPED.add(found.code)
             self._tell("code filled", FILLED.format(sender=found.sender))
-        elif boxes:
+        else:
             self._tell("needs code", UNSURE.format(sender=found.sender))
-        # no empty code field left: Lisul typed the code himself meanwhile
+
+    def _join(self, search: str) -> None:
+        """Starts a lookup on `search`, crossing it with any still going."""
+        self._search = search
+        with _LOCK:
+            going = _GOING.setdefault(search, set())
+            for other in going:
+                other._crossed = True
+            self._crossed = bool(going)
+            going.add(self)
+
+    def _leave(self) -> None:
+        with _LOCK:
+            _GOING.get(self._search, set()).discard(self)
 
     def _new_boxes(self, page) -> list:
         """The code field that came after the form: its visible boxes, each empty."""
@@ -123,7 +165,10 @@ class EmailCode:
         until = self._clock.now() + WAIT
         while True:
             try:
-                if found := self._mailbox.find_mailed_code(search=self._search, since=since):
+                found = self._mailbox.find_mailed_code(search=self._search, since=since)
+                with _LOCK:
+                    taken = found is not None and found.code in _TYPED
+                if found and not taken:  # a taken one is another page's: look again for this page's own
                     self._found.append(found)
                     return
             except Exception:

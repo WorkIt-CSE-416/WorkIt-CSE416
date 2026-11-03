@@ -19,6 +19,16 @@ from apply.email_code import EmailCode, search_for
 from apply.greenhouse import SECURITY_CODE_SEARCH
 
 NOW = datetime(2026, 11, 2, 10, 0)
+
+
+@pytest.fixture(autouse=True)
+def no_lookups_or_codes_left_over():
+    """Every test starts with no lookup going and no code typed: they share CODE."""
+    email_code._GOING.clear()
+    email_code._TYPED.clear()
+    yield
+    email_code._GOING.clear()
+    email_code._TYPED.clear()
 URL = "https://job-boards.greenhouse.io/acme/jobs/4012345"
 SENDER = "us.greenhouse-mail.io"
 
@@ -160,6 +170,39 @@ def test_with_no_code_step_after_his_press_no_mail_is_looked_for(monkeypatch):
 
     assert told == [] and mailbox.looks == 0
     assert clicks == [] and not sent and values == [""] * len(CODE)
+
+
+def test_two_pages_looking_on_the_same_senders_at_once_type_neither_code():
+    # Greenhouse mails every company's code from one sender: neither page can tell whose mail is whose.
+    def watcher():
+        return EmailCode(FakeMailbox(), FakeClock(NOW), "greenhouse", lambda status, why: None)
+    first, second = watcher(), watcher()
+    first._join(SECURITY_CODE_SEARCH)
+    second._join(SECURITY_CODE_SEARCH)
+    assert first._crossed and second._crossed
+
+    first._leave()
+    second._leave()
+    later = watcher()
+    later._join(SECURITY_CODE_SEARCH)  # once both are done, a new lookup is on its own
+    assert not later._crossed
+    other = watcher()
+    other._join("from:(icims.com)")  # another job system's senders never cross it
+    assert not other._crossed
+
+
+def test_a_code_typed_into_one_page_is_never_found_for_another():
+    clock = FakeClock(NOW)
+    mailbox = FakeMailbox(clock=clock)
+    mailbox.deliver(SECURITY_CODE_SEARCH, code=CODE, sender=SENDER)
+    email_code._TYPED.add(CODE)  # typed into another held page
+    watcher = EmailCode(mailbox, clock, "greenhouse", lambda status, why: None)
+    watcher._search = SECURITY_CODE_SEARCH
+
+    watcher._look(NOW - email_code.SLACK)
+
+    assert watcher._found == []
+    assert clock.now() >= NOW + email_code.WAIT  # it kept looking for its own code
 
 
 def test_apply_presses_nothing_on_the_code_step():
