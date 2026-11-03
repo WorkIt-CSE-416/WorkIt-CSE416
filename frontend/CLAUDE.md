@@ -156,6 +156,22 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   stays in place. To bring it back, delete the proxy block and
   `app/coming-soon/`, then uncomment the switcher's toggle. The API still
   accepts company signups; the gate is the UI only.
+- **A link to the site unfurls into one card** (`lib/share-card.ts`,
+  `public/og-image.jpg`, KAN-540). The fallback description was "CSE 416 final
+  project" and no page had preview tags, so a shared link showed that and no
+  image. The root layout sets the image, `metadataBase` and no title or
+  description for it, so each page's own carry over to its preview. Next
+  replaces a parent's `openGraph` whole, so a page that sets its own spreads
+  `SHARE_DEFAULTS`, or it loses the image. The image is a static file, not an
+  `opengraph-image` route: a crawler gets it from the assets with no Worker or
+  proxy (`src/proxy.ts` skips `.jpg`), and it needs no image rendering on
+  Cloudflare. It is the hero recomposed at 1200 x 630 (2x): the logo, the
+  headline on its widest phrase and the city, taken when a strong match shows,
+  since a red 67% was the wrong first impression. A change to the hero's look
+  means taking it again. The home page's tab title is short (`site.tabTitle`,
+  a tab shows about 30 characters); its preview carries the whole tagline.
+  After a deploy, check a link in a preview debugger: a platform caches the
+  old card for days.
 - **The page at `/` is the landing page, `app/(landing)/`**, ported from
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
@@ -194,7 +210,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   field by field (typed, picked, the tailored resume attached, an answer
   drafted from the bank) while the page scrolls to Submit, and the
   student's pointer clicks Submit; then the camera pulls back to 3 × 3,
-  5 × 5 and 7 × 7 windows of the queue, filled for the student. Each far
+  5 × 5 and 7 × 7 windows of the queue, filled for the student. The first
+  window has no green ring in the grid, and the browser bar's chip carries
+  WorkIt's mark in white, not a sparkle (KAN-540). Each far
   window shows its match (`scoreTone`), and the queue leaves out the weak
   fits (under 70), so it reads as the best fits, not as the mass
   copy-paste the statement warns about. **Its copy
@@ -359,97 +377,72 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   told the tour's four steps a third time, after the reader had seen
   each one, and made the page about 15% longer. It had carried the page's
   only "Coming soon" mark for employer replies, so the tour's Updates stop
-  and the route's Interview and Job Offers stops now carry their own
+  and the tracker's Interview and Job Offers steps now carry their own
   (`SoonChip` in `layout-parts.tsx`, from `soon` on the feature or the
   stage): the tracker stores no employer replies. **The statement**
-  (`statement.tsx`, between the hiring-systems section and the
-  applications section, after Twain's) tells one thing at a time and
-  plays on its own like a carousel that loops (`useStoryLoop`): once the
-  scene is on screen the beats follow one another in time, the finale
-  holds about three seconds, then both columns fade, the story resets
-  (bin emptied, count back to nothing) and starts again; it pauses off
-  screen and in a hidden tab. The scroll plays no part: the section is a
-  screen-high panel, not pinned, and nothing the scroll does moves the
-  story. Cued beat by beat by the scroll, it stopped whenever the reader
-  did, which the team found broken; then, pinned for 260vh with a bar per
-  beat over the caption and the scroll taking it to its finale near the
-  pin's end (a hand-off for the card's flight into the applications
-  section), it still read as driven by the scroll, and the bars sat close
-  over the gate's red chip, so the team had the bars, the pin and the
-  hand-off taken out on 2026-10-22. A dark panel that opened out to the
-  window's edges as it came up (a scroll-linked clip path) was tried on
-  2026-10-25, to set this section apart from the light ones round it; the
-  team found its background and transition odd, and it went back to the
-  light panel. A beat lasts about four seconds (`RATE`), so the page, its
-  marks, its notes and its verdict hold together for over a second, the
-  evidence its caption names: at three seconds they shared the screen for
-  a quarter of one. The team found
-  four captions at
-  once too much text and the first scene's gates, glass bin and rubber
-  stamps "AI slop". The headline, "Slop
-  applications get skipped.", runs one line across the top from lg up.
-  "Slop" is drawn as AI slop (`SlopWord`, slop-word.tsx, KAN-368): a
-  glossy magenta-to-cyan gradient with a pink glow, a sweeping gloss,
-  twinkling sparkles and goo dripping off the letters, picked by the team
-  from six treatments over a red spell-checker wave they found too plain.
-  It is still text for screen readers and copying. Its drips run only as
-  far as the room under the headline allows (`--reach` in landing.css:
-  0.4 on a phone, where "get skipped." wraps under it, 0.6 on a tablet,
-  0.7 from lg up, with `pt-14` above the first caption's chip), stop
-  with the section's loop (`data-paused`) and hang still with reduced
-  motion. It was "Stop sending slop applications.", a second
-  "Stop" right after the hero's tagline; it now says what the three beats
-  show. On the left only the current beat's caption shows,
-  under its gate's chip; it lifts away as the next comes in, and its words
-  come into focus as they are read. The chips are label-sized, each gate's
-  mark on a white disc, and from lg up the marks move (`GateIcon`,
-  `.gate-*` in landing.css: a scan line runs down the page, the shield
-  shakes and its "!" blinks, the bot blinks and its antenna light pulses);
-  the team found small chips with still icons hard to notice. The finale's
-  chip is "With" and WorkIt's own logo, mark and word, its figure's head
-  hopping now and then (`.workit-hop`), where it had a check and "With
-  WorkIt" in text, and the screening panel's header names WorkIt with the
-  logo too. The marks rest while the section is off screen (`data-paused`)
-  and with reduced motion. On the right
-  one screening panel for one posting (`followedJob`) reads three things
-  a student sends blind, one after another: a generic resume (ATS
-  filter), a copy-paste application (spam detection), a template cover
-  letter (slop detection). A scan line runs down each page, the lines
-  that sink it get a red mark and a note beside the page (the reason, not
-  a stamp), the panel's status turns to its verdict, and the page
-  crumples into a paper ball thrown on an arc into a solid wastebasket
-  (never see-through: its far wall is drawn behind the balls, its body in
-  front), which rocks as each lands; the balls pile at the rim under a
-  count. The pages are laid out on fixed lines (`top-[..]`) so each
-  note's `y` meets its line. Then the same panel reads WorkIt's
-  application, `<FollowedCard stage="saved" />`, and finds it ready to
-  submit, with three green checks; it sits inside the panel, clear of the
-  bin. The captions, the panel's titles and
-  statuses and the notes are array ranges on `opacity` and `transform`,
-  so the browser runs them; the pages and balls are one pose per frame
-  on `will-change` layers. The scene is drawn at a fixed size and scaled
-  by `Fit`; its root is `shrink-0`, since its children are all absolute
-  and, as Fit's flex child, it shrank to the column, so Fit read that
-  width and never scaled it down on a phone. Below lg it loops too, in
-  one column (`CompactStatement`, KAN-368): the beat's caption over the
-  screening panel alone, without the bin, drawn at about 0.85 on a phone,
-  a thrown page leaving the panel's edge (the whole scene scaled into the
-  column was a 58% miniature, its labels 7px, which is why phones showed
-  it still until then). With reduced motion it is still: every caption in
-  a short list, then the finished frame. The captions and notes are product copy: the gates' are hedged
-  ("often", "look like"), since they describe the market, and the last
-  one's claims follow the rules above, never a promise to pass an ATS. The site's closing "Be first in line" banner is
+  (`statement.tsx`, between the hiring-systems section and the applications
+  section) is the real words as art (KAN-540, "slop to specific"): one white
+  card for one posting (`followedJob`) shows three things a student sends
+  blind, one at a time, in large type. A generic line writes itself, the
+  phrases that sink it are marked and say why (red chips under it), then it
+  rewrites itself word by word into a specific line, whose facts are marked in
+  violet, with where it came from under it. The three are a resume line (its
+  rewrite is the Tailor scene's own), a written answer and a cover letter, each
+  a thing WorkIt's tailoring or the extension's drafted answers really produce.
+  Beside the card, one caption shows at a time, its words coming into focus as
+  they are read: the problem under its gate's red chip while the generic line is
+  up, then, as the line is rewritten, why the fix helps under WorkIt's chip (`fix`
+  on the beat). The problem left beside the fixed line read as a complaint about
+  the fix, which the team found confusing. Then the same place holds `<FollowedCard />` with
+  three green checks, beside WorkIt's closing line. It replaced a screening
+  panel that crumpled each page into a paper ball thrown into a metal
+  wastebasket, the page's only realistic illustration, whose art style the team
+  disliked. An earlier scene's gates, glass bin and rubber stamps were found
+  "AI slop"; a bar per beat over the caption read as the scroll's progress; and
+  four captions at once were too much text. It plays on its own like a carousel
+  that loops (`useStoryLoop`): once on screen the beats follow one another in
+  time, the finale holds, then it fades, resets and starts again, pausing off
+  screen and in a hidden tab. The scroll plays no part, the section is a
+  screen-high panel, not pinned: cued by the scroll, it stopped whenever the
+  reader did, which the team found broken. **Pace** (`RATE`, about eleven
+  seconds a beat): each phase ends before the next begins and the line holds
+  once it is done, since at six seconds the marks, the caption and the new line
+  were still arriving as the beat moved on and the team could not read them.
+  The whole story is about 45 seconds. **"Slop" is one flowing gradient**
+  (`.slop-word`): the headline's word and the marked phrases share it, so the
+  word and what it means read as one thing. They are real text, so they sit
+  flush with the words beside them; the headline's word was an SVG drawing with
+  goo, a glow and sparkles (KAN-368), which had its own weight and box. The
+  tile is in em and ends on the colour it starts with, so a short word shows the
+  same stretch as a long one and the loop has no seam. Each word starts the
+  flow a little later, so the colour runs along a phrase. A marked word
+  crossfades from its grey copy to the gradient copy, since a gradient's
+  clipped text shows anything under it. The headline runs one line across the
+  top from lg up; it was "Stop sending slop applications.", a second "Stop"
+  right after the hero's tagline. All three lines sit in one grid cell, so the
+  card stands still and takes the tallest line's room; the same goes for the
+  captions. It needs no `Fit`, so a phone gets the type at full size, in one
+  column, where the old scene was a 58% miniature. The moving card is hidden
+  from screen readers, and the caption column reads its lines. With reduced
+  motion it is a still list, each generic line struck through over its
+  replacement. The chips are label-sized, each gate's mark on a white disc,
+  and the marks move (`GateIcon`, `.gate-*` in landing.css), since the team found
+  small chips with still icons hard to notice; the finale's chip is "With" and
+  WorkIt's own logo, its figure's head hopping now and then (`.workit-hop`). They
+  rest while the section is off screen (`data-paused`) and with reduced motion.
+  The lines, reasons and captions are product copy: the gates' are hedged
+  ("often", "look like"), since they describe the market, and the last one's
+  claims follow the rules above, never a promise to pass an ATS. The site's closing "Be first in line" banner is
   removed for now. **The applications section** ("Every application, from
-  saved to signed.", KAN-316) is one search's route (`applications.tsx`,
-  "The home page's lower half", below): four stops, Saved, Applied,
-  Interview and Job Offers, each with its stage's line and count
-  (`stages` in `board-data.ts`), and under each a pile of real employers'
-  logos counting the search down. Its copy says what the tracker keeps
-  today: one list, each job's match score and the resume each
-  application went out with. A board, a next step and a deadline per card,
-  and a follow-up day are not built, so no line promises them, and
-  Interview and Job Offers say "Coming soon". Its heading is centred over
-  the route, and the FAQ after it holds its heading on the left while the
+  saved to signed.", KAN-316, KAN-540) is one card, four states
+  (`applications.tsx`, "The home page's lower half", below): one large
+  application moves through Saved, Applied, Interview and Job Offers beside a
+  slim rail, each stage's line from `stages` in `board-data.ts`. Its copy
+  says what the tracker keeps today: one list, each job's match score and the
+  resume each application went out with. A board, a next step and a deadline
+  per card, and a follow-up day are not built, so no line or card promises
+  them, and Interview and Job Offers say "Coming soon". Its heading is centred
+  over the card, and the FAQ after it holds its heading on the left while the
   questions pass on the right (lg up), so neighbouring sections open
   differently (KAN-368). Its eyebrow is the
   feature's name, "Application tracker": "For applicants" said nothing
@@ -466,21 +459,21 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   host had only 16-32px copies of BambooHR's and Workday's, which looked
   blurry. A hiring system added to the list needs its file there too.
   **The hiring-systems section** draws the job pipeline
-  (`docs/job-pipeline.md`). From lg up it is a 3D scene after Twain's ring
-  of logo coins (`hiring-pipeline.tsx`, "The home page's lower half",
+  (`docs/job-pipeline.md`). From lg up it is a ring of logo coins after
+  Twain's that lands on an isometric sorting line (`hiring-pipeline.tsx`,
+  `sorting-line.tsx`, "The home page's lower half",
   below); the flat stream (`hiring-systems.tsx`) is its still version,
   below lg and with reduced motion, and lends it `JobCard`. In the stream, from lg up, one lane per
   hiring system carries job postings from real employers on that system
   in `scraper/boards.csv` (`streams` in `data.ts`) into WorkIt's mark: a
   senior role is struck through and falls away, an internship or new-grad
   role goes in and comes out as a glossy card on the Jobs page side,
-  sorted by Best Match. Below lg it runs top to bottom in two or three
+  the newest on top. Below lg it runs top to bottom in two or three
   columns. The lines under the mark are pipeline steps, so each is a
   claim. The team dropped the two cards that sat under it (Autofill for
-  Chrome, Scout): their feature pages cover them. In the 3D scene the Jobs
-  page cards keep 316px (`outletX`), which shows every title whole, and the
-  heading sits higher under a 40rem window, or the pipe's label rises into
-  its last line (KAN-540). One clock (a motion
+  Chrome, Scout): their feature pages cover them. On the sorting line the
+  Jobs page cards keep at least 316px, which shows every title whole
+  (KAN-540). One clock (a motion
   value, in seconds) drives every chip and moves only in view and in a
   visible tab; with reduced motion it stays at `STILL_AT`, the one still
   frame. A lane's chips are evenly spaced slots, and each takes the lane's
@@ -820,60 +813,37 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   action and the footer; the testimonial is hidden) reads as one story, like the hero, bridge and tour
   above it. **One object is carried down the page**: the application the
   tour followed (`followedJob`), drawn as a tracker card by `FollowedCard`
-  (`thread.tsx`; its text per stage is `followedStages` in
-  `board-data.ts`, dated after the Updates stop). The statement's finale
-  reads it, and it waits on the applications route's first stop and rides
-  the route stop by stop to the offer, where its trip ends. A `Flight`
-  once carried it from the statement's last frame onto the route, and on
-  from the route to a "How it works" card: both went (the cards with
-  their section, the first when the statement came to loop on its own,
-  since its finale was rarely on screen as the reader moved on, and the
-  card flew out of nowhere). **The applications section** (`applications.tsx`)
-  pins for 280vh from lg up (tighter and at 0.68 under a 40rem window,
-  `TIGHT_QUERY`, or its eyebrow went under the header; KAN-540; below lg the
-  list and card sit side by side from md); the scroll cues each move to the next stop
-  (`CUES`) and the move plays in time (`useSceneTime`, about 1.25 s a
-  stop), so the card never rests between two stops. The card rides above
-  a line through the four stops, flush with the line's ends at the first
-  and last; `stageAt` in `stage-timeline.tsx` glides between whole stops,
-  and the card, the line's fill and the flying logos all read it, so they
-  arrive together as the stop lights. Each stop's line sits beside the
-  card while it rests there (`RouteCaption`), right of it at the first
-  two stops and left at the last two, where the route ends; beside the
-  heading, far from the card, the team found it out of place. Each stop
-  has its own caption, fixed at that stop, shown only while the card
-  rests on that stop once the section has pinned: it fades in just
-  after the landing pop and out as soon as the card moves, so no caption
-  changes its words or side while it can be seen. One caption that
-  swapped both glitched: the card's stage changes at the landing, and
-  that caption had already faded back in with the old words, then
-  swapped them and jumped sides in view. The logos come from one list,
-  `LOGOS`, furthest first: the first `count` of each stage (24, 12, 4, 1)
-  reach it, so every logo that reaches a stop came from the pile before
-  and the last one is the followed application. **Each logo is drawn once
-  and moves** (`MovingTile`, KAN-368): as the card glides to a stop, the
-  logos going on fly there from the pile before on an arc, and the ones
-  that went no further close up behind them, so at the offer the piles
-  hold 12, 8, 3 and 1, each role in one place. A copy once flew on from
-  over its twin and left the twin behind, so every role that went on sat
-  in two piles, which the team read as duplicates. The stage chips keep
-  the totals that passed through (24 roles, 12 sent). The stops ahead show
-  dashed slots where their logos will land, gone once they have. The
-  piles' places are plain arithmetic from the stops, nothing measured but
-  the route's width. One violet runs the route; the stage colour shows
-  only in the card's chip and ring: the team found the old four-colour
-  gradient ugly. Under 800px of height the card is drawn at 78% so the
-  heading, route and piles fit at 1280 × 720. `Burst` keeps its 0.55s
-  delay for the Updates stop; the route passes its own. The tracker
-  card's next step fits one line at every stage (Saved's reads "Apply with
-  tailored resume"), so the card keeps one height (`CARD_HEIGHT`): on two
-  lines at Saved it stood taller and its top dropped as it moved on. Its
-  new words come in as the old ones finish going (`swap`'s delay):
-  `popLayout` ran both at once, and two lines showed through each other.
-  Below lg the stops are a still list, each with the logos left there at
-  the route's end (`leftAt`), seven at most and a "+N" (`STILL_PILE`; the
-  full piles, 24 and 12 tiles, read as noise on a phone), and the card at
-  its offer.
+  (`thread.tsx`). The statement's finale reads it, and the applications
+  section takes it from there, drawn large, to the offer, where its trip
+  ends. It shows only what the tracker keeps: a next step and a deadline were
+  drawn on it, and neither is built. A `Flight` once carried it from the
+  statement's last frame on down the page: it went when the statement came to
+  loop on its own, since its finale was rarely on screen as the reader moved
+  on, and the card flew out of nowhere. **The applications section**
+  (`applications.tsx`, KAN-540) is one card, four states, picked over a depth
+  stack, a bento board and an isometric tower. It replaced a route where a small
+  card rode a line through four stops over piles of logos that flew from one
+  stop to the next, with a caption beside the card and dashed slots ahead: the
+  team wanted something more premium, and the parts all pulled at the eye at
+  once. Showing less is the point, so **no logo piles, no counts, no second
+  card**. From lg up it pins for 280vh; the scroll cues each move (`CUES`) and
+  the move plays in time (`useSceneTime`, about 1.25 s a stage), so the card
+  never rests between two states. `stageAt` in `stage-timeline.tsx` glides
+  between whole stages, and the card's lift and the rail's fill both read it,
+  so they arrive together as the stage lights. The card is one record that
+  grows (`FACTS`): a dash until the application reaches a fact, then its value,
+  so at the offer it is full, and the status chip and the coloured glow behind
+  it change with the stage, one glow layer per stage so the colour crossfades.
+  `Burst` keeps its 0.55s delay for the Updates stop; the card passes its own.
+  New words come in as the old ones finish going (a delay on the swap):
+  `popLayout` ran both at once, and two lines showed through each other. Every
+  rail step keeps one height, its line only fading in, so the rail's fill meets
+  each node and nothing moves. Under 40rem of window height the subtitle goes
+  and the padding tightens, or the eyebrow went under the header. Below lg it
+  is not pinned: the states follow one another in time while the card is on
+  screen (`LoopingApplications`), the card over the rail on a phone and beside
+  it from md. With reduced motion, and before the screen's size is known, it
+  is the card at its last state over the full rail.
   **Headings come into
   focus** through `FocusIn` (`focus-in.tsx`): an observer marks the
   wrapper and a CSS transition ends at the element's own `filter: none`.
@@ -894,79 +864,82 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   where the postings come from, the proof behind the bridge's flood and
   Matching, and it names the systems whose filter is the statement's
   first beat. At the page's end it read as an afterthought, just above
-  the FAQ's "Where do the jobs come from?". **It slides up over the
-  tour** (KAN-368): the tour keeps its last stop pinned for
-  `TOUR_COVER_VH` more (`layout-parts.tsx`), and this section starts that
-  far up the page, so its panel rises over the tour's while the tour sinks
-  back (scaled to 0.94, shaded by a layer over it, since a filter would
-  stop its glass blurring) and fades as the cover ends: once unpinned it
-  scrolled away in the strip above this section's panel. The panel casts
-  a soft shadow on the tour as it comes (a blurred ellipse under its top
-  edge, faded as it pins): without it the grey edge barely showed and the
-  cover read as a fog. The tour reads the cover's progress from a box
-  the cover's height at the foot of its pin: a box of no height gave the
-  browser's view timeline nothing to measure, it stood at its end, and
-  the tour vanished at once and left the screen blank, which read as an
-  abrupt cut. Both read the one constant; with reduced motion neither
-  moves. It pins for 220vh in a grey
-  panel: the seven hiring systems
-  come in as thick coins (CSS 3D: a face, three stacked discs for the
-  edge, a back, under the stage's `perspective`; seven discs read the
-  same at every angle but edge-on) and keep tumbling in a slowly turning
-  ring beside the heading, on their own clock (`useLoopClock`), for as
-  long as the reader rests there: scrubbed by the scroll, the ring froze
-  whenever the reader stopped. The clock alone turns them, at one steady
-  pace (`ORBIT`, `TUMBLE`), whether or not the page moves: the scroll
-  added its own turn as the section came up, so the coins spun fast while
-  scrolling and crawled once the reader stopped. The scroll's cue, a third through, sends
-  each coin to the pipe, in time, to turn side-on as a coupling; the
-  glass pipe grows out to WorkIt's mark, and the postings flow. The
+  the FAQ's "Where do the jobs come from?". **It comes in on the
+  tour's own panel** (KAN-540): one panel, new content. The tour keeps its
+  last stop pinned for `TOUR_COVER_VH` more (`layout-parts.tsx`), and this
+  section starts pinned twice that far up the page, unseen, with the tour's
+  size and place (`pt-24 pb-6`, or the panels would not line up). Over the
+  stretch the tour's tabs and card fade out, this panel fades in over the
+  tour's, so the one panel seems to change colour, and the heading and coins
+  rise in. It replaced a grey panel sliding up over a tour shrunk to 0.94
+  under a dark shade, which the team found muddy, with a hard edge. The
+  section lies over the last stop, so it takes no pointer events itself and
+  its panel takes them back only once it shows: it swallowed the tour's tab
+  clicks. The tour fades as the cover ends: once unpinned it scrolled away
+  in the strip above this panel. `#hiring-systems` is a span past the cover,
+  since the section's top is still the tour's last stop. The tour reads the
+  cover's progress from a box the cover's height at the foot of its pin: a
+  box of no height gave the browser's view timeline nothing to measure, it
+  stood at its end, and the tour vanished at once. Both read the one
+  constant; with reduced motion neither moves. It pins for 120vh past the
+  cover in a grey panel: the seven hiring systems come in as thick coins (CSS
+  3D: a face, three stacked discs for the edge, a back, under the stage's
+  `perspective`; seven discs read the same at every angle but edge-on) and
+  keep tumbling in a slowly turning ring beside the heading, on their own
+  clock (`useLoopClock`), for as long as the reader rests there: scrubbed by
+  the scroll, the ring froze whenever the reader stopped. The clock alone
+  turns them, at one steady pace (`ORBIT`, `TUMBLE`), whether or not the page
+  moves. The scroll's cue, a third past the cover, sends each coin down onto
+  its dock on **the sorting line** (`sorting-line.tsx`, KAN-540, which
+  replaced a glass pipe the team found boring): a raised belt on the hero
+  city's own axes (`AXES` in `city-model.ts`), so the section reads as part
+  of that city, running up to the right from seven docks through WorkIt's
+  solid violet gate (see-through, the belt and posts showed through each
+  other) to the Jobs page cards. The
   ring's clock stops while the coins fly, so their landing turns, reckoned
   from the ring, hold still. Each coin carries its logo on both faces and
   stands near upright, a few degrees askew: turned with its place on the
-  ring, a logo stood on its side or upside down, and the blank back hid it
-  for half the tumble. The
-  couplings sit together at the intake end like a manifold: spread along
-  the whole pipe they hid most titles. The postings ride a conveyor of
-  evenly spaced places (`SPACING`), each given to the hiring systems in
-  turn and shown from that system's coupling on, so they never overlap
-  in the one pipe; a senior role is struck through and filtered out
-  before the mark, a kept role goes in and comes out as a `JobCard` as it
-  folds into the mark: sent at the end of its lap, out of sight past the
-  mark, a card came some six seconds after its posting and read as
-  unrelated to it. The pipe fills from the couplings when the flow first
-  runs (`fresh`): shown at once, three postings popped in mid-pipe; a
-  return to a running flow fades it in. So the fill is quick, the
-  conveyor starts with a place at the last coupling, where the coins end,
-  and on the first lap each place takes the coupling just ahead of it
-  (KAN-368): started at the pipe's end with the systems in turn, only one
-  posting could come out, behind the coins, and the first one cleared
-  them 7.1 s after the scroll's cue (now 1.5 to 1.9 s, then one about
-  every 2.7 s). Where a place is compared with the coupling it starts
-  on, the test allows a pixel (`EPS`): the first place starts exactly on
-  the last coupling, and rounding put it a hair past on some frames and not
-  on others, so the first posting flickered on and off all the way down
-  the pipe. The flow's clock runs as soon as the pipe has formed
-  (`PIPE_IN`'s end), in view and in a visible tab. The pipe starts just behind the first coupling, whose coin
-  hides its end: an open-end ellipse there, and later the bare rounded
-  end, read as a stray circle. WorkIt's mark is plain glass on the grey,
-  with no violet glow behind it (the team found it decorative). A card
-  comes at most every `CARD_GAP` (2.8 s), so each settles before the
-  next; `JobCard` takes the `ref` that `AnimatePresence`'s `popLayout`
-  passes (dropped, a leaving card could not pop out and the rest jumped)
-  and animates its position only. The copy says "freshest", never the
-  scraper's 3-hour schedule, at the team's ask, and the diagram labels
-  only its two ends, "Company job boards" and "Your Jobs page", in one
-  annotation style (`DiagramLabel`: small capitals set wide, in the body
-  grey, since the meta grey spaced 0.14em read faint on the tinted
-  panels); the team found a bold label with "Always fresh" beside it and a "Sorted by
-  Best Match" note cluttered. The first coin's edge and the left label
-  sit on the heading's left edge. A posting pill has a fixed width
-  (`PILL_W`), so its right edge is known: it stops `MARK_GAP` short of
-  WorkIt's mark and a kept one folds into it from that edge; sized to
-  its title, a pill slid under the mark. Its level (Intern, New Grad,
-  Co-op) stays whole while the role before it is cut short: it is why
-  WorkIt keeps the posting, as "Senior" is why it drops one. The testimonial's panel grows into place (`GrowIn`, a
+  ring, a logo stood on its side or upside down. The paragraph fades as the
+  line forms, since the belt climbs into its room, and under 44rem of window
+  height the whole heading goes. The line is two SVGs, `LineBack` under the
+  parcels and `LineFront` over them, so a parcel rides between the gate's
+  posts; the pills sit over both on a layer of their own (a portal), or the
+  near post crossed each title. Everything is placed from the stage's size in
+  `lineFor`, in (u, d, z): along the belt, across it and up. The docks' pitch,
+  the coins' size and the chute's length shrink with the belt, and the first
+  dock starts 64px in, or it was cut by the panel's edge. The parcels ride a conveyor of
+  evenly spaced places (`SPACING`), each given to the hiring systems in turn
+  and shown from that system's dock on, so they never overlap. At the gate a
+  parcel's lid takes the verdict: a senior role turns red, is struck through
+  and is pushed off down the chute into the bin; a kept one turns violet, rides
+  on, and comes out as a `JobCard` at the belt's end, always at the top of the
+  list, with the oldest leaving at the foot (KAN-540; sorted by score, a new
+  card landed anywhere): sent at the end of its lap, a card came some six
+  seconds after its parcel and read as unrelated to it. The belt fills from the docks when the flow first runs (`fresh`): shown
+  at once, three postings popped in mid-belt; a return to a running flow fades
+  it in. So the fill is quick, the conveyor starts with a place at the last
+  dock, and on the first lap each place takes the dock just ahead of it
+  (KAN-368). Where a place is compared with the dock it starts on, the test
+  allows a pixel (`EPS`): rounding put the first place a hair past on some
+  frames and not on others, so it flickered. The flow's clock runs as soon as
+  the line has formed (`LINE_IN`'s end), in view and in a visible tab, and
+  drives the belt's ribs too. WorkIt's mark is plain glass, with no violet glow
+  behind it (the team found it decorative). The steps run on an LED sign by the
+  belt (`StatusSign`): a dark board on two posts, skewed to the belt's line,
+  the words rolling over with a lamp per step, since a line of small grey text
+  under the belt was easy to miss. A card comes at most every
+  `CARD_GAP` (2.8 s), so each settles before the next; `JobCard` takes the
+  `ref` that `AnimatePresence`'s `popLayout` passes (dropped, a leaving card
+  could not pop out and the rest jumped) and animates its position only. The
+  copy says "freshest", never the scraper's 3-hour schedule, at the team's ask,
+  and the sorting line labels only its end, "Your Jobs page" (the team had
+  "Company job boards" taken off it; the flat stream keeps both), in one
+  annotation style (`DiagramLabel`: small capitals set wide, in
+  the body grey, since the meta grey spaced 0.14em read faint on the tinted
+  panels); the team found a bold label with "Always fresh" beside it and a
+  "Sorted by Best Match" note cluttered. A pill's level (Intern, New Grad,
+  Co-op) stays whole while the role before it is cut short: it is why WorkIt
+  keeps the posting, as "Senior" is why it drops one. The testimonial's panel grows into place (`GrowIn`, a
   scale only: a fade or filter on a panel would make it the backdrop root
   of the glass inside; a `transform` string over an offset the browser
   can express, so it runs as a scroll animation, below). The testimonial reads word by word, in
@@ -1000,7 +973,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   script, then wheel one notch, then look. IntersectionObservers and CSS
   transitions wait for frames too: take a screenshot before reading
   `data-paused` or a transitioned colour. Each screenshot draws one frame,
-  so a scene on a clock (the pipe's flow, the statement's loop, a held
+  so a scene on a clock (the sorting line's flow, the statement's loop, a held
   scroll) moves about 40ms per screenshot: take a batch of small ones to
   move it on.
 - **Scroll cues, time plays.** The home page's scenes move on their own;
@@ -1023,7 +996,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     beat showed no caption, title or verdict (`fadeWindow`).
   - A phase that should keep moving while it rests runs its own loop on
     `useLoopClock`, stopped off screen and in a hidden tab: the coin
-    ring, the pipe's flow, the bridge's floating postings (CSS).
+    ring, the sorting line's flow, the bridge's floating postings (CSS).
   - A reveal on arrival (the testimonial's words, the footer wordmark's
     rows, the headings' and the FAQ's `FocusIn`) plays in time once the
     element is well on screen (`useArrived`), and resets only once it is
@@ -1032,7 +1005,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     reader scrolled back a little.
   - Still scroll-linked, by design: entrances and exits that track their
     section's position (the tour panel's and `GrowIn`'s scale, the tour
-    sinking under the hiring-systems section). The bridge's hand-off to the tour's
+    turning into the hiring-systems panel). The bridge's hand-off to the tour's
     tabs is cued by the scroll and plays in time.
   - Timeline values from `useSceneTime` are animated by script, so their
     transforms run on the main thread while a phase plays and cost
@@ -1139,7 +1112,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     a swap plays, while its letters only roll.
   - Animate transforms, never `top`, `left`, `width` or `height`: a bar
     that fills is drawn at its full length and grows by `scaleX` from
-    its left end (the applications route, Matching's factor bars, Auto
+    its left end (the tracker's rail, by `scaleY`, Matching's factor bars, Auto
     Apply's upload bar, the hiring-systems strike), and a sweep moves by
     `x` on a layer the size of the card it crosses.
   - Nothing scroll-linked is SVG: the browser never moves SVG content on

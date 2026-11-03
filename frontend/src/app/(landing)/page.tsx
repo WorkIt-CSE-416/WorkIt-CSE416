@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
+import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
 import { Applications } from "./applications";
 import { Bridge } from "./bridge";
@@ -20,9 +21,20 @@ import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
 import { Statement } from "./statement";
 import { Testimonial } from "./testimonial";
 
+/** The home page's link preview has room for the whole tagline. */
+const shareTitle = `${site.name}: ${site.tagline}`;
+
 export const metadata: Metadata = {
-  title: { absolute: `${site.name} · ${site.tagline}` },
+  title: { absolute: `${site.name} · ${site.tabTitle}` },
   description: hero.subtitle,
+  alternates: { canonical: "/" },
+  openGraph: { ...SHARE_DEFAULTS, url: "/", title: shareTitle, description: hero.subtitle },
+  twitter: {
+    card: "summary_large_image",
+    title: shareTitle,
+    description: hero.subtitle,
+    images: [SHARE_IMAGE],
+  },
 };
 
 /**

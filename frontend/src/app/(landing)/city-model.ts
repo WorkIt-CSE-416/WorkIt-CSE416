@@ -65,6 +65,9 @@ type P2 = [number, number];
 // skyline. Plane units to strip px; the ground starts 200px down the strip.
 const C = 0.866;
 const S = 0.3;
+/** The two ground axes' slopes, for a drawing that must sit on the same plane
+ * (sorting-line.tsx). */
+export const AXES = { x: C, y: S };
 const K = 0.95;
 const P = 46;
 const OX = 800;
