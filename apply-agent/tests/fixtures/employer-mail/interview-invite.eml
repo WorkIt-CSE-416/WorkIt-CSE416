@@ -1,0 +1,17 @@
+Authentication-Results: mx.google.com; spf=pass smtp.mailfrom=skydio.com; dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=skydio.com
+From: Jordan Lee <jordan.lee@skydio.com>
+To: test.person@example.com
+Subject: Skydio - Interview invitation for Autonomy Engineer Intern
+Date: Fri, 16 Oct 2026 16:45:10 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="UTF-8"
+
+Hi Test,
+
+Thanks for completing the coding assessment! We'd like to invite you to a 45-minute phone screen with one of our engineers.
+
+Please select a time that works for you here: https://calendly.com/skydio-recruiting/phone-screen
+
+Best,
+Jordan Lee
+University Recruiting, Skydio

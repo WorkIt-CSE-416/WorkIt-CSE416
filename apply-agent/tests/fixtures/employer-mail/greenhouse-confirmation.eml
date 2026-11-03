@@ -1,0 +1,25 @@
+Authentication-Results: mx.google.com; dkim=pass header.i=@us.greenhouse-mail.io; spf=pass smtp.mailfrom=us.greenhouse-mail.io; dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=us.greenhouse-mail.io
+From: Arc <no-reply@us.greenhouse-mail.io>
+To: test.person@example.com
+Subject: Thank you for applying to Arc
+Date: Wed, 14 Oct 2026 22:41:07 +0000
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="gh-boundary"
+
+--gh-boundary
+Content-Type: text/plain; charset="UTF-8"
+
+Hi Test,
+
+Thank you for your interest in Arc! We wanted to let you know we received your application for Software Engineer Intern, and we are delighted that you would consider joining our team.
+
+Our team will review your application and if we feel you are a good fit, a recruiter will reach out to schedule an interview.
+
+Regards,
+Arc
+
+--gh-boundary
+Content-Type: text/html; charset="UTF-8"
+
+<p>Hi Test,</p><p>Thank you for your interest in Arc! We wanted to let you know we received your application for <b>Software Engineer Intern</b>, and we are delighted that you would consider joining our team.</p><p>Our team will review your application and if we feel you are a good fit, a recruiter will reach out to schedule an interview.</p><p>Regards,<br>Arc</p><p><a href="https://www.greenhouse.io/privacy-policy">Privacy policy</a></p>
+--gh-boundary--

@@ -1,0 +1,93 @@
+# A dummy, fully filled Applicant profile in the shape of
+# apply/applicant-profile.template.yaml, for planner tests. Never Lisul's real data.
+identity:
+  legal_first_name: Test
+  legal_middle_name:
+  legal_last_name: Person
+  preferred_first_name:
+  pronouns: he/him
+  name_pronunciation: Test-ee
+  email: test.person@example.com
+  phone: "+15550100199"
+  current_location:
+    city: Springfield
+    state: IL
+    country: United States
+  home_address:
+    line1: 1 Main St
+    line2:
+    city: Springfield
+    state: IL
+    zip: "62701"
+    country: United States
+  summer_2027_location: Springfield, IL
+  current_company:
+  age_18_or_over: true
+
+files:
+  resume_pdf: one-pager.pdf
+
+links:
+  linkedin_url: https://www.linkedin.com/in/test-person
+  github_url: https://github.com/test-person
+  portfolio_url: https://test-person.example.com
+
+education:
+  school: Example State University
+  degree: Bachelor's Degree
+  degree_level_now: Undergraduate
+  majors: [Computer Science]
+  field_category: STEM
+  class_year: 3rd Year Undergrad (Junior)
+  expected_graduation: 2028-05
+  returning_to_school_after_internship: true
+  gpa_cumulative: 3.85
+  gpa_scale: 4.0
+
+work_authorization:
+  citizenship: US citizen
+  requires_sponsorship_now_or_future: false
+  authorized_to_work_us: true
+
+voluntary_self_id:
+  gender: decline
+  hispanic_or_latino: decline
+  race: decline
+  veteran: false
+  disability: false
+  transgender: decline
+  sexual_orientation: decline
+
+logistics:
+  available_terms: [Summer 2027]
+  earliest_start_date: 2027-05-24
+  latest_end_date: 2027-08-20
+  can_work_full_time_40h: true
+  willing_to_relocate_for_summer: true
+  onsite_5_days_ok: true
+  hybrid_ok: true
+
+experience_facts:
+  prior_internships_count: 1
+  prior_swe_internship: true
+  years_relevant_experience: 1
+
+screeners:
+  previously_employed_by: [Arc]
+  previously_applied_to: []
+  relatives_at: {}
+  non_compete_or_conflicting_agreements: false
+  outside_business_activities: false
+  felony_or_pending_legal_proceedings: false
+  smoker: false
+  financial_licenses: false
+  prior_us_government_employment: false
+  pending_offers: [Acme (full-time)]
+  competing_offer_deadline: false
+  interview_recording_ok: true
+
+stock_answers:
+  internship_goals: To ship production code with a strong team.
+  why_this_major:
+  ai_tools_usage: I use Claude Code daily for refactors and test-first work.
+  top_cs_courses:

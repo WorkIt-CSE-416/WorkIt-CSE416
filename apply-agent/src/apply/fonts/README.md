@@ -1,0 +1,1 @@
+Latin Modern Roman, the résumé's font (`\usepackage{lmodern}` in latex/onepager.tex), for cover letters (apply.cover_letter). Copied unmodified from the résumé's own TeX Live image (texlive/texlive:TL2024-historic). © 2003-2009 B. Jackowski and J. M. Nowacki (GUST), under the GUST Font License (http://www.gust.org.pl/fonts/licenses/GUST-FONT-LICENSE.txt).

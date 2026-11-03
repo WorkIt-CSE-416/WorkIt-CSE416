@@ -1,6 +1,8 @@
 """
 The writing half of the Apply import (scripts/import_apply_profile.py, steps
-6-8), from Apply's story-bank.md, voice.md and company-briefs/:
+6-8), from Apply's story-bank.md, voice.md and company-briefs/ in Apply's data
+folder (`apply_home`: $APPLY_HOME, else ~/.config/apply, unless the import
+names another):
 
 6. writing samples (KAN-384): only the student's own words, which Apply keeps
    under the Story bank's "## <name>'s own essays" and "## <name>'s own
@@ -26,6 +28,7 @@ The writing half of the Apply import (scripts/import_apply_profile.py, steps
 """
 
 import datetime
+import os
 import re
 import uuid
 from pathlib import Path
@@ -49,6 +52,11 @@ _QUESTION = re.compile(r"^\*\*.+\*\*\s*$", re.MULTILINE)
 _FACT = re.compile(r"^- \*\*(?P<name>.+?)\*\*(?: \((?P<note>[^)]*)\))?: (?P<fact>.+) (?P<url>https?://\S+)\s*$", re.MULTILINE)
 _SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
 _LONGEST_QUOTE = 60  # words: a longer "sentence" is a page's run-on text, not a quote
+
+
+def apply_home() -> Path:
+    """Apply's data folder, as Apply finds it (apply-agent's home.py): $APPLY_HOME, else ~/.config/apply."""
+    return Path(os.environ.get("APPLY_HOME") or "~/.config/apply").expanduser()
 
 
 # --- 6. writing samples ---
