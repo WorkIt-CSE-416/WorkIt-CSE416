@@ -33,7 +33,8 @@ step goes on. It is read back like any other.
 A rehearsal paused on a step (a step Workday won't leave, a sign-in Lisul
 finishes) goes on from the step the page shows when he presses Resume: it
 never clicks Apply or signs in again, and the values he put on that step
-stay (`resumed`). On the sign-in page, Resume waits for him to sign in
+stay (`resumed`). Until the page shows an application step (on Workday's
+or Google's sign-in page), Resume waits for him to sign in
 (`resume_blocked`), so it never asks Workday for another code or link.
 """
 
@@ -158,9 +159,14 @@ class WorkdayFiller:
         return dict(self._readback)
 
     def resume_blocked(self, page: Page) -> str:
-        """Why Resume can't go on from the page now, or "": on the sign-in page, Lisul signs in first."""
-        if _signing_in(page) and not _on_step(page):
-            return "The form still shows Workday's sign-in page: sign in there, then press Resume"
+        """Why Resume can't go on from the page now, or "": only from an
+        application step. On a sign-in page (Workday's or Google's), Lisul signs in first."""
+        try:
+            on_step = _on_step(page)
+        except Exception:
+            on_step = False  # the page navigating: not a step yet
+        if not on_step:
+            return "The form isn't on an application step yet: sign in on the page, then press Resume"
         return ""
 
     def resumed(self, page: Page) -> dict:

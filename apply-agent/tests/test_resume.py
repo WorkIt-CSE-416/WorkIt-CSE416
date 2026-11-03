@@ -13,6 +13,7 @@ from fakes import RecordingBoard
 from test_dashboard import NoFrames, window  # noqa: F401 (a fixture)
 from test_employer_accounts import XCEL_FORM, XCEL_URL
 from test_rehearse import NeverSubmittingWorkday, adapters, experience_profile
+from test_run_answers import profile_with
 
 from apply import rehearsal
 from apply.dashboard import Dashboard, verdict
@@ -105,6 +106,34 @@ def test_a_paused_form_whose_tab_lisul_closed_says_resume_cannot_go_on(monkeypat
     assert done.outcome == "handoff"
     assert board.captions[0]["resume"] == {"ok": False, "why": rehearsal.TAB_CLOSED}
     assert server.submissions == []
+
+
+def test_resume_on_a_sign_in_page_waits_for_lisul_to_sign_in_and_signs_in_no_more(monkeypatch, tmp_path):
+    # Google asks for a password: Apply never types it, and Resume can't go on until he has signed in.
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    handed = handed_pages(monkeypatch)
+
+    class Lisul(RecordingBoard):
+        pressed = 0
+
+        def resumed(self, worker):
+            self.pressed += 1
+            return self.pressed == 1  # he presses Resume before he has signed in
+
+        def answered(self, worker):
+            if self.pressed > 1 and (self.captions[worker].get("resume") or {}).get("why") and not handed[-1].is_closed():
+                handed[-1].close()
+            return []
+
+    board, lines = Lisul(), []
+    with FakeWorkdayServer(XCEL_FORM, google="password") as server:
+        [done] = rehearsal.rehearse([XCEL_URL], adapters(server, board=board), ApplicantProfile.load(
+            profile_with(tmp_path)), 1, keep_open=True, out=lines.append)
+
+    assert done.outcome == "handoff" and "Google asked for more than an account pick" in done.why
+    assert board.captions[0]["resume"]["why"] == rehearsal.TAB_CLOSED  # then he closed the tab
+    assert any("can't resume yet: The form isn't on an application step yet" in line for line in lines)
+    assert len(handed) == 1 and server.created == [] and server.submissions == []
 
 
 PAUSED = {"company": "Xcel Energy", "role": "Intern", "posting_url": XCEL_URL, "application_id": "xcel-1",

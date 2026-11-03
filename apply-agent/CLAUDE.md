@@ -377,8 +377,9 @@ goes on from the step that the page shows.
   waits on him no more. A Filler with no `resumed` keeps nothing (Claude
   fill does not type a field again that it filled already).
 - A Filler's `resume_blocked(page)` says why Resume cannot go on yet. The
-  Workday Filler says so on its sign-in page, so Resume never signs in or
-  asks for a code. The why shows on the button, and the pause stays.
+  Workday Filler says so until the page shows an application step (on
+  Workday's or Google's sign-in page), so Resume never signs in or asks
+  for a code. The why shows on the button, and the pause stays.
 - A tab that closed, or a rehearsal that ended, makes `resume={"ok": False,
   "why": ...}` (`rehearsal.TAB_CLOSED`, `ENDED`). The button stays, turned
   off, and says why. Fill again still fills the form anew.
