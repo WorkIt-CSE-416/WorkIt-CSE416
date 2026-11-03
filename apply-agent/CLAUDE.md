@@ -13,7 +13,8 @@ own Claude Code login. It is a developer and power-user tool, not a student
 feature: students apply through the extension and the connector (KAN-369).
 
 Apply has its own domain language. Read `GLOSSARY.md` and `docs/adr/` here,
-not the root ones, for its terms (root `GLOSSARY-MAP.md`).
+not the root ones, for its terms (root `GLOSSARY-MAP.md`). Write each
+glossary entry in ASD-STE100 wording: sentences of 25 words or fewer.
 
 ## How it differs from `auto-apply/` and the extension
 
