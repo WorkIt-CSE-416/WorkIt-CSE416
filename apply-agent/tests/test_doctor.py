@@ -232,10 +232,10 @@ def test_gmail_set_up_is_ok(tmp_path):
     assert asked == ["test.person@example.com"]  # the Applicant profile's email
 
 
-def test_gmail_without_an_app_password_fails_saying_how_to_set_it_up(tmp_path):
+def test_gmail_without_an_app_password_warns_saying_how_to_set_it_up(tmp_path):
     found = check(machine(tmp_path, mailbox=lambda address: FakeMailbox(set_up=False)), "Gmail")
-    assert found.level == doctor.FAIL
-    assert "app password" in found.detail
+    assert found.level == doctor.WARN  # optional: a new teammate's doctor does not fail on it
+    assert "app password" in found.fix
 
 
 def test_gmail_with_no_email_in_the_profile_fails(tmp_path):

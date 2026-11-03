@@ -244,7 +244,8 @@ def _gmail(machine: Machine) -> Check:
         return Check("Gmail", FAIL, "no email to read", "fill in identity.email in the Applicant profile")
     why = machine.mailbox(address).unavailable()
     if why:
-        return Check("Gmail", FAIL, why)  # it says how to set Gmail up
+        # Optional (README step 7): without it, a verification code waits on you.
+        return Check("Gmail", WARN, "off: Apply can't read verification codes from your mail", why)
     return Check("Gmail", OK, f"an app password for {address} is in Keychain")
 
 
