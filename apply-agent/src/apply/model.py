@@ -140,6 +140,15 @@ class Handoff(Exception):
         self.bot_signal = bot_signal
 
 
+class Captcha(Handoff):
+    """A captcha's challenge stopped the fill on `page` (apply.captcha). Apply
+    never solves it: it waits for Lisul to, then goes on from that page."""
+
+    def __init__(self, why: str, page):
+        super().__init__(why, bot_signal="captcha")
+        self.page = page
+
+
 class Closed(Exception):
     """The Posting no longer takes applications (see GLOSSARY: Closed). The
     message says how that showed."""
