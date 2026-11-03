@@ -13,7 +13,7 @@ export function ApplicantOverviewPanel({ posting }: { posting: JobPosting }) {
   return (
     <aside
       aria-label="Applicant Overview"
-      className="bg-well border-border-subtle rounded-card flex shrink-0 flex-col gap-3 border p-4 @xl:w-52"
+      className="bg-panel border-border-subtle rounded-card flex shrink-0 flex-col gap-3 border p-4 @xl:w-52"
     >
       <h2 className="text-title text-ink">Applicants</h2>
 

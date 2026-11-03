@@ -57,9 +57,9 @@ export default function ApplicationLoading() {
                 <Skeleton className="h-16" />
               </div>
             </div>
-            <div className="bg-well rounded-card flex shrink-0 flex-col items-center gap-2 p-4 @xl:w-52">
-              <Skeleton className="bg-panel size-16 rounded-full" />
-              <Skeleton className="bg-panel h-3 w-24" />
+            <div className="bg-panel border-border-subtle rounded-card flex shrink-0 flex-col items-center gap-2 border p-4 @xl:w-52">
+              <Skeleton className="size-16 rounded-full" />
+              <Skeleton className="h-3 w-24" />
             </div>
           </div>
         </Card>
