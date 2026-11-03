@@ -66,7 +66,18 @@ module docstring has the steps.
   scraped row written any other way never shows up in the location or role
   filter (`app/models/CLAUDE.md`, the resolver sections). Its report ends with
   the titles that named no role, most jobs first: the list to grow the aliases
-  from.
+  from. The one other scraped-shape row is an **unlisted job posting**
+  (KAN-542, `POST /jobs/added-by-link`), which no student search sees, so
+  it needs no locations or tags until the import lists it.
+- **It takes over an unlisted job posting** (KAN-542, ADR 0008,
+  `_take_over_unlisted`): before the upsert, an unlisted posting whose job
+  the feed has under another form of the link (the same Greenhouse job, or
+  the same bare link when only one feed job has it) moves onto the feed's
+  link, so the upsert fills it in and publishes it, with the student's
+  application still on it. One that already has the feed's link needs no
+  move. It never moves onto a link another posting holds. The close step
+  touches only published jobs, so an unlisted one the feed lacks stays
+  unlisted. Tests: `tests/test_import_takeover.py`.
 - **It refuses (exit 2, nothing written) when `job_roles` lacks a slug the
   aliases name**, which is what it does before the role migrations
   (`362182aaa4fd`, `ab07572bba38`) are applied. The API reads those tables and
