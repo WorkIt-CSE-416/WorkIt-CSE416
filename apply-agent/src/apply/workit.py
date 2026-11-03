@@ -45,6 +45,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -120,6 +121,24 @@ class Unreachable(WorkItError):
 
 class SignInClosed(WorkItError):
     """The sign-in browser closed, or the time ran out, before the student signed in."""
+
+
+class Stage(StrEnum):
+    """A stage of an application on WorkIt's Applications Tracker, as WorkIt
+    names it (backend `dto.application_stage`). The one place Apply spells them."""
+
+    SAVED = "saved"
+    QUEUED = "queued"
+    NEEDS_YOU = "needs_you"
+    SKIPPED = "skipped"
+    APPLIED = "applied"
+    INTERVIEWING = "interviewing"
+    OFFER = "offer"
+    REJECTED = "rejected"
+
+
+# Applied or later: a record of an application sent (backend `dto.APPLIED_STAGES`). Apply never changes one.
+APPLIED_STAGES = frozenset({Stage.APPLIED, Stage.INTERVIEWING, Stage.OFFER, Stage.REJECTED})
 
 
 @dataclass(frozen=True)
@@ -283,13 +302,13 @@ class WorkIt:
 
 
 # Each Applications Tracker stage Apply writes, as the tracker names it.
-SHOWN = {"applied": "Applied", "needs_you": "Needs you", "queued": "Queued"}
+SHOWN = {Stage.APPLIED: "Applied", Stage.NEEDS_YOU: "Needs you", Stage.QUEUED: "Queued"}
 
 
 @dataclass(frozen=True)
 class Write:
     """One change to the student's Applications Tracker: the job (by its link,
-    company and title) goes to `stage` ("applied", "needs_you" or "queued").
+    company and title) goes to `stage` (Stage.APPLIED, NEEDS_YOU or QUEUED).
     `resume`, for applied, is the file the form was given, kept as the
     application's Sent resume. `application_id` is Apply's, so a later write
     for the same Application replaces one still waiting."""
@@ -354,7 +373,7 @@ class WaitingWrites:
 
     def _deliver(self, write: Write) -> str:
         job, _ = self.client.add_by_link(write.link, write.company, write.title)
-        if write.stage == "applied":
+        if write.stage == Stage.APPLIED:
             resume = Path(write.resume) if write.resume else None
             if resume and resume.is_file():
                 self.client.link_resume(job, self.client.send_resume(self.client.applicant_id(), job, resume))

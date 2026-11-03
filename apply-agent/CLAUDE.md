@@ -94,6 +94,10 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
   refreshes one time and tries again. `applicant_id()` is the student's id
   for the paths, read from `GET /auth/me` one time per client. Code outside
   `WorkIt` uses only its public methods.
+- `workit.Stage` names WorkIt's application stages, and
+  `workit.APPLIED_STAGES` is applied or later. Use them; do not write a
+  stage name as a string in another module (`tracker.STAGES`, the import,
+  the cleanup).
 - Errors: `NotLoggedIn` (no file), `LoginExpired` (Supabase or WorkIt
   refused the login: run `apply login` again), `Unreachable` (no answer, or
   a 5xx).

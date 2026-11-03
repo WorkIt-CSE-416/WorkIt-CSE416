@@ -17,11 +17,11 @@ from collections.abc import Callable, Iterable
 from typing import TextIO
 
 from apply.model import Status
-from apply.sheet_import import APPLIED, job_key, sheet_rows
+from apply.sheet_import import job_key, sheet_rows
 from apply.tracker import STAGES
-from apply.workit import Unreachable, WorkIt, WorkItError
+from apply.workit import APPLIED_STAGES, Stage, Unreachable, WorkIt, WorkItError
 
-DELETED = ("saved", "queued")
+DELETED = (Stage.SAVED, Stage.QUEUED)
 
 
 def plan(applications: list[dict], cells: list[list[str]] | None, keep: Iterable[str] = (),
@@ -30,16 +30,16 @@ def plan(applications: list[dict], cells: list[list[str]] | None, keep: Iterable
     Tracker Sheet's cells (None when there is no Sheet), the job ids or links the student keeps and the rows of
     Apply's own Tracker (tracker.Row)."""
     applied = {job_key(a["job"]["apply_url"]): f"{_name(a)}, at {a['stage']}"
-               for a in applications if a["stage"] in APPLIED}
+               for a in applications if a["stage"] in APPLIED_STAGES}
     submitted = {job_key(r.posting): f"Tracker Sheet row {r.number}" for r in sheet_rows(cells or [[]])
                  if r.status == Status.SUBMITTED and r.posting.startswith(("http://", "https://"))}
     kept = set(keep) | {job_key(k) for k in keep}
     unfinished = {job_key(r.posting_url): _unfinished(r.status) for r in apply_rows
-                  if STAGES.get(r.status) in DELETED + ("needs_you",) and r.posting_url}
+                  if STAGES.get(r.status) in (*DELETED, Stage.NEEDS_YOU) and r.posting_url}
     deletes, keeps = [], []
     for a in applications:
         key = job_key(a["job"]["apply_url"])
-        if a["stage"] in APPLIED:
+        if a["stage"] in APPLIED_STAGES:
             why = ""
         elif a["stage"] not in DELETED:
             why = "only saved and queued applications are deleted"
@@ -76,7 +76,7 @@ def delete(deletes: list[dict], client: WorkIt, me: str, out: TextIO) -> tuple[i
     deleted = failed = 0
     for a in deletes:
         try:
-            if a["stage"] == "saved":
+            if a["stage"] == Stage.SAVED:
                 client.unsave(a["job"]["id"])
             else:
                 client.dequeue(me, a["job"]["id"])
@@ -109,8 +109,8 @@ def run(client: WorkIt, cells: list[list[str]] | None, keep: Iterable[str] = (),
         return 0
     deleted, failed = delete(deletes, client, me, out)
     print(f"Done: {deleted} deleted, {failed} failed.", file=out)
-    before = [a for a in applications if a["stage"] in APPLIED]
-    now = {a["job"]["id"] for a in client.applications(me) if a["stage"] in APPLIED}
+    before = [a for a in applications if a["stage"] in APPLIED_STAGES]
+    now = {a["job"]["id"] for a in client.applications(me) if a["stage"] in APPLIED_STAGES}
     lost = [a for a in before if a["job"]["id"] not in now]
     print(f"Applied applications: {len(before)} before, {len(now)} after.", end=" ", file=out)
     if not lost:
