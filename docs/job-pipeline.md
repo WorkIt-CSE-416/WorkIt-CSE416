@@ -140,8 +140,9 @@ website when the board names it (`scraper/docs/logos.md`). A board found with no
 logo is read again only when the logo reader learns a new place to look.
 
 **The card draws the logo from Brandfetch by the company's website** (KAN-442).
-The feed carries each job's `company_domain`: the website its board names, cut
-to the company's own domain (`careers.gevernova.com` becomes `gevernova.com`),
+The feed carries each job's `company_domain`: the website its board names, with
+or without an uploaded image, cut to the company's own domain
+(`careers.gevernova.com` becomes `gevernova.com`),
 or one a script checked and a person reviewed (`scraper/checked_websites.csv`,
 which also covers boards that name none). The browser loads Brandfetch's sharp
 square icon; where Brandfetch has none, the card falls back to the board's own
