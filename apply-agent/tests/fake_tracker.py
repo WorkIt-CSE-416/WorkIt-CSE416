@@ -54,6 +54,8 @@ class FakeTracker:
     applications: dict[str, Application] = field(default_factory=dict)  # by job id
     sent: dict[str, SentResume] = field(default_factory=dict)
     tailored_resumes: dict[str, bytes] = field(default_factory=dict)  # the PDF of each tailored resume, by job id
+    capped: bool = False  # WorkIt's daily cap of added jobs reached: a new added job is 429
+    retry_after: str | None = None  # the 429's Retry-After header, when WorkIt sends one
 
     def __post_init__(self):
         self._ids = itertools.count(1)
@@ -114,6 +116,9 @@ class FakeTracker:
         if body.get("track_only") is not True:  # Write with Claude's add, which Apply never makes
             return Reply(422, {"detail": "the fake serves Apply's adds only (track_only)"})
         posting = self.find(body["url"])
+        if posting is None and self.capped:  # services/daily_caps.py, KAN-478
+            return Reply(429, {"detail": "You added 50 jobs today. Try again tomorrow."},
+                         {"Retry-After": self.retry_after} if self.retry_after else {})
         if posting is None:
             job_id = f"00000000-0000-4000-a000-{next(self._ids):012d}"
             posting = self.postings[job_id] = Posting(job_id, body["url"], body["company"], body["title"], added=True)
@@ -182,9 +187,9 @@ class FakeTracker:
         if application is None:
             return Reply(404, {"detail": "You have no application for that job."})
         stage = seen.body["stage"]
-        if stage not in ("queued", "needs_you", *APPLIED):
+        if stage not in ("needs_you", *APPLIED):
             return Reply(422, {"detail": "stage"})
-        if stage in ("queued", "needs_you"):  # Apply's (KAN-544): never on an application already applied
+        if stage == "needs_you":  # Apply's (KAN-544): never on an application already applied
             if application.stage in APPLIED:
                 return Reply(409, {"detail": "You already applied to that job."})
             application.stage = stage

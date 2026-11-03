@@ -182,9 +182,9 @@ the fake WorkIt, with WorkIt's link rule, stages and Sent resumes.
   - the Tracker Sheet has the same job as submitted (not imported yet). The
     dry run then says to run `apply import-sheet` first;
   - Apply's own Tracker (`APPLY_HOME/tracker.json`) has the job as held,
-    missing fact or handoff. Apply writes a Hold as queued and the others
-    as needs_you, so the Hold is live. The dry run says "Apply is holding
-    it" (or "Apply is waiting for you on it");
+    missing fact or handoff. Apply writes these as needs_you, but the
+    write can still wait in the queue. The dry run says "Apply is waiting
+    for you on it (<status>)";
   - the student gave its link or job id with `--keep`.
 - It never deletes or changes an application at applied, interviewing,
   offer or rejected, or at needs_you or skipped.
@@ -216,8 +216,11 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   `WorkIt.record_applied`, the import's write sequence. A job that is
   applied or later on WorkIt already stays as it is ("already
   interviewing").
-  handoff and missing fact to `needs_you`, held to `queued` (the stage
-  PUT; a 409 means the job is applied already, and is not an error).
+  handoff, missing fact and held to `needs_you` (the stage PUT; a 409
+  means the job is applied already, and is not an error). Apply never
+  writes `queued`: on WorkIt that is the batch apply queue, and the
+  extension fills a queued application. A `queued` write still in an
+  older queue file is sent as `needs_you`.
   Every other status writes nothing.
 - The job comes from `POST /jobs/added-by-link`, so a later status moves
   the same row. It is the extension's Write with Claude route (KAN-515);
@@ -227,12 +230,15 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   Claude moves it to needs_you. A job WorkIt does not list becomes an
   **added job** (`added_by_student`; root `GLOSSARY.md`), never a status.
   The answer is `{"job_id", "stage"}`. New added jobs count against
-  WorkIt's daily cap (50): a 429 is a refusal, said and not kept.
+  WorkIt's daily cap (50): a 429 (`workit.CapReached`) keeps the Write
+  with `not_before`, the response's Retry-After or else the next UTC
+  midnight (WorkIt's caps count UTC days). No flush sends it before then.
 - A rehearsal writes only through `submitted_to`, when Lisul presses
   Submit himself. A rehearsal that he does not submit writes nothing.
 - No answer, or no live login: the Write waits in `workit-queue.json` (one
   per Application, the newest). `apply run` and `apply rehearse` send the
-  waiting writes first; `apply doctor`'s "WorkIt writes" line lists them.
+  waiting writes first; `apply doctor`'s "WorkIt writes" line lists them
+  ("waits for WorkIt's daily cap of added jobs until <time>" for a capped one).
   A Write that WorkIt refuses (a 4xx) is dropped and said.
 - A write that fails never stops a run: the row is in Apply's Tracker.
 - Apply does not write to the Tracker Sheet. The first `live_tracker()`

@@ -274,9 +274,10 @@ for _name in _WRITES + _READS:
 
 
 # The Applications Tracker stage each Apply status writes (KAN-544). Other
-# statuses (filling, queued, failed, closed...) write nothing.
+# statuses (filling, queued, failed, closed...) write nothing. A Hold is
+# needs_you, never queued: WorkIt's extension fills queued applications.
 STAGES = {Status.SUBMITTED: Stage.APPLIED, Status.HANDOFF: Stage.NEEDS_YOU, Status.MISSING_FACT: Stage.NEEDS_YOU,
-          Status.HELD: Stage.QUEUED}
+          Status.HELD: Stage.NEEDS_YOU}
 
 
 class WorkItTracker:

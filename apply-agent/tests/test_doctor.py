@@ -348,6 +348,23 @@ def test_workit_writes_waiting_are_listed_with_when_they_go(tmp_path):
     assert "next run or rehearsal" in found.fix and "apply login" in found.fix
 
 
+def test_a_workit_write_past_the_daily_cap_says_when_it_goes(tmp_path):
+    import datetime
+
+    from apply.workit import WaitingWrites, Write
+
+    until = datetime.datetime(2099, 1, 2, 0, 0, tzinfo=datetime.UTC)
+    waiting = WaitingWrites(path=tmp_path / "workit-queue.json")
+    waiting._keep([Write("request-1", "https://jobs.example/1", "Arc", "Intern", "needs_you",
+                         not_before=until.timestamp())])
+
+    found = check(machine(tmp_path, waiting_writes=lambda: waiting), "WorkIt writes")
+    assert found.level == doctor.WARN
+    shown = until.astimezone().strftime("%Y-%m-%d %H:%M")
+    assert found.detail == ("1 waiting to send to your Applications Tracker: "
+                            f"Arc (Needs you, waits for WorkIt's daily cap of added jobs until {shown})")
+
+
 def test_calibration_run_counts_held_and_submitted_applications(tmp_path):
     rows = tracker((Status.HELD, ""), (Status.SUBMITTED, ""), (Status.FILLING, SUBMITTING), (Status.HANDOFF, ""))
     found = check(machine(tmp_path, tracker=rows, profile=profile(tmp_path, calibration_run=10)), "Calibration run")

@@ -3,8 +3,8 @@ the student did not apply to (KAN-546, spec KAN-541).
 
 A job is applied when the student has an application at applied or later on it in WorkIt (also on another
 posting of the same job), or when Apply's Tracker Sheet has it as submitted (not imported yet). It also keeps
-a job that Apply's own Tracker (tracker.json) holds or waits on the student for: Apply writes a Hold as queued
-and a Missing fact or Handoff as needs_you (KAN-544), and the Hold is still live. The cleanup
+a job that Apply's own Tracker (tracker.json) holds or waits on the student for: Apply writes a Hold, a Missing
+fact or a Handoff as needs_you (KAN-544), and that write can still wait in the queue. The cleanup
 never deletes or changes an application at applied, interviewing, offer or rejected, nor one at needs_you or
 skipped: it deletes only saved and queued ones, and WorkIt's delete routes refuse every other stage too.
 
@@ -34,8 +34,8 @@ def plan(applications: list[dict], cells: list[list[str]] | None, keep: Iterable
     submitted = {job_key(r.posting): f"Tracker Sheet row {r.number}" for r in sheet_rows(cells or [[]])
                  if r.status == Status.SUBMITTED and r.posting.startswith(("http://", "https://"))}
     kept = set(keep) | {job_key(k) for k in keep}
-    unfinished = {job_key(r.posting_url): _unfinished(r.status) for r in apply_rows
-                  if STAGES.get(r.status) in (*DELETED, Stage.NEEDS_YOU) and r.posting_url}
+    unfinished = {job_key(r.posting_url): f"Apply is waiting for you on it ({r.status})" for r in apply_rows
+                  if STAGES.get(r.status) == Stage.NEEDS_YOU and r.posting_url}
     deletes, keeps = [], []
     for a in applications:
         key = job_key(a["job"]["apply_url"])
@@ -120,10 +120,6 @@ def run(client: WorkIt, cells: list[list[str]] | None, keep: Iterable[str] = (),
     for a in lost:
         print(f"  {_name(a)} | {a['stage']} | {a['job']['apply_url']}", file=out)
     return 1
-
-
-def _unfinished(status: Status) -> str:
-    return "Apply is holding it" if status == Status.HELD else f"Apply is waiting for you on it ({status})"
 
 
 def _name(application: dict) -> str:

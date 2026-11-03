@@ -33,7 +33,14 @@ from apply.orchestrator import SUBMITTING
 from apply.profile import ApplicantProfile, load_policies
 from apply.records import BRANCH, CLONE
 from apply.tracker import FileTracker
-from apply.workit import SHOWN, LoginExpired, Unreachable, WaitingWrites, WorkIt
+from apply.workit import (
+    SHOWN,
+    LoginExpired,
+    Unreachable,
+    WaitingWrites,
+    WorkIt,
+    cap_wait,
+)
 
 OK, WARN, FAIL = "ok", "warn", "fail"
 
@@ -343,7 +350,7 @@ def _writes(machine: Machine) -> Check:
     if not waiting:
         return Check("WorkIt writes", OK, "none waiting")
     return Check("WorkIt writes", WARN, f"{len(waiting)} waiting to send to your Applications Tracker: "
-                 + ", ".join(f"{w.company} ({SHOWN[w.stage]})" for w in waiting),
+                 + ", ".join(f"{w.company} ({', '.join(filter(None, [SHOWN[w.stage], cap_wait(w)]))})" for w in waiting),
                  "they go at the next run or rehearsal; if the WorkIt line says the login expired, "
                  f"{LOGIN} first")
 
