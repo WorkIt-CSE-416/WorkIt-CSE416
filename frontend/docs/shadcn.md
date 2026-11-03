@@ -169,6 +169,13 @@ where shadcn wrote "Sidebar": its title is the sheet's accessible name, and a
 call site cannot reach it. The toggles are named at their call sites with
 `aria-label`, which wins over shadcn's hidden "Toggle Sidebar". **Re-running
 `shadcn add sidebar` undoes the name**: diff the file after any `add`.
+#### Popover is forked: `anchor` passes through
+
+`src/components/shadcn/popover.tsx`'s `PopoverContent` passes `anchor` to
+its Positioner (KAN-575), so a popover with no trigger of its own hangs from
+another element: a phone's resume card picks Delete from its `⋯` menu, and
+`DeleteResumeConfirm` hangs from that menu's button. **Re-running
+`shadcn add popover` drops it**: diff the file after any `add`.
 
 #### The other exception: Select is wrapped, not replaced
 

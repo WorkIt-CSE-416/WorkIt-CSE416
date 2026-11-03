@@ -2784,7 +2784,8 @@ upload's page.
   came first in KAN-362: one with Type and Last Edited columns and sort
   headings, then one with each row's icons in a `⋯` menu. The columns
   said what each card's line already says, and the menu hid the actions a
-  student uses, so the cards came back.
+  student uses, so the cards came back. A phone's card has a `⋯` menu
+  again (KAN-575), for its rarer three only (next bullet but one).
 - **Tailored** (KAN-258): each is made for one job posting with Tailor
   (KAN-217). They sat in Base Resumes with a Tailored tag until KAN-258,
   under a name they do not have. A tailored resume takes the star like any
@@ -2792,7 +2793,9 @@ upload's page.
   still send a posting's own tailored resume first, and Apply's list shows
   a primary tailored to another posting as "Tailored resume". It gets a
   "Posting Closed" badge once the Jobs
-  page no longer lists its posting (story 90, the API's `posting_closed`).
+  page no longer lists its posting (story 90, the API's `posting_closed`),
+  at the end of its day line, or under it where both do not fit (KAN-575:
+  beside the icons it took a phone's card's whole name).
   It still opens and downloads; only Tailor needs a live posting. Its day
   line names the posting it was made for ("Made Oct 17 · For Intern at
   Acme", the API's `posting_title` and `posting_company`, KAN-268), a link
@@ -2818,6 +2821,17 @@ upload's page.
   it showed only under the pointer before). The view said "default" and showed a
   Default badge for the same setting (the API's one default resume,
   uploaded, base or tailored).
+- **A phone's card** (KAN-575): below `@xl` of its own width (the row is a
+  container; about 317px on a phone, 606px from a 768px window), every
+  card, built or uploaded, keeps the star and Preview and puts Rename,
+  Download and Delete, worded, in one `⋯` menu (`RowMoreMenu`), Delete
+  last and red. Delete still asks in the same popover, hung from the `⋯`
+  once the menu has closed. The PDF mark goes below `@sm`, and the name
+  never takes under half the row (`ROW_NAME`). At 375 five 32px icons and
+  the badge left one card a 0px name and pushed its trash past the card's
+  edge; `@sm`, as the audit asked, still let five icons take more than half
+  of a 400px row. On touch the icons stand 12px apart (`ROW_ACTIONS`), so
+  each one's hit area, 8px past its 32px box, is 44px wide.
 - **The day**: when the resume was last edited ("Last edited Oct 20"), or
   when it was made until its first edit ("Made Oct 17"). The year shows only when it
   is not this one, as on an upload's row and in the tracker. With it, "Last
