@@ -1073,7 +1073,9 @@ in a form or a dialog; `lg` (48px) for the one main action of a page or the
 sign-in card. The three were 32, 36 and 42px until KAN-251 and read as
 thin; the chip, the small segmented control and the icon buttons beside sm
 buttons (Save, Not Interested, Report, the Calendar's arrows) went to 36px
-with them.
+with them. **A button's label never wraps** (KAN-572): the base is
+`whitespace-nowrap`, as a chip's is, so a button keeps its size's height;
+where a row cannot hold its buttons, the row wraps.
 There is exactly one Chip, `ui/chip.tsx`, at two sizes: `default` (36px, an
 sm button's height, so they line up in a row) and `lg` (42px, a default
 button's and a text field's height, 16px type) for a row of short picks on a

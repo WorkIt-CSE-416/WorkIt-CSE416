@@ -65,6 +65,10 @@ import { cn } from "@/lib/cn";
  * shows on white and on the grey ground alike, with `ink-subtle` text, the
  * colour docs/design.md gives anything that cannot be used now.
  *
+ * A LABEL NEVER WRAPS (`whitespace-nowrap`, KAN-572): a wrapped label made
+ * the button taller than its size, as onboarding's "Skip Practice" grew from
+ * 48 to 68px on a phone. A row that cannot fit its buttons wraps the row.
+ *
  * Every focus ring is solid (see --color-brand-ring in globals.css), and the
  * filled variants hold theirs 2px off the fill with ring-offset-2: a solid ring
  * touching a fill of its own colour reads as a bigger button, not as focus.
@@ -120,7 +124,7 @@ import { cn } from "@/lib/cn";
 const DISABLED_FILL = "disabled:bg-ink/8 disabled:text-ink-subtle disabled:opacity-100";
 
 export const buttonVariants = cva(
-  "hit-area relative inline-flex items-center justify-center font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "hit-area relative inline-flex items-center justify-center font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {

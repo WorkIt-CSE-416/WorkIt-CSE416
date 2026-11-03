@@ -2040,6 +2040,9 @@ one line, in two greys a point apart, a label and its value read as one
 phrase. A group with no fact answered is one "Not answered" line, not one
 per fact, which put it on the card more than 15 times. The
 same controls are `components/answer-fields.tsx`, shared with onboarding.
+(`lib/school-year.ts`) and only shown, with "From your education: ...". The
+same controls are `components/answer-fields.tsx`, shared with onboarding,
+which draws them at their `lg` size (KAN-572).
 Voluntary Self-Identification also lists the EEO extras (sexual orientation,
 transgender, pronouns), each with a decline answer; onboarding skips them
 with the other self-identification, and the extension never asks them.
@@ -3243,7 +3246,25 @@ a 14px grey "Step 1 of 2" at the foot of the left half: the smallest type on
 the screen, far from the fields, and wrong, since intake then opened six more
 sections on a page of its own. That page carried the rail too, with
 Experiences as the third step, until the resume step replaced intake
-(KAN-275). The second step was Pay & Visa until KAN-283.
+(KAN-275). The second step was Pay & Visa until KAN-283. **A label is never
+cut (KAN-572)**: below xl only the current step's label shows, in full (the
+rest are `sr-only`), and from xl all five show whole, with the rules between
+them taking the room left over. Each label used to truncate in an equal share
+of the row, so a 1024px window showed "Re…", "Pr…", "Ex…".
+
+**The footer holds buttons only (KAN-572).** Back (`secondary`) on the left,
+the one forward button on the right, and a skip beside it in muted ink
+(`section`): Skip moves one page (Resume, Availability), Skip Setup leaves
+for /jobs (Extension), Skip Practice leaves for /jobs (Practice). Where the
+forward button can never turn on, the skip is the main button in its place:
+Skip for Now on Add Claude until Claude is added, and Skip Setup on
+Extension when there is no store listing. An error is a banner across the
+footer's top (`role="alert"`), and while the forward button is off the line
+there says why ("Pick a role, a job type and a workplace to continue."),
+named by the button's `aria-describedby`. In the button row an error was a
+56px column on a phone that pushed the buttons off the screen. Below sm the
+forward button grows to fill the row, and takes its own row when the three
+buttons do not fit.
 
 **The question and Scout stand apart (KAN-259).** The question sits under the
 logo; Scout sits at the left half's foot, from lg only, and types a tip the
@@ -3252,8 +3273,9 @@ bubble 28px over the question and asking it again in other words, so it was
 not clear who was asking.
 
 **The way out is quiet (KAN-259).** "Signed in as … Not you? Sign Out"
-(`onboarding/applicant/signed-in-as.tsx`) closes the wizard, in the 12px of
-the inline button. Onboarding has no account menu, and sign-in brings an
+(`onboarding/applicant/signed-in-as.tsx`) closes the wizard, under the
+footer, in the 12px of the inline button; after the footer in the page, so
+Tab reaches Back and Next before it (KAN-572). Onboarding has no account menu, and sign-in brings an
 unfinished applicant back here, so the screen needs an exit; as a Sign Out
 button at the top right of the form it was the column's first thing and read
 as part of the step.
@@ -3324,7 +3346,10 @@ take `size="lg"` (taller fields); All Filters keeps their default size. The
 right side has three type sizes at every width: 20px for each section title,
 16px for every answer (tiles, chips, pills, typed text, the rail's step
 names) and 14px for every note beside one, the rail's numbers too; the
-signed-in line at the foot is the one 12px exception. `text-subtitle`, the answers' size, carries a 600 weight of its
+signed-in line at the foot is the one 12px exception. Availability's chips
+and screener card take `lg` (`components/answer-fields.tsx`), and Extension
+and Add Claude's lines a 20px title, 16px text and 14px notes, with
+Optional at the title's right end as on the other steps (KAN-572). `text-subtitle`, the answers' size, carries a 600 weight of its
 own, so each answer sets its weight; without it the typed salary and search
 text came out semibold.
 
@@ -3384,7 +3409,7 @@ is one; unset, the line says to ask the WorkIt team for it. Chrome lets no
 page pin an extension, so the pin line says how (the puzzle piece, then the
 pin) and the extension reports whether it is pinned
 (`chrome.action.getUserSettings`); a pin is asked for, not required. Next
-waits for the extension; Skip opens /jobs.
+waits for the extension; Skip Setup opens /jobs.
 
 **Step 5 is a practice batch (KAN-378;
 `onboarding/applicant/practice-step.tsx`).** Start Practice asks the

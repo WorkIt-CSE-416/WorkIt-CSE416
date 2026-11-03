@@ -51,6 +51,7 @@ export function ClaudeStep({ added, link }: { added: boolean | null; link: strin
         n={1}
         title="Write Answers With Your Claude"
         done={added === true}
+        optional
         status={added === null ? null : added ? "Added" : "Not Added Yet"}
       >
         {added ? (
@@ -77,9 +78,9 @@ export function ClaudeStep({ added, link }: { added: boolean | null; link: strin
               Add to Claude
               <ExternalLinkIcon className="size-4" />
             </ButtonLink>
-            <p className="text-ink-meta mt-2">
-              Optional. Skip it, and you write those answers yourself. This page sees it as soon as
-              your Claude connects.
+            <p className="text-body text-ink-meta mt-2">
+              Skip it, and you write those answers yourself. This page sees it as soon as your
+              Claude connects.
             </p>
           </>
         )}
