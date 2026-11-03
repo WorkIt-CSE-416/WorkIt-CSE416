@@ -176,6 +176,15 @@ def test_the_note_on_a_lifted_page_has_a_button_to_fill_the_form_again(job_serve
     assert job_server.submissions == []
 
 
+def test_the_note_sits_under_a_captcha(job_server):
+    with job_server.open(ARC_URL) as page:
+        guard(page)
+        lift(page)
+        z = int(page.locator("#apply-rehearsal-blocked").evaluate("e => getComputedStyle(e).zIndex"))
+
+    assert z < 2000000000  # reCAPTCHA's challenge frame, whose Verify Lisul must press
+
+
 def test_a_held_page_with_something_to_fix_says_so_in_red(job_server):
     with job_server.open(ARC_URL) as page:
         guard(page)
