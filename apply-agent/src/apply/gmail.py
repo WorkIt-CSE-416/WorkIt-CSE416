@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from email.header import decode_header, make_header
 from email.message import Message
+from email.utils import parseaddr
 from urllib.parse import urlsplit
 
 from apply.adapters import Keychain
@@ -34,6 +35,13 @@ CODE = re.compile(r"(?<![\d-])(\d{3,4})[ -]?(\d{3,4})(?![\d-])|(?<![\d-])(\d{4,8
 # Greenhouse's security code: 8 letters and digits, after "... the security code
 # field on your application:".
 SECURITY_CODE = re.compile(r"security code\b[^:]{0,80}:\s*([A-Za-z0-9]{8})(?![A-Za-z0-9])", re.IGNORECASE)
+# What sure_code reads: a code as a word of its own (not inside "abc123456"), after
+# the word code itself. A year ("© 2026") is never one, and a mail's style, script
+# and links are not read: colors ("#333333") and link parameters look like codes.
+SURE_CODE = re.compile(r"(?<![\w-])(\d{3,4})[ -]?(\d{3,4})(?![\w-])|(?<![\w-])(\d{4,8})(?![\w-])")
+SURE_WORDS = re.compile(r"\b(code|passcode|pin|otp)\b", re.IGNORECASE)
+YEAR = re.compile(r"(19|20)\d\d")
+NOT_TEXT = re.compile(r"<(style|script)\b.*?</\1>|https?://\S+", re.IGNORECASE | re.DOTALL)
 CODE_WORDS = re.compile(r"code|pin|passcode|one-time|verif", re.IGNORECASE)
 LINK = re.compile(r"""<a\b[^>]*?href=["'](https://[^"']+)["'][^>]*>(.*?)</a>|(https://[^\s<>"']+)""", re.IGNORECASE | re.DOTALL)
 VERIFY = re.compile(r"verif|activat|confirm|reset", re.IGNORECASE)  # an account's link, or a password reset's
@@ -43,6 +51,15 @@ NOT_SET_UP = (
     "Gmail isn't set up for Apply: no Gmail app password in Keychain for {address}. Make one at "
     "https://myaccount.google.com/apppasswords and save it with: security add-generic-password -s {service} -a {address} -w"
 )
+
+
+@dataclass(frozen=True)
+class MailedCode:
+    """A code read from one mail, and the domain of the mail's sender (for
+    the log: never the code or the mail's text)."""
+
+    code: str
+    sender: str
 
 
 @dataclass(frozen=True)
@@ -69,12 +86,21 @@ class GmailMailbox:
     def find_code(self, *, search: str, since: datetime) -> str | None:
         """The one-time code in the newest mail matching `search` (Gmail search
         terms, such as "from:oraclecloud.com") that arrived at or after `since`."""
-        return self._newest(search, since, _code)
+        return self._newest(search, since, lambda message: _code(_text(message)))
+
+    def find_mailed_code(self, *, search: str, since: datetime) -> MailedCode | None:
+        """As find_code, but only a code the mail names as one (sure_code),
+        with its sender's domain: for a code Apply types without a person
+        reading the mail first."""
+        def read(message: Message) -> MailedCode | None:
+            code = sure_code(_text(message))
+            return MailedCode(code, sender_domain(_header(message, "From"))) if code else None
+        return self._newest(search, since, read)
 
     def find_link(self, *, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
         """The verification link in the newest such mail, to one of `hosts`
         (or a host under one): any other link is not followed."""
-        return self._newest(search, since, lambda text: _link(text, hosts))
+        return self._newest(search, since, lambda message: _link(_text(message), hosts))
 
     def read_mail(self, *, search: str) -> list[Mail]:
         """Every inbox mail matching `search` (Gmail search terms, such as
@@ -112,7 +138,7 @@ class GmailMailbox:
                 if arrived < since:
                     return None  # newest first: every mail left is older still
                 message = email.message_from_bytes(raw)
-                if _authentic(message) and (value := read(_text(message))):
+                if _authentic(message) and (value := read(message)):
                     return value
         return None
 
@@ -166,6 +192,27 @@ def _code(text: str) -> str | None:
         if after:
             return after[0]
     return next((c for _, c in codes if len(c) == 6), None)
+
+
+def sure_code(text: str) -> str | None:
+    """The code a mail names as one, or None when it is not sure: Greenhouse's
+    security code, else the first code within 200 characters after the word
+    code (SURE_CODE). No code is guessed from the mail's other numbers, as
+    find_code does with its first 6-digit one."""
+    words = html.unescape(re.sub(r"<[^>]+>", " ", NOT_TEXT.sub(" ", text)))
+    if security := SECURITY_CODE.search(words):
+        return security[1]
+    codes = [(m.start(), "".join(filter(None, m.groups()))) for m in SURE_CODE.finditer(words)]
+    codes = [(at, c) for at, c in codes if not YEAR.fullmatch(c)]
+    for mention in SURE_WORDS.finditer(words):
+        if after := [c for at, c in codes if 0 <= at - mention.end() <= 200]:
+            return after[0]
+    return None
+
+
+def sender_domain(sender: str) -> str:
+    """The domain of a From header's address: "us.greenhouse-mail.io"."""
+    return parseaddr(sender)[1].rpartition("@")[2].lower()
 
 
 def _link(text: str, hosts: tuple[str, ...]) -> str | None:
