@@ -2156,12 +2156,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   panel dropped, so a resume set that way prints as it did. The bar mutes every
   button's words (`SLIM_BAR`, `DOCS_BAR`), so a real action there (Add Bullet,
   `FitButton`) carries `data-bar-action`, or a filled button reads grey on purple.
-  **An open bullet moves from the bar** (`MoveButtons`, Move Up and Move
-  Down beside bold and italic): within its entry, through `move` and
-  `apply`, so it trades places with its neighbour on the page at once
-  (`swapOf`) while the save and the render go behind it, and the line stays
-  open on it. It sends the line's typed text first (`flush`), so the move's
-  render prints it. Entries still move in the Sections panel.
+  **An open bullet or entry moves from the bar** (`MoveButtons`, Move Up
+  and Move Down beside bold and italic, or an entry's size): a bullet within
+  its entry, an entry within its section, through `move` and `apply`, so it
+  trades places with its neighbour on the page at once (`swapOf`; an entry
+  takes its bullets with it, and only when both sit on one page) while the
+  save and the render go behind it, and the line stays open on it. The
+  Sections panel reorders at once too, since it reads the same choices. It
+  sends the line's typed text first (`flush`), so the move's render prints
+  it. A section moves only in the Sections panel.
   **One bar, one height** (KAN-576): every button on it is 36px, text
   buttons `sm` and icon buttons `icon-lg` (the kit's `icon-sm` is 28px);
   `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. An upload's

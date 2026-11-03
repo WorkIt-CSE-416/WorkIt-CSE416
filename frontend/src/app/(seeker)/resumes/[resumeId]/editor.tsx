@@ -1999,7 +1999,7 @@ export function Editor({
       composing={Boolean(adding && !adding.sent)}
       onAddBullet={() => line && startBullet(line)}
       moves={
-        line?.kind === "bullet"
+        line?.kind === "bullet" || line?.kind === "entry"
           ? {
               up: Boolean(move(bank, choices, line, -1)),
               down: Boolean(move(bank, choices, line, 1)),
@@ -2385,7 +2385,8 @@ function Bar({
   /** A bullet is being added: its field is the open line. */
   composing: boolean;
   onAddBullet: () => void;
-  /** The open bullet's Move Up and Move Down; null for any other line. */
+  /** The open bullet's or entry's Move Up and Move Down; null for any
+   *  other line. */
   moves: MoveTools | null;
   onClose: () => void;
   onFit: () => void;
@@ -2520,12 +2521,15 @@ function MarkTools() {
   );
 }
 
-/** Move Up and Move Down for the open bullet, within its entry. */
+/** Move Up and Move Down for the open line: a bullet within its entry, an
+ *  entry within its section. */
 type MoveTools = { up: boolean; down: boolean; onMove: (by: -1 | 1) => void };
 
-/** Beside bold and italic: the bullet trades places with its neighbour on
- *  the page at once (`swapOf`), its save and render go behind it, and the
- *  line stays open on the bullet, so a second press moves it again. */
+/** Beside bold and italic, or an entry's size: the line trades places with
+ *  its neighbour on the page at once (`swapOf`; an entry with its bullets),
+ *  the Sections panel reorders from the same choices, its save and render go
+ *  behind it, and the line stays open on it, so a second press moves it
+ *  again. */
 function MoveButtons({ moves }: { moves: MoveTools }) {
   return (
     <div className="flex shrink-0 items-center gap-0.5">
@@ -2938,8 +2942,7 @@ function LineActions({
   onApply: (changes: ChoicesUpdate) => void;
   onSaveHeader: (field: HeaderField, text: string) => void;
   onHide: (changes: ChoicesUpdate) => void;
-  /** A phone's way to move a line; a desktop's bar has `MoveButtons` for a
-   *  bullet and the Sections panel for the rest. */
+  /** A phone's way to move a line; a desktop's bar has `MoveButtons`. */
   up?: ChoicesUpdate | null;
   down?: ChoicesUpdate | null;
 }) {

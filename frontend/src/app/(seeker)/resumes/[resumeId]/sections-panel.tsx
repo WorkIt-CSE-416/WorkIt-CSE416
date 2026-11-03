@@ -12,9 +12,10 @@ import { moveItem, printedSections, type PrintedEntry } from "./model";
 /**
  * The resume's order as an outline (KAN-435), as Jobright keeps it: sections
  * that fold to their entries, and entries to their bullets, each dragged by
- * its handle. It replaced the toolbar's up and down buttons, which moved one
- * line one step and could not move a section at all. A phone keeps those
- * buttons, since a drag there fights the scroll.
+ * its handle. It is the only way to move a section. The bar's Move Up and
+ * Move Down (`MoveButtons` in the editor) move the open entry or bullet one
+ * step, and this outline follows them at once, since both read the choices.
+ * A phone keeps its own buttons, since a drag there fights the scroll.
  *
  * Only the handle is `draggable`, so a press on a row still folds it, and a
  * handle is a button: its arrow keys move the row, for a student with no
