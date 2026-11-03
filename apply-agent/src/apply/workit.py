@@ -45,6 +45,8 @@ LOGIN = HOME / "workit-login.json"
 # Refresh an access token this many seconds before it expires, so it does not expire on its way.
 EARLY = 60
 TIMEOUT = 20
+# Cloudflare, in front of WorkIt's API, refuses Python-urllib's own user agent (error 1010).
+USER_AGENT = "WorkIt-Apply/1"
 CHROME_BINARY = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 
@@ -270,7 +272,7 @@ def _session(cookies: dict[str, str], name: str) -> dict | None:
 
 def _send(method: str, url: str, body: Any, token: str | None, apikey: str | None = None) -> tuple[int, Any]:
     """The status and JSON answer. No answer, or a 5xx, is Unreachable."""
-    headers = {"Accept": "application/json"}
+    headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
     if body is not None:
         headers["Content-Type"] = "application/json"
     if token:

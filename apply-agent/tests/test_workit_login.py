@@ -103,3 +103,11 @@ def test_the_supabase_project_is_the_one_the_extension_uses():
     assert re.search(r'SUPABASE_ANON_KEY =\s*"([^"]+)"', config)[1] == workit.LIVE.anon_key
     assert workit.LIVE.cookie == re.search(r'SUPABASE_SESSION_COOKIE_KEY = "([^"]+)"', config)[1]
     assert re.search(r'web: "([^"]+)", api: "([^"]+)"', config).groups() == (workit.LIVE.web, workit.LIVE.api)
+
+
+def test_requests_name_apply_not_python(tmp_path):
+    """Cloudflare, in front of WorkIt's API, refuses Python-urllib's user agent (error 1010, seen live 2026-11-02)."""
+    with FakeWorkIt() as fake:
+        logged_in(fake, tmp_path).me()
+        agents = {r.headers.get("user-agent", "") for r in fake.requests}
+    assert agents and not any(a.startswith("Python-urllib") for a in agents)
