@@ -47,9 +47,11 @@ from test_claude_fill import (
     LUNAR_URL,
     WHY_LUNAR,
     BambooDriver,
+    CaptchaDriver,
     JobviteDriver,
     PaylocityDriver,
     SendingDriver,
+    captcha_profile,
 )
 from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_URL, World
 from test_greenhouse_filler import board_listing_schools
@@ -65,6 +67,7 @@ from apply.greenhouse import GreenhouseFiller
 from apply.keychain import InMemoryKeychain
 from apply.lever import LeverFiller
 from apply.model import Posting
+from apply.notify import RecordingNotifier
 from apply.profile import ApplicantProfile
 from apply.records import FolderRecords
 from apply.repair import RepairRequests
@@ -377,6 +380,22 @@ def test_each_page_stays_open_where_it_stopped_until_ctrl_c(monkeypatch, tmp_pat
     assert seen == [2]  # both forms open after the run, on their last page
     assert site.open_now == 0  # Ctrl-C closed them
     assert lines[-1] == "Closed the browsers."
+
+
+def test_a_captcha_mid_fill_in_a_rehearsal_waits_for_lisul_then_fills_to_the_last_page(monkeypatch, tmp_path):
+    # LinkedIn (2026-11-03): the slider stopped the read; Lisul does it, and the rehearsal goes on by itself.
+    monkeypatch.setattr(ClaudeFill, "submit", lambda self, page: pytest.fail("a rehearsal clicked Claude fill's submit"))
+    phone = RecordingNotifier()
+    claude = FakeClaude(driver=CaptchaDriver(solved_ms=1500), essays={"Tell us why": WHY_LUNAR})
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [done] = rehearse([LUNAR_URL], server, captcha_profile(tmp_path, 1), claude, phone=phone)
+
+    assert done.outcome == "ready to submit", done.why
+    assert phone.sent == [("Apply: do the captcha", "Do the captcha on Lunar Outpost. Apply goes on by itself once it's done.")]
+    assert [line.split(" ", 1)[1] for line in done.history] == [
+        "Paused: do the captcha", "Resumed: the captcha is done; Apply went on from the page"]
+    assert server.submissions == []
 
 
 def test_each_page_held_open_for_lisul_is_his_to_submit_once_its_link_has_ended(monkeypatch, tmp_path):

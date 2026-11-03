@@ -48,6 +48,7 @@ from apply import (
 )
 from apply.accounts import NEEDS_SIGN_IN, Accounts
 from apply.adapters import Adapters, JobSite, SetupError, Tracker
+from apply.captcha import Waiter
 from apply.email_code import EmailCode
 from apply.model import Posting, Status, one_line
 from apply.orchestrator import CALIBRATION, WORKERS, by_filler, keep_repair_requests
@@ -372,6 +373,24 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                      posting_url=posting.url, application_id=posting.id, status="filling", files=list(files),
                      stage="", history=list(history))
         return True
+    caption = lambda: {"company": posting.company, "role": posting.title, "job_system": posting.job_system,
+                       "posting_url": posting.url, "application_id": posting.id, "files": list(files),
+                       "stage": "", "history": list(history)}
+    waits = Waiter(board, n, adapters.phone, profile, caption)
+
+    def on_captcha(why: str, page, company: str) -> bool:
+        """A captcha stopped the fill: Lisul does it on the page, and the fill goes on by itself."""
+        history.append(f"{adapters.clock.now().strftime('%H:%M')} Paused: do the captcha")
+        trace.event("captcha", reason=why)
+        board.update(n, history=list(history))
+        if not waits(why, page, company):
+            history.pop()  # its pause (KAN-551) says it again, with the why
+            return False
+        history.append(f"{adapters.clock.now().strftime('%H:%M')} Resumed: the captcha is done; "
+                       "Apply went on from the page")
+        trace.event("resume")
+        board.update(n, history=list(history))
+        return True
     if result is None:
         with trace.tracing(posting.id, posting.url):
             try:
@@ -387,7 +406,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                                                        before_fill=before_fill,
                                                        on_verify=lambda verification: board.update(
                                                            n, **verifying(verification)),
-                                                       on_pause=on_pause),
+                                                       on_pause=on_pause, on_captcha=on_captcha),
                     signed_in=adapters.signed_in,
                 )
             except SetupError as error:  # the Mac's setup, not Apply's code: its one line says how to fix it

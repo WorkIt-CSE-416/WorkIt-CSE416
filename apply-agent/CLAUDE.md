@@ -486,6 +486,10 @@ Claude stops at one (`SAYS_CAPTCHA`).
 - After `captcha_wait_minutes` (policies, default 15), or when the tab
   closed, it is the usual Handoff: a run's ends, a rehearsal's pauses
   (KAN-551). `0` hands off at once; the test policies set 0.
+- A rehearsal keeps each captcha wait in its history ("Paused: do the
+  captcha", "Resumed: the captcha is done"), on the tile and in the Record,
+  and a `captcha` event in the Trace. A wait that timed out leaves only
+  the pause's own line.
 
 ## Form pages
 
