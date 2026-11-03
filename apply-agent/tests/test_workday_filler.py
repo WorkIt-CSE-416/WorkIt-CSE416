@@ -624,6 +624,23 @@ def test_a_save_and_continue_click_workday_lost_is_made_again():
                 filler.fill(page, [name], {name.name: "Test"})
 
 
+def test_a_step_workday_refused_as_missing_picks_it_shows_is_filled_once_more():
+    # ASML's Application Questions showed each pick, yet Save and Continue found two required answers empty (live).
+    steps = [("Application Questions", [Field("education", "What is your highest level of education?", "dropdown", True,
+                                              ("High School or GED", "Bachelor’s degree"))]),
+             ("Voluntary Disclosures", [Field("why", "Why?", "text", False)])]
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps, lost_picks=1) as server, OnePage(server) as site:
+        [education] = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            with pytest.raises(MoreQuestions):  # the next step's question: the second Save and Continue went through
+                filler.fill(page, [education], {education.name: "Bachelor’s degree"})
+
+    assert server.saved("caci.wd1.myworkdayjobs.com")["education"] == "Bachelor’s degree"
+
+
 def test_an_error_workday_flashes_before_the_next_step_is_no_handoff():
     # Adobe showed "Upload a file ... is required" mid-save, then went on to the next step (seen live).
     steps = [("My Information", [Field("legalName--firstName", "First Name", "text", True)])]

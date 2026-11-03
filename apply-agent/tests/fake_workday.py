@@ -322,7 +322,7 @@ class FakeWorkdayServer:
                  in_progress: bool = False, review: str = "Review", step_name_delay: float = 0,
                  ignored_clicks: int = 0, went_wrong: int = 0, review_delay: float = 0,
                  drops_untouched: bool = False, flashes_error: bool = False,
-                 dropped_saves: int = 0, box_wiring: float = 0):
+                 dropped_saves: int = 0, box_wiring: float = 0, lost_picks: int = 0):
         self._responses: dict[str, tuple[int, str, bytes]] = {}
         redirects: dict[str, str] = {}
         for form in forms:
@@ -356,6 +356,9 @@ class FakeWorkdayServer:
         self._flashes_error = flashes_error
         self._dropped_saves = dropped_saves
         self._box_wiring = box_wiring
+        # How many of the first saves hold none of the step's dropdown picks, though the page shows them
+        # (ASML's Application Questions, live): the step is refused as missing them.
+        self._lost_picks = lost_picks
         self._lock = threading.Lock()
         self._tenants: dict[str, Tenant] = {}
         for host in verify_email:
@@ -545,6 +548,10 @@ class FakeWorkdayServer:
         for f in fields:  # a file attached on an earlier visit stays attached
             if isinstance(f, Field) and f.kind == "file" and values.get(f.key) is None and saved.get(f.key):
                 values[f.key] = saved[f.key]
+        if self._lost_picks:
+            self._lost_picks -= 1
+            values = {k: ("" if any(isinstance(f, Field) and f.key == k and f.kind == "dropdown" for f in fields) else v)
+                      for k, v in values.items()}
         missing = []
         for f in fields:
             if isinstance(f, Section):
