@@ -75,7 +75,11 @@ jobs/filters.tsx draws the row (KAN-170); every facet filters, and Industry is
 gone (no data). As the row narrows its facets step out one at a time, least used
 first, Visa is never in the row (All Filters only, asked for 2026-10-10), and
 All Filters stays at every width, a 36px icon button named by its tooltip
-(KAN-519); never stretch it across the row. The row
+(KAN-519); never stretch it across the row. **It counts the facets with a
+pick** (KAN-569): a brand badge at its corner and its name, "All Filters, 3
+on" (`facetsOn` in filter-query.ts, Salary one facet). Below about 1000px of
+row the facets that stepped out showed their picks nowhere, and only Clear
+Filters' X said anything was on. The row
 holds four facets: Location, Role, Workplace and Job Type. Date Posted left it
 for All Filters on 2026-11-02, for the room. Job Type took Experience's place (KAN-284), since it is
 where Internship is picked, and Experience Level is in All Filters only. Each facet is at least 144px and as wide as its label needs. While any filter is on, Clear Filters sits just before All Filters
@@ -273,8 +277,8 @@ and Save as bare glyphs at the top right and the match under them, as the team
 asked on 2026-11-02. Rows are split by hairlines, not boxed, and the open job is
 the whole row tinted. A fact the posting does not state closes up, and long lines
 wrap rather than cut off. The card replaced the feed card's six-fact grid, asked
-for on 2026-10-22. Not Interested is the large card's button, inert as that one
-is, until something stores the choice. Tailor, Auto Apply, Ask Scout and Apply Now
+for on 2026-10-22. Not Interested is the large card's button, "Coming Soon" as
+that one is (`soon`, KAN-569), until something stores the choice. Tailor, Auto Apply, Ask Scout and Apply Now
 sit on the open job.
 The rail lives in `jobs/layout.tsx`
 (`jobs/jobs-rail.tsx`), above the job's segment, so it stays mounted and
@@ -299,7 +303,8 @@ It is the mock's `JobDetailHeader` with the card's own facts
 "About the Role": `[jobId]/description.tsx` reads the plain-text description's
 own shape (Title Case lines as subheadings, the short lines under one as a
 list), and a description the scraper cut at 8,000 characters (it ends " …")
-says so and links to the whole posting. Its paragraphs and list items are
+says so and links to the whole posting. It stops at 46ch of its own 14px text,
+64 to 71 characters a line (KAN-569; `docs/design.md`, The two shells). Its paragraphs and list items are
 ink, the headings' colour, not body copy's lighter ink-muted: a posting is
 long reading, and the grey was hard to read (2026-10-17). Each of KAN-229's
 fixed section headings (Overview, Responsibilities, Requirements, Preferred
@@ -386,7 +391,11 @@ Tailor My Resume and Apply Now, on one row at a 1280px
 window. Ask Scout, Not Interested and Save are bare glyphs at the top right of
 the job's card (`JobCardActions`, after Simplify): in the bar they wrapped Apply
 Now onto a row of its own. Not Interested shows on the job's own page only, and
-is inert, as on the compact card. Below that width the tabs wrap above the actions.
+is "Coming Soon", as on the compact card. Below that width the tabs wrap above the
+actions. **Below md Apply Now comes first** (KAN-569): the actions take a row of their
+own under Back and the tabs, Apply Now across it, then Auto Apply and Tailor filling
+the row under it; wrapped in their old order they took three rows and Apply Now came
+last.
 An Already Applied? link sat here for a day (KAN-519, after Simplify) and was
 taken out for the room it took in the bar. So "Did You Apply?" comes only through
 Apply Now. An Applied button here once marked jobs on a misclick, with no undo
@@ -397,7 +406,8 @@ Requirements and About the Role. Company (`[jobId]/company-tab.tsx`, `GET
 /jobs/{id}/company`) is the employer's website and the shared company brief's
 checked facts by category, each with its source. A brief exists only once a
 student's Claude has researched the company, so most jobs show the website
-alone, or "WorkIt has no notes on … yet". The application page draws no tabs. A "…" menu of Copy Link and an inert Report sat
+alone, or "WorkIt has no notes on … yet". Each fact's Source link is underlined,
+since its brand colour against the ink text was the only cue (KAN-569). The application page draws no tabs. A "…" menu of Copy Link and an inert Report sat
 after Save until KAN-519, when the team removed it. Below md the bar scrolls away and wraps.
 The header card below holds who is hiring, the title and facts; its logo never
 shrinks. Its facts use the card's `JobFacts`: two rows of three fixed slots,
@@ -412,7 +422,11 @@ already queued or applied stays as it is, and a toast says where it is.
 Saving never queues a job: Start Auto Apply's batches skip saved jobs, and
 only the job's own Auto Apply button queues one. The
 card's own row has Not Interested, Save, Ask
-Scout, Auto Apply, Tailor My Resume and Apply Now. Tailor My Resume is the
+Scout, Auto Apply, Tailor My Resume and Apply Now, on one row once the card's body
+is 576px (`@xl`). Below that (KAN-569) Apply Now has a row of its own across the
+card, under the icon buttons, Auto Apply and Tailor, which grow to fill their row
+and wrap whole: as one row the six fell into ragged rows with Apply Now alone, and
+one row needs about 540px. Tailor My Resume is the
 page's button on the card too (KAN-241): it opens `/jobs/[jobId]/tailor`
 and reads "Tailored Resume" once the student has one for that job
 posting. /jobs and /search read the built resumes once beside the first

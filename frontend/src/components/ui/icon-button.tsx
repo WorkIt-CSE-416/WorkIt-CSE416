@@ -49,6 +49,11 @@ type IconButtonProps = {
   /** Shown on hover in place of `label`, for a label too specific to read well. */
   tooltip?: string;
   variant?: IconButtonVariant;
+  /** Not built yet (KAN-569): the button stays in its place, faded, does
+   *  nothing, and says "Coming Soon" in its tooltip and its name. Unlike
+   *  `disabled` it still takes the pointer and focus, since a disabled button
+   *  shows no tooltip and so could not say why. */
+  soon?: boolean;
   className?: string;
   children: ReactNode;
 } & Omit<ComponentProps<"button">, "className" | "children" | "aria-label">;
@@ -57,9 +62,11 @@ export function IconButton({
   label,
   tooltip = label,
   variant = "quiet",
+  soon = false,
   className,
   type = "button",
   disabled,
+  onClick,
   children,
   ...props
 }: IconButtonProps) {
@@ -71,19 +78,24 @@ export function IconButton({
         render={<button disabled={disabled} />}
         disabled={disabled}
         type={type}
-        aria-label={label}
+        aria-label={soon ? `${label}, coming soon` : label}
+        aria-disabled={soon || undefined}
+        onClick={soon ? undefined : onClick}
         className={cn(
           VARIANTS[variant],
           // Presses in further than a button (90%): a glyph is small, and a
           // smaller squeeze would not read. Colours fade on the same clock.
           "transition-[color,background-color,border-color,transform] duration-150 ease-out focus-visible:outline-none active:scale-90 disabled:pointer-events-none disabled:opacity-50",
           className,
+          // After the call site's classes, so no hover or press state outlives it.
+          soon && "text-ink-subtle hover:text-ink-subtle cursor-default active:scale-100",
+          soon && variant === "outline" && "hover:bg-panel",
         )}
         {...props}
       >
         {children}
       </TooltipTrigger>
-      <TooltipContent>{tooltip}</TooltipContent>
+      <TooltipContent>{soon ? `${tooltip}: Coming Soon` : tooltip}</TooltipContent>
     </Tooltip>
   );
 }

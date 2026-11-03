@@ -274,7 +274,10 @@ export default function DisplayPage() {
           <Fact Icon={CalendarIcon}>Posted 3 days ago</Fact>
           <Fact Icon={AwardIcon}>92% match</Fact>
         </Row>
-        <Row name="<IconButton>" role="Bare glyph, bordered, and brand disc">
+        <Row
+          name="<IconButton>"
+          role="Bare glyph, bordered, brand disc, and soon (not built yet: faded, says so in its tooltip)"
+        >
           <IconButton label="Notifications">
             <BellIcon className="size-4" />
           </IconButton>
@@ -283,6 +286,9 @@ export default function DisplayPage() {
           </IconButton>
           <IconButton label="Edit avatar" variant="brand">
             <GearIcon className="size-3.5" />
+          </IconButton>
+          <IconButton label="Save job" variant="outline" className="size-9" soon>
+            <BookmarkIcon className="size-4" />
           </IconButton>
         </Row>
         <Row name="<TextLink>" role="Brand link inside running text">

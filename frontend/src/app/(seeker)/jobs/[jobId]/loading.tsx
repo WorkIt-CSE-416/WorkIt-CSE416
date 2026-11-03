@@ -80,7 +80,7 @@ function JobPageSkeleton() {
 
       <div className="mt-5">
         <SectionHeadingSkeleton />
-        <div aria-hidden="true" className="mt-3 flex max-w-[68ch] flex-col gap-2">
+        <div aria-hidden="true" className="text-body mt-3 flex max-w-[46ch] flex-col gap-2">
           {["w-full", "w-11/12", "w-full", "w-4/5", "w-full", "w-2/3"].map((width, i) => (
             <Skeleton key={i} className={cn("h-4", width)} />
           ))}

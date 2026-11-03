@@ -40,7 +40,7 @@ export type JobView = Awaited<ReturnType<typeof loadJobView>>;
 
 /** A job's page width: every seeker page's `max-w-dashboard` (2026-10-27;
  *  it was 70rem, after 1024px left the header's six facts cramped, KAN-279).
- *  About the Role keeps its own 68ch measure, so its lines do not grow with
+ *  About the Role keeps its own 46ch measure, so its lines do not grow with
  *  it. The job page and the application's own page share it, so the two
  *  stay identical. */
 export const JOB_PAGE_WIDTH =
@@ -108,24 +108,35 @@ export async function loadJobView(
 /** The job's actions, for JobActionBar: Auto Apply where it
  *  can fill the form, Tailor My Resume and Apply Now. What only keeps or sets
  *  the job aside sits on its card (JobCardActions), after Simplify, so the bar
- *  holds one row beside the tabs. */
+ *  holds one row beside the tabs.
+ *
+ *  BELOW md APPLY NOW COMES FIRST, ACROSS THE PAGE (KAN-569), with Auto Apply
+ *  and Tailor filling the row under it (each on its own row where the two do
+ *  not fit): wrapped in this order, the bar took three rows and the one
+ *  primary action was the last thing found.
+ *  `data-phone-first` tells the bar to give the actions a row of their own. */
 export function JobViewActions({ view, job }: { view: JobView; job: JobListing }) {
   const { stage, applied, tailored } = view;
   return (
     <>
-      {/* Only where auto apply can fill the form (Greenhouse for now). */}
-      {job.auto_apply && (
-        <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
-      )}
-      <ButtonLink
-        href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
-        variant="secondary"
-        size="sm"
-        className="shrink-0"
+      <div
+        data-phone-first
+        className="contents max-md:flex max-md:basis-full max-md:flex-wrap max-md:gap-2 max-md:*:grow"
       >
-        <TailorIcon className="size-4" />
-        {tailored ? "Tailored Resume" : "Tailor My Resume"}
-      </ButtonLink>
+        {/* Only where auto apply can fill the form (Greenhouse for now). */}
+        {job.auto_apply && (
+          <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
+        )}
+        <ButtonLink
+          href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
+          variant="secondary"
+          size="sm"
+          className="shrink-0"
+        >
+          <TailorIcon className="size-4" />
+          {tailored ? "Tailored Resume" : "Tailor My Resume"}
+        </ButtonLink>
+      </div>
       <ApplyButton
         jobId={job.id}
         title={job.title}
@@ -133,7 +144,7 @@ export function JobViewActions({ view, job }: { view: JobView; job: JobListing }
         canMarkApplied={applied != null}
         applied={applied?.appliedAt != null}
         showsSent
-        className="shrink-0"
+        className="shrink-0 max-md:order-first max-md:basis-full"
       />
     </>
   );

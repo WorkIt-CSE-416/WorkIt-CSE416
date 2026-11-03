@@ -49,7 +49,13 @@ width only shows more columns. **Every other seeker page stops at
 left edge beside the rail (2026-10-27): at the old 1024px `max-w-app` they
 sat centred between wide empty margins once the rail freed the room, which
 the user found flawed. A block of prose keeps its own measure (About the
-Role's 68ch), since text past about 80 characters a line is hard to follow. On Applications and
+Role's 46ch), since text past about 75 characters a line is hard to follow.
+**A `ch` cap goes on the element that has the text's own size** (KAN-569):
+`ch` is read from that element's font, and About the Role's 68ch sat on a
+16px wrapper over 14px text, so its lines ran about 107 characters. Plus
+Jakarta Sans draws "0", which `ch` measures, at 0.73em, wider than its
+average letter: at 14px, 46ch prints 64 to 71 characters a line and 60ch
+about 90. Measure a new cap in characters a line (45 to 75). On Applications and
 the Calendar the segmented control sits at the top right of the header
 wherever it fits beside the title, the title wrapping first; Home's range
 switch sits at the top right of the page, beside the greeting, and wraps
@@ -235,7 +241,8 @@ say the same thing about an application (the grid and list, and the board
 when it returns): its role, company, date and match
 score (KAN-256). There is no progress bar; it only restated the stage.
 
-A match score is red, yellow or green (KAN-518): Weak red, Good yellow,
+A match score is red, yellow or green (KAN-518): Weak red (neutral ink for
+now, below), Good yellow,
 Strong green and Excellent a deeper green, so it says good or bad with no
 legend. The four `--color-match-*` tokens in `globals.css` are read only
 through `matchColor()` in `lib/match.ts`: the Applications match badge, the
@@ -248,7 +255,12 @@ green and red with the Offer and Rejected stages, and its shape, a ring or a
 bar with a number, keeps it apart from a stage's chip. A new score display
 takes `matchColor()` and a new stage display takes its stage map, never the
 other's. The marketing pages' pink, which borrowed that ramp, is
-`--color-updates`.
+`--color-updates`. **Weak draws in neutral ink for now** (KAN-569):
+`--color-match-weak` is `--color-ink-muted` while the cut-offs in
+`lib/match.ts` are placeholders. Every card on the Jobs page scored under 65,
+so all 50 drew a red ring and the eye had nothing to rank by. Colour stays
+for Good and above, and Weak goes back to `--color-danger` once real
+cut-offs exist.
 
 Intake's step chips say what became of each section with a corner badge
 in two of those (KAN-257): a check on `--color-step-done` green, a dash on
@@ -318,6 +330,16 @@ disabled Save is grey** (`ui/button.tsx`, DISABLED_FILL): a faded brand fill
 read as lavender, a picked state. **A lesser action beside a button is muted
 ink** (`variant="section"`), never brand text: Settings' Remove Photo was
 brand-coloured beside Change Photo and drew the eye from Save.
+
+**A control that is not built yet says so** (KAN-569): `soon` on
+`ui/icon-button.tsx` fades it to `ink-subtle`, drops its hover and press, and
+ignores its click, while it still takes the pointer and focus, so its tooltip
+and its name say "Coming Soon". A disabled button shows no tooltip, so a
+faded Ask Scout said nothing about why, and Not Interested, which stores
+nothing, kept live hover and press states. **A link inside text is
+underlined** (KAN-569): brand against ink is about 2.8:1, so colour alone
+is no cue (the Company tab's Source links, About the Role's full-posting
+link).
 
 **One scrollbar** (`globals.css`): a 4px thumb on no track, shown while the
 pointer is over what it scrolls. Style it there, never per element.

@@ -390,6 +390,25 @@ export function isFiltered(filters: FeedFilters): boolean {
   return filterEntries(filters).length > 0;
 }
 
+/** How many facets hold a pick, for All Filters' count (KAN-569): below about
+ *  1000px the row has no room for some facets, and a pick in one of them
+ *  showed nowhere else. Salary is one facet, either end of it. */
+export function facetsOn(filters: FeedFilters): number {
+  const f = filters;
+  return [
+    f.places.length,
+    f.workStyles.length,
+    f.roles.length,
+    f.levels.length,
+    f.jobTypes.length,
+    f.postedWithin != null,
+    f.minPay != null || f.maxPay != null,
+    f.startTerms.length,
+    f.visa != null,
+    f.autoApply,
+  ].filter(Boolean).length;
+}
+
 /** A Start Date option's words: "summer-2027" is "Summer 2027", and a bare year
  *  says its season isn't stated. */
 export function seasonLabel(key: string): string {
