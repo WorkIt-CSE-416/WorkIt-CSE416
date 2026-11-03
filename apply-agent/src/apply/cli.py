@@ -26,6 +26,7 @@ from apply import (
     own_application,
     rehearsal,
     schedule,
+    sheet,
     sheet_import,
     story_map,
     trace,
@@ -51,13 +52,11 @@ from apply.repair import RepairRequests
 from apply.repairer import Repairer, repair_later
 from apply.sheet import (
     APPLICATIONS,
-    SHEET_ID,
     NoSheet,
-    live_tracker,
     live_tracker_sheet,
 )
-from apply.tracker import InMemoryTracker
-from apply.worker import SENT
+from apply.tracker import FileTracker, InMemoryTracker, WorkItTracker
+from apply.worker import SENT, sent_resume
 
 DEFAULT_PROFILE = HOME / "applicant-profile.yaml"
 # The Answer bank's file, beside the Applicant profile.
@@ -166,6 +165,7 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
         else:
             _refuse_unless_live_runs_on(profile, args.command)
             _refuse_busy_worker_profiles(args.command)
+            _send_waiting_writes()
             adapters = live_adapters(profile, answer_bank=AnswerBank(args.profile.parent / ANSWER_BANK))
             WorkerBrowsers().seed(args.workers)
             with _dashboard(adapters, args.workers, profile):
@@ -187,14 +187,15 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
                   f"answers Claude drafts go to the Answer bank, {args.profile.parent / ANSWER_BANK}.")
             for seeded in WorkerBrowsers().seed(len(args.urls)):
                 print(f"Signed {seeded.name} in to Google as a copy of a signed-in Worker profile.")
-            try:  # where an Application Lisul submits from a held page is kept
-                sheet = live_tracker()
+            _send_waiting_writes()
+            try:  # where an Application Lisul submits from a held page is kept, and sent to WorkIt
+                kept = live_tracker()
             except Exception as error:
-                sheet = None
-                print(f"No Tracker ({type(error).__name__}: {error}): add a row yourself for any you submit.")
+                kept = None
+                print(f"No Tracker ({type(error).__name__}: {error}): add any you submit yourself.")
             with _dashboard(adapters, len(args.urls), profile):  # a tile per link: each keeps its page open
                 rehearsal.rehearse(args.urls, adapters, profile, args.workers, on_done=lambda: repair_later(adapters.repairs, profile.policy("repair") or {}),
-                                   submitted_to=sheet, together=args.together)
+                                   submitted_to=kept, together=args.together)
         else:
             rehearsal.rehearse(args.urls, adapters, profile, args.workers, submitted_to=adapters.tracker,
                                together=args.together)
@@ -408,10 +409,45 @@ def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict
 
 
 def _window_context() -> dict:
-    """What the Apply window links and says beyond the run: the Tracker Sheet, and when the Daily sweep runs."""
-    sheet = SHEET_ID.read_text().strip() if SHEET_ID.exists() else ""
-    return {"tracker_url": f"https://docs.google.com/spreadsheets/d/{sheet}" if sheet else "",
-            "sweep_at": schedule.daily_sweep_at()}
+    """What the Apply window links and says beyond the run: the student's Applications Tracker on WorkIt,
+    and when the Daily sweep runs."""
+    return {"tracker_url": f"{workit.site().web}/applications", "sweep_at": schedule.daily_sweep_at()}
+
+
+def live_tracker() -> WorkItTracker:
+    """Apply's Tracker, the file in the data folder, which also writes each Application's new status to the
+    student's Applications Tracker on WorkIt (KAN-544). The first time, the rows of the retired Tracker
+    Sheet are copied in (read only), so no run applies again to a job already applied to."""
+    local = FileTracker()
+    if not local.path.exists() and sheet.SHEET_ID.is_file():
+        try:
+            copied = sheet.copy_into(sheet.live_tracker_sheet(), local)
+        except Exception as error:
+            raise RuntimeError(f"the Tracker Sheet's rows could not be copied into {local.path} "
+                               f"({type(error).__name__}: {error}); run again once the Sheet reads") from error
+        print(f"Copied {copied} rows of the Tracker Sheet into {local.path}. Apply no longer writes the Sheet.",
+              file=sys.stderr)
+    return WorkItTracker(local, workit.Outbox(), _resume_of)
+
+
+def _resume_of(application_id: str) -> str:
+    """The resume an Application's form was given, from its folder under SENT."""
+    try:
+        name = Path(str(ApplicantProfile.load(DEFAULT_PROFILE).get("files.resume_pdf") or "")).name
+    except Exception:
+        name = ""
+    return sent_resume(application_id, name)
+
+
+def _send_waiting_writes() -> None:
+    """Before a run or rehearsal: send the writes to the Applications Tracker that waited for WorkIt."""
+    outbox = workit.Outbox()
+    waiting = len(outbox.waiting())
+    for problem in outbox.flush():
+        print(problem, file=sys.stderr)
+    if waiting and (left := len(outbox.waiting())):
+        print(f"{left} writes still wait to go to your Applications Tracker (apply doctor lists them).",
+              file=sys.stderr)
 
 
 def _applied(adapters: Adapters) -> Callable[[str], str]:
@@ -421,7 +457,7 @@ def _applied(adapters: Adapters) -> Callable[[str], str]:
 
 
 def _applied_live(url: str) -> str:
-    """An Own application pasted into the window with no run going, added to the live Sheet."""
+    """An Own application pasted into the window with no run going, added to the live Tracker."""
     return own_application.report(url, tracker=live_tracker(), claude=ClaudeCLI(), site=WorkerBrowsers(),
                                   clock=SystemClock())
 
@@ -508,7 +544,7 @@ def _records(profile: ApplicantProfile):
 def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifier=None, mailbox=None,
                   keychain=None, answer_bank=None, phone=None) -> Adapters:
     """The real systems a run touches, but for any adapter given. Building
-    them connects to nothing but the Sheet (unless a Tracker is given); the
+    them connects to nothing (the Tracker is a file in the data folder); the
     Gmail app password is read from Keychain for the Applicant profile's
     email (unless a Mailbox is given), and so is the ntfy topic (unless a
     phone Notifier is given)."""

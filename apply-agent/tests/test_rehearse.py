@@ -482,6 +482,55 @@ def test_lisuls_own_submit_on_a_held_page_is_kept_in_the_tracker_as_submitted(mo
     assert any(line.startswith("Arc Boat Company | ") and "you submitted it; it is in the Tracker" in line for line in lines)
 
 
+def test_lisuls_own_submit_from_a_rehearsal_is_applied_in_his_applications_tracker(monkeypatch, tmp_path):
+    # KAN-544: the submit he made goes to WorkIt as Applied, the resume the form was given as its Sent resume.
+    from fake_tracker import FakeTracker
+    from fake_workit import FakeWorkIt
+
+    from apply import workit
+    from apply.tracker import WorkItTracker
+    from apply.worker import sent_resume
+
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+    resume_name = Path(profile.get("files.resume_pdf")).name
+
+    with FakeWorkIt() as wi, FakeJobServer(ARC_FORM) as fake:
+        applications = FakeTracker(wi)
+        client = workit.WorkIt(wi.site, tmp_path / "workit-login.json")
+        workit.login(client, lambda url, accept: accept(wi.cookies(wi.session())))
+        tracker = WorkItTracker(InMemoryTracker(), workit.Outbox(client, tmp_path / "workit-queue.json"),
+                                lambda application_id: sent_resume(application_id, resume_name))
+        hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=tracker)
+
+    assert applications.tracked() == [{"link": ARC_URL, "company": "Arc Boat Company", "stage": "applied",
+                                       "sent_resume": resume_name}]
+
+
+def test_a_rehearsal_lisul_does_not_submit_sends_nothing_to_workit(monkeypatch, tmp_path):
+    from fake_tracker import FakeTracker
+    from fake_workit import FakeWorkIt
+
+    from apply import workit
+    from apply.tracker import WorkItTracker
+
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: [])
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+
+    with FakeWorkIt() as wi, FakeJobServer(ARC_FORM) as fake:
+        applications = FakeTracker(wi)
+        client = workit.WorkIt(wi.site, tmp_path / "workit-login.json")
+        workit.login(client, lambda url, accept: accept(wi.cookies(wi.session())))
+        wi.requests.clear()
+        tracker = WorkItTracker(InMemoryTracker(), workit.Outbox(client, tmp_path / "workit-queue.json"),
+                                lambda application_id: "")
+        hold_until(fake, profile, lambda lines: "Ctrl-C" in lines[-1], submitted_to=tracker)
+
+    assert wi.requests == [] and applications.tracked() == []
+
+
 class OnePage:
     """A job site whose every page is `html`, in a browser of its own."""
 

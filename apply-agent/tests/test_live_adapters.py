@@ -22,7 +22,8 @@ from apply.keychain import GMAIL, PHONE_PUSH, MacKeychain
 from apply.notify import MacNotifier, NtfyNotifier, RecordingNotifier
 from apply.profile import ApplicantProfile
 from apply.records import FolderRecords, GitRecords
-from apply.tracker import InMemoryTracker
+from apply.sheet import TABS
+from apply.tracker import FileTracker, InMemoryTracker, WorkItTracker
 
 
 class _Opened(list):
@@ -59,7 +60,7 @@ def test_apply_run_without_fakes_wires_every_live_adapter(monkeypatch, tmp_path)
     sheet_id.write_text("the-sheet\n")
     opened = []
     monkeypatch.setattr(sheet, "SHEET_ID", sheet_id)
-    monkeypatch.setattr(sheet, "open_sheet", lambda sheet_id: opened.append(sheet_id) or FakeSpreadsheet(tmp_path / "sheet", {}))
+    monkeypatch.setattr(sheet, "open_sheet", lambda sheet_id: opened.append(sheet_id) or FakeSpreadsheet(tmp_path / "sheet", TABS))
     looked_up = []
     monkeypatch.setattr(MacKeychain, "password", lambda self, account: looked_up.append((self._service, account)) or "app")
     runs = []
@@ -70,7 +71,9 @@ def test_apply_run_without_fakes_wires_every_live_adapter(monkeypatch, tmp_path)
     [adapters] = runs
     assert len(adapters.board.state()["tiles"]) == 4  # a dashboard tile per Worker
     assert isinstance(adapters.feed, SimplifyFeed)
-    assert isinstance(adapters.tracker, sheet.SheetTracker) and opened == ["the-sheet"]
+    # Apply's Tracker file, writing each status to WorkIt; the retired Sheet only read, one time, to copy its rows
+    assert isinstance(adapters.tracker, WorkItTracker) and isinstance(adapters.tracker.inner, FileTracker)
+    assert opened == ["the-sheet"] and adapters.tracker.inner.path.exists()
     assert isinstance(adapters.site, WorkerBrowsers)
     assert isinstance(adapters.claude, ClaudeCLI) and adapters.usage is adapters.claude
     assert isinstance(adapters.mailbox, GmailMailbox) and (GMAIL, "test.person@example.com") in looked_up
@@ -80,6 +83,8 @@ def test_apply_run_without_fakes_wires_every_live_adapter(monkeypatch, tmp_path)
     assert isinstance(adapters.records, GitRecords)
     assert isinstance(adapters.notifier, MacNotifier)
     assert isinstance(adapters.keychain, MacKeychain)
+    cli.main(["run", "--profile", str(mine), "--workers", "4"])
+    assert opened == ["the-sheet"]  # copied one time only
 
 
 def test_with_no_records_remote_set_a_run_keeps_its_records_in_the_data_folder(monkeypatch, tmp_path):
@@ -282,9 +287,7 @@ def test_a_live_run_fills_postings_on_the_sites_lisul_signed_the_worker_profiles
 @pytest.mark.parametrize("command", [["run"], ["rehearse", "https://jobs.lever.co/a/1"]])
 def test_the_workers_run_headless_or_headed_as_policies_yaml_says(monkeypatch, tmp_path, command, worker_headless):
     # Measured before deciding: does a headed Chrome draw fewer Bot signals than a headless one?
-    monkeypatch.setattr(sheet, "open_sheet", lambda sheet_id: FakeSpreadsheet(tmp_path / "sheet", {}))
-    monkeypatch.setattr(sheet, "SHEET_ID", tmp_path / "sheet-id")
-    (tmp_path / "sheet-id").write_text("the-sheet\n")
+    monkeypatch.setattr(sheet, "SHEET_ID", tmp_path / "no-sheet-id")  # no Sheet: nothing to copy
     monkeypatch.setattr(MacKeychain, "password", lambda self, account: "app")
     sites = []
     monkeypatch.setattr(orchestrator, "run", lambda adapters, *args, **kinds: sites.append(adapters.site))
