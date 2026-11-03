@@ -471,6 +471,10 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   stops at once as Needs sign-in (`workday.GOOGLE_REJECTED`), never a 30 s
   timeout. It never clicks Try again. The fake Workday's
   `google="rejected"` plays this page.
+- A Google challenge page (`/signin/challenge/`, for example a passkey,
+  which has no box to type in) is a Handoff at once too: "Google asked for
+  more than an account pick (a passkey)". Apply never answers a challenge.
+  The fake's `google="passkey"` plays it.
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
 - Apply asks a site for a verification code or link once per sign-in and

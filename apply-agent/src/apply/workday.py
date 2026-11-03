@@ -463,8 +463,15 @@ def _alert(page: Page) -> str:
 
 
 def _google_asks(page: Page) -> bool:
-    """Whether Google's page asks for something typed: a password, a code, a phone number."""
-    return page.locator("input[type=password]:visible, input[type=tel]:visible, input[type=text]:visible").count() > 0
+    """Whether Google's page asks for something typed (a password, a code, a phone number), or is one of
+    its challenges, such as a passkey, which has no box to type in (KLA, 2026-11-03)."""
+    return _google_challenge(page) or \
+        page.locator("input[type=password]:visible, input[type=tel]:visible, input[type=text]:visible").count() > 0
+
+
+def _google_challenge(page: Page) -> bool:
+    url = urlsplit(page.url)
+    return url.hostname == "accounts.google.com" and "/signin/challenge/" in url.path
 
 
 def _google_rejected(page: Page) -> bool:
@@ -479,7 +486,8 @@ GOOGLE_REJECTED = (
 
 
 def _google_wants(page: Page) -> str:
-    asked = "a password" if page.locator("input[type=password]").count() else (
+    asked = "a password" if page.locator("input[type=password]").count() else "a passkey" if (
+        "/signin/challenge/pk" in urlsplit(page.url).path) else (
         page.locator("h1").first.inner_text().strip() if page.locator("h1").count() else page.url)
     return (
         f"Google asked for more than an account pick ({asked}). Agents never type Google credentials: "
