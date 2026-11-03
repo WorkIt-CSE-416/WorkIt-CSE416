@@ -630,7 +630,7 @@ export function answerIcon(key: QuestionKey) {
   return ANSWER_ICON[key];
 }
 
-/** My Profile's Application answers groups (KAN-369), shared with
+/** Application Info's Application answers groups (KAN-369), shared with
  *  onboarding's Availability step: one glyph a group, by its name. */
 export const ANSWER_GROUP_ICON = {
   availability: ({ className }: IconProps) => <Clock aria-hidden className={className} />,

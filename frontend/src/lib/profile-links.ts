@@ -70,3 +70,14 @@ export function siteName(url: string): string | null {
   }
   return null;
 }
+
+/** How a phone number prints on My Profile: a U.S. number of 10 digits, or
+ *  11 starting with 1, as "+1 646-736-8801" however it was typed (the bare
+ *  "16467368801" read as an account number); any other as typed. Display
+ *  only: the saved value, which resumes print, is never changed. */
+export function phoneText(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  const us = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  if (us.length !== 10 || /[^\d\s()+.-]/.test(phone)) return phone;
+  return `+1 ${us.slice(0, 3)}-${us.slice(3, 6)}-${us.slice(6)}`;
+}

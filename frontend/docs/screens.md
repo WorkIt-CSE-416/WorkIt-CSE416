@@ -1326,7 +1326,8 @@ opened the page sees every own answer New.
 **Jobs lead the page** (KAN-359): the heading, with no button since
 2026-10-29, and under the title the queue in a line ("2 ready to apply
 · 1 needs you", each part only when it counts something); then the
-**setup strip**; then **Up Next**, and nothing else for now. It opened
+**setup strip**; then **Up Next**; then a row card linking to
+**Application Info** (`auto-apply/info-link.tsx`, KAN-550, below My Profile). It opened
 with a "Resume List" table of every resume until KAN-359, then a line
 naming the default resume, which the user removed: each queued job now
 shows and changes its own resume. Manage Resumes and Add to Claude sat
@@ -1717,38 +1718,56 @@ link into the Calendar from anywhere else goes through `DayLink` in
 
 ## My Profile
 
-**My Profile holds the photo and the identity fields**, the Application
-Questions, and a "Resumes & Experiences" section that links to both views of
-that page. The photo, name and headline are shown here and edited in
-Settings' Personal Details (KAN-326): the identity band's Edit is a link
-there.
+**My Profile is the student as an employer sees them** (KAN-550): white
+cards on the grey ground, two columns from `@4xl/main`. The left column is
+the identity card: the photo (96px), the name, the headline and Edit
+Profile, a link to Settings' Personal Details, where the photo, name and
+headline are edited (KAN-326); then, under a hairline, a left-aligned list
+of facts with grey glyphs: the home location, when set, and the school
+(the latest education entry's school, its degree and field, and "Senior ·
+Class of 2026" from `lib/school-year`), or Add Your School, a link to
+Experiences, without one. The right column holds Contact & Links, then
+**Job Preferences** and **Top Skills** side by side where they fit, then
+three link cards, each a whole-card link with a grey glyph and an ink arrow:
+Resumes, Experiences and Application Info (`profile/more-of-you.tsx`),
+three across where they fit and stacked beside the identity card until
+`@6xl/main`. The link cards show no counts: each would be another API read
+on every visit. While the profile loads, Contact & Links is a skeleton card.
 
-**Application Answers (KAN-369)** is an open section under Application
-Questions, edited the same way (Edit at the top right; Cancel and Save under
-the fields; Escape cancels; Save sends only what changed). Its groups:
-Availability (on-site, full time), Start Window (earliest start, latest end,
-the next six terms as chips), Relocation (willing, places ranked best first
-as numbered chips, where they'll live), Address (street and ZIP; city and
-state are the profile's location), Languages (English shown as a suggestion
-until saved), Age and Pay (18 or older; expected dollars an hour, typed by
-the student and never guessed; whether a posted range is fine), More About
-You (kinds of work as chips; an X profile; the countries they are a citizen
-of), Communities (chips, with
-None of These and I Don't Wish to Answer, each standing alone) and Screener
-Facts, one card with Yes and No each and a None of
-These Apply button that answers only the unanswered ones; a Yes on a list
-question asks which companies. School Year (class year, back to school after
-the internship) is worked out from the latest education entry's end month
-(`lib/school-year.ts`) and only shown, with "From your education: ...". The
-same controls are `components/answer-fields.tsx`, shared with onboarding.
-Application Questions also lists the EEO extras (sexual orientation,
-transgender, pronouns), each with a decline answer; onboarding skips them
-with the other self-identification, and the extension never asks them.
+- **The page is a server page around a client screen** (`profile/page.tsx`,
+  `profile-screen.tsx`). The screen still reads the photo and profile
+  through `getProfilePage` and its cache; the page reads the experience
+  bank and the saved preferences on the server and streams the school row
+  and the two cards (`profile-facts.tsx`) into it, each in its own
+  `<Suspense>` over a skeleton, so neither the identity card nor Contact &
+  Links waits for them. The bank is read once for both.
+- **Job Preferences** shows what onboarding saved and Settings' Job
+  Preferences edits: roles, job type, workplace, experience, locations, start
+  and pay ("$80,000 – $120,000 a year"), each row only when set, names
+  taken from the Jobs page's own
+  options. Its Edit opens Settings there, so the preferences keep one
+  editor. With none saved (or a failed read, which the API's read cannot
+  tell apart) it says none show.
+- **Top Skills** shows up to 12 skills from the bank as grey pills, those on
+  the most uploads first, each name once (ADR 0005 gives each upload its
+  own copy), with View All to Experiences' Skills card.
 
-**Contact & Links (KAN-262)** is an open section between the identity band
-and Resumes & Experiences. It lists all six fields under visible labels, two
+**What left on KAN-550:** the work authorization and self-identification
+answers, Application Answers, the Transcript and Writing Samples moved to
+Application Info (`/auto-apply/info`, below), since only the autofiller and
+the student's Claude read them; they made My Profile a long form the
+student scrolled past to find their own name and links. The "Resumes &
+Experiences" section, a paragraph and two buttons, became the link cards.
+The extension's older versions open `/profile#writing-samples`, which the
+page forwards to `/auto-apply/info#writing-samples` with a full load.
+
+**Contact & Links (KAN-262)** is a card in the right column, over the link
+cards. It lists all seven fields under visible labels, two
 columns where the page is wide: Contact Email, Phone, LinkedIn, GitHub,
-Portfolio or Website, Other Link. Each field is drawn like a job posting's
+Portfolio or Website, Other Link, with **Location** after Phone (KAN-550): the
+home location onboarding asks ("Stony Brook, NY", KAN-372), which no screen
+showed or edited after onboarding until then, though Application Answers'
+Address said its city and state came from here. Each field is drawn like a job posting's
 section heading (16px bold ink beside a 20px brand glyph), its value hanging
 under the heading's text.
 
@@ -1758,7 +1777,7 @@ under the heading's text.
   or "Not added" in grey. The section's Edit turns every value into a text
   field in place, the first one focused, with Cancel and Save under them;
   Escape cancels. Clearing a field and saving removes it. Save sends what
-  changed since Edit was clicked, as Application Questions does (below).
+  changed since Edit was clicked, as Application Info's cards do.
 - **Tried and dropped on 2026-10-20:** only the filled fields in one row
   under the name (a seeker with no links saw no sign they could add any,
   and nothing said which email it was), then an Add button on each empty
@@ -1775,9 +1794,13 @@ under the heading's text.
   hint: each site named there (Behance, then LeetCode and Devpost) read as
   the only kind of link it takes.
 
-The identity band holds only the photo, the name and the headline. With no
-headline the line is dropped, so the name centres beside the photo: an empty
-headline line used to leave a gap between the name and the row below.
+The identity card holds only the photo, the name, the headline and Edit
+Profile. With no headline the line is dropped, rather than an empty row
+under the name. **The phone prints as "+1 646-736-8801"** when it is a U.S.
+number of 10 digits, or 11 starting with 1 (`phoneText` in
+`lib/profile-links.ts`, KAN-550): the bare "16467368801" read as an account
+number. Any other number prints as typed, and the saved value, which
+resumes print, never changes.
 
 - **Two emails, on purpose.** The sign-in email belongs to Supabase Auth and
   is never edited here. The contact email is the one employers see: resume
@@ -1802,13 +1825,80 @@ headline line used to leave a gap between the name and the row below.
   is not an http(s) address is refused with "Enter a web address" under the
   field. The section never makes an href of a link that fails the check.
 
-**Application Questions (KAN-269)** is an open section between Contact &
-Links and Resumes & Experiences: the nine questions most applications ask
-(work authorization, sponsorship, citizenship and visa status, clearance,
-which onboarding's Profile step asks, and the voluntary gender, Hispanic or
-Latino, race, veteran and disability self-identification, which the
-extension asks on the first form that does, KAN-387), with the seeker's
-answers (`(seeker)/profile/application-questions.tsx`).
+**Resumes moved
+out on 2026-10-18**: the Resume card (the uploads and their dropzone) became
+the Resumes view's Your Resumes card (below), beside the base resumes,
+which then shared its limit of 5. With one limit split across two pages,
+each page's "n of 5" and star depended on a list the other page held. The Application
+Settings section, an "Autofill Applications" switch that saved nothing,
+went the same day; the extension's own popup runs autofill.
+
+**Resume facts are not edited here or on Resumes** (KAN-211). The
+parsed-JSON editor (a review dialog after upload, and Work Experience and
+Skills cards editing the primary resume's `parsed_json`) is gone, so the
+experience bank is the only place to edit resume facts. KAN-240 dropped
+`parsed_json` itself. Do not bring back an editor of an upload's facts: two
+places to edit the same facts drift apart, and the bank is what built
+resumes read.
+
+**My Profile is cached for the life of the seeker shell.**
+`(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL,
+and the applicant profile fields; the answer bank left with Application
+Info on KAN-550) in a provider
+in `(seeker)/layout.tsx`. A
+return visit renders it at once and refetches in the background, through one
+server action (`getProfilePage`), since Next runs server actions one at a time
+(KAN-368). Only
+settled state is saved: not mid-load, not while a photo upload's `blob:`
+preview is on screen (that URL is revoked once the upload ends), and not
+after a failed load. It lives in the layout, not a module variable, because
+sign-out redirects to `/login`, outside the shell, and that unmount is what
+drops it — a module variable would show one account's resumes to the next
+person to sign in in that tab.
+
+**Profile photo upload is wired** in Settings' Personal Details (KAN-326),
+where it moved from My Profile. Its button opens a file picker restricted to JPEG/PNG/WebP; the file is checked against
+`avatar-rules.ts`, previewed immediately, and sent through `uploadAvatar`,
+rolling back on failure. The API re-encodes it to a 512px WebP and returns a
+signed URL valid for an hour — so it is fetched per page load, never stored.
+`docs/avatar.md` (repo root) owns the formats, limits and why. The seeker bar
+fetches it per render (`(seeker)/account-status.tsx`); the company bar still
+shows initials.
+
+## Application Info (`/auto-apply/info`, KAN-550)
+
+Everything the extension and the student's Claude fill into a form that is
+not on a resume, under the feature that uses it. The top bar reads
+"Application Info"; Back goes to Auto Apply. Reached from My Profile's
+Application Info card and from a row card after Auto Apply's Up Next
+(`auto-apply/info-link.tsx`): not a header button, since Auto Apply's header
+keeps its top right for a view switcher, and not the setup strip, which
+shows only while the extension is missing.
+
+One white card each, in this order: Work Authorization, Voluntary
+Self-Identification, Application Answers, Transcript, Writing Samples
+(`(seeker)/auto-apply/info/`). From `@4xl/main` a nav of plain links to the
+cards sits on the left and stays in view; below it the cards stack with no
+nav. The answer bank and the experience bank (for School Year) are read on
+the server; a failed answer-bank read shows one notice, a failed
+experience-bank read leaves School Year unknown. Transcript and Writing
+Samples read their own.
+
+**Work Authorization and Voluntary Self-Identification (KAN-269)** are two
+cards drawn by one component (`application-questions.tsx`), the questions
+most applications ask, with the student's answers: work authorization,
+sponsorship, citizenship and visa status and clearance, which onboarding's
+Profile step asks; then gender, Hispanic or Latino, race, veteran and
+disability, which the extension asks on the first form that does
+(KAN-387), and the EEO extras. They were one Application Questions section
+on My Profile until KAN-550. Each card's Save sends only its own changed
+answers.
+
+- **Self-identification is closed while reading** (`concealed`, KAN-550):
+  "5 of 8 answered. Hidden so they stay private on a shared screen.", with
+  Show Answers (and Hide Answers) beside Edit. Edit opens the pickers
+  either way. On My Profile these answers showed in plain view on a page
+  students open often and share on a screen.
 
 - **U.S. Citizen as the citizenship answer puts "U.S. Citizen" on every
   resume header** (PDF, Word and LaTeX), first on the contact line.
@@ -1828,16 +1918,39 @@ answers (`(seeker)/profile/application-questions.tsx`).
   (`lib/autofill-answers.ts`) and save through one server action
   (`lib/autofill-answers-actions.ts`), and the API merges only the answers
   sent, so neither screen erases what the other saved.
-- **Shown only once loaded.** A failed read shows the page's one notice,
-  never nine "Not answered" lines that would pass for real answers.
+- **Shown only once loaded.** A failed read of the answer bank shows one
+  notice in place of the cards, never "Not answered" lines that would pass
+  for real answers.
 - **Save sends what changed since Edit was clicked**, compared with the
   answers the edit started from, never the latest ones: a return visit
   shows the cached answers and refetches, and a refetch landing mid-edit
   made another tab's newer answers look changed, so Save wrote the cached
   ones back over them (review, 2026-10-20).
 
-**Writing Samples (KAN-384, KAN-387)** is an open section after
-Application Questions (`(seeker)/profile/writing-samples.tsx`): up to three
+**Application Answers (KAN-369)** is the card after the two question
+cards, edited the same way (Edit at the top right; Cancel and Save under
+the fields; Escape cancels; Save sends only what changed). Its groups:
+Availability (on-site, full time), Start Window (earliest start, latest end,
+the next six terms as chips), Relocation (willing, places ranked best first
+as numbered chips, where they'll live), Address (street and ZIP; city and
+state are the profile's location), Languages (English shown as a suggestion
+until saved), Age and Pay (18 or older; expected dollars an hour, typed by
+the student and never guessed; whether a posted range is fine), More About
+You (kinds of work as chips; an X profile; the countries they are a citizen
+of), Communities (chips, with
+None of These and I Don't Wish to Answer, each standing alone) and Screener
+Facts, one card with Yes and No each and a None of
+These Apply button that answers only the unanswered ones; a Yes on a list
+question asks which companies. School Year (class year, back to school after
+the internship) is worked out from the latest education entry's end month
+(`lib/school-year.ts`) and only shown, with "From your education: ...". The
+same controls are `components/answer-fields.tsx`, shared with onboarding.
+Voluntary Self-Identification also lists the EEO extras (sexual orientation,
+transgender, pronouns), each with a decline answer; onboarding skips them
+with the other self-identification, and the extension never asks them.
+
+**Writing Samples (KAN-384, KAN-387)** is the last card
+(`writing-samples.tsx`, at `#writing-samples`): up to three
 pieces of the student's own writing (a class essay, a cover letter), from
 which their own Claude builds a style card through the connector, so the
 answers it writes read the way they write. Optional; WorkIt's own AI never
@@ -1846,7 +1959,8 @@ reads them.
 - **Asked for once, after the first written batch.** The extension's panel
   asks, with Add Samples and Skip, once the first batch's answers from the
   student's Claude have all landed, and only when the student has none;
-  Add Samples opens `/profile#writing-samples`, which opens Add at once.
+  Add Samples opens `/auto-apply/info#writing-samples`, which opens Add at
+  once (`/profile#writing-samples` before KAN-550, still forwarded).
 - **Add, in place.** Add (the section's action, gone at three) opens a text
   box with Cancel and Save; Escape cancels. The API refuses an empty one or
   one over 10,000 characters, with its reason under the box.
@@ -1854,44 +1968,9 @@ reads them.
   replaced by removing it and adding the new one: changing a sample drops
   the style card either way, and Claude builds a new one next time.
 
-**Resumes moved
-out on 2026-10-18**: the Resume card (the uploads and their dropzone) became
-the Resumes view's Your Resumes card (below), beside the base resumes,
-which then shared its limit of 5. With one limit split across two pages,
-each page's "n of 5" and star depended on a list the other page held. The Application
-Settings section, an "Autofill Applications" switch that saved nothing,
-went the same day; the extension's own popup runs autofill.
-
-**Resume facts are not edited here or on Resumes** (KAN-211). The
-parsed-JSON editor (a review dialog after upload, and Work Experience and
-Skills cards editing the primary resume's `parsed_json`) is gone, so the
-experience bank is the only place to edit resume facts. KAN-240 dropped
-`parsed_json` itself. Do not bring back an editor of an upload's facts: two
-places to edit the same facts drift apart, and the bank is what built
-resumes read.
-
-**My Profile is cached for the life of the seeker shell.**
-`(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL,
-the applicant profile fields and the Application Questions' answers) in a provider
-in `(seeker)/layout.tsx`. A
-return visit renders it at once and refetches in the background, through one
-server action (`getProfilePage`), since Next runs server actions one at a time
-(KAN-368). Only
-settled state is saved: not mid-load, not while a photo upload's `blob:`
-preview is on screen (that URL is revoked once the upload ends), and not
-after a failed load. It lives in the layout, not a module variable, because
-sign-out redirects to `/login`, outside the shell, and that unmount is what
-drops it — a module variable would show one account's resumes to the next
-person to sign in in that tab.
-
-**Profile photo upload is wired** on the seeker profile. The pencil button
-opens a file picker restricted to JPEG/PNG/WebP; the file is checked against
-`avatar-rules.ts`, previewed immediately, and sent through `uploadAvatar`,
-rolling back on failure. The API re-encodes it to a 512px WebP and returns a
-signed URL valid for an hour — so it is fetched per page load, never stored.
-`docs/avatar.md` (repo root) owns the formats, limits and why. The seeker bar
-fetches it per render (`(seeker)/account-status.tsx`); the company bar still
-shows initials.
+**The Transcript (KAN-369)** is a card: one file, PDF or DOCX, uploaded,
+replaced or removed there, which the autofiller attaches to a form's
+transcript upload.
 
 ## Resumes & Experiences
 
@@ -3112,8 +3191,8 @@ apart; veteran status's three are the U.S. protected veteran
 self-identification's, disability's three Form CC-305's words), saves them
 to the same answer bank, and fills them on that form and every later one.
 Asked at sign-up, they were five more questions before a student had seen a
-single form; asked on the form, the student sees why. My Profile's
-Application Questions still shows and edits all nine.
+single form; asked on the form, the student sees why. Application Info's
+Voluntary Self-Identification card still shows and edits them all.
 
 **Step 1's answers are the Jobs page's filters.** Every question takes
 `FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,
@@ -3171,7 +3250,7 @@ bank first (`PATCH /applicants/{id}/autofill-answers`, only the changed ones,
 KAN-283), then step 1's as the seeker's preferences (`PUT
 /applicants/{id}/preferences`, KAN-231, which also marks onboarding
 complete). The bank goes first because a finished seeker is never sent back
-here, and only My Profile's Application Questions asks those questions
+here, and only Application Info's Work Authorization card asks those questions
 again. Step 1's fields are `role-step.tsx`, which Settings' Job Preferences
 draws too, so the wizard and Settings ask the same questions.
 Next then opens the Extension step (Finish opened /jobs until KAN-378), so
@@ -3343,8 +3422,13 @@ fields on the page read as something to fill in.
   Connect button bare without the app's logo. That detail belongs in the
   step Connect opens.
 - **Job Preferences** (`/settings/preferences`): onboarding's own first
-  step (`RoleStep` in `onboarding/applicant/role-step.tsx`, `dense`: 18px
-  labels, tighter rows, h3 headings), on the saved preferences, with Save
+  step (`RoleStep` in `onboarding/applicant/role-step.tsx`, `dense`), on
+  the saved preferences, drawn at Settings' size, not onboarding's: 14px h3
+  headings with a 16px glyph, 16px apart, the pickers at their default
+  42px, and the answers (job type, experience, workplace) as the Jobs
+  page's filter chips in a wrapping row, not onboarding's 56px tiles
+  (2026-11-03). `dense` shrank only the headings until then, and the
+  section read as onboarding dropped into Settings. With Save
   and Discard; Save needs the role, job type and workplace onboarding
   requires, and saves as onboarding does (PUT, a picked state narrowing its
   country). The pickers' options come from `role-options.ts`, which

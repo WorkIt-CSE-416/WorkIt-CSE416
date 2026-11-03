@@ -11,7 +11,7 @@ import { Field, fieldId } from "./role-step";
  * window (earliest start and the terms) and the screener facts card
  * (components/answer-fields, shared with My Profile). Every one is optional
  * and the step has Skip; relocation, address, languages and the latest end
- * live on My Profile's Application Answers.
+ * live on Application Info's Application Answers.
  */
 export function AvailabilityStep({
   answers,

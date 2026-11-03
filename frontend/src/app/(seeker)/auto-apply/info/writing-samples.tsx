@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { PlusIcon, TrashIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
@@ -14,7 +15,8 @@ import {
   type WritingSample,
 } from "@/lib/writing-samples-actions";
 
-import { SectionAction } from "./section-action";
+import { SECTION_CARD } from "../../profile/field-styles";
+import { SectionAction } from "../../profile/section-action";
 
 /** The API's limits (backend/app/schemas/writing.py). */
 const MAX_SAMPLES = 3;
@@ -28,7 +30,9 @@ const WRITING_SAMPLES_ID = "writing-samples";
  * builds a style card, so the answers it writes read the way they write.
  * Optional: without samples, Claude writes plainly. WorkIt's own AI never
  * reads them. The extension asks for them once, after a student's first
- * batch whose answers their Claude wrote, and opens /profile#writing-samples,
+ * batch whose answers their Claude wrote, and opens /auto-apply/info#writing-samples
+ * (Application Info; /profile#writing-samples forwards there for older
+ * versions),
  * which opens Add Sample at once.
  *
  * Each sample is shown as its first lines, with Remove. Add opens a text box
@@ -100,10 +104,12 @@ export function WritingSamples() {
 
   const room = samples !== null && samples.length < MAX_SAMPLES;
   return (
-    <section
+    <Card
+      as="section"
+      padding="none"
       id={WRITING_SAMPLES_ID}
       aria-labelledby="writing-samples-heading"
-      className="border-border-subtle scroll-mt-6 border-b py-6"
+      className={SECTION_CARD}
     >
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="writing-samples-heading">Writing Samples</SectionHeading>
@@ -192,6 +198,6 @@ export function WritingSamples() {
           {error}
         </p>
       )}
-    </section>
+    </Card>
   );
 }

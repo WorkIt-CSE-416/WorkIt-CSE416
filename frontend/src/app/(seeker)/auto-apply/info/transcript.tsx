@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import { FileIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
+import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import {
   deleteTranscript,
@@ -12,7 +13,8 @@ import {
   type Transcript as TranscriptFile,
 } from "@/lib/transcript-actions";
 
-import { SectionAction } from "./section-action";
+import { SECTION_CARD } from "../../profile/field-styles";
+import { SectionAction } from "../../profile/section-action";
 
 /**
  * Transcript (KAN-369): the student's unofficial transcript, one file.
@@ -81,7 +83,13 @@ export function Transcript() {
   }
 
   return (
-    <section aria-labelledby="transcript-heading" className="border-border-subtle border-b py-6">
+    <Card
+      as="section"
+      padding="none"
+      id="section-transcript"
+      aria-labelledby="transcript-heading"
+      className={SECTION_CARD}
+    >
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="transcript-heading">Transcript</SectionHeading>
         {status === "loaded" && !transcript && (
@@ -135,6 +143,6 @@ export function Transcript() {
         </p>
       )}
       <input ref={picker} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
-    </section>
+    </Card>
   );
 }

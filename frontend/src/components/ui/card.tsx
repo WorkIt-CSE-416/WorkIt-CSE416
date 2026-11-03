@@ -12,7 +12,7 @@ import { cn } from "@/lib/cn";
  *
  * `padding` is a scale rather than a free class because the four values below
  * are the four the mockups measure. `md` is the profile card's 18px, which is
- * deliberately off the 4px grid — see the note it replaced in profile/page.tsx.
+ * deliberately off the 4px grid — see the note it replaced in My Profile's page.
  *
  * `elevated` exists for the one card that sits on a panel rather than the page
  * (the search detail header): the mockup draws no shadow there, and a shadow

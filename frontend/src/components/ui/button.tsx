@@ -52,6 +52,14 @@ import { cn } from "@/lib/cn";
  * about 30 buttons (Open, PDF, Word, Edit, Save Entry...). A call site that
  * sets its own `size-*` keeps it.
  *
+ * A DISABLED FILL IS GREY, NOT A FADED COLOUR (2026-11-03). The base fades
+ * every disabled button to 50%, which suits the bordered and text-only ones,
+ * but a 50% brand fill read as lavender, a picked state, so a disabled Save
+ * looked chosen rather than off. The filled variants (`default`, `positive`,
+ * `destructive`) take DISABLED_FILL instead: a see-through ink fill, which
+ * shows on white and on the grey ground alike, with `ink-subtle` text, the
+ * colour docs/design.md gives anything that cannot be used now.
+ *
  * Every focus ring is solid (see --color-brand-ring in globals.css), and the
  * filled variants hold theirs 2px off the fill with ring-offset-2: a solid ring
  * touching a fill of its own colour reads as a bigger button, not as focus.
@@ -103,14 +111,19 @@ import { cn } from "@/lib/cn";
  * press is what makes a click feel received before anything it starts has
  * happened; see frontend/docs/motion.md.
  */
+/** A filled variant's disabled look (above). */
+const DISABLED_FILL = "disabled:bg-ink/8 disabled:text-ink-subtle disabled:opacity-100";
+
 export const buttonVariants = cva(
   "inline-flex items-center justify-center font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         /** Brand fill — the primary action on a screen. */
-        default:
+        default: cn(
           "bg-brand text-on-brand hover:bg-brand-hover active:bg-brand-active focus-visible:ring-brand-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          DISABLED_FILL,
+        ),
         /** Bordered neutral — alternatives sitting beside a primary action.
          *  White, not --color-surface: on the sign-in card, which is
          *  --color-surface itself, Google and LinkedIn sank into the card
@@ -123,8 +136,10 @@ export const buttonVariants = cva(
         /** Positive fill — accepting an offer. The board's only green action,
          *  and the only place a control is not brand-coloured. No shadcn
          *  equivalent: its palette has no success role. */
-        positive:
+        positive: cn(
           "bg-positive text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          DISABLED_FILL,
+        ),
         /** Danger tint with red text: declining something offered, beside
          *  a `positive`. Quieter than
          *  `destructive`, so the pair reads as two choices, not two alarms.
@@ -148,8 +163,10 @@ export const buttonVariants = cva(
         /** UNMEASURED: no mockup draws a destructive action. --destructive
          *  aliases --color-danger, the Rejected chip's red (see globals.css),
          *  so the app has one red. Shaped and ringed like the other fills. */
-        destructive:
+        destructive: cn(
           "bg-destructive text-on-brand hover:bg-destructive/90 focus-visible:ring-destructive rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          DISABLED_FILL,
+        ),
         /** UNMEASURED — provided because shadcn components ask for it. For a
          *  link inside running text prefer <TextLink>, which inherits the
          *  sentence's type size instead of setting its own. */

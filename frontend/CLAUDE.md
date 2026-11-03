@@ -1574,6 +1574,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **An icon's colour says its job** (`docs/design.md`, Components): black to
   click, purple when on, grey for information. Never set a clickable icon to
   `text-ink-meta`.
+- **A form's buttons sit by its kind** (`docs/design.md`, Components): a
+  page or Settings form left, Save first; a dialog or a card edited in place
+  right, Save last. A disabled filled button is grey (`ui/button.tsx`,
+  DISABLED_FILL), never a faded brand fill, and a lesser action beside a
+  button is `variant="section"`, never brand text.
 - **Anything clicked or picked is medium (500)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
   combobox rows, which `globals.css` sets by `data-slot` since they set no
@@ -2090,7 +2095,29 @@ are in `docs/auth.md`.
   person in that tab. My Profile loads through one server action,
   `getProfilePage` (`lib/profile-page-actions.ts`; KAN-368): its photo,
   profile and answer bank ran in a row on a first visit, and a Save waited
-  behind them. A read added to My Profile joins that action.
+  behind them. A read added to My Profile joins that action. It reads the
+  photo and the profile only since KAN-550; the answer bank went with
+  Application Info, which reads it on the server.
+- **My Profile is what an employer sees; Application Info is what the
+  autofiller reads** (KAN-550, `docs/screens.md`, My Profile and Auto
+  Apply). My Profile holds the identity card (with the location and the
+  school), Contact & Links (with Location), Job Preferences, Top Skills
+  and three link cards (Resumes, Experiences, Application Info). The page
+  is a server page (`profile/page.tsx`) that streams the parts it reads
+  on the server (`profile-facts.tsx`: the school row and the two cards)
+  into the client screen (`profile-screen.tsx`) in their own
+  `<Suspense>`; a server read added to My Profile goes there, not into
+  `getProfilePage`, which the client screen calls. The work
+  authorization and self-identification answers, Application Answers, the
+  Transcript and Writing Samples live in Application Info
+  (`/auto-apply/info`, `(seeker)/auto-apply/info/`), one white card each,
+  under the feature that uses them: on My Profile they made a long form
+  the student scrolled past to find their own name. A new fact that only
+  forms ask goes in Application Info, not on My Profile. **The
+  self-identification card is closed while reading** (`concealed`): it
+  says how many are answered, and Show Answers opens it, since race and
+  disability in plain view showed on any shared screen. Both pages share
+  `profile/field-styles.ts` (`SECTION_CARD`) and `profile/section-action.tsx`.
 - **Resume facts are edited in the experience bank only** (KAN-211). An
   upload writes its reading into the bank itself (ADR 0003); no screen holds
   a second copy of an upload's facts to edit. Two editors of the same facts
@@ -2265,7 +2292,8 @@ are in `docs/auth.md`.
 - **Onboarding never asks the self-identification** (KAN-387): its Profile
   step leaves out `SELF_ID_KEYS` (gender, Hispanic or Latino, race, veteran,
   disability). The extension asks them on the first form that does and saves
-  them through the same PATCH; My Profile still edits all nine. A new
+  them through the same PATCH; Application Info's Voluntary
+  Self-Identification card edits all of them (KAN-550). A new
   self-identification question goes into `SELF_ID_KEYS` too, and into the
   extension's copy of the options (`autofiller_extension/src/background/self-id.js`).
 - **Onboarding's Add Claude page is optional and before Practice** (KAN-507,
@@ -2278,12 +2306,17 @@ are in `docs/auth.md`.
   Profile, Add Claude under Practice), so a new page needs no rail mark.
   The extension's add-Claude moment (KAN-387) already skips a student whose
   connector is added: keep that check there, not a flag set here.
-- **Writing samples are edited in My Profile only** (`(seeker)/profile/writing-samples.tsx`,
-  `lib/writing-samples-actions.ts`, KAN-387): the extension's ask after a
-  first written batch links to `/profile#writing-samples`, which opens Add.
-  Keep that anchor. The samples go to the student's own Claude only:
-  never send them to a WorkIt AI route.
-- **The transcript is edited in My Profile only** (`(seeker)/profile/transcript.tsx`,
+- **Writing samples are edited in Application Info only**
+  (`(seeker)/auto-apply/info/writing-samples.tsx`,
+  `lib/writing-samples-actions.ts`, KAN-387, KAN-550): the extension's ask
+  after a first written batch links to `/auto-apply/info#writing-samples`,
+  which opens Add. Keep that anchor. Versions before KAN-550 link to
+  `/profile#writing-samples`; My Profile forwards that hash with a full
+  load (`window.location.replace`), since a hash never reaches the server
+  and Writing Samples reads it only as it mounts. Keep the forward while
+  those versions are installed. The samples go to the student's own
+  Claude only: never send them to a WorkIt AI route.
+- **The transcript is edited in Application Info only** (`(seeker)/auto-apply/info/transcript.tsx`,
   `lib/transcript-actions.ts`, KAN-369): one file, uploaded, replaced or
   removed there, with the resume's file checks (`resumeFileError`). The
   autofiller attaches it to a form's transcript upload.

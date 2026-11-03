@@ -10,6 +10,7 @@ import { BAR_TITLE } from "./bar";
 const TITLES = [
   ["/jobs", "Jobs"],
   ["/auto-apply/answers", "Written Answers"],
+  ["/auto-apply/info", "Application Info"],
   ["/auto-apply", "Auto Apply"],
   ["/applications", "Applications Tracker"],
   ["/resumes", "Resumes"],

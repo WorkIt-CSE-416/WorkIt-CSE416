@@ -1454,7 +1454,7 @@ asked on the form that first needs it, in that tab's panel (`overlay.js`'s
 `moments.js`'s `claimMoment` keeps which were shown in `chrome.storage.local`
 (`workit_moments`, by applicant id), one claim at a time, so five tabs
 finishing together show it once. A student who passes it by answers it in
-My Profile instead.
+the webapp's Application Info (`/auto-apply/info`, KAN-550) instead.
 
 - **The self-identification, on the first form that asks it.** Onboarding
   never asks gender, Hispanic or Latino, race, veteran or disability
@@ -1488,7 +1488,9 @@ My Profile instead.
   batch); once its last one shows an answer it says `batch/written`, and
   whether Claude wrote any. When no batch tab still waits and Claude wrote
   for this batch, the tab that finished last asks for samples (Add Samples
-  opens the webapp's `/profile#writing-samples`; Skip closes it), once, and
+  opens the webapp's `/auto-apply/info#writing-samples`, Application Info's
+  Writing Samples, since KAN-550; `/profile#writing-samples`, which versions
+  before it open, forwards there; Skip closes it), once, and
   never for a student who has some (`GET .../writing-samples`). A batch the
   student wrote all by hand doesn't ask: the samples are only for their
   Claude's style card.
@@ -1719,8 +1721,8 @@ read (yes/no as true/false, "declined" as "decline", the rest in
 `frontend/src/lib/autofill-answers.ts`'s own words). The engine picks the
 form's option that says the same thing.
 
-The same bank holds the **Application answers** (KAN-369, My Profile's
-section of that name): `engineProfile`'s `applicationFacts` gives them as
+The same bank holds the **Application answers** (KAN-369, Application
+Info's section of that name): `engineProfile`'s `applicationFacts` gives them as
 `logistics.*` (on-site, 40 h, start and end dates, terms, relocation, ranked
 `location_preferences` one place an area (with its city alone), `referrals` from `referred_at`),
 `identity.home_address` (line 1 and zip over the location's city and state),
@@ -1835,7 +1837,7 @@ real file input is directly targetable underneath both.
 ## Attaching the student's transcript (KAN-369)
 
 Some forms ask for an unofficial transcript (Verkada requires one). The
-student keeps one on My Profile (`backend/app/routers/documents.py`).
+student keeps one in Application Info (`backend/app/routers/documents.py`).
 `resolveTranscriptFile` fetches it with the resume, at profile-fetch time:
 `GET /applicants/{id}/documents`, then `GET .../documents/transcript/bytes`
 (from this API's own origin, as the resume's `.../bytes` and for the same

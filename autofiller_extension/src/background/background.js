@@ -277,7 +277,7 @@ async function handleMessage(message, sender) {
       const [session, { id }] = await Promise.all([getSession(), me()]);
       if ((await writingSamples(id)).length) return { show: false };
       if (!(await claimMoment(id, "samples"))) return { show: false };
-      return { show: true, url: `${session.web_origin}/profile#writing-samples` };
+      return { show: true, url: `${session.web_origin}/auto-apply/info#writing-samples` };
     }
 
     // The student's own words for one of a batch tab's questions that need

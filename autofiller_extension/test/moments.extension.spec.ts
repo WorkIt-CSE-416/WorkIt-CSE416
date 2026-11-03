@@ -164,7 +164,7 @@ test("once the first batch's written answers land, the student is asked for writ
   await tabs[0].waitForTimeout(2_000);
   expect(await asks()).toBe(1);
   const ask = ((await tabs[0].locator(".samples").count()) ? tabs[0] : tabs[1]).locator(".samples");
-  await expect(ask.locator("a[data-add]")).toHaveAttribute("href", "http://localhost:3000/profile#writing-samples");
+  await expect(ask.locator("a[data-add]")).toHaveAttribute("href", "http://localhost:3000/auto-apply/info#writing-samples");
   await ask.locator("button[data-dismiss]").click();
   await expect(ask).toHaveCount(0);
   expect(forms.submissions).toEqual([]);

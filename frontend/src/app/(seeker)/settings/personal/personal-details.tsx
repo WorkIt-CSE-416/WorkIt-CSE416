@@ -173,8 +173,12 @@ export function PersonalDetails({
               <UploadIcon />
               {avatarUrl ? "Change Photo" : "Add Photo"}
             </Button>
+            {/* Muted ink, as a card's own actions are (`section`): it was
+                brand text, which gave a removal a picked colour and set it
+                against Save for the eye (docs/design.md, Components). Boxed
+                at sm, so it lines up with Change Photo. */}
             {avatarUrl && (
-              <Button variant="ghost" size="sm" disabled={photoBusy} onClick={dropPhoto}>
+              <Button variant="section" size="sm" disabled={photoBusy} onClick={dropPhoto}>
                 <TrashIcon />
                 Remove Photo
               </Button>

@@ -299,6 +299,26 @@ chose for itself until then, so All Filters was grey beside a black Auto Apply. 
 exception: a segmented control's unpicked option stays grey, since black against
 grey is what says which option is on.
 
+**A form's buttons sit by what kind of form it is** (2026-11-03). Two rules,
+each with its own reason, and every form follows one of them:
+
+- **A page or Settings form: left, the primary first** (Save, then Discard).
+  The eye runs down a single-column form's left edge, so a button there is
+  found first (Luke Wroblewski's form studies; the GOV.UK Design System).
+  Settings' sections pin this row to the foot of what scrolls.
+- **A dialog, or a card edited in place: right, the primary last** (Cancel,
+  then Save). The last button is where the task goes on, as on macOS and in
+  Material, and shadcn's `DialogFooter` already sets it. My Profile's Contact
+  & Links, Application Info's cards and the Experiences entry editor are
+  this kind.
+
+Nielsen Norman Group's finding is that either order works and mixing them on
+like screens costs the user, so a new form takes its kind's rule. **A
+disabled Save is grey** (`ui/button.tsx`, DISABLED_FILL): a faded brand fill
+read as lavender, a picked state. **A lesser action beside a button is muted
+ink** (`variant="section"`), never brand text: Settings' Remove Photo was
+brand-coloured beside Change Photo and drew the eye from Save.
+
 **One scrollbar** (`globals.css`): a 4px thumb on no track, shown while the
 pointer is over what it scrolls. Style it there, never per element.
 

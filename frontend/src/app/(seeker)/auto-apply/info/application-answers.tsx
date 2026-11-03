@@ -12,6 +12,7 @@ import {
 import { DateField } from "@/components/date-field";
 import { ANSWER_GROUP_ICON, PencilIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextField } from "@/components/ui/text-field";
@@ -33,8 +34,8 @@ import { saveAutofillAnswers } from "@/lib/autofill-answers-actions";
 import { cn } from "@/lib/cn";
 import { schoolYear, type SchoolYear } from "@/lib/school-year";
 
-import { FIELD_GRID, FIELD_HEADING, VALUE_INDENT } from "./field-styles";
-import { SectionAction } from "./section-action";
+import { FIELD_GRID, FIELD_HEADING, SECTION_CARD, VALUE_INDENT } from "../../profile/field-styles";
+import { SectionAction } from "../../profile/section-action";
 
 /**
  * Application Answers (KAN-369): the facts screening questions ask, beside
@@ -114,7 +115,13 @@ export function ApplicationAnswers({
   }
 
   return (
-    <section aria-labelledby="application-answers" className="border-border-subtle border-b py-6">
+    <Card
+      as="section"
+      padding="none"
+      id="section-application-answers"
+      aria-labelledby="application-answers"
+      className={SECTION_CARD}
+    >
       <div className="flex items-baseline justify-between gap-4">
         <SectionHeading id="application-answers">Application Answers</SectionHeading>
         {!editing && (
@@ -219,7 +226,9 @@ export function ApplicationAnswers({
                 value={draft.postal_code ?? ""}
                 onChange={(e) => set({ postal_code: e.target.value || null })}
               />
-              <Note>Your city and state come from your location in Contact & Links.</Note>
+              <Note>
+                Your city and state come from your location in Contact & Links, on My Profile.
+              </Note>
             </Group>
 
             <Group icon="languages" title="Languages">
@@ -457,7 +466,7 @@ export function ApplicationAnswers({
           <SchoolYearGroup year={year} />
         </div>
       )}
-    </section>
+    </Card>
   );
 }
 

@@ -12,6 +12,7 @@ import { activityOf } from "./activity-list";
 import { getApplications, getRunApplications } from "./applications";
 import { getWrittenQuestions } from "./answers/questions";
 import { AutoApplyPanel } from "./auto-apply-panel";
+import { InfoLink } from "./info-link";
 import type { SavedJob } from "./add-jobs-dialog";
 import { SetupStrip } from "./setup-strip";
 import { QueueSummary, UpNext } from "./up-next";
@@ -34,6 +35,9 @@ export const metadata: Metadata = {
  *              with the resume it will go out with, which a click on it
  *              changes, and Add Jobs to queue saved ones (./up-next.tsx).
  *              Needs-you jobs stay in it, since they wait on the seeker.
+ *   Application a row card that links to Application Info
+ *   Info        (./info/page.tsx, KAN-550; ./info-link.tsx): the answers
+ *               and files the extension fills in beyond the resume.
  *
  * HISTORY IS ARCHIVED FOR NOW (KAN-359), its code kept: an applied job is
  * on the Applications Tracker already, so the table only repeated it, and
@@ -162,6 +166,7 @@ export default async function AutoApplyPage() {
           <>
             <SetupStrip />
             <UpNext items={queue} saved={savedJobs} />
+            <InfoLink />
           </>
         )}
       </AutoApplyPanel>
