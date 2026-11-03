@@ -29,5 +29,8 @@
   // inlines them at build time, so they must be set where the build runs.
   "vars": {
     "API_URL": "https://api.workitjobs.ai",
+    // Google sign-in's own callback (docs/auth.md). Its secret,
+    // GOOGLE_CLIENT_SECRET, is a Worker secret.
+    "GOOGLE_CLIENT_ID": "1030955690819-dva3oj360k372qmk3g4kvpmo9ooslcks.apps.googleusercontent.com",
   },
 }

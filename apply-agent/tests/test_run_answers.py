@@ -35,9 +35,9 @@ from apply.workable import WorkableFiller
 DATACOR_FORM = FORMS / "greenhouse-datacor"
 
 
-def profile_with(folder: Path, **facts) -> Path:
+def profile_with(folder: Path, policies: dict | None = None, **facts) -> Path:
     """The test Applicant profile plus `facts` (dotted keys), saved in `folder`
-    with the test policies beside it."""
+    with the test policies beside it, plus `policies`."""
     profile = yaml.safe_load((FIXTURES / "profile.yaml").read_text())
     profile["files"]["resume_pdf"] = str(FIXTURES / "one-pager.pdf")
     for key, value in facts.items():
@@ -48,7 +48,8 @@ def profile_with(folder: Path, **facts) -> Path:
         node[last] = value
     path = folder / "profile.yaml"
     path.write_text(yaml.safe_dump(profile, sort_keys=False))
-    (folder / "policies.yaml").write_text((FIXTURES / "policies.yaml").read_text())
+    (folder / "policies.yaml").write_text((FIXTURES / "policies.yaml").read_text()
+                                          + (yaml.safe_dump(policies) if policies else ""))
     return path
 
 

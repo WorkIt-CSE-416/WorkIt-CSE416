@@ -4,7 +4,8 @@ Or run `./scripts/setup-wizard.sh` from `apply-agent/`: it walks through every o
 
 This is a one-time checklist that takes about 10 minutes. Workday, Oracle and similar job systems make you sign in before they show their questions. Apply signs in for you without spending any tokens:
 
-- **Sign in with Google** wherever an employer offers it. Apply only picks your account in Google's chooser. It never types a Google password or code.
+- **Sign in with Google** wherever an employer offers it, except on Workday. Apply only picks your account in Google's chooser. It never types a Google password or code.
+- On Workday it signs in with email and password even where the tenant offers Google, since Google may ask for a passkey after the account pick (ASML's and KLA's tenants). Set `workday_sign_in: google` in your `policies.yaml` to use Google there instead.
 - Otherwise it creates an **Employer account** with your email and a new unique password. It saves the password to your macOS Keychain *before* it sends the sign-up form, then lists the account in Apply's Tracker (`tracker.json` in the data folder).
 - Where you made an account yourself long ago, a real run **resets its password**: it saves a new password to Keychain first, asks the site for a reset, follows the reset link from Gmail and signs in. A rehearsal never does this.
 - It reads **verification codes and links** (Workday's verification and reset emails, from `myworkday.com` or `otp.workday.com`; Oracle's one-time code; Greenhouse's 8-character security code) from your Gmail over IMAP with an app password. It skips a mail Gmail says failed DMARC (a forged sender), and follows a link only to the employer's own site or Workday's.
@@ -52,5 +53,6 @@ Run `uv run apply doctor` from `apply-agent/` before a run, and again after any 
 | `Type the emailed code: no verification email` / `no verification code` | The mail didn't come within about 2 minutes. Apply asks a site for a code once per sign-in and never asks again. | Look in Gmail (spam too), then sign in and finish the application yourself. |
 | `Sign-in failed at <site>: the password reset didn't finish` | Apply asked for a password reset, but the reset email never came. Keychain holds the new password Apply meant to set, which the site doesn't have. | Reset the password yourself, then save it to Keychain (`security add-generic-password -U -s apply-ats -a <site> -w`). |
 | `Google asked for more than an account pick` | Google wanted a password, a code or a check. | Sign the Worker profiles in to Google again by hand. |
+| `<Company>'s Workday account was made with Google` | You made that tenant's account with Google before, so Keychain has no password for it. Apply never presses Forgot password, since that sends an email. | Sign in once yourself, or reset the password and save it to Keychain (`security add-generic-password -U -s apply-ats -a <site> -w`). |
 | `Oracle sent its code by text message` | The site sends codes by SMS. | Finish signing in yourself. |
 | `<site> already has an account for … Gmail isn't set up` | You made an account there yourself, and Apply can't reset its password without Gmail. | Sign in yourself and save the password to Keychain (`security add-generic-password -U -s apply-ats -a <site> -w`). |

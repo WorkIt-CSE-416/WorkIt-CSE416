@@ -12,7 +12,7 @@ from fake_workday import EXPERIENCE_STEPS, FakeWorkdayServer
 from fakes import RecordingBoard
 from test_dashboard import NoFrames, window  # noqa: F401 (a fixture)
 from test_employer_accounts import XCEL_FORM, XCEL_URL
-from test_rehearse import NeverSubmittingWorkday, adapters, experience_profile
+from test_rehearse import GOOGLE, NeverSubmittingWorkday, adapters, experience_profile
 from test_run_answers import profile_with
 
 from apply import rehearsal
@@ -128,7 +128,7 @@ def test_resume_on_a_sign_in_page_waits_for_lisul_to_sign_in_and_signs_in_no_mor
     board, lines = Lisul(), []
     with FakeWorkdayServer(XCEL_FORM, google="password") as server:
         [done] = rehearsal.rehearse([XCEL_URL], adapters(server, board=board), ApplicantProfile.load(
-            profile_with(tmp_path)), 1, keep_open=True, out=lines.append)
+            profile_with(tmp_path, GOOGLE)), 1, keep_open=True, out=lines.append)
 
     assert done.outcome == "handoff" and "Google asked for more than an account pick" in done.why
     assert board.captions[0]["resume"]["why"] == rehearsal.TAB_CLOSED  # then he closed the tab

@@ -140,6 +140,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   browser sent. It assumes https for any host
   but localhost when `x-forwarded-proto` is missing; Supabase silently falls
   back to its Site URL for any origin not on the list.
+- **Google sign-in needs each origin's `/auth/google/callback` on the
+  Google OAuth client** (Google Cloud Console, Credentials, Authorized
+  redirect URIs): `https://workitjobs.ai/auth/google/callback` and
+  `http://localhost:3000/auth/google/callback`. Google takes no wildcards,
+  so a preview origin signs in with Google only once it is added. The
+  Worker needs the `GOOGLE_CLIENT_SECRET` secret (`GOOGLE_CLIENT_ID` is a
+  var in `wrangler.jsonc`); without it, Google falls back to Supabase's
+  callback (docs/auth.md).
 - **Uploads up to the 5 MB cap reach Next in production**: Cloudflare allows
   100 MB request bodies. Vercel, now retired, refused bodies over 4.5 MB
   before Next ran, so a 4.5–5 MB upload failed there with a bare 413.

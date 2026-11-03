@@ -59,6 +59,9 @@ PARSED = {
 # can't fulfill a navigation with a redirect, so the fake does it client-side.
 TO_THANKS = "<!doctype html><script>location.replace(%s)</script>"
 THANKS = "<!doctype html><title>Thanks</title><h3>Application submitted!</h3>"
+# What Lever answers the submit POST with when its hCaptcha turns the token down (Simbe Robotics, 2026-11-03).
+NOT_VERIFIED = ("<!doctype html><title>Apply</title><div class=\"application-error\">"
+                "There was an error verifying your application. Please try again.</div>")
 
 
 class _Parser(http.server.ThreadingHTTPServer):
@@ -114,9 +117,11 @@ class FakeLeverServer:
     """Serves saved Lever forms (each folder holds a page.har from
     tests/save_lever_form.py). Every request it has no answer for is refused."""
 
-    def __init__(self, *forms: Path, parse_delay: float = 2.0, challenge: bool = False):
-        """`challenge` makes hCaptcha show its picture challenge at submit."""
+    def __init__(self, *forms: Path, parse_delay: float = 2.0, challenge: bool = False, refuse: bool = False):
+        """`challenge` makes hCaptcha show its picture challenge at submit;
+        `refuse`, Lever turn the sent form's hCaptcha token down."""
         self._challenge = challenge
+        self._refuse = refuse
         self._responses: dict[str, tuple[int, str, bytes]] = {}
         for form in forms:
             self._responses.update(_load_responses(form))
@@ -173,6 +178,8 @@ class FakeLeverServer:
         if request.method == "GET" and url in self._responses:
             status, mime, body = self._responses[url]
             return route.fulfill(status=status, content_type=mime, body=body)
+        if request.method == "POST" and url in self._responses and url.endswith("/apply") and self._refuse:
+            return route.fulfill(content_type="text/html", body=NOT_VERIFIED)
         if request.method == "POST" and url in self._responses and url.endswith("/apply"):
             self.submissions.append(self._submission(url, request))
             thanks = url.removesuffix("/apply") + "/thanks"

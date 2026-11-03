@@ -461,6 +461,10 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   that button, with word to stop. A click the drive guard still blocked on
   the button Claude then names as the submit leaves the form filled
   (`claude_fill._only_its_submit`); any other block is a Handoff.
+- Only what the drive guard blocked during that drive stops it. A block of
+  an earlier drive was its Handoff already: after Lisul's Resume, the next
+  read or fill goes on (LinkedIn's SmartRecruiters page posts a form of its
+  own while Claude reads it).
 - A careers page that embeds a Greenhouse form goes to the Greenhouse Filler
   (`greenhouse.board_behind`): by `?gh_jid=`, or by a job id in its path
   that the job API says is shown on that same host (Roblox). Failing that,
@@ -468,6 +472,71 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   frames (after one click on its Apply button outside any form) and sends an
   embedded Greenhouse, Lever or Ashby form to that system's Filler. Claude
   fill is only the fallback.
+
+## Captchas and bot blocks (KAN-527)
+
+`src/apply/captcha.py` is the one place that tells a captcha. Add a new
+challenge there, as data, not in a Filler.
+
+- `CHALLENGES` lists the selectors of each challenge that a person solves
+  and that goes away when solved: reCAPTCHA's and hCaptcha's picture
+  frames, DataDome's slider (SmartRecruiters' "Verification Required"),
+  Arkose Labs, and Rippling's Turnstile box. `captcha.shows(page)` reads
+  them. Do not list a checkbox that stays on the page after it passes.
+- `SAYS_CAPTCHA` reads Claude fill's why when Claude stops at a captcha.
+- `HOSTS` and `PATHS` name the hosts of the challenges' frames. The submit
+  guard and the drive guard do nothing in such a frame, so Lisul can do
+  the captcha: DataDome's frame posts its own form, which the guards
+  blocked as "a form submission".
+- `SAYS_BLOCKED` reads a page that refuses the browser (Tesla's "Access
+  Denied"). It has no challenge, so it is a Handoff, never a wait. Its
+  reason says it plainly: "Tesla blocked the browser; apply in your own
+  Chrome" (`captcha.blocked`: the company that the page names, else the
+  name in the link's host). It is not a Bot signal.
+- Apply never solves a captcha or gets around a block in code.
+
+**Lisul does the captcha, and Apply goes on.** A captcha that stops a fill
+is a `model.Captcha` (a Handoff with its page). Claude fill raises it when
+Claude stops at one (`SAYS_CAPTCHA`).
+
+- `apply_to(on_captcha=...)` gets it first, in a run and in a rehearsal,
+  while Apply reads the questions and while it fills. `captcha.Waiter` is
+  that wait: the tile shows "Do the captcha" (status handoff, `captcha:
+  True`, kind `captcha`) with Resume, and the phone gets one push per
+  Application, "Do the captcha on <company>" (the ntfy path of `apply
+  push-test`, only with `phone_push` on).
+- The wait polls the page each second (`captcha.wait`). It ends when the
+  challenge that showed is gone, or when Lisul presses Resume (`POST
+  /resume`, `Board.resumed`). Then the Filler reads or fills again, on the
+  same page, with the same plan. The page keeps the submit guard on.
+- After `captcha_wait_minutes` (policies, default 15), or when the tab
+  closed, it is the usual Handoff: a run's ends, a rehearsal's pauses
+  (KAN-551). `0` hands off at once; the test policies set 0.
+- At the submit, in a live run: a captcha after the click goes to the same
+  wait (`captcha.at_submit` around `filler.submit`, read by
+  `confirmation.wait_for_confirmation`). Once Lisul did it, the wait for
+  the job system's confirmation starts again, and the Application is
+  Submitted through the usual submit proof. If he does not, it is the
+  Handoff that it was before.
+- In a rehearsal Lisul presses Submit himself. A captcha after his press
+  (`_Kept.hold`, `challenged`) gets the same push, once, and the tile
+  shows "Do the captcha" (`captcha.AFTER_HIS_SUBMIT`). He does it himself;
+  Apply never touches it. The form's confirmation then keeps the
+  Application as submitted, as for any submit of his.
+- An invisible captcha can also pass the browser a token that the job
+  system then turns down, with no challenge to do: Lever's "There was an
+  error verifying your application" (Simbe Robotics, 2026-11-03).
+  hCaptcha's script probes for the DevTools connection that Playwright
+  keeps on every Worker page, so `NOT_WEBDRIVER` does not hide it, and
+  Apply does not try to. `lever.refusal` reads that notice: in a live run
+  the submit is a Handoff (Bot signal `refused`), and after Lisul's own
+  Submit on a held page the tile says to send it from his own Chrome
+  (`rehearsal.REFUSALS`, `TURNED_DOWN`). A second Submit from the Worker's
+  Chrome gets the same notice.
+- A rehearsal keeps each captcha wait in its history ("Paused: do the
+  captcha", "Resumed: the captcha is done"), on the tile and in the Record,
+  and a `captcha` event in the Trace. A wait that timed out leaves only
+  the pause's own line.
 
 ## Form pages
 
@@ -487,6 +556,21 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   Chrome starts with `--disable-blink-features=AutomationControlled`
   (`browsers.NOT_WEBDRIVER`). Do not remove it. The keychain flags already
   match the Chrome that Lisul signs the profile in with.
+- On Workday, Apply signs in or makes the account with email and password,
+  even where the tenant offers Sign in with Google: Google asked for a
+  passkey after the account pick on ASML's and KLA's tenants (2026-11-03).
+  `policies.yaml: workday_sign_in` picks `email` (the default) or `google`;
+  `orchestrator.by_filler` reads it into `WorkdayFiller(sign_in=...)`. The
+  tests of the Google path set `google` (`GOOGLE` in the test files).
+- On a tenant that offers Google, Create Account's "already exists" means
+  Lisul made the account with Google, and Keychain has no password for it.
+  That is Needs sign-in at once (`workday.MADE_WITH_GOOGLE`), and the unused
+  new password leaves Keychain (`Accounts.not_made`). Apply never presses
+  Forgot your password? there, since that mails Lisul. A tenant without
+  Google still resets the password in a real run.
+- A Create Account view may say "a verification email will be sent" before
+  it is sent (Xcel's). `WorkdayFiller._create_account` counts only a notice
+  that shows after the click.
 - If Google still refuses (its `/signin/rejected` page), the Workday Filler
   stops at once as Needs sign-in (`workday.GOOGLE_REJECTED`), never a 30 s
   timeout. It never clicks Try again. The fake Workday's
@@ -501,9 +585,15 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   and show no notice (Northrop's and Zillow's, live). A tenant that mails a
   link goes there by way of `/login/warning` (Zillow's), so
   `WorkdayFiller._create_account` watches the requests for that page and
-  then waits for the link. Otherwise it signs in with the new password. A
+  then waits for the link. A bare Sign In view with no such page means
+  Workday made no account (Northrop's, live: a made account goes straight
+  to the application). Apply then forgets the new password in Keychain,
+  never signs in, and hands off for Lisul to make the account. A
   sign-in that Workday refuses because the account is not verified is a
-  Needs sign-in Handoff, not a failed password. The fake Workday's
+  Needs sign-in Handoff, not a failed password. First, Apply looks once in
+  Gmail for the link Workday mailed (to the tenant's own host, within a
+  day) when an earlier run made the account (Zillow's, live). It opens that
+  link once and never asks for a new one. The fake Workday's
   `to_sign_in` plays this flow (`tests/test_employer_accounts.py`).
 - Apply asks a site for a verification code or link once per sign-in and
   never clicks Resend or Send New Code (`accounts.Accounts._wait`): a mail
