@@ -195,6 +195,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   in view, from the start each time (its stage remounts on each return,
   so a scene that plays on mount starts when it is seen), and holds one
   finished scene for reduced motion. All four stops are on it (KAN-316).
+  A story is `aria-hidden` and draws no heading (KAN-560): the copy beside it
+  says what it shows, and the Auto Apply mock's real h4 broke the page's
+  heading order.
   Auto Apply (`auto-apply-visual.tsx`, the stop the team renamed from
   Autofill as the bigger claim): one Greenhouse-style application fills
   field by field (typed, picked, the tailored resume attached, an answer
@@ -1442,7 +1445,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   address, so it shows before the page streams in; a new section joins `TITLES`
   there. It is the page's h1 on a section's own page, and a plain line on a page
   under it (a job, a resume, an application), which has its own h1. Home's title
-  is the greeting, which the layout reads with the account. **Job search is on
+  is the greeting, which the layout reads with the account. **One h1 per view**
+  (KAN-560): a job drawn beside the list on /jobs (the split view) titles itself
+  h2 (`JobDetailHeader`'s `titleAs`), and a 404 under a section is the h1
+  (`EmptyState`'s `titleAs`). **A modal never changes the bar title**: with
+  Settings open the bar keeps the page behind's title and h1, and the dialog
+  names itself; the bar said "Settings" over Jobs, and Jobs' h1 was gone. **Job search is on
   the Jobs page and /search only** (`search/job-search.tsx`): in the bar it
   showed on every page, and it took the phone's magnifier and sheet with it.
   Each page's own heading and line under the bar went, about 60px a page: the

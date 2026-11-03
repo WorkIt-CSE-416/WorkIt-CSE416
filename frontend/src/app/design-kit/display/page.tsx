@@ -195,6 +195,7 @@ export default function DisplayPage() {
             <div className="w-full">
               <JobDetailHeader
                 posting={SAMPLE_POSTING}
+                titleAs="h3"
                 tile={
                   <Avatar
                     name={SAMPLE_POSTING.companyName}

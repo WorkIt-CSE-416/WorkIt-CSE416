@@ -57,7 +57,9 @@ export async function SecuritySection() {
       <SecurityNotice />
 
       <Card as="section" aria-labelledby="sign-in" className="flex flex-col gap-4">
-        <SectionHeading id="sign-in">Sign-In</SectionHeading>
+        <SectionHeading as="h3" id="sign-in">
+          Sign-In
+        </SectionHeading>
         <ul className="divide-border-subtle flex flex-col divide-y">
           <Row Icon={MailIcon} label="Email" value={email}>
             <EmailDialog current={email} />
@@ -73,7 +75,9 @@ export async function SecuritySection() {
       </Card>
 
       <Card as="section" aria-labelledby="methods" className="flex flex-col gap-4">
-        <SectionHeading id="methods">Sign-In Methods</SectionHeading>
+        <SectionHeading as="h3" id="methods">
+          Sign-In Methods
+        </SectionHeading>
         <ul className="divide-border-subtle flex flex-col divide-y">
           {PROVIDERS.map(({ provider, name, Icon }) => {
             const connected = providers.includes(provider);
@@ -103,7 +107,9 @@ export async function SecuritySection() {
       </Card>
 
       <Card as="section" aria-labelledby="connected-apps" className="flex flex-col gap-4">
-        <SectionHeading id="connected-apps">Connected Apps</SectionHeading>
+        <SectionHeading as="h3" id="connected-apps">
+          Connected Apps
+        </SectionHeading>
         <ul className="divide-border-subtle flex flex-col divide-y">
           <Row
             Icon={SparkleIcon}
@@ -134,7 +140,9 @@ export async function SecuritySection() {
 
       <Card as="section" aria-labelledby="session" className="flex items-center gap-4">
         <div className="min-w-0 flex-1">
-          <SectionHeading id="session">Sign Out</SectionHeading>
+          <SectionHeading as="h3" id="session">
+            Sign Out
+          </SectionHeading>
           <p className="text-note text-ink-meta">Signs you out here and on your other devices.</p>
         </div>
         <SignOutButton />
@@ -148,7 +156,9 @@ export async function SecuritySection() {
         aria-labelledby="delete-account"
         className="border-danger/40 flex flex-col gap-4"
       >
-        <SectionHeading id="delete-account">Delete Account</SectionHeading>
+        <SectionHeading as="h3" id="delete-account">
+          Delete Account
+        </SectionHeading>
         <p className="text-body text-ink-meta">
           This deletes your profile, resumes, experiences, applications and files for good. You
           can&apos;t undo it.

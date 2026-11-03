@@ -160,11 +160,21 @@ export function JobCardActions({
   );
 }
 
-/** Who is hiring, the title and the facts. No match rail: see ./page.tsx. */
-export function JobViewHeader({ job, actions }: { job: JobListing; actions?: ReactNode }) {
+/** Who is hiring, the title and the facts. No match rail: see ./page.tsx.
+ *  `titleAs` is h2 beside the list on /jobs, where the bar's "Jobs" is the h1. */
+export function JobViewHeader({
+  job,
+  actions,
+  titleAs,
+}: {
+  job: JobListing;
+  actions?: ReactNode;
+  titleAs?: "h1" | "h2";
+}) {
   return (
     <JobDetailHeader
       posting={toPosting(job)}
+      titleAs={titleAs}
       // The employer's own logo, as on the card, at the header's 40px; its
       // initials when it has none.
       tile={

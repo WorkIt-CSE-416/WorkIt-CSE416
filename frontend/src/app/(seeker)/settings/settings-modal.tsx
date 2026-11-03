@@ -86,7 +86,7 @@ function ModalFrame({
     >
       <DialogContent className="flex h-[min(46rem,calc(100dvh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
         <DialogHeader className="border-border-subtle border-b px-6 py-4">
-          <DialogTitle className="text-subtitle font-semibold">Settings</DialogTitle>
+          <DialogTitle className="text-title">Settings</DialogTitle>
           <DialogDescription className="sr-only">
             Your details, sign-in, notifications, integrations and job preferences.
           </DialogDescription>

@@ -13,7 +13,7 @@ import { FitScale } from "./fit";
  * removed the step bar's buttons) and has no progress line (removed too).
  * With reduced motion it holds one finished scene, `rest`. Rendered
  * by the product tour, whose MotionConfig makes transforms instant for
- * those visitors.
+ * those visitors. It is `aria-hidden` and draws no heading, button or link.
  */
 
 export type StoryScene<Id extends string> = {
@@ -97,8 +97,14 @@ export function Story<Id extends string>({
   return (
     // shrink-0: as Fit's flex child, the story shrank to its title's 380px,
     // so Fit read that width, scaled it too little, and its 520px scenes
-    // spilled past the panel and were cut (KAN-368).
-    <div ref={ref} className="flex w-[520px] shrink-0 flex-col items-center gap-4">
+    // spilled past the panel and were cut (KAN-368). Hidden from assistive
+    // technology: the story is a mock of the app, the copy beside it says
+    // what it shows, and its fake headings and fields broke the page's outline.
+    <div
+      ref={ref}
+      aria-hidden="true"
+      className="flex w-[520px] shrink-0 flex-col items-center gap-4"
+    >
       {/* The scene's title: a glass pill with its number, not a switcher.
           The scenes play on their own. */}
       <div

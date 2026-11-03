@@ -31,7 +31,9 @@ export async function NotificationsSection() {
 
   return (
     <Card as="section" aria-labelledby="notifications" className="flex flex-col gap-4">
-      <SectionHeading id="notifications">Notifications</SectionHeading>
+      <SectionHeading as="h3" id="notifications">
+        Notifications
+      </SectionHeading>
       <p className="text-body text-ink-meta">Choose which emails you get.</p>
       <ul className="divide-border-subtle flex flex-col divide-y">
         <li className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
