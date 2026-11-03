@@ -210,8 +210,9 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
         # A rehearsal shows its form while Claude writes its answers; a run opens it only once they're written.
         if not rehearse and (stop := planned.add(questions)):
             return stop
+        form_url = getattr(filler, "form_url", lambda url: url)(posting.url)  # where its form is, if not the posting
         for attempt in range(2):
-            with site.open(posting.url) as page:
+            with site.open(form_url) as page:
                 if rehearse and attempt == 0 and (stop := planned.add(questions)):
                     return stop
                 before_fill()

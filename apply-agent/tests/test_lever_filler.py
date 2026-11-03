@@ -145,3 +145,11 @@ def test_picks_the_country_that_shows_a_demographic_survey_then_answers_it():
 
     assert "United States" in country.options
     assert readback == answers
+
+
+def test_a_posting_link_without_apply_opens_the_form_page():
+    # Hermeus's link (seen live) opened the job's description, which has no form.
+    from apply.lever import LeverFiller
+    posting = "https://jobs.lever.co/hermeus/5b08e2df-c9db-4831-aece-67d89e744796"
+    assert LeverFiller().form_url(posting) == posting + "/apply"
+    assert LeverFiller().form_url(posting + "/apply") == posting + "/apply"

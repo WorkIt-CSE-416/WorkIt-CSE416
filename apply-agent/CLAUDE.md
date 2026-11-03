@@ -85,6 +85,12 @@ change the other.
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".
 
+## Form pages
+
+- A Filler with a `form_url(url)` method names the page that holds its
+  form. The Worker opens that page, not the posting link. Lever's form is
+  on `/apply`; a link without it opens the job description.
+
 ## Sign-in pages
 
 - Oracle's cookie banner covers the email step's Next button.
