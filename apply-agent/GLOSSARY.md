@@ -68,6 +68,10 @@ _Avoid_: daily limit, quota, rate limit
 The spreadsheet with one row per Application that Lisul reads to see every Application, its link, its status and its outcome. Retired: its submitted rows are imported once into WorkIt's Applications Tracker, which is the record after that.
 _Avoid_: ledger, log, dashboard
 
+**WorkIt client**:
+The one module in Apply that calls WorkIt's API, as the student that `apply login` signed in. The login is kept in the data folder.
+_Avoid_: API wrapper, WorkIt SDK
+
 **Top 500**:
 The 500 most prestigious non-quant companies with a Summer 2027 software internship open to Lisul, ranked 1 to 500, one row each with the link to its best open Posting and whether he has applied. Ranked by tier first, then intern pay and how much the company innovates. A company ranked above the cutoff with nothing open yet is listed apart as Not open yet.
 _Avoid_: target list, shortlist, top companies
