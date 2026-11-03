@@ -10,21 +10,23 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from app.services.text_extraction import MAX_SIZE, PDF_MAGIC
 
 
-class SentFile(BaseModel):
-    """The file Apply attached to a form (KAN-544): its name and its bytes in
-    base64. A PDF under 5 MB, as an upload is; anything else is a 422."""
+class SentFileCreate(BaseModel):
+    """POST .../sent-resumes/file: the file Apply attached to a form
+    (KAN-544), its name and its bytes in base64, and the job posting it went
+    to. A PDF under 5 MB, as an upload is; anything else is a 422."""
 
-    name: str = Field(min_length=1, max_length=255)
-    data: str = Field(max_length=4 * (MAX_SIZE // 3 + 1))
+    job_posting_id: UUID
+    file_name: str = Field(min_length=1, max_length=255)
+    content: str = Field(max_length=4 * (MAX_SIZE // 3 + 1))
 
-    @field_validator("name")
+    @field_validator("file_name")
     @classmethod
     def _named(cls, name: str) -> str:
         if not name.strip():
             raise ValueError("The file needs a name")
         return name.strip()
 
-    @field_validator("data")
+    @field_validator("content")
     @classmethod
     def _a_pdf(cls, data: str) -> str:
         try:
@@ -38,25 +40,24 @@ class SentFile(BaseModel):
         return data
 
     def pdf(self) -> bytes:
-        return base64.b64decode(self.data)
+        return base64.b64decode(self.content)
 
 
 class SentResumeCreate(BaseModel):
-    """POST body: exactly one source, a built resume, an uploaded resume or
-    the file Apply sent (KAN-544), and the job posting it went to (Apply,
-    KAN-220). Only a send keeps a sent resume: a download keeps nothing
-    (KAN-267), so the posting is required. A built resume goes as a PDF; an
-    uploaded resume is its own file; a sent file is kept as it is."""
+    """POST body: exactly one source, a built resume or an uploaded resume,
+    and the job posting it went to (Apply, KAN-220). Only a send keeps a sent
+    resume: a download keeps nothing (KAN-267), so the posting is required.
+    A built resume goes as a PDF; an uploaded resume is its own file. The
+    file Apply sent goes to POST .../sent-resumes/file (SentFileCreate)."""
 
     built_resume_id: UUID | None = None
     uploaded_resume_id: UUID | None = None
-    file: SentFile | None = None
     job_posting_id: UUID
 
     @model_validator(mode="after")
     def _one_source(self) -> "SentResumeCreate":
-        if [self.built_resume_id, self.uploaded_resume_id, self.file].count(None) != 2:
-            raise ValueError("Give exactly one of built_resume_id, uploaded_resume_id and file")
+        if (self.built_resume_id is None) == (self.uploaded_resume_id is None):
+            raise ValueError("Give exactly one of built_resume_id and uploaded_resume_id")
         return self
 
 

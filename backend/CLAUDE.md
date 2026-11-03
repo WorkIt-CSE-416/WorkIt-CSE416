@@ -541,8 +541,8 @@ Find files with a directory listing; these are the rules for where code goes.
   one `postings.tracked_by` the student (KAN-544): a scraped posting they
   have an application on, unlisted or closed by the feed since. Tests:
   `tests/test_sent_resumes.py` (`-k "unlisted or closed_after"`). The
-  file Apply attached becomes a Sent resume as it is (`send_file`, body
-  `file`: a base64 PDF, stored once per content at
+  file Apply attached becomes a Sent resume as it is (`send_file`, `POST
+  .../sent-resumes/file`: a base64 PDF, stored once per content at
   `<applicant_id>/sent/<sha256>.pdf`; `../docs/sent_resume.md`, flow 6a).
   **Apply's stages** (KAN-544): the stage PUT (`routers/tracker.py`,
   `queries/tracker.py` `set_stage`) also takes needs_you (an Apply Handoff

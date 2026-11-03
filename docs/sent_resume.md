@@ -455,8 +455,8 @@ since it must build a `File` for the form anyway.
 ### 6a. Apply's own file (KAN-544)
 
 Apply (`apply-agent/`) attaches a PDF of its own, not a WorkIt resume. After
-a submit it sends that file as `{"file": {"name", "data"}, "job_posting_id"}`
-(`send_file`): the PDF goes to Storage as it is, at
+a submit it sends that file to `POST .../sent-resumes/file` as
+`{"job_posting_id", "file_name", "content"}` (base64; `send_file`): the PDF goes to Storage as it is, at
 `<applicant_id>/sent/<sha256>.pdf`, and the row has no source and no hash.
 The same file sent to two postings is stored once (flow 8 removes it when
 the last row goes); the same file sent again to one posting returns the

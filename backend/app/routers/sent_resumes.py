@@ -5,7 +5,7 @@ file stays) live in `app/services/sent_resumes.py`. Storage goes through this
 module's `get_supabase()`, so tests patch it here.
 
 POST   /applicants/{id}/sent-resumes            SentResumeCreate
-       {built_resume_id | uploaded_resume_id | file, job_posting_id}
+       {built_resume_id | uploaded_resume_id, job_posting_id}
        -> 201 SentResumeDownload: Apply (KAN-220), the resume kept as a
           sent resume linked to that posting. A built resume is rendered to
           a PDF; an uploaded resume makes no new file, the sent resume
@@ -16,11 +16,14 @@ POST   /applicants/{id}/sent-resumes            SentResumeCreate
        -> 200 SentResumeDownload: the same content was sent to this posting
           before from this built resume; the last sent resume comes back,
           with no new file.
-       `file` {"name", "data": base64} is the file Apply attached to the
-       form (KAN-544): a PDF under 5 MB (422 otherwise), kept in Storage as
-       it is, one file per content (`<applicant_id>/sent/<sha256>.pdf`).
-       Sent again to the same posting, it answers 200 with the last one.
-       502 when Storage refuses the upload.
+POST   /applicants/{id}/sent-resumes/file       SentFileCreate
+       {job_posting_id, file_name, content (base64)}: the file Apply
+       attached to the form (KAN-544), a PDF under 5 MB (422 otherwise),
+       kept in Storage as it is, one file per content
+       (`<applicant_id>/sent/<sha256>.pdf`). -> 201 SentResumeDownload;
+       the same file sent again to the same posting answers 200 with the
+       last one. 404 as above for the posting, 502 when Storage refuses
+       the upload.
        SentResumeDownload is the sent resume plus its file, as GET .../file
        answers it, and `missing_characters` (the font lacks them; a repeat
        answers []). A built resume keeps no PDF: the sent resume is a
@@ -57,6 +60,7 @@ from app.db import get_session, get_supabase
 from app.deps import owned_applicant
 from app.models.sent_resume import Sent_Resume
 from app.schemas.sent_resume import (
+    SentFileCreate,
     SentResumeCreate,
     SentResumeDownload,
     SentResumeFile,
@@ -99,8 +103,6 @@ async def send(
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
 ) -> SentResumeDownload:
-    if body.file is not None:
-        return await _send_file(body, response, applicant_id, session)
     try:
         if body.uploaded_resume_id is not None:
             sent = await service.send_uploaded(
@@ -129,14 +131,18 @@ async def send(
     return SentResumeDownload.of(sent.row, await _file(session, sent.row, pdf=sent.pdf), sent.missing_characters)
 
 
-async def _send_file(
-    body: SentResumeCreate, response: Response, applicant_id: uuid.UUID, session: AsyncSession
+@router.post("/file", status_code=201, response_model=SentResumeDownload)
+async def send_file(
+    body: SentFileCreate,
+    response: Response,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
 ) -> SentResumeDownload:
     """The file Apply sent (KAN-544), kept in Storage as it is."""
-    pdf = body.file.pdf()
+    pdf = body.pdf()
     try:
         sent = await service.send_file(
-            session, get_supabase().storage, applicant_id, body.file.name, pdf, job_posting_id=body.job_posting_id)
+            session, get_supabase().storage, applicant_id, body.file_name, pdf, job_posting_id=body.job_posting_id)
     except NotFound:
         raise HTTPException(404, "Job posting not found")
     except SQLAlchemyError:
