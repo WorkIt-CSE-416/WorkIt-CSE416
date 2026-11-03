@@ -480,7 +480,8 @@ Jakarta Sans draws "0", which `ch` measures, at 0.73em, wider than its
 average letter: at 14px, 46ch prints 64 to 71 characters a line and 60ch
 about 90. Measure a new cap in characters a line (45 to 75). On Applications and
 the Calendar the segmented control sits at the top right of the header
-wherever it fits beside the title, the title wrapping first; Home's range
+wherever it fits beside the title, the title wrapping first (below
+`@3xl/main` the Calendar puts it at the start of its second row, KAN-578); Home's range
 switch sits at the top right of the page, beside the greeting, and wraps
 under it where the page is narrow.
 Pages render a

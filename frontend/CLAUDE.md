@@ -1179,7 +1179,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   application the student picks. An entry opens its own card, one layout for
   every kind, beside it and inside the window (`calendar/event-card.tsx`),
   and the application's timeline only from the card's View Application
-  (`docs/screens.md`, Calendar). **A kind's
+  (`docs/screens.md`, Calendar). Below `@3xl/main` it narrows (KAN-578):
+  Week shows three days, a Month day opens a sheet of its entries with a
+  key under the grid, and the toolbar is two rows; `useWide` in
+  `calendar-view.tsx` reads that breakpoint off a probe element, so it
+  lives in the class alone. **A kind's
   look is one map**: `KIND_STAGE` for its colour and `KIND_ICON` for its
   glyph, in `(seeker)/stage-colors.ts`, read by the Calendar, Up Next, the
   timeline and Interviews & Dates alike; a new kind joins both. **The

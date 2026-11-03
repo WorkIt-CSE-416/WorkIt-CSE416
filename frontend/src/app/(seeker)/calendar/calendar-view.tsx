@@ -15,7 +15,14 @@ import {
   startOfWeek,
 } from "date-fns";
 import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react/ssr";
-import { useState, ViewTransition, type ReactNode } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  ViewTransition,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
 import { CloseIcon } from "@/components/icons";
@@ -30,6 +37,7 @@ import { StatusIcon } from "../applications/icons";
 import { useHydrated } from "../local-time";
 import { localDay, type EventKind, type TrackerEvent } from "../tracker";
 import { Agenda, AGENDA_DAYS } from "./agenda";
+import { DaySheet } from "./day-sheet";
 import { dayKey, groupByDay, KIND_LABEL, KIND_ORDER, lookOf, onCalendar } from "./entries";
 import { Month } from "./month";
 import { calendarHref, type CalendarView as View } from "./query";
@@ -76,6 +84,15 @@ import { CalendarViewSwitch, useCalendarQuery } from "./view-switch";
  * step-forward in globals.css). A change with no direction, a new view or
  * the browser's own back button, crossfades instead. The controls are
  * outside the keys, so they hold still while the span moves under them.
+ *
+ * BELOW @3xl/main IT NARROWS (KAN-578), as Google Calendar does on a phone:
+ * Week shows three days from the day in view and its arrows move three
+ * days; Month's days are buttons that open the day's sheet, with a key
+ * under the grid; the toolbar is two rows, the title and its arrows, then
+ * the view switch, Type and Create Event as a plus. Seven columns were
+ * about 55px at a 768px window, Month showed only coloured dots, and the
+ * toolbar wrapped to four rows, some 170px of an 812px phone. `useWide`
+ * reads the breakpoint off a probe, so it lives in its class alone.
  */
 export function CalendarView({
   applications,
@@ -169,6 +186,26 @@ function Step({ children }: { children: ReactNode }) {
   );
 }
 
+/** Whether the page is @3xl/main or wider, read off a probe that the
+ *  class shows from there on, before the first paint and again on every
+ *  resize of the probe's parent, which is as wide as the page. */
+function useWide(probe: RefObject<HTMLSpanElement | null>) {
+  const [wide, setWide] = useState(true);
+  useLayoutEffect(() => {
+    const node = probe.current;
+    if (!node?.parentElement) return;
+    const read = () => setWide(getComputedStyle(node).display !== "none");
+    read();
+    const observer = new ResizeObserver(read);
+    observer.observe(node.parentElement);
+    return () => observer.disconnect();
+  }, [probe]);
+  return wide;
+}
+
+/** The narrow Week's span, in days. */
+const NARROW_DAYS = 3;
+
 /** "Oct 4 – 10, 2026", "Sep 27 – Oct 3, 2026", or with both years when the
  *  span crosses one. */
 function spanTitle(start: Date, end: Date) {
@@ -181,7 +218,7 @@ function spanTitle(start: Date, end: Date) {
 
 /** What each view spans from its anchor: its first day, its title, and
  *  where the arrows go. `unit` names the arrows for a screen reader. */
-function spanOf(view: View, anchor: Date) {
+function spanOf(view: View, anchor: Date, wide: boolean) {
   if (view === "month") {
     const start = startOfMonth(anchor);
     return {
@@ -190,6 +227,15 @@ function spanOf(view: View, anchor: Date) {
       title: format(start, "MMMM yyyy"),
       prev: addMonths(start, -1),
       next: addMonths(start, 1),
+    };
+  }
+  if (view === "week" && !wide) {
+    return {
+      start: anchor,
+      unit: "3 Days",
+      title: spanTitle(anchor, addDays(anchor, NARROW_DAYS - 1)),
+      prev: addDays(anchor, -NARROW_DAYS),
+      next: addDays(anchor, NARROW_DAYS),
     };
   }
   if (view === "week") {
@@ -212,10 +258,11 @@ function spanOf(view: View, anchor: Date) {
 }
 
 /** The first and last day each view draws, for the filter row's counts. */
-function rangeOf(view: View, anchor: Date) {
+function rangeOf(view: View, anchor: Date, wide: boolean) {
   if (view === "month") {
     return { from: startOfWeek(startOfMonth(anchor)), to: endOfWeek(endOfMonth(anchor)) };
   }
+  if (view === "week" && !wide) return { from: anchor, to: addDays(anchor, NARROW_DAYS - 1) };
   if (view === "week") return { from: startOfWeek(anchor), to: endOfWeek(anchor) };
   return { from: anchor, to: addDays(anchor, AGENDA_DAYS - 1) };
 }
@@ -237,15 +284,21 @@ function Calendar({
   // The kinds the filter picked; none picked shows every kind, as every
   // filter dropdown reads (components/field-facet.tsx).
   const [kinds, setKinds] = useState<EventKind[]>([]);
+  const probe = useRef<HTMLSpanElement>(null);
+  const wide = useWide(probe);
+  // The narrow Month's day sheet: the day stays set after a close, so the
+  // sheet keeps its words while it slides away.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetDay, setSheetDay] = useState<string | null>(null);
   const today = dayKey(new Date());
   const anchor = parseISO(date ?? today);
-  const span = spanOf(view, anchor);
+  const span = spanOf(view, anchor, wide);
   const listed = events.filter(onCalendar);
   const shown = kinds.length ? listed.filter((event) => kinds.includes(event.kind)) : listed;
   const byDay = groupByDay(shown);
 
   // How many of each kind fall in the span on screen, for its chip.
-  const range = rangeOf(view, anchor);
+  const range = rangeOf(view, anchor, wide);
   const from = dayKey(range.from);
   const to = dayKey(range.to);
   const counts = new Map<EventKind, number>();
@@ -253,10 +306,19 @@ function Calendar({
     const day = localDay(event.at);
     if (day >= from && day <= to) counts.set(event.kind, (counts.get(event.kind) ?? 0) + 1);
   }
+  // A Month or Week with nothing in it says so in one line; the Agenda
+  // has its own empty state.
+  const empty =
+    view !== "agenda" &&
+    !shown.some((event) => {
+      const day = localDay(event.at);
+      return day >= from && day <= to;
+    });
+  const spanName = view === "month" ? "this month" : wide ? "this week" : "these three days";
 
   // Which span this is, for Step's key, and which way Today goes from it.
   const first = dayKey(span.start);
-  const home = dayKey(spanOf(view, parseISO(today)).start);
+  const home = dayKey(spanOf(view, parseISO(today), wide).start);
   const towardToday = home < first ? "nav-back" : home > first ? "nav-forward" : undefined;
 
   // An event card's View Application opens its application's panel over
@@ -279,67 +341,90 @@ function Calendar({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {/* Three pieces that wrap apart on a narrow screen: the title, the
-            arrows with Today, and the view switch, which takes a line of its
-            own on a phone rather than pushing the page sideways. */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <Step key={`${view}:${first}`}>
-            <h2 className="text-title text-ink mr-auto">{span.title}</h2>
-          </Step>
-          {/* THE FILTER, a dropdown as on every page with filters
-              (components/field-facet.tsx): each kind in its glyph and
-              colour, with how many fall in the span on screen. */}
-          <div className="flex items-center gap-1">
-            <FieldFacet
-              label="Type"
-              Icon={StatusIcon}
-              options={options}
-              values={kinds}
-              onChange={(next) => setKinds(next as EventKind[])}
-            />
-            {kinds.length > 0 && (
-              <IconButton label="Clear Filter" className="size-8" onClick={() => setKinds([])}>
-                <CloseIcon className="size-4" />
-              </IconButton>
-            )}
+        <span ref={probe} aria-hidden="true" className="hidden @3xl/main:block" />
+        {/* ONE ROW from @3xl/main, wrapping where it must: the title, Type,
+            Today and the arrows, the view switch, Create Event. Below it,
+            two rows (each row's wrapper is `contents` from @3xl/main, so
+            the pieces join one row and `order` places them): the title
+            with Today and the arrows, then the view switch, Type and
+            Create Event as a plus. */}
+        <div className="flex flex-col gap-2 @3xl/main:flex-row @3xl/main:flex-wrap @3xl/main:items-center @3xl/main:gap-x-3">
+          <div className="flex items-center gap-3 @3xl/main:contents">
+            <Step key={`${view}:${first}`}>
+              <h2 className="text-title text-ink mr-auto min-w-0 @3xl/main:order-1">
+                {span.title}
+              </h2>
+            </Step>
+            <div className="flex shrink-0 items-center gap-2 @3xl/main:order-3">
+              <ShallowLink
+                href={calendarHref({ view, demo })}
+                transitionType={towardToday}
+                className={TODAY}
+              >
+                Today
+              </ShallowLink>
+              <ShallowLink
+                href={calendarHref({ view, date: dayKey(span.prev), demo })}
+                transitionType="nav-back"
+                aria-label={`Previous ${span.unit}`}
+                className={cn(ARROW, "hover:[&>svg]:-translate-x-0.5")}
+              >
+                <CaretLeftIcon aria-hidden className="size-4" />
+              </ShallowLink>
+              <ShallowLink
+                href={calendarHref({ view, date: dayKey(span.next), demo })}
+                transitionType="nav-forward"
+                aria-label={`Next ${span.unit}`}
+                className={cn(ARROW, "hover:[&>svg]:translate-x-0.5")}
+              >
+                <CaretRightIcon aria-hidden className="size-4" />
+              </ShallowLink>
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <ShallowLink
-              href={calendarHref({ view, demo })}
-              transitionType={towardToday}
-              className={TODAY}
-            >
-              Today
-            </ShallowLink>
-            <ShallowLink
-              href={calendarHref({ view, date: dayKey(span.prev), demo })}
-              transitionType="nav-back"
-              aria-label={`Previous ${span.unit}`}
-              className={cn(ARROW, "hover:[&>svg]:-translate-x-0.5")}
-            >
-              <CaretLeftIcon aria-hidden className="size-4" />
-            </ShallowLink>
-            <ShallowLink
-              href={calendarHref({ view, date: dayKey(span.next), demo })}
-              transitionType="nav-forward"
-              aria-label={`Next ${span.unit}`}
-              className={cn(ARROW, "hover:[&>svg]:translate-x-0.5")}
-            >
-              <CaretRightIcon aria-hidden className="size-4" />
-            </ShallowLink>
+          <div className="flex items-center gap-2 @3xl/main:contents">
+            <div className="@3xl/main:order-4">
+              <CalendarViewSwitch />
+            </div>
+            {/* THE FILTER, a dropdown as on every page with filters
+                (components/field-facet.tsx): each kind in its glyph and
+                colour, with how many fall in the span on screen. */}
+            <div className="flex items-center gap-1 @3xl/main:order-2">
+              <FieldFacet
+                label="Type"
+                Icon={StatusIcon}
+                options={options}
+                values={kinds}
+                onChange={(next) => setKinds(next as EventKind[])}
+              />
+              {kinds.length > 0 && (
+                <IconButton label="Clear Filter" className="size-8" onClick={() => setKinds([])}>
+                  <CloseIcon className="size-4" />
+                </IconButton>
+              )}
+            </div>
+            {/* CREATE EVENT, as Google Calendar's Create: the student's own
+                interviews, assessments, offers and follow-ups, on the
+                application they pick (../applications/create-event.tsx). It
+                opens on today when today is on screen, else the span's
+                first day. */}
+            <div className="ml-auto @3xl/main:order-5 @3xl/main:ml-0">
+              <CreateEventDialog
+                variant="default"
+                iconOnly={!wide}
+                applications={applications}
+                defaultDay={today >= from && today <= to ? today : first}
+              />
+            </div>
           </div>
-          <CalendarViewSwitch />
-          {/* CREATE EVENT, as Google Calendar's Create: the student's own
-              interviews, assessments, offers and follow-ups, on the
-              application they pick (../applications/create-event.tsx). It
-              opens on today when today is on screen, else the span's
-              first day. */}
-          <CreateEventDialog
-            variant="default"
-            applications={applications}
-            defaultDay={today >= from && today <= to ? today : first}
-          />
         </div>
+
+        {empty && (
+          <p className="text-note text-ink-meta mt-3">
+            {kinds.length
+              ? `Nothing of the picked types in ${spanName}.`
+              : `Nothing in ${spanName}. Use Create Event to add a date.`}
+          </p>
+        )}
 
         <Step key={`${view}:${first}`}>
           {view === "month" && (
@@ -349,11 +434,19 @@ function Calendar({
               byDay={byDay}
               openHref={openHref}
               dayHref={dayHref}
+              openDay={
+                wide
+                  ? undefined
+                  : (day) => {
+                      setSheetDay(day);
+                      setSheetOpen(true);
+                    }
+              }
             />
           )}
           {view === "week" && (
             <TimeGrid
-              days={eachDayOfInterval({ start: startOfWeek(anchor), end: endOfWeek(anchor) })}
+              days={eachDayOfInterval({ start: range.from, end: range.to })}
               today={today}
               byDay={byDay}
               openHref={openHref}
@@ -364,6 +457,17 @@ function Calendar({
           )}
         </Step>
       </div>
+
+      {sheetDay && (
+        <DaySheet
+          day={sheetDay}
+          open={sheetOpen && !wide}
+          onOpenChange={setSheetOpen}
+          entries={byDay.get(sheetDay) ?? []}
+          openHref={openHref}
+          weekHref={dayHref(sheetDay)}
+        />
+      )}
     </div>
   );
 }
