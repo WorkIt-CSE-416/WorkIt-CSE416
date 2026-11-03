@@ -352,6 +352,45 @@ reads: it does not click, type or submit.
 clean form, a live run held by a flag, a dismissed flag in the window and
 in a new run, a blank the engine meant, and the window's states.
 
+## Resume a paused rehearsal (KAN-551)
+
+A rehearsal that stops mid-form for Lisul does not end. It pauses on its
+open page, and he fixes the page himself. Then he presses Resume, and Apply
+goes on from the step that the page shows.
+
+- A pause is a Handoff that `apply_to(on_pause=...)` gets in a rehearsal:
+  while the Filler reads its questions (a Workday sign-in) or while it
+  fills (a step that Workday will not leave, a pop-up, Claude fill's Next).
+  `rehearsal._rehearse` shows it on the tile as its status (handoff, needs
+  sign-in) with `resume={"ok": True}`, and the hold of the paused page
+  (`_Kept.hold(resume=...)`) waits. The paused link gives back its Worker
+  turn (`gate`) while it waits.
+- Resume (`Board.resumed`) comes back on the same tab. The
+  submit guard goes on again with `submit_guard.rearm`, with no reload, so
+  his fixes stay. The fill loop then calls `filler.fill` again, with the
+  same plan and Filler state. Apply never starts over, never submits, and
+  never asks for a new code.
+- His fixes: the Filler's `resumed(page)` reads the values of the step
+  shown. The Workday Filler does not fill those fields again on that step,
+  and `_Planned.keep` keeps each value that differs from Apply's answer as
+  his answer (`_Planned.lisuls`). A Missing fact that he answered there
+  waits on him no more. A Filler with no `resumed` keeps nothing (Claude
+  fill does not type a field again that it filled already).
+- A Filler's `resume_blocked(page)` says why Resume cannot go on yet. The
+  Workday Filler says so on its sign-in page, so Resume never signs in or
+  asks for a code. The why shows on the button, and the pause stays.
+- A tab that closed, or a rehearsal that ended, makes `resume={"ok": False,
+  "why": ...}` (`rehearsal.TAB_CLOSED`, `ENDED`). The button stays, turned
+  off, and says why. Fill again still fills the form anew.
+- Each pause and Resume is a line in `Rehearsed.history`, on the tile and
+  in the Record's README (Pauses), and an event in the Trace.
+- Live runs do not pause. A run's Handoff ends, and its Worker moves on.
+
+**Tests.** `tests/test_resume.py`: the fake Workday stops on a required
+Degree; Lisul picks it on the page, presses Resume, and the form goes to
+Review with no submit. Also a closed tab. Run it with `-k`; it opens
+Chromium.
+
 ## Prompts and gates
 
 - Every prompt names the applicant as `@NAME@` and their school as

@@ -38,6 +38,7 @@ from apply.fill_engine import (
     posting_bans_ai,
     readback_problems,
     remember,
+    shows,
     trap_handoff,
 )
 from apply.fillers import Filler, Handoff, MoreQuestions
@@ -141,6 +142,7 @@ def apply_to(
     before_fill: Callable[[], None] = lambda: None,
     on_missing: Callable[[tuple[str, ...], dict[str, dict], dict[str, bool]], None] = lambda *heard: None,
     on_verify: Callable[["verify.Verification | None"], None] = lambda verification: None,
+    on_pause: Callable[[Result, Callable[[object], str]], bool] = lambda stopped, blocked: False,
 ) -> Result:
     """`before_submit` runs just before the form is submitted. It returns why
     the Orchestrator holds the Application anyway (the Calibration run), or "";
@@ -174,11 +176,18 @@ def apply_to(
     (apply.verify): `on_verify` hears None as verifying starts, then the
     Verification. A flag that needs Lisul holds a run's Application, unless
     Lisul approved it after he saw the flags, or dismissed that flag for this
-    Application before (verify.dismiss); verifying never submits."""
+    Application before (verify.dismiss); verifying never submits.
+    A rehearsal that stops mid-form for Lisul (a Handoff while it signs in
+    to read its questions or fills a step) is paused, not ended: `on_pause`
+    gets that Handoff's Result and `blocked(page)`, why Resume can't go on
+    now ("" when it can), and waits on him. True: he fixed the page and
+    pressed Resume, so the fill goes on on the same page, from the step it
+    shows, with the values he put there kept as his answers (`resumed`).
+    False: the Handoff ends the rehearsal as before."""
     planned = _Planned(posting, site, profile, claude, answered or {}, approved, rehearse, bank or AnswerBank(),
                        today or date.today(), on_files, on_missing)
     try:
-        result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify)
+        result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify, on_pause)
     except Handoff as handoff:
         result = _handed_off(handoff)
     except Closed as closed:  # skipped before any form is filled
@@ -201,7 +210,7 @@ def apply_to(
 
 
 def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fill=lambda: None,
-           on_verify=lambda verification: None) -> Result:
+           on_verify=lambda verification: None, on_pause=lambda stopped, blocked: False) -> Result:
     posting, profile, claude = planned.posting, planned.profile, planned.claude
     read = description.from_api(posting, site)
     if why := eligibility.not_eligible(read):  # before any form opens or Claude is asked
@@ -217,12 +226,18 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     before_fill()
             before_fill()
             before_fill = lambda: None
-        try:
-            questions = filler.question_set(posting.url, site)
-        except HTTPError as error:
-            if error.code in (404, 410):
-                raise Closed(f"the job system no longer has this Posting (HTTP {error.code})") from error
-            raise
+        blocked = getattr(filler, "resume_blocked", lambda page: "")
+        while True:
+            try:
+                questions = filler.question_set(posting.url, site)
+                break
+            except HTTPError as error:
+                if error.code in (404, 410):
+                    raise Closed(f"the job system no longer has this Posting (HTTP {error.code})") from error
+                raise
+            except Handoff as handoff:  # a sign-in Lisul finishes himself, then Resume reads the questions
+                if not (rehearse and on_pause(_handed_off(handoff), blocked)):
+                    raise
         # No API for it: what the Filler read off the open posting page (Claude fill), else the plain fetch.
         planned.text = read or getattr(filler, "posting_text", "") or fetched
         # A Request on a job system with no Filler: its link named no company, but its open page did
@@ -250,8 +265,12 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         if not (rehearse and planned.skip(error)):
                             raise
                     except Handoff as handoff:  # a rehearsal says which blanks may have stopped it
-                        return _handed_off(handoff, missing=planned.missing, choices=planned.choices,
-                                           required=planned.required)
+                        stopped = _handed_off(handoff, missing=planned.missing, choices=planned.choices,
+                                              required=planned.required)
+                        if not (rehearse and on_pause(stopped, blocked)):
+                            return stopped
+                        # Resume: what Lisul put on the step it stopped on stays, as his answers.
+                        planned.keep(getattr(filler, "resumed", lambda page: {})(page))
                 questions, answers, holds = planned.questions, planned.answers, list(planned.holds)
                 holds = [f"Not filled: {e}" for e in planned.unfilled] + holds
                 filled = Filled(questions, answers, readback, _screenshot(page))
@@ -354,6 +373,7 @@ class _Planned:
         self.unfilled: list[str] = []  # why a rehearsal's Filler couldn't fill each answer it left out
         self._skipped: set[str] = set()
         self.left: set[str] = set()  # fields left blank on purpose: an N/A optional, a follow-up not called for
+        self.lisuls: dict[str, object] = {}  # what Lisul put on a paused form's step before Resume, by name
         self.questions: list[Question] = []
         self._answers: dict = {}
         self.accepted: dict[str, tuple[str, ...]] = {}  # other wordings Lisul accepts for an answer, by Question name
@@ -379,8 +399,21 @@ class _Planned:
 
     @answers.setter
     def answers(self, answers: dict) -> None:
-        self._answers = answers
+        self._answers = answers | self.lisuls  # what Lisul put on the page is the answer, whatever the plan says
         self._keep_files()
+
+    def keep(self, values: dict) -> None:
+        """Keep what Lisul put on a paused form before Resume (the Filler's
+        `resumed`) as his answers: no plan, Claude or Filler writes over them,
+        and a Missing fact he answered there waits on him no more."""
+        values = {name: value for name, value in values.items()  # what Apply had put there itself stays Apply's
+                  if name not in self._answers or not shows(value, self._answers[name], self.accepted.get(name, ()))}
+        if not values:
+            return
+        self.lisuls |= values
+        self.answers = self._answers
+        missing = [q for q in self.questions if q.label.strip() in self.missing]
+        self._missing(missing, [a for a in self.missing if a.startswith(essays.ASK)])
 
     def _keep_files(self) -> None:
         """Copy each file the form is given to the Application's folder under
@@ -559,7 +592,7 @@ class _Planned:
         """A Missing fact Result for the first of `missing`, in form order,
         then of `asks` (what an essay asks Lisul for, apply.essays.ASK); a
         rehearsal lists them all instead and goes on."""
-        missing, was = [q for q in self.questions if q in missing], self.missing
+        missing, was = [q for q in self.questions if q in missing and q.name not in self.lisuls], self.missing
         self.missing = tuple(dict.fromkeys([*(q.label.strip() for q in missing), *asks]))
         self.choices = {q.label.strip(): offered for q in missing if (offered := choices(q))}
         # The form's own required flag; what an essay asks him is for a slot the essay needs.

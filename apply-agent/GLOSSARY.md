@@ -108,6 +108,10 @@ _Avoid_: auto outcome, detected outcome, status
 An Application the system cannot finish alone, for example because of a captcha, or a Posting description that speaks to AI agents (handed off before its form opens, quoting the sentence). Lisul finishes it from the Tracker row.
 _Avoid_: manual, fallback, failed
 
+**Resume**:
+The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue.
+_Avoid_: retry, restart, continue
+
 **Worker**:
 One process with its own browser that carries one Application at a time: it runs the Filler for the Posting's job system and calls Claude only for answers no stored fact covers. Several run at once.
 _Avoid_: bot, agent, runner

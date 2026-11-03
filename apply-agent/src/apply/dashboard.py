@@ -374,6 +374,11 @@ class Board(Protocol):
         window stops asking Lisul for one."""
         ...
 
+    def resumed(self, worker: int) -> bool:
+        """Whether Lisul pressed Resume on Worker `worker`'s paused form since
+        it last asked; each press is given once."""
+        ...
+
     def wait_for_start(self, timeout: float | None) -> None:
         """Show the Start button and return once Lisul presses it, or after
         `timeout` seconds (None: however long he takes): a rehearsal for
@@ -401,6 +406,9 @@ class NoBoard:
 
     def answered(self, worker: int) -> list[tuple[str, str]]:
         return []
+
+    def resumed(self, worker: int) -> bool:
+        return False
 
 
 class NoFrames:
@@ -477,6 +485,7 @@ class Dashboard:
         self._loaded = 0.0  # when the window last loaded the page
         self._started = threading.Event()  # Lisul pressed Start
         self._to_fill: dict[int, list[tuple[str, str]]] = {}  # answers to fill on each Worker's open form (answered)
+        self._resume: set[int] = set()  # the Workers whose paused form Lisul pressed Resume on (resumed)
 
     def __enter__(self) -> Self:
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
@@ -571,6 +580,12 @@ class Dashboard:
     def answered(self, worker: int) -> list[tuple[str, str]]:
         with self._lock:
             return self._to_fill.pop(worker, [])
+
+    def resumed(self, worker: int) -> bool:
+        with self._lock:
+            pressed = worker in self._resume
+            self._resume.discard(worker)
+            return pressed
 
     def start(self) -> None:
         """Lisul pressed Start."""
