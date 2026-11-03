@@ -99,20 +99,6 @@ def data_folder() -> Path:
     return home.HOME
 
 
-@pytest.fixture
-def blank_optionals_noted(monkeypatch):
-    """For a whole-run test of something else, on a saved form whose optional fields stay blank: the Test
-    Person profile has no fact for some, and the fill engine leaves others blank on purpose without saying
-    so (a duplicate "Other website", an "If other" follow-up, a race question the form hides). Here such a
-    blank is only noted, as it was before Lisul's rule that a blank optional holds (tests/test_verify.py)."""
-    from dataclasses import replace
-
-    from apply import verify
-    real = verify._blanks
-    monkeypatch.setattr(verify, "_blanks", lambda *given: [replace(f, holds=False) if f.why == "left blank (optional)"
-                                                           else f for f in real(*given)])
-
-
 @pytest.fixture(autouse=True)
 def cover_letters_printed_as_their_text(monkeypatch):
     """A cover letter's PDF holds just its text, so a run needs no Chrome (test_cover_letter prints real ones)."""

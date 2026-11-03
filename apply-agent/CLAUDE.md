@@ -350,9 +350,7 @@ reads: it does not click, type or submit.
 
 **Tests.** `tests/test_verify.py`: a fake form with planted problems, a
 clean form, a live run held by a flag, a dismissed flag in the window and
-in a new run, and the window's states. A
-whole-run test of something else, on a saved form whose optional fields
-stay blank, uses the `blank_optionals_noted` fixture (tests/conftest.py).
+in a new run, a blank the engine meant, and the window's states.
 
 ## Prompts and gates
 

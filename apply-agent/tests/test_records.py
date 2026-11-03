@@ -4,7 +4,6 @@ Records they link to."""
 import json
 from datetime import datetime
 
-import pytest
 from conftest import ARC_FORM, FIXTURES
 from fakes import FakeClaude, FakeClock, FakeJobServer, FakeMailbox, ScriptedUsage
 from test_matches import NoBrowser, feed_record
@@ -43,7 +42,6 @@ def answers(records: InMemoryRecords, link: str) -> dict[str, dict]:
     return {a["field"]: a for a in json.loads(records.files(link)["answers.json"])}
 
 
-@pytest.mark.usefixtures("blank_optionals_noted")
 def test_a_submitted_application_links_its_record(job_server):
     records = InMemoryRecords()
     tracker = run(job_server, records)
@@ -62,7 +60,6 @@ def test_a_submitted_application_links_its_record(job_server):
     assert f"- Verification: {verification['label']}" in record["README.md"].decode()
 
 
-@pytest.mark.usefixtures("blank_optionals_noted")
 def test_a_held_application_links_its_record_with_what_the_page_shows():
     records = InMemoryRecords()
     with FakeJobServer(ARC_FORM, garble="email") as job_server:
