@@ -12,14 +12,9 @@ from collections.abc import Callable
 
 from playwright.sync_api import Page
 
-from apply import bot_signals
+from apply import bot_signals, captcha
 from apply.model import Handoff
 
-# A captcha's picture challenge, once shown.
-CHALLENGE = (
-    "iframe[src*='recaptcha/api2/bframe'], iframe[src*='recaptcha/enterprise/bframe'],"
-    " iframe[src*='hcaptcha.com'][src*='frame=challenge']"
-)
 CAPTCHA = (
     "A captcha challenge came up at the submit click, so the form was not sent. "
     "Apply yourself from the posting link; the Record has every answer"
@@ -32,10 +27,9 @@ def wait_for_confirmation(page: Page, confirmed: Callable[[], bool], timeout: fl
     """Return once `confirmed()` is true. Raises Handoff if a captcha
     challenge shows first, or `refused()` says why the job system refused the
     form, and TimeoutError after `timeout` seconds."""
-    challenge = page.locator(CHALLENGE)
     deadline = time.monotonic() + timeout
     while not confirmed():
-        if any(challenge.nth(i).is_visible() for i in range(challenge.count())):
+        if captcha.shows(page):
             raise Handoff(CAPTCHA, bot_signal=bot_signals.CAPTCHA)
         if why := refused():
             raise Handoff(REFUSED.format(why.rstrip(".")))

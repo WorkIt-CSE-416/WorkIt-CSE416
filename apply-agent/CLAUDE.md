@@ -451,6 +451,21 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   embedded Greenhouse, Lever or Ashby form to that system's Filler. Claude
   fill is only the fallback.
 
+## Captchas and bot blocks (KAN-527)
+
+`src/apply/captcha.py` is the one place that tells a captcha. Add a new
+challenge there, as data, not in a Filler.
+
+- `CHALLENGES` lists the selectors of each challenge that a person solves
+  and that goes away when solved: reCAPTCHA's and hCaptcha's picture
+  frames, DataDome's slider (SmartRecruiters' "Verification Required"),
+  Arkose Labs, and Rippling's Turnstile box. `captcha.shows(page)` reads
+  them. Do not list a checkbox that stays on the page after it passes.
+- `SAYS_CAPTCHA` reads Claude fill's why when Claude stops at a captcha.
+- `SAYS_BLOCKED` reads a page that refuses the browser (Tesla's "Access
+  Denied"). It has no challenge, so it is a Handoff, never a wait.
+- Apply never solves a captcha or gets around a block in code.
+
 ## Form pages
 
 - A Filler with a `form_url(url)` method names the page that holds its

@@ -51,7 +51,7 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import Page
 
-from apply import bot_signals, description
+from apply import bot_signals, captcha, description
 from apply.account_pages import FIELDS as ACCOUNT_FIELDS
 from apply.account_pages import PROMPT as ACCOUNT_PROMPT
 from apply.account_pages import SENDS, AccountPages
@@ -469,7 +469,7 @@ class ClaudeFill:
         if drive.output.get("blocked") is True:
             why = str(drive.output.get("why")).strip()
             raise Handoff(f"Claude fill can't finish this form: {why}",
-                          bot_signal=bot_signals.CAPTCHA if bot_signals.SAYS_CAPTCHA.search(why) else "")
+                          bot_signal=bot_signals.CAPTCHA if captcha.SAYS_CAPTCHA.search(why) else "")
         return drive.output
 
 
