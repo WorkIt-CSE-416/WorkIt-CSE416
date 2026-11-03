@@ -1,7 +1,8 @@
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { sessionCookieOptions } from "@/lib/supabase/cookies";
 import { needsRotation } from "@/lib/session-refresh";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
  * GET /api/session/refresh: rotates the signed-in session's tokens and sets
@@ -22,13 +23,43 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  * Supabase clears the cookie and this answers 401: the extension then
  * shows its signed-out state.
  *
+ * **Builds its own Supabase client, never `lib/supabase/server.ts`'s
+ * `createSupabaseServerClient()`.** That one's `setAll` silently swallows
+ * every cookie write -- correct for the Server Components it's meant for,
+ * which truly cannot write cookies, but wrong here: a Route Handler *can*
+ * write cookies, and this route's entire job is writing the rotated one.
+ * Reusing it meant a rotation that succeeded in Supabase never reached the
+ * browser -- this route answered `signed_in: true` while silently sending
+ * no new cookie, so the extension re-read the same stale one and stayed
+ * signed out. Mirrors src/proxy.ts's own pattern instead: collect the
+ * cookie writes and apply them to the response this route actually
+ * returns, the same way `NextResponse.next()` does there.
+ *
  * No token is in the answer, only whether a session is signed in.
  */
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const force = request.nextUrl.searchParams.get("force") === "1";
-  const supabase = await createSupabaseServerClient();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    return NextResponse.json(
+      { signed_in: false },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  let pendingCookies: { name: string; value: string; options: CookieOptions }[] = [];
+  const supabase = createServerClient(url, key, {
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll: (cookiesToSet) => {
+        pendingCookies = cookiesToSet;
+      },
+    },
+  });
+
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -39,8 +70,12 @@ export async function GET(request: NextRequest) {
     signedIn = !error && Boolean(data.session);
   }
 
-  return NextResponse.json(
+  const response = NextResponse.json(
     { signed_in: signedIn },
     { status: signedIn ? 200 : 401, headers: { "Cache-Control": "no-store" } },
   );
+  for (const { name, value, options } of pendingCookies) {
+    response.cookies.set(name, value, sessionCookieOptions(options));
+  }
+  return response;
 }

@@ -1406,17 +1406,24 @@ fill and groups as a real one, and `practice/status` says where each is.
   how to add Claude, or, with the connector added, that Claude writes such
   answers on real applications.
 
-## Install, update and uninstall (KAN-471)
+## Install, update and uninstall (KAN-471, KAN-495)
 
 `install.js` handles `chrome.runtime.onInstalled`; `stored-data.js` holds
 what storage looks like across versions.
 
-- **Install opens onboarding's extension step**: a tab on
-  `webappOrigin()`'s `/onboarding/applicant?step=extension`. The webapp
-  opens a finished student's onboarding on that step, then the practice
-  batch; a signed-out student signs in first and comes back to it; one
-  who never finished onboarding starts at its first step. No page of its
-  own here.
+- **Install opens the extension setup page**: a tab on `webappOrigin()`'s
+  `/extension-setup` (KAN-495), a standalone page outside both the
+  `(seeker)` and `(landing)` groups — no sign-in required, since a
+  just-installed student may not have one yet. It explains how to use
+  the extension. The popup's "Set Up WorkIt" button opens the same page
+  on demand. **That page's own "I Already Have One" button is what keeps
+  a finished student's route to onboarding's Practice step alive**
+  (`frontend/CLAUDE.md`'s Architecture section, `EXTENSION_STEP_PATH`):
+  this `install.js` no longer opens `/onboarding/applicant?step=extension`
+  directly the way it did before KAN-495, so if `/extension-setup` ever
+  sends a signed-in visitor to plain `/login` instead of that path, a
+  student who already finished onboarding lands on `/home` with no way
+  back to Practice (found in review, KAN-495).
 - **Storage has a schema version** (`workit_storage_version`). Every
   install and update runs `migrateStorage`: each migration after the
   stored version, in order, once. **A change to what a stored key holds

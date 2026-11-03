@@ -55,14 +55,19 @@ export function railStep(page: number): number {
   return ONBOARDING_STEPS.indexOf(MARK[WIZARD_PAGES[page]]);
 }
 
-/** The extension step's link: the tab the WorkIt extension opens on install
- *  (KAN-471, autofiller_extension/src/background/install.js). */
+/** The extension step's link. Not opened directly by the extension's
+ *  install anymore (that was KAN-471; its own tab is now /extension-setup,
+ *  autofiller_extension/src/background/install.js) -- reached today
+ *  through that page's "I Already Have One" button (KAN-495), so a
+ *  student who already finished onboarding still has a route to the
+ *  Practice step after it. */
 export const EXTENSION_STEP_PATH = "/onboarding/applicant?step=extension";
 
 /**
  * The step ./page opens on, from its `?step=`: "2" opens Profile, the third
- * step, and "extension" the extension's install step, which the extension
- * links to when it is added. "2" only with saved answers (`saved`): the
+ * step, and "extension" the extension's install step, which
+ * `/extension-setup`'s "I Already Have One" button links to (KAN-495).
+ * "2" only with saved answers (`saved`): the
  * first step holds the answers that must be given, and Profile's Next saves
  * them as preferences, so a seeker who never gave them starts there.
  * "extension" also for a seeker who finished onboarding (`finished`): its

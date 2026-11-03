@@ -88,8 +88,10 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
 
 /** Where a sign-in started from another page goes back to (`/login?next=`):
  *  only the connector's consent page (KAN-377) and onboarding's extension
- *  step, which the extension opens on install (KAN-471), so the link can't
- *  send a student anywhere else. */
+ *  step -- reached today through `/extension-setup`'s "I Already Have One"
+ *  button (KAN-495), not opened directly by the extension's install
+ *  anymore (that was KAN-471; superseded) -- so the link can't send a
+ *  student anywhere else. */
 function nextPath(next: FormDataEntryValue | null): string | null {
   if (typeof next !== "string") return null;
   return next.startsWith("/connect/claude?") || next === EXTENSION_STEP_PATH ? next : null;
