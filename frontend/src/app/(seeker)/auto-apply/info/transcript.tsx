@@ -7,6 +7,7 @@ import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { useToast } from "@/components/ui/toast";
 import {
   deleteTranscript,
   getTranscript,
@@ -24,17 +25,28 @@ import { SectionAction } from "../../profile/section-action";
  * DOCX (the resume's checks); Replace picks a new one in its place;
  * Remove deletes it. WorkIt never reads its text.
  *
- * Each action shows its own progress (Replace reads "Saving…", Remove
- * "Removing…"), and both buttons wait while either runs. A transcript that
- * didn't load offers no Upload: one may already be saved.
+ * **Remove waits on its toast** (KAN-562): the card drops the file at once
+ * and a toast offers Undo, but the DELETE is sent only when the toast
+ * closes without it (`onClose`). A deleted file can't come back, and the
+ * page no longer holds it to upload again, so Undo is the DELETE never
+ * sent. An upload while the toast shows sends the held DELETE first, as
+ * one sent after it would remove the new file; a failed DELETE puts the
+ * file back in the card and says why in a toast. Leaving the page sends it at once, so the card
+ * never shows a file about to go; a tab closed in those seconds keeps it.
+ *
+ * Upload and Replace read "Uploading…" and "Saving…", and Replace and
+ * Remove wait while one runs. A transcript that didn't load offers no
+ * Upload: one may already be saved.
  */
 export function Transcript() {
   const [transcript, setTranscript] = useState<TranscriptFile | null>(null);
   const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
-  const [action, setAction] = useState<"upload" | "remove" | null>(null);
-  const busy = action !== null;
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
+  const toast = useToast();
+  // The toast whose close sends the held DELETE; null once it is sent or taken back.
+  const held = useRef<number | null>(null);
 
   useEffect(() => {
     getTranscript()
@@ -48,6 +60,14 @@ export function Transcript() {
       .catch(() => setStatus("error"));
   }, []);
 
+  // Leaving the page sends a held DELETE at once: back here, the card would show the file it removes.
+  useEffect(
+    () => () => {
+      if (held.current !== null) toast.dismiss(held.current);
+    },
+    [toast],
+  );
+
   async function handleSelect(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -57,8 +77,15 @@ export function Transcript() {
       setError(refused);
       return;
     }
-    setAction("upload");
+    setUploading(true);
     setError(null);
+    if (held.current !== null) {
+      // Sent now, before the upload: sent after it, it would remove the new file.
+      const id = held.current;
+      held.current = null;
+      toast.dismiss(id);
+      await deleteTranscript().catch(() => null);
+    }
     const body = new FormData();
     body.append("file", file);
     try {
@@ -68,19 +95,40 @@ export function Transcript() {
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
     } finally {
-      setAction(null);
+      setUploading(false);
     }
   }
 
-  async function remove() {
-    setAction("remove");
+  function remove() {
+    const removed = transcript;
+    if (!removed) return;
     setError(null);
+    setTranscript(null);
+    const id = toast.show({
+      message: "Your transcript is removed.",
+      action: {
+        label: "Undo",
+        onClick: () => {
+          held.current = null;
+          setTranscript(removed);
+        },
+      },
+      onClose: () => {
+        if (held.current !== id) return;
+        held.current = null;
+        void send(removed);
+      },
+    });
+    held.current = id;
+  }
+
+  async function send(removed: TranscriptFile) {
     const { error: err } = await deleteTranscript().catch(() => ({
       error: "Could not reach the server.",
     }));
-    if (err) setError(err);
-    else setTranscript(null);
-    setAction(null);
+    if (!err) return;
+    setTranscript(removed);
+    toast.show({ message: `Your transcript wasn't removed. ${err}` });
   }
 
   return (
@@ -96,11 +144,11 @@ export function Transcript() {
         {status === "loaded" && !transcript && (
           <SectionAction
             aria-label="Upload Transcript"
-            disabled={busy}
+            disabled={uploading}
             onClick={() => picker.current?.click()}
           >
             <UploadIcon />
-            {action === "upload" ? "Uploading…" : "Upload"}
+            {uploading ? "Uploading…" : "Upload"}
           </SectionAction>
         )}
       </div>
@@ -131,15 +179,15 @@ export function Transcript() {
           </p>
           <SectionAction
             aria-label="Replace Transcript"
-            disabled={busy}
+            disabled={uploading}
             onClick={() => picker.current?.click()}
           >
             <UploadIcon />
-            {action === "upload" ? "Saving…" : "Replace"}
+            {uploading ? "Saving…" : "Replace"}
           </SectionAction>
-          <SectionAction aria-label="Remove Transcript" disabled={busy} onClick={remove}>
+          <SectionAction aria-label="Remove Transcript" disabled={uploading} onClick={remove}>
             <TrashIcon />
-            {action === "remove" ? "Removing…" : "Remove"}
+            Remove
           </SectionAction>
         </div>
       )}

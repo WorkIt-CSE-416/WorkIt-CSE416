@@ -402,7 +402,11 @@ pointer or focus is on it, so an Undo is never lost mid-reach; at most three
 show, newest nearest the corner. The provider holds them, so a toast
 outlives the part that raised it (a row that a refresh removes). Use one for
 a result the page does not show by itself, never for an error a form can
-show beside its field.
+show beside its field. **A write the student can't take back offers Undo in
+its toast, or asks first** (KAN-562). Where Undo can write the old value
+back, the write goes at once (a writing sample is added again). Where it
+can't (a deleted file), the write waits for the toast's `onClose`, which
+runs once it is gone without its action, so Undo is the write never sent.
 `lib/format-count.ts` prints a headline figure ("1,234", "12.3K") in en-US so
 the server and the browser print the same.
 

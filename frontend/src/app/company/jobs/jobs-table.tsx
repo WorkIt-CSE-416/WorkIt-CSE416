@@ -14,8 +14,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { changeJobStatus } from "@/lib/job-actions";
 
@@ -165,48 +165,50 @@ const columns = helper.columns([
  * relative z-10 lifts the trigger above <RowLink>'s row-wide overlay, or
  * opening the menu would open the job.
  *
- * A failed Pause or Resume says so in two words, with the API's message in a
- * tooltip: the column is sized to its content (`w-px`), so a sentence here
- * wrapped one word per line and stretched the row. The alert still reads the
- * whole message out, through the sr-only part, and the two words take focus
- * (ringed like the ⋯ trigger), so the tooltip opens from the keyboard as well
- * as on hover.
+ * A Pause or Resume says how it went in a toast (KAN-562), never in the row:
+ * the column is sized to its content (`w-px`), so a sentence there wrapped
+ * one word per line, and the two words that stood in for it put the reason
+ * in a tooltip behind a tab stop. A done one offers Undo, the other status,
+ * whose own toast offers none; a failed one gives the API's reason and
+ * Retry.
  */
 function RowActions({ posting }: { posting: Posting }) {
   const [isClosing, setIsClosing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isChanging, startChanging] = useTransition();
   const router = useRouter();
+  const toast = useToast();
   const isLive = posting.status === "Open" || posting.status === "Paused";
 
-  function setStatus(status: "published" | "paused") {
-    setError(null);
-    startChanging(async () => {
-      const result = await changeJobStatus(posting.id, status);
-      if (result.error) setError(result.error);
-      // Re-runs the server page, so the row comes back with its new status.
-      else router.refresh();
+  /** Sets the status and says so; `undo` offers the other one in the toast. */
+  async function change(status: "published" | "paused", undo: boolean) {
+    const done = status === "paused" ? "paused" : "resumed";
+    const result = await changeJobStatus(posting.id, status);
+    if (result.error) {
+      toast.show({
+        message: `${posting.role} couldn't be ${done}. ${result.error}`,
+        action: { label: "Retry", onClick: () => change(status, undo) },
+      });
+      return;
+    }
+    // Re-runs the server page, so the row comes back with its new status.
+    router.refresh();
+    toast.show({
+      message: `${posting.role} is ${done}.`,
+      ...(undo && {
+        action: {
+          label: "Undo",
+          onClick: () => change(status === "paused" ? "published" : "paused", false),
+        },
+      }),
     });
+  }
+
+  function setStatus(status: "published" | "paused") {
+    startChanging(() => change(status, true));
   }
 
   return (
     <>
-      {error && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <span
-                role="alert"
-                tabIndex={0}
-                className="text-note text-danger focus-visible:ring-brand-ring relative z-10 mr-2 rounded-xs whitespace-nowrap focus-visible:ring-2 focus-visible:outline-none"
-              />
-            }
-          >
-            Couldn&apos;t update<span className="sr-only">: {error}</span>
-          </TooltipTrigger>
-          <TooltipContent>{error}</TooltipContent>
-        </Tooltip>
-      )}
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`Actions for ${posting.role}`}
