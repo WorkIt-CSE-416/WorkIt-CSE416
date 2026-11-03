@@ -40,7 +40,7 @@ export function ChoiceTile({
         className={cn(
           "text-on-brand flex size-4.5 shrink-0 items-center justify-center border transition-colors duration-150 lg:size-5",
           kind === "check" ? "rounded-[5px]" : "rounded-full",
-          pressed ? "border-brand bg-brand" : "border-ink-subtle bg-panel",
+          pressed ? "border-brand bg-brand" : "border-border-control bg-panel",
         )}
       >
         {kind === "check" ? (
