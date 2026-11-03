@@ -482,8 +482,9 @@ def lisul_on_the_held_page(monkeypatch, clicks):
     monkeypatch.setattr(rehearsal, "lift", lift)
 
 
-def hold_until(site, profile, done: Callable[[list[str]], bool], with_adapters: dict | None = None, **more) -> list[str]:
-    """Rehearse Arc's link with its page held open, then press Ctrl-C once
+def hold_until(site, profile, done: Callable[[list[str]], bool], with_adapters: dict | None = None, url: str = ARC_URL,
+               **more) -> list[str]:
+    """Rehearse Arc's link (or `url`) with its page held open, then press Ctrl-C once
     `done(lines printed)`; or after two minutes, so a test never hangs.
     `with_adapters` replaces adapters of the test's."""
     lines, ctrl_c = [], threading.Timer(1.0, _thread.interrupt_main)
@@ -495,7 +496,7 @@ def hold_until(site, profile, done: Callable[[list[str]], bool], with_adapters: 
     watchdog = threading.Timer(120, _thread.interrupt_main)
     watchdog.start()
     try:
-        rehearsal.rehearse([ARC_URL], adapters(site, **(with_adapters or {})), profile, out=out, **more)
+        rehearsal.rehearse([url], adapters(site, **(with_adapters or {})), profile, out=out, **more)
     finally:
         watchdog.cancel()
         ctrl_c.cancel()
@@ -534,6 +535,22 @@ def test_a_captcha_after_lisuls_own_submit_pushes_him_to_do_it(monkeypatch, tmp_
     assert any(line.startswith("Arc Boat Company | ") and "do the captcha yourself" in line for line in lines)
     assert (board.captions[0]["status"], board.captions[0]["captcha"]) == ("handoff", True)
     assert submissions == []  # nothing goes until the captcha is done
+
+
+def test_lever_turning_down_lisuls_own_submit_tells_him_to_send_it_from_his_own_chrome(monkeypatch, tmp_path):
+    # Simbe Robotics, 2026-11-03: Lever's hCaptcha turned the token of the Worker's Chrome down at his Submit.
+    monkeypatch.setitem(FILLERS, "lever", NeverSubmits(LeverFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
+    profile, board, tracker = ApplicantProfile.load(profile_with(tmp_path)), RecordingBoard(), InMemoryTracker()
+
+    with FakeLeverServer(IMMUTA_FORM, parse_delay=0.2, refuse=True) as fake:
+        lines = hold_until(fake, profile, lambda lines: "own Chrome" in lines[-1], url=IMMUTA_URL,
+                           with_adapters={"board": board}, submitted_to=tracker)
+        submissions = fake.submissions
+
+    assert board.captions[0]["status"] == "handoff" and "Lever's captcha turned down" in board.captions[0]["why"]
+    assert any(line.startswith("Immuta | ") and "send it from your own Chrome" in line for line in lines)
+    assert submissions == [] and tracker.rows() == []  # nothing went in, so nothing is kept as submitted
 
 
 def test_lisuls_own_submit_from_a_rehearsal_is_applied_in_his_applications_tracker(monkeypatch, tmp_path):

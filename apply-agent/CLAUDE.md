@@ -523,6 +523,16 @@ Claude stops at one (`SAYS_CAPTCHA`).
   shows "Do the captcha" (`captcha.AFTER_HIS_SUBMIT`). He does it himself;
   Apply never touches it. The form's confirmation then keeps the
   Application as submitted, as for any submit of his.
+- An invisible captcha can also pass the browser a token that the job
+  system then turns down, with no challenge to do: Lever's "There was an
+  error verifying your application" (Simbe Robotics, 2026-11-03).
+  hCaptcha's script probes for the DevTools connection that Playwright
+  keeps on every Worker page, so `NOT_WEBDRIVER` does not hide it, and
+  Apply does not try to. `lever.refusal` reads that notice: in a live run
+  the submit is a Handoff (Bot signal `refused`), and after Lisul's own
+  Submit on a held page the tile says to send it from his own Chrome
+  (`rehearsal.REFUSALS`, `TURNED_DOWN`). A second Submit from the Worker's
+  Chrome gets the same notice.
 - A rehearsal keeps each captcha wait in its history ("Paused: do the
   captcha", "Resumed: the captcha is done"), on the tile and in the Record,
   and a `captcha` event in the Trace. A wait that timed out leaves only
