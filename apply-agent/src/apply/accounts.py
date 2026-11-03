@@ -98,6 +98,11 @@ class Accounts:
             raise Handoff(NO_RESET.format(site=site, login=self.login, why=why.rstrip(".")))
         return self.new_password(site)
 
+    def not_made(self, site: str) -> None:
+        """The site never made the account its new password was saved for:
+        Keychain forgets it, so no later run signs in with it."""
+        self._keychain.forget(site)
+
     def created(self, site: str) -> None:
         """The site accepted the new account: list it in the Employer accounts tab."""
         self._on_created(EmployerAccount(self._company, site, self.login, self.clock.now().date()))
@@ -121,6 +126,13 @@ class Accounts:
         to one of `hosts` (the site's own, or its job system's)."""
         return self._wait("verification email", search, since,
                           lambda **look: self._mailbox.find_link(**look, hosts=hosts))
+
+    def mailed_link(self, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
+        """A verification link already mailed since `since`, in one look, or
+        None: for an account made in an earlier run. Never waits, never asks."""
+        if self._mailbox.unavailable():
+            return None
+        return self._mailbox.find_link(search=search, since=since, hosts=hosts)
 
     def _wait(self, what, search, since, find) -> str:
         """Gmail looked at until the mail comes or MAIL_WAIT passes. Never a

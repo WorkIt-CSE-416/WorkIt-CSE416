@@ -46,6 +46,14 @@ class MacKeychain:
             check=True, capture_output=True,
         )
 
+    def forget(self, site: str) -> None:
+        found = subprocess.run(
+            ["security", "delete-generic-password", "-s", self._service, "-a", site, *self._keychain],
+            capture_output=True, text=True,
+        )
+        if found.returncode not in (0, NOT_FOUND):
+            raise RuntimeError(f"security delete-generic-password failed ({found.returncode}): {found.stderr.strip()}")
+
 
 class InMemoryKeychain:
     """A Keychain for tests. Workers save from their own threads."""
@@ -61,3 +69,7 @@ class InMemoryKeychain:
     def save(self, site: str, password: str) -> None:
         with self._lock:
             self._passwords[site] = password
+
+    def forget(self, site: str) -> None:
+        with self._lock:
+            self._passwords.pop(site, None)

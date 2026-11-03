@@ -501,9 +501,15 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   and show no notice (Northrop's and Zillow's, live). A tenant that mails a
   link goes there by way of `/login/warning` (Zillow's), so
   `WorkdayFiller._create_account` watches the requests for that page and
-  then waits for the link. Otherwise it signs in with the new password. A
+  then waits for the link. A bare Sign In view with no such page means
+  Workday made no account (Northrop's, live: a made account goes straight
+  to the application). Apply then forgets the new password in Keychain,
+  never signs in, and hands off for Lisul to make the account. A
   sign-in that Workday refuses because the account is not verified is a
-  Needs sign-in Handoff, not a failed password. The fake Workday's
+  Needs sign-in Handoff, not a failed password. First, Apply looks once in
+  Gmail for the link Workday mailed (to the tenant's own host, within a
+  day) when an earlier run made the account (Zillow's, live). It opens that
+  link once and never asks for a new one. The fake Workday's
   `to_sign_in` plays this flow (`tests/test_employer_accounts.py`).
 - Apply asks a site for a verification code or link once per sign-in and
   never clicks Resend or Send New Code (`accounts.Accounts._wait`): a mail
