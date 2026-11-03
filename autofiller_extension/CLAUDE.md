@@ -361,7 +361,7 @@ here:
   autofill-extension.ts`), using Chrome's `externally_connectable` to ask
   batch apply to open (and fill) the queued applications, which jobs its
   tabs show, and to switch to one of them, and onboarding's practice batch
-  and install check (`ping`, KAN-378), and Settings' link to the Workday
+  and install check (`ping`, KAN-378), and Application Info's link to the Workday
   Sign-Up page (`workday/signup-open`, which only opens it: no login
   crosses) — nothing more. The job cards'
   "Autofill ready" badge, `ping`'s first caller, was removed (KAN-278).
@@ -647,7 +647,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   saved for the tenant), `workdayLogin` answers `needsSignup` and no password,
   and nothing is typed or pressed. The student sets it on the options page
   (`src/options/`, opened from the panel's Settings and the webapp's
-  Settings > Connected Apps, `workday/signup-open`, which only opens it) or on
+  Application Info, `workday/signup-open`, which only opens it) or on
   the consent card (below), which asks for it inline before any Create
   Account: email prefilled from the profile (`profile/get`), password typed
   by the student, Show, and Workday's rules (12+ characters, upper, lower,
@@ -2045,7 +2045,7 @@ as from the Auto Apply page); with an empty queue, **Find Jobs** (the
 Jobs page). A queue that can't be read shows nothing rather than "empty".
 Then Open WorkIt, as a quiet link. **No Workday Sign-Up** (KAN-424): on
 every page the popup's link read as "sign in to Workday"; it lives in the
-panel's Settings and the website's Settings > Connected Apps. The three answer
+panel's Settings and the website's Application Info. The three answer
 only the popup's own page (`fromPopup`: the sender's URL is the
 extension's popup.html; a content script's is its job page), so a page's
 script can't open a batch or switch tabs. Tests:
@@ -2532,7 +2532,7 @@ its messages. The gear shows it in place of the tabs; Back returns.
 
 - **Claude**: "Your Claude is connected." with **Disconnect** (`DELETE
   /applicants/{id}/connector`, which revokes the sign-in at once, as the
-  webapp's Settings > Connected Apps does), or "Your Claude isn't
+  webapp's Settings > Integrations does), or "Your Claude isn't
   connected." with **Add to Claude** (a new tab on the webapp's
   `/connect/claude/add`, which goes on to Claude's Add Custom Connector
   dialog). Signed out: "Sign in to WorkIt to connect your Claude." The

@@ -8,6 +8,7 @@ import type { BankEntry } from "@/lib/bank-actions";
 import { ApplicationAnswers } from "./application-answers";
 import { ApplicationQuestions } from "./application-questions";
 import { Transcript } from "./transcript";
+import { WorkdaySignup } from "./workday-signup";
 import { WritingSamples } from "./writing-samples";
 
 const WORK_QUESTIONS = PROFILE_QUESTIONS.filter((q) => !SELF_ID_KEYS.includes(q.key));
@@ -20,6 +21,7 @@ const SECTIONS = [
   { href: "#section-application-answers", label: "Application Answers" },
   { href: "#section-transcript", label: "Transcript" },
   { href: "#writing-samples", label: "Writing Samples" },
+  { href: "#section-workday", label: "Workday Sign-Up" },
 ];
 
 /**
@@ -29,7 +31,7 @@ const SECTIONS = [
  *
  * From @4xl/main up a nav of plain links sits left of the cards and stays
  * in view as the page scrolls; below it the cards stack with no nav, since
- * a row of five links over a phone's first screen pushed the first card
+ * a row of six links over a phone's first screen pushed the first card
  * down for little. Each card's `scroll-mt-6` keeps a jump clear of the top.
  */
 export function InfoScreen({
@@ -84,6 +86,7 @@ export function InfoScreen({
         <ApplicationAnswers answers={answers} education={education} onSaved={setAnswers} />
         <Transcript />
         <WritingSamples />
+        <WorkdaySignup />
       </div>
     </div>
   );

@@ -1,9 +1,12 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { formatDistanceToNowStrict } from "date-fns";
+import Link from "next/link";
+import { useState, type ReactNode } from "react";
 
 import { BellIcon } from "@/components/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
@@ -40,6 +43,15 @@ export type NotificationItem = {
  * it only from a Popover.Title and this one has none; without it a screen
  * reader announces a bare "dialog".
  *
+ * Each item is a `Link` with IconButton's focus ring (inset, since the list
+ * clips what reaches past it) and its time ("5 minutes ago") beside the
+ * title. It was a plain `<a>` with no ring and no time, so a keyboard user
+ * could not see which item was focused and a click loaded the whole app
+ * again. The popover is held open here so a click on an item can close it:
+ * a client navigation leaves the bar, and the popover with it, in place.
+ * The time is worked out in render, which is safe because the seeker bell
+ * fetches its items in an effect, after hydration.
+ *
  * A client component because PopoverTrigger has to clone the IconButton
  * itself. Written in a server layout, the IconButton would arrive already
  * rendered as its Tooltip, and the trigger's click and ref would land on that
@@ -61,8 +73,15 @@ export function NotificationsMenu({
   unreadCount?: number;
   onOpenChange?: (open: boolean) => void;
 }) {
+  const [open, setOpen] = useState(false);
+
+  function changeOpen(next: boolean) {
+    setOpen(next);
+    onOpenChange?.(next);
+  }
+
   return (
-    <Popover onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={changeOpen}>
       <PopoverTrigger
         render={
           <IconButton
@@ -90,16 +109,22 @@ export function NotificationsMenu({
           <ul className="divide-border-subtle max-h-80 divide-y overflow-y-auto py-1">
             {items.map((item) => (
               <li key={item.id}>
-                <a
+                <Link
                   href={item.href}
+                  onClick={() => changeOpen(false)}
                   className={cn(
-                    "hover:bg-hover flex flex-col gap-0.5 px-3 py-2.5 no-underline",
+                    "hover:bg-hover focus-visible:ring-brand-ring flex flex-col gap-0.5 px-3 py-2.5 no-underline transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
                     item.unread && "bg-brand/5",
                   )}
                 >
-                  <span className="text-label text-ink font-medium">{item.title}</span>
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="text-label text-ink font-medium">{item.title}</span>
+                    <Badge variant="tag" tone="inert">
+                      {formatDistanceToNowStrict(new Date(item.createdAt), { addSuffix: true })}
+                    </Badge>
+                  </span>
                   <span className="text-note text-ink-muted">{item.body}</span>
-                </a>
+                </Link>
               </li>
             ))}
           </ul>

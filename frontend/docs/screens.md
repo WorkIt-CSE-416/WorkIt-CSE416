@@ -1816,8 +1816,9 @@ and the identity card draws its photo, name and headline as bars (KAN-561).
   Preferences edits: roles, job type, workplace, experience, locations, start
   and pay ("$80,000 – $120,000 a year"), each row only when set, names
   taken from the Jobs page's own
-  options. Its Edit opens Settings there, so the preferences keep one
-  editor. With none saved (or a failed read, which the API's read cannot
+  options. Its Edit in Settings opens Settings there, so the preferences
+  keep one editor; the label says where it goes, since Contact & Links'
+  Edit edits in place. With none saved (or a failed read, which the API's read cannot
   tell apart) it says none show.
 - **Top Skills** shows up to 12 skills from the bank as tag pills
   (`<Badge variant="tag" pill>`, KAN-558), those on
@@ -1844,6 +1845,12 @@ section heading (16px bold ink beside a 20px brand glyph), its value hanging
 under the heading's text. That glyph only informs, so `design.md`'s icon rule
 makes it `ink-meta`, and the label 600, not bold (KAN-571; `design.md`,
 Still open).
+Address said its city and state came from here. Each field is a 16px
+semibold ink label beside a 20px grey glyph (`ink-meta`, since the glyph only
+informs; KAN-571), its value hanging under the label's text. It was drawn
+like a job posting's section heading, bold beside a brand glyph, before the
+icon colour rule. A link value is underlined in ink at rest, and every value
+carries its full text in `title`, since a long one is cut short.
 
 - **Two modes, like a form you open.** Reading, each field is text: its
   value (the email a mail link, the phone a call link, each link opening in
@@ -1950,8 +1957,11 @@ keeps its top right for a view switcher, and not the setup strip, which
 shows only while the extension is missing.
 
 One white card each, in this order: Work Authorization, Voluntary
-Self-Identification, Application Answers, Transcript, Writing Samples
-(`(seeker)/auto-apply/info/`). From `@4xl/main` a nav of plain links to the
+Self-Identification, Application Answers, Transcript, Writing Samples,
+Workday Sign-Up (`(seeker)/auto-apply/info/`). Workday Sign-Up's Set Up
+opens the extension's own page for one Workday email and password, which
+stay in that browser; it sat in Settings' Sign-In & Security until KAN-571,
+among the sign-ins to WorkIt itself. From `@4xl/main` a nav of plain links to the
 cards sits on the left and stays in view; below it the cards stack with no
 nav. The answer bank and the experience bank (for School Year) are read on
 the server; a failed answer-bank read shows one notice, a failed
@@ -3495,13 +3505,17 @@ not it scrolls.
   screen prints (`backend/app/models/CLAUDE.md`, Names). These are edited
   here only; My Profile shows them and links here. Saving
   refreshes the route so the bar's name and photo follow.
-- **Sign-In & Security** (`/settings/security`), three cards of rows, then
-  Delete Account:
+- **Sign-In & Security** (`/settings/security`), signing in to WorkIt
+  only: two cards of rows, Sign Out, then Delete Account:
   Sign-In (Email with Change, Password with Change Password or, for a
   Google- or LinkedIn-only account, Set Password; each opens a step),
   Sign-In Methods (Google and LinkedIn, each Connected with Disconnect, or
-  Connect; no Disconnect on the last method), and Sign Out, which does what
+  Connect; no Disconnect on the last method), and Sign Out, a line and its
+  button with no heading (one said "Sign Out" twice), which does what
   the menu's does (local drafts first, then the session, on every device).
+  Claude moved to Integrations and Workday Sign-Up to Application Info
+  (KAN-571): with Claude here, a student looking for connected apps had
+  two places to look.
   The methods come from Supabase's identity list (`getSignInProviders` in
   `lib/session.ts`), so one linked a moment ago shows at once. Change Email
   sends a confirm link and says where to look; the change and a link both
@@ -3523,12 +3537,14 @@ not it scrolls.
   step with the bell's line in `(seeker)/layout.tsx`.
 - **Integrations** (`/settings/integrations`, KAN-413,
   `../../docs/email_tracker.md`): the apps a student connects, after
-  Claude's connectors list. One row per app (Gmail, Google Calendar),
-  drawn by `settings/setting-row.tsx` as Sign-In & Security's sign-in
-  methods are: the app's own logo (`GmailIcon`, `GoogleCalendarIcon`), its
-  name, one line on what it does, and Connect. The design only, as
-  Notifications is: each Connect disabled and marked Coming Soon until its
-  Google sign-in is built. Keep the page to those rows: a first version
+  Claude's connectors list. One row per app (Claude, Gmail, Google
+  Calendar), drawn by `settings/setting-row.tsx` as Sign-In & Security's
+  sign-in methods are: the app's own logo (`SparkleIcon` for Claude,
+  `GmailIcon`, `GoogleCalendarIcon`), its name, one line on what it does,
+  and its action. **Claude is live** (KAN-571): Connected with Disconnect,
+  which revokes its tokens at once, or Add to Claude. Gmail and Google
+  Calendar are the design only, as Notifications is: each Connect disabled
+  and marked Coming Soon until its Google sign-in is built. Keep the page to those rows: a first version
   (Email) also listed what WorkIt reads and never does and the pilot's
   unverified-app warning, and the user found it too much text and the
   Connect button bare without the app's logo. That detail belongs in the

@@ -544,7 +544,8 @@ shells use: shadcn's Sidebar with WorkIt's row spacing and current-item
 marking; each shell passes its own groups and its bar's height as the offset),
 `sidebar-brand.tsx` (the bar's corner cell: the panel toggle and the logo),
 `hover-sidebar.tsx` (the company panel's pinned and hover states, above),
-`notifications-menu.tsx` (the bell, a popover holding an empty state) and
+`notifications-menu.tsx` (the bell, a popover of its notifications, each a
+`Link` with IconButton's focus ring and its time, or an empty state) and
 `account-menu.tsx` (a name and email header, the shell's rows, then Sign Out;
 Sign In without `onSignOut`).
 

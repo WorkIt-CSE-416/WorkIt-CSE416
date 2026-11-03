@@ -492,7 +492,7 @@ function ContactSection({
               return (
                 <div key={field} className="min-w-0">
                   <label htmlFor={`edit-${field}`} className={FIELD_HEADING}>
-                    <Icon aria-hidden className="text-brand size-5 shrink-0" />
+                    <Icon aria-hidden className="text-ink-meta size-5 shrink-0" />
                     {editLabel}
                   </label>
                   {/* The bare box: the card's field heading is its label. */}
@@ -561,7 +561,7 @@ function ContactSection({
           {items.map(({ field, label, Icon, text, href, external, note }) => (
             <div key={field} className="min-w-0">
               <dt className={FIELD_HEADING}>
-                <Icon aria-hidden className="text-brand size-5 shrink-0" />
+                <Icon aria-hidden className="text-ink-meta size-5 shrink-0" />
                 {label}
               </dt>
               <dd className="text-body text-ink-muted mt-1.5 min-w-0 pl-7">
@@ -570,14 +570,17 @@ function ContactSection({
                 ) : href ? (
                   <a
                     href={href}
+                    title={text}
                     {...(external && { target: "_blank", rel: "noopener noreferrer" })}
-                    className="hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs underline-offset-2 transition-colors duration-150 hover:underline focus-visible:ring-2 focus-visible:outline-none"
+                    className="text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs underline underline-offset-2 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
                   >
                     {text}
                     {external && <span className="sr-only"> (opens in a new tab)</span>}
                   </a>
                 ) : (
-                  <span className="block truncate">{text}</span>
+                  <span title={text} className="block truncate">
+                    {text}
+                  </span>
                 )}
                 {note && <span className="text-note text-ink-meta mt-0.5 block">{note}</span>}
               </dd>

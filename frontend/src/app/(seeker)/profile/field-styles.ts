@@ -8,15 +8,15 @@
  * open sections split by hairlines until then, which on the grey ground read
  * as a long form with nothing to hold it.
  *
- * Each field is drawn as a job posting's section heading is
- * (jobs/[jobId]/description.tsx, Heading): 16px bold ink beside a 20px brand
- * glyph, its value or control hanging under the heading's text (VALUE_INDENT).
- * Application Info's glyphs are grey (`ink-meta`, KAN-568), since they only
- * inform; My Profile's are still brand. Two columns where the card is wide,
- * one on a phone.
+ * Each field's label is 16px semibold ink (600 names a block; 700 is for a
+ * page's name), its value or control hanging under the label's text
+ * (VALUE_INDENT). My Profile's 20px glyph beside it is grey (`ink-meta`),
+ * since it only informs (design.md, the icon colour rule; KAN-571): it was
+ * a brand glyph, drawn as a job posting's section heading is.
+ * Two columns where the card is wide, one on a phone.
  */
 export const SECTION_CARD = "scroll-mt-6 p-5 @xl/main:p-6";
-export const FIELD_HEADING = "text-subtitle text-ink flex items-center gap-2 font-bold";
+export const FIELD_HEADING = "text-subtitle text-ink flex items-center gap-2 font-semibold";
 export const FIELD_GRID = "mt-5 grid gap-x-10 gap-y-6 @xl/main:grid-cols-2";
 /** Lines a value up under its heading's text, past the 20px glyph and gap. */
 export const VALUE_INDENT = "pl-7";

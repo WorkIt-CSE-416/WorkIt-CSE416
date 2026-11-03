@@ -843,7 +843,7 @@ export async function connectorAdded(applicantId) {
 
 /**
  * DELETE .../connector — revokes the student's Claude's sign-in to WorkIt at
- * once (the webapp's Settings > Connected Apps Disconnect; the panel's
+ * once (the webapp's Settings > Integrations Disconnect; the panel's
  * settings, KAN-402). Answers 204, no body.
  * @param {string} applicantId
  */

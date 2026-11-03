@@ -188,10 +188,10 @@ function JobPreferences({
           href="/settings/preferences"
           variant="section"
           size="section"
-          aria-label="Edit Job Preferences in Settings"
+          aria-label="Edit in Settings: Job Preferences"
         >
           <PencilIcon />
-          Edit
+          Edit in Settings
         </ButtonLink>
       </div>
       {rows.length > 0 ? (
