@@ -1404,12 +1404,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`company/frame.ts`) and the title in its bar (`company/bar-title.tsx`) in
   KAN-582 (`docs/design.md`, The two shells); its docked, pinned panel
   still differs. A sticky bar on the ground is `bg-app`, not `bg-panel`,
-  or a white band shows when it sticks. A surface that lies on the ground is
-  `bg-panel`, and a soft fill meant for white or grey is see-through ink
-  (`bg-ink/5`, the Segmented Control's track): a solid `bg-app` or `bg-well`
-  vanishes into the ground. A control drawn so takes a `border-control` edge
-  as well (KAN-556): the wash alone was a 1.1:1 edge on the grey, and a card's
-  edge is decoration only (`docs/design.md`, Components). Skeletons are `bg-ink/6` for the same reason.
+  or a white band shows when it sticks. **The grey is the ground's alone:
+  anything on the ground, or at a card's edge, is `bg-panel`** (2026-11-03).
+  A field on the ground is white with a `border-control` edge, as
+  `TextField` and `SearchField` are, and a panel at a card's edge (the match
+  rail) is white with a hairline. A grey fill (`bg-well`, `bg-ink/5`) goes
+  only inside a white surface, away from its edge: the search bar's 5% wash
+  and the match rail's `bg-well` were each one shade off the ground, and both
+  blended into the Jobs page. A see-through ink wash stays for a track inside
+  a control (the Segmented Control's, under its white thumb). A control takes
+  a `border-control` edge (KAN-556): a fill alone was a 1.1:1 edge on the
+  grey, and a card's edge is decoration only (`docs/design.md`, Components).
+  Skeletons are `bg-ink/6`, so they show on white and on grey.
 - **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
   2026-11-02): it lands on the row at once, because the slide read as
   confusing. Only the hover fill glides.

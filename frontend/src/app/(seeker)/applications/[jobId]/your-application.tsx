@@ -208,9 +208,10 @@ export function YourApplication({
               score={app.match}
               highlights={app.highlights ?? []}
               standalone
-              // A rounded white box on the tinted card, like the counts, its
-              // ring and reasons centred in the stretched height.
-              className="bg-panel @xl:justify-center"
+              // A rounded white box on the tinted card, like the counts (the
+              // rail's own fill), its ring and reasons centred in the
+              // stretched height.
+              className="@xl:justify-center"
             />
           )}
         </div>
