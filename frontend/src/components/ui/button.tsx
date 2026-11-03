@@ -52,6 +52,11 @@ import { cn } from "@/lib/cn";
  * about 30 buttons (Open, PDF, Word, Edit, Save Entry...). A call site that
  * sets its own `size-*` keeps it.
  *
+ * EVERY BUTTON IS A 24PX TARGET, 44PX ON TOUCH (KAN-557): the base's
+ * `hit-area` (globals.css) is an invisible ::after, so sm stays 36px to the
+ * eye while a finger gets 44px. `relative` sits beside it as a class, so a
+ * call site's `absolute` (a dialog's close X) still wins through cn().
+ *
  * A DISABLED FILL IS GREY, NOT A FADED COLOUR (2026-11-03). The base fades
  * every disabled button to 50%, which suits the bordered and text-only ones,
  * but a 50% brand fill read as lavender, a picked state, so a disabled Save
@@ -115,7 +120,7 @@ import { cn } from "@/lib/cn";
 const DISABLED_FILL = "disabled:bg-ink/8 disabled:text-ink-subtle disabled:opacity-100";
 
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "hit-area relative inline-flex items-center justify-center font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -174,16 +179,14 @@ export const buttonVariants = cva(
       },
       size: {
         /** Padding-free. WorkIt-only: shadcn has no size without a box. The
-         *  ::after widens the hit area past the 16px text without moving
-         *  anything around it. */
-        inline:
-          "text-note relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-3.5",
+         *  hit area reaches 6px past the 16px text, so the target is 28px
+         *  with a mouse without moving anything around it. */
+        inline: "text-note gap-1 [--hit-grow:6px] [&_svg:not([class*='size-'])]:size-3.5",
         /** `inline` at SectionLink's 13px, with its 14px glyph. The glyph
          *  rule takes the base's `:not([class*='size-'])` modifier, so cn()
          *  merges the two; as a bare `[&_svg]` it was a weaker selector than
          *  the base's 16px, which won (KAN-249). */
-        section:
-          "text-label relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-3.5",
+        section: "text-label gap-1 [--hit-grow:6px] [&_svg:not([class*='size-'])]:size-3.5",
         /** UNMEASURED — extrapolated between `inline` and `sm`. The boxed
          *  sizes carry the 1px border width; each variant colours it. */
         xs: "text-note gap-1 border px-2 py-1 [&_svg:not([class*='size-'])]:size-3.5",
