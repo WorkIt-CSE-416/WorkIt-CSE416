@@ -124,7 +124,7 @@ def _claude(machine: Machine) -> Check:
     if not status.get("loggedIn"):
         return Check("claude", FAIL, "the claude CLI isn't logged in", "run `claude auth login` with your own Claude plan")
     plan = status.get("subscriptionType") or status.get("authMethod")
-    login = f"logged in as {status.get('email', '?')} ({plan})"
+    login = f"logged in as {status['email']} ({plan})" if status.get("email") else f"logged in ({plan})"
     if machine.usage is None:
         return Check("claude", OK, login)
     usage = machine.usage.reading()
@@ -244,7 +244,8 @@ def _gmail(machine: Machine) -> Check:
         return Check("Gmail", FAIL, "no email to read", "fill in identity.email in the Applicant profile")
     why = machine.mailbox(address).unavailable()
     if why:
-        return Check("Gmail", FAIL, why)  # it says how to set Gmail up
+        # Optional (README step 7): without it, a verification code waits on you.
+        return Check("Gmail", WARN, "off: Apply can't read verification codes from your mail", why)
     return Check("Gmail", OK, f"an app password for {address} is in Keychain")
 
 

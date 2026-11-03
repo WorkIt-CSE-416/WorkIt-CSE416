@@ -309,7 +309,7 @@ stage "Phone pushes (ntfy)"
 say "After every run, Apply pushes what waits on you to the ntfy app."
 TOPIC=$(security find-generic-password -s apply-ntfy -a ntfy.sh -w 2>/dev/null || true)
 if [[ -z "$TOPIC" ]]; then
-  TOPIC="apply-lisul-$(openssl rand -hex 12)"
+  TOPIC="apply-$(openssl rand -hex 12)"
   security add-generic-password -U -s apply-ntfy -a ntfy.sh -w "$TOPIC"
   already "Made a private topic and saved it in Keychain."
 fi

@@ -164,6 +164,8 @@ def rehearse(
             with gate:
                 done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, held,
                                  "getting ready" if together else "")
+        except SetupError as error:  # before the form opened (no Fill engine, say): one line, no traceback
+            done = Rehearsed(Posting("", "", "", url), FAILED, f"setup: {error}")
         finally:
             start.leave(n)
             done = done or Rehearsed(Posting("", "", "", url), FAILED, "the rehearsal stopped")
