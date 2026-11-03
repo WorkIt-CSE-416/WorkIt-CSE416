@@ -100,7 +100,8 @@ const COLUMNS: { id: string; label: string; width?: string }[] = [
  *
  * The status says only where the job is. What it lacks shows where it is
  * fixed: no resume is an empty Choose Resume slot in the Resume cell, and
- * written questions are a link under the status to Written Answers.
+ * written questions are the status (a click goes to the tab), and Up
+ * Next's heading links to Written Answers (./up-next.tsx).
  *
  * A row's status is its one action (a click goes where it is finished),
  * and the same ⋯ menu sits on every row

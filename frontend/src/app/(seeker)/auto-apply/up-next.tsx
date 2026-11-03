@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LightningRoundedIcon } from "@/components/custom-icons";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { SectionLink } from "@/components/ui/section-link";
 import { useToast } from "@/components/ui/toast";
 import {
   closeRunTab,
@@ -64,6 +65,13 @@ import { ResumeDialog } from "./resume-dialog";
  * refuses, is skipped (skipJob), with no Undo.
  *
  * **Add Jobs** opens the saved jobs to pick and queue (./add-jobs-dialog.tsx).
+ *
+ * **Write N Questions**, before Add Jobs while any row's written questions
+ * wait, is the page's way to Written Answers (./answers/page.tsx), for a
+ * student without Claude (KAN-566). A row's "N Questions to Write" goes to
+ * its tab, as every status does, so until then no link reached that page.
+ * It counts queued rows too, whose status shows no questions: they can be
+ * written ahead.
  */
 export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJob[] }) {
   const router = useRouter();
@@ -84,6 +92,7 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
   });
   const checked = rows.filter((row) => picked.has(row.id));
   const openable = checked.filter(canOpen);
+  const toWrite = items.reduce((sum, item) => sum + (item.questions ?? 0), 0);
 
   // A tab that closed or sent its application: its stage may have moved, so read the queue again.
   const seen = useRef<ReadonlyMap<string, string>>(new Map());
@@ -194,10 +203,17 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
             </Button>
           </div>
         ) : (
-          <Button variant="secondary" size="sm" onClick={() => setAdding(true)}>
-            <PlusIcon className="size-4" />
-            Add Jobs
-          </Button>
+          <div className="flex flex-wrap items-center gap-4">
+            {toWrite > 0 && (
+              <SectionLink href="/auto-apply/answers">
+                Write {toWrite} {toWrite === 1 ? "Question" : "Questions"}
+              </SectionLink>
+            )}
+            <Button variant="secondary" size="sm" onClick={() => setAdding(true)}>
+              <PlusIcon className="size-4" />
+              Add Jobs
+            </Button>
+          </div>
         )}
       </div>
 

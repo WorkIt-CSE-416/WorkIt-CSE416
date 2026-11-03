@@ -52,8 +52,9 @@ export const metadata: Metadata = {
  * the Chrome extension is missing: Auto Apply needs nothing else. A
  * default resume and the student's Claude are optional, so the rows carry
  * them: No Resume, and a chip counting a row's written questions
- * (`questions`, from GET .../written-questions) that links to Written
- * Answers (../answers/page.tsx), which offers Connect Claude. The strip
+ * (`questions`, from GET .../written-questions), whose total Up Next's
+ * Write N Questions links to Written Answers (../answers/page.tsx), which
+ * offers Connect Claude. The strip
  * replaced the header's Add to Claude, and the Written Questions Waiting
  * card (KAN-385), which counted the questions without saying whose. A
  * failed read of the questions leaves the chips out: Up Next says when the
