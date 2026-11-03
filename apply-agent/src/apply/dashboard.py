@@ -240,7 +240,7 @@ def verdict(caption: dict) -> dict[str, str]:
         detail = why
     elif status == "held":
         needs = {"kind": "held", "do": "Review and approve before it's sent", "why": plain(why),
-                 "then": "Tick Approve in your Tracker and it's sent at the next check, within 5 minutes"}
+                 "then": "Approve it here and it's sent at the next check, within 5 minutes"}
     elif status == "needs sign-in":
         site = f"{company}'s {system} site" if company and system else f"the {system} site" if system else "this job site"
         needs = {"kind": "needs sign-in", "do": f"Sign in to {site} once", "why": why,
@@ -410,14 +410,16 @@ class Dashboard:
     what newly waits on him while the window is not in front, one a minute at most.
     `show`, when given, brings Worker k's own Chrome window to the front (False:
     it has none), for what the tile cannot do: a sign-in, a captcha, a dialog.
-    `sample`: Apply runs on the Test Person sample data, and the window says so."""
+    `sample`: Apply runs on the Test Person sample data, and the window says so.
+    `approve`, when given, approves a Hold from the Inbox (its Application ID),
+    as ticking Approve did in the retired Tracker Sheet (KAN-544), and says how it went."""
 
     def __init__(self, workers: int, frames: Frames, answers: AnswersTab | None = None,
                  applied: Callable[[str], str] | None = None, now: Callable[[], datetime] = datetime.now,
                  past: Callable[[], list] | None = None, tracker_url: str = "", sweep_at: str | None = None,
                  answer: Callable[[dict, str, str], str] | None = None,
                  notify: Callable[[str, str], None] | None = None, show: Callable[[int], bool] | None = None,
-                 sample: bool = False):
+                 sample: bool = False, approve: Callable[[str], str] | None = None):
         self._workers = workers
         self._sample = sample
         self._frames = frames
@@ -426,7 +428,9 @@ class Dashboard:
         self._now = now
         self._past, self._read, self._reading = past, None, threading.Lock()  # the Tracker's rows, once read
         self._context = {"tracker_url": tracker_url, "sweep_at": sweep_at, "workers": workers, "answers": bool(answer),
-                         "show": bool(show)}
+                         "show": bool(show), "approve": bool(approve)}
+        self.approve = approve
+        self._approved: set[str] = set()  # the Holds Lisul approved in the window, by item id
         self.show = show
         self.answer = answer
         self._answered: dict[str, str] = {}  # each item's questions Lisul answered in the window, by "id|question"
@@ -631,9 +635,11 @@ class Dashboard:
         past, context = self._tracker()
         items += [item for item in past if item.get("posting_url") not in ours]
         with self._lock:
-            answered = dict(self._answered)
+            answered, approved = dict(self._answered), set(self._approved)
         for item in items:
             item |= verdict(item)
+            if item.get("kind") == "held" and item["id"] in approved:
+                item["answered"] = True  # approved here: it waits on Lisul no more
             if item.get("kind") == "missing fact":
                 item["questions"] = [q for q in _questions(item) if f"{item['id']}|{q}" not in answered
                                      and not (item.get("posting_url") and f"{item['posting_url']}|{q}" in answered)]
@@ -771,6 +777,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._applied()
         if parts.path == "/answer" and self.dashboard.answer:
             return self._answer()
+        if parts.path == "/approve" and self.dashboard.approve:
+            return self._approve()
         if parts.path.startswith("/show/") and self.dashboard.show:
             return self._show(parts.path.removeprefix("/show/"))
         if parts.path.startswith("/answers/") and self.dashboard.answers:
@@ -930,6 +938,28 @@ class _Handler(BaseHTTPRequestHandler):
                 self.dashboard._to_fill.setdefault(item["worker"], []).append((question, answer))
                 message += " Claude fills it in on the open form now."
         print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {answer}")
+        self._json(200, {"message": message})
+
+    def _approve(self) -> None:
+        """Lisul approves a Hold in the Inbox, from the page itself: it is sent at the next check."""
+        token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+        if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin not in (None, self.dashboard.url):
+            return self._json(403, {"error": "Only the Apply window may approve for you."})
+        try:
+            key = str(json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 4096)) or b"{}")["id"])
+        except (ValueError, KeyError, TypeError):
+            return self._json(400, {"error": "Not an approval."})
+        item = next((i for i in self.dashboard.state()["items"]
+                     if str(i["id"]) == key and i.get("kind") == "held" and i.get("application_id") and not i.get("answered")), None)
+        if item is None:
+            return self._json(404, {"error": "That application no longer waits for your approval."})
+        try:
+            message = self.dashboard.approve(item["application_id"])
+        except Exception as error:  # the Tracker file: say so in the window
+            return self._json(502, {"error": f"Not approved: {error}"})
+        with self.dashboard._lock:
+            self.dashboard._approved.add(key)
+        print(f"Approved in the window: {item.get('company') or 'an application'}")
         self._json(200, {"message": message})
 
     def _in_place(self, item: dict, key: str, question: str, answer: Path | None, message: str) -> None:

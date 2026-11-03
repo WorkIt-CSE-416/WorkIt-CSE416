@@ -169,12 +169,45 @@ async def test_applied_on_must_be_a_date(student, database):
     assert res.status_code == 422
 
 
-async def test_the_stage_menu_never_offers_a_bookmark_or_the_queue(student, database):
+async def test_the_stage_menu_never_offers_a_bookmark_or_skip(student, database):
     client, me = student
     job = await _applied(client, database)
-    for pick in ("saved", "queued", "needs_you", "skipped"):
+    for pick in ("saved", "skipped"):
         res = await client.put(f"/applicants/{me}/applications/{job}/stage", json={"stage": pick})
         assert res.status_code == 422
+
+
+async def test_apply_puts_an_application_it_has_not_sent_at_needs_you_or_queued(student, database):
+    # Apply (KAN-544): a Handoff or a missing fact is Needs you, a held one Queued
+    client, me = student
+    job = await _seed_posting(database)
+    await client.post(f"/jobs/{job}/saved")
+
+    for pick in ("needs_you", "queued", "needs_you"):
+        res = await client.put(f"/applicants/{me}/applications/{job}/stage", json={"stage": pick})
+        assert res.status_code == 200
+        assert res.json() == {"job_id": job, "stage": pick}
+        assert tuple(await _row(database, me, job)) == (pick, None)
+
+
+async def test_needs_you_or_queued_never_takes_an_applied_application_back(student, database):
+    client, me = student
+    job = await _applied(client, database)
+    await client.put(f"/applicants/{me}/applications/{job}/stage", json={"stage": "interviewing"})
+
+    for pick in ("needs_you", "queued"):
+        res = await client.put(f"/applicants/{me}/applications/{job}/stage", json={"stage": pick})
+        assert res.status_code == 409
+        assert res.json()["detail"] == "You already applied to that job."
+    stage_now, applied_at = await _row(database, me, job)
+    assert stage_now == "interviewing" and applied_at is not None
+
+
+async def test_needs_you_for_a_job_with_no_application_is_404(student, database):
+    client, me = student
+    job = await _seed_posting(database)
+    res = await client.put(f"/applicants/{me}/applications/{job}/stage", json={"stage": "needs_you"})
+    assert res.status_code == 404
 
 
 async def test_a_stage_for_a_job_with_no_application_is_404(student, database):

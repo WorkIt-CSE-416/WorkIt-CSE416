@@ -108,14 +108,27 @@ async def set_stage(
     '''
     the stage menu: moves the application to `stage`, any direction, and
     answers it; None when there is no application. `stage` is applied or
-    later (the schema allows nothing else): a record never goes back to a
-    bookmark. `applied_on`, when given, becomes its applied date (the
-    Tracker Sheet import, KAN-545)
+    later, or (Apply, KAN-544) needs_you or queued, which only an
+    application not applied yet takes: AlreadyApplied otherwise, so a
+    record never goes back to the queue. Those two leave applied_at as it
+    is (null: the application was never applied) and ignore `applied_on`.
+    `applied_on`, when given, becomes its applied date (the Tracker Sheet
+    import, KAN-545)
     '''
-    assert stage in APPLIED_STAGES
-    if await fetch_stage(db, applicant_id, job_id) is None:
+    current = await fetch_stage(db, applicant_id, job_id)
+    if current is None:
         return None
-    await _move(db, applicant_id, job_id, stage, applied_on)
+    if stage in APPLIED_STAGES:
+        await _move(db, applicant_id, job_id, stage, applied_on)
+    else:
+        assert stage in (application_stage.needs_you, application_stage.queued)
+        if current in APPLIED_STAGES:
+            raise AlreadyApplied(current)
+        await db.execute(
+            update(Job_Application)
+            .where(Job_Application.applicant_id == applicant_id, Job_Application.job_id == job_id)
+            .values(stage=stage)
+        )
     await db.commit()
     return stage
 
@@ -204,6 +217,15 @@ async def fetch_events(
     # the tracker's own sortKey orders them
     when = func.coalesce(Application_Event.at, cast(Application_Event.on_day, DateTime(timezone=True)))
     return list((await db.scalars(query.order_by(when, Application_Event.created_at))).all())
+
+
+class AlreadyApplied(Exception):
+    '''needs_you or queued asked for an application that is applied or
+    later; its stage stays'''
+
+    def __init__(self, stage: application_stage):
+        super().__init__(stage)
+        self.stage = stage
 
 
 class NotProposed(Exception):

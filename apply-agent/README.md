@@ -97,8 +97,10 @@ never submits.** Apply runs on macOS only. Before you change code here, read
      (`./scripts/setup-wizard.sh` sets it up).
 
 8. Optional: log in to WorkIt, so Apply can write your applications to
-   your Applications Tracker on WorkIt. You need a WorkIt student account.
-   Rehearsals work without it.
+   your Applications Tracker on WorkIt: a submit as Applied (with the
+   resume sent), a Handoff or a missing fact as Needs you, a held
+   application as Queued. You need a WorkIt student account. Rehearsals
+   work without it; the writes wait until you log in.
 
    ```sh
    uv run apply login
@@ -154,6 +156,6 @@ touches on your Mac, with `-k`: `uv run pytest tests/test_workday_filler.py
   sign-in.
 - [docs/records-setup.md](docs/records-setup.md): Records repo and
   notifications.
-- [docs/tracker-setup.md](docs/tracker-setup.md): the Tracker Sheet, which
-  only `apply run` needs.
+- [docs/tracker-setup.md](docs/tracker-setup.md): Apply's Tracker (a file
+  in the data folder) and what Apply writes to your Applications Tracker.
 - `./scripts/setup-wizard.sh` walks through all of them.

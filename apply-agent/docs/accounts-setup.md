@@ -5,7 +5,7 @@ Or run `./scripts/setup-wizard.sh` from `apply-agent/`: it walks through every o
 This is a one-time checklist that takes about 10 minutes. Workday, Oracle and similar job systems make you sign in before they show their questions. Apply signs in for you without spending any tokens:
 
 - **Sign in with Google** wherever an employer offers it. Apply only picks your account in Google's chooser. It never types a Google password or code.
-- Otherwise it creates an **Employer account** with your email and a new unique password. It saves the password to your macOS Keychain *before* it sends the sign-up form, then lists the account in the Tracker's Employer accounts tab.
+- Otherwise it creates an **Employer account** with your email and a new unique password. It saves the password to your macOS Keychain *before* it sends the sign-up form, then lists the account in Apply's Tracker (`tracker.json` in the data folder).
 - Where you made an account yourself long ago, a real run **resets its password**: it saves a new password to Keychain first, asks the site for a reset, follows the reset link from Gmail and signs in. A rehearsal never does this.
 - It reads **verification codes and links** (Workday's verification and reset emails, from `myworkday.com` or `otp.workday.com`; Oracle's one-time code; Greenhouse's 8-character security code) from your Gmail over IMAP with an app password. It skips a mail Gmail says failed DMARC (a forged sender), and follows a link only to the employer's own site or Workday's.
 
@@ -31,7 +31,7 @@ Changing your Google password revokes every app password. If that happens, make 
 
 ## 2. Employer account passwords
 
-Nothing to set up. You can see every password Apply made in **Keychain Access** under the name `apply-ats`, one item per site (a Workday tenant's host, such as `caci.wd1.myworkdayjobs.com`). The Tracker's Employer accounts tab lists the same sites with the login and the date it was made.
+Nothing to set up. You can see every password Apply made in **Keychain Access** under the name `apply-ats`, one item per site (a Workday tenant's host, such as `caci.wd1.myworkdayjobs.com`). Apply's Tracker (`tracker.json`) lists the same sites with the login and the date it was made.
 
 - To sign in yourself, copy the password from Keychain Access.
 - If you change a password on the site, update the Keychain item too, or Apply's next sign-in there fails.
@@ -42,7 +42,7 @@ See the Worker profile step of the main setup checklist. Sign each profile in wi
 
 ## Check the setup: `apply doctor`
 
-Run `uv run apply doctor` from `apply-agent/` before a run, and again after any change here. It checks, read-only and in a few seconds, everything a run needs: the `claude` login, Chrome's version, each Worker profile's Google sign-in (read from its files, so Chrome never opens, and a profile a run has open is skipped), the Gmail app password, the Applicant profile's required facts, the Tracker Sheet, a dry-run push of the Records repo, `live_runs` and the Calibration run's progress. Each check prints one line, ok, warn or fail, with how to fix it, and any fail makes it exit non-zero. Add `--usage` to read Claude's Max usage too, at the cost of one tiny Haiku call.
+Run `uv run apply doctor` from `apply-agent/` before a run, and again after any change here. It checks, read-only and in a few seconds, everything a run needs: the `claude` login, Chrome's version, each Worker profile's Google sign-in (read from its files, so Chrome never opens, and a profile a run has open is skipped), the Gmail app password, the Applicant profile's required facts, Apply's Tracker, the WorkIt login and the writes that wait for WorkIt, a dry-run push of the Records repo, `live_runs` and the Calibration run's progress. Each check prints one line, ok, warn or fail, with how to fix it, and any fail makes it exit non-zero. Add `--usage` to read Claude's Max usage too, at the cost of one tiny Haiku call.
 
 ## What a sign-in Handoff means
 

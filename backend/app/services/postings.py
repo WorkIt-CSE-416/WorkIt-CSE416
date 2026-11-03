@@ -7,10 +7,11 @@ a route that forgot the status check.
 
 import uuid
 
-from sqlalchemy import Text, and_, cast, select
+from sqlalchemy import Text, and_, cast, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 
+from app.models.applications import Job_Application
 from app.models.dto import job_post_status
 from app.models.jobs import Job_Post
 
@@ -31,3 +32,18 @@ async def listed(session: AsyncSession, posting_id: uuid.UUID, *, keywords: bool
     if keywords:
         query = query.options(undefer(Job_Post.keywords), undefer(Job_Post.keywords_hash))
     return await session.scalar(query)
+
+
+def tracked_by(applicant_id: uuid.UUID):
+    """A scraped posting this applicant has an application on, whatever its
+    status: one they added by its link (unlisted), or one the feed closed or
+    paused after they tracked it (KAN-544). Only the tracker and the
+    student's own writes on it (applied, a Sent resume) reach it."""
+    return and_(Job_Post.company_id.is_(None), exists().where(
+        Job_Application.applicant_id == applicant_id, Job_Application.job_id == Job_Post.id))
+
+
+async def reachable(session: AsyncSession, posting_id: uuid.UUID, applicant_id: uuid.UUID) -> Job_Post | None:
+    """The posting, when it is listed or tracked by this applicant; else None."""
+    return await session.scalar(
+        select(Job_Post).where(Job_Post.id == posting_id, or_(LISTED, tracked_by(applicant_id))))

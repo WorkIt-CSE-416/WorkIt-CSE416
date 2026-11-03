@@ -76,6 +76,13 @@ class FakeTracker:
         """The student's application on a job, made in WorkIt itself (the extension, auto apply, Save)."""
         self.applications[job_id] = Application(stage, applied_at if stage in APPLIED else None)
 
+    def tracked(self) -> list[dict]:
+        """The student's Applications Tracker as the page shows it: each job's link, company, stage and the
+        Sent resume's file name."""
+        return [{"link": self.postings[job].url, "company": self.postings[job].company, "stage": a.stage,
+                 "sent_resume": self.sent[a.sent_resume_id].file_name if a.sent_resume_id else None}
+                for job, a in self.applications.items()]
+
     def find(self, url: str) -> Posting | None:
         return next((p for p in self.postings.values() if _same(p.url, url)), None)
 
@@ -114,8 +121,14 @@ class FakeTracker:
         job_id = seen.body["job_posting_id"]
         if job_id not in self.applications:
             return Reply(404, {"detail": "No such job posting."})
+        content = base64.b64decode(seen.body["content"])
+        if not content.startswith(b"%PDF"):
+            return Reply(422, {"detail": "Only a PDF is kept as a sent file"})
+        again = next((s for s in self.sent.values() if s.job_id == job_id and s.content == content), None)
+        if again:  # the same file sent to the same job again: the same Sent resume
+            return Reply(200, {"id": again.id, "job_posting_id": job_id, "file_name": again.file_name})
         sent_id = f"00000000-0000-4000-b000-{next(self._ids):012d}"
-        self.sent[sent_id] = SentResume(sent_id, job_id, seen.body["file_name"], base64.b64decode(seen.body["content"]))
+        self.sent[sent_id] = SentResume(sent_id, job_id, seen.body["file_name"], content)
         return Reply(201, {"id": sent_id, "job_posting_id": job_id, "file_name": seen.body["file_name"]})
 
     def _job_routes(self, job_id: str) -> None:
@@ -149,9 +162,15 @@ class FakeTracker:
         application = self.applications.get(job_id)
         if application is None:
             return Reply(404, {"detail": "You have no application for that job."})
-        if seen.body["stage"] not in APPLIED:
+        stage = seen.body["stage"]
+        if stage not in ("queued", "needs_you", *APPLIED):
             return Reply(422, {"detail": "stage"})
-        application.stage = seen.body["stage"]
+        if stage in ("queued", "needs_you"):  # Apply's (KAN-544): never on an application already applied
+            if application.stage in APPLIED:
+                return Reply(409, {"detail": "You already applied to that job."})
+            application.stage = stage
+            return Reply(200, {"job_id": job_id, "stage": stage})
+        application.stage = stage
         if seen.body.get("applied_on"):
             application.applied_at = f"{seen.body['applied_on']}T12:00:00+00:00"
         application.applied_at = application.applied_at or "2026-11-02T20:00:00+00:00"

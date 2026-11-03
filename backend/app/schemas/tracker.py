@@ -13,13 +13,14 @@ from app.models.dto import (
 
 
 class StageChange(BaseModel):
-    """PUT .../applications/{job_id}/stage: the stage menu's pick. Only
-    applied or later: a record never goes back to a bookmark or the queue."""
+    """PUT .../applications/{job_id}/stage: the stage menu's pick, applied or
+    later, any direction. Apply (KAN-544) also sets needs_you or queued on an
+    application that is not applied; never saved or skipped."""
 
-    stage: Literal["applied", "interviewing", "offer", "rejected"]
+    stage: Literal["queued", "needs_you", "applied", "interviewing", "offer", "rejected"]
     # The day the student really applied (the Tracker Sheet import, KAN-545):
     # the application's applied date becomes that day. Left out, an
-    # application with no applied date gets today's.
+    # application with no applied date gets today's. Only for applied or later.
     applied_on: datetime.date | None = None
 
 

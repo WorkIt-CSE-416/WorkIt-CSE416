@@ -11,7 +11,7 @@ import uuid
 from typing import Any, NamedTuple
 from urllib.parse import parse_qs, urlsplit
 
-from sqlalchemy import and_, case, delete, exists, func, or_, select
+from sqlalchemy import and_, case, delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +25,7 @@ from app.models.dto import (
 from app.models.jobs import Job_Post
 from app.models.sent_resume import Sent_Resume
 from app.queries.jobs.filters import LISTED
-from app.services.postings import UNLISTED
+from app.services.postings import tracked_by
 
 # mark_applied's default: leave the application's sent resume as it is.
 KEEP: Any = object()
@@ -80,14 +80,14 @@ async def mark_applied(
     '''
     marks this job as applied and answers when, or None for a job that isn't
     in the feed: the same jobs GET /jobs/{job_id} shows, since a seeker can't
-    apply to the rest, and the unlisted postings this applicant already has
-    an application on (KAN-542). With `sent_resume_id` (checked by
+    apply to the rest, and the scraped postings this applicant already has
+    an application on: unlisted (KAN-542), or closed by the feed since
+    (KAN-544, `postings.tracked_by`). With `sent_resume_id` (checked by
     `sent_to_job` first), the application names that sent resume, or none for
     None; the default leaves what it names as it is
     '''
-    theirs = exists().where(Job_Application.applicant_id == applicant_id, Job_Application.job_id == job_id)
     listed = await db.scalar(
-        select(Job_Post.id).where(Job_Post.id == job_id, or_(LISTED, and_(UNLISTED, theirs)))
+        select(Job_Post.id).where(Job_Post.id == job_id, or_(LISTED, tracked_by(applicant_id)))
     )
     if listed is None:
         return None

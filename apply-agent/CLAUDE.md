@@ -188,6 +188,44 @@ the fake WorkIt, with WorkIt's link rule, stages and Sent resumes.
 **Tests.** `tests/test_tracker_cleanup.py`, against `tests/fake_tracker.py`
 (with the two delete routes), with one application at each stage.
 
+## Apply writes to the Applications Tracker (KAN-544)
+
+Apply's Tracker is a file in the data folder: `tracker.FileTracker`
+(`tracker.json`, one JSON file, a lock file around each read and write).
+`cli.live_tracker()` wraps it in `tracker.WorkItTracker`: each `add` or
+`update` that gives an Application a new status in `tracker.STAGES` also
+sends a `workit.Write` through a `workit.Outbox`.
+
+- submitted to `applied`, with the resume from the Application's folder
+  under `sent/` (`worker.sent_resume`: the profile's resume name, else a
+  PDF named resume) kept as the Sent resume (`POST
+  .../sent-resumes/file`, then `POST /jobs/{id}/applied` with its id).
+  handoff and missing fact to `needs_you`, held to `queued` (the stage
+  PUT; a 409 means the job is applied already, and is not an error).
+  Every other status writes nothing.
+- The job comes from `POST /jobs/added-by-link`, so a later status moves
+  the same row.
+- A rehearsal writes only through `submitted_to`, when Lisul presses
+  Submit himself. A rehearsal that he does not submit writes nothing.
+- No answer, or no live login: the Write waits in `workit-queue.json` (one
+  per Application, the newest). `apply run` and `apply rehearse` send the
+  waiting writes first; `apply doctor`'s "WorkIt writes" line lists them.
+  A Write that WorkIt refuses (a 4xx) is dropped and said.
+- A write that fails never stops a run: the row is in Apply's Tracker.
+- Apply does not write to the Tracker Sheet. The first `live_tracker()`
+  with no `tracker.json` copies the Sheet's rows and Requests in, one time
+  and read only (`sheet.copy_into`), so a run does not apply again to a
+  job already applied to. `python -m apply.rankings` still writes its
+  ranked tabs to the Sheet when you run it by hand.
+- Lisul approves a Hold with the Apply window's Approve button (`POST
+  /approve`, `Tracker.approve`), not a Sheet checkbox.
+
+**Tests.** `tests/test_tracker_record.py` (in CI) runs the Outbox and
+`WorkItTracker` against `tests/fake_tracker.py`. `tests/test_rehearse.py
+-k "applications_tracker or sends_nothing_to_workit"` rehearses a form
+in Chromium: a submit by Lisul is Applied with the Sent resume, and no
+submit sends nothing.
+
 ## Prompts and gates
 
 - Every prompt names the applicant as `@NAME@` and their school as
@@ -208,6 +246,8 @@ person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 - the company briefs and stock answers;
 - a `policies.yaml` that overrides `policies.default.yaml` key by key.
 - the WorkIt login (`workit-login.json`), after `apply login`.
+- Apply's Tracker (`tracker.json`) and the writes that wait for WorkIt
+  (`workit-queue.json`).
 
 Apply also writes its output there: rehearsal records, Repairs, Traces and
 the Chrome worker profiles (`APPLY_PROFILES`, under `APPLY_HOME` by

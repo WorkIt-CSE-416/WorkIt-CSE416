@@ -27,8 +27,11 @@ touches both, say which context you mean ("an Apply Handoff").
   answer, left blank for the student. Apply: a required question that only
   the applicant can answer; the application pauses until they answer it,
   and the answer goes into their profile.
-- **Tracker.** WorkIt: the Applications Tracker page. Apply: a spreadsheet
-  with one row per application.
+- **Tracker.** WorkIt: the Applications Tracker page, the record of each
+  job the student applied to. Apply: its own working state, a file in its
+  data folder with one row per application. Apply writes each new status
+  to the Applications Tracker (KAN-544). Apply's Google Sheet, the Tracker
+  Sheet, is retired.
 - **Job system** and **Posting** (Apply) are WorkIt's **hiring system**
   and **job posting**. Write the WorkIt terms in any text for people
   outside `apply-agent/`. Apply's code and its glossary keep their own

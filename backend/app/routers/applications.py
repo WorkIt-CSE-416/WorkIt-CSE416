@@ -53,7 +53,10 @@ POST /jobs/added-by-link     {"url", "company", "title", "experience_level"?}
                              link is a company's own posting. Only students
                              with an application on an unlisted posting
                              reach it: the Jobs page, search and Scout never
-                             list it; POST /jobs/{job_id}/applied marks it.
+                             list it; POST /jobs/{job_id}/applied marks it,
+                             and a Sent resume can name it (KAN-544). The
+                             same holds for a scraped posting the feed
+                             closed after the student tracked it.
 
 The Applications board reads saved and applied jobs through auto apply's
 list, GET /applicants/{id}/applications?stage=saved&stage=applied

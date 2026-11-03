@@ -65,8 +65,12 @@ The most Matches applied to (submitted or held) in one day, local time, kept in 
 _Avoid_: daily limit, quota, rate limit
 
 **Tracker**:
-The spreadsheet with one row per Application that Lisul reads to see every Application, its link, its status and its outcome. Retired: its submitted rows are imported once into WorkIt's Applications Tracker, which is the record after that.
+Apply's own working state, one row per Application, in a file in the data folder (`tracker.json`): its status, the Holds Lisul approves and the Missing facts he answers in the Apply window, the Requests, the Employer accounts and the Answer bank list. It is not the record of what he applied to: each new status it takes is also written to WorkIt's Applications Tracker (submitted as Applied with the resume sent, handoff and missing fact as Needs you, held as Queued), which is the record. The Google Sheet that held it before, the **Tracker Sheet**, is retired: Apply only reads it, one time, to copy its rows in and to import its submitted rows into WorkIt.
 _Avoid_: ledger, log, dashboard
+
+**Waiting write**:
+A write to WorkIt's Applications Tracker that could not reach WorkIt (no answer, or no live login), kept in the data folder (`workit-queue.json`) and sent first by the next run or rehearsal. `apply doctor` lists them. A later status of the same Application replaces one still waiting.
+_Avoid_: retry queue, outbox
 
 **WorkIt client**:
 The one module in Apply that calls WorkIt's API, as the student that `apply login` signed in. The login is kept in the data folder.
