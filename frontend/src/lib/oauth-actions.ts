@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 
+import { startGoogleFlow } from "@/lib/google-oauth-start";
 import { requestOrigin } from "@/lib/request-origin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -24,6 +25,15 @@ export type OAuthProvider = "google" | "linkedin_oidc";
  * code for a session and decides where to send the user next.
  */
 export async function signInWithOAuth(provider: OAuthProvider): Promise<void> {
+  // Google goes through WorkIt's own callback, so its account chooser names
+  // workitjobs.ai rather than the Supabase project (lib/google-oauth.ts).
+  // Supabase's OAuth below stays for LinkedIn, and for Google on a clone
+  // with no GOOGLE_CLIENT_SECRET.
+  if (provider === "google") {
+    const googleUrl = await startGoogleFlow("sign-in");
+    if (googleUrl) redirect(googleUrl);
+  }
+
   const origin = await requestOrigin();
 
   const supabase = await createSupabaseServerClient();
