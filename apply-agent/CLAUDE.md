@@ -475,6 +475,12 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   A rehearsal sends `board.run(queued=...)` each time a link starts.
 - When a run or rehearsal ends, its window closes (`Dashboard.__exit__`).
   A window with no server shows a run that is gone.
+- A click on Apply in the Dock goes to the window's Chrome, which counts no
+  app window as a browser window and opens a New Tab window, every click.
+  The window's keeper (`dock_app.keep`) closes it at once and brings the
+  window forward. The bundle's launcher starts the keeper beside the
+  window's Chrome, so it lives as long as that Chrome. Never move it back
+  into the process that opens the window: `apply watch` exits right after.
 - `kill <pid>` (SIGTERM) stops Apply as Ctrl-C does: the Worker browsers
   and the window close. Ctrl-C does not reach Apply when it runs in the
   background, so use SIGTERM there.
