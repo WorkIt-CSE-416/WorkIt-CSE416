@@ -77,6 +77,9 @@ change the other.
   they/them/theirs) to each system prompt. Without them, Claude guesses
   from the name, and a plan or a reason can call a they/them applicant
   "he". Wrap each Claude call that writes about the applicant with it.
+- The length gate (`gates.bounds`) reads a limit that the form states,
+  also a hyphenated one ("500-word limit"). Keep it in step with
+  `essays.STATED`, which tells the writer that the form states a length.
 - The not-on-resume gate (`gates.on_resume`) reads the text of the
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".
