@@ -63,7 +63,10 @@ export const metadata: Metadata = {
  *
  * The list is read once, on the server, as the page loads; a saved answer
  * stays on the page marked Saved until the next visit, so the student sees
- * what they sent. A <div>, since SidebarInset is already the <main>.
+ * what they sent. A <div>, since SidebarInset is already the <main>. It
+ * stops at max-w-dashboard, as every seeker page does, and the questions and
+ * answers inside each card keep About the Role's 68ch measure, so a card can
+ * run wide without its boxes and answers running past about 80 characters.
  */
 export default async function WrittenAnswersPage() {
   const [{ data: postings, error }, { data: answered }, claude] = await Promise.all([
@@ -76,7 +79,7 @@ export default async function WrittenAnswersPage() {
   const shown = newestSaved(answered ?? []);
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {shown != null && <SeenNow at={shown} />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <BackLink
@@ -115,7 +118,7 @@ export default async function WrittenAnswersPage() {
                 {posting.title ?? "Untitled Job"}
               </h2>
               {posting.company && <p className="text-body text-ink-meta">{posting.company}</p>}
-              <div className="mt-4 flex flex-col gap-6">
+              <div className="mt-4 flex max-w-[68ch] flex-col gap-6">
                 {posting.questions.map((question) => (
                   <div key={question.name} className="flex flex-col gap-2">
                     {question.ask && (
@@ -149,7 +152,7 @@ export default async function WrittenAnswersPage() {
               <Card as="article" padding="lg" key={posting.job_id}>
                 <h3 className="text-subtitle text-ink">{posting.title ?? "Untitled Job"}</h3>
                 {posting.company && <p className="text-body text-ink-meta">{posting.company}</p>}
-                <dl className="mt-4 flex flex-col gap-5">
+                <dl className="mt-4 flex max-w-[68ch] flex-col gap-5">
                   {posting.questions.map((question) => (
                     <div key={question.name} className="flex flex-col gap-1.5">
                       <dt className="text-body text-ink flex items-center gap-2 font-semibold">

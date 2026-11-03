@@ -31,10 +31,12 @@ const UNANSWERED = "unanswered";
  * screen erases what another saved, and neither card what the other saved.
  *
  * TWO MODES, AS CONTACT & LINKS HAS. Reading, each question is its answer or
- * "Not answered". Edit turns every answer into a picker in place, the first
- * one focused, each over the question as forms word it, with Cancel and Save
- * under them; Escape cancels. "Not Answered" in a picker clears that answer.
- * A picker, not onboarding's tiles: nine questions of up to seven tiles made a
+ * "Not answered", and a card with no answer at all is one "Not answered"
+ * line. Each question's glyph is grey (`ink-meta`): it only informs. Edit
+ * turns every answer into a picker in place, the first one focused, each
+ * over the question as forms word it, with Cancel and Save under them;
+ * Escape cancels. "Not Answered" in a picker clears that answer. A picker,
+ * not onboarding's tiles: nine questions of up to seven tiles made a
  * screen-long form on a page of settings.
  *
  * `concealed` CLOSES THE ANSWERS WHILE READING (KAN-550): the card says how
@@ -172,7 +174,7 @@ export function ApplicationQuestions({
                       a click on the words open the picker's list, as a
                       click on the picker does (checked in Chromium). */}
                   <label htmlFor={fieldId} className={FIELD_HEADING}>
-                    <Icon aria-hidden className="text-brand size-5 shrink-0" />
+                    <Icon aria-hidden className="text-ink-meta size-5 shrink-0" />
                     {q.label}
                   </label>
                   <div className={cn("mt-1.5", VALUE_INDENT)}>
@@ -218,6 +220,11 @@ export function ApplicationQuestions({
             </Button>
           </div>
         </form>
+      ) : shown && answered === 0 ? (
+        // One line for a card with no answers, not "Not answered" per question.
+        <p id={`${id}-answers`} className="text-body text-ink-meta mt-4">
+          Not answered
+        </p>
       ) : shown ? (
         <dl id={`${id}-answers`} className={FIELD_GRID}>
           {questions.map((q) => {
@@ -227,7 +234,7 @@ export function ApplicationQuestions({
             return (
               <div key={q.key} className="min-w-0">
                 <dt className={FIELD_HEADING}>
-                  <Icon aria-hidden className="text-brand size-5 shrink-0" />
+                  <Icon aria-hidden className="text-ink-meta size-5 shrink-0" />
                   {q.label}
                 </dt>
                 <dd className={cn("text-body text-ink-muted mt-1.5 min-w-0", VALUE_INDENT)}>

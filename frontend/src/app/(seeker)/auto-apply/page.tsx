@@ -8,6 +8,7 @@ import { listResumes } from "@/lib/resume-actions";
 
 import { SEEKER_GUTTER } from "../gutter";
 import { RememberFeed } from "../jobs/[jobId]/page-actions";
+import { formatPlaces } from "../jobs/format";
 import { activityOf } from "./activity-list";
 import { getApplications, getRunApplications } from "./applications";
 import { getWrittenQuestions } from "./answers/questions";
@@ -143,6 +144,7 @@ export default async function AutoApplyPage() {
     id: job.id,
     role: job.title,
     company: job.company,
+    place: formatPlaces(job.location_label ?? job.location),
     logoUrl: jobLogo(job),
     match: match ?? null,
     autoApply: job.auto_apply,

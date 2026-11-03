@@ -1406,7 +1406,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   answer checks): never give pasted text a save of its own, since it may
   come from any AI, and never send it to the extension; the open tab fills
   it on its own poll. A failed check is the warning amber under its box,
-  never the danger red (the student fixes it; nothing broke).
+  never the danger red (the student fixes it; nothing broke). Each box's
+  save is `secondary` until the box has text (KAN-568): a card holds
+  several questions, and a brand Save under each put five on one screen.
   A question whose answer waits on an Essay fact (KAN-369: a fact the
   student's Claude asked for rather than invent) shows the question above
   its box (`answers/fact-box.tsx`), saved with `PUT .../essay-facts` into
