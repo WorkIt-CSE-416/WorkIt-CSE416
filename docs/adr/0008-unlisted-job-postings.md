@@ -8,7 +8,8 @@ its link, and WorkIt makes a job posting with the status `unlisted`: only
 the company, the title and the link. Job search and Scout never show an
 unlisted posting, and a student sees one only on their own tracker. A second
 student who adds the same link gets the same posting, so the link stays
-unique: they see the company and title the first student gave. When the scraper later finds a job whose
+unique. Each student sees the company and title that they gave, never the
+text of another student. When the scraper later finds a job whose
 link matches an unlisted posting, it fills in that posting and publishes
 it. It does not make a second one, so the link stays unique and the
 student's application stays on it.

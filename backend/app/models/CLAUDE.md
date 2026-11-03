@@ -970,7 +970,8 @@ when the scraper finds the same job (`../CLAUDE.md`, The feed import).
 the queue skip anything not open, and Apply writes the jobs it holds as
 queued; `unlisted` is what tells the tracker the job is not closed. A
 second student who adds the same link gets the same posting, so the link
-stays unique.
+stays unique. Each student sees their own company and title on it
+(`job_applications.company_name`, `title`, below).
 **SQL names it as text** (`UNLISTED`, `status::text = 'unlisted'`): Postgres
 refuses a query that names an enum value its type lacks, so a query that
 named it as the enum would fail on a database without the migration (the
