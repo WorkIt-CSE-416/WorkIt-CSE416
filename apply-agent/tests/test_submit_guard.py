@@ -176,6 +176,19 @@ def test_the_note_on_a_lifted_page_has_a_button_to_fill_the_form_again(job_serve
     assert job_server.submissions == []
 
 
+def test_the_note_sits_under_a_captcha_and_its_close_button_hides_it(job_server):
+    with job_server.open(ARC_URL) as page:
+        guard(page)
+        lift(page, again=lambda: None)
+        note = page.locator("#apply-rehearsal-blocked")
+        z = int(note.evaluate("e => getComputedStyle(e).zIndex"))
+        page.get_by_role("button", name="Hide this note").click()
+        hidden = note.is_hidden()
+
+    assert z < 2000000000  # reCAPTCHA's challenge frame, whose Verify Lisul must press
+    assert hidden
+
+
 def test_a_held_page_with_something_to_fix_says_so_in_red(job_server):
     with job_server.open(ARC_URL) as page:
         guard(page)

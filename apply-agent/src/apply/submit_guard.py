@@ -121,7 +121,8 @@ _TEMPLATE = r"""
       if (!box) {
         box = document.createElement('div');
         box.id = '@BOX@';
-        box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:2147483647;padding:6px 10px;'
+        // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
+        box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;'
           + 'background:#b00020;color:#fff;font:13px sans-serif;border-radius:4px;pointer-events:none';
         (document.body || document.documentElement).appendChild(box);
       }
@@ -330,7 +331,8 @@ def guard(page: Page) -> None:
 
 
 # Marks a page Lisul's: the guard script above lets everything through on it,
-# and a note says so, with a button to fill the form again when `again` is set.
+# and a note says so, with a button to fill the form again when `again` is set
+# and a × that hides the note on that page.
 LIFTED = r"""
 (() => {
   window.__applyRehearsalLifted = true;
@@ -341,7 +343,8 @@ LIFTED = r"""
   const show = () => {
     const box = document.getElementById('apply-rehearsal-blocked') || document.createElement('div');
     box.id = 'apply-rehearsal-blocked';
-    box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:2147483647;padding:6px 10px;max-width:480px;'
+    // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
+    box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;max-width:480px;'
       + 'background:' + (!warning ? '#1b5e20' : wrong ? '#b00020' : '#8a5a00') + ';color:#fff;font:13px sans-serif;border-radius:4px;'
       + 'pointer-events:none';
     box.textContent = warning
@@ -358,6 +361,17 @@ LIFTED = r"""
       });
       box.appendChild(button);
     }
+    const close = document.createElement('button');  // hides the note on this page; a page loaded next shows it
+    close.type = 'button';
+    close.textContent = '\u00d7';
+    close.setAttribute('aria-label', 'Hide this note');
+    close.style.cssText = 'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif;'
+      + 'background:none;border:none;color:#fff;padding:0 2px';
+    close.addEventListener('click', (event) => {
+      event.stopPropagation();
+      box.style.display = 'none';
+    });
+    box.appendChild(close);
     if (!box.parentNode) (document.body || document.documentElement).appendChild(box);
   };
   if (document.body) show(); else document.addEventListener('DOMContentLoaded', show);
