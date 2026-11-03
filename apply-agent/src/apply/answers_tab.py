@@ -27,7 +27,7 @@ from ruamel.yaml.scalarstring import (
 
 from apply import answering, stock
 from apply.answer_bank import AnswerBank, Entry
-from apply.model import Question, Status
+from apply.model import Status
 from apply.profile import ANSWERED, SECRET, ApplicantProfile
 
 STOCK = "stock_answers"
@@ -145,7 +145,7 @@ class AnswersTab:
         for row in self._rows:
             if row.status != Status.HELD or not row.essay:
                 continue
-            for essay in essays.from_cell(row.essay, _headings(row.essay)):
+            for essay in essays.from_cell(row.essay, essays.headings(row.essay)):
                 type = answering.classify(essay.question.label)
                 if essay.text and type in guides and guides[type].stock and type not in kept:
                     offers.append({"type": type, "company": row.company, "question": essay.question.label,
@@ -158,12 +158,6 @@ class AnswersTab:
 
     def _profile_now(self) -> ApplicantProfile:
         return self._profile if isinstance(self._profile, ApplicantProfile) else ApplicantProfile.load(self._profile)
-
-
-def _headings(cell: str) -> list[Question]:
-    """The questions an Essay cell heads its essays with ("## <question>")."""
-    labels = dict.fromkeys(line[3:].strip() for line in cell.splitlines() if line.startswith("## "))
-    return [Question(f"essay-{n}", label, "textarea", True) for n, label in enumerate(labels) if label]
 
 
 def _question(question: object) -> str:

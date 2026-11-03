@@ -234,10 +234,15 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
 - Lisul approves a Hold with the Apply window's Approve button (`POST
   /approve`, `Tracker.approve`), not a Sheet checkbox. `SheetTracker` has
   no `approve`: Apply never writes an approval to the Sheet (ADR 0007).
-- A Hold's card shows its essays (the Essay cell, `essays.as_cell`) in a
-  box that Lisul can edit before he approves. Approve sends his edit
-  (`essay`), and `Tracker.approve` writes it to the row's essay with
-  Approve, in one write. The next check fills the form with his words.
+- A Hold's card shows one box per essay, with the essay's text only
+  (`essays.cell_texts`). The `## <question>` heading and the Plan, Checks
+  and Named lines of the Essay cell (`essays.as_cell`) are not in the box,
+  so Lisul cannot change them. Approve sends his texts in order
+  (`essays`). The window builds the cell again from the stored headings
+  and lines and his texts (`essays.with_texts`), and `Tracker.approve`
+  writes it with Approve, in one write. An empty essay is refused (400)
+  with a message, and the Hold still waits. The next check fills the form
+  with his words (`essays.from_cell`); a Plan line never goes to the form.
   The page keeps the edit in `sessionStorage` (`apply.essays`, by
   Application ID) until he approves, so a reload does not lose it.
 

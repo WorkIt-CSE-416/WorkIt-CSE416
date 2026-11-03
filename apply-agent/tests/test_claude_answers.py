@@ -1695,6 +1695,27 @@ def test_a_held_essay_shows_its_plan_above_its_named_fact_and_lisuls_edit_round_
     assert proud.text == "My bus tracker."
 
 
+def test_lisuls_edit_in_the_window_reaches_the_form_and_the_plan_never_does():
+    # The Apply window shows only each essay's text (cell_texts) and builds the cell again from his texts and
+    # the stored headings and Plan lines (with_texts). The form reads the cell with from_cell.
+    planned = essays.Plan("why-company", ("why",), HITACHI, "Dev Mode", "Handoff is a data problem.")
+    named = BRIEF.splitlines()[1][2:]
+    cell = essays.as_cell([essays.Essay(WHY_FIGMA, "Dev Mode is the handoff I fought with.", named=named, plan=planned),
+                           essays.Essay(PROUD, "My bus tracker.")])
+
+    assert essays.cell_texts(cell) == [("Why Figma?", "Dev Mode is the handoff I fought with."),
+                                       ("Tell us about a project you're most proud of.", "My bus tracker.")]
+    assert essays.with_texts(cell, [text for _, text in essays.cell_texts(cell)]) == cell
+    edited = essays.with_texts(cell, ["I fought that handoff all summer.\n\nDev Mode ends it.", "My bus tracker."])
+    assert edited.startswith(f"## Why Figma?\nPlan: why-company | {HITACHI} | Handoff is a data problem.\nNamed: {named}\n")
+    why, proud = essays.from_cell(edited, [WHY_FIGMA, PROUD])
+    assert (why.text, why.named, proud.text) == ("I fought that handoff all summer.\n\nDev Mode ends it.", named,
+                                                 "My bus tracker.")
+    assert "Plan:" not in why.text + proud.text
+    with pytest.raises(ValueError, match="is empty"):
+        essays.with_texts(cell, ["", "My bus tracker."])
+
+
 def test_a_cell_written_before_plans_still_reads():
     cell = "## Why Figma?\nNamed: x\nBecause.\n\n## Tell us about a project you're most proud of.\nA project."
     why, proud = essays.from_cell(cell, [WHY_FIGMA, PROUD])

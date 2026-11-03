@@ -567,8 +567,8 @@ const action = (item) => {
     title: 'It is sent at the next check', onclick: async (e) => {  // approving resolves it
       e.target.disabled = true;
       try {
-        const edit = editedEssay(item);  // his words in place of Claude's, if he edited them
-        const reply = await fetch('/approve', {method: 'POST', body: JSON.stringify(edit === null ? {id: item.id} : {id: item.id, essay: edit}),
+        const edit = editedEssays(item);  // his words in place of Claude's, if he edited them
+        const reply = await fetch('/approve', {method: 'POST', body: JSON.stringify(edit === null ? {id: item.id} : {id: item.id, essays: edit}),
                                                headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
         const data = await reply.json();
         if (!reply.ok) throw new Error(data.error || 'Not approved.');
@@ -598,28 +598,44 @@ const who = (item) => {
   return item.posting_url ? make('a', {className: 'name', href: item.posting_url, target: '_blank', textContent: words, title: 'Open the posting'})
     : make('span', {className: 'name', textContent: words});
 };
-// A Hold's essays, his to edit before he approves, as the retired Tracker Sheet's Essay cell was: Approve sends
-// his edit. The edit is kept, by Application ID, until he approves, also if the window reloads.
+// A Hold's essays, his to edit before he approves, as the retired Tracker Sheet's Essay cell was: one box per
+// question, with only the essay's text (the question heading and Plan lines stay with Apply). Approve sends his
+// texts, in order. The edit is kept, by Application ID, until he approves, also if the window reloads.
 const essayDrafts = new Map(Object.entries(JSON.parse((() => { try { return sessionStorage.getItem('apply.essays'); } catch (e) {} })() || '{}')));
 const keepEssays = () => { try { sessionStorage.setItem('apply.essays', JSON.stringify(Object.fromEntries(essayDrafts))); } catch (e) {} };
-const editedEssay = (item) => essayDrafts.has(item.application_id) && essayDrafts.get(item.application_id) !== item.essay
-  ? essayDrafts.get(item.application_id) : null;
+const essayTexts = (item) => {  // his draft if it still fits the Hold's essays, else Claude's
+  const draft = essayDrafts.get(item.application_id), claude = item.essays.map((e) => e.text);
+  return Array.isArray(draft) && draft.length === claude.length ? draft : claude;
+};
+const editedEssays = (item) => {
+  const texts = essayTexts(item);
+  return texts.some((text, i) => text !== item.essays[i].text) ? texts : null;
+};
 const essayBox = (item) => {
-  const key = 'essay|' + item.application_id, status = make('span', {className: 'status'});
-  const text = make('textarea', {className: 'essay', maxLength: 100000, value: editedEssay(item) ?? item.essay,
-                                 rows: Math.min(16, 3 + Math.floor(item.essay.length / 90) + item.essay.split('\n').length)});
-  text.dataset.key = key;
+  const status = make('span', {className: 'status'});
   const undo = make('button', {className: 'text', textContent: "Put back Claude's", hidden: true});
+  const boxes = item.essays.map((essay, i) => {
+    const text = make('textarea', {className: 'essay', maxLength: 100000, value: essayTexts(item)[i],
+                                   rows: Math.min(16, 3 + Math.floor(essay.text.length / 90) + essay.text.split('\n').length)});
+    text.dataset.key = `essay|${item.application_id}|${i}`;
+    text.oninput = () => {
+      const texts = [...essayTexts(item)]; texts[i] = text.value;
+      essayDrafts.set(item.application_id, texts); keepEssays(); say();
+    };
+    return [make('label', {className: 'question', textContent: essay.question}), text];
+  });
   const say = () => {
-    const edited = editedEssay(item) !== null;
+    const edited = editedEssays(item) !== null;
     status.textContent = edited ? 'Edited: Approve sends your edit' : ''; status.className = 'status unsaved';
     undo.hidden = !edited;
   };
-  text.oninput = () => { essayDrafts.set(item.application_id, text.value); keepEssays(); say(); };
-  undo.onclick = () => { essayDrafts.delete(item.application_id); keepEssays(); text.value = item.essay; say(); };
+  undo.onclick = () => {
+    essayDrafts.delete(item.application_id); keepEssays();
+    boxes.forEach(([, text], i) => { text.value = item.essays[i].text; }); say();
+  };
   say();
-  return make('div', {className: 'ask'}, make('label', {textContent: 'The essay Claude wrote: edit it here before you approve'}),
-              text, make('div', {className: 'essay-row'}, status, undo));
+  return make('div', {className: 'ask'}, make('label', {textContent: 'The essays Claude wrote: edit them here before you approve'}),
+              ...boxes.flat(), make('div', {className: 'essay-row'}, status, undo));
 };
 // A box per question only Lisul can answer: saved where the run reads it, the draft kept if it is refused.
 // One its form offers options for shows them as the form does, a list to pick one or boxes to tick,
@@ -724,7 +740,7 @@ const row = (item) => {
     make('div', {className: 'who'}, who(item)),
     item.why && !asks.length && !failed ? make('div', {className: 'why', textContent: item.why}) : null,
     asks.map(question => answerBox(item, question)),
-    item.kind === 'held' && ctx.approve && item.application_id && item.essay ? essayBox(item) : null,
+    item.kind === 'held' && ctx.approve && item.application_id && item.essays && item.essays.length ? essayBox(item) : null,
     item.drafted && item.drafted.length ? make('details', {}, make('summary', {textContent: `What Claude wrote (${item.drafted.length})`}),
       make('div', {textContent: item.drafted.join('\n')})) : null,
     item.error ? make('details', {}, make('summary', {textContent: 'Details'}), make('div', {textContent: item.error})) : null,
@@ -988,6 +1004,7 @@ STYLE = r"""
   .ask { margin-top: 14px; }
   .ask > label { display: block; margin-bottom: 8px; color: var(--body); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
   .ask .options, .ask select { margin-bottom: 8px; }
+  .ask > label.question { margin: 10px 0 4px; color: var(--ink); font-weight: 600; }
   .ask .need { margin-left: 8px; padding: 1px 6px; border: 1px solid var(--rail-line); border-radius: 999px;
                font-size: 11px; font-weight: 500; color: var(--muted); white-space: nowrap; }
   .ask .need.required { color: var(--body); }
