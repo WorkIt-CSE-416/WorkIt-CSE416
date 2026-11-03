@@ -1967,10 +1967,12 @@ reads them.
 - **Each sample is its first three lines, with Remove.** A sample is
   replaced by removing it and adding the new one: changing a sample drops
   the style card either way, and Claude builds a new one next time.
+  Remove deletes at once; its toast's Undo adds the same text again, last.
 
 **The Transcript (KAN-369)** is a card: one file, PDF or DOCX, uploaded,
 replaced or removed there, which the autofiller attaches to a form's
-transcript upload.
+transcript upload. Remove drops the file from the card and shows a toast
+with Undo; the file is deleted only once the toast closes (KAN-562).
 
 ## Resumes & Experiences
 
@@ -3445,7 +3447,9 @@ is the hiring dashboard; /company/jobs lists the company's real jobs;
 a saved job. `lib/job-actions.ts` saves a job (create, or update with the
 `updated_at` it was loaded with, so a save over someone else's is a 409) and
 pauses, resumes or closes it; `lib/job-queries.ts` holds the Server-Component
-reads.
+reads. A job row's Pause or Resume says how it went in a toast, never in the
+row: Undo when it is done, the API's reason and Retry when it fails
+(KAN-562).
 
 The two company list screens share `app/company/table.tsx` — a TanStack Table
 shell over shadcn's `Table`, with sorting, filtering and row selection. **It is

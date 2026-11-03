@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import {
   addWritingSample,
@@ -38,6 +39,12 @@ const WRITING_SAMPLES_ID = "writing-samples";
  * Each sample is shown as its first lines, with Remove. Add opens a text box
  * in place, with Cancel and Save under it, as the sections above edit. A
  * sample is replaced by removing it and adding the new one.
+ *
+ * **Remove deletes at once and its toast offers Undo** (KAN-562), which adds
+ * the same text again: a new sample, so it comes back last. The page still
+ * holds the text, so nothing waits on the toast, as the Transcript's file
+ * must. An Undo the API refuses (a third sample added meanwhile) says why
+ * in a toast.
  */
 export function WritingSamples() {
   const [samples, setSamples] = useState<WritingSample[] | null>(null);
@@ -47,6 +54,7 @@ export function WritingSamples() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
+  const toast = useToast();
 
   useEffect(() => {
     getWritingSamples()
@@ -94,12 +102,25 @@ export function WritingSamples() {
     }
   }
 
-  async function remove(id: string) {
-    const { error: err } = await removeWritingSample(id).catch(() => ({
+  async function remove(sample: WritingSample) {
+    const { error: err } = await removeWritingSample(sample.id).catch(() => ({
       error: "Could not reach the server.",
     }));
-    if (err) setError(err);
-    else setSamples((s) => (s ?? []).filter((x) => x.id !== id));
+    if (err) return setError(err);
+    setSamples((s) => (s ?? []).filter((x) => x.id !== sample.id));
+    toast.show({
+      message: "Your writing sample is removed.",
+      action: { label: "Undo", onClick: () => restore(sample.text) },
+    });
+  }
+
+  async function restore(sampleText: string) {
+    const { sample, error: err } = await addWritingSample(sampleText).catch(() => ({
+      sample: null,
+      error: "Could not reach the server.",
+    }));
+    if (sample) setSamples((s) => [...(s ?? []), sample]);
+    else toast.show({ message: `Your writing sample wasn't put back. ${err ?? ""}`.trim() });
   }
 
   const room = samples !== null && samples.length < MAX_SAMPLES;
@@ -144,7 +165,7 @@ export function WritingSamples() {
               </p>
               <SectionAction
                 aria-label={`Remove Writing Sample ${n + 1}`}
-                onClick={() => remove(s.id)}
+                onClick={() => remove(s)}
               >
                 <TrashIcon />
                 Remove

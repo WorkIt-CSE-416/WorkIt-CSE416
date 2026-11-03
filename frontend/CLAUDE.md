@@ -2315,11 +2315,16 @@ are in `docs/auth.md`.
   load (`window.location.replace`), since a hash never reaches the server
   and Writing Samples reads it only as it mounts. Keep the forward while
   those versions are installed. The samples go to the student's own
-  Claude only: never send them to a WorkIt AI route.
+  Claude only: never send them to a WorkIt AI route. Remove's Undo adds
+  the text again as a new sample (KAN-562).
 - **The transcript is edited in Application Info only** (`(seeker)/auto-apply/info/transcript.tsx`,
   `lib/transcript-actions.ts`, KAN-369): one file, uploaded, replaced or
   removed there, with the resume's file checks (`resumeFileError`). The
-  autofiller attaches it to a form's transcript upload.
+  autofiller attaches it to a form's transcript upload. **Remove's DELETE
+  waits for its toast to close** (the toast's `onClose`, KAN-562): the page
+  can't upload a deleted file again, so Undo is the DELETE never sent. An
+  upload in that time sends the DELETE first, or it would remove the new
+  file; leaving the page sends it at once.
 - **The uninstall survey is `/uninstalled`** (KAN-471): the page Chrome
   opens when a student removes the extension (`?v=` the version removed).
   Public, outside both shells, and it asks no sign-in: the answer goes to
