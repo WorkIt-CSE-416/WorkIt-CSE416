@@ -87,6 +87,7 @@ education:
   full_time_available_from:    # Cloudflare: Immediately after the internship ends | Need to return to school and available upon graduation ; Helion MM/YYYY
   plans_masters_after_bachelors:          # freq 1 (Enova, free text)
   plans_masters_if_no_maybe:              # Yes/No where a form offers no Maybe or TBD
+  planned_further_degree:                 # the degree planned next (Five Rings: Bachelor's | Master's | PhD or Doctorate | Other); unset is a Master's unless no plans
   second_major_planned:        # a second major not yet declared, with when it will be declared
   gpa_cumulative:              # freq 9 numeric, mapped to buckets
     # seen: 3.5 - 3.74 | 3.75 - 4 | 4.0 or above | 3.6 - 4.0 | 3.5 - 3.9 | one-decimal list 4.0, 3.9, ...
