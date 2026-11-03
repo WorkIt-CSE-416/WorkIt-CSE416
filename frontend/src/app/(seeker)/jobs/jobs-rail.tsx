@@ -17,6 +17,7 @@ import { cn } from "@/lib/cn";
 import { loadStages } from "./actions";
 import { CompactJobCard } from "./compact-job-card";
 import { FeedHeader } from "./feed-header";
+import { keep } from "./feed-pages";
 import { FeedTransition, PendingFeed } from "./feed-transition";
 import {
   filtersQuery,
@@ -164,7 +165,10 @@ export function JobsRailFrame({
  * In the split view on /jobs the page writes the list (./remember-shown-list),
  * so the rail fetches nothing there and waits, on `wanted`, for the list of the
  * address on screen, with the alternative that Best Match with an empty bank
- * draws the plain feed. The list's first job is the open one.
+ * draws the plain feed. The list's first job is the open one. What it loads is
+ * kept with the feed's own pages (./feed-pages), so Back finds the list as long
+ * as it was. A list left open on /jobs past half an hour stays shown, as the
+ * cards do: the rail fetches nothing there, so hiding it left the skeleton.
  *
  * FROM @4xl/main ONLY, but for the split view on /jobs, where it is the list at
  * every width. 20rem to 26rem wide (KAN-519): the compact card needs about
@@ -191,9 +195,10 @@ function JobsRail({
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const scroller = useRef<HTMLDivElement>(null);
+  const stale = list != null && !isFresh(list);
   const showable =
     list &&
-    isFresh(list) &&
+    (onList || !stale) &&
     (!wanted ||
       list.query === listQuery(wanted.sort, wanted.filters) ||
       list.query === filtersQuery(wanted.filters))
@@ -202,9 +207,10 @@ function JobsRail({
   const openId = currentId ?? showable?.jobs[0]?.id;
 
   // No list, or a stale one: ask for its first page again (the newest
-  // roles when there is none). Checked on every job opened, not once: the
-  // rail stays mounted while its list ages, and checked only on mount it
-  // sat on its skeleton for good once the list passed half an hour.
+  // roles when there is none). Checked on every job opened and whenever the
+  // list goes stale, not once: the rail stays mounted while its list ages,
+  // and checked only on mount it sat on its skeleton for good once the list
+  // passed half an hour.
   useEffect(() => {
     if (onList) return;
     const stored = readShownList();
@@ -231,11 +237,13 @@ function JobsRail({
     return () => {
       live = false;
     };
-  }, [currentId, onList]);
+  }, [currentId, onList, stale]);
 
   // Brings the open job into the rail's view when it is out of it, by the
-  // rail's own scroll: scrollIntoView would scroll the page panel too.
-  const listed = showable?.jobs.length ?? 0;
+  // rail's own scroll: scrollIntoView would scroll the page panel too. Only
+  // when the job changes or the list lands: on each Load More it scrolled the
+  // list back up to the open job.
+  const landed = showable != null;
   useEffect(() => {
     const box = scroller.current;
     const row = box?.querySelector<HTMLElement>("[data-open]");
@@ -244,7 +252,7 @@ function JobsRail({
     if (top < box.scrollTop || top + row.offsetHeight > box.scrollTop + box.clientHeight) {
       box.scrollTop = top - box.clientHeight / 3;
     }
-  }, [openId, listed]);
+  }, [openId, landed]);
 
   function loadMore(from: ShownList) {
     start(async () => {
@@ -254,13 +262,21 @@ function JobsRail({
         return;
       }
       setError(null);
+      const jobs = [...from.jobs, ...page.fresh];
       rememberList({
         query: from.query,
         source: from.source,
-        jobs: [...from.jobs, ...page.fresh],
+        jobs,
         offset: page.offset,
         more: page.more,
         stages: from.stages,
+      });
+      keep({
+        path: new URLSearchParams(from.query).has("q") ? "/search" : "/jobs",
+        query: from.query,
+        jobs,
+        offset: page.offset,
+        more: page.more,
       });
     });
   }

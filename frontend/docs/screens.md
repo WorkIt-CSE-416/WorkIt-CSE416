@@ -282,7 +282,9 @@ scrolled where it was while the seeker opens one job after another; Tailor
 draws no rail. `FeedList` writes the list as it shows it
 (`jobs/shown-list.ts`, sessionStorage `workit:shown-list`) with its own
 query, order and application stages, and the rail's Load More continues it with
-the same actions. A list over 30 minutes old is fetched again, and a job opened
+the same actions, keeping what it loads with the feed's pages so Back finds the
+list as long as it was. A list over 30 minutes old is fetched again (on /jobs,
+which fetches nothing, it stays shown), and a job opened
 with no list (a shared link) shows the newest roles. **A job's Save buttons
 follow each other**: a click writes the job's stage into the shown list, and
 `SaveJobButton` reads it, since a job can show two at once. The rail shows from

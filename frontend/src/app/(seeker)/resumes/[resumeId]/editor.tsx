@@ -1209,7 +1209,9 @@ export function Editor({
         const saved = back ? step.after : step.before;
         if (!edit) return;
         if ("name" in edit) return applyName.current?.(edit.name, () => forget(step));
-        if (state && pdf && saved?.printed) {
+        // Not past a page's render still queued (a skipped step's Undo sends
+        // one): it would land after this and print its settings over them
+        if (state && pdf && saved?.printed && pageJobs.current.size === 0) {
           restore(state, pdf);
           const source = {
             entries: saved.bank.entries,

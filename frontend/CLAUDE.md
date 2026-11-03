@@ -1510,8 +1510,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   KAN-297 review. A list kept for the session builds on `sessionStore`
   (`jobs/session-store.ts`), as the feed's Load More pages and the rail's
   list do, and ages by `LIST_FRESH_FOR`. The rail checks its list's age on
-  every job opened, not once: checked on mount only, it sat on its skeleton
-  for good once the list passed half an hour, since it stays mounted.
+  every job opened and whenever it goes stale, not once: checked on mount
+  only, it sat on its skeleton for good once the list passed half an hour,
+  since it stays mounted. On /jobs it fetches nothing, so a stale list stays
+  shown there. **The rail's Load More keeps its pages in `feed-pages`**, which
+  `RememberShownList` adds to the first page: written alone, the first page
+  cut the list short on Back. It scrolls to the open job only when the job
+  changes or the list lands, never on Load More.
 - **The Jobs page's Split view is the job page's frame** (KAN-519,
   `docs/screens.md`, Jobs page): the layout draws the header and rail, /jobs
   draws only the first job, and a click opens that job's page, so Best Match
@@ -1808,7 +1813,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `saving`, or each Undo locked the rest for a compile, which takes seconds
   on the deployed API (`docs/live_page.md`). **A page setting never queues a
   compile a newer one replaced** (`applyPage`, `pageJobs`), or a few clicks on
-  a size stacked a compile each; a skipped step undoes through a render. **A rename in the title is a step too**
+  a size stacked a compile each; a skipped step undoes through a render, and
+  so does any step while a page's render is queued (`travel`), or that render
+  landed after the instant Undo and printed the wrong settings. **A rename in the title is a step too**
   (KAN-443, `TitleHistoryContext` in `resume-title.tsx`, provided by the
   editor round its title row): it shows at once, saves behind it, and a
   failed save puts the name before it back and drops the step. Its step
