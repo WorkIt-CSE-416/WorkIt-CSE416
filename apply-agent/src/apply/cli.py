@@ -29,6 +29,7 @@ from apply import (
     sheet,
     sheet_import,
     story_map,
+    tailored,
     trace,
     tracker_cleanup,
     walls,
@@ -595,6 +596,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
         repairs=RepairRequests(REPAIRS),
         answer_bank=AnswerBank(profile.folder / ANSWER_BANK) if answer_bank is None else answer_bank,
         signed_in=site.signed_in(),  # by apply sign-in
+        tailored=tailored.from_workit(),  # the student's tailored resume for each Posting (KAN-547)
     )
 
 

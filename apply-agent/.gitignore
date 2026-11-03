@@ -17,6 +17,7 @@
 /*.pdf
 # What Apply writes into the data folder.
 /sent/
+/tailored/
 /traces/
 /records/
 /apply-records/

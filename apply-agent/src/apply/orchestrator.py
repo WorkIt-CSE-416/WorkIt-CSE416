@@ -11,7 +11,7 @@ from collections.abc import Callable, Collection, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import date, datetime, timedelta
 
-from apply import bot_signals, greenhouse, oracle, trace, walls
+from apply import bot_signals, greenhouse, oracle, tailored, trace, walls
 from apply.accounts import Accounts, failed_sites
 from apply.adapters import (
     Adapters,
@@ -320,9 +320,11 @@ class _Run:
     def _traced(self, posting: Posting, worker: int) -> Result:
         try:
             posting = greenhouse.board_behind(posting, self._adapters.site)
+            profile = tailored.resume_for(posting, self._profile, self._adapters.tailored)
             return by_filler(
-                posting, _OnWorker(self._adapters.site, worker), self._profile, self._adapters.claude,
-                lambda: self._accounts(posting), lambda filler, site: self._apply_with(posting, filler, site, worker),
+                posting, _OnWorker(self._adapters.site, worker), profile, self._adapters.claude,
+                lambda: self._accounts(posting),
+                lambda filler, site: self._apply_with(posting, filler, site, worker, profile),
                 signed_in=self._adapters.signed_in,
             )
         except Exception as error:
@@ -345,9 +347,10 @@ class _Run:
         with self._writing:
             self._adapters.tracker.add_employer_account(account)
 
-    def _apply_with(self, posting: Posting, filler, site, worker: int) -> Result:
+    def _apply_with(self, posting: Posting, filler, site, worker: int, profile: ApplicantProfile) -> Result:
+        """`profile` is the run's, with the Posting's tailored resume in place of its resume when it has one."""
         return apply_to(
-            posting, filler, site, self._profile, self._adapters.claude,
+            posting, filler, site, profile, self._adapters.claude,
             lambda: self._before_submit(posting), self._answers.get(posting.id), self._approved.get(posting.id),
             bank=self._adapters.answer_bank, today=self._adapters.clock.now().date(),
             on_files=lambda files: self._adapters.board.update(worker, files=files),

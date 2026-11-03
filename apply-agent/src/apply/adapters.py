@@ -1,6 +1,7 @@
 """Interfaces to every outside system. Live implementations talk to the real
 thing; tests pass fakes (apply/tests/fakes.py)."""
 
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -242,3 +243,5 @@ class Adapters:
     answer_bank: AnswerBank = field(default_factory=AnswerBank)  # live: answer-bank.yaml beside the profile
     # Sites Lisul signed the Worker profiles in to by hand (apply sign-in): their sign-in walls are no Handoff.
     signed_in: frozenset[str] = frozenset()
+    # The student's tailored resume for a Posting (KAN-547), given to its form in place of the profile's resume.
+    tailored: Callable[[Posting], bytes | None] = lambda posting: None
