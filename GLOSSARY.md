@@ -184,6 +184,10 @@ _Avoid_: column, step (the Applications Tracker's Status filter picks stages)
 One job posting a student is following in the Applications Tracker, at one stage.
 _Avoid_: Applications (as the page's name)
 
+**Unlisted job posting**:
+A job posting that one student added to the Applications Tracker by its link, because WorkIt does not list it. Only that student sees it. When WorkIt later lists the same job, the posting becomes a listed one and the student's application stays on it.
+_Avoid_: external job, custom job, manual job
+
 **Match score**:
 How well one job posting fits a student, from 0 to 100, in bands named by their lowest score (Strong Match at 80 and above).
 _Avoid_: fit score, fit, match percentage

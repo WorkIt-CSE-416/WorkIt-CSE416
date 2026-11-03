@@ -65,7 +65,7 @@ The most Matches applied to (submitted or held) in one day, local time, kept in 
 _Avoid_: daily limit, quota, rate limit
 
 **Tracker**:
-The spreadsheet with one row per Application that Lisul reads to see every Application, its link, its status and its outcome.
+The spreadsheet with one row per Application that Lisul reads to see every Application, its link, its status and its outcome. Retired: its submitted rows are imported once into WorkIt's Applications Tracker, which is the record after that.
 _Avoid_: ledger, log, dashboard
 
 **Top 500**:
