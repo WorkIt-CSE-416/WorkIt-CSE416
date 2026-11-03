@@ -81,6 +81,11 @@ change the other.
 
 - The status line counts a link as "queued" only until a Worker starts it.
   A rehearsal sends `board.run(queued=...)` each time a link starts.
+- When a run or rehearsal ends, its window closes (`Dashboard.__exit__`).
+  A window with no server shows a run that is gone.
+- `kill <pid>` (SIGTERM) stops Apply as Ctrl-C does: the Worker browsers
+  and the window close. Ctrl-C does not reach Apply when it runs in the
+  background, so use SIGTERM there.
 
 ## The data folder (`APPLY_HOME`)
 

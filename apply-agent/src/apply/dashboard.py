@@ -457,6 +457,14 @@ class Dashboard:
     def __exit__(self, *exc) -> None:
         self._server.shutdown()
         self._server.server_close()
+        self._quit_window()  # its page has no server now: a window left open shows a dead run
+
+    def _quit_window(self) -> None:
+        """Quit the Chrome that shows this server's window, if one does."""
+        profile = _OPENED.get(urlsplit(self.url).netloc)
+        for pid, shown in _window_chromes(profile) if profile else []:
+            if urlsplit(shown).netloc == urlsplit(self.url).netloc:
+                _quit(pid)
 
     def closed(self) -> None:
         """The window's page went away. Unless it loads again within
@@ -466,11 +474,8 @@ class Dashboard:
         gone = time.monotonic()
 
         def check() -> None:
-            profile = _OPENED.get(urlsplit(self.url).netloc)
-            if self._loaded <= gone and profile:
-                for pid, shown in _window_chromes(profile):
-                    if urlsplit(shown).netloc == urlsplit(self.url).netloc:
-                        _quit(pid)
+            if self._loaded <= gone:
+                self._quit_window()
 
         timer = threading.Timer(CLOSE_GRACE, check)
         timer.daemon = True
