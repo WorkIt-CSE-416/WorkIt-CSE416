@@ -54,9 +54,10 @@ POST /jobs/added-by-link     {"url", "company", "title"}: the extension's
                              its stage), as Write with Claude gives a listed
                              job (KAN-470). Answers {"job_id", "stage"}. 404
                              with the reason for a form auto apply can't
-                             fill, or on a job system WorkIt turned off
-                             (KAN-467); 429 past ADDED_JOB_DAILY_CAP new
-                             jobs a day (KAN-478).
+                             fill, on a job system WorkIt turned off
+                             (KAN-467), or for a closed job's link (never
+                             reopened or rewritten from a request); 429 past
+                             ADDED_JOB_DAILY_CAP new jobs a day (KAN-478).
 
 Applicant accounts only (403 for a company's); the applicant is the token's,
 never a path or body field. A job that isn't open (closed, a company's own,
@@ -204,7 +205,11 @@ async def post_added_by_link(
     job_id = await listed_job_by_link(db, body.url)
     if job_id is None:
         known = await job_with_link(db, body.url)
-        if known is not None and known[1]:
+        if known is not None and not known[1]:
+            # A closed scraped job: reopening it would change it for every
+            # student and send queued applications back into their batches.
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "This job has closed on WorkIt.")
+        if known is not None:
             job_id = known[0]
         else:
             await take_daily(db, applicant_id, Capped.ADDED_JOB)

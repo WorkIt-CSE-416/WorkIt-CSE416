@@ -224,7 +224,7 @@ async def test_the_feed_import_leaves_an_added_job_open_until_the_feed_lists_its
     assert (await client.get(f"/applicants/{sam}/applications/{job_id}")).json()["stage"] == "needs_you"
 
 
-async def test_a_closed_jobs_form_opens_it_again_as_an_added_job(students, database):
+async def test_a_closed_jobs_form_is_refused_and_the_job_stays_closed(students, database):
     client, _ = students
     url = _form()
     await _import([url])
@@ -233,7 +233,9 @@ async def test_a_closed_jobs_form_opens_it_again_as_an_added_job(students, datab
         closed = await session.scalar(text("SELECT id FROM job_postings WHERE apply_url = :u AND status = 'closed'"), {"u": url})
     assert closed is not None
 
-    res = (await client.post("/jobs/added-by-link", json=_page(url))).json()
-    assert res == {"job_id": str(closed), "stage": "needs_you"}
-    assert tuple(await _job(database, str(closed))) == ("published", True)
-    assert str(closed) not in await _feed_ids(client)
+    res = await client.post("/jobs/added-by-link", json={**_page(url), "company": "Evil", "title": "Changed"})
+    assert res.status_code == 404
+    assert tuple(await _job(database, str(closed))) == ("closed", False)
+    async with database() as session:
+        row = (await session.execute(text("SELECT company_name, title FROM job_postings WHERE id = :id"), {"id": closed})).first()
+    assert tuple(row) != ("Evil", "Changed")

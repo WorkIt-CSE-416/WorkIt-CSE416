@@ -100,7 +100,9 @@ module docstring has the steps.
   link makes it an ordinary scraped job (the flag clears), keeping every
   application on it. No feed reads it: `services/postings.py`'s `LISTED`
   leaves it out, and only queries of an applicant's own applications read
-  `OPEN`, which keeps it.
+  `OPEN`, which keeps it. A closed scraped job's link is refused (404), never
+  reopened or retitled from the request: that would change the job for every
+  student and send queued applications back into their batches.
 - The feed's `roles` keys (KAN-172) are ignored: `JobListing` doesn't declare
   them, so a new scraper key never fails the import. A job's roles are its
   `job_role_tags`, resolved from its title (KAN-155).

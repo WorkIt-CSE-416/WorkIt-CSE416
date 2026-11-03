@@ -9,7 +9,7 @@ import datetime
 import uuid
 from typing import Any, NamedTuple
 
-from sqlalchemy import case, delete, func, select, update
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -221,24 +221,19 @@ async def job_with_link(db: AsyncSession, url: str) -> tuple[uuid.UUID, bool] | 
 async def add_job(db: AsyncSession, url: str, company: str, title: str) -> uuid.UUID:
     '''
     keeps the job a student added from its form (KAN-515) and answers its id:
-    a new row marked added_by_student, or, for a link a closed job already has,
-    that job open again as one a student added (the next import that lists the
-    link makes it a scraped job again). Flushes; the caller commits
+    a new row marked added_by_student. Never touches a job that already has
+    the link: a closed scraped job stays closed, with the feed's company and
+    title, so no student can reopen or rewrite it for everyone (the router
+    refuses that form). Flushes; the caller commits
     '''
-    added = {"company_name": company, "title": title, "status": job_post_status.published,
-             "added_by_student": True, "closes_at": None, "closed_reason": None}
     job_id = await db.scalar(
-        update(Job_Post)
-        .where(Job_Post.apply_url == url, Job_Post.company_id.is_(None), Job_Post.status != job_post_status.published)
-        .values(**added, updated_at=func.now())
+        insert(Job_Post).values(
+            apply_url=url, company_name=company, title=title,
+            status=job_post_status.published, added_by_student=True,
+        )
+        .on_conflict_do_nothing(index_elements=["apply_url"])
         .returning(Job_Post.id)
     )
-    if job_id is None:
-        job_id = await db.scalar(
-            insert(Job_Post).values(apply_url=url, **added)
-            .on_conflict_do_nothing(index_elements=["apply_url"])
-            .returning(Job_Post.id)
-        )
     # Another student's add of the same form at once: theirs is the job.
     return job_id or await db.scalar(select(Job_Post.id).where(Job_Post.apply_url == url))
 
