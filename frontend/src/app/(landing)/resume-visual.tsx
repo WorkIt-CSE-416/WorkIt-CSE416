@@ -602,9 +602,10 @@ function ResumeScene({ tailored }: { tailored: boolean }) {
 /**
  * The status while the page writes itself, the same card as the job card
  * that takes its place: a ring spins round the page icon, the line under
- * the title names the section being written, and a bar along the foot
- * fills with the percentage, all timed to the lines (`duration`). Then it
- * rests as ready, green. Mounted after the page is written (Generate
+ * the title names the section being written, and the percentage climbs,
+ * all timed to the lines (`duration`). Then it rests as ready, green. A bar
+ * along the card's foot said the percentage twice, so the team had it taken
+ * out. Mounted after the page is written (Generate
  * clicked after Tailor), it starts as ready, since the page does not
  * write itself again.
  */
@@ -701,22 +702,6 @@ function WriteStatus({
       >
         {percent}
       </motion.span>
-
-      {/* The bar along the card's foot edge, clear of the text: blue with
-          a sheen while it writes, green once the page is done. */}
-      <span className="absolute inset-x-0 bottom-0 h-[3px] bg-slate-900/[0.06]">
-        <motion.span
-          className={cn(
-            "absolute inset-0 origin-left rounded-r-full transition-colors duration-300",
-            done ? "bg-positive" : "bg-advanced",
-          )}
-          style={{ scaleX: progress }}
-        >
-          {!done && (
-            <span className="tour-sheen absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/70 to-transparent" />
-          )}
-        </motion.span>
-      </span>
     </div>
   );
 }

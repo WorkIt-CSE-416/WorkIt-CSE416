@@ -96,7 +96,7 @@ export function Story<Id extends string>({
   // caption read at about 8px. Grown from its foot, with the room it takes
   // above it added as margin, so it never covers the stage.
   const fit = React.useContext(FitScale);
-  const grow = fit < 1 ? Math.min(1 / fit, 520 / 380) : 1;
+  const grow = fit < 1 ? Math.min(1 / fit, 520 / 400) : 1;
 
   return (
     // shrink-0: as Fit's flex child, the story shrank to its title's 380px,
@@ -110,9 +110,10 @@ export function Story<Id extends string>({
       className="flex w-[520px] shrink-0 flex-col items-center gap-4"
     >
       {/* The scene's title: a glass pill with its number, not a switcher.
-          The scenes play on their own. */}
+          The scenes play on their own. Wide enough for the longest caption
+          at either size: at 380px three were cut short. */}
       <div
-        className="glass-card relative flex h-10 w-[380px] items-center gap-2.5 overflow-hidden rounded-full pr-4 pl-1.5"
+        className="glass-card relative flex h-10 w-[400px] items-center gap-2.5 overflow-hidden rounded-full pr-4 pl-1.5"
         style={
           grow > 1
             ? {

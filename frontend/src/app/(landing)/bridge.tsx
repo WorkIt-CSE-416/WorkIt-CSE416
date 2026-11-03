@@ -122,12 +122,22 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 // Tailwind's lg breakpoint: pinned from here up.
 const DESKTOP_QUERY = "(min-width: 64rem)";
+/** Too short for `ScrolledBridge`'s pin, whose line and stage need 538px
+ * under the floating header's 80: a phone on its side showed the stage
+ * alone, its line behind the header. */
+const SHORT_QUERY = "(max-height: 33.625rem)";
+
+/** The four steps: two and two, then one row once it fits. They wrapped
+ * three and one from 430px, in the stage's 384px. */
+const STEP_PILLS =
+  "grid w-max grid-cols-[auto_auto] justify-items-center gap-2 min-[35rem]:grid-cols-[repeat(4,auto)]";
 
 export function Bridge() {
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
+  const short = useMediaQuery(SHORT_QUERY);
   const reduceMotion = useReducedMotion();
   if (isDesktop === true && !reduceMotion) return <PinnedBridge />;
-  if (isDesktop === false && !reduceMotion) return <ScrolledBridge />;
+  if (isDesktop === false && short === false && !reduceMotion) return <ScrolledBridge />;
   return <StillBridge />;
 }
 
@@ -546,7 +556,7 @@ function ScrolledBridge() {
                 width={width}
               />
             ))}
-          <div className="absolute inset-x-0 top-[232px] flex flex-wrap justify-center gap-2">
+          <div className={cn(STEP_PILLS, "absolute top-[232px] left-1/2 -translate-x-1/2")}>
             {TOUR_TABS.map((tab, i) => (
               <motion.span
                 key={tab.id}
@@ -705,7 +715,7 @@ function StillBridge() {
           </div>
         ))}
       </div>
-      <div aria-hidden="true" className="mt-6 flex flex-wrap justify-center gap-2">
+      <div aria-hidden="true" className={cn(STEP_PILLS, "mx-auto mt-6")}>
         {TOUR_TABS.map((tab) => (
           <Pill key={tab.id} tab={tab} />
         ))}

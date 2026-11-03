@@ -318,9 +318,8 @@ export function HiringSystems() {
     return () => controls.stop();
   }, [feed.arrivals, nodeScale]);
 
-  const cards = feed.cards
-    .slice(-(isWide ? CARDS.wide : CARDS.narrow))
-    .sort((a, b) => (b.card?.score ?? 0) - (a.card?.score ?? 0));
+  // The newest on top, so the oldest leaves at the foot.
+  const cards = feed.cards.slice(-(isWide ? CARDS.wide : CARDS.narrow)).reverse();
 
   return (
     <MotionConfig reducedMotion="user">
@@ -438,7 +437,7 @@ export function HiringSystems() {
           </div>
 
           {/* The Jobs page side: the newest kept postings as clean cards,
-              best match first. */}
+              the newest on top. */}
           <ul aria-hidden="true" className="relative flex flex-col justify-center gap-2.5 lg:pl-10">
             <li className="absolute inset-x-0 -inset-y-10 -z-10 bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--color-updates)_16%,transparent),transparent)] lg:left-10" />
             <AnimatePresence mode="popLayout" initial={false}>
@@ -589,7 +588,7 @@ export function JobCard({
           {card.facts.map((fact) => (
             <span
               key={fact}
-              className="text-ink-muted rounded-md bg-white/70 px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-slate-900/5"
+              className="text-ink-muted rounded-md bg-white/70 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap ring-1 ring-slate-900/5"
             >
               {fact}
             </span>

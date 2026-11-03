@@ -10,10 +10,13 @@ import { followedJob } from "./feature-data";
 
 export const site = {
   name: "WorkIt",
-  // The footer's sign-off and the home page's title. For students: the
-  // site's two-sided pitch to recruiters went while the business side is
+  // The footer's sign-off and the title on a link's preview. For students:
+  // the site's two-sided pitch to recruiters went while the business side is
   // hidden.
   tagline: "Your job search, without the busywork.",
+  // The tagline, cut down for the home page's browser tab: a tab shows about
+  // 30 characters, and the whole line ended at "without".
+  tabTitle: "Job search, no busywork",
   primaryCta: { label: "Get started for free", href: "/signup" },
   login: { label: "Log in", href: "/login" },
   pricing: { label: "Pricing", href: "/pricing" },

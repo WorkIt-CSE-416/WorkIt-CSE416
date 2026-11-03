@@ -19,6 +19,7 @@ import {
 } from "@phosphor-icons/react/ssr";
 
 import { SparkleIcon } from "@/components/icons";
+import { Logo } from "@/components/logo";
 import { cn } from "@/lib/cn";
 
 import { FaviconLogo } from "./favicon-logo";
@@ -197,7 +198,7 @@ function Camera({ level }: { level: number }) {
           style={at(cell.row, cell.col)}
         />
       ))}
-      <Application live={level === 0} level={level} style={at(MID, MID)} />
+      <Application live={level === 0} style={at(MID, MID)} />
     </motion.div>
   );
 }
@@ -218,15 +219,7 @@ function topWithin(el: HTMLElement, root: HTMLElement) {
 /** The visible height of the page, under the title bar. */
 const VIEW = H - BAR;
 
-function Application({
-  live,
-  level,
-  style,
-}: {
-  live: boolean;
-  level: number;
-  style: React.CSSProperties;
-}) {
+function Application({ live, style }: { live: boolean; style: React.CSSProperties }) {
   const { job, url, sections } = autoApplyFeature;
   // The field being filled: -1 before the first, COUNT once every field is
   // filled and it waits for the student, COUNT + 1 once they submit. A
@@ -275,16 +268,8 @@ function Application({
 
   return (
     <div
-      className="absolute flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-slate-900/10 transition-shadow duration-700 motion-reduce:transition-none"
-      style={{
-        ...style,
-        width: W,
-        height: H,
-        // Ringed in the stop's green once the camera pulls back, so the
-        // window that was filled up close stays easy to find; thicker as
-        // the grid grows, since the camera shrinks it.
-        boxShadow: `0 0 0 ${[0, 10, 18, 26][level]}px color-mix(in oklab, var(--color-positive) 75%, transparent)`,
-      }}
+      className="absolute flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-slate-900/10"
+      style={{ ...style, width: W, height: H }}
     >
       <WindowBar>
         <span className="text-ink-meta flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-white px-2 text-[10.5px] ring-1 ring-slate-900/5">
@@ -415,7 +400,8 @@ function Application({
   );
 }
 
-/** WorkIt's extension in the browser bar, counting the fields. */
+/** WorkIt's extension in the browser bar, counting the fields, with WorkIt's
+ * own mark in white (a generic AI star said nothing about whose it was). */
 function ExtensionChip({ active }: { active: number }) {
   const sent = active > COUNT;
   const label =
@@ -436,7 +422,7 @@ function ExtensionChip({ active }: { active: number }) {
       {sent ? (
         <CheckIcon className="size-3" weight="bold" aria-hidden="true" />
       ) : (
-        <SparkleIcon className="size-3" aria-hidden="true" />
+        <Logo size="mark" decorative className="h-2.5 brightness-0 invert" />
       )}
       {label}
     </span>

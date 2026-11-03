@@ -47,7 +47,7 @@ export function Header() {
         {/* From lg up: 1fr | auto | 1fr grid, so the links are centered on the
           page regardless of how wide the groups on either side are. */}
         <nav
-          className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-6 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-6 lg:px-8"
+          className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-2 px-4 max-[359px]:gap-1 max-[359px]:px-2 sm:gap-4 sm:px-6 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:gap-6 lg:px-8"
           aria-label="Main"
         >
           <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 lg:justify-self-start">
@@ -77,7 +77,8 @@ export function Header() {
             </ul>
           </NavMenuGroup>
 
-          <div className="flex items-center gap-2 lg:justify-self-end">
+          {/* Tighter below 360px, or the menu button ran off the screen. */}
+          <div className="flex items-center gap-2 max-[359px]:gap-0 lg:justify-self-end">
             <SessionSwap
               signedOut={
                 <>
