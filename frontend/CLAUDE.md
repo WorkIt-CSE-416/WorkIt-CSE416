@@ -42,7 +42,12 @@ them). Notes the scripts don't say:
   bare path: Node resolves no extension, and `model.ts`'s bare import of
   `holdings` failed `cuts.test.ts` with "Cannot find module" (2026-11-01).
   A type-only import can use `@/`, since it is erased. There is no
-  component or browser runner.
+  component or browser runner. **`node --test` reads its paths as globs**,
+  so a test under a dynamic route's folder (`[jobId]`, `[resumeId]`) runs
+  nothing when named as it is: write the brackets as `[[]jobId[]]` in a
+  quoted path (unquoted, the shell globs it back to `[jobId]`), or the run
+  passes with "tests 0". A `$(find ...)` list skips those files the same
+  way: 44 of 74 tests ran on 2026-11-03 (KAN-577).
 - **To test a resume upload**, use a file from `frontend/public/resumes/`.
   The folder is git-ignored because it holds real people's resumes, so put
   your own there once, in the primary checkout: `npm run worktree` and every
@@ -1356,7 +1361,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the dialog in `applications/create-event.tsx`, which the Calendar's toolbar opens too,
   over `applications/actions.ts`), and the tracker's read joins the events
   from `GET .../events` (`applications/tracked.ts`); a failed read of
-  either shows an error, never stand-in cards. **A stage past applied is
+  either shows an error, never stand-in cards. **Each tracker write offers
+  Undo or asks first** (KAN-577): a stage pick and an event's Delete say so
+  in a toast whose Undo writes the reverse (`applications/[jobId]/undo.ts`,
+  tested), and a saved job's stage pick asks in a dialog, since the API
+  never moves a job back to Saved and so has no Undo for it. **A stage past applied is
   still applied**: every "did they apply?" check is `hasApplied` in
   `(seeker)/applied.ts`, never `stage === "applied"` (the job cards' Applied
   button, Save's toast, Auto Apply's button, Top Matches' rows). The

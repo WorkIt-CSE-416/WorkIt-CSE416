@@ -977,11 +977,13 @@ filtered.
   `?sort=` in place (shallow routing): the table sorts the rows it holds,
   with no round trip.
 - **Columns**: drag a heading by its label to a new place (a brand bar
-  marks the side it lands on); drag a heading's right edge to resize it,
-  double-click the edge to reset it, or focus the edge and use the arrow
-  keys; hide and show columns from the **Columns** menu at the filter row's
-  right end, which shows only in the list view and also has Reset Columns.
-  Role cannot move or hide. Each column has a fixed width
+  marks the side it lands on), or use a column's Move Left and Move Right
+  arrows in the **Columns** menu, the way without a drag (WCAG 2.5.7,
+  KAN-577); drag a heading's right edge to resize it (a 24px handle with a
+  2px line), double-click the edge to reset it, or focus the edge and use
+  the arrow keys; hide and show columns from the same menu, at the filter
+  row's right end, which shows only in the list view and also has Reset
+  Columns. A sort heading's button is 24px high. Role cannot move or hide. Each column has a fixed width
   (a fixed table layout) and cuts what does not fit, with the whole value
   on hover; an empty last column takes the card's spare width, so a resize
   never stretches the others. A drag needs a mouse: a phone keeps the
@@ -1060,10 +1062,14 @@ tracker row, and the tab title comes from the posting's own read:
   and at the row's right the **stage menu** (KAN-413, `StageMenu` in
   `[jobId]/tracker-controls.tsx`): Applied, Interviewing, Offer or Rejected,
   any way, "Move To…" on a saved job, since saved is a bookmark it never
-  goes back to; then a one-line status per stage (`HEADLINE`: "Waiting to
+  goes back to. A pick says so in a toast ("Moved to Offer.") whose Undo
+  puts the stage before it back (KAN-577, `[jobId]/undo.ts`); a saved job's
+  pick asks first in a dialog instead, since the API never moves a job back
+  to Saved, and the menu is off while its write runs; then a one-line status per stage (`HEADLINE`: "Waiting to
   Hear Back", "In Interviews", "Not Moving Forward"...), the resume sent (and
   when it was saved, for a saved job), the timeline left to right (`Timeline`'s
-  `horizontal`; each dot wears its stage's glyph, not a check, KAN-317), and
+  `horizontal`, a region named Timeline in the tab order, so the keyboard
+  scrolls it; each dot wears its stage's glyph, not a check, KAN-317), and
   two cards of facts (KAN-286): whether the posting is
   Open or Closed, then the days since the seeker applied (for a saved job,
   the days since the posting went up). The status line drops the applied
@@ -1088,7 +1094,8 @@ tracker row, and the tab title comes from the posting's own read:
   need a field on the tracker's response. **Interviews & Dates** sits
   under the card (KAN-413, `TrackerEvents`): every event, soonest first,
   each with its kind's stage glyph, its day in the viewer's zone, Join
-  Meeting for its link, its note and a Delete (the stage stays), and **Add
+  Meeting for its link, its note and a Delete (the stage stays; its
+  toast's Undo adds the same event back, KAN-577), and **Add
   Event**, a dialog: Type (Interview, Assessment, Offer, Rejection,
   Follow-Up), Title (blank takes the type's name), Date, an optional Time
   (blank is a whole day, sent as a bare date; a time is the viewer's own,
