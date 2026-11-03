@@ -58,8 +58,12 @@ export function LoginForm({ formId, next }: { formId: string; next?: string }) {
             aria-invalid={invalid}
             aria-describedby={describedBy}
           />
-          <p className="text-meta text-right">
-            <TextLink href="/login/reset-password">Forgot Password?</TextLink>
+          {/* A link in its own row, so 13px and a 24px target, not 11px
+              meta text: it is a locked-out student's only way back. */}
+          <p className="text-label flex justify-end">
+            <TextLink href="/login/reset-password" className="inline-flex min-h-6 items-center">
+              Forgot Password?
+            </TextLink>
           </p>
         </div>
       </div>

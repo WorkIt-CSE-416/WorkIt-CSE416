@@ -187,7 +187,7 @@ export function StatTile({
 
       {/* Always drawn, like the plain variant's line: a window with no
           earlier span (Max) dropped it, and the tile shrank by 31px on a
-          phone, moving everything under the row. min-h-6 holds the 23px
+          phone, moving everything under the row. min-h-6 holds the 24px
           badge row's height when only the note is there. */}
       <p className="mt-2 flex min-h-6 flex-wrap items-center gap-x-1.5 gap-y-1">
         {!delta ? (

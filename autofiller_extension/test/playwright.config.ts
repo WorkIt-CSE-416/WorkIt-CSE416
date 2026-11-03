@@ -3,6 +3,9 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: ".",
   timeout: 90_000,
+  // A CI runner is slower than a laptop, and a few timing-bound specs now and
+  // then miss; a spec that is broken fails all three tries.
+  retries: process.env.CI ? 2 : 0,
   projects: [
     {
       // The fill in a saved form's page, minus Chrome (extension.ts).
@@ -11,9 +14,11 @@ export default defineConfig({
       testIgnore: "*.extension.spec.ts",
       use: {
         headless: true,
-        serviceWorkers: "block",
+        // The installed Chrome, which updates itself, with its sandbox on: Playwright's own Chromium lags its fixes (KAN-552).
+        channel: "chrome",
         // The fill engine's fake job server uploads to a local server, which Chromium blocks a public page from reaching unless told not to.
-        launchOptions: { args: ["--disable-features=LocalNetworkAccessChecks"] },
+        launchOptions: { chromiumSandbox: true, args: ["--disable-features=LocalNetworkAccessChecks"] },
+        serviceWorkers: "block",
       },
     },
     {

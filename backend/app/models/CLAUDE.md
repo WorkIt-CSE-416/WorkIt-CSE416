@@ -270,7 +270,7 @@ change here must keep:
   catalog keys (`services/skill_catalog.py` `key`) of the skills the
   student deleted, or took out of the parse preview: a resume reading
   (`import_upload`, the preview) and Tailor's "Have you used X?" never add
-  them again. The student adding one by hand (POST .../bank/skills) takes
+  them again. The student adding one by hand (POST .../experiences/skills) takes
   it off the list. The clean-up script's deletes are not the student's and
   are not remembered.
 - **Section fields are plain nullable columns on `bank_entries`**, not a
@@ -319,12 +319,16 @@ change here must keep:
   the GPA and coursework toggles; the words always come from the bank (ADR
   0001). Never copy bank text onto a built resume.
 - **No choice row means not on the resume**, for entries, bullets and skills
-  alike, so what is added to the bank after Generate waits in the tray.
+  alike, so what is added to the bank after Generate stays off in the editor's Experiences picker.
   Deleting a bank item cascades to its choice rows.
 - **A base resume has no `job_posting_id`; a tailored one has one**, unique
   per applicant and posting (`built_resumes_applicant_posting_key`; NULLs are
   distinct, so base resumes are many). No built resume counts toward the
   limit of 5, which is uploads only (`../services/built_resumes.py`).
+- **`built_resumes.page_settings` is JSONB, `{}` at Jake's own page**
+  (KAN-435): the fields of `resume_render.PageSettings`, a field left out at
+  its default. Read it through `built_resumes.page_of`. The schema's lists
+  check it on the way in, so the column holds no value the renderer refuses.
 - **The default resume is two pointers, at most one set.**
   `applicant_profiles.default_resume_id` (an uploaded resume) and
   `default_built_resume_id` (a base or tailored resume; tailored since
@@ -792,12 +796,7 @@ Application Questions shows and edits them (KAN-269).
   is. Questions with no fixed key (a company's own screening question)
   will need their text stored, but only once the extension records what a
   student types into a form; they get their own part of the bank then,
-  with no migration, since the column is JSONB. **Still true as of the
-  essay-answer feature** (`routers/essay_answer.py`, KAN-164): that route
-  reads the question's literal text from the extension's request and never
-  writes it anywhere — it's exactly the "extension records what a student
-  types" moment this note anticipated, and persisting it is a deliberate,
-  deferred follow-up, not an oversight.
+  with no migration, since the column is JSONB.
 - **Written per key, never replaced whole.** `PATCH` merges in the database
   (`answers || new - cleared`), so a tab holding an old copy can't erase an
   answer it never loaded. The frontend sends only the answers the seeker
@@ -829,8 +828,17 @@ Application Questions shows and edits them (KAN-269).
 
 A student who used Apply (Lisul's own auto-apply tool, which runs the same
 Fill engine) brings its files over with
-`uv run python -m app.scripts.import_apply_profile <applicant_id> <apply_dir>`,
+`uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]`,
 so WorkIt fills forms as completely as Apply does.
+
+- **The folder is Apply's data folder** (KAN-536). Without `<apply_dir>`, the
+  import reads the folder that Apply reads: `$APPLY_HOME`, else
+  `~/.config/apply` (`import_apply_writing.apply_home`). The profile, policies,
+  answer bank, story bank, voice and company briefs are directly in it.
+- **A `files:` path is read as Apply reads it.** A relative path starts at
+  the data folder, `~` is expanded, and an absolute path is kept. Apply's own
+  rule is in `apply-agent`'s `profile.py` (`get`). If you change one, change
+  the other.
 
 - **Three JSONB columns on `applicant_profiles`**, each `NOT NULL DEFAULT
   '{}'` with a CHECK that it is an object (migration `7f07adcaef4e`; the
@@ -949,6 +957,12 @@ is no backfill. Only the import writes it (`../CLAUDE.md`, The feed import).
 A reason added to the CHECK goes into the import's `CLOSED_REASONS` too, or
 the import files it as `unknown`.
 
+**`unlisted` is in the enum but unused** (`c2e4a6b8d051`, KAN-542, applied
+to production before the design settled on a column). A job a student added
+is `added_by_student` (`f7b2d4a6c815`, KAN-515), never a status, and no code
+writes `unlisted`. Postgres can't drop an enum value in place, so a later
+migration rebuilds the type without it (`../../docs/adr/0008-unlisted-job-postings.md`).
+
 **`company_domain` is the employer's own website, for its logo**
 (`d9b579e66623`, KAN-442): the registered domain the scraper found
 (`goldmansachs.com`), never a careers subdomain or a hiring vendor's host
@@ -1047,6 +1061,12 @@ so a batch never picks a saved job. Rules:
   `c0467afe819c`, `saved` from `17ea74fa4573`, the last three from
   `a7d3e5f1c2b4`), a column here rather than a second table, so one row is
   one application. `created_at` orders the queue.
+- **`company_name` and `title` are the text the student typed** when they
+  added the job (`d3f5a7c9e162`, KAN-542, ADR 0008). The tracker shows them
+  only while the job is an added one (`added_by_student`;
+  `services/postings.py`, `typed_text`), so two students on one added job
+  each see their own text. When the feed lists the job, the flag clears and
+  the feed's text shows. NULL on a job saved or queued another way.
 - **Interviewing, offer and rejected are applied too** (KAN-413).
   Anything that asks "did this student apply?" counts all four, never
   `stage == applied`: the Jobs page's filter, and the Applied button, which

@@ -18,6 +18,7 @@ function sendMessage(message) {
  *  resolved here since this is just "which tab to open", not an API call —
  *  popup.js still never talks to the backend or Supabase directly. */
 async function webappUrl() {
+  if (DEV_WEB_URL === null) return PROD_SITES[0].web;
   try {
     const response = await fetch(DEV_WEB_URL, { signal: AbortSignal.timeout(1000) });
     if (response.ok || response.type === "opaque") return DEV_WEB_URL;
@@ -25,6 +26,14 @@ async function webappUrl() {
     // dev server isn't running — fall through to prod
   }
   return PROD_SITES[0].web;
+}
+
+/** How to use the extension (KAN-495): opened automatically on a fresh
+ *  install (background.js's onInstalled) and, here, on demand — signed in
+ *  or not, since a student who skipped it the first time may still want it. */
+async function openSetupPage() {
+  const base = await webappUrl();
+  chrome.tabs.create({ url: `${base}/extension-setup` });
 }
 
 function renderLoginView(errorText) {
@@ -41,6 +50,7 @@ function renderLoginView(errorText) {
     const base = await webappUrl();
     chrome.tabs.create({ url: `${base}/login` });
   });
+  root.querySelector("#setup-button").addEventListener("click", openSetupPage);
 }
 
 /**
@@ -80,6 +90,7 @@ function renderSignedIn(profile) {
     chrome.tabs.create({ url: `${base}/auto-apply` });
     window.close();
   });
+  root.querySelector("#setup-button").addEventListener("click", openSetupPage);
 }
 
 /** The popup's home: what the student is doing, and its next step (popup/home). */
@@ -197,7 +208,8 @@ async function showUnsupported() {
     request.disabled = true;
     const answer = await sendMessage({ type: "popup/request", tabId });
     request.disabled = false;
-    if (!answer?.ok) return say("WorkIt couldn't send the request. Try again.", true);
+    // 429: the day's limit (KAN-478), in the API's own words.
+    if (!answer?.ok) return say(answer?.status === 429 && answer.error ? answer.error : "WorkIt couldn't send the request. Try again.", true);
     request.hidden = true;
     say("Requested. WorkIt adds the job systems students ask for most.");
   });
@@ -216,7 +228,7 @@ async function showUnsupported() {
     const note = box.querySelector("#report-note").value.trim();
     const answer = await sendMessage({ type: "popup/report", tabId, note: note || null });
     send.disabled = false;
-    if (!answer?.ok) return say("WorkIt couldn't send the report. Try again.", true);
+    if (!answer?.ok) return say(answer?.status === 429 && answer.error ? answer.error : "WorkIt couldn't send the report. Try again.", true);
     box.querySelector(".report").hidden = true;
     say("Sent. Thanks for telling WorkIt.");
   });
@@ -240,6 +252,8 @@ async function init() {
   }
   const profileResponse = await sendMessage({ type: "profile/get" });
   if (!profileResponse.ok && profileResponse.status === 401) return renderLoginView();
+  // An extension older than the API serves (its 426, KAN-466): how to update.
+  if (!profileResponse.ok && profileResponse.status === 426) return renderFailed(profileResponse.error);
   // Any other failed read (KAN-401): a plain sentence and Try again, never the request's status or words.
   if (!profileResponse.ok) return renderFailed("WorkIt couldn't load your profile.");
   renderSignedIn(profileResponse.profile);

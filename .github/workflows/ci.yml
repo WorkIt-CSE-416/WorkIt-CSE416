@@ -21,6 +21,191 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
 
+  # Whether FILL_ENGINE_TOKEN (read access to the private fill-engine submodule) is set. Without it the
+  # jobs and steps below that need the engine are skipped, and this job's summary says SKIPPED.
+  engine:
+    uses: ./.github/workflows/engine-token.yml
+    with:
+      skipped: the extension's Playwright suite and the Chrome Web Store package build
+    secrets: inherit
+
+  # The Chrome Web Store package (KAN-463): store/build.mjs fails if any packaged file names localhost,
+  # vercel.app or "Prototype", and the specs read the zip back and check the website calls the
+  # extension's ID. The package needs the fill-engine submodule: the build steps run once
+  # FILL_ENGINE_TOKEN is set (the engine job), and show as skipped otherwise; the ID check runs either way.
+  extension-store-build:
+    needs: engine
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: autofiller_extension
+    steps:
+      - uses: actions/checkout@v4
+        if: needs.engine.outputs.set == 'true'
+        with:
+          submodules: true
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - uses: actions/checkout@v4
+        if: needs.engine.outputs.set != 'true'
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci
+        working-directory: autofiller_extension/test
+      - run: npx playwright test extension-id.spec.ts --project=page
+        working-directory: autofiller_extension/test
+      - name: Build the Store package
+        if: needs.engine.outputs.set == 'true'
+        run: node store/build.mjs
+      - name: Check the Store package
+        if: needs.engine.outputs.set == 'true'
+        run: npx playwright test store-build.spec.ts --project=page
+        working-directory: autofiller_extension/test
+
+  # Which parts a PR touches, so a job can skip a PR that can't break it.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      extension: ${{ steps.filter.outputs.extension }}
+      apply: ${{ steps.filter.outputs.apply }}
+    steps:
+      # A PR's files come from the API; any other event diffs the checkout.
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            extension:
+              - autofiller_extension/**
+              - .github/workflows/ci.yml
+              - .github/workflows/engine-token.yml
+              - .github/actions/extension-setup/**
+            apply:
+              - apply-agent/**
+              - autofiller_extension/fill-engine
+              - .github/workflows/ci.yml
+              - .github/workflows/engine-token.yml
+
+  # The extension's Playwright suite, headless, on the engine the submodule
+  # pins (KAN-464). The slow speed harness runs nightly instead
+  # (extension-nightly.yml). Skipped without FILL_ENGINE_TOKEN (the engine job).
+  extension:
+    needs: [changes, engine]
+    if: needs.changes.outputs.extension == 'true' && needs.engine.outputs.set == 'true'
+    # macOS, as most students run Chrome: on Linux, Chromium asks
+    # accounts.google.com on its own and scrolls and focuses differently, so
+    # a few specs fail there only. Free on a public repo.
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: autofiller_extension/test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - uses: ./.github/actions/extension-setup
+      # The extension loads the engine's committed dist/; it must be what the
+      # pinned src/ builds to.
+      - name: The pinned engine's dist/ is built from its src/
+        working-directory: autofiller_extension/fill-engine
+        run: |
+          npm ci
+          npm run build
+          git diff --exit-code --stat dist/ || {
+            echo "::error::The pinned fill-engine commit's dist/ is stale."
+            exit 1
+          }
+      - run: npx playwright test $(ls *.spec.ts | grep -vx speed.extension.spec.ts)
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: extension-test-results
+          path: autofiller_extension/test/test-results
+          retention-days: 7
+
+  # Apply (apply-agent/, KAN-535): ruff and the fast tests, the files that need
+  # no browser, no network and no `claude` CLI (about 30 s on Linux). The tests
+  # read the engine's saved forms, so the job needs the fill-engine submodule
+  # and is skipped without FILL_ENGINE_TOKEN (the engine job).
+  apply:
+    needs: [changes, engine]
+    if: needs.changes.outputs.apply == 'true' && needs.engine.outputs.set == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apply-agent
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      # The files that need no browser, network or `claude` CLI. A new test
+      # file that needs none of them joins the list.
+      - name: Fast tests
+        run: |
+          uv run pytest -q \
+            tests/test_accounts.py \
+            tests/test_answer_bank.py \
+            tests/test_answering.py \
+            tests/test_applicant_name.py \
+            tests/test_apply_home.py \
+            tests/test_approve.py \
+            tests/test_bot_signals.py \
+            tests/test_claude_answers.py \
+            tests/test_claude_cli.py \
+            tests/test_clock.py \
+            tests/test_company_brief.py \
+            tests/test_company_material.py \
+            tests/test_cover_letter.py \
+            tests/test_daily_cap.py \
+            tests/test_dock_app.py \
+            tests/test_eightfold_filler.py \
+            tests/test_employer_mail.py \
+            tests/test_fill_engine.py \
+            tests/test_focus.py \
+            tests/test_form_steps.py \
+            tests/test_gates.py \
+            tests/test_gmail.py \
+            tests/test_graduate_only.py \
+            tests/test_keychain_contract.py \
+            tests/test_mail_command.py \
+            tests/test_matches.py \
+            tests/test_notification.py \
+            tests/test_outside_us.py \
+            tests/test_phone_push.py \
+            tests/test_presubmit_check.py \
+            tests/test_privacy_gate.py \
+            tests/test_profile.py \
+            tests/test_rankings.py \
+            tests/test_records_contract.py \
+            tests/test_repair_requests.py \
+            tests/test_requests.py \
+            tests/test_sameness.py \
+            tests/test_schedule.py \
+            tests/test_send_click.py \
+            tests/test_sheet_import.py \
+            tests/test_sheet_tidy.py \
+            tests/test_sheet_tracker.py \
+            tests/test_stock.py \
+            tests/test_story_map.py \
+            tests/test_tailored_resume.py \
+            tests/test_tracker_cleanup.py \
+            tests/test_tracker_contract.py \
+            tests/test_tracker_record.py \
+            tests/test_worker_date.py \
+            tests/test_workit_login.py
+
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.
   api-worker:

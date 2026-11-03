@@ -50,8 +50,9 @@ class JobListing(BaseModel):
     company: str
     apply_url: str
     # Who the job is for (KAN-233): a student (every internship), a new grad,
-    # or someone with experience.
-    experience_level: Literal["student", "new_grad", "experienced"]
+    # or someone with experience. The scraper always names one; None only for
+    # a job a student added from its form (KAN-515), whose page names none.
+    experience_level: Literal["student", "new_grad", "experienced"] | None
     # Stated by the posting, else inferred by the scraper from the company's other
     # postings or, for a posting that names a place and no alternative, On site
     # (scraper/CLAUDE.md). None when neither applies.
@@ -119,6 +120,25 @@ class JobListing(BaseModel):
     @property
     def auto_apply(self) -> bool:
         return auto_apply_supported(self.form_url or self.apply_url)
+
+
+class CompanyFact(BaseModel):
+    """One checked fact from a company brief (app/auto_apply/briefs.py), with
+    the page it came from."""
+
+    category: str
+    fact: str
+    url: str
+    published: str | None = None
+
+
+class JobCompany(BaseModel):
+    """The job page's Company tab: the employer's website, when known, and its
+    brief's facts, empty until a student's Claude has researched the company."""
+
+    company: str
+    website: str | None = None
+    facts: list[CompanyFact] = []
 
 
 class JobLocationOption(BaseModel):

@@ -51,7 +51,8 @@ import { cn } from "@/lib/cn";
  * Button base, which would resize the glyph in every Button.
  *
  * BELOW md THERE IS NO PANEL TO MATCH — it opens as a sheet — so the cell
- * drops its width and rule and is just the toggle and the logo, on the page
+ * drops its width and rule and is just the toggle and the logo's mark (the
+ * bar beside it holds the page's title), on the page
  * gutter's own 16px and 32px insets (SEEKER_GUTTER), so the toggle starts on
  * the heading's left edge rather than 8px short of it. md is 768px,
  * the same line useIsMobile draws, so the CSS and the JS agree on which
@@ -93,7 +94,10 @@ function LogoLink({ href, hidden }: { href: string; hidden: boolean }) {
         hidden && "opacity-0",
       )}
     >
-      <Logo size="bar" />
+      {/* The mark alone below md, as the seeker bar has it, to leave the
+          page's title room beside it (KAN-582). */}
+      <Logo size="mark" className="md:hidden" />
+      <Logo size="bar" className="max-md:hidden" />
     </Link>
   );
 }

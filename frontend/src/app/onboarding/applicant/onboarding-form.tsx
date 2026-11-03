@@ -1,5 +1,6 @@
 "use client";
 
+import { WarningCircleIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -12,6 +13,7 @@ import type { PickOption } from "@/components/filter-controls";
 import { answerIcon } from "@/components/icons";
 import { Stepper } from "@/components/stepper";
 import { Button } from "@/components/ui/button";
+import { ChoiceTile } from "@/components/ui/choice-tile";
 import { cn } from "@/lib/cn";
 import { updateProfile } from "@/lib/profile-actions";
 import { webLink } from "@/lib/profile-links";
@@ -31,18 +33,18 @@ import {
 
 import { savePreferences } from "./actions";
 import { AvailabilityStep } from "./availability-step";
-import { ChoiceTile } from "./choice-tile";
+import { ClaudeStep, useClaudeConnected } from "./claude-step";
 import { LinkFields, LINKS, LocationField, NO_CONTACT, type Contact } from "./contact-fields";
-import { ExtensionStep, useExtensionState } from "./extension-step";
+import { CAN_INSTALL, ExtensionStep, useExtensionState } from "./extension-step";
 import { nextPracticeTab, practiceDone, PracticeStep, usePracticeStatus } from "./practice-step";
 import { ResumeStep } from "./resume-step";
 import { Field, fieldId, RoleStep } from "./role-step";
 import { SignedInAs } from "./signed-in-as";
-import { ONBOARDING_STEPS } from "./steps";
+import { ONBOARDING_STEPS, railStep, WIZARD_PAGES } from "./steps";
 import { StoryPanel } from "./story-panel";
 
 /**
- * The applicant onboarding wizard (KAN-231): six short steps, each one's
+ * The applicant onboarding wizard (KAN-231): seven short pages, each one's
  * question on the left (./story-panel) and the fields answering it on the
  * right, under the step rail (./steps.ts). Each new question takes focus, so
  * a screen reader hears it.
@@ -89,16 +91,36 @@ import { StoryPanel } from "./story-panel";
  * step's picks and goes on. The rest of the Application answers live on My
  * Profile.
  *
- * STEPS 5 AND 6 ARE THE EXTENSION (KAN-378). Step 4 asks the seeker to add
+ * PAGES 5 AND 7 ARE THE EXTENSION (KAN-378). Page 5 asks the seeker to add
  * the WorkIt extension and pin it (./extension-step), and turns each line
- * done as the page sees it, asking the extension every 1.5 seconds. Step 5
+ * done as the page sees it, asking the extension every 1.5 seconds. Page 7
  * runs a practice batch on WorkIt's own practice forms (lib/practice-form,
  * ./practice-step): the extension fills them into the Ready and Needs you
  * tab groups and the seeker submits each one, which sends nothing. Once
  * both are submitted it says the seeker is ready, and Find Jobs opens the
- * Jobs page in its Best Match order. A first real batch then fills the
- * factual fields only: a batch tab leaves written answers to the seeker
- * until Claude is added.
+ * Jobs page in its Best Match order.
+ *
+ * BETWEEN THEM, THE OPTIONAL ADD CLAUDE PAGE (KAN-507, ./claude-step): the
+ * install link opens Claude's Add Custom Connector dialog filled in for
+ * WorkIt, and the line turns done once the seeker's Claude signs in, asking
+ * WorkIt every 3 seconds. Skip for Now goes on to the practice batch. Without
+ * Claude, a batch fills the factual fields only and leaves written answers
+ * to the seeker. It comes before the practice batch, whose Lumen form asks
+ * a written question, so the seeker meets that question knowing who writes
+ * such answers; on the rail it sits under Practice (./steps.ts).
+ *
+ * THE FOOTER HOLDS BUTTONS ONLY (KAN-572). Back on the left, the one forward
+ * button on the right, and a skip beside it in muted ink (`section`). An
+ * error is a banner across the footer's top, and while the forward button is
+ * off the line there says why, which the button names as its description.
+ * In the button row, an error squeezed to 56px on a phone and pushed the
+ * buttons past the screen's edge. On a phone the forward button takes its
+ * own row once the row cannot hold all three. "Skip" moves one page;
+ * "Skip Setup" leaves the wizard for the Jobs page. On Add Claude the main
+ * button is Skip for Now until Claude is added, and on Extension with no
+ * store listing it is Skip Setup: a Next that cannot turn on is no main
+ * button. Sign Out comes after the footer, so the keyboard reaches Back and
+ * Next first.
  *
  * `initial`, `initialAnswers` and `initialContact` are what the seeker saved, so a finished
  * seeker who comes back edits them rather than starting over.
@@ -151,6 +173,14 @@ const STEPS: { question: ReactNode; line: string }[] = [
   {
     question: (
       <>
+        Then, let <strong>your Claude write your answers</strong>, if you want.
+      </>
+    ),
+    line: "Optional. WorkIt never runs a model: your own Claude writes them.",
+  },
+  {
+    question: (
+      <>
         Last, try a <strong>practice batch</strong> before a real one.
       </>
     ),
@@ -158,13 +188,19 @@ const STEPS: { question: ReactNode; line: string }[] = [
   },
 ];
 
-/** The steps by name, in ONBOARDING_STEPS' order. */
-const ROLE = 0;
-const RESUME = 1;
-const PROFILE = 2;
-const AVAILABILITY = 3;
-const EXTENSION = 4;
-const PRACTICE = 5;
+/** The wizard's pages by name (./steps.ts WIZARD_PAGES). */
+const ROLE = WIZARD_PAGES.indexOf("Role");
+const RESUME = WIZARD_PAGES.indexOf("Resume");
+const PROFILE = WIZARD_PAGES.indexOf("Profile");
+const AVAILABILITY = WIZARD_PAGES.indexOf("Availability");
+const EXTENSION = WIZARD_PAGES.indexOf("Extension");
+const CLAUDE = WIZARD_PAGES.indexOf("Claude");
+const PRACTICE = WIZARD_PAGES.indexOf("Practice");
+
+/** "a, b and c". */
+function andList(items: string[]): string {
+  return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
 
 export function OnboardingForm({
   roles,
@@ -174,6 +210,7 @@ export function OnboardingForm({
   initialAnswers = NO_ANSWERS,
   initialContact = NO_CONTACT,
   email,
+  claudeLink,
   startStep = 0,
 }: {
   roles: PickOption[];
@@ -187,6 +224,8 @@ export function OnboardingForm({
   initialContact?: Contact;
   /** Who is signed in, for the line at the foot (./signed-in-as). */
   email: string | null;
+  /** The connector's install link (lib/claude-connector.ts), read on the server, for the Add Claude page. */
+  claudeLink: string;
   /** The step to open on: Profile for ?step=2 (./page). */
   startStep?: number;
 }) {
@@ -223,6 +262,7 @@ export function OnboardingForm({
   const [error, setError] = useState<string | null>(null);
 
   const extension = useExtensionState(step === EXTENSION);
+  const claude = useClaudeConnected(step === CLAUDE);
   const practice = usePracticeStatus(step === PRACTICE);
   const done = practiceDone(practice);
   const practiceTab = nextPracticeTab(practice);
@@ -231,14 +271,21 @@ export function OnboardingForm({
   // Step 1 asks the required answers; the resume step's Read Resume needs a
   // file, and Skip is the way on without one; the extension step needs the
   // extension.
+  const missing = [
+    answers.roles.length === 0 && "a role",
+    answers.jobTypes.length === 0 && "a job type",
+    answers.workStyles.length === 0 && "a workplace",
+  ].filter((m) => m !== false);
   const canNext =
     step === ROLE
-      ? answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0
+      ? missing.length === 0
       : step === RESUME
         ? resume != null || savedResume != null
         : step === EXTENSION
           ? extension?.installed === true
-          : true;
+          : step === CLAUDE
+            ? claude === true
+            : true;
 
   // EACH NEW QUESTION TAKES FOCUS, so a screen reader reads it out. Focus used
   // to stay on the footer's button, which only changed its label, and the new
@@ -431,6 +478,24 @@ export function OnboardingForm({
         ? "Start Again"
         : "Start Practice";
 
+  // Where the forward button can never turn on here, the skip is the main
+  // button in its place.
+  const skipClaude = step === CLAUDE && claude !== true;
+  const skipSetup = step === EXTENSION && !CAN_INSTALL && extension?.installed !== true;
+  const skipIsMain = skipClaude || skipSetup;
+
+  /** Why the forward button is off, at the footer's top; null while it is on. */
+  const why =
+    canNext || saving || skipIsMain
+      ? null
+      : step === ROLE
+        ? `Pick ${andList(missing)} to continue.`
+        : step === RESUME
+          ? "Choose a resume file to read it, or skip this step."
+          : step === EXTENSION
+            ? "Add the WorkIt extension to continue, or skip setup."
+            : null;
+
   function fail(message: string) {
     setBusy(null);
     setError(message);
@@ -462,8 +527,8 @@ export function OnboardingForm({
           <Stepper
             size="lg"
             steps={ONBOARDING_STEPS}
-            // Availability is Profile's second page on the rail (./steps.ts).
-            current={step > PROFILE ? step - 1 : step}
+            // Availability sits under Profile, Add Claude under Practice (./steps.ts).
+            current={railStep(step)}
           />
         </div>
 
@@ -491,6 +556,7 @@ export function OnboardingForm({
             />
           )}
           {step === EXTENSION && <ExtensionStep state={extension} />}
+          {step === CLAUDE && <ClaudeStep added={claude} link={claudeLink} />}
           {step === PRACTICE && <PracticeStep states={practice} />}
           {step === PROFILE && (
             <ProfileStep
@@ -503,94 +569,119 @@ export function OnboardingForm({
           )}
         </div>
 
-        <SignedInAs email={email} className="px-6 pb-6" />
-
         <div className="bg-panel border-border-subtle sticky bottom-0 border-t">
-          <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-6 py-4">
-            {step > 0 ? (
-              <Button variant="outline" size="lg" disabled={saving} onClick={() => goTo(step - 1)}>
-                Back
-              </Button>
-            ) : (
-              <span />
-            )}
-            <div className="flex items-center gap-3">
-              {error && (
-                <p role="alert" className="text-body text-danger">
-                  {error}
-                </p>
-              )}
-              {step === RESUME && preview && (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  disabled={saving}
-                  onClick={() => pickResume(null)}
-                >
-                  Choose Another File
-                </Button>
-              )}
-              {step === AVAILABILITY && (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  disabled={saving}
-                  onClick={() => {
-                    // Skip keeps nothing picked here: the bank stays as saved.
-                    setProfile(bankSaved.current);
-                    goTo(EXTENSION);
-                  }}
-                >
-                  Skip
-                </Button>
-              )}
-              {(step === EXTENSION || (step === PRACTICE && !done)) && (
-                <Button variant="outline" size="lg" onClick={() => router.push("/jobs")}>
-                  {step === EXTENSION ? "Skip" : "Skip Practice"}
-                </Button>
-              )}
-              {step === RESUME && !preview && !savedResume && (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  disabled={saving}
-                  onClick={() => {
-                    pickResume(null);
-                    goTo(PROFILE);
-                  }}
-                >
-                  Skip
-                </Button>
-              )}
-              {/* lg and rectangular, as every page's one main action is
-                  (KAN-251); the wizard's two buttons were pills. */}
-              <Button
-                size="lg"
-                className="min-w-32"
-                disabled={!canNext || saving}
-                onClick={() =>
-                  step === PROFILE
-                    ? saveProfile()
-                    : step === AVAILABILITY
-                      ? saveAvailability()
-                      : step === RESUME
-                        ? resumeNext()
-                        : step === PRACTICE
-                          ? practiceNext()
-                          : goTo(step + 1)
-                }
+          <div className="mx-auto w-full max-w-2xl px-6 py-4">
+            {error && (
+              <p
+                role="alert"
+                className="text-body text-danger bg-danger-tint rounded-control mb-3 flex items-start gap-2 px-3 py-2"
               >
-                {busy === "saving"
-                  ? "Saving…"
-                  : step === RESUME
-                    ? resumeLabel
-                    : step === PRACTICE
-                      ? practiceLabel
-                      : "Next"}
-              </Button>
+                <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+                {error}
+              </p>
+            )}
+            {why && (
+              <p id="onboarding-why" className="text-body text-ink-meta mb-3">
+                {why}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {step > 0 && (
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  disabled={saving}
+                  onClick={() => goTo(step - 1)}
+                >
+                  Back
+                </Button>
+              )}
+              {/* On a phone the group's buttons join the row, and the main
+                  one grows to fill it, or its own row when they do not fit. */}
+              <div className="ml-auto flex items-center gap-3 max-sm:contents">
+                {step === RESUME && preview && (
+                  <Button
+                    variant="section"
+                    size="lg"
+                    disabled={saving}
+                    onClick={() => pickResume(null)}
+                  >
+                    Choose Another File
+                  </Button>
+                )}
+                {step === AVAILABILITY && (
+                  <Button
+                    variant="section"
+                    size="lg"
+                    disabled={saving}
+                    onClick={() => {
+                      // Skip keeps nothing picked here: the bank stays as saved.
+                      setProfile(bankSaved.current);
+                      goTo(EXTENSION);
+                    }}
+                  >
+                    Skip
+                  </Button>
+                )}
+                {((step === EXTENSION && !skipSetup) || (step === PRACTICE && !done)) && (
+                  <Button variant="section" size="lg" onClick={() => router.push("/jobs")}>
+                    {step === EXTENSION ? "Skip Setup" : "Skip Practice"}
+                  </Button>
+                )}
+                {step === RESUME && !preview && !savedResume && (
+                  <Button
+                    variant="section"
+                    size="lg"
+                    disabled={saving}
+                    onClick={() => {
+                      pickResume(null);
+                      goTo(PROFILE);
+                    }}
+                  >
+                    Skip
+                  </Button>
+                )}
+                {/* lg and rectangular, as every page's one main action is
+                    (KAN-251); the wizard's two buttons were pills. */}
+                <Button
+                  size="lg"
+                  className="min-w-32 max-sm:grow"
+                  disabled={(!canNext && !skipIsMain) || saving}
+                  aria-describedby={why ? "onboarding-why" : undefined}
+                  onClick={() =>
+                    skipClaude
+                      ? goTo(PRACTICE)
+                      : skipSetup
+                        ? router.push("/jobs")
+                        : step === PROFILE
+                          ? saveProfile()
+                          : step === AVAILABILITY
+                            ? saveAvailability()
+                            : step === RESUME
+                              ? resumeNext()
+                              : step === PRACTICE
+                                ? practiceNext()
+                                : goTo(step + 1)
+                  }
+                >
+                  {busy === "saving"
+                    ? "Saving…"
+                    : skipClaude
+                      ? "Skip for Now"
+                      : skipSetup
+                        ? "Skip Setup"
+                        : step === RESUME
+                          ? resumeLabel
+                          : step === PRACTICE
+                            ? practiceLabel
+                            : "Next"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
+
+        <SignedInAs email={email} className="px-6 py-4" />
       </div>
     </main>
   );

@@ -15,7 +15,7 @@ import { SparkleIcon } from "@/components/icons";
  * the advanced blue for resumes, violet for matching, positive green for
  * auto apply, the match pink on the danger tint for the tracker (the
  * tour's Updates stop). Scout had no stop, so it takes amber, the one app
- * colour the others leave free.
+ * colour the others leave free. A mark sits on `onGlow`, never on `glow`.
  */
 export type FeatureSlug = "resumes" | "matching" | "auto-apply" | "tracker" | "scout";
 
@@ -26,8 +26,13 @@ export type Feature = {
   icon: ComponentType<{ className?: string }>;
   /** The soft ground behind the feature's visuals. */
   tint: string;
-  /** The feature's own colour: its icon tile and the ground's blobs. */
+  /** The feature's own colour: the ground's blobs only. */
   glow: string;
+  /** Its marks (the icon tile, a step's number, a check): a fill and the
+   *  glyph on it, a pair that holds 4.5:1. White on `glow` fell to 2.8:1 on
+   *  the green and 3.19:1 on the amber (KAN-580), so green fills with
+   *  `positive-ink` and amber takes ink, not white. */
+  onGlow: { fill: string; ink: string };
 };
 
 function feature(slug: FeatureSlug, rest: Omit<Feature, "slug" | "href">): Feature {
@@ -40,12 +45,14 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     icon: FileTextIcon,
     tint: "var(--color-advanced-tint)",
     glow: "var(--color-advanced)",
+    onGlow: { fill: "var(--color-advanced)", ink: "white" },
   }),
   matching: feature("matching", {
     name: "Job Matching",
     icon: TargetIcon,
     tint: "var(--color-brand-tint)",
     glow: "var(--color-brand)",
+    onGlow: { fill: "var(--color-brand)", ink: "white" },
   }),
   "auto-apply": feature("auto-apply", {
     name: "Auto Apply",
@@ -53,13 +60,15 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     icon: LightningRoundedIcon,
     tint: "var(--color-positive-tint)",
     glow: "var(--color-positive)",
+    onGlow: { fill: "var(--color-positive-ink)", ink: "white" },
   }),
   tracker: feature("tracker", {
     name: "Application Tracker",
     // The sidebar's Applications glyph.
     icon: KanbanIcon,
     tint: "var(--color-danger-tint)",
-    glow: "var(--color-match-good)",
+    glow: "var(--color-updates)",
+    onGlow: { fill: "var(--color-updates)", ink: "white" },
   }),
   scout: feature("scout", {
     name: "Scout",
@@ -67,6 +76,7 @@ export const FEATURES: Record<FeatureSlug, Feature> = {
     icon: SparkleIcon,
     tint: "var(--color-warning-tint)",
     glow: "var(--color-warning-strong)",
+    onGlow: { fill: "var(--color-warning-strong)", ink: "var(--color-ink)" },
   }),
 };
 

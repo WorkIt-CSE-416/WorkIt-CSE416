@@ -1,13 +1,24 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import { ExternalLinkIcon, TrashIcon } from "@/components/icons";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/shadcn/dialog";
+import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { SelectField } from "@/components/ui/select-field";
 import { useToast } from "@/components/ui/toast";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 
 import { When } from "../../local-time";
@@ -20,8 +31,15 @@ import {
   type StageKey,
 } from "../../stage-colors";
 import type { ApplicationEvent } from "../../tracker";
-import { deleteApplicationEvent, setApplicationStage, type PickableStage } from "../actions";
+import {
+  addApplicationEvent,
+  deleteApplicationEvent,
+  setApplicationStage,
+  type PickableStage,
+} from "../actions";
 import { CreateEventDialog } from "../create-event";
+
+import { asksFirst, readdEvent, undoStage } from "./undo";
 
 /**
  * The Applications Tracker's own controls on an application's page
@@ -31,7 +49,8 @@ import { CreateEventDialog } from "../create-event";
  * then refreshes the page, so the tracker's one read (`getTracker`) draws
  * the change on the card, the timeline, the list, the Calendar and the
  * Home alike; nothing here keeps a second copy of the stage or the
- * events.
+ * events. Each write says it worked in a toast with Undo (KAN-577,
+ * ./undo.ts), or asks first where Undo cannot take it back.
  */
 
 const PICKABLE: PickableStage[] = ["applied", "interviewing", "offer", "rejected"];
@@ -42,45 +61,102 @@ const PICKABLE: PickableStage[] = ["applied", "interviewing", "offer", "rejected
  * job has no pick yet ("Move To…"), since saved is a bookmark the menu never
  * goes back to. An interview, offer or rejection added below moves the stage
  * forward by itself; this is for everything else.
+ *
+ * A pick writes at once and says so in a toast ("Moved to Offer.") whose
+ * Undo puts the stage before it back. A saved job's pick asks first: the
+ * API never moves a job back to Saved, so it has no Undo. The menu is off
+ * while a write runs.
  */
 export function StageMenu({ jobId, stage }: { jobId: string; stage: StageKey }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
+  const [asking, setAsking] = useState<PickableStage | null>(null);
+
+  function move(next: PickableStage) {
+    const back = undoStage(stage);
+    start(async () => {
+      const { error } = await setApplicationStage(jobId, next);
+      if (error) {
+        toast.show({ message: `Couldn't change the stage. ${error}` });
+        return;
+      }
+      router.refresh();
+      toast.show({
+        message: `Moved to ${STAGE_LABEL[next]}.`,
+        action: back
+          ? {
+              label: "Undo",
+              onClick: async () => {
+                const undone = await setApplicationStage(jobId, back);
+                if (undone.error) {
+                  toast.show({ message: `Couldn't move it back. ${undone.error}` });
+                  return;
+                }
+                router.refresh();
+              },
+            }
+          : undefined,
+      });
+    });
+  }
 
   return (
-    <SelectField
-      id={`stage-${jobId}`}
-      label="Stage"
-      hideLabel
-      value={stage === "saved" ? "" : stage}
-      placeholder="Move To…"
-      options={PICKABLE.map((value) => ({
-        value,
-        label: STAGE_LABEL[value],
-        Icon: STAGE_ICON[value],
-        iconClassName: STAGE_COLOR[value].onTint,
-      }))}
-      onValueChange={(next) => {
-        if (!next || next === stage || pending) return;
-        start(async () => {
-          const { error } = await setApplicationStage(jobId, next as PickableStage);
-          if (error) {
-            toast.show({ message: `Couldn't change the stage. ${error}` });
-            return;
-          }
-          router.refresh();
-        });
-      }}
-      className="w-40"
-    />
+    <>
+      <SelectField
+        id={`stage-${jobId}`}
+        label="Stage"
+        hideLabel
+        value={stage === "saved" ? "" : stage}
+        placeholder="Move To…"
+        options={PICKABLE.map((value) => ({
+          value,
+          label: STAGE_LABEL[value],
+          Icon: STAGE_ICON[value],
+          iconClassName: STAGE_COLOR[value].onTint,
+        }))}
+        disabled={pending}
+        onValueChange={(next) => {
+          if (!next || next === stage || pending) return;
+          if (asksFirst(stage)) setAsking(next as PickableStage);
+          else move(next as PickableStage);
+        }}
+        className="w-40"
+      />
+      <Dialog open={asking != null} onOpenChange={(open) => !open && setAsking(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-subtitle font-semibold">
+              Move to {asking && STAGE_LABEL[asking]}?
+            </DialogTitle>
+            <DialogDescription>
+              Once it moves, it can&apos;t go back to Saved. It takes today as its applied date if
+              it has none.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
+            <Button
+              onClick={() => {
+                if (asking) move(asking);
+                setAsking(null);
+              }}
+            >
+              Move to {asking && STAGE_LABEL[asking]}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
 /**
  * Interviews & Dates: every event on the application, soonest first, each
  * with its day in the viewer's own zone, its link and note, and Delete; and
- * Create Event. Deleting an event leaves the stage where it is. Only an event
+ * Create Event. Deleting an event leaves the stage where it is, and its
+ * toast's Undo adds the same event again (a new id; an interview, offer or
+ * rejection moves the stage forward as Create Event does). Only an event
  * the student added has Delete: one read from an email stays, as every
  * email stays in the Inbox as a record (the API refuses its delete too).
  */
@@ -92,11 +168,11 @@ export function TrackerEvents({ jobId, events }: { jobId: string; events: Applic
         <CreateEventDialog jobId={jobId} />
       </div>
       {events.length > 0 ? (
-        <ul className="divide-border-subtle border-border-subtle rounded-card bg-panel mt-3 divide-y border">
+        <Card as="ul" padding="none" className="divide-border-subtle mt-3 divide-y">
           {events.map((event) => (
-            <EventRow key={event.id ?? event.at + event.title} event={event} />
+            <EventRow key={event.id ?? event.at + event.title} jobId={jobId} event={event} />
           ))}
-        </ul>
+        </Card>
       ) : (
         <p className="text-body text-ink-meta mt-3">
           Add interviews, assessments, offers and replies here. They show on your timeline and your
@@ -107,7 +183,7 @@ export function TrackerEvents({ jobId, events }: { jobId: string; events: Applic
   );
 }
 
-function EventRow({ event }: { event: ApplicationEvent }) {
+function EventRow({ jobId, event }: { jobId: string; event: ApplicationEvent }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
@@ -158,6 +234,20 @@ function EventRow({ event }: { event: ApplicationEvent }) {
                 return;
               }
               router.refresh();
+              toast.show({
+                message: `Deleted ${event.title}.`,
+                action: {
+                  label: "Undo",
+                  onClick: async () => {
+                    const added = await addApplicationEvent(jobId, readdEvent(event));
+                    if (added.error) {
+                      toast.show({ message: `Couldn't add ${event.title} back. ${added.error}` });
+                      return;
+                    }
+                    router.refresh();
+                  },
+                },
+              });
             })
           }
         >

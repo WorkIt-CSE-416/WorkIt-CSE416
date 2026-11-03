@@ -9,14 +9,18 @@ in by the router (its `get_supabase()`), so tests patch it there.
 Where a sent resume's file is (KAN-267, docs/sent_resume.md):
 
 - **From a built resume** (`send_built`): a snapshot, not a stored PDF.
-  Hash the view, template and header text before rendering; a repeat hash
-  for the same built resume and job posting returns the last sent resume.
+  Hash the view, template, page settings and header text before rendering;
+  a repeat hash for the same built resume and job posting returns the last sent resume.
   Otherwise render the PDF once (the student attaches it), and keep what it
   is made from as a `built` snapshot: gzipped JSON in `resume_snapshots`,
   about 2 KB where the PDF is 33. Sent resumes of the same content share
   one snapshot, whatever their posting. Opening one renders it again.
 - **From an uploaded resume** (`send_uploaded`): no new file; the row
   points at the uploaded resume's stored file.
+- **From the file Apply sent** (`send_file`, KAN-544): the PDF itself, in
+  Storage at `<applicant_id>/sent/<sha256>.pdf`. The same file sent to
+  another posting shares that path, and the same file sent again to one
+  posting returns the last sent resume. No source link, no hash.
 - **Until that upload is replaced or deleted** (`freeze_upload`, called by
   both routes before the row loses its file): its sent resumes then become
   an `upload` snapshot of the file's text as the parser reads it, with the
@@ -44,7 +48,12 @@ from app.models.resume import Resume
 from app.models.sent_resume import Resume_Snapshot, Sent_Resume
 from app.services import bank_import, built_resumes, postings, stored_files
 from app.services.bank import NotFound
-from app.services.resume_render import HeaderIdentity, render
+from app.services.resume_render import (
+    DEFAULT_PAGE,
+    HeaderIdentity,
+    PageSettings,
+    render,
+)
 from app.services.resume_view import ResumeView, view_from_json, view_from_reading
 
 BUCKET = stored_files.BUCKET
@@ -89,18 +98,32 @@ def _identity(identity: HeaderIdentity) -> dict:
     return data
 
 
-def content_hash(view: ResumeView, identity: HeaderIdentity, template: str) -> str:
+def _page(page: PageSettings) -> dict:
+    """The page settings in a hash or a snapshot: nothing at Jake's own page,
+    so a resume sent before KAN-435 still repeats, and an old snapshot reads
+    as his page."""
+    return {} if page == DEFAULT_PAGE else {"page": dataclasses.asdict(page)}
+
+
+def content_hash(
+    view: ResumeView, identity: HeaderIdentity, template: str, page: PageSettings = DEFAULT_PAGE
+) -> str:
     """Everything the PDF is made from, before it is made. Dataclasses
     serialize field by field in a fixed order; dates and decimals by str.
     Word files were kept with "format" in this payload until KAN-267; a PDF
     never had it, so a repeat still matches a sent resume kept before."""
-    payload = {"template": template, "identity": _identity(identity), "view": dataclasses.asdict(view)}
+    # An empty `marked` stays out, so a resume with no bold or italic still
+    # matches a sent resume kept before KAN-435
+    plain = dataclasses.asdict(view, dict_factory=lambda items: {k: v for k, v in items if k != "marked" or v})
+    payload = {"template": template, "identity": _identity(identity), "view": plain, **_page(page)}
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
 
-def _snapshot(view: ResumeView, identity: HeaderIdentity, template: str, **more: Any) -> dict:
+def _snapshot(
+    view: ResumeView, identity: HeaderIdentity, template: str, page: PageSettings = DEFAULT_PAGE, **more: Any
+) -> dict:
     return {"v": SNAPSHOT_VERSION, "template": template, "identity": _identity(identity),
-            "view": dataclasses.asdict(view), **more}
+            "view": dataclasses.asdict(view), **_page(page), **more}
 
 
 def _pack(payload: dict) -> bytes:
@@ -121,8 +144,11 @@ async def _keep_snapshot(session: AsyncSession, applicant_id: uuid.UUID, digest:
         Resume_Snapshot.applicant_id == applicant_id, Resume_Snapshot.content_hash == digest))
 
 
-async def _check_posting(session: AsyncSession, job_posting_id: uuid.UUID) -> None:
-    if await postings.listed(session, job_posting_id) is None:
+async def _check_posting(session: AsyncSession, applicant_id: uuid.UUID, job_posting_id: uuid.UUID) -> None:
+    """A listed posting, or a scraped one the student tracks: a job they
+    added (KAN-515), or one closed since (KAN-544). Anything else is
+    NotFound, so the panel's resume switch on an added job works."""
+    if await postings.reachable(session, job_posting_id, applicant_id) is None:
         raise NotFound
 
 
@@ -152,10 +178,11 @@ async def send_built(
     snapshot. Raises NotFound for a built resume that is not the
     applicant's, and resume_render.TectonicUnavailable when the PDF cannot
     be made. Stores nothing in Storage."""
-    await _check_posting(session, job_posting_id)
+    await _check_posting(session, applicant_id, job_posting_id)
     resume, view = await built_resumes.load_view(session, applicant_id, built_resume_id)
     identity = await built_resumes.load_header_identity(session, applicant_id)
-    digest = content_hash(view, identity, resume.template)
+    page = built_resumes.page_of(resume)
+    digest = content_hash(view, identity, resume.template, page)
     last = await _last_match(
         session, applicant_id, job_posting_id,
         Sent_Resume.built_resume_id == resume.id, Sent_Resume.content_hash == digest,
@@ -163,9 +190,9 @@ async def send_built(
     if last is not None:
         return Sent(last, created=False)
 
-    rendered = await asyncio.to_thread(render, view, identity, resume.template)
+    rendered = await asyncio.to_thread(render, view, identity, resume.template, page)
     snapshot_id = await _keep_snapshot(
-        session, applicant_id, digest, "built", _snapshot(view, identity, resume.template))
+        session, applicant_id, digest, "built", _snapshot(view, identity, resume.template, page))
     row = Sent_Resume(
         id=uuid.uuid4(), applicant_id=applicant_id, snapshot_id=snapshot_id, name=resume.name,
         built_resume_id=resume.id, job_posting_id=job_posting_id, content_hash=digest,
@@ -185,7 +212,7 @@ async def send_uploaded(
 ) -> Sent:
     """A sent resume that points at an uploaded resume's own file. The file
     never changes, so a repeat (same resume, same posting) returns the last."""
-    await _check_posting(session, job_posting_id)
+    await _check_posting(session, applicant_id, job_posting_id)
     resume = await session.scalar(
         select(Resume).where(Resume.id == resume_id, Resume.applicant_id == applicant_id)
     )
@@ -199,6 +226,41 @@ async def send_uploaded(
         name=resume.original_filename or "Uploaded resume", uploaded_resume_id=resume.id,
         job_posting_id=job_posting_id,
     )
+    session.add(row)
+    await session.flush()
+    await session.refresh(row)
+    return Sent(row, created=True)
+
+
+def sent_path(applicant_id: uuid.UUID, pdf: bytes) -> str:
+    """Where a sent file is kept: one path per content per applicant."""
+    return f"{applicant_id}/sent/{hashlib.sha256(pdf).hexdigest()}.pdf"
+
+
+async def send_file(
+    session: AsyncSession,
+    storage: Any,
+    applicant_id: uuid.UUID,
+    name: str,
+    pdf: bytes,
+    *,
+    job_posting_id: uuid.UUID,
+) -> Sent:
+    """The file Apply sent to the job posting, kept as it is (KAN-544).
+    Uploads it unless a sent resume already holds it; raises NotFound for a
+    posting the student cannot reach, before any upload, and whatever
+    Storage raises. After a failed commit the caller removes the file unless
+    `file_in_use`."""
+    await _check_posting(session, applicant_id, job_posting_id)
+    path = sent_path(applicant_id, pdf)
+    last = await _last_match(session, applicant_id, job_posting_id, Sent_Resume.storage_path == path)
+    if last is not None:
+        return Sent(last, created=False)
+    if not await file_in_use(session, path):
+        await asyncio.to_thread(
+            storage.from_(BUCKET).upload, path, pdf, {"content-type": "application/pdf", "upsert": "true"})
+    row = Sent_Resume(
+        id=uuid.uuid4(), applicant_id=applicant_id, storage_path=path, name=name, job_posting_id=job_posting_id)
     session.add(row)
     await session.flush()
     await session.refresh(row)
@@ -295,7 +357,8 @@ async def open_file(
     data = json.loads(gzip.decompress(await session.scalar(
         select(Resume_Snapshot.data).where(Resume_Snapshot.id == row.snapshot_id))))
     identity = HeaderIdentity(**{**data["identity"], "links": tuple(map(tuple, data["identity"]["links"]))})
-    rendered = await asyncio.to_thread(render, view_from_json(data["view"]), identity, data["template"])
+    page = PageSettings(**data.get("page", {}))
+    rendered = await asyncio.to_thread(render, view_from_json(data["view"]), identity, data["template"], page)
     return SentFile(name, pdf=rendered.pdf, rebuilt=rebuilt(row), original_text=data.get("raw_text"))
 
 

@@ -11,7 +11,9 @@ of these rules. Pure: the route saves the change and renders.
   resume that shows it; a header field changes the profile
   (`HEADER_KINDS`). Every other kind (dates, the degree line, the email,
   a skill) is not typed in the editor.
-- **What is typed is what prints**, except where a field is stored as
+- **What is typed is what prints**, except `**` and `*` around a bullet's
+  words, which print them bold or italic (KAN-435, `resume_view.runs`), and
+  where a field is stored as
   data that application forms read: the GPA is a number (an optional
   scale after "/"), coursework a list split at commas, and a link a URL
   ("https://" is added when missing). The GPA, coursework and honors lines

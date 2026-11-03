@@ -12,7 +12,10 @@
 // - The sample resumes in frontend/public/resumes/ (git-ignored: real
 //   people's resumes) are copied the same way, so an agent testing an upload
 //   in any worktree finds one there.
-import { execFileSync } from "node:child_process";
+// - A new worktree also loads the Fill engine submodule and, when the branch
+//   has Apply (apply-agent/pyproject.toml), runs uv sync there. A failure
+//   only warns: the engine repo is private.
+import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, cpSync, existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
@@ -65,6 +68,20 @@ const resumes = join(primary, SAMPLE_RESUMES);
 if (existsSync(resumes) && resolve(resumes) !== resolve(join(target, SAMPLE_RESUMES))) {
   cpSync(resumes, join(target, SAMPLE_RESUMES), { recursive: true });
   console.log(`copied ${SAMPLE_RESUMES}`);
+}
+
+// Runs a setup step in the new worktree; a failure warns but does not stop.
+const step = (what, cmd, args, cwd) => {
+  const r = spawnSync(cmd, args, { cwd, stdio: "inherit", shell: process.platform === "win32" });
+  if (r.status !== 0)
+    console.warn(`warning: ${what} failed; run ${cmd} ${args.join(" ")} in ${cwd}`);
+};
+
+if (!envOnly) {
+  step("the Fill engine submodule", "git", ["submodule", "update", "--init"], target);
+  const applyAgent = join(target, "apply-agent");
+  if (existsSync(join(applyAgent, "pyproject.toml")))
+    step("Apply's uv sync", "uv", ["sync"], applyAgent);
 }
 
 if (!envOnly)

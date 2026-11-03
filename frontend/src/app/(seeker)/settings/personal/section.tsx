@@ -16,7 +16,9 @@ export async function PersonalSection() {
 
   return (
     <Card as="section" aria-labelledby="personal" className="flex flex-col gap-4">
-      <SectionHeading id="personal">Personal Details</SectionHeading>
+      <SectionHeading as="h3" id="personal">
+        Personal Details
+      </SectionHeading>
       {profile ? (
         <PersonalDetails profile={profile} avatarUrl={avatar.url} />
       ) : (

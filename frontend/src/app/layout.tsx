@@ -3,7 +3,9 @@ import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 
 import { TooltipProvider } from "@/components/shadcn/tooltip";
 import { ToastProvider } from "@/components/ui/toast";
+import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
+import { hero } from "./(landing)/data";
 import "./globals.css";
 
 /**
@@ -22,6 +24,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  /** Turns the share card's path into the full URL a crawler needs. */
+  metadataBase: new URL("https://workitjobs.ai"),
   /**
    * Pages set only their own name; the template appends the brand. Tabs get
    * truncated from the right, so the distinguishing word has to come first —
@@ -29,7 +33,11 @@ export const metadata: Metadata = {
    * would not. `default` is what a page without its own title inherits.
    */
   title: { default: "WorkIt", template: "%s · WorkIt" },
-  description: "CSE 416 final project",
+  description: hero.subtitle,
+  // No title or description here: a page's own carry over to its link
+  // preview. Set here, every page would have unfurled as this one.
+  openGraph: SHARE_DEFAULTS,
+  twitter: { card: "summary_large_image", images: [SHARE_IMAGE] },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

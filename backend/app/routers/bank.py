@@ -55,7 +55,8 @@ GET /bank also sends `resumes` (every uploaded, base and tailored resume,
 with `kind`, `name`, a tailored one's `posting`, the starred one's
 `primary` and `edited_at`, the resume table's date) and, on each entry
 and skill, `resume_ids`: the upload that owns it, if any, then the built
-resumes that show it (KAN-343, ADR 0005).
+resumes that show it (KAN-343, ADR 0005). Each entry's `copy_group` is shared
+by the entries that are copies of one (`copy_key`, KAN-440).
 """
 
 import logging

@@ -47,6 +47,28 @@ def _catalog() -> dict[str, str]:
     return names
 
 
+@functools.cache
+def _spellings() -> dict[str, tuple[str, ...]]:
+    """Each line's first name -> every spelling on its line."""
+    lines: dict[str, tuple[str, ...]] = {}
+    for line in _FILE.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        spellings = tuple(s.strip() for s in line.split("|") if s.strip())
+        if spellings:
+            lines.setdefault(spellings[0], spellings)
+    return lines
+
+
+def spellings(name: str) -> tuple[str, ...]:
+    """The name and every other spelling of it the catalog knows ("React",
+    "ReactJS", "React.js"), for a check that looks for the skill in text.
+    A name the catalog lacks is its only spelling."""
+    found = canonical(name)
+    return tuple(dict.fromkeys((name, *_spellings().get(found or "", ()))))
+
+
 _FLAVOUR_RE = re.compile(r"^(.+?)\s*\(([^()]*)\)$")
 _JOINED_RE = re.compile(r"\s*(?:/|,|&)\s*")
 

@@ -1,39 +1,43 @@
-import Form from "next/form";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
-import { LogoLockup } from "@/components/logo";
 import { ScoutLauncher } from "@/components/scout/scout-buttons";
 import { ScoutPanel } from "@/components/scout/scout-panel";
 import { RailSidebarProvider } from "@/components/app-sidebar";
 import { SidebarInset, SidebarTrigger } from "@/components/shadcn/sidebar";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { ShallowRouting } from "@/components/shallow-routing";
-import { getSessionUser } from "@/lib/session";
+import { getCurrentAccount, getSessionUser } from "@/lib/session";
 
 import { SeekerAccount } from "./account-status";
-import { BAR_CIRCLE } from "./bar";
-import { MobileSearch } from "./mobile-search";
+import { BAR_ICON, BAR_TITLE } from "./bar";
+import { BarTitle } from "./bar-title";
+import { Greeting } from "./greeting";
 import { ProfileCacheProvider } from "./profile-cache";
 import { ProfileStrength } from "./profile-strength";
 import { ScrollMemory } from "./scroll-memory";
-import { QueryField } from "./search/query-field";
 import { SeekerNotificationsBell } from "./seeker-notifications-bell";
 import { SeekerSidebar } from "./seeker-sidebar";
 
 /**
- * Chrome shared by every signed-in seeker screen: one white surface, ruled
- * into regions by hairlines (--color-border-subtle). The section panel runs
- * the full height on the left, flush with the window; beside it, the top bar
- * along the top, and under the bar the page itself.
+ * Chrome shared by every signed-in seeker screen, ruled into regions by
+ * hairlines (--color-border-subtle). The section panel runs the full height
+ * on the left, flush with the window; beside it, the top bar along the top,
+ * and under the bar the page itself.
+ *
+ * THE PANEL AND THE BAR ARE WHITE AND THE PAGE IS GREY (--color-app,
+ * 2026-11-02), after Simplify and Jobright: with the page white too, white
+ * cards blended into it. Anything that sits on the page and needs its own
+ * edge is white; a sticky bar is the page's grey, so it hides what scrolls
+ * under it without showing as a strip.
  *
  * IT WAS THREE FLOATING PANELS until 2026-10-27: white rounded panels 12px
  * apart on a lavender ground (--color-frame), after a dashboard the user had
  * pointed at. The user then found the frame wasted room, about 36px of every
  * width and height went to lavender and gaps, and the three boxes read as
- * separate containers rather than one app. Keep it flat: no ground colour,
- * no gaps, no rounded or shadowed shell panels.
+ * separate containers rather than one app. Keep it flat: no gaps, no rounded
+ * or shadowed shell panels.
  *
  * THE PANEL IS AN 88px RAIL THAT IS ALWAYS OPEN (RAIL in
  * @/components/app-sidebar): an icon over each section's name. It was a
@@ -45,7 +49,7 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * the rail's width, so shadcn's in-flow gap beside it matches it.
  *
  * THE BAR holds, below md, the toggle that opens the panel's sheet, then the
- * job search and, on the right, Scout, the
+ * page's title (./bar-title.tsx) and, on the right, Scout (archived, `SCOUT_LAUNCHER_LIVE`), the
  * bell, and the photo with the full name and email beside it from lg. It
  * had a "N New Roles Since Yesterday" pill from xl too; it was taken out as
  * a distraction, and a bar message comes back only when it is worth one. That last opens the
@@ -58,21 +62,15 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * offers Sign Out. The proxy only refreshes sessions (see src/proxy.ts); the
  * API checks every token itself, so this is the shell's rule, not security. The logo moved into the panel's header, which
  * now owns the top-left corner; below md, where the panel is a sheet, the bar
- * shows it again beside the toggle. The search is a light grey pill and the
- * bell and the phone's search magnifier are 40px circles in the same grey
- * (./bar.ts), none of them outlined, all the photo's height, so the bar
- * reads as one family of soft shapes. The toggle is a bare glyph that takes
- * the same fill on hover.
+ * shows the mark alone beside the toggle, to leave the title room. The bell is
+ * a bare ink glyph in a 40px box (./bar.ts), the photo's height. The toggle
+ * is a bare glyph that takes the same fill on hover.
  *
- * The search field sits in the shared bar rather than on a page because
- * searching jobs is global. It is a GET form to /search, so Enter lands the
- * query there as ?q; next/form makes that a client-side navigation. On
- * /search the field keeps showing that query (./search/query-field.tsx reads
- * it, since a layout gets no searchParams). It grows into whatever the bar
- * has spare and stops at 320px. Below md a magnifier takes its place and
- * opens the same field in a sheet; see ./mobile-search.tsx. The bell steps
- * out below sm, where the bar has room for the toggle, the logo, the
- * magnifier and the photo and little else.
+ * THE TITLE LINES UP WITH THE PAGE UNDER IT: the bar's own padding plus its
+ * wrapper's matches SEEKER_GUTTER from md. The job search left the bar for the
+ * Jobs page on 2026-11-02 (./search/job-search.tsx): it showed on every page.
+ * The bell steps out below sm, where the bar has room for the toggle, the mark,
+ * the title and the photo and little else.
  *
  * THE PAGE is the one scrolling element, so the bar and the section
  * panel stay put and a scrollbar runs only beside the page. SidebarInset
@@ -82,6 +80,12 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * window's: Scout's panel takes room beside the page when open, and the page
  * fits itself to what is left.
  */
+
+/** The bar's Scout button is archived (2026-11-01). Scout stays: Fill With
+ *  Scout still opens its panel. The resume editor's assistant has no other way
+ *  in on a laptop, so it waits for this. Set it to true to bring the button
+ *  back. */
+const SCOUT_LAUNCHER_LIVE = false;
 
 export default async function AppLayout({
   children,
@@ -112,7 +116,7 @@ export default async function AppLayout({
     <RailSidebarProvider
       className="bg-panel h-svh"
       /* Read by the canvas rule in globals.css, which paints the overscroll
-         strip white to match. */
+         strip the page's grey to match. */
       data-shell="seeker"
       style={
         {
@@ -145,32 +149,30 @@ export default async function AppLayout({
             beneath them run as one line across the window. */}
         <header className="bg-panel border-border-subtle flex h-16 shrink-0 items-center gap-3 border-b px-3 sm:gap-4 sm:px-4">
           {/* The rail is always open from md, so the toggle only opens the
-              phone's sheet. */}
-          <SidebarTrigger className="text-ink-meta hover:text-ink hover:bg-app size-10 shrink-0 rounded-full md:hidden [&_svg]:size-4" />
+              phone's sheet. Named here, since shadcn's own name is "Toggle
+              Sidebar". No logo beside it: the sheet's header shows the logo,
+              and the bar's room on a phone goes to the bell (KAN-570). */}
+          <SidebarTrigger
+            aria-label="Open Menu"
+            className="text-ink hover:bg-app size-10 shrink-0 rounded-full md:hidden [&_svg]:size-4"
+          />
 
-          {/* The panel's header carries the logo from md; below that the
-              panel is a sheet and the bar is the only place left for it. */}
-          <Link
-            href="/home"
-            className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs transition-transform duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97] md:hidden"
-          >
-            <LogoLockup />
-          </Link>
+          <div className="min-w-0 flex-1 md:pl-2 lg:pl-4">
+            <BarTitle
+              home={
+                <Suspense
+                  fallback={<Skeleton aria-hidden="true" className="h-8 w-64 max-w-full" />}
+                >
+                  <HomeTitle />
+                </Suspense>
+              }
+            />
+          </div>
 
-          <Form
-            action="/search"
-            role="search"
-            className="hidden min-w-0 md:block md:max-w-80 md:flex-1"
-          >
-            <QueryField id="job-search" />
-          </Form>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            {SCOUT_LAUNCHER_LIVE && <ScoutLauncher className={BAR_ICON} />}
 
-          <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <MobileSearch />
-
-            <ScoutLauncher className={BAR_CIRCLE} />
-
-            <SeekerNotificationsBell className={BAR_CIRCLE} />
+            <SeekerNotificationsBell className={BAR_ICON} />
 
             {/* Streamed: it waits on the API, and nothing else in the bar or
                 the page should wait with it. The fallback holds the photo's
@@ -184,8 +186,9 @@ export default async function AppLayout({
 
         {/* min-h-0 because a flex item will not shrink below its content by
             default, which would push the column past h-svh and hand the
-            scroll back to the document. overscroll-contain so a fling that
-            outruns the page does not chain onto the document. */}
+            scroll back to the document. overscroll-y-none so a hard scroll
+            stops at the page's end with no bounce (globals.css). Y only, so
+            the trackpad's swipe back still works. */}
         {/* A row, so Scout's panel docks beside the page, ruled off by its
             own border, instead of covering it; min-w-0 lets the page shrink
             for it. The panel stays mounted to glide open and closed, and a
@@ -197,7 +200,7 @@ export default async function AppLayout({
           <SidebarInset
             id="content"
             tabIndex={-1}
-            className="bg-panel min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain focus:outline-none"
+            className="bg-app min-h-0 min-w-0 flex-1 [scrollbar-gutter:stable] overflow-x-clip overflow-y-auto overscroll-y-none focus:outline-none"
           >
             {/* The page, and the container it breaks on. */}
             <div data-scout-page className="@container/main flex w-full flex-1 flex-col">
@@ -254,6 +257,18 @@ export default async function AppLayout({
         {modal}
       </div>
     </RailSidebarProvider>
+  );
+}
+
+/** Home's title: the greeting, or the plain name with no account to greet.
+ *  One read, which the bar's account makes too. */
+async function HomeTitle() {
+  const account = await getCurrentAccount();
+  const firstName = account?.full_name.split(" ")[0];
+  return firstName ? (
+    <Greeting as="h1" firstName={firstName} className={BAR_TITLE} />
+  ) : (
+    <h1 className={BAR_TITLE}>Home</h1>
   );
 }
 

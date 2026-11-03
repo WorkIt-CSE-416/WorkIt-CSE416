@@ -24,10 +24,21 @@ export const SCOUT_SLOT_ID = "scout-slot";
 export function ScoutTakeover({
   title,
   subtitle,
+  mark,
+  away,
+  float = false,
   children,
 }: {
   title: string;
   subtitle: string;
+  /** In place of the header's Scout mark. */
+  mark?: ReactNode;
+  /** Set while the panel shows something other than Scout (`scout-store`):
+   *  the bar's launcher calls it to go back to Scout. Keep it stable. */
+  away?: () => void;
+  /** Below xl, float the panel over the page instead of taking room beside
+   *  it: the resume editor's page shrank to about 4px text at 1024. */
+  float?: boolean;
   children: ReactNode;
 }) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
@@ -36,8 +47,8 @@ export function ScoutTakeover({
     // The panel renders in the layout, so its slot is in the DOM by now.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the DOM once mounted
     setSlot(document.getElementById(SCOUT_SLOT_ID));
-    return takeOverScout({ title, subtitle });
-  }, [title, subtitle]);
+    return takeOverScout({ title, subtitle, mark, away, float });
+  }, [title, subtitle, mark, away, float]);
 
   return slot
     ? createPortal(

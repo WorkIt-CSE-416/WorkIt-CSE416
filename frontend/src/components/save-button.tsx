@@ -28,6 +28,7 @@ export function SaveButton({
   saved = false,
   onClick,
   disabled,
+  quiet = false,
   className,
 }: {
   /** The job's title, for the accessible name: "Save Staff Frontend Engineer". */
@@ -35,12 +36,18 @@ export function SaveButton({
   saved?: boolean;
   onClick?: () => void;
   disabled?: boolean;
+  /** A bare glyph, for a row with no room for a box: the compact job card. */
+  quiet?: boolean;
   className?: string;
 }) {
   return (
     <IconButton
-      variant="outline"
-      className={cn("size-9 shrink-0", saved && "text-brand hover:text-brand-hover", className)}
+      variant={quiet ? "quiet" : "outline"}
+      className={cn(
+        !quiet && "size-9 shrink-0",
+        saved && "text-brand hover:text-brand-hover",
+        className,
+      )}
       label={saved ? `Remove ${title} from saved` : `Save ${title}`}
       tooltip={saved ? "Remove from saved" : "Save"}
       // A toggle: pressed while saved.

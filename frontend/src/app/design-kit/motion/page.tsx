@@ -59,7 +59,7 @@ export default function MotionPage() {
       <Group title="Components">
         <Row
           name="<AnimatedNumber>"
-          role="A figure counting to its new value: both Dashboards' headline numbers, Activity's total"
+          role="A figure counting to its new value: Home's and the company Overview's headline numbers, Activity's total"
         >
           <CountDemo />
         </Row>

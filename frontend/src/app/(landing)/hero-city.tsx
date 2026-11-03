@@ -34,7 +34,10 @@ const vars = (values: Record<string, string | number>) => values as CSSPropertie
 const VIEW_BOX = `0 ${STRIP_TOP} ${STRIP_WIDTH} ${STRIP_HEIGHT}`;
 
 /**
- * The buildings' look: their colours and line weights. One source for both
+ * The buildings' look: their colours and line weights, quiet so the violet
+ * towers stand out (KAN-540): the window grids and cross-hatching are a hint
+ * (`--floor`, `--pier`), since at full weight on every face the buildings ran
+ * together. One source for both
  * kinds of layer below: written into each still image, which landing.css
  * cannot reach (an image is a document of its own), and into the page
  * under `.hero-city` for the live layers. The live-only parts (the ground
@@ -44,12 +47,12 @@ const VIEW_BOX = `0 ${STRIP_TOP} ${STRIP_WIDTH} ${STRIP_HEIGHT}`;
 const LOOK: [selector: string, rules: string][] = [
   [
     "",
-    "--top:#fff;--left:#e1d9f6;--right:#eee9fd;--edge:rgb(76 39 163/.17);--hi:rgb(109 63 216/.32);--floor:rgb(76 39 163/.09);--pier:rgb(76 39 163/.16);--spire:#aaa4b8;--holo:#6d3fd8",
+    "--top:#fff;--left:#e7e2f5;--right:#f4f1fb;--edge:rgb(76 39 163/.2);--hi:rgb(109 63 216/.22);--floor:rgb(76 39 163/.035);--pier:rgb(76 39 163/.05);--spire:#cfc9dc;--holo:#6d3fd8",
   ],
-  [".tone-stone", "--top:#fffdf9;--left:#e6dee9;--right:#f3eef4"],
-  [".tone-peri", "--top:#f8f8ff;--left:#d6d8f5;--right:#e7e9fd"],
-  [".tone-glass", "--top:#f5f4fb;--left:#d6d2ea;--right:#e7e4f4"],
-  [".tone-deep", "--top:#f3f0f5;--left:#d8d1df;--right:#e7e2ec"],
+  [".tone-stone", "--top:#fffefb;--left:#ebe5ee;--right:#f7f3f8"],
+  [".tone-peri", "--top:#fbfbff;--left:#e0e2f7;--right:#eff0fd"],
+  [".tone-glass", "--top:#f9f8fd;--left:#e1ddef;--right:#efedf7"],
+  [".tone-deep", "--top:#f8f6f9;--left:#e2dce7;--right:#eeeaf1"],
   [".t", "fill:var(--top)"],
   [".l", "fill:var(--left)"],
   [".r", "fill:var(--right)"],
@@ -197,10 +200,30 @@ export function HeroCity() {
   const [placement, setPlacement] = useState<Record<string, number | null>>({});
   const [loaded, setLoaded] = useState<ReadonlySet<string>>(() => new Set());
 
+  // Built once the browser is idle, in a task of its own: built as the page
+  // hydrated, it made one long task of both, 0.7 s at a 4x CPU slowdown
+  // (KAN-540). The city fades in once its images load in any case.
+  const [built, setBuilt] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (phone === null) return;
+    const build = () => {
+      getLayers(phone);
+      setBuilt(phone);
+    };
+    // Safari has no requestIdleCallback.
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(build, { timeout: 800 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = setTimeout(build, 1);
+    return () => clearTimeout(timer);
+  }, [phone]);
+  const shown = phone !== null && built === phone;
+
   useEffect(() => {
     const root = rootRef.current;
     const panel = root?.parentElement;
-    if (!root || !panel) return;
+    if (!shown || !root || !panel) return;
     const place = () => setPlacement(placeCards(root, panel));
     const observer = new ResizeObserver(place);
     observer.observe(panel);
@@ -219,9 +242,9 @@ export function HeroCity() {
       window.removeEventListener("resize", place);
       window.clearTimeout(settle);
     };
-  }, [phone]);
+  }, [shown]);
 
-  if (phone === null) return null;
+  if (!shown) return null;
   const city = getCity(phone);
   const layers = getLayers(phone);
   const ready = layers.every((layer) => !("still" in layer) || loaded.has(layer.still));
@@ -323,7 +346,9 @@ export function HeroCity() {
                 )}
                 {piece.we && (
                   <g className="wire" filter="url(#hero-city-glow)">
-                    <path className="wf" d={piece.wf} />
+                    <path className="gl" d={piece.gl} />
+                    <path className="gr" d={piece.gr} />
+                    <path className="gt" d={piece.gt} />
                     <path className="wl" d={piece.wl} />
                     <path className="we" d={piece.we} pathLength={1} />
                   </g>

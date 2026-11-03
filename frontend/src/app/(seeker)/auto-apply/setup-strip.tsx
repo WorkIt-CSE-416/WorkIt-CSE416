@@ -22,9 +22,10 @@ const INSTALL_URL = process.env.NEXT_PUBLIC_EXTENSION_INSTALL_URL;
  * 1 of 3 done" with a Configure dialog, counting a default resume and the
  * Claude MCP as steps too, and students read all three as required. Both
  * are optional, so each now shows where it helps instead: a row with no
- * resume says No Resume and its Resume cell picks one, and a row's
- * Questions to Write chip links to Written Answers, which offers Connect
- * Claude while their Claude isn't connected (../write-with-claude.tsx).
+ * resume says No Resume and its Resume cell picks one, and while
+ * questions wait Up Next's Write N Questions links to Written Answers,
+ * which offers Connect Claude while their Claude isn't connected
+ * (./write-with-claude.tsx).
  */
 export function SetupStrip() {
   const [installed, setInstalled] = useState<boolean | null>(null);

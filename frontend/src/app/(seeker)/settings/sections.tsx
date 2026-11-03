@@ -2,7 +2,7 @@ import { Suspense } from "react";
 
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/ui/card";
-import { SectionHeading } from "@/components/ui/section-heading";
+import { SectionHeadingSkeleton } from "@/components/ui/section-heading";
 
 import { IntegrationsSection } from "./integrations/section";
 import { NotificationsSection } from "./notifications/section";
@@ -18,7 +18,8 @@ import { SecuritySection } from "./security/section";
  *
  * EACH SECTION THAT READS STREAMS IN ITS OWN <Suspense> (KAN-368). Personal
  * Details reads the profile and the photo, Job Preferences the saved
- * filters and the role options (the facets and the locations), and with no
+ * filters and the role options (the facets and the locations),
+ * Integrations whether the student's Claude is connected, and with no
  * boundary the modal opened only once the slowest of those had answered.
  * Now the route's layout awaits nothing, so the modal opens as soon as the
  * route's first bytes arrive, over each section's skeleton: its own card
@@ -38,7 +39,7 @@ import { SecuritySection } from "./security/section";
 export function allSections() {
   return {
     personal: (
-      <Suspense fallback={<SectionSkeleton id="personal" title="Personal Details" photo />}>
+      <Suspense fallback={<SectionSkeleton title="Personal Details" photo />}>
         <PersonalSection />
       </Suspense>
     ),
@@ -49,15 +50,17 @@ export function allSections() {
       </Suspense>
     ),
     notifications: (
-      <Suspense fallback={<SectionSkeleton id="notifications" title="Notifications" fields={2} />}>
+      <Suspense fallback={<SectionSkeleton title="Notifications" fields={2} />}>
         <NotificationsSection />
       </Suspense>
     ),
-    integrations: <IntegrationsSection />,
+    integrations: (
+      <Suspense fallback={<SectionSkeleton title="Integrations" fields={2} />}>
+        <IntegrationsSection />
+      </Suspense>
+    ),
     preferences: (
-      <Suspense
-        fallback={<SectionSkeleton id="job-preferences" title="Job Preferences" fields={4} />}
-      >
+      <Suspense fallback={<SectionSkeleton title="Job Preferences" fields={4} />}>
         <PreferencesSection />
       </Suspense>
     ),
@@ -65,26 +68,24 @@ export function allSections() {
 }
 
 /**
- * A section while it reads: its card and heading as the section draws them,
- * then, for Personal Details, the photo's 72px circle beside its buttons,
- * and a field's label and 42px box for each field (`fields`), so the card
+ * A section while it reads: its card, its heading as a bar (`title` still
+ * names it to a screen reader), then, for Personal Details, the photo's 72px
+ * circle beside its buttons, and a field's label and 42px box for each field (`fields`), so the card
  * is about the height it will be. The modal shows one section at a time and
  * each scrolls alone, so nothing outside the card moves when it fills.
  */
 export function SectionSkeleton({
-  id,
   title,
   photo = false,
   fields = 3,
 }: {
-  id: string;
   title: string;
   photo?: boolean;
   fields?: number;
 }) {
   return (
-    <Card as="section" aria-labelledby={id} aria-busy="true" className="flex flex-col gap-4">
-      <SectionHeading id={id}>{title}</SectionHeading>
+    <Card as="section" aria-label={title} aria-busy="true" className="flex flex-col gap-4">
+      <SectionHeadingSkeleton />
       <div aria-hidden="true" className="flex flex-col gap-6">
         {photo && (
           <div className="flex items-center gap-4">

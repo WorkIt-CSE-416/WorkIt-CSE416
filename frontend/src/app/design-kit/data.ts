@@ -86,7 +86,10 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-canvas", role: "Body ground; the auth screens paint a sky over it" },
       { token: "--color-surface", role: "Login card, and every field fill" },
       { token: "--color-surface-tint", role: "Logo tile, subtle fills" },
-      { token: "--color-app", role: "Home and design kit ground; uploaded-file row" },
+      {
+        token: "--color-app",
+        role: "Every seeker page's ground, and the design kit's; uploaded-file row",
+      },
       { token: "--color-panel", role: "Top bar, cards and secondary buttons" },
       { token: "--color-well", role: "Recessed area — the resume dropzone" },
       { token: "--color-frame", role: "Pale lavender; onboarding story panel fade" },
@@ -102,7 +105,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
   },
   {
     title: "Rail",
-    note: "The left panel's lavender. The company shell paints its docked panel and the bar's corner cell in it, so the two read as one frame around the white page. The seeker's floating panel is white and keeps only the border. Hover and current rows are lavender too, where the grey Interaction pair would read as smudges on a coloured panel.",
+    note: "The left panel's lavender. The company shell paints its docked panel and the bar's corner cell in it, so the two read as one frame around the white page. The seeker's rail is white and keeps only the border. Hover and current rows are lavender too, where the grey Interaction pair would read as smudges on a coloured panel.",
     tokens: [
       { token: "--color-rail", role: "Company panel and its corner cell" },
       { token: "--color-rail-hover", role: "Row under the pointer on the rail" },
@@ -116,8 +119,8 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-ink", role: "Headings" },
       { token: "--color-ink-muted", role: "Body copy, field labels" },
       { token: "--color-ink-meta", role: "Nav links, subtitles, dates, glyphs, placeholders" },
-      { token: "--color-ink-subtle", role: "De-emphasised glyphs: stat tiles, a picker's chevron" },
-      { token: "--color-ink-faint", role: "Separator dots, bullets, resting sort chevrons" },
+      { token: "--color-ink-subtle", role: "Disabled or decorative glyphs only, never words" },
+      { token: "--color-ink-faint", role: "Separator dots, bullets; never words or a live arrow" },
     ],
   },
   {
@@ -137,15 +140,18 @@ export const COLOR_GROUPS: ColorGroup[] = [
     title: "Status",
     note: "The board's only non-brand control is accepting an offer. The chip tones below it say what KIND of state something is in — in flight, finished well, halted, finished badly, over — so two states never share a colour unless they are the same kind of thing.",
     tokens: [
-      { token: "--color-positive", role: "Offer accent and its green button" },
+      { token: "--color-positive", role: "Offer accent: strokes and fills, never under a word" },
       { token: "--color-positive-tint", role: "The offer card's company tile" },
-      { token: "--color-positive-hover", role: "Derived — 33% lightness" },
-      { token: "--color-positive-active", role: "Derived — 27% lightness" },
+      { token: "--color-positive-hover", role: "Green button hover — positive-ink at 23%" },
+      { token: "--color-positive-active", role: "Green button press — positive-ink at 19%" },
       {
         token: "--color-positive-ring",
         role: "Focus ring on a positive fill: positive-ink, 5.35:1",
       },
-      { token: "--color-positive-ink", role: "Positive as text on its tint — AA safe" },
+      {
+        token: "--color-positive-ink",
+        role: "Positive as text, the green button's fill, a tick — white on it 5.35:1",
+      },
       { token: "--color-inert-tint", role: "Measured — a status that is over or not begun" },
       { token: "--color-warning", role: "UNMEASURED — halted, waiting on a decision" },
       { token: "--color-warning-tint", role: "UNMEASURED" },
@@ -167,22 +173,36 @@ export const COLOR_GROUPS: ColorGroup[] = [
     tokens: [
       { token: "--chart-1", role: "→ --color-brand · in flight, early (Screening)" },
       { token: "--chart-2", role: "→ --color-advanced · in flight, late (Interview)" },
-      { token: "--chart-3", role: "→ --color-positive · ended well (Offer)" },
+      { token: "--chart-3", role: "→ --color-match-strong · ended well (Offer) · 3.50:1 on app" },
       { token: "--chart-4", role: "→ --color-danger · ended badly (Rejected)" },
-      { token: "--chart-5", role: "→ --color-ink-subtle · inert, Other, de-emphasis" },
+      { token: "--chart-5", role: "Slate grey · inert, Other, de-emphasis · 3.25:1 on app" },
     ],
   },
   {
     title: "Match",
-    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc and dot on a job's match rail, and the bar on the company Dashboard's Recent Applicants. One magenta ramp, deeper for a better match, in a hue no stage, status or brand colour uses, so a score never reads as where an application stands. Strokes, dots and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
+    note: "The bands a match score is read in, from @/lib/match: the ring on a board card's badge, the arc on a job's match rail, and the bar on the company Dashboard's Recent Applicants. Red, yellow and green, so a score says good or bad with no legend. Strokes and bars only, never text: the tier's words stay ink-muted. Every step clears 3:1 on white and on --color-well.",
     tokens: [
       {
         token: "--color-match-excellent",
-        role: "Excellent Match, the deepest step · 9.73:1 on white",
+        role: "→ --color-positive-ink · Excellent Match, deep green · 5.35:1 on white",
       },
-      { token: "--color-match-strong", role: "Strong Match · 6.98:1 on white" },
-      { token: "--color-match-good", role: "Good Match · 4.95:1 on white" },
-      { token: "--color-match-weak", role: "Weak Match, the lightest step · 3.45:1 on white" },
+      {
+        token: "--color-match-strong",
+        role: "Strong Match, green · 3.81:1 on white",
+      },
+      { token: "--color-match-good", role: "Good Match, yellow · 3.24:1 on white" },
+      {
+        token: "--color-match-weak",
+        role: "→ --color-ink-muted · Weak Match, neutral until real cut-offs (KAN-569) · 10.70:1 on white",
+      },
+    ],
+  },
+  {
+    title: "Updates",
+    note: "The marketing pages' pink: the tour's Updates stop, the Tracker feature and the glow behind the Jobs page's cards in the hiring-systems stream. No signed-in screen uses it.",
+    tokens: [
+      { token: "--color-updates", role: "Fills, glows and glyphs · 4.95:1 on white" },
+      { token: "--color-updates-ink", role: "The same pink as text on its tint · 6.98:1 on white" },
     ],
   },
   {
@@ -216,13 +236,16 @@ export const COLOR_GROUPS: ColorGroup[] = [
   {
     title: "Borders",
     tokens: [
-      { token: "--color-border", role: "Card outline" },
+      { token: "--color-border", role: "Card outline, decoration only" },
       { token: "--color-border-subtle", role: "Secondary buttons, rules" },
       {
         token: "--color-border-control",
-        role: "Form field outline: 3.05:1 on surface, 3.24:1 on panel (the search pill has none)",
+        role: "The edge of any control or state: 3.37:1 on panel, 3.09:1 on the app ground",
       },
-      { token: "--color-border-strong", role: "Dashed dropzone, spent timeline dot" },
+      {
+        token: "--color-border-strong",
+        role: "A score ring's empty track, never a control's edge",
+      },
     ],
   },
   {
@@ -244,7 +267,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--accent", role: "→ --color-hover" },
       { token: "--accent-foreground", role: "→ --color-ink" },
       { token: "--border", role: "→ --color-border" },
-      { token: "--input", role: "→ --color-border-subtle" },
+      { token: "--input", role: "→ --color-border-control" },
       { token: "--ring", role: "→ --color-brand" },
       { token: "--destructive", role: "→ --color-danger · unmeasured" },
     ],
@@ -272,8 +295,12 @@ export const COLOR_GROUPS: ColorGroup[] = [
  */
 export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-caption", cls: "text-caption", role: "Uppercase rule label — OR CONTINUE WITH" },
-  { token: "--text-meta", cls: "text-meta", role: "Dates, file meta, helper copy" },
-  { token: "--text-note", cls: "text-note", role: "Employer, skill pills" },
+  { token: "--text-meta", cls: "text-meta", role: "Dates, counts, file facts, captions" },
+  {
+    token: "--text-note",
+    cls: "text-note",
+    role: "Hints, errors, statuses: the reading-text floor",
+  },
   { token: "--text-label", cls: "text-label", role: "Field labels, links, buttons" },
   { token: "--text-body", cls: "text-body", role: "Body copy, inputs" },
   { token: "--text-subtitle", cls: "text-subtitle", role: "Work-history job titles" },
@@ -294,7 +321,7 @@ export const TYPEFACES: { token: string; cls: string; role: string }[] = [
   {
     token: "--font-mono",
     cls: "font-mono",
-    role: "Geist Mono · the audit log's action names, a chart tooltip's figures, token names here",
+    role: "Geist Mono · a fill report's field names, a chart tooltip's figures, token names here",
   },
   {
     token: "--font-heading",
@@ -377,7 +404,7 @@ export const WIDTHS: { token: string; cls: string; role: string }[] = [
   {
     token: "--container-dashboard",
     cls: "max-w-dashboard",
-    role: "The seeker Dashboard's wider grid",
+    role: "Every seeker page's cap, Home to the Calendar",
   },
 ];
 
@@ -442,6 +469,7 @@ export const ANIMATIONS: {
     | "dots"
     | "ping"
     | "shimmer"
+    | "line"
     | "toast";
   role: string;
 }[] = [
@@ -518,6 +546,12 @@ export const ANIMATIONS: {
     role: "A band of light crossing what Scout is working on: the bank row its panel is filling",
   },
   {
+    token: "--animate-rewrite",
+    cls: "animate-rewrite",
+    demo: "line",
+    role: "A line written over, held and faded: the bullets on Tailor's loader, staggered 200ms",
+  },
+  {
     token: "--animate-toast-in",
     cls: "animate-toast-in",
     demo: "toast",
@@ -559,7 +593,7 @@ export const BUTTON_VARIANTS = [
   { variant: "ghost", note: "Brand text action, no chrome" },
   { variant: "section", note: "Section action, muted, beside a heading" },
   { variant: "positive", note: "Accepting an offer — WorkIt-only" },
-  { variant: "decline", note: "Declining beside a positive: Tailor's Reject — WorkIt-only" },
+  { variant: "decline", note: "Declining beside a positive — WorkIt-only" },
   { variant: "destructive", note: "UNMEASURED" },
   { variant: "link", note: "UNMEASURED" },
 ] as const;
@@ -567,7 +601,10 @@ export const BUTTON_VARIANTS = [
 /** Each size and when to use it (KAN-251). Pick by role, never by look. */
 export const BUTTON_SIZES = [
   { size: "inline", note: "A text action inside a line, no box: Clear Filters, Download Anyway" },
-  { size: "xs", note: "UNMEASURED; no screen uses it for a boxed action" },
+  {
+    size: "xs",
+    note: "UNMEASURED. A glyph action in a dense toolbar: the bank's Add, the editor's format toggles",
+  },
   { size: "sm", note: "36px. An action in a card, a row, a page's header or a panel" },
   { size: "default", note: "42px, a text field's height. An action in a form or a dialog" },
   { size: "lg", note: "48px. The one main action of a page, or the sign-in card's" },
@@ -585,3 +622,10 @@ export const CHIP_VARIANTS = [
   { variant: "primary", pressed: undefined, note: "The one suggestion most people take: Use This" },
 ] as const;
 export const BUTTON_ICON_SIZES = ["icon-xs", "icon-sm", "icon", "icon-lg"] as const;
+
+/** IconButton's variants, each sized as a screen draws it. */
+export const ICON_BUTTON_VARIANTS = [
+  { variant: "quiet", className: undefined, label: "Notifications" },
+  { variant: "outline", className: "size-9", label: "Notifications" },
+  { variant: "brand", className: undefined, label: "Edit avatar" },
+] as const;

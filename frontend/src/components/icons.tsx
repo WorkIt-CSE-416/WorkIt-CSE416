@@ -12,6 +12,8 @@ import {
   BuildingOfficeIcon as BuildingOffice,
   CalendarBlankIcon as CalendarBlank,
   CaretDownIcon as CaretDown,
+  CaretLeftIcon as CaretLeft,
+  CaretRightIcon as CaretRight,
   CaretUpDownIcon as CaretUpDown,
   CaretUpIcon as CaretUp,
   CheckIcon as Check,
@@ -38,6 +40,7 @@ import {
   MedalIcon as Medal,
   MedalMilitaryIcon as MedalMilitary,
   MoneyIcon as Money,
+  NotePencilIcon as NotePencil,
   PaperPlaneTiltIcon as PaperPlaneTilt,
   PencilSimpleIcon as PencilSimple,
   PersonArmsSpreadIcon as PersonArmsSpread,
@@ -99,13 +102,21 @@ type IconProps = { className?: string };
 /* Chrome ------------------------------------------------------------------ */
 
 /** Scout and every AI action, the one mark for both (KAN-257): the top bar's
- *  launcher, the panel's header, Scout's mark in the chat, Ask Scout, Tailor
- *  My Resume and Read It Again with AI. It was a filled sparkle drawn by hand
+ *  launcher, the panel's header, Scout's mark in the chat, Ask Scout, Tailor's
+ *  own run and Read It Again with AI. It was a filled sparkle drawn by hand
  *  in the bar and the panel, beside an outlined one in the chat and on every
  *  AI button, so the assistant wore two marks. Use this, never Phosphor's
  *  `SparkleIcon` directly. */
 export function SparkleIcon({ className }: IconProps) {
   return <Sparkle aria-hidden className={className} />;
+}
+
+/** Tailor My Resume, on a job's card and its page: a page being rewritten. It
+ *  drew SparkleIcon until KAN-518, beside Ask Scout's, so the two buttons read
+ *  alike and the mark did not say what the button does. Not scissors: the
+ *  editor's Fit to One Page has them, for cutting a resume down. */
+export function TailorIcon({ className }: IconProps) {
+  return <NotePencil aria-hidden className={className} />;
 }
 
 export function SearchIcon({ className }: IconProps) {
@@ -119,6 +130,16 @@ export function FilterIcon({ className }: IconProps) {
 /** A filter chip's trailing glyph while it is still a dropdown. */
 export function ChevronDownIcon({ className }: IconProps) {
   return <CaretDown aria-hidden className={className} />;
+}
+
+/** A picker's step back and on: MonthField's year (the Calendar's own
+ *  arrows are the same carets, drawn by shadcn/calendar.tsx). */
+export function ChevronLeftIcon({ className }: IconProps) {
+  return <CaretLeft aria-hidden className={className} />;
+}
+
+export function ChevronRightIcon({ className }: IconProps) {
+  return <CaretRight aria-hidden className={className} />;
 }
 
 /** The same chip's trailing glyph once it has something to remove. */
@@ -621,7 +642,7 @@ export function answerIcon(key: QuestionKey) {
   return ANSWER_ICON[key];
 }
 
-/** My Profile's Application answers groups (KAN-369), shared with
+/** Application Info's Application answers groups (KAN-369), shared with
  *  onboarding's Availability step: one glyph a group, by its name. */
 export const ANSWER_GROUP_ICON = {
   availability: ({ className }: IconProps) => <Clock aria-hidden className={className} />,

@@ -11,6 +11,7 @@ import { ArrowRightIcon } from "@/components/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink, buttonClasses } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 
@@ -188,12 +189,11 @@ function Decision({ email, job, jobs }: { email: Email; job?: EmailJob; jobs: Em
         : "Add to Application Timeline";
 
   return (
-    <section
+    <Card
+      as="section"
+      padding="none"
       aria-label={heading}
-      className={cn(
-        "border-border-subtle bg-panel rounded-card shadow-panel mt-4 overflow-hidden border",
-        pending && "opacity-60",
-      )}
+      className={cn("mt-4 overflow-hidden", pending && "opacity-60")}
     >
       <h3 className="text-label text-ink bg-surface border-border-subtle border-b px-4 py-2.5 font-semibold">
         {heading}
@@ -227,7 +227,7 @@ function Decision({ email, job, jobs }: { email: Email; job?: EmailJob; jobs: Em
             </div>
           </div>
         ) : unlisted ? (
-          <p className="text-meta text-ink-muted">
+          <p className="text-note text-ink-muted">
             It goes on the application the tracker matched it to.
           </p>
         ) : (
@@ -293,7 +293,7 @@ function Decision({ email, job, jobs }: { email: Email; job?: EmailJob; jobs: Em
           <When at={email.at} />, to its timeline.
         </p>
       )}
-    </section>
+    </Card>
   );
 }
 

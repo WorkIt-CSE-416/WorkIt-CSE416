@@ -9,20 +9,18 @@ import { rememberedJobs } from "../jobs/[jobId]/page-actions";
 import { restoreScrollOn } from "../scroll-memory";
 
 /**
- * The job search field, holding the query this page was searched with. The
- * top bar and the phone's search sheet both draw it, inside their own GET
- * form to /search, so on a results page the field still says what was
+ * The job search field, holding the query this page was searched with
+ * (./job-search.tsx), so on a results page the field still says what was
  * searched for and a second search starts from the first rather than from
- * nothing. Anywhere else it is empty.
+ * nothing. On the Jobs page it is empty.
  *
- * Its own client component because the layout cannot see the query: a layout
- * receives no searchParams, so reading ?q takes useSearchParams.
+ * Its own client component because the Jobs page's split frame is drawn by a
+ * layout, and a layout receives no searchParams.
  *
  * Controlled, and reset whenever the URL's query changes (React's "adjust
- * state while rendering" pattern), rather than remounted with a `key`. The
- * shell stays mounted across a search, so the field the seeker just pressed
- * Enter in keeps its focus and caret while the results arrive, and leaving
- * /search clears it.
+ * state while rendering" pattern), rather than remounted with a `key`, so on
+ * /search the field the seeker just pressed Enter in keeps its focus and caret
+ * while the results arrive.
  *
  * Clearing it on /search with the field's cross (or Escape) ends the search:
  * the page goes back to the Jobs list from before it, filters, Load More

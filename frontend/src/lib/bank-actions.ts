@@ -40,7 +40,13 @@ export type EntryFields = {
 export type Bullet = { id: string; position: number; text: string };
 /** `resume_ids`: the resumes that hold it (KAN-343), in `Bank.resumes`
  *  order: uploads whose import found it, built resumes that show it. */
-export type BankEntry = EntryFields & { id: string; bullets: Bullet[]; resume_ids: string[] };
+export type BankEntry = EntryFields & {
+  id: string;
+  bullets: Bullet[];
+  resume_ids: string[];
+  /** Shared by entries that are copies of one: the API's rule (KAN-440). */
+  copy_group: string;
+};
 /** `resume_ids`: as an entry's. */
 export type Skill = {
   id: string;

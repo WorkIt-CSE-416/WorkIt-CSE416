@@ -1,8 +1,8 @@
 import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui/card";
 
 import { WAITING, type WaitBucket } from "./data";
 import { SectionHeader } from "./section-header";
-import { SectionCard } from "./section-card";
 
 /**
  * Applications with no reply yet, by how long they have waited — the seeker's
@@ -47,7 +47,13 @@ export function Waiting({ className }: { className?: string }) {
   const max = Math.max(...WAITING.map((bucket) => bucket.count), 1);
 
   return (
-    <SectionCard aria-labelledby="waiting" className={cn("flex flex-col", className)}>
+    <Card
+      as="section"
+      tone="tile"
+      padding="lg"
+      aria-labelledby="waiting"
+      className={cn("flex flex-col", className)}
+    >
       <SectionHeader
         id="waiting"
         title="Waiting"
@@ -133,6 +139,6 @@ export function Waiting({ className }: { className?: string }) {
           ))}
         </ul>
       </div>
-    </SectionCard>
+    </Card>
   );
 }

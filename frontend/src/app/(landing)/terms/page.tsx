@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { LegalPage, TeamToDecide } from "../legal-page";
+import { LegalPage } from "../legal-page";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
@@ -9,26 +9,25 @@ export const metadata: Metadata = {
 };
 
 /**
- * The public Terms of Service, a draft for the team to review. Like
- * /privacy, it describes only what WorkIt does today, and leaves each
- * business or legal decision as a TeamToDecide placeholder.
+ * The public Terms of Service. Like /privacy, it describes only what WorkIt
+ * does today; its business and legal decisions are the team's, recorded on
+ * KAN-462 on 2026-10-31.
  */
 export default function TermsPage() {
   return (
     <LegalPage title="Terms of Service">
       <p>
         These terms are the rules for using WorkIt (
-        <a href="https://workitjobs.ai">workitjobs.ai</a>) and the WorkIt Chrome extension. WorkIt
-        is operated by <TeamToDecide>legal name of the operator</TeamToDecide>. By creating an
-        account or using WorkIt, you agree to these terms and to our{" "}
-        <Link href="/privacy">Privacy Policy</Link>.
+        <a href="https://workitjobs.ai">workitjobs.ai</a>) and the WorkIt Chrome extension.
+        &ldquo;WorkIt&rdquo;, &ldquo;we&rdquo; and &ldquo;us&rdquo; mean WorkIt, a project run by
+        its student founders. By creating an account or using WorkIt, you agree to these terms and
+        to our <Link href="/privacy">Privacy Policy</Link>.
       </p>
 
       <h2>Who Can Use WorkIt</h2>
       <p>
         WorkIt is for students and recent graduates looking for jobs and internships. You must be at
-        least <TeamToDecide>minimum age</TeamToDecide> to use it. Business accounts are not
-        available yet.
+        least 16 years old to use it. Business accounts are not available yet.
       </p>
 
       <h2>Your Account</h2>
@@ -81,32 +80,35 @@ export default function TermsPage() {
       <h2>Ending Your Use</h2>
       <p>
         You can stop using WorkIt at any time. To delete your account, see the Privacy Policy. We
-        can suspend or close an account that breaks these terms.{" "}
-        <TeamToDecide>notice given before an account is closed</TeamToDecide>
+        can suspend or close an account that breaks these terms. We tell you at least 14 days before
+        we close your account, unless we close it for abuse or for a legal reason; then we can close
+        it at once.
       </p>
 
       <h2>Changes to WorkIt and These Terms</h2>
       <p>
         WorkIt is still being built, and features can change or stop. When we change these terms, we
-        update the date at the top of this page.{" "}
-        <TeamToDecide>how users are told about important changes</TeamToDecide>
+        update the date at the top of this page. Before an important change takes effect, we tell
+        you by email and with a notice in WorkIt, at least 14 days ahead.
       </p>
 
       <h2>Disclaimers and Limits of Liability</h2>
       <p>
-        <TeamToDecide>
-          warranty disclaimer and limitation of liability, after legal review
-        </TeamToDecide>
+        WorkIt is provided &ldquo;as is&rdquo;, without warranties of any kind. Our liability to you
+        for anything about WorkIt is limited to the amount you paid WorkIt in the 12 months before
+        the claim, which is currently $0.
       </p>
 
       <h2>Governing Law</h2>
       <p>
-        <TeamToDecide>governing law and where disputes are decided</TeamToDecide>
+        The laws of the State of New York govern these terms, without regard to its conflict of laws
+        rules. Any dispute about WorkIt or these terms is decided in the state or federal courts in
+        Suffolk County, New York, and you and WorkIt agree to those courts&apos; jurisdiction.
       </p>
 
       <h2>Contact</h2>
       <p>
-        Questions about these terms: <TeamToDecide>contact email</TeamToDecide>
+        Questions about these terms: <a href="mailto:team@workitjobs.ai">team@workitjobs.ai</a>
       </p>
     </LegalPage>
   );

@@ -28,10 +28,10 @@ export const PANEL_INSET = "px-2 sm:px-6";
 export const PANEL = "rounded-[2rem] lg:rounded-[3rem]";
 
 /**
- * How far the hiring-systems section slides up over the pinned tour's last
- * stop, in vh, from lg up with motion: the tour keeps that much pin after
- * its last stop, and the section starts that far up the page, over it
- * (KAN-368). One number for both, or the tour unpins under the section or
+ * How long the pinned tour's panel takes to turn into the hiring-systems
+ * section's, in vh, from lg up with motion: the tour keeps that much pin after
+ * its last stop, and the section starts pinned, unseen, for that stretch
+ * (KAN-540). One number for both, or the tour unpins under the section or
  * the section leaves a gap.
  */
 export const TOUR_COVER_VH = 100;

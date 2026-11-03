@@ -37,15 +37,24 @@ function tabs(worker: Worker): Promise<Tab[]> {
 let loaded: Loaded;
 test.afterEach(() => loaded?.close());
 
-async function start(): Promise<{ api: FakeApi; onboarding: Page }> {
+async function start(api = new FakeApi()): Promise<{ api: FakeApi; onboarding: Page }> {
   // An empty queue: the practice batch never reads it.
-  const api = new FakeApi();
   loaded = await loadExtension([api.handler, webapp]);
   await signIn(loaded.context);
   const onboarding = loaded.context.pages()[0] ?? (await loaded.context.newPage());
   await onboarding.goto(`${WEB}/onboarding/applicant`);
   return { api, onboarding };
 }
+
+/** The panel's row for Lumen's written question. */
+function whyRow(lumen: Page) {
+  return lumen.locator("#workit-autofiller-overlay-host .row", {
+    has: lumen.locator(".label", { hasText: /^Why do you want to intern at Lumen Health/ }),
+  });
+}
+
+const NO_CLAUDE = "To let your Claude write answers like this, go back to Add Claude in WorkIt's setup.";
+const WITH_CLAUDE = "On a real application, your Claude writes answers like this.";
 
 const status = async (onboarding: Page) => (await sendFromWebapp(onboarding, { type: "practice/status" })).jobs;
 
@@ -77,8 +86,11 @@ test("a practice batch fills WorkIt's practice forms, and the student's Submit s
   await expect(harbor.locator(`[name='${harborCard}[field0]'][value=Yes]`)).toBeChecked();
   await expect(harbor.locator(`[name='${harborCard}[field1]'][value=No]`)).toBeChecked();
 
-  // The student writes Lumen's answer: the tab moves to Ready.
+  // Lumen's written question is the student's, and with no Claude added the tab says how to add it (KAN-507).
   const lumen = loaded.context.pages().find((p) => p.url() === LUMEN)!;
+  await expect(whyRow(lumen)).toContainText(NO_CLAUDE, { timeout: 30_000 });
+
+  // The student writes Lumen's answer: the tab moves to Ready.
   await lumen.locator(`[name='cards[${PRACTICE_JOBS[1].card.id}][field1]']`).fill("I want to build data pipelines that help clinics call the right patients.");
   await expect.poll(() => groupOf(LUMEN), { timeout: 15_000 }).toBe("Ready");
 
@@ -114,4 +126,30 @@ test("a practice batch opens only WorkIt's practice forms on the asking page's o
   });
   expect(answer).toEqual({ ok: false, error: "No practice form to open" });
   expect((await tabs(loaded.worker)).map((t) => t.url)).toEqual([`${WEB}/onboarding/applicant`]);
+});
+
+test("with Lever turned off, the practice forms (shaped as Lever's) still fill: they are WorkIt's own", async () => {
+  test.setTimeout(120_000);
+  const api = new FakeApi();
+  api.disabledJobSystems = [{ job_system: "lever", name: "Lever" }];
+  const { onboarding } = await start(api);
+  expect(await sendFromWebapp(onboarding, { type: "practice/open", urls: [HARBOR, LUMEN] })).toMatchObject({ ok: true, opened: true });
+  const groupOf = async (url: string) => (await tabs(loaded.worker)).find((t) => t.url === url)?.group;
+  await expect.poll(() => groupOf(HARBOR), { timeout: 60_000 }).toBe("Ready");
+  const harbor = loaded.context.pages().find((p) => p.url() === HARBOR)!;
+  await expect(harbor.locator("[name=name]")).toHaveValue(STUDENT.full_name);
+  await expect(harbor.locator("#workit-autofiller-overlay-host")).not.toContainText("can't fill");
+});
+
+test("with the student's Claude added, the practice tab says their Claude writes such answers on real ones (KAN-507)", async () => {
+  test.setTimeout(120_000);
+  const api = new FakeApi();
+  api.connectorAdded = true;
+  const { onboarding } = await start(api);
+  expect(await sendFromWebapp(onboarding, { type: "practice/open", urls: [HARBOR, LUMEN] })).toMatchObject({ ok: true, opened: true });
+  const groupOf = async (url: string) => (await tabs(loaded.worker)).find((t) => t.url === url)?.group;
+  await expect.poll(() => groupOf(LUMEN), { timeout: 60_000 }).toBe("Needs you");
+  const lumen = loaded.context.pages().find((p) => p.url() === LUMEN)!;
+  await expect(whyRow(lumen)).toContainText(WITH_CLAUDE, { timeout: 30_000 });
+  await expect(whyRow(lumen)).not.toContainText(NO_CLAUDE);
 });

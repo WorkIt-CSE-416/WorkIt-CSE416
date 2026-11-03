@@ -15,19 +15,17 @@ import type { Highlight } from "./data";
  * recessed surface the profile dropzone already established, and earns its
  * prominence from the ring instead.
  *
- * The arc and the dot before the tier label colour by band, light to deep
- * magenta, from `matchColor` in @/lib/match, rather than one brand colour at
- * every score: the brand is the Applied stage's colour, so a violet ring read
- * as a status. See the note on `TIERS` there. Length still carries the
- * magnitude and the label still carries the band; colour is a third, faster
- * read of the same two facts, not a replacement for either.
+ * The arc colours by band, red, yellow or green, from `matchColor` in
+ * @/lib/match, rather than one brand colour at every score: the brand is the
+ * Applied stage's colour, so a violet ring read as a status. See the note on
+ * `TIERS` there. Length still carries the magnitude and the label still
+ * carries the band; colour is a third, faster read of the same two facts, not
+ * a replacement for either.
  *
- * The label's words are ink-muted, not the band colour. Painted in the old
- * green, yellow and red bands, three of the four measured 1.79 to 3.51:1 on
- * the well, so the one-word verdict a seeker reads before applying was the
- * hardest thing on the rail to read. The magenta ramp is drawn for strokes
- * (its lightest step is 3.22:1 on the well, short of the 4.5:1 a label
- * needs), so the dot keeps the colour and the words keep the contrast.
+ * The label's words are ink-muted, not the band colour: the yellow step is
+ * 3.03:1 on the well, drawn for strokes, short of the 4.5:1 a label needs.
+ * Nothing sits before the words. A dot in the band's colour did until KAN-518,
+ * and beside the ring it only said the colour twice.
  *
  * Caveats sit in ink-meta, a step quieter than the wins in ink-muted but still
  * clear of AA: the tick and the dot already tell the two kinds apart, so fading
@@ -143,10 +141,7 @@ export function MatchRail({
       <MatchRing score={score} />
       {score === null ? (
         <>
-          <p className="text-caption text-ink-meta flex items-center gap-1.5 font-semibold uppercase">
-            <span aria-hidden="true" className="bg-border-strong size-2 rounded-full" />
-            Score Coming Soon
-          </p>
+          <p className="text-caption text-ink-meta font-semibold uppercase">Score Coming Soon</p>
           <p className="sr-only">
             This role has no match score yet. Reasons it fits you will show here once matching is
             built.
@@ -166,14 +161,7 @@ export function MatchRail({
           </ul>
         </>
       ) : (
-        <p className="text-caption text-ink-muted flex items-center gap-1.5 font-semibold uppercase">
-          <span
-            aria-hidden="true"
-            className="size-2 rounded-full"
-            style={{ background: matchColor(score) }}
-          />
-          {matchTier(score)}
-        </p>
+        <p className="text-caption text-ink-muted font-semibold uppercase">{matchTier(score)}</p>
       )}
 
       {/* No reasons, no list: an empty one drew a stray rule under the tier. */}
@@ -187,11 +175,11 @@ export function MatchRail({
                 {highlight.met ? "In your favour:" : "Worth weighing:"}
               </span>
               {highlight.met ? (
-                <CheckIcon className="text-positive mt-px size-3.5 shrink-0" />
+                <CheckIcon className="text-positive-ink mt-px size-3.5 shrink-0" />
               ) : (
                 <Dot />
               )}
-              <span className={cn("text-meta", highlight.met ? "text-ink-muted" : "text-ink-meta")}>
+              <span className={cn("text-note", highlight.met ? "text-ink-muted" : "text-ink-meta")}>
                 {highlight.text}
               </span>
             </li>

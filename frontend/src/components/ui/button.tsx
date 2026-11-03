@@ -52,6 +52,23 @@ import { cn } from "@/lib/cn";
  * about 30 buttons (Open, PDF, Word, Edit, Save Entry...). A call site that
  * sets its own `size-*` keeps it.
  *
+ * EVERY BUTTON IS A 24PX TARGET, 44PX ON TOUCH (KAN-557): the base's
+ * `hit-area` (globals.css) is an invisible ::after, so sm stays 36px to the
+ * eye while a finger gets 44px. `relative` sits beside it as a class, so a
+ * call site's `absolute` (a dialog's close X) still wins through cn().
+ *
+ * A DISABLED FILL IS GREY, NOT A FADED COLOUR (2026-11-03). The base fades
+ * every disabled button to 50%, which suits the bordered and text-only ones,
+ * but a 50% brand fill read as lavender, a picked state, so a disabled Save
+ * looked chosen rather than off. The filled variants (`default`, `positive`,
+ * `destructive`) take DISABLED_FILL instead: a see-through ink fill, which
+ * shows on white and on the grey ground alike, with `ink-subtle` text, the
+ * colour docs/design.md gives anything that cannot be used now.
+ *
+ * A LABEL NEVER WRAPS (`whitespace-nowrap`, KAN-572): a wrapped label made
+ * the button taller than its size, as onboarding's "Skip Practice" grew from
+ * 48 to 68px on a phone. A row that cannot fit its buttons wraps the row.
+ *
  * Every focus ring is solid (see --color-brand-ring in globals.css), and the
  * filled variants hold theirs 2px off the fill with ring-offset-2: a solid ring
  * touching a fill of its own colour reads as a bigger button, not as focus.
@@ -103,14 +120,19 @@ import { cn } from "@/lib/cn";
  * press is what makes a click feel received before anything it starts has
  * happened; see frontend/docs/motion.md.
  */
+/** A filled variant's disabled look (above). */
+const DISABLED_FILL = "disabled:bg-ink/8 disabled:text-ink-subtle disabled:opacity-100";
+
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "hit-area relative inline-flex items-center justify-center font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         /** Brand fill — the primary action on a screen. */
-        default:
+        default: cn(
           "bg-brand text-on-brand hover:bg-brand-hover active:bg-brand-active focus-visible:ring-brand-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          DISABLED_FILL,
+        ),
         /** Bordered neutral — alternatives sitting beside a primary action.
          *  White, not --color-surface: on the sign-in card, which is
          *  --color-surface itself, Google and LinkedIn sank into the card
@@ -123,10 +145,12 @@ export const buttonVariants = cva(
         /** Positive fill — accepting an offer. The board's only green action,
          *  and the only place a control is not brand-coloured. No shadcn
          *  equivalent: its palette has no success role. */
-        positive:
-          "bg-positive text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
-        /** Danger tint with red text: declining something offered, such as
-         *  Tailor's Reject beside a `positive` Accept. Quieter than
+        positive: cn(
+          "bg-positive-ink text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          DISABLED_FILL,
+        ),
+        /** Danger tint with red text: declining something offered, beside
+         *  a `positive`. Quieter than
          *  `destructive`, so the pair reads as two choices, not two alarms.
          *  WorkIt-only. */
         decline:
@@ -148,8 +172,10 @@ export const buttonVariants = cva(
         /** UNMEASURED: no mockup draws a destructive action. --destructive
          *  aliases --color-danger, the Rejected chip's red (see globals.css),
          *  so the app has one red. Shaped and ringed like the other fills. */
-        destructive:
+        destructive: cn(
           "bg-destructive text-on-brand hover:bg-destructive/90 focus-visible:ring-destructive rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          DISABLED_FILL,
+        ),
         /** UNMEASURED — provided because shadcn components ask for it. For a
          *  link inside running text prefer <TextLink>, which inherits the
          *  sentence's type size instead of setting its own. */
@@ -157,16 +183,14 @@ export const buttonVariants = cva(
       },
       size: {
         /** Padding-free. WorkIt-only: shadcn has no size without a box. The
-         *  ::after widens the hit area past the 16px text without moving
-         *  anything around it. */
-        inline:
-          "text-note relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-3.5",
+         *  hit area reaches 6px past the 16px text, so the target is 28px
+         *  with a mouse without moving anything around it. */
+        inline: "text-note gap-1 [--hit-grow:6px] [&_svg:not([class*='size-'])]:size-3.5",
         /** `inline` at SectionLink's 13px, with its 14px glyph. The glyph
          *  rule takes the base's `:not([class*='size-'])` modifier, so cn()
          *  merges the two; as a bare `[&_svg]` it was a weaker selector than
          *  the base's 16px, which won (KAN-249). */
-        section:
-          "text-label relative gap-1 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] [&_svg:not([class*='size-'])]:size-3.5",
+        section: "text-label gap-1 [--hit-grow:6px] [&_svg:not([class*='size-'])]:size-3.5",
         /** UNMEASURED — extrapolated between `inline` and `sm`. The boxed
          *  sizes carry the 1px border width; each variant colours it. */
         xs: "text-note gap-1 border px-2 py-1 [&_svg:not([class*='size-'])]:size-3.5",

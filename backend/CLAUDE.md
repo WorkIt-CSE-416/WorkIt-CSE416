@@ -41,6 +41,8 @@ uv run python -m app.scripts.intake_test_set   intake's fixed test set against t
 uv run python -m app.scripts.ship_check ...   the connector's blind read, KAN-386 (by hand, never CI; data outside the repo)
 uv run python -m app.scripts.clean_bank_entries  one-off: split "| C++, Go" off older bank titles, drop read skills the catalog lacks; --typed also drops Tailor-added degrees/"AI tools" (dry run unless --apply; local DB only)
 uv run python -m app.scripts.fill_report <id>   a fill report's fix brief + form fixture into fill-reports/ (--latest; reads DATABASE_URL, writes nothing)
+uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  a student's Apply data folder ($APPLY_HOME, else ~/.config/apply) into WorkIt (--dry-run rolls back; local DB only; app/models/CLAUDE.md, "The Fill engine's profile")
+uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -64,7 +66,18 @@ module docstring has the steps.
   scraped row written any other way never shows up in the location or role
   filter (`app/models/CLAUDE.md`, the resolver sections). Its report ends with
   the titles that named no role, most jobs first: the list to grow the aliases
-  from.
+  from. The one other scraped-shape row is a **job a student added**
+  (KAN-515, `POST /jobs/added-by-link`), which no student search sees, so
+  it needs no locations or tags until the import lists it.
+- **It takes over a job a student added** (KAN-542, ADR 0008,
+  `_take_over_added`): before the upsert, an added job
+  (`services/postings.py`'s `ADDED`, the same rule the API uses) whose job
+  the feed has under another form of the link (the same Greenhouse job, or
+  the same bare link when only one feed job has it) moves onto the feed's
+  link, so the upsert fills it in and clears `added_by_student`, with the
+  student's application still on it. One that already has the feed's link
+  needs no move. It never moves onto a link another posting holds. Tests:
+  `tests/test_import_takeover.py`.
 - **It refuses (exit 2, nothing written) when `job_roles` lacks a slug the
   aliases name**, which is what it does before the role migrations
   (`362182aaa4fd`, `ab07572bba38`) are applied. The API reads those tables and
@@ -93,6 +106,17 @@ module docstring has the steps.
   find a bad close, read the jobs one run closed (`closes_at`) by reason,
   then fix its cause and re-run: a job back in the feed reopens. Reopening
   by hand does nothing, since the next import closes a job the feed lacks.
+- **A job a student added from its form** (`job_postings.added_by_student`,
+  KAN-515, `POST /jobs/added-by-link`) is never closed, embedded or given
+  keywords by the import, since the feed never had it; a feed that lists its
+  link makes it an ordinary scraped job (the flag clears), keeping every
+  application on it. No feed reads it: `services/postings.py`'s `LISTED`
+  leaves it out, and only queries of an applicant's own applications read
+  `OPEN`, which keeps it. A closed scraped job's link is refused (404), never
+  reopened or retitled from the request: that would change the job for every
+  student and send queued applications back into their batches. Apply's
+  `track_only` add puts the student's application on the closed job as it
+  is, which changes neither.
 - The feed's `roles` keys (KAN-172) are ignored: `JobListing` doesn't declare
   them, so a new scraper key never fails the import. A job's roles are its
   `job_role_tags`, resolved from its title (KAN-155).
@@ -386,7 +410,12 @@ Find files with a directory listing; these are the rules for where code goes.
   **Admins** are the emails or account ids on `WORKIT_ADMINS`
   (`app/config.py`; `deps.get_admin`, 403 to anyone else): there is no
   admin role in the database. They list (`GET /admin/fill-reports`, newest
-  first, `?job_system=&status=`), read, triage (`PATCH`, status new /
+  first, `?job_system=&status=&engine_version=&signature=`), see them
+  grouped (KAN-478: `GET /admin/fill-report-groups`, one line per
+  `signature`, "<job system>:<field kind>:<error>" of the first field that
+  went wrong, else the first marked one as `Marked`, stored on the row by
+  `schemas/fill_reports.py`'s `signature_of`, migration `b2d4f6a8c013`,
+  with its count and engine versions), read, triage (`PATCH`, status new /
   triaged / fixed and a note) and export a report: `GET
   /admin/fill-reports/{id}/brief` is the Markdown fix brief
   (`services/fill_brief.py`, format in `../docs/fill-reports.md`;
@@ -396,7 +425,51 @@ Find files with a directory listing; these are the rules for where code goes.
   -m app.scripts.fill_report <id>` (or `--latest`) writes the brief, the
   fixture, its question set and the report to `fill-reports/` (gitignored)
   and names the engine commit the report's engine version was built from.
-  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`.
+  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`,
+  `tests/test_fill_report_groups.py`.
+  **Admin alerts** (KAN-478, `services/fill_report_alerts.py`, run by
+  `app/scripts/send_fill_report_alerts.py` hourly from the job alerts' EC2
+  crontab, migration `c5e7a9b1d024`): a group (signature) none of whose
+  reports an alert has named (`alerted_at`) emails the emails on
+  `WORKIT_ADMINS` through `services/email.py`, at most once an hour, then
+  stamps its reports. No admin's send accepted (no IAM role, SES sandbox
+  refusing an unverified address) stamps nothing, so the next run retries.
+  The migration stamps the reports already stored. Links use `WEB_URL`.
+  Tests: `tests/test_fill_report_alerts.py`.
+  **Daily caps per account** (KAN-478, `services/daily_caps.py`, table
+  `daily_counts`, migration `bafdca0d9501`): 30 fix reports, 50 job
+  system requests and 2,000 fill events (KAN-476) a UTC day
+  (`FILL_REPORT_DAILY_CAP`, `JOB_SYSTEM_REQUEST_DAILY_CAP`,
+  `FILL_EVENT_DAILY_CAP`); the next is a 429 whose sentence the
+  extension shows. `take_daily` runs after the body is validated (a 422
+  costs nothing) and is one upsert that goes up only under the cap, so
+  concurrent requests can't slip past it. A new capped write adds a
+  `Capped` kind, its `<kind>_daily_cap` setting and its sentence.
+  Tests: `tests/test_daily_caps.py`.
+  **Fill numbers** (KAN-476, decided in KAN-454; `routers/fill_events.py`
+  over `queries/fill_events.py`, table `fill_events`, migration
+  `a7f3c9e1d476`): after every fill, single or batch, the extension sends
+  `POST /fill-events` with the job system, the engine's and the
+  extension's versions, `mode`, the field counts (`fields`, `filled`,
+  `guessed`, `needs_you`, `failed`), the error names with a count each
+  (fix reports' `ErrorName`) and `duration_ms`; optionally `step` (int) and
+  `final_step` (bool), which Workday's one event per step carries (migration
+  `d6f8b0c2e135`), and `skipped_by_choice`, the fields left blank because
+  their category is switched off (not in `needs_you`). **Never a value, an answer
+  or a link**: every part is a pattern, a count or a listed name, and any
+  other key is 422. The row names no account; each account sends at most
+  `FILL_EVENT_DAILY_CAP` (2,000) a UTC day through `take_daily` (the
+  `fill_event` kind; 429 past it, which the extension drops).
+  It is on for every student; the extension's settings have the opt-out.
+  **Kept 90 days**: KAN-482's daily purge deletes older rows
+  (`services/retention.py` RETENTION's `fill_events` rule). Admins read
+  `GET /admin/fill-health?days=&engine_version=`: per job system per day
+  (UTC), fills (a Workday walk once: events with `final_step` false don't
+  count), `clean_share` (pages, i.e. events, with no failed field),
+  `needs_you_rate` (needs-you fields over all fields less those skipped by
+  choice) and the top 3 error names, plus the
+  period's engine versions for the filter. A job system that breaks shows
+  as its `clean_share` dropping that day. Tests: `tests/test_fill_events.py`.
   **Job system requests from the extension's popup** (KAN-369,
   `routers/job_system_requests.py`, table `job_system_requests`, migration
   `d8a3f5c1e7b2`): `POST /job-system-requests {"host"}` stores the host of
@@ -406,12 +479,51 @@ Find files with a directory listing; these are the rules for where code goes.
   needs a sign-in. The team ranks the next job systems with `SELECT host,
   count(*) FROM job_system_requests GROUP BY host`; nothing reads it in the
   app. Tests: `tests/test_job_system_requests.py`.
+  **The uninstall survey** (KAN-471, `routers/uninstall_answers.py`, table
+  `uninstall_answers`, migration `4403f420a47c`): removing the extension
+  opens the webapp's `/uninstalled`, whose one question goes to `POST
+  /uninstall-answers {"reason", "detail"?, "version"?}`. **The one write
+  route with no sign-in**, so it is capped twice: `PER_SENDER_PER_DAY` per
+  sender (the address the webapp's server forwards as `x-workit-client-ip`,
+  counted in memory as a hash and never stored; per process, and a direct
+  caller can set the header) and `PER_DAY` for everyone, counted in the
+  table, the bound that always holds. 429 past either. The row names no
+  account or address; a reason the CHECK doesn't list is 422 first. The
+  team reads `SELECT reason, count(*) FROM uninstall_answers GROUP BY
+  reason`. Tests: `tests/test_uninstall_answers.py`.
+  **The per-job-system off switch** (KAN-467, `routers/extension_config.py`,
+  table `disabled_job_systems`, migration `a7c3e9d1f467`): when a job
+  system's markup changes and fills break, an admin turns it off with `PUT
+  /admin/disabled-job-systems/{job_system}` (the Fill engine's id,
+  `hosts.py` `JOB_SYSTEMS`; any other is 422) and on again with `DELETE`,
+  both behind `get_admin` (`WORKIT_ADMINS`, as fix reports). `GET
+  /extension/config` is public and answers `{"disabled_job_systems":
+  [{"job_system", "name"}]}`; the extension reads it every 15 minutes and
+  fills none of them, with no Store release. The list lives in the database,
+  not in config: the backend's small settings are env vars
+  (`app/config.py`), but changing one needs a redeploy
+  (`CF_API_SECRETS_JSON`), and an admin must flip this in minutes. The queue
+  reads the same list: the matches (`JobFilters.disabled_job_systems`, by
+  `FORM_URL`, so a job board's posting naming a Workday form counts as
+  Workday's) and `queue_applications` leave those postings out, and an Auto
+  Apply click on one is 404 "WorkIt can't fill Workday right now. Try this
+  job again later." Applications already queued stay; the extension's tab
+  for one needs the student. The Jobs page's Auto Apply button still shows.
+  Each system's link pattern is `hosts.py` `SYSTEM_URL_PATTERNS`, written
+  for Python's re and Postgres's `~*` alike (the Greenhouse one uses a
+  negative lookahead, which both take). Tests:
+  `tests/test_job_system_off.py`.
   **Save to WorkIt by a page's link** (KAN-401, `POST /jobs/saved-by-link`
   in `routers/applications.py`, `queries/applications.py`
   `listed_job_by_link`): the extension's toolbar popup on a site it can't
   fill saves the feed's listed job whose apply link is the page, the exact
-  link first, else the same link without query, fragment and trailing
-  slash (SQL `split_part`/`rtrim`, no index: the feed is small), **but only
+  link first, else **the same Greenhouse job in any link form** (KAN-526,
+  `greenhouse_job`: boards. or job-boards. host, the `embed/job_app?for=&token=`
+  form, a company page's `?gh_jid=`; Greenhouse job ids are unique across
+  boards, so the id alone decides, as the Fill engine's `jobOf` does), else
+  the same link without scheme, `www.`, query, fragment and trailing
+  slash, in any case (KAN-542; SQL `_bare_link`, no index: the feed is
+  small; `bare_link` is the same rule in Python), **but only
   when exactly one listed job has that bare link** (KAN-424): many postings
   carry their id only in the query (36 Waymo jobs share
   `careers.withwaymo.com/jobs`), and taking the first saved a different job
@@ -423,6 +535,42 @@ Find files with a directory listing; these are the rules for where code goes.
   /jobs/{id}/applied`. It is a POST so the page's link travels in the body;
   a GET under `/jobs/` would also meet jobs.py's `/{job_id}` first, since
   that router is included first. Tests: `tests/test_saved_jobs.py`.
+  **Apply adds a job by its link with `track_only`** (KAN-542, `POST
+  /jobs/added-by-link`, `../docs/adr/0008-unlisted-job-postings.md`):
+  Apply's writes and the Tracker Sheet import put a job on the student's
+  Applications Tracker by its link, through the route the extension's Write
+  with Claude uses (KAN-515), with `"track_only": true`. The listed job by
+  the rules above, else a scraped job no feed lists (an added one, or one
+  the feed closed: `job_with_link`, the same three rules), else a new
+  **added job** (`add_job`: `added_by_student`, published, only company,
+  title and link). `track_only` takes any web link, not only a form auto
+  apply fills; a closed job gets the application and stays closed, as it
+  is (never reopened or retitled); and the application is saved unless one
+  exists (`track`), where Write with Claude moves it to needs_you. New jobs
+  count against `ADDED_JOB_DAILY_CAP` either way. **Each student sees their
+  own company and title on an added job**: the application keeps the text
+  the student typed (`job_applications.company_name`, `title`), and the
+  tracker list shows it through `postings.typed_text` while the job is an
+  added one (`ADDED`). A second student on the same link never sees the
+  first student's text. A new query that shows a student's applications
+  must use `typed_text` too. No feed reads an added job: `LISTED` leaves
+  it out of the Jobs page, search, Scout and every `postings.listed`
+  caller. Status `unlisted` is unused (models/CLAUDE.md). Tests:
+  `tests/test_added_jobs.py`, `tests/test_unlisted_postings.py`. A Sent
+  resume (`services/sent_resumes.py`) and `mark_applied` take an open
+  posting or one `postings.tracked_by` the student (KAN-544): a scraped
+  posting they have an application on, added or closed by the feed since.
+  Tests: `tests/test_sent_resumes.py` (`-k "added or closed_after"`). The
+  file Apply attached becomes a Sent resume as it is (`send_file`, `POST
+  .../sent-resumes/file`: a base64 PDF, stored once per content at
+  `<applicant_id>/sent/<sha256>.pdf`; `../docs/sent_resume.md`, flow 6a).
+  **Apply's stages** (KAN-544): the stage PUT (`routers/tracker.py`,
+  `queries/tracker.py` `set_stage`) also takes needs_you (an Apply Handoff,
+  a missing fact or a held application), but only on an application that
+  is not applied. It never takes queued (422): queued is the batch apply
+  queue, and the extension would fill the application. Not applied: an applied or later one answers 409
+  (`AlreadyApplied`) and keeps its stage, so Apply never moves a record
+  back. Tests: `tests/test_tracker.py`.
   **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove) and the connector's tools (their Claude reads the
@@ -462,7 +610,9 @@ Find files with a directory listing; these are the rules for where code goes.
   student, and never list banned words (that primes a model; the save
   checks them, KAN-380), and nothing on this path calls a model. **Every tool takes a title and explicit annotations** (KAN-383, Anthropic's directory refuses a tool without them): `readOnlyHint=True` on a read, so Claude runs it without asking; only `save_*` tools write, each saying `destructiveHint`; `openWorldHint=False` on all. A test lists the tools and checks each one, so a new tool without them fails. **Company
   briefs are shared by every student** (KAN-382, `auto_apply/briefs.py`,
-  tools in `connector/briefs.py`): a fact is kept only if WorkIt finds its
+  tools in `connector/briefs.py`; `GET /jobs/{id}/company`, KAN-519, shows
+  them on the job page's Company tab, with no sign-in, since they are public
+  facts): a fact is kept only if WorkIt finds its
   quote on its page, so **every page a brief cites is read through
   `services/page_fetch.py`**, never a bare `httpx` call: the URL comes from
   outside, and the fetcher is what refuses internal addresses, other
@@ -519,7 +669,9 @@ Find files with a directory listing; these are the rules for where code goes.
   from `written_answers` directly). A draft of their Claude's brought
   from Apply with no company (no `first_seen`) that names a company WorkIt
   knows (`written.companies_named`; the student's own places don't count)
-  is that company's answer. **The student's own words win**
+  is that company's answer. The companies WorkIt knows
+  (`queries.fetch_company_names`) never include an added job's company:
+  one student typed it (KAN-515, KAN-542). **The student's own words win**
   (KAN-379): the student's words in a tab (`PUT .../answers`, `own` true:
   written into a field WorkIt didn't fill, or replacing what it filled) set
   the row's `own`, which their Claude's later save never overwrites and
@@ -591,7 +743,11 @@ Find files with a directory listing; these are the rules for where code goes.
   and its text never reaches a model. The one exception: a tailored
   resume's keyword match against its own posting, which still works after
   the posting closes. A route that loads a `Job_Post` by id alone skips
-  this check.
+  this check. A job a student added (KAN-515) is never listed: only the
+  tracker, `POST /jobs/{id}/applied` and a Sent resume reach it, for the
+  students with an application on it, and so does a scraped job the feed
+  closed after they tracked it (`postings.reachable`, KAN-544). So the
+  panel's resume switch on an added job works.
 - **Identity fields load through `app/services/identity.py`**
   (`load_identity`), for Scout's model seam and the bank embedding alike.
   A resume's header prints them from `built_resumes.load_header_identity`
@@ -616,7 +772,7 @@ Find files with a directory listing; these are the rules for where code goes.
   their places on built resumes go, with no warning. Deleting an upload
   deletes its rows (cascade). Upload flushes the `Resume` row first (the
   rows point at it). An item with no owner was made by the student, by
-  intake or by Tailor's "Have you used X?" (removed). Add (`POST .../bank/entries`
+  intake or by Tailor's "Have you used X?" (removed). Add (`POST .../experiences/entries`
   and `.../skills`) takes `?resume_id=`: an upload owns the new item, a
   built resume gets a shown choice row; its duplicate check and the skill
   name index (`NULLS NOT DISTINCT`) look at one owner only. `GET /bank`
@@ -702,8 +858,11 @@ Find files with a directory listing; these are the rules for where code goes.
   the row pointed at it and the resume touched; answers `variant_id`), an
   entry field through `bank.write_entry` (checked whole against the
   copy's entry, read only when no copy is sent, and only the fields the
-  edit changes written, with the embedding cleared in the same
-  statement), a header field as one `UPDATE ... RETURNING` (answers
+  edit names written, even when the copy already holds that value: the
+  copy can predate a save still on its way, and an old value typed back
+  over that save matched the copy and was dropped, so the page showed it
+  and the database kept the save before; the embedding is cleared in the
+  same statement), a header field as one `UPDATE ... RETURNING` (answers
   `profile`). `type_wording` and `update_choices`'s `_type_wording` must
   agree. Choice changes save through `PATCH .../choices`
   (`built_resumes.save_choices`): moves, hides, shows, toggles and wording
@@ -742,18 +901,38 @@ Find files with a directory listing; these are the rules for where code goes.
   row-less bullets. Typed wording is the resume's one local variant
   (`bank_bullet_variants.built_resume_id`); typing the original back
   deletes it; another resume's local variant is never offered. Fit to One
-  Page is `POST .../fit` (`fit_to_one_page`, order from
-  `resume_view.fit_order`), which renders between rounds, so it is slow
-  (two to six renders, about 0.3 s each) and its tests need Tectonic. It cuts in steps
-  (`FIT_STEPS`): coursework, then bullets past a cap per entry, then the
-  bottom entries of a section, each step across every section before the
-  next goes deeper. Never cut one section to one-line entries before the
-  others give anything: the first rule did, and a long resume came back a
-  list of one-line entries. Once it fits, it shows the last round's cuts
-  again one at a time while the page still fits (`FIT_PUT_BACK`):
-  `lines_over` runs short (a resume 7 lines over was still 6 over after
-  about 8 lines were hidden), and without it a test resume lost 3 items
-  it had room for. Undo sends the response's `undo` body. Tests:
+  Page is `POST .../fit` (`fit_to_one_page`; the design is
+  `docs/cut_to_one_page.md`, the code `services/fit_page.py`). It reads
+  the resume once, cuts it in memory and saves every cut together at the
+  end, so a failed render saves nothing; each render gets a second try
+  first (`FIT_RENDER_TRIES` in the router), since one failed compile
+  would otherwise throw away the whole run. The order: bullets down to two
+  per entry, then to one, section by section (Awards, Certifications,
+  Leadership, Projects, Experience), then whole entries (Leadership,
+  Projects, Experience), with Skills, Awards and Certifications, and
+  Education on schedules opened by the share of those entries cut, and at
+  the last the floors (one skill line, one job, one school) too, so it
+  always reaches one page. A cut never leaves an entry with no bullets:
+  the cut of an entry's last bullet takes the entry (the last school
+  keeps its bullet instead). A tailored resume is cut by its posting's rank
+  (`fit_scores`: `tailor.rank_shown` on the wording the resume shows, and
+  skill levels by whole word); any other by position. Each cut is checked
+  against the last render by subtraction (`Page.fits`), and a render
+  confirms: about two renders, three when a prediction runs a line
+  hopeful. Two things learned measuring it: the distance between two
+  items' tops varies (a tall character pushes a line 1.7 pt lower), so a
+  height is measured to the next item's top, not guessed from its box;
+  and TeX squeezes the glue between list items (about 2 pt a bullet)
+  rather than break the document's last page, so the check counts each
+  item's shrink, which the markers record (`Rendered.shrinks`). Without
+  the shrink it cut 2 to 4 bullets too many. The view always lists the
+  sections in `SECTIONS` order and the student can drag the page's
+  (`PageSettings.section_order`), so `Page` sorts them by where the boxes
+  landed: reading the view's first entry as the page's top counted
+  everything above Education twice, 68 cuts where 23 were needed. Undo
+  sends the response's
+  `undo` body. Tests: `tests/test_fit_page.py` (the plan, the check, and
+  real renders: two renders, at most one cut too many),
   `tests/test_resume_editor.py`.
 - **Only a send is a sent resume; a download keeps nothing** (KAN-267).
   The editor's Download takes `GET .../built-resumes/{rid}/render` (the PDF,
@@ -868,7 +1047,7 @@ Find files with a directory listing; these are the rules for where code goes.
   discipline and start and end months, and a job's company, title, start
   and end or "current", so "dates" means a start and an end or "present".
   No hiring system asks for a project's, club role's or award's dates, so
-  intake does not; `frontend/src/app/(seeker)/bank/sections.ts` keeps the
+  intake does not; `frontend/src/app/(seeker)/experiences/sections.ts` keeps the
   same list for the bank's warnings and visits. The system prompt asks only
   the listed facts ("every other field is optional, never ask for it"):
   it used to order every section's questions as title, organization, dates,
@@ -945,6 +1124,10 @@ Find files with a directory listing; these are the rules for where code goes.
   sentence, so the wait is the model's, not the stream's. **The prompt wording is still open**: tune it with
   `app.scripts.intake_test_set` against a live model, and re-run that
   script before a new endpoint joins the chain.
+- **A keyword reads as a resume prints it** (`keywords.resume_case`, in
+  `cached` and `_cleaned`): postings read before the prompt asked for it hold
+  lower case, which showed on the Tailor screen and printed in the resume's
+  skills. Only a word wholly in lower case changes, and the match ignores case.
 - **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
   over `services/keywords.py`: a job posting's keywords, extracted once by
   the model and cached on the posting with a hash of its title and the
@@ -1120,7 +1303,8 @@ Find files with a directory listing; these are the rules for where code goes.
   plain values, nothing to rotate — a run from anywhere without that role
   (local dev, GitHub Actions) has `send_email` log and return `False`,
   same as a bounced send. **Still open: the SES account is in its
-  sandbox** (production access not yet requested), so a real send to an
+  sandbox** (production access not yet requested; the request text is in
+  `docs/email-sending.md`), so a real send to an
   address SES hasn't individually verified is rejected the same
   best-effort way. The AWS/EC2-side setup (SES identity, the IAM role,
   the instance, the crontab) is a human runbook, run by hand, not code:
@@ -1132,30 +1316,29 @@ Find files with a directory listing; these are the rules for where code goes.
   `--dry-run` builds and reports every digest, writing and sending
   nothing. Tests: `tests/test_job_alerts.py`, `tests/test_notifications.py`,
   `tests/test_email.py`.
-- **The autofiller's essay-answer generation** (KAN-164) is
-  `routers/essay_answer.py` (`POST /applicants/{id}/essay-answer`) over
-  `services/essay_answer.py` — the first route `autofiller_extension/`
-  needed, since the extension cannot hold a model key itself. The Chrome
-  extension reads an open-ended application question straight off the ATS
-  page's own DOM (no `job_posting_id`: the posting may not be one WorkIt
-  has scraped or a company has posted) and sends the literal question text,
-  plus whatever company name/job title it could read from the page and the
-  field's own HTML `maxlength`. The model drafts a short paragraph grounded
-  in the whole bank (not a ranked subset — a student's bank is small enough
-  to use whole, unlike Tailor's posting-ranked bullets); a draft that fails
-  `truth_rule.invented` against the whole bank's bullets and skills, or
-  holds an identity placeholder, answers 422 and counts nothing — there is
-  no safe fallback text to show instead, the way the assistant's `none`
-  action has one. Nothing is stored: the question text is never saved
-  (`models/CLAUDE.md`'s "autofill_answers" section explains why, and
-  already anticipates this feature as the reason a company's own question
-  would eventually get its own JSONB-backed slot). One `ESSAY` use per
-  generated answer (cap 5, share 10%: on top of the spec's four shares plus
-  the assistant's, following the same accepted-overshoot precedent).
+- **Notices to every user** (KAN-483, `services/notices.py`;
+  `docs/email-sending.md` has the SES and DNS steps). `scripts/send_notice.py`
+  sends one notice to every active account (applicants plus active company
+  members), one message per address, paced by `--rate`; `--campaign` keys
+  the send log `email_sends`, so a re-run reaches only the addresses it
+  missed. A real run needs `--to` (a test list) or `--all-accounts`.
+  `scripts/send_closure_notice.py` sends the one closure email. Both first
+  copy SES's account suppression list into `email_suppressions`, and
+  nothing (including the job-alert email) is sent to an address on it.
+  Every notice link must be https on workitjobs.ai (`check_link`). Tests:
+  `tests/test_notices.py`, with a fake SES.
+- **The autofiller calls no model** (KAN-470): the essay-answer route
+  (KAN-164) is gone. A question that needs writing is the student's own
+  Claude's, through the connector, or their paste on Written Answers, on a
+  batch tab and on a form they opened themselves alike
+  (`auto_apply/written.py`). `tests/test_model_sizes.py` lists every route
+  that asks for a model.
 - **The Applications Tracker's own writes** (KAN-413,
   `../docs/email_tracker.md`) are `routers/tracker.py` over
   `queries/tracker.py`: the stage menu (`PUT .../applications/{job_id}/stage`,
-  applied or later, any direction) and the events (`GET .../events`, with
+  applied or later, any direction; an optional `applied_on` date sets the
+  applied date to that day at 12:00 UTC, for the Tracker Sheet import,
+  KAN-545) and the events (`GET .../events`, with
   `?status=proposed` for Email Updates, `POST
   .../applications/{job_id}/events`, `DELETE .../events/{event_id}` (an
   event added by hand only: one from an email stays as the Inbox's record,
@@ -1336,7 +1519,12 @@ go then. A change needs to work on Cloudflare only.
   Worker's `Api` class copies the names in its `FORWARDED` list into the
   container's environment, skipping any the Worker lacks so the code's
   default applies. **A new setting the API reads must join `FORWARDED`**, or
-  the container never sees it. **A container keeps the environment it
+  the container never sees it: the connector's `CONNECTOR_*` were left out,
+  so production's OAuth issuer and MCP address read `http://localhost:8000`
+  and no student's Claude could sign in (KAN-377, found 2026-10-31). A public
+  value (the connector's two URLs) is a `vars` entry in `wrangler.jsonc`,
+  forwarded the same way; never also put its name in `CF_API_SECRETS_JSON`,
+  since a var and a secret cannot share a name. **A container keeps the environment it
   started with**, and an `Api` object that finds its container running
   attaches to it as it is, so after a secret change one instance went on
   answering with the old values (2026-10-21). `Api.fetch` therefore stores
@@ -1355,7 +1543,15 @@ go then. A change needs to work on Cloudflare only.
   model, where"); without `SCOUT_*` every Scout reply is "offline".
   `SCOUT_ENDPOINTS_LARGE` and `SCOUT_ENDPOINTS_SMALL` are optional: unset,
   each size runs on the default chain. The
-  `AI_*` usage limits are optional (defaults in `app/config.py`). **Never
+  `AI_*` usage limits are optional (defaults in `app/config.py`).
+  `WORKIT_ADMINS` names who reads fill reports; unset, no one can.
+  `TURNSTILE_SECRET_KEY` turns on signup's CAPTCHA check, and goes in only
+  with the web build's `NEXT_PUBLIC_TURNSTILE_SITE_KEY`: without the site
+  key the form sends no token, and every signup answers 400. Neither was
+  forwarded before 2026-10-31, so production signup ran with no CAPTCHA.
+  The job-alert digest's `AWS_REGION`, `SES_FROM_EMAIL` and `WEB_URL` are
+  not the container's: the digest runs on EC2 (`../.github/CLAUDE.md`, Job
+  alerts). **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
   business holding that connection. Embeddings use Ollama with
   `nomic-embed-text:v1.5` by default; see `app/services/matching/CLAUDE.md`.
@@ -1451,6 +1647,11 @@ go then. A change needs to work on Cloudflare only.
   The model selects the column with every listing and the import writes it,
   so a database without it fails every `GET /jobs` and every scheduled
   import.
+- **Apply `a3c6e9f1b274` (`built_resumes.page_settings`, KAN-435) as soon as
+  it merges.** It only adds a JSONB column whose default `{}` is Jake's own
+  page, and no code maps it yet, so it is safe for every deploy. The Format
+  menu follows in its own PR. Its model selects the column with every built
+  resume, so a database without it fails every built resume route.
 - **Batch apply's migrations (KAN-369, `d1a7c3e5f902` through
   `f4a8c1d6e273`) are on main ahead of their code**, so they can be applied
   before the deploy that maps them. The models map

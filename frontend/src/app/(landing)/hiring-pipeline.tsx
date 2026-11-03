@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   AnimatePresence,
@@ -24,24 +25,31 @@ import { FaviconLogo } from "./favicon-logo";
 import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
 import { DiagramLabel, HiringSystems, JobCard } from "./hiring-systems";
-import { useMediaQuery, usePageHidden } from "./hooks";
+import { useLoopsHeld, useMediaQuery } from "./hooks";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TOUR_COVER_VH } from "./layout-parts";
 import { useLoopClock, useSceneTime, type Cue } from "./scene-time";
+import { LineBack, LineFront, Parcel, SIGN_SKEW, lineFor, type Line } from "./sorting-line";
 import { GLIDE } from "./story";
 
 /**
- * The hiring-systems section, after Twain's ring of logo coins. From lg up
- * it pins in a grey panel, in two phases that the scroll cues and time
- * plays (scene-time.ts): the seven hiring systems WorkIt reads come in as
- * thick 3D coins and keep tumbling in a slowly turning ring beside the
- * heading for as long as the reader rests there; once the scroll reaches
- * the cue, each coin swings onto a glass pipe as one of its couplings and
- * the pipe runs into WorkIt's mark. Then job postings keep coming out of
- * each coupling and flowing down the pipe: a senior role is struck through
- * and filtered out, an internship or new-grad role goes into WorkIt and
- * comes out as a card on the Jobs page side, sorted by Best Match. Below
- * lg, and with reduced motion, it is the flat stream (hiring-systems.tsx),
- * which stays the still version.
+ * The hiring-systems section. From lg up it pins in a grey panel, in two
+ * phases that the scroll cues and time plays (scene-time.ts): the seven
+ * hiring systems WorkIt reads come in as thick 3D coins and keep tumbling in
+ * a slowly turning ring beside the heading (after Twain's) for as long as the
+ * reader rests there; once the scroll reaches the cue, each coin flies down
+ * onto a dock of the sorting line (sorting-line.tsx), drawn in the hero city's
+ * isometric style. Then the docks send job postings down the belt as parcels:
+ * WorkIt's gate reads each one, a senior role is struck through and pushed
+ * off down a chute into a bin, and an internship or new-grad role rides on and
+ * comes out as a card at the top of the Jobs page side. Below lg,
+ * and with reduced motion, it is the flat stream (hiring-systems.tsx), which
+ * stays the still version.
+ *
+ * It comes in on the tour's own panel (product-tour.tsx): this panel has the
+ * tour's size and place, and is pinned behind it, unseen, before the cover's
+ * stretch. Over that stretch the tour's card fades out, this panel fades in
+ * over the tour's, so one panel seems to change colour, and the heading and
+ * coins rise in.
  *
  * Every line here is a claim (data.ts): the hiring systems are the ones
  * the scraper reads, and the steps under WorkIt's mark are pipeline steps.
@@ -49,23 +57,21 @@ import { GLIDE } from "./story";
 
 // Tailwind's lg breakpoint: pinned from here up.
 const DESKTOP_QUERY = "(min-width: 64rem)";
+/** A window too short for the heading beside the sorting line: the heading
+ * goes as the line forms. */
+const SHORT_QUERY = "(max-height: 44rem)";
 
 /** A coin's face, in px, and its thickness, drawn as stacked discs. */
 const COIN = 76;
 const DEPTH = 10;
 const LAYERS = 3;
-/** The pipe's height in px, and how far its couplings turn to the side. */
-const PIPE = 52;
-const COUPLING_TURN = 66;
-/** The flow: px a second, and the space between two postings. */
+/** How far a coin stands turned on its dock. */
+const DOCK_TURN = -24;
+/** The flow: px a second along the belt, and the space between two parcels. */
 const SPEED = 62;
 const SPACING = 168;
-/** A posting pill's width: fixed, so its right edge is known and it can
- * stop at WorkIt's mark and fold into it, rather than slide under it. */
+/** A posting pill's width. */
 const PILL_W = 148;
-/** WorkIt's mark: its size, and the gap a pill keeps from it. */
-const MARK = 76;
-const MARK_GAP = 10;
 /** The least time between two cards, and each step's time under the mark,
  * in seconds of the flow's clock. At 1.4 s a card came before the last had
  * settled, and the list never stopped moving. */
@@ -73,22 +79,25 @@ const CARD_GAP = 2.8;
 const STEP_S = 3.2;
 /** Cards on the Jobs page side. */
 const CARDS = 3;
+/** The pin past the cover's stretch, in vh, while the coins and the line
+ * play. */
+const PIN_VH = 120;
 
 // The scene's timeline, from 0 to 1: the coins rest in their ring at
-// `RING`, fly onto the pipe over `MORPH` while it forms, and the postings
-// flow from `FLOWING` on.
+// `RING`, fly onto their docks over `MORPH` while the line forms, and the
+// postings flow from `FLOWING` on.
 const MORPH: [number, number] = [0.4, 0.74];
-const PIPE_IN: [number, number] = [0.56, 0.76];
+const LINE_IN: [number, number] = [0.5, 0.76];
 const OUTLET_IN: [number, number] = [0.66, 0.8];
-/** The flow starts as the pipe finishes forming; at 0.8 it waited on the
+/** The flow starts as the line finishes forming; at 0.8 it waited on the
  * outlet's fade too, about 0.13 s more after the scroll's cue. */
-const FLOWING = PIPE_IN[1];
+const FLOWING = LINE_IN[1];
 const RING = MORPH[0];
-/** The scroll's cues: the ring from the start, then the pipe once the
- * pinned stretch is a third through. */
+/** The scroll's cues, as progress through the whole pin, cover included: the
+ * ring from the start, then the line a third of the way past the cover. */
 const CUES: Cue[] = [
   { at: 0, to: RING },
-  { at: 0.32, to: 1 },
+  { at: (TOUR_COVER_VH + PIN_VH * 0.32) / (TOUR_COVER_VH + PIN_VH), to: 1 },
 ];
 /** The ring's motion, in degrees a second: the ring turning, and each coin
  * tumbling on its axis (each a little faster or slower than the next). One
@@ -107,35 +116,6 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const nearestTurn = (from: number, to: number) => to + 360 * Math.round((from - to) / 360);
 
 const KEPT = hiringSystems.flatMap((system) => streams[system.name].filter((p) => p.card));
-
-/** Where things sit on the stage, from its size. */
-function layoutFor(w: number, h: number) {
-  const pipeY = h * 0.68;
-  const outletX = w * 0.655;
-  // The couplings sit together at the intake end, like a manifold, so the
-  // rest of the pipe is clear and a posting's title can be read before
-  // WorkIt filters it: spread along the whole pipe they hid most titles.
-  // The first coin's edge sits on the heading's left edge (the stage's
-  // own), so the pipeline lines up with the text above it.
-  const first = 30;
-  const last = first + w * 0.29;
-  // The pipe starts just behind the first coupling, so that coin covers
-  // its end: started further left, the rounded end showed past the coin
-  // as a stray pale circle.
-  const pipeLeft = first - 8;
-  return {
-    w,
-    h,
-    ring: { x: w * 0.76, y: h * 0.45, r: Math.min(w * 0.2, h * 0.31, 190) },
-    pipeY,
-    pipeLeft,
-    outletX,
-    couplings: hiringSystems.map(
-      (_, i) => first + (i * (last - first)) / (hiringSystems.length - 1),
-    ),
-  };
-}
-type Layout = ReturnType<typeof layoutFor>;
 
 export function HiringSystemsSection() {
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
@@ -157,29 +137,34 @@ export function HiringSystemsSection() {
 
 function PinnedPipeline() {
   const ref = React.useRef<HTMLElement>(null);
+  const coverRef = React.useRef<HTMLDivElement>(null);
   const stageRef = React.useRef<HTMLDivElement>(null);
   const { scrollYProgress: q } = useScroll({ target: ref, offset: ["start start", "end end"] });
-  const { scrollYProgress: entry } = useScroll({
-    target: ref,
-    offset: ["start end", "start start"],
+  // The cover's stretch: from the tour's last stop to this panel in full.
+  const { scrollYProgress: cover } = useScroll({
+    target: coverRef,
+    offset: ["start start", "end start"],
   });
+  const panelIn = useTransform(cover, [0.1, 0.65], [0, 1]);
+  // Unseen and behind the tour until then, so it takes no click meant for the
+  // tour's tabs.
+  const pointerEvents = useTransform(cover, (v) => (v > 0 ? "auto" : "none"));
+  // The heading and the coins rise in as the panel settles.
+  const entry = useTransform(cover, [0.45, 1], [0, 1]);
+  const headingY = useTransform(entry, [0, 1], [18, 0]);
 
   // The scroll cues the phases; time plays them (scene-time.ts).
   const t = useSceneTime(q, CUES, { rate: 0.3, longest: 2.2 });
-  // The shadow the panel casts on the tour as it slides over it, gone as
-  // it pins: without it the grey panel's edge barely showed against the
-  // shaded tour, and the cover read as a fog coming up.
-  const edge = useTransform(entry, [0.85, 1], [1, 0]);
 
-  const [layout, setLayout] = React.useState<Layout | null>(null);
-  const layoutRef = React.useRef<Layout | null>(null);
+  const [line, setLine] = React.useState<Line | null>(null);
+  const lineRef = React.useRef<Line | null>(null);
   React.useLayoutEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
     const measure = () => {
-      const next = layoutFor(stage.offsetWidth, stage.offsetHeight);
-      layoutRef.current = next;
-      setLayout(next);
+      const next = lineFor(stage.offsetWidth, stage.offsetHeight, hiringSystems.length);
+      lineRef.current = next;
+      setLine(next);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -187,53 +172,82 @@ function PinnedPipeline() {
     return () => observer.disconnect();
   }, []);
 
-  // Which phase it rests in: the ring (the coins tumble) or the formed pipe
+  // Which phase it rests in: the ring (the coins tumble) or the formed line
   // (the postings flow). Each loop runs only on screen and in a visible
   // tab; the ring's stops while the coins fly, so their landing turns,
   // reckoned from the ring, hold still.
   const [phase, setPhase] = React.useState(() => phaseOf(t.get()));
   useMotionValueEvent(t, "change", (v) => setPhase(phaseOf(v)));
+  const [shown, setShown] = React.useState(() => cover.get() > 0);
+  useMotionValueEvent(cover, "change", (v) => setShown(v > 0));
   const inView = useInView(stageRef, { amount: 0.2 });
-  const hidden = usePageHidden();
-  const spin = useLoopClock(phase === "ring" && inView && !hidden);
+  const held = useLoopsHeld();
+  const spin = useLoopClock(phase === "ring" && shown && inView && !held);
+
+  // The line needs the room: the paragraph goes as it forms, and on a short
+  // window the heading with it.
+  const short = useMediaQuery(SHORT_QUERY) === true;
+  const clear = useTransform(t, [RING, RING + 0.14], [1, 0]);
+  const headingOpacity = useTransform([entry, clear], ([e, c]: number[]) => (short ? e * c : e));
 
   return (
-    // It starts `TOUR_COVER_VH` up the page, over the pinned tour's last
-    // stop, and slides up over it as the tour sinks back (product-tour.tsx).
     <section
       ref={ref}
-      id="hiring-systems"
-      className="relative z-10 h-[220vh]"
-      style={{ marginTop: `-${TOUR_COVER_VH}vh` }}
+      // No clicks on the section itself: it lies over the tour's last stop,
+      // and took the tabs' clicks. The panel takes them back once it shows.
+      className="pointer-events-none relative z-10"
+      style={{
+        height: `calc(100dvh + ${TOUR_COVER_VH + PIN_VH}vh)`,
+        marginTop: `-${TOUR_COVER_VH * 2}vh`,
+      }}
     >
-      <div className={cn(PANEL_INSET, "sticky top-0 flex h-dvh flex-col pt-20 pb-4")}>
-        <motion.div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-16 top-16 h-24 rounded-[50%] bg-[rgb(30_20_70/0.3)] blur-2xl"
-          style={{ opacity: edge }}
-        />
+      {/* The anchor is where the panel is in full, past the cover. */}
+      <span
+        id="hiring-systems"
+        aria-hidden="true"
+        className="absolute"
+        style={{ top: `${TOUR_COVER_VH}vh` }}
+      />
+      <div
+        ref={coverRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0"
+        style={{ height: `${TOUR_COVER_VH}vh` }}
+      />
+      {/* The tour's padding, so this panel lands exactly on the tour's. */}
+      <motion.div
+        className={cn(PANEL_INSET, "sticky top-0 flex h-dvh flex-col pt-24 pb-6")}
+        style={{ opacity: panelIn, pointerEvents }}
+      >
         <div className={cn(PANEL, "bg-surface relative isolate min-h-0 flex-1 overflow-hidden")}>
-          <div className="relative z-10 px-10 pt-10 xl:px-14">
-            <div className="max-w-[32rem]">
-              <FocusIn>
-                <SectionHeading
-                  align="left"
-                  eyebrow={copy.eyebrow}
-                  title={copy.title}
-                  subtitle={copy.subtitle}
-                />
-              </FocusIn>
-            </div>
+          {/* Tighter on a short window. */}
+          <div className="relative z-10 px-10 pt-10 xl:px-14 [@media(max-height:40rem)]:pt-4">
+            <motion.div
+              className="max-w-[32rem] [&_h2+p]:opacity-[var(--sub)]"
+              style={
+                {
+                  opacity: headingOpacity,
+                  y: headingY,
+                  "--sub": clear,
+                } as React.ComponentProps<typeof motion.div>["style"]
+              }
+            >
+              <SectionHeading
+                align="left"
+                eyebrow={copy.eyebrow}
+                title={copy.title}
+                subtitle={copy.subtitle}
+              />
+            </motion.div>
           </div>
           <div
             ref={stageRef}
             className="absolute inset-x-10 inset-y-8 xl:inset-x-14"
             style={{ perspective: 1100 }}
           >
-            {layout && (
+            {line && (
               <MotionConfig reducedMotion="user">
-                <Pipe t={t} layout={layout} />
-                <Flow layout={layout} playing={phase === "flowing"} t={t} />
+                <Flow line={line} playing={phase === "flowing"} t={t} />
                 {hiringSystems.map((system, i) => (
                   <Coin
                     key={system.name}
@@ -242,14 +256,14 @@ function PinnedPipeline() {
                     t={t}
                     entry={entry}
                     spin={spin}
-                    layout={layoutRef}
+                    line={lineRef}
                   />
                 ))}
               </MotionConfig>
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
     </section>
   );
 }
@@ -263,8 +277,7 @@ function phaseOf(v: number) {
  * A hiring system as a coin: its logo on a white face, an edge of stacked
  * discs and a grey back. In the ring it tumbles on its own axis and rides
  * the slowly turning ring, on its own clock (`spin`, seconds); then it
- * flies to its place on the pipe and turns side-on, a coupling around the
- * pipe.
+ * flies down and stands on its dock, smaller, turned a little to the belt.
  */
 function Coin({
   index,
@@ -272,21 +285,21 @@ function Coin({
   t,
   entry,
   spin,
-  layout,
+  line,
 }: {
   index: number;
   logo: string;
   t: MotionValue<number>;
   entry: MotionValue<number>;
   spin: MotionValue<number>;
-  layout: React.RefObject<Layout | null>;
+  line: React.RefObject<Line | null>;
 }) {
   const n = hiringSystems.length;
   /** Where the coin is at timeline `v`, `s` seconds into the ring's
    * turning. (The section's arrival only grows it, below.) */
   const pose = (v: number, s: number) => {
-    const l = layout.current;
-    if (!l) return { x: 0, y: 0, rotate: 0, rotateX: 0, rotateY: 0 };
+    const l = line.current;
+    if (!l) return { x: 0, y: 0, rotate: 0, rotateX: 0, rotateY: 0, size: 1 };
     // Round the ring, the ring itself turning on its clock, never on the
     // scroll, so the pace holds when the reader stops.
     const angle = (index * 360) / n - 90 + ORBIT * s;
@@ -300,22 +313,22 @@ function Coin({
       rotateX: 14 * Math.cos(index * 2.1),
       rotateY: 50 + 28 * Math.sin(index * 1.7) + TUMBLE * (0.85 + 0.3 * ((index * 0.37) % 1)) * s,
     };
-    // Then to its place on the pipe, one coin a little after another, on
-    // an arc.
+    // Then to its dock, one coin a little after another, on an arc.
     const t = ease(clamp((v - MORPH[0] - index * 0.02) / (MORPH[1] - MORPH[0] - 0.12)));
     return {
-      x: lerp(ring.x, l.couplings[index], t),
-      y: lerp(ring.y, l.pipeY, t) - Math.sin(Math.PI * t) * 60,
+      x: lerp(ring.x, l.coins[index].x, t),
+      y: lerp(ring.y, l.coins[index].y, t) - Math.sin(Math.PI * t) * 60,
       rotate: lerp(ring.rotate, nearestTurn(ring.rotate, 0), t),
       rotateX: lerp(ring.rotateX, 0, t),
-      rotateY: lerp(ring.rotateY, nearestTurn(ring.rotateY, COUPLING_TURN), t),
+      rotateY: lerp(ring.rotateY, nearestTurn(ring.rotateY, DOCK_TURN), t),
+      size: lerp(1, l.coinScale, t),
     };
   };
   // One pose a frame, as one transform: a call per part ran pose five
   // times a frame for each coin.
   const transform = useTransform([t, entry, spin], ([v, e, s]: number[]) => {
-    const { x, y, rotate, rotateX, rotateY } = pose(v, s);
-    const scale = lerp(0.5, 1, ease(e));
+    const { x, y, rotate, rotateX, rotateY, size } = pose(v, s);
+    const scale = lerp(0.5, 1, ease(e)) * size;
     return `translate(${x - COIN / 2}px, ${y - COIN / 2}px) scale(${scale}) rotate(${rotate}deg) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
   });
   // The fade is on the faces, never the root: below full opacity the root
@@ -325,7 +338,7 @@ function Coin({
   return (
     <motion.div
       aria-hidden="true"
-      className="absolute top-0 left-0 z-20 will-change-transform"
+      className="absolute top-0 left-0 z-[11] will-change-transform"
       style={{ transform, width: COIN, height: COIN, transformStyle: "preserve-3d" }}
     >
       {Array.from({ length: LAYERS }, (_, k) => (
@@ -358,94 +371,32 @@ function Coin({
   );
 }
 
-/** The glass pipe, WorkIt's mark at its outlet, and the labels at each
- * end. They come in once the coins are on their way. */
-function Pipe({ t, layout }: { t: MotionValue<number>; layout: Layout }) {
-  const grow = useTransform(t, (v) => ease(between(v, PIPE_IN)));
-  const outlet = useTransform(t, (v) => ease(between(v, OUTLET_IN)));
-  const labelY = useTransform(outlet, (v) => (1 - v) * 10);
-  const length = layout.outletX - layout.pipeLeft;
-  const top = layout.pipeY - PIPE / 2;
-
-  return (
-    <div aria-hidden="true">
-      {/* The pipe: a back wall, then (in Flow) the postings, then the
-          glass front over them. */}
-      <motion.div
-        className="absolute rounded-full"
-        style={{
-          left: layout.pipeLeft,
-          top,
-          width: length,
-          height: PIPE,
-          scaleX: grow,
-          opacity: grow,
-          transformOrigin: "0% 50%",
-          background: "linear-gradient(180deg, #e2ddf3 0%, #f6f4fc 34%, #ebe7f8 70%, #d3cdea 100%)",
-          boxShadow: "inset 0 2px 6px rgb(40 20 90 / 0.12), 0 18px 30px -18px rgb(40 20 90 / 0.35)",
-        }}
-      />
-      <motion.div
-        className="absolute z-[15] rounded-full"
-        style={{
-          left: layout.pipeLeft,
-          top,
-          width: length,
-          height: PIPE,
-          scaleX: grow,
-          opacity: grow,
-          transformOrigin: "0% 50%",
-          background:
-            "linear-gradient(180deg, rgb(255 255 255 / 0.85) 0%, rgb(255 255 255 / 0.25) 22%, rgb(255 255 255 / 0) 55%, rgb(109 63 216 / 0.07) 100%)",
-          boxShadow: "inset 0 0 0 1px rgb(76 39 163 / 0.14)",
-        }}
-      />
-      {/* No cap drawn on the intake end: the pipe's own rounded end reads
-          as it is, and an open-end ellipse there looked like a stray
-          circle. */}
-
-      <motion.div
-        className="absolute"
-        style={{ left: 0, top: top - 34, opacity: outlet, y: labelY }}
-      >
-        <DiagramLabel>{copy.intake}</DiagramLabel>
-      </motion.div>
-    </div>
-  );
-}
-
 /**
- * The postings in the pipe, WorkIt's mark and the cards it lets out. One
- * clock (seconds) drives the flow; it moves only while the pipe has formed,
- * the panel is in view and the tab is visible. The postings ride a
+ * The line, the parcels on it, WorkIt's mark on the gate and the cards it lets
+ * out. One clock (seconds) drives the flow; it moves only while the line has
+ * formed, the panel is in view and the tab is visible. The parcels ride a
  * conveyor of evenly spaced places, so they never overlap; each place is
  * given to the hiring systems in turn and shows its posting from that
- * system's coupling on.
+ * system's dock on.
  */
-function Flow({
-  layout,
-  playing,
-  t,
-}: {
-  layout: Layout;
-  playing: boolean;
-  t: MotionValue<number>;
-}) {
+function Flow({ line, playing, t }: { line: Line; playing: boolean; t: MotionValue<number> }) {
   const rootRef = React.useRef<HTMLDivElement>(null);
   const inView = useInView(rootRef, { amount: 0.2 });
-  const hidden = usePageHidden();
-  const clock = useLoopClock(playing && inView && !hidden);
+  const held = useLoopsHeld();
+  const clock = useLoopClock(playing && inView && !held);
 
+  const built = useTransform(t, (v) => ease(between(v, LINE_IN)));
+  const rise = useTransform(built, (v) => (1 - v) * 18);
   const outlet = useTransform(t, (v) => ease(between(v, OUTLET_IN)));
   // Faded in with WorkIt's mark, for a return to a flow already running;
-  // the first time, the pipe starts empty (Posting's `fresh`).
+  // the first time, the belt starts empty (Posting's `fresh`).
   const shown = useTransform(t, [OUTLET_IN[0], FLOWING], [0, 1]);
-  const run = layout.outletX - layout.pipeLeft;
-  const places = Math.ceil(run / SPACING) + 1;
+  const places = Math.ceil(line.run / SPACING) + 1;
   const loop = places * SPACING;
+  const [pills, setPills] = React.useState<HTMLDivElement | null>(null);
 
-  // Kept postings wait here between entering WorkIt and coming out as a
-  // card, so cards never come faster than CARD_GAP.
+  // Kept postings wait here between reaching the belt's end and coming out
+  // as a card, so cards never come faster than CARD_GAP.
   const queue = React.useRef<StreamPosting[]>([]);
   const lastCard = React.useRef(-Infinity);
   const [feed, setFeed] = React.useState({ cards: KEPT.slice(0, CARDS), arrivals: 0 });
@@ -478,13 +429,16 @@ function Flow({
     return () => controls.stop();
   }, [feed.arrivals, pulse]);
 
-  const cards = [...feed.cards].sort((a, b) => (b.card?.score ?? 0) - (a.card?.score ?? 0));
-  const cardsLeft = layout.outletX + 70;
+  // The newest on top, so the oldest leaves at the foot: sorted by score, a
+  // new card landed anywhere in the list and read as unrelated to the belt.
+  const cards = [...feed.cards].reverse();
+  const cardsTop = Math.min(line.h - 320, Math.max(0, line.end.y - 160));
 
   return (
     <div ref={rootRef} className="absolute inset-0">
-      {/* The postings, inside the pipe: between its back wall and its
-          glass front. */}
+      <LineBack line={line} clock={clock} speed={SPEED} style={{ opacity: built, y: rise }} />
+
+      {/* The parcels, between the gate's far post and its near one. */}
       <motion.div className="absolute inset-0 z-[12]" style={{ opacity: shown }}>
         {Array.from({ length: places }, (_, k) => (
           <Posting
@@ -493,63 +447,58 @@ function Flow({
             places={places}
             loop={loop}
             clock={clock}
-            layout={layout}
+            line={line}
+            pills={pills}
             onEnter={onEnter}
           />
         ))}
       </motion.div>
 
-      {/* WorkIt's mark, and under it the step it is on. Plain glass on the
-          grey panel: a violet glow behind it read as decoration. */}
+      <LineFront line={line} style={{ opacity: built, y: rise }} />
+
+      {/* Their pills, over the gate: under it, the near post crossed each
+          title. */}
+      <motion.div
+        ref={setPills}
+        className="pointer-events-none absolute inset-0 z-[15]"
+        style={{ opacity: shown }}
+      />
+
+      {/* WorkIt's mark on the gate. */}
       <motion.div
         className="absolute z-20"
-        style={{
-          left: layout.outletX - MARK / 2,
-          top: layout.pipeY - MARK / 2,
-          opacity: outlet,
-        }}
+        style={{ left: line.mark.x - 30, top: line.mark.y - 30, opacity: outlet }}
       >
         {feed.arrivals > 0 && (
           <motion.span
             key={feed.arrivals}
-            className="ring-brand/40 absolute inset-0 rounded-[22px] ring-2"
+            className="ring-brand/40 absolute inset-0 rounded-[18px] ring-2"
             initial={{ scale: 1, opacity: 0.7 }}
             animate={{ scale: 1.5, opacity: 0 }}
             transition={{ duration: 0.9, ease: "easeOut" }}
           />
         )}
         <motion.div
-          className="glass-card grid size-[76px] place-items-center rounded-[22px]"
+          className="glass-card grid size-[60px] place-items-center rounded-[18px]"
           style={{ scale: pulse }}
         >
-          <Logo size="mark" decorative className="h-7" />
+          <Logo size="mark" decorative className="h-6" />
         </motion.div>
-        <div className="absolute top-full left-1/2 mt-3 w-44 -translate-x-1/2 text-center">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.p
-              key={step}
-              className="text-ink-muted text-xs leading-snug font-medium text-balance"
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4, transition: { duration: 0.15 } }}
-              transition={{ duration: 0.3, ease: GLIDE }}
-            >
-              {copy.steps[step]}
-            </motion.p>
-          </AnimatePresence>
-        </div>
       </motion.div>
 
-      {/* The Jobs page side: the newest kept postings as clean cards, best
-          match first. */}
+      {/* The step WorkIt is on, on an LED sign by the belt. */}
       <motion.div
-        className="absolute right-0 z-20 flex flex-col justify-center"
-        style={{
-          left: cardsLeft,
-          top: layout.pipeY - 150,
-          height: 300,
-          opacity: outlet,
-        }}
+        className="absolute z-20"
+        style={{ left: line.sign.x - SIGN_W / 2, top: line.sign.y, opacity: outlet }}
+      >
+        <StatusSign step={step} />
+      </motion.div>
+
+      {/* The Jobs page side: the newest kept postings as clean cards, the
+          newest on top. */}
+      <motion.div
+        className="absolute right-0 z-20 flex flex-col"
+        style={{ left: line.cardsLeft, top: cardsTop, opacity: outlet }}
       >
         <div className="mb-3">
           <DiagramLabel>{copy.output}</DiagramLabel>
@@ -566,51 +515,99 @@ function Flow({
   );
 }
 
-/** A pixel of slack where a place is compared with a coupling it starts
- * on (Posting). */
+/** The sign's width, in px. */
+const SIGN_W = 224;
+
+/**
+ * What WorkIt is doing to the stream, as a roadside LED sign on two posts,
+ * standing by the belt and skewed to the belt's own line. The words roll over
+ * on a dark board, and a lamp per step shows which it is on. They are pipeline
+ * steps, so each is a claim (data.ts). A line of small grey text under the
+ * belt was easy to miss, and said nothing about the machine it belonged to.
+ */
+function StatusSign({ step }: { step: number }) {
+  return (
+    <div className="relative" style={{ width: SIGN_W, transform: `skewY(${SIGN_SKEW}deg)` }}>
+      <span className="absolute top-full left-7 h-7 w-1 bg-[#7653dd]" />
+      <span className="absolute top-full right-7 h-7 w-1 bg-[#7653dd]" />
+      <div className="relative overflow-hidden rounded-lg bg-[#17132e] px-3 pt-2.5 pb-2 shadow-[0_14px_26px_-12px_rgb(40_20_90/0.6)] ring-2 ring-[#7653dd]">
+        {/* The board's dots. */}
+        <span className="absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.07)_1px,transparent_1.2px)] [background-size:4px_4px]" />
+        <div className="relative h-9 overflow-hidden">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.p
+              key={step}
+              className="flex h-full items-center font-mono text-[12px] leading-[1.25] font-semibold tracking-wide text-[#e9e2ff] uppercase [text-shadow:0_0_10px_rgb(167_139_250/0.9)]"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "-100%", transition: { duration: 0.2, ease: "easeIn" } }}
+              transition={{ duration: 0.35, ease: GLIDE }}
+            >
+              {copy.steps[step]}
+            </motion.p>
+          </AnimatePresence>
+        </div>
+        <div className="relative mt-1.5 flex gap-1.5">
+          {copy.steps.map((text, i) => (
+            <span
+              key={text}
+              className={cn(
+                "size-1.5 rounded-full transition-colors duration-300",
+                i === step ? "bg-[#c4b5fd] shadow-[0_0_8px_rgb(196_181_253/0.95)]" : "bg-white/15",
+              )}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A pixel of slack where a place is compared with a dock it starts on
+ * (Posting). */
 const EPS = 1;
 
 /**
  * One place on the conveyor. Each lap it is given the next hiring system
- * in turn and that system's next posting; it shows from that system's
- * coupling on, then either goes into WorkIt (a role the scraper keeps) or
- * is struck through and filtered out just before it (a senior role).
+ * in turn and that system's next posting; it slides off that system's dock
+ * onto the belt, and at the gate either rides on to the belt's end (a role
+ * the scraper keeps) or is struck through and pushed off down the chute into
+ * the bin (a senior role).
  */
 function Posting({
   place,
   places,
   loop,
   clock,
-  layout,
+  line,
+  pills,
   onEnter,
 }: {
   place: number;
   places: number;
   loop: number;
   clock: MotionValue<number>;
-  layout: Layout;
+  line: Line;
+  pills: HTMLDivElement | null;
   onEnter: (posting: StreamPosting) => void;
 }) {
   const n = hiringSystems.length;
-  // The conveyor starts with a place at the last coupling, the manifold's
-  // outlet, so the first posting clears the coins as the flow begins: the
-  // coins cover the pipe up to there, and from a place further back a
-  // posting rode hidden behind them for seconds.
-  const outletRun = layout.couplings[n - 1] - layout.pipeLeft;
-  const start = outletRun - Math.floor(outletRun / SPACING) * SPACING;
+  const docks = line.dockU;
+  // The conveyor starts with a place at the last dock, so the first parcel
+  // is under way as the flow begins: from a place further back, the belt
+  // stood empty for seconds.
+  const lastDock = docks[n - 1];
+  const start = lastDock - Math.floor(lastDock / SPACING) * SPACING;
   const travel = (t: number) => SPEED * t + place * SPACING + start;
   const lapAt = (t: number) => Math.floor(travel(t) / loop);
-  // On the first lap a place takes the coupling just ahead of where it
-  // starts, so it comes out of it within a second of the flow beginning.
-  // Given the systems in turn from the start, every place but the first
-  // began past its coupling, so it stayed hidden (`fresh`) for a whole
-  // lap: one posting rode an empty pipe for about seven seconds after the
-  // pipe formed, which read as a long delay (KAN-368). A place with no
-  // coupling ahead keeps its turn; it shows from its next lap. Both tests
-  // allow a pixel (`EPS`): the first place starts exactly at the last
-  // coupling, and rounding put it a hair past on some frames and not on
-  // others, so that posting flickered all the way down the pipe.
-  const firstLap = layout.couplings.findIndex((c) => c >= layout.pipeLeft + travel(0) - EPS);
+  // On the first lap a place takes the dock just ahead of where it starts,
+  // so it comes off it within a second of the flow beginning. Given the
+  // systems in turn from the start, every place but the first began past its
+  // dock, so it stayed hidden (`fresh`) for a whole lap (KAN-368). A place
+  // with no dock ahead keeps its turn; it shows from its next lap. Both tests
+  // allow a pixel (`EPS`): the first place starts exactly at the last dock,
+  // and rounding put it a hair past on some frames and not on others.
+  const firstLap = docks.findIndex((c) => c >= travel(0) - EPS);
   const systemOn = (lap: number) =>
     lap === 0 && firstLap >= 0 ? firstLap : (((lap * places + place) % n) + n) % n;
   const postingOn = (lap: number) => {
@@ -621,52 +618,59 @@ function Posting({
 
   const pose = (t: number) => {
     const lap = lapAt(t);
-    const x = layout.pipeLeft + (travel(t) - lap * loop);
-    const from = layout.couplings[systemOn(lap)];
+    const u = travel(t) - lap * loop;
+    const from = docks[systemOn(lap)];
     const kept = Boolean(postingOn(lap).card);
-    // Shown only once it has come out of its coupling since the flow began,
-    // so the pipe fills from the couplings: shown from the start, three
-    // postings appeared at once in the middle of the pipe.
-    const fresh = x - from <= SPEED * t + EPS;
-    // Where the pill's left edge is when its right edge meets WorkIt's
-    // mark: it never goes further, so it never slides under the mark.
-    const end = layout.outletX - MARK / 2 - MARK_GAP - PILL_W;
-    // Out of the coupling: it grows out of the ring around the pipe.
-    const born = clamp((x - from) / 36);
-    // A senior role is struck through and drops out well before the mark;
-    // a kept one folds into it, shrinking towards its right edge, which
-    // holds at the mark (scaled from its left edge, so moved by the width
-    // it loses).
-    const strike = kept ? 0 : clamp((x - (end - 150)) / 50);
-    const gone = kept ? clamp((x - (end - 40)) / 40) : clamp((x - (end - 90)) / 40);
-    const fold = kept ? 1 - 0.55 * gone : 1 - 0.3 * gone;
+    // Shown only once it has left its dock since the flow began, so the belt
+    // fills from the docks: shown from the start, three parcels appeared at
+    // once in the middle of the belt.
+    const fresh = u - from <= SPEED * t + EPS;
+    // Off the dock, across onto the belt.
+    const born = clamp((u - from) / 40);
+    // The gate's verdict, as it passes under.
+    const read = clamp((u - (line.gateU - 26)) / 44);
+    // A dropped parcel stops at the chute and slides down it.
+    const push = kept ? 0 : clamp((u - line.pushU) / 80);
+    const gone = kept ? clamp((u - (line.run - 36)) / 36) : clamp((push - 0.7) / 0.3);
+    const at = line.at(
+      kept ? Math.min(u, line.run) : Math.min(u, line.pushU),
+      lerp(line.dockD, 0, ease(born)) + line.chute * push,
+      -34 * push * push,
+    );
+    const seen = u < from || !fresh ? 0 : born * (1 - gone);
     return {
       lap,
-      x: Math.min(x, end) + (kept ? PILL_W * (1 - fold) : 0),
-      scale: (0.7 + 0.3 * born) * fold,
-      opacity: x < from || !fresh ? 0 : born * (1 - gone),
-      strike,
-      y: kept ? 0 : gone * 10,
-      // A kept posting has folded into WorkIt's mark.
-      inside: kept && fresh && x >= end,
+      x: at.x,
+      y: at.y,
+      scale: (0.8 + 0.2 * born) * (1 - 0.4 * gone),
+      opacity: seen,
+      pill: seen * (1 - clamp(push * 2.4)),
+      strike: kept ? 0 : read,
+      keptLid: kept ? 0.55 * read : 0,
+      droppedLid: kept ? 0 : 0.6 * read,
+      // A kept parcel has reached the belt's end.
+      inside: kept && fresh && u >= line.run,
     };
   };
 
   const p = useTransform(clock, pose);
   const x = useTransform(p, (v) => v.x);
-  const y = useTransform(p, (v) => layout.pipeY - 14 + v.y);
+  const y = useTransform(p, (v) => v.y);
   const scale = useTransform(p, (v) => v.scale);
   const opacity = useTransform(p, (v) => v.opacity);
+  const pill = useTransform(p, (v) => v.pill);
   const strike = useTransform(p, (v) => v.strike);
+  const keptLid = useTransform(p, (v) => v.keptLid);
+  const droppedLid = useTransform(p, (v) => v.droppedLid);
   // Dimmed only a little: the strike already marks it, and "Senior" must
   // stay readable.
   const dim = useTransform(p, (v) => 1 - 0.3 * v.strike);
 
-  // A kept posting goes on to be a card as it folds into WorkIt's mark: sent
-  // when its lap ended, out of sight past the mark, each card came some six
-  // seconds after its posting went in, and read as unrelated to it. The
-  // lap is kept in a ref as well as state, as in the flat stream: a
-  // listener that saw the old lap in state set it again in the same render.
+  // A kept posting goes on to be a card as it reaches the belt's end: sent
+  // when its lap ended, each card came some six seconds after its parcel, and
+  // read as unrelated to it. The lap is kept in a ref as well as state, as in
+  // the flat stream: a listener that saw the old lap in state set it again in
+  // the same render.
   const [lap, setLap] = React.useState(() => lapAt(clock.get()));
   const seenLap = React.useRef(lap);
   const enteredLap = React.useRef<number | null>(null);
@@ -686,27 +690,39 @@ function Posting({
   const [, role, level] = /^(.*?)(,? (?:Intern|New Grad|Co-op))?$/.exec(posting.title) ?? [];
 
   return (
-    <motion.div
-      className="absolute top-0 left-0 origin-left will-change-transform"
-      style={{ x, y, scale, opacity }}
-    >
-      <div
-        className="gloss-card text-ink flex h-7 items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1 text-[11px] font-medium whitespace-nowrap"
-        style={{ width: PILL_W }}
+    <>
+      <motion.div
+        className="absolute top-0 left-0 will-change-transform"
+        style={{ x, y, scale, opacity }}
       >
-        <FaviconLogo domain={posting.domain} eager className="size-5 rounded-full" />
-        <motion.span className="relative flex min-w-0" style={{ opacity: dim }}>
-          <span className="truncate">{role}</span>
-          {level && <span className="shrink-0 whitespace-pre">{level}</span>}
-          {/* The strike, drawn in left to right as a scale: a growing
-              background size repainted the chip on every frame. */}
-          <motion.span
-            aria-hidden="true"
-            className="bg-danger absolute inset-x-0 h-[1.5px] origin-left"
-            style={{ top: "calc(55% - 0.825px)", scaleX: strike }}
-          />
-        </motion.span>
-      </div>
-    </motion.div>
+        <Parcel kept={keptLid} dropped={droppedLid} />
+      </motion.div>
+      {pills &&
+        createPortal(
+          <motion.div
+            className="absolute top-0 left-0 will-change-transform"
+            style={{ x, y, scale }}
+          >
+            <motion.div
+              className="gloss-card text-ink absolute -top-[72px] flex h-7 items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1 text-[11px] font-medium whitespace-nowrap"
+              style={{ width: PILL_W, left: -PILL_W / 2, opacity: pill }}
+            >
+              <FaviconLogo domain={posting.domain} eager className="size-5 rounded-full" />
+              <motion.span className="relative flex min-w-0" style={{ opacity: dim }}>
+                <span className="truncate">{role}</span>
+                {level && <span className="shrink-0 whitespace-pre">{level}</span>}
+                {/* The strike, drawn in left to right as a scale: a growing
+                    background size repainted the chip on every frame. */}
+                <motion.span
+                  aria-hidden="true"
+                  className="bg-danger absolute inset-x-0 h-[1.5px] origin-left"
+                  style={{ top: "calc(55% - 0.825px)", scaleX: strike }}
+                />
+              </motion.span>
+            </motion.div>
+          </motion.div>,
+          pills,
+        )}
+    </>
   );
 }

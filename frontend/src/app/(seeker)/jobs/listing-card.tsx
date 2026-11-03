@@ -1,13 +1,12 @@
-import { CloudSlashIcon, ProhibitIcon } from "@phosphor-icons/react/ssr";
+import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 
-import { SparkleIcon } from "@/components/icons";
+import { TailorIcon } from "@/components/icons";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { IconButton } from "@/components/ui/icon-button";
 
 import {
   formatExperienceLevel,
@@ -24,6 +23,7 @@ import { AutoApplyButton } from "../auto-apply/auto-apply-button";
 import { ApplyButton } from "./apply-button";
 import type { JobListing } from "./listings";
 import { MatchRail } from "./match-rail";
+import { NotInterestedButton } from "./not-interested-button";
 import { SaveJobButton } from "./save-job-button";
 import { jobLogo } from "@/lib/job-logo";
 
@@ -56,7 +56,9 @@ import { jobLogo } from "@/lib/job-logo";
  *   salary_*               `salary_*`, when the posting states pay
  *   work_style             `work_style`, when the board states it
  *   experience_level       `experience_level`, always: the scraper keeps
- *                          internship and new-grad roles only
+ *                          internship and new-grad roles only. Not listed
+ *                          for a job a student added from its form
+ *                          (KAN-515), whose page names none
  *   min_years_experience   `min_years_experience`, when the posting asks
  *                          for some; an internship shows `start_term` as
  *                          its own fact instead, since nobody asks an
@@ -70,7 +72,7 @@ import { jobLogo } from "@/lib/job-logo";
  * its description; Apply Now opens the page's own Apply dialog (./apply-button,
  * KAN-290). Tailor
  * My Resume is the page's own button (KAN-241): it opens Tailor for this
- * role, and reads "Your Tailored Resume" once the seeker has one for it.
+ * role, and reads "Tailored Resume" once the seeker has one for it.
  */
 export function ListingCard({
   job,
@@ -106,35 +108,47 @@ export function ListingCard({
          nothing in it, and two places to look for what a card can do is one
          too many. All sit at the row's right end, as on the mock cards: the
          quick verdicts first, then the steps toward applying, in the job
-         page's order. */
+         page's order.
+         BELOW @xl OF THE CARD'S BODY (576px) APPLY NOW HAS A ROW OF ITS OWN,
+         across the card, under the rest (KAN-569): the icon buttons, then
+         Auto Apply and Tailor, which grow to fill their row and wrap to the
+         next one whole when they do not fit (at 375, Tailor goes under the
+         icons and Auto Apply). Wrapped as one row, the six fell into ragged
+         rows with Apply Now alone on the last. One row needs about 540px
+         (590 with Working in Browser), so @md (448px) still left them ragged
+         between. Halves (`flex-1`) broke "Tailor My Resume" onto two lines
+         on a phone. From @xl each group's box goes (`contents`) and the one
+         row is back. */
       actions={
         <>
-          <IconButton
-            label={`Not interested in ${job.title}`}
-            tooltip="Not interested"
-            variant="outline"
-            className="size-9"
-          >
-            <ProhibitIcon aria-hidden className="size-4" />
-          </IconButton>
+          <div className="contents @max-xl:flex @max-xl:basis-full @max-xl:flex-wrap @max-xl:gap-2 @max-xl:*:not-first:grow">
+            <div className="contents @max-xl:flex @max-xl:gap-2">
+              <NotInterestedButton title={job.title} />
 
-          <SaveJobButton jobId={job.id} title={job.title} stage={stage} />
+              <SaveJobButton jobId={job.id} title={job.title} stage={stage} />
 
-          <AskScoutButton id={job.id} title={job.title} company={job.company} />
+              <AskScoutButton id={job.id} title={job.title} company={job.company} />
+            </div>
 
-          {/* Only where auto apply can fill the form (Greenhouse for now). */}
-          {job.auto_apply && (
-            <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
-          )}
+            {/* Only where auto apply can fill the form (Greenhouse for now). */}
+            {job.auto_apply && (
+              <AutoApplyButton
+                jobId={job.id}
+                title={job.title}
+                company={job.company}
+                stage={stage}
+              />
+            )}
 
-          <ButtonLink
-            href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
-            variant="secondary"
-            size="sm"
-          >
-            <SparkleIcon className="size-4" />
-            {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
-          </ButtonLink>
+            <ButtonLink
+              href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
+              variant="secondary"
+              size="sm"
+            >
+              <TailorIcon className="size-4" />
+              {tailored ? "Tailored Resume" : "Tailor My Resume"}
+            </ButtonLink>
+          </div>
 
           {/* The job posting page's own dialog (KAN-290): which resume to
               send, then "Did You Apply?". No new-tab glyph: the button opens
@@ -147,6 +161,7 @@ export function ListingCard({
             canMarkApplied={canMarkApplied}
             applied={hasApplied(stage)}
             onApplied={onApplied}
+            className="@max-xl:basis-full"
           />
         </>
       }
@@ -168,7 +183,9 @@ export function listingFacts(job: JobListing) {
     jobType: job.job_type ? formatJobType(job.job_type) : NOT_LISTED,
     salary: salary(job),
     workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
-    experienceLevel: formatExperienceLevel(job.experience_level),
+    experienceLevel: job.experience_level
+      ? formatExperienceLevel(job.experience_level)
+      : NOT_LISTED,
     ...yearsOrStart(job),
   };
 }
@@ -233,7 +250,7 @@ export function ListingsSkeleton() {
                   <div className="border-border-subtle mt-3 flex justify-end gap-2 border-t pt-3">
                     <Skeleton className="size-9" />
                     <Skeleton className="size-9" />
-                    <Skeleton className="h-9 w-28" />
+                    <Skeleton className="size-9" />
                     <Skeleton className="h-9 w-28" />
                     <Skeleton className="h-9 w-36" />
                     <Skeleton className="h-9 w-24" />

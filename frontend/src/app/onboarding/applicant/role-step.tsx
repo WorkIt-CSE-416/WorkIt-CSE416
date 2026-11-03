@@ -11,6 +11,8 @@ import {
   type FeedFilters,
 } from "@/app/(seeker)/jobs/filter-query";
 import { SalaryPicker, SearchPicker, type PickOption } from "@/components/filter-controls";
+import { ChoiceTile } from "@/components/ui/choice-tile";
+import { Chip } from "@/components/ui/chip";
 import {
   BriefcaseIcon,
   CalendarIcon,
@@ -22,14 +24,21 @@ import {
 } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
-import { ChoiceTile } from "./choice-tile";
-
 /**
  * Onboarding's first step, the job preferences, and the Field each question
  * sits in. Its own module because two screens draw it: the wizard
  * (./onboarding-form) and Settings' Job Preferences (KAN-326), which edits
  * the saved preferences with the same controls, `dense`. One set of
  * controls, so the two cannot ask different questions.
+ *
+ * `dense` IS SETTINGS' SIZE, NOT ONBOARDING'S SHRUNK. Onboarding draws each
+ * question large on purpose: it is the whole screen, one step at a time.
+ * Settings is one section of a modal among others, so `dense` draws what
+ * the rest of the app draws for the same choices: 14px headings with a
+ * 16px glyph, the pickers at their default 42px, and the answers as the
+ * Jobs page's filter chips (`Choices`) in place of 56px tiles. Until
+ * 2026-11-03 it only shrank the headings, and the section read as
+ * onboarding dropped into Settings.
  */
 
 type Glyph = ComponentType<{ className?: string }>;
@@ -50,15 +59,16 @@ export function RoleStep({
   roles: PickOption[];
   places: PickOption[];
   seasons: PickOption[];
-  /** Settings' Job Preferences: smaller labels, tighter rows, h3 headings. */
+  /** Settings' Job Preferences: the app's own sizes (above), h3 headings. */
   dense?: boolean;
 }) {
   const interns = answers.jobTypes.includes("internship");
+  const size = dense ? "default" : "lg";
   return (
     <>
       <Field dense={dense} Icon={RoleIcon} label="Role" required>
         <SearchPicker
-          size="lg"
+          size={size}
           label="Roles"
           placeholder="Search a role, like Software Engineer"
           empty="No role by that name."
@@ -68,9 +78,10 @@ export function RoleStep({
         />
       </Field>
       <Field dense={dense} Icon={BriefcaseIcon} label="Job Type" required>
-        <div className="grid grid-cols-2 gap-2 lg:gap-3">
+        <Choices dense={dense} columns="grid-cols-2">
           {JOB_TYPE_OPTIONS.map((o) => (
-            <ChoiceTile
+            <Choice
+              dense={dense}
               key={o.value}
               pressed={answers.jobTypes.includes(o.value)}
               onClick={() => {
@@ -89,9 +100,9 @@ export function RoleStep({
               }}
             >
               {o.label}
-            </ChoiceTile>
+            </Choice>
           ))}
-        </div>
+        </Choices>
       </Field>
       {interns && (
         <Field dense={dense} Icon={CalendarIcon} label="Start Date">
@@ -99,7 +110,7 @@ export function RoleStep({
             <p className="text-body text-ink-meta">No start dates in the feed yet.</p>
           ) : (
             <SearchPicker
-              size="lg"
+              size={size}
               label="Start Dates"
               placeholder="Search a season, or leave empty for any"
               empty="No season by that name has jobs."
@@ -114,35 +125,37 @@ export function RoleStep({
           experience it asks for, and internships count as Entry Level, so
           no pair of the two empties the feed (KAN-284). */}
       <Field dense={dense} Icon={LevelIcon} label="Experience Level">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:gap-3">
+        <Choices dense={dense} columns="grid-cols-1 sm:grid-cols-2">
           {EXPERIENCE_OPTIONS.map((o) => (
-            <ChoiceTile
+            <Choice
+              dense={dense}
               key={o.value}
               pressed={answers.levels.includes(o.value)}
               onClick={() => set({ levels: toggle(answers.levels, o.value) })}
             >
               {o.label}
-            </ChoiceTile>
+            </Choice>
           ))}
-        </div>
+        </Choices>
       </Field>
       <Field dense={dense} Icon={workStyleIcon("onsite")} label="Workplace" required>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
+        <Choices dense={dense} columns="grid-cols-1 sm:grid-cols-3">
           {WORKPLACE_OPTIONS.map((o) => (
-            <ChoiceTile
+            <Choice
+              dense={dense}
               key={o.value}
               Icon={workStyleIcon(o.value)}
               pressed={answers.workStyles.includes(o.value)}
               onClick={() => set({ workStyles: toggle(answers.workStyles, o.value) })}
             >
               {o.label}
-            </ChoiceTile>
+            </Choice>
           ))}
-        </div>
+        </Choices>
       </Field>
       <Field dense={dense} Icon={PinIcon} label="Location">
         <SearchPicker
-          size="lg"
+          size={size}
           label="Places"
           placeholder="Search a state or country, or leave empty for anywhere"
           empty="No place by that name has jobs."
@@ -155,7 +168,7 @@ export function RoleStep({
           picked above. */}
       <Field dense={dense} Icon={CoinIcon} label="Salary Range">
         <SalaryPicker
-          size="lg"
+          size={size}
           units={payUnits(answers.jobTypes)}
           presets={PAY_OPTIONS}
           minPay={answers.minPay}
@@ -165,6 +178,54 @@ export function RoleStep({
         />
       </Field>
     </>
+  );
+}
+
+/** A question's answers: onboarding's tiles in a grid (`columns`), or in
+ *  Settings (`dense`) a wrapping row of chips. */
+function Choices({
+  dense,
+  columns,
+  children,
+}: {
+  dense: boolean;
+  columns: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={dense ? "flex flex-wrap gap-2" : cn("grid gap-2 lg:gap-3", columns)}>
+      {children}
+    </div>
+  );
+}
+
+/** One answer: onboarding's ChoiceTile, or in Settings (`dense`) the
+ *  Jobs page's filter chip, which shares its pressed look. */
+function Choice({
+  dense,
+  pressed,
+  onClick,
+  Icon,
+  children,
+}: {
+  dense: boolean;
+  pressed: boolean;
+  onClick: () => void;
+  Icon?: Glyph;
+  children: ReactNode;
+}) {
+  if (!dense) {
+    return (
+      <ChoiceTile pressed={pressed} onClick={onClick} Icon={Icon}>
+        {children}
+      </ChoiceTile>
+    );
+  }
+  return (
+    <Chip pressed={pressed} onClick={onClick}>
+      {Icon && <Icon aria-hidden />}
+      {children}
+    </Chip>
   );
 }
 
@@ -192,7 +253,7 @@ export function Field({
   /** A 14px note under the label: the question as forms word it. */
   hint?: string;
   required?: boolean;
-  /** Settings' smaller version (RoleStep's `dense`). */
+  /** Settings' size (RoleStep's `dense`): a 14px heading, 16px apart. */
   dense?: boolean;
   children: ReactNode;
 }) {
@@ -203,24 +264,28 @@ export function Field({
       aria-labelledby={id}
       className={cn(
         "border-border-subtle border-t first:border-t-0 first:pt-0",
-        dense ? "py-5" : "py-8",
+        dense ? "py-4" : "py-8",
       )}
     >
       <Heading
         id={id}
         className={cn(
-          "text-ink flex items-center gap-2.5 font-semibold",
-          dense ? "text-subtitle mb-3" : "text-title mb-4",
+          "text-ink flex items-center font-semibold",
+          dense ? "text-body mb-2.5 gap-2" : "text-title mb-4 gap-2.5",
         )}
       >
-        <Icon className="text-ink-meta size-5 shrink-0" />
+        <Icon className={cn("text-ink-meta shrink-0", dense ? "size-4" : "size-5")} />
         {label}
         {required ? (
           <span className="text-danger" aria-label="required">
             *
           </span>
         ) : (
-          <span className="text-body text-ink-faint ml-auto font-normal">Optional</span>
+          <span
+            className={cn("text-ink-meta ml-auto font-normal", dense ? "text-note" : "text-body")}
+          >
+            Optional
+          </span>
         )}
       </Heading>
       {hint && (

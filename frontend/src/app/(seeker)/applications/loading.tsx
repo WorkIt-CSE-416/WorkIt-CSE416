@@ -29,17 +29,15 @@ export default function ApplicationsLoading() {
   return (
     // The page's own wrapper classes (./page.tsx).
     <div className={cn("flex-1 py-6", SEEKER_GUTTER)}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-heading text-ink">Applications Tracker</h1>
-          <p className="text-body text-ink-meta mt-1">Track and manage your career progress.</p>
-        </div>
-        <ViewSwitcher />
-      </div>
-
-      <div role="status" className="mt-6 flex flex-col gap-3">
+      <div role="status" className="flex flex-col gap-3">
         <span className="sr-only">Loading your applications</span>
-        <Skeleton aria-hidden="true" className="h-10 w-full rounded-full @lg/main:w-64" />
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton
+            aria-hidden="true"
+            className="h-10 min-w-0 flex-1 rounded-full @lg/main:max-w-64"
+          />
+          <ViewSwitcher />
+        </div>
         {/* The dropdowns step out at the real row's own container widths
             (./filter-bar.tsx), so the bar holds the same ones. */}
         <div aria-hidden="true" className="@container flex items-center gap-2">

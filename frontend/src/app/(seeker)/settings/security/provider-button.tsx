@@ -57,7 +57,7 @@ export function ProviderButton({
         {connected ? "Disconnect" : "Connect"}
       </Button>
       {error && (
-        <p role="alert" className="text-meta text-danger max-w-56 text-right">
+        <p role="alert" className="text-note text-danger max-w-56 text-right">
           {error}
         </p>
       )}

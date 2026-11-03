@@ -32,7 +32,7 @@ window.WIA = window.WIA || {};
       --color-hover: #f0f0f0;
       --color-border: #e3e9f0;
       --color-border-subtle: #e8ebf5;
-      --color-border-control: #8a8f9a;
+      --color-border-control: #878c97;
       --color-positive: #17b076;
       --color-positive-ink: #107a52;
       --color-positive-tint: #e3f7f0;

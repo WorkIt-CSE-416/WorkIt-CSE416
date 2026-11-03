@@ -3,11 +3,11 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * The WorkIt Autofiller Chrome extension's id — stable because
- * autofiller_extension/manifest.json pins a dev signing key (its own
- * comment explains why that's safe to check in: it's the public half).
- * Prototype-only; a real published extension would get this from its
- * Chrome Web Store listing instead of a hardcoded constant.
+ * The WorkIt Chrome extension's id, which autofiller_extension/manifest.json's
+ * `key` (a public key, safe to check in) decides for the dev build and the
+ * Store item alike. Not edited by hand: after changing that key, run
+ * `node autofiller_extension/store/extension-id.mjs --write`
+ * (autofiller_extension/test/extension-id.spec.ts fails until this matches).
  */
 const EXTENSION_ID = "cpklhdkoafegnndlafmiceehfloodjgi";
 
@@ -139,11 +139,16 @@ export type BatchTabState = "filling" | "ready" | "needs_you" | "failed" | "appl
  * with no extension, no batch, or before the first answer (and on the
  * server). It changes only on the extension's answer (run/open,
  * run/status), never on a failed one.
+ *
+ * Beside it, the jobs whose batch tab was closed before WorkIt saw their
+ * submit (run/status `closed`, KAN-512): not applied, and shown in Up Next
+ * as Tab Closed, Not Submitted (`useClosedTabs`).
  */
 const NO_TABS: ReadonlyMap<string, BatchTabState> = new Map();
 const NONE: ReadonlySet<string> = new Set();
 let browserTabs: ReadonlyMap<string, BatchTabState> = NO_TABS;
 let browserJobs: ReadonlySet<string> = NONE;
+let closedTabs: ReadonlySet<string> = NONE;
 let watching = false;
 const listeners = new Set<() => void>();
 /** How often Up Next asks while it shows. */
@@ -151,20 +156,30 @@ const LIVE_EVERY_MS = 4000;
 let live = 0;
 let liveTimer: ReturnType<typeof setInterval> | null = null;
 
-function setBrowserJobs(jobs: { jobId: string; state: BatchTabState }[]) {
+function setBrowserJobs(jobs: { jobId: string; state: BatchTabState }[], closed?: string[]) {
+  const closedSame =
+    closed === undefined ||
+    (closed.length === closedTabs.size && closed.every((id) => closedTabs.has(id)));
   if (
+    closedSame &&
     jobs.length === browserTabs.size &&
     jobs.every((job) => browserTabs.get(job.jobId) === job.state)
   )
     return;
   browserTabs = new Map(jobs.map((job) => [job.jobId, job.state]));
   browserJobs = new Set(browserTabs.keys());
+  if (!closedSame) closedTabs = new Set(closed);
   for (const listener of listeners) listener();
 }
 
 async function refreshBrowserJobs() {
   const r = (await sendToExtension({ type: "run/status" })) as
-    | { ok: true; jobIds?: string[]; jobs?: { jobId: string; state: BatchTabState }[] }
+    | {
+        ok: true;
+        jobIds?: string[];
+        jobs?: { jobId: string; state: BatchTabState }[];
+        closed?: string[];
+      }
     | { ok: false }
     | undefined;
   // Only a real answer changes it. A failed one (an extension that predates
@@ -174,6 +189,8 @@ async function refreshBrowserJobs() {
   if (r?.ok) {
     setBrowserJobs(
       r.jobs ?? (r.jobIds ?? []).map((jobId) => ({ jobId, state: "filling" as const })),
+      // An extension older than KAN-512 sends no `closed`: none are.
+      r.closed ?? [],
     );
   }
 }
@@ -222,6 +239,16 @@ export function useBrowserTabs(): ReadonlyMap<string, BatchTabState> {
     subscribeLive,
     () => browserTabs,
     () => NO_TABS,
+  );
+}
+
+/** The job posting ids whose batch tab was closed before their submit was
+ *  seen (KAN-512), kept current while it is used (Up Next). */
+export function useClosedTabs(): ReadonlySet<string> {
+  return useSyncExternalStore(
+    subscribeLive,
+    () => closedTabs,
+    () => NONE,
   );
 }
 

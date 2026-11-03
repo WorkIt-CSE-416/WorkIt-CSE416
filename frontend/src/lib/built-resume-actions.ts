@@ -3,6 +3,7 @@
 import { applicantCall, encodeId, type Result } from "@/lib/applicant-call";
 import type { BankEntry, Skill } from "@/lib/bank-actions";
 import type { ApplicantProfile } from "@/lib/profile-actions";
+import { revalidatingResumes } from "@/lib/resume-revalidate";
 
 /**
  * Built resumes (backend/app/routers/built_resumes.py), as server actions.
@@ -10,6 +11,11 @@ import type { ApplicantProfile } from "@/lib/profile-actions";
  * `error: string | null` and never throws. Files come back as base64, which
  * the browser turns into a download: a resume is tens of KB, far under
  * Vercel's 4.5 MB response limit.
+ *
+ * A write the Resumes page shows (Generate, Rename, Delete, the star) goes
+ * through `revalidatingResumes`, so a Back to a list of resumes reads it
+ * again. The editor's per-edit saves and Fit do not: each would render the
+ * editor's page, PDF and all, again (`lib/resume-revalidate.ts`).
  */
 
 export type BuiltResume = {
@@ -58,6 +64,42 @@ export type IdentityCopy = {
   us_citizen: boolean;
 };
 
+/** How a built resume's page is set (schemas `PageSettings`, KAN-435).
+ *  Margins are in inches, spacings in points. */
+export type PageSettings = {
+  font_size: number;
+  line_spacing: number;
+  side_margin: number;
+  top_margin: number;
+  alignment: "left" | "justified";
+  section_spacing: number;
+  entry_spacing: number;
+  accent: "#000000" | "#1E3A5F" | "#14532D" | "#7F1D1D" | "#4C1D95";
+  bullet: "dot" | "dash";
+  show_divider: boolean;
+  header_alignment: "left" | "center" | "right";
+  /** Every section once, `skills` among them, in print order. */
+  section_order: string[];
+  font_family: FontFamily;
+  /** A size per kind of text, in points; null follows `font_size`, as Jake's
+   *  template does (`sizeOf` in page-format.tsx). */
+  name_size: number | null;
+  heading_size: number | null;
+  title_size: number | null;
+  body_size: number | null;
+};
+
+export type FontFamily =
+  | "latin_modern"
+  | "tinos"
+  | "caladea"
+  | "eb_garamond"
+  | "charter"
+  | "arimo"
+  | "carlito"
+  | "open_sans"
+  | "lato";
+
 /** The PDF, base64, what the student is warned about before saving it, and
  *  the editor's click targets. */
 export type RenderedPdf = {
@@ -72,6 +114,10 @@ export type RenderedPdf = {
   identity: IdentityCopy | null;
   /** The resume's template id, sent back in the editor's copy. */
   template: string;
+  page_settings: PageSettings;
+  /** The distance between a wrapped bullet's baselines on this page, in
+   *  points, which reads a box's height as lines. */
+  wrapped_line: number;
 };
 
 /** The editor's copy of what its PDF is built from (schemas `ResumeCopy`,
@@ -85,6 +131,7 @@ export type ResumeCopy = {
   identity: IdentityCopy;
   template: string;
   file_name: string;
+  page_settings: PageSettings;
 };
 
 const id = encodeId;
@@ -100,7 +147,9 @@ export async function listBuiltResumes(): Promise<Result<BuiltResume[]>> {
 /** Generate: a base resume with everything in the bank, "Resume #N" when
  *  no name is given. No limit: only uploads count toward the 5. */
 export async function generateResume(name?: string): Promise<Result<BuiltResume>> {
-  return call<BuiltResume>("", { method: "POST", body: JSON.stringify(name ? { name } : {}) });
+  return revalidatingResumes(
+    call<BuiltResume>("", { method: "POST", body: JSON.stringify(name ? { name } : {}) }),
+  );
 }
 
 /** A new name for the resume (KAN-258); its sent resumes keep theirs. */
@@ -108,18 +157,20 @@ export async function renameBuiltResume(
   resumeId: string,
   name: string,
 ): Promise<Result<BuiltResume>> {
-  return call<BuiltResume>(`/${id(resumeId)}`, {
-    method: "PATCH",
-    body: JSON.stringify({ name }),
-  });
+  return revalidatingResumes(
+    call<BuiltResume>(`/${id(resumeId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  );
 }
 
 export async function deleteBuiltResume(resumeId: string): Promise<{ error: string | null }> {
-  return call<null>(`/${id(resumeId)}`, { method: "DELETE" });
+  return revalidatingResumes(call<null>(`/${id(resumeId)}`, { method: "DELETE" }));
 }
 
 export async function setDefaultBuiltResume(resumeId: string): Promise<{ error: string | null }> {
-  return call(`/${id(resumeId)}/default`, { method: "PUT" });
+  return revalidatingResumes(call(`/${id(resumeId)}/default`, { method: "PUT" }));
 }
 
 /** The PDF, for the editor's preview and its Download PDF. Kept nowhere. */
@@ -207,8 +258,28 @@ export async function updateChoices(
   });
 }
 
-/** One edit rendered and never saved (KAN-391): a typed line or choice
- *  changes, made to the editor's copy in memory, so the API reads nothing
+/** When anything the resume's page prints last changed, and the database's
+ *  clock now (KAN-391): the editor asks on a return to its tab after a
+ *  while away, and reloads only if something changed while it was hidden. */
+export async function resumeChangedAt(
+  resumeId: string,
+): Promise<Result<{ changed_at: string; now: string }>> {
+  return call<{ changed_at: string; now: string }>(`/${id(resumeId)}/changed-at`);
+}
+
+/** The page's settings saved, never rendered: `renderEdit` shows them. */
+export async function savePageSettings(
+  resumeId: string,
+  settings: PageSettings,
+): Promise<Result<null>> {
+  return call<null>(`/${id(resumeId)}/page-settings`, {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
+/** One edit rendered and never saved (KAN-391): a typed line, choice changes
+ *  or the page's settings, made to the editor's copy in memory, so the API reads nothing
  *  but the resume's row. What the edit changed in the copy comes back with
  *  the PDF: the choices after a bullet or a choice change, the entry's own
  *  fields after an entry field (`bullets` and `resume_ids` empty), the
@@ -221,7 +292,10 @@ export type EditRendered = {
 
 export async function renderEdit(
   resumeId: string,
-  edit: { line: { item_id: string; kind: string; text: string } } | { changes: ChoicesUpdate },
+  edit:
+    | { line: { item_id: string; kind: string; text: string } }
+    | { changes: ChoicesUpdate }
+    | { page: PageSettings },
   source?: ResumeCopy,
 ): Promise<Result<EditRendered>> {
   return call<EditRendered>(`/${id(resumeId)}/render`, {
@@ -254,8 +328,8 @@ export async function saveLine(
 }
 
 /** Fit to One Page: the bullets it hid, `undo` (the PATCH body that shows
- *  everything it hid again, whole entries and coursework too) and the
- *  render after, which can still be 2 pages when nothing more could go. */
+ *  everything it hid again, whole entries and skills too) and the render
+ *  after, one page (docs/cut_to_one_page.md). */
 export async function fitToOnePage(resumeId: string): Promise<
   Result<{
     hidden: string[];

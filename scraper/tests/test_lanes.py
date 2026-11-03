@@ -8,6 +8,7 @@ could silently drop or misreport a board.
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 from dataclasses import replace
 from types import SimpleNamespace
@@ -160,6 +161,42 @@ class TestLanes:
         assert providers.PROVIDERS["lever"].budget_s is None
         scanned, stats, read, _ = run.scrape([lever], robots, {})
         assert (scanned, read, stats.boards_deferred) == ([], [], 1)
+
+    def test_a_started_board_stops_at_its_next_page_once_the_runs_reads_end(
+        self, monkeypatch, swap_provider
+    ) -> None:
+        # SuccessFactors' Sonepar, 2026-10-30: started in time, it read one slow page
+        # after another for 35 minutes, and the run was cut off at 60. Its read now
+        # ends at the next page as incomplete, which closes nothing.
+        real, late = time.monotonic, []
+        monkeypatch.setattr(run.time, "monotonic", lambda: real() + (10**6 if late else 0))
+        pages: list[int] = []
+
+        def read(token, company, *, pace):
+            for number in (1, 2, 3):
+                if number > 1:
+                    pace(f"https://{token}/search/?startrow={number}")
+                pages.append(number)
+                late.append(True)
+            return [job(board("successfactors", token))]
+
+        swap_provider("successfactors", read=read)
+        robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
+        sonepar = board("successfactors", "career.sonepar.com")
+        scanned, stats, read_whole, _ = run.scrape([sonepar], robots, {})
+        assert pages == [1]
+        assert (scanned, read_whole, stats.boards_failed) == ([], [], 1)
+
+    def test_reads_are_paced_as_before_until_the_deadline(self) -> None:
+        paced: list[str] = []
+        robots = SimpleNamespace(allows=lambda url: url.endswith("ok"), pace=paced.append)
+        reading = run._Until(robots, time.monotonic() + 60)
+        reading.pace("https://a.test/ok")
+        assert (paced, reading.allows("https://a.test/ok")) == (["https://a.test/ok"], True)
+        reading.until = time.monotonic() - 1
+        with pytest.raises(providers.Incomplete):
+            reading.pace("https://a.test/2")
+        assert paced == ["https://a.test/ok"]
 
     def test_postings_we_do_not_keep_have_no_page_read(self, monkeypatch, swap_provider) -> None:
         gh = board("greenhouse", "stripe")

@@ -168,3 +168,19 @@ async def test_company_briefs_come_only_with_facts_that_pass_workit_s_own_check(
     assert all(f["url"].startswith("https://initrodelabs.example/") for f in kept)
     assert report.briefs == [{"company": "Initrode Labs", "team": None, "kept": 3, "dropped": 4, "saved": True,
                              "listed": False}]
+
+
+async def test_with_no_folder_the_writing_comes_from_apply_home(
+    running, applicant, database, local_files, tmp_path, monkeypatch,
+):
+    folder = base._test_person(tmp_path / "apply-home")
+    (folder / "story-bank.md").write_text(
+        "# Story bank: Test Person\n\n## Test's own answers\n\n**Why this team?**\n\nI like small teams that ship.\n")
+    (folder / "voice.md").write_text("<!-- measured from the samples -->\nShort sentences. Plain words.\n")
+    monkeypatch.setenv("APPLY_HOME", str(folder))
+
+    report = await _import(database, applicant, None)
+
+    samples = [s["text"] for s in (await _get(applicant, "/writing-samples")).json()["samples"]]
+    assert samples == ["I like small teams that ship."]
+    assert report.style_card is True

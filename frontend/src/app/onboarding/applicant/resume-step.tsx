@@ -2,7 +2,7 @@
 
 import { XIcon } from "@phosphor-icons/react/ssr";
 
-import { formatDates, SECTIONS } from "@/app/(seeker)/bank/sections";
+import { formatDates, SECTIONS } from "@/app/(seeker)/experiences/sections";
 import { CheckIcon, FileIcon } from "@/components/icons";
 import { ResumeUpload } from "@/components/resume-upload";
 import { Badge } from "@/components/ui/badge";

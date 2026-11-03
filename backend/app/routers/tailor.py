@@ -110,16 +110,17 @@ def _own(body: TailorSource) -> list[uuid.UUID]:
     return [body.built_resume_id] if body.built_resume_id else []
 
 
-async def _source(session: AsyncSession, applicant_id: uuid.UUID, body: TailorSource) -> tuple[Choices, str]:
-    """The picked resume's choices and the template a new tailored resume
-    takes: a built resume's own, else the default (an upload has none)."""
+async def _source(session: AsyncSession, applicant_id: uuid.UUID, body: TailorSource) -> tuple[Choices, str, dict]:
+    """The picked resume's choices, and the template and page settings a new
+    tailored resume takes: a built resume's own, else the defaults (an upload
+    has none)."""
     try:
         if body.built_resume_id is not None:
             resume = await built_resumes.get_resume(session, applicant_id, body.built_resume_id)
-            return await built_resumes.load_choices(session, resume.id), resume.template
+            return await built_resumes.load_choices(session, resume.id), resume.template, resume.page_settings
         assert body.uploaded_resume_id is not None  # TailorSource checks one is given
         choices = await tailor.upload_source(session, applicant_id, body.uploaded_resume_id)
-        return choices, built_resumes.DEFAULT_TEMPLATE
+        return choices, built_resumes.DEFAULT_TEMPLATE, {}
     except NotFound:
         raise HTTPException(404, "Resume not found")
     except tailor.NothingRead:
@@ -137,7 +138,7 @@ async def match(
     assert_applicant_owns(account, applicant_id)
     job = await _posting(session, body.job_posting_id)
     # Before the bank loads: an uploaded source that owns nothing is read into it.
-    choices, _ = await _source(session, applicant_id, body)
+    choices, _, _ = await _source(session, applicant_id, body)
     bank = await load_bank(session, applicant_id, local_to=_own(body))
     try:
         found, _ = await keywords.ensure(job, keywords_llm)
@@ -242,7 +243,7 @@ async def _steps(
         # It would read the lines it is about to clear.
         raise HTTPException(422, OWN_SOURCE)
     # Before the bank loads: an uploaded source that owns nothing is read into it.
-    source, template = await _source(session, applicant_id, body)
+    source, template, page_settings = await _source(session, applicant_id, body)
     bank = await load_bank(session, applicant_id, local_to=_own(body))
     if not bank.entries:
         raise HTTPException(409, EMPTY_BANK)
@@ -289,7 +290,7 @@ async def _steps(
     else:
         resume = Built_Resume(
             id=uuid.uuid4(), applicant_id=applicant_id, name=_name(account.full_name, job), template=template,
-            job_posting_id=job.id)
+            page_settings=page_settings, job_posting_id=job.id)
         session.add(resume)
         await session.flush()
     try:

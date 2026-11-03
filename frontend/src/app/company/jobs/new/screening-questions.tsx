@@ -104,7 +104,7 @@ export function ScreeningQuestions({ questions, onChange, disabled }: ScreeningQ
         </SectionHeading>
       </div>
 
-      <p className="text-meta text-ink-meta mt-3">
+      <p className="text-note text-ink-meta mt-3">
         Screening questions aren&apos;t saved yet. You can draft them here, but they won&apos;t be
         kept with the job.
       </p>

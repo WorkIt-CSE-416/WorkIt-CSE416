@@ -3,29 +3,49 @@
 import {
   ArrowLeftIcon,
   ArrowUUpLeftIcon,
+  ArrowUUpRightIcon,
   CaretLeftIcon,
   CaretRightIcon,
   HandPointingIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
+  ScissorsIcon,
+  SlidersHorizontalIcon,
   XIcon,
 } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 
 import { SparkleIcon } from "@/components/icons";
+import { ASK_SCOUT_LIVE } from "@/components/scout/scout-buttons";
 import { Button } from "@/components/ui/button";
 import type { Bank } from "@/lib/bank-actions";
-import type { Choices, ChoicesUpdate, RenderBox, RenderedPdf } from "@/lib/built-resume-actions";
+import type {
+  Choices,
+  ChoicesUpdate,
+  PageSettings,
+  RenderBox,
+  RenderedPdf,
+} from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
 import { DownloadMenu, DownloadNotes, type ResumeDownload } from "../download-menu";
 import { useBack } from "../../back-link";
 import { EDITOR_PARENT } from "./back";
 import { FitNotice } from "./fit-notice";
-import { lineName, shortPageLabel, tray, type Line } from "./model";
+import { cutLeft as anyCutLeft, lineName, shortPageLabel, type FitCuts, type Line } from "./model";
+import type { HistoryTools } from "./editor";
+import { FormatOptions } from "./page-format";
 import { boxKey, kindLabel } from "./pdf-pages";
-import { Tray } from "./tray";
+import { CutPicker, ExperiencesPicker } from "./experiences-picker";
 
 /**
  * The phone editor (KAN-219, the KAN-201 prototype's variant A). The page
@@ -39,6 +59,12 @@ import { Tray } from "./tray";
  * sheet stays above the keyboard. The desktop editor owns the state and the
  * saves; this file only lays them out. "Ask Scout", in the bottom bar and
  * in a line's sheet, opens the assistant (KAN-221) in its own sheet.
+ *
+ * The layer renders in a portal to `<body>` (KAN-574): the seeker shell's
+ * `@container/main` is a containing block, so `fixed` inside it was fixed
+ * to the page area, not the window. The layer sat 64px low under the
+ * shell's bar, and its bottom bar (Add Experiences, Cut From Resume,
+ * Suggestions) ended past the screen's foot.
  */
 
 /** Below this width the editor takes the phone layout. */
@@ -101,9 +127,11 @@ export function PhoneEditor({
   saving,
   elapsed,
   error,
-  fitUndo,
   download,
   bar,
+  back: backTo,
+  page,
+  onPage,
   suggestions,
   actions,
   assistant,
@@ -112,7 +140,8 @@ export function PhoneEditor({
   onFlush,
   onApply,
   onFit,
-  onUndoFit,
+  history,
+  cuts,
 }: {
   /** Null until the first render lands (./editor.tsx streams it in). */
   rendered: RenderedPdf | null;
@@ -132,12 +161,17 @@ export function PhoneEditor({
   saving: boolean;
   elapsed: number | null;
   error: string | null;
-  fitUndo: ChoicesUpdate | null;
+  /** The page's settings, in the Format sheet (./page-format.tsx). */
+  page: PageSettings;
+  onPage: (next: PageSettings) => void;
   /** The resume's downloads, the same as the desktop sticky bar's. */
   download: ResumeDownload;
-  /** The page's own row under the buttons (Tailor's note when it has no
-   *  suggestions to show). */
+  /** The page's own row under the buttons: on Tailor's review the job,
+   *  the step and Finish, which the layer covers on the page. */
   bar?: ReactNode;
+  /** Where the arrow goes, when not to the page that opened the editor
+   *  (`useBack`): Tailor's review goes to the step before. */
+  back?: { href: string; label: string; onClick?: (event: MouseEvent) => void };
   /** Tailor's Suggestions panel, in a sheet opened from the bottom bar. */
   suggestions?: {
     count: number;
@@ -154,19 +188,25 @@ export function PhoneEditor({
   onFlush: () => void;
   onApply: (changes: ChoicesUpdate) => void;
   onFit: () => void;
-  onUndoFit: () => void;
+  /** Undo and Redo, the desktop bar's: a Fit to One Page is one step. */
+  history: HistoryTools;
+  /** What Fit to One Page cut, for Cut From Resume. */
+  cuts: FitCuts;
 }) {
-  const back = useBack(EDITOR_PARENT);
+  const opener = useBack(EDITOR_PARENT);
+  const back = backTo ?? opener;
   const snapshot = useSyncExternalStore(subscribeViewport, viewportSnapshot, () => "0|0");
   const [height, top] = snapshot.split("|").map(Number);
   const [zoom, setZoom] = useState(false);
-  const [trayOpen, setTrayOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [cutOpen, setCutOpen] = useState(false);
+  const cutLeft = anyCutLeft(bank, choices, cuts);
+  const [formatOpen, setFormatOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
   const order = pageOrder(rendered?.boxes ?? []);
   const at = selected ? order.indexOf(selected) : -1;
-  const waiting = tray(bank, choices).length;
 
   // Bring the selected line to the middle of the page area, also after an arrow press
   useEffect(() => {
@@ -176,7 +216,9 @@ export function PhoneEditor({
       ?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
   }, [selected, zoom]);
 
-  return (
+  // Mounted only after hydration (`usePhone` is false on the server), so
+  // `document` is there.
+  return createPortal(
     <div
       className="bg-app fixed inset-x-0 top-0 z-40 flex flex-col overflow-hidden"
       style={{ height: height || "100dvh", transform: `translateY(${top}px)` }}
@@ -218,12 +260,33 @@ export function PhoneEditor({
           </span>
         </div>
         <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
-          {fitUndo && (
-            <Button variant="secondary" size="sm" onClick={onUndoFit} disabled={saving}>
-              <ArrowUUpLeftIcon aria-hidden /> Undo
-            </Button>
-          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-label="Undo"
+            disabled={!history.canUndo}
+            onClick={history.onUndo}
+          >
+            <ArrowUUpLeftIcon aria-hidden />
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-label="Redo"
+            disabled={!history.canRedo}
+            onClick={history.onRedo}
+          >
+            <ArrowUUpRightIcon aria-hidden />
+          </Button>
           <div className="ml-auto flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!rendered}
+              onClick={() => setFormatOpen(true)}
+            >
+              <SlidersHorizontalIcon aria-hidden /> Format
+            </Button>
             <DownloadMenu download={download} />
             <Button
               variant="secondary"
@@ -240,7 +303,7 @@ export function PhoneEditor({
             </Button>
           </div>
         </div>
-        {bar}
+        {bar && <div className={cn(TAP, "[&_a]:min-h-11")}>{bar}</div>}
         {error && (
           <p role="alert" className="text-note text-danger">
             {error}
@@ -252,7 +315,7 @@ export function PhoneEditor({
       <div
         ref={scroller}
         className={cn(
-          "min-h-0 flex-1 overflow-auto p-4",
+          "min-h-0 flex-1 overflow-auto overscroll-none p-4",
           selected || suggestions?.open ? "pb-[70vh]" : suggestions ? "pb-36" : "pb-24",
         )}
       >
@@ -284,12 +347,22 @@ export function PhoneEditor({
               variant="secondary"
               className="flex-1"
               disabled={!rendered}
-              onClick={() => setTrayOpen(true)}
+              onClick={() => setPickerOpen(true)}
             >
-              Not on This Resume {waiting > 0 && <span className="text-ink-meta">({waiting})</span>}
+              Add Experiences
             </Button>
+            {cutLeft && (
+              <Button
+                variant="secondary"
+                className="text-warning hover:text-warning flex-1"
+                disabled={!rendered}
+                onClick={() => setCutOpen(true)}
+              >
+                <ScissorsIcon aria-hidden /> Cut From Resume
+              </Button>
+            )}
             {/* The primary action, filled as on the desktop bar. */}
-            <Button disabled={!rendered} onClick={() => setAsking(true)}>
+            <Button disabled={!ASK_SCOUT_LIVE || !rendered} onClick={() => setAsking(true)}>
               <SparkleIcon /> Ask Scout
             </Button>
           </div>
@@ -354,7 +427,7 @@ export function PhoneEditor({
             ))}
           <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
             {actions}
-            <Button size="sm" onClick={() => setAsking(true)}>
+            <Button size="sm" disabled={!ASK_SCOUT_LIVE} onClick={() => setAsking(true)}>
               <SparkleIcon /> Ask Scout About This Line
             </Button>
           </div>
@@ -375,22 +448,37 @@ export function PhoneEditor({
         </Sheet>
       )}
 
-      {trayOpen && (
+      {cutOpen && (
         <>
-          <div className="absolute inset-0 z-30 bg-black/25" onClick={() => setTrayOpen(false)} />
-          <Sheet onClose={() => setTrayOpen(false)} title="Not on This Resume">
+          <div className="absolute inset-0 z-30 bg-black/25" onClick={() => setCutOpen(false)} />
+          <Sheet onClose={() => setCutOpen(false)} title="Cut From Resume">
             <div className={TAP}>
-              <Tray bank={bank} choices={choices} onPutBack={onApply} />
-              {waiting === 0 && (
-                <p className="text-body text-ink-meta">
-                  Everything in your bank is on this resume.
-                </p>
-              )}
+              <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={onApply} />
             </div>
           </Sheet>
         </>
       )}
-    </div>
+
+      {formatOpen && (
+        <Sheet onClose={() => setFormatOpen(false)} title="Format Options">
+          <div className={cn("flex flex-col gap-2", TAP)}>
+            <FormatOptions page={page} onChange={onPage} />
+          </div>
+        </Sheet>
+      )}
+
+      {pickerOpen && (
+        <>
+          <div className="absolute inset-0 z-30 bg-black/25" onClick={() => setPickerOpen(false)} />
+          <Sheet onClose={() => setPickerOpen(false)} title="Experiences">
+            <div className={TAP}>
+              <ExperiencesPicker bank={bank} choices={choices} onApply={onApply} />
+            </div>
+          </Sheet>
+        </>
+      )}
+    </div>,
+    document.body,
   );
 }
 

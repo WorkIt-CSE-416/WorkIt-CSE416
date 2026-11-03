@@ -5,6 +5,7 @@ import { useTransition, type CSSProperties, type MouseEvent, type ReactNode } fr
 
 import { TableRow } from "@/components/shadcn/table";
 import { cn } from "@/lib/cn";
+import { clickIsNotRows } from "@/lib/row-click";
 
 /**
  * A table row that opens `href` on a click anywhere in it: an application
@@ -16,8 +17,10 @@ import { cn } from "@/lib/cn";
  * cell is the containing block for an absolute child, so the stretch shrank
  * to the role's own cell. The row handles the click instead. The role stays
  * a real link, which a keyboard reaches and a middle click opens in a new
- * tab; a click on any link or button inside the row is left to it. A Cmd or
- * Ctrl click opens it in a new tab, as a link would.
+ * tab; a click on any link, button or menu item inside the row is left to
+ * it, and so is one from a menu or dialog the row opened in a portal, which
+ * React still passes up to the row (`clickIsNotRows`, lib/row-click.ts;
+ * KAN-566). A Cmd or Ctrl click opens it in a new tab, as a link would.
  *
  * `group/row` lets the frozen cells, which paint their own background so the
  * scrolled cells pass under them, follow the row's hover tint.
@@ -45,7 +48,7 @@ export function ClickableRow({
 
   function open(event: MouseEvent<HTMLTableRowElement>) {
     if (event.defaultPrevented) return;
-    if ((event.target as HTMLElement).closest("a, button")) return;
+    if (clickIsNotRows(event.currentTarget, event.target as Element)) return;
     if (event.metaKey || event.ctrlKey) window.open(href, "_blank", "noopener");
     else start(() => router.push(href));
   }

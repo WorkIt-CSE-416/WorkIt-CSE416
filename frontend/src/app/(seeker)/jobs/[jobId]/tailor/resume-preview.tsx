@@ -1,6 +1,6 @@
 "use client";
 
-import { ClockCounterClockwiseIcon, FileArrowDownIcon } from "@phosphor-icons/react/ssr";
+import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -182,22 +182,7 @@ export function ResumePreviewDialog({
  * the user found too quiet.
  */
 export function OriginalResume({ source }: { source: TailorSource }) {
-  return (
-    <section aria-labelledby="original-heading" className="flex flex-col gap-2">
-      {/* A border, not the toolbar's ring: the column scrolls, and a ring
-          is drawn outside the box, where the scroll clipped its sides */}
-      <div className="bg-panel border-border-subtle flex h-11 items-center gap-2 rounded-xl border px-3">
-        <ClockCounterClockwiseIcon aria-hidden className="text-brand size-4 shrink-0" />
-        <h2 id="original-heading" className="text-label text-ink font-semibold">
-          Original Resume
-        </h2>
-        <span className="bg-ink/5 text-ink-muted text-note ml-auto rounded-full px-2 py-0.5 font-medium">
-          Read Only
-        </span>
-      </div>
-      <PreviewPages source={source} label="Original Resume" enabled />
-    </section>
-  );
+  return <PreviewPages source={source} label="Original Resume" enabled />;
 }
 
 /** A DOCX upload: pdf.js cannot draw one, so its file downloads instead. */

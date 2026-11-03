@@ -29,7 +29,10 @@ export default function UploadedResumeLoading() {
               <Skeleton className="h-9 w-28" />
             </div>
           </div>
-          <PageSkeleton />
+          {/* At the viewer's opening zoom, 100% (816px, ../../[resumeId]/zoom.tsx) */}
+          <div className="mx-auto w-full max-w-[816px]">
+            <PageSkeleton />
+          </div>
         </div>
       </div>
     </div>

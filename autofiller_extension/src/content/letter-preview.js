@@ -136,12 +136,12 @@ window.WIA = window.WIA || {};
       textContent: `${open.has(field.key) ? "Hide" : "See"} ${letter}`,
     });
     toggle.setAttribute("aria-expanded", String(open.has(field.key)));
-    toggle.addEventListener("click", () => {
+    toggle.addEventListener("click", window.WIA.ui.trusted(() => {
       if (open.has(field.key)) open.delete(field.key);
       else open.add(field.key);
       told.delete(field.key);
       redraw();
-    });
+    }));
     wrap.append(toggle);
     if (open.has(field.key)) wrap.append(card(field, what, letter));
     return wrap;

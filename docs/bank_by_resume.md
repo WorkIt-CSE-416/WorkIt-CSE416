@@ -16,10 +16,11 @@ that is accepted.
 
 ## Goal
 
-A student with three uploads and two built resumes should see one resume's
-facts at a time. The Experiences view's **Showing card** picks one
-uploaded, base or tailored resume and shows only what the picked one
-holds. Each upload's entries are its own, so an edit on one upload's view
+A student with three uploads and two built resumes opens on **All
+Experiences**, everything they hold with copies shown once (KAN-440), and
+can see one resume's facts at a time. The Experiences view's **Showing
+card** filters to one uploaded, base or tailored resume and shows only what
+the picked one holds. Each upload's entries are its own, so an edit on one upload's view
 never changes another's, and an import runs no duplicate check.
 
 ## The rule
@@ -121,12 +122,30 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
   the Resumes page since KAN-406): a search, then Uploaded, Generated and
   Tailored, names that wrap. A click or the arrow keys move
   the pick, and **Show Resume** applies it; Cancel leaves the page as it
-  was. **Not From an Upload** is a card under the list, with its count,
-  while anything no upload owns exists or while it is the pick: it is no
-  resume, so it stays out of the shared table, but it shares the dialog's
-  radio group.
-  **All Experiences is removed.** The table carries no counts; the section
-  nav shows them for the pick.
+  was. All Experiences is a card over the list, in the dialog's radio
+  group.
+  The table carries no counts; the section nav shows them for the pick.
+- **All Experiences is the opening view** (KAN-440). It was removed with
+  the owner column, which left a student with a resume no view of the whole
+  bank. The card names it, with Filter by Resume; a resume's card has Show
+  All; and it is a pick of its own at the top of the dialog.
+  - **Copies show once.** `GET /bank` gives each entry a `copy_group`, from
+    `copy_key`, so the rule stays in the API and the browser only groups by
+    it (`holdings.ts`, `rowsOf`). The row is the primary resume's copy, else
+    the first. Skills group by name in the browser. Nothing is merged.
+  - **A copy with other bullets is named** under the row ("Other bullets
+    on …"), a link to the resume that shows it, since All Experiences
+    shows one copy. A note on every copy repeated itself on every row of a
+    Generated resume's bank, as the "Also on" pill did before KAN-363.
+  - **An edit changes the one copy.** Deleting it leaves the next copy as
+    the row. Clear All is off here, since a row stands for copies on several
+    resumes; it works under one resume.
+  - **Not From an Upload is gone** (KAN-440). It was there so no item fell
+    out of every view, as 96 entries of 8 students did on 2026-10-24. All
+    Experiences holds them now. A copy no resume holds, with bullets the row
+    does not show, stays a row of its own, so it cannot hide behind its twin.
+  - **The rule is exact.** A copy with a month missing is a separate row
+    (two "Stony Brook University" rows, one with no start date).
   - It replaced a dropdown (2026-10-24) that put uploads, built resumes and
     Not From an Upload in one flat list, with no search, long names cut
     short, and one more line for every tailored resume.
@@ -137,11 +156,11 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
   of links to the seven section cards, each with its count under the
   pick, the card in view lit. A click glides to that card.
 - **The page opens on the primary resume**, else the newest of any kind.
-  A `?resume=` that names no listed resume (a deleted one, or the old
-  `all`) opens the same way; `none` opens Not From an Upload. With no
+  A `?resume=` that names no listed resume (a deleted one) opens on All
+  Experiences. With no
   resume at all, there is no Showing card and the page shows the whole
   bank.
-- **Unowned entries** show under Not From an Upload, and under any built
+- **Unowned entries** show under All Experiences, and under any built
   resume that shows them.
   - **Intake's entries**, a Tailor "Have you used X?" skill with no Done,
     and the multi-source entries the migration left unowned land there.
@@ -150,7 +169,7 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
     for 8 students, which every reader still used and no student could
     see, edit or delete. The pick came back for that.
 - **Add** (each card's +) saves into the picked resume (above, "Writes"), or into no
-  upload under Not From an Upload, and stays in view, so the "Saved to your bank. It's under All Experiences…" notice
+  upload under All Experiences, and stays in view, so the "Saved to your bank. It's under All Experiences…" notice
   goes.
 - **The editor names the other built resumes a save changes** (KAN-363):
   "Saving also changes this entry on Resume #3 and The Allen Institute…"
@@ -176,9 +195,10 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
 - **Clear All** (KAN-352), in a card's edit mode, deletes every row a card shows, as Delete Entry
   does each one. Under a built resume's pick those rows belong to uploads,
   so the confirm names the uploads that lose them too.
-- **Scout's walk** (intake marking an entry) switched to All Experiences
-  when the pick hid the entry. With that option gone, it switches to a
-  resume that holds the entry, else to Not From an Upload.
+- **Scout's walk** (intake marking an entry) switches to a resume that
+  holds the entry when the pick hides it, else to All Experiences. Under
+  All Experiences, an entry that is a copy becomes its row while Scout is on
+  it, so the mark lands.
 
 ## What changes from the first design
 
@@ -187,7 +207,6 @@ created_at, and `edited_at` for the resume list's date, KAN-361).
 | `merge_import`'s merge (`find_duplicate`, `_merge_entry`) | an upload never merges |
 | `bank_entry_sources`, `bank_skill_sources`, `_add_sources`, `clear_sources` | the owner column replaces them |
 | Import Again "only adds" | it replaces the upload's entries |
-| All Experiences | the view shows one resume at a time; Not From an Upload stays for what no upload owns |
 | ADR 0003's merge rule and "delete leaves the bank" | ADR 0005 |
 
 Stays: Generate, Tailor's ranking, Scout, the recommender, intake and the

@@ -1,7 +1,9 @@
+import { SectionHeading } from "@/components/ui/section-heading";
 import { SectionLink } from "@/components/ui/section-link";
 
 /**
- * An open section's heading, with its one way onward as a short link at the
+ * A Home tile's heading (ui/section-heading.tsx, the one card title), with
+ * its one way onward as a short link at the
  * top right: "View All", "Newest Jobs", "Follow Up". One component so every
  * section puts its link in the same place, at the same weight: they had
  * drifted to the bottom of one list and into a sentence-long button on
@@ -21,15 +23,17 @@ export function SectionHeader({
   link?: { href: string; text: string; label?: string };
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <h2 id={id} className="text-subtitle text-ink font-medium">
-        {title}
-      </h2>
-      {link && (
-        <SectionLink href={link.href} label={link.label}>
-          {link.text}
-        </SectionLink>
-      )}
-    </div>
+    <SectionHeading
+      id={id}
+      action={
+        link && (
+          <SectionLink href={link.href} label={link.label}>
+            {link.text}
+          </SectionLink>
+        )
+      }
+    >
+      {title}
+    </SectionHeading>
   );
 }

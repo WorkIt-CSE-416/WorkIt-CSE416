@@ -154,6 +154,10 @@ class job_post_status(enum.StrEnum):
     # added by 1ea834081a48; ALTER TYPE, not an edit here, is what changes the column
     paused= "paused"
     closed= "closed"
+    # added by c2e4a6b8d051 (KAN-542), which production already has. Unused:
+    # an added job is job_postings.added_by_student (f7b2d4a6c815), never a
+    # status. Nothing writes it; a later migration drops the value
+    unlisted= "unlisted"
 
 
 class application_stage(enum.StrEnum):

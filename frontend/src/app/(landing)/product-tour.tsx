@@ -46,6 +46,10 @@ const STOPS = Object.fromEntries(
 ) as Record<FeatureId, TourTab & { Visual: ComponentType }>;
 
 /** A stop's soft, two-blob gradient over its tint. */
+/** How far a pinned stop's story may scale up: at about 1.3 on a laptop its
+ * type crowded the copy beside it, and read as too big. */
+const TOUR_FIT = 1.15;
+
 function backdrop(id: FeatureId) {
   return featureBackdrop(FEATURES[STOPS[id].page]);
 }
@@ -85,8 +89,8 @@ function PinnedTour() {
   const coverRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
   const [index, setIndex] = useState(0);
-  // After the last stop the card stays pinned while the hiring-systems
-  // section slides up over it (`TOUR_COVER_VH`); with reduced motion that
+  // After the last stop the panel stays pinned while it turns into the
+  // hiring-systems section's (`TOUR_COVER_VH`); with reduced motion that
   // section is still, so no pin is kept for it.
   const cover = reduceMotion ? 0 : TOUR_COVER_VH;
   const stopsVh = (features.length - 1) * STOP_VH;
@@ -100,16 +104,15 @@ function PinnedTour() {
     setIndex(Math.min(features.length - 1, Math.max(0, Math.floor(stops * features.length))));
   });
 
-  // As the next section covers it, the card sinks back: smaller, and
-  // shaded by a layer over it (a filter on the card would stop its glass
-  // blurring). Transform strings and opacity over a plain offset, so the
-  // browser runs both.
+  // One panel, new content: the next section's panel sits exactly here and
+  // fades in over this one, so the panel seems to change colour, while the
+  // card and tabs fade out first. It shrank under a dark shade with a grey
+  // panel sliding over it, which the team found muddy (KAN-540).
   const { scrollYProgress: covered } = useScroll({
     target: coverRef,
     offset: ["start end", "start start"],
   });
-  const recede = useTransform(covered, [0, 1], ["scale(1)", "scale(0.94)"]);
-  const shade = useTransform(covered, [0, 1], [0, 0.22]);
+  const cardOut = useTransform(covered, [0, 0.35], [1, 0]);
   // Gone by the time it is covered: once its pin ends it scrolls away
   // behind the next section, and showed in the strip above that section's
   // panel and in its side gutters.
@@ -166,7 +169,7 @@ function PinnedTour() {
           ran into its bottom one. */}
       <motion.div
         className="sticky top-0 flex h-dvh flex-col px-6 pt-24 pb-6"
-        style={reduceMotion ? undefined : { transform: recede, opacity: fadeOut }}
+        style={reduceMotion ? undefined : { opacity: fadeOut }}
       >
         <motion.div
           style={{ transform: reduceMotion ? "none" : grow }}
@@ -190,66 +193,70 @@ function PinnedTour() {
 
           {/* Labelled tabs in one pill, so the row reads as the tour's steps
               rather than as loose dots above the card. */}
-          <div
-            role="tablist"
-            aria-label="Features"
-            // tour-tabs: hidden until the tabs take off from the bridge, and
-            // bare while they fly (landing.css).
-            className="tour-tabs flex shrink-0 gap-1 rounded-full bg-white/50 p-1 ring-1 ring-white/70"
-          >
-            {features.map((feature, i) => {
-              const { icon: Icon, label, glow } = STOPS[feature.id];
-              const selected = i === index;
-              const pose = flight[i];
-              return (
-                <motion.button
-                  key={feature.id}
-                  style={{ x: pose.x, y: pose.y, scale: pose.scale, transformOrigin: "0 0" }}
-                  type="button"
-                  role="tab"
-                  id={`tour-tab-${feature.id}`}
-                  aria-selected={selected}
-                  aria-controls="tour-panel"
-                  onClick={() => jumpTo(i)}
-                  className={cn(
-                    "relative flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors duration-300",
-                    selected ? "text-ink" : "text-ink-meta hover:text-ink",
-                  )}
-                >
-                  {/* The white fill slides between tabs. */}
-                  {selected && (
-                    <motion.span
-                      layoutId="tour-tab-fill"
-                      aria-hidden="true"
-                      className="absolute inset-0 -z-10 rounded-full bg-white shadow-md"
-                    />
-                  )}
-                  {/* While it flies in it still looks like the bridge's step
+          {/* The fade is on a wrapper: landing.css sets the bar's own look. */}
+          <motion.div className="shrink-0" style={reduceMotion ? undefined : { opacity: cardOut }}>
+            <div
+              role="tablist"
+              aria-label="Features"
+              // tour-tabs: hidden until the tabs take off from the bridge, and
+              // bare while they fly (landing.css).
+              className="tour-tabs flex shrink-0 gap-1 rounded-full bg-white/50 p-1 ring-1 ring-white/70"
+            >
+              {features.map((feature, i) => {
+                const { icon: Icon, label, glow } = STOPS[feature.id];
+                const selected = i === index;
+                const pose = flight[i];
+                return (
+                  <motion.button
+                    key={feature.id}
+                    style={{ x: pose.x, y: pose.y, scale: pose.scale, transformOrigin: "0 0" }}
+                    type="button"
+                    role="tab"
+                    id={`tour-tab-${feature.id}`}
+                    aria-selected={selected}
+                    aria-controls="tour-panel"
+                    onClick={() => jumpTo(i)}
+                    className={cn(
+                      "relative flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors duration-300",
+                      selected ? "text-ink" : "text-ink-meta hover:text-ink",
+                    )}
+                  >
+                    {/* The white fill slides between tabs. */}
+                    {selected && (
+                      <motion.span
+                        layoutId="tour-tab-fill"
+                        aria-hidden="true"
+                        className="absolute inset-0 -z-10 rounded-full bg-white shadow-md"
+                      />
+                    )}
+                    {/* While it flies in it still looks like the bridge's step
                       it left: white, with the step's colour ring. */}
-                  {!selected && (
+                    {!selected && (
+                      <motion.span
+                        aria-hidden="true"
+                        className="absolute inset-0 -z-10 rounded-full bg-white shadow-md ring-1 ring-slate-900/5"
+                        style={{ opacity: pose.fill }}
+                      />
+                    )}
                     <motion.span
                       aria-hidden="true"
-                      className="absolute inset-0 -z-10 rounded-full bg-white shadow-md ring-1 ring-slate-900/5"
-                      style={{ opacity: pose.fill }}
+                      className="pointer-events-none absolute inset-0 rounded-full"
+                      style={{ opacity: pose.ring, boxShadow: `0 0 0 2px ${glow}` }}
                     />
-                  )}
-                  <motion.span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 rounded-full"
-                    style={{ opacity: pose.ring, boxShadow: `0 0 0 2px ${glow}` }}
-                  />
-                  <Icon className="size-4" aria-hidden="true" />
-                  {label}
-                </motion.button>
-              );
-            })}
-          </div>
+                    <Icon className="size-4" aria-hidden="true" />
+                    {label}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </motion.div>
 
-          <div
+          <motion.div
             id="tour-panel"
             role="tabpanel"
             aria-labelledby={`tour-tab-${active.id}`}
             className="grid [max-height:52rem] min-h-0 w-full max-w-[76rem] flex-1 grid-cols-[5fr_8fr] grid-rows-[minmax(0,1fr)] gap-8 rounded-[2rem] bg-white p-5 shadow-xl shadow-slate-900/5 [@media(max-height:50rem)]:p-3"
+            style={reduceMotion ? undefined : { opacity: cardOut }}
           >
             {/* No initial={false} on these: it blocks the first animation of
                 every motion element inside, so the Matching rows sat still at
@@ -270,18 +277,27 @@ function PinnedTour() {
 
             <div
               ref={boxRef}
-              className="relative isolate flex h-full min-h-0 items-center justify-center overflow-hidden rounded-[1.5rem] p-4 [@media(max-height:50rem)]:p-2"
+              // More room over the story than under it: a story's stage keeps
+              // its tallest scene's height, so the shorter scenes end above
+              // its foot, and at an even 16px each stop read as sitting high.
+              className="relative isolate flex h-full min-h-0 items-center justify-center overflow-hidden rounded-[1.5rem] px-4 pt-8 pb-3 [@media(max-height:50rem)]:px-2 [@media(max-height:50rem)]:pt-4 [@media(max-height:50rem)]:pb-1"
             >
               {/* Its colour crossfades with the panel's, one layer per stop:
                   set as one gradient it changed in a single frame while the
                   panel around it faded. Siblings of the story, never its
-                  ancestors, so the scene titles' glass still blurs them. */}
+                  ancestors, so the scene titles' glass still blurs them.
+                  The feature's flat tint, not the panel's gradient: the same
+                  gradient inside and out made the white card look hollow,
+                  a frame with the panel showing through. */}
               {features.map((feature, i) => (
                 <div
                   key={feature.id}
                   aria-hidden="true"
                   className="absolute inset-0 -z-10 transition-opacity duration-700 ease-out motion-reduce:transition-none"
-                  style={{ background: backdrop(feature.id), opacity: i === index ? 1 : 0 }}
+                  style={{
+                    background: FEATURES[STOPS[feature.id].page].tint,
+                    opacity: i === index ? 1 : 0,
+                  }}
                 />
               ))}
               <AnimatePresence mode="wait">
@@ -302,18 +318,13 @@ function PinnedTour() {
                   exit={{ opacity: 0, y: -12, filter: "blur(6px)" }}
                   transition={{ duration: reduceMotion ? 0 : 0.35, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  <Fit box={boxRef}>
+                  <Fit box={boxRef} max={TOUR_FIT}>
                     <Visual />
                   </Fit>
                 </motion.div>
               </AnimatePresence>
             </div>
-          </div>
-          <motion.div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 z-20 rounded-[3rem] bg-[#0d1220]"
-            style={{ opacity: reduceMotion ? 0 : shade }}
-          />
+          </motion.div>
         </motion.div>
       </motion.div>
     </div>
@@ -322,7 +333,8 @@ function PinnedTour() {
 
 /**
  * Below lg the stops are one row that swipes sideways, a stop at a time,
- * the next one peeking in at the edge, with a dot per stop under it.
+ * each the row's full width, with a dot per stop under it: the team found
+ * the next stop peeking in at the edge a distraction from the one in view.
  * Stacked, the four stops took 3,290px of a 390px phone, almost a third of
  * the home page (KAN-368). Each story plays only while its stop is on
  * screen (story.tsx), so the stops off to the side stay still.
@@ -346,7 +358,9 @@ function StackedTour() {
       <div
         ref={rowRef}
         onScroll={onScroll}
-        className="flex snap-x snap-mandatory scroll-px-2 [scrollbar-width:none] gap-2 overflow-x-auto overscroll-x-contain px-2 sm:scroll-px-6 sm:gap-4 sm:px-6 [&::-webkit-scrollbar]:hidden"
+        // The gap is at least the row's padding, or the next stop shows at
+        // the screen's edge.
+        className="flex snap-x snap-mandatory scroll-px-2 [scrollbar-width:none] gap-2 overflow-x-auto overscroll-x-contain px-2 sm:scroll-px-6 sm:gap-6 sm:px-6 [&::-webkit-scrollbar]:hidden"
       >
         {features.map((feature, i) => {
           const { Visual } = STOPS[feature.id];
@@ -356,7 +370,7 @@ function StackedTour() {
               role="group"
               aria-roledescription="slide"
               aria-label={`${i + 1} of ${features.length}`}
-              className="w-[90%] shrink-0 snap-center overflow-hidden rounded-[2rem] p-2 sm:w-[80%] sm:p-4"
+              className="w-full shrink-0 snap-center overflow-hidden rounded-[2rem] p-2 sm:p-4"
               style={{ background: backdrop(feature.id) }}
             >
               <div className="rounded-[1.5rem] bg-white p-6">
@@ -399,11 +413,11 @@ function StackedTour() {
 function StopCopy({ id }: { id: FeatureId }) {
   const feature = features.find((item) => item.id === id) ?? features[0];
   const { icon: Icon, label, page } = STOPS[id];
-  const { glow, href, name } = FEATURES[page];
+  const { glow, onGlow, href, name } = FEATURES[page];
   return (
     <>
       <p className="text-ink inline-flex items-center gap-2 text-sm font-medium">
-        <FeatureIcon feature={{ icon: Icon, glow }} />
+        <FeatureIcon feature={{ icon: Icon, glow, onGlow }} />
         {label}
         {feature.soon && <SoonChip />}
       </p>

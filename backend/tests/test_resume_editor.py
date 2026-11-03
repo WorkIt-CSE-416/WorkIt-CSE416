@@ -191,7 +191,7 @@ async def test_render_says_how_many_lines_run_past_one_page(student):
     assert body["lines_over"] > 0
 
 
-async def test_fit_to_one_page_trims_every_entry_before_gutting_one_and_undo_brings_it_all_back(student):
+async def test_fit_to_one_page_trims_bullets_section_by_section_and_undo_brings_it_all_back(student):
     _tectonic_or_skip()
     client, me = student
     await _fill_bank(client, me)
@@ -204,23 +204,28 @@ async def test_fit_to_one_page_trims_every_entry_before_gutting_one_and_undo_bri
     body = res.json()
     assert body["render"]["page_count"] == 1
     hidden = body["hidden"]
-    # Coursework goes first, then each entry's last bullets; every entry
-    # keeps its first bullets, and more of them the more useful it is.
-    assert body["undo"]["entries"][0]["show_coursework"] is True
+    # With no job posting, each entry loses its last bullets first, and a
+    # section goes down to two bullets an entry before the next loses any
+    # (docs/cut_to_one_page.md): Leadership, then Projects, then the bottom
+    # job, then the top one.
     kept = {}
     for title, ids in made.items():
         gone = [b for b in ids if b in hidden]
         assert gone == ids[len(ids) - len(gone):]
         kept[title] = len(ids) - len(gone)
-    assert kept["Newer Job"] >= kept["Older Job"] >= kept["Big Project"] >= kept["Club Lead"] >= 1
-    assert kept["Newer Job"] >= 3
+    order = ["Club Lead", "Big Project", "Older Job", "Newer Job"]
+    assert kept["Club Lead"] < 9
+    for i, title in enumerate(order):
+        if kept[title] < 9:
+            assert all(kept[before] <= 2 for before in order[:i]), kept
+    # Coursework no longer goes first
+    assert "Relevant Coursework: Data Structures, Algorithms" in await _lines(client, me, resume_id)
     shown = {c["bullet_id"]: c["shown"] for c in (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()["bullets"]}
     assert all(shown[b] is False for b in hidden)
 
     # Undo is the editor's PATCH with the response's `undo` body
     await client.patch(f"{me}/built-resumes/{resume_id}/choices", json=body["undo"])
     assert (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["page_count"] == 2
-    assert "Relevant Coursework: Data Structures, Algorithms" in await _lines(client, me, resume_id)
 
 
 async def test_fit_on_a_one_page_resume_hides_nothing(student):
@@ -602,6 +607,48 @@ async def test_a_save_with_a_stale_copy_writes_only_the_typed_field(student):
     assert saved["organization"] == "Campus Center"
 
 
+async def test_an_old_value_typed_back_over_a_stale_copy_is_saved(student):
+    # The editor's copy predates the save before: "Math Tutor" went in,
+    # then "Tutor" was typed back while the copy still said "Tutor"
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+    tutor = next(e for e in copy["entries"] if e["title"] == "Tutor")
+
+    assert (await _type(client, me, resume_id, tutor["id"], "title", "Math Tutor", copy)).status_code == 200
+    res = await _type(client, me, resume_id, tutor["id"], "title", "Tutor", copy)
+    assert res.status_code == 200, res.text
+    assert _entry(await _bank(client, me), "Tutor")["id"] == tutor["id"]
+
+async def test_changed_at_moves_with_an_edit_to_the_bank_the_resume_or_the_header(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    tutor = _entry(await _bank(client, me), "Tutor")["id"]
+
+    async def changed():
+        res = await client.get(f"{me}/built-resumes/{resume_id}/changed-at")
+        assert res.status_code == 200, res.text
+        return res.json()["changed_at"]
+
+    before = await changed()
+    assert (await _type(client, me, resume_id, tutor, "title", "Math Tutor")).status_code == 200
+    after_entry = await changed()
+    assert after_entry > before
+    hide = {"entries": [{"entry_id": tutor, "shown": False}]}
+    assert (await client.patch(f"{me}/built-resumes/{resume_id}/choices", json=hide)).status_code == 200
+    after_choice = await changed()
+    assert after_choice > after_entry
+    assert (await _type(client, me, resume_id, "header", "linkedin_url", "linkedin.com/in/sam")).status_code == 200
+    assert await changed() > after_choice
+
+
+async def test_changed_at_is_404_for_a_resume_that_is_not_there(student):
+    client, me = student
+    res = await client.get(f"{me}/built-resumes/00000000-0000-0000-0000-000000000000/changed-at")
+    assert res.status_code == 404
+
 async def test_a_typed_header_field_with_a_copy_prints_at_once(student):
     _tectonic_or_skip()
     client, me = student
@@ -798,3 +845,69 @@ async def test_a_render_takes_the_token_of_the_paths_applicant_only(student, dat
     res = await client.post(f"{other}/built-resumes/{resume_id}/render", json={
         "changes": {"bullets": []}, "source": copy})
     assert res.status_code == 403
+
+
+# Page settings (KAN-435): the render and the save go side by side
+
+SETTINGS = {"font_size": 12, "line_spacing": 1.15, "side_margin": 0.75, "top_margin": 0.75, "alignment": "justified", "section_spacing": 4, "entry_spacing": 2, "accent": "#14532D", "bullet": "dash", "show_divider": False, "header_alignment": "left",
+            "section_order": ["skills", "education", "experience", "projects", "leadership", "awards", "certifications"],
+            "font_family": "tinos", "name_size": 22, "heading_size": 13, "title_size": 11.5, "body_size": None}
+
+
+async def test_page_settings_render_from_the_copy_and_save_on_their_own(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = await _copy(client, me, resume_id)
+
+    res = await client.post(f"{me}/built-resumes/{resume_id}/render", json={"page": SETTINGS, "source": copy})
+    assert res.status_code == 200, res.text
+    render = res.json()["render"]
+    assert render["page_settings"] == SETTINGS
+    assert render["wrapped_line"] == pytest.approx(13.6 * 1.15)
+    # Rendered, never saved
+    assert (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["page_settings"]["font_size"] == 11
+
+    assert (await client.put(f"{me}/built-resumes/{resume_id}/page-settings", json=SETTINGS)).status_code == 204
+    saved = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert saved["page_settings"] == SETTINGS
+    assert saved["pdf"]
+    assert "letterpaper,12pt" in (await client.get(f"{me}/built-resumes/{resume_id}/tex")).text
+
+
+async def test_a_copy_carries_its_page_settings_into_a_choice_edit(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    copy = {**await _copy(client, me, resume_id), "page_settings": SETTINGS}
+
+    res = await _render_changes(client, me, resume_id, {"bullets": []}, copy)
+    assert res.status_code == 200, res.text
+    assert res.json()["render"]["page_settings"] == SETTINGS
+
+
+async def test_a_page_setting_off_the_lists_is_refused(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    for bad in ({"font_size": 13}, {"side_margin": 0.1}, {"accent": "#123456"}, {"bullet": "star"}, {"header_alignment": "justify"}, {"section_order": ["skills"]}, {"line_spacing": 2}, {"alignment": "center"}):
+        res = await client.put(f"{me}/built-resumes/{resume_id}/page-settings", json=bad)
+        assert res.status_code == 422
+
+
+async def test_page_settings_save_only_on_the_students_own_resume(student):
+    client, me = student
+    res = await client.put(f"{me}/built-resumes/{uuid.uuid4()}/page-settings", json=SETTINGS)
+    assert res.status_code == 404
+
+
+async def test_fit_to_one_page_reads_the_saved_page_settings(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    await client.put(f"{me}/built-resumes/{resume_id}/page-settings", json=SETTINGS)
+    body = (await client.post(f"{me}/built-resumes/{resume_id}/fit")).json()
+    assert body["render"]["page_settings"] == SETTINGS

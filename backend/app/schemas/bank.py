@@ -159,6 +159,10 @@ class EntryResponse(EntryFields):
     resume_ids: list[UUID] = []
     """The resumes that hold this entry (KAN-343): uploads whose import
     found it, and built resumes that show it."""
+    copy_group: str = ""
+    """Shared by entries that are copies of one (`bank.copy_key`, KAN-440):
+    two uploads that list one job hold two entries (ADR 0005), and All
+    Experiences shows them as one row."""
 
 
 class SkillCreate(BaseModel):

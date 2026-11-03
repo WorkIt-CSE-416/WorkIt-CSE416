@@ -1,0 +1,12 @@
+# Overrides apply/policies.default.yaml for the test profiles in this folder,
+# so no test depends on the defaults' values.
+# Their runs start after the Calibration run, so a filled form is submitted.
+# tests/test_claude_answers.py covers the Calibration run itself.
+calibration_run: 0
+# Test values: an Application to one of these is held for review.
+target_companies: [Stripe, Meta, Amazon, NVIDIA]
+cover_letter_never: [Amazon]
+compensation:
+  expectation: Open to the posted range
+  fallback_hourly: 30
+  accept_stated_rate: true

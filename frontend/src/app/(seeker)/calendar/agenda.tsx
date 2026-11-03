@@ -47,7 +47,7 @@ export function Agenda({
 
   return (
     // Scrolls inside the page's height, as Google Calendar's Schedule does.
-    <ol className="mt-4 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain pr-1">
+    <ol className="mt-4 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-none pr-1">
       {days.map((day) => {
         const key = dayKey(day);
 
@@ -59,47 +59,58 @@ export function Agenda({
             </h3>
 
             <ul className="mt-2 flex flex-col gap-1.5">
-              {(byDay.get(key) ?? []).map((event) => {
-                const look = lookOf(event.kind);
-                const { Icon } = look;
-
-                return (
-                  <li key={event.id}>
-                    <EventEntry
-                      event={event}
-                      openHref={openHref}
-                      side="bottom"
-                      className="group/agenda bg-app hover:bg-hover rounded-card focus-visible:ring-brand-ring ease-glide flex items-center gap-3 px-3 py-2.5 transition-[background-color,transform] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.99]"
-                    >
-                      <span className="text-note text-ink-meta w-16 shrink-0">
-                        {timeOf(event) ?? "All Day"}
-                      </span>
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          "ease-glide flex size-8 shrink-0 items-center justify-center rounded-full text-white transition-transform duration-200 group-hover/agenda:scale-105",
-                          look.fill,
-                        )}
-                      >
-                        <Icon aria-hidden className="size-3.5" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="text-label text-ink block truncate font-semibold">
-                          {event.title}
-                        </span>
-                        <span className="text-note text-ink-meta block truncate">
-                          {event.role} · {event.company}
-                        </span>
-                        <span className="sr-only">, {longDay(event.at)}</span>
-                      </span>
-                    </EventEntry>
-                  </li>
-                );
-              })}
+              {(byDay.get(key) ?? []).map((event) => (
+                <li key={event.id}>
+                  <AgendaEntry event={event} openHref={openHref} />
+                </li>
+              ))}
             </ul>
           </li>
         );
       })}
     </ol>
+  );
+}
+
+/**
+ * One entry as the Agenda lists it: the time, the entry in its kind's
+ * colour and glyph, its title and whose it is. The Month's day sheet
+ * (./day-sheet.tsx) lists a day's entries with it too.
+ */
+export function AgendaEntry({
+  event,
+  openHref,
+}: {
+  event: TrackerEvent;
+  openHref: (applicationId: string) => string;
+}) {
+  const look = lookOf(event.kind);
+  const { Icon } = look;
+
+  return (
+    <EventEntry
+      event={event}
+      openHref={openHref}
+      side="bottom"
+      className="group/agenda bg-panel hover:bg-hover rounded-card focus-visible:ring-brand-ring ease-glide flex items-center gap-3 px-3 py-2.5 transition-[background-color,transform] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.99]"
+    >
+      <span className="text-note text-ink-meta w-16 shrink-0">{timeOf(event) ?? "All Day"}</span>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "ease-glide flex size-8 shrink-0 items-center justify-center rounded-full text-white transition-transform duration-200 group-hover/agenda:scale-105",
+          look.fill,
+        )}
+      >
+        <Icon aria-hidden className="size-3.5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="text-label text-ink block truncate font-semibold">{event.title}</span>
+        <span className="text-note text-ink-meta block truncate">
+          {event.role} · {event.company}
+        </span>
+        <span className="sr-only">, {longDay(event.at)}</span>
+      </span>
+    </EventEntry>
   );
 }

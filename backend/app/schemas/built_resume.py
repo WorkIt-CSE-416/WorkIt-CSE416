@@ -80,6 +80,43 @@ class IdentityCopy(BaseModel):
     us_citizen: bool = False
 
 
+SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", "certifications", "skills")
+
+
+class PageSettings(BaseModel):
+    """How a built resume's page is set (KAN-435): resume_render's
+    PageSettings, as the API takes and answers it. Its defaults are Jake's
+    page, and each value is one of the lists the student picks from, or a
+    typed size inside resume_render's scales, in half points."""
+
+    font_size: Literal[10, 11, 12] = 11
+    line_spacing: Literal[1.0, 1.15, 1.3] = 1.0
+    side_margin: Literal[0.5, 0.75, 1.0] = 0.5
+    top_margin: Literal[0.5, 0.75, 1.0] = 0.5
+    alignment: Literal["left", "justified"] = "left"
+    section_spacing: Literal[0, 4, 8, 12] = 0
+    entry_spacing: Literal[0, 2, 4, 6] = 0
+    accent: Literal["#000000", "#1E3A5F", "#14532D", "#7F1D1D", "#4C1D95"] = "#000000"
+    bullet: Literal["dot", "dash"] = "dot"
+    show_divider: bool = True
+    header_alignment: Literal["left", "center", "right"] = "center"
+    section_order: list[str] = list(SECTION_ORDER)
+    font_family: Literal[
+        "latin_modern", "tinos", "caladea", "eb_garamond", "charter", "arimo", "carlito", "open_sans", "lato",
+    ] = "latin_modern"
+    # A size per kind of text; null follows `font_size`, as Jake's does
+    name_size: Annotated[float, Field(ge=14, le=36, multiple_of=0.5)] | None = None
+    heading_size: Annotated[float, Field(ge=9, le=18, multiple_of=0.5)] | None = None
+    title_size: Annotated[float, Field(ge=8, le=16, multiple_of=0.5)] | None = None
+    body_size: Annotated[float, Field(ge=8, le=14, multiple_of=0.5)] | None = None
+
+    @model_validator(mode="after")
+    def _every_section_once(self) -> "PageSettings":
+        if sorted(self.section_order) != sorted(SECTION_ORDER):
+            raise ValueError("Send every section once")
+        return self
+
+
 class RenderResponse(BaseModel):
     """The rendered PDF, base64, with what the student is warned about
     before download and the editor's boxes, in page order."""
@@ -97,6 +134,10 @@ class RenderResponse(BaseModel):
     identity: IdentityCopy | None = None
     # The resume's template id, which the editor sends back in its copy
     template: str = "jakes"
+    # How the page is set, and the distance between a wrapped bullet's
+    # baselines there, which reads a box's height as lines
+    page_settings: PageSettings = PageSettings()
+    wrapped_line: float = 12.0
 
 
 class EntryChoiceResponse(BaseModel):
@@ -203,6 +244,7 @@ class ResumeCopy(BaseModel):
     # From the last render, so a render of the copy reads no resume row
     template: str = Field("jakes", max_length=40)
     file_name: str = Field("Resume.pdf", max_length=200)
+    page_settings: PageSettings = PageSettings()
 
 
 class LineEdit(BaseModel):
@@ -212,7 +254,7 @@ class LineEdit(BaseModel):
 
     item_id: UUID | Literal["header"]
     kind: str
-    text: Annotated[str, StringConstraints(max_length=2000)]
+    text: Annotated[str, StringConstraints(max_length=500)]
 
 
 class LineSave(LineEdit):
@@ -221,6 +263,16 @@ class LineSave(LineEdit):
     reads nothing; without it the entry is read first."""
 
     source: ResumeCopy | None = None
+
+
+class ResumeChanged(BaseModel):
+    """When anything the resume's page prints last changed, and the
+    database's clock now (KAN-391): the editor asks on a return to its tab
+    after a while away, and reloads only when something changed while it
+    was hidden. `now` lets it read its own clock against the database's."""
+
+    changed_at: datetime.datetime
+    now: datetime.datetime
 
 
 class LineSaved(BaseModel):
@@ -234,19 +286,20 @@ class LineSaved(BaseModel):
 
 
 class EditRender(BaseModel):
-    """An edit to render, never saved: a typed line (`line`) or a choice
-    change (`changes`, the choices PATCH body), exactly one, made to the
-    editor's copy (`source`, required: the render reads no database) in
-    memory."""
+    """An edit to render, never saved: a typed line (`line`), a choice
+    change (`changes`, the choices PATCH body) or the page's settings
+    (`page`, KAN-435), exactly one, made to the editor's copy (`source`,
+    required: the render reads no database) in memory."""
 
     line: LineEdit | None = None
     changes: ChoicesUpdate | None = None
+    page: PageSettings | None = None
     source: ResumeCopy
 
     @model_validator(mode="after")
     def _one_edit(self) -> "EditRender":
-        if (self.line is None) == (self.changes is None):
-            raise ValueError("Send a line or changes, not both")
+        if sum(edit is not None for edit in (self.line, self.changes, self.page)) != 1:
+            raise ValueError("Send one of a line, changes or page settings")
         return self
 
 
@@ -262,10 +315,10 @@ class EditRendered(BaseModel):
 
 
 class FitResponse(BaseModel):
-    """Fit to One Page (KAN-218): the bullets it hid, in the order it hid
-    them; `undo`, the PATCH .../choices body that shows everything it hid
-    again (whole entries and coursework lines too); and the render after,
-    which can still be 2 pages when nothing more could be cut."""
+    """Fit to One Page (KAN-218, KAN-320): the bullets it hid, in the order
+    it hid them; `undo`, the PATCH .../choices body that shows everything it
+    hid again (whole entries and skills too); and the render after, one
+    page."""
 
     hidden: list[UUID]
     undo: ChoicesUpdate

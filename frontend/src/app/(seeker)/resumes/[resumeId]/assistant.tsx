@@ -142,7 +142,7 @@ export function Assistant({
     setSaid((s) => [...s, { role: "user", content: label }]);
     const reply = {
       fit: "Fitting it to one page.",
-      hide: "Hidden. It waits in Not on This Resume if you want it back.",
+      hide: "Done. Turn it back on under Experiences if you want it.",
       move_up: "Moved it up.",
     }[action];
     act(action, line, reply);
@@ -173,7 +173,7 @@ export function Assistant({
     >
       <div
         ref={log}
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-4 pb-3"
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-none px-4 pt-4 pb-3"
       >
         {said.map((m, i) =>
           m.role === "user" ? (

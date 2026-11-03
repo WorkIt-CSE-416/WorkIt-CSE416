@@ -31,7 +31,8 @@ export function KitPage({
   );
 }
 
-/** A sub-heading inside a page — "Surfaces" under "Colour". */
+/** A sub-heading inside a page — "Surfaces" under "Colour". An h2 under the
+ *  page's h1, so a specimen that draws a heading of its own takes h3. */
 export function Group({
   title,
   note,
@@ -43,7 +44,7 @@ export function Group({
 }) {
   return (
     <div className="mt-6 first:mt-0">
-      <h3 className="text-caption text-ink-meta uppercase">{title}</h3>
+      <h2 className="text-caption text-ink-meta uppercase">{title}</h2>
       {note && <p className="text-note text-ink-meta mt-1.5 max-w-prose">{note}</p>}
       <div className="mt-3">{children}</div>
     </div>
@@ -77,7 +78,7 @@ export function Row({
       <div className="flex min-w-0 flex-wrap items-center gap-2">{children}</div>
       <div className="min-w-0">
         <code className="text-note text-ink block font-mono break-all">{name}</code>
-        {role && <p className="text-meta text-ink-meta mt-0.5">{role}</p>}
+        {role && <p className="text-note text-ink-meta mt-0.5">{role}</p>}
       </div>
     </div>
   );

@@ -10,7 +10,7 @@ import { listResumes } from "@/lib/resume-actions";
  * The Jobs page's prompt to fill the experience bank (stories 22 and 102).
  * Matching reads the bank, never an uploaded resume, so an empty bank gets
  * this card above the feed: one click on "Import Your Resume" opens the bank
- * page and runs Import Again there (`/bank?import=1`), which writes the
+ * page and runs Import Again there (`/experiences?import=1`), which writes the
  * resume into the bank (ADR 0003). An upload imports itself, so this shows
  * for an upload the parser read nothing in, or one from before that. With no
  * uploaded resume it offers the upload and intake instead. A bank with entries, or a fetch that fails, shows nothing:
@@ -34,7 +34,7 @@ export async function BankPrompt() {
       </p>
       <div className="mt-3 flex flex-wrap gap-3">
         {hasUpload ? (
-          <ButtonLink href="/bank?import=1" size="sm">
+          <ButtonLink href="/experiences?import=1" size="sm">
             <FileArrowUpIcon aria-hidden /> Import Your Resume
           </ButtonLink>
         ) : (
@@ -42,7 +42,7 @@ export async function BankPrompt() {
             <FileArrowUpIcon aria-hidden /> Upload a Resume
           </ButtonLink>
         )}
-        <ButtonLink href="/bank" variant="secondary" size="sm">
+        <ButtonLink href="/experiences" variant="secondary" size="sm">
           <ChatPlusIcon aria-hidden /> Add What You Did
         </ButtonLink>
       </div>

@@ -29,6 +29,13 @@ import { cn } from "@/lib/cn";
  * `max-sm:sr-only`: off the screen but still read out, so a screen reader hears
  * every step at every width.
  *
+ * `lg` NEVER CUTS A LABEL (KAN-572). Its five 16px labels fit whole only from
+ * xl, so below xl only the current one shows (`max-xl:sr-only`), and every
+ * label keeps its full width: a step is as wide as its disc and label, and the
+ * rules alone take the room left over, down to nothing. With every step an
+ * equal share and labels that truncated, a 1024px window read "Re…", "Pr…",
+ * "Ex…", and 1440 cut "Extension".
+ *
  * SEMANTICS: an <ol>, because the steps are ordered and a screen reader should
  * say how many there are. The current one carries aria-current="step". The
  * discs and the connecting rules are decoration and are hidden: the list
@@ -45,17 +52,21 @@ type StepperProps = {
 const SIZES = {
   default: {
     gap: "gap-2",
-    rule: "h-px",
+    step: "min-w-0 flex-1",
+    rule: "h-px min-w-4",
     disc: "text-meta size-5.5",
     check: "size-3.5",
-    label: "text-label",
+    label: "text-label truncate",
+    hidden: "max-sm:sr-only",
   },
   lg: {
-    gap: "gap-2.5",
-    rule: "h-0.5",
+    gap: "gap-1.5 sm:gap-2.5",
+    step: "flex-auto",
+    rule: "h-0.5 min-w-0",
     disc: "text-body size-8",
     check: "size-4",
-    label: "text-subtitle",
+    label: "text-subtitle shrink-0 whitespace-nowrap",
+    hidden: "max-xl:sr-only",
   },
 };
 
@@ -70,7 +81,7 @@ export function Stepper({ steps, current, size = "default", className }: Stepper
         return (
           <li
             key={step}
-            className={cn("flex items-center", s.gap, index > 0 && "min-w-0 flex-1")}
+            className={cn("flex items-center", s.gap, index > 0 && s.step)}
             aria-current={isCurrent ? "step" : undefined}
           >
             {/* The rule leading into this step. It is the flexible part of the
@@ -80,7 +91,7 @@ export function Stepper({ steps, current, size = "default", className }: Stepper
               <span
                 aria-hidden="true"
                 className={cn(
-                  "min-w-4 flex-1 rounded-full",
+                  "flex-1 rounded-full",
                   s.rule,
                   index <= current ? "bg-brand" : "bg-border",
                 )}
@@ -104,11 +115,10 @@ export function Stepper({ steps, current, size = "default", className }: Stepper
                 current step keeps it at lg. */}
             <span
               className={cn(
-                "truncate",
                 s.label,
                 isCurrent ? "text-brand font-semibold" : isDone ? "text-ink" : "text-ink-meta",
                 !isCurrent && size === "lg" && "font-medium",
-                !isCurrent && "max-sm:sr-only",
+                !isCurrent && s.hidden,
               )}
             >
               {step}

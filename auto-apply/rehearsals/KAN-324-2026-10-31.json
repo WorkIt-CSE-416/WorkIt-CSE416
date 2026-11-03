@@ -1,0 +1,2842 @@
+{
+ "run": "2026-10-31",
+ "engine": "fill-engine v0.3.2-202-g239dfde (WorkIt main 1c0b996c)",
+ "pass_bar": 0.9,
+ "postings": [
+  {
+   "n": 1,
+   "shard": 1,
+   "job_system": "workday",
+   "company": "Dow Jones",
+   "title": "Summer 2027 Internship Program – Video Intern",
+   "url": "https://dowjones.wd1.myworkdayjobs.com/dow_jones_career/job/NYC---1211-Ave-of-the-Americas/Summer-2027-Internship-Program---Video-Intern_Job_Req_55898",
+   "final_url": "https://dowjones.wd1.myworkdayjobs.com/en-US/dow_jones_career/job/NYC---1211-Ave-of-the-Americas/Summer-2027-Internship-Program---Video-Intern_Job_Req_55898/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 2,
+   "shard": 1,
+   "job_system": "workday",
+   "company": "Ferrovial",
+   "title": "Webber - Field Engineer Intern I - Infrastructure Management",
+   "url": "https://ferrovial.wd3.myworkdayjobs.com/ferrovial_career_site/job/Jacksonville/Webber---Field-Engineer-Intern-I---Infrastructure-Management_JR20201",
+   "final_url": "https://ferrovial.wd3.myworkdayjobs.com/en-US/ferrovial_career_site/job/Jacksonville/Webber---Field-Engineer-Intern-I---Infrastructure-Management_JR20201/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "Workday My Information prompt fields not set (Country, How Did You Hear, Phone Device Type)",
+   "ticket": "KAN-489",
+   "fill_report_category": "FillError / Readback",
+   "fields": {
+    "filled": 9,
+    "check": 3,
+    "waiting": 0,
+    "needs_you": 2
+   },
+   "fill_report_errors": {
+    "FillError": 1
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "WorkIt stopped on this step Country needs you; check WorkIt's guess for How Did You Hear About Us?; check WorkIt's guess for I have a preferred name (and 1 more",
+    "Country Country: no choice \"United States\" in [\"Select One\",\"Afghanistan\",\"Åland Islands\",\"Albania\",\"Algeria\",\"American Samoa\",\"Andorra\",\"Angola\",\"Anguilla\",\"An"
+   ],
+   "secs": 95
+  },
+  {
+   "n": 3,
+   "shard": 1,
+   "job_system": "workday",
+   "company": "Clarios",
+   "title": "Finance Intern - Winston Salem, NC (Summer 2027)",
+   "url": "https://clarios.wd5.myworkdayjobs.com/clarioscareers/job/United-States-North-Carolina-Kernersville/Finance-Intern---Winston-Salem--NC--Summer-2027-_WD50755",
+   "final_url": "https://clarios.wd5.myworkdayjobs.com/en-US/clarioscareers/job/United-States%2C-North-Carolina%2C-Kernersville/Finance-Intern---Winston-Salem--NC--Summer-2027-_WD50755/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 10,
+    "check": 3,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "WorkIt stopped on this step check WorkIt's guess for How Did You Hear About Us?; check WorkIt's guess for I have a preferred name; check WorkIt's guess for Phon"
+   ],
+   "secs": 27
+  },
+  {
+   "n": 4,
+   "shard": 1,
+   "job_system": "workday",
+   "company": "TD Bank",
+   "title": "Cyber Security Intern/Co-op (Winter 2027)",
+   "url": "https://td.wd3.myworkdayjobs.com/td_bank_careers/job/Toronto-Ontario/Cyber-Security-Co-op---Intern---Winter-2027-_R_1509810",
+   "final_url": "https://td.wd3.myworkdayjobs.com/en-US/td_bank_careers/job/Toronto%2C-Ontario/Cyber-Security-Co-op---Intern---Winter-2027-_R_1509810/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 5,
+   "shard": 2,
+   "job_system": "workday",
+   "company": "Cisco",
+   "title": "Strategy and Planning Manager MBA (Intern) - United States",
+   "url": "https://cisco.wd5.myworkdayjobs.com/cisco_careers/job/San-Francisco-California-US/Strategy-and-Planning-Manager-MBA--Intern----United-States_2024804",
+   "final_url": "https://cisco.wd5.myworkdayjobs.com/en-US/cisco_careers/job/San-Francisco%2C-California%2C-US/Strategy-and-Planning-Manager-MBA--Intern----United-States_2024804/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 6,
+   "shard": 2,
+   "job_system": "workday",
+   "company": "RTX",
+   "title": "Intern: Columbus Engine Center Supply Chain (2027)",
+   "url": "https://globalhr.wd5.myworkdayjobs.com/rec_rtx_ext_gateway/job/US-GA-MIDLAND-MPC--88018987-Macon-Rd--BLDG-MPC/Intern--Columbus-Engine-Center-Supply-Chain--2027-_01874816",
+   "final_url": "https://globalhr.wd5.myworkdayjobs.com/en-US/rec_rtx_ext_gateway/job/US-GA-MIDLAND-MPC-~-8801%2F8987-Macon-Rd-~-BLDG-MPC/Intern--Columbus-Engine-Center-Supply-Chain--2027-_01874816/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Waiting for the application Sign in and start the application. WorkIt fills each step as it shows."
+   ],
+   "secs": 20
+  },
+  {
+   "n": 7,
+   "shard": 3,
+   "job_system": "workday",
+   "company": "The Walt Disney Company",
+   "title": "ABC News This Week Production Intern, Spring 2027",
+   "url": "https://disney.wd5.myworkdayjobs.com/disneycareer/job/Washington-DC-USA/ABC-News-This-Week-Production-Intern--Spring-2027_10158532-2",
+   "final_url": "https://disney.wd5.myworkdayjobs.com/en-US/disneycareer/job/Washington%2C-DC%2C-USA/ABC-News-This-Week-Production-Intern--Spring-2027_10158532-2/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 8,
+   "shard": 3,
+   "job_system": "workday",
+   "company": "Carrier Global",
+   "title": "Lab Assistant Engineering - Co-Op",
+   "url": "https://carrier.wd5.myworkdayjobs.com/jobs/job/CAI19-UTEC-Huntington-111-East-Wayne-Street-Fort-Wayne-IN-46802-USA/Lab-Assistant-Engineering---Co-Op_30220677",
+   "final_url": "https://carrier.wd5.myworkdayjobs.com/en-US/jobs/job/CAI19%3A-UTEC-Huntington%2C-111-East-Wayne-Street%2C-Fort-Wayne%2C-IN%2C-46802-USA/Lab-Assistant-Engineering---Co-Op_30220677/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 9,
+   "shard": 3,
+   "job_system": "workday",
+   "company": "Genworth Financial",
+   "title": "Public Relations Intern - Winter/Spring 2027",
+   "url": "https://gnw.wd1.myworkdayjobs.com/gnw/job/Richmond-Virginia/Public-Relations-Intern---Winter-Spring-2027_REQ-260415",
+   "final_url": "https://gnw.wd1.myworkdayjobs.com/en-US/gnw/job/Richmond%2C-Virginia/Public-Relations-Intern---Winter-Spring-2027_REQ-260415/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 10,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "Sysco",
+   "title": "Intern - UX/UI Engineering",
+   "url": "https://sysco.wd5.myworkdayjobs.com/syscocareers/job/Sysco-LABS-----Sri-Lanka/Intern---UX-UI-Engineering_R271758",
+   "final_url": "https://sysco.wd5.myworkdayjobs.com/en-US/syscocareers/job/Sysco-LABS-----Sri-Lanka/Intern---UX-UI-Engineering_R271758/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 10,
+    "check": 2,
+    "waiting": 1,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "WorkIt stopped on this step check WorkIt's guess for How Did You Hear About Us?; check WorkIt's guess for Phone Device Type; County is still waiting for an answ"
+   ],
+   "secs": 36
+  },
+  {
+   "n": 11,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "American Electric Power",
+   "title": "Communications & Marketing Intern",
+   "url": "https://aep.wd1.myworkdayjobs.com/aepcareersite/job/Roanoke-VA/Communications---Marketing-Intern_R20502",
+   "final_url": "https://aep.wd1.myworkdayjobs.com/en-US/aepcareersite/job/Roanoke%2C-VA/Communications---Marketing-Intern_R20502/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 19
+  },
+  {
+   "n": 12,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "FTI Consulting",
+   "title": "Intern (MBA), Business Transformation",
+   "url": "https://fticonsulting.wd108.myworkdayjobs.com/fticonsultingcareers/job/Madrid-Spain/MBA-Intern--CF-BT-Spain_JR260528",
+   "final_url": "https://fticonsulting.wd108.myworkdayjobs.com/en-US/fticonsultingcareers/job/Madrid%2C-Spain/MBA-Intern--CF-BT-Spain_JR260528/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 20
+  },
+  {
+   "n": 13,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "FOX",
+   "title": "Spring 2027 FOX Sports - Big Ten Network - Internship Program - Chicago, IL",
+   "url": "https://fox.wd1.myworkdayjobs.com/domestic/job/Chicago-Illinois-USA/Spring-2027-FOX-Sports---Big-Ten-Network---Internship-Program---Chicago--IL_R50033926",
+   "final_url": "https://fox.wd1.myworkdayjobs.com/en-US/domestic/job/Chicago%2C-Illinois%2C-USA/Spring-2027-FOX-Sports---Big-Ten-Network---Internship-Program---Chicago--IL_R50033926/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 19
+  },
+  {
+   "n": 14,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "Sanofi",
+   "title": "2027 Spring Co-op Process and CMC Data Science, Waltham, MA",
+   "url": "https://sanofi.wd3.myworkdayjobs.com/sanoficareers/job/Waltham-MA/XMLNAME-2027-Spring-Co-op-Process-and-CMC-Data-Science--Waltham--MA_R2854031",
+   "final_url": "https://sanofi.wd3.myworkdayjobs.com/en-US/sanoficareers/job/Waltham%2C-MA/XMLNAME-2027-Spring-Co-op-Process-and-CMC-Data-Science--Waltham--MA_R2854031/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 15,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "Baker Hughes",
+   "title": "Intern – Engineering – 2026 (M/F/D)",
+   "url": "https://bakerhughes.wd5.myworkdayjobs.com/bakerhughes/job/IT-BA-BARI-STRADA-PROVINCIALE-PER-MODUGNO-10C613/Emerging-Talent---Engineering-Intern-2026-Opportunities--Bari-_R164101",
+   "final_url": "https://bakerhughes.wd5.myworkdayjobs.com/en-US/bakerhughes/job/IT-BA-BARI-STRADA-PROVINCIALE-PER-MODUGNO-10%2BC613/Emerging-Talent---Engineering-Intern-2026-Opportunities--Bari-_R164101/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 16,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "First Quality",
+   "title": "Quality Engineering Intern",
+   "url": "https://firstquality.wd5.myworkdayjobs.com/firstquality/job/US-PA-McElhattan/Quality-Engineering-Intern_R12308",
+   "final_url": "https://firstquality.wd5.myworkdayjobs.com/en-US/firstquality/job/US-PA-McElhattan/Quality-Engineering-Intern_R12308/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 17,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "Fortrea",
+   "title": "Local Payment Point of Contact Internship",
+   "url": "https://fortrea.wd1.myworkdayjobs.com/fortrea/job/Warsaw/Intern_266356",
+   "final_url": "https://fortrea.wd1.myworkdayjobs.com/en-US/fortrea/job/Warsaw/Intern_266356/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 19
+  },
+  {
+   "n": 18,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "Mastercard",
+   "title": "Summer internship 2027 - Sales Analyst Intern– Riyadh, Saudi Arabia",
+   "url": "https://mastercard.wd1.myworkdayjobs.com/campus/job/Riyadh-Saudi-Arabia/Product-Management-Intern--Summer-2027---Saudi-Arabia_R-287595",
+   "final_url": "https://mastercard.wd1.myworkdayjobs.com/en-US/campus/job/Riyadh%2C-Saudi-Arabia/Product-Management-Intern--Summer-2027---Saudi-Arabia_R-287595/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 20
+  },
+  {
+   "n": 19,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "Danaher Corporation",
+   "title": "Intern - Application Integration Developer",
+   "url": "https://danaher.wd1.myworkdayjobs.com/danaherjobs/job/Brea-California-United-States/Intern---Application-Integration-Developer_R1316677",
+   "final_url": "https://danaher.wd1.myworkdayjobs.com/en-US/danaherjobs/job/Brea%2C-California%2C-United-States/Intern---Application-Integration-Developer_R1316677/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 9,
+    "check": 3,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "WorkIt stopped on this step check WorkIt's guess for How Did You Hear About Us?; check WorkIt's guess for I have a preferred name; check WorkIt's guess for Phon"
+   ],
+   "secs": 25
+  },
+  {
+   "n": 20,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "TOPPAN Packaging Americas",
+   "title": "Intern",
+   "url": "https://toppan.wd108.myworkdayjobs.com/toppan-packaging/job/BRA---Pinhais---F831/Intern_JR-200635",
+   "final_url": "https://toppan.wd108.myworkdayjobs.com/en-US/toppan-packaging/job/BRA---Pinhais---F831/Intern_JR-200635/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 21
+  },
+  {
+   "n": 21,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "STV",
+   "title": "Civil Engineering Intern - Summer 2027",
+   "url": "https://stvinc.wd5.myworkdayjobs.com/stv/job/Waco-Texas/Civil-Engineering-Intern---Summer-2027_JR6431",
+   "final_url": "https://stvinc.wd5.myworkdayjobs.com/en-US/stv/job/Waco%2C-Texas/Civil-Engineering-Intern---Summer-2027_JR6431/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 9,
+    "check": 3,
+    "waiting": 1,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "WorkIt stopped on this step check WorkIt's guess for How Did You Hear About Us?; check WorkIt's guess for I have a preferred name; check WorkIt's guess for Phon"
+   ],
+   "secs": 34
+  },
+  {
+   "n": 22,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "The Boeing Company",
+   "title": "Working student / Werkstudent - Flight Deck / Systems Engineering (m/f/d)",
+   "url": "https://boeing.wd1.myworkdayjobs.com/external_subsidiary/job/DEU---Neu-Isenburg-Germany/Working-student---Werkstudent---Flight-Deck---Systems-Engineering--m-f-d-_JR2026527927",
+   "final_url": "https://boeing.wd1.myworkdayjobs.com/en-US/external_subsidiary/job/DEU---Neu-Isenburg%2C-Germany/Working-student---Werkstudent---Flight-Deck---Systems-Engineering--m-f-d-_JR2026527927/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 20
+  },
+  {
+   "n": 23,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "Crane Co.",
+   "title": "Human Resources Co-op",
+   "url": "https://cranecompany.wd5.myworkdayjobs.com/careers/job/Piqua-Ohio/Human-Resources-Co-op_JR102809",
+   "final_url": "https://cranecompany.wd5.myworkdayjobs.com/en-US/careers/job/Piqua%2C-Ohio/Human-Resources-Co-op_JR102809/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 24,
+   "shard": 4,
+   "job_system": "workday",
+   "company": "VSP Vision",
+   "title": "Internship, Software Engineer",
+   "url": "https://vsp.wd1.myworkdayjobs.com/vspvisioncareers/job/Remote-US/Internship--Software-Engineer_R-10046",
+   "final_url": "https://vsp.wd1.myworkdayjobs.com/en-US/vspvisioncareers/job/Remote-US/Internship--Software-Engineer_R-10046/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Waiting for the application Sign in and start the application. WorkIt fills each step as it shows."
+   ],
+   "secs": 18
+  },
+  {
+   "n": 25,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "CIBC",
+   "title": "Corporate Security Coordinator Co-op",
+   "url": "https://cibc.wd3.myworkdayjobs.com/campus/job/Toronto-ON/Corporate-Security-Coordinator-Co-op_2622551",
+   "final_url": "https://cibc.wd3.myworkdayjobs.com/en-US/campus/job/Toronto%2C-ON/Corporate-Security-Coordinator-Co-op_2622551/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 26,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Ensign-Bickford Industries",
+   "title": "Operational Excellence Intern - Summer 2027 - Bracknell",
+   "url": "https://ebi.wd5.myworkdayjobs.com/ebicareers/job/Bracknell-UK/Operational-Excellence-Intern---Summer-2027---Bracknell_REQ107826-1",
+   "final_url": "https://ebi.wd5.myworkdayjobs.com/en-US/ebicareers/job/Bracknell%2C-UK/Operational-Excellence-Intern---Summer-2027---Bracknell_REQ107826-1/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 10,
+    "check": 3,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "WorkIt stopped on this step check WorkIt's guess for How Did You Hear About Us?; check WorkIt's guess for I have a preferred name; check WorkIt's guess for Phon"
+   ],
+   "secs": 106
+  },
+  {
+   "n": 27,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "University of Miami",
+   "title": "Data Science & AI Intern",
+   "url": "https://umiami.wd1.myworkdayjobs.com/umcareerstaff/job/Miami-FL/Data-Science---AI-Intern_R100102550",
+   "final_url": "https://umiami.wd1.myworkdayjobs.com/en-US/umcareerstaff/job/Miami%2C-FL/Data-Science---AI-Intern_R100102550/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Waiting for the application Sign in and start the application. WorkIt fills each step as it shows."
+   ],
+   "secs": 18
+  },
+  {
+   "n": 28,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "GE Aerospace",
+   "title": "Talent Acquisition Intern",
+   "url": "https://geaerospace.wd5.myworkdayjobs.com/ge_externalsite/job/Queretaro/Talent-Acquisition-Intern_R5042404-2",
+   "final_url": "https://geaerospace.wd5.myworkdayjobs.com/en-US/ge_externalsite/job/Queretaro/Talent-Acquisition-Intern_R5042404-2/apply/applyManually",
+   "tab_state": "applied",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "Submit detection fired on a Workday sign-in page (tab marked Applied, nothing sent)",
+   "ticket": "KAN-485",
+   "fill_report_category": "Error (submit watch, no field)",
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 20
+  },
+  {
+   "n": 29,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "BlueCross BlueShield of South Carolina",
+   "title": "Summer Accounting Student Intern - Palmetto GBA",
+   "url": "https://ourhrconnect.wd501.myworkdayjobs.com/scblues/job/Columbia-South-Carolina/Summer-Accounting-Student-Intern---Palmetto-GBA_R1052904-1",
+   "final_url": "https://ourhrconnect.wd501.myworkdayjobs.com/en-US/scblues/job/Columbia%2C-South-Carolina/Summer-Accounting-Student-Intern---Palmetto-GBA_R1052904-1/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 20
+  },
+  {
+   "n": 30,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Mass General Brigham",
+   "title": "Pharmacy Intern",
+   "url": "https://massgeneralbrigham.wd1.myworkdayjobs.com/mgbexternal/job/Newton-MA/Pharmacy-Intern_RQ4084428",
+   "final_url": "https://massgeneralbrigham.wd1.myworkdayjobs.com/en-US/mgbexternal/job/Newton-MA/Pharmacy-Intern_RQ4084428/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 21
+  },
+  {
+   "n": 31,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "University of Virginia",
+   "title": "Graduate Admission Intern (Student Wage)",
+   "url": "https://uva.wd1.myworkdayjobs.com/uvastudentjobs/job/Charlottesville-VA/Graduate-Admission-Intern--Student-Wage-_R0075407-1",
+   "final_url": "https://uva.wd1.myworkdayjobs.com/en-US/uvastudentjobs/job/Charlottesville%2C-VA/Graduate-Admission-Intern--Student-Wage-_R0075407-1/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 19
+  },
+  {
+   "n": 32,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Ace Hardware",
+   "title": "IT Associate Software Engineer 2027 Summer Internship (Full Time/Paid/12 weeks)",
+   "url": "https://acehardware.wd1.myworkdayjobs.com/external/job/IL---Oak-Brook/IT-Associate-Software-Engineer-2027-Summer-Internship--Full-Time-Paid-12-weeks-_REQ-34797",
+   "final_url": "https://acehardware.wd1.myworkdayjobs.com/en-US/external/job/IL---Oak-Brook/IT-Associate-Software-Engineer-2027-Summer-Internship--Full-Time-Paid-12-weeks-_REQ-34797/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "Workday My Information prompt fields not set (Country, How Did You Hear, Phone Device Type)",
+   "ticket": "KAN-489",
+   "fill_report_category": "FillError / Readback",
+   "fields": {
+    "filled": 9,
+    "check": 1,
+    "waiting": 0,
+    "needs_you": 2
+   },
+   "fill_report_errors": {
+    "NoAnswer": 1
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "WorkIt stopped on this step check WorkIt's guess for How Did You Hear About Us?; Phone Device Type needs you. Fix it, then press Save and Continue yourself. Wor",
+    "Phone Device Type"
+   ],
+   "secs": 32
+  },
+  {
+   "n": 33,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Covestro",
+   "title": "Werkstudent:in Supply Chain Communications & Marketing (w/m/d) - mit Gehaltsangabe",
+   "url": "https://covestro.wd3.myworkdayjobs.com/cov_external/job/Leverkusen/Werkstudent-in-Supply-Chain-Communications---Marketing--w-m-d----mit-Gehaltsangabe_JR-2026-02059-1",
+   "final_url": "https://covestro.wd3.myworkdayjobs.com/en-US/cov_external/job/Leverkusen/Werkstudent-in-Supply-Chain-Communications---Marketing--w-m-d----mit-Gehaltsangabe_JR-2026-02059-1/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Waiting for the application Sign in and start the application. WorkIt fills each step as it shows."
+   ],
+   "secs": 20
+  },
+  {
+   "n": 34,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "University of Pennsylvania",
+   "title": "Temporary Co-Op Worker - Research Assistant",
+   "url": "https://upenn.wd1.myworkdayjobs.com/careers-at-penn/job/3535-Market/Temporary-Co-Op-Worker---Research-Assistant_JR00129760",
+   "final_url": "https://upenn.wd1.myworkdayjobs.com/en-US/careers-at-penn/job/3535-Market/Temporary-Co-Op-Worker---Research-Assistant_JR00129760/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Waiting for the application Sign in and start the application. WorkIt fills each step as it shows."
+   ],
+   "secs": 19
+  },
+  {
+   "n": 35,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Great American Insurance Company",
+   "title": "Content Publishing Developer Intern - Summer 2027",
+   "url": "https://gaig.wd1.myworkdayjobs.com/gaig_external/job/Cincinnati-OH-USA/Content-Publishing-Developer-Intern---Summer-2027_R9813",
+   "final_url": "https://gaig.wd1.myworkdayjobs.com/en-US/gaig_external/job/Cincinnati%2C-OH-(USA)/Content-Publishing-Developer-Intern---Summer-2027_R9813/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 21
+  },
+  {
+   "n": 36,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Jones Lang LaSalle (JLL)",
+   "title": "HVAC Technician Intern",
+   "url": "https://jll.wd1.myworkdayjobs.com/jllcareers/job/Berkeley-MO/HVAC-Technician-Intern_REQ524659",
+   "final_url": "https://jll.wd1.myworkdayjobs.com/en-US/jllcareers/job/Berkeley%2C-MO/HVAC-Technician-Intern_REQ524659/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 10,
+    "check": 3,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "WorkIt stopped on this step check WorkIt's guess for How Did You Hear About Us?; check WorkIt's guess for I have a preferred name; check WorkIt's guess for Phon"
+   ],
+   "secs": 33
+  },
+  {
+   "n": 37,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Salesforce",
+   "title": "AI Labs Summer Internship, Emerging Talent",
+   "url": "https://salesforce.wd12.myworkdayjobs.com/external_career_site/job/California---San-Francisco/AI-Labs-Summer-Internship--Emerging-Talent_JR366248",
+   "final_url": "https://salesforce.wd12.myworkdayjobs.com/en-US/external_career_site/job/California---San-Francisco/AI-Labs-Summer-Internship--Emerging-Talent_JR366248/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 19
+  },
+  {
+   "n": 38,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Gartner",
+   "title": "Sales Internship, Barcelona, Summer 2027 (2028 Graduates)",
+   "url": "https://gartner.wd5.myworkdayjobs.com/ext/job/Barcelona/Sales-Internship--Barcelona--Summer-2027--2028-Graduates-_115598",
+   "final_url": "https://gartner.wd5.myworkdayjobs.com/en-US/ext/job/Barcelona/Sales-Internship--Barcelona--Summer-2027--2028-Graduates-_115598/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Waiting for the application Sign in and start the application. WorkIt fills each step as it shows."
+   ],
+   "secs": 19
+  },
+  {
+   "n": 39,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Boston Dynamics",
+   "title": "Technical Program Manager Co-Op",
+   "url": "https://bostondynamics.wd1.myworkdayjobs.com/boston_dynamics/job/Waltham-Office-POST/Technical-Program-Manager-Co-Op_R3331",
+   "final_url": "https://bostondynamics.wd1.myworkdayjobs.com/en-US/boston_dynamics/job/Waltham-Office-(POST)/Technical-Program-Manager-Co-Op_R3331/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 19
+  },
+  {
+   "n": 40,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Stryker",
+   "title": "Tax Intern",
+   "url": "https://stryker.wd1.myworkdayjobs.com/strykercareers/job/Amsterdam-Netherlands/Tax-Intern_R575941",
+   "final_url": "https://stryker.wd1.myworkdayjobs.com/en-US/strykercareers/job/Amsterdam%2C-Netherlands/Tax-Intern_R575941/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Waiting for the application Sign in and start the application. WorkIt fills each step as it shows."
+   ],
+   "secs": 20
+  },
+  {
+   "n": 41,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Travelers",
+   "title": "Risk Control Intern",
+   "url": "https://travelers.wd5.myworkdayjobs.com/external/job/NC---Charlotte/Risk-Control-Intern_R-53501",
+   "final_url": "https://travelers.wd5.myworkdayjobs.com/en-US/external/job/NC---Charlotte/Risk-Control-Intern_R-53501/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 42,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Viridien",
+   "title": "Imaging Geophysicist Summer Internship 2027",
+   "url": "https://cgg.wd103.myworkdayjobs.com/viridiencareers/job/Crawley-United-Kingdom/Imaging-Geophysicist-Summer-Internship-2027_JR101552-1",
+   "final_url": "https://cgg.wd103.myworkdayjobs.com/en-US/viridiencareers/job/Crawley%2C-United-Kingdom/Imaging-Geophysicist-Summer-Internship-2027_JR101552-1/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 21
+  },
+  {
+   "n": 43,
+   "shard": 1,
+   "job_system": "oracle",
+   "company": "WSP",
+   "title": "Transportation Planning Intern - Summer 2026",
+   "url": "https://emit.fa.ca3.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/job/98518",
+   "final_url": "https://emit.fa.ca3.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/job/98518/apply/email",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: email gate",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Enter your email to start Enter your email on Oracle's page, tick its terms box and press Next (and enter the code Oracle emails you, if it asks). WorkIt never "
+   ],
+   "secs": 20
+  },
+  {
+   "n": 44,
+   "shard": 1,
+   "job_system": "oracle",
+   "company": "Molina Healthcare",
+   "title": "Intern",
+   "url": "https://hckd.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/2040151",
+   "final_url": "https://hckd.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/2040151/apply/email",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: email gate",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Enter your email to start Enter your email on Oracle's page, tick its terms box and press Next (and enter the code Oracle emails you, if it asks). WorkIt never "
+   ],
+   "secs": 20
+  },
+  {
+   "n": 45,
+   "shard": 1,
+   "job_system": "oracle",
+   "company": "Schroders",
+   "title": "2027 Japanese Equities Internship Programme (JPN)",
+   "url": "https://ekbq.fa.em2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2/job/2155",
+   "final_url": "https://ekbq.fa.em2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2/job/2155/apply/email",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: email gate",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Enter your email to start Enter your email on Oracle's page, tick its terms box and press Next (and enter the code Oracle emails you, if it asks). WorkIt never "
+   ],
+   "secs": 20
+  },
+  {
+   "n": 46,
+   "shard": 1,
+   "job_system": "oracle",
+   "company": "Hunt Oil Company",
+   "title": "Supply Chain Intern - Summer 2027",
+   "url": "https://fa-eqcd-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/1102",
+   "final_url": "https://fa-eqcd-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/1102/apply/email",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: email gate",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Enter your email to start Enter your email on Oracle's page, tick its terms box and press Next (and enter the code Oracle emails you, if it asks). WorkIt never "
+   ],
+   "secs": 19
+  },
+  {
+   "n": 47,
+   "shard": 2,
+   "job_system": "oracle",
+   "company": "Nokia",
+   "title": "Optical Test Automation Co-op/Intern",
+   "url": "https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/40117",
+   "final_url": "https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/40117/apply/email",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: email gate",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Enter your email to start Enter your email on Oracle's page, tick its terms box and press Next (and enter the code Oracle emails you, if it asks). WorkIt never "
+   ],
+   "secs": 19
+  },
+  {
+   "n": 48,
+   "shard": 2,
+   "job_system": "oracle",
+   "company": "Honeywell",
+   "title": "Intern Bachelors Systems Eng",
+   "url": "https://ibqbjb.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Honeywell/job/161066",
+   "final_url": "https://ibqbjb.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Honeywell/job/161066/apply/email",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: email gate",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Enter your email to start Enter your email on Oracle's page, tick its terms box and press Next (and enter the code Oracle emails you, if it asks). WorkIt never "
+   ],
+   "secs": 18
+  },
+  {
+   "n": 49,
+   "shard": 3,
+   "job_system": "oracle",
+   "company": "Stantec",
+   "title": "Mechanical Engineering Intern - Buildings (Summer 2027)",
+   "url": "https://hdhl.fa.us6.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/1008568",
+   "final_url": "https://hdhl.fa.us6.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/1008568/apply/email",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: email gate",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Enter your email to start Enter your email on Oracle's page, tick its terms box and press Next (and enter the code Oracle emails you, if it asks). WorkIt never "
+   ],
+   "secs": 19
+  },
+  {
+   "n": 50,
+   "shard": 3,
+   "job_system": "oracle",
+   "company": "SCOR",
+   "title": "Sustainable Insurance Internship",
+   "url": "https://fa-errt-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/job/5544",
+   "final_url": "https://fa-errt-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/job/5544/apply/email",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: email gate",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Enter your email to start Enter your email on Oracle's page, tick its terms box and press Next (and enter the code Oracle emails you, if it asks). WorkIt never "
+   ],
+   "secs": 20
+  },
+  {
+   "n": 51,
+   "shard": 3,
+   "job_system": "oracle",
+   "company": "Emerson Electric",
+   "title": "Quality & Customer Experience Intern",
+   "url": "https://hdjq.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/26010989",
+   "final_url": "https://hdjq.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/26010989/apply/email",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: email gate",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Enter your email to start Enter your email on Oracle's page, tick its terms box and press Next (and enter the code Oracle emails you, if it asks). WorkIt never "
+   ],
+   "secs": 18
+  },
+  {
+   "n": 52,
+   "shard": 4,
+   "job_system": "oracle",
+   "company": "GM financial",
+   "title": "Intern - Data Engineer",
+   "url": "https://fa-exvu-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/261197",
+   "final_url": "https://fa-exvu-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/261197/apply/email",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: email gate",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Enter your email to start Enter your email on Oracle's page, tick its terms box and press Next (and enter the code Oracle emails you, if it asks). WorkIt never "
+   ],
+   "secs": 18
+  },
+  {
+   "n": 53,
+   "shard": 4,
+   "job_system": "oracle",
+   "company": "Kroll",
+   "title": "Intern, Investigations, Diligence and Compliance",
+   "url": "https://hcxs.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/21015120",
+   "final_url": "https://hcxs.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/21015120/apply/email",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: email gate",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Enter your email to start Enter your email on Oracle's page, tick its terms box and press Next (and enter the code Oracle emails you, if it asks). WorkIt never "
+   ],
+   "secs": 21
+  },
+  {
+   "n": 54,
+   "shard": 1,
+   "job_system": "greenhouse",
+   "company": "The New York Times",
+   "title": "Communications Intern",
+   "url": "https://job-boards.greenhouse.io/thenewyorktimes/jobs/4748228005",
+   "final_url": "https://job-boards.greenhouse.io/thenewyorktimes/jobs/4748228005",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "A screening question the profile answers was left for the student",
+   "ticket": "KAN-486",
+   "fill_report_category": "NoAnswer",
+   "fields": {
+    "filled": 24,
+    "check": 1,
+    "waiting": 3,
+    "needs_you": 3
+   },
+   "fill_report_errors": {
+    "NoAnswer": 3
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Are you prohibited or limited in your performance of any job duties for a company by any restrictive covenants not to compete, confidentiality agreements or any",
+    "I certify that all information provided in this application is true, complete, and accurate to the best of my knowledge. I understand that any misrepresentation",
+    "Are you local to NYC or the Tri-State area and able to commute in for a Hybrid work schedule?"
+   ],
+   "secs": 20
+  },
+  {
+   "n": 55,
+   "shard": 2,
+   "job_system": "greenhouse",
+   "company": "Uber Freight",
+   "title": "AP/AR Intern - QRO",
+   "url": "https://job-boards.greenhouse.io/uberfreight/jobs/5468622008",
+   "final_url": "https://job-boards.greenhouse.io/uberfreight/jobs/5468622008",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "Greenhouse choice not matched (form language or option wording)",
+   "ticket": "KAN-487",
+   "fill_report_category": "FillError",
+   "fields": {
+    "filled": 5,
+    "check": 0,
+    "waiting": 7,
+    "needs_you": 6
+   },
+   "fill_report_errors": {
+    "FillError": 4,
+    "NoAnswer": 1
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Left for you You may not meet this requirement: Posting is outside the US: Mexico",
+    "Currículum",
+    "Start date month (optional) the form offers no \"August\"",
+    "End date month the form offers no \"May\"",
+    "Phone country (optional) Greenhouse's search offered no \"United States\"",
+    "VeteranStatus (optional) the form offers no \"I am not a protected veteran\""
+   ],
+   "secs": 102
+  },
+  {
+   "n": 56,
+   "shard": 2,
+   "job_system": "greenhouse",
+   "company": "Hasbro",
+   "title": "2027 Spring - Packaging Engineer Co-op (Jan - July 2027)",
+   "url": "https://job-boards.greenhouse.io/hasbro/jobs/4472758009",
+   "final_url": "https://job-boards.greenhouse.io/hasbro/jobs/4472758009",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 12,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 2
+   },
+   "fill_report_errors": {
+    "NoAnswer": 1
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Left for you You may not meet this requirement: Screener: Will you remain enrolled in your academic program for the full duration of the internship or co-op? (N",
+    "Are you able to work at the designated office location and follow the required hybrid/in-office schedule?"
+   ],
+   "secs": 18
+  },
+  {
+   "n": 57,
+   "shard": 3,
+   "job_system": "greenhouse",
+   "company": "Anduril",
+   "title": "Winter 2027 Library Science Co-op",
+   "url": "https://boards.greenhouse.io/andurilindustries/jobs/5278662007?gh_jid=5278662007",
+   "final_url": "https://job-boards.greenhouse.io/andurilindustries/jobs/5278662007?gh_jid=5278662007",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "A screening question the profile answers was left for the student",
+   "ticket": "KAN-486",
+   "fill_report_category": "NoAnswer",
+   "fields": {
+    "filled": 20,
+    "check": 1,
+    "waiting": 0,
+    "needs_you": 3
+   },
+   "fill_report_errors": {
+    "NoAnswer": 3
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "What is your top location preference?",
+    "Legal First Name: As shown on your government-issued ID (e.g. passport or driver's license).",
+    "Legal Last Name: As shown on your government-issued ID (e.g. passport or driver's license)."
+   ],
+   "secs": 19
+  },
+  {
+   "n": 58,
+   "shard": 3,
+   "job_system": "greenhouse",
+   "company": "Two Six Technologies",
+   "title": "Systems Software Engineering Intern",
+   "url": "https://job-boards.greenhouse.io/twosixtechnologies/jobs/6236518004",
+   "final_url": "https://job-boards.greenhouse.io/twosixtechnologies/jobs/6236518004",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "A screening question the profile answers was left for the student",
+   "ticket": "KAN-486",
+   "fill_report_category": "NoAnswer",
+   "fields": {
+    "filled": 25,
+    "check": 1,
+    "waiting": 3,
+    "needs_you": 3
+   },
+   "fill_report_errors": {
+    "FillError": 1,
+    "NoAnswer": 2
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "What academic year are you currently in? the form offers no \"Rising Junior \"",
+    "Security Clearance",
+    "Are you a current or former direct employee of any government institutions (including any governmental entities at the federal/national, state/provincial, and l"
+   ],
+   "secs": 38
+  },
+  {
+   "n": 59,
+   "shard": 3,
+   "job_system": "greenhouse",
+   "company": "Apex Companies",
+   "title": "Transportation Engineering Co-op (Spring 2027)",
+   "url": "https://job-boards.greenhouse.io/apexcompanies/jobs/5459108008",
+   "final_url": "https://job-boards.greenhouse.io/apexcompanies/jobs/5459108008",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 26,
+    "check": 1,
+    "waiting": 4,
+    "needs_you": 1
+   },
+   "fill_report_errors": {
+    "NoAnswer": 1
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "By responding \"Yes\", I certify that I have read and agree to the Terms and Conditions contained within the application."
+   ],
+   "secs": 20
+  },
+  {
+   "n": 60,
+   "shard": 4,
+   "job_system": "greenhouse",
+   "company": "Garda Capital Partners",
+   "title": "Infrastructure Engineer Intern",
+   "url": "https://job-boards.greenhouse.io/gardacp/jobs/6239821004",
+   "final_url": "https://job-boards.greenhouse.io/gardacp/jobs/6239821004",
+   "tab_state": "ready",
+   "outcome": "reached review",
+   "verdict": "pass",
+   "reason": "reached review",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 10,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 0
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [],
+   "secs": 18
+  },
+  {
+   "n": 61,
+   "shard": 4,
+   "job_system": "greenhouse",
+   "company": "Lunar Energy",
+   "title": "Hardware Test Engineering Intern",
+   "url": "https://job-boards.greenhouse.io/lunarenergy/jobs/6237015004",
+   "final_url": "https://job-boards.greenhouse.io/lunarenergy/jobs/6237015004",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 16,
+    "check": 1,
+    "waiting": 1,
+    "needs_you": 0
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [],
+   "secs": 18
+  },
+  {
+   "n": 62,
+   "shard": 4,
+   "job_system": "greenhouse",
+   "company": "Fussball Club Cincinnati LLC (“FC Cincinnati”)",
+   "title": "Guest Experience Intern",
+   "url": "https://job-boards.greenhouse.io/fccincinnati/jobs/8106933003",
+   "final_url": "https://job-boards.greenhouse.io/fccincinnati/jobs/8106933003",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 11,
+    "check": 0,
+    "waiting": 2,
+    "needs_you": 0
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [],
+   "secs": 18
+  },
+  {
+   "n": 63,
+   "shard": 1,
+   "job_system": "icims",
+   "company": "Enterprise Mobility",
+   "title": "Management Trainee Summer Internship- Idaho Falls, ID",
+   "url": "https://us-erac.icims.com/jobs/571115/management-trainee-summer-internship--idaho-falls%2c-id/job",
+   "final_url": "https://us-erac.icims.com/jobs/571115/login?mobile=false&width=1067&height=500&bga=true&needsRedirect=false&jan1offset=-300&jun1offset=-240",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to iCIMS, then WorkIt fills Sign in on iCIMS's page: enter your email, answer its privacy notice yourself, then your password (or make your login). Work"
+   ],
+   "secs": 18
+  },
+  {
+   "n": 64,
+   "shard": 1,
+   "job_system": "icims",
+   "company": "Wipfli",
+   "title": "Audit Internship – Summer 2028",
+   "url": "https://careers-wipfli.icims.com/jobs/8505/audit-internship-%e2%80%93-summer-2028/job",
+   "final_url": "https://careers-wipfli.icims.com/jobs/8505/login?mobile=false&width=1110&height=500&bga=true&needsRedirect=false&jan1offset=-300&jun1offset=-240",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to iCIMS, then WorkIt fills Sign in on iCIMS's page: enter your email, answer its privacy notice yourself, then your password (or make your login). Work"
+   ],
+   "secs": 20
+  },
+  {
+   "n": 65,
+   "shard": 1,
+   "job_system": "icims",
+   "company": "Walter P Moore",
+   "title": "Engineering Intern - Water Resources",
+   "url": "https://careers-walterpmoore.icims.com/jobs/4317/engineering-intern---water-resources/job",
+   "final_url": "https://careers-walterpmoore.icims.com/jobs/4317/login?mobile=false&width=1250&height=500&bga=true&needsRedirect=false&jan1offset=-300&jun1offset=-240",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to iCIMS, then WorkIt fills Sign in on iCIMS's page: enter your email, answer its privacy notice yourself, then your password (or make your login). Work"
+   ],
+   "secs": 18
+  },
+  {
+   "n": 66,
+   "shard": 1,
+   "job_system": "icims",
+   "company": "W.R. Berkley",
+   "title": "Actuarial Intern",
+   "url": "https://careers-berkley.icims.com/jobs/14812/actuarial-intern/job",
+   "final_url": "https://careers-berkley.icims.com/jobs/14812/login?mobile=false&width=1068&height=500&bga=true&needsRedirect=false&jan1offset=-300&jun1offset=-240",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to iCIMS, then WorkIt fills Sign in on iCIMS's page: enter your email, answer its privacy notice yourself, then your password (or make your login). Work"
+   ],
+   "secs": 18
+  },
+  {
+   "n": 67,
+   "shard": 2,
+   "job_system": "icims",
+   "company": "Cook Group",
+   "title": "Manufacturing Engineering Co-op - Spring 2027 - Bloomington, IN",
+   "url": "https://americas-cookmedical.icims.com/jobs/19984/manufacturing-engineering-co-op---spring-2027---bloomington%2c-in/job",
+   "final_url": "https://americas-cookmedical.icims.com/jobs/19984/login?mobile=false&width=1120&height=500&bga=true&needsRedirect=false&jan1offset=-300&jun1offset=-240",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to iCIMS, then WorkIt fills Sign in on iCIMS's page: enter your email, answer its privacy notice yourself, then your password (or make your login). Work"
+   ],
+   "secs": 18
+  },
+  {
+   "n": 68,
+   "shard": 2,
+   "job_system": "icims",
+   "company": "General Dynamics Mission Systems",
+   "title": "Virginia Tech ISE Program - Industrial and Systems Engineering Internship",
+   "url": "https://careers-gdms.icims.com/jobs/75813/virginia-tech-ise-program---industrial-and-systems-engineering-internship/job",
+   "final_url": "https://careers-gdms.icims.com/jobs/75813/login?mobile=false&width=1180&height=500&bga=true&needsRedirect=false&jan1offset=-300&jun1offset=-240",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to iCIMS, then WorkIt fills Sign in on iCIMS's page: enter your email, answer its privacy notice yourself, then your password (or make your login). Work"
+   ],
+   "secs": 18
+  },
+  {
+   "n": 69,
+   "shard": 3,
+   "job_system": "icims",
+   "company": "Geosyntec Consultants",
+   "title": "Intern – Environmental Engineer or Geologist",
+   "url": "https://careers-geosyntec.icims.com/jobs/4904/intern-%e2%80%93-environmental-engineer-or-geologist/job",
+   "final_url": "https://careers-geosyntec.icims.com/jobs/4904/login?mobile=false&width=1122&height=500&bga=true&needsRedirect=false&jan1offset=-300&jun1offset=-240",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to iCIMS, then WorkIt fills Sign in on iCIMS's page: enter your email, answer its privacy notice yourself, then your password (or make your login). Work"
+   ],
+   "secs": 18
+  },
+  {
+   "n": 70,
+   "shard": 3,
+   "job_system": "icims",
+   "company": "Atlassian",
+   "title": "AI Research Intern (PhD), 2027 Summer U.S.",
+   "url": "https://campus-americas.icims.com/jobs/26269/ai-research-intern-%28phd%29%2c-2027-summer-u.s./job",
+   "final_url": "https://campus-americas.icims.com/jobs/26269/login?mobile=false&width=1190&height=500&bga=true&needsRedirect=false&jan1offset=-300&jun1offset=-240",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to iCIMS, then WorkIt fills Sign in on iCIMS's page: enter your email, answer its privacy notice yourself, then your password (or make your login). Work"
+   ],
+   "secs": 18
+  },
+  {
+   "n": 71,
+   "shard": 1,
+   "job_system": "tiktok",
+   "company": "TikTok",
+   "title": "Machine Learning Engineer Intern (Global E-Commerce, Recommendation) - 2027 Start (PhD)",
+   "url": "https://lifeattiktok.com/search/7666289654154938629",
+   "final_url": "https://lifeattiktok.com/login?redirect_path=%2Fresume%2F7666289654154938629%2Fapply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to TikTok, then press Fill WorkIt never signs in for you. WorkIt fills the application once its form shows."
+   ],
+   "secs": 20
+  },
+  {
+   "n": 72,
+   "shard": 1,
+   "job_system": "tiktok",
+   "company": "TikTok",
+   "title": "Regional & Product Policy Project Intern (Business Integrity - Policy) - 2026 Start (BS/MS)",
+   "url": "https://lifeattiktok.com/search/7675010456463608069",
+   "final_url": "https://lifeattiktok.com/login?redirect_path=%2Fresume%2F7675010456463608069%2Fapply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to TikTok, then press Fill WorkIt never signs in for you. WorkIt fills the application once its form shows."
+   ],
+   "secs": 20
+  },
+  {
+   "n": 73,
+   "shard": 1,
+   "job_system": "tiktok",
+   "company": "TikTok",
+   "title": "Fashion Menswear Account Manager Project Intern (TikTok Shop by Tokopedia) - 2026 Start",
+   "url": "https://lifeattiktok.com/search/7696139111187351861",
+   "final_url": "https://lifeattiktok.com/login?redirect_path=%2Fresume%2F7696139111187351861%2Fapply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to TikTok, then press Fill WorkIt never signs in for you. WorkIt fills the application once its form shows."
+   ],
+   "secs": 18
+  },
+  {
+   "n": 74,
+   "shard": 2,
+   "job_system": "tiktok",
+   "company": "TikTok",
+   "title": "Chinese Speaking FBT Seller Growth & Solutions Project Intern (Logistics FBT) - 2026 Start",
+   "url": "https://lifeattiktok.com/search/7668317460819167541",
+   "final_url": "https://lifeattiktok.com/login?redirect_path=%2Fresume%2F7668317460819167541%2Fapply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to TikTok, then press Fill WorkIt never signs in for you. WorkIt fills the application once its form shows."
+   ],
+   "secs": 20
+  },
+  {
+   "n": 75,
+   "shard": 2,
+   "job_system": "tiktok",
+   "company": "TikTok",
+   "title": "Brand Campaign, Project Intern (Campaign UK), 2026 Start (BS/MS)",
+   "url": "https://lifeattiktok.com/search/7631592324598417717",
+   "final_url": "https://lifeattiktok.com/login?redirect_path=%2Fresume%2F7631592324598417717%2Fapply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to TikTok, then press Fill WorkIt never signs in for you. WorkIt fills the application once its form shows."
+   ],
+   "secs": 20
+  },
+  {
+   "n": 76,
+   "shard": 3,
+   "job_system": "tiktok",
+   "company": "TikTok",
+   "title": "Machine Learning Engineer Intern (E-Commerce Supply Chain & Logistics-LLM/Agent) - 2027 Start (PhD)",
+   "url": "https://lifeattiktok.com/search/7675847556668295429",
+   "final_url": "https://lifeattiktok.com/login?redirect_path=%2Fresume%2F7675847556668295429%2Fapply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to TikTok, then press Fill WorkIt never signs in for you. WorkIt fills the application once its form shows."
+   ],
+   "secs": 20
+  },
+  {
+   "n": 77,
+   "shard": 1,
+   "job_system": "ashby",
+   "company": "Shield AI",
+   "title": "Electrical Engineering Co-op - January 2027",
+   "url": "https://jobs.ashbyhq.com/f7d8749a-72d6-407c-bf98-292ea630c73a/7c6f4d6d-fac0-4d71-9d4e-7581db11dc33/application",
+   "final_url": "https://jobs.ashbyhq.com/f7d8749a-72d6-407c-bf98-292ea630c73a/7c6f4d6d-fac0-4d71-9d4e-7581db11dc33/application",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 18,
+    "check": 1,
+    "waiting": 12,
+    "needs_you": 2
+   },
+   "fill_report_errors": {
+    "NoAnswer": 2
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Shield AI provides technology, services, and support to the United States military and allied forces with their various missions. If selected for employment wit",
+    "Preferred Work Location"
+   ],
+   "secs": 40
+  },
+  {
+   "n": 78,
+   "shard": 2,
+   "job_system": "ashby",
+   "company": "Upvest",
+   "title": "Payments and Reconciliations Intern (f/m/d)",
+   "url": "https://jobs.ashbyhq.com/upvest/29550ebe-f143-474d-bd55-ce3b1970c90c/application",
+   "final_url": "https://jobs.ashbyhq.com/upvest/29550ebe-f143-474d-bd55-ce3b1970c90c/application",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 7,
+    "check": 0,
+    "waiting": 4,
+    "needs_you": 0
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [],
+   "secs": 20
+  },
+  {
+   "n": 79,
+   "shard": 2,
+   "job_system": "ashby",
+   "company": "Sierra",
+   "title": "Research Intern",
+   "url": "https://jobs.ashbyhq.com/sierra/ef896ee9-e903-4a1f-84c2-537373cb9081/application",
+   "final_url": "https://jobs.ashbyhq.com/sierra/ef896ee9-e903-4a1f-84c2-537373cb9081/application",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 14,
+    "check": 2,
+    "waiting": 7,
+    "needs_you": 3
+   },
+   "fill_report_errors": {
+    "NoAnswer": 2
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Left for you You may not meet this requirement: Posting requires graduate study: Currently pursuing a PhD in computer science, machine learning, or a related fi",
+    "We use Metaview, an AI notetaking tool, to streamline interviews by recoding and summarizing discussions, enabling interviewers to be fully present without manu",
+    "We use Metaview, an AI notetaking tool, to streamline interviews by recording and summarizing discussions, enabling interviewers to be fully present without man"
+   ],
+   "secs": 23
+  },
+  {
+   "n": 80,
+   "shard": 3,
+   "job_system": "ashby",
+   "company": "Snowflake",
+   "title": "Product Management Intern (Summer 2027)",
+   "url": "https://jobs.ashbyhq.com/snowflake/322b82f6-4b18-4f86-ae34-007f55c4bdbf/application",
+   "final_url": "https://jobs.ashbyhq.com/snowflake/322b82f6-4b18-4f86-ae34-007f55c4bdbf/application",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "Ashby yes/no answers fail read-back",
+   "ticket": "KAN-488",
+   "fill_report_category": "Readback",
+   "fields": {
+    "filled": 11,
+    "check": 0,
+    "waiting": 1,
+    "needs_you": 7
+   },
+   "fill_report_errors": {
+    "Readback": 5,
+    "NoAnswer": 2
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Will you require company sponsorship now or in the future to maintain or extend your current work authorization status? meant 'No', page shows 'NO'",
+    "In office attendance is an essential function for this role and necessary to enable effective teamwork and collaboration. Do you currently reside within commuti",
+    "Have you worked at Snowflake in the past in a Full-time, Part-time, contractor or Intern capacity? meant 'No', page shows 'NO'",
+    "For Snowflake to anticipate possible immigration timelines and obligations, could you confirm you are currently authorized to work in the country to which you a",
+    "Have you ever been directly employed by (1) any government or military entity, state-owned enterprise, or publicly-funded institution, or (2) a government contr",
+    "In any materials you submit, you may redact or remove age-identifying information such as age, date of birth, or dates of school attendance or graduation. You w",
+    "Snowflake will process your personal information in accordance with the Snowflake Candidate Privacy Notice."
+   ],
+   "secs": 28
+  },
+  {
+   "n": 81,
+   "shard": 3,
+   "job_system": "ashby",
+   "company": "Antares Nuclear",
+   "title": "Government Affairs Intern",
+   "url": "https://jobs.ashbyhq.com/antares/0ba5a72f-35b5-451e-b05a-8f96c9d3101e/application",
+   "final_url": "https://jobs.ashbyhq.com/antares/0ba5a72f-35b5-451e-b05a-8f96c9d3101e/application",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 5,
+    "check": 0,
+    "waiting": 2,
+    "needs_you": 0
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [],
+   "secs": 18
+  },
+  {
+   "n": 82,
+   "shard": 1,
+   "job_system": "lever",
+   "company": "ShopBack",
+   "title": "Sports Partnerships Marketing Intern",
+   "url": "https://jobs.lever.co/shopback-2/0a293a00-7c38-4237-8025-7b2a1d9043a3",
+   "final_url": "https://jobs.lever.co/shopback-2/0a293a00-7c38-4237-8025-7b2a1d9043a3/apply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 9,
+    "check": 0,
+    "waiting": 2,
+    "needs_you": 2
+   },
+   "fill_report_errors": {
+    "NoAnswer": 2
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Current company",
+    "Confirmation of Information Provided"
+   ],
+   "secs": 21
+  },
+  {
+   "n": 83,
+   "shard": 2,
+   "job_system": "lever",
+   "company": "Toyota Research Institute",
+   "title": "Machine Learning/Agentic AI Intern",
+   "url": "https://jobs.lever.co/tri/f8c9ed26-4574-4ad2-954b-b7f5ec365495",
+   "final_url": "https://jobs.lever.co/tri/f8c9ed26-4574-4ad2-954b-b7f5ec365495/apply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 14,
+    "check": 1,
+    "waiting": 1,
+    "needs_you": 2
+   },
+   "fill_report_errors": {
+    "NoAnswer": 1
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Left for you You may not meet this requirement: Posting requires graduate study: Current Ph.D. student in related fields - ML/AI, optimization, computer science",
+    "Selection criteria should be part of the application process and be provided in writing to all candidates on a consistent basis. TRI is committed to compliance "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 84,
+   "shard": 2,
+   "job_system": "lever",
+   "company": "Commonwealth Fusion Systems",
+   "title": "Intern - Systems Engineer - Summer 2027",
+   "url": "https://jobs.lever.co/cfsenergy/32e62a79-eff5-4a58-83fd-51a60eb57707",
+   "final_url": "https://jobs.lever.co/cfsenergy/32e62a79-eff5-4a58-83fd-51a60eb57707/apply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 14,
+    "check": 1,
+    "waiting": 6,
+    "needs_you": 1
+   },
+   "fill_report_errors": {
+    "NoAnswer": 1
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Current company"
+   ],
+   "secs": 31
+  },
+  {
+   "n": 85,
+   "shard": 3,
+   "job_system": "lever",
+   "company": "Stand Together",
+   "title": "KIP Spring 2027 - Development Intern - Grassroot Institute of Hawaii",
+   "url": "https://jobs.lever.co/standtogether/9ebb0a05-c8aa-498e-9534-449e81f301dc",
+   "final_url": "https://jobs.lever.co/standtogether/9ebb0a05-c8aa-498e-9534-449e81f301dc/apply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 9,
+    "check": 0,
+    "waiting": 2,
+    "needs_you": 1
+   },
+   "fill_report_errors": {
+    "NoAnswer": 1
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "I certify that I am at least 18 years of age or older. I have disclosed all information relevant and applicable to my admission application. I certify that all "
+   ],
+   "secs": 20
+  },
+  {
+   "n": 86,
+   "shard": 3,
+   "job_system": "lever",
+   "company": "Palantir",
+   "title": "Finance Operator Intern",
+   "url": "https://jobs.lever.co/palantir/bd7766c4-6aea-4b37-8d47-a8864bb9bd69",
+   "final_url": "https://jobs.lever.co/palantir/bd7766c4-6aea-4b37-8d47-a8864bb9bd69/apply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 15,
+    "check": 1,
+    "waiting": 3,
+    "needs_you": 1
+   },
+   "fill_report_errors": {
+    "NoAnswer": 1
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "As part of our interview process, we may use AI notetakers to transcribe conversations for accuracy and efficiency. Please see our candidate privacy policy for "
+   ],
+   "secs": 22
+  },
+  {
+   "n": 87,
+   "shard": 1,
+   "job_system": "workable",
+   "company": "Liberty Mutual Canada",
+   "title": "Actuarial Co-Op Student (May 2027 Start Date)",
+   "url": "https://apply.workable.com/j/1E65710B82",
+   "final_url": "https://apply.workable.com/liberty-mutual-canada/j/1E65710B82/apply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 16,
+    "check": 0,
+    "waiting": 8,
+    "needs_you": 3
+   },
+   "fill_report_errors": {
+    "NoAnswer": 2
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Left for you You may not meet this requirement: Posting is outside the US: Toronto",
+    "Are you currently legally eligible to work in Canada?",
+    "I certify that I have read and agree to the Applicant Data Privacy Policy below: When you apply for a position at Liberty Mutual, we will need to collect certai"
+   ],
+   "secs": 18
+  },
+  {
+   "n": 88,
+   "shard": 2,
+   "job_system": "workable",
+   "company": "e-Careers",
+   "title": "Recruitment Coordinator Intern",
+   "url": "https://apply.workable.com/j/FDC3F6C6DD",
+   "final_url": "https://apply.workable.com/ecareers/j/FDC3F6C6DD/apply",
+   "tab_state": "ready",
+   "outcome": "reached review",
+   "verdict": "pass",
+   "reason": "reached review",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 4,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 0
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [],
+   "secs": 18
+  },
+  {
+   "n": 89,
+   "shard": 3,
+   "job_system": "workable",
+   "company": "Scout Clean Energy",
+   "title": "Accounting Intern - Summer 2027",
+   "url": "https://apply.workable.com/j/DFBEEB7A59",
+   "final_url": "https://apply.workable.com/scout-clean-energy/j/DFBEEB7A59/apply",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 14,
+    "check": 1,
+    "waiting": 4,
+    "needs_you": 0
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [],
+   "secs": 19
+  },
+  {
+   "n": 90,
+   "shard": 3,
+   "job_system": "workable",
+   "company": "Capula",
+   "title": "2027 Technology Internship",
+   "url": "https://apply.workable.com/j/96EBCF5617",
+   "final_url": "https://apply.workable.com/capula-investment-management-ltd/j/96EBCF5617/apply",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "A screening question the profile answers was left for the student",
+   "ticket": "KAN-486",
+   "fill_report_category": "NoAnswer",
+   "fields": {
+    "filled": 9,
+    "check": 1,
+    "waiting": 7,
+    "needs_you": 3
+   },
+   "fill_report_errors": {
+    "NoAnswer": 3
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "What school are you currently attending?",
+    "Do you hold the right to work in the UK? Please state what passport and/or visa do you hold?",
+    "I accept the privacy notice and consent to the processing of my data for this application"
+   ],
+   "secs": 18
+  },
+  {
+   "n": 91,
+   "shard": 3,
+   "job_system": "workable",
+   "company": "We Are Social",
+   "title": "Strategy Intern",
+   "url": "https://apply.workable.com/j/97C83E3EAC",
+   "final_url": "https://apply.workable.com/we-are-social-1/j/97C83E3EAC/apply",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "A screening question the profile answers was left for the student",
+   "ticket": "KAN-486",
+   "fill_report_category": "NoAnswer",
+   "fields": {
+    "filled": 17,
+    "check": 0,
+    "waiting": 9,
+    "needs_you": 2
+   },
+   "fill_report_errors": {
+    "NoAnswer": 2
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Salary Expectations (number)",
+    "Will you now or in the future require sponsorship for an employment visa status?"
+   ],
+   "secs": 20
+  },
+  {
+   "n": 92,
+   "shard": 2,
+   "job_system": "rippling",
+   "company": "Palomar Holdings",
+   "title": "2027 Summer Internship (Actuarial)",
+   "url": "https://ats.rippling.com/plmrcareers/jobs/d6bd58c7-5127-4a17-b70d-2d377aa9fa8a",
+   "final_url": "https://ats.rippling.com/plmrcareers/jobs/d6bd58c7-5127-4a17-b70d-2d377aa9fa8a/apply?step=application&jobBoardSlug=plmrcareers&jobId=d6bd58c7-5127-4a17-b70d-2d377aa9fa8a",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 13,
+    "check": 3,
+    "waiting": 1,
+    "needs_you": 0
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [],
+   "secs": 25
+  },
+  {
+   "n": 93,
+   "shard": 2,
+   "job_system": "rippling",
+   "company": "Torus",
+   "title": "Power Electrical Engineer Intern (Summer 2027)",
+   "url": "https://ats.rippling.com/torus/jobs/ee8aa54d-a03b-4ca5-a0c5-d301f7cd67d8",
+   "final_url": "https://ats.rippling.com/torus/jobs/ee8aa54d-a03b-4ca5-a0c5-d301f7cd67d8/apply?step=application&jobBoardSlug=torus&jobId=ee8aa54d-a03b-4ca5-a0c5-d301f7cd67d8",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 14,
+    "check": 2,
+    "waiting": 3,
+    "needs_you": 0
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [],
+   "secs": 22
+  },
+  {
+   "n": 94,
+   "shard": 2,
+   "job_system": "waymo",
+   "company": "Waymo",
+   "title": "2027 Summer Intern, MS/PhD, ML Systems & Behavior Discovery",
+   "url": "https://careers.withwaymo.com/jobs?gh_jid=8257159",
+   "final_url": "https://careers.withwaymo.com/jobs/2027-summer-intern-ms-phd-ml-systems-behavior-discovery-mountain-view-california-united-states?gh_jid=8257159",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "A screening question the profile answers was left for the student",
+   "ticket": "KAN-486",
+   "fill_report_category": "NoAnswer",
+   "fields": {
+    "filled": 19,
+    "check": 2,
+    "waiting": 1,
+    "needs_you": 6
+   },
+   "fill_report_errors": {
+    "NoAnswer": 5
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Left for you You may not meet this requirement: Posting requires graduate study: Currently pursuing graduate degree (Master's or PhD) in Computer Science, Softw",
+    "Are you a current or former Alphabet employee, intern, vendor, contractor, or temp (including Google and other Alphabet subsidiaries)?",
+    "Please review and acknowledge our Candidate Privacy Policy linked below:",
+    "To ensure a fair and accurate assessment of each candidate's unique capabilities, Waymo prohibits the use of unauthorized outside assistance during the intervie",
+    "Please indicate if you are a veteran or active member of the United States Armed Forces.",
+    "By submitting my application, I certify that the information provided (including in my resume/CV) is true and correct. I understand that any misrepresentations "
+   ],
+   "secs": 25
+  },
+  {
+   "n": 95,
+   "shard": 2,
+   "job_system": "waymo",
+   "company": "Waymo",
+   "title": "2027 Summer Intern, MS/PhD, Sim-Realism ML Infrastructure",
+   "url": "https://careers.withwaymo.com/jobs?gh_jid=8205680",
+   "final_url": "https://careers.withwaymo.com/jobs/2027-summer-intern-ms-phd-sim-realism-ml-infrastructure-london-england-united-kingdom?gh_jid=8205680",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "A screening question the profile answers was left for the student",
+   "ticket": "KAN-486",
+   "fill_report_category": "NoAnswer",
+   "fields": {
+    "filled": 19,
+    "check": 1,
+    "waiting": 2,
+    "needs_you": 7
+   },
+   "fill_report_errors": {
+    "NoAnswer": 6
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Left for you You may not meet this requirement: Posting is outside the US: London, England, United Kingdom",
+    "Work Authorization",
+    "Please review and acknowledge our Candidate Privacy Policy linked below:",
+    "To ensure a fair and accurate assessment of each candidate's unique capabilities, Waymo prohibits the use of unauthorized outside assistance during the intervie",
+    "Are you a current or former Alphabet employee, intern, vendor, contractor, or temp (including Google and other Alphabet subsidiaries)?",
+    "Please indicate if you are a veteran or active member of the United States Armed Forces.",
+    "By submitting my application, I certify that the information provided (including in my resume/CV) is true and correct. I understand that any misrepresentations "
+   ],
+   "secs": 23
+  },
+  {
+   "n": 96,
+   "shard": 1,
+   "job_system": "other (no Filler)",
+   "company": "Coinbase",
+   "title": "Payment Risk Intern",
+   "url": "https://www.coinbase.com/careers/positions/8175447?gh_jid=8175447",
+   "final_url": "https://job-boards.greenhouse.io/embed/job_app?for=coinbase&token=8175447",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: questions only the student can answer (consent, written answers, facts WorkIt doesn't hold)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 30,
+    "check": 1,
+    "waiting": 2,
+    "needs_you": 2
+   },
+   "fill_report_errors": {
+    "FillError": 1,
+    "NoAnswer": 3,
+    "Error": 1
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Please confirm receipt of the above linked Global Data Privacy Notice and US Arbitration Agreement.",
+    "I understand that Coinbase may use AI tools to assist in the application and interview process."
+   ],
+   "secs": 18
+  },
+  {
+   "n": 97,
+   "shard": 2,
+   "job_system": "other (no Filler)",
+   "company": "Lyft",
+   "title": "Data Engineer Intern (Summer 2027)",
+   "url": "https://app.careerpuck.com/job-board/lyft/job/8797376002?gh_jid=8797376002",
+   "final_url": "https://app.careerpuck.com/job-board/lyft/job/8797376002?gh_jid=8797376002",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: job system WorkIt doesn't fill (no panel)",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 0
+   },
+   "fill_report_errors": {},
+   "report": "no panel",
+   "needs_you_rows": [],
+   "secs": 19
+  },
+  {
+   "n": 98,
+   "shard": 3,
+   "job_system": "other (no Filler)",
+   "company": "Samsara",
+   "title": "Account Development Representative Intern - Atlanta",
+   "url": "https://www.samsara.com/company/careers/roles/8325057?gh_jid=8325057",
+   "final_url": "https://job-boards.greenhouse.io/embed/job_app?for=samsara&token=8325057",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "A screening question the profile answers was left for the student",
+   "ticket": "KAN-486",
+   "fill_report_category": "NoAnswer",
+   "fields": {
+    "filled": 20,
+    "check": 1,
+    "waiting": 7,
+    "needs_you": 6
+   },
+   "fill_report_errors": {
+    "FillError": 1,
+    "NoAnswer": 3,
+    "Error": 1
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "Left for you The form asks you to accept its AI policy: answer 'AI Policy for Interviewers: Our interview process is designed to assess a candidate’s fundamenta",
+    "I understand that this role is in Atlanta, GA and I am willing to participate in a hybrid model.",
+    "Processing of Personal Data: When you apply to a job on this site, the personal data contained in your application will be collected by Samsara Inc. and/or one ",
+    "AI Policy for Interviewers: Our interview process is designed to assess a candidate’s fundamental, non-AI-assisted skills. Please do not use any AI tools during",
+    "How do you identify? (race/ethnicity)",
+    "If you are based in the US, what is your veteran status? the form offers no \"I am not a protected veteran \""
+   ],
+   "secs": 39
+  },
+  {
+   "n": 99,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Draper",
+   "title": "Mechanical Engineering & System Packaging Co-Op (Spring 2027)",
+   "url": "https://draper.wd5.myworkdayjobs.com/draper_careers/job/Cambridge-MA/Mechanical-Engineering---System-Packaging-Co-Op--Spring-2027-_JR002940",
+   "final_url": "https://draper.wd5.myworkdayjobs.com/en-US/draper_careers/job/Cambridge%2C-MA/Mechanical-Engineering---System-Packaging-Co-Op--Spring-2027-_JR002940/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "Needs you",
+   "verdict": "pass",
+   "reason": "Needs you: sign-in",
+   "ticket": null,
+   "fill_report_category": null,
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 1
+   },
+   "fill_report_errors": {},
+   "report": "sent",
+   "needs_you_rows": [
+    "Sign in to continue WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link "
+   ],
+   "secs": 21
+  },
+  {
+   "n": 100,
+   "shard": 5,
+   "job_system": "workday",
+   "company": "Flextronics International",
+   "title": "Intern - Engineering Specialist",
+   "url": "https://flextronics.wd1.myworkdayjobs.com/careers/job/USA-IA-Des-Moines/Intern---Engineering-Specialist_WD232992",
+   "final_url": "https://flextronics.wd1.myworkdayjobs.com/en-US/careers/job/USA%2C-IA%2C-Des-Moines/Intern---Engineering-Specialist_WD232992/apply/applyManually",
+   "tab_state": "needs_you",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "Workday My Information prompt fields not set (Country, How Did You Hear, Phone Device Type)",
+   "ticket": "KAN-489",
+   "fill_report_category": "FillError / Readback",
+   "fields": {
+    "filled": 10,
+    "check": 2,
+    "waiting": 0,
+    "needs_you": 2
+   },
+   "fill_report_errors": {
+    "Readback": 1
+   },
+   "report": "sent",
+   "needs_you_rows": [
+    "WorkIt stopped on this step How Did You Hear About Us? needs you; check WorkIt's guess for I have a preferred name; check WorkIt's guess for Phone Device Type. ",
+    "How Did You Hear About Us? meant 'workit|linkedin|electricalpowerproductsinc.com|electricalpowerproductsinc website|electricalpowerproductsinc careers|electrica"
+   ],
+   "secs": 163
+  }
+ ],
+ "extra_live_checks": [
+  {
+   "n": null,
+   "shard": 1,
+   "job_system": "smartrecruiters",
+   "company": "Bosch",
+   "title": "Logistics Materials Intern/Co-Op - Spring 2027",
+   "url": "https://jobs.smartrecruiters.com/BoschGroup/744000158818407",
+   "final_url": "https://jobs.smartrecruiters.com/oneclick-ui/company/BoschGroup/publication/6d22906f-25f6-46f4-ad94-91d7e94fc0a8?dcr_ci=BoschGroup",
+   "tab_state": "failed",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "SmartRecruiters bot wall shown as a failed fill (extra live check, not in the 100)",
+   "ticket": "KAN-492",
+   "fill_report_category": "NoForm",
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 0
+   },
+   "fill_report_errors": {},
+   "report": "no panel",
+   "needs_you_rows": [],
+   "secs": 27
+  },
+  {
+   "n": null,
+   "shard": 1,
+   "job_system": "smartrecruiters",
+   "company": "ServiceNow",
+   "title": "Intern – Business Development Representative",
+   "url": "https://jobs.smartrecruiters.com/ServiceNow/744000158475569",
+   "final_url": "https://jobs.smartrecruiters.com/oneclick-ui/company/ServiceNow/publication/16e555dc-a3f6-45ee-976b-fe698b508e91?dcr_ci=ServiceNow",
+   "tab_state": "failed",
+   "outcome": "failed",
+   "verdict": "fail",
+   "reason": "SmartRecruiters bot wall shown as a failed fill (extra live check, not in the 100)",
+   "ticket": "KAN-492",
+   "fill_report_category": "NoForm",
+   "fields": {
+    "filled": 0,
+    "check": 0,
+    "waiting": 0,
+    "needs_you": 0
+   },
+   "fill_report_errors": {},
+   "report": "no panel",
+   "needs_you_rows": [],
+   "secs": 27
+  }
+ ]
+}

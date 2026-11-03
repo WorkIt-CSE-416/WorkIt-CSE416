@@ -62,6 +62,14 @@ PAGES_UNTIL_S = 20 * 60
 #: whole, so the lanes end about this long plus their slowest board after starting,
 #: leaving the store, the feed and the import well inside the limit.
 BOARDS_UNTIL_S = 30 * 60
+#: And no board's read goes on past this: a reader that pages stops at its next
+#: page and the board counts as incomplete (`_Until`). Starting boards by a deadline
+#: was not enough, because a board once started ran as long as its site took:
+#: SuccessFactors' Sonepar read for 35 minutes, one slow page after another, until a
+#: timeout at 18:16 on 2026-10-30, and the run was cut off at 60 minutes with its
+#: other boards done since 17:41. One page more (at most two requests' timeouts)
+#: after this, the lanes are done.
+READS_UNTIL_S = 40 * 60
 #: A lane in which this many boards we hold postings from say they do not exist,
 #: and more of them than read whole, closes none of them: that is the hiring
 #: system changing (every Workday tenant a 422), not its companies leaving. The
@@ -76,6 +84,24 @@ class Outcome(Enum):
     SKIPPED = auto()
     FAILED = auto()
     DEFERRED = auto()
+
+
+class _Until:
+    """`robots` for one run's board reads, whose `pace` ends a read once `until`
+    (`time.monotonic`) has passed. A reader that pages calls `pace` before each page
+    after its first (`Provider.paged`), so the read stops there as `Incomplete`,
+    which is evidence of nothing, and the next run reads the board again."""
+
+    def __init__(self, robots: Robots, until: float) -> None:
+        self.robots, self.until = robots, until
+
+    def allows(self, url: str) -> bool:
+        return self.robots.allows(url)
+
+    def pace(self, url: str) -> None:
+        if time.monotonic() > self.until:
+            raise providers.Incomplete("out of time: the run's reads ended")
+        self.robots.pace(url)
 
 
 def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job], str | None]:
@@ -115,14 +141,16 @@ def _lane(
     before: dict[str, Job],
     pages_until: float | None = None,
     boards_until: float | None = None,
+    reads_until: float | None = None,
 ):
     """One provider's boards, then the own pages of their postings that need one
     (`with_page`) -- so Greenhouse's page reads start when its boards are done,
     not after Lever's. Order is kept, so each board gets its own jobs back.
 
     A lane with a budget (`Provider.budget_s`) starts no board once it has run out,
-    no lane starts a board after `boards_until` (`BOARDS_UNTIL_S`), and no lane
-    starts a page read after `pages_until` (`PAGES_UNTIL_S`). Also
+    no lane starts a board after `boards_until` (`BOARDS_UNTIL_S`), no board's read
+    goes on past `reads_until` (`READS_UNTIL_S`), and no lane starts a page read
+    after `pages_until` (`PAGES_UNTIL_S`). Also
     returns how long the lane took, how many pages it read, for a provider that
     pages how many of its lists named the newest postings first (`newest_first`),
     and why each board it did not read stayed unread, for the run's metrics."""
@@ -131,11 +159,12 @@ def _lane(
     budget = provider.budget_s if provider else None
     ends = [started + budget if budget is not None else None, boards_until]
     deadline = min((end for end in ends if end is not None), default=None)
+    reading = _Until(robots, reads_until) if reads_until is not None else robots
 
     def read(board: Board) -> tuple[Outcome, list[Job], str | None]:
         if deadline is not None and time.monotonic() > deadline:
             return Outcome.DEFERRED, [], None
-        return _scrape_one(board, robots)
+        return _scrape_one(board, reading)
 
     with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
         reads = list(pool.map(read, boards))
@@ -184,10 +213,11 @@ def scrape(
         lanes.setdefault(board.ats, []).append(board)
     pages_until = time.monotonic() + PAGES_UNTIL_S
     boards_until = time.monotonic() + BOARDS_UNTIL_S
+    reads_until = time.monotonic() + READS_UNTIL_S
     with ThreadPoolExecutor(max(len(lanes), 1)) as pool:
         by_lane = list(
             pool.map(
-                lambda lane: _lane(lane, robots, before, pages_until, boards_until),
+                lambda lane: _lane(lane, robots, before, pages_until, boards_until, reads_until),
                 lanes.values(),
             )
         )

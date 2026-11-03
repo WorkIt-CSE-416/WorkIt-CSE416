@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 
 import { readEvents, type ScoutMessage } from "./stream";
 
@@ -29,8 +29,18 @@ type ScoutState = {
   jobId: string | null;
   error: string | null;
   /** A page that holds the panel (scout-takeover.tsx): its header, shown in
-   *  place of Scout's own while its content replaces the chat. */
-  takeover: { title: string; subtitle: string } | null;
+   *  place of Scout's own while its content replaces the chat. `mark` takes
+   *  the header's Scout mark where the panel is showing something else, and
+   *  `away` goes back to Scout: while it is set, the bar's launcher calls it
+   *  instead of closing the panel, since Scout is not what is open. `float`
+   *  floats the panel over the page below xl instead of taking room. */
+  takeover: {
+    title: string;
+    subtitle: string;
+    mark?: ReactNode;
+    away?: () => void;
+    float?: boolean;
+  } | null;
 };
 
 const MAX_HISTORY = 40;

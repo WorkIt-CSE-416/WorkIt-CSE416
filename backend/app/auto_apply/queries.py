@@ -22,6 +22,7 @@ from sqlalchemy import (
     delete,
     func,
     literal,
+    not_,
     null,
     or_,
     select,
@@ -32,13 +33,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.applications import Job_Application
 from app.models.built_resume import Built_Resume
+from app.models.disabled_job_systems import Disabled_Job_System
 from app.models.dto import application_stage, job_post_status
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile, Company_Profile
 from app.models.resume import Resume
 from app.models.sent_resume import Sent_Resume
 from app.models.written_answers import Written_Answer, is_text
-from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, LISTED
+from app.queries.jobs.filters import (
+    AUTO_APPLY_SUPPORTED,
+    FORM_URL,
+    LISTED,
+    OPEN,
+    not_on,
+)
 from app.queries.jobs.listings import LISTING_COLUMNS, to_listing
 from app.schemas.applications import (
     Application,
@@ -47,14 +55,19 @@ from app.schemas.applications import (
     WrittenQuestion,
 )
 from app.schemas.sent_resume import SentResumeResponse
+from app.services.postings import ADDED, typed_text
 
 
 async def queue_applications(
-    db: AsyncSession, applicant_id: uuid.UUID, job_ids: Sequence[uuid.UUID]
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    job_ids: Sequence[uuid.UUID],
+    disabled: Sequence[str] = (),
 ) -> set[uuid.UUID]:
     """
     Saves as queued each of `job_ids` that is listed (open, scraped), is on a
-    hiring system auto apply fills (AUTO_APPLY_SUPPORTED), and has no
+    hiring system auto apply fills (AUTO_APPLY_SUPPORTED) and not one of the
+    `disabled` job systems (KAN-467), and has no
     application of this applicant yet, or only a saved one (KAN-261);
     answers the ones it queued. One with an application at any other stage
     keeps it: queueing never moves an applied or skipped job back.
@@ -70,7 +83,7 @@ async def queue_applications(
         cast(literal(application_stage.queued, stage_type), stage_type),
         # Not applied yet: NULL in place of the column's now() default.
         cast(null(), DateTime(timezone=True)),
-    ).where(Job_Post.id.in_(job_ids), LISTED, AUTO_APPLY_SUPPORTED)
+    ).where(Job_Post.id.in_(job_ids), LISTED, AUTO_APPLY_SUPPORTED, *([not_on(disabled)] if disabled else []))
     queued = await db.scalars(
         insert(Job_Application)
         .from_select(["applicant_id", "job_id", "stage", "applied_at"], listed)
@@ -88,9 +101,19 @@ async def queue_applications(
     return set(queued)
 
 
+async def fetch_disabled_job_systems(db: AsyncSession) -> list[str]:
+    """The job systems WorkIt has turned off (KAN-467), by the engine's id, in order."""
+    return list(await db.scalars(select(Disabled_Job_System.job_system).order_by(Disabled_Job_System.job_system)))
+
+
 async def fetch_open_apply_url(db: AsyncSession, job_id: uuid.UUID) -> str | None:
     """The apply_url of this job posting while it is listed (open), else None."""
     return await db.scalar(select(Job_Post.apply_url).where(Job_Post.id == job_id, LISTED))
+
+
+async def fetch_open_form_url(db: AsyncSession, job_id: uuid.UUID) -> str | None:
+    """The form auto apply opens for this job posting (FORM_URL) while it is listed, else None."""
+    return await db.scalar(select(FORM_URL).where(Job_Post.id == job_id, LISTED))
 
 
 async def fetch_stage(
@@ -111,13 +134,15 @@ def _applications(applicant_id: uuid.UUID) -> Select:
     and the sent resume it names (KAN-267), if any."""
     return (
         select(
-            *LISTING_COLUMNS,
+            *(column for column in LISTING_COLUMNS if column is not Job_Post.title and column is not Job_Post.company_name),
+            typed_text(Job_Post.title, Job_Application.title),
+            typed_text(Job_Post.company_name, Job_Application.company_name),
             Job_Application.stage.label("stage"),
             Job_Application.created_at.label("added_at"),
             Job_Application.applied_at.label("applied_at"),
             Job_Application.apply_by.label("apply_by"),
             Job_Post.closes_at.label("closes_at"),
-            LISTED.label("open"),
+            OPEN.label("open"),
             Sent_Resume,
         )
         .join(Job_Application, Job_Application.job_id == Job_Post.id)
@@ -192,7 +217,7 @@ async def fetch_next_application(
     which may be needs_you too (a form filled before whose tab was closed:
     Up Next's Reopen)."""
     stages = (application_stage.queued, application_stage.needs_you) if only else (application_stage.queued,)
-    query = _applications(applicant_id).where(Job_Application.stage.in_(stages), LISTED)
+    query = _applications(applicant_id).where(Job_Application.stage.in_(stages), OPEN)
     if skip:
         query = query.where(Job_Application.job_id.not_in(skip))
     if only:
@@ -241,14 +266,14 @@ async def set_stage(
 
 
 async def close_posting(db: AsyncSession, job_id: uuid.UUID) -> None:
-    """Marks a listed scraped job posting closed, as the import does for one
+    """Marks an open scraped job posting (or one a student added) closed, as the import does for one
     gone from the feed: a batch tab found the job system saying the job is
     closed (KAN-369). An employer's own posting is theirs to close, so it is
     left alone; a job still in the feed is published again by the next import."""
     now = func.now()
     await db.execute(
         update(Job_Post)
-        .where(Job_Post.id == job_id, LISTED)
+        .where(Job_Post.id == job_id, OPEN)
         .values(
             status=job_post_status.closed,
             closes_at=func.least(func.coalesce(Job_Post.closes_at, now), now),
@@ -417,7 +442,7 @@ async def fetch_next_to_write(
             .where(
                 Job_Application.applicant_id == applicant_id,
                 Job_Application.stage.in_((application_stage.queued, application_stage.needs_you)),
-                LISTED,
+                OPEN,
                 unanswered,
                 Job_Application.job_id.not_in(skip),
             )
@@ -445,7 +470,7 @@ async def fetch_unanswered(
             Written_Answer.applicant_id == applicant_id,
             Written_Answer.answer.is_(None),
             Job_Application.stage.in_((application_stage.queued, application_stage.needs_you)),
-            LISTED,
+            OPEN,
         )
         .order_by(Job_Application.created_at, Job_Application.job_id, Written_Answer.position, Written_Answer.name)
     )
@@ -481,7 +506,7 @@ async def fetch_next_to_review(db: AsyncSession, applicant_id: uuid.UUID) -> tup
             .where(
                 Job_Application.applicant_id == applicant_id,
                 Job_Application.stage.in_((application_stage.queued, application_stage.needs_you)),
-                LISTED,
+                OPEN,
                 ~rows(Written_Answer.answer.is_(None)),
                 rows(Written_Answer.own.is_(False), _read_by_review().is_distinct_from(Written_Answer.answer)),
             )
@@ -710,10 +735,11 @@ async def fetch_posting_text(db: AsyncSession, job_id: uuid.UUID) -> tuple[str |
 async def fetch_application_companies(db: AsyncSession, applicant_id: uuid.UUID) -> list[str]:
     """The companies of every job posting the applicant has an application
     for, at any stage, each once."""
+    company = typed_text(Job_Post.company_name, Job_Application.company_name)
     rows = await db.scalars(
-        select(Job_Post.company_name)
+        select(company)
         .join(Job_Application, Job_Application.job_id == Job_Post.id)
-        .where(Job_Application.applicant_id == applicant_id, Job_Post.company_name.is_not(None))
+        .where(Job_Application.applicant_id == applicant_id, company.is_not(None))
         .distinct()
     )
     return list(rows)
@@ -721,9 +747,11 @@ async def fetch_application_companies(db: AsyncSession, applicant_id: uuid.UUID)
 
 async def fetch_company_names(db: AsyncSession) -> list[str]:
     """Every company WorkIt knows by name: its job postings' and its
-    company profiles', each once."""
+    company profiles', each once. Not an added job's: one student typed
+    that name (KAN-515, ADR 0008), and this list feeds every student's
+    essay check."""
     rows = await db.scalars(
-        select(Job_Post.company_name).where(Job_Post.company_name.is_not(None))
+        select(Job_Post.company_name).where(Job_Post.company_name.is_not(None), not_(ADDED))
         .union(select(Company_Profile.company_name).where(Company_Profile.company_name.is_not(None)))
     )
     return list(rows)

@@ -37,7 +37,7 @@ export function JobAlertsSwitch({ initialEnabled }: { initialEnabled: boolean })
         aria-describedby="new-matches-line"
       />
       {error && (
-        <p role="alert" className="text-meta text-danger">
+        <p role="alert" className="text-note text-danger">
           {error}
         </p>
       )}

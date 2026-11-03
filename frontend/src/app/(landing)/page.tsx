@@ -2,27 +2,41 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
+import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
-import { Applications } from "./applications";
-import { Bridge } from "./bridge";
 import { ClosingCta } from "./closing-cta";
+import {
+  Applications,
+  Bridge,
+  HiringSystemsSection,
+  ProductTour,
+  Statement,
+} from "./deferred-sections";
 import { closing, faqs, hero, site, testimonial } from "./data";
 import { FaqList } from "./faq-list";
 import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
 import { HeroCity } from "./hero-city";
 import { HeroTitle } from "./hero-title";
-import { HiringSystemsSection } from "./hiring-pipeline";
 import { backdrop } from "./features/catalog";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "./layout-parts";
-import { ProductTour } from "./product-tour";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
-import { Statement } from "./statement";
 import { Testimonial } from "./testimonial";
 
+/** The home page's link preview has room for the whole tagline. */
+const shareTitle = `${site.name}: ${site.tagline}`;
+
 export const metadata: Metadata = {
-  title: { absolute: `${site.name} · ${site.tagline}` },
+  title: { absolute: `${site.name} · ${site.tabTitle}` },
   description: hero.subtitle,
+  alternates: { canonical: "/" },
+  openGraph: { ...SHARE_DEFAULTS, url: "/", title: shareTitle, description: hero.subtitle },
+  twitter: {
+    card: "summary_large_image",
+    title: shareTitle,
+    description: hero.subtitle,
+    images: [SHARE_IMAGE],
+  },
 };
 
 /**
@@ -49,10 +63,12 @@ export default function LandingPage() {
             {/* Sized so "Stop filling out applications" fits one line from
                 lg up; the hero's text-measuring mark is inside, on the
                 moving copy (hero-title.tsx). */}
-            {/* Below lg a phrase can take one or two lines, so the headline
-                keeps four lines' room and centres in it: the subtitle no
-                longer jumps on each swap. */}
-            <h1 className="text-ink mx-auto max-w-6xl text-[2.4rem] leading-[1.08] font-semibold tracking-[-0.035em] max-lg:flex max-lg:min-h-[4.32em] max-lg:flex-col max-lg:justify-center sm:text-6xl lg:text-[clamp(3.25rem,5.1vw,4.25rem)]">
+            {/* Below lg the headline keeps the room of the most lines any
+                phrase takes at that width, and centres in it, so the subtitle
+                does not jump on each swap: four, three or two lines, set by
+                measuring every phrase. Four at every width left 129px of
+                blank space round a two-line headline on a tablet. */}
+            <h1 className="text-ink mx-auto min-h-[4.32em] max-w-6xl text-[2.4rem] leading-[1.08] font-semibold tracking-[-0.035em] max-lg:flex max-lg:flex-col max-lg:justify-center min-[27.5rem]:min-h-[3.24em] min-[33.125rem]:min-h-[2.16em] sm:min-h-[4.32em] sm:text-6xl min-[45rem]:min-h-[3.24em] min-[52.5rem]:min-h-[2.16em] lg:min-h-0 lg:text-[clamp(3.25rem,5.1vw,4.25rem)]">
               <HeroTitle />
             </h1>
             <p

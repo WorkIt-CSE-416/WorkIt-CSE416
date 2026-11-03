@@ -32,34 +32,39 @@ export function matches(text: string, words: string[]): boolean {
   return words.every((word) => lower.includes(word));
 }
 
-/** A sticky heading (39px: pt-3, the 23px badge, pb-1), five cards of 52px
+/** A sticky heading (40px: pt-3, the 24px badge, pb-1), five cards of 52px
  *  each with its 8px top margin (`RESUME_ROW`), and the list's 12px foot:
- *  351px. A card, heading or gap that changes size changes this too. A list
+ *  352px. A card, heading or gap that changes size changes this too. A list
  *  of fewer cards stops short of it. */
-const FIVE_ROWS = "max-h-[calc(2.4375rem+5*3.75rem+0.75rem)]";
+const FIVE_ROWS = "max-h-[calc(2.5rem+5*3.75rem+0.75rem)]";
 
 /** `fill`'s cap: the room `useFillPage` measured, never under `FIVE_ROWS`,
  *  which also holds until it has measured (the server's render). */
-const FILL_PAGE = "max-h-[max(calc(2.4375rem+5*3.75rem+0.75rem),var(--fill-height,0px))]";
+const FILL_PAGE = "max-h-[max(calc(2.5rem+5*3.75rem+0.75rem),var(--fill-height,0px))]";
 
 /**
  * The list's one scroll, five cards high under a heading, not the shared
  * `max-h-scroll-box` (320px) that Top Matches uses: with the group
  * headings, 320px showed three and a half. Never a scroll box per group:
  * nested, the wheel and a finger get caught in the inner box. With `fill`
- * (the Resumes page, KAN-434) it runs down to the foot of the page
- * instead: five cards left half a laptop screen empty under it.
+ * (a page's list: the Resumes page, KAN-434, and Tailor's Pick a Resume,
+ * KAN-576) it runs down to the foot of the page instead: five cards left
+ * half a laptop screen empty under it, and cut the last card in half. The
+ * five-card cap is a dialog's. `below` is what the page holds under the
+ * list's own border, in px (Tailor's card: its padding and border).
  */
 export function ResumeScroll({
   label,
   fill = false,
+  below = 0,
   children,
 }: {
   label?: string;
   fill?: boolean;
+  below?: number;
   children: ReactNode;
 }) {
-  const fit = useFillPage(fill);
+  const fit = useFillPage(fill, below);
   return (
     // pb-3: the last card's room. A group's heading opens with its own top
     // padding, which also leaves a card's lift under the pointer room the
@@ -84,7 +89,7 @@ export function ResumeScroll({
  * again when `main` resizes (the window) or the page does (an upload's
  * note above the list).
  */
-function useFillPage(on: boolean) {
+function useFillPage(on: boolean, below: number) {
   const [el, setEl] = useState<HTMLElement | null>(null);
   useEffect(() => {
     const page = el?.closest("main");
@@ -92,14 +97,17 @@ function useFillPage(on: boolean) {
     const fit = () => {
       const top =
         el.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop;
-      el.style.setProperty("--fill-height", `${Math.round(page.clientHeight - top - 25)}px`);
+      el.style.setProperty(
+        "--fill-height",
+        `${Math.round(page.clientHeight - top - 25 - below)}px`,
+      );
     };
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(page);
     if (page.firstElementChild) observer.observe(page.firstElementChild);
     return () => observer.disconnect();
-  }, [on, el]);
+  }, [on, el, below]);
   return setEl;
 }
 

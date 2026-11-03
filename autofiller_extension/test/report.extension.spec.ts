@@ -83,6 +83,8 @@ test("Report this on a field that failed read-back previews exactly what is sent
   // The field the row was for is marked wrong already.
   await expect(card.locator('.report-mark input[data-name="first_name"]')).toBeChecked();
   await expect(card.locator('.report-mark input[data-name="email"]')).not.toBeChecked();
+  // The page's layout goes along unless the student unticks it (KAN-456).
+  await expect(card.getByLabel("Include the page's layout (no answers)")).toBeChecked();
   // Opening the preview sends nothing.
   await form.waitForTimeout(500);
   expect(api.reports).toEqual([]);
@@ -118,6 +120,29 @@ test("Report this on a field that failed read-back previews exactly what is sent
   await expect(card.getByRole("button", { name: "Send report" })).toHaveCount(0);
   expect(api.reports).toHaveLength(1);
   expect(forms.submissions).toEqual([]);
+});
+
+test("Unticked, the page's layout is left out of the preview and the report; a 429 says the day's limit in plain words", async () => {
+  test.setTimeout(120_000);
+  const { api, host } = await filledArc();
+  await host.locator('[data-key="first_name"] [data-report-trigger="readback"]').click();
+  const card = host.locator('[data-slot="report"]');
+  await card.getByLabel("Include the page's layout (no answers)").uncheck();
+  await card.locator(".report-all summary").click();
+  await expect(card.locator(".report-all summary")).not.toContainText("KB");
+  const preview = JSON.parse((await card.locator(".report-json").textContent())!);
+  expect(preview).not.toHaveProperty("html");
+  expect(preview.fields.length).toBeGreaterThan(0);
+
+  api.refuseReports = { status: 429, detail: "You've sent a lot of reports today. Try again tomorrow." };
+  await card.getByRole("button", { name: "Send report" }).click();
+  await expect(card.locator(".report-said")).toHaveText("You've sent a lot of reports today. Try again tomorrow.");
+  expect(api.reports).toEqual([]);
+
+  api.refuseReports = null;
+  await card.getByRole("button", { name: "Send report" }).click();
+  await expect(card).toContainText("Sent. Thanks for telling WorkIt.");
+  expect(api.reports).toEqual([preview]);
 });
 
 test("A field the student edits after WorkIt filled it offers Report this, and a filled row's Wrong? marks it", async () => {

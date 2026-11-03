@@ -93,7 +93,7 @@ def renders(monkeypatch):
     a changed bank gives a changed file. The list counts the calls."""
     calls = []
 
-    def fake_render(view, identity, template):
+    def fake_render(view, identity, template, page):
         calls.append(view)
         bullets = [b.text for s in view.sections for e in s.entries for b in e.bullets]
         return Rendered(pdf=f"%PDF {identity.name} {bullets[:1]}".encode(), page_count=1,
@@ -164,6 +164,24 @@ async def test_a_repeat_send_of_the_same_content_returns_the_last_sent_resume(
     assert storage.files == {}
     assert len(await _snapshots(database)) == 1
     assert len((await client.get(f"{me}/sent-resumes")).json()) == 1
+
+
+async def test_a_sent_resume_keeps_the_page_settings_it_went_out_with(student, storage, renders, posting, database):
+    client, me = student
+    await _fill_bank(client, me)
+    built = await _generate(client, me)
+    settings = {"font_size": 12, "line_spacing": 1.15, "side_margin": 0.75, "top_margin": 0.75, "alignment": "justified", "section_spacing": 4, "entry_spacing": 2, "accent": "#14532D", "bullet": "dash", "show_divider": False, "header_alignment": "left"}
+    first = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))).json()
+    await client.put(f"{me}/built-resumes/{built}/page-settings", json=settings)
+
+    # A new page is new content, not a repeat of the first send
+    second = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=built))).json()
+
+    assert second["id"] != first["id"]
+    snapshots = await _snapshots(database)
+    assert "page" not in snapshots[0][1]
+    kept = snapshots[1][1]["page"]
+    assert {name: kept[name] for name in settings} == settings
 
 
 async def test_one_content_sent_to_many_postings_keeps_one_snapshot(student, storage, renders, posting, database):
@@ -416,7 +434,7 @@ async def test_a_fresh_render_reports_the_characters_the_font_lacks(student, sto
 async def test_nothing_is_kept_when_the_pdf_cannot_be_made(student, storage, monkeypatch, posting, database):
     from app.services.resume_render import TectonicUnavailable
 
-    def missing(view, identity, template):
+    def missing(view, identity, template, page):
         raise TectonicUnavailable("no tectonic binary")
 
     monkeypatch.setattr("app.services.sent_resumes.render", missing)
@@ -435,7 +453,7 @@ async def test_a_snapshot_that_cannot_be_rendered_again_is_503_and_stays(student
     client, me = student
     sent = (await client.post(f"{me}/sent-resumes", json=_to(posting, built_resume_id=await _generate(client, me)))).json()
 
-    def missing(view, identity, template):
+    def missing(view, identity, template, page):
         raise TectonicUnavailable("no tectonic binary")
 
     monkeypatch.setattr("app.services.sent_resumes.render", missing)
@@ -643,3 +661,152 @@ async def test_the_database_refuses_a_link_to_another_applicants_sent_resume(stu
                 text("UPDATE job_applications SET sent_resume_id = :s WHERE applicant_id = :a"),
                 {"s": uuid.UUID(theirs["id"]), "a": uuid.UUID(me.split("/")[2])})
             await session.commit()
+
+
+# --- a job the student added by its link (KAN-544) ---------------------------
+
+
+async def _added(client, link: str) -> str:
+    """A job on the student's tracker by its link, as Apply adds it (KAN-542, track_only): an added job when no
+    listed job has it."""
+    res = await client.post("/jobs/added-by-link", json={"url": link, "company": "Lockheed Martin", "title": "Intern",
+                                                         "track_only": True})
+    assert res.status_code == 200
+    return res.json()["job_id"]
+
+
+async def test_apply_to_an_added_job_keeps_its_sent_resume(student, storage, database):
+    client, me = student
+    uploaded = (await _upload(client, me)).json()
+    job = await _added(client, "https://lockheedmartin.eightfold.ai/careers/job/7123456")
+
+    res = await client.post(f"{me}/sent-resumes", json={"uploaded_resume_id": uploaded["id"], "job_posting_id": job})
+    assert res.status_code == 201
+    marked = await client.post(f"/jobs/{job}/applied", json={"sent_resume_id": res.json()["id"]})
+    assert (marked.status_code, marked.json()["sent_resume_id"]) == (200, res.json()["id"])
+
+
+async def test_apply_to_a_job_the_feed_closed_after_the_student_tracked_it_keeps_its_sent_resume(
+    student, storage, database
+):
+    client, me = student
+    uploaded = (await _upload(client, me)).json()
+    job = await _seed_posting(database, "https://example.com/closed-later")
+    assert (await client.post(f"/jobs/{job}/saved")).status_code == 200
+    async with database() as session:
+        await session.execute(text("UPDATE job_postings SET status = 'closed' WHERE id = :id"), {"id": job})
+        await session.commit()
+
+    res = await client.post(f"{me}/sent-resumes", json={"uploaded_resume_id": uploaded["id"], "job_posting_id": job})
+    assert res.status_code == 201
+    assert (await client.post(f"/jobs/{job}/applied", json={"sent_resume_id": res.json()["id"]})).status_code == 200
+
+
+async def test_another_students_added_job_takes_no_sent_resume(student, storage, database):
+    from tests.test_built_resumes import _seed_applicant, _sign_in
+
+    client, _ = student
+    job = await _added(client, "https://lockheedmartin.eightfold.ai/careers/job/7123457")
+    async with database() as session:
+        other = await _seed_applicant(session)
+    _sign_in(other)
+    uploaded = (await _upload(client, f"/applicants/{other}")).json()
+
+    res = await client.post(f"/applicants/{other}/sent-resumes",
+                            json={"uploaded_resume_id": uploaded["id"], "job_posting_id": job})
+    assert res.status_code == 404
+
+
+# --- the file Apply sent (KAN-544) ---------------------------------------------
+
+SENT_PDF = b"%PDF-1.7 the resume Apply attached"
+
+
+def _file(job: str, name: str = "Lisul_Resume.pdf", data: bytes = SENT_PDF) -> dict:
+    return {"job_posting_id": job, "file_name": name, "content": base64.b64encode(data).decode()}
+
+
+async def test_apply_keeps_the_file_it_sent_as_the_sent_resume(student, storage, database):
+    client, me = student
+    job = await _added(client, "https://lockheedmartin.eightfold.ai/careers/job/7123458")
+
+    res = await client.post(f"{me}/sent-resumes/file", json=_file(job))
+
+    assert res.status_code == 201
+    sent = res.json()
+    assert (sent["name"], sent["format"], sent["built_resume_id"], sent["uploaded_resume_id"], sent["job_posting_id"]) \
+        == ("Lisul_Resume.pdf", "pdf", None, None, job)
+    [(path, contents)] = storage.files.items()
+    assert contents == SENT_PDF and path.startswith(f"{me.split('/')[2]}/sent/")
+    assert sent["url"] == f"https://storage.test/{path}?download=Lisul_Resume.pdf"
+    marked = await client.post(f"/jobs/{job}/applied", json={"sent_resume_id": sent["id"]})
+    assert marked.json()["sent_resume_id"] == sent["id"]
+    # Sent again (Apply's queue tried twice): the same sent resume, no new file
+    again = await client.post(f"{me}/sent-resumes/file", json=_file(job))
+    assert (again.status_code, again.json()["id"]) == (200, sent["id"])
+    assert len(storage.files) == 1
+
+
+async def test_one_file_sent_to_two_jobs_is_stored_once_and_stays_while_either_uses_it(student, storage, database):
+    client, me = student
+    first = await _added(client, "https://example.com/careers/1")
+    second = await _added(client, "https://example.com/careers/2")
+    one = (await client.post(f"{me}/sent-resumes/file", json=_file(first))).json()
+    two = (await client.post(f"{me}/sent-resumes/file", json=_file(second))).json()
+    assert one["id"] != two["id"] and len(storage.files) == 1
+
+    assert (await client.delete(f"{me}/sent-resumes/{one['id']}")).status_code == 204
+    assert len(storage.files) == 1
+    assert (await client.delete(f"{me}/sent-resumes/{two['id']}")).status_code == 204
+    assert storage.files == {}
+
+
+async def test_a_sent_file_must_be_a_pdf_under_5_mb(student, storage, database):
+    client, me = student
+    job = await _added(client, "https://example.com/careers/3")
+    for bad in (_file(job, data=b"PK\x03\x04 a word file"), _file(job, data=b"%PDF" + b"x" * (5 * 1024 * 1024)),
+                {**_file(job), "content": "not base64!"}, _file(job, name=" ")):
+        res = await client.post(f"{me}/sent-resumes/file", json=bad)
+        assert res.status_code == 422, bad["file_name"]
+    assert storage.files == {} and (await client.get(f"{me}/sent-resumes")).json() == []
+
+
+async def test_a_sent_file_for_a_job_the_student_cannot_reach_is_404_and_stores_nothing(student, storage, database):
+    client, me = student
+    res = await client.post(f"{me}/sent-resumes/file", json=_file(str(uuid.uuid4())))
+    assert res.status_code == 404 and storage.files == {}
+
+
+async def test_apply_finds_the_tailored_resume_by_the_postings_link_and_keeps_that_file(
+    student, storage, database, monkeypatch
+):
+    """KAN-547: Apply finds the job by its link, the student's tailored resume
+    for it in the built resume list, renders it, attaches that PDF, and keeps
+    the same bytes as the application's Sent resume."""
+    client, me = student
+    await _fill_bank(client, me)
+    await _generate(client, me, "General SWE")  # the base resume: not the one sent
+    link = f"https://job-boards.greenhouse.io/acme/jobs/{uuid.uuid4().int % 10**9}"
+    posting = await _seed_posting(database, link)
+    async with database() as session:
+        await session.execute(text(
+            "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
+            " VALUES (:a, 'Acme – Intern', 'jakes', :p)"), {"a": me.split("/")[2], "p": posting})
+        await session.commit()
+    tailored_pdf = b"%PDF-1.7 the tailored resume"
+    monkeypatch.setattr("app.routers.built_resumes.render",
+                        lambda view, identity, template, page: Rendered(pdf=tailored_pdf, page_count=1))
+
+    job = (await client.post("/jobs/listed-by-link", json={"url": link})).json()["job_id"]
+    [tailored] = [r for r in (await client.get(f"{me}/built-resumes")).json() if r["job_posting_id"] == job]
+    rendered = (await client.get(f"{me}/built-resumes/{tailored['id']}/render")).json()
+    attached = base64.b64decode(rendered["pdf"])
+    sent = (await client.post(f"{me}/sent-resumes/file", json=_file(job, data=attached))).json()
+    marked = await client.post(f"/jobs/{job}/applied", json={"sent_resume_id": sent["id"]})
+
+    assert attached == tailored_pdf
+    assert marked.json()["sent_resume_id"] == sent["id"]
+    [(path, kept)] = storage.files.items()
+    assert kept == tailored_pdf
+    opened = (await client.get(f"{me}/sent-resumes/{sent['id']}/file")).json()
+    assert opened["url"] == f"https://storage.test/{path}?download=Lisul_Resume.pdf"

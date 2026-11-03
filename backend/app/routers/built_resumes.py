@@ -33,6 +33,11 @@ GET    /applicants/{id}/built-resumes/{rid}/render -> RenderResponse
 GET    /applicants/{id}/built-resumes/{rid}/choices -> ChoicesResponse
        The resume's choice rows (KAN-218): what shows, in what order, the
        GPA and coursework toggles. A bank item with no row is not on it.
+PUT    /applicants/{id}/built-resumes/{rid}/page-settings PageSettings -> 204
+       How the page is set (KAN-435, schemas PageSettings), saved with no
+       read first. The editor renders them through POST
+       .../render beside this. A sent resume keeps the settings it went out
+       with; the Word file ignores them.
 PATCH  /applicants/{id}/built-resumes/{rid}/choices ChoicesUpdate -> ChoicesResponse
        The editor's hide, show, move and toggles, all saved together. An
        item with no row gets one. 404 for an item outside the bank. Written
@@ -41,9 +46,10 @@ PATCH  /applicants/{id}/built-resumes/{rid}/choices ChoicesUpdate -> ChoicesResp
        the save reads nothing.
 POST   /applicants/{id}/built-resumes/{rid}/render EditRender -> EditRendered
        The editor's edit rendered, never saved (KAN-391): a typed `line`
-       ({item_id, kind, text}) or choice `changes` (the PATCH .../choices
-       body), made in memory to the editor's copy (`source`, ResumeCopy,
-       required, with the template and file name of the last render). Reads
+       ({item_id, kind, text}), choice `changes` (the PATCH .../choices
+       body) or `page` settings (KAN-435), made in memory to the editor's
+       copy (`source`, ResumeCopy, required, with the template, page settings
+       and file name of the last render). Reads
        no database: the token is checked by its signature alone
        (deps.token_applicant), and nothing of the resume is read. Answers
        the render and what the edit changed in the copy (`choices`,
@@ -60,13 +66,21 @@ PUT    /applicants/{id}/built-resumes/{rid}/lines  LineSave -> LineSaved
        (`profile` answered). 422 {detail} for text it cannot save (an
        empty title, a GPA that is not a number, a kind not typed here),
        404 for an item that is not the applicant's.
+GET    /applicants/{id}/built-resumes/{rid}/changed-at -> ResumeChanged {changed_at, now}
+       When anything the page prints last changed (the resume, the bank,
+       the profile) and the database's clock, in one read: the editor asks
+       on a return to its tab after a while away (KAN-391). 404 for a
+       resume that is not the applicant's.
 POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, undo, render}
-       Fit to One Page: hides coursework, bullets and whole entries, least
-       useful first (resume_view.fit_order), and renders again until the
-       resume is one page or nothing is left to cut, then shows again the
-       last round's cuts it turns out not to need. `undo` is the PATCH
+       Fit to One Page (docs/cut_to_one_page.md): hides bullets, whole
+       entries and skills in services/fit_page.py's order (by the posting's
+       rank on a tailored resume, by position on any other) until a render
+       is one page, which it always reaches. Each cut is checked against
+       the last render by prediction; a render confirms, about two in all.
+       It saves every cut together at the end. `undo` is the PATCH
        .../choices body that shows them all again.
-       503 like render; a failed render saves nothing.
+       Each render gets a second try (FIT_RENDER_TRIES); 503 like render
+       when one fails twice, and then nothing is saved.
 GET    /applicants/{id}/built-resumes/{rid}/docx   -> the Word file, as an attachment:
        the editor's Download Word, which keeps nothing (KAN-267)
 GET    /applicants/{id}/built-resumes/{rid}/tex    -> the LaTeX source, as an attachment:
@@ -115,12 +129,21 @@ from app.schemas.built_resume import (
     FitResponse,
     LineSave,
     LineSaved,
+    PageSettings,
     RenderBox,
     RenderResponse,
+    ResumeChanged,
 )
 from app.schemas.keywords import KeywordMatchResponse
 from app.schemas.profile import ApplicantProfileResponse, ApplicantProfileUpdate
-from app.services import bank, keywords, postings, resume_copy, resume_lines
+from app.services import (
+    bank,
+    keywords,
+    postings,
+    resume_copy,
+    resume_lines,
+    resume_render,
+)
 from app.services import built_resumes as service
 from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound
@@ -260,22 +283,37 @@ async def render_pdf(
     except NotFound:
         raise HTTPException(404, "Resume not found")
     identity = await _identity(session, applicant_id)
-    return _render_response(await _render(view, identity, resume.template), resume.name, identity, resume.template)
+    page = service.page_of(resume)
+    rendered = await _render(view, identity, resume.template, page)
+    return _render_response(rendered, resume.name, identity, resume.template, page)
 
 
 RENDER_FAILED = "The PDF could not be made. Try again, or download the Word file."
 
 
-async def _render(view, identity: HeaderIdentity, template: str) -> Rendered:
-    try:
-        return await asyncio.to_thread(render, view, identity, template)
-    except TectonicUnavailable as exc:
-        logger.error("resume render failed: %s", exc)
-        raise HTTPException(503, RENDER_FAILED) from exc
+# Fit to One Page renders two or three times in one request and saves only
+# at the end, so one failed compile would throw away the whole run: each of
+# its renders gets a second try. A compile that fails twice fails the
+# request, with nothing saved.
+FIT_RENDER_TRIES = 2
+
+
+async def _render(
+    view, identity: HeaderIdentity, template: str, page: resume_render.PageSettings, tries: int = 1
+) -> Rendered:
+    for attempt in range(1, tries + 1):
+        try:
+            return await asyncio.to_thread(render, view, identity, template, page)
+        except TectonicUnavailable as exc:
+            if attempt == tries:
+                logger.error("resume render failed: %s", exc)
+                raise HTTPException(503, RENDER_FAILED) from exc
+            logger.warning("resume render failed, trying again: %s", exc)
+    raise AssertionError("tries must be at least 1")
 
 
 def _render_response(
-    rendered: Rendered, name: str, identity: HeaderIdentity, template: str
+    rendered: Rendered, name: str, identity: HeaderIdentity, template: str, page: resume_render.PageSettings
 ) -> RenderResponse:
     return RenderResponse(
         pdf=base64.b64encode(rendered.pdf).decode("ascii"),
@@ -286,6 +324,8 @@ def _render_response(
         boxes=[RenderBox(**vars(box)) for box in rendered.boxes],
         identity=identity_copy(identity),
         template=template,
+        page_settings=PageSettings(**dataclasses.asdict(page)),
+        wrapped_line=rendered.wrapped_line,
     )
 
 
@@ -297,17 +337,31 @@ async def fit(
 ) -> FitResponse:
     resume = await _owned(session, applicant_id, resume_id)
     identity = await _identity(session, applicant_id)
+    page = service.page_of(resume)
 
     async def draw(view) -> Rendered:
-        return await _render(view, identity, resume.template)
+        return await _render(view, identity, resume.template, page, tries=FIT_RENDER_TRIES)
 
     cuts, rendered = await service.fit_to_one_page(session, applicant_id, resume_id, draw)
     await _commit(session, "Failed to save the resume")
     return FitResponse(
         hidden=[c.id for c in cuts if c.kind == "bullet"],
         undo=ChoicesUpdate(**service.fit_changes(cuts, hide=False)),
-        render=_render_response(rendered, resume.name, identity, resume.template),
+        render=_render_response(rendered, resume.name, identity, resume.template, page),
     )
+
+
+@router.get("/{resume_id}/changed-at", response_model=ResumeChanged)
+async def changed_at(
+    resume_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> ResumeChanged:
+    try:
+        changed, now = await service.changed_at(session, applicant_id, resume_id)
+    except NotFound:
+        raise HTTPException(404, "Resume not found")
+    return ResumeChanged(changed_at=changed, now=now)
 
 
 @router.get("/{resume_id}/choices", response_model=ChoicesResponse)
@@ -347,6 +401,22 @@ async def update_choices(
     return await service.choices_response(session, resume_id)
 
 
+@router.put("/{resume_id}/page-settings", status_code=204)
+async def save_page_settings(
+    body: PageSettings,
+    resume_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    # The save alone, as PUT .../lines: the editor renders beside it
+    try:
+        await service.save_page(session, applicant_id, resume_id, body.model_dump())
+    except NotFound:
+        raise HTTPException(404, "Resume not found")
+    await _commit(session, "Failed to save the resume")
+    return Response(status_code=204)
+
+
 @router.post("/{resume_id}/render", response_model=EditRendered)
 async def render_edit(
     body: EditRender,
@@ -356,8 +426,8 @@ async def render_edit(
     # The editor's edit, rendered and never saved (KAN-391): made in memory
     # to its copy and compiled, with no database at all. The token is
     # checked without a read (`token_applicant`), and nothing of the resume
-    # is read: the copy carries its template and file name, and the PDF
-    # prints only what the student sent, so the path's resume needs no
+    # is read: the copy carries its template, page settings and file name,
+    # and the PDF prints only what the student sent, so the path's resume needs no
     # ownership check here. The save goes separately and writes with its
     # own check (PUT .../lines, PATCH .../choices).
     source = body.source
@@ -375,10 +445,12 @@ async def render_edit(
                 if found is None:
                     raise NotFound
                 bank.edit_entry(found.row, line.changes)
-                entry = EntryResponse.model_validate({**bank.entry_fields(found.row), "id": found.row.id})
+                entry = EntryResponse.model_validate({
+                    **bank.entry_fields(found.row), "id": found.row.id, "copy_group": bank.copy_group(found.row),
+                })
             else:
                 identity = _with_header(identity, line.changes)
-        else:
+        elif body.changes is not None:
             changes = {kind: [c.model_dump(exclude_unset=True) for c in getattr(body.changes, kind)]
                        for kind in ("entries", "bullets", "skills")}
             after = service.apply_choices(held, choices, **changes, variant_text={v.id: v.text for v in variants})
@@ -388,11 +460,12 @@ async def render_edit(
         raise RequestValidationError(exc.errors(include_url=False, include_context=False))
     except NotFound:
         raise HTTPException(404, "Resume or bank item not found")
+    page = resume_render.PageSettings(**(body.page or source.page_settings).model_dump())
     try:
-        rendered = await _render(build_view(held, after), identity, source.template)
+        rendered = await _render(build_view(held, after), identity, source.template, page)
     except ValueError:
         raise HTTPException(422, "Unknown template")
-    response = _render_response(rendered, "", identity, source.template)
+    response = _render_response(rendered, "", identity, source.template, page)
     return EditRendered(
         # The copy's file name, from the last render: the name is not read
         render=response.model_copy(update={"file_name": source.file_name}),
@@ -488,7 +561,7 @@ async def download_docx(
     except NotFound:
         raise HTTPException(404, "Resume not found")
     identity = await _identity(session, applicant_id)
-    data = await asyncio.to_thread(render_docx, view, identity)
+    data = await asyncio.to_thread(render_docx, view, identity, service.page_of(resume).section_order)
     return Response(
         data,
         media_type=DOCX_TYPE,
@@ -508,7 +581,7 @@ async def download_tex(
         raise HTTPException(404, "Resume not found")
     identity = await _identity(session, applicant_id)
     return Response(
-        latex(view, identity, resume.template),
+        latex(view, identity, resume.template, service.page_of(resume)),
         media_type="application/x-tex",
         headers={"Content-Disposition": f'attachment; filename="{service.file_name(resume.name, "tex")}"'},
     )

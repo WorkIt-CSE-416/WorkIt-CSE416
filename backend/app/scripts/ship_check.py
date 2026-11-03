@@ -120,13 +120,17 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
         app = named[job_id]
         return [
             WrittenAnswer(name=q["name"], label=q["question"], required=q["required"],
-                          max_length=q.get("max_length"), answer=saved.get((app, q["name"])))
+                          max_length=q.get("max_length"), answer=saved.get((app, q["name"]), (None,))[0])
             for q in apps[app]["questions"]
         ]
 
     async def get_application(db, applicant_id, job_id):
         app = apps[named[job_id]]
         return SimpleNamespace(job=SimpleNamespace(id=job_id, company=app["company"], title=app["title"]))
+
+    async def posting_text(db, job_id):
+        app = apps[named[job_id]]
+        return app["company"], app["title"], app["posting"]
 
     async def open_application(db, applicant_id, job_id):
         if job_id not in named:
@@ -190,6 +194,7 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
             (written, "fetch_next_to_write", fetch_next_to_write),
             (written, "fetch_written", fetch_written),
             (written, "get_application", get_application),
+            (written, "fetch_posting_text", posting_text),
             (written, "load_bank", nothing),
             # The pre-submit review (KAN-369) isn't what this check reads: it finds nothing to review.
             (review, "fetch_next_to_review", lambda db, applicant_id: _none()),

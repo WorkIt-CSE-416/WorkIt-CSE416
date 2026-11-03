@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   // services/avatar.py, src/lib/avatar-rules.ts); this must stay above that
   // plus multipart overhead, or Next rejects the upload before the action runs.
   experimental: { serverActions: { bodySizeLimit: "6mb" } },
+  // The Experiences page was /bank until KAN-440: old links and bookmarks land.
+  async redirects() {
+    return [{ source: "/bank", destination: "/experiences", permanent: true }];
+  },
   // Company logos on the Jobs feed, as the scraper found them on each job board's
   // page. The hosts below must match scraper/workit_scraper/logos.py's PATTERN
   // hosts exactly. Object form, because a `*` in `new URL(...)` is not a

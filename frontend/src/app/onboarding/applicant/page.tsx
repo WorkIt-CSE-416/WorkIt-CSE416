@@ -4,11 +4,13 @@ import { redirect } from "next/navigation";
 
 import { getSavedFilters } from "@/app/(seeker)/jobs/listings";
 import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
+import { claudeConnectorLink } from "@/lib/claude-connector";
 import { getProfile } from "@/lib/profile-actions";
 import { getCurrentAccount, getSessionUser } from "@/lib/session";
 
 import { OnboardingForm } from "./onboarding-form";
 import { getRoleOptions } from "./role-options";
+import { EXTENSION_STEP_PATH, startStep } from "./steps";
 
 export const metadata: Metadata = {
   title: "Set Up Your Profile",
@@ -29,9 +31,15 @@ export const metadata: Metadata = {
  * come back by opening this page again: the form opens on their saved
  * answers, and Finish saves the edits. ?step=2 opens it on Profile, now
  * the third step (KAN-372); intake's "Back to Pay & Visa" linked there until
- * KAN-275 took intake out of onboarding. It is honoured only with saved
- * answers, since the first step holds the answers that must be given and
- * Finish on the last saves without them.
+ * KAN-275 took intake out of onboarding. ?step=extension opens it on the
+ * extension's install step (Extension, leading to Practice): not opened
+ * directly by the extension's install anymore (KAN-471's own tab is
+ * `/extension-setup` now, KAN-495) -- reached instead through that page's
+ * "I Already Have One" button, signed out by way of sign-in. ?step=2 is
+ * honoured only with saved answers (./steps' startStep), since the first
+ * step holds the answers that must be given; ?step=extension also for a
+ * seeker who finished onboarding, so loading the extension never sends
+ * them back to the first step.
  *
  * The Role step's pickers offer what the Jobs page's filters offer
  * (./role-options, shared with Settings' Job Preferences).
@@ -41,7 +49,13 @@ export default async function ApplicantOnboardingPage({
 }: PageProps<"/onboarding/applicant">) {
   await connection();
   const user = await getSessionUser();
-  if (!user) redirect("/login");
+  if (!user) {
+    // /extension-setup's "I Already Have One" button (KAN-495) comes back to this step after a password sign-in.
+    const { step } = await searchParams;
+    redirect(
+      step === "extension" ? `/login?next=${encodeURIComponent(EXTENSION_STEP_PATH)}` : "/login",
+    );
+  }
   const account = await getCurrentAccount();
   if (account?.account_type === "company") redirect("/onboarding/company");
 
@@ -69,7 +83,8 @@ export default async function ApplicantOnboardingPage({
           : undefined
       }
       email={user.email}
-      startStep={params.step === "2" && saved ? 2 : 0}
+      claudeLink={claudeConnectorLink()}
+      startStep={startStep(params.step, saved != null, account?.onboarding_completed === true)}
     />
   );
 }

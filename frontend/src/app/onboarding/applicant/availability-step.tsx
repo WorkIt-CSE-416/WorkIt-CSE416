@@ -11,7 +11,8 @@ import { Field, fieldId } from "./role-step";
  * window (earliest start and the terms) and the screener facts card
  * (components/answer-fields, shared with My Profile). Every one is optional
  * and the step has Skip; relocation, address, languages and the latest end
- * live on My Profile's Application Answers.
+ * live on Application Info's Application Answers. Its controls take their
+ * `lg` size, the wizard's 16px answers (KAN-572).
  */
 export function AvailabilityStep({
   answers,
@@ -30,6 +31,7 @@ export function AvailabilityStep({
                 {q.question}
               </p>
               <YesNoChips
+                size="lg"
                 labelledBy={`${fieldId(q.label)}-q`}
                 value={answers[q.key]}
                 onChange={(next) => set({ [q.key]: next })}
@@ -56,6 +58,7 @@ export function AvailabilityStep({
             />
           </div>
           <TermChips
+            size="lg"
             labelledBy={fieldId("Start Window")}
             value={answers.available_terms}
             onChange={(available_terms) => set({ available_terms })}
@@ -63,7 +66,7 @@ export function AvailabilityStep({
         </div>
       </Field>
       <Field Icon={ANSWER_GROUP_ICON.screeners} label="Screener Facts">
-        <ScreenerCard answers={answers} set={set} />
+        <ScreenerCard size="lg" answers={answers} set={set} />
       </Field>
     </>
   );

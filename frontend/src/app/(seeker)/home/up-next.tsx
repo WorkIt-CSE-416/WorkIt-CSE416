@@ -1,11 +1,11 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui/card";
 
 import { DayLink, When } from "../local-time";
 import { KIND_ICON, KIND_STAGE, STAGE_COLOR } from "../stage-colors";
 import type { UpNextItem } from "./data";
 import { SectionHeader } from "./section-header";
-import { SectionCard } from "./section-card";
 
 /**
  * The rest of what needs the seeker next — the top item is the Next Up tile
@@ -13,7 +13,7 @@ import { SectionCard } from "./section-card";
  * "Needs your attention", and the same shape: the commitment first, whose it
  * is second, when last.
  *
- * A tile like every Home section (./section-card.tsx), down the
+ * A tile like every Home section (ui/card.tsx, `tone="tile"`), down the
  * Home's right-hand column.
  *
  * EACH ROW WEARS ITS STAGE, from ../stage-colors.ts: the same fill and the
@@ -26,7 +26,13 @@ import { SectionCard } from "./section-card";
  */
 export function UpNext({ items, className }: { items: UpNextItem[]; className?: string }) {
   return (
-    <SectionCard aria-labelledby="up-next" className={cn("@container/upnext", className)}>
+    <Card
+      as="section"
+      tone="tile"
+      padding="lg"
+      aria-labelledby="up-next"
+      className={cn("@container/upnext", className)}
+    >
       <SectionHeader
         id="up-next"
         title="Up Next"
@@ -96,6 +102,6 @@ export function UpNext({ items, className }: { items: UpNextItem[]; className?: 
       {items.length === 0 && (
         <p className="text-note text-ink-meta mt-3">Nothing else scheduled.</p>
       )}
-    </SectionCard>
+    </Card>
   );
 }

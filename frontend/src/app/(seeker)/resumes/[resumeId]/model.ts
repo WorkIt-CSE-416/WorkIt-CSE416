@@ -2,9 +2,12 @@ import type { Bank, BankEntry, Bullet, Skill } from "@/lib/bank-actions";
 import type { ChoicesUpdate, Choices, RenderBox } from "@/lib/built-resume-actions";
 import type { ApplicantProfile } from "@/lib/profile-actions";
 
+import { ALL, rowsOf, type BankRow } from "../../experiences/holdings.ts";
+import { unmarked } from "./text-marks.ts";
+
 /**
  * The editor's reading of the bank and one resume's choices (KAN-218): what
- * a selected box points at, what waits in the tray, and the PATCH body for a
+ * a selected box points at, what the Experiences picker lists, and the PATCH body for a
  * move. The API's view (backend `resume_view.py`) decides what the PDF shows;
  * this only mirrors its order rule, by position and then the bank's order,
  * to number siblings for a move.
@@ -27,7 +30,7 @@ export type Line =
   | { kind: "skill"; skill: Skill }
   | { kind: "header"; field: HeaderField };
 
-/** A line from the bank: what the assistant and the tray act on. */
+/** A line from the bank: what the assistant acts on. */
 export type BankLine = Exclude<Line, { kind: "header" }>;
 
 /** The header's lines come from the profile, not the bank (the API's
@@ -97,6 +100,12 @@ function ordered<T extends { id: string }>(
     .map((x) => x.item);
 }
 
+/** An entry's bullets that print on this resume, in order. */
+export function shownBullets(entry: BankEntry, choices: Choices) {
+  const row = new Map(choices.bullets.map((c) => [c.bullet_id, c]));
+  return ordered(entry.bullets, (id) => row.get(id)).map((b) => b.id);
+}
+
 /** The PATCH that moves a line one place up (-1) or down (1) among its
  *  shown siblings, renumbering them all so ties can never stall a move; null
  *  at either end. Entries move within their section, bullets within their
@@ -119,6 +128,65 @@ export function move(bank: Bank, choices: Choices, line: Line, by: -1 | 1): Choi
   return line.kind === "bullet"
     ? { bullets: order.map((bullet_id, position) => ({ bullet_id, position })) }
     : { entries: order.map((entry_id, position) => ({ entry_id, position })) };
+}
+
+/** `items` with the one at `from` moved to `to`. */
+export function moveItem<T>(items: T[], from: number, to: number): T[] {
+  const next = [...items];
+  next.splice(to, 0, ...next.splice(from, 1));
+  return next;
+}
+
+export type PrintedEntry = {
+  id: string;
+  title: string;
+  detail: string | null;
+  bullets: { id: string; text: string }[];
+};
+export type PrintedSection = { id: string; label: string; entries: PrintedEntry[] };
+
+// `fields.py`'s SECTION_LABELS and SKILLS_LABEL, as the page prints them
+const SECTION_LABELS: Record<string, string> = {
+  education: "Education",
+  experience: "Experience",
+  projects: "Projects",
+  leadership: "Leadership & Activities",
+  awards: "Awards",
+  certifications: "Certifications",
+  skills: "Technical Skills",
+};
+
+/** What prints, section by section in `order`: the outline the Sections
+ *  panel drags. A section with nothing on the resume is left out. */
+export function printedSections(bank: Bank, choices: Choices, order: string[]): PrintedSection[] {
+  const entry = (id: string) => choices.entries.find((c) => c.entry_id === id);
+  const bullet = (id: string) => choices.bullets.find((c) => c.bullet_id === id);
+  return order.flatMap((id): PrintedSection[] => {
+    if (id === "skills") {
+      const shown = bank.skills.some((s) => choices.skills.find((c) => c.skill_id === s.id)?.shown);
+      return shown ? [{ id, label: SECTION_LABELS[id], entries: [] }] : [];
+    }
+    const entries = ordered(
+      bank.entries.filter((e) => e.section === id),
+      entry,
+    );
+    if (!entries.length) return [];
+    return [
+      {
+        id,
+        label: SECTION_LABELS[id] ?? id,
+        entries: entries.map((e) => ({
+          id: e.id,
+          title: e.title,
+          detail: e.organization ?? null,
+          bullets: ordered(e.bullets, bullet).map((b) => ({
+            id: b.id,
+            text: unmarked(wording(choices, b)),
+          })),
+        })),
+      },
+    ];
+  });
 }
 
 /** The choices with a change's plain fields (shown, position, the GPA
@@ -226,38 +294,213 @@ export function swapOf(bank: Bank, choices: Choices, changes: ChoicesUpdate): Sw
   return null;
 }
 
-export type TrayItem =
-  | { kind: "entry"; entry: BankEntry }
-  | { kind: "bullet"; entry: BankEntry; bullet: Bullet; text: string }
-  | { kind: "skill"; skill: Skill };
+/** A bullet in the Experiences picker: its words on this resume, and whether
+ *  they print. */
+export type PickedBullet = { id: string; text: string; on: boolean };
 
-/** "Not on This Resume": bank entries with no row or hidden, hidden bullets
- *  of the entries that show (a hidden entry's bullets come back with it),
- *  and hidden skills. Each comes back with one click. */
-export function tray(bank: Bank, choices: Choices): TrayItem[] {
+/** One row of the Experiences picker: an entry and its copies, on when any
+ *  copy prints. `shownIds` are the copies that do. */
+export type PickedEntry = BankRow<BankEntry> & {
+  on: boolean;
+  shownIds: string[];
+  bullets: PickedBullet[];
+};
+
+/** A skill name in the picker: the skills that hold it, on when one prints. */
+export type PickedSkill = { skill: Skill; copies: Skill[]; on: boolean; shownIds: string[] };
+
+/**
+ * The whole bank as the Experiences picker shows it (KAN-440): the resume is
+ * the part of the bank that is on. Copies are one row, as in All Experiences,
+ * and the row is the copy that prints, so a row and the page agree. Bullets
+ * keep their place whether on or off: the resume's order for a bullet with a
+ * row on it, then the rest in the bank's order. Off bullets went to the end
+ * until 2026-11-01, so a tick moved the list under the pointer and the next
+ * click landed on another bullet. A bullet's words are this resume's own
+ * where it has them.
+ */
+export function pickerEntries(bank: Bank, choices: Choices): PickedEntry[] {
   const entry = new Map(choices.entries.map((c) => [c.entry_id, c]));
   const bullet = new Map(choices.bullets.map((c) => [c.bullet_id, c]));
-  const skill = new Map(choices.skills.map((c) => [c.skill_id, c]));
-  const items: TrayItem[] = [];
-  for (const e of bank.entries) {
-    if (!entry.get(e.id)?.shown) {
-      items.push({ kind: "entry", entry: e });
-      continue;
-    }
-    for (const b of e.bullets) {
-      const c = bullet.get(b.id);
-      if (!c?.shown) items.push({ kind: "bullet", entry: e, bullet: b, text: c?.text ?? b.text });
-    }
-  }
-  for (const s of bank.skills) if (!skill.get(s.id)?.shown) items.push({ kind: "skill", skill: s });
-  return items;
+  const prints = (e: BankEntry) => entry.get(e.id)?.shown === true;
+  return rowsOf(ALL, bank.entries, bank.resumes, prints).map((row) => {
+    const shownIds = [row.entry, ...row.copies].filter(prints).map((e) => e.id);
+    const placed = ordered(row.entry.bullets, (id) => {
+      const c = bullet.get(id);
+      return c && { ...c, shown: true };
+    });
+    const rowless = row.entry.bullets.filter((b) => !bullet.has(b.id));
+    return {
+      ...row,
+      on: shownIds.length > 0,
+      shownIds,
+      bullets: [...placed, ...rowless].map((b) => ({
+        id: b.id,
+        text: unmarked(bullet.get(b.id)?.text ?? b.text),
+        on: bullet.get(b.id)?.shown === true,
+      })),
+    };
+  });
 }
 
-/** The PATCH that puts a tray item back on the resume. */
-export function putBack(item: TrayItem): ChoicesUpdate {
-  if (item.kind === "entry") return { entries: [{ entry_id: item.entry.id, shown: true }] };
-  if (item.kind === "bullet") return { bullets: [{ bullet_id: item.bullet.id, shown: true }] };
-  return { skills: [{ skill_id: item.skill.id, shown: true }] };
+/** The skills, a name once: uploads can each hold one, and the page would
+ *  print it twice. */
+export function pickerSkills(bank: Bank, choices: Choices): PickedSkill[] {
+  const skill = new Map(choices.skills.map((c) => [c.skill_id, c]));
+  const names = new Map<string, Skill[]>();
+  for (const s of bank.skills) {
+    const name = s.name.trim().toLowerCase();
+    names.set(name, [...(names.get(name) ?? []), s]);
+  }
+  return [...names.values()].map((held) => {
+    const shown = held.filter((s) => skill.get(s.id)?.shown);
+    const first = shown[0] ?? held[0];
+    return {
+      skill: first,
+      copies: held.filter((s) => s !== first),
+      on: shown.length > 0,
+      shownIds: shown.map((s) => s.id),
+    };
+  });
+}
+
+/** The PATCH that turns a row on or off. Off takes every copy that prints,
+ *  so the row does not stay on through a second copy. */
+export function pickEntry(row: PickedEntry, on: boolean): ChoicesUpdate {
+  return {
+    entries: on
+      ? [{ entry_id: row.entry.id, shown: true }]
+      : row.shownIds.map((entry_id) => ({ entry_id, shown: false })),
+  };
+}
+
+export function pickBullet(bullet_id: string, on: boolean): ChoicesUpdate {
+  return { bullets: [{ bullet_id, shown: on }] };
+}
+
+export function pickSkill(row: PickedSkill, on: boolean): ChoicesUpdate {
+  return {
+    skills: on
+      ? [{ skill_id: row.skill.id, shown: true }]
+      : row.shownIds.map((skill_id) => ({ skill_id, shown: false })),
+  };
+}
+
+/** What Fit to One Page cut from this resume, read from each fit's `undo`
+ *  body: whole entries, bullets and skills (docs/cut_to_one_page.md), and
+ *  Education's coursework lines, which fits before KAN-320 cut. */
+export type FitCuts = {
+  entries: string[];
+  bullets: string[];
+  coursework: string[];
+  skills: string[];
+};
+
+export const NO_CUTS: FitCuts = { entries: [], bullets: [], coursework: [], skills: [] };
+
+/** `cuts` with one more fit's cuts added: a second fit adds to the first. */
+export function addCuts(cuts: FitCuts, undo: ChoicesUpdate): FitCuts {
+  const add = (list: string[], ids: string[]) => [...new Set([...list, ...ids])];
+  const entries = undo.entries ?? [];
+  return {
+    entries: add(
+      cuts.entries,
+      entries.filter((e) => e.shown !== undefined).map((e) => e.entry_id),
+    ),
+    coursework: add(
+      cuts.coursework,
+      entries.filter((e) => e.show_coursework !== undefined).map((e) => e.entry_id),
+    ),
+    bullets: add(
+      cuts.bullets,
+      (undo.bullets ?? []).map((b) => b.bullet_id),
+    ),
+    skills: add(
+      cuts.skills,
+      (undo.skills ?? []).map((s) => s.skill_id),
+    ),
+  };
+}
+
+/** One row of Cut From Resume: a picker row with only the bullets Fit cut,
+ *  the copies Fit cut whole (`cutIds`), and its coursework line if Fit cut
+ *  that. */
+export type CutEntry = PickedEntry & {
+  cutIds: string[];
+  coursework: { entry_id: string; on: boolean } | null;
+};
+
+/**
+ * Cut From Resume's rows: each entry Fit cut something from, as the
+ * Experiences picker shows it (`pickerEntries`), so a row says whether it
+ * is back on the page. A row stays after it is added back, ticked, so a
+ * click that put the wrong one back can take it off again.
+ */
+export function cutRows(bank: Bank, choices: Choices, cuts: FitCuts): CutEntry[] {
+  const entry = new Map(choices.entries.map((c) => [c.entry_id, c]));
+  return pickerEntries(bank, choices).flatMap((row) => {
+    const ids = [row.entry, ...row.copies].map((e) => e.id);
+    const cutIds = ids.filter((id) => cuts.entries.includes(id));
+    const bullets = row.bullets.filter((b) => cuts.bullets.includes(b.id));
+    const course = ids.find((id) => cuts.coursework.includes(id));
+    if (cutIds.length === 0 && bullets.length === 0 && !course) return [];
+    return [
+      {
+        ...row,
+        bullets,
+        cutIds,
+        coursework: course
+          ? { entry_id: course, on: entry.get(course)?.show_coursework === true }
+          : null,
+      },
+    ];
+  });
+}
+
+/** True when everything Fit cut from the row is on the page again. */
+export function isBack(row: CutEntry) {
+  return (
+    (row.cutIds.length === 0 || row.on) &&
+    row.bullets.every((b) => b.on) &&
+    (!row.coursework || row.coursework.on)
+  );
+}
+
+/** Puts a Fit-cut part back and, if the entry was later hidden, puts that
+ * entry back too. A bullet or coursework line cannot print without it. */
+export function restoreCutEntry(row: CutEntry, changes: ChoicesUpdate): ChoicesUpdate {
+  if (row.on) return changes;
+  const entries = changes.entries ?? [];
+  const hasEntry = entries.some((change) => change.entry_id === row.entry.id);
+  return {
+    ...changes,
+    entries: hasEntry
+      ? entries.map((change) =>
+          change.entry_id === row.entry.id ? { ...change, shown: true } : change,
+        )
+      : [...entries, { entry_id: row.entry.id, shown: true }],
+  };
+}
+
+/** One skill Fit cut, and whether it is on the page again. It is the skill
+ *  Fit cut, not the picker's row of its copies, so it comes back as itself. */
+export type CutSkill = { skill: Skill; on: boolean };
+
+/** Cut From Resume's skills, in the bank's order. Like an entry's row, one
+ *  stays once it is back, ticked. */
+export function cutSkills(bank: Bank, choices: Choices, cuts: FitCuts): CutSkill[] {
+  const shown = new Map(choices.skills.map((c) => [c.skill_id, c.shown]));
+  return bank.skills
+    .filter((s) => cuts.skills.includes(s.id))
+    .map((skill) => ({ skill, on: shown.get(skill.id) === true }));
+}
+
+/** True while anything Fit cut is still off the page: Cut From Resume's
+ *  button shows only then (or while its panel is open). */
+export function cutLeft(bank: Bank, choices: Choices, cuts: FitCuts) {
+  return (
+    !cutRows(bank, choices, cuts).every(isBack) || cutSkills(bank, choices, cuts).some((s) => !s.on)
+  );
 }
 
 /** The page-count chip: "1 page", or "2 pages · 3 lines over 1 page". */

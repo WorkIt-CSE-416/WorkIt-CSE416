@@ -188,9 +188,11 @@ function Sidebar({
           }
           side={side}
         >
+          {/* Forked (KAN-570, docs/shadcn.md): shadcn names the phone's
+              sheet "Sidebar", which is not a word a student uses. */}
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>Menu</SheetTitle>
+            <SheetDescription>The sections of WorkIt.</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>

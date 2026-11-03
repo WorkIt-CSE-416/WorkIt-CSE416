@@ -18,7 +18,7 @@ document again on each change.
 
 The round trip is the save, the network, the database read, Tectonic
 (about 0.3 to 0.5 s warm on a Mac, more on a cold instance) and the
-pdf.js draw. The editor's bar shows it after each save ("Saved, 412 ms").
+pdf.js draw. The editor's bar showed it after each save until the user found it noise; a phone still does ("Saved, 412 ms").
 Today the typed line shows at once, because the field over it is HTML
 set in Latin Modern. The rest of the page (the lines below, the page
 break, the page count) waits for the compile.
@@ -50,7 +50,9 @@ PDF takes the HTML page's place.
   field's text as `fields.py` prints it, sent by the API. It must never
   build its own order or wording: `model.ts` mirrors the order rule only
   to number siblings for a move.
-- **Its measures are Jake's.** The page copies `jakes.tex`'s margins,
+- **Its measures are Jake's, set by the page's settings** (KAN-435): the
+  field reads its size, wrapped line and right edge from the render's
+  `page_settings` and `wrapped_line`. The page copies `jakes.tex`'s margins,
   sizes, spacing and two-column headings, checked against the PDF's own
   boxes, which give each line's real position. Its fonts are the editor's
   Latin Modern files; the small capitals of the name and the section
@@ -90,15 +92,31 @@ Built so far (option A, the typed line only):
   back from the tray that never had a row still reads first.
 - **A failed save puts the saved resume back:** the editor reads the bank
   and choices again, renders from the database and says the change was
-  not saved.
+  not saved. A save refused with 422 needs no reload, since its render
+  refuses it too; a 404 reloads, since the render reads the editor's copy
+  and an item deleted in another tab is still in it. A render that fails
+  for any reason but a refusal (404, 422)
+  is sent once more; if it fails again it does the same, since its save
+  may have gone through.
 - **Moves show at once:** two neighbours' strips of the page trade places
   until the PDF lands. Hide, show and wording switches show nothing until
   then.
+- **A page setting's compile is skipped when a newer one is next in the
+  queue** (each is a full replacement), so five quick clicks on a size
+  compile twice, not five times. Every click still saves. A skipped step
+  keeps no PDF, nor does the step after it on its before side, so Undo
+  renders those, and any step while a page's render is queued renders too,
+  or that render would print over it. Typed lines and choice changes are not skipped: a render
+  is what refuses a bad one, and each carries only its own edit.
 - **Undo and Redo work like any edit:** each step keeps the state and
   PDF on both sides, so going back or forward shows at once and only the
   save goes; an older step, past the newest 7 that keep their PDFs,
   renders like a new edit. 25 steps, in the tab's memory (both numbers
   are first guesses, to tune in `history.ts`).
+- **Another tab's edit reaches this one:** each save is announced to the
+  other editor tabs in the browser, which read the resume again once
+  shown and idle; a tab back after 5 minutes away asks when the resume
+  last changed and reads it again only if it changed meanwhile.
 - **Measured from a laptop against the shared database:** one round trip
   about 66 ms, loading a resume's view 560 to 730 ms, a compile 410 to
   500 ms (2026-10-28). A line went from about 2.7 to 3.5 s (save, then
@@ -120,8 +138,19 @@ Still open for step 1:
 - A line split across a page break moves only its first page.
 - A line the student is still on when the tab closes is not saved.
 - Hide, show and a wording switch show nothing until the PDF lands.
-- The time on the deployed API, where a round trip is 8 to 30 ms and
-  connections stay open: not measured yet.
+- The time of one compile alone on the deployed API. A compile is nearly
+  all CPU, 0.41 CPU seconds in a laptop's 0.42 s of waiting (KAN-524,
+  2026-11-02), and the Container has 1/4 vCPU
+  (`backend/cloudflare/wrangler.jsonc`). Measured on the live site that
+  day, signed in, in the browser: the editor's page, whose load holds one
+  compile, took 5.2 to 6.7 s in 9 of 11 loads and 13 and 19 s in the other
+  two; the Resumes page, with no compile, took 0.4 to 0.8 s. So a compile
+  there is likely several seconds, and every edit that renders waits for
+  it: a revert, an Undo past the kept PDFs, and Fit to One Page twice or
+  more. Undo and Redo with kept PDFs still wait for any render ahead of
+  them in the queue. `/health/db?timing=true` showed three bands the same
+  day, about 12, 47 and 75 ms, against the 8 to 30 ms expected from ENAM, so
+  the three Containers may not be alike.
 
 ## Step 2, under consideration: edit in place on a page Typst draws
 

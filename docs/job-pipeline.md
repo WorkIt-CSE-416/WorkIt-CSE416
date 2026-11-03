@@ -92,6 +92,12 @@ How the refresh behaves:
 
 Workable, BambooHR and Recruitee were added in KAN-171, Workday in KAN-134, and
 Rippling, iCIMS and Oracle Cloud in KAN-301.
+BambooHR's job postings are listed but never auto applied: the Fill engine has
+no BambooHR Filler. KAN-472 weighed building one or deleting its saved form
+(`fill-engine/test/fixtures/forms/bamboohr-lunaroutpost`) and took a third
+option, keeping the form with no Filler, because Apply's Claude fill tests serve
+it as their job system with no Filler, while about 105 feed jobs didn't yet
+earn a Filler (its `README.md` has the detail).
 Recruitee has so few company job boards because the GitHub lists barely mention
 it. Workday is the opposite: nearly half the lists' apply links point at it.
 
@@ -122,7 +128,7 @@ other hiring systems finish inside it (about 3 minutes without Workday).
 |---|---|
 | 1. Pick company job boards | One that has ever had a job posting we keep is read every run. The rest ("quiet" ones) are read one run in three, a third of them on each run, so a first job posting at a quiet company can appear about nine hours late. `--full` reads them all. Workday's are read for 12 minutes a run, least recently read first (section 2). A board that went unread three runs in a row (it failed, said it does not exist, or `robots.txt` refused it) rests for 6 hours, then 12, then a day at most, until one read succeeds. |
 | 2. Read politely | Checks each site's `robots.txt`, waits between requests (Lever asks for one second) and names itself honestly. Each hiring system has its own lane of workers, so slow Lever doesn't hold up Greenhouse. BambooHR, Recruitee and Workday give every company its own subdomain, and each hiring system's subdomains share one pace. A "too many requests" answer (429) pauses every request to that site, from 1 second up to a minute. |
-| 3. Keep the right job postings | Checks each title (section 3.1). About 100,000 job postings are read on the other hiring systems and about 115,000 more on Workday each run. About 3,500 of the first are kept; Workday's first run kept 664, under the five categories before KAN-172. |
+| 3. Keep the right job postings | Checks each title (section 3.1). A title with no stage word is also kept when its description asks for 0 or 1 years of experience, on the hiring systems whose list sends descriptions (Ashby, Lever, Recruitee, TikTok, Jibe). Only a job posting that can still be kept has its description fully read; the rest are dropped after a quick look at the title and the experience it asks for. About 100,000 job postings are read on the other hiring systems and about 115,000 more on Workday each run. About 3,500 of the first are kept; Workday's first run kept 664, under the five categories before KAN-172. |
 | 4. Fetch full pages | Greenhouse, Workable, BambooHR and Workday lists leave out the description, pay, work style or exact date, so the scraper reads the full page of each kept job posting there, once. |
 | 5. Read the facts | Pulls pay, job type, work style, start date, years and visa out of each kept job posting (section 3.2). |
 | 6. Merge duplicates | Job postings that share one apply link become one, with all their locations. So does a Workday job posted on two or three of a company's careers sites (the same requisition number at the same company, as on Autodesk's `ext` and `uni`): one card, linking the careers site made for students. Job postings that only share a title stay apart, since each is its own application. |
@@ -259,10 +265,11 @@ transaction**: if any step fails, nothing changes.
 |---|---|
 | 1. Check | Every row is checked against the API's schema |
 | 2. Read places | Each location's text is turned into place codes (section 5.2) |
+| 3a. Take over | A job a student added (section 5.1, `added_by_student`) whose job is in the feed under another form of its link (the same Greenhouse job, or the same link without its scheme, `www.`, query and trailing slash) gets the feed's link, so the upsert fills it in and makes it an ordinary scraped job. The student's application stays on it. KAN-542 |
 | 3. Upsert | New job postings are added, changed ones updated, unchanged ones left alone. A job posting is identified by its apply link. The feed's `roles` keys are ignored (KAN-155): roles come from step 5. A changed description clears the job posting's cached keywords (section 5.1) |
 | 4. Places | Each job posting's place rows are brought in line |
 | 5. Role tags | Each title is matched against the `job_roles` list (section 5.3) and the job posting's `job_role_tags` rows are brought in line. The report lists titles that matched no role |
-| 6. Close | Job postings no longer in the feed are marked closed, with the reason the scraper gives in `closings.json` (gone from its company job board, the board gone, no longer kept by the shortlist, or replaced by another copy), else "unknown"; one that comes back reopens |
+| 6. Close | Job postings no longer in the feed are marked closed, with the reason the scraper gives in `closings.json` (gone from its company job board, the board gone, no longer kept by the shortlist, or replaced by another copy), else "unknown"; one that comes back reopens. A job a student added from its form (KAN-515, `added_by_student`) is never closed, since the feed never had it; a feed that lists its link makes it an ordinary scraped job, keeping its applications. A student can't reopen a closed job by adding its form: that link is refused. Apply's tracking (`track_only`) puts the student's application on the closed job and leaves it closed |
 
 **Safety net:** the import refuses to close more than half the job postings at
 once and rolls back. A broken scrape fails loudly instead of emptying the site.
@@ -292,7 +299,8 @@ table. Scraped ones have no `company_id`.
 | `start_term` | As the job posting says it, like "Summer 2027" |
 | `min_years_experience` | A number, or empty |
 | `sponsorship` | Section 3.2's three values, or empty |
-| `status`, `posted_at` | Published or closed; when the company job board says it went up |
+| `status`, `posted_at` | Published or closed; when the company job board says it went up. The type also has `unlisted` (KAN-542), which nothing writes: a job a student added is `added_by_student` (ADR 0008), and a later migration removes the value |
+| `added_by_student` | A job WorkIt does not list that a student added by its link (`POST /jobs/added-by-link`, KAN-515): only the company, the title and the link, published. The Jobs page, search and Scout never show it, and the import makes it an ordinary scraped job when the scraper finds the same job |
 | `embedding`, `fts` | For job matching (KAN-139): the Jobs page's Best Match order ranks by them (KAN-231, KAN-288). The embedding reads the title, Overview (or the intro when there is none), Responsibilities, Requirements and Preferred Qualifications (KAN-229) |
 | `keywords`, `keywords_hash` | Tailor's keywords (KAN-215): at most 20, each required or preferred, read by the model, with a hash of what the model read: the title and the job's own sections of the description, not its perks (`posting_text_hash`, which the import and Tailor's check share). The import reads them after it commits, for new and changed job postings, at most 100 a run (KAN-392); a company's job posting is read when it is saved as published. A job posting neither has reached yet is read the first time a student's resume is matched against it. A change to the title or the job's sections makes them stale, and the import clears them when the description changes |
 

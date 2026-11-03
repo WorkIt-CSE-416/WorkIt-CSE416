@@ -40,114 +40,81 @@
 }
 
 /*
- * The statement's red wavy underline under "slop" (statement.tsx), drawn as
- * a layer of its own: a text decoration is repainted with the selected
- * text, only inside the highlight, so selecting the headline cut off the
- * wave's lower half. Placed as the decoration was, 0.16em under the
- * baseline (the line box's foot is 0.222em under it).
+ * Pause Animations (motion-pause.ts, KAN-580): every endless CSS loop holds
+ * on the frame it is at, and Play goes on from there. The loops only, by
+ * name: an entrance (the city's fade in, the hero's rise, Pricing's rows)
+ * paused before it ran would hide what it brings in. A new loop joins this
+ * list. !important beats each piece's `animation` shorthand, as the city's
+ * off-screen pause does.
  */
+:root[data-motion="paused"]
+  :is(
+    .slop-word,
+    .line-scan,
+    .wordmark-drift,
+    .bridge-float,
+    .hero-city .streak,
+    .hero-city .msolid,
+    .hero-city .mwire .wire,
+    .hero-city .mwire .we,
+    .hero-city .swire,
+    .hero-city .pool,
+    .hero-city .tag,
+    .hero-city .tag > * > *,
+    .tour-spin,
+    .tour-scan,
+    .tour-typing,
+    .gate-scan *,
+    .gate-shield *,
+    .gate-bot *,
+    .workit-hop circle
+  ) {
+  animation-play-state: paused !important;
+}
+
+/* The scan's sheet of light in the sorting line's gate (sorting-line.tsx). */
+.line-scan {
+  opacity: 0.1;
+  animation: line-scan 2.4s ease-in-out infinite;
+}
+@keyframes line-scan {
+  50% {
+    opacity: 0.24;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .line-scan {
+    animation: none;
+  }
+}
+
 /*
- * "Slop" as AI slop (slop-word.tsx): a box one line tall and the word's
- * width, its drawing let out below for the drips. `--reach` is how far a
- * drip may run, a share of its full length: on a phone the headline wraps
- * and "get" sits under "Slop", and from lg up the caption's chip does, so
- * each gets only what clears it. A bulb rides its stem's end
- * (`--len`, in SVG units, set per drip).
+ * Slop, in the statement (statement.tsx): the headline's word, and the
+ * phrases marked in each generic line. Real text, so it sits flush with the
+ * words beside it, in a gradient that keeps flowing. The tile is in em and
+ * ends on the colour it starts with, so a word of any length shows the same
+ * stretch of it and the loop has no seam. Drawn as an SVG with goo, a glow and
+ * sparkles, the headline's word had its own weight and box, and its letters
+ * ran together.
  */
-.slop-goo {
-  --reach: 0.4;
-  position: relative;
-  display: inline-block;
-  vertical-align: top;
-  width: 2.2em;
-  height: 1.08em;
+.slop-word {
+  background: linear-gradient(90deg, #e0218a, #6d3bf5 33%, #0a84d6 66%, #e0218a) 0 0 / 6em 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: slop-flow 5s linear infinite;
 }
-@media (width >= 40rem) {
-  .slop-goo {
-    --reach: 0.6;
+@keyframes slop-flow {
+  to {
+    background-position: -6em 0;
   }
 }
-@media (width >= 64rem) {
-  .slop-goo {
-    --reach: 0.7;
-  }
-}
-.slop-goo-art {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-.slop-drip {
-  transform-box: fill-box;
-  transform-origin: 50% 0;
-  animation: slop-stretch 4s ease-in-out var(--d, 0s) infinite;
-}
-.slop-bulb {
-  animation: slop-fall 4s ease-in-out var(--d, 0s) infinite;
-}
-.slop-spark {
-  transform-box: fill-box;
-  transform-origin: 50% 50%;
-  animation: slop-twinkle 1.8s ease-in-out var(--d, 0s) infinite;
-}
-.slop-shine {
-  animation: slop-sheen 3.2s ease-in-out infinite;
-}
-@keyframes slop-stretch {
-  0%,
-  100% {
-    transform: scaleY(calc(0.35 * var(--reach)));
-  }
-  60% {
-    transform: scaleY(var(--reach));
-  }
-}
-@keyframes slop-fall {
-  0%,
-  100% {
-    transform: translateY(calc((0.35 * var(--reach) - 1) * var(--len) * 1px));
-  }
-  60% {
-    transform: translateY(calc((var(--reach) - 1) * var(--len) * 1px));
-  }
-}
-@keyframes slop-twinkle {
-  0%,
-  100% {
-    transform: scale(0.4);
-    opacity: 0.3;
-  }
-  50% {
-    transform: scale(1) rotate(45deg);
-    opacity: 1;
-  }
-}
-@keyframes slop-sheen {
-  0%,
-  100% {
-    transform: skewX(-20deg) translateX(-60px);
-  }
-  50% {
-    transform: skewX(-20deg) translateX(150px);
-  }
-}
-[data-paused] .slop-goo * {
+[data-paused] .slop-word {
   animation-play-state: paused;
 }
 @media (prefers-reduced-motion: reduce) {
-  .slop-drip,
-  .slop-bulb,
-  .slop-spark,
-  .slop-shine {
+  .slop-word {
     animation: none;
-  }
-  .slop-drip {
-    transform: scaleY(var(--reach));
-  }
-  .slop-bulb {
-    transform: translateY(calc((var(--reach) - 1) * var(--len) * 1px));
   }
 }
 
@@ -173,7 +140,7 @@ html:has(.landing) {
 }
 
 .lenis [data-lenis-prevent] {
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
 }
 
 .lenis.lenis-smooth iframe {
@@ -182,22 +149,14 @@ html:has(.landing) {
 
 /*
  * Glass button (buttons.tsx): the two light brand violets with a glassy top
- * highlight, its fill a pseudo-element behind the label. In the components
- * layer, as on the site, so a utility on the element (h-12, hidden) wins.
+ * highlight, its fill a pseudo-element behind the label. Its shape and size
+ * are buttons.tsx's, shared by every marketing button (KAN-581). In the
+ * components layer, as on the site, so a utility on the element wins.
  */
 @layer components {
   .glass-btn {
     position: relative;
     isolation: isolate;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 2.5rem;
-    padding-inline: 1rem;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    white-space: nowrap;
     color: var(--color-landing-brand-950);
     text-shadow: 0 1px 0 rgb(255 255 255 / 0.45);
     transition:
@@ -388,18 +347,26 @@ html:has(.landing) {
   }
 }
 
-.hero-city .wf {
-  fill: rgb(109 63 216 / 0.07);
+/* The violet towers' glass faces, lit like the buildings': solid, so nothing
+ * behind shows through (city-model.ts, wireTower). */
+.hero-city .gl {
+  fill: #7d5ce8;
+}
+.hero-city .gr {
+  fill: #9b80f2;
+}
+.hero-city .gt {
+  fill: #cdbefb;
 }
 .hero-city .wl {
   fill: none;
-  stroke: var(--holo);
+  stroke: #fff;
   stroke-width: 0.8;
-  opacity: 0.4;
+  opacity: 0.28;
 }
 .hero-city .we {
   fill: none;
-  stroke: var(--holo);
+  stroke: #5a2fd0;
   stroke-width: 1.2;
   stroke-linejoin: round;
   stroke-linecap: round;
@@ -743,10 +710,6 @@ html[data-tab-flight="flying"] .tour-tabs {
   animation: tour-spin 0.9s linear infinite;
 }
 
-.tour-sheen {
-  animation: tour-sheen 1s linear infinite;
-}
-
 /* 1.6s down the page, then 0.4s at its foot before the next pass. */
 .tour-scan {
   animation: tour-scan 2s infinite;
@@ -759,15 +722,6 @@ html[data-tab-flight="flying"] .tour-tabs {
 @keyframes tour-spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@keyframes tour-sheen {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(300%);
   }
 }
 
@@ -792,7 +746,6 @@ html[data-tab-flight="flying"] .tour-tabs {
 
 @media (prefers-reduced-motion: reduce) {
   .tour-spin,
-  .tour-sheen,
   .tour-typing {
     animation: none;
   }

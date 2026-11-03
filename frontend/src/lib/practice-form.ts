@@ -146,7 +146,7 @@ const TOKENS = `
   --color-canvas: #f5f5f5;
   --color-well: #f7f7f7;
   --color-border: #e3e9f0;
-  --color-border-control: #8a8f9a;
+  --color-border-control: #878c97;
   --color-positive-ink: #107a52;
   --color-danger: #c02a3d;
   --color-warning: #8a5a00;

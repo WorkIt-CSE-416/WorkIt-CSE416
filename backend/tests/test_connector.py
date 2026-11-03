@@ -416,7 +416,7 @@ async def test_the_writing_rules_are_a_prompt(running, applicant):
 
 async def test_the_connector_calls_no_model(running, applicant, database, monkeypatch):
     """Every model WorkIt calls is made through workit_scout's LLM (Scout,
-    intake, Tailor, the essay-answer route): none may be made."""
+    intake, Tailor): none may be made."""
     from workit_scout.llm import LLM
 
     me, (job,) = await _student_queues(database, applicant, 1)
