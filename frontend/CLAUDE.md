@@ -1606,7 +1606,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   checked against `--color-app` (#f5f5f5) too, where `ink-faint` is 2.85:1.
 - **A form's buttons sit by its kind** (`docs/design.md`, Components): a
   page or Settings form left, Save first; a dialog or a card edited in place
-  right, Save last. A disabled filled button is grey (`ui/button.tsx`,
+  right, Save last; a wizard Back on the left and the forward button on the
+  right (KAN-565). A disabled filled button is grey (`ui/button.tsx`,
   DISABLED_FILL), never a faded brand fill, and a lesser action beside a
   button is `variant="section"`, never brand text.
 - **Anything clicked or picked is medium (500)**: buttons, chips,
@@ -2472,6 +2473,13 @@ query, the percent; `node --test`); its read is `getFillHealth` in
 - **Design**: before changing a shell, a page's layout or widths, a colour
   (stage or match), a segmented control or a `ui/` component, read
   `docs/design.md`.
+- **Design principles**: every new or changed app screen is checked against
+  `docs/design.md`'s Design principles (legibility and contrast, hierarchy,
+  component roles and states, tokens, layout, accessibility, dialogs,
+  copy). A break found and not fixed goes in its Still open list. Its
+  Settled choices (16px card gap, the 68ch `--measure-prose` and 48rem
+  `--measure-form`, the wizard footer, no Experiences exception to the
+  icon rule) change only with the user.
 - **Motion**: before adding or changing an animation, transition, hover or
   press state, `<ViewTransition>` or shallow routing, read `docs/motion.md`.
 
