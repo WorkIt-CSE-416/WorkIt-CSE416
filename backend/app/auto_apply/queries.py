@@ -48,6 +48,7 @@ from app.schemas.applications import (
     WrittenQuestion,
 )
 from app.schemas.sent_resume import SentResumeResponse
+from app.services.postings import UNLISTED
 
 
 async def queue_applications(
@@ -133,6 +134,7 @@ def _applications(applicant_id: uuid.UUID) -> Select:
             Job_Application.apply_by.label("apply_by"),
             Job_Post.closes_at.label("closes_at"),
             LISTED.label("open"),
+            UNLISTED.label("unlisted"),
             Sent_Resume,
         )
         .join(Job_Application, Job_Application.job_id == Job_Post.id)
@@ -150,6 +152,7 @@ def _to_application(row) -> Application:
         apply_by=row.apply_by,
         closes_at=row.closes_at,
         open=row.open,
+        unlisted=row.unlisted,
         sent_resume=SentResumeResponse.from_row(row.Sent_Resume) if row.Sent_Resume else None,
     )
 
