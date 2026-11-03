@@ -271,7 +271,7 @@ def test_the_dashboard_tile_of_each_worker_says_what_it_applied_to_and_how_it_en
     assert board.captions[0].pop("verification")["state"] == "verified"
     assert board.captions == {0: {"company": "Arc", "role": "Software Engineer Intern", "job_system": "greenhouse",
                                   "status": "submitted", "line": "submitted", "why": "", "drafted": [],
-                                  "choices": {}, "required": {}}}
+                                  "choices": {}, "required": {}, "essay": ""}}
 
 
 def test_a_failed_application_and_a_wrong_answer_leave_repair_requests(monkeypatch, tmp_path):
