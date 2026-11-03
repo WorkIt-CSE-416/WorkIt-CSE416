@@ -70,7 +70,8 @@ module docstring has the steps.
   (KAN-542, `POST /jobs/added-by-link`), which no student search sees, so
   it needs no locations or tags until the import lists it.
 - **It takes over an unlisted job posting** (KAN-542, ADR 0008,
-  `_take_over_unlisted`): before the upsert, an unlisted posting whose job
+  `_take_over_unlisted`): before the upsert, an unlisted posting
+  (`services/postings.py`'s `UNLISTED`, the same rule the API uses) whose job
   the feed has under another form of the link (the same Greenhouse job, or
   the same bare link when only one feed job has it) moves onto the feed's
   link, so the upsert fills it in and publishes it, with the student's
@@ -531,7 +532,13 @@ Find files with a directory listing; these are the rules for where code goes.
   else a scraped posting the feed closed or one already unlisted (its link
   is unique, so a new row would fail), else a new **unlisted job posting**
   (status `unlisted`: company, title, link, level). The student's
-  application on it is saved unless one exists. Only a student with an
+  application on it is saved unless one exists. **Each student sees their
+  own company and title on an unlisted posting**: the application keeps the
+  text the student typed (`job_applications.company_name`, `title`), and
+  the tracker list shows it through `postings.typed_text` while the posting
+  is unlisted. A second student on the same link never sees the first
+  student's text. A new query that shows a student's applications must use
+  `typed_text` too. Only a student with an
   application on an unlisted posting reaches it: `LISTED` leaves it out
   of the Jobs page, search, Scout and every `postings.listed` caller, and
   `mark_applied` takes it only with the student's application
@@ -646,7 +653,9 @@ Find files with a directory listing; these are the rules for where code goes.
   from `written_answers` directly). A draft of their Claude's brought
   from Apply with no company (no `first_seen`) that names a company WorkIt
   knows (`written.companies_named`; the student's own places don't count)
-  is that company's answer. **The student's own words win**
+  is that company's answer. The companies WorkIt knows
+  (`queries.fetch_company_names`) never include an unlisted posting's
+  company: one student typed it (KAN-542). **The student's own words win**
   (KAN-379): the student's words in a tab (`PUT .../answers`, `own` true:
   written into a field WorkIt didn't fill, or replacing what it filled) set
   the row's `own`, which their Claude's later save never overwrites and

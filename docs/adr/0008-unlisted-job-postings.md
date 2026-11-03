@@ -8,7 +8,8 @@ its link, and WorkIt makes a job posting with the status `unlisted`: only
 the company, the title and the link. Job search and Scout never show an
 unlisted posting, and a student sees one only on their own tracker. A second
 student who adds the same link gets the same posting, so the link stays
-unique: they see the company and title the first student gave. When the scraper later finds a job whose
+unique. Each student sees the company and title that they gave, never the
+text of another student. When the scraper later finds a job whose
 link matches an unlisted posting, it fills in that posting and publishes
 it. It does not make a second one, so the link stays unique and the
 student's application stays on it.
@@ -33,5 +34,9 @@ from. A record of applications that leaves out 2 in 5 is not a record.
 - Each query that lists job postings to students must leave out
   `unlisted`. A query that misses this shows one student's posting to
   others, so tests cover search and Scout.
+- One posting per link, but not one text per link: each student's
+  application keeps the company and title that student typed, and an
+  unlisted posting shows each student their own text. A second student
+  who adds the same link never sees the first student's text.
 - Links are compared after normalizing them, and Greenhouse jobs also by
   their job ID, so that a listed job is not added again as unlisted.

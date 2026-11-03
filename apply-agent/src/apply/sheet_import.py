@@ -24,12 +24,11 @@ from urllib.parse import parse_qs, urlsplit
 
 from apply.attach import COVER, RESUME
 from apply.model import Outcome, Status
-from apply.workit import Unreachable, WorkIt, WorkItError
+from apply.workit import APPLIED_STAGES, Stage, Unreachable, WorkIt, WorkItError
 
-# The stages that are a record in WorkIt: the import never changes an application at one.
-APPLIED = ("applied", "interviewing", "offer", "rejected")
-# The stage each Outcome sets. Every other Outcome, and a blank one, is applied.
-STAGE_OF = {Outcome.INTERVIEW: "interviewing", Outcome.OFFER: "offer", Outcome.REJECTED: "rejected"}
+# The stage each Outcome sets. Every other Outcome, and a blank one, is applied. The import never changes an
+# application at applied or later (workit.APPLIED_STAGES).
+STAGE_OF = {Outcome.INTERVIEW: Stage.INTERVIEWING, Outcome.OFFER: Stage.OFFER, Outcome.REJECTED: Stage.REJECTED}
 KNOWN_OUTCOMES = {outcome.value.lower() for outcome in Outcome}
 
 
@@ -93,7 +92,7 @@ def plan(rows: list[SheetRow], client: WorkIt, sent: Path) -> list[Step]:
         seen[key] = row.number
         listed = client.listed_by_link(row.posting)
         stage = listed[1] if listed else next((s for url, s in tracker if job_key(url) == key), None)
-        if stage in APPLIED:
+        if stage in APPLIED_STAGES:
             steps.append(Step(row, "skip", f"already in WorkIt at {stage}: the import does not change it"))
             continue
         where = "listed" if listed else "not listed: added as an unlisted job posting"
@@ -108,7 +107,7 @@ def _add(row: SheetRow, where: str, sent: Path) -> Step:
     outcome = row.outcome.lower()
     if outcome and outcome not in KNOWN_OUTCOMES:
         checks.append(f'Outcome "{row.outcome}" is not one the import knows: it goes in as applied')
-    stage = next((s for o, s in STAGE_OF.items() if o.value.lower() == outcome), "applied")
+    stage = next((s for o, s in STAGE_OF.items() if o.value.lower() == outcome), Stage.APPLIED)
     try:
         applied_on = date.fromisoformat(row.date_applied)
     except ValueError:
@@ -172,19 +171,14 @@ def show(steps: list[Step], out: TextIO) -> None:
 def write(steps: list[Step], client: WorkIt, out: TextIO) -> tuple[int, int]:
     """Make each add of an approved dry run. Answers how many were added and how many failed. An application that is applied or later
     by the time of its add is left as it is. WorkIt not answering stops the import; run it again later."""
-    me = client.me().id
     added = failed = 0
     for s in (s for s in steps if s.action == "add"):
         name = f"row {s.row.number}: {s.row.company} | {s.row.role}"
         try:
-            job_id, stage = client.add_by_link(s.row.posting, s.row.company, s.row.role)
-            if stage in APPLIED:
+            stage = client.record_applied(s.row.posting, s.row.company, s.row.role, s.resume, s.stage, s.applied_on)
+            if stage:
                 print(f"  {name}: already in WorkIt at {stage}, left as it is", file=out)
                 continue
-            sent_id = client.send_resume(me, job_id, s.resume) if s.resume else None
-            client.set_stage(me, job_id, s.stage, s.applied_on)
-            if sent_id:
-                client.link_resume(job_id, sent_id)
         except Unreachable:
             raise
         except WorkItError as error:

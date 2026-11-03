@@ -294,7 +294,10 @@ async def add_by_link(
     longer lists (an unlisted one, or a closed one: its link is unique), else
     a new unlisted posting with the company, title and level given. A job
     with no application yet is saved; one that has one keeps its stage, as
-    save_job does. None when the link is a company's own posting
+    save_job does. The new application keeps the company and title given:
+    on an unlisted posting the student sees their own text, never the text
+    of the student who made it (postings.typed_text). None when the link is
+    a company's own posting
     '''
     job_id = await listed_job_by_link(db, url) or await _job_by_link(db, url, _UNPUBLISHED)
     if job_id is None:
@@ -310,7 +313,8 @@ async def add_by_link(
             return None
     await db.execute(
         insert(Job_Application)
-        .values(applicant_id=applicant_id, job_id=job_id, stage=application_stage.saved, applied_at=None)
+        .values(applicant_id=applicant_id, job_id=job_id, stage=application_stage.saved, applied_at=None,
+                company_name=company, title=title)
         .on_conflict_do_nothing(index_elements=["applicant_id", "job_id"])
     )
     await db.commit()

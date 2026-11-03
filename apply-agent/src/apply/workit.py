@@ -25,7 +25,7 @@ that use `call`. So is the read of the student's tailored resume for a
 job (KAN-547).
 
 Apply's writes to the student's Applications Tracker (KAN-544) are `Write`s
-sent through an `Outbox`: it adds the job by its link, sets the stage, and
+sent through `WaitingWrites`: it adds the job by its link, sets the stage, and
 for a submit keeps the file sent as the application's Sent resume. A write
 that cannot reach WorkIt (no answer, or no live login) waits in
 `APPLY_HOME/workit-queue.json` and goes with the next send or `flush`.
@@ -45,6 +45,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -120,6 +121,24 @@ class Unreachable(WorkItError):
 
 class SignInClosed(WorkItError):
     """The sign-in browser closed, or the time ran out, before the student signed in."""
+
+
+class Stage(StrEnum):
+    """A stage of an application on WorkIt's Applications Tracker, as WorkIt
+    names it (backend `dto.application_stage`). The one place Apply spells them."""
+
+    SAVED = "saved"
+    QUEUED = "queued"
+    NEEDS_YOU = "needs_you"
+    SKIPPED = "skipped"
+    APPLIED = "applied"
+    INTERVIEWING = "interviewing"
+    OFFER = "offer"
+    REJECTED = "rejected"
+
+
+# Applied or later: a record of an application sent (backend `dto.APPLIED_STAGES`). Apply never changes one.
+APPLIED_STAGES = frozenset({Stage.APPLIED, Stage.INTERVIEWING, Stage.OFFER, Stage.REJECTED})
 
 
 @dataclass(frozen=True)
@@ -205,9 +224,22 @@ class WorkIt:
         """Delete the student's queued application on the job. WorkIt refuses (409) one past queued."""
         self.call("DELETE", f"/applicants/{applicant_id}/applications/{job_id}")
 
-    def mark_applied(self, job_id: str) -> None:
-        """Applied with no Sent resume (a later stage, and the date, stay)."""
-        self.call("POST", f"/jobs/{job_id}/applied")
+    def record_applied(self, link: str, company: str, title: str, resume: Path | None = None,
+                       stage: Stage = Stage.APPLIED, applied_on: date | None = None) -> str | None:
+        """Put the job at `link` on the student's Applications Tracker at `stage` (applied or later), with the
+        file at `resume` kept as its Sent resume: add by link, keep the Sent resume, set the stage and the
+        applied date (`applied_on`, else today), then name the Sent resume. Apply's submit writes and the Tracker
+        Sheet import both use it. An application already applied or later stays as it is: answers its stage
+        then, else None."""
+        job, before = self.add_by_link(link, company, title)
+        if before in APPLIED_STAGES:
+            return before
+        me = self.applicant_id()
+        sent = self.send_resume(me, job, resume) if resume else None
+        self.set_stage(me, job, stage, applied_on)
+        if sent:
+            self.link_resume(job, sent)
+        return None
 
     def tailored_resume(self, url: str) -> bytes | None:
         """The PDF of the student's tailored resume for the listed job at `url` (Tailor, KAN-217), rendered now;
@@ -216,18 +248,18 @@ class WorkIt:
         listed = self.listed_by_link(url)
         if listed is None:
             return None
-        me = self._me().id
+        me = self.applicant_id()
         resume = next((r for r in self.call("GET", f"/applicants/{me}/built-resumes")
                        if r.get("job_posting_id") == listed[0]), None)
         if resume is None:
             return None
         return base64.b64decode(self.call("GET", f"/applicants/{me}/built-resumes/{resume['id']}/render")["pdf"])
 
-    def _me(self) -> Account:
-        """The signed-in account, read once: the writes name the student's id."""
+    def applicant_id(self) -> str:
+        """The signed-in student's id, read once (`GET /auth/me`): the writes name it in their paths."""
         if self._account is None:
             self._account = self.me()
-        return self._account
+        return self._account.id
 
     def accept(self, cookies: dict[str, str]) -> Account | None:
         """For `login`: the account of the web app's session in `cookies`, kept, or None while it has none
@@ -283,13 +315,13 @@ class WorkIt:
 
 
 # Each Applications Tracker stage Apply writes, as the tracker names it.
-SHOWN = {"applied": "Applied", "needs_you": "Needs you", "queued": "Queued"}
+SHOWN = {Stage.APPLIED: "Applied", Stage.NEEDS_YOU: "Needs you", Stage.QUEUED: "Queued"}
 
 
 @dataclass(frozen=True)
 class Write:
     """One change to the student's Applications Tracker: the job (by its link,
-    company and title) goes to `stage` ("applied", "needs_you" or "queued").
+    company and title) goes to `stage` (Stage.APPLIED, NEEDS_YOU or QUEUED).
     `resume`, for applied, is the file the form was given, kept as the
     application's Sent resume. `application_id` is Apply's, so a later write
     for the same Application replaces one still waiting."""
@@ -302,8 +334,8 @@ class Write:
     resume: str = ""
 
 
-class Outbox:
-    """Sends Writes to the Applications Tracker, and keeps each one that
+class WaitingWrites:
+    """The Waiting writes (GLOSSARY.md). Sends Writes to the Applications Tracker, and keeps each one that
     cannot reach WorkIt in a queue file until a later send or flush. One
     process at a time sends (a lock file), so a write is never sent twice
     at once."""
@@ -353,16 +385,16 @@ class Outbox:
         return said
 
     def _deliver(self, write: Write) -> str:
-        job, _ = self.client.add_by_link(write.link, write.company, write.title)
-        if write.stage == "applied":
+        if write.stage == Stage.APPLIED:
             resume = Path(write.resume) if write.resume else None
-            if resume and resume.is_file():
-                self.client.link_resume(job, self.client.send_resume(self.client._me().id, job, resume))
-            else:
-                self.client.mark_applied(job)
+            before = self.client.record_applied(write.link, write.company, write.title,
+                                                resume if resume and resume.is_file() else None)
+            if before:
+                return f"already {SHOWN.get(before, before)} in your Applications Tracker"
         else:
+            job, _ = self.client.add_by_link(write.link, write.company, write.title)
             try:
-                self.client.set_stage(self.client._me().id, job, write.stage)
+                self.client.set_stage(self.client.applicant_id(), job, write.stage)
             except WorkItError as refused:
                 if refused.status != 409:
                     raise

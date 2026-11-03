@@ -412,8 +412,9 @@ class Dashboard:
     it has none), for what the tile cannot do: a sign-in, a captcha, a dialog.
     `sample`: Apply runs on the Test Person sample data, and the window says so.
     `approve`, when given, approves a Hold from the Inbox (its Application ID, and
-    `essay=` his edit of its essays if he edited them), as editing the Essay cell
-    and ticking Approve did in the retired Tracker Sheet (KAN-544), and says how it went."""
+    `essay=` the Essay cell with his edit of its essays' text if he edited them), as
+    editing the Essay cell and ticking Approve did in the retired Tracker Sheet (KAN-544),
+    and says how it went."""
 
     def __init__(self, workers: int, frames: Frames, answers: AnswersTab | None = None,
                  applied: Callable[[str], str] | None = None, now: Callable[[], datetime] = datetime.now,
@@ -637,8 +638,14 @@ class Dashboard:
         items += [item for item in past if item.get("posting_url") not in ours]
         with self._lock:
             answered, approved = dict(self._answered), set(self._approved)
+        from apply.essays import (
+            cell_texts,  # imported here: essays imports the adapters, which import this module
+        )
         for item in items:
             item |= verdict(item)
+            if item.get("kind") == "held":
+                # Only each essay's text is his to edit: the heading and Plan lines stay in the cell (`essay`).
+                item["essays"] = [{"question": q, "text": t} for q, t in cell_texts(str(item.get("essay") or ""))]
             if item.get("kind") == "held" and item["id"] in approved:
                 item["answered"] = True  # approved here: it waits on Lisul no more
             if item.get("kind") == "missing fact":
@@ -944,7 +951,9 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _approve(self) -> None:
         """Lisul approves a Hold in the Inbox, from the page itself: it is sent at the next check, with
-        the essays as he edited them in its box (`essay`), if he did."""
+        the essays as he edited them in their boxes, if he did (`essays`: the text of each, in order).
+        The cell is built here from the stored headings and Plan lines and his text (essays.with_texts),
+        so an edit never loses an essay's heading; an empty essay is refused, with the reason."""
         token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
         if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin not in (None, self.dashboard.url):
             return self._json(403, {"error": "Only the Apply window may approve for you."})
@@ -954,8 +963,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json(413, {"error": "That essay is too long."})
         try:
             body = json.loads(self.rfile.read(length) or b"{}")
-            key, essay = str(body["id"]), body.get("essay")
-            if essay is not None and not isinstance(essay, str):
+            key, texts = str(body["id"]), body.get("essays")
+            if texts is not None and not (isinstance(texts, list) and all(isinstance(t, str) for t in texts)):
                 raise TypeError
         except (ValueError, KeyError, TypeError, AttributeError):
             return self._json(400, {"error": "Not an approval."})
@@ -963,6 +972,13 @@ class _Handler(BaseHTTPRequestHandler):
                      if str(i["id"]) == key and i.get("kind") == "held" and i.get("application_id") and not i.get("answered")), None)
         if item is None:
             return self._json(404, {"error": "That application no longer waits for your approval."})
+        from apply.essays import (
+            with_texts,  # imported here: essays imports the adapters, which import this module
+        )
+        try:
+            essay = None if texts is None else with_texts(str(item.get("essay") or ""), texts)
+        except ValueError as refused:
+            return self._json(400, {"error": str(refused)})
         try:
             # His edit of the essays, when he made one, is sent in place of Claude's.
             message = self.dashboard.approve(item["application_id"], **({"essay": essay} if essay is not None else {}))

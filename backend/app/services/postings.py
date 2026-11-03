@@ -7,7 +7,7 @@ a route that forgot the status check.
 
 import uuid
 
-from sqlalchemy import Text, and_, cast, exists, or_, select
+from sqlalchemy import Text, and_, case, cast, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 
@@ -23,6 +23,15 @@ LISTED = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.
 # ADR 0008). Compared as text, so the query runs on a database whose enum has
 # no 'unlisted' yet (models/CLAUDE.md).
 UNLISTED = and_(Job_Post.company_id.is_(None), cast(Job_Post.status, Text) == job_post_status.unlisted.value)
+
+
+def typed_text(posting_column, typed_column):
+    """The posting's company or title as one student sees it: on an unlisted
+    posting, the text that student typed when they added it (their
+    application's `typed_column`), never another student's; else the
+    posting's own. Labeled as the posting's column, so to_listing reads it.
+    Use it in each query that shows a student's applications."""
+    return case((UNLISTED, func.coalesce(typed_column, posting_column)), else_=posting_column).label(posting_column.key)
 
 
 async def listed(session: AsyncSession, posting_id: uuid.UUID, *, keywords: bool = False) -> Job_Post | None:

@@ -970,7 +970,8 @@ when the scraper finds the same job (`../CLAUDE.md`, The feed import).
 the queue skip anything not open, and Apply writes the jobs it holds as
 queued; `unlisted` is what tells the tracker the job is not closed. A
 second student who adds the same link gets the same posting, so the link
-stays unique.
+stays unique. Each student sees their own company and title on it
+(`job_applications.company_name`, `title`, below).
 **SQL names it as text** (`UNLISTED`, `status::text = 'unlisted'`): Postgres
 refuses a query that names an enum value its type lacks, so a query that
 named it as the enum would fail on a database without the migration (the
@@ -1074,6 +1075,12 @@ so a batch never picks a saved job. Rules:
   `c0467afe819c`, `saved` from `17ea74fa4573`, the last three from
   `a7d3e5f1c2b4`), a column here rather than a second table, so one row is
   one application. `created_at` orders the queue.
+- **`company_name` and `title` are the text the student typed** when they
+  added the job by its link (`d3f5a7c9e162`, KAN-542, ADR 0008). The
+  tracker shows them only while the posting is `unlisted`
+  (`services/postings.py`, `typed_text`), so two students on one unlisted
+  posting each see their own text. When the feed publishes the posting,
+  the feed's text shows. NULL on a job saved or queued another way.
 - **Interviewing, offer and rejected are applied too** (KAN-413).
   Anything that asks "did this student apply?" counts all four, never
   `stage == applied`: the Jobs page's filter, and the Applied button, which
