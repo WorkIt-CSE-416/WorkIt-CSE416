@@ -276,6 +276,7 @@ def test_a_held_essay_shows_its_named_fact_above_the_text_lisul_edits(monkeypatc
     assert essay.text == AUTONOMY and essay.named == LOOKOUT_LINE  # approved, it is sent without the Named line
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_a_form_with_no_essays_reads_only_the_postings_own_text(monkeypatch):
     site = Browser({POSTING_PAGE: f"<p>{PORTAL}</p>"})
 

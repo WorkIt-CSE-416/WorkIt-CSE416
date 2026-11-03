@@ -10,16 +10,24 @@ reads: it never clicks, types or submits."""
 
 import re
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
 
 from apply import fill_engine
-from apply.model import Answers, Posting, Question, QuestionSet, Readback, is_company, one_line
+from apply.model import (
+    Answers,
+    Posting,
+    QuestionSet,
+    Readback,
+    is_company,
+    one_line,
+)
 from apply.profile import ApplicantProfile
 from apply.records import SECRET
 
-# The kinds of flag. Each holds a live run (goes to Needs you), except a guess and a blank optional field (notes).
+# The kinds of flag. Each holds a live run (goes to Needs you), except a guess (a note). A blank optional field
+# holds too: a blank optional is a bug (Lisul, 2026-11-02).
 BLANK, READBACK, FILE, CHOICE, DATE, PAY, PRONOUN, NAME, COMPANY, REVIEW, GUESSED = (
     "blank", "readback", "file", "choice", "date", "pay", "pronoun", "name", "company", "review", "guessed")
 # Starts each flag's part of a held row's reason.
@@ -62,8 +70,6 @@ RESUME_FIELD = re.compile(r"r[eé]sum[eé]|\bcv\b", re.IGNORECASE)
 COVER_FIELD = re.compile(r"cover letter", re.IGNORECASE)
 TRANSCRIPT_FIELD = re.compile(r"transcript", re.IGNORECASE)
 PLACEHOLDER = re.compile(r"^\W*(select|choose|pick)\b", re.IGNORECASE)
-SELF_ID = re.compile(r"gender|\brace\b|racial|ethnic|hispanic|latino|veteran|disabilit|sexual orientation|transgender"
-                     r"|pronoun", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -97,7 +103,7 @@ class Verification:
 
     @property
     def notes(self) -> tuple[Flag, ...]:
-        """The flags only noted: a guess, a blank optional field."""
+        """The flags only noted: a guess."""
         return tuple(f for f in self.flags if not f.holds)
 
     def label(self) -> str:
@@ -176,8 +182,6 @@ def _blanks(questions, answers, readback, asked: set[str], left: set[str]) -> li
             continue
         if _norm(q.label) in answered:
             continue  # the other way to give the same thing (a resume pasted as text, when the file is attached)
-        if not q.required and SELF_ID.search(q.label):
-            continue  # a voluntary self-ID question: blank tells the employer nothing, as a decline does
         if SECRET.search(q.label) or SECRET.search(q.name):
             continue  # a password the Filler types itself
         if q.kind == "file" and not q.required and not (RESUME_FIELD.search(q.label) or COVER_FIELD.search(q.label)
@@ -185,9 +189,8 @@ def _blanks(questions, answers, readback, asked: set[str], left: set[str]) -> li
             continue  # an optional "other documents" upload: nothing to give it is right
         if fill_engine.not_called_for(q, questions, answers)[0]:
             continue  # a follow-up the answer before it doesn't call for
-        # An optional one is noted, not held for: the engine leaves one blank when the profile's fact is empty.
-        flags.append(Flag(one_line(q.label), f"left blank ({'required' if q.required else 'optional'})", BLANK,
-                          holds=q.required))
+        # An optional one holds as a required one does, a self-ID one too: the profile answers it, a decline at least.
+        flags.append(Flag(one_line(q.label), f"left blank ({'required' if q.required else 'optional'})", BLANK))
     return flags
 
 

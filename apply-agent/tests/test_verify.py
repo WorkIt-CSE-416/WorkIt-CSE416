@@ -69,7 +69,16 @@ def test_a_blank_optional_field_is_flagged(person, tmp_path):
     [flag] = verified(person, tmp_path, site=None).flags
 
     assert (flag.field, flag.why, flag.kind) == ("Personal website", "left blank (optional)", verify.BLANK)
-    assert not flag.holds  # noted: the engine leaves an optional field blank when the profile's fact is empty
+    assert flag.holds  # a blank optional is a bug (Lisul, 2026-11-02): it needs him, as a blank required one does
+
+
+def test_a_blank_optional_self_id_question_is_flagged(person, tmp_path):
+    questions, answers, readback = filled(person, tmp_path)
+    questions.append(Question("vet", "Veteran status", "select", False, ("I am not a protected veteran", "Decline")))
+
+    result = verify.check(questions, answers, readback, person, POSTING, today=TODAY, allowed="Hitachi Rail")
+
+    assert [(f.field, f.why) for f in result.needs] == [("Veteran status", "left blank (optional)")]
 
 
 def test_a_blank_required_field_needs_lisul(person, tmp_path):
@@ -199,7 +208,7 @@ def test_every_planted_problem_is_flagged_at_once(person, tmp_path):
     result = verified(person, tmp_path, site=None, auth="No", why=essay)
 
     assert {f.kind for f in result.flags} == {verify.BLANK, verify.READBACK, verify.COMPANY, verify.PRONOUN}
-    assert result.label() == "Verified with 3 items that need you"
+    assert result.label() == "Verified with 4 items that need you"
 
 
 def test_a_live_run_holds_a_flagged_application_and_never_submits_it(monkeypatch):

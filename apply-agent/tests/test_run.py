@@ -5,6 +5,7 @@ from datetime import date, datetime
 from pathlib import Path
 from urllib.error import HTTPError
 
+import pytest
 from conftest import (
     ARC_FORM,
     ARC_URL,
@@ -64,6 +65,7 @@ def a_headed_profile(folder):
     return folder / "profile.yaml"
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_run_submits_a_greenhouse_match_and_tracks_it(job_server, one_pager):
     tracker = run(job_server)
 
@@ -83,6 +85,7 @@ def test_run_submits_a_greenhouse_match_and_tracks_it(job_server, one_pager):
     assert sent.files["resume"] == one_pager.read_bytes()
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_run_gives_the_form_the_postings_tailored_resume(job_server, one_pager, monkeypatch, tmp_path):
     # KAN-547: WorkIt has a tailored resume for Arc's posting, so Arc's form gets it, by the profile's resume name.
     from apply import tailored
@@ -121,6 +124,7 @@ def test_a_required_field_the_question_set_missed_holds_the_application():
     assert ashby_server.submissions == []
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_a_captcha_challenge_after_the_submit_click_is_a_handoff():
     with FakeJobServer(ARC_FORM, challenge=True) as job_server:
         tracker = run(job_server)
@@ -132,6 +136,7 @@ def test_a_captcha_challenge_after_the_submit_click_is_a_handoff():
     assert job_server.submissions == []
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_a_row_notes_a_headed_workers_bot_signals_as_headed(tmp_path):
     with FakeJobServer(ARC_FORM, challenge=True) as job_server:
         tracker = run(job_server, profile=a_headed_profile(tmp_path / "mine"))
@@ -140,6 +145,7 @@ def test_a_row_notes_a_headed_workers_bot_signals_as_headed(tmp_path):
     assert row.bot_signals == "headed: captcha"
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_a_submitted_row_notes_how_its_browser_ran_even_with_no_bot_signal(job_server, one_pager):
     tracker = run(job_server)
 
@@ -148,6 +154,7 @@ def test_a_submitted_row_notes_how_its_browser_ran_even_with_no_bot_signal(job_s
     assert row.bot_signals == "headless"
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_a_lever_captcha_challenge_after_the_submit_click_is_a_handoff():
     with FakeLeverServer(IMMUTA_FORM, parse_delay=0.2, challenge=True) as lever_server:
         tracker = run(lever_server, feed="feed-lever.json")
@@ -158,6 +165,7 @@ def test_a_lever_captcha_challenge_after_the_submit_click_is_a_handoff():
     assert lever_server.submissions == []
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_an_ashby_refusal_after_the_submit_click_is_a_handoff_naming_it():
     # Ashby may refuse a form sent from an automated browser (reCAPTCHA scored it low).
     refusal = "Your application submission was flagged as possible spam."
@@ -172,6 +180,7 @@ def test_an_ashby_refusal_after_the_submit_click_is_a_handoff_naming_it():
     assert ashby_server.submissions == []
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_an_ashby_block_message_after_the_submit_click_is_a_handoff_naming_it():
     # An employer's own block on Ashby, such as a limit on applications, shows in place of the success page.
     block = "<p>You have reached the limit of applications to this company.</p>"
@@ -184,6 +193,7 @@ def test_an_ashby_block_message_after_the_submit_click_is_a_handoff_naming_it():
     assert row.bot_signals == "headless"  # the employer's own rule, not a bot check
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_run_submits_an_ashby_match_and_tracks_it(ashby_server, one_pager):
     tracker = run(ashby_server, feed="feed-skydio.json")
 
@@ -205,6 +215,7 @@ def test_run_submits_an_ashby_match_and_tracks_it(ashby_server, one_pager):
     assert sent.files["_systemfield_resume"] == one_pager.read_bytes()
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_run_submits_a_lever_match_and_tracks_it(lever_server, one_pager):
     tracker = run(lever_server, feed="feed-lever.json")
 
@@ -258,6 +269,7 @@ def test_a_posting_closed_since_the_feed_was_read_is_skipped_as_closed(monkeypat
     assert site.opened == []
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_the_dashboard_tile_of_each_worker_says_what_it_applied_to_and_how_it_ended(job_server):
     board = RecordingBoard()
 
@@ -274,6 +286,7 @@ def test_the_dashboard_tile_of_each_worker_says_what_it_applied_to_and_how_it_en
                                   "choices": {}, "required": {}, "essay": ""}}
 
 
+@pytest.mark.usefixtures("blank_optionals_noted")
 def test_a_failed_application_and_a_wrong_answer_leave_repair_requests(monkeypatch, tmp_path):
     def blow_up(*args, **kwargs):
         raise KeyError("school--0")

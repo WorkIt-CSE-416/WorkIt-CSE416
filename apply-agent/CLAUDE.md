@@ -296,11 +296,12 @@ reads: it does not click, type or submit.
   answers); its findings join the flags.
 - A flag that `holds` goes in the reason as `Verify: <field>: <why>` and
   holds a live run (Needs you, kind `check`). Read-back and review flags
-  hold already by their own reason. Notes do not hold: a blank optional
-  field (the engine leaves one blank when the profile's fact is empty), an
-  optional voluntary self-ID field, and an answer Claude guessed (a new
-  Answer bank draft, a Rescue). An approved Hold is not held again by a
-  flag; the read-back still holds it.
+  hold already by their own reason. A blank optional field holds as a
+  blank required field does, also a voluntary self-ID field (Lisul's rule:
+  a blank optional is a bug; the profile answers self-ID, a decline at
+  least). Only an answer that Claude guessed (a new Answer bank draft, a
+  Rescue) is a note, which does not hold. An approved Hold is not held
+  again by a flag; the read-back still holds it.
 - In the window, each flag shows with its field and why, and has its own
   Dismiss. When Lisul dismisses every flag of a live run's Hold, it shows
   Approve (`POST /approve` takes a `check` item that is held).
@@ -308,7 +309,9 @@ reads: it does not click, type or submit.
   README.
 
 **Tests.** `tests/test_verify.py`: a fake form with planted problems, a
-clean form, a live run held by a flag, and the window's states.
+clean form, a live run held by a flag, and the window's states. A
+whole-run test of something else, on a saved form whose optional fields
+stay blank, uses the `blank_optionals_noted` fixture (tests/conftest.py).
 
 ## Prompts and gates
 
