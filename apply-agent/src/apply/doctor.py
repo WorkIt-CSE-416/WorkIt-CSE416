@@ -2,8 +2,10 @@
 
 A missing Gmail app password or a signed-out Worker profile otherwise shows
 only as Handoffs mid-run. Each check says ok, warn or fail, and how to fix
-it; any fail makes `apply doctor` exit non-zero. No check writes, submits,
-pushes or opens a browser."""
+it; any fail makes `apply doctor` exit non-zero. No check submits, pushes
+or opens a browser, and only one writes: the WorkIt check saves the WorkIt
+login again when it refreshes the access token (Supabase rotates the
+refresh token on each use)."""
 
 import json
 import os
@@ -31,6 +33,7 @@ from apply.orchestrator import SUBMITTING
 from apply.profile import ApplicantProfile, load_policies
 from apply.records import BRANCH, CLONE
 from apply.sheet import NoSheet, live_tracker
+from apply.workit import LoginExpired, Unreachable, WorkIt
 
 OK, WARN, FAIL = "ok", "warn", "fail"
 
@@ -78,11 +81,12 @@ class Machine:
     engine: Path = ENGINE  # the Fill engine's built bundle
     # Where Playwright keeps the Chromium the tests run (live runs use Chrome).
     playwright: Path = Path(os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or Path.home() / "Library/Caches/ms-playwright")
+    workit: Callable[[], WorkIt] = WorkIt  # the WorkIt client, with the login in the data folder
     usage: Usage | None = None  # read only when asked (`--usage`): reading it costs a tiny Haiku call
 
 
 def diagnose(machine: Machine) -> list[Check]:
-    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _worker_profiles, _facts, _resume_gate, _gmail, _records, _live_runs, _tracker]
+    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _worker_profiles, _facts, _resume_gate, _gmail, _records, _live_runs, _workit, _tracker]
     return [found for c in checks for found in _safely(c, machine)]
 
 
@@ -308,6 +312,28 @@ def _live_runs(machine: Machine) -> Check:
 
 def _folder(machine: Machine) -> Path:
     return machine.profile.path.parent if isinstance(machine.profile, NoProfile) else machine.profile.folder
+
+
+LOGIN = "run `uv run apply login`"
+
+
+def _workit(machine: Machine) -> Check:
+    """Optional, as Gmail is: only Apply's writes to the Applications Tracker need the login."""
+    client = machine.workit()
+    if not client.logged_in():
+        return Check("WorkIt", WARN, "off: not logged in, so Apply can't write to your Applications Tracker "
+                                     "(rehearsals work without it)", f"{LOGIN} if you have a WorkIt student account")
+    try:
+        account = client.me()
+    except LoginExpired:
+        return Check("WorkIt", WARN, "the login expired or was signed out", f"{LOGIN} again")
+    except Unreachable as e:
+        return Check("WorkIt", WARN, f"can't reach WorkIt ({e})",
+                     f"check your network, and that {client.site.api} answers; Apply's login is still kept")
+    if account.account_type != "applicant":
+        return Check("WorkIt", WARN, f"logged in as {account.email}, a {account.account_type} account",
+                     f"{LOGIN} with a student account: the Applications Tracker needs one")
+    return Check("WorkIt", OK, f"logged in as {account.email}")
 
 
 def _tracker(machine: Machine) -> list[Check]:

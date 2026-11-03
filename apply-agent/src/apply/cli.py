@@ -29,6 +29,7 @@ from apply import (
     story_map,
     trace,
     walls,
+    workit,
 )
 from apply.adapters import Adapters
 from apply.answer_bank import AnswerBank
@@ -111,6 +112,8 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
                         "site): you sign in yourself in the Chrome window it opens, and Apply never sees your password",
     )
     sign_in.add_argument("url", help="a Posting on that site, as a Handoff's reason gives it")
+    commands.add_parser("login", help="log in to WorkIt one time, in a Chrome window that it opens, so Apply can "
+                                      "write to your Applications Tracker; Apply keeps the login in the data folder")
     commands.add_parser("push-test", help="send one test push to your phone (ntfy), or say how to set it up")
     scheduled = commands.add_parser(
         "schedule", help="launchd jobs for the Daily sweep (`apply run` at policies.yaml's schedule.daily_sweep_at) "
@@ -138,7 +141,8 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
     mapped.add_argument("--gaps", action="store_true", help="print the follow-ups the bank can't answer as "
                                                            "bank/questions.md lines; no model call")
     args = parser.parse_args(argv)
-    if args.command != "doctor" and home.fill_from_sample():  # doctor only reads: it says the profile is missing
+    # doctor only reads: it says the profile is missing. login needs no profile.
+    if args.command not in ("doctor", "login") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
 
@@ -210,6 +214,16 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
         print(path if args.path else f"{path}\n{trace.timeline(path)}")
     elif args.command == "doctor":
         sys.exit(doctor.run(live_machine(args.profile, usage=args.usage), sys.stdout))
+    elif args.command == "login":
+        client = workit.WorkIt()
+        print(f"Sign in to WorkIt in the Chrome window that opens ({client.site.web}). Apply never sees your password.")
+        try:
+            account = workit.login(client)
+        except workit.WorkItError as error:
+            sys.exit(f"apply login: {error}")
+        print(f"Logged in to WorkIt as {account.email}. The login is in {client.login}.")
+        if account.account_type != "applicant":
+            print(f"That is a {account.account_type} account: the Applications Tracker needs a student account.")
     elif args.command == "signals":
         print(bot_signals.summary((adapters.tracker if adapters else live_tracker()).rows()))
     elif args.command == "repair":

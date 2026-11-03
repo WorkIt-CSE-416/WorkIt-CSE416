@@ -11,14 +11,16 @@ import subprocess
 from dataclasses import replace
 from datetime import datetime
 
+from fake_workit import FakeWorkIt
 from fakes import FakeMailbox, ScriptedUsage
 
-from apply import doctor
+from apply import doctor, workit
 from apply.adapters import UsageReading
 from apply.model import Status
 from apply.orchestrator import SUBMITTING
 from apply.profile import ApplicantProfile
 from apply.tracker import InMemoryTracker, Row
+from apply.workit import WorkIt
 
 
 def chrome(tmp_path, version="141.0.7390.55"):
@@ -242,6 +244,68 @@ def test_gmail_with_no_email_in_the_profile_fails(tmp_path):
     found = check(machine(tmp_path, profile=profile(tmp_path, facts={})), "Gmail")
     assert found.level == doctor.FAIL
     assert "identity.email" in found.fix
+
+
+def workit_check(tmp_path, fake: FakeWorkIt) -> doctor.Check:
+    return check(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json")), "WorkIt")
+
+
+def logged_in(tmp_path, fake: FakeWorkIt) -> None:
+    client = WorkIt(fake.site, tmp_path / "workit-login.json")
+    workit.login(client, lambda url, accept: accept(fake.cookies(fake.session())))
+
+
+def test_workit_logged_in_says_as_whom(tmp_path):
+    with FakeWorkIt() as fake:
+        logged_in(tmp_path, fake)
+        assert workit_check(tmp_path, fake) == doctor.Check("WorkIt", doctor.OK, "logged in as test.person@example.com")
+
+
+def test_workit_with_no_login_warns_and_says_rehearsals_still_work(tmp_path):
+    with FakeWorkIt() as fake:
+        found = workit_check(tmp_path, fake)
+    assert found.level == doctor.WARN  # optional: a user with no WorkIt account still rehearses
+    assert "rehearsals work without it" in found.detail
+    assert "apply login" in found.fix
+    assert fake.requests == []  # no login: nothing to ask WorkIt
+
+
+def test_workit_expired_login_warns_to_log_in_again(tmp_path):
+    with FakeWorkIt() as fake:
+        logged_in(tmp_path, fake)
+        fake.revoke()
+        found = workit_check(tmp_path, fake)
+    assert found.level == doctor.WARN
+    assert "expired" in found.detail
+    assert "apply login" in found.fix
+
+
+def test_workit_unreachable_warns(tmp_path):
+    with FakeWorkIt() as fake:
+        logged_in(tmp_path, fake)
+        fake.stop()
+        found = workit_check(tmp_path, fake)
+    assert found.level == doctor.WARN
+    assert "can't reach WorkIt" in found.detail
+    assert found.fix
+
+
+def test_workit_company_account_warns(tmp_path):
+    with FakeWorkIt(account_type="company") as fake:
+        logged_in(tmp_path, fake)
+        found = workit_check(tmp_path, fake)
+    assert found.level == doctor.WARN
+    assert "student account" in found.fix
+
+
+def test_doctor_never_prints_the_workit_tokens(tmp_path):
+    with FakeWorkIt() as fake:
+        logged_in(tmp_path, fake)
+        fake.expire()  # doctor refreshes it
+        out = io.StringIO()
+        doctor.run(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json")), out)
+    assert "WorkIt: logged in as test.person@example.com" in out.getvalue()
+    assert "access-" not in out.getvalue() and "refresh-" not in out.getvalue()
 
 
 def tracker(*rows: tuple[Status, str]):
