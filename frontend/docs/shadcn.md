@@ -154,6 +154,15 @@ is the one today; a new right-side sheet gets the look for free. **Re-running
 `shadcn add sheet` undoes both**: diff the file after any `add`, and keep
 the fork's note at the top of `SheetOverlay`.
 
+#### Dialog is not forked: globals.css sets its margin and its overlay
+
+`src/components/shadcn/dialog.tsx` is as `shadcn add` wrote it. Three rules
+in `globals.css`, keyed on its `data-slot`s, change it from outside
+(KAN-563): the popup keeps 16px from the window at every width, its
+overlay dims without blurring, as the Sheet's does, and a
+`data-slot="dialog-scroller"` box keeps its scrollbar's room. Each rule
+names the one class it overrides; check them after any `add dialog`.
+
 #### The other exception: Select is wrapped, not replaced
 
 `src/components/ui/select.tsx` is a third shape, and worth knowing about before

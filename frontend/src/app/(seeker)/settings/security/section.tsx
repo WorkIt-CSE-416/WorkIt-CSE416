@@ -10,9 +10,9 @@ import type { OAuthProvider } from "@/lib/oauth-actions";
 import { getSessionUser, getSignInProviders } from "@/lib/session";
 
 import { ClaudeButton } from "./claude-button";
-import { EmailDialog } from "./email-dialog";
+import { EmailButton } from "./email-step";
 import { SecurityNotice } from "./notice";
-import { PasswordDialog } from "./password-form";
+import { PasswordButton } from "./password-form";
 import { ProviderButton } from "./provider-button";
 import { DeleteAccount } from "./delete-account";
 import { SettingRow as Row } from "../setting-row";
@@ -31,7 +31,8 @@ const PROVIDERS: {
 
 /**
  * Sign-In & Security (KAN-326): each setting is a row, and its form opens
- * from the row's button, since most visits change nothing. The sign-in
+ * from the row's button as a step of the modal (../settings-step.tsx),
+ * since most visits change nothing. The sign-in
  * methods come from Supabase's identities (getSignInProviders), so one
  * linked a moment ago shows at once. Disconnect never offers to remove the
  * last method. The notice at the top (./notice) is what the auth callback
@@ -62,14 +63,14 @@ export async function SecuritySection() {
         </SectionHeading>
         <ul className="divide-border-subtle flex flex-col divide-y">
           <Row Icon={MailIcon} label="Email" value={email}>
-            <EmailDialog current={email} />
+            <EmailButton current={email} />
           </Row>
           <Row
             Icon={LockIcon}
             label="Password"
             value={hasPassword ? "Set" : "Not set. You sign in with another method."}
           >
-            <PasswordDialog hasPassword={hasPassword} />
+            <PasswordButton hasPassword={hasPassword} />
           </Row>
         </ul>
       </Card>
