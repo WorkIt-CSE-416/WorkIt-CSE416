@@ -740,7 +740,7 @@ export function Intake({
       <div
         ref={log}
         className={cn(
-          "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-5 pb-4",
+          "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-none px-4 pt-5 pb-4",
           logClassName,
         )}
       >
@@ -888,9 +888,7 @@ export function Intake({
           </div>
         )}
         {importing ? (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
-            {importer}
-          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pb-4">{importer}</div>
         ) : (
           // No frame of its own: the panel is the chat's surface, and the
           // lines fade out under the preview.
@@ -923,7 +921,7 @@ export function Intake({
                 <CaretLeftIcon aria-hidden /> Back to Chat
               </Button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{card}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-none">{card}</div>
           </div>
         )}
       </section>

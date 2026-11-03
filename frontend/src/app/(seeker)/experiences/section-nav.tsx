@@ -149,7 +149,7 @@ export function SectionNav({
       aria-label="Experience Sections"
       data-stuck={stuck || undefined}
       className={cn(
-        "bg-panel sticky top-0 z-10 -my-2 py-2",
+        "bg-app sticky top-0 z-10 -my-2 py-2",
         "after:bg-border-subtle after:absolute after:inset-x-0 after:bottom-0 after:h-px after:opacity-0 after:transition-opacity after:duration-200 data-stuck:after:opacity-100",
         SEEKER_BLEED,
         SEEKER_GUTTER,
@@ -160,7 +160,7 @@ export function SectionNav({
         role="list"
         // A touch screen swipes the row, so it needs no bar; a mouse
         // needs one, with room under the links.
-        className="scrollbar-quiet flex gap-1 overflow-x-auto pb-1 pointer-coarse:[scrollbar-width:none] pointer-coarse:pb-0"
+        className="flex gap-1 overflow-x-auto pb-1 pointer-coarse:[scrollbar-width:none] pointer-coarse:pb-0"
         style={{ maskImage: fade(more) }}
       >
         {sections.map(({ id, label, count }) => {
@@ -175,7 +175,7 @@ export function SectionNav({
                 onClick={(e) => jump(e, id)}
                 className={cn(
                   "text-label focus-visible:ring-brand-ring rounded-control flex items-center gap-1.5 px-2.5 py-1.5 whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
-                  lit ? "bg-brand-tint text-brand" : "text-ink-meta hover:bg-well hover:text-ink",
+                  lit ? "bg-brand-tint text-brand" : "text-ink-meta hover:bg-hover hover:text-ink",
                 )}
               >
                 <Glyph aria-hidden className={cn("size-4", !lit && "text-brand")} />

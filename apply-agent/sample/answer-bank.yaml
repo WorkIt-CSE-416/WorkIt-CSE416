@@ -1,0 +1,23 @@
+# The Answer bank: the sample applicant's answers to one-off questions, by the
+# question's wording (lowercase, spacing evened out). Claude drafts an entry the
+# first time a form asks one; every later form gets the same answer word for
+# word. Edit an answer in the Apply window's Answers tab or here.
+#
+# Each entry:
+#   question: the question as a form showed it
+#   answer: the answer (a list for a multi-select)
+#   options: the options it was answered from, for a choice question
+#   source: claude for a draft, lisul once you have edited it
+#   reviewed: false until you have looked at it
+#   first_seen: {date, company} where it was first asked
+'are you open to working in person?':
+  question: Are you open to working in person?
+  answer: 'Yes'
+  options:
+  - 'Yes'
+  - 'No'
+  source: lisul
+  reviewed: true
+  first_seen:
+    date: 2026-10-01
+    company: Example Robotics

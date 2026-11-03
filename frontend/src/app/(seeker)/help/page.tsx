@@ -14,23 +14,16 @@ export const metadata: Metadata = {
 
 /**
  * /help, a row in the account menu the bar's photo opens, beside Settings. There are no
- * guides yet, so like /settings it says so inside the shell, under the same
- * heading block as every other seeker screen, rather than leaving a row that
- * opens a 404. It offers the one useful next step meanwhile: the feed. A
+ * guides yet, so like /settings it says so inside the shell, rather than leaving a row that
+ * opens a 404. Its title is in the top bar. It offers the one useful next step meanwhile: the feed. A
  * <div>, since SidebarInset is already the <main>.
  */
 export default function HelpPage() {
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <h1 className="text-heading text-ink">Help</h1>
-      <p className="text-body text-ink-meta mt-1">
-        Guides for finding roles, applying and tracking your search.
-      </p>
-
       <EmptyState
         Icon={QuestionIcon}
         title="Help Is on the Way"
-        className="mt-4"
         action={
           <ButtonLink href="/jobs" variant="secondary">
             Browse Jobs

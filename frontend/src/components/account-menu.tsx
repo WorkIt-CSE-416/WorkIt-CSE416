@@ -159,7 +159,7 @@ export function AccountMenu({
 
         {items.map(({ href, label, icon }) => (
           <DropdownMenuItem key={href} render={<Link href={href} />}>
-            <span className="text-ink-meta flex shrink-0">{icon}</span>
+            <span className="text-ink flex shrink-0">{icon}</span>
             {label}
           </DropdownMenuItem>
         ))}
@@ -176,7 +176,7 @@ export function AccountMenu({
                 void onSignOut();
               }}
             >
-              <span className="text-ink-meta flex shrink-0">
+              <span className="text-ink flex shrink-0">
                 <SignOutIcon className="size-4" />
               </span>
               Sign Out
@@ -186,7 +186,7 @@ export function AccountMenu({
           <>
             {items.length > 0 && <DropdownMenuSeparator />}
             <DropdownMenuItem render={<Link href="/login" />}>
-              <span className="text-ink-meta flex shrink-0">
+              <span className="text-ink flex shrink-0">
                 <SignInIcon aria-hidden className="size-4" />
               </span>
               Sign In

@@ -39,7 +39,7 @@ import uuid
 from collections.abc import Iterable, Mapping, Sequence
 
 from sqlalchemy import Text, cast, delete, func, select
-from sqlalchemy.dialects.postgresql import TSQUERY
+from sqlalchemy.dialects.postgresql import ARRAY, TSQUERY, array
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.identity import placeholders_in
 
@@ -148,6 +148,23 @@ async def rank_bullets(session: AsyncSession, view: ResumeView, text: str) -> di
         .where(Bank_Bullet.id.in_(ids))
     )
     return {bullet_id: float(rank) for bullet_id, rank in rows}
+
+
+async def rank_shown(session: AsyncSession, view: ResumeView, text: str) -> dict[uuid.UUID, float]:
+    '''
+    Each bullet the resume shows, ranked against `text` like `rank_bullets`,
+    but on the wording the view shows (this resume's own, else the bank's).
+    The texts go to Postgres as parameters, so it reads no table. Fit to One
+    Page ranks with it: on a tailored resume the bank's wording is the text
+    from before Tailor rewrote it (docs/cut_to_one_page.md).
+    '''
+    bullets = _bullets(view)
+    if not bullets:
+        return {}
+    query = cast(func.replace(cast(func.plainto_tsquery("english", text), Text), "&", "|"), TSQUERY)
+    shown = func.unnest(cast(array([b.text for b in bullets]), ARRAY(Text))).table_valued("body", with_ordinality="n").render_derived()
+    rows = await session.execute(select(shown.c.n, func.ts_rank(func.to_tsvector("english", shown.c.body), query)))
+    return {bullets[int(n) - 1].id: float(rank) for n, rank in rows}
 
 
 def handles(view: ResumeView) -> dict[str, uuid.UUID]:

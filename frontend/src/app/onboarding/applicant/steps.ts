@@ -3,7 +3,8 @@
  * (./onboarding-form): the role, the resume, then the questions every
  * application asks, right after the resume (KAN-372; the resume was last
  * from KAN-275), then the extension's install and a practice batch on
- * WorkIt's own practice forms (KAN-378). Intake, on a page of its own, was a step until the resume
+ * WorkIt's own practice forms (KAN-378), with the optional Add Claude page
+ * before it (KAN-507). Intake, on a page of its own, was a step until the resume
  * step replaced it.
  *
  * The rail counts the whole journey (KAN-259). The wizard used to say "Step 2
@@ -19,14 +20,54 @@
  */
 export const ONBOARDING_STEPS = ["Role", "Resume", "Profile", "Extension", "Practice"] as const;
 
-/** The extension step's link: the tab the WorkIt extension opens on install
- *  (KAN-471, autofiller_extension/src/background/install.js). */
+/**
+ * The wizard's pages, in order: more than the rail's marks (railStep).
+ * Claude, the optional Add Claude page (KAN-507), comes after the extension
+ * and before the practice batch, so the practice form's written question
+ * meets a student who has just chosen whether their Claude writes such
+ * answers. On the rail it sits under Practice, as Availability sits under
+ * Profile.
+ */
+export const WIZARD_PAGES = [
+  "Role",
+  "Resume",
+  "Profile",
+  "Availability",
+  "Extension",
+  "Claude",
+  "Practice",
+] as const;
+
+type Page = (typeof WIZARD_PAGES)[number];
+
+const MARK: Record<Page, (typeof ONBOARDING_STEPS)[number]> = {
+  Role: "Role",
+  Resume: "Resume",
+  Profile: "Profile",
+  Availability: "Profile",
+  Extension: "Extension",
+  Claude: "Practice",
+  Practice: "Practice",
+};
+
+/** The rail mark (an ONBOARDING_STEPS index) a wizard page lights. */
+export function railStep(page: number): number {
+  return ONBOARDING_STEPS.indexOf(MARK[WIZARD_PAGES[page]]);
+}
+
+/** The extension step's link. Not opened directly by the extension's
+ *  install anymore (that was KAN-471; its own tab is now /extension-setup,
+ *  autofiller_extension/src/background/install.js) -- reached today
+ *  through that page's "I Already Have One" button (KAN-495), so a
+ *  student who already finished onboarding still has a route to the
+ *  Practice step after it. */
 export const EXTENSION_STEP_PATH = "/onboarding/applicant?step=extension";
 
 /**
  * The step ./page opens on, from its `?step=`: "2" opens Profile, the third
- * step, and "extension" the extension's install step, which the extension
- * links to when it is added. "2" only with saved answers (`saved`): the
+ * step, and "extension" the extension's install step, which
+ * `/extension-setup`'s "I Already Have One" button links to (KAN-495).
+ * "2" only with saved answers (`saved`): the
  * first step holds the answers that must be given, and Profile's Next saves
  * them as preferences, so a seeker who never gave them starts there.
  * "extension" also for a seeker who finished onboarding (`finished`): its
@@ -38,8 +79,7 @@ export function startStep(
   saved: boolean,
   finished = false,
 ): number {
-  // The wizard's fifth page: Availability has no mark on the rail (ONBOARDING_STEPS).
-  if (param === "extension" && (saved || finished)) return 4;
+  if (param === "extension" && (saved || finished)) return WIZARD_PAGES.indexOf("Extension");
   if (!saved) return 0;
   if (param === "2") return 2;
   return 0;

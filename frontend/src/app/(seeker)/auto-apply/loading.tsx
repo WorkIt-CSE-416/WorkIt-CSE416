@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/ui/card";
-import { SectionHeading } from "@/components/ui/section-heading";
+import { SectionHeadingSkeleton } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
@@ -13,18 +13,17 @@ import { AutoApplyPanel } from "./auto-apply-panel";
  * prefetched state below is drawn in the click's next frame
  * (../home/loading.tsx says why only the slow pages have one).
  *
- * The page's own frame: the width, then the real heading block
- * (./auto-apply-panel.tsx), so the title and its line sit exactly where
- * the page puts them. Then Up Next's heading, Add Jobs as a bar, and the queue's card
- * with rows in a row's shape.
+ * The page's own frame: the width, then the page's panel
+ * (./auto-apply-panel.tsx). Then Up Next's heading and Add Jobs as bars, and
+ * the queue's card with rows in a row's shape.
  */
 export default function AutoApplyLoading() {
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <AutoApplyPanel summary={null}>
-        <section aria-labelledby="up-next" aria-busy="true" className="mt-8">
+        <section aria-label="Up Next" aria-busy="true" className="mt-8">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <SectionHeading id="up-next">Up Next</SectionHeading>
+            <SectionHeadingSkeleton />
             <Skeleton aria-hidden="true" className="h-9 w-28" />
           </div>
           <Card padding="none" aria-hidden="true" className="mt-3 overflow-hidden">

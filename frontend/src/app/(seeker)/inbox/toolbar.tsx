@@ -195,7 +195,7 @@ export function InboxToolbar({
               aria-label="More"
               className={cn(
                 TOOL,
-                "text-ink-meta hover:text-ink focus-visible:ring-brand-ring flex items-center justify-center focus-visible:ring-2 focus-visible:outline-none",
+                "text-ink hover:text-brand focus-visible:ring-brand-ring flex items-center justify-center focus-visible:ring-2 focus-visible:outline-none",
               )}
             >
               <EllipsisIcon className="size-[18px]" />

@@ -1,20 +1,7 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
-import { cn } from "@/lib/cn";
-
-import { SEEKER_GUTTER } from "../../gutter";
-import { ListingsError } from "../listing-card";
 import { getJobListing } from "../listings";
-import { JobActionBar } from "./action-bar";
-import {
-  JOB_PAGE_WIDTH,
-  JobViewActions,
-  JobViewBody,
-  JobViewHeader,
-  loadJobView,
-} from "./job-view";
-import { BackToJobs } from "./page-actions";
+import { JobPage } from "./job-page";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): Promise<Metadata> {
   const { jobId } = await params;
@@ -41,8 +28,7 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * it into "What You'll Do" and "Qualifications" by guesswork.
  *
  * Its actions sit in one bar with Back, held at the top of the page from md
- * while the description scrolls (./action-bar): Save, the "…" menu (Copy Link
- * and Report, ./page-actions), Ask Scout, Auto Apply (queues it for the Auto
+ * while the description scrolls (./action-bar): Save, Ask Scout, Auto Apply (queues it for the Auto
  * Apply page, as on the card), Tailor My Resume (./tailor, KAN-217; "Your
  * Tailored Resume" once the student has one for this posting) and Apply Now.
  * The header card below holds only who is hiring, the title and the facts.
@@ -53,36 +39,11 @@ export async function generateMetadata({ params }: PageProps<"/jobs/[jobId]">): 
  * dialog asks "Did You Apply?" (KAN-242); Yes marks the job applied (KAN-232),
  * the page says "You applied on <date>", and the job leaves their feed. There
  * is no Applied button: one misclick marked a job applied with no undo. Save
- * keeps the job in My Applications (KAN-261); Report is still inert. No
+ * keeps the job in My Applications (KAN-261). No
  * match rail: nothing scores a role yet, and an empty ring here would read as
  * a verdict.
  */
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[jobId]">) {
   const { jobId } = await params;
-  const view = await loadJobView(jobId);
-  const { job, error } = view;
-
-  if (error != null) {
-    return (
-      <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
-        <BackToJobs />
-        <ListingsError error={error} retryHref={`/jobs/${encodeURIComponent(jobId)}`} />
-      </div>
-    );
-  }
-  if (job == null) notFound();
-
-  // The actions, header and body are ./job-view's, which the application's
-  // own page (/applications/[jobId]) draws too.
-  return (
-    <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
-      {/* Back and the job's actions, held at the top while the description
-          scrolls under them (./action-bar). */}
-      <JobActionBar>
-        <JobViewActions view={view} job={job} />
-      </JobActionBar>
-      <JobViewHeader job={job} />
-      <JobViewBody view={view} job={job} />
-    </div>
-  );
+  return <JobPage jobId={jobId} />;
 }

@@ -69,6 +69,7 @@ jobs:
       pull-requests: read
     outputs:
       extension: ${{ steps.filter.outputs.extension }}
+      apply: ${{ steps.filter.outputs.apply }}
     steps:
       # A PR's files come from the API; any other event diffs the checkout.
       - uses: actions/checkout@v4
@@ -81,6 +82,11 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/engine-token.yml
               - .github/actions/extension-setup/**
+            apply:
+              - apply-agent/**
+              - autofiller_extension/fill-engine
+              - .github/workflows/ci.yml
+              - .github/workflows/engine-token.yml
 
   # The extension's Playwright suite, headless, on the engine the submodule
   # pins (KAN-464). The slow speed harness runs nightly instead
@@ -120,6 +126,80 @@ jobs:
           name: extension-test-results
           path: autofiller_extension/test/test-results
           retention-days: 7
+
+  # Apply (apply-agent/, KAN-535): ruff and the fast tests, the files that need
+  # no browser, no network and no `claude` CLI (about 30 s on Linux). The tests
+  # read the engine's saved forms, so the job needs the fill-engine submodule
+  # and is skipped without FILL_ENGINE_TOKEN (the engine job).
+  apply:
+    needs: [changes, engine]
+    if: needs.changes.outputs.apply == 'true' && needs.engine.outputs.set == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apply-agent
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.FILL_ENGINE_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      # The files that need no browser, network or `claude` CLI. A new test
+      # file that needs none of them joins the list.
+      - name: Fast tests
+        run: |
+          uv run pytest -q \
+            tests/test_accounts.py \
+            tests/test_answer_bank.py \
+            tests/test_answering.py \
+            tests/test_applicant_name.py \
+            tests/test_apply_home.py \
+            tests/test_approve.py \
+            tests/test_bot_signals.py \
+            tests/test_claude_answers.py \
+            tests/test_claude_cli.py \
+            tests/test_clock.py \
+            tests/test_company_brief.py \
+            tests/test_company_material.py \
+            tests/test_cover_letter.py \
+            tests/test_daily_cap.py \
+            tests/test_dock_app.py \
+            tests/test_eightfold_filler.py \
+            tests/test_employer_mail.py \
+            tests/test_fill_engine.py \
+            tests/test_focus.py \
+            tests/test_form_steps.py \
+            tests/test_gates.py \
+            tests/test_gmail.py \
+            tests/test_graduate_only.py \
+            tests/test_keychain_contract.py \
+            tests/test_mail_command.py \
+            tests/test_matches.py \
+            tests/test_notification.py \
+            tests/test_outside_us.py \
+            tests/test_phone_push.py \
+            tests/test_presubmit_check.py \
+            tests/test_privacy_gate.py \
+            tests/test_profile.py \
+            tests/test_rankings.py \
+            tests/test_records_contract.py \
+            tests/test_repair_requests.py \
+            tests/test_requests.py \
+            tests/test_sameness.py \
+            tests/test_schedule.py \
+            tests/test_send_click.py \
+            tests/test_sheet_tidy.py \
+            tests/test_sheet_tracker.py \
+            tests/test_stock.py \
+            tests/test_story_map.py \
+            tests/test_tracker_contract.py \
+            tests/test_worker_date.py
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.

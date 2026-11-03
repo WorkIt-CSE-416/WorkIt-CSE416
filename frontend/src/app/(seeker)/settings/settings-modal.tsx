@@ -100,7 +100,7 @@ function ModalFrame({
               padding there the fields showed through under it. */}
           <div
             ref={scroller}
-            className="@container/main min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            className="@container/main min-h-0 flex-1 overflow-y-auto overscroll-none"
           >
             {SECTIONS.map(({ key }) => (
               <div key={key} hidden={key !== active} className="flex flex-col gap-4 p-4 sm:p-6">

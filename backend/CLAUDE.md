@@ -41,6 +41,7 @@ uv run python -m app.scripts.intake_test_set   intake's fixed test set against t
 uv run python -m app.scripts.ship_check ...   the connector's blind read, KAN-386 (by hand, never CI; data outside the repo)
 uv run python -m app.scripts.clean_bank_entries  one-off: split "| C++, Go" off older bank titles, drop read skills the catalog lacks; --typed also drops Tailor-added degrees/"AI tools" (dry run unless --apply; local DB only)
 uv run python -m app.scripts.fill_report <id>   a fill report's fix brief + form fixture into fill-reports/ (--latest; reads DATABASE_URL, writes nothing)
+uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  a student's Apply data folder ($APPLY_HOME, else ~/.config/apply) into WorkIt (--dry-run rolls back; local DB only; app/models/CLAUDE.md, "The Fill engine's profile")
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
@@ -503,7 +504,11 @@ Find files with a directory listing; these are the rules for where code goes.
   in `routers/applications.py`, `queries/applications.py`
   `listed_job_by_link`): the extension's toolbar popup on a site it can't
   fill saves the feed's listed job whose apply link is the page, the exact
-  link first, else the same link without query, fragment and trailing
+  link first, else **the same Greenhouse job in any link form** (KAN-526,
+  `greenhouse_job`: boards. or job-boards. host, the `embed/job_app?for=&token=`
+  form, a company page's `?gh_jid=`; Greenhouse job ids are unique across
+  boards, so the id alone decides, as the Fill engine's `jobOf` does), else
+  the same link without query, fragment and trailing
   slash (SQL `split_part`/`rtrim`, no index: the feed is small), **but only
   when exactly one listed job has that bare link** (KAN-424): many postings
   carry their id only in the query (36 Waymo jobs share
@@ -555,7 +560,9 @@ Find files with a directory listing; these are the rules for where code goes.
   student, and never list banned words (that primes a model; the save
   checks them, KAN-380), and nothing on this path calls a model. **Every tool takes a title and explicit annotations** (KAN-383, Anthropic's directory refuses a tool without them): `readOnlyHint=True` on a read, so Claude runs it without asking; only `save_*` tools write, each saying `destructiveHint`; `openWorldHint=False` on all. A test lists the tools and checks each one, so a new tool without them fails. **Company
   briefs are shared by every student** (KAN-382, `auto_apply/briefs.py`,
-  tools in `connector/briefs.py`): a fact is kept only if WorkIt finds its
+  tools in `connector/briefs.py`; `GET /jobs/{id}/company`, KAN-519, shows
+  them on the job page's Company tab, with no sign-in, since they are public
+  facts): a fact is kept only if WorkIt finds its
   quote on its page, so **every page a brief cites is read through
   `services/page_fetch.py`**, never a bare `httpx` call: the URL comes from
   outside, and the fetcher is what refuses internal addresses, other
@@ -840,18 +847,38 @@ Find files with a directory listing; these are the rules for where code goes.
   row-less bullets. Typed wording is the resume's one local variant
   (`bank_bullet_variants.built_resume_id`); typing the original back
   deletes it; another resume's local variant is never offered. Fit to One
-  Page is `POST .../fit` (`fit_to_one_page`, order from
-  `resume_view.fit_order`), which renders between rounds, so it is slow
-  (two to six renders, about 0.3 s each) and its tests need Tectonic. It cuts in steps
-  (`FIT_STEPS`): coursework, then bullets past a cap per entry, then the
-  bottom entries of a section, each step across every section before the
-  next goes deeper. Never cut one section to one-line entries before the
-  others give anything: the first rule did, and a long resume came back a
-  list of one-line entries. Once it fits, it shows the last round's cuts
-  again one at a time while the page still fits (`FIT_PUT_BACK`):
-  `lines_over` runs short (a resume 7 lines over was still 6 over after
-  about 8 lines were hidden), and without it a test resume lost 3 items
-  it had room for. Undo sends the response's `undo` body. Tests:
+  Page is `POST .../fit` (`fit_to_one_page`; the design is
+  `docs/cut_to_one_page.md`, the code `services/fit_page.py`). It reads
+  the resume once, cuts it in memory and saves every cut together at the
+  end, so a failed render saves nothing; each render gets a second try
+  first (`FIT_RENDER_TRIES` in the router), since one failed compile
+  would otherwise throw away the whole run. The order: bullets down to two
+  per entry, then to one, section by section (Awards, Certifications,
+  Leadership, Projects, Experience), then whole entries (Leadership,
+  Projects, Experience), with Skills, Awards and Certifications, and
+  Education on schedules opened by the share of those entries cut, and at
+  the last the floors (one skill line, one job, one school) too, so it
+  always reaches one page. A cut never leaves an entry with no bullets:
+  the cut of an entry's last bullet takes the entry (the last school
+  keeps its bullet instead). A tailored resume is cut by its posting's rank
+  (`fit_scores`: `tailor.rank_shown` on the wording the resume shows, and
+  skill levels by whole word); any other by position. Each cut is checked
+  against the last render by subtraction (`Page.fits`), and a render
+  confirms: about two renders, three when a prediction runs a line
+  hopeful. Two things learned measuring it: the distance between two
+  items' tops varies (a tall character pushes a line 1.7 pt lower), so a
+  height is measured to the next item's top, not guessed from its box;
+  and TeX squeezes the glue between list items (about 2 pt a bullet)
+  rather than break the document's last page, so the check counts each
+  item's shrink, which the markers record (`Rendered.shrinks`). Without
+  the shrink it cut 2 to 4 bullets too many. The view always lists the
+  sections in `SECTIONS` order and the student can drag the page's
+  (`PageSettings.section_order`), so `Page` sorts them by where the boxes
+  landed: reading the view's first entry as the page's top counted
+  everything above Education twice, 68 cuts where 23 were needed. Undo
+  sends the response's
+  `undo` body. Tests: `tests/test_fit_page.py` (the plan, the check, and
+  real renders: two renders, at most one cut too many),
   `tests/test_resume_editor.py`.
 - **Only a send is a sent resume; a download keeps nothing** (KAN-267).
   The editor's Download takes `GET .../built-resumes/{rid}/render` (the PDF,

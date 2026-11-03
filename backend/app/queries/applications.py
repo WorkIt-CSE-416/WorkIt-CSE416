@@ -6,8 +6,10 @@ and writes the same rows (auto_apply/queries.py).
 """
 
 import datetime
+import re
 import uuid
 from typing import Any, NamedTuple
+from urllib.parse import parse_qs, urlsplit
 
 from sqlalchemy import case, delete, func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -188,16 +190,59 @@ def _bare_link(link):
     return func.rtrim(func.split_part(func.split_part(link, "#", 1), "?", 1), "/")
 
 
+def greenhouse_job(url: str | None) -> str | None:
+    '''
+    the Greenhouse job id a link names, whatever its form, or None: the hosted
+    form on either host (boards. or job-boards.greenhouse.io/<board>/jobs/<id>),
+    the embedded one (embed/job_app?for=<board>&token=<id>), or a company page
+    that shows the posting (?gh_jid=<id>). Greenhouse's job ids are unique
+    across boards, so the id alone names the job (the Fill engine's jobOf)
+    '''
+    if not url:
+        return None
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+    except ValueError:
+        return None
+    query = parse_qs(parts.query)
+    if host == "greenhouse.io" or host.endswith(".greenhouse.io"):
+        if m := re.match(r"/[\w-]+/jobs/(\d+)(?:/|$)", parts.path):
+            return m[1]
+        if parts.path.startswith("/embed/job_app"):
+            token = query.get("token", [""])[0]
+            return token if token.isdigit() else None
+    gh_jid = query.get("gh_jid", [""])[0]
+    return gh_jid if gh_jid.isdigit() else None
+
+
+async def _listed_greenhouse_job(db: AsyncSession, url: str) -> uuid.UUID | None:
+    '''the listed job whose apply link names the same Greenhouse job as `url` (greenhouse_job), or None'''
+    job = greenhouse_job(url)
+    if job is None:
+        return None
+    # The id appears in every form of the link; the LIKE narrows to a few rows, greenhouse_job decides.
+    rows = (await db.execute(
+        select(Job_Post.id, Job_Post.apply_url).where(Job_Post.apply_url.contains(job, autoescape=True), LISTED)
+        .order_by(Job_Post.id)
+    )).all()
+    return next((row.id for row in rows if greenhouse_job(row.apply_url) == job), None)
+
+
 async def listed_job_by_link(db: AsyncSession, url: str) -> uuid.UUID | None:
     '''
     the feed's job whose apply link is the page at `url` (the toolbar popup's
     Save to WorkIt, KAN-401; the panel's Track on WorkIt, KAN-424), the same
-    link first, else the same page without its query, fragment or trailing
-    slash, but only when exactly one listed job has it; None otherwise
+    link first, else the same Greenhouse job in any link form (KAN-526), else
+    the same page without its query, fragment or trailing slash, but only
+    when exactly one listed job has it; None otherwise
     '''
     exact = await db.scalar(select(Job_Post.id).where(Job_Post.apply_url == url, LISTED))
     if exact is not None:
         return exact
+    greenhouse = await _listed_greenhouse_job(db, url)
+    if greenhouse is not None:
+        return greenhouse
     # Many postings carry their id only in the query (36 Waymo jobs share careers.withwaymo.com/jobs): the bare
     # link names one of them only when it is the only one, else the wrong job would be saved, or marked applied.
     bare = (await db.scalars(

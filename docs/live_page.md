@@ -101,6 +101,13 @@ Built so far (option A, the typed line only):
 - **Moves show at once:** two neighbours' strips of the page trade places
   until the PDF lands. Hide, show and wording switches show nothing until
   then.
+- **A page setting's compile is skipped when a newer one is next in the
+  queue** (each is a full replacement), so five quick clicks on a size
+  compile twice, not five times. Every click still saves. A skipped step
+  keeps no PDF, nor does the step after it on its before side, so Undo
+  renders those, and any step while a page's render is queued renders too,
+  or that render would print over it. Typed lines and choice changes are not skipped: a render
+  is what refuses a bad one, and each carries only its own edit.
 - **Undo and Redo work like any edit:** each step keeps the state and
   PDF on both sides, so going back or forward shows at once and only the
   save goes; an older step, past the newest 7 that keep their PDFs,
@@ -131,8 +138,19 @@ Still open for step 1:
 - A line split across a page break moves only its first page.
 - A line the student is still on when the tab closes is not saved.
 - Hide, show and a wording switch show nothing until the PDF lands.
-- The time on the deployed API, where a round trip is 8 to 30 ms and
-  connections stay open: not measured yet.
+- The time of one compile alone on the deployed API. A compile is nearly
+  all CPU, 0.41 CPU seconds in a laptop's 0.42 s of waiting (KAN-524,
+  2026-11-02), and the Container has 1/4 vCPU
+  (`backend/cloudflare/wrangler.jsonc`). Measured on the live site that
+  day, signed in, in the browser: the editor's page, whose load holds one
+  compile, took 5.2 to 6.7 s in 9 of 11 loads and 13 and 19 s in the other
+  two; the Resumes page, with no compile, took 0.4 to 0.8 s. So a compile
+  there is likely several seconds, and every edit that renders waits for
+  it: a revert, an Undo past the kept PDFs, and Fit to One Page twice or
+  more. Undo and Redo with kept PDFs still wait for any render ahead of
+  them in the queue. `/health/db?timing=true` showed three bands the same
+  day, about 12, 47 and 75 ms, against the 8 to 30 ms expected from ENAM, so
+  the three Containers may not be alike.
 
 ## Step 2, under consideration: edit in place on a page Typst draws
 

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { cn } from "@/lib/cn";
 
 /**
@@ -51,6 +52,17 @@ export function SectionHeading({
     <div className="flex items-baseline justify-between gap-4">
       {heading}
       {action}
+    </div>
+  );
+}
+
+/** A title while its section loads: a bar on the title's 28px line, since a
+ *  real title among the bars stood out as the one finished thing on the page.
+ *  Hidden from a screen reader, so the section names itself with `aria-label`. */
+export function SectionHeadingSkeleton() {
+  return (
+    <div aria-hidden="true" className="flex h-7 items-center">
+      <Skeleton className="h-5 w-40" />
     </div>
   );
 }

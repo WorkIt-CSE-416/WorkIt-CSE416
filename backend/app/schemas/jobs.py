@@ -122,6 +122,25 @@ class JobListing(BaseModel):
         return auto_apply_supported(self.form_url or self.apply_url)
 
 
+class CompanyFact(BaseModel):
+    """One checked fact from a company brief (app/auto_apply/briefs.py), with
+    the page it came from."""
+
+    category: str
+    fact: str
+    url: str
+    published: str | None = None
+
+
+class JobCompany(BaseModel):
+    """The job page's Company tab: the employer's website, when known, and its
+    brief's facts, empty until a student's Claude has researched the company."""
+
+    company: str
+    website: str | None = None
+    facts: list[CompanyFact] = []
+
+
 class JobLocationOption(BaseModel):
     """One place the seeker feed can be narrowed to, from GET /jobs/locations."""
 

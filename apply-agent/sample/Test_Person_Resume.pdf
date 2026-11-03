@@ -1,0 +1,32 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 1089 >>
+stream
+BT /F1 11 Tf 14 TL 60 740 Td (Test Person) Tj T* (Springfield, IL | test.person@example.com | +1 555 010 0199 | linkedin.com/in/test-person) Tj T* () Tj T* (EDUCATION) Tj T* (Illinois State University - B.S. Computer Science, minor in Mathematics - May 2028 - GPA 3.7/4.0) Tj T* () Tj T* (EXPERIENCE) Tj T* (Example Logistics - Software Engineering Intern - Jun-Aug 2026) Tj T* (- Built a Python service that flags late deliveries so dispatchers call customers first.) Tj T* (- Cut the weekly late-delivery report from about 4 minutes to about 20 seconds in PostgreSQL.) Tj T* (Illinois State University Library - Student Developer - Sep 2025-present) Tj T* (- Built a Flask shelf scanner that shows checked-out books within minutes.) Tj T* () Tj T* (PROJECTS) Tj T* (Robotics Club - Software Lead - Aug 2024-present) Tj T* (- Fixed the robot's drift by checking both wheel encoders; 3rd of 12 at the 2025 regional contest.) Tj T* () Tj T* (SKILLS) Tj T* (Python, Java, C++, SQL, JavaScript, React, Flask, PostgreSQL, Git, Docker) Tj T* () Tj T* (This is a made-up sample resume.) Tj T* ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000001382 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1452
+%%EOF

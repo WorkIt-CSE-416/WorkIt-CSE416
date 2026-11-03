@@ -71,9 +71,12 @@ import { FitToast } from "./fit-notice";
 import { Zoom, useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import {
+  addCuts,
+  cutLeft,
   HEADER,
   LINK_FIELDS,
   lineOf,
+  NO_CUTS,
   mergeChoices,
   move,
   shownBullets,
@@ -85,7 +88,6 @@ import {
   type HeaderField,
   type Line,
 } from "./model";
-import { keepFitUndo, readFitUndo } from "./fit-undo";
 import { hideAgain, push, reverseChoices, reverseLine, type Edit, type Step } from "./history";
 import {
   afterStrips,
@@ -121,12 +123,14 @@ import {
   revertAll,
   revertOf,
   type RevertTarget,
+  wordsBack,
   type SuggestionPopupApi,
   type SuggestionsApi,
   untouched,
   useTailorReview,
 } from "./tailor-review";
-import { ExperiencesPicker } from "./experiences-picker";
+import { CutPicker, ExperiencesPicker } from "./experiences-picker";
+import { keepFitCuts, readFitCuts } from "./fit-cuts";
 
 /**
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
@@ -169,6 +173,13 @@ import { ExperiencesPicker } from "./experiences-picker";
 // The attribute on the parts of the editor a press may land on without
 // clearing the selected line
 const KEEPS_SELECTION = "data-keeps-selection";
+
+/** The panel's mark while it shows Cut From Resume: Fit's scissors, amber. */
+const CUT_MARK = (
+  <span className="bg-warning-tint text-warning flex size-8 shrink-0 items-center justify-center rounded-2xl">
+    <ScissorsIcon aria-hidden className="size-4.5" weight="duotone" />
+  </span>
+);
 
 /** The panel's mark while it shows the Experiences picker: the toolbar
  *  button's glyph, so what opened it is what it wears, and not Scout's. */
@@ -361,10 +372,10 @@ export function Editor({
    *  editor's state (./tailor-review.tsx). Only Tailor's page passes it, so
    *  only there are changes tinted: a mark with no card to act on would
    *  mean nothing. */
-  suggestions?: (api: SuggestionsApi) => ReactNode;
+  suggestions?: ComponentType<SuggestionsApi>;
   /** The small card beside a changed line while it is open, as Docs shows a
    *  suggestion beside its text (KAN-499). */
-  suggestionPopup?: (api: SuggestionPopupApi) => ReactNode;
+  suggestionPopup?: ComponentType<SuggestionPopupApi>;
   /** The title row (`ResumeTitle`, renamed in place), over the page and the
    *  column beside it; on Tailor's review the step's row with the name in
    *  it (`TailorReviewBar`). */
@@ -378,6 +389,19 @@ export function Editor({
 }) {
   // Null until the first render lands (FirstRenderPane hands it over).
   const [rendered, setRendered] = useState<RenderedPdf | null>(null);
+  // What the next request's copy is built from (KAN-391): the bank and
+  // choices as the newest answer left them, with the changes on their way
+  // merged in, and the header the newest PDF printed. A ref, so a request
+  // that waited for the one before reads what that one left, before React
+  // has drawn it.
+  const held = useRef<Held>({
+    bank: initialBank,
+    choices: initialChoices,
+    printed: null,
+  });
+  // The newest PDF any render answered, which a step keeps for an instant
+  // Undo; newer than `rendered` while a newer request owns the page
+  const lastPdf = useRef<RenderedPdf | null>(null);
   // The page's settings (KAN-435), ahead of the PDF: a pick shows in its
   // control at once, and the next edit's copy carries it
   const [page, setPage] = useState(DEFAULT_PAGE);
@@ -414,16 +438,6 @@ export function Editor({
     headerNow.current = header;
   });
   const [choices, setChoices] = useState(initialChoices);
-  // What the next request's copy is built from (KAN-391): the bank and
-  // choices as the newest answer left them, with the changes on their way
-  // merged in, and the header the newest PDF printed. A ref, so a request
-  // that waited for the one before reads what that one left, before React
-  // has drawn it.
-  const held = useRef<Held>({
-    bank: initialBank,
-    choices: initialChoices,
-    printed: null,
-  });
   // Undo and Redo (./history.ts): the steps, kept in this tab's memory
   const undos = useRef<Step<Held, RenderedPdf>[]>([]);
   const redos = useRef<Step<Held, RenderedPdf>[]>([]);
@@ -432,9 +446,6 @@ export function Editor({
     () => setSteps({ undo: undos.current.length, redo: redos.current.length }),
     [],
   );
-  // The newest PDF any render answered, which a step keeps for an instant
-  // Undo; newer than `rendered` while a newer request owns the page
-  const lastPdf = useRef<RenderedPdf | null>(null);
   // The choices as the API last answered them, and the changes sent since
   const confirmed = useRef(initialChoices);
   const unanswered = useRef(new Map<string, ChoicesUpdate>());
@@ -444,6 +455,11 @@ export function Editor({
   // print that edit's old text. Saves run one at a time in their own queue
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const saves = useRef<Promise<unknown>>(Promise.resolve());
+  // How many jobs the queue has been given, and which of those waiting are a
+  // page's settings: a page's compile goes only if no newer page is next
+  const jobs = useRef(0);
+  const pageJobs = useRef(new Set<number>());
+  const skippedPage = useRef(false);
   // Each typed bullet's saved wording, which the render could not know
   const wordings = useRef(new Map<string, { variant_id: string | null; text: string }>());
   // The moves on their way, shown on the page at once (./pdf-pages.tsx)
@@ -481,7 +497,6 @@ export function Editor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
-  const [fitUndo, setFitUndo] = useState<ChoicesUpdate | null>(null);
   // The resume's PDF and Word downloads, here since KAN-258 (../download-menu.tsx)
   const download = useResumeDownload(resumeId);
   // Tailor's changes awaiting review; `apply` reads the newest through a ref
@@ -529,15 +544,20 @@ export function Editor({
   // is the way back, and a switch only took up the panel's top. Closed, it
   // goes back to the assistant, so the top bar's Scout always opens Scout
   const scoutOpen = useScout().open;
-  const [panelView, setPanelView] = useState<"scout" | "experiences" | "format" | "sections">(
-    "scout",
-  );
+  const [panelView, setPanelView] = useState<
+    "scout" | "experiences" | "cut" | "format" | "sections"
+  >("scout");
   const [panelWasOpen, setPanelWasOpen] = useState(scoutOpen);
   if (panelWasOpen !== scoutOpen) {
     setPanelWasOpen(scoutOpen);
     if (!scoutOpen) setPanelView("scout");
   }
   const showScout = useCallback(() => setPanelView("scout"), []);
+  const showPanel = (view: "experiences" | "cut" | "format" | "sections") => {
+    if (scoutOpen && panelView === view) return setScoutOpen(false);
+    setPanelView(view);
+    setScoutOpen(true);
+  };
   // Tailor's marks on the page: off when so many lines changed that they get
   // in the way of reading it. The changes stay, and so does the panel
   const [showMarks, setShowMarks] = useState(true);
@@ -547,15 +567,23 @@ export function Editor({
    *  Scout's panel on the editor's own page, as the Experiences picker is. */
   const togglePanel = (panel: "format" | "sections") => {
     if (suggestions) return showSide(side === panel ? null : panel);
-    if (scoutOpen && panelView === panel) return setScoutOpen(false);
-    setPanelView(panel);
-    setScoutOpen(true);
+    showPanel(panel);
   };
   const showExperiences = () => {
-    if (scoutOpen && panelView === "experiences") return setScoutOpen(false);
-    setPanelView("experiences");
-    setScoutOpen(true);
+    showPanel("experiences");
   };
+  // What Fit to One Page cut, for Cut From Resume: every fit in this tab,
+  // kept in sessionStorage (./fit-cuts.ts), so a reload keeps it
+  const [cuts, setCuts] = useState(NO_CUTS);
+  // The latest list for a fit's queued job, whose closure can predate the
+  // fit before it
+  const cutsNow = useRef(NO_CUTS);
+  // Restored after mount, never in the first render, which must match the
+  // server's (it has no sessionStorage)
+  useEffect(() => {
+    cutsNow.current = readFitCuts(resumeId);
+    setCuts(cutsNow.current);
+  }, [resumeId]);
   const [zoom, setZoom] = useZoom();
   // The Suggestions panel, sized to the window from wherever its top is
   const fitPanel = useFitToWindow();
@@ -570,6 +598,7 @@ export function Editor({
 
   /** Runs a request after every request before it has answered. */
   const enqueue = useCallback(<T,>(job: () => Promise<T>): Promise<T> => {
+    jobs.current += 1;
     const run = queue.current.then(job);
     queue.current = run.catch(() => undefined);
     return run;
@@ -841,13 +870,25 @@ export function Editor({
       if (step) step.undo = { page: pageNow.current };
       keepPage(settings);
       sendPage(settings);
+      const job = jobs.current + 1;
+      pageJobs.current.add(job);
       return enqueue(async () => {
+        pageJobs.current.delete(job);
+        // Each click on a size or a font is a compile, one at a time, and
+        // the next page replaces this one whole, so five quick clicks compile
+        // the first and the last. A skipped step keeps no PDF, and neither
+        // does the step's before after it: Undo renders those
+        if (pageJobs.current.has(job + 1)) {
+          skippedPage.current = true;
+          return;
+        }
         const current = begin();
         started.current = performance.now();
         if (step) {
           step.before = settled();
-          step.pdfBefore = lastPdf.current;
+          step.pdfBefore = skippedPage.current ? null : lastPdf.current;
         }
+        skippedPage.current = false;
         const { data, error } = await renderEdit(resumeId, { page: settings }, copy());
         if (data) {
           lastPdf.current = data.render;
@@ -865,9 +906,15 @@ export function Editor({
     [begin, copy, enqueue, forget, keepPage, keepRendered, record, resumeId, sendPage, settled],
   );
 
-  /** `record: false` for an Undo or Redo sent as an edit (`travel`). */
+  /** `record: false` for an Undo or Redo sent as an edit (`travel`). `words`
+   *  are lines to draw over the page until the PDF that prints them lands. */
   const apply = useCallback(
-    async (changes: ChoicesUpdate, revertedTarget?: RevertTarget, recorded = true) => {
+    async (
+      changes: ChoicesUpdate,
+      revertedTarget?: RevertTarget,
+      recorded = true,
+      words: Record<string, string> = {},
+    ) => {
       // Its reverse is read before the change shows
       const step = recorded ? record({ changes }) : null;
       if (step)
@@ -887,7 +934,23 @@ export function Editor({
       unanswered.current.set(id, changes);
       keepChoices(confirmed.current);
       sent(id);
+      const lines = Object.keys(words);
+      lines.forEach(sent);
+      setDrafts((d) => ({ ...d, ...words }));
       if (swap) setSwaps((s) => [...s, { ...swap, id }]);
+      // A change to an item Tailor changed (a revert included) drops its mark
+      // now, not after a compile; a change the render refuses puts it back
+      const waiting = latestReview.current;
+      const kept =
+        waiting &&
+        (revertedTarget
+          ? reverted(waiting.edits, revertedTarget, held.current.choices)
+          : untouched(waiting.edits, changes));
+      const unmarked = waiting?.edits.filter((edit) => !kept?.includes(edit)) ?? [];
+      if (waiting && kept) {
+        latestReview.current = { ...waiting, edits: kept };
+        setReview(latestReview.current);
+      }
       // The save goes now, beside the render; a refusal is the render's to
       // show, and any other failure puts the saved resume back
       sendChoices(changes);
@@ -901,12 +964,22 @@ export function Editor({
         const { data, error, status } = await renderEdit(resumeId, { changes }, copy());
         unanswered.current.delete(id);
         answered(id);
+        lines.forEach(answered);
         // A render that failed twice for any other reason (a timeout, a
         // compile) says nothing of the save beside it
         if (!data && !refused(status)) reload(lostChange(error, "shown"));
         // Refused: the change and its swap leave the page
         keepChoices(data?.choices ?? confirmed.current);
-        if (!data) setSwaps((s) => s.filter((x) => x.id !== id));
+        if (!data) {
+          setSwaps((s) => s.filter((x) => x.id !== id));
+          lines.forEach(drop);
+          // The record is gone once its last change was: `waiting` still has it
+          const now = latestReview.current ?? waiting;
+          if (now && unmarked.length) {
+            latestReview.current = { ...now, edits: [...now.edits, ...unmarked] };
+            setReview(latestReview.current);
+          }
+        }
         if (data) {
           lastPdf.current = data.render;
           if (step) {
@@ -917,22 +990,13 @@ export function Editor({
         if (!current()) return;
         setSaving(false);
         if (!data) return setError(error);
-        // A change to an item Tailor changed (a revert included) drops its mark
-        const waiting = latestReview.current;
-        if (waiting) {
-          setReview({
-            ...waiting,
-            edits: revertedTarget
-              ? reverted(waiting.edits, revertedTarget, data.choices ?? confirmed.current)
-              : untouched(waiting.edits, changes),
-          });
-        }
         keepRendered(data.render);
       });
     },
     [
       begin,
       copy,
+      drop,
       enqueue,
       forget,
       keepChoices,
@@ -1083,6 +1147,19 @@ export function Editor({
     [drop, flush, refresh],
   );
 
+  /** The toolbar's switch: the panel, the original, or nothing beside the
+   *  page. A hidden panel leaves no line highlighted for a card out of
+   *  sight. */
+  const showSide = (to: Side) => {
+    if (side === "suggestions" && to !== "suggestions") {
+      setActive(null);
+      setFocused(null);
+    }
+    // The comparison only reads (`comparing`): an open line saves and closes
+    if (to === "original") select(null);
+    setSide(to);
+  };
+
   useEffect(() => {
     const clear = (event: KeyboardEvent) => event.key === "Escape" && select(null);
     window.addEventListener("keydown", clear);
@@ -1132,7 +1209,9 @@ export function Editor({
         const saved = back ? step.after : step.before;
         if (!edit) return;
         if ("name" in edit) return applyName.current?.(edit.name, () => forget(step));
-        if (state && pdf && saved?.printed) {
+        // Not past a page's render still queued (a skipped step's Undo sends
+        // one): it would land after this and print its settings over them
+        if (state && pdf && saved?.printed && pageJobs.current.size === 0) {
           restore(state, pdf);
           const source = {
             entries: saved.bank.entries,
@@ -1289,11 +1368,18 @@ export function Editor({
       announce(false);
       lastPdf.current = data.render;
       keepRendered(data.render);
-      const hid = data.undo.bullets?.length || data.undo.entries?.length;
-      rememberFitUndo(hid ? data.undo : null);
+      const hid =
+        data.undo.bullets?.length || data.undo.entries?.length || data.undo.skills?.length;
+      if (hid) {
+        cutsNow.current = addCuts(cutsNow.current, data.undo);
+        setCuts(cutsNow.current);
+        keepFitCuts(resumeId, cutsNow.current);
+      }
       const fresh = await getChoices(resumeId);
       if (fresh.data) keepChoices(fresh.data);
-      // Fit is one step: its Undo shows what it hid, its Redo hides it again
+      // Fit is one step like any edit: Undo (the button or Cmd+Z) shows what
+      // it hid, Redo hides it again. It had an Undo Fit button of its own
+      // until 2026-11-01, a second way to do what Undo does.
       if (hid && fresh.data) {
         push(undos.current, {
           undo: { changes: data.undo },
@@ -1308,24 +1394,6 @@ export function Editor({
       }
       if (current()) setSaving(false);
     });
-  }
-
-  function rememberFitUndo(undo: ChoicesUpdate | null) {
-    setFitUndo(undo);
-    keepFitUndo(resumeId, undo);
-  }
-
-  // A Fit's Undo from before a reload comes back after mount, never in the
-  // first render, which must match the server's (it has no sessionStorage).
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- a one-time restore from storage
-    setFitUndo(readFitUndo(resumeId));
-  }, [resumeId]);
-
-  function undoFit() {
-    if (!fitUndo) return;
-    void apply(fitUndo);
-    rememberFitUndo(null);
   }
 
   const box = rendered?.boxes.find((b) => boxKey(b) === selected);
@@ -1770,45 +1838,61 @@ export function Editor({
     setActive(card);
     setSuggestionsOpen(true);
   };
+  const SuggestionPopup = suggestionPopup;
   const popupNode =
-    popupEdit &&
-    suggestionPopup?.({
-      edit: popupEdit,
-      bank,
-      choices,
-      saving,
-      undo: () => {
-        select(null);
-        void apply(revertOf({ edit: popupEdit }, choices), { edit: popupEdit });
-      },
-      close: () => setClosedPopup(selected),
-    });
+    popupEdit && SuggestionPopup ? (
+      <SuggestionPopup
+        edit={popupEdit}
+        bank={bank}
+        choices={choices}
+        undo={() => {
+          select(null);
+          void apply(
+            revertOf({ edit: popupEdit }, choices),
+            { edit: popupEdit },
+            true,
+            wordsBack([popupEdit]),
+          );
+        }}
+        close={() => setClosedPopup(selected)}
+      />
+    ) : undefined;
+  const Suggestions = suggestions;
   const panel =
-    reviewing &&
-    suggestions?.({
-      record: reviewing,
-      pageOrder,
-      bank,
-      choices,
-      saving,
-      undo: (edit) => void apply(revertOf({ edit }, choices), { edit }),
-      undoAll: () => void apply(revertAll(reviewing.edits, choices)),
-      close: () => showSide(null),
-      focused,
-      focus: setFocused,
-      show: (key) => {
-        setActive(key);
-        setSuggestionsOpen(false);
-      },
-      active,
-      open: setActive,
-    });
+    reviewing && Suggestions ? (
+      <Suggestions
+        record={reviewing}
+        pageOrder={pageOrder}
+        bank={bank}
+        choices={choices}
+        undo={(edit) => void apply(revertOf({ edit }, choices), { edit }, true, wordsBack([edit]))}
+        undoAll={() =>
+          void apply(
+            revertAll(reviewing.edits, choices),
+            undefined,
+            true,
+            wordsBack(reviewing.edits),
+          )
+        }
+        close={() => showSide(null)}
+        focused={focused}
+        focus={setFocused}
+        show={(key) => {
+          setActive(key);
+          setSuggestionsOpen(false);
+        }}
+        active={active}
+        open={setActive}
+      />
+    ) : null;
   // Beside the page, the toolbar's Suggestions shows and hides the panel;
   // the phone opens it as a sheet from its own button
   const shownPanel = side === "suggestions" && panel;
   const shownOriginal = side === "original" && original;
   const shownFormat = side === "format";
   const shownSections = side === "sections";
+  const shownCut = side === "cut";
+  const cutOpen = suggestions ? shownCut : scoutOpen && panelView === "cut";
   const sectionsOutline = (
     <SectionsOutline
       bank={bank}
@@ -1818,26 +1902,12 @@ export function Editor({
       onApply={apply}
     />
   );
-  /** The toolbar's switch: the panel, the original, or nothing beside the
-   *  page. A hidden panel leaves no line highlighted for a card out of
-   *  sight. */
-  const showSide = (to: Side) => {
-    if (side === "suggestions" && to !== "suggestions") {
-      setActive(null);
-      setFocused(null);
-    }
-    // The comparison only reads (`comparing`): an open line saves and closes
-    if (to === "original") select(null);
-    setSide(to);
+  const history: HistoryTools = {
+    canUndo: steps.undo > 0,
+    canRedo: steps.redo > 0,
+    onUndo: () => travel(true),
+    onRedo: () => travel(false),
   };
-
-  const reviewTools: ReviewTools | null = reviewing && {
-    count: suggestionCount,
-    side,
-    onSide: showSide,
-    hasOriginal: Boolean(original),
-  };
-
   if (phone) {
     const start = line && box && startText(line, box);
     return (
@@ -1869,7 +1939,6 @@ export function Editor({
           saving={saving}
           elapsed={elapsed}
           error={error}
-          fitUndo={fitUndo}
           download={download}
           bar={phoneBar}
           page={page}
@@ -1902,7 +1971,8 @@ export function Editor({
           onFlush={() => flush()}
           onApply={apply}
           onFit={fit}
-          onUndoFit={undoFit}
+          history={history}
+          cuts={cuts}
         />
         {fitToast}
       </>
@@ -1917,7 +1987,7 @@ export function Editor({
       header={header}
       rendered={rendered}
       saving={saving}
-      fitUndo={fitUndo}
+      elapsed={elapsed}
       download={download}
       onApply={apply}
       onSaveHeader={addContact}
@@ -1925,17 +1995,31 @@ export function Editor({
       onAddBullet={() => line && startBullet(line)}
       onClose={() => select(null)}
       onFit={fit}
-      onUndoFit={undoFit}
       experiences={
-        // Not on Tailor's review: choosing what a resume shows is the
-        // editor's own page's work, a run's own removals have Undo, and a
-        // toolbar button and modal for it there cluttered the review. It
-        // waits for the first render, since a pick renders again
-        rendered && !suggestions
-          ? { open: scoutOpen && panelView === "experiences", onToggle: showExperiences }
+        // They wait for the first render, since a pick renders again
+        rendered
+          ? {
+              // Not on Tailor's review: choosing what a resume shows is the
+              // editor's own page's work, a run's own removals have Undo, and
+              // a toolbar button and modal for it there cluttered the review
+              picker: suggestions
+                ? null
+                : { open: scoutOpen && panelView === "experiences", onToggle: showExperiences },
+              // On both pages, since both have Fit: only while something it
+              // cut is still off the page, or its panel is open
+              cut:
+                cutOpen || cutLeft(bank, choices, cuts)
+                  ? {
+                      open: cutOpen,
+                      onToggle: () =>
+                        suggestions ? showSide(cutOpen ? null : "cut") : showPanel("cut"),
+                    }
+                  : null,
+            }
           : null
       }
       zoom={<Zoom zoom={zoom} onZoom={setZoom} />}
+      history={history}
       docs={Boolean(suggestions)}
       format={{
         page,
@@ -1945,12 +2029,6 @@ export function Editor({
         sectionsOpen: suggestions ? shownSections : scoutOpen && panelView === "sections",
         onToggle: togglePanel,
         marks: reviewing ? { shown: showMarks, onToggle: () => setShowMarks(!showMarks) } : null,
-      }}
-      history={{
-        canUndo: steps.undo > 0,
-        canRedo: steps.redo > 0,
-        onUndo: () => travel(true),
-        onRedo: () => travel(false),
       }}
     />
   );
@@ -1966,7 +2044,8 @@ export function Editor({
     <div
       className={cn(
         "grid items-start gap-5",
-        (shownPanel || shownFormat || shownSections) && "@4xl/main:grid-cols-[minmax(0,1fr)_24rem]",
+        (shownPanel || shownFormat || shownSections || shownCut) &&
+          "@4xl/main:grid-cols-[minmax(0,1fr)_24rem]",
         // The two resumes at one width, so a line reads against its twin
         shownOriginal && "@4xl/main:grid-cols-2",
       )}
@@ -2045,25 +2124,35 @@ export function Editor({
           back to the assistant, which stays mounted under it, for its chat */}
       {rendered && !suggestions && (
         <ScoutTakeover
-          mark={panelView === "experiences" ? EXPERIENCES_MARK : undefined}
+          mark={
+            panelView === "experiences"
+              ? EXPERIENCES_MARK
+              : panelView === "cut"
+                ? CUT_MARK
+                : undefined
+          }
           away={panelView !== "scout" ? showScout : undefined}
           title={
             panelView === "experiences"
               ? "Experiences"
-              : panelView === "format"
-                ? "Format Options"
-                : panelView === "sections"
-                  ? "Sections"
-                  : "Scout"
+              : panelView === "cut"
+                ? "Cut From Resume"
+                : panelView === "format"
+                  ? "Format Options"
+                  : panelView === "sections"
+                    ? "Sections"
+                    : "Scout"
           }
           subtitle={
             panelView === "experiences"
               ? "Pick what this resume shows"
-              : panelView === "format"
-                ? "Set how this page prints"
-                : panelView === "sections"
-                  ? "Drag to change the order"
-                  : "Edits this resume as you talk"
+              : panelView === "cut"
+                ? "Put back what Fit to One Page hid"
+                : panelView === "format"
+                  ? "Set how this page prints"
+                  : panelView === "sections"
+                    ? "Drag to change the order"
+                    : "Edits this resume as you talk"
           }
         >
           <div data-keeps-selection className="flex min-h-0 flex-1 flex-col">
@@ -2071,8 +2160,13 @@ export function Editor({
               {assistant("flex-1")}
             </div>
             {panelView === "experiences" && (
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
                 <ExperiencesPicker bank={bank} choices={choices} onApply={apply} />
+              </div>
+            )}
+            {panelView === "cut" && (
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
+                <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={apply} />
               </div>
             )}
             {panelView === "sections" && (
@@ -2095,7 +2189,7 @@ export function Editor({
           (`useFitToWindow`): a fixed one, the window less 15rem, ran the
           panel's foot below the window before the page scrolled and left a
           gap under it after, once the title row grew */}
-      {(shownPanel || shownFormat || shownSections) && (
+      {(shownPanel || shownFormat || shownSections || shownCut) && (
         <div
           data-keeps-selection
           ref={fitPanel}
@@ -2108,6 +2202,10 @@ export function Editor({
           ) : shownSections ? (
             <SidePanel title="Sections" onClose={() => showSide(null)}>
               {sectionsOutline}
+            </SidePanel>
+          ) : shownCut ? (
+            <SidePanel title="Cut From Resume" onClose={() => showSide(null)}>
+              <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={apply} />
             </SidePanel>
           ) : (
             shownPanel
@@ -2142,14 +2240,23 @@ export function Editor({
   // toolbar spanned both too for a day, which put the panel under it, apart
   // from the page it reviews
   return (
-    <div data-no-bounce className={cn("flex flex-col", suggestions ? "mt-2 gap-2" : "mt-4 gap-3")}>
+    <div className={cn("flex flex-col", suggestions ? "mt-2 gap-2" : "mt-4 gap-3")}>
       <div className="flex items-center gap-4">
         <div className="min-w-0 flex-1">
           <TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>
         </div>
         {suggestions && (
           <div className="flex shrink-0 items-center gap-1.5">
-            {reviewTools && <ReviewButtons review={reviewTools} />}
+            {reviewing && (
+              <ReviewButtons
+                review={{
+                  count: suggestionCount,
+                  side,
+                  onSide: showSide,
+                  hasOriginal: Boolean(original),
+                }}
+              />
+            )}
             <DownloadMenu download={download} />
           </div>
         )}
@@ -2210,7 +2317,7 @@ function Bar({
   header,
   rendered,
   saving,
-  fitUndo,
+  elapsed,
   download,
   onApply,
   onSaveHeader,
@@ -2218,7 +2325,6 @@ function Bar({
   onAddBullet,
   onClose,
   onFit,
-  onUndoFit,
   experiences,
   docs,
   format,
@@ -2232,7 +2338,7 @@ function Bar({
   /** Null until the first render lands. */
   rendered: RenderedPdf | null;
   saving: boolean;
-  fitUndo: ChoicesUpdate | null;
+  elapsed: number | null;
   download: ResumeDownload;
   onApply: (changes: ChoicesUpdate) => void;
   onSaveHeader: (field: HeaderField, text: string) => void;
@@ -2241,7 +2347,6 @@ function Bar({
   onAddBullet: () => void;
   onClose: () => void;
   onFit: () => void;
-  onUndoFit: () => void;
   experiences: ExperiencesTools | null;
   docs: boolean;
   format: FormatTools;
@@ -2252,10 +2357,9 @@ function Bar({
     <SlimBar
       rendered={rendered}
       saving={saving}
-      fitUndo={fitUndo}
+      elapsed={elapsed}
       download={download}
       onFit={onFit}
-      onUndoFit={onUndoFit}
       experiences={experiences}
       docs={docs}
       format={format}
@@ -2375,7 +2479,12 @@ function MarkTools() {
 
 /** The toolbar's Experiences (KAN-440): whether Scout's panel shows the
  *  picker now. */
-type ExperiencesTools = { open: boolean; onToggle: () => void };
+type ExperiencesTools = {
+  /** Add Experiences, on the editor's own page only. */
+  picker: { open: boolean; onToggle: () => void } | null;
+  /** Cut From Resume, only after a fit cut something still off the page. */
+  cut: { open: boolean; onToggle: () => void } | null;
+};
 
 /** The bar's page settings (./page-format.tsx). */
 type FormatTools = {
@@ -2390,7 +2499,7 @@ type FormatTools = {
 };
 
 /** What sits beside the page on Tailor's review. */
-type Side = "suggestions" | "original" | "format" | "sections" | null;
+type Side = "suggestions" | "original" | "format" | "sections" | "cut" | null;
 
 /** The slim bar's review tools: the changes left, and which column shows
  *  beside the page. */
@@ -2412,16 +2521,17 @@ const SLIM_BAR = cn(
 );
 
 /** The bar on Tailor's review, as Google Docs draws its own (KAN-499): a
- *  grey pill with no outline, its tools from the left. Both bars' buttons are
- *  dark grey, as Docs' are, and only a pressed one takes the brand. The page
- *  count's amber chip keeps its colour. */
+ *  pill, its tools from the left, white and ruled since the page's ground
+ *  went grey. Both bars' buttons are dark grey, as Docs' are, and only a
+ *  pressed one takes the brand. The page count's amber chip keeps its colour. */
 const DOCS_BAR = cn(
-  "bg-app sticky top-2 z-20 flex min-h-11 flex-wrap items-center gap-2 rounded-full px-3 py-1",
+  "bg-panel ring-border-subtle sticky top-2 z-20 flex min-h-11 flex-wrap items-center gap-2 rounded-full px-3 py-1 ring-1",
   "[&_button:not([aria-pressed=true]):not([data-bar-action])]:text-ink-muted [&_button:not([aria-pressed=true]):not([data-bar-action]):hover]:text-ink",
 );
 
-/** The editor's Undo and Redo (./history.ts), for the slim bar. */
-type HistoryTools = {
+/** The editor's Undo and Redo (./history.ts), for the slim bar and the
+ *  phone's bar. */
+export type HistoryTools = {
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -2431,8 +2541,8 @@ type HistoryTools = {
 /**
  * Undo and Redo, first on the slim bar in both its states (KAN-391: until
  * then disabled, UI only). Each goes back or forward one step of
- * `HISTORY_STEPS`; Cmd+Z and Shift+Cmd+Z do the same off a field. Undo Fit
- * stays its own button after a fit.
+ * `HISTORY_STEPS`; Cmd+Z and Shift+Cmd+Z do the same off a field. A Fit to
+ * One Page is one step too; its own Undo Fit button went on 2026-11-01.
  */
 function History({ tools }: { tools?: HistoryTools }) {
   return (
@@ -2468,8 +2578,8 @@ function History({ tools }: { tools?: HistoryTools }) {
  * then, with a hint, a Done button and an amber Fit group, so a student saw
  * two editor designs). Over the page with the column beside it starting
  * level, holding only tools for the page: Undo and Redo (`History`), then
- * Fit to One Page (over one page only, `FitButton`), Undo Fit after a fit
- * and, idle, Download at the right,
+ * Fit to One Page (over one page only, `FitButton`) and, idle, Download at
+ * the right,
  * secondary, since Finish is the review's one filled button. Not on This
  * Resume was a button here with a modal for a day; the review does not
  * need it (see the grid). No "Click a line to edit it." hint: the
@@ -2495,10 +2605,9 @@ function History({ tools }: { tools?: HistoryTools }) {
 function SlimBar({
   rendered,
   saving,
-  fitUndo,
+  elapsed,
   download,
   onFit,
-  onUndoFit,
   lineOpen,
   composing,
   editing,
@@ -2510,10 +2619,9 @@ function SlimBar({
 }: {
   rendered: RenderedPdf | null;
   saving: boolean;
-  fitUndo: ChoicesUpdate | null;
+  elapsed: number | null;
   download: ResumeDownload;
   onFit: () => void;
-  onUndoFit: () => void;
   /** Whether a line is open. */
   lineOpen: boolean;
   /** Whether that line is a bullet being added. */
@@ -2534,7 +2642,7 @@ function SlimBar({
 }) {
   const status = (
     <span className="text-note text-ink-meta pr-1" aria-live="polite">
-      {saving ? "Saving…" : ""}
+      {saving ? "Saving…" : elapsed !== null ? `Saved, ${elapsed} ms` : ""}
     </span>
   );
   const box = docs ? DOCS_BAR : SLIM_BAR;
@@ -2582,25 +2690,36 @@ function SlimBar({
       <History tools={history} />
       {docsZoom}
       {fitButton}
-      {fitUndo && (
-        <Button variant="ghost" size="xs" onClick={onUndoFit} disabled={saving}>
-          <ArrowUUpLeftIcon aria-hidden /> Undo Fit
-        </Button>
-      )}
-      {experiences && (
+      {experiences?.picker && (
         // A button of the bar's own weight, as Download is: it is the way to
         // add to the resume, not a label. Tinted while its panel is open
         <Button
           variant="secondary"
           size="sm"
-          aria-pressed={experiences.open}
+          aria-pressed={experiences.picker.open}
           title="Pick what this resume shows"
           className={cn(
-            experiences.open && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
+            experiences.picker.open && "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10",
           )}
-          onClick={experiences.onToggle}
+          onClick={experiences.picker.onToggle}
         >
           <StackIcon aria-hidden /> Add Experiences
+        </Button>
+      )}
+      {experiences?.cut && (
+        // Beside Add Experiences, in the same weight, amber as Fit is
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-pressed={experiences.cut.open}
+          title="Put back what Fit to One Page cut"
+          className={cn(
+            "text-warning hover:text-warning",
+            experiences.cut.open && "border-warning/50 bg-warning-tint hover:bg-warning-tint",
+          )}
+          onClick={experiences.cut.onToggle}
+        >
+          <ScissorsIcon aria-hidden /> Cut From Resume
         </Button>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">

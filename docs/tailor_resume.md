@@ -287,8 +287,11 @@ weight.
   (`SlimBar`), one row over the page, the same bar the editor's own page
   has since KAN-411. At the left, Undo and Redo, then Fit to One Page
   (over one page only, a brand outline button with a scissors icon: an amber
-  "⚠ 2 pages ⌄" chip that opened a card holding this button came first), and
-  Undo Fit after a fit.
+  "⚠ 2 pages ⌄" chip that opened a card holding this button came first);
+  Undo takes a fit back (Undo Fit, a button of its own, went on 2026-11-01).
+  Beside it, while something a fit cut is still off the page, Cut From
+  Resume opens its list in the column beside the page (KAN-524): Fit is on
+  this page too, so without it a fit cut lines and never said which.
   At the right, Download, secondary: Finish is the page's one filled
   button while no line is open, and a filled Download beside it competed. No Experiences picker (once "Not
   on This Resume") on this page: putting a hidden line back is the editor's own page's work,
@@ -425,7 +428,11 @@ weight.
   this shipped. A run that adds or drops a line needs its `TailorEdit`
   kind, its `changesOf` mapping and its revert (`revertOf`).
 - **Undo reverts a change** through the choices PATCH (`revertOf`, above)
-  and drops it, so its card and dots go. Undo All is one PATCH
+  and drops it, so its card and dots go at the click (KAN-524), not after
+  the compile, and no Undo waits for one: on the deployed API a page with a
+  compile took 5 to 7 s to load (`live_page.md`). A reworded line's old words are drawn over the page
+  until the PDF lands (`wordsBack`); a move back or a skill shows then. A
+  change the render refuses gets its card back. Undo All is one PATCH
   (`revertAll`), each bullet's parts merged into one row. **There is no
   Accept** (KAN-499): every change is saved before the review opens, so
   Accept did nothing to the resume and two buttons asked for a choice with

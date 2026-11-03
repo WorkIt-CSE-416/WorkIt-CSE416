@@ -31,14 +31,18 @@ them). Notes the scripts don't say:
   `npm ci` in a `node:22` container before pushing.
 - `typecheck` runs `next typegen` first because `LayoutProps`/`PageProps` are
   generated route types that do not exist on a fresh clone; bare `tsc` fails.
-- **Tests are Node's own runner** (`node --test`, Node 24 strips the types;
-  on Node 22 add `--experimental-strip-types`, or every test fails with
-  "Unknown file extension .ts"),
-  for pure modules only: `npm test`, or one file with
-  `node --test src/lib/autofill-answers.test.ts`. A test sits beside its
-  module as `<name>.test.ts` and imports it with the `.ts` extension
+- **Tests are Node's own runner** (`node --test`), for pure modules only:
+  `npm test`, or one file with `node --experimental-strip-types --test
+  src/lib/autofill-answers.test.ts`. `npm test` passes the flag itself:
+  Node 24 strips the types anyway, but Node 22 before 22.18 does not, and
+  every test failed with "Unknown file extension .ts". A test sits beside
+  its module as `<name>.test.ts` and imports it with the `.ts` extension
   (`allowImportingTsExtensions` in tsconfig), so the module under test must
-  use relative imports, not `@/`. There is no component or browser runner.
+  use relative imports with the `.ts` extension too, not `@/` and not a
+  bare path: Node resolves no extension, and `model.ts`'s bare import of
+  `holdings` failed `cuts.test.ts` with "Cannot find module" (2026-11-01).
+  A type-only import can use `@/`, since it is erased. There is no
+  component or browser runner.
 - **To test a resume upload**, use a file from `frontend/public/resumes/`.
   The folder is git-ignored because it holds real people's resumes, so put
   your own there once, in the primary checkout: `npm run worktree` and every
@@ -120,12 +124,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   segment, so two groups cannot both define `/profile` and both audiences need
   one; the prefix also makes the auth guard one path check. Auth screens
   (`login/`, `signup/`), the connector's consent page (`connect/claude/`,
-  KAN-377) and `design-kit/` sit outside both shells. `/login?next=` goes
-  back only to `/connect/claude` and to onboarding's extension step
-  (`/onboarding/applicant?step=extension`, the tab the extension opens on
-  install, KAN-471; `login/actions.ts`): never widen it to any path, which
-  would make the sign-in page an open redirect. A Google or LinkedIn
-  sign-in drops `next` (`auth/callback` follows `/settings/` only).
+  KAN-377), `extension-setup/` (what a fresh Chrome Web Store install
+  opens, and the popup's "Set Up WorkIt" button, KAN-495) and
+  `design-kit/` sit outside both shells. `/login?next=` goes back only to
+  `/connect/claude` and to onboarding's Extension step
+  (`/onboarding/applicant?step=extension`, which leads to Practice --
+  `/extension-setup`'s "I Already Have One" button sends a signed-out
+  visitor through this, not plain `/login`, so a student who already
+  finished onboarding keeps a route back to Practice instead of landing
+  on /home with no way there, KAN-495; `login/actions.ts`): never widen
+  it to any path, which would make the
+  sign-in page an open redirect. A Google or LinkedIn sign-in drops
+  `next` (`auth/callback` follows `/settings/` only).
   **Every way into the connector is one link**, `lib/claude-connector.ts`
   (KAN-383): Claude's Add Custom Connector dialog filled in with WorkIt's
   name and `<api>/mcp`, or the directory listing once
@@ -1169,9 +1179,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   default view, and `?view=board` opens it. `applications/board.tsx` stays;
   `docs/screens.md`, Applications, says how to bring it back.
 - **The seeker shell is flat, and its panel is a rail that is always
-  open** (2026-10-27, `docs/design.md`, The two shells): one white surface,
-  the 88px rail, the bar, the page and Scout's panel ruled apart by
-  hairlines, with no lavender frame, gaps, rounded corners or shadows. Each
+  open** (2026-10-27, `docs/design.md`, The two shells): the 88px rail, the
+  bar, the page and Scout's panel ruled apart by hairlines, with no lavender
+  frame, gaps, rounded corners or shadows. **The rail and the bar are white
+  and the page is `--color-app` grey** (2026-11-02, after Simplify and
+  Jobright), or white cards blended into a white page. So a control on the
+  page takes `bg-panel`, never `bg-app` or `bg-well` (it vanishes), and a
+  sticky bar on the page takes `bg-app`, or it shows as a white strip. Each
   rail tile is an icon over its name (an item's `short` where the name does
   not fit), and below md the rail is a sheet of full-name rows. On hover
   and press only the fills move; the icon stays still (KAN-426), since a
@@ -1230,12 +1244,29 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   sooner than 300 ms after the shell's first frame, so a fast page can land
   up to about 300 ms later on a hard load; only slow pages gain. The real
   signed-in spread is unmeasured.
+- **The seeker pages stand on a grey ground** (`bg-app` on `<main>`,
+  2026-11-02, after Simplify and Jobright): all white left cards and panels
+  with nothing to sit on. The top bar and sidebar stay white, and the company
+  shell is unchanged. A sticky bar on the ground is `bg-app`, not `bg-panel`,
+  or a white band shows when it sticks. A surface that lies on the ground is
+  `bg-panel`, and a soft fill meant for white or grey is see-through ink
+  (`bg-ink/5`, the Segmented Control's track): a solid `bg-app` or `bg-well`
+  vanishes into the ground. Skeletons are `bg-ink/6` for the same reason.
+- **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
+  2026-11-02): it lands on the row at once, because the slide read as
+  confusing. Only the hover fill glides.
 - **A slow seeker page gets a `loading.tsx` drawn in its own frame**
   (KAN-368). Every seeker route is dynamic, and Next prefetches a dynamic
   route only down to a loading boundary, so a click changed nothing on screen
   until the page's reads were done. Give a page one only if it is slow:
   React holds a shown fallback for 300 ms, so a fast page gets slower. A
   skeleton stands at the height of what replaces it, so nothing below jumps.
+  **A skeleton shows no heading or line of text the page replaces**: a real
+  About the Role among the bars stood out as the one finished thing on the
+  page. Draw the title as `SectionHeadingSkeleton` (`ui/section-heading.tsx`)
+  and name the section with `aria-label`. What stays real is what works or
+  stays the same while it waits: the top bar's title, Back, tabs, filters, the
+  Tailor steps, and a sentence that says what a long wait is doing.
   A page with two long reads streams each in its own `<Suspense>` over a
   skeleton of its shape, and starts every read before its first `await` (the
   Home: only the account is awaited). **Settings' modal has no
@@ -1404,6 +1435,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   claim skills the truth rule then lets a rewording name. A wait is never a
   step: the run is a loader over Choose Keywords (`TailorRunning`), since a
   Tailor step that only waited read as padding to the user.
+- **A seeker page's title is in the top bar, and it has no description**
+  (2026-11-02, `(seeker)/bar-title.tsx`). The bar reads the title from the
+  address, so it shows before the page streams in; a new section joins `TITLES`
+  there. It is the page's h1 on a section's own page, and a plain line on a page
+  under it (a job, a resume, an application), which has its own h1. Home's title
+  is the greeting, which the layout reads with the account. **Job search is on
+  the Jobs page and /search only** (`search/job-search.tsx`): in the bar it
+  showed on every page, and it took the phone's magnifier and sheet with it.
+  Each page's own heading and line under the bar went, about 60px a page: the
+  line under Written Answers too, so that page no longer says how answers
+  reach the tab. Auto Apply keeps its queue line, which is a count, not a
+  description.
 - **/search keeps the filter row, and shows what its words filter by**
   (KAN-308). A new search from the top bar sends only ?q, so it starts
   with no filters; the row stays on /search to narrow the results. The
@@ -1465,15 +1508,33 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `(seeker)/jobs/layout.tsx` so it survives job-to-job navigation. It reads
   the list `FeedList` last showed (`jobs/shown-list.ts`); a new list screen
   whose cards open job pages writes it the same way, or the rail shows the
-  last /jobs or /search list (`docs/screens.md`, Job posting page). Every
+  last /jobs or /search list (`docs/screens.md`, Job posting page). Its rows are
+  `CompactJobCard`, which a new compact list reuses. Every
   reader that pages a list of roles goes through `nextPage`
   (`jobs/list-pages.ts`), which picks the action for the list's order and
   counts the offset; the feed and the rail each had a copy until the
   KAN-297 review. A list kept for the session builds on `sessionStore`
   (`jobs/session-store.ts`), as the feed's Load More pages and the rail's
   list do, and ages by `LIST_FRESH_FOR`. The rail checks its list's age on
-  every job opened, not once: checked on mount only, it sat on its skeleton
-  for good once the list passed half an hour, since it stays mounted.
+  every job opened and whenever it goes stale, not once: checked on mount
+  only, it sat on its skeleton for good once the list passed half an hour,
+  since it stays mounted. On /jobs it fetches nothing, so a stale list stays
+  shown there. **The rail's Load More keeps its pages in `feed-pages`**, which
+  `RememberShownList` adds to the first page: written alone, the first page
+  cut the list short on Back. It scrolls to the open job only when the job
+  changes or the list lands, never on Load More.
+- **The Jobs page's Split view is the job page's frame** (KAN-519,
+  `docs/screens.md`, Jobs page): the layout draws the header and rail, /jobs
+  draws only the first job, and a click opens that job's page, so Best Match
+  is never scored again per click. Never draw the open job with a query on
+  /jobs. The choice is a cookie (`jobs/view.ts`), since `?view=` belongs to old
+  links. A height set with `flex-1` on the same element does nothing: the frame
+  needs `flex-none` at its fixed height, or the rail grows with its list and
+  never scrolls. It is one panel in the page's gutters, after Simplify's,
+  rounded at the top and open at the foot of the window, with the job's card flat inside it and no rule under the filters.
+  The rail beside a job opened from Cards has no panel: it stands off the sidebar
+  by the page gutter less its rows' padding, since flush it read as one block
+  with the sidebar.
 - **The feed's loading state is its last first page** (KAN-287,
   `jobs/feed-fallback.tsx`): `FeedList` keeps the first page it drew as a
   snapshot (`jobs/feed-pages.ts`), and the Suspense fallback draws it while
@@ -1510,6 +1571,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (KAN-365), and `custom-icons.tsx`'s `STROKE` matches it. A glyph
   Phosphor lacks goes in `components/custom-icons.tsx` with all its
   weights (`docs/design.md`, Brand and icons).
+- **An icon's colour says its job** (`docs/design.md`, Components): black to
+  click, purple when on, grey for information. Never set a clickable icon to
+  `text-ink-meta`.
 - **Anything clicked or picked is medium (500)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
   combobox rows, which `globals.css` sets by `data-slot` since they set no
@@ -1537,6 +1601,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   string class. It cannot read a class built in `cn()`, a template string or a
   variable, so keep overrides out of those too. A new box is a new size in the
   component.
+- **Nothing bounces at a scroll's end** (2026-11-02, `globals.css`): the
+  document and each shell's `<main>` take `overscroll-y-none`, Y only so the
+  trackpad's swipe back works, and a scroll box inside a page takes
+  `overscroll-none`, never `overscroll-contain`, which still bounces inside
+  itself. The resume editor's `data-no-bounce` was the first of these; the
+  rule now holds for every page.
+- **There is one scrollbar, in `globals.css`**: a 4px thumb on no track, shown
+  while the pointer is over what it scrolls. macOS's own bar drew a grey rail
+  over the job list's rows. Never set `scrollbar-width` or `scrollbar-color` on
+  an element, but for `none`: Chrome then drops these rules there.
 - **Build class strings with `cn()` from `@/lib/cn`.** Plain interpolation
   leaves both conflicting utilities in the attribute and the stylesheet's
   emit order picks the winner. `cn()` cannot merge across groups (`border` and
@@ -1597,10 +1671,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
   **The bar's Scout button is archived** (`SCOUT_LAUNCHER_LIVE` in
-  `(seeker)/layout.tsx`, 2026-11-01): Ask Scout and Fill With Scout still open
-  the panel, and closing it leaves focus on the page, since no launcher takes
-  it back. The editor's assistant has no other way in on a laptop, so it is out
-  of reach until the flag is on or the toolbar gets a button.
+  `(seeker)/layout.tsx`, 2026-11-01): Fill With Scout still opens the panel,
+  and closing it leaves focus on the page, since no launcher takes it back.
+  The editor's assistant has no other way in on a laptop, so it is out of reach
+  until the flag is on or the toolbar gets a button. **Ask Scout is greyed
+  out** (`ASK_SCOUT_LIVE` in `components/scout/scout-buttons.tsx`, 2026-11-02,
+  it does not work): every job's button and the phone editor's two buttons
+  stay in place, disabled, the panel's hint is hidden, and the flag brings
+  them back. The phone editor has no other way into its assistant. **The
+  Calendar's sidebar row is greyed out too** (`disabled` on a nav item,
+  `seeker-sidebar.tsx`): /calendar still answers, and Home's Up Next links to it. The landing page still describes
+  it.
 - **The company table (`app/company/table.tsx`) and the Applications list
   (`(seeker)/applications/list.tsx`, KAN-282) are TanStack Table v9**, and
   every shadcn data-table example in circulation is v8. Read the guides in
@@ -1718,7 +1799,29 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   outlive the database it describes (another tab's edit, a reload).
   Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
   own text undo runs. An open line is saved first, so Undo takes back
-  what was just typed. **A rename in the title is a step too**
+  what was just typed. **Fit to One Page is one step like any edit**:
+  Undo shows what it hid, Redo hides it again (`hideAgain`). It has no
+  Undo Fit button of its own (gone 2026-11-01, a second way to do what
+  Undo does); the phone's bar shows the same Undo and Redo. **Cut From
+  Resume** lists what every fit in the tab cut, entries, bullets and
+  skills (`cutRows`, `cutSkills`; `cutLeft` says whether its button
+  shows), read from each fit's `undo` body (`addCuts` in `model.ts`,
+  tested in `cuts.test.ts`), kept in
+  sessionStorage per resume (`fit-cuts.ts`), so a reload in the same tab
+  keeps it, and puts each item back as an ordinary pick. Unlike Undo's
+  steps it may outlive the page: it is read against the resume's choices
+  each time, so an item already back only shows ticked
+  (`docs/screens.md`, Cut From Resume). It is on Tailor's page too, in the
+  column beside the page (`Side`), since Fit is. **A revert never waits for a
+  compile** (KAN-524): `apply` drops a change's card and marks at the click,
+  draws a reworded line's old words over the page (`wordsBack`) and puts the
+  card back if the render refuses, and Suggestions' Undo buttons stay on while
+  `saving`, or each Undo locked the rest for a compile, which takes seconds
+  on the deployed API (`docs/live_page.md`). **A page setting never queues a
+  compile a newer one replaced** (`applyPage`, `pageJobs`), or a few clicks on
+  a size stacked a compile each; a skipped step undoes through a render, and
+  so does any step while a page's render is queued (`travel`), or that render
+  landed after the instant Undo and printed the wrong settings. **A rename in the title is a step too**
   (KAN-443, `TitleHistoryContext` in `resume-title.tsx`, provided by the
   editor round its title row): it shows at once, saves behind it, and a
   failed save puts the name before it back and drops the step. Its step
@@ -2165,6 +2268,16 @@ are in `docs/auth.md`.
   them through the same PATCH; My Profile still edits all nine. A new
   self-identification question goes into `SELF_ID_KEYS` too, and into the
   extension's copy of the options (`autofiller_extension/src/background/self-id.js`).
+- **Onboarding's Add Claude page is optional and before Practice** (KAN-507,
+  `onboarding/applicant/claude-step.tsx`): the install link from
+  `claudeConnectorLink()`, read in `page.tsx` and passed down, and
+  `getClaudeConnected` asked every 3 seconds while the page shows, so the
+  line turns done without a reload. Skip goes on to the practice batch.
+  The wizard's pages are `WIZARD_PAGES` in `steps.ts`, the rail's marks
+  `ONBOARDING_STEPS`; `railStep` maps one to the other (Availability under
+  Profile, Add Claude under Practice), so a new page needs no rail mark.
+  The extension's add-Claude moment (KAN-387) already skips a student whose
+  connector is added: keep that check there, not a flag set here.
 - **Writing samples are edited in My Profile only** (`(seeker)/profile/writing-samples.tsx`,
   `lib/writing-samples-actions.ts`, KAN-387): the extension's ask after a
   first written batch links to `/profile#writing-samples`, which opens Add.
