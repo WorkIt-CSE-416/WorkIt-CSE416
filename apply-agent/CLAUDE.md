@@ -171,6 +171,10 @@ the fake WorkIt, with WorkIt's link rule, stages and Sent resumes.
     (`job_key`, so also on another posting of that job);
   - the Tracker Sheet has the same job as submitted (not imported yet). The
     dry run then says to run `apply import-sheet` first;
+  - Apply's own Tracker (`APPLY_HOME/tracker.json`) has the job as held,
+    missing fact or handoff. Apply writes a Hold as queued and the others
+    as needs_you, so the Hold is live. The dry run says "Apply is holding
+    it" (or "Apply is waiting for you on it");
   - the student gave its link or job id with `--keep`.
 - It never deletes or changes an application at applied, interviewing,
   offer or rejected, or at needs_you or skipped.
@@ -219,6 +223,12 @@ sends a `workit.Write` through a `workit.Outbox`.
   ranked tabs to the Sheet when you run it by hand.
 - Lisul approves a Hold with the Apply window's Approve button (`POST
   /approve`, `Tracker.approve`), not a Sheet checkbox.
+- A Hold's card shows its essays (the Essay cell, `essays.as_cell`) in a
+  box that Lisul can edit before he approves. Approve sends his edit
+  (`essay`), and `Tracker.approve` writes it to the row's essay with
+  Approve, in one write. The next check fills the form with his words.
+  The page keeps the edit in `sessionStorage` (`apply.essays`, by
+  Application ID) until he approves, so a reload does not lose it.
 
 **Tests.** `tests/test_tracker_record.py` (in CI) runs the Outbox and
 `WorkItTracker` against `tests/fake_tracker.py`. `tests/test_rehearse.py

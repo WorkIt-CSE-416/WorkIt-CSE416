@@ -57,7 +57,7 @@ from apply.sheet import (
     NoSheet,
     live_tracker_sheet,
 )
-from apply.tracker import FileTracker, InMemoryTracker, WorkItTracker
+from apply.tracker import TRACKER, FileTracker, InMemoryTracker, WorkItTracker
 from apply.worker import SENT, sent_resume
 
 DEFAULT_PROFILE = HOME / "applicant-profile.yaml"
@@ -264,7 +264,8 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             cells = None
             print("No Tracker Sheet: only WorkIt says which jobs you applied to.")
         try:
-            sys.exit(tracker_cleanup.run(client, cells, keep=args.keep, dry_run=args.dry_run))
+            held = FileTracker().rows() if TRACKER.exists() else []  # Apply's Holds and Missing facts stay
+            sys.exit(tracker_cleanup.run(client, cells, keep=args.keep, apply_rows=held, dry_run=args.dry_run))
         except workit.WorkItError as error:
             sys.exit(f"apply clean-tracker: {error}")
     elif args.command == "signals":
@@ -432,8 +433,8 @@ def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict
 
 def _approving(tracker: Callable[[], object]) -> Callable[[str], str]:
     """Approve a Hold from the Apply window, in Apply's Tracker (KAN-544): the next check sends it."""
-    def approve(application_id: str) -> str:
-        tracker().approve(application_id)
+    def approve(application_id: str, essay: str | None = None) -> str:
+        tracker().approve(application_id, essay)
         return "Approved: it is sent at the next check, within 5 minutes."
     return approve
 

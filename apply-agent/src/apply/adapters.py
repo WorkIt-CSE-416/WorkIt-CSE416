@@ -47,9 +47,10 @@ class Tracker(Protocol):
         only one of his cells Apply writes, and only for him. KeyError for an unknown ID."""
         ...
 
-    def approve(self, application_id: str) -> None:
+    def approve(self, application_id: str, essay: str | None = None) -> None:
         """Lisul approves his Hold in the Apply window (KAN-544): Approve, his
-        own cell, as if he ticked it. KeyError for an unknown ID."""
+        own cell, as if he ticked it, and `essay`, his edit of its Essay cell,
+        when he edited it there. KeyError for an unknown ID."""
         ...
 
     def get(self, application_id: str) -> "Row | None": ...

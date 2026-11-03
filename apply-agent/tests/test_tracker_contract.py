@@ -97,6 +97,14 @@ def test_lisul_approves_a_hold_in_the_apply_window(tracker):
         tracker.approve("nope")
 
 
+def test_lisul_edits_a_held_essay_and_approves_it_in_the_apply_window(tracker):
+    tracker.add(arc(status=Status.HELD, date_applied=None, essay="## Why Arc?\nClaude's draft"))
+    tracker.approve("arc-1", essay="## Why Arc?\nLisul's own words")
+
+    row = tracker.get("arc-1")
+    assert (row.status, row.approve, row.essay) == (Status.HELD, True, "## Why Arc?\nLisul's own words")
+
+
 @pytest.mark.parametrize("field, value", [
     ("approve", True), ("outcome", Outcome.OFFER), ("answer", "3.9"),
 ])

@@ -207,7 +207,7 @@ class _Run:
                     self._adapters.board.update(worker, status=result.status, why=one_line(result.reason),
                                                 line=": ".join(filter(None, [result.status, result.reason])),
                                                 drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices,
-                                                required=result.required)
+                                                required=result.required, essay=result.essay)
                     if result.status == Status.PAUSED:
                         # First in line after the reset.
                         (requests if is_request(posting.id) else queue).appendleft(posting)

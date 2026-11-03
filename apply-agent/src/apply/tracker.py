@@ -138,9 +138,11 @@ class InMemoryTracker:
     def answer(self, application_id: str, text: str) -> None:
         self._rows[application_id] = dataclasses.replace(self._rows[application_id], answer=text)
 
-    def approve(self, application_id: str) -> None:
-        """Lisul approves a Hold in the Apply window: the next check sends it."""
-        self._rows[application_id] = dataclasses.replace(self._rows[application_id], approve=True)
+    def approve(self, application_id: str, essay: str | None = None) -> None:
+        """Lisul approves a Hold in the Apply window: the next check sends it,
+        with `essay` (his edit of its essays) in place of the row's when given."""
+        edits = {"approve": True} | ({"essay": essay} if essay is not None else {})
+        self._rows[application_id] = dataclasses.replace(self._rows[application_id], **edits)
 
     def get(self, application_id: str) -> Row | None:
         return self._rows.get(application_id)

@@ -2,7 +2,9 @@
 the student did not apply to (KAN-546, spec KAN-541).
 
 A job is applied when the student has an application at applied or later on it in WorkIt (also on another
-posting of the same job), or when Apply's Tracker Sheet has it as submitted (not imported yet). The cleanup
+posting of the same job), or when Apply's Tracker Sheet has it as submitted (not imported yet). It also keeps
+a job that Apply's own Tracker (tracker.json) holds or waits on the student for: Apply writes a Hold as queued
+and a Missing fact or Handoff as needs_you (KAN-544), and the Hold is still live. The cleanup
 never deletes or changes an application at applied, interviewing, offer or rejected, nor one at needs_you or
 skipped: it deletes only saved and queued ones, and WorkIt's delete routes refuse every other stage too.
 
@@ -16,19 +18,24 @@ from typing import TextIO
 
 from apply.model import Status
 from apply.sheet_import import APPLIED, job_key, sheet_rows
+from apply.tracker import STAGES
 from apply.workit import Unreachable, WorkIt, WorkItError
 
 DELETED = ("saved", "queued")
 
 
-def plan(applications: list[dict], cells: list[list[str]] | None, keep: Iterable[str] = ()) -> tuple[list, list]:
+def plan(applications: list[dict], cells: list[list[str]] | None, keep: Iterable[str] = (),
+         apply_rows: Iterable = ()) -> tuple[list, list]:
     """The deletes and the keeps (each an application and why it stays), from the tracker's applications, the
-    Tracker Sheet's cells (None when there is no Sheet) and the job ids or links the student keeps."""
+    Tracker Sheet's cells (None when there is no Sheet), the job ids or links the student keeps and the rows of
+    Apply's own Tracker (tracker.Row)."""
     applied = {job_key(a["job"]["apply_url"]): f"{_name(a)}, at {a['stage']}"
                for a in applications if a["stage"] in APPLIED}
     submitted = {job_key(r.posting): f"Tracker Sheet row {r.number}" for r in sheet_rows(cells or [[]])
                  if r.status == Status.SUBMITTED and r.posting.startswith(("http://", "https://"))}
     kept = set(keep) | {job_key(k) for k in keep}
+    unfinished = {job_key(r.posting_url): _unfinished(r.status) for r in apply_rows
+                  if STAGES.get(r.status) in DELETED + ("needs_you",) and r.posting_url}
     deletes, keeps = [], []
     for a in applications:
         key = job_key(a["job"]["apply_url"])
@@ -40,6 +47,8 @@ def plan(applications: list[dict], cells: list[list[str]] | None, keep: Iterable
             why = f"you applied to this job ({applied[key]})"
         elif key in submitted:
             why = f"you applied to this job ({submitted[key]}). Run `uv run apply import-sheet` first"
+        elif key in unfinished:
+            why = unfinished[key]
         elif a["job"]["id"] in kept or key in kept:
             why = "you asked to keep it"
         else:
@@ -82,12 +91,12 @@ def delete(deletes: list[dict], client: WorkIt, me: str, out: TextIO) -> tuple[i
     return deleted, failed
 
 
-def run(client: WorkIt, cells: list[list[str]] | None, keep: Iterable[str] = (),
+def run(client: WorkIt, cells: list[list[str]] | None, keep: Iterable[str] = (), apply_rows: Iterable = (),
         approve: Callable[[str], str] = input, out: TextIO = sys.stdout, dry_run: bool = False) -> int:
     """The command: the dry run, then, when the student types yes, the deletes and the check. Its exit status."""
     me = client.me().id
     applications = client.applications(me)
-    deletes, keeps = plan(applications, cells, keep)
+    deletes, keeps = plan(applications, cells, keep, apply_rows)
     show(applications, deletes, keeps, out)
     if dry_run:
         return 0
@@ -111,6 +120,10 @@ def run(client: WorkIt, cells: list[list[str]] | None, keep: Iterable[str] = (),
     for a in lost:
         print(f"  {_name(a)} | {a['stage']} | {a['job']['apply_url']}", file=out)
     return 1
+
+
+def _unfinished(status: Status) -> str:
+    return "Apply is holding it" if status == Status.HELD else f"Apply is waiting for you on it ({status})"
 
 
 def _name(application: dict) -> str:
