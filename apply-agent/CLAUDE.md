@@ -158,6 +158,36 @@ against the fake's `/login`, so run it on your Mac.
 against `tests/fake_tracker.py`: an Applications Tracker held in memory on
 the fake WorkIt, with WorkIt's link rule, stages and Sent resumes.
 
+## `apply clean-tracker`: delete the jobs the student did not apply to (KAN-546)
+
+`src/apply/tracker_cleanup.py`. Run it after `apply import-sheet`.
+
+- It reads `GET /auth/me`, `GET /applicants/{id}/applications` and the
+  Applications tab of the Tracker Sheet. With no Sheet, it uses WorkIt
+  only.
+- It deletes only saved and queued applications. It keeps a saved or
+  queued application when:
+  - the student has an application at applied or later on the same job
+    (`job_key`, so also on another posting of that job);
+  - the Tracker Sheet has the same job as submitted (not imported yet). The
+    dry run then says to run `apply import-sheet` first;
+  - the student gave its link or job id with `--keep`.
+- It never deletes or changes an application at applied, interviewing,
+  offer or rejected, or at needs_you or skipped.
+- The dry run writes nothing. Then the student types yes (`--dry-run`
+  only lists).
+- Each delete: `DELETE /jobs/{job_id}/saved` for saved, `DELETE
+  /applicants/{id}/applications/{job_id}` for queued. Both routes delete
+  only at that stage, in the same SQL statement, so an application that
+  became applied after the dry run stays. WorkIt then refuses (409): the
+  cleanup lists it as FAILED and continues. WorkIt not answering stops it.
+- After the deletes, it reads the tracker again and prints the count of
+  applied applications before and after. If one is gone, it lists it and
+  exits 1.
+
+**Tests.** `tests/test_tracker_cleanup.py`, against `tests/fake_tracker.py`
+(with the two delete routes), with one application at each stage.
+
 ## Prompts and gates
 
 - Every prompt names the applicant as `@NAME@` and their school as

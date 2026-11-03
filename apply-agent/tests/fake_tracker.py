@@ -7,7 +7,7 @@ link, the student's applications on them, and their Sent resumes, held in memory
         tracker.applied_before(job_id, "interviewing")   # an application made in WorkIt itself
 
 It answers as WorkIt's routes do (backend/app/routers/applications.py, tracker.py,
-auto_apply.py): a link matches a posting by the same Greenhouse job ID, else by the link
+auto_apply.py), with the two delete routes that refuse an application past saved or queued: a link matches a posting by the same Greenhouse job ID, else by the link
 without scheme, www., query, fragment and trailing slash. Only the student's own
 applications are kept; there is one student, the fake's account.
 """
@@ -123,6 +123,27 @@ class FakeTracker:
         self.fake.route("PUT", f"/applicants/{me}/applications/{job_id}/stage",
                         self._signed_in(lambda seen: self._stage(job_id, seen)))
         self.fake.route("POST", f"/jobs/{job_id}/applied", self._signed_in(lambda seen: self._applied(job_id, seen)))
+        self.fake.route("DELETE", f"/jobs/{job_id}/saved", self._signed_in(lambda seen: self._unsave(job_id)))
+        self.fake.route("DELETE", f"/applicants/{me}/applications/{job_id}",
+                        self._signed_in(lambda seen: self._dequeue(job_id)))
+
+    def _unsave(self, job_id: str) -> Reply:
+        """routers/applications.py delete_saved: only a saved application goes; a job never saved is a 204 too."""
+        application = self.applications.get(job_id)
+        if application is not None and application.stage != "saved":
+            return Reply(409, {"detail": f"That job is {application.stage}, so it stays in your applications."})
+        self.applications.pop(job_id, None)
+        return Reply(204)
+
+    def _dequeue(self, job_id: str) -> Reply:
+        """routers/auto_apply.py dequeue_job: only a queued application goes."""
+        application = self.applications.get(job_id)
+        if application is None:
+            return Reply(404, {"detail": "That job isn't in your queue."})
+        if application.stage != "queued":
+            return Reply(409, {"detail": f"That application is {application.stage}, so it is no longer in the queue."})
+        del self.applications[job_id]
+        return Reply(204)
 
     def _stage(self, job_id: str, seen: Seen) -> Reply:
         application = self.applications.get(job_id)
