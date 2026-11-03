@@ -171,6 +171,10 @@ the fake WorkIt, with WorkIt's link rule, stages and Sent resumes.
     (`job_key`, so also on another posting of that job);
   - the Tracker Sheet has the same job as submitted (not imported yet). The
     dry run then says to run `apply import-sheet` first;
+  - Apply's own Tracker (`APPLY_HOME/tracker.json`) has the job as held,
+    missing fact or handoff. Apply writes a Hold as queued and the others
+    as needs_you, so the Hold is live. The dry run says "Apply is holding
+    it" (or "Apply is waiting for you on it");
   - the student gave its link or job id with `--keep`.
 - It never deletes or changes an application at applied, interviewing,
   offer or rejected, or at needs_you or skipped.
