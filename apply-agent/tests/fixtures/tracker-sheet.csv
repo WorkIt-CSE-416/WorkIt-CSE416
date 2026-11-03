@@ -1,0 +1,13 @@
+Application ID,Company,Role,Posting,Job system,Status,Date applied,Reason,Record,Missing fact,Essay,Answer,Approve,Outcome,Bot signals
+request-0000000000a1,Acme ,Software Engineer Intern (Summer 2027),https://job-boards.greenhouse.io/embed/job_app?for=acme&token=8000001,greenhouse,submitted,2026-10-17,,,,,,FALSE,,headed
+request-0000000000b2,Bolt Aerospace,Software Engineer Intern - Summer 2027,https://bolt.eightfold.ai/careers/job/990000000001,eightfold,submitted,2026-10-20,,,,,,FALSE,interview,headed
+request-0000000000c3,Cobalt,Backend Intern,https://jobs.ashbyhq.com/cobalt/11111111-2222-4333-8444-555555555555/application?embed=true,ashby,submitted,2026-10-19,,,,,,FALSE,offer,headed
+request-0000000000d4,Dynamo,Platform Intern,https://jobs.lever.co/dynamo/22222222-3333-4444-8555-666666666666,lever,submitted,2026-10-19,,,,,,FALSE,rejected,headed
+request-0000000000e5,Ember,Data Intern,https://ember.wd5.myworkdayjobs.com/Early_Career/job/NYC/Data-Intern_JR-1,workday,submitted,2026-10-21,,,,,,FALSE,ghosted,headed
+own-0000000000f6,Flux,Embedded Intern,https://careers.flux.com/global/en/job/2026800,other,submitted,2026-10-17,,,,,,FALSE,callback soon,
+request-000000000007,Gale,Robotics Intern,https://boards.greenhouse.io/gale/jobs/7000007,greenhouse,missing fact,,,,Do you hold a clearance?,,,FALSE,,headed
+request-000000000008,Helix,Frontend Intern,https://jobs.ashbyhq.com/helix/33333333-4444-4555-8666-777777777777,ashby,queued,,,,,,,FALSE,,
+request-000000000009,Iris,Infra Intern,https://boards.greenhouse.io/iris/jobs/9000009,greenhouse,submitted,2026-11-02,,,,,,FALSE,,headed
+request-00000000000a,Jade,Mobile Intern,https://jobs.lever.co/jade/44444444-5555-4666-8777-888888888888,lever,submitted,,,,,,,FALSE,,headed
+request-00000000000b,Acme,Software Engineer Intern (Summer 2027),https://boards.greenhouse.io/acme/jobs/8000001,greenhouse,submitted,2026-10-18,,,,,,FALSE,,headed
+,,,,,,,,,,,,FALSE,,

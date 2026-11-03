@@ -120,6 +120,44 @@ route with `fake.route(method, path, handler)`. `test_workit_login.py` needs
 no browser and is in CI. `test_workit_sign_in_browser.py` opens Chromium
 against the fake's `/login`, so run it on your Mac.
 
+## `apply import-sheet`: the Tracker Sheet into the Applications Tracker (KAN-545)
+
+`src/apply/sheet_import.py`. It runs one time, after `apply login`. ADR
+0007 says why the Applications Tracker is the record.
+
+- It reads the Applications tab of the Tracker Sheet (`sheet-id`) as text.
+  It does not use `SheetTracker.rows()`, because that stops on an Outcome
+  that is not in `Outcome`.
+- Only rows with status submitted go in. Each other row is a skip, with
+  its status.
+- The stage comes from Outcome: interview to interviewing, offer to offer,
+  rejected to rejected. Each other Outcome, and a blank one, is applied.
+  An Outcome that is not in `Outcome`, and a missing or bad Date applied,
+  go in at applied (or today) and are listed under "Check these".
+- The resume is the file in the Application's folder under `sent/`
+  (`worker.sent_folder`) whose name matches `attach.RESUME` and not
+  `attach.COVER`. The folder of the day applied comes first. With no such
+  file, the application goes in with no Sent resume.
+- The dry run writes nothing. It reads `GET /auth/me`, `GET
+  /applicants/{id}/applications`, and `POST /jobs/listed-by-link` for each
+  row. Then the student types yes (`--dry-run` only lists).
+- Each add, in this order: `POST /jobs/added-by-link`, then `POST
+  .../sent-resumes/file` (the resume, base64 JSON), then `PUT
+  .../applications/{job_id}/stage` with `applied_on`, then `POST
+  /jobs/{job_id}/applied` with `sent_resume_id`.
+- It never changes an application that is applied or later in WorkIt. The
+  dry run skips it, and the write skips it again if it became applied
+  after the dry run. So a second run adds nothing, and a failed run can
+  run again. Two rows of one job (`job_key`: WorkIt's link rule) are one
+  add.
+- A refused add is listed as FAILED and the others continue. WorkIt not
+  answering stops the import.
+
+**Tests.** `tests/test_sheet_import.py` runs the command on
+`tests/fixtures/tracker-sheet.csv` (the real Sheet's columns, made-up rows)
+against `tests/fake_tracker.py`: an Applications Tracker held in memory on
+the fake WorkIt, with WorkIt's link rule, stages and Sent resumes.
+
 ## Prompts and gates
 
 - Every prompt names the applicant as `@NAME@` and their school as

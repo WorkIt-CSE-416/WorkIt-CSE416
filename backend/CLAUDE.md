@@ -1309,7 +1309,9 @@ Find files with a directory listing; these are the rules for where code goes.
 - **The Applications Tracker's own writes** (KAN-413,
   `../docs/email_tracker.md`) are `routers/tracker.py` over
   `queries/tracker.py`: the stage menu (`PUT .../applications/{job_id}/stage`,
-  applied or later, any direction) and the events (`GET .../events`, with
+  applied or later, any direction; an optional `applied_on` date sets the
+  applied date to that day at 12:00 UTC, for the Tracker Sheet import,
+  KAN-545) and the events (`GET .../events`, with
   `?status=proposed` for Email Updates, `POST
   .../applications/{job_id}/events`, `DELETE .../events/{event_id}` (an
   event added by hand only: one from an email stays as the Inbox's record,

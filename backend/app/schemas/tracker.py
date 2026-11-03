@@ -18,6 +18,10 @@ class StageChange(BaseModel):
     application that is not applied; never saved or skipped."""
 
     stage: Literal["queued", "needs_you", "applied", "interviewing", "offer", "rejected"]
+    # The day the student really applied (the Tracker Sheet import, KAN-545):
+    # the application's applied date becomes that day. Left out, an
+    # application with no applied date gets today's. Only for applied or later.
+    applied_on: datetime.date | None = None
 
 
 class ApplyByChange(BaseModel):

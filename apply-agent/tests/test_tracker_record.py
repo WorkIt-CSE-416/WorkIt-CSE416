@@ -7,6 +7,7 @@ import dataclasses
 from pathlib import Path
 
 import pytest
+from fake_tracker import FakeTracker
 from fake_workit import FakeWorkIt
 
 from apply import workit
@@ -36,7 +37,9 @@ def write(stage: str, **fields) -> Write:
 
 @pytest.fixture
 def fake():
-    with FakeWorkIt(tracker=True) as fake:
+    """The fake WorkIt, with its Applications Tracker (fake_tracker.py) as `fake.tracker`."""
+    with FakeWorkIt() as fake:
+        fake.tracker = FakeTracker(fake)
         yield fake
 
 
@@ -45,9 +48,9 @@ def test_a_submit_is_applied_with_the_file_sent_as_its_sent_resume(fake, tmp_pat
 
     said = outbox.send(write("applied", resume=resume(tmp_path)))
 
-    assert fake.tracked() == [{"link": LOCKHEED, "company": "Lockheed Martin", "stage": "applied",
+    assert fake.tracker.tracked() == [{"link": LOCKHEED, "company": "Lockheed Martin", "stage": "applied",
                                "sent_resume": "Test_Person_Resume.pdf"}]
-    assert [sent["data"] for sent in fake.sent_resumes.values()] == [PDF]
+    assert [sent.content for sent in fake.tracker.sent.values()] == [PDF]
     assert said == "in your Applications Tracker as Applied"
     assert outbox.waiting() == []
 
@@ -57,7 +60,7 @@ def test_a_handoff_or_missing_fact_is_needs_you_and_a_hold_is_queued(fake, tmp_p
     outbox = Outbox(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
 
     assert outbox.send(write(stage)) == f"in your Applications Tracker as {shown}"
-    assert [row["stage"] for row in fake.tracked()] == [stage]
+    assert [row["stage"] for row in fake.tracker.tracked()] == [stage]
 
 
 def test_a_later_status_for_the_same_job_moves_the_same_row(fake, tmp_path):
@@ -68,8 +71,8 @@ def test_a_later_status_for_the_same_job_moves_the_same_row(fake, tmp_path):
     outbox.send(write("applied", resume=resume(tmp_path)))
     outbox.send(write("applied", resume=resume(tmp_path)))  # sent twice: still one Sent resume
 
-    assert [(row["stage"], row["sent_resume"]) for row in fake.tracked()] == [("applied", "Test_Person_Resume.pdf")]
-    assert len(fake.sent_resumes) == 1
+    assert [(row["stage"], row["sent_resume"]) for row in fake.tracker.tracked()] == [("applied", "Test_Person_Resume.pdf")]
+    assert len(fake.tracker.sent) == 1
 
 
 def test_a_submit_with_no_file_kept_is_applied_with_no_sent_resume(fake, tmp_path):
@@ -77,7 +80,7 @@ def test_a_submit_with_no_file_kept_is_applied_with_no_sent_resume(fake, tmp_pat
 
     outbox.send(write("applied", resume=str(tmp_path / "gone.pdf")))
 
-    assert [(row["stage"], row["sent_resume"]) for row in fake.tracked()] == [("applied", None)]
+    assert [(row["stage"], row["sent_resume"]) for row in fake.tracker.tracked()] == [("applied", None)]
 
 
 def test_needs_you_never_takes_back_a_job_already_applied_to(fake, tmp_path):
@@ -85,7 +88,7 @@ def test_needs_you_never_takes_back_a_job_already_applied_to(fake, tmp_path):
     outbox.send(write("applied"))
 
     assert outbox.send(write("needs_you")) == "already Applied in your Applications Tracker"
-    assert [row["stage"] for row in fake.tracked()] == ["applied"]
+    assert [row["stage"] for row in fake.tracker.tracked()] == ["applied"]
     assert outbox.waiting() == []
 
 
@@ -98,12 +101,12 @@ def test_with_workit_down_the_write_waits_and_the_next_send_takes_it(fake, tmp_p
     said = down.send(write("applied", resume=resume(tmp_path)))
 
     assert said.startswith("kept to send to your Applications Tracker later")
-    assert fake.tracked() == []
+    assert fake.tracker.tracked() == []
     assert [(w.company, w.stage) for w in down.waiting()] == [("Lockheed Martin", "applied")]
     # The next run, with WorkIt back: the waiting write goes first.
     again = Outbox(client, tmp_path / "workit-queue.json")
     assert again.flush() == []
-    assert [(row["stage"], row["sent_resume"]) for row in fake.tracked()] == [("applied", "Test_Person_Resume.pdf")]
+    assert [(row["stage"], row["sent_resume"]) for row in fake.tracker.tracked()] == [("applied", "Test_Person_Resume.pdf")]
     assert again.waiting() == []
 
 
@@ -112,7 +115,7 @@ def test_with_no_login_the_write_waits_for_apply_login(fake, tmp_path):
 
     assert "apply login" in outbox.send(write("queued"))
     assert [w.stage for w in outbox.waiting()] == ["queued"]
-    assert fake.tracked() == []
+    assert fake.tracker.tracked() == []
 
 
 def test_a_waiting_write_is_replaced_by_a_later_one_for_the_same_application(fake, tmp_path):
@@ -127,7 +130,10 @@ def test_a_waiting_write_is_replaced_by_a_later_one_for_the_same_application(fak
 def test_a_write_workit_refuses_is_dropped_and_said(fake, tmp_path):
     outbox = Outbox(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
 
-    said = outbox.send(write("queued", company=""))
+    word_file = tmp_path / "Resume.docx"
+    word_file.write_bytes(b"PK\x03\x04 a Word file")  # WorkIt keeps only a PDF as a sent file: 422
+
+    said = outbox.send(write("applied", resume=str(word_file)))
 
     assert said.startswith("not in your Applications Tracker: WorkIt refused it")
     assert outbox.waiting() == []
@@ -158,7 +164,7 @@ def test_a_submitted_row_is_applied_with_the_file_sent(fake, tmp_path):
 
     tracker.add(row(Status.SUBMITTED))
 
-    assert [(r["stage"], r["sent_resume"]) for r in fake.tracked()] == [("applied", "Test_Person_Resume.pdf")]
+    assert [(r["stage"], r["sent_resume"]) for r in fake.tracker.tracked()] == [("applied", "Test_Person_Resume.pdf")]
     assert tracker.get("request-1").status == Status.SUBMITTED  # Apply's own row is kept as before
 
 
@@ -167,12 +173,12 @@ def test_each_status_moves_the_one_row_of_its_job(fake, tmp_path):
 
     tracker = recording(fake, tmp_path)
     tracker.add(row(Status.FILLING))
-    assert fake.tracked() == []  # filling is not a stage on the tracker
+    assert fake.tracker.tracked() == []  # filling is not a stage on the tracker
 
     for status, stage in [(Status.HELD, "queued"), (Status.HANDOFF, "needs_you"),
                           (Status.MISSING_FACT, "needs_you"), (Status.SUBMITTED, "applied")]:
         tracker.update("request-1", status=status)
-        assert [r["stage"] for r in fake.tracked()] == [stage]
+        assert [r["stage"] for r in fake.tracker.tracked()] == [stage]
 
 
 def test_a_failed_closed_or_queued_application_and_a_note_send_nothing(fake, tmp_path):

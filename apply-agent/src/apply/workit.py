@@ -19,6 +19,10 @@ The API checks the bearer token itself (`backend/app/deps.py`,
 `security.py`): the token's signature, audience and issuer, then the
 account row.
 
+The Applications Tracker's reads and writes (find or add a job by its
+link, set a stage and the applied date, keep a Sent resume) are methods
+that use `call`.
+
 Apply's writes to the student's Applications Tracker (KAN-544) are `Write`s
 sent through an `Outbox`: it adds the job by its link, sets the stage, and
 for a submit keeps the file sent as the application's Sent resume. A write
@@ -39,6 +43,7 @@ import urllib.request
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -93,13 +98,9 @@ def site() -> Site:
 
 
 class WorkItError(Exception):
-    pass
+    """WorkIt refused a call. `status` is its HTTP status, when it answered one."""
 
-
-class Refused(WorkItError):
-    """WorkIt answered the request with a 4xx other than 401: `status` says which."""
-
-    def __init__(self, message: str, status: int):
+    def __init__(self, message: str = "", status: int | None = None):
         super().__init__(message)
         self.status = status
 
@@ -153,29 +154,54 @@ class WorkIt:
             if status == 401:
                 raise LoginExpired("WorkIt refused the login")
             if status >= 400:
-                raise Refused(f"{method} {path}: {status} {_detail(answer)}", status)
+                raise WorkItError(f"{method} {path}: {status} {_detail(answer)}", status)
             return answer
 
-    def add_by_link(self, link: str, company: str, title: str) -> str:
-        """The job's id on the student's Applications Tracker: the listed job with this link, else an
-        unlisted job posting (KAN-542). Saved, unless the student has an application on it already."""
-        return self.call("POST", "/jobs/added-by-link", {"url": link, "company": company, "title": title})["job_id"]
+    # The Applications Tracker's reads and writes (KAN-545), as the signed-in student.
 
-    def set_stage(self, job_id: str, stage: str) -> None:
-        """Move the student's application to `stage`. Refused 409 for needs_you or queued on an applied one."""
-        self.call("PUT", f"/applicants/{self._me().id}/applications/{job_id}/stage", {"stage": stage})
+    def listed_by_link(self, url: str) -> tuple[str, str | None] | None:
+        """The listed job at `url` and the student's stage on it (None: no application), or None when WorkIt
+        does not list it. Writes nothing."""
+        try:
+            answer = self.call("POST", "/jobs/listed-by-link", {"url": url})
+        except WorkItError as error:
+            if error.status == 404:
+                return None
+            raise
+        return str(answer["job_id"]), answer.get("stage")
 
-    def keep_sent_resume(self, job_id: str, path: Path) -> str:
-        """The id of the Sent resume that keeps the PDF `path` for the job (the same one when sent again)."""
-        body = {"file": {"name": path.name, "data": base64.b64encode(path.read_bytes()).decode()},
-                "job_posting_id": job_id}
-        return self.call("POST", f"/applicants/{self._me().id}/sent-resumes", body)["id"]
+    def applications(self, applicant_id: str) -> list[dict]:
+        """Every application on the student's Applications Tracker, as WorkIt lists them (job, stage, applied_at)."""
+        return self.call("GET", f"/applicants/{applicant_id}/applications")
 
-    def mark_applied(self, job_id: str, sent_resume_id: str | None) -> None:
-        """Applied (a later stage stays), naming the Sent resume, or none when None."""
+    def add_by_link(self, url: str, company: str, title: str) -> tuple[str, str]:
+        """Put the job at `url` on the student's Applications Tracker (an unlisted job posting when WorkIt does not
+        list it): its job id and the student's stage on it, saved when it is new there."""
+        answer = self.call("POST", "/jobs/added-by-link", {"url": url, "company": company, "title": title})
+        return str(answer["job_id"]), answer["stage"]
+
+    def send_resume(self, applicant_id: str, job_id: str, path: Path) -> str:
+        """Keep the file at `path` as a Sent resume to the job: its id."""
+        answer = self.call("POST", f"/applicants/{applicant_id}/sent-resumes/file", {
+            "job_posting_id": job_id, "file_name": path.name,
+            "content": base64.b64encode(path.read_bytes()).decode()})
+        return str(answer["id"])
+
+    def set_stage(self, applicant_id: str, job_id: str, stage: str, applied_on: date | None = None) -> None:
+        """Move the application to `stage` (applied or later); `applied_on` becomes its applied date."""
+        body = {"stage": stage} | ({"applied_on": applied_on.isoformat()} if applied_on else {})
+        self.call("PUT", f"/applicants/{applicant_id}/applications/{job_id}/stage", body)
+
+    def link_resume(self, job_id: str, sent_resume_id: str) -> None:
+        """Name the Sent resume the application went out with. Its stage and applied date stay."""
         self.call("POST", f"/jobs/{job_id}/applied", {"sent_resume_id": sent_resume_id})
 
+    def mark_applied(self, job_id: str) -> None:
+        """Applied with no Sent resume (a later stage, and the date, stay)."""
+        self.call("POST", f"/jobs/{job_id}/applied")
+
     def _me(self) -> Account:
+        """The signed-in account, read once: the writes name the student's id."""
         if self._account is None:
             self._account = self.me()
         return self._account
@@ -304,15 +330,17 @@ class Outbox:
         return said
 
     def _deliver(self, write: Write) -> str:
-        job = self.client.add_by_link(write.link, write.company, write.title)
+        job, _ = self.client.add_by_link(write.link, write.company, write.title)
         if write.stage == "applied":
             resume = Path(write.resume) if write.resume else None
-            sent = self.client.keep_sent_resume(job, resume) if resume and resume.is_file() else None
-            self.client.mark_applied(job, sent)
+            if resume and resume.is_file():
+                self.client.link_resume(job, self.client.send_resume(self.client._me().id, job, resume))
+            else:
+                self.client.mark_applied(job)
         else:
             try:
-                self.client.set_stage(job, write.stage)
-            except Refused as refused:
+                self.client.set_stage(self.client._me().id, job, write.stage)
+            except WorkItError as refused:
                 if refused.status != 409:
                     raise
                 return "already Applied in your Applications Tracker"

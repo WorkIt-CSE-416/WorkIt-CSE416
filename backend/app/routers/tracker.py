@@ -7,11 +7,15 @@ GET /applicants/{id}/applications (routers/auto_apply.py).
 PUT    /applicants/{id}/applications/{job_id}/stage  {"stage": "interviewing"}
        The stage menu: applied, interviewing, offer or rejected, any
        direction (a saved or queued job can go straight to one). Answers
-       StageSet. An application with no applied date gets today's. 404 with
-       no application. Apply (KAN-544) also sets needs_you (a Handoff or a
-       missing fact) or queued (a held application) on an application that
-       is not applied: its applied date stays empty. 409 when it is applied
-       or later; the stage stays. saved and skipped are 422.
+       StageSet. An application with no applied date gets today's.
+       Optional "applied_on": "2026-10-17" sets the applied date to that
+       day instead, also over a date set already (the Tracker Sheet
+       import, KAN-545); it is kept as 12:00 UTC, the same day in every
+       time zone from UTC-11 to UTC+11. 404 with no application. Apply
+       (KAN-544) also sets needs_you (a Handoff or a missing fact) or
+       queued (a held application) on an application that is not
+       applied: its applied date stays empty. 409 when it is applied or
+       later; the stage stays. saved and skipped are 422.
 PUT    /applicants/{id}/applications/{job_id}/apply-by  {"apply_by": "2026-11-10"}
        A saved job's Apply by (KAN-429), the student's own day to apply by,
        or null to clear it: 204. 404 with no application.
@@ -109,7 +113,7 @@ async def put_stage(
 ) -> StageSet:
     """Moves one application to the stage the student picked."""
     try:
-        stage = await set_stage(db, applicant_id, job_id, application_stage(body.stage))
+        stage = await set_stage(db, applicant_id, job_id, application_stage(body.stage), body.applied_on)
     except AlreadyApplied:
         raise HTTPException(status.HTTP_409_CONFLICT, ALREADY_APPLIED)
     if stage is None:

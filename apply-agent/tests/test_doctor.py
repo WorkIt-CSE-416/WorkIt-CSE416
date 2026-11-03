@@ -337,7 +337,7 @@ def test_workit_writes_waiting_are_listed_with_when_they_go(tmp_path):
 
     from apply.workit import Outbox, Write
 
-    with FakeWorkIt(tracker=True) as fake:
+    with FakeWorkIt() as fake:
         outbox = Outbox(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
         outbox.send(Write("request-1", "https://jobs.example/1", "Lockheed Martin", "Intern", "applied"))
         outbox.send(Write("request-2", "https://jobs.example/2", "Arc", "Intern", "needs_you"))  # not logged in

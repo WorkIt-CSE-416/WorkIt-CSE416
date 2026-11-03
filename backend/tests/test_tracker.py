@@ -133,6 +133,42 @@ async def test_a_saved_job_moved_on_by_hand_gets_dated(student, database):
     assert stage_now == "interviewing" and applied_at is not None
 
 
+async def test_a_stage_with_applied_on_keeps_the_day_the_student_really_applied(student, database):
+    # The Tracker Sheet import (KAN-545): an application made in October and
+    # imported in November shows October, in every US and Asian time zone.
+    client, me = student
+    job = await _seed_posting(database)
+    await client.post(f"/jobs/{job}/saved")
+
+    res = await client.put(
+        f"/applicants/{me}/applications/{job}/stage",
+        json={"stage": "interviewing", "applied_on": "2026-10-17"},
+    )
+    assert res.status_code == 200
+    assert res.json() == {"job_id": job, "stage": "interviewing"}
+    stage_now, applied_at = await _row(database, me, job)
+    assert stage_now == "interviewing"
+    assert applied_at.isoformat() == "2026-10-17T12:00:00+00:00"
+
+    # It also corrects a date set already (the import marks applied first).
+    await client.put(
+        f"/applicants/{me}/applications/{job}/stage", json={"stage": "applied", "applied_on": "2026-10-19"}
+    )
+    assert (await _row(database, me, job))[1].isoformat() == "2026-10-19T12:00:00+00:00"
+    # Without it, the date stays.
+    await client.put(f"/applicants/{me}/applications/{job}/stage", json={"stage": "offer"})
+    assert (await _row(database, me, job))[1].isoformat() == "2026-10-19T12:00:00+00:00"
+
+
+async def test_applied_on_must_be_a_date(student, database):
+    client, me = student
+    job = await _applied(client, database)
+    res = await client.put(
+        f"/applicants/{me}/applications/{job}/stage", json={"stage": "applied", "applied_on": "last week"}
+    )
+    assert res.status_code == 422
+
+
 async def test_the_stage_menu_never_offers_a_bookmark_or_skip(student, database):
     client, me = student
     job = await _applied(client, database)

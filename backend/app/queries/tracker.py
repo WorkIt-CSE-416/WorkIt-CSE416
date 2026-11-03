@@ -70,19 +70,40 @@ async def fetch_stage(
 
 
 async def _move(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, stage: application_stage
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    stage: application_stage,
+    applied_on: datetime.date | None = None,
 ) -> None:
-    # Every stage set here is applied or later, so it is dated: the day it
-    # was first applied, else now (a job saved, then interviewing).
+    # Every stage set here is applied or later, so it is dated: `applied_on`
+    # when given, else the day it was first applied, else now (a job saved,
+    # then interviewing).
     await db.execute(
         update(Job_Application)
         .where(Job_Application.applicant_id == applicant_id, Job_Application.job_id == job_id)
-        .values(stage=stage, applied_at=func.coalesce(Job_Application.applied_at, func.now()))
+        .values(
+            stage=stage,
+            applied_at=applied_noon(applied_on)
+            if applied_on
+            else func.coalesce(Job_Application.applied_at, func.now()),
+        )
     )
 
 
+def applied_noon(day: datetime.date) -> datetime.datetime:
+    '''a day the student applied on, as an instant: 12:00 UTC, which is the
+    same day everywhere from UTC-11 to UTC+11, so the tracker shows the day
+    given in the student's own time zone'''
+    return datetime.datetime.combine(day, datetime.time(12), datetime.UTC)
+
+
 async def set_stage(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, stage: application_stage
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    stage: application_stage,
+    applied_on: datetime.date | None = None,
 ) -> application_stage | None:
     '''
     the stage menu: moves the application to `stage`, any direction, and
@@ -90,13 +111,15 @@ async def set_stage(
     later, or (Apply, KAN-544) needs_you or queued, which only an
     application not applied yet takes: AlreadyApplied otherwise, so a
     record never goes back to the queue. Those two leave applied_at as it
-    is (null: the application was never applied)
+    is (null: the application was never applied) and ignore `applied_on`.
+    `applied_on`, when given, becomes its applied date (the Tracker Sheet
+    import, KAN-545)
     '''
     current = await fetch_stage(db, applicant_id, job_id)
     if current is None:
         return None
     if stage in APPLIED_STAGES:
-        await _move(db, applicant_id, job_id, stage)
+        await _move(db, applicant_id, job_id, stage, applied_on)
     else:
         assert stage in (application_stage.needs_you, application_stage.queued)
         if current in APPLIED_STAGES:
