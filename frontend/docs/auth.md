@@ -68,6 +68,24 @@ signup or OAuth path.
   prompt forces the account chooser open every attempt, so a blocked try can
   retry with a different account instead of repeating the same dead end.
   LinkedIn's OIDC prompt support isn't the same, so this stays Google-only.
+- **Google skips Supabase's callback** (2026-11-03). Through Supabase's
+  OAuth, Google redirects to `<ref>.supabase.co/auth/v1/callback`, so its
+  account chooser read "to continue to zhdrvdrojipkluhzgsea.supabase.co":
+  Google names the redirect's domain until the brand is verified, and a
+  brand verifies only on a domain WorkIt owns. Now the Google button (and
+  Settings' Connect Google) calls `startGoogleFlow` (`lib/google-oauth-start.ts`):
+  a state and a nonce go into a 10-minute httpOnly cookie, and Google
+  redirects to `/auth/google/callback`. That route checks the state, trades
+  the code for Google's ID token with `GOOGLE_CLIENT_SECRET`, and calls
+  `signInWithIdToken()` (or `linkIdentity()` for a link) with the raw
+  nonce; Google got its SHA-256. A sign-in then finishes exactly as
+  `/auth/callback` does (`lib/oauth-finish.ts`). Supabase accepts the token
+  because its audience is the client ID already set on Supabase's Google
+  provider. With `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` unset (a local
+  clone), the button falls back to Supabase's OAuth. LinkedIn still goes
+  through Supabase and its screen still names supabase.co. The other fix,
+  Supabase's Custom Domain add-on (`auth.workitjobs.ai`), needs a paid plan
+  and was not taken.
 
 **Cookie lifetime.** The `sb-*` cookies are httpOnly and live 7 days
 (`lib/supabase/cookies.ts`, since 2026-10-08; the @supabase/ssr default is
