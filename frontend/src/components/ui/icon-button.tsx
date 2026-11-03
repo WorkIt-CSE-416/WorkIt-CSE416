@@ -25,11 +25,11 @@ import { cn } from "@/lib/cn";
  */
 const VARIANTS = {
   /** Bare glyph: top-bar utilities and row actions. Centred in whatever box
-   *  the call site sizes it to, and the ::after reaches 8px past the box, so
-   *  an unsized 16px glyph is still a 32px target without moving anything
-   *  around it. */
+   *  the call site sizes it to, and the hit area reaches 8px past the box,
+   *  so an unsized 16px glyph is still a 32px target with a mouse (44px on
+   *  touch) without moving anything around it. */
   quiet:
-    "text-ink hover:text-brand focus-visible:ring-brand-ring relative inline-flex items-center justify-center rounded-xs after:absolute after:-inset-2 after:content-[''] focus-visible:ring-2",
+    "text-ink hover:text-brand focus-visible:ring-brand-ring inline-flex items-center justify-center rounded-xs [--hit-grow:8px] focus-visible:ring-2",
   /** Bordered — an icon action that has to hold its own beside a filled
    *  button, so it needs the same visual weight a button has. Size it at the
    *  call site: the feed card's Not Interested button is size-9, the `sm`
@@ -73,6 +73,9 @@ export function IconButton({
         type={type}
         aria-label={label}
         className={cn(
+          // Every variant's target is 24px or more, 44px on touch (the
+          // hit-area utility in globals.css, KAN-557).
+          "hit-area relative",
           VARIANTS[variant],
           // Presses in further than a button (90%): a glyph is small, and a
           // smaller squeeze would not read. Colours fade on the same clock.

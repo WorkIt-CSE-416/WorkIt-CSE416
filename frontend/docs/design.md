@@ -297,7 +297,22 @@ for a status. `IconButton` is black at rest and its `quiet` variant turns purple
 on hover, and an icon beside a label takes the label's colour. Each component
 chose for itself until then, so All Filters was grey beside a black Auto Apply. One
 exception: a segmented control's unpicked option stays grey, since black against
-grey is what says which option is on.
+grey is what says which option is on. A dialog's or sheet's close X is black too,
+set by its `data-slot` in `globals.css`: shadcn's `ghost` Button drew it purple.
+
+**A target is 24px or more, and 44px on a touch screen** (KAN-557, WCAG 2.5.8).
+The `ui/` parts set it, never a call site: Button, IconButton, Chip, SectionLink,
+RemovableChip's cross and SegmentedControl take the `hit-area` utility in
+`globals.css`, an invisible `::after` centred on the control that is 24px or the
+control's size with a mouse and 44px under `pointer: coarse`. So the look from
+KAN-251 (sm 36px, the chips, the 36px segmented track) does not move a pixel;
+only the area that takes a press grows. `quiet` IconButtons reach 8px past their
+box as well, and the `inline` and `section` Buttons and SectionLink 6px. Rows that touch each
+other cannot share a wider area, so on touch they grow instead: menu, select and
+combobox rows (by `data-slot` in `globals.css`), the check rows and the
+sidebar's sheet rows are 44px. The vendored checkbox and switch get 44px by
+`data-slot` too. Two controls closer than 44px have overlapping hit areas on
+touch, and the later one takes the overlap.
 
 **A form's buttons sit by what kind of form it is** (2026-11-03). Two rules,
 each with its own reason, and every form follows one of them:

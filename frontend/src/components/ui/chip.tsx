@@ -61,8 +61,16 @@ type ChipStyle = Omit<VariantProps<typeof chipVariants>, "pressed"> & {
   className?: string;
 };
 
+/** A chip that is itself the control takes a 44px hit area on touch (the
+ *  hit-area utility in globals.css, KAN-557). RemovableChip's pill does not:
+ *  its cross is the control, and a hit area over the pill would take the
+ *  cross's presses. */
 export function chipClasses({ variant, pressed, size, className }: ChipStyle = {}) {
-  return cn(chipVariants({ variant, pressed: pressed ?? false, size }), className);
+  return cn(
+    chipVariants({ variant, pressed: pressed ?? false, size }),
+    "hit-area relative",
+    className,
+  );
 }
 
 type ChipProps = ChipStyle & Omit<ComponentProps<"button">, "className">;
@@ -104,7 +112,7 @@ export function RemovableChip({
         type="button"
         aria-label={removeLabel}
         onClick={onRemove}
-        className="hover:bg-brand/10 focus-visible:ring-brand-ring flex size-6 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-90"
+        className="hover:bg-brand/10 focus-visible:ring-brand-ring hit-area relative flex size-6 items-center justify-center rounded-full transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-90"
       >
         <CloseIcon className="size-3.5" />
       </button>

@@ -1606,6 +1606,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   string class. It cannot read a class built in `cn()`, a template string or a
   variable, so keep overrides out of those too. A new box is a new size in the
   component.
+- **A target is 24px or more, and 44px under `pointer: coarse`, set in the
+  part** (KAN-557, `docs/design.md`, Components): the `hit-area` utility in
+  `globals.css` on Button, IconButton, Chip, SectionLink and
+  SegmentedControl, rows that touch growing to 44px on touch, and the
+  vendored checkbox, switch and menu rows by `data-slot`. A call site never pads or widens a target by hand. The part
+  writes `relative` beside `hit-area`, so a call site's `absolute` still wins
+  through `cn()`. Never put `hit-area` on an element with a control inside
+  it: its `::after` paints over the inner control and takes its presses
+  (RemovableChip's pill, whose cross is the control).
 - **Nothing bounces at a scroll's end** (2026-11-02, `globals.css`): the
   document and each shell's `<main>` take `overscroll-y-none`, Y only so the
   trackpad's swipe back works, and a scroll box inside a page takes

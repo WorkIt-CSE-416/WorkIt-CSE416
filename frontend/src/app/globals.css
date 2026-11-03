@@ -1284,6 +1284,22 @@ body:has([data-skyline]) {
   ) {
     font-weight: 500;
   }
+
+  /* On a touch screen those rows are 44px tall (KAN-557): a finger needs
+   * 44px, and rows that touch each other cannot share a wider hit area, so
+   * the row itself grows. With a mouse they keep shadcn's 28 to 32px. */
+  @media (pointer: coarse) {
+    :is(
+      [data-slot="dropdown-menu-item"],
+      [data-slot="dropdown-menu-checkbox-item"],
+      [data-slot="dropdown-menu-radio-item"],
+      [data-slot="dropdown-menu-sub-trigger"],
+      [data-slot="select-item"],
+      [data-slot="combobox-item"]
+    ) {
+      min-height: 44px;
+    }
+  }
 }
 
 /* The rows of a menu, a select or a combobox are choices you click, so they
@@ -1304,6 +1320,73 @@ body:has([data-skyline]) {
     transition:
       background-color 100ms ease-out,
       color 100ms ease-out;
+  }
+}
+
+/* A CONTROL'S HIT AREA IS 24PX OR MORE, AND 44PX ON A TOUCH SCREEN
+ * (KAN-557, WCAG 2.5.8). An invisible ::after centred on the control,
+ * never smaller than the control, so the look and every pixel around it
+ * stay as they are (the KAN-251 sizes): only the area that takes a press
+ * grows. `--hit-grow` reaches that far past the box on every side, for a
+ * part whose own box is a bare glyph or a line of text (IconButton's
+ * `quiet`, Button's `inline` and `section`).
+ *
+ * The ui/ parts carry it (Button, IconButton, Chip, SegmentedControl), so a
+ * call site never sets a target by hand. The element needs a position, so
+ * each part writes `relative` beside it, as a class cn() can replace with a
+ * call site's `absolute`. Never put it on an element with a control inside
+ * (RemovableChip's pill): its ::after paints over the inner one and takes
+ * its presses. Hit areas of controls that touch overlap, and the later one
+ * wins the overlap; rows that touch grow instead (the menu rows above, the
+ * sidebar's sheet rows). */
+@utility hit-area {
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100% + 2 * var(--hit-grow, 0px), 24px);
+    height: max(100% + 2 * var(--hit-grow, 0px), 24px);
+    translate: -50% -50%;
+  }
+
+  @media (pointer: coarse) {
+    &::after {
+      width: max(100% + 2 * var(--hit-grow, 0px), 44px);
+      height: max(100% + 2 * var(--hit-grow, 0px), 44px);
+    }
+  }
+}
+
+/* Two vendored controls, set by data-slot so `shadcn add` can regenerate
+ * their files. Unlayered, so they beat the utilities those files write
+ * (the checkbox's `after:-inset-*`, the close button's `text-brand`).
+ *
+ * A dialog's close X follows the icon colour rule (docs/design.md): ink at
+ * rest, brand on hover, where shadcn's `ghost` Button made it brand purple.
+ * Only the X: the Cancel and Done buttons a dialog wraps in DialogClose
+ * carry the same data-slot, inside the footer. Its 44px on touch comes from
+ * Button's hit area. */
+:is([data-slot="dialog-content"], [data-slot="sheet-content"])
+  > :is([data-slot="dialog-close"], [data-slot="sheet-close"]) {
+  color: var(--color-ink);
+
+  &:hover {
+    color: var(--color-brand);
+  }
+}
+
+/* The checkbox (a 16px box) and the switch (32 by 18px) each have a ::after
+ * 24px wider and 16px taller than themselves; on touch, that or 44px,
+ * whichever is larger (the switch keeps its 54px width). */
+@media (pointer: coarse) {
+  :is([data-slot="checkbox"], [data-slot="switch"])::after {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    width: max(100% + 24px, 44px);
+    height: max(100% + 16px, 44px);
+    translate: -50% -50%;
   }
 }
 

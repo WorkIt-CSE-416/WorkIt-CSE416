@@ -77,8 +77,10 @@ const TRACK = "bg-ink/5 relative isolate grid w-fit auto-cols-fr grid-flow-col r
 
 // An option presses in a little on mouse-down, as every button does, while
 // its label's colour follows the thumb across.
+// Each option's target is 44px tall on touch (the hit-area utility in
+// globals.css, KAN-557); the track keeps its 36px look.
 const ITEM =
-  "focus-visible:ring-brand-ring relative z-10 flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[color,transform] duration-200 ease-glide select-none focus-visible:ring-2 focus-visible:outline-none active:scale-[0.96]";
+  "focus-visible:ring-brand-ring hit-area relative z-10 flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[color,transform] duration-200 ease-glide select-none focus-visible:ring-2 focus-visible:outline-none active:scale-[0.96]";
 
 function itemClass(size: Size, active: boolean, iconOnly = false) {
   return cn(
