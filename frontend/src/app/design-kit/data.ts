@@ -116,8 +116,8 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-ink", role: "Headings" },
       { token: "--color-ink-muted", role: "Body copy, field labels" },
       { token: "--color-ink-meta", role: "Nav links, subtitles, dates, glyphs, placeholders" },
-      { token: "--color-ink-subtle", role: "De-emphasised glyphs: stat tiles, a picker's chevron" },
-      { token: "--color-ink-faint", role: "Separator dots, bullets, resting sort chevrons" },
+      { token: "--color-ink-subtle", role: "Disabled or decorative glyphs only, never words" },
+      { token: "--color-ink-faint", role: "Separator dots, bullets; never words or a live arrow" },
     ],
   },
   {
@@ -137,15 +137,18 @@ export const COLOR_GROUPS: ColorGroup[] = [
     title: "Status",
     note: "The board's only non-brand control is accepting an offer. The chip tones below it say what KIND of state something is in — in flight, finished well, halted, finished badly, over — so two states never share a colour unless they are the same kind of thing.",
     tokens: [
-      { token: "--color-positive", role: "Offer accent and its green button" },
+      { token: "--color-positive", role: "Offer accent: strokes and fills, never under a word" },
       { token: "--color-positive-tint", role: "The offer card's company tile" },
-      { token: "--color-positive-hover", role: "Derived — 33% lightness" },
-      { token: "--color-positive-active", role: "Derived — 27% lightness" },
+      { token: "--color-positive-hover", role: "Green button hover — positive-ink at 23%" },
+      { token: "--color-positive-active", role: "Green button press — positive-ink at 19%" },
       {
         token: "--color-positive-ring",
         role: "Focus ring on a positive fill: positive-ink, 5.35:1",
       },
-      { token: "--color-positive-ink", role: "Positive as text on its tint — AA safe" },
+      {
+        token: "--color-positive-ink",
+        role: "Positive as text, the green button's fill, a tick — white on it 5.35:1",
+      },
       { token: "--color-inert-tint", role: "Measured — a status that is over or not begun" },
       { token: "--color-warning", role: "UNMEASURED — halted, waiting on a decision" },
       { token: "--color-warning-tint", role: "UNMEASURED" },
@@ -167,9 +170,9 @@ export const COLOR_GROUPS: ColorGroup[] = [
     tokens: [
       { token: "--chart-1", role: "→ --color-brand · in flight, early (Screening)" },
       { token: "--chart-2", role: "→ --color-advanced · in flight, late (Interview)" },
-      { token: "--chart-3", role: "→ --color-positive · ended well (Offer)" },
+      { token: "--chart-3", role: "→ --color-match-strong · ended well (Offer) · 3.50:1 on app" },
       { token: "--chart-4", role: "→ --color-danger · ended badly (Rejected)" },
-      { token: "--chart-5", role: "→ --color-ink-subtle · inert, Other, de-emphasis" },
+      { token: "--chart-5", role: "Slate grey · inert, Other, de-emphasis · 3.25:1 on app" },
     ],
   },
   {
@@ -182,7 +185,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       },
       {
         token: "--color-match-strong",
-        role: "→ --color-positive-hover · Strong Match, green · 3.81:1 on white",
+        role: "Strong Match, green · 3.81:1 on white",
       },
       { token: "--color-match-good", role: "Good Match, yellow · 3.24:1 on white" },
       { token: "--color-match-weak", role: "→ --color-danger · Weak Match, red · 5.77:1 on white" },

@@ -488,7 +488,7 @@ function SortButton({
           sort rather than swapping in place. */}
       <SortIcon
         key={active ? direction : "none"}
-        className={cn("animate-pop size-3.5 shrink-0", active ? "text-brand" : "text-ink-faint")}
+        className={cn("animate-pop size-3.5 shrink-0", active ? "text-brand" : "text-ink-meta")}
         direction={active ? direction : undefined}
       />
     </button>

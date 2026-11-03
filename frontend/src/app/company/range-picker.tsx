@@ -117,7 +117,7 @@ export function RangePicker() {
           <Button variant="secondary" size="sm" className="w-53 justify-start">
             <CalendarIcon className="size-3.5" />
             <span className="min-w-0 flex-1 truncate text-left">{formatRange(range)}</span>
-            <ChevronDownIcon className="text-ink-subtle size-3.5" />
+            <ChevronDownIcon className="text-ink-meta size-3.5" />
           </Button>
         }
       />

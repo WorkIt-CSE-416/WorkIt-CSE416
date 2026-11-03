@@ -137,7 +137,7 @@ export const buttonVariants = cva(
          *  and the only place a control is not brand-coloured. No shadcn
          *  equivalent: its palette has no success role. */
         positive: cn(
-          "bg-positive text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
+          "bg-positive-ink text-on-brand hover:bg-positive-hover active:bg-positive-active focus-visible:ring-positive-ring rounded-control border border-transparent focus-visible:ring-[3px] focus-visible:ring-offset-2",
           DISABLED_FILL,
         ),
         /** Danger tint with red text: declining something offered, beside

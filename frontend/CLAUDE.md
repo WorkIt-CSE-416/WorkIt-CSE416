@@ -1574,6 +1574,13 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **An icon's colour says its job** (`docs/design.md`, Components): black to
   click, purple when on, grey for information. Never set a clickable icon to
   `text-ink-meta`.
+- **Contrast is measured on white and on the grey ground** (KAN-555,
+  `docs/design.md`, Components): a word 4.5:1, a live glyph or chart mark
+  3:1. `ink-faint` and `ink-subtle` never colour a word or a live arrow (a
+  resting sort chevron, a dropdown's arrow are `ink-meta`), and
+  `--color-positive` never sits under a word or a white glyph: the green
+  button and done discs fill with `positive-ink`. A new grey or green is
+  checked against `--color-app` (#f5f5f5) too, where `ink-faint` is 2.85:1.
 - **A form's buttons sit by its kind** (`docs/design.md`, Components): a
   page or Settings form left, Save first; a dialog or a card edited in place
   right, Save last. A disabled filled button is grey (`ui/button.tsx`,

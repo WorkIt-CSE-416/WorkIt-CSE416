@@ -41,9 +41,8 @@ import { STAGE_REACH, STAGE_PAINT, STAGE_TOTALS } from "./data";
  *   - The centre carries the total, so the denominator every wedge is a share
  *     of is printed rather than inferred.
  *   - The legend carries a count AND a percentage per stage, so no value is
- *     hover-only. That is what the palette's contrast WARN in globals.css
- *     obligates: --color-chart-3 and --chart-5 sit under 3:1 on white and on the band,
- *     and relief means visible labels, not a tooltip.
+ *     hover-only. Every slot clears 3:1 on white and on the band since
+ *     KAN-555, but a stage still never rests on its colour alone.
  *   - Wedges are separated by a 2px gap in the surface colour, so two adjacent
  *     fills read as two shapes rather than one with a colour change in it.
  *   - Five is the cap. Fold a sixth stage into the tail rather than seating a
