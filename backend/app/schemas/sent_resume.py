@@ -1,26 +1,62 @@
 """Request/response shapes for sent resumes (KAN-208)."""
 
 import base64
+import binascii
 import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.services.text_extraction import MAX_SIZE, PDF_MAGIC
+
+
+class SentFile(BaseModel):
+    """The file Apply attached to a form (KAN-544): its name and its bytes in
+    base64. A PDF under 5 MB, as an upload is; anything else is a 422."""
+
+    name: str = Field(min_length=1, max_length=255)
+    data: str = Field(max_length=4 * (MAX_SIZE // 3 + 1))
+
+    @field_validator("name")
+    @classmethod
+    def _named(cls, name: str) -> str:
+        if not name.strip():
+            raise ValueError("The file needs a name")
+        return name.strip()
+
+    @field_validator("data")
+    @classmethod
+    def _a_pdf(cls, data: str) -> str:
+        try:
+            pdf = base64.b64decode(data, validate=True)
+        except (binascii.Error, ValueError):
+            raise ValueError("data is not base64")
+        if len(pdf) > MAX_SIZE:
+            raise ValueError("File must be under 5 MB")
+        if not pdf.startswith(PDF_MAGIC):
+            raise ValueError("Only a PDF is kept as a sent file")
+        return data
+
+    def pdf(self) -> bytes:
+        return base64.b64decode(self.data)
 
 
 class SentResumeCreate(BaseModel):
-    """POST body: exactly one source, a built resume or an uploaded resume,
-    and the job posting it went to (Apply, KAN-220). Only a send keeps a sent
-    resume: a download keeps nothing (KAN-267), so the posting is required.
-    A built resume goes as a PDF; an uploaded resume is its own file."""
+    """POST body: exactly one source, a built resume, an uploaded resume or
+    the file Apply sent (KAN-544), and the job posting it went to (Apply,
+    KAN-220). Only a send keeps a sent resume: a download keeps nothing
+    (KAN-267), so the posting is required. A built resume goes as a PDF; an
+    uploaded resume is its own file; a sent file is kept as it is."""
 
     built_resume_id: UUID | None = None
     uploaded_resume_id: UUID | None = None
+    file: SentFile | None = None
     job_posting_id: UUID
 
     @model_validator(mode="after")
     def _one_source(self) -> "SentResumeCreate":
-        if (self.built_resume_id is None) == (self.uploaded_resume_id is None):
-            raise ValueError("Give exactly one of built_resume_id and uploaded_resume_id")
+        if [self.built_resume_id, self.uploaded_resume_id, self.file].count(None) != 2:
+            raise ValueError("Give exactly one of built_resume_id, uploaded_resume_id and file")
         return self
 
 

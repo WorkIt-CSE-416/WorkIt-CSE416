@@ -713,3 +713,65 @@ async def test_another_students_unlisted_job_takes_no_sent_resume(student, stora
     res = await client.post(f"/applicants/{other}/sent-resumes",
                             json={"uploaded_resume_id": uploaded["id"], "job_posting_id": job})
     assert res.status_code == 404
+
+
+# --- the file Apply sent (KAN-544) ---------------------------------------------
+
+SENT_PDF = b"%PDF-1.7 the resume Apply attached"
+
+
+def _file(name: str = "Lisul_Resume.pdf", data: bytes = SENT_PDF) -> dict:
+    return {"name": name, "data": base64.b64encode(data).decode()}
+
+
+async def test_apply_keeps_the_file_it_sent_as_the_sent_resume(student, storage, database):
+    client, me = student
+    job = await _added(client, "https://lockheedmartin.eightfold.ai/careers/job/7123458")
+
+    res = await client.post(f"{me}/sent-resumes", json={"file": _file(), "job_posting_id": job})
+
+    assert res.status_code == 201
+    sent = res.json()
+    assert (sent["name"], sent["format"], sent["built_resume_id"], sent["uploaded_resume_id"], sent["job_posting_id"]) \
+        == ("Lisul_Resume.pdf", "pdf", None, None, job)
+    [(path, contents)] = storage.files.items()
+    assert contents == SENT_PDF and path.startswith(f"{me.split('/')[2]}/sent/")
+    assert sent["url"] == f"https://storage.test/{path}?download=Lisul_Resume.pdf"
+    marked = await client.post(f"/jobs/{job}/applied", json={"sent_resume_id": sent["id"]})
+    assert marked.json()["sent_resume_id"] == sent["id"]
+    # Sent again (Apply's queue tried twice): the same sent resume, no new file
+    again = await client.post(f"{me}/sent-resumes", json={"file": _file(), "job_posting_id": job})
+    assert (again.status_code, again.json()["id"]) == (200, sent["id"])
+    assert len(storage.files) == 1
+
+
+async def test_one_file_sent_to_two_jobs_is_stored_once_and_stays_while_either_uses_it(student, storage, database):
+    client, me = student
+    first = await _added(client, "https://example.com/careers/1")
+    second = await _added(client, "https://example.com/careers/2")
+    one = (await client.post(f"{me}/sent-resumes", json={"file": _file(), "job_posting_id": first})).json()
+    two = (await client.post(f"{me}/sent-resumes", json={"file": _file(), "job_posting_id": second})).json()
+    assert one["id"] != two["id"] and len(storage.files) == 1
+
+    assert (await client.delete(f"{me}/sent-resumes/{one['id']}")).status_code == 204
+    assert len(storage.files) == 1
+    assert (await client.delete(f"{me}/sent-resumes/{two['id']}")).status_code == 204
+    assert storage.files == {}
+
+
+async def test_a_sent_file_must_be_a_pdf_under_5_mb(student, storage, database):
+    client, me = student
+    job = await _added(client, "https://example.com/careers/3")
+    for bad in (_file(data=b"PK\x03\x04 a word file"), _file(data=b"%PDF" + b"x" * (5 * 1024 * 1024)),
+                {"name": "r.pdf", "data": "not base64!"}, _file(name="")):
+        res = await client.post(f"{me}/sent-resumes", json={"file": bad, "job_posting_id": job})
+        assert res.status_code == 422, bad["name"]
+    both = {"file": _file(), "uploaded_resume_id": str(uuid.uuid4()), "job_posting_id": job}
+    assert (await client.post(f"{me}/sent-resumes", json=both)).status_code == 422
+    assert storage.files == {} and (await client.get(f"{me}/sent-resumes")).json() == []
+
+
+async def test_a_sent_file_for_a_job_the_student_cannot_reach_is_404_and_stores_nothing(student, storage, database):
+    client, me = student
+    res = await client.post(f"{me}/sent-resumes", json={"file": _file(), "job_posting_id": str(uuid.uuid4())})
+    assert res.status_code == 404 and storage.files == {}
