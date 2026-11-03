@@ -64,7 +64,7 @@ ENGINE = ENGINE_DIR / "dist" / "engine.js"
 # Calls the engine in the page through its dispatcher: {value}, or {error: {name, message}}.
 CALL = "({name, args}) => FillEngine.call(name, args)"
 # The engine's how-heard question (its rules.ts HOW_HEARD), whose Workday plan is a try-list.
-HOW_HEARD = re.compile(r"how did you (first )?(hear|learn|connect|find)|where did you (hear|learn|find out)"
+HOW_HEARD = re.compile(r"how did you (first )?(hear|learn|connect|find)|where did you (first )?(hear|learn|find out)"
                        r"|how did you find out|how did you come across|how you (heard|learned|found)")
 NAVIGATED = re.compile(r"context was destroyed|navigat|FillEngine is not defined", re.IGNORECASE)
 CALLS = 5  # times a call is made, each cut short by a navigation, before its error stands
