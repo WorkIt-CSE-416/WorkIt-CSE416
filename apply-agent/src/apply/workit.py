@@ -195,9 +195,11 @@ class WorkIt:
         return self.call("GET", f"/applicants/{applicant_id}/applications")
 
     def add_by_link(self, url: str, company: str, title: str) -> tuple[str, str]:
-        """Put the job at `url` on the student's Applications Tracker (an unlisted job posting when WorkIt does not
-        list it): its job id and the student's stage on it, saved when it is new there."""
-        answer = self.call("POST", "/jobs/added-by-link", {"url": url, "company": company, "title": title})
+        """Put the job at `url` on the student's Applications Tracker (an added job when WorkIt does not list it):
+        its job id and the student's stage on it, saved when it is new there. `track_only` is Apply's form of
+        the extension's Write with Claude add: any link, a closed job kept as it is, and no stage moved."""
+        answer = self.call("POST", "/jobs/added-by-link",
+                           {"url": url, "company": company, "title": title, "track_only": True})
         return str(answer["job_id"]), answer["stage"]
 
     def send_resume(self, applicant_id: str, job_id: str, path: Path) -> str:
