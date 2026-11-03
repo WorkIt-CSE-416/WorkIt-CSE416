@@ -357,6 +357,7 @@ export function Editor({
   initialChoices,
   initialHeader,
   phoneBar,
+  phoneBack,
   suggestions,
   suggestionPopup,
   heading,
@@ -386,6 +387,8 @@ export function Editor({
   /** A row the phone layout's header shows under its buttons: the page's
    *  own controls, which the full-screen phone editor would cover. */
   phoneBar?: ReactNode;
+  /** The phone arrow's target, when not the page that opened the editor. */
+  phoneBack?: ComponentProps<typeof PhoneEditor>["back"];
 }) {
   // Null until the first render lands (FirstRenderPane hands it over).
   const [rendered, setRendered] = useState<RenderedPdf | null>(null);
@@ -1941,6 +1944,7 @@ export function Editor({
           error={error}
           download={download}
           bar={phoneBar}
+          back={phoneBack}
           page={page}
           onPage={applyPage}
           suggestions={

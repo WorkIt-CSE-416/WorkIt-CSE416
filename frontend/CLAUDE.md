@@ -1503,7 +1503,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   resume opened from Experiences to Resumes. Not the job page
   (`BackToJobs` skips the rail's job-to-job clicks to the list), a 404's
   or placeholder's way out (no page to go back to), or a step form's
-  Back (the step before).
+  Back (the step before): Tailor's review passes its step before to the
+  phone arrow (`phoneBack`, `useTailorBack`; KAN-574).
 - **A job posting's page has a rail of jobs beside it** (KAN-297), drawn by
   `(seeker)/jobs/layout.tsx` so it survives job-to-job navigation. It reads
   the list `FeedList` last showed (`jobs/shown-list.ts`); a new list screen
@@ -1944,7 +1945,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   renamed in place) and the slim toolbar (`SlimBar`). Only the review
   passes `suggestions` (the panel, and with it the margin dots and tints,
   the view switch in the title row, no Experiences picker, and Scout's
-  panel left to the job chat), `original` and `phoneBar`. A change for the review goes behind
+  panel left to the job chat), `original`, `phoneBar` and `phoneBack`
+  (the phone layer covers the step's row, so its header carries the job,
+  the step and Finish, KAN-574). A change for the review goes behind
   one of these props, and a change to the bar or the title row changes
   both pages, so the two never drift into two editors again: until
   KAN-411 the editor's own page kept a full toolbar of its own, and a

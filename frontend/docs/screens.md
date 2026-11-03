@@ -2484,8 +2484,8 @@ with no proposals to accept and no Done (2026-10-25).
 - **The review is one resume with a Suggestions panel**
   (`tailor-suggestions.tsx`, `../../docs/tailor_resume.md`,
   "Suggestions"), kept quiet after Quinncia's resume review: the
-  resume's name over the page (`ResumeTitle`: plain text that shows a
-  faint outline and a pencil when pointed at, and a click makes it a field
+  resume's name over the page (`ResumeTitle`: plain text with a grey
+  pencil, a faint outline when pointed at, and a click makes it a field
   in the same box; Enter or a click away saves, Esc cancels), the
   editor's slim toolbar over the page with the panel level beside it, and
   "Suggestions" with its count in a
@@ -2814,8 +2814,9 @@ student who opened a resume from Experiences landed on another view.
   The phone editor keeps its own sheet: Enter there only saves.
 - **The title row** (`ResumeTitle`, `[resumeId]/resume-title.tsx`) holds
   the resume's name, renamed in place as on Tailor's review: plain text
-  that shows a faint outline and a pencil when pointed at, and a click
-  makes it a field in the same box; Enter or a click away saves
+  with its pencil in `ink-meta` at rest (KAN-574: shown on hover alone, touch
+  never saw it, and the name read as a plain heading), a faint outline when
+  pointed at, and a click makes it a field in the same box; Enter or a click away saves
   (`renameBuiltResume`), Esc cancels. It is the page's h1 here and an h2
   on the review, under its step's sr-only h1. It spans the page and the
   column beside it, so the review's panel starts level with the bar.
@@ -2879,8 +2880,12 @@ student who opened a resume from Experiences landed on another view.
   run's record is in sessionStorage (`tailorEditsKey`, under
   `lib/local-drafts.ts`'s prefix, so Sign Out clears it): a reload in the
   same tab keeps it, and a new tab or device opens with none. `phoneBar`
-  is a row the phone layout's header shows, for the page's own line,
-  since that layout covers the page.
+  is a row the phone layout's header shows, since that layout covers the
+  page: on the review always the job line, "Review Changes · Step 3 of 3"
+  and Finish, the step's one primary action, then the no-record line when
+  it shows (KAN-574). `phoneBack` sends the phone's arrow to the review's
+  Back target (`useTailorBack`, Choose Keywords, or Pick a Resume with no
+  record), not to Resumes.
 - **The phone layout keeps its own bars** (`phone.tsx`): its top and
   bottom bars take the brand tint and its Ask Scout buttons the brand's
   fill, and its sheets are white.
@@ -2907,7 +2912,11 @@ student who opened a resume from Experiences landed on another view.
   section's order is a page setting (`section_order`), which Word follows too;
   an entry's or bullet's is a choice. It replaced the bar's up and down buttons,
   which moved one line one step and could not move a section. A phone keeps
-  those buttons, since a drag there fights the scroll.
+  those buttons, since a drag there fights the scroll. The bar's Sections
+  and Format Options (`PanelButton`) keep their words down to `@3xl/main`;
+  below it they are glyphs with a tooltip, shown only while the word is
+  hidden, and a 44px hit area (KAN-574). They lost the words below `@5xl`
+  until then, named only by a `title`, which touch cannot read.
 - **The toolbar holds what acts on the line clicked; Format Options holds what
   acts on the whole resume** (`page-format.tsx`, KAN-435). With a line open the
   bar shows Undo, Redo, zoom, **that line's kind of text with its size** (Your
@@ -3039,10 +3048,14 @@ student who opened a resume from Experiences landed on another view.
   Page for a screen reader). The toast spells it out. The selected line
   scrolls to the middle of the page area. The Experiences picker opens
   from a bottom button in its own sheet (with a scrim). The layout is a fixed layer over
-  the seeker shell, **sized to `window.visualViewport`** (height, moved down
+  the seeker shell, bar included, **rendered in a portal to `<body>`**
+  (KAN-574): inside the shell's `@container/main` it was fixed to the page
+  area, so it sat 64px low and its bottom bar ended past the screen. It is
+  **sized to `window.visualViewport`** (height, moved down
   by its offset): the iOS keyboard covers the layout viewport instead of
   shrinking it, so a layout sized to the window would put the sheet behind
-  the keyboard. A back arrow goes to the Resumes view. The first paint
+  the keyboard. The back arrow goes where the desktop's Back goes; on
+  Tailor's review, to the step before (`phoneBack`). The first paint
   is the desktop layout (the server cannot know the width), then a phone
   switches. Manual checks on a real iPhone: the sheet stays above the
   keyboard, and the field does not zoom; and the render time on cellular

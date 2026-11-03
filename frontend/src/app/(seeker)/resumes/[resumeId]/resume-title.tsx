@@ -147,7 +147,9 @@ export function ResumeTitle({
             )}
           >
             <span className="truncate">{shown}</span>
-            <PencilIcon className="text-ink-meta size-4 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100" />
+            {/* Shown at rest, never on hover alone: touch has no hover,
+                and the name read as a plain heading (KAN-574) */}
+            <PencilIcon className="text-ink-meta group-hover:text-ink size-4 shrink-0 transition-colors duration-150" />
           </button>
         </Heading>
       ) : (
