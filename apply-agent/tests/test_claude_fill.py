@@ -23,9 +23,10 @@ from test_run_answers import profile_with
 
 from apply import claude_fill
 from apply.adapters import Adapters, UsageLimitHit
-from apply.claude_fill import FILL
+from apply.claude_fill import FILL, ClaudeFill
 from apply.cli import main
 from apply.feed import SimplifyFeed
+from apply.model import Handoff
 from apply.notify import RecordingNotifier
 from apply.records import InMemoryRecords
 from apply.tracker import InMemoryTracker, Row
@@ -376,6 +377,40 @@ def test_a_captcha_lisul_does_not_do_in_time_is_the_usual_handoff(tmp_path):
     assert "must not solve" in row.reason
     assert row.bot_signals == "headless: captcha"
     assert [title for title, _ in phone.sent].count("Apply: do the captcha") == 1
+    assert server.submissions == []
+
+
+class PostingPageDriver(BambooDriver):
+    """Plays the page, not Haiku, posting a form of its own while Haiku reads
+    the first time (LinkedIn's SmartRecruiters form, live 2026-11-03): the
+    drive guard blocks it, and the read is a Handoff."""
+
+    def __init__(self):
+        super().__init__()
+        self.reads = 0
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        if "questions" in schema["properties"]:
+            self.reads += 1
+            if self.reads == 1:
+                page.evaluate("""() => { const f = document.createElement('form'); f.method = 'post';
+                                 f.action = '/session'; document.body.appendChild(f); f.submit(); }""")
+            else:  # the form is open already
+                return {"blocked": False, "why": "", "questions": LUNAR_QUESTIONS}
+        return super().__call__(page, schema, prompt, files)
+
+
+def test_a_block_lisul_resumed_after_does_not_stop_the_next_read(tmp_path):
+    # LinkedIn (2026-11-03): Resume read the form again, and the block of the read before stopped it again.
+    driver = PostingPageDriver()
+    filler = ClaudeFill(FakeClaude(driver=driver))
+
+    with FakeBambooServer(LUNAR_FORM) as server, claude_fill.OnePage(server) as site:
+        with pytest.raises(Handoff, match="blocked a form submission"):
+            filler.question_set(LUNAR_URL, site)
+        questions = filler.question_set(LUNAR_URL, site)  # his Resume: the same page, read again
+
+    assert [q.label for q in questions][:3] == ["First Name", "Last Name", "Email"]
     assert server.submissions == []
 
 

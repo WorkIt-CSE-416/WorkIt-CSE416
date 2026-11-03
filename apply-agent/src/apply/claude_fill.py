@@ -446,6 +446,7 @@ class ClaudeFill:
         if self._guard is None:
             self._guard = DriveGuard(page, **self._opt_ins)
         self._guard.arm()
+        before = len(self._guard.blocked())  # a block of an earlier drive was its Handoff already (Lisul resumed after)
         drive = self._claude.drive(
             page=page, model=MODEL, system=system, prompt=prompt, schema=schema, files=files,
             max_turns=self._max_turns - self._turns, max_tokens=self._max_tokens - self._tokens,
@@ -453,7 +454,7 @@ class ClaudeFill:
         self._sessions += 1
         self._turns += drive.turns
         self._tokens += drive.tokens
-        blocked = self._guard.blocked()
+        blocked = self._guard.blocked()[before:]
         if blocked and drive.output and _only_its_submit(blocked, drive.output):
             # Claude clicked the button it then named as the one that sends: the guard stopped it, so
             # the form is filled and unsent, as a Filler leaves it (Roblox's, live: a Handoff after 1.2M tokens).

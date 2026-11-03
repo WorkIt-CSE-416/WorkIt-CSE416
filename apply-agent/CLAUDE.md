@@ -443,6 +443,10 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   that button, with word to stop. A click the drive guard still blocked on
   the button Claude then names as the submit leaves the form filled
   (`claude_fill._only_its_submit`); any other block is a Handoff.
+- Only what the drive guard blocked during that drive stops it. A block of
+  an earlier drive was its Handoff already: after Lisul's Resume, the next
+  read or fill goes on (LinkedIn's SmartRecruiters page posts a form of its
+  own while Claude reads it).
 - A careers page that embeds a Greenhouse form goes to the Greenhouse Filler
   (`greenhouse.board_behind`): by `?gh_jid=`, or by a job id in its path
   that the job API says is shown on that same host (Roblox). Failing that,
