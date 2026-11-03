@@ -235,7 +235,12 @@ class Repairer:
 
     def repair_waiting(self) -> list[RepairRequest]:
         """Repair each waiting request, up to the day's cap. Returns those
-        repaired (or judged), in order. None if another Repair is going."""
+        repaired (or judged), in order. None if another Repair is going.
+        Never on main: its pushes would move fill-engine's main and WorkIt's
+        main to code Claude wrote, and only WorkIt's main is protected."""
+        if self._branch == "main":
+            print("Repairs never run on main: run Apply from a branch of its own, or set repair.branch.")
+            return []
         self._worktrees.mkdir(parents=True, exist_ok=True)
         with open(self._worktrees / ".lock", "a") as lock:
             try:

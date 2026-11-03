@@ -197,7 +197,7 @@ def _shows(page: Page, name: str, wait: float = SHOWN_WITHIN) -> bool:
 
 def pass_jobvite_gate(page: Page) -> None:
     """Jobvite's country of residence and privacy consent, when the page asks
-    for them: a U.S. resident outside California, as Lisul is."""
+    for them: a U.S. resident outside California, as the applicant is."""
     country = page.locator("#jv-country-select")
     if not country.count() or not country.is_visible():
         return

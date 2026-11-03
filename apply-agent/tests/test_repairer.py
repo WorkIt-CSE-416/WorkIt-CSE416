@@ -154,7 +154,8 @@ def request(signature: str = "keyerror-planner-fit-abc123", kind: str = "failure
 
 class World:
     def __init__(self, repo: Path, tmp_path: Path, claude: FakeClaude, suite_passes: bool = True, cap: int = 3,
-                 usage: UsageReading = UsageReading(), engine_passes: bool = True, engine_builds: str | None = None):
+                 usage: UsageReading = UsageReading(), engine_passes: bool = True, engine_builds: str | None = None,
+                 branch: str = "apply-livefill"):
         """`engine_builds`: what the engine's tests build dist/engine.js into (as `npm test` does), if not what is committed."""
         self.repo = repo
         self.requests = RepairRequests(tmp_path / "repairs")
@@ -180,7 +181,7 @@ class World:
 
         self.repairer = Repairer(
             repo=repo, requests=self.requests, claude=claude, usage=ScriptedUsage(lambda: usage),
-            notifier=self.notifier, tracker=lambda: self.tracker, branch="apply-livefill",
+            notifier=self.notifier, tracker=lambda: self.tracker, branch=branch,
             worktrees=tmp_path / "worktrees", policy={"max_per_day": cap, "max_turns": 80, "max_tokens": 6_000_000},
             suite=suite, engine_suite=engine_suite, engine_setup=lambda folder: None, today=lambda: TODAY,
         )
@@ -613,6 +614,16 @@ def test_with_repairs_off_no_repair_process_starts_even_outside_a_git_checkout(t
     monkeypatch.setattr(cli, "load_policies", lambda: {"repair": policy})
     monkeypatch.setattr(cli, "live_repairer", lambda *a, **k: pytest.fail("a Repairer was made"))
     cli.main(["repair"])
+
+
+def test_a_repair_never_runs_on_main(repo, tmp_path):
+    # Its pushes would move fill-engine's main and WorkIt's main to code Claude wrote.
+    claude = FakeClaude(FIX)
+    world = World(repo, tmp_path, claude, branch="main")
+
+    assert world.repair() == []
+    assert claude.sessions == []
+    assert world.requests.waiting()  # it waits for a run from a branch of its own
 
 
 def test_a_repair_that_could_not_finish_waits_for_lisul_whatever_it_committed(repo, tmp_path):

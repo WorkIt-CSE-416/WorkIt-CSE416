@@ -166,7 +166,9 @@ A Repair is Claude's fix to Apply's own code for a fill bug (`GLOSSARY.md`,
 merges into the branch Apply runs from (or `repair.branch`) and pushes to
 this checkout's `origin`, the WorkIt repo. It also moves the engine pointer
 `autofiller_extension/fill-engine` on that branch, which is the extension's
-pointer too. Keep Repairs off on `main`.
+pointer too. A Repair never runs on `main` (`repair_waiting` refuses it):
+its pushes would move fill-engine's `main` and WorkIt's `main` to code
+Claude wrote, and only WorkIt's `main` is protected.
 
 ## The privacy gate
 
