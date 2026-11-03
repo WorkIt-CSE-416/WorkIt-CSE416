@@ -204,6 +204,10 @@ _Avoid_: form fields, questionnaire
 The check every filled Application must pass before it is submitted: each answer on the page is read back and compared with what was meant, then Claude reviews the question-and-answer pairs for answers that are valid but wrong.
 _Avoid_: validation, QA, review
 
+**Verifying**:
+The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads the filled form back from the page and checks it against the Applicant profile, the Posting and its own plan, then the Application is Verified, or Verified with flags. A flag names a field and why it needs Lisul (a blank field, a value the page shows otherwise, a wrong file, a date or pay that doesn't fit, a wrong name or pronoun or another company's name in an essay, answers that contradict each other); a flag holds a run's Application in Needs you, where Lisul fixes or dismisses it. A note (an answer Claude guessed, a blank optional field) holds nothing. Verifying only reads: it never presses Submit.
+_Avoid_: validation, QA, double-check
+
 **Employer account**:
 A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google.
 _Avoid_: ATS account, candidate account
