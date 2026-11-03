@@ -124,7 +124,7 @@ def _claude(machine: Machine) -> Check:
     if not status.get("loggedIn"):
         return Check("claude", FAIL, "the claude CLI isn't logged in", "run `claude auth login` with your own Claude plan")
     plan = status.get("subscriptionType") or status.get("authMethod")
-    login = f"logged in as {status.get('email', '?')} ({plan})"
+    login = f"logged in as {status['email']} ({plan})" if status.get("email") else f"logged in ({plan})"
     if machine.usage is None:
         return Check("claude", OK, login)
     usage = machine.usage.reading()

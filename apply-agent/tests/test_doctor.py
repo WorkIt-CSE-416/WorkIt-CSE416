@@ -164,6 +164,12 @@ def test_claude_logged_in_says_whose_login(tmp_path):
     assert "test.person@example.com" in found.detail and "max" in found.detail
 
 
+def test_a_claude_login_with_no_email_says_none(tmp_path):
+    found = check(machine(tmp_path, claude=claude_status(email=None)), "claude")
+    assert found.level == doctor.OK
+    assert found.detail.startswith("logged in (max)") and "None" not in found.detail
+
+
 def test_claude_logged_out_fails_with_how_to_log_in(tmp_path):
     found = check(machine(tmp_path, claude=claude_status(loggedIn=False)), "claude")
     assert found.level == doctor.FAIL
