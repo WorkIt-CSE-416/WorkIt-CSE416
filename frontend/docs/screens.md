@@ -1406,7 +1406,20 @@ page with one action.
   refreshes the route, since the stage may have moved and only the server
   reads it.
   Columns: Role (with its select box), Status, Resume, Match, Date Added
-  and ⋯. No sorting, since the order is the run's. **Only a
+  and ⋯. No sorting, since the order is the run's. The table is 960px
+  and scrolls sideways rather than squeezing the role. **The ⋯ column
+  stays at the right edge at every width** (KAN-567), with an edge shadow
+  while columns are hidden past it, so Remove, which only the menu has,
+  is always in reach and the shadow says the table scrolls. Below 768px
+  of page (`@3xl/main`) Match and Date Added fold into the Role cell's
+  second line, after the company, Role takes their width (456px) and
+  stops being frozen, since frozen at that width it covered most of the
+  card. On a phone (below `@xl/main`, 576px) the table is 752px, so Role
+  stays 248px and ends before ⋯. The title wraps rather than cutting
+  off: cut, it read whole only in a tooltip, which touch and keyboard
+  never get. Until then at 1024px Date Added and ⋯ were cut off with no
+  cue, at 768px Match too, and at 375px only Role and half of Status
+  showed. **Only a
   row that opens something takes a hover tint**, the whole row, and a row
   whose ⋯ menu is open tints whole (`data-popup-open`): its frozen Role
   cell, which follows the row's hover group, once tinted alone.
