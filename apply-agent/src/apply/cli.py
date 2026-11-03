@@ -353,7 +353,8 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
     answers = AnswersTab(adapters.answer_bank, profile, held=adapters.tracker.rows)
     with dashboard.CdpFrames(tiles, site.endpoint) as frames, \
             dashboard.Dashboard(tiles, frames, answers, _applied(adapters), past=adapters.tracker.rows,
-                                answer=_answering(lambda: adapters.tracker, answers), notify=adapters.notifier.notify,
+                                answer=_answering(lambda: adapters.tracker, answers),
+                                approve=_approving(lambda: adapters.tracker), notify=adapters.notifier.notify,
                                 show=getattr(site, "show", None), sample=profile.get("sample_data") is True,
                                 **_window_context()) as board:
         adapters.board = board
@@ -380,7 +381,7 @@ def _answers_window(profile: Path, window: Path) -> None:
     tab = AnswersTab(AnswerBank(profile.parent / ANSWER_BANK), profile, held=lambda: tracker().rows())
 
     with dashboard.Dashboard(0, dashboard.NoFrames(), tab, _applied_live, past=lambda: tracker().rows(),
-                             answer=_answering(tracker, tab), **_window_context()) as board:
+                             answer=_answering(tracker, tab), approve=_approving(tracker), **_window_context()) as board:
         dashboard.open_window(board.url, window)
         print(f"Answers: {board.url} (no run is going; close the window or press Ctrl-C to stop)")
         try:
@@ -406,6 +407,14 @@ def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict
         tab.save_answered(question, text)
         return "Saved to your facts: every form that asks it gets this answer."
     return answer
+
+
+def _approving(tracker: Callable[[], object]) -> Callable[[str], str]:
+    """Approve a Hold from the Apply window, in Apply's Tracker (KAN-544): the next check sends it."""
+    def approve(application_id: str) -> str:
+        tracker().approve(application_id)
+        return "Approved: it is sent at the next check, within 5 minutes."
+    return approve
 
 
 def _window_context() -> dict:

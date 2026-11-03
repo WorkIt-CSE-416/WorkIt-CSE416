@@ -563,8 +563,17 @@ window.openChrome = async (k) => {
 const action = (item) => {
   const k = liveTile(item), ctx = last.context || {};
   if (item.kind === 'missing fact' && ctx.answers) return null;
-  if (item.kind === 'held' && ctx.tracker_url) return make('a', {className: 'button primary', href: ctx.tracker_url, target: '_blank',
-                                                                  textContent: 'Approve in your Tracker ↗'});  // approving resolves it
+  if (item.kind === 'held' && ctx.approve && item.application_id) return make('button', {className: 'primary', textContent: 'Approve',
+    title: 'It is sent at the next check', onclick: async (e) => {  // approving resolves it
+      e.target.disabled = true;
+      try {
+        const reply = await fetch('/approve', {method: 'POST', body: JSON.stringify({id: item.id}),
+                                               headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+        const data = await reply.json();
+        if (!reply.ok) throw new Error(data.error || 'Not approved.');
+        toast(data.message); refresh();
+      } catch (err) { toast(err.message || 'Apply is not answering: is it still running?'); e.target.disabled = false; }
+    }});
   if (k >= 0) {
     const here = (main) => make('button', {className: main ? 'primary' : '', textContent: 'Fix here', title: 'Type into it in this window',
                                            onclick: () => { tab('workers'); control(k); }});
@@ -798,7 +807,7 @@ const drawHistory = (state) => {
   historyDrawn = shown;
   const all = state.items.filter(i => !i.live), ctx = state.context || {};  // a form still filling hasn't ended
   document.getElementById('history-tracker').replaceChildren(ctx.tracker_url
-    ? make('a', {href: ctx.tracker_url, target: '_blank', textContent: 'Every application is in your Tracker ↗'}) : '');
+    ? make('a', {href: ctx.tracker_url, target: '_blank', textContent: 'Every application is in your Applications Tracker on WorkIt ↗'}) : '');
   document.getElementById('history-list').replaceChildren(...(all.length ? all.map(item => {
     const files = item.from === 'tracker' ? [] : (item.files || []);
     const row = make('div', {className: 'done ' + item.tone, tabIndex: 0},
