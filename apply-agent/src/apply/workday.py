@@ -299,6 +299,11 @@ class WorkdayFiller:
         return result
 
     @property
+    def shown_so_far(self) -> Readback:
+        """What each field filled so far showed when read back: a Record's, should a step stop the fill."""
+        return dict(self._readback)
+
+    @property
     def rescued(self) -> list[str]:
         """Each field Claude filled for the Filler, for its Repair request."""
         return list(self._rescue.notes) if self._rescue else []

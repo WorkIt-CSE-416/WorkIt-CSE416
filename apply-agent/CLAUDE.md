@@ -147,6 +147,14 @@ change the other.
   and the window close. Ctrl-C does not reach Apply when it runs in the
   background, so use SIGTERM there.
 
+## Rehearsal records
+
+Every rehearsal outcome writes its Record (`rehearsals/<date>/`), a Handoff or
+a failure too, not only a filled form. A step Workday won't leave keeps what
+was planned and what each field showed up to there
+(`WorkdayFiller.shown_so_far`); an outcome before any form opened keeps a
+screenshot of the page it stopped on.
+
 ## The data folder (`APPLY_HOME`)
 
 **Personal data is never in the repo.** WorkIt is a public repo. All of a

@@ -229,8 +229,12 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         if not (rehearse and planned.skip(error)):
                             raise
                     except Handoff as handoff:  # a rehearsal says which blanks may have stopped it
+                        # What it planned and what the page showed so far, for its Record: a step Workday won't
+                        # leave is read from it.
+                        shown = dict(getattr(filler, "shown_so_far", {}))
                         return _handed_off(handoff, missing=planned.missing, choices=planned.choices,
-                                           required=planned.required)
+                                           required=planned.required,
+                                           filled=Filled(planned.questions, planned.answers, shown, _screenshot(page)))
                 questions, answers, holds = planned.questions, planned.answers, list(planned.holds)
                 holds = [f"Not filled: {e}" for e in planned.unfilled] + holds
                 filled = Filled(questions, answers, readback, _screenshot(page))

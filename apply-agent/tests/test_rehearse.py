@@ -324,9 +324,10 @@ def test_a_workday_rehearsal_stops_where_google_wants_more_than_an_account_pick(
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
 
     with FakeWorkdayServer(XCEL_FORM, google="password") as server:
-        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path))
+        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path), records=FolderRecords(tmp_path / "rehearsals"))
 
     assert done.outcome == "handoff" and "Google asked for more than an account pick" in done.why
+    assert "Rehearsal, not submitted: handoff: Google asked" in (Path(done.record) / "README.md").read_text()  # its Record too
     assert server.submissions == []
 
 
@@ -598,17 +599,21 @@ def test_a_failure_keeps_its_traceback_in_the_log(monkeypatch, tmp_path, capsys)
     assert "Traceback" in log and "blow_up" in log
 
 
-def test_a_workday_step_left_with_a_missing_fact_lists_it_where_the_rehearsal_stopped(monkeypatch):
+def test_a_workday_step_left_with_a_missing_fact_lists_it_where_the_rehearsal_stopped(monkeypatch, tmp_path):
     # Snap's degree list has B.A. and B.S., not the profile's Bachelor's Degree: no guess between them.
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
 
     world = experience_profile()
     with FakeWorkdayServer(XCEL_FORM, steps=EXPERIENCE_STEPS) as server:
-        [done] = rehearse([XCEL_URL], server, world.profile)
+        [done] = rehearse([XCEL_URL], server, world.profile, records=FolderRecords(tmp_path / "rehearsals"))
 
     assert done.outcome == "handoff" and "won't leave its 'My Experience' step" in done.why and "Degree" in done.why
     assert done.missing == ("Education 1 / Degree",)
     assert "Missing facts: Education 1 / Degree" in done.line()
+    # Its Record keeps what was planned and shown up to the step it stopped on (ASML's had none, live).
+    assert 0 < done.filled < done.asked
+    rows = json.loads((Path(done.record) / "answers.json").read_text())
+    assert any(r["question"] == "Education 1 / Degree" and r["on_page"] in (None, "") for r in rows)
     assert server.submissions == []
 
 

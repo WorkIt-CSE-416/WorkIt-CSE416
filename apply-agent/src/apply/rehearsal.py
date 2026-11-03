@@ -40,7 +40,7 @@ from apply.adapters import Adapters, JobSite, SetupError, Tracker
 from apply.model import Posting, Status, one_line
 from apply.orchestrator import CALIBRATION, WORKERS, by_filler, keep_repair_requests
 from apply.profile import ApplicantProfile
-from apply.records import Record
+from apply.records import Filled, Record
 from apply.request import resolve
 from apply.rescue import Rescue
 from apply.submit_guard import guard, lift, renote
@@ -295,13 +295,14 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     keep_repair_requests(adapters, posting, result)
     rehearsed = _summary(posting, result, site, claude.spent() - spent, time.monotonic() - started)
     rehearsed.files = list(files)
-    if result.filled:
-        try:
-            saved = Record(posting, result.status, _record_reason(rehearsed), result.filled, adapters.clock.now().date(),
-                           result.essay, result.drafted, result.named_facts)
-            rehearsed.record, rehearsed.saved = adapters.records.save(saved), saved
-        except Exception as error:
-            rehearsed.why = "; ".join(filter(None, [rehearsed.why, f"Record not saved: {error}"]))
+    # Every outcome has its Record, one that stopped before any form was filled too: what the page showed.
+    filled = result.filled or Filled((), {}, {}, site.screenshot())
+    try:
+        saved = Record(posting, result.status, _record_reason(rehearsed), filled, adapters.clock.now().date(),
+                       result.essay, result.drafted, result.named_facts)
+        rehearsed.record, rehearsed.saved = adapters.records.save(saved), saved
+    except Exception as error:
+        rehearsed.why = "; ".join(filter(None, [rehearsed.why, f"Record not saved: {error}"]))
     board.update(n, status=rehearsed.outcome, line=rehearsed.line(), why=one_line(rehearsed.why),
                  filled=rehearsed.filled, asked=rehearsed.asked, missing=list(rehearsed.missing),
                  drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices, required=result.required)
@@ -552,6 +553,13 @@ class _Kept:
             return self._page.title().strip() if self._page else ""
         except Exception:
             return ""
+
+    def screenshot(self) -> bytes:
+        """What the page shows now, for a Record; none once it is gone."""
+        try:
+            return self._page.screenshot(timeout=15_000) if self._page and not self._page.is_closed() else b""
+        except Exception:
+            return b""
 
     def close(self) -> None:
         stack, self._stack, self._page, self._lifted = self._stack, None, None, False
