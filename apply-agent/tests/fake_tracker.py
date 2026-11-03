@@ -182,9 +182,9 @@ class FakeTracker:
         if application is None:
             return Reply(404, {"detail": "You have no application for that job."})
         stage = seen.body["stage"]
-        if stage not in ("queued", "needs_you", *APPLIED):
+        if stage not in ("needs_you", *APPLIED):
             return Reply(422, {"detail": "stage"})
-        if stage in ("queued", "needs_you"):  # Apply's (KAN-544): never on an application already applied
+        if stage == "needs_you":  # Apply's (KAN-544): never on an application already applied
             if application.stage in APPLIED:
                 return Reply(409, {"detail": "You already applied to that job."})
             application.stage = stage

@@ -12,10 +12,11 @@ PUT    /applicants/{id}/applications/{job_id}/stage  {"stage": "interviewing"}
        day instead, also over a date set already (the Tracker Sheet
        import, KAN-545); it is kept as 12:00 UTC, the same day in every
        time zone from UTC-11 to UTC+11. 404 with no application. Apply
-       (KAN-544) also sets needs_you (a Handoff or a missing fact) or
-       queued (a held application) on an application that is not
-       applied: its applied date stays empty. 409 when it is applied or
-       later; the stage stays. saved and skipped are 422.
+       (KAN-544) also sets needs_you (a Handoff, a missing fact or a
+       held application) on an application that is not applied: its
+       applied date stays empty. 409 when it is applied or later; the
+       stage stays. saved, skipped and queued are 422 (queued is the
+       batch apply queue: the extension would fill the application).
 PUT    /applicants/{id}/applications/{job_id}/apply-by  {"apply_by": "2026-11-10"}
        A saved job's Apply by (KAN-429), the student's own day to apply by,
        or null to clear it: 204. 404 with no application.

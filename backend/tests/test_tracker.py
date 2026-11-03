@@ -177,28 +177,37 @@ async def test_the_stage_menu_never_offers_a_bookmark_or_skip(student, database)
         assert res.status_code == 422
 
 
-async def test_apply_puts_an_application_it_has_not_sent_at_needs_you_or_queued(student, database):
-    # Apply (KAN-544): a Handoff or a missing fact is Needs you, a held one Queued
+async def test_apply_puts_an_application_it_has_not_sent_at_needs_you(student, database):
+    # Apply (KAN-544): a Handoff, a missing fact or a held application is Needs you
     client, me = student
     job = await _seed_posting(database)
     await client.post(f"/jobs/{job}/saved")
 
-    for pick in ("needs_you", "queued", "needs_you"):
-        res = await client.put(f"/applicants/{me}/applications/{job}/stage", json={"stage": pick})
-        assert res.status_code == 200
-        assert res.json() == {"job_id": job, "stage": pick}
-        assert tuple(await _row(database, me, job)) == (pick, None)
+    res = await client.put(f"/applicants/{me}/applications/{job}/stage", json={"stage": "needs_you"})
+    assert res.status_code == 200
+    assert res.json() == {"job_id": job, "stage": "needs_you"}
+    assert tuple(await _row(database, me, job)) == ("needs_you", None)
 
 
-async def test_needs_you_or_queued_never_takes_an_applied_application_back(student, database):
+async def test_the_stage_menu_never_queues_an_application(student, database):
+    # queued is the batch apply queue: the extension would fill the application
+    client, me = student
+    job = await _seed_posting(database)
+    await client.post(f"/jobs/{job}/saved")
+
+    res = await client.put(f"/applicants/{me}/applications/{job}/stage", json={"stage": "queued"})
+    assert res.status_code == 422
+    assert tuple(await _row(database, me, job)) == ("saved", None)
+
+
+async def test_needs_you_never_takes_an_applied_application_back(student, database):
     client, me = student
     job = await _applied(client, database)
     await client.put(f"/applicants/{me}/applications/{job}/stage", json={"stage": "interviewing"})
 
-    for pick in ("needs_you", "queued"):
-        res = await client.put(f"/applicants/{me}/applications/{job}/stage", json={"stage": pick})
-        assert res.status_code == 409
-        assert res.json()["detail"] == "You already applied to that job."
+    res = await client.put(f"/applicants/{me}/applications/{job}/stage", json={"stage": "needs_you"})
+    assert res.status_code == 409
+    assert res.json()["detail"] == "You already applied to that job."
     stage_now, applied_at = await _row(database, me, job)
     assert stage_now == "interviewing" and applied_at is not None
 

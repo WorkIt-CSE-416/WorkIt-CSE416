@@ -565,9 +565,10 @@ Find files with a directory listing; these are the rules for where code goes.
   .../sent-resumes/file`: a base64 PDF, stored once per content at
   `<applicant_id>/sent/<sha256>.pdf`; `../docs/sent_resume.md`, flow 6a).
   **Apply's stages** (KAN-544): the stage PUT (`routers/tracker.py`,
-  `queries/tracker.py` `set_stage`) also takes needs_you (an Apply Handoff
-  or a missing fact) and queued (a held application), but only on an
-  application that is not applied: an applied or later one answers 409
+  `queries/tracker.py` `set_stage`) also takes needs_you (an Apply Handoff,
+  a missing fact or a held application), but only on an application that
+  is not applied. It never takes queued (422): queued is the batch apply
+  queue, and the extension would fill the application. Not applied: an applied or later one answers 409
   (`AlreadyApplied`) and keeps its stage, so Apply never moves a record
   back. Tests: `tests/test_tracker.py`.
   **A student's writing samples and style card** (KAN-384) are
