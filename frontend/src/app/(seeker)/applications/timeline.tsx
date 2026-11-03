@@ -44,8 +44,17 @@ export function Timeline({
   if (horizontal) {
     return (
       // overflow-y-hidden: the steps rise in from below, which flashed a
-      // vertical scrollbar in the row on a phone.
-      <div className={cn("overflow-x-auto overflow-y-hidden", className)}>
+      // vertical scrollbar in the row on a phone. A named region in the tab
+      // order, so the keyboard can scroll it (KAN-577).
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="Timeline"
+        className={cn(
+          "focus-visible:ring-brand-ring overflow-x-auto overflow-y-hidden rounded-xs focus-visible:ring-2 focus-visible:outline-none",
+          className,
+        )}
+      >
         <ol
           className="grid"
           style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(8rem, 12rem))` }}
