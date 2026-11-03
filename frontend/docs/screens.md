@@ -3363,7 +3363,10 @@ reports them, and closing the modal asks "Discard Your Changes?" (Keep
 Editing, Discard Changes); closing the tab or reloading gets the browser's
 own warning. Switching sections needs no question, since nothing unmounts.
 A history Back is not caught: the browser gives a page no way to hold it.
-The question is a dialog nested in the modal, which Base UI does not dim.
+The question is a bar across the modal's foot, never a dialog over it
+(KAN-563): as a nested dialog, which Base UI does not dim, it sat over the
+section with no edge of its own. Keep Editing takes the focus, and Escape
+or a click outside answers it.
 **Save and Discard sit in a bar pinned to the foot of what scrolls**, so
 Job Preferences' Save is in view however far down the student is; at the
 end of seven fields it sat below the fold. The modal's scroller carries no
@@ -3372,8 +3375,16 @@ scroller's padding edge, and with 24px there the fields showed through
 under it.
 
 **A setting most visits leave alone is a row with a button, and its form
-opens in a dialog** (the user's call, 2026-10-23): three empty password
-fields on the page read as something to fill in.
+opens as a step of the modal** (the user's call, 2026-10-23, for a dialog;
+a step since KAN-563, `settings/settings-step.tsx`): three empty password
+fields on the page read as something to fill in. The step takes the
+section's place, a card with Back beside its title and the form's buttons
+on the left, primary first; Back, Cancel, Escape or the nav return to the
+section with its scroll and focus. They opened as dialogs over the modal
+until then, which broke "never a dialog over a dialog" (`design.md`).
+The modal keeps 16px from the window at every width, and its scroller
+keeps the scrollbar's room, so a section's cards are one width whether or
+not it scrolls.
 
 - **Personal Details** (`/settings/personal`): the photo (Change Photo,
   Remove Photo; it saves on pick, shows the file at once and rolls back if
@@ -3386,7 +3397,7 @@ fields on the page read as something to fill in.
 - **Sign-In & Security** (`/settings/security`), three cards of rows, then
   Delete Account:
   Sign-In (Email with Change, Password with Change Password or, for a
-  Google- or LinkedIn-only account, Set Password; each opens a dialog),
+  Google- or LinkedIn-only account, Set Password; each opens a step),
   Sign-In Methods (Google and LinkedIn, each Connected with Disconnect, or
   Connect; no Disconnect on the last method), and Sign Out, which does what
   the menu's does (local drafts first, then the session, on every device).
@@ -3398,10 +3409,10 @@ fields on the page read as something to fill in.
   dashboard setting Connect needs are in `../../docs/auth.md`, Settings.
   **Delete Account** sits at the foot in a red-edged card of its own, where
   students look for it (it sat under Personal Details until KAN-364): a
-  red button opens a dialog that stays locked until the student types
-  their sign-in email (one click on a red button is too easy to make by
-  mistake); on success the action signs out and opens the landing page, on
-  failure the dialog stays open with the error.
+  red button opens a step whose Delete Account stays locked until the
+  student types their sign-in email (one click on a red button is too easy
+  to make by mistake); on success the action signs out and opens the
+  landing page, on failure the step stays open with the error.
 - **Notifications** (`/settings/notifications`): the design only. A row
   per alert the bell promises (New Matches, Employer Replies), each with a
   switch, disabled and marked Coming Soon: nothing stores or sends

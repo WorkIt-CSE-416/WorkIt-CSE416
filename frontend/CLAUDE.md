@@ -1218,7 +1218,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   for now (`(seeker)/@modal/(.)settings`). A soft navigation to its address
   opens the modal there; a hard load reaches the route's own layout, which
   for Settings draws the same modal over Home, so Settings is a
-  modal on every way in (`docs/screens.md`, Settings). The slot's
+  modal on every way in (`docs/screens.md`, Settings). **Nothing opens
+  over the modal** (KAN-563): a row's form is a step in the section's
+  place (`settings/settings-step.tsx`, `useSettingsStep`), and the
+  unsaved-changes question a bar across its foot; a new Settings form
+  opens the same way, never as a `Dialog` (`docs/design.md`, "Never a
+  dialog over a dialog"). The slot's
   `default.tsx` and `[...catchAll]/page.tsx` both render nothing: without
   the catch-all, a link out of the modal to another seeker page would leave
   the modal open over it, since a slot keeps what it last matched. The

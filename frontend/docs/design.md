@@ -399,6 +399,38 @@ resume is picked in the grouped list every resume dialog shares
 · Role" lines hid where each application stood and cut long titles short;
 Create Event's first version had one.
 
+**A form opened from a dialog is a step of it too** (KAN-563). In the
+Settings modal a row's form (Change Email, Change Password, Delete
+Account) takes the section's place as a card with Back beside its title
+(`(seeker)/settings/settings-step.tsx`); Back, Cancel, Escape or the nav
+return to the section, with its scroll and focus as they were, and the
+section stays mounted under the step. The form's buttons follow a
+Settings form's rule (left, the primary first). **The one thing that may
+sit inside a dialog is a one-line confirm, and it is a bar, not a
+dialog**: Settings' "Discard Your Changes?" runs across the modal's foot
+with Keep Editing (which takes the focus) and Discard Changes, and Escape
+or a click outside answers Keep Editing. All four opened as dialogs over
+the modal until then; Base UI does not dim a nested dialog, so each sat
+over the card behind it with no edge of its own.
+
+**A dialog keeps 16px from the window at every width, and what scrolls in
+it keeps its scrollbar's room.** Both are `data-slot` rules in
+`globals.css`, so the vendored dialog stays as generated: the width
+carries the margin (a call site's `sm:max-w-*` had replaced the vendored
+one, and the Settings modal stood flush with both edges at 768), and a
+`data-slot="dialog-scroller"` box takes `scrollbar-gutter: stable` (the
+Settings cards were 608px wide on one section and 600px on the next).
+
+**A field's error sits under its field and takes the focus** (KAN-563):
+the error names itself to the field through `aria-describedby`, an input
+is outlined red (`aria-invalid`), and the focus moves to the first field
+that needs a fix, in the form's order (Create Event's Application and
+Date, Change Email, Change Password's three fields). An error about the
+whole form (the API's answer) stays at the form's foot as an alert.
+`DateField` takes `error` for this. Create Event's errors were one line
+at the dialog's foot, tied to no field, and the focus stayed on the
+button.
+
 `src/components/ui` and `src/components/shadcn` are not interchangeable. The
 first is hand-written from the mockups and is what screens should import. The
 second is vendored by `npx shadcn@latest add` for the interactive primitives we
@@ -457,6 +489,10 @@ a light dim of the page that stays sharp. It was a full-height square slab
 against the window's edge over a blurred page, which read as a different
 app from the rounded cards around it, and the blur hid what the panel was
 about. The application detail panel (the Calendar's) is the one today.
+**No overlay blurs, a dialog's included** (KAN-563): every overlay is the
+same light dim over a sharp page. The vendored dialog's `backdrop-blur-xs`
+is turned off by a `data-slot` rule in `globals.css`; it hid what a dialog
+is about too, as All Filters' list under it.
 
 **A button is a rounded rectangle; a pill is a chip** (KAN-251). A button
 acts (saves, opens, sends, goes somewhere); a chip is a choice made in

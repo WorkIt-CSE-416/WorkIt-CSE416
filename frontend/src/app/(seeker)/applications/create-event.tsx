@@ -189,6 +189,9 @@ function CreateEventForm({
   const [allDay, setAllDay] = useState(false);
   const [startTime, setStartTime] = useState(DEFAULT_START);
   const [endTime, setEndTime] = useState(endFor(DEFAULT_START));
+  // A field's error sits under it and takes the focus there; `error` is
+  // the API's answer, about the whole event, at the foot.
+  const [fieldErrors, setFieldErrors] = useState<{ application?: string; day?: string }>({});
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const label = KINDS.find((k) => k.value === kind)!.label;
@@ -210,12 +213,16 @@ function CreateEventForm({
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!target) {
-      setError("Pick the application this event is for.");
-      return;
-    }
-    if (!day) {
-      setError("Pick the day it happens.");
+    const missing = {
+      application: target ? undefined : "Pick the application this event is for.",
+      day: day ? undefined : "Pick the day it happens.",
+    };
+    setFieldErrors(missing);
+    setError(null);
+    // The first field in the form's order that needs a fix takes the focus.
+    const first = missing.application ? "event-application" : missing.day ? "event-day" : null;
+    if (first) {
+      document.getElementById(first)?.focus();
       return;
     }
     const form = new FormData(e.currentTarget);
@@ -276,6 +283,7 @@ function CreateEventForm({
             picked={target}
             onPick={(id) => {
               setTarget(id);
+              setFieldErrors((errors) => ({ ...errors, application: undefined }));
               setChoosing(false);
             }}
           />
@@ -327,15 +335,25 @@ function CreateEventForm({
               </div>
             ) : (
               <Button
+                id="event-application"
                 variant="secondary"
                 className="self-start"
-                aria-describedby="event-application-label"
+                aria-describedby={
+                  fieldErrors.application
+                    ? "event-application-label event-application-error"
+                    : "event-application-label"
+                }
                 disabled={empty}
                 onClick={() => setChoosing(true)}
               >
                 <ListChecksIcon aria-hidden className="size-4" />
                 Choose Application
               </Button>
+            )}
+            {fieldErrors.application && (
+              <p id="event-application-error" className="text-note text-danger">
+                {fieldErrors.application}
+              </p>
             )}
           </div>
         )}
@@ -348,7 +366,17 @@ function CreateEventForm({
           className={jobId ? "sm:col-span-6" : "sm:col-span-2"}
         />
         <div className="sm:col-span-2">
-          <DateField id="event-day" label="Date" value={day} onValueChange={setDay} required />
+          <DateField
+            id="event-day"
+            label="Date"
+            value={day}
+            onValueChange={(next) => {
+              setDay(next);
+              setFieldErrors((errors) => ({ ...errors, day: undefined }));
+            }}
+            required
+            error={fieldErrors.day}
+          />
         </div>
         <SelectField
           id="event-start"
@@ -392,7 +420,7 @@ function CreateEventForm({
           <TextAreaField id="event-note" name="note" label="Note" rows={2} maxLength={1000} />
         </div>
         {error && (
-          <p role="alert" className="text-meta text-danger sm:col-span-6">
+          <p role="alert" className="text-note text-danger sm:col-span-6">
             {error}
           </p>
         )}

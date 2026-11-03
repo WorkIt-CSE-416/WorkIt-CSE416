@@ -1307,6 +1307,37 @@ body:has([data-skyline]) {
   }
 }
 
+/* DIALOGS, by data-slot, so the vendored dialog stays as `shadcn add` wrote
+ * it (KAN-563, docs/design.md, "Never a dialog over a dialog"). In the
+ * utilities layer, where attribute plus a second selector out-specifies the
+ * one class each rule replaces. */
+@layer utilities {
+  /* 16px from the window's edges at every width. The vendored margin is a
+   * `max-w-[calc(100%-2rem)]` that a call site's `sm:max-w-*` replaces, so
+   * the Settings modal stood flush with both edges at 768. The width keeps
+   * the margin now, and the call site's max width still caps it. Only on the
+   * vendored `w-full`: a dialog that sets its own width (`w-[92vw]`) has
+   * that class merged away and keeps its own. */
+  [data-slot="dialog-content"].w-full {
+    width: calc(100% - 2rem);
+  }
+
+  /* Nothing behind an overlay blurs, a dialog's or a panel's: the page
+   * behind is what the dialog is about (All Filters changes the list under
+   * it), and the blur hid it. The light dim stays. */
+  [data-slot="dialog-overlay"][data-slot] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* What scrolls inside a dialog keeps its scrollbar's room, so the content
+   * is one width whether or not it scrolls: Settings' cards were 608px on
+   * Personal Details and 600px on Sign-In & Security. */
+  [data-slot="dialog-scroller"] {
+    scrollbar-gutter: stable;
+  }
+}
+
 /* EVERY SCROLLBAR IS ONE THIN THUMB ON NO TRACK, shown only while the pointer
  * is over what it scrolls (2026-11-02). macOS's own bar grew a grey rail over
  * the job list's rows when the pointer reached it, and Windows and Linux kept

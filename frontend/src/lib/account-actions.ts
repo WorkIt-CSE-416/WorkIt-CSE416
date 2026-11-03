@@ -16,7 +16,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  * which goes through the API so the account's files and rows go too.
  */
 
-export type PasswordState = { error: string | null; changed: boolean };
+/** `field` names the input an error is about, so the form shows it there
+ *  and moves the focus to it; an error with none is about the whole form. */
+export type PasswordState = {
+  error: string | null;
+  field?: "currentPassword" | "newPassword" | "confirmPassword";
+  changed: boolean;
+};
 export type EmailState = { error: string | null; sentTo: string | null };
 
 /** Where Supabase sends the browser back after a link or a confirm email:
@@ -46,10 +52,14 @@ export async function changePassword(
 ): Promise<PasswordState> {
   const next = text(formData, "newPassword");
   if (next.length < PASSWORD_MIN_LENGTH) {
-    return { error: `Use at least ${PASSWORD_MIN_LENGTH} characters.`, changed: false };
+    return {
+      error: `Use at least ${PASSWORD_MIN_LENGTH} characters.`,
+      field: "newPassword",
+      changed: false,
+    };
   }
   if (next !== text(formData, "confirmPassword")) {
-    return { error: "The new passwords don't match.", changed: false };
+    return { error: "The new passwords don't match.", field: "confirmPassword", changed: false };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -66,6 +76,7 @@ export async function changePassword(
       const wrong = signIn.error.code === "invalid_credentials";
       return {
         error: wrong ? "Your current password is wrong." : signIn.error.message,
+        field: wrong ? "currentPassword" : undefined,
         changed: false,
       };
     }
@@ -74,7 +85,11 @@ export async function changePassword(
   const { error } = await supabase.auth.updateUser({ password: next });
   if (error) {
     const same = error.code === "same_password";
-    return { error: same ? "Choose a password you don't use now." : error.message, changed: false };
+    return {
+      error: same ? "Choose a password you don't use now." : error.message,
+      field: same ? "newPassword" : undefined,
+      changed: false,
+    };
   }
   return { error: null, changed: true };
 }
