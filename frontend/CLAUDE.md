@@ -1680,7 +1680,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
 - **Tailwind v4 is configured in `src/app/globals.css` via `@theme static`**;
   there is no `tailwind.config.js`. Write the token names (`text-body`), never
   stock sizes like `text-sm`. A new token or shared component gets its row in
-  `/design-kit` (titles in `design-kit/data.ts`) in the same change.
+  `/design-kit` (titles in `design-kit/data.ts`) in the same change, and a
+  control its States row (`docs/design.md`, Components). **A States row forces
+  hover and focus from the live stylesheet** (`design-kit/states.tsx`,
+  KAN-564): `<StateCell state="hover">` wears what the component's own
+  `hover:` and `focus-visible:` rules draw, copied once by `ForcedStates` in
+  the kit's layout. Never type a variant's hover or focus classes into the
+  kit: Tailwind builds only the classes it finds in the source, so a class cut
+  from `hover:bg-brand-hover` at run time has no rule, and a typed copy
+  drifts.
 - **Never key a Tailwind `group-*` variant on the shell wrapper, or on any
   large ancestor whose attribute changes often** (KAN-368). Tailwind v4
   compiles it to `.cls:is(:where(.group)[attr] *)`, and Chrome then restyles

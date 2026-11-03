@@ -634,7 +634,13 @@ colour a state. That is
 what ended Home's pill buttons, a 52px Start Auto Apply, the
 welcome page's stretched buttons (now choice cards) and five hand-drawn
 pills at three heights. `/design-kit/buttons` shows every size and chip with
-its role.
+its role, and every state of each button, chip and icon button.
+
+**Every control's kit row shows its states** (KAN-564): rest, hover,
+focus-visible, disabled and, for a button, busy (disabled, its label saying
+what is happening, "Saving…", with no spinner); a field shows empty, filled,
+focus, invalid and disabled instead, since it has no hover look. A change
+that adds or alters a state edits the kit row in the same change.
 
 Tailwind v4 is configured entirely in `src/app/globals.css` via `@theme static`
 — there is no `tailwind.config.js`. Add design tokens there. The file also
