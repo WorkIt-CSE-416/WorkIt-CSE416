@@ -13,7 +13,8 @@ own Claude Code login. It is a developer and power-user tool, not a student
 feature: students apply through the extension and the connector (KAN-369).
 
 Apply has its own domain language. Read `GLOSSARY.md` and `docs/adr/` here,
-not the root ones, for its terms (root `GLOSSARY-MAP.md`).
+not the root ones, for its terms (root `GLOSSARY-MAP.md`). Write each
+glossary entry in ASD-STE100 wording: sentences of 25 words or fewer.
 
 ## How it differs from `auto-apply/` and the extension
 
@@ -91,7 +92,13 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
   Record. To log out, delete the file.
 - The API checks the bearer token (`backend/app/deps.py`, `security.py`).
   `call(method, path, body)` sends one request as the student. On a 401 it
-  refreshes one time and tries again.
+  refreshes one time and tries again. `applicant_id()` is the student's id
+  for the paths, read from `GET /auth/me` one time per client. Code outside
+  `WorkIt` uses only its public methods.
+- `workit.Stage` names WorkIt's application stages, and
+  `workit.APPLIED_STAGES` is applied or later. Use them; do not write a
+  stage name as a string in another module (`tracker.STAGES`, the import,
+  the cleanup).
 - Errors: `NotLoggedIn` (no file), `LoginExpired` (Supabase or WorkIt
   refused the login: run `apply login` again), `Unreachable` (no answer, or
   a 5xx).
@@ -141,10 +148,12 @@ against the fake's `/login`, so run it on your Mac.
 - The dry run writes nothing. It reads `GET /auth/me`, `GET
   /applicants/{id}/applications`, and `POST /jobs/listed-by-link` for each
   row. Then the student types yes (`--dry-run` only lists).
-- Each add, in this order: `POST /jobs/added-by-link`, then `POST
+- Each add is `WorkIt.record_applied`, the same method as a submit's
+  write. In this order: `POST /jobs/added-by-link`, then `POST
   .../sent-resumes/file` (the resume, base64 JSON), then `PUT
   .../applications/{job_id}/stage` with `applied_on`, then `POST
-  /jobs/{job_id}/applied` with `sent_resume_id`.
+  /jobs/{job_id}/applied` with `sent_resume_id`. It does nothing more to
+  an application that is applied or later.
 - It never changes an application that is applied or later in WorkIt. The
   dry run skips it, and the write skips it again if it became applied
   after the dry run. So a second run adds nothing, and a failed run can
@@ -198,12 +207,14 @@ Apply's Tracker is a file in the data folder: `tracker.FileTracker`
 (`tracker.json`, one JSON file, a lock file around each read and write).
 `cli.live_tracker()` wraps it in `tracker.WorkItTracker`: each `add` or
 `update` that gives an Application a new status in `tracker.STAGES` also
-sends a `workit.Write` through a `workit.Outbox`.
+sends a `workit.Write` through a `workit.WaitingWrites`.
 
 - submitted to `applied`, with the resume from the Application's folder
   under `sent/` (`worker.sent_resume`: the profile's resume name, else a
-  PDF named resume) kept as the Sent resume (`POST
-  .../sent-resumes/file`, then `POST /jobs/{id}/applied` with its id).
+  PDF named resume) kept as the Sent resume. This is
+  `WorkIt.record_applied`, the import's write sequence. A job that is
+  applied or later on WorkIt already stays as it is ("already
+  interviewing").
   handoff and missing fact to `needs_you`, held to `queued` (the stage
   PUT; a 409 means the job is applied already, and is not an error).
   Every other status writes nothing.
@@ -222,15 +233,21 @@ sends a `workit.Write` through a `workit.Outbox`.
   job already applied to. `python -m apply.rankings` still writes its
   ranked tabs to the Sheet when you run it by hand.
 - Lisul approves a Hold with the Apply window's Approve button (`POST
-  /approve`, `Tracker.approve`), not a Sheet checkbox.
-- A Hold's card shows its essays (the Essay cell, `essays.as_cell`) in a
-  box that Lisul can edit before he approves. Approve sends his edit
-  (`essay`), and `Tracker.approve` writes it to the row's essay with
-  Approve, in one write. The next check fills the form with his words.
+  /approve`, `Tracker.approve`), not a Sheet checkbox. `SheetTracker` has
+  no `approve`: Apply never writes an approval to the Sheet (ADR 0007).
+- A Hold's card shows one box per essay, with the essay's text only
+  (`essays.cell_texts`). The `## <question>` heading and the Plan, Checks
+  and Named lines of the Essay cell (`essays.as_cell`) are not in the box,
+  so Lisul cannot change them. Approve sends his texts in order
+  (`essays`). The window builds the cell again from the stored headings
+  and lines and his texts (`essays.with_texts`), and `Tracker.approve`
+  writes it with Approve, in one write. An empty essay is refused (400)
+  with a message, and the Hold still waits. The next check fills the form
+  with his words (`essays.from_cell`); a Plan line never goes to the form.
   The page keeps the edit in `sessionStorage` (`apply.essays`, by
   Application ID) until he approves, so a reload does not lose it.
 
-**Tests.** `tests/test_tracker_record.py` (in CI) runs the Outbox and
+**Tests.** `tests/test_tracker_record.py` (in CI) runs `WaitingWrites` and
 `WorkItTracker` against `tests/fake_tracker.py`. `tests/test_rehearse.py
 -k "applications_tracker or sends_nothing_to_workit"` rehearses a form
 in Chromium: a submit by Lisul is Applied with the Sent resume, and no

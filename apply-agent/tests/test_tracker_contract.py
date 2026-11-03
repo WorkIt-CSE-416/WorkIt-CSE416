@@ -87,7 +87,13 @@ def test_lisuls_answer_typed_in_the_apply_window_lands_in_his_answer_cell_alone(
         tracker.answer("nope", "3.9")
 
 
+def _approves(tracker):
+    if not hasattr(tracker, "approve"):
+        pytest.skip("the retired Tracker Sheet takes no approval (ADR 0007)")
+
+
 def test_lisul_approves_a_hold_in_the_apply_window(tracker):
+    _approves(tracker)
     tracker.add(arc(status=Status.HELD, date_applied=None, essay="Claude's draft"))
     tracker.approve("arc-1")
 
@@ -98,6 +104,7 @@ def test_lisul_approves_a_hold_in_the_apply_window(tracker):
 
 
 def test_lisul_edits_a_held_essay_and_approves_it_in_the_apply_window(tracker):
+    _approves(tracker)
     tracker.add(arc(status=Status.HELD, date_applied=None, essay="## Why Arc?\nClaude's draft"))
     tracker.approve("arc-1", essay="## Why Arc?\nLisul's own words")
 

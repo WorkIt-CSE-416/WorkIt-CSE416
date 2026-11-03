@@ -65,7 +65,7 @@ The most Matches applied to (submitted or held) in one day, local time, kept in 
 _Avoid_: daily limit, quota, rate limit
 
 **Tracker**:
-Apply's own working state, one row per Application, in a file in the data folder (`tracker.json`): its status, the Holds Lisul approves and the Missing facts he answers in the Apply window, the Requests, the Employer accounts and the Answer bank list. It is not the record of what he applied to: each new status it takes is also written to WorkIt's Applications Tracker (submitted as Applied with the resume sent, handoff and missing fact as Needs you, held as Queued), which is the record. The Google Sheet that held it before, the **Tracker Sheet**, is retired: Apply only reads it, one time, to copy its rows in and to import its submitted rows into WorkIt.
+Apply's own working state, one row per Application, in a file in the data folder (`tracker.json`). It keeps each Application's status, the Holds Lisul approves and the Missing facts he answers in the Apply window. It also keeps the Requests, the Employer accounts and the Answer bank list. It is not the record of what he applied to: WorkIt's Applications Tracker is the record. Each new status is also written there: submitted as Applied with the resume sent, handoff and missing fact as Needs you, held as Queued. The Google Sheet that held it before, the **Tracker Sheet**, is retired. Apply only reads it, one time, to copy its rows in and to import its submitted rows into WorkIt.
 _Avoid_: ledger, log, dashboard
 
 **Waiting write**:

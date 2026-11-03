@@ -458,7 +458,7 @@ def live_tracker() -> WorkItTracker:
                                f"({type(error).__name__}: {error}); run again once the Sheet reads") from error
         print(f"Copied {copied} rows of the Tracker Sheet into {local.path}. Apply no longer writes the Sheet.",
               file=sys.stderr)
-    return WorkItTracker(local, workit.Outbox(), _resume_of)
+    return WorkItTracker(local, workit.WaitingWrites(), _resume_of)
 
 
 def _resume_of(application_id: str) -> str:
@@ -472,11 +472,11 @@ def _resume_of(application_id: str) -> str:
 
 def _send_waiting_writes() -> None:
     """Before a run or rehearsal: send the writes to the Applications Tracker that waited for WorkIt."""
-    outbox = workit.Outbox()
-    waiting = len(outbox.waiting())
-    for problem in outbox.flush():
+    writes = workit.WaitingWrites()
+    waiting = len(writes.waiting())
+    for problem in writes.flush():
         print(problem, file=sys.stderr)
-    if waiting and (left := len(outbox.waiting())):
+    if waiting and (left := len(writes.waiting())):
         print(f"{left} writes still wait to go to your Applications Tracker (apply doctor lists them).",
               file=sys.stderr)
 

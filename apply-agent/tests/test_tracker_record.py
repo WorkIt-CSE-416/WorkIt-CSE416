@@ -11,7 +11,7 @@ from fake_tracker import FakeTracker
 from fake_workit import FakeWorkIt
 
 from apply import workit
-from apply.workit import Outbox, WorkIt, Write
+from apply.workit import WaitingWrites, WorkIt, Write
 
 LOCKHEED = "https://lockheedmartin.eightfold.ai/careers/job/7123456"
 PDF = b"%PDF-1.7 Test Person's resume"
@@ -44,59 +44,94 @@ def fake():
 
 
 def test_a_submit_is_applied_with_the_file_sent_as_its_sent_resume(fake, tmp_path):
-    outbox = Outbox(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
 
-    said = outbox.send(write("applied", resume=resume(tmp_path)))
+    said = writes.send(write("applied", resume=resume(tmp_path)))
 
     assert fake.tracker.tracked() == [{"link": LOCKHEED, "company": "Lockheed Martin", "stage": "applied",
                                "sent_resume": "Test_Person_Resume.pdf"}]
     assert [sent.content for sent in fake.tracker.sent.values()] == [PDF]
     assert said == "in your Applications Tracker as Applied"
-    assert outbox.waiting() == []
+    assert writes.waiting() == []
 
 
 @pytest.mark.parametrize("stage, shown", [("needs_you", "Needs you"), ("queued", "Queued")])
 def test_a_handoff_or_missing_fact_is_needs_you_and_a_hold_is_queued(fake, tmp_path, stage, shown):
-    outbox = Outbox(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
 
-    assert outbox.send(write(stage)) == f"in your Applications Tracker as {shown}"
+    assert writes.send(write(stage)) == f"in your Applications Tracker as {shown}"
     assert [row["stage"] for row in fake.tracker.tracked()] == [stage]
 
 
-def test_a_later_status_for_the_same_job_moves_the_same_row(fake, tmp_path):
-    outbox = Outbox(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+def test_the_writes_read_the_students_id_once(fake, tmp_path):
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+    before = sum(seen.path == "/auth/me" for seen in fake.requests)
 
-    outbox.send(write("queued"))
-    outbox.send(write("needs_you"))
-    outbox.send(write("applied", resume=resume(tmp_path)))
-    outbox.send(write("applied", resume=resume(tmp_path)))  # sent twice: still one Sent resume
+    writes.send(write("queued"))
+    writes.send(write("applied", resume=resume(tmp_path)))
+
+    assert writes.client.applicant_id() == fake.account["id"]
+    assert sum(seen.path == "/auth/me" for seen in fake.requests) == before + 1
+
+
+def test_a_later_status_for_the_same_job_moves_the_same_row(fake, tmp_path):
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+
+    writes.send(write("queued"))
+    writes.send(write("needs_you"))
+    writes.send(write("applied", resume=resume(tmp_path)))
+    writes.send(write("applied", resume=resume(tmp_path)))  # sent twice: still one Sent resume
 
     assert [(row["stage"], row["sent_resume"]) for row in fake.tracker.tracked()] == [("applied", "Test_Person_Resume.pdf")]
     assert len(fake.tracker.sent) == 1
 
 
-def test_a_submit_with_no_file_kept_is_applied_with_no_sent_resume(fake, tmp_path):
-    outbox = Outbox(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+def test_a_submit_leaves_a_job_already_past_applied_as_it_is(fake, tmp_path):
+    job = fake.tracker.listed(LOCKHEED, "Lockheed Martin", "Software Engineer Intern")
+    fake.tracker.applied_before(job, "interviewing")
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
 
-    outbox.send(write("applied", resume=str(tmp_path / "gone.pdf")))
+    assert writes.send(write("applied", resume=resume(tmp_path))) == "already interviewing in your Applications Tracker"
+    assert [(row["stage"], row["sent_resume"]) for row in fake.tracker.tracked()] == [("interviewing", None)]
+    assert fake.tracker.sent == {}
+
+
+def test_a_submit_makes_the_calls_of_record_applied(fake, tmp_path):
+    """One write sequence (WorkIt.record_applied): add by link, the Sent resume, the stage, the resume's link."""
+    client = logged_in(fake, tmp_path)
+    start = len(fake.requests)
+    WaitingWrites(client, tmp_path / "workit-queue.json").send(write("applied", resume=resume(tmp_path)))
+    submit = [(seen.method, seen.path) for seen in fake.requests[start:] if seen.path != "/auth/me"]
+    fake.tracker.applications.clear()
+    start = len(fake.requests)
+    client.record_applied(LOCKHEED, "Lockheed Martin", "Software Engineer Intern", Path(resume(tmp_path)))
+
+    assert [(seen.method, seen.path) for seen in fake.requests[start:]] == submit
+    assert [method for method, _ in submit] == ["POST", "POST", "PUT", "POST"]
+
+
+def test_a_submit_with_no_file_kept_is_applied_with_no_sent_resume(fake, tmp_path):
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+
+    writes.send(write("applied", resume=str(tmp_path / "gone.pdf")))
 
     assert [(row["stage"], row["sent_resume"]) for row in fake.tracker.tracked()] == [("applied", None)]
 
 
 def test_needs_you_never_takes_back_a_job_already_applied_to(fake, tmp_path):
-    outbox = Outbox(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
-    outbox.send(write("applied"))
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+    writes.send(write("applied"))
 
-    assert outbox.send(write("needs_you")) == "already Applied in your Applications Tracker"
+    assert writes.send(write("needs_you")) == "already Applied in your Applications Tracker"
     assert [row["stage"] for row in fake.tracker.tracked()] == ["applied"]
-    assert outbox.waiting() == []
+    assert writes.waiting() == []
 
 
 def test_with_workit_down_the_write_waits_and_the_next_send_takes_it(fake, tmp_path):
     client = logged_in(fake, tmp_path)
     # WorkIt's API does not answer (nothing listens on port 9).
     no_api = dataclasses.replace(fake.site, api="http://127.0.0.1:9")
-    down = Outbox(WorkIt(no_api, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+    down = WaitingWrites(WorkIt(no_api, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
 
     said = down.send(write("applied", resume=resume(tmp_path)))
 
@@ -104,39 +139,39 @@ def test_with_workit_down_the_write_waits_and_the_next_send_takes_it(fake, tmp_p
     assert fake.tracker.tracked() == []
     assert [(w.company, w.stage) for w in down.waiting()] == [("Lockheed Martin", "applied")]
     # The next run, with WorkIt back: the waiting write goes first.
-    again = Outbox(client, tmp_path / "workit-queue.json")
+    again = WaitingWrites(client, tmp_path / "workit-queue.json")
     assert again.flush() == []
     assert [(row["stage"], row["sent_resume"]) for row in fake.tracker.tracked()] == [("applied", "Test_Person_Resume.pdf")]
     assert again.waiting() == []
 
 
 def test_with_no_login_the_write_waits_for_apply_login(fake, tmp_path):
-    outbox = Outbox(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+    writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
 
-    assert "apply login" in outbox.send(write("queued"))
-    assert [w.stage for w in outbox.waiting()] == ["queued"]
+    assert "apply login" in writes.send(write("queued"))
+    assert [w.stage for w in writes.waiting()] == ["queued"]
     assert fake.tracker.tracked() == []
 
 
 def test_a_waiting_write_is_replaced_by_a_later_one_for_the_same_application(fake, tmp_path):
-    outbox = Outbox(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
-    outbox.send(write("queued"))
-    outbox.send(write("needs_you"))
-    outbox.send(write("queued", application_id="request-2", link=LOCKHEED + "7"))
+    writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+    writes.send(write("queued"))
+    writes.send(write("needs_you"))
+    writes.send(write("queued", application_id="request-2", link=LOCKHEED + "7"))
 
-    assert [(w.application_id, w.stage) for w in outbox.waiting()] == [("request-1", "needs_you"), ("request-2", "queued")]
+    assert [(w.application_id, w.stage) for w in writes.waiting()] == [("request-1", "needs_you"), ("request-2", "queued")]
 
 
 def test_a_write_workit_refuses_is_dropped_and_said(fake, tmp_path):
-    outbox = Outbox(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
 
     word_file = tmp_path / "Resume.docx"
     word_file.write_bytes(b"PK\x03\x04 a Word file")  # WorkIt keeps only a PDF as a sent file: 422
 
-    said = outbox.send(write("applied", resume=str(word_file)))
+    said = writes.send(write("applied", resume=str(word_file)))
 
     assert said.startswith("not in your Applications Tracker: WorkIt refused it")
-    assert outbox.waiting() == []
+    assert writes.waiting() == []
 
 
 # --- Apply's Tracker writes each status to the Applications Tracker ----------
@@ -152,8 +187,8 @@ def row(status, **fields):
 def recording(fake, tmp_path, resume_of=lambda application_id: ""):
     from apply.tracker import InMemoryTracker, WorkItTracker
 
-    outbox = Outbox(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
-    return WorkItTracker(InMemoryTracker(), outbox, resume_of)
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+    return WorkItTracker(InMemoryTracker(), writes, resume_of)
 
 
 def test_a_submitted_row_is_applied_with_the_file_sent(fake, tmp_path):

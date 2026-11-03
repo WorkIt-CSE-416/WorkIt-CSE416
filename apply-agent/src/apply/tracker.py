@@ -18,7 +18,7 @@ from pathlib import Path
 
 from apply.home import HOME
 from apply.model import Outcome, Posting, Status
-from apply.workit import Write
+from apply.workit import Stage, Write
 
 
 @dataclass
@@ -275,21 +275,21 @@ for _name in _WRITES + _READS:
 
 # The Applications Tracker stage each Apply status writes (KAN-544). Other
 # statuses (filling, queued, failed, closed...) write nothing.
-STAGES = {Status.SUBMITTED: "applied", Status.HANDOFF: "needs_you", Status.MISSING_FACT: "needs_you",
-          Status.HELD: "queued"}
+STAGES = {Status.SUBMITTED: Stage.APPLIED, Status.HANDOFF: Stage.NEEDS_YOU, Status.MISSING_FACT: Stage.NEEDS_YOU,
+          Status.HELD: Stage.QUEUED}
 
 
 class WorkItTracker:
     """A Tracker that also writes each Application's new status to the
-    student's Applications Tracker (KAN-544), through an Outbox
-    (workit.Outbox): the row is kept in `inner` first, then the write goes,
-    or waits in the queue. `resume_of(application_id)` is the file a
+    student's Applications Tracker (KAN-544), through workit.WaitingWrites:
+    the row is kept in `inner` first, then the write goes, or waits in the
+    queue. `resume_of(application_id)` is the file a
     submitted form was given as the resume ("" for none), kept as its Sent
     resume. A write that fails is said and never stops the run."""
 
-    def __init__(self, inner, outbox, resume_of: Callable[[str], str]):
+    def __init__(self, inner, writes, resume_of: Callable[[str], str]):
         self.inner = inner
-        self._outbox = outbox
+        self._writes = writes
         self._resume_of = resume_of
 
     def __getattr__(self, name):
@@ -310,9 +310,9 @@ class WorkItTracker:
         if stage is None or row.status == before:
             return
         try:
-            said = self._outbox.send(Write(
+            said = self._writes.send(Write(
                 row.application_id, row.posting_url, row.company or "Unknown company", row.role or "Job", stage,
-                self._resume_of(row.application_id) if stage == "applied" else ""))
+                self._resume_of(row.application_id) if stage == Stage.APPLIED else ""))
         except Exception as error:  # the run goes on: the row is in Apply's own Tracker
             said = f"not in your Applications Tracker ({type(error).__name__}: {error})"
         print(f"{row.company}, {row.role}: {said}", file=sys.stderr)
