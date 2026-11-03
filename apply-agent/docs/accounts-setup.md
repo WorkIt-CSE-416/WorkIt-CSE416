@@ -49,7 +49,7 @@ Run `uv run apply doctor` from `apply-agent/` before a run, and again after any 
 | Handoff reason starts with | What happened | What to do |
 |---|---|---|
 | `Sign-in failed at <site>` | The site refused the Keychain password. Apply won't try that password there again, for any Posting, since a few failures lock a Workday account. | Sign in yourself and fix the password in Keychain. Later Postings at that site still hand off, so finish those yourself too. |
-| `No verification email` / `No verification code` | The mail didn't come within about 2 minutes, after Apply asked once more. | Look in Gmail (spam too) and finish the application yourself. |
+| `Type the emailed code: no verification email` / `no verification code` | The mail didn't come within about 2 minutes. Apply asks a site for a code once per sign-in and never asks again. | Look in Gmail (spam too), then sign in and finish the application yourself. |
 | `Sign-in failed at <site>: the password reset didn't finish` | Apply asked for a password reset, but the reset email never came. Keychain holds the new password Apply meant to set, which the site doesn't have. | Reset the password yourself, then save it to Keychain (`security add-generic-password -U -s apply-ats -a <site> -w`). |
 | `Google asked for more than an account pick` | Google wanted a password, a code or a check. | Sign the Worker profiles in to Google again by hand. |
 | `Oracle sent its code by text message` | The site sends codes by SMS. | Finish signing in yourself. |

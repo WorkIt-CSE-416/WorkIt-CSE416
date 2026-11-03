@@ -5,8 +5,8 @@ password has no OAuth token to expire (see the sign-in research).
 Each look is one IMAP session: sign in, search the inbox read-only with
 Gmail's own search syntax (X-GM-RAW), read the newest matching mails that
 arrived after the request, skip any that Gmail says failed DMARC, and return
-only the code or link. Waiting and asking for a resend are the caller's
-(accounts.Accounts). `read_mail` reads recent mail whole for `apply mail`, as
+only the code or link. Waiting is the caller's (accounts.Accounts), which
+never asks for a code again. `read_mail` reads recent mail whole for `apply mail`, as
 read-only: it fetches with BODY.PEEK, so nothing is marked read, and it never
 sends, moves or deletes."""
 

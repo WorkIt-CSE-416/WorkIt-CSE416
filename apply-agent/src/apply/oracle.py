@@ -5,7 +5,8 @@ Oracle has no passwords: the candidate gives an email address (ticking the
 site's legal disclaimer, never its honeypot box), a returning candidate
 confirms their last name, and Oracle may mail a one-time code, read here from
 Gmail. A code sent by text message is a Handoff, and so is a code that
-doesn't come after one "Send New Code" and about 2 minutes, a code Oracle
+doesn't come within about 2 minutes (Apply never clicks Send New Code: it
+goes to Needs you, and Lisul retries himself), a code Oracle
 refuses (it allows 4 tries, then locks for 30 minutes), or an identity
 question other than the last name.
 
@@ -87,8 +88,7 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
         if re.search(r"date of birth|birth ?date", text, re.IGNORECASE) and CODE_PAGE.search(text) is None:
             raise Handoff("Oracle asks your date of birth to confirm it's you, which Apply doesn't hold: apply yourself.")
         if CODE_PAGE.search(text):
-            resend = page.get_by_role("button", name=re.compile(r"send new code|resend", re.IGNORECASE))
-            code = accounts.code(MAIL_SEARCH, since, lambda: resend.first.click())
+            code = accounts.code(MAIL_SEARCH, since)  # asked for once: never Send New Code
             _type_code(page, code)
             page.get_by_role("button", name=re.compile(r"^\s*(verify|submit|next|continue)\s*$", re.IGNORECASE)).click()
             _until(page, lambda: not CODE_PAGE.search(page.locator("body").inner_text()) or WRONG_CODE.search(_error(page)))

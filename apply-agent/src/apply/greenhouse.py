@@ -143,8 +143,7 @@ class GreenhouseFiller:
             raise Handoff(NO_SECURITY_CODE.format(why=NOT_SET_UP))
         if why := self._accounts.mail_unavailable():
             raise Handoff(NO_SECURITY_CODE.format(why=why.rstrip(".")))
-        resend = page.get_by_role("button", name=re.compile(r"resend", re.IGNORECASE))
-        return self._accounts.code(SECURITY_CODE_SEARCH, since, lambda: resend.first.click() if resend.count() else None)
+        return self._accounts.code(SECURITY_CODE_SEARCH, since)
 
 
 def _asks_security_code(page: Page) -> bool:

@@ -429,14 +429,14 @@ def test_a_security_code_with_gmail_not_set_up_is_a_handoff_saying_so():
     assert not greenhouse.confirmed
 
 
-def test_a_security_code_that_never_comes_is_a_handoff_after_asking_once_more():
+def test_a_security_code_that_never_comes_is_a_handoff_and_resend_is_never_clicked():
     resent = []
     greenhouse = fake_greenhouse.FakeGreenhouse(on_resend=lambda: resent.append(True))
 
     with greenhouse.open() as page, pytest.raises(Handoff) as handoff:
         GreenhouseFiller(accounts(FakeMailbox())).submit(page)
 
-    assert resent == [True]
+    assert resent == []
     assert "greenhouse-mail.io" in str(handoff.value) and "yourself" in str(handoff.value)
     assert handoff.value.bot_signal == "security code"
     assert not greenhouse.confirmed

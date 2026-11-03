@@ -99,7 +99,7 @@ def test_a_code_sent_by_text_message_is_a_handoff_before_claude_spends_a_token()
     assert claude.calls == [] and server.submissions == []
 
 
-def test_a_code_missing_after_one_resend_and_about_two_minutes_is_a_handoff():
+def test_a_code_missing_after_about_two_minutes_needs_lisul_and_send_new_code_is_never_clicked():
     world = World()
     claude = FakeClaude(driver=oracle_driver)
 
@@ -107,8 +107,8 @@ def test_a_code_missing_after_one_resend_and_about_two_minutes_is_a_handoff():
         row = run(world, server, claude)
 
     assert row.status == "handoff"
-    assert "No verification code" in row.reason and "after asking once more" in row.reason
-    assert server.resends == 1
+    assert "Type the emailed code: no verification code" in row.reason
+    assert server.resends == 0
     assert world.clock.now() - NOW >= timedelta(minutes=2)
     assert server.tried_codes == [] and claude.calls == []
 

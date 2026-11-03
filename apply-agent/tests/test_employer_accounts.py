@@ -87,7 +87,7 @@ def test_a_workday_match_gets_an_employer_account_with_its_password_in_keychain_
     assert world.notifier.sent[-1][1].endswith("1 new Employer account")
 
 
-def test_a_verification_email_missing_after_one_resend_and_about_two_minutes_is_a_handoff():
+def test_a_verification_email_missing_after_about_two_minutes_needs_lisul_and_is_never_resent():
     world = World()
 
     with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, verify_email=(CACI,),
@@ -95,8 +95,8 @@ def test_a_verification_email_missing_after_one_resend_and_about_two_minutes_is_
         [row] = world.run(server, caci())
 
     assert row.status == "handoff"
-    assert "No verification email from myworkday.com or otp.workday.com came within about 2 minutes, after asking once more" in row.reason
-    assert server.resends == 1
+    assert "no verification email from myworkday.com or otp.workday.com came within about 2 minutes" in row.reason
+    assert server.resends == 0
     assert world.clock.now() - NOW >= timedelta(minutes=2)
     # The account exists, so it is listed, and its password is in Keychain.
     assert [a.site for a in world.tracker.employer_accounts()] == [CACI]
@@ -173,8 +173,8 @@ def test_a_reset_link_that_never_comes_is_a_handoff_and_that_password_is_never_t
 
     assert row.status == "handoff"
     assert row.reason.startswith(f"Sign-in failed at {CACI}: the password reset didn't finish")
-    assert "No verification email from myworkday.com or otp.workday.com came" in row.reason
-    assert len(server.resets) == 2  # asked for once more
+    assert "no verification email from myworkday.com or otp.workday.com came" in row.reason
+    assert len(server.resets) == 1  # asked for once, never again
     assert server.account(CACI, EMAIL)["password"] == "Made-By-Hand1!"
     assert server.sign_ins == [] and server.submissions == []
 

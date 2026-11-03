@@ -107,6 +107,10 @@ change the other.
 
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
+- Apply asks a site for a verification code or link once per sign-in and
+  never clicks Resend or Send New Code (`accounts.Accounts._wait`): a mail
+  that hasn't come in about 2 minutes goes to Needs you ("Type the emailed
+  code"), and Lisul retries himself.
 - A Gmail search goes to IMAP as one quoted string (`gmail._quoted`). A
   phrase in quotes in the search stays escaped. Gmail can send a mail's
   INTERNALDATE before or after its body; `gmail._arrived` reads both.

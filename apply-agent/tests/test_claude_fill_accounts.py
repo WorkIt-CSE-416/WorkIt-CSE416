@@ -160,7 +160,7 @@ def test_a_new_account_verified_by_a_mailed_link_is_opened_and_the_application_g
     assert [a.site for a in world.tracker.employer_accounts()] == [SITE]
 
 
-def test_a_code_that_never_comes_is_a_handoff_after_one_resend():
+def test_a_code_that_never_comes_needs_lisul_and_resend_is_never_clicked():
     world = World()
     world.mailbox.deliver = lambda *a, **k: None  # the mail is lost
 
@@ -168,8 +168,8 @@ def test_a_code_that_never_comes_is_a_handoff_after_one_resend():
         [row] = run(world, server, acme())
 
     assert row.status == "handoff"
-    assert "No verification code from smartrecruiters.com came within about 2 minutes" in row.reason
-    assert server.resends == 1 and world.clock.now() - NOW >= timedelta(minutes=2)
+    assert "Type the emailed code: no verification code from smartrecruiters.com came within about 2 minutes" in row.reason
+    assert server.resends == 0 and world.clock.now() - NOW >= timedelta(minutes=2)
     assert world.keychain.password(SITE) == server.accounts[EMAIL]["password"]
     assert server.submissions == []
 
