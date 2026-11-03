@@ -15,8 +15,10 @@
 // A tab the student asked their Claude to write for (KAN-470, openForWriting)
 // is tracked too, with `writing`: its job has an application, which keeps the
 // questions for the student's Claude and the Written Answers page.
-import { ApiError, listedJobByLink, markJobApplied, me, queueJob, recordFill, saveJob } from "./api.js";
+import { addJobByLink, ApiError, listedJobByLink, markJobApplied, me, queueJob, recordFill, saveJob } from "./api.js";
 import { inBatch } from "./batch.js";
+import { jobNamesOf } from "./engine.js";
+import { fetchText } from "./plan-reads.js";
 import { identity } from "./panel-top.js";
 
 const KEY = "tracked_tabs";
@@ -87,7 +89,27 @@ export async function markTracked(tabId) {
   return { tracked: true };
 }
 
-const UNLISTED = "WorkIt doesn't list this job, so your Claude can't write for it here. Write this answer yourself.";
+const UNLISTED = "WorkIt doesn't list this job, and couldn't read its company and title from the page. Write this answer yourself.";
+const PAST_FORM = (stage) => `Your application for this job is ${stage.replace("_", " ")}, so WorkIt can't keep answers for it. Write this answer yourself.`;
+
+/**
+ * A job WorkIt doesn't list (KAN-515): added from the page, its company and
+ * title as the Fill engine reads them from the job system, with the student's
+ * application at needs_you (POST /jobs/added-by-link). The added job is the
+ * student's alone: no Jobs feed shows it. Answers its id and stage; throws,
+ * with words for the student, when the page names no company or title, or
+ * with WorkIt's own when it refuses the form (a job system turned off, past
+ * a day's adds).
+ * @param {string} url
+ */
+async function addFromPage(url) {
+  // The job system's API, as a Plan reads it (Ashby's is a POST).
+  const names = await jobNamesOf(url, fetchText).catch(() => null);
+  const company = names?.company?.trim();
+  const title = names?.title?.trim();
+  if (!company || !title) throw new Error(UNLISTED);
+  return addJobByLink({ url, company, title });
+}
 
 /**
  * The student asked their Claude to write a form's questions on a tab they
@@ -95,9 +117,10 @@ const UNLISTED = "WorkIt doesn't list this job, so your Claude can't write for i
  * Written Answers page keep the questions on an application, as a batch
  * tab's, so the job is queued (a saved one too), then moved to needs_you at
  * once so the batch never opens it, and the tab is tracked: the student's
- * submit there marks it applied. Answers the job's id. Throws, with words
- * for the student, when WorkIt doesn't list the job or its application is
- * past the form (applied, skipped).
+ * submit there marks it applied. A job WorkIt doesn't list is added from the
+ * page with its application at needs_you (addFromPage, KAN-515). Answers the
+ * job's id. Throws, with words for the student, when the job can't be added
+ * or its application is past the form (applied, skipped).
  * @param {{ tabId: number, url: string }} where
  * @returns {Promise<string>}
  */
@@ -108,15 +131,17 @@ export async function openForWriting({ tabId, url }) {
   try {
     found = await listedJobByLink(url);
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) throw new Error(UNLISTED);
-    throw error;
+    if (!(error instanceof ApiError && error.status === 404)) throw error;
   }
-  const { id } = await me();
-  const { stage } = await queueJob(id, found.job_id);
-  if (stage !== "queued" && stage !== "needs_you") {
-    throw new Error(`Your application for this job is ${stage.replace("_", " ")}, so WorkIt can't keep answers for it. Write this answer yourself.`);
+  if (found) {
+    const { id } = await me();
+    const { stage } = await queueJob(id, found.job_id);
+    if (stage !== "queued" && stage !== "needs_you") throw new Error(PAST_FORM(stage));
+    if (stage === "queued") await recordFill(id, found.job_id, "needs_you");
+  } else {
+    found = await addFromPage(url);
+    if (found.stage !== "needs_you") throw new Error(PAST_FORM(found.stage));
   }
-  if (stage === "queued") await recordFill(id, found.job_id, "needs_you");
   const tabs = await all();
   tabs[tabId] = { jobId: found.job_id, id: identity(url), applied: false, writing: true };
   await put(tabs);

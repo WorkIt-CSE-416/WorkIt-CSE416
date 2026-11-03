@@ -40,7 +40,13 @@ from app.models.profiles import Applicant_Profile, Company_Profile
 from app.models.resume import Resume
 from app.models.sent_resume import Sent_Resume
 from app.models.written_answers import Written_Answer, is_text
-from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, FORM_URL, LISTED, not_on
+from app.queries.jobs.filters import (
+    AUTO_APPLY_SUPPORTED,
+    FORM_URL,
+    LISTED,
+    OPEN,
+    not_on,
+)
 from app.queries.jobs.listings import LISTING_COLUMNS, to_listing
 from app.schemas.applications import (
     Application,
@@ -49,7 +55,7 @@ from app.schemas.applications import (
     WrittenQuestion,
 )
 from app.schemas.sent_resume import SentResumeResponse
-from app.services.postings import UNLISTED, typed_text
+from app.services.postings import ADDED, typed_text
 
 
 async def queue_applications(
@@ -136,8 +142,7 @@ def _applications(applicant_id: uuid.UUID) -> Select:
             Job_Application.applied_at.label("applied_at"),
             Job_Application.apply_by.label("apply_by"),
             Job_Post.closes_at.label("closes_at"),
-            LISTED.label("open"),
-            UNLISTED.label("unlisted"),
+            OPEN.label("open"),
             Sent_Resume,
         )
         .join(Job_Application, Job_Application.job_id == Job_Post.id)
@@ -155,7 +160,6 @@ def _to_application(row) -> Application:
         apply_by=row.apply_by,
         closes_at=row.closes_at,
         open=row.open,
-        unlisted=row.unlisted,
         sent_resume=SentResumeResponse.from_row(row.Sent_Resume) if row.Sent_Resume else None,
     )
 
@@ -213,7 +217,7 @@ async def fetch_next_application(
     which may be needs_you too (a form filled before whose tab was closed:
     Up Next's Reopen)."""
     stages = (application_stage.queued, application_stage.needs_you) if only else (application_stage.queued,)
-    query = _applications(applicant_id).where(Job_Application.stage.in_(stages), LISTED)
+    query = _applications(applicant_id).where(Job_Application.stage.in_(stages), OPEN)
     if skip:
         query = query.where(Job_Application.job_id.not_in(skip))
     if only:
@@ -262,14 +266,14 @@ async def set_stage(
 
 
 async def close_posting(db: AsyncSession, job_id: uuid.UUID) -> None:
-    """Marks a listed scraped job posting closed, as the import does for one
+    """Marks an open scraped job posting (or one a student added) closed, as the import does for one
     gone from the feed: a batch tab found the job system saying the job is
     closed (KAN-369). An employer's own posting is theirs to close, so it is
     left alone; a job still in the feed is published again by the next import."""
     now = func.now()
     await db.execute(
         update(Job_Post)
-        .where(Job_Post.id == job_id, LISTED)
+        .where(Job_Post.id == job_id, OPEN)
         .values(
             status=job_post_status.closed,
             closes_at=func.least(func.coalesce(Job_Post.closes_at, now), now),
@@ -438,7 +442,7 @@ async def fetch_next_to_write(
             .where(
                 Job_Application.applicant_id == applicant_id,
                 Job_Application.stage.in_((application_stage.queued, application_stage.needs_you)),
-                LISTED,
+                OPEN,
                 unanswered,
                 Job_Application.job_id.not_in(skip),
             )
@@ -466,7 +470,7 @@ async def fetch_unanswered(
             Written_Answer.applicant_id == applicant_id,
             Written_Answer.answer.is_(None),
             Job_Application.stage.in_((application_stage.queued, application_stage.needs_you)),
-            LISTED,
+            OPEN,
         )
         .order_by(Job_Application.created_at, Job_Application.job_id, Written_Answer.position, Written_Answer.name)
     )
@@ -502,7 +506,7 @@ async def fetch_next_to_review(db: AsyncSession, applicant_id: uuid.UUID) -> tup
             .where(
                 Job_Application.applicant_id == applicant_id,
                 Job_Application.stage.in_((application_stage.queued, application_stage.needs_you)),
-                LISTED,
+                OPEN,
                 ~rows(Written_Answer.answer.is_(None)),
                 rows(Written_Answer.own.is_(False), _read_by_review().is_distinct_from(Written_Answer.answer)),
             )
@@ -743,11 +747,11 @@ async def fetch_application_companies(db: AsyncSession, applicant_id: uuid.UUID)
 
 async def fetch_company_names(db: AsyncSession) -> list[str]:
     """Every company WorkIt knows by name: its job postings' and its
-    company profiles', each once. Not an unlisted posting's: one student
-    typed that name (KAN-542, ADR 0008), and this list feeds every
-    student's essay check."""
+    company profiles', each once. Not an added job's: one student typed
+    that name (KAN-515, ADR 0008), and this list feeds every student's
+    essay check."""
     rows = await db.scalars(
-        select(Job_Post.company_name).where(Job_Post.company_name.is_not(None), not_(UNLISTED))
+        select(Job_Post.company_name).where(Job_Post.company_name.is_not(None), not_(ADDED))
         .union(select(Company_Profile.company_name).where(Company_Profile.company_name.is_not(None)))
     )
     return list(rows)

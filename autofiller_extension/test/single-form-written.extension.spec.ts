@@ -5,13 +5,16 @@
 // gets an application for that (the routes keep the questions on one), and
 // waits at needs_you, out of the batch's queue. A saved answer to the same
 // question fills with no asking at all. Cohere's saved Ashby form, whose
-// "good fit" question needs writing.
+// "good fit" question needs writing. A job WorkIt doesn't list is added from
+// the page (KAN-515): Datacor's saved Greenhouse form, Twitch's job system.
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
 import { loadExtension, signIn, webapp, type Loaded } from "./loaded-extension";
 
 const COHERE = "ashby-cohere";
+const DATACOR = "greenhouse-datacor";
+const LOOKING = /^Please write a few sentences around what you are looking/;
 const FIT = /^What makes you a good fit for Cohere\?/;
 const ANSWER = "I built a retrieval tool for my school's library that answers questions about its catalog.";
 
@@ -20,12 +23,12 @@ test.afterEach(() => loaded?.close());
 
 const hostOf = (page: Page) => page.locator("#workit-autofiller-overlay-host");
 
-/** Cohere's form opened by the student (no batch), filled with the panel's Autofill This Page. */
-async function filledOwnTab(api: FakeApi, forms: SavedForms): Promise<Page> {
+/** A saved form (Cohere's by default) opened by the student (no batch), filled with the panel's Autofill This Page. */
+async function filledOwnTab(api: FakeApi, forms: SavedForms, form = COHERE): Promise<Page> {
   loaded = await loadExtension([api.handler, webapp, forms.handler]);
   await signIn(loaded.context);
   const page = await loaded.context.newPage();
-  await page.goto(forms.url(COHERE));
+  await page.goto(forms.url(form));
   await hostOf(page).getByRole("button", { name: "Show WorkIt panel" }).click({ timeout: 15_000 });
   await hostOf(page).getByRole("button", { name: "Autofill This Page" }).click();
   await expect(hostOf(page).locator('[data-slot="primary"] .primary-button').first()).toContainText(/Answer \d+ of \d+|Review and submit/, { timeout: 60_000 });
@@ -33,7 +36,7 @@ async function filledOwnTab(api: FakeApi, forms: SavedForms): Promise<Page> {
 }
 
 /** The form's field named `name`. */
-const fieldFor = (page: Page, name: string) => page.locator(`[name="${name}"]`);
+const fieldFor = (page: Page, name: string) => page.locator(`[name="${name}"], [id="${name}"]`);
 
 test("the student's Claude or Written Answers writes a single form's question, and it fills", async () => {
   test.setTimeout(120_000);
@@ -78,7 +81,30 @@ test("a saved answer to the same question fills a single form, with nothing to a
   expect(api.calls.filter((call) => /essay/.test(call))).toEqual([]);
 });
 
-test("on a job WorkIt doesn't list, the question is the student's to write", async () => {
+test("on a job WorkIt doesn't list, WorkIt adds it from the page and the student's Claude writes for it", async () => {
+  // Greenhouse, as Twitch's form is (KAN-515): its Job Board API names the company and title.
+  test.setTimeout(120_000);
+  const forms = new SavedForms([DATACOR]);
+  const api = new FakeApi();
+  const page = await filledOwnTab(api, forms, DATACOR);
+  expect(api.added).toEqual([]);
+
+  await hostOf(page).locator(".essay-banner").getByRole("button", { name: "Write with Claude" }).click();
+  // The job, as the job system names it, and the form's link: WorkIt keeps the questions on its application.
+  await expect.poll(() => api.added, { timeout: 20_000 }).toEqual([{ url: forms.url(DATACOR), company: "Datacor", title: "Summer 2027 AI Engineer Intern" }]);
+  await expect.poll(() => api.written.get("added-0")?.some((q) => LOOKING.test(q.label)), { timeout: 20_000 }).toBe(true);
+  expect(api.stages.get("added-0")).toBe("needs_you");
+  await expect(hostOf(page).getByText(/WorkIt doesn't list this job/)).toHaveCount(0);
+
+  const { name } = api.written.get("added-0")!.find((q) => LOOKING.test(q.label))!;
+  api.saveAnswer("added-0", name, ANSWER);
+  await expect(fieldFor(page, name)).toHaveValue(ANSWER, { timeout: 20_000 });
+  expect(api.calls.filter((call) => /essay/.test(call))).toEqual([]);
+  expect(forms.submissions).toEqual([]);
+});
+
+test("on a job WorkIt doesn't list whose page names no company, the question is the student's to write", async () => {
+  // Cohere's saved Ashby form: the fake network has no answer for the names query, as when a job system's API is down.
   test.setTimeout(120_000);
   const forms = new SavedForms([COHERE]);
   const api = new FakeApi();
@@ -86,6 +112,6 @@ test("on a job WorkIt doesn't list, the question is the student's to write", asy
 
   await hostOf(page).locator(".essay-banner").getByRole("button", { name: "Write with Claude" }).click();
   await expect(hostOf(page).getByText(/WorkIt doesn't list this job/).first()).toBeVisible({ timeout: 20_000 });
+  expect(api.added).toEqual([]);
   expect(api.written.size).toBe(0);
-  expect(api.calls.filter((call) => /essay/.test(call))).toEqual([]);
 });

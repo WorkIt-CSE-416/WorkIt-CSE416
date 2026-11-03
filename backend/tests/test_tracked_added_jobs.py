@@ -1,9 +1,11 @@
 """
-Unlisted job postings (KAN-542, ADR 0008): a student adds a job to the
-Applications Tracker by its link with POST /jobs/added-by-link. A job WorkIt
-lists comes back as that posting; any other becomes one unlisted posting,
-which only students with an application on it see. Against real Postgres
-(backend/CLAUDE.md, "Tests against real Postgres"), as tests/test_saved_jobs.py.
+Apply's adds by link (KAN-542, ADR 0008): Apply puts a job on the student's
+Applications Tracker with POST /jobs/added-by-link and "track_only": true.
+A job WorkIt lists comes back as that posting; a closed one is tracked as it
+is; any other becomes one added job (added_by_student), which only students
+with an application on it see. The extension's Write with Claude on the same
+route is tests/test_added_jobs.py. Against real Postgres (backend/CLAUDE.md,
+"Tests against real Postgres"), as tests/test_saved_jobs.py.
 """
 
 import uuid
@@ -24,7 +26,8 @@ LOCKHEED = "https://lockheedmartin.eightfold.ai/careers/job/7123456"
 
 
 def _add(link: str, **extra) -> dict:
-    return {"url": link, "company": "Lockheed Martin", "title": "Software Engineer Intern", **extra}
+    return {"url": link, "company": "Lockheed Martin", "title": "Software Engineer Intern", "track_only": True,
+            **extra}
 
 
 async def _seed_listed(database, url: str) -> str:
@@ -40,11 +43,12 @@ async def _seed_listed(database, url: str) -> str:
     return str(job)
 
 
-async def _status(database, job_id: str) -> str:
+async def _posting(database, job_id: str) -> tuple[str, bool]:
+    """The posting's status and whether a student added it."""
     async with database() as session:
-        return await session.scalar(
-            text("SELECT status::text FROM job_postings WHERE id = :id"), {"id": job_id}
-        )
+        return tuple((await session.execute(
+            text("SELECT status::text, added_by_student FROM job_postings WHERE id = :id"), {"id": job_id}
+        )).one())
 
 
 @pytest.mark.parametrize("page", [
@@ -60,17 +64,19 @@ async def test_a_listed_job_comes_back_as_itself_and_goes_on_the_tracker(student
 
     res = await client.post("/jobs/added-by-link", json=_add(page))
     assert res.status_code == 200
-    assert res.json() == {"job_id": job, "status": "published", "stage": "saved"}
+    assert res.json() == {"job_id": job, "stage": "saved"}
     assert (await _row(database, me, job))[0] == "saved"
+    assert await _posting(database, job) == ("published", False)
 
 
-async def test_an_unknown_link_makes_one_unlisted_posting(student, database):  # noqa: F811
+async def test_an_unknown_link_on_any_site_makes_one_added_job(student, database):  # noqa: F811
     client, me = student
 
     first = await client.post("/jobs/added-by-link", json=_add(LOCKHEED))
     assert first.status_code == 200
     body = first.json()
-    assert body["status"] == "unlisted" and body["stage"] == "saved"
+    assert body["stage"] == "saved"
+    assert await _posting(database, body["job_id"]) == ("published", True)
 
     # The same job by another form of its link is the same posting.
     again = await client.post("/jobs/added-by-link", json=_add(f"http://www.{LOCKHEED[8:]}/?src=apply"))
@@ -84,20 +90,36 @@ async def test_an_unknown_link_makes_one_unlisted_posting(student, database):  #
     assert [(a["job"]["id"], a["job"]["company"], a["job"]["title"]) for a in tracker] == [
         (body["job_id"], "Lockheed Martin", "Software Engineer Intern")
     ]
-    # Not closed: the tracker shows it open, while the extension still skips it.
-    assert (tracker[0]["unlisted"], tracker[0]["open"]) == (True, False)
+    # Not closed: an added job is open (OPEN), though no feed lists it.
+    assert tracker[0]["open"] is True
+    assert "unlisted" not in tracker[0]
+
+    # A company's own careers site is no form auto apply fills: Write with Claude refuses it, Apply's tracking
+    # takes it.
+    flux = "https://careers.flux.com/global/en/job/2026800"
+    assert (await client.post("/jobs/added-by-link", json=_add(flux, track_only=False))).status_code == 404
+    assert (await client.post("/jobs/added-by-link", json=_add(flux))).json()["stage"] == "saved"
 
 
 async def test_an_application_already_on_the_job_keeps_its_stage(student, database):  # noqa: F811
-    client, _ = student
+    client, me = student
     job = await _seed_listed(database, "https://careers.example.com/jobs/1")
     await client.post(f"/jobs/{job}/applied")
 
     res = await client.post("/jobs/added-by-link", json=_add("https://careers.example.com/jobs/1"))
     assert res.json()["stage"] == "applied"
 
+    # Tracking never moves a stage: a queued job stays queued (Write with Claude moves it to needs_you).
+    queued = await _seed_listed(database, "https://boards.greenhouse.io/acme/jobs/77")
+    async with database() as session:
+        await session.execute(text("INSERT INTO job_applications (applicant_id, job_id, stage, applied_at)"
+                                   " VALUES (:me, :job, 'queued', NULL)"), {"me": me, "job": queued})
+        await session.commit()
+    res = await client.post("/jobs/added-by-link", json=_add("https://boards.greenhouse.io/acme/jobs/77"))
+    assert res.json()["stage"] == "queued"
 
-async def test_the_student_sets_a_stage_on_an_unlisted_posting(student, database):  # noqa: F811
+
+async def test_the_student_sets_a_stage_on_an_added_job(student, database):  # noqa: F811
     client, me = student
     job = (await client.post("/jobs/added-by-link", json=_add(LOCKHEED))).json()["job_id"]
 
@@ -109,8 +131,9 @@ async def test_the_student_sets_a_stage_on_an_unlisted_posting(student, database
     assert (await _row(database, me, job))[0] == "interviewing"
 
 
-async def test_a_closed_posting_with_the_link_is_reused_not_duplicated(student, database):  # noqa: F811
-    # The feed closed it after the student applied: the same link must not break the unique apply_url.
+async def test_a_closed_posting_with_the_link_is_tracked_as_it_is(student, database):  # noqa: F811
+    # The feed closed it after the student applied: the same link must not break the unique apply_url,
+    # and tracking it must not reopen or retitle it for other students.
     client, _ = student
     async with database() as session:
         job = str(await session.scalar(
@@ -122,12 +145,19 @@ async def test_a_closed_posting_with_the_link_is_reused_not_duplicated(student, 
         ))
         await session.commit()
 
-    res = await client.post("/jobs/added-by-link", json=_add(LOCKHEED))
+    res = await client.post("/jobs/added-by-link", json=_add(LOCKHEED, company="Evil", title="Changed"))
     assert res.status_code == 200
-    assert res.json() == {"job_id": job, "status": "closed", "stage": "saved"}
+    assert res.json() == {"job_id": job, "stage": "saved"}
+    assert await _posting(database, job) == ("closed", False)
+    async with database() as session:
+        row = (await session.execute(text("SELECT company_name, title FROM job_postings WHERE id = :id"),
+                                     {"id": job})).one()
+    assert tuple(row) == ("Acme", "Intern")
+    # Write with Claude still refuses the closed job's form.
+    assert (await client.post("/jobs/added-by-link", json=_add(LOCKHEED, track_only=False))).status_code == 404
 
 
-async def test_an_unlisted_posting_stays_off_search_the_job_page_and_scout(student, database):  # noqa: F811
+async def test_an_added_job_stays_off_search_the_job_page_and_scout(student, database):  # noqa: F811
     client, _ = student
     listed = await _seed_listed(database, "https://careers.example.com/jobs/1")
     job = (await client.post("/jobs/added-by-link", json=_add(LOCKHEED))).json()["job_id"]
@@ -141,7 +171,7 @@ async def test_an_unlisted_posting_stays_off_search_the_job_page_and_scout(stude
         assert await find_job(session, listed) is not None
 
 
-async def test_another_student_never_sees_the_unlisted_posting(student, database):  # noqa: F811
+async def test_another_student_never_sees_the_added_job(student, database):  # noqa: F811
     client, _ = student
     job = (await client.post("/jobs/added-by-link", json=_add(LOCKHEED))).json()["job_id"]
 
@@ -219,16 +249,16 @@ async def test_a_second_student_on_the_link_never_sees_the_first_ones_typing(stu
     [row] = (await client.get(f"/applicants/{me}/applications")).json()
     assert (row["job"]["company"], row["job"]["title"]) == ("LM (Kate's referral)", "Skunk Works intern, team 7")
 
-    # Once the feed lists the job, both students see the feed's text.
+    # Once the feed lists the job (the import clears the flag), both students see the feed's text.
     async with database() as session:
-        await session.execute(text("UPDATE job_postings SET status = 'published', title = 'SWE Intern', "
+        await session.execute(text("UPDATE job_postings SET added_by_student = false, title = 'SWE Intern', "
                                    "company_name = 'Lockheed Martin Corp'"))
         await session.commit()
     [row] = (await client.get(f"/applicants/{me}/applications")).json()
     assert (row["job"]["company"], row["job"]["title"]) == ("Lockheed Martin Corp", "SWE Intern")
 
 
-async def test_an_unlisted_postings_company_is_not_a_known_company(student, database):  # noqa: F811
+async def test_an_added_jobs_company_is_not_a_known_company(student, database):  # noqa: F811
     from app.auto_apply.queries import fetch_company_names
 
     client, _ = student

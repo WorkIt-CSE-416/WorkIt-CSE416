@@ -52,7 +52,7 @@ from app.models.dto import application_stage
 from app.models.jobs import Job_Post
 from app.models.profiles import Company_Profile
 from app.models.written_answers import Written_Answer
-from app.queries.jobs.filters import LISTED
+from app.queries.jobs.filters import OPEN
 from app.services.page_fetch import fetch_text
 
 CATEGORIES = ("products", "launches", "engineering", "team")
@@ -286,7 +286,7 @@ async def _applying(db: AsyncSession, applicant_id: uuid.UUID) -> list[Applying]
         .where(
             Job_Application.applicant_id == applicant_id,
             Job_Application.stage.in_((application_stage.queued, application_stage.needs_you)),
-            LISTED,
+            OPEN,
             unanswered,
         )
         .order_by(Job_Application.created_at, Job_Application.job_id)

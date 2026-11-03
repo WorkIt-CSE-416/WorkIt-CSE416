@@ -94,6 +94,12 @@ class Job_Post(BaseModel):
     # company's own job and for one closed before the column.
     closed_reason: Mapped[str | None] = mapped_column(Text)
     posted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # A job a student added from its form, which WorkIt doesn't list
+    # (KAN-515, POST /jobs/added-by-link): it holds that student's
+    # application, so their Claude can write its questions, and no Jobs feed
+    # shows it (services/postings.py LISTED). The feed import neither closes
+    # nor claims it, unless the feed lists its link: then it is a scraped job.
+    added_by_student: Mapped[bool] = mapped_column(server_default=text("false"))
     # The posting's meaning as a vector
     embedding: Mapped[list[float] | None] = mapped_column(
         VECTOR(dto.EMBEDDING_DIMENSIONS), deferred=True

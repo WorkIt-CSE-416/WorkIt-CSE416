@@ -1,6 +1,6 @@
-"""The feed import takes over an unlisted job posting (KAN-542, ADR 0008):
+"""The feed import takes over a job a student added (KAN-542, ADR 0008):
 when the scraper finds a job a student added by its link, the import fills
-in that posting and publishes it. No second posting, no unique-link error,
+in that posting and makes it the feed's (added_by_student clears). No second posting, no unique-link error,
 and the student's application stays on it. Against real Postgres
 (backend/CLAUDE.md, "Tests against real Postgres")."""
 
@@ -31,8 +31,9 @@ async def _import(urls: list[str]):
         return await import_feed(conn, [_listing(url) for url in urls])
 
 
-async def _unlisted(url: str, status: str = "unlisted") -> tuple[str, uuid.UUID]:
-    """An unlisted posting at `url`, saved on one student's tracker; answers its id and the student."""
+async def _added(url: str, closed: bool = False) -> tuple[str, uuid.UUID]:
+    """A job a student added at `url` (or, `closed`, a scraped job the feed closed), applied to on one
+    student's tracker; answers its id and the student."""
     student = uuid.uuid4()
     async with get_engine().begin() as conn:
         await conn.execute(text("INSERT INTO auth.users (id) VALUES (:id)"), {"id": student})
@@ -42,11 +43,11 @@ async def _unlisted(url: str, status: str = "unlisted") -> tuple[str, uuid.UUID]
         )
         job = await conn.scalar(
             text(
-                "INSERT INTO job_postings (id, title, status, company_name, apply_url, experience_level)"
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url, added_by_student)"
                 " VALUES (gen_random_uuid(), 'SWE Intern', CAST(:status AS job_post_status), 'Acme', :url,"
-                " 'student') RETURNING id"
+                " :added) RETURNING id"
             ),
-            {"url": url, "status": status},
+            {"url": url, "status": "closed" if closed else "published", "added": not closed},
         )
         await conn.execute(
             text("INSERT INTO job_applications (applicant_id, job_id, stage) VALUES (:a, :j, 'applied')"),
@@ -55,10 +56,11 @@ async def _unlisted(url: str, status: str = "unlisted") -> tuple[str, uuid.UUID]
     return str(job), student
 
 
-async def _postings() -> dict[str, tuple[str, str, str]]:
+async def _postings() -> dict[str, tuple[str, str, str, bool]]:
     async with get_engine().connect() as conn:
-        rows = await conn.execute(text("SELECT id, apply_url, status::text, company_name FROM job_postings"))
-        return {str(r.id): (r.apply_url, r.status, r.company_name) for r in rows}
+        rows = await conn.execute(
+            text("SELECT id, apply_url, status::text, company_name, added_by_student FROM job_postings"))
+        return {str(r.id): (r.apply_url, r.status, r.company_name, r.added_by_student) for r in rows}
 
 
 async def _application_job(student: uuid.UUID) -> str:
@@ -76,44 +78,44 @@ async def _application_job(student: uuid.UUID) -> str:
     # The same Greenhouse job on the other host.
     ("https://boards.greenhouse.io/acme/jobs/4012345", "https://job-boards.greenhouse.io/acme/jobs/4012345"),
 ])
-async def test_the_scraper_takes_over_the_unlisted_posting(database, added, scraped):
-    job, student = await _unlisted(added)
+async def test_the_scraper_takes_over_the_added_job(database, added, scraped):
+    job, student = await _added(added)
 
     await _import([scraped, OTHER])
 
     postings = await _postings()
-    assert postings[job] == (scraped, "published", "Acme Corp")
+    assert postings[job] == (scraped, "published", "Acme Corp", False)
     assert len(postings) == 2
     assert await _application_job(student) == job
 
 
-async def test_an_unlisted_posting_the_feed_does_not_have_stays_unlisted(database):
-    job, _ = await _unlisted("https://lockheedmartin.eightfold.ai/careers/job/7123456")
+async def test_an_added_job_the_feed_does_not_have_stays_added_and_open(database):
+    job, _ = await _added("https://lockheedmartin.eightfold.ai/careers/job/7123456")
 
     report = await _import([OTHER])
 
-    assert (await _postings())[job][1] == "unlisted"
+    assert (await _postings())[job][1:] == ("published", "Acme", True)
     assert report.closed == 0
 
 
 async def test_a_bare_link_two_scraped_jobs_share_takes_over_neither(database):
-    # Two feed jobs told apart only by their query: the unlisted one could be either.
-    job, _ = await _unlisted("https://careers.example.com/job")
+    # Two feed jobs told apart only by their query: the added one could be either.
+    job, _ = await _added("https://careers.example.com/job")
 
     await _import(["https://careers.example.com/job?id=1", "https://careers.example.com/job?id=2"])
 
     postings = await _postings()
-    assert postings[job] == ("https://careers.example.com/job", "unlisted", "Acme")
+    assert postings[job] == ("https://careers.example.com/job", "published", "Acme", True)
     assert len(postings) == 3
 
 
 async def test_a_feed_link_another_posting_holds_is_not_taken_over(database):
-    # A closed scraped posting already holds the feed's link: moving the unlisted one onto it breaks the unique link.
-    closed, _ = await _unlisted("https://job-boards.greenhouse.io/acme/jobs/4012345", status="closed")
-    job, _ = await _unlisted("https://boards.greenhouse.io/acme/jobs/4012345")
+    # A closed scraped posting already holds the feed's link: moving the added one onto it breaks the unique link.
+    closed, _ = await _added("https://job-boards.greenhouse.io/acme/jobs/4012345", closed=True)
+    job, _ = await _added("https://boards.greenhouse.io/acme/jobs/4012345")
 
     await _import(["https://job-boards.greenhouse.io/acme/jobs/4012345"])
 
     postings = await _postings()
     assert postings[closed][1] == "published"
-    assert postings[job] == ("https://boards.greenhouse.io/acme/jobs/4012345", "unlisted", "Acme")
+    assert postings[job] == ("https://boards.greenhouse.io/acme/jobs/4012345", "published", "Acme", True)
