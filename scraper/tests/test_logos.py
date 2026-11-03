@@ -187,12 +187,17 @@ def serve(pages: dict[str, bytes | str]):
     return get
 
 
-def fetch(board: tuple[str, str, str], pages: dict[str, bytes | str]) -> dict:
+def fetch_both(board: tuple[str, str, str], pages: dict[str, bytes | str]) -> tuple[dict, dict]:
+    """`logos.fetch` on one board: its logos and its websites."""
     with (
         mock.patch.object(logos, "Robots"),
         mock.patch.object(logos.web, "get", serve(pages)),
     ):
         return logos.fetch([board])
+
+
+def fetch(board: tuple[str, str, str], pages: dict[str, bytes | str]) -> dict:
+    return fetch_both(board, pages)[0]
 
 
 # The Greenhouse jobs API JSON-escapes the HTML in `content` -- `\u0026lt;` -- which
@@ -338,7 +343,69 @@ class TestFetch:
         }
 
     def test_an_unreadable_board_is_left_for_the_next_run(self) -> None:
-        assert fetch(("lever", "gone", "Gone"), {}) == {}
+        assert fetch_both(("lever", "gone", "Gone"), {}) == ({}, {})
+
+
+class TestWebsiteBesideAnUpload:
+    """KAN-442's cards draw the logo from Brandfetch by the website, so a board with
+    an uploaded logo keeps its website too: on 2026-11-03, 4,238 jobs at 865
+    companies had an upload, no website and so no `company_domain`."""
+
+    def test_an_ashby_upload_keeps_its_public_website(self) -> None:
+        page = (
+            b'"logoSquareImageUrl":"https://app.ashbyhq.com/api/images/org-theme-logo/b.png",'
+            b'"publicWebsite":"https://bedrockrobotics.com/"'
+        )
+        found, sites = fetch_both(
+            ("ashby", "bedrock-robotics", "Bedrock Robotics"),
+            {"https://jobs.ashbyhq.com/": page, "https://app.ashbyhq.com/": png(400)},
+        )
+        assert found == {
+            "ashby/bedrock-robotics": "https://app.ashbyhq.com/api/images/org-theme-logo/b.png"
+        }
+        assert sites == {"ashby/bedrock-robotics": "bedrockrobotics.com"}
+
+    def test_a_greenhouse_upload_finds_its_website_in_the_descriptions(self) -> None:
+        found, sites = fetch_both(
+            ("greenhouse", "scaleai", "Scale AI"),
+            {
+                "https://job-boards.greenhouse.io/": GREENHOUSE.encode(),
+                "https://boards-api.greenhouse.io/": greenhouse_jobs(
+                    "https://www.eeoc.gov/poster", "https://scale.com/careers"
+                ),
+            },
+        )
+        assert found == {"greenhouse/scaleai": logos.extract("greenhouse", GREENHOUSE)}
+        assert sites == {"greenhouse/scaleai": "scale.com"}
+
+    def test_an_upload_whose_descriptions_are_gone_is_kept_with_no_website(self) -> None:
+        # A 404 is an answer: left out, the board would be read on every run.
+        found, sites = fetch_both(
+            ("greenhouse", "axios", "Axios"),
+            {"https://job-boards.greenhouse.io/": GREENHOUSE.encode()},
+        )
+        assert found == {"greenhouse/axios": logos.extract("greenhouse", GREENHOUSE)}
+        assert sites == {"greenhouse/axios": None}
+
+    def test_a_failed_read_of_the_descriptions_leaves_it_for_the_next_run(self) -> None:
+        def get(url: str, *, timeout: float) -> bytes:
+            if url.startswith("https://job-boards.greenhouse.io/"):
+                return GREENHOUSE.encode()
+            raise TimeoutError
+
+        with mock.patch.object(logos, "Robots"), mock.patch.object(logos.web, "get", get):
+            assert logos.fetch([("greenhouse", "axios", "Axios")]) == ({}, {})
+
+    def test_a_board_read_with_an_upload_before_websites_were_kept_is_read_again(self) -> None:
+        upload = "https://app.ashbyhq.com/api/images/x.png"
+        read = {"ashby/a": upload, "ashby/b": logos.favicon("b.com"), "lever/c": None}
+        assert logos.needs_read("ashby/a", read, {})
+        assert not logos.needs_read("ashby/a", read, {"ashby/a": None})
+        # A favicon names its website already, and a board with no logo waits for
+        # `VERSION`, as before.
+        assert not logos.needs_read("ashby/b", read, {})
+        assert not logos.needs_read("lever/c", read, {})
+        assert logos.needs_read("ashby/new", read, {})
 
 
 class TestStore:
@@ -358,6 +425,19 @@ class TestStore:
         previous = store.Store("2026-09-28T00:00:00+00:00", RunStats(), [], {}, {"ashby/a": "u"})
         now = "2026-09-29T00:00:00+00:00"
         assert store.update(previous, [], [], RunStats(), now).logos == {"ashby/a": "u"}
+
+    def test_websites_survive_a_save_an_update_and_old_files_load(self, tmp_path: Path) -> None:
+        sites = {"ashby/a": "a.com", "lever/b": None}
+        run = store.Store("2026-11-03T00:00:00+00:00", RunStats(), [], {}, websites=sites)
+        path = tmp_path / "jobs.json"
+        store.save(run, path)
+        assert store.load(path).websites == sites
+        now = "2026-11-04T00:00:00+00:00"
+        assert store.update(run, [], [], RunStats(), now).websites == sites
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        del payload["websites"]
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        assert store.load(path).websites == {}
 
     def test_a_newer_reader_reads_the_boards_that_had_no_logo_again(self, tmp_path: Path) -> None:
         old = store.Store(
@@ -408,10 +488,18 @@ class TestCompanyDomain:
         assert logos.company_domain("icims/careers-kimley-horn", None) == "kimley-horn.com"
         assert logos.company_domain("oracle/hdpc.fa.us2/LateralHiring", None) == "goldmansachs.com"
 
-    def test_an_uploaded_logo_or_none_gives_no_domain(self) -> None:
+    def test_an_uploaded_logo_or_none_gives_no_domain_without_a_website(self) -> None:
         upload = "https://app.ashbyhq.com/api/images/x.png"
         assert logos.company_domain("ashby/terranova", upload) is None
         assert logos.company_domain("lever/nologo", None) is None
+
+    def test_an_uploaded_logo_gives_the_domain_of_the_website_beside_it(self) -> None:
+        upload = "https://app.ashbyhq.com/api/images/x.png"
+        assert logos.company_domain("ashby/x", upload, "www.terranova.com") == "terranova.com"
+        assert logos.company_domain("ashby/x", upload, "x.eightfold.ai") is None
+        # The checked website still wins.
+        micron = "workday/micron.wd1/external"
+        assert logos.company_domain(micron, None, "micron.eightfold.ai") == "micron.com"
 
     def test_every_checked_website_fits_the_columns_check(self) -> None:
         for key, site in logos.CHECKED_WEBSITES.items():

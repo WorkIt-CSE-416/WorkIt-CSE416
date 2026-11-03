@@ -677,8 +677,12 @@ or website**, or boards already stored as having none never get it. Read
 
 **The feed's `company_domain` is what the Jobs page draws the logo from**
 (Brandfetch, KAN-442): `logos.company_domain`, worked out as the feed is
-written, from `checked_websites.csv` first, else the favicon's website, cut to
-the company's registered domain and never a hiring vendor's. A row goes into
+written, from `checked_websites.csv` first, else the website the board named
+(`Store.websites`, kept beside an uploaded logo too), else the favicon's
+website, cut to the company's registered domain and never a hiring vendor's.
+Until 2026-11-03 an upload kept no website, so 4,238 jobs kept their upload
+instead of Brandfetch's logo; `logos.needs_read` reads each such board once
+more. A row goes into
 `checked_websites.csv` only after its checks (`docs/logos.md`, Checked
 websites): a script for the site and its name, a person for every failure.
 
