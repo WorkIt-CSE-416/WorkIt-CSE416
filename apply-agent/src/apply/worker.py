@@ -66,6 +66,20 @@ def sent_folder(company: str, application_id: str, day: date) -> Path:
     return SENT / day.isoformat() / f"{slug}-{re.sub(r'[^A-Za-z0-9_-]+', '-', application_id)}"
 
 
+def sent_resume(application_id: str, name: str, sent: Path | None = None) -> str:
+    """The resume the Application's form was given, from its newest folder
+    under SENT (KAN-544): the file named `name` (the profile's resume), else a
+    PDF whose name says resume; "" when none was kept."""
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", application_id)
+    folders = sorted((f for f in (sent or SENT).glob(f"*/*-{safe}") if f.is_dir()), key=lambda f: f.parent.name,
+                     reverse=True)
+    for folder in folders:
+        named = [folder / name] + sorted(f for f in folder.glob("*.pdf") if "resume" in f.name.lower())
+        if found := next((f for f in named if f.is_file()), None):
+            return str(found)
+    return ""
+
+
 def keep_sent(folder: Path, path: Path) -> Path:
     """A copy of `path` in `folder` (an Application's under SENT) by its own name; another
     file kept there by that name already: the copy's name is numbered before it."""

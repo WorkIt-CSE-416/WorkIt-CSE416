@@ -9,6 +9,8 @@ import dataclasses
 import fcntl
 import json
 import os
+import sys
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
@@ -16,6 +18,7 @@ from pathlib import Path
 
 from apply.home import HOME
 from apply.model import Outcome, Posting, Status
+from apply.workit import Write
 
 
 @dataclass
@@ -259,3 +262,48 @@ def _locked_call(name: str, write: bool):
 
 for _name in _WRITES + _READS:
     setattr(FileTracker, _name, _locked_call(_name, _name in _WRITES))
+
+
+# The Applications Tracker stage each Apply status writes (KAN-544). Other
+# statuses (filling, queued, failed, closed...) write nothing.
+STAGES = {Status.SUBMITTED: "applied", Status.HANDOFF: "needs_you", Status.MISSING_FACT: "needs_you",
+          Status.HELD: "queued"}
+
+
+class WorkItTracker:
+    """A Tracker that also writes each Application's new status to the
+    student's Applications Tracker (KAN-544), through an Outbox
+    (workit.Outbox): the row is kept in `inner` first, then the write goes,
+    or waits in the queue. `resume_of(application_id)` is the file a
+    submitted form was given as the resume ("" for none), kept as its Sent
+    resume. A write that fails is said and never stops the run."""
+
+    def __init__(self, inner, outbox, resume_of: Callable[[str], str]):
+        self.inner = inner
+        self._outbox = outbox
+        self._resume_of = resume_of
+
+    def __getattr__(self, name):
+        return getattr(self.inner, name)
+
+    def add(self, row: Row) -> None:
+        self.inner.add(row)
+        self._record(row, None)
+
+    def update(self, application_id: str, **fields) -> None:
+        before = self.inner.get(application_id)
+        self.inner.update(application_id, **fields)
+        if "status" in fields:
+            self._record(self.inner.get(application_id), before.status if before else None)
+
+    def _record(self, row: Row, before: Status | None) -> None:
+        stage = STAGES.get(row.status)
+        if stage is None or row.status == before:
+            return
+        try:
+            said = self._outbox.send(Write(
+                row.application_id, row.posting_url, row.company or "Unknown company", row.role or "Job", stage,
+                self._resume_of(row.application_id) if stage == "applied" else ""))
+        except Exception as error:  # the run goes on: the row is in Apply's own Tracker
+            said = f"not in your Applications Tracker ({type(error).__name__}: {error})"
+        print(f"{row.company}, {row.role}: {said}", file=sys.stderr)
