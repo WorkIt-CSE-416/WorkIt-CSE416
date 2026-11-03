@@ -452,7 +452,10 @@ searchParams.
 Seeker pages break on the width they actually get, not the window's: the
 shell renders them inside `@container/main`. A layout that splits into
 columns uses `@3xl/main:` and friends, and a card that rearranges itself
-(the job card) is its own `@container`. Scout's panel takes room beside the
+(the job card) is its own `@container`. A container is a containing block,
+so a `fixed` layer inside a page is fixed to the page area, not the window:
+a layer that covers the window renders in a portal to `<body>` (the phone
+editor sat 64px low, its bottom bar off screen, until KAN-574). Scout's panel takes room beside the
 page when open, and the page fits itself to what is left. **The panel never
 changes the page's width**: it is a fixed rail. Until 2026-10-27 it
 collapsed and opened, and a `--panel-gain` length (with its readers on
