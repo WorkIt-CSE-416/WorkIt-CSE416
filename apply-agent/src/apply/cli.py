@@ -29,6 +29,7 @@ from apply import (
     sheet_import,
     story_map,
     trace,
+    tracker_cleanup,
     walls,
     workit,
 )
@@ -126,6 +127,12 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
         "import-sheet", help="one time: put each submitted row of the Tracker Sheet into your WorkIt Applications "
                              "Tracker. It lists every add and skip first, and writes only when you type yes")
     import_sheet.add_argument("--dry-run", action="store_true", help="only list what it would do; write nothing")
+    clean_tracker = commands.add_parser(
+        "clean-tracker", help="delete the saved and queued applications on your WorkIt Applications Tracker of jobs "
+                              "you did not apply to. It lists every delete first, and deletes only when you type yes")
+    clean_tracker.add_argument("--dry-run", action="store_true", help="only list what it would delete; delete nothing")
+    clean_tracker.add_argument("--keep", action="append", default=[], metavar="LINK",
+                               help="a job's link (or WorkIt job id) to keep on the tracker; give it again for more")
     commands.add_parser("push-test", help="send one test push to your phone (ntfy), or say how to set it up")
     scheduled = commands.add_parser(
         "schedule", help="launchd jobs for the Daily sweep (`apply run` at policies.yaml's schedule.daily_sweep_at) "
@@ -154,7 +161,7 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
                                                            "bank/questions.md lines; no model call")
     args = parser.parse_args(argv)
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
-    if args.command not in ("doctor", "login", "import-sheet") and home.fill_from_sample():
+    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
 
@@ -245,6 +252,19 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             sys.exit(sheet_import.run(cells, client, SENT, dry_run=args.dry_run))
         except (NoSheet, workit.WorkItError) as error:
             sys.exit(f"apply import-sheet: {error}")
+    elif args.command == "clean-tracker":
+        client = workit.WorkIt()
+        if not client.logged_in():
+            sys.exit("apply clean-tracker: no WorkIt login. Run `uv run apply login` first.")
+        try:
+            cells = live_tracker_sheet().worksheet(APPLICATIONS).get_all_values()
+        except NoSheet:
+            cells = None
+            print("No Tracker Sheet: only WorkIt says which jobs you applied to.")
+        try:
+            sys.exit(tracker_cleanup.run(client, cells, keep=args.keep, dry_run=args.dry_run))
+        except workit.WorkItError as error:
+            sys.exit(f"apply clean-tracker: {error}")
     elif args.command == "signals":
         print(bot_signals.summary((adapters.tracker if adapters else live_tracker()).rows()))
     elif args.command == "repair":
