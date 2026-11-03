@@ -957,25 +957,11 @@ is no backfill. Only the import writes it (`../CLAUDE.md`, The feed import).
 A reason added to the CHECK goes into the import's `CLOSED_REASONS` too, or
 the import files it as `unknown`.
 
-**`unlisted` is a scraped-shape job that one student added by its link**
-(`c2e4a6b8d051`, KAN-542, `../../docs/adr/0008-unlisted-job-postings.md`):
-`company_id` NULL, with only the company, title, link and a level. No
-query that lists jobs to students returns it: `services/postings.py`'s
-`LISTED` asks for `published`, and the import's close step touches only
-`published`. Only a student with an application on it reaches it (through
-the tracker and `POST /jobs/{id}/applied`). The feed import publishes it
-when the scraper finds the same job (`../CLAUDE.md`, The feed import).
-**An application on it reads `open: false, unlisted: true`**
-(`auto_apply/queries.py`): `open` stays `LISTED` because the extension and
-the queue skip anything not open, and Apply writes the jobs it holds as
-queued; `unlisted` is what tells the tracker the job is not closed. A
-second student who adds the same link gets the same posting, so the link
-stays unique. Each student sees their own company and title on it
-(`job_applications.company_name`, `title`, below).
-**SQL names it as text** (`UNLISTED`, `status::text = 'unlisted'`): Postgres
-refuses a query that names an enum value its type lacks, so a query that
-named it as the enum would fail on a database without the migration (the
-same failure as `dto.BEFORE_APPLIED`'s).
+**`unlisted` is in the enum but unused** (`c2e4a6b8d051`, KAN-542, applied
+to production before the design settled on a column). A job a student added
+is `added_by_student` (`f7b2d4a6c815`, KAN-515), never a status, and no code
+writes `unlisted`. Postgres can't drop an enum value in place, so a later
+migration rebuilds the type without it (`../../docs/adr/0008-unlisted-job-postings.md`).
 
 **`company_domain` is the employer's own website, for its logo**
 (`d9b579e66623`, KAN-442): the registered domain the scraper found
@@ -1076,10 +1062,10 @@ so a batch never picks a saved job. Rules:
   `a7d3e5f1c2b4`), a column here rather than a second table, so one row is
   one application. `created_at` orders the queue.
 - **`company_name` and `title` are the text the student typed** when they
-  added the job by its link (`d3f5a7c9e162`, KAN-542, ADR 0008). The
-  tracker shows them only while the posting is `unlisted`
-  (`services/postings.py`, `typed_text`), so two students on one unlisted
-  posting each see their own text. When the feed publishes the posting,
+  added the job (`d3f5a7c9e162`, KAN-542, ADR 0008). The tracker shows them
+  only while the job is an added one (`added_by_student`;
+  `services/postings.py`, `typed_text`), so two students on one added job
+  each see their own text. When the feed lists the job, the flag clears and
   the feed's text shows. NULL on a job saved or queued another way.
 - **Interviewing, offer and rejected are applied too** (KAN-413).
   Anything that asks "did this student apply?" counts all four, never

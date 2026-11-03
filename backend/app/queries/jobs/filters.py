@@ -47,7 +47,7 @@ from app.models.applications import Job_Application
 from app.models.job_roles import Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.services.location_resolver import Place
-from app.services.postings import LISTED  # noqa: F401 (re-export)
+from app.services.postings import LISTED, OPEN  # noqa: F401 (re-export)
 from app.services.role_resolver import title_pattern
 
 # The form auto apply opens for a job posting (KAN-376): its apply_url when

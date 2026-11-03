@@ -26,12 +26,12 @@ Dry run: nothing is written yet. 11 rows in the Tracker Sheet.
 
 Add to the Applications Tracker (7):
   row 2: Acme | Software Engineer Intern (Summer 2027) | applied | 2026-10-17 | resume: yes | listed | https://job-boards.greenhouse.io/embed/job_app?for=acme&token=8000001
-  row 3: Bolt Aerospace | Software Engineer Intern - Summer 2027 | interviewing | 2026-10-20 | resume: no | not listed: added as an unlisted job posting | https://bolt.eightfold.ai/careers/job/990000000001
+  row 3: Bolt Aerospace | Software Engineer Intern - Summer 2027 | interviewing | 2026-10-20 | resume: no | not listed: WorkIt keeps it as an added job | https://bolt.eightfold.ai/careers/job/990000000001
   row 5: Dynamo | Platform Intern | rejected | 2026-10-19 | resume: yes | listed | https://jobs.lever.co/dynamo/22222222-3333-4444-8555-666666666666
-  row 6: Ember | Data Intern | applied | 2026-10-21 | resume: no | not listed: added as an unlisted job posting | https://ember.wd5.myworkdayjobs.com/Early_Career/job/NYC/Data-Intern_JR-1
-  row 7: Flux | Embedded Intern | applied | 2026-10-17 | resume: no | not listed: added as an unlisted job posting | https://careers.flux.com/global/en/job/2026800
+  row 6: Ember | Data Intern | applied | 2026-10-21 | resume: no | not listed: WorkIt keeps it as an added job | https://ember.wd5.myworkdayjobs.com/Early_Career/job/NYC/Data-Intern_JR-1
+  row 7: Flux | Embedded Intern | applied | 2026-10-17 | resume: no | not listed: WorkIt keeps it as an added job | https://careers.flux.com/global/en/job/2026800
   row 10: Iris | Infra Intern | applied | 2026-11-02 | resume: no | listed, on your tracker at saved | https://boards.greenhouse.io/iris/jobs/9000009
-  row 11: Jade | Mobile Intern | applied | today | resume: no | not listed: added as an unlisted job posting | https://jobs.lever.co/jade/44444444-5555-4666-8777-888888888888
+  row 11: Jade | Mobile Intern | applied | today | resume: no | not listed: WorkIt keeps it as an added job | https://jobs.lever.co/jade/44444444-5555-4666-8777-888888888888
 
 Check these (2): added, but the Sheet did not say everything:
   row 7: Flux | Embedded Intern | Outcome "callback soon" is not one the import knows: it goes in as applied
@@ -111,20 +111,20 @@ def test_after_approval_it_writes_them_and_a_second_run_adds_nothing(workit_trac
 
     assert status == 0
     assert out.endswith("Done: 7 added, 0 failed. Run it again to retry: it skips what is in WorkIt.\n")
-    got = {tracker.postings[job].company: (a.stage, a.applied_at, tracker.postings[job].status,
+    got = {tracker.postings[job].company: (a.stage, a.applied_at, "added" if tracker.postings[job].added else "listed",
                                            tracker.sent[a.sent_resume_id].content if a.sent_resume_id else None)
            for job, a in tracker.applications.items()}
     assert got == {
-        "Acme": ("applied", "2026-10-17T12:00:00+00:00", "published",
+        "Acme": ("applied", "2026-10-17T12:00:00+00:00", "listed",
                  b"%PDF acme-request-0000000000a1 Test_Person_Resume.pdf"),
-        "Bolt Aerospace": ("interviewing", "2026-10-20T12:00:00+00:00", "unlisted", None),
-        "Cobalt": ("offer", "2026-09-01T15:00:00+00:00", "published", None),  # never changed
-        "Dynamo": ("rejected", "2026-10-19T12:00:00+00:00", "published",
+        "Bolt Aerospace": ("interviewing", "2026-10-20T12:00:00+00:00", "added", None),
+        "Cobalt": ("offer", "2026-09-01T15:00:00+00:00", "listed", None),  # never changed
+        "Dynamo": ("rejected", "2026-10-19T12:00:00+00:00", "listed",
                    b"%PDF dynamo-request-0000000000d4 Test_Person_Resume.pdf"),
-        "Ember": ("applied", "2026-10-21T12:00:00+00:00", "unlisted", None),
-        "Flux": ("applied", "2026-10-17T12:00:00+00:00", "unlisted", None),
-        "Iris": ("applied", "2026-11-02T12:00:00+00:00", "published", None),
-        "Jade": ("applied", "2026-11-02T20:00:00+00:00", "unlisted", None),  # the fake's today
+        "Ember": ("applied", "2026-10-21T12:00:00+00:00", "added", None),
+        "Flux": ("applied", "2026-10-17T12:00:00+00:00", "added", None),
+        "Iris": ("applied", "2026-11-02T12:00:00+00:00", "listed", None),
+        "Jade": ("applied", "2026-11-02T20:00:00+00:00", "added", None),  # the fake's today
     }
 
     fake.requests.clear()

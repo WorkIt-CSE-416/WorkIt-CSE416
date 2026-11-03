@@ -667,13 +667,15 @@ async def test_the_database_refuses_a_link_to_another_applicants_sent_resume(stu
 
 
 async def _added(client, link: str) -> str:
-    """A job on the student's tracker by its link (KAN-542): unlisted when no listed job has it."""
-    res = await client.post("/jobs/added-by-link", json={"url": link, "company": "Lockheed Martin", "title": "Intern"})
+    """A job on the student's tracker by its link, as Apply adds it (KAN-542, track_only): an added job when no
+    listed job has it."""
+    res = await client.post("/jobs/added-by-link", json={"url": link, "company": "Lockheed Martin", "title": "Intern",
+                                                         "track_only": True})
     assert res.status_code == 200
     return res.json()["job_id"]
 
 
-async def test_apply_to_an_unlisted_job_the_student_added_keeps_its_sent_resume(student, storage, database):
+async def test_apply_to_an_added_job_keeps_its_sent_resume(student, storage, database):
     client, me = student
     uploaded = (await _upload(client, me)).json()
     job = await _added(client, "https://lockheedmartin.eightfold.ai/careers/job/7123456")
@@ -700,7 +702,7 @@ async def test_apply_to_a_job_the_feed_closed_after_the_student_tracked_it_keeps
     assert (await client.post(f"/jobs/{job}/applied", json={"sent_resume_id": res.json()["id"]})).status_code == 200
 
 
-async def test_another_students_unlisted_job_takes_no_sent_resume(student, storage, database):
+async def test_another_students_added_job_takes_no_sent_resume(student, storage, database):
     from tests.test_built_resumes import _seed_applicant, _sign_in
 
     client, _ = student

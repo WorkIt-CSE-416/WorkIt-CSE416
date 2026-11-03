@@ -131,6 +131,8 @@ class Settings(BaseSettings):
     job_system_request_daily_cap: int = 50
     # Fill events (KAN-476), one per fill: five batch tabs filling all day stay far below it.
     fill_event_daily_cap: int = 2000
+    # Jobs a student added from a form WorkIt doesn't list (KAN-515): one per form they ask their Claude to write for.
+    added_job_daily_cap: int = 50
 
     # The oldest extension version the API still serves (KAN-466): a request whose
     # X-WorkIt-Extension header names an older one gets 426, and the panel asks the

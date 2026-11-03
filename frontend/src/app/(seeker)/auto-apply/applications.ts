@@ -36,9 +36,6 @@ export type Application<Stage extends ApplicationStage = ApplicationStage> = {
   closes_at?: string | null;
   /** False once the job posting has closed; its page is gone. */
   open: boolean;
-  /** A job the student added by its link because WorkIt does not list it
-   *  (KAN-542): not closed, though `open` is false; it has no page. */
-  unlisted?: boolean;
   /** The Jobs page's match score (0-100), when read with `scored`: null for
    *  a closed posting and while the experience bank is empty. */
   match?: number | null;

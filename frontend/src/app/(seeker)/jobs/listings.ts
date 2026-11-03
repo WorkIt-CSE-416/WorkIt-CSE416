@@ -41,8 +41,10 @@ export type JobListing = {
   company: string;
   apply_url: string;
   /** Who the job is for, the API's `Literal["student", "new_grad",
-   *  "experienced"]` (KAN-233); every internship is a student job. */
-  experience_level: ExperienceLevel;
+   *  "experienced"]` (KAN-233); every internship is a student job. Null only
+   *  for a job a student added from its form (KAN-515), which no feed lists:
+   *  it reaches only their own applications. */
+  experience_level: ExperienceLevel | null;
   work_style: WorkStyle | null;
   location: string | null;
   /** The card's version, "San Francisco, CA", where the import placed a US

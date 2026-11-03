@@ -145,8 +145,9 @@ async def _keep_snapshot(session: AsyncSession, applicant_id: uuid.UUID, digest:
 
 
 async def _check_posting(session: AsyncSession, applicant_id: uuid.UUID, job_posting_id: uuid.UUID) -> None:
-    """A listed posting, or a scraped one the student tracks (unlisted, or
-    closed since: KAN-544). Anything else is NotFound."""
+    """A listed posting, or a scraped one the student tracks: a job they
+    added (KAN-515), or one closed since (KAN-544). Anything else is
+    NotFound, so the panel's resume switch on an added job works."""
     if await postings.reachable(session, job_posting_id, applicant_id) is None:
         raise NotFound
 

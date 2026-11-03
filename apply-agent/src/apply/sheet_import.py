@@ -2,7 +2,7 @@
 Applications Tracker, one time (KAN-545, spec KAN-541, ADR 0007).
 
 For each row with status submitted, the import finds or adds the job posting by its
-link (an unlisted job posting when WorkIt does not list it), sets the stage from
+link (an added job when WorkIt does not list it), sets the stage from
 the row's Outcome, sets the applied date from Date applied, and keeps the
 Application's resume from the sent folder as its Sent resume when there is one.
 
@@ -95,7 +95,7 @@ def plan(rows: list[SheetRow], client: WorkIt, sent: Path) -> list[Step]:
         if stage in APPLIED_STAGES:
             steps.append(Step(row, "skip", f"already in WorkIt at {stage}: the import does not change it"))
             continue
-        where = "listed" if listed else "not listed: added as an unlisted job posting"
+        where = "listed" if listed else "not listed: WorkIt keeps it as an added job"
         if stage:
             where += f", on your tracker at {stage}"
         steps.append(_add(row, where, sent))

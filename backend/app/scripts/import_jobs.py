@@ -29,9 +29,9 @@ holds unique. One run, in one transaction:
 2. resolves each distinct location string (services/location_resolver.py)
    against the countries and states in the database, and each distinct title
    (services/role_resolver.py) against the roles in job_roles;
-3. moves each unlisted posting (KAN-542) whose job the feed has under
-   another form of its link onto the feed's link (_take_over_unlisted), so
-   the next step publishes it in place;
+3. moves each job a student added (KAN-515, KAN-542) whose job the feed
+   has under another form of its link onto the feed's link (_take_over_added),
+   so the next step makes it the feed's in place;
    then inserts new jobs and updates changed ones, description included,
    ON CONFLICT (apply_url). A row
    whose fields all match is left alone, so updated_at means something and a
@@ -103,7 +103,7 @@ from app.services import keywords
 from app.services.location_resolver import LocationResolver, Place, Resolution
 from app.services.matching.embeddings import BATCH_SIZE, embed, job_text
 from app.services.models import get_small_llm
-from app.services.postings import UNLISTED
+from app.services.postings import ADDED
 from app.services.role_resolver import RoleResolver
 
 logger = logging.getLogger(__name__)
@@ -170,7 +170,7 @@ class Report:
     updated: int = 0
     unchanged: int = 0
     closed: int = 0
-    # unlisted postings (KAN-542) moved onto a feed job's link, then published by the upsert
+    # jobs a student added (KAN-542) moved onto a feed job's link, then made the feed's by the upsert
     taken_over: int = 0
     # closed_reason -> how many jobs this run closed under it
     closed_by_reason: dict[str, int] = field(default_factory=dict)
@@ -267,7 +267,7 @@ def prepare(
             # Scout reads it; the job cards don't. Absent from feeds written
             # before the scraper captured descriptions.
             "description": listing.description,
-            "experience_level": dto.experience_level(listing.experience_level),
+            "experience_level": dto.experience_level(listing.experience_level) if listing.experience_level else None,
             "work_style": listing.work_style,
             "location_raw": listing.location,
             # "San Francisco, CA" where the resolver placed a US city, for the
@@ -310,6 +310,8 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
         stmt = insert(_jobs).values(rows[start:start + _CHUNK])
         changed = or_(
             _jobs.c.status != dto.job_post_status.published,
+            # A job a student added from its form (KAN-515) that the feed now lists.
+            _jobs.c.added_by_student.is_(True),
             *(_jobs.c[col].is_distinct_from(stmt.excluded[col]) for col in _FEED_COLUMNS),
         )
         description_changed = _jobs.c.description.is_distinct_from(stmt.excluded.description)
@@ -318,6 +320,8 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
             set_={
                 **{col: stmt.excluded[col] for col in _FEED_COLUMNS},
                 "status": dto.job_post_status.published,
+                # A job a student added (KAN-515) is the feed's now, on the Jobs page.
+                "added_by_student": False,
                 # A job closed by an earlier run and back in the feed is open
                 # again, so the date and reason it closed no longer apply.
                 "closes_at": None,
@@ -343,23 +347,23 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
     report.unchanged = len(rows) - report.inserted - report.updated
 
 
-async def _take_over_unlisted(conn: AsyncConnection, urls: list[str], report: Report) -> None:
+async def _take_over_added(conn: AsyncConnection, urls: list[str], report: Report) -> None:
     '''
-    moves each unlisted posting (KAN-542, ADR 0008) whose job is in the feed
-    under another form of its link onto the feed's link, so the upsert's ON
-    CONFLICT fills it in and publishes it: the posting, and the student's
+    moves each job a student added (KAN-515, KAN-542, ADR 0008) whose job is
+    in the feed under another form of its link onto the feed's link, so the
+    upsert's ON CONFLICT fills it in and clears added_by_student: the posting, and the student's
     application on it, stay one row. The same Greenhouse job (greenhouse_job)
     first, else the same bare link (bare_link) when exactly one feed job has
     it, as listed_job_by_link decides. A feed link another posting already
     holds is left alone: moving onto it would break the unique apply_url. A
     posting on the feed's own link needs nothing here
     '''
-    unlisted = (await conn.execute(
-        select(_jobs.c.id, _jobs.c.apply_url).where(UNLISTED).order_by(_jobs.c.id)
+    added = (await conn.execute(
+        select(_jobs.c.id, _jobs.c.apply_url).where(ADDED).order_by(_jobs.c.id)
     )).all()
     feed = set(urls)
-    unlisted = [row for row in unlisted if row.apply_url not in feed]
-    if not unlisted:
+    added = [row for row in added if row.apply_url not in feed]
+    if not added:
         return
     by_job: dict[str, list[str]] = {}
     by_bare: dict[str, list[str]] = {}
@@ -369,7 +373,7 @@ async def _take_over_unlisted(conn: AsyncConnection, urls: list[str], report: Re
         by_bare.setdefault(bare_link(url), []).append(url)
 
     moves: dict[str, object] = {}
-    for row in unlisted:
+    for row in added:
         job = greenhouse_job(row.apply_url)
         found = by_job.get(job, []) if job else by_bare.get(bare_link(row.apply_url), [])
         if len(found) == 1 and found[0] not in moves:
@@ -470,8 +474,10 @@ async def _close_missing(
     conn: AsyncConnection, urls: list[str], report: Report, *, allow_mass_close: bool,
     closings: dict[str, str] | None = None,
 ) -> None:
+    # Not a job a student added from its form (KAN-515): the feed never had it.
     published_scraped = and_(
-        _jobs.c.company_id.is_(None), _jobs.c.status == dto.job_post_status.published
+        _jobs.c.company_id.is_(None), _jobs.c.status == dto.job_post_status.published,
+        _jobs.c.added_by_student.is_(False),
     )
     missing = and_(published_scraped, _jobs.c.apply_url != all_(_text_array(urls)))
 
@@ -550,7 +556,7 @@ async def import_feed(
         unresolved=prepared.unresolved,
         untagged=prepared.untagged,
     )
-    await _take_over_unlisted(conn, list(prepared.places), report)
+    await _take_over_added(conn, list(prepared.places), report)
     await _upsert(conn, prepared.rows, report)
     ids = await _scraped_ids(conn, list(prepared.places))
     await _sync_locations(conn, prepared.places, ids, report)
@@ -574,7 +580,7 @@ async def _embed_jobs(conn: AsyncConnection, *, limit: int | None = None) -> int
         async with conn.begin():
             batch = (await conn.execute(
                 select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
-                .where(_jobs.c.company_id.is_(None), _jobs.c.embedding.is_(None))
+                .where(_jobs.c.company_id.is_(None), _jobs.c.added_by_student.is_(False), _jobs.c.embedding.is_(None))
                 .order_by(_jobs.c.id)
                 .limit(batch_size)
             )).all()
@@ -625,6 +631,7 @@ async def _extract_keywords(conn: AsyncConnection, llm: LLM, *, limit: int) -> i
                 .where(
                     _jobs.c.company_id.is_(None),
                     _jobs.c.status == dto.job_post_status.published,
+                    _jobs.c.added_by_student.is_(False),
                     _jobs.c.keywords.is_(None),
                 )
                 .order_by(_jobs.c.id)
@@ -675,7 +682,7 @@ def _print_report(report: Report, *, dry_run: bool) -> None:
     print(f"  keywords extracted {report.keywords}")
     reasons = ", ".join(f"{why} {n}" for why, n in sorted(report.closed_by_reason.items()))
     if report.taken_over:
-        print(f"  unlisted postings the feed now lists (published) {report.taken_over}")
+        print(f"  added jobs the feed now lists, moved to its link {report.taken_over}")
     print(f"  closed (no longer in the feed) {report.closed}" + (f": {reasons}" if reasons else ""))
     if not report.had_closings:
         print(f"  no closings.json beside the feed: every close this run is {UNKNOWN}")

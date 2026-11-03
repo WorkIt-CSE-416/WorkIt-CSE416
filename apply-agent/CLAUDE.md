@@ -149,7 +149,8 @@ against the fake's `/login`, so run it on your Mac.
   /applicants/{id}/applications`, and `POST /jobs/listed-by-link` for each
   row. Then the student types yes (`--dry-run` only lists).
 - Each add is `WorkIt.record_applied`, the same method as a submit's
-  write. In this order: `POST /jobs/added-by-link`, then `POST
+  write. In this order: `POST /jobs/added-by-link` (with `"track_only":
+  true`, below), then `POST
   .../sent-resumes/file` (the resume, base64 JSON), then `PUT
   .../applications/{job_id}/stage` with `applied_on`, then `POST
   /jobs/{job_id}/applied` with `sent_resume_id`. It does nothing more to
@@ -219,7 +220,14 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   PUT; a 409 means the job is applied already, and is not an error).
   Every other status writes nothing.
 - The job comes from `POST /jobs/added-by-link`, so a later status moves
-  the same row.
+  the same row. It is the extension's Write with Claude route (KAN-515);
+  Apply sends `"track_only": true` (`WorkIt.add_by_link`), so WorkIt takes
+  any link (not only a form auto apply fills), tracks a closed job as it
+  is, and saves a new application or keeps its stage, where Write with
+  Claude moves it to needs_you. A job WorkIt does not list becomes an
+  **added job** (`added_by_student`; root `GLOSSARY.md`), never a status.
+  The answer is `{"job_id", "stage"}`. New added jobs count against
+  WorkIt's daily cap (50): a 429 is a refusal, said and not kept.
 - A rehearsal writes only through `submitted_to`, when Lisul presses
   Submit himself. A rehearsal that he does not submit writes nothing.
 - No answer, or no live login: the Write waits in `workit-queue.json` (one

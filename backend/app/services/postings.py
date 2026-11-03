@@ -7,7 +7,7 @@ a route that forgot the status check.
 
 import uuid
 
-from sqlalchemy import Text, and_, case, cast, exists, func, or_, select
+from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 
@@ -15,23 +15,27 @@ from app.models.applications import Job_Application
 from app.models.dto import job_post_status
 from app.models.jobs import Job_Post
 
-# A published scraped job. Company jobs stay off the Jobs page until the
-# company side ships a listing of its own.
-LISTED = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.published)
+# A published scraped job, or one a student added from its form (KAN-515):
+# open to the applications that hold it. Company jobs stay off the Jobs page
+# until the company side ships a listing of its own.
+OPEN = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.published)
+# A published scraped job: the Jobs page's. A job a student added is theirs
+# alone, so every feed, count and lookup that reads LISTED leaves it out;
+# only a query of an applicant's own applications reads OPEN.
+LISTED = and_(OPEN, Job_Post.added_by_student.is_(False))
 
-# A job a student added by its link because WorkIt does not list it (KAN-542,
-# ADR 0008). Compared as text, so the query runs on a database whose enum has
-# no 'unlisted' yet (models/CLAUDE.md).
-UNLISTED = and_(Job_Post.company_id.is_(None), cast(Job_Post.status, Text) == job_post_status.unlisted.value)
+# A job a student added (KAN-515, POST /jobs/added-by-link): open, on no
+# feed. The feed import clears the flag when it lists the same job.
+ADDED = and_(Job_Post.company_id.is_(None), Job_Post.added_by_student.is_(True))
 
 
 def typed_text(posting_column, typed_column):
-    """The posting's company or title as one student sees it: on an unlisted
-    posting, the text that student typed when they added it (their
+    """The posting's company or title as one student sees it: on an added
+    job (ADDED), the text that student typed when they added it (their
     application's `typed_column`), never another student's; else the
     posting's own. Labeled as the posting's column, so to_listing reads it.
     Use it in each query that shows a student's applications."""
-    return case((UNLISTED, func.coalesce(typed_column, posting_column)), else_=posting_column).label(posting_column.key)
+    return case((ADDED, func.coalesce(typed_column, posting_column)), else_=posting_column).label(posting_column.key)
 
 
 async def listed(session: AsyncSession, posting_id: uuid.UUID, *, keywords: bool = False) -> Job_Post | None:
@@ -45,9 +49,9 @@ async def listed(session: AsyncSession, posting_id: uuid.UUID, *, keywords: bool
 
 def tracked_by(applicant_id: uuid.UUID):
     """A scraped posting this applicant has an application on, whatever its
-    status: one they added by its link (unlisted), or one the feed closed or
-    paused after they tracked it (KAN-544). Only the tracker and the
-    student's own writes on it (applied, a Sent resume) reach it."""
+    status: one a student added (ADDED), or one the feed closed or paused
+    after they tracked it (KAN-544). Only the tracker and the student's own
+    writes on it (applied, a Sent resume) reach it."""
     return and_(Job_Post.company_id.is_(None), exists().where(
         Job_Application.applicant_id == applicant_id, Job_Application.job_id == Job_Post.id))
 
