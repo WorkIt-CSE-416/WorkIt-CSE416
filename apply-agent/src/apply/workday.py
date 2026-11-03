@@ -20,7 +20,11 @@ offers it (picking Lisul's account is the only click allowed in Google's
 pages); otherwise Sign In with the Keychain password of the account Apply
 made there before; otherwise Create Account, with a new password saved to
 Keychain before the form is sent, and the verification link from Gmail when
-the tenant mails one. Where Lisul made an account himself ("already exists"),
+the tenant mails one. Some tenants answer Create Account with their bare
+Sign In view (Northrop's and Zillow's, live): where the account is to be
+verified, by way of their "verify your account" page (`/login/warning`,
+Zillow's), and Apply then waits for the link; otherwise Apply signs in with
+the new password. Where Lisul made an account himself ("already exists"),
 a real run resets its password: the new one is saved to Keychain first and
 set through the reset link from Gmail (never in a rehearsal, which stops at
 the sign-in page). Workday accounts are per tenant (the host, or the
@@ -41,6 +45,7 @@ or Google's sign-in page), Resume waits for him to sign in
 import json
 import re
 import time
+from datetime import datetime
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
@@ -76,6 +81,10 @@ GOOGLE_WAIT = 60.0  # s for Workday to come back from Sign in with Google
 FOLLOW_UP_WAIT = 300  # ms for a follow-up question to show once its question is answered
 SEND_WAIT = 10.0  # s for an auth form's click to send it, before it is clicked again
 SEND_CLICKS = 3  # clicks on an auth form's button at most
+# The page Workday answers a new account with when it mails a link to verify it (Zillow's, live): its notice
+# may never show, since Workday then loads its bare Sign In view.
+VERIFY_WARNING = "/login/warning"
+UNVERIFIED = re.compile(r"verif", re.IGNORECASE)  # Workday's refusal of a sign-in to an account not verified yet
 # Each tenant's nested prompts as last read: "<tenant> / <label>" -> its categories and each choice's category.
 TREES = HOME / "workday-trees.json"
 
@@ -213,12 +222,21 @@ class WorkdayFiller:
             return self._password(page, site, password)
         self._create_account(page, site)
 
-    def _password(self, page: Page, site: str, password: str) -> None:
+    def _password(self, page: Page, site: str, password: str, since: datetime | None = None) -> None:
+        """Sign In with the account's password. `since`: when Apply made the
+        account just now, so a refusal for want of verifying it waits for the
+        link mailed then."""
         form = _auth_form(page, "signInLink", create=False)
         _type(form, {"email": self._accounts.login, "password": password})
         outcome = _send(page, form, lambda: "in" if _on_step(page) else _error(page) and "error")
         if outcome == "error":
-            raise self._accounts.sign_in_failed(site, f"Workday said: {_error(page)}")
+            error = _error(page)
+            if UNVERIFIED.search(error):  # the password is right: never a failed sign-in
+                if since:
+                    return self._verify(page, since)
+                raise Handoff(f"{NEEDS_SIGN_IN}Workday at {site} said: '{error}' Verify the account through the "
+                              "link Workday mailed when Apply made it, then sign in and apply yourself.")
+            raise self._accounts.sign_in_failed(site, f"Workday said: {error}")
 
     def _create_account(self, page: Page, site: str) -> None:
         form = _auth_form(page, "createAccountLink", create=True)
@@ -229,8 +247,14 @@ class WorkdayFiller:
             accept.check()
         since = self._accounts.clock.now()
         verify = page.get_by_text(re.compile(r"verification (email|link)|verify your (account|email)", re.IGNORECASE))
-        outcome = _send(page, form, lambda: "in" if _on_step(page) else
-                        _error(page) and "error" or verify.first.is_visible() and "verify")
+        warned = []  # Workday went to its "verify your account" page, whose notice may never show
+        on_request = lambda r: urlsplit(r.url).path.endswith(VERIFY_WARNING) and warned.append(r.url)
+        page.on("request", on_request)
+        try:
+            outcome = _send(page, form, lambda: "in" if _on_step(page) else _error(page) and "error"
+                            or (warned or verify.first.is_visible()) and "verify" or _sign_in_view(page) and "sign in")
+        finally:
+            page.remove_listener("request", on_request)
         if outcome == "error":
             error = _error(page)
             if re.search(r"already", error, re.IGNORECASE):
@@ -238,10 +262,17 @@ class WorkdayFiller:
             raise Handoff(f"Workday at {site} refused the new account: '{error}'")
         self._accounts.created(site)
         if outcome == "verify":
-            link = self._accounts.link(MAIL_SEARCH, since, self._link_hosts())
-            page.goto(link)
-            page.goto(self._url)
-            self._start(page)
+            return self._verify(page, since)
+        if outcome == "sign in":  # Workday's bare Sign In view, for the new account (Northrop's, live)
+            self._password(page, site, password, since)
+
+    def _verify(self, page: Page, since: datetime) -> None:
+        """Open the verification link mailed since `since` (never asked for
+        again), then start the application over, signing in."""
+        link = self._accounts.link(MAIL_SEARCH, since, self._link_hosts())
+        page.goto(link)
+        page.goto(self._url)
+        self._start(page)
 
     def _reset_password(self, page: Page, site: str) -> None:
         """Lisul made the account himself, so Keychain has no password for it:
@@ -444,6 +475,12 @@ def _on_step(page: Page) -> bool:
 
 def _signing_in(page: Page) -> bool:
     return page.locator("[data-automation-id=signInContent]").is_visible()
+
+
+def _sign_in_view(page: Page) -> bool:
+    """Whether the auth form shown is Sign In, not Create Account."""
+    form = page.locator("[data-automation-id=signInFormo]")
+    return form.is_visible() and not form.locator("[data-automation-id=verifyPassword]").count()
 
 
 def _error(page: Page) -> str:

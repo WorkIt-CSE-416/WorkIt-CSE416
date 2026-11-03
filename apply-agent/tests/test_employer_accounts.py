@@ -104,6 +104,48 @@ def test_a_verification_email_missing_after_about_two_minutes_needs_lisul_and_is
     assert server.submissions == []
 
 
+def test_a_new_account_workday_takes_to_its_sign_in_view_is_signed_in_with_its_new_password():
+    world = World()
+
+    # Northrop's tenant (live): Create Account loads the bare Sign In view, with no notice.
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, to_sign_in=True) as server:
+        [row] = world.run(server, caci())
+
+    assert (row.status, row.reason) == ("submitted", "")
+    [made] = server.created
+    assert made["keychain"] == made["password"] == world.keychain.password(CACI)
+    assert server.sign_ins == [(CACI, EMAIL, True)]
+    assert [a.site for a in world.tracker.employer_accounts()] == [CACI]
+
+
+def test_a_new_account_workday_sends_to_its_verify_page_is_verified_through_gmail_then_signed_in():
+    world = World()
+
+    # Zillow's tenant (live): Create Account goes by way of /login/warning to the bare Sign In view.
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, verify_email=(CACI,),
+                           to_sign_in=True) as server:
+        [row] = world.run(server, caci())
+
+    assert (row.status, row.reason) == ("submitted", "")
+    assert server.account(CACI, EMAIL)["verified"]
+    assert server.sign_ins == [(CACI, EMAIL, True)]  # only once verified
+    assert server.resends == 0
+
+
+def test_a_sign_in_to_an_account_not_verified_yet_needs_lisul_and_is_no_failed_password():
+    world = World()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, verify_email=(CACI,),
+                           to_sign_in=True, links_lost=True) as server:
+        world.run(server, caci())  # the link never comes
+        row = {row.application_id: row for row in world.run(server, caci(1))}["caci-1"]
+
+    assert row.status == "handoff"
+    assert "has not been verified" in row.reason and "Verify the account" in row.reason
+    assert "won't try that password again" not in row.reason
+    assert server.sign_ins == [(CACI, EMAIL, True)] and server.resends == 0
+
+
 def test_a_sign_in_click_workday_drops_is_clicked_again_with_the_keychain_password():
     world = World(InMemoryKeychain({CACI: "Kept-Pa55word!"}))
 
