@@ -773,3 +773,38 @@ async def test_a_sent_file_for_a_job_the_student_cannot_reach_is_404_and_stores_
     client, me = student
     res = await client.post(f"{me}/sent-resumes/file", json=_file(str(uuid.uuid4())))
     assert res.status_code == 404 and storage.files == {}
+
+
+async def test_apply_finds_the_tailored_resume_by_the_postings_link_and_keeps_that_file(
+    student, storage, database, monkeypatch
+):
+    """KAN-547: Apply finds the job by its link, the student's tailored resume
+    for it in the built resume list, renders it, attaches that PDF, and keeps
+    the same bytes as the application's Sent resume."""
+    client, me = student
+    await _fill_bank(client, me)
+    await _generate(client, me, "General SWE")  # the base resume: not the one sent
+    link = f"https://job-boards.greenhouse.io/acme/jobs/{uuid.uuid4().int % 10**9}"
+    posting = await _seed_posting(database, link)
+    async with database() as session:
+        await session.execute(text(
+            "INSERT INTO built_resumes (applicant_id, name, template, job_posting_id)"
+            " VALUES (:a, 'Acme – Intern', 'jakes', :p)"), {"a": me.split("/")[2], "p": posting})
+        await session.commit()
+    tailored_pdf = b"%PDF-1.7 the tailored resume"
+    monkeypatch.setattr("app.routers.built_resumes.render",
+                        lambda view, identity, template, page: Rendered(pdf=tailored_pdf, page_count=1))
+
+    job = (await client.post("/jobs/listed-by-link", json={"url": link})).json()["job_id"]
+    [tailored] = [r for r in (await client.get(f"{me}/built-resumes")).json() if r["job_posting_id"] == job]
+    rendered = (await client.get(f"{me}/built-resumes/{tailored['id']}/render")).json()
+    attached = base64.b64decode(rendered["pdf"])
+    sent = (await client.post(f"{me}/sent-resumes/file", json=_file(job, data=attached))).json()
+    marked = await client.post(f"/jobs/{job}/applied", json={"sent_resume_id": sent["id"]})
+
+    assert attached == tailored_pdf
+    assert marked.json()["sent_resume_id"] == sent["id"]
+    [(path, kept)] = storage.files.items()
+    assert kept == tailored_pdf
+    opened = (await client.get(f"{me}/sent-resumes/{sent['id']}/file")).json()
+    assert opened["url"] == f"https://storage.test/{path}?download=Lisul_Resume.pdf"
