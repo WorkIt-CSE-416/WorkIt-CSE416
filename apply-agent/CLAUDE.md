@@ -226,6 +226,45 @@ sends a `workit.Write` through a `workit.Outbox`.
 in Chromium: a submit by Lisul is Applied with the Sent resume, and no
 submit sends nothing.
 
+## Verifying a filled form (KAN-549)
+
+After Apply fills a form, and before any submit, the Worker verifies it
+(`worker._Planned.verify`, `verify.check`). This is the last part of the
+Pre-submit check. It applies to rehearsals and to live runs. It only
+reads: it does not click, type or submit.
+
+- `apply_to(on_verify=...)` gets `None` when verifying starts, then the
+  `verify.Verification`. The rehearsal and the Orchestrator send it to the
+  window with `verify.verifying()`: the tile shows "Verifying…" with a
+  spinner, then "Verified" with a check mark, or "Verified with N items
+  that need you".
+- Plain code makes the checks: a blank field that is not a Missing fact
+  and not left blank on purpose (`_Planned.left`), the read-back
+  (`fill_engine.readback_problems`), an empty file or a file in the wrong
+  field, a value that is not one of the field's options, a graduation
+  year that is not the profile's, a start date in the past, pay out of the
+  posting's range (else off `compensation.fallback_hourly`), and in each
+  essay a wrong pronoun or name for the applicant and another company's
+  name (`verify.COMPANIES` and the policies' companies, less any that the
+  sources or the posting name). Claude makes only the judgment checks, in
+  the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
+  answers); its findings join the flags.
+- A flag that `holds` goes in the reason as `Verify: <field>: <why>` and
+  holds a live run (Needs you, kind `check`). Read-back and review flags
+  hold already by their own reason. Notes do not hold: a blank optional
+  field (the engine leaves one blank when the profile's fact is empty), an
+  optional voluntary self-ID field, and an answer Claude guessed (a new
+  Answer bank draft, a Rescue). An approved Hold is not held again by a
+  flag; the read-back still holds it.
+- In the window, each flag shows with its field and why, and has its own
+  Dismiss. When Lisul dismisses every flag of a live run's Hold, it shows
+  Approve (`POST /approve` takes a `check` item that is held).
+- The Record keeps `verification.json` and a Verification section in its
+  README.
+
+**Tests.** `tests/test_verify.py`: a fake form with planted problems, a
+clean form, a live run held by a flag, and the window's states.
+
 ## Prompts and gates
 
 - Every prompt names the applicant as `@NAME@` and their school as
