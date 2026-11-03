@@ -25,7 +25,7 @@ import { queueJob } from "./actions";
 import { openedNote } from "./opened-note";
 import type { LogoSrc } from "@/lib/job-logo";
 
-/** A saved job as Add Jobs lists it: plain data from ./page.tsx. */
+/** A saved job as Add Jobs lists it: plain data from ./(queue)/page.tsx. */
 export type SavedJob = {
   id: string;
   role: string;

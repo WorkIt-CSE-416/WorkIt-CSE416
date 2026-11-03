@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { PlusIcon, TrashIcon } from "@/components/icons";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -126,6 +127,13 @@ export function WritingSamples() {
         them.
       </p>
 
+      {/* The empty line's place while the read runs (KAN-561). */}
+      {samples === null && !loadError && (
+        <div role="status" className="mt-4 flex h-5 items-center">
+          <span className="sr-only">Loading your writing samples</span>
+          <Skeleton aria-hidden="true" className="h-3.5 w-48" />
+        </div>
+      )}
       {loadError && (
         <p role="status" className="text-meta text-ink-meta mt-4">
           Your writing samples didn&apos;t load. Refresh the page to try again.

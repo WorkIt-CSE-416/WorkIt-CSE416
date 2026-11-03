@@ -35,7 +35,7 @@ import { CompanySidebar } from "./company-sidebar";
  * Post a Job is not among them, and that is the same rule applied once more.
  * It acts on one screen's subject rather than on the whole company, so it
  * belongs beside that screen's heading where the thing it creates is listed —
- * see app/company/jobs/page.tsx. A bar-level button would also claim to be
+ * see app/company/jobs/(list)/page.tsx. A bar-level button would also claim to be
  * available everywhere while meaning nothing on Applicants or the profile.
  *
  * The seeker shell took the same layout and has since moved to floating

@@ -18,7 +18,13 @@ import { type ResumeItem } from "@/lib/resume-actions";
 import { applyWithResume, type SentDownload } from "@/lib/sent-resume-actions";
 
 import { markApplied } from "./actions";
-import { firstChoice, loadChoices, ResumeLists, type Choice } from "./resume-picker";
+import {
+  firstChoice,
+  loadChoices,
+  ResumeLists,
+  ResumeListsSkeleton,
+  type Choice,
+} from "./resume-picker";
 
 /** "Did You Apply?"'s own choice: the student applied without a resume. */
 const NO_RESUME = "none";
@@ -217,7 +223,7 @@ export function ApplyButton({
                   list, a file they sent instead (Upload Resume in its row),
                   or none. */}
               {choices == null ? (
-                <p className="text-note text-ink-muted">Loading your resumes…</p>
+                <ResumeListsSkeleton />
               ) : (
                 <ResumeLists
                   name="applied-with"

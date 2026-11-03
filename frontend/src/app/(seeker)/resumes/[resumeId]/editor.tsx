@@ -2648,7 +2648,7 @@ function SlimBar({
   const box = docs ? DOCS_BAR : SLIM_BAR;
   const docsZoom = docs && zoom && (
     <>
-      {zoom}
+      {rendered ? zoom : <ZoomSkeleton />}
       <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
     </>
   );
@@ -2724,7 +2724,16 @@ function SlimBar({
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {status}
-        {format && (
+        {/* Until the first render lands, the panel buttons and the zoom
+            are bars, not their names in grey (KAN-561). */}
+        {format && !rendered && (
+          <span aria-hidden="true" className="flex items-center gap-2">
+            {format.marks && <Skeleton className="h-7 w-28" />}
+            <Skeleton className="h-7 w-24" />
+            <Skeleton className="h-7 w-28" />
+          </span>
+        )}
+        {format && rendered && (
           <>
             {format.marks && (
               <PanelButton
@@ -2751,7 +2760,7 @@ function SlimBar({
             />
           </>
         )}
-        {!docs && zoom}
+        {!docs && (rendered ? zoom : zoom && <ZoomSkeleton />)}
         {/* On Tailor's review it sits in the name's row, as Docs' Share does.
             Secondary: Finish is the review's one filled button, and in the
             brand fill too, the two competed */}
@@ -3070,6 +3079,11 @@ function FirstRenderPane({
       {error}
     </EmptyState>
   );
+}
+
+/** The zoom control (./zoom.tsx) as a bar, until the first render lands. */
+function ZoomSkeleton() {
+  return <Skeleton aria-hidden="true" className="h-7 w-20 shrink-0" />;
 }
 
 /**

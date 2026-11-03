@@ -13,7 +13,13 @@ import {
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
 
-import { firstChoice, loadChoices, ResumeLists, type Choice } from "../jobs/resume-picker";
+import {
+  firstChoice,
+  loadChoices,
+  ResumeLists,
+  ResumeListsSkeleton,
+  type Choice,
+} from "../jobs/resume-picker";
 import { chooseResume } from "./actions";
 
 /**
@@ -91,7 +97,7 @@ export function ResumeDialog({
           </DialogDescription>
         </DialogHeader>
         {choices == null ? (
-          <p className="text-note text-ink-muted">Loading your resumes…</p>
+          <ResumeListsSkeleton />
         ) : (
           <ResumeLists
             name={`resume-for-${jobId}`}

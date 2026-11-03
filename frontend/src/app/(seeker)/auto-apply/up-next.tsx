@@ -42,7 +42,7 @@ import { ResumeDialog } from "./resume-dialog";
  * Change Resume, I Already Applied and Remove From Queue on every row.
  * **The Resume cell is a button** opening the row's resume picker
  * (./resume-dialog.tsx); the cell shows that pick, else the rule's
- * (./page.tsx), and an empty Choose Resume slot when there is none.
+ * (./(queue)/page.tsx), and an empty Choose Resume slot when there is none.
  *
  * **Rows are picked with select boxes.** While any is picked, the heading's
  * right end shows the count and the two things to do to them, in place of
@@ -233,7 +233,7 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
 }
 
 /**
- * The Auto Apply header's line (./page.tsx): how many jobs are In Progress
+ * The Auto Apply header's line (./(queue)/page.tsx): how many jobs are In Progress
  * and how many Queued, by Up Next's own rule (`groupOf`), so it reads the
  * live tabs too. Each part only when it counts something: "0 queued" read
  * as a fault.

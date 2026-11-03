@@ -8,9 +8,9 @@ import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 import { listResumes } from "@/lib/resume-actions";
 
-import { SEEKER_GUTTER } from "../gutter";
-import { BuiltResumes } from "./built-resumes";
-import { ResumesHeader } from "./header";
+import { SEEKER_GUTTER } from "../../gutter";
+import { BuiltResumes } from "../built-resumes";
+import { ResumesHeader } from "../header";
 
 export const metadata: Metadata = {
   title: "Resumes",
