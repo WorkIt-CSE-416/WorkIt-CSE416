@@ -97,6 +97,10 @@ class Store:
     #: Keyed by `Board.key`: only boards whose last runs left them unread. A
     #: complete read removes the entry (`update`).
     health: dict[str, BoardHealth] = field(default_factory=dict)
+    #: Keyed by `Board.key`: the host of the website its page named, or None if it
+    #: named none (`logos.fetch`). Absent means read before websites were kept,
+    #: which `logos.needs_read` reads again for a board with an uploaded logo.
+    websites: dict[str, str | None] = field(default_factory=dict)
 
     def resting(self, now: str) -> set[str]:
         """The boards not asked for this run, because they kept going unread."""
@@ -297,6 +301,7 @@ def update(
         logos=logos,
         logos_version=version,
         health=health,
+        websites=dict(previous.websites) if previous else {},
     )
 
 
@@ -363,6 +368,7 @@ def load(path: Path) -> Store | None:
         logos=payload.get("logos", {}),
         logos_version=payload.get("logos_version", 1),
         health={key: _known(BoardHealth, row) for key, row in payload.get("health", {}).items()},
+        websites=payload.get("websites", {}),
     )
 
 
@@ -382,6 +388,7 @@ def save(store: Store, path: Path) -> None:
         "boards": {key: asdict(reads) for key, reads in store.boards.items()},
         "logos": store.logos,
         "logos_version": store.logos_version,
+        "websites": store.websites,
         "health": {key: asdict(health) for key, health in store.health.items()},
         "jobs": [job.to_row() for job in sorted(store.jobs, key=lambda job: job.key)],
     }

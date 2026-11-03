@@ -19,6 +19,7 @@ from urllib.error import HTTPError
 from apply import (
     brief,
     browsers,
+    captcha,
     company,
     cover_letter,
     description,
@@ -48,6 +49,7 @@ from apply.gates import UNTRACED_NUMBER
 from apply.home import HOME
 from apply.model import (
     NOT_A_POSTING,
+    Captcha,
     Closed,
     FillError,
     NotAPosting,
@@ -145,6 +147,7 @@ def apply_to(
     on_missing: Callable[[tuple[str, ...], dict[str, dict], dict[str, bool]], None] = lambda *heard: None,
     on_verify: Callable[["verify.Verification | None"], None] = lambda verification: None,
     on_pause: Callable[[Result, Callable[[object], str]], bool] = lambda stopped, blocked: False,
+    on_captcha: Callable[[str, object, str], bool] = lambda why, page, company: False,
 ) -> Result:
     """`before_submit` runs just before the form is submitted. It returns why
     the Orchestrator holds the Application anyway (the Calibration run), or "";
@@ -185,11 +188,15 @@ def apply_to(
     now ("" when it can), and waits on him. True: he fixed the page and
     pressed Resume, so the fill goes on on the same page, from the step it
     shows, with the values he put there kept as his answers (`resumed`).
-    False: the Handoff ends the rehearsal as before."""
+    False: the Handoff ends the rehearsal as before.
+    A captcha that stops the fill (model.Captcha), in a run or a rehearsal,
+    goes to `on_captcha` first, with its reason, its page and the company
+    that the link or the page names (captcha.Waiter): True, Lisul did it, and the fill goes on on that page.
+    False, the time ran out: it is a Handoff (or a rehearsal's pause)."""
     planned = _Planned(posting, site, profile, claude, answered or {}, approved, rehearse, bank or AnswerBank(),
                        today or date.today(), on_files, on_missing)
     try:
-        result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify, on_pause)
+        result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify, on_pause, on_captcha)
     except Handoff as handoff:
         result = _handed_off(handoff)
     except Closed as closed:  # skipped before any form is filled
@@ -212,7 +219,8 @@ def apply_to(
 
 
 def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fill=lambda: None,
-           on_verify=lambda verification: None, on_pause=lambda stopped, blocked: False) -> Result:
+           on_verify=lambda verification: None, on_pause=lambda stopped, blocked: False,
+           on_captcha=lambda why, page, company: False) -> Result:
     posting, profile, claude = planned.posting, planned.profile, planned.claude
     read = description.from_api(posting, site)
     if why := eligibility.not_eligible(read):  # before any form opens or Claude is asked
@@ -238,6 +246,8 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     raise Closed(f"the job system no longer has this Posting (HTTP {error.code})") from error
                 raise
             except Handoff as handoff:  # a sign-in Lisul finishes himself, then Resume reads the questions
+                if isinstance(handoff, Captcha) and on_captcha(str(handoff), handoff.page, _company(planned.posting, filler)):
+                    continue  # he did the captcha: the questions are read again, from the page he left
                 if not (rehearse and on_pause(_handed_off(handoff), blocked)):
                     raise
         # No API for it: what the Filler read off the open posting page (Claude fill), else the plain fetch.
@@ -268,6 +278,8 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         if not (rehearse and planned.skip(error)):
                             raise
                     except Handoff as handoff:  # a rehearsal says which blanks may have stopped it
+                        if isinstance(handoff, Captcha) and on_captcha(str(handoff), handoff.page, _company(planned.posting, filler)):
+                            continue  # he did the captcha: the fill goes on from the page he left
                         # What it planned and what the page showed so far, for its Record: a step Workday won't
                         # leave is read from it.
                         shown = dict(getattr(filler, "shown_so_far", {}))
@@ -330,7 +342,10 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     return Result(Status.HELD, hold, filled, essay=planned.essay_cell, problems=rescued,
                                   verification=verification)
                 try:
-                    met = filler.submit(page)
+                    # A captcha after the click: Lisul does it, and the confirmation is waited for again.
+                    with captcha.at_submit(lambda page: on_captcha(captcha.AT_SUBMIT, page,
+                                                                   _company(planned.posting, filler))):
+                        met = filler.submit(page)
                 except Handoff as handoff:  # it may have gone: the Record shows where the click left the page
                     return _handed_off(handoff, filled=replace(filled, after_submit=_screenshot(page)))
                 return Result(Status.SUBMITTED, filled=replace(filled, after_submit=_screenshot(page)),
@@ -348,6 +363,11 @@ def choices(question: Question) -> dict | None:
         return {"kind": "file", "options": []}
     options = [o for o in question.options if not PLACEHOLDER.match(o.strip().lower())]
     return {"kind": question.kind, "options": options} if question.kind in ("select", "multi_select") and options else None
+
+
+def _company(posting: Posting, filler) -> str:
+    """The company the link names, else the one its open page names (Claude fill)."""
+    return posting.company or (getattr(filler, "names", None) or ("", ""))[0]
 
 
 def _handed_off(handoff: Handoff, **more) -> Result:

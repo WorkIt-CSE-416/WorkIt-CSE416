@@ -3,13 +3,10 @@ browser for a bot. Each Tracker row a Worker filled notes how its Chrome ran
 (headless or headed, policies.yaml: worker_headless) and the Bot signals it
 met, so the two modes can be compared before one is chosen."""
 
-import re
 from collections import Counter
 
 # A captcha's picture or puzzle challenge, which a Worker never solves.
 CAPTCHA = "captcha"
-# How Claude fill's Claude says it stopped at one (claude_fill.py's prompt tells it to).
-SAYS_CAPTCHA = re.compile(r"captcha|not a robot|turnstile|cloudflare|verify (that )?you are (a )?human", re.IGNORECASE)
 # Greenhouse's step asking for the code it emails, before it takes the form.
 SECURITY_CODE = "security code"
 # The job system refused the sent form, as Ashby does when reCAPTCHA scores the browser low.

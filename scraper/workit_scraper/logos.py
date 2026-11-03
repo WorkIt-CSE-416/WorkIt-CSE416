@@ -11,6 +11,10 @@ workshop.com. Each board is read once, ever: a board already in
 `Store.logos` is never read again, because logos almost never change. Delete the
 `logos` key from jobs.json to read them all again; a board read with no logo is read
 again once whenever `VERSION` goes up.
+
+The website a board names is kept too (`Store.websites`), beside an uploaded logo
+as well: the Jobs page draws its logo from Brandfetch by that website
+(`company_domain`), and an upload is only its fallback.
 """
 
 from __future__ import annotations
@@ -150,15 +154,27 @@ def registered_domain(host: str) -> str:
     return ".".join(labels[-n:])
 
 
-def company_domain(key: str, logo: str | None) -> str | None:
+def is_upload(logo: str | None) -> bool:
+    """Whether the logo is an image the employer uploaded, not a website's favicon."""
+    return logo is not None and not logo.startswith(FAVICON)
+
+
+def needs_read(key: str, logos: dict[str, str | None], websites: dict[str, str | None]) -> bool:
+    """Whether a board's page must be read: never read, or read for an uploaded logo
+    before the reader kept websites. Each of those is read once more, so a board that
+    kept its upload after KAN-442 gets a `company_domain`."""
+    return key not in logos or (is_upload(logos[key]) and key not in websites)
+
+
+def company_domain(key: str, logo: str | None, website: str | None = None) -> str | None:
     """The employer's own registered domain, for the Jobs page's logo (KAN-442).
 
-    The checked website first (`CHECKED_WEBSITES`), else the website its favicon came
-    from. None for an uploaded logo (its website was not kept), a hiring vendor's
-    site, or no website at all. Worked out when the feed is written, so a row added
-    to the checked list reaches every board's jobs on the next run, read or not.
+    The checked website first (`CHECKED_WEBSITES`), else the website the board named
+    (`Store.websites`), else the website its favicon came from. None for a hiring
+    vendor's site or no website at all. Worked out when the feed is written, so a row
+    added to the checked list reaches every board's jobs on the next run, read or not.
     """
-    site = CHECKED_WEBSITES.get(key)
+    site = CHECKED_WEBSITES.get(key) or website
     if site is None and logo and logo.startswith(FAVICON):
         site = parse_qs(urlsplit(logo).query).get("domain", [None])[0]
     if not site:
@@ -182,21 +198,36 @@ def page_url(ats: str, token: str) -> str:
 
 
 def extract(ats: str, page: str) -> str | None:
+    """The uploaded logo, else the favicon of the website the page names."""
     # Workday has no pattern: only its website is read.
     pattern = providers.PROVIDERS[ats].logo_pattern
     if pattern and (match := pattern.search(page)):
         return html.unescape(match.group(1)).replace("\\/", "/")
-    if ats == "ashby" and (site := ASHBY_WEBSITE.search(page)):
-        return favicon(urlsplit(site.group(1)).netloc)
-    if ats == "workable" and (site := WORKABLE_WEBSITE.search(page)):
-        return favicon(urlsplit(site.group(1)).netloc)
-    if ats == "lever" and (site := LEVER_WEBSITE.search(page)):
-        host = urlsplit(site.group(1)).netloc
-        return None if f".{host}".endswith(".lever.co") else favicon(host)
-    if ats == "workday" and (site := WORKDAY_WEBSITE.search(page)):
-        host = urlsplit(site.group(1)).netloc
-        return None if f".{host}".endswith(WORKDAY_HOSTS) else favicon(host)
-    return None
+    host = website(ats, page)
+    return favicon(host) if host else None
+
+
+# The board pages that name the company's website outright.
+WEBSITE_PATTERNS = {
+    "ashby": ASHBY_WEBSITE,
+    "workable": WORKABLE_WEBSITE,
+    "lever": LEVER_WEBSITE,
+    "workday": WORKDAY_WEBSITE,
+}
+
+
+def website(ats: str, page: str) -> str | None:
+    """The host of the company's website as its board page names it: Ashby's
+    `publicWebsite`, a Workable account's `url`, a Lever footer's home page link or a
+    Workday careers site's "Home" link. None for a link back to the hiring system, and
+    for any other system: those name it, if at all, only where `fetch` looks next."""
+    pattern = WEBSITE_PATTERNS.get(ats)
+    if not pattern or not (site := pattern.search(page)):
+        return None
+    host = urlsplit(site.group(1)).netloc
+    if f".{host}".endswith((".lever.co", *WORKDAY_HOSTS)):
+        return None
+    return host or None
 
 
 def _png_side(data: bytes) -> int | None:
@@ -206,12 +237,15 @@ def _png_side(data: bytes) -> int | None:
     return min(int.from_bytes(data[16:20]), int.from_bytes(data[20:24]))
 
 
-def fetch(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
-    """`{"ats/token": url or None}` for each board whose page we could read.
+def fetch(
+    boards: list[tuple[str, str, str]],
+) -> tuple[dict[str, str | None], dict[str, str | None]]:
+    """`({"ats/token": logo or None}, {"ats/token": website host or None})` for each
+    board whose page we could read.
 
-    A page that loaded without a logo maps to None, so it is not read again. A page
-    we could not read -- robots.txt, a timeout -- is left out, so the next run tries it
-    again.
+    A page that loaded without a logo maps to None, so it is not read again; so does
+    one that named no website. A page we could not read -- robots.txt, a timeout -- is
+    left out of both, so the next run tries it again.
     """
     boards = [board for board in boards if reads_logo(board[0])]
     # Each Workday company is its own host, so its robots.txt is read when a worker
@@ -244,28 +278,29 @@ def fetch(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
         except Exception:  # noqa: BLE001 - a missing logo must not end the run
             return None, None
 
-    def one(board: tuple[str, str, str]) -> tuple[str, str | None] | None:
+    def one(board: tuple[str, str, str]) -> tuple[str, str | None, str | None] | None:
         ats, token, company = board
         key = f"{ats}/{token}"
         if key in CHECKED_WEBSITES:
-            return key, favicon(CHECKED_WEBSITES[key])
+            return key, favicon(CHECKED_WEBSITES[key]), CHECKED_WEBSITES[key]
         body, moved = read(page_url(ats, token))
         if body is None and moved is None:
             return None
         page = body.decode("utf-8", "replace") if body else ""
         logo = extract(ats, page) if page else None
+        site = website(ats, page) if page else None
         # Ashby keeps a square logo however small it was uploaded (Bedrock's is 50px);
         # the company's own website usually has a sharper icon.
-        site = ASHBY_WEBSITE.search(page) if ats == "ashby" else None
         if logo and site and logo.startswith(ASHBY_IMAGES):
             side = _png_side(read(logo)[0] or b"")
             if side is not None and side < SMALL_PX:
-                logo = favicon(urlsplit(site.group(1)).netloc)
-        if logo is None:
-            # The board names no logo. Its job descriptions, and where it redirects
-            # (Stripe -> stripe.com), may name the company's site -- but only a site
-            # whose name matches the company counts (Accenture's board redirects to a
-            # Salesforce host).
+                logo = favicon(site)
+        if site is None:
+            # The page names no website, beside a logo or not. Its job descriptions,
+            # and where it redirects (Stripe -> stripe.com), may name the company's
+            # site -- but only a site whose name matches the company counts
+            # (Accenture's board redirects to a Salesforce host). Read beside an
+            # upload too: the Jobs page draws its logo by the website (KAN-442).
             text = moved or ""
             names = (token, company)
             if ats == "workday":
@@ -273,26 +308,33 @@ def fetch(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
                 # (talentbrew.com). The tenant, not the token: a site named "careers"
                 # must not make careers.com the company's.
                 text, names = page, (token.split(".")[0], company)
+            # No descriptions -- a failed read, or a 404 (an empty body) -- leave a
+            # board with no logo for the next run, as before. Beside an upload only a
+            # failed read does: a 404 records it with no website, or it would be
+            # read on every run.
             elif ats == "greenhouse":
                 jobs = read(GREENHOUSE_JOBS.format(token), timeout=30)[0]
-                if not jobs:
+                if jobs is None or (not jobs and logo is None):
                     return None
-                contents = (job.get("content") or "" for job in json.loads(jobs)["jobs"])
+                listed = json.loads(jobs)["jobs"] if jobs else []
+                contents = (job.get("content") or "" for job in listed)
                 link = GREENHOUSE_LOGO_LINK.search(page)
                 text = " ".join([link.group(1) if link else "", *contents, text])
             elif ats == "lever":
                 jobs = read(lever_jobs(token), timeout=30)[0]
-                if not jobs:
+                if jobs is None or (not jobs and logo is None):
                     return None
                 parts = [text]
-                for job in json.loads(jobs):
+                for job in json.loads(jobs) if jobs else []:
                     # Its lists hold the bullets, an "About us" among them.
                     parts += [job.get("description", ""), job.get("additional", "")]
                     parts += [item.get("content", "") for item in job.get("lists", [])]
                 text = " ".join(parts)
-            found = stated_site(text, *names)
-            logo = favicon(found) if found else None
-        return key, logo
+            site = stated_site(text, *names)
+            if logo is None and site:
+                logo = favicon(site)
+        return key, logo, site
 
     with ThreadPoolExecutor(8) as pool:
-        return dict(found for found in pool.map(one, boards) if found)
+        found = [board for board in pool.map(one, boards) if board]
+    return {key: logo for key, logo, _ in found}, {key: site for key, _, site in found}

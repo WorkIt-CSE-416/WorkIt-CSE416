@@ -162,6 +162,7 @@ jobs:
             tests/test_apply_home.py \
             tests/test_approve.py \
             tests/test_bot_signals.py \
+            tests/test_captcha.py \
             tests/test_claude_answers.py \
             tests/test_claude_cli.py \
             tests/test_clock.py \

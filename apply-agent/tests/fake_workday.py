@@ -316,10 +316,10 @@ class FakeWorkdayServer:
     `review_delay`: seconds the Review step shows only a placeholder, and its
     Submit button, before its answers (NVIDIA's, live).
     `box_wiring`: seconds after a step shows before its checkboxes take a click.
-    `to_sign_in`: Create Account goes to a bare Sign In view, with no notice,
-    and the candidate signs in with the new account (Northrop's and Zillow's,
-    live). A tenant that verifies email answers it by way of its
-    `/login/warning` page (Zillow's, live), which the Sign In view never shows."""
+    `to_sign_in`: Create Account goes to a bare Sign In view, with no notice.
+    A tenant that verifies email makes the account and goes there by way of
+    its `/login/warning` page (Zillow's, live), which the Sign In view never
+    shows. Any other tenant makes no account (Northrop's, live)."""
 
     def __init__(self, *forms: Path, keychain=None, mailbox: FakeMailbox | None = None,
                  verify_email: tuple[str, ...] = (), links_lost: bool = False,
@@ -456,7 +456,7 @@ class FakeWorkdayServer:
             made = self._create_account(host, tenant, body)
             if self._to_sign_in and "notice" in made:
                 return route.fulfill(status=302, headers={"Location": f"https://{host}/__fake__/login/warning"})
-            return route.fulfill(json={"signIn": True} if self._to_sign_in and "next" in made else made)
+            return route.fulfill(json=made)
         if path == "sign-in":
             return route.fulfill(json=self._sign_in(host, tenant, body))
         if path == "login/warning":
@@ -504,6 +504,8 @@ class FakeWorkdayServer:
             return {"error": "The passwords do not match."}
         if email in tenant.accounts:
             return {"error": "An account with this email address already exists."}
+        if self._to_sign_in and not tenant.verify_email:
+            return {"signIn": True}  # back to Sign In, no account made
         kept = self._keychain.password(host) if self._keychain else None
         self.created.append({"host": host, "email": email, "password": password, "keychain": kept})
         tenant.accounts[email] = {"password": password, "verified": not tenant.verify_email}
@@ -511,8 +513,7 @@ class FakeWorkdayServer:
             if not self._links_lost:
                 self._send_link(host, email)
             return {"notice": f"A verification email was sent to {email}. Click the link in it to verify your account."}
-        if not self._to_sign_in:
-            tenant.signed_in, tenant.posting = email, _posting(form["page"])
+        tenant.signed_in, tenant.posting = email, _posting(form["page"])
         return {"next": "/__fake__/apply/1"}
 
     def _sign_in(self, host: str, tenant: Tenant, form: dict) -> dict:

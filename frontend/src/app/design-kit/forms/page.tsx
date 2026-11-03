@@ -51,7 +51,10 @@ export default function FormsPage() {
             <TextInput aria-label="Location" placeholder="Stony Brook, NY" />
           </div>
         </Row>
-        <Row name="<SearchField>" role="Visually-hidden label, leading search glyph">
+        <Row
+          name="<SearchField>"
+          role="White pill with a control edge, visually-hidden label, leading search glyph"
+        >
           <div className="w-72">
             <SearchField id="dk-search" label="Search Jobs" placeholder="Search jobs" />
           </div>

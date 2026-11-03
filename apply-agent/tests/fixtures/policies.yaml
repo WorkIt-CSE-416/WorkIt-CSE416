@@ -10,3 +10,5 @@ compensation:
   expectation: Open to the posted range
   fallback_hourly: 30
   accept_stated_rate: true
+# A captcha is a Handoff at once, as no test does it; the captcha tests set their own wait.
+captcha_wait_minutes: 0

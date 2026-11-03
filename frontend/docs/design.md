@@ -236,8 +236,12 @@ open choices (Settled choices, near the end).
   `2.5`, `3.5`) only centres content inside a control.
 - **Grey ground, white cards.** The page is `bg-app` and every surface on it
   is `bg-panel`: "The seeker pages stand on a grey ground"
-  (`frontend/CLAUDE.md`). A soft fill on the ground is see-through ink
-  (`bg-ink/5`), and a sticky bar on the ground is `bg-app`.
+  (`frontend/CLAUDE.md`). The grey is the ground's alone: a field on the
+  ground is white with a `border-control` edge, a panel at a card's edge (the
+  match rail) is white with a hairline, and a grey fill (`bg-well`,
+  `bg-ink/5`) sits only inside a white surface, away from its edge. A search
+  bar filled with 5% ink and a `bg-well` match rail each blended into the
+  ground (2026-11-03). A sticky bar on the ground is `bg-app`.
 - **Every seeker page has one frame.** Pages then start at the same left
   edge beside the rail. The frame is `SEEKER_GUTTER` (16px, 24px from sm,
   32px from lg), `max-w-dashboard` (1440px; the Applications Tracker has no
