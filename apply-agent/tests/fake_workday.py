@@ -293,7 +293,8 @@ class FakeWorkdayServer:
     `accounts`: {(tenant host, email): password} made before the test.
     `google`: what Google does once Sign in with Google is clicked: "pick"
     (lists Lisul's account to pick), "auto" (goes straight back, signed in,
-    as for a Worker profile that used it before), or "password" (asks for his password).
+    as for a Worker profile that used it before), "password" (asks for his password), or
+    "rejected" (refuses the browser after the pick: "This browser or app may not be secure").
     `steps`: the application steps after sign-in. `google_delay`: seconds
     Workday takes to come back signed in from Google. `in_progress`: the
     Worker profile is still signed in with Google and started this
@@ -606,6 +607,8 @@ class FakeWorkdayServer:
                 return _page(route, f"<script>location.replace({json.dumps(query['continue'][0])})</script>")
             if self._google == "password":
                 after = f"{GOOGLE}/v3/signin/challenge/pwd"
+            elif self._google == "rejected":
+                after = f"{GOOGLE}/v3/signin/rejected"
             else:
                 after = query["continue"][0]
             account = html.escape(self._google_account)
@@ -616,6 +619,9 @@ class FakeWorkdayServer:
                 '<li><div role="link">Use another account</div></li></ul>'
                 f"<script>{CHOOSER_SCRIPT}</script>"
             ))
+        if parts.path == "/v3/signin/rejected":  # seen live (KLA, 2026-11-03)
+            return _page(route, "<h1>Couldn't sign you in</h1><p>This browser or app may not be secure.</p>"
+                                '<button type="button">Try again</button>')
         if parts.path == "/v3/signin/challenge/pwd":
             return _page(route, '<h1>Welcome</h1><form><input type="password" name="Passwd" aria-label="Enter your password"></form>')
         route.abort()

@@ -465,6 +465,10 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   Chrome starts with `--disable-blink-features=AutomationControlled`
   (`browsers.NOT_WEBDRIVER`). Do not remove it. The keychain flags already
   match the Chrome that Lisul signs the profile in with.
+- If Google still refuses (its `/signin/rejected` page), the Workday Filler
+  stops at once as Needs sign-in (`workday.GOOGLE_REJECTED`), never a 30 s
+  timeout. It never clicks Try again. The fake Workday's
+  `google="rejected"` plays this page.
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
 - Apply asks a site for a verification code or link once per sign-in and

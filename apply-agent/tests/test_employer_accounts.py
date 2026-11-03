@@ -6,6 +6,7 @@ Sign in with Google, and every Handoff rule."""
 import json
 import shutil
 import tempfile
+import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -206,6 +207,21 @@ def test_google_asking_for_more_than_an_account_pick_is_a_handoff():
     assert row.status == "handoff"
     assert "Google asked for more than an account pick (a password)" in row.reason
     assert "sign the Worker profiles in to Google again by hand" in row.reason
+    assert server.created == [] and server.submissions == []
+
+
+def test_google_refusing_the_browser_is_needs_sign_in_at_once():
+    # Seen live (KLA, 2026-11-03): after the account pick, Google showed "This browser or app may
+    # not be secure" on /signin/rejected, and Apply waited there 30 s and failed.
+    world = World()
+
+    with FakeWorkdayServer(XCEL_FORM, keychain=world.keychain, google="rejected") as server:
+        started = time.monotonic()
+        [row] = world.run(server, xcel())
+
+    assert row.status == "handoff"
+    assert row.reason.startswith("Needs sign-in: Google refused Sign in with Google")
+    assert time.monotonic() - started < 20  # no wait for a page that never comes
     assert server.created == [] and server.submissions == []
 
 

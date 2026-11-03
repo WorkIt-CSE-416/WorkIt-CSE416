@@ -286,7 +286,8 @@ class WorkdayFiller:
         on_google = lambda: page.url.startswith("https://accounts.google.com/")
         try:
             shown = _until(page, lambda: _on_step(page) and "in" or account.first.is_visible() and "chooser"
-                           or on_google() and _google_asks(page) and "asks", GOOGLE_WAIT)
+                           or on_google() and _google_asks(page) and "asks" or _google_rejected(page) and "rejected",
+                           GOOGLE_WAIT)
         except TimeoutError:
             if on_google():
                 raise Handoff(_google_wants(page)) from None
@@ -294,11 +295,15 @@ class WorkdayFiller:
                           f"({page.url}): finish the application yourself.") from None
         if shown == "asks":
             raise Handoff(_google_wants(page))
+        if shown == "rejected":
+            raise Handoff(GOOGLE_REJECTED)
         if shown == "in":
             return
         account.first.click()
-        _until(page, lambda: not page.url.startswith("https://accounts.google.com/") or _google_asks(page))
-        if page.url.startswith("https://accounts.google.com/"):
+        _until(page, lambda: not on_google() or _google_asks(page) or _google_rejected(page))
+        if _google_rejected(page):
+            raise Handoff(GOOGLE_REJECTED)
+        if on_google():
             raise Handoff(_google_wants(page))
         _until(page, lambda: _on_step(page))
 
@@ -460,6 +465,17 @@ def _alert(page: Page) -> str:
 def _google_asks(page: Page) -> bool:
     """Whether Google's page asks for something typed: a password, a code, a phone number."""
     return page.locator("input[type=password]:visible, input[type=tel]:visible, input[type=text]:visible").count() > 0
+
+
+def _google_rejected(page: Page) -> bool:
+    """Whether Google refused to sign in this browser ("This browser or app may not be secure")."""
+    return urlsplit(page.url).hostname == "accounts.google.com" and "/signin/rejected" in urlsplit(page.url).path
+
+
+GOOGLE_REJECTED = (
+    f"{NEEDS_SIGN_IN}Google refused Sign in with Google in the Worker's Chrome (\"This browser or app may not be "
+    "secure\"). Sign in with Google in your own Chrome and apply yourself."
+)
 
 
 def _google_wants(page: Page) -> str:
