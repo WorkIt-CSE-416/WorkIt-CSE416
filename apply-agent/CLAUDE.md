@@ -486,6 +486,12 @@ Claude stops at one (`SAYS_CAPTCHA`).
 - After `captcha_wait_minutes` (policies, default 15), or when the tab
   closed, it is the usual Handoff: a run's ends, a rehearsal's pauses
   (KAN-551). `0` hands off at once; the test policies set 0.
+- At the submit, in a live run: a captcha after the click goes to the same
+  wait (`captcha.at_submit` around `filler.submit`, read by
+  `confirmation.wait_for_confirmation`). Once Lisul did it, the wait for
+  the job system's confirmation starts again, and the Application is
+  Submitted through the usual submit proof. If he does not, it is the
+  Handoff that it was before.
 - A rehearsal keeps each captcha wait in its history ("Paused: do the
   captcha", "Resumed: the captcha is done"), on the tile and in the Record,
   and a `captcha` event in the Trace. A wait that timed out leaves only

@@ -8,6 +8,8 @@ import re
 import sys
 import time
 from collections.abc import Callable
+from contextlib import contextmanager
+from contextvars import ContextVar
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Page
@@ -51,6 +53,29 @@ def blocked(company: str, url: str) -> str:
     else the name in the link's host (www.tesla.com: Tesla)."""
     labels = [part for part in urlsplit(url).hostname.split(".") if part not in _NO_NAME] if url else []
     return BLOCKED.format(company or (labels[0].capitalize() if labels else "The job site"))
+
+
+# The submit's wait for a captcha that shows once the form is sent (at_submit); none outside it.
+_AT_SUBMIT: ContextVar[Callable[[Page], bool]] = ContextVar("at_submit", default=lambda page: False)
+# The reason the window shows for one.
+AT_SUBMIT = "A captcha came up after the submit click, so the form waits to be sent"
+
+
+@contextmanager
+def at_submit(wait: Callable[[Page], bool]):
+    """While a Filler's submit runs in this block, a captcha after its click
+    goes to `wait(page)` (apply.confirmation): True, Lisul did it, and the
+    submit waits for the job system's confirmation again."""
+    token = _AT_SUBMIT.set(wait)
+    try:
+        yield
+    finally:
+        _AT_SUBMIT.reset(token)
+
+
+def done_at_submit(page: Page) -> bool:
+    """Whether Lisul did the captcha that came up after the submit click."""
+    return _AT_SUBMIT.get()(page)
 
 
 # How long Apply waits for Lisul to do a captcha before the Application is the

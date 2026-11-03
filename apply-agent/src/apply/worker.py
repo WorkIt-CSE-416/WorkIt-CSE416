@@ -19,6 +19,7 @@ from urllib.error import HTTPError
 from apply import (
     brief,
     browsers,
+    captcha,
     company,
     cover_letter,
     description,
@@ -340,7 +341,10 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     return Result(Status.HELD, hold, filled, essay=planned.essay_cell, problems=rescued,
                                   verification=verification)
                 try:
-                    met = filler.submit(page)
+                    # A captcha after the click: Lisul does it, and the confirmation is waited for again.
+                    with captcha.at_submit(lambda page: on_captcha(captcha.AT_SUBMIT, page,
+                                                                   _company(planned.posting, filler))):
+                        met = filler.submit(page)
                 except Handoff as handoff:  # it may have gone: the Record shows where the click left the page
                     return _handed_off(handoff, filled=replace(filled, after_submit=_screenshot(page)))
                 return Result(Status.SUBMITTED, filled=replace(filled, after_submit=_screenshot(page)),
