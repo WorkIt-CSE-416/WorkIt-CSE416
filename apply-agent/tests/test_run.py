@@ -83,6 +83,21 @@ def test_run_submits_a_greenhouse_match_and_tracks_it(job_server, one_pager):
     assert sent.files["resume"] == one_pager.read_bytes()
 
 
+def test_run_gives_the_form_the_postings_tailored_resume(job_server, one_pager, monkeypatch, tmp_path):
+    # KAN-547: WorkIt has a tailored resume for Arc's posting, so Arc's form gets it, by the profile's resume name.
+    from apply import tailored
+
+    monkeypatch.setattr(tailored, "TAILORED", tmp_path / "tailored")
+    tailored_pdf = b"%PDF-1.7 the resume tailored to Arc"
+
+    tracker = run(job_server, tailored=lambda posting: tailored_pdf if posting.url == ARC_URL else None)
+
+    assert tracker.rows()[0].status == "submitted"
+    [sent] = job_server.submissions
+    assert sent.files["resume"] == tailored_pdf
+    assert one_pager.read_bytes() != tailored_pdf  # the profile's own resume is unchanged
+
+
 def test_a_readback_mismatch_holds_the_application_and_never_submits():
     with FakeJobServer(ARC_FORM, garble="email") as job_server:
         tracker = run(job_server)

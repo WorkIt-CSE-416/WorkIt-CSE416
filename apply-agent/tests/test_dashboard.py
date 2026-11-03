@@ -874,8 +874,8 @@ def test_with_no_run_going_the_inbox_lists_what_the_tracker_says_still_waits(win
         assert approved == ["a1"]
 
 
-def post_approve(board, item, token=None):
-    body = json.dumps({"id": item["id"]}).encode()
+def post_approve(board, item, token=None, essay=None):
+    body = json.dumps({"id": item["id"]} | ({"essay": essay} if essay is not None else {})).encode()
     return urllib.request.urlopen(urllib.request.Request(board.url + "/approve", body,
                                                          {"X-Apply-Token": token or board.token}))
 
@@ -893,6 +893,42 @@ def test_a_hold_is_approved_in_the_window_and_waits_no_more():
         with pytest.raises(urllib.error.HTTPError) as gone:  # a second press: it no longer waits
             post_approve(board, item)
         assert gone.value.code == 404
+
+
+def test_a_held_essay_edited_in_the_window_is_approved_as_edited():
+    # The retired Tracker Sheet let Lisul edit a held essay before he ticked Approve: the window does too.
+    approved = []
+    approve = lambda i, essay=None: approved.append((i, essay)) or "Approved."
+    with Dashboard(1, NoFrames(), past=lambda: [held_row(essay="## Why Stripe?\nClaude's draft")], approve=approve) as board:
+        [item] = board.state()["items"]
+        assert item["essay"] == "## Why Stripe?\nClaude's draft"
+        post_approve(board, item, essay="## Why Stripe?\nMy own words")
+        board.update(0, company="Arc", role="Intern", posting_url="https://arc.example/1", application_id="arc-1",
+                     status="held", why="High-stakes essay: Why Arc?", essay="## Why Arc?\nDraft")
+        [live] = [i for i in board.state()["items"] if i["company"] == "Arc"]
+        assert live["essay"] == "## Why Arc?\nDraft"
+        post_approve(board, live)  # not edited: the row's essay stays
+
+    assert approved == [("a1", "## Why Stripe?\nMy own words"), ("arc-1", None)]
+
+
+def test_lisul_edits_a_held_essay_on_its_card_and_approve_sends_his_words(window):
+    approved = []
+    approve = lambda i, essay=None: approved.append((i, essay)) or "Approved."
+    with Dashboard(0, NoFrames(), past=lambda: [held_row(essay="## Why Stripe?\nClaude's draft")], approve=approve) as board:
+        window.goto(board.url)
+        box = window.locator("#inbox .item:has-text('Stripe') textarea")
+        assert box.input_value() == "## Why Stripe?\nClaude's draft"
+        box.fill("## Why Stripe?\nMy own words")
+        window.reload()  # the edit is kept until he approves
+        assert window.locator("#inbox .item:has-text('Stripe') textarea").input_value() == "## Why Stripe?\nMy own words"
+        assert "Approve sends your edit" in window.inner_text("#inbox .item:has-text('Stripe')")
+        window.click("#inbox .item:has-text('Stripe') button:has-text('Approve')")
+        window.wait_for_selector("#inbox .item:has-text('Stripe')", state="detached")
+        window.reload()  # approved: the edit is not kept any longer
+        assert window.evaluate("sessionStorage.getItem('apply.essays')") == "{}"
+
+    assert approved == [("a1", "## Why Stripe?\nMy own words")]
 
 
 def test_an_approval_from_anywhere_but_the_window_is_refused():

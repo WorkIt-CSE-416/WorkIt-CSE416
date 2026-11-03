@@ -447,9 +447,10 @@ def lisul_on_the_held_page(monkeypatch, clicks):
     monkeypatch.setattr(rehearsal, "lift", lift)
 
 
-def hold_until(site, profile, done: Callable[[list[str]], bool], **more) -> list[str]:
+def hold_until(site, profile, done: Callable[[list[str]], bool], with_adapters: dict | None = None, **more) -> list[str]:
     """Rehearse Arc's link with its page held open, then press Ctrl-C once
-    `done(lines printed)`; or after two minutes, so a test never hangs."""
+    `done(lines printed)`; or after two minutes, so a test never hangs.
+    `with_adapters` replaces adapters of the test's."""
     lines, ctrl_c = [], threading.Timer(1.0, _thread.interrupt_main)
 
     def out(line: str) -> None:
@@ -459,7 +460,7 @@ def hold_until(site, profile, done: Callable[[list[str]], bool], **more) -> list
     watchdog = threading.Timer(120, _thread.interrupt_main)
     watchdog.start()
     try:
-        rehearsal.rehearse([ARC_URL], adapters(site), profile, out=out, **more)
+        rehearsal.rehearse([ARC_URL], adapters(site, **(with_adapters or {})), profile, out=out, **more)
     finally:
         watchdog.cancel()
         ctrl_c.cancel()
@@ -506,6 +507,43 @@ def test_lisuls_own_submit_from_a_rehearsal_is_applied_in_his_applications_track
 
     assert applications.tracked() == [{"link": ARC_URL, "company": "Arc Boat Company", "stage": "applied",
                                        "sent_resume": resume_name}]
+
+
+def test_lisuls_submit_sends_his_tailored_resume_and_keeps_that_file_as_the_sent_resume(monkeypatch, tmp_path):
+    # KAN-547: the posting has a tailored resume on WorkIt, so the form gets it, by the profile's resume name.
+    from fake_tracker import FakeTracker
+    from fake_workit import FakeWorkIt
+
+    from apply import tailored, workit
+    from apply.tracker import WorkItTracker
+    from apply.worker import sent_resume
+
+    monkeypatch.setattr(tailored, "TAILORED", tmp_path / "tailored")
+    monkeypatch.setattr(worker, "SENT", tmp_path / "sent")
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+    resume_name = Path(profile.get("files.resume_pdf")).name
+    tailored_pdf = b"%PDF-1.7 the resume tailored to Arc"
+
+    with FakeWorkIt() as wi, FakeJobServer(ARC_FORM) as fake:
+        applications = FakeTracker(wi)
+        applications.tailored(applications.listed(ARC_URL, "Arc Boat Company", "Intern"), tailored_pdf)
+        client = workit.WorkIt(wi.site, tmp_path / "workit-login.json")
+        workit.login(client, lambda url, accept: accept(wi.cookies(wi.session())))
+        tracker = WorkItTracker(InMemoryTracker(), workit.Outbox(client, tmp_path / "workit-queue.json"),
+                                lambda application_id: sent_resume(application_id, resume_name, tmp_path / "sent"))
+        hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=tracker,
+                   with_adapters={"tailored": tailored.from_workit(client)})
+        submitted = fake.submissions
+
+    assert resume_name in submitted[0].application.values()  # the form got it under the profile's resume name
+    [given] = (tmp_path / "sent").glob(f"*/*/{resume_name}")
+    assert given.read_bytes() == tailored_pdf
+    assert applications.tracked() == [{"link": ARC_URL, "company": "Arc Boat Company", "stage": "applied",
+                                       "sent_resume": resume_name}]
+    assert [sent.content for sent in applications.sent.values()] == [tailored_pdf]
+    assert profile.get("files.resume_pdf").read_bytes() != tailored_pdf  # the profile still names the base resume
 
 
 def test_a_rehearsal_lisul_does_not_submit_sends_nothing_to_workit(monkeypatch, tmp_path):

@@ -343,7 +343,7 @@ class Board(Protocol):
     def update(self, worker: int, **caption: object) -> None:
         """Set some of Worker `worker`'s caption: company, role, job_system,
         posting_url, application_id, status, line; and once it ends, why (the
-        reason, in full), choices (what each Missing fact offers to pick from,
+        reason, in full), essay (a Hold's essays, for Lisul to edit: essays.as_cell), choices (what each Missing fact offers to pick from,
         by question), and for a rehearsal filled and asked (fields) and missing
         (its Missing facts)."""
         ...
@@ -433,8 +433,9 @@ class Dashboard:
     `show`, when given, brings Worker k's own Chrome window to the front (False:
     it has none), for what the tile cannot do: a sign-in, a captcha, a dialog.
     `sample`: Apply runs on the Test Person sample data, and the window says so.
-    `approve`, when given, approves a Hold from the Inbox (its Application ID),
-    as ticking Approve did in the retired Tracker Sheet (KAN-544), and says how it went."""
+    `approve`, when given, approves a Hold from the Inbox (its Application ID, and
+    `essay=` his edit of its essays if he edited them), as editing the Essay cell
+    and ticking Approve did in the retired Tracker Sheet (KAN-544), and says how it went."""
 
     def __init__(self, workers: int, frames: Frames, answers: AnswersTab | None = None,
                  applied: Callable[[str], str] | None = None, now: Callable[[], datetime] = datetime.now,
@@ -750,6 +751,7 @@ def _waiting(row) -> dict:
     return {"company": row.company, "role": row.role, "posting_url": row.posting_url, "job_system": row.job_system,
             "application_id": row.application_id, "status": str(row.status), "why": one_line(why),
             "record": row.record, "from": "tracker", "id": "t:" + row.application_id,
+            "essay": row.essay if str(row.status) == "held" else "",
             "choices": {row.missing_fact: offered} if (offered := cell_options(row.missing_fact_options)) else {},
             "at": row.date_applied.isoformat() if row.date_applied else None}
 
@@ -963,13 +965,21 @@ class _Handler(BaseHTTPRequestHandler):
         self._json(200, {"message": message})
 
     def _approve(self) -> None:
-        """Lisul approves a Hold in the Inbox, from the page itself: it is sent at the next check."""
+        """Lisul approves a Hold in the Inbox, from the page itself: it is sent at the next check, with
+        the essays as he edited them in its box (`essay`), if he did."""
         token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
         if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin not in (None, self.dashboard.url):
             return self._json(403, {"error": "Only the Apply window may approve for you."})
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > MAX_BODY:
+            self.close_connection = True
+            return self._json(413, {"error": "That essay is too long."})
         try:
-            key = str(json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 4096)) or b"{}")["id"])
-        except (ValueError, KeyError, TypeError):
+            body = json.loads(self.rfile.read(length) or b"{}")
+            key, essay = str(body["id"]), body.get("essay")
+            if essay is not None and not isinstance(essay, str):
+                raise TypeError
+        except (ValueError, KeyError, TypeError, AttributeError):
             return self._json(400, {"error": "Not an approval."})
         item = next((i for i in self.dashboard.state()["items"]
                      if str(i["id"]) == key and i.get("application_id")
@@ -977,7 +987,8 @@ class _Handler(BaseHTTPRequestHandler):
         if item is None:
             return self._json(404, {"error": "That application no longer waits for your approval."})
         try:
-            message = self.dashboard.approve(item["application_id"])
+            # His edit of the essays, when he made one, is sent in place of Claude's.
+            message = self.dashboard.approve(item["application_id"], **({"essay": essay} if essay is not None else {}))
         except Exception as error:  # the Tracker file: say so in the window
             return self._json(502, {"error": f"Not approved: {error}"})
         with self.dashboard._lock:

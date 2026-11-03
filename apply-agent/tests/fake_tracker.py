@@ -53,6 +53,7 @@ class FakeTracker:
     postings: dict[str, Posting] = field(default_factory=dict)
     applications: dict[str, Application] = field(default_factory=dict)  # by job id
     sent: dict[str, SentResume] = field(default_factory=dict)
+    tailored_resumes: dict[str, bytes] = field(default_factory=dict)  # the PDF of each tailored resume, by job id
 
     def __post_init__(self):
         self._ids = itertools.count(1)
@@ -62,6 +63,7 @@ class FakeTracker:
             ("POST", "/jobs/added-by-link", self._added_by_link),
             ("GET", f"/applicants/{me}/applications", self._list),
             ("POST", f"/applicants/{me}/sent-resumes/file", self._send_resume),
+            ("GET", f"/applicants/{me}/built-resumes", self._built_resumes),
         ]:
             self.fake.route(method, path, self._signed_in(handler))
 
@@ -75,6 +77,15 @@ class FakeTracker:
     def applied_before(self, job_id: str, stage: str, applied_at: str | None = "2026-09-01T15:00:00+00:00") -> None:
         """The student's application on a job, made in WorkIt itself (the extension, auto apply, Save)."""
         self.applications[job_id] = Application(stage, applied_at if stage in APPLIED else None)
+
+    def tailored(self, job_id: str, pdf: bytes) -> None:
+        """The student's tailored resume for the job (Tailor, KAN-217), which renders as `pdf`."""
+        self.tailored_resumes[job_id] = pdf
+        me = self.fake.account["id"]
+        self.fake.route("GET", f"/applicants/{me}/built-resumes/tailored-{job_id}/render",
+                        self._signed_in(lambda seen: Reply(200, {
+                            "pdf": base64.b64encode(self.tailored_resumes[job_id]).decode(),
+                            "file_name": f"{self.postings[job_id].company} - Intern.pdf", "page_count": 1})))
 
     def tracked(self) -> list[dict]:
         """The student's Applications Tracker as the page shows it: each job's link, company, stage and the
@@ -130,6 +141,12 @@ class FakeTracker:
         sent_id = f"00000000-0000-4000-b000-{next(self._ids):012d}"
         self.sent[sent_id] = SentResume(sent_id, job_id, seen.body["file_name"], content)
         return Reply(201, {"id": sent_id, "job_posting_id": job_id, "file_name": seen.body["file_name"]})
+
+    def _built_resumes(self, seen: Seen) -> Reply:
+        """routers/built_resumes.py: the base resume, and a tailored one per job posting."""
+        return Reply(200, [{"id": "base-1", "name": "Resume #1", "job_posting_id": None}] + [
+            {"id": f"tailored-{job_id}", "name": "Tailored", "job_posting_id": job_id}
+            for job_id in self.tailored_resumes])
 
     def _job_routes(self, job_id: str) -> None:
         me = self.fake.account["id"]

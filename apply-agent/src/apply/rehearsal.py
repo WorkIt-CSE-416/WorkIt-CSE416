@@ -34,7 +34,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from apply import ashby, eightfold, greenhouse, lever, trace, workday
+from apply import ashby, eightfold, greenhouse, lever, tailored, trace, workday
 from apply.accounts import NEEDS_SIGN_IN, Accounts
 from apply.adapters import Adapters, JobSite, SetupError, Tracker
 from apply.model import Posting, Status, one_line
@@ -263,6 +263,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     if result is None:
         with trace.tracing(posting.id, posting.url):
             try:
+                profile = tailored.resume_for(posting, profile, adapters.tailored)
                 result = by_filler(
                     posting, site, profile, claude, lambda: accounts(posting),
                     lambda filler, page_site: apply_to(posting, filler, page_site, profile, claude, calibration,

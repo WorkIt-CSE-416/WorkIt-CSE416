@@ -21,7 +21,8 @@ account row.
 
 The Applications Tracker's reads and writes (find or add a job by its
 link, set a stage and the applied date, keep a Sent resume) are methods
-that use `call`.
+that use `call`. So is the read of the student's tailored resume for a
+job (KAN-547).
 
 Apply's writes to the student's Applications Tracker (KAN-544) are `Write`s
 sent through an `Outbox`: it adds the job by its link, sets the stage, and
@@ -207,6 +208,20 @@ class WorkIt:
     def mark_applied(self, job_id: str) -> None:
         """Applied with no Sent resume (a later stage, and the date, stay)."""
         self.call("POST", f"/jobs/{job_id}/applied")
+
+    def tailored_resume(self, url: str) -> bytes | None:
+        """The PDF of the student's tailored resume for the listed job at `url` (Tailor, KAN-217), rendered now;
+        None when WorkIt does not list the job or the student has no tailored resume for it (KAN-547). Writes
+        nothing."""
+        listed = self.listed_by_link(url)
+        if listed is None:
+            return None
+        me = self._me().id
+        resume = next((r for r in self.call("GET", f"/applicants/{me}/built-resumes")
+                       if r.get("job_posting_id") == listed[0]), None)
+        if resume is None:
+            return None
+        return base64.b64decode(self.call("GET", f"/applicants/{me}/built-resumes/{resume['id']}/render")["pdf"])
 
     def _me(self) -> Account:
         """The signed-in account, read once: the writes name the student's id."""

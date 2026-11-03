@@ -8,6 +8,8 @@ from fake_tracker import FakeTracker
 from fake_workit import FakeWorkIt
 
 from apply import tracker_cleanup, workit
+from apply.model import Status
+from apply.tracker import FileTracker, Row
 from apply.workit import WorkIt
 
 # The Tracker Sheet: Iris was submitted with Apply (not imported yet), Gale was not.
@@ -189,3 +191,26 @@ def test_workit_refuses_to_delete_an_applied_application(workit_tracker):
             remove()
         assert refused.value.status == 409
     assert tracker.applications[acme].stage == "applied"
+
+
+def test_it_keeps_a_job_apply_is_holding_or_waits_on_you_for(workit_tracker, tmp_path):
+    """Apply writes a Hold as queued and a Missing fact as needs_you (KAN-544): a cleanup must not delete them."""
+    _, tracker, client = workit_tracker
+    apply_tracker = FileTracker(tmp_path / "tracker.json")
+    for number, (company, url, status) in enumerate([
+        ("Kite", "https://jobs.lever.co/kite/1", Status.HELD),
+        ("Lumen", "https://jobs.ashbyhq.com/lumen/2?utm_source=x", Status.MISSING_FACT),
+        ("Gale", "https://boards.greenhouse.io/gale/jobs/7000007", Status.FAILED),
+    ]):
+        apply_tracker.add(Row(f"run-{number}", company, "Intern", url, "greenhouse", status))
+    out = io.StringIO()
+    status = tracker_cleanup.run(client, CELLS, keep=[], apply_rows=apply_tracker.rows(),
+                                 approve=lambda prompt: "yes", out=out)
+
+    assert status == 0
+    text = out.getvalue()
+    assert "  Kite | Mobile Intern | queued: Apply is holding it\n" in text
+    assert "  Lumen | Data Intern | saved: Apply is waiting for you on it (missing fact)\n" in text
+    assert "Done: 2 deleted, 0 failed." in text  # Gale (failed in Apply) and Jade (no --keep here)
+    assert ("Kite", "queued") in stages(tracker) and ("Lumen", "saved") in stages(tracker)
+    assert ("Gale", "saved") not in stages(tracker)

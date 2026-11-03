@@ -171,6 +171,10 @@ the fake WorkIt, with WorkIt's link rule, stages and Sent resumes.
     (`job_key`, so also on another posting of that job);
   - the Tracker Sheet has the same job as submitted (not imported yet). The
     dry run then says to run `apply import-sheet` first;
+  - Apply's own Tracker (`APPLY_HOME/tracker.json`) has the job as held,
+    missing fact or handoff. Apply writes a Hold as queued and the others
+    as needs_you, so the Hold is live. The dry run says "Apply is holding
+    it" (or "Apply is waiting for you on it");
   - the student gave its link or job id with `--keep`.
 - It never deletes or changes an application at applied, interviewing,
   offer or rejected, or at needs_you or skipped.
@@ -219,12 +223,53 @@ sends a `workit.Write` through a `workit.Outbox`.
   ranked tabs to the Sheet when you run it by hand.
 - Lisul approves a Hold with the Apply window's Approve button (`POST
   /approve`, `Tracker.approve`), not a Sheet checkbox.
+- A Hold's card shows its essays (the Essay cell, `essays.as_cell`) in a
+  box that Lisul can edit before he approves. Approve sends his edit
+  (`essay`), and `Tracker.approve` writes it to the row's essay with
+  Approve, in one write. The next check fills the form with his words.
+  The page keeps the edit in `sessionStorage` (`apply.essays`, by
+  Application ID) until he approves, so a reload does not lose it.
 
 **Tests.** `tests/test_tracker_record.py` (in CI) runs the Outbox and
 `WorkItTracker` against `tests/fake_tracker.py`. `tests/test_rehearse.py
 -k "applications_tracker or sends_nothing_to_workit"` rehearses a form
 in Chromium: a submit by Lisul is Applied with the Sent resume, and no
 submit sends nothing.
+
+## The tailored resume is the Sent resume (KAN-547)
+
+A student can tailor a resume to a job posting on WorkIt (Tailor,
+`../docs/tailor_resume.md`). When the Posting has a tailored resume, Apply
+gives the form that resume, and the Applications Tracker keeps that same
+file as the Sent resume. Apply does not change how Tailor works.
+
+- `tailored.resume_for` runs before each Application, in a run
+  (`orchestrator._traced`) and in a rehearsal (`rehearsal._rehearse`). It
+  asks `Adapters.tailored` (live: `tailored.from_workit`) for the PDF.
+- `WorkIt.tailored_resume(url)` finds the job with `POST
+  /jobs/listed-by-link`, the student's tailored resume for that job in `GET
+  .../built-resumes` (`job_posting_id`), and renders it with `GET
+  .../built-resumes/{id}/render`. It writes nothing.
+- Apply writes the PDF to `APPLY_HOME/tailored/<application>/` with the
+  file name of the profile's resume. The form gets it under that name, the
+  Worker copies it to `sent/`, and the submit's write sends that copy
+  (`worker.sent_resume`). Thus the file attached and the Sent resume are the
+  same bytes.
+- The Application gets a view of the profile (`tailored._WithResume`): only
+  `files.resume_pdf` changes. The not-on-resume gate and the essays read the
+  tailored resume too. Every write goes to the profile itself, and the
+  profile file never changes.
+- No WorkIt login, a job that WorkIt does not list, no tailored resume, or
+  a profile with no resume: the profile's resume, as before. WorkIt down or
+  a failed render: the profile's resume, and one line on stderr says so.
+
+**Tests.** `tests/test_tailored_resume.py` (in CI) runs against
+`tests/fake_tracker.py` (`FakeTracker.tailored`). `tests/test_run.py -k
+tailored_resume` (the form gets the tailored file) and
+`tests/test_rehearse.py -k tailored_resume` (Lisul's submit keeps it as the
+Sent resume) open Chromium. The backend test
+`backend/tests/test_sent_resumes.py -k tailored_resume_by_the_postings_link`
+runs the same routes on Postgres.
 
 ## Verifying a filled form (KAN-549)
 
@@ -287,6 +332,7 @@ person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 - the WorkIt login (`workit-login.json`), after `apply login`.
 - Apply's Tracker (`tracker.json`) and the writes that wait for WorkIt
   (`workit-queue.json`).
+- the tailored resumes that Apply gave to forms (`tailored/`, KAN-547).
 
 Apply also writes its output there: rehearsal records, Repairs, Traces and
 the Chrome worker profiles (`APPLY_PROFILES`, under `APPLY_HOME` by
