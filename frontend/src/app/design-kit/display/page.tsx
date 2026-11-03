@@ -119,7 +119,7 @@ export default function DisplayPage() {
         </Row>
         <Row
           name="<Skyline>"
-          role="The city behind the auth screens' card; SkylineBackdrop fixes it there under this sky"
+          role="The city behind AuthCard, the auth screens' one card; SkylineBackdrop fixes it there under this sky"
         >
           <div
             className="rounded-shell border-border-subtle relative h-32 w-full overflow-hidden border"

@@ -158,10 +158,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   to `/coming-soon`, "Waiting for Deployment", before its env check, so a
   clone with no env file is gated too. `components/account-type-switcher.tsx`
   has its toggle commented out and always submits `applicant`, so login,
-  signup and choose-account-type show no Company option. The company code
+  signup and choose-account-type show no Company option. A first Google or
+  LinkedIn sign-in skips `/signup/choose-account-type`: `/auth/callback`
+  finishes it as an applicant itself and goes to onboarding (KAN-573),
+  since the page asked a question it offered no answer to. The company code
   stays in place. To bring it back, delete the proxy block and
-  `app/coming-soon/`, then uncomment the switcher's toggle. The API still
-  accepts company signups; the gate is the UI only.
+  `app/coming-soon/`, uncomment the switcher's toggle, and have the callback
+  redirect a new identity to `/signup/choose-account-type` again. The API
+  still accepts company signups; the gate is the UI only.
 - **The page at `/` is the landing page, `app/(landing)/`**, ported from
   the team's Astro marketing site (`WorkIt-Website`, kept outside this repo)
   in place of the old Job Seeker / Hiring chooser. Its components keep the
@@ -2118,7 +2122,8 @@ are in `docs/auth.md`.
   page's Log In always opened the form, and Google's account chooser
   (`prompt: "select_account"` in `oauth-actions.ts`) made it look like a
   fresh sign-in every visit. `/signup/choose-account-type` is not redirected:
-  a new OAuth identity is signed in there before it has an account.
+  a new OAuth identity is signed in there before it has an account (the
+  callback skips it while the business side is hidden, above).
 - **Never export a token-returning helper from a `"use server"` file.** Every
   export there is a browser-callable endpoint. Token helpers (`session.ts`)
   and Server-Component-only reads (`job-queries.ts`) live in `server-only`
