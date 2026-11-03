@@ -179,3 +179,48 @@ async def test_a_link_that_is_not_a_web_link_is_422(student):  # noqa: F811
     client, _ = student
     assert (await client.post("/jobs/added-by-link", json=_add("not a link"))).status_code == 422
     assert (await client.post("/jobs/added-by-link", json=_add(LOCKHEED, company=""))).status_code == 422
+
+
+def _act_as(applicant_id: uuid.UUID) -> None:
+    app.dependency_overrides[get_current_account] = lambda: AuthenticatedAccount(
+        id=applicant_id, email="kim@example.com", full_name="Kim Other",
+        account_type=AccountType.APPLICANT, onboarding_completed=True,
+    )
+
+
+async def _seed_student(database) -> uuid.UUID:
+    other = uuid.uuid4()
+    async with database() as session:
+        await session.execute(text("INSERT INTO auth.users (id) VALUES (:id)"), {"id": other})
+        await session.execute(
+            text("INSERT INTO applicant_profiles (id, email, full_name) VALUES (:id, 'kim@example.com', 'Kim Other')"),
+            {"id": other},
+        )
+        await session.commit()
+    return other
+
+
+async def test_a_second_student_on_the_link_never_sees_the_first_ones_typing(student, database):  # noqa: F811
+    client, me = student
+    mine = await client.post("/jobs/added-by-link", json=_add(LOCKHEED, company="LM (Kate's referral)",
+                                                              title="Skunk Works intern, team 7"))
+    other = await _seed_student(database)
+    _act_as(other)
+
+    theirs = await client.post("/jobs/added-by-link", json=_add(LOCKHEED))
+    # One posting per link (ADR 0008).
+    assert theirs.json()["job_id"] == mine.json()["job_id"]
+    [row] = (await client.get(f"/applicants/{other}/applications")).json()
+    assert (row["job"]["company"], row["job"]["title"]) == ("Lockheed Martin", "Software Engineer Intern")
+
+    _act_as(me)
+    [row] = (await client.get(f"/applicants/{me}/applications")).json()
+    assert (row["job"]["company"], row["job"]["title"]) == ("LM (Kate's referral)", "Skunk Works intern, team 7")
+
+    # Once the feed lists the job, both students see the feed's text.
+    async with database() as session:
+        await session.execute(text("UPDATE job_postings SET status = 'published', title = 'SWE Intern', "
+                                   "company_name = 'Lockheed Martin Corp'"))
+        await session.commit()
+    [row] = (await client.get(f"/applicants/{me}/applications")).json()
+    assert (row["job"]["company"], row["job"]["title"]) == ("Lockheed Martin Corp", "SWE Intern")

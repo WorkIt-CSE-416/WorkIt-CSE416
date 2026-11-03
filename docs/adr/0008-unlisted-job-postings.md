@@ -31,5 +31,9 @@ from. A record of applications that leaves out 2 in 5 is not a record.
 - Each query that lists job postings to students must leave out
   `unlisted`. A query that misses this shows one student's posting to
   others, so tests cover search and Scout.
+- One posting per link, but not one text per link: each student's
+  application keeps the company and title that student typed, and an
+  unlisted posting shows each student their own text. A second student
+  who adds the same link never sees the first student's text.
 - Links are compared after normalizing them, and Greenhouse jobs also by
   their job ID, so that a listed job is not added again as unlisted.

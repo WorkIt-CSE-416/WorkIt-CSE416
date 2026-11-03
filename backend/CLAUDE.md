@@ -531,7 +531,13 @@ Find files with a directory listing; these are the rules for where code goes.
   else a scraped posting the feed closed or one already unlisted (its link
   is unique, so a new row would fail), else a new **unlisted job posting**
   (status `unlisted`: company, title, link, level). The student's
-  application on it is saved unless one exists. Only a student with an
+  application on it is saved unless one exists. **Each student sees their
+  own company and title on an unlisted posting**: the application keeps the
+  text the student typed (`job_applications.company_name`, `title`), and
+  the tracker list shows it through `postings.typed_text` while the posting
+  is unlisted. A second student on the same link never sees the first
+  student's text. A new query that shows a student's applications must use
+  `typed_text` too. Only a student with an
   application on an unlisted posting reaches it: `LISTED` leaves it out
   of the Jobs page, search, Scout and every `postings.listed` caller, and
   `mark_applied` takes it only with the student's application
