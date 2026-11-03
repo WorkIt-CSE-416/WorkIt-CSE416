@@ -30,7 +30,7 @@ import time
 import traceback
 from collections.abc import Callable
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -45,7 +45,7 @@ from apply.request import resolve
 from apply.rescue import Rescue
 from apply.submit_guard import guard, lift, renote
 from apply.tracker import Row
-from apply.worker import Result, apply_to, named
+from apply.worker import Result, apply_to, keep_sent, named, sent_folder
 
 # Claude fill's cost, which ends its reason; a rehearsal shows it as tokens.
 CLAUDE_FILL_COST = re.compile(r"(^|; )Claude fill: \d+ sessions, [^;]*tokens$")
@@ -85,6 +85,8 @@ class Rehearsed:
     seconds: float = 0.0
     record: str = ""  # where its Record is, once filled
     problems: tuple[str, ...] = ()  # what the Pre-submit check and review found wrong on the form
+    files: list[dict] = field(default_factory=list)  # each file the form was given, as its tile lists them
+    saved: Record | None = None  # its Record as saved, to save again with what Lisul filled in later
 
     def warning(self) -> str:
         """What to fix on the held page before submitting it, if anything."""
@@ -250,6 +252,11 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         posting = replace(resolve(behind.url, site)[0], id=posting.id)  # named by Greenhouse now
     board.update(n, company=posting.company, role=posting.title, job_system=posting.job_system, posting_url=posting.url,
                  application_id=posting.id, status="filling", files=[], stage=stage)
+    files: list[dict] = []
+
+    def on_files(given: list[dict]) -> None:
+        files[:] = given
+        board.update(n, files=given)
     if result is None:
         with trace.tracing(posting.id, posting.url):
             try:
@@ -258,7 +265,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                     lambda filler, page_site: apply_to(posting, filler, page_site, profile, claude, calibration,
                                                        rehearse=True, bank=adapters.answer_bank,
                                                        today=adapters.clock.now().date(),
-                                                       on_files=lambda files: board.update(n, files=files),
+                                                       on_files=on_files,
                                                        on_missing=lambda missing, choices, required: board.update(
                                                            n, missing=list(missing), choices=choices, required=required),
                                                        before_fill=before_fill),
@@ -275,12 +282,12 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     posting = named(posting, result)
     keep_repair_requests(adapters, posting, result)
     rehearsed = _summary(posting, result, site, claude.spent() - spent, time.monotonic() - started)
+    rehearsed.files = list(files)
     if result.filled:
         try:
-            rehearsed.record = adapters.records.save(Record(
-                posting, result.status, _record_reason(rehearsed), result.filled, adapters.clock.now().date(), result.essay,
-                result.drafted, result.named_facts,
-            ))
+            saved = Record(posting, result.status, _record_reason(rehearsed), result.filled, adapters.clock.now().date(),
+                           result.essay, result.drafted, result.named_facts)
+            rehearsed.record, rehearsed.saved = adapters.records.save(saved), saved
         except Exception as error:
             rehearsed.why = "; ".join(filter(None, [rehearsed.why, f"Record not saved: {error}"]))
     board.update(n, status=rehearsed.outcome, line=rehearsed.line(), why=one_line(rehearsed.why),
@@ -298,12 +305,16 @@ def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Ada
     if answer is None:  # an optional question he skipped: left blank, and no longer waiting on him
         done.missing = tuple(q for q in done.missing if q != question)
         out(f"{name} | left '{one_line(question)}' blank: you skipped it")
-        adapters.board.update(n, status=done.outcome, filled=done.filled, missing=list(done.missing))
+        adapters.board.update(n, status=done.outcome, filled=done.filled, missing=list(done.missing),
+                              line=done.line(), why=one_line(done.why))
         try:
             renote(page, done.warning(), bool(done.problems))
         except Exception:
             pass  # the page closing: nothing to say on it
         return
+    if isinstance(answer, Path):  # attached as Lisul named it, from its copy kept with the Application's other files
+        day = done.saved.day if done.saved else adapters.clock.now().date()
+        answer = keep_sent(sent_folder(done.posting.company, done.posting.id, day), answer)
     try:
         filled = Rescue(adapters.claude, sms_opt_in=profile.policy("sms_opt_in") is True,
                         marketing_opt_in=profile.policy("marketing_opt_in") is True).field(
@@ -315,19 +326,38 @@ def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Ada
     if filled:
         if isinstance(answer, Path):
             adapters.board.file_given(n)  # Claude's click on the form's Attach asked the window for a file too
+            done.files = done.files + [{"label": one_line(question), "name": answer.name, "path": str(answer)}]
         done.missing = tuple(q for q in done.missing if q != question)
         done.filled += 1
+        _record_again(done, question, answer, adapters)
         out(f"{name} | filled '{one_line(question)}' with your answer")
     else:
         out(f"{name} | couldn't fill '{one_line(question)}' in place ({one_line(why)}): type it on the page, or press Fill again")
     # Its status again, so the window's item for it (kept when the form ended) shows the field filled too,
     # and the note on the form no longer names it left blank.
-    adapters.board.update(n, status=done.outcome, filled=done.filled, missing=list(done.missing))
+    adapters.board.update(n, status=done.outcome, filled=done.filled, missing=list(done.missing), files=done.files,
+                          line=done.line(), why=one_line(done.why))
     if filled:
         try:
             renote(page, done.warning(), bool(done.problems))
         except Exception:
             pass  # the page closing: nothing to say on it
+
+
+def _record_again(done: Rehearsed, question: str, answer: "str | Path", adapters: Adapters) -> None:
+    """Save the rehearsal's Record again with Lisul's answer to `question`, filled in on the form after it was saved."""
+    if done.saved is None:
+        return
+    filled = done.saved.filled
+    names = [q.name for q in filled.questions if q.label.strip() == question.strip()]
+    shown = answer.name if isinstance(answer, Path) else answer
+    filled = replace(filled, answers=filled.answers | dict.fromkeys(names, answer),
+                     readback=filled.readback | dict.fromkeys(names, shown))
+    saved = replace(done.saved, filled=filled, reason=_record_reason(done))
+    try:
+        done.record, done.saved = adapters.records.save(saved), saved
+    except Exception as error:
+        done.why = "; ".join(filter(None, [done.why, f"Record not saved again: {error}"]))
 
 
 def _keep_submission(tracker: Tracker | None, rehearsed: Rehearsed, today) -> str:

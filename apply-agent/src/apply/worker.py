@@ -60,6 +60,25 @@ from apply.records import SECRET, Filled
 SENT = HOME / "sent"
 
 
+def sent_folder(company: str, application_id: str, day: date) -> Path:
+    """The Application's folder under SENT, where a copy of each file its form is given is kept."""
+    slug = re.sub(r"[^a-z0-9]+", "-", company.lower()).strip("-") or "company"
+    return SENT / day.isoformat() / f"{slug}-{re.sub(r'[^A-Za-z0-9_-]+', '-', application_id)}"
+
+
+def keep_sent(folder: Path, path: Path) -> Path:
+    """A copy of `path` in `folder` (an Application's under SENT) by its own name; another
+    file kept there by that name already: the copy's name is numbered before it."""
+    folder.mkdir(parents=True, exist_ok=True)
+    name, n = path.name, 1
+    while (kept := folder / name).is_file() and kept.read_bytes() != path.read_bytes():
+        n += 1
+        name = f"{n}-{path.name}"
+    if not kept.is_file():
+        shutil.copyfile(path, kept)
+    return kept
+
+
 # Ends a Handoff's reason when the rest of the form was filled.
 FILLED_BUT = "Every other answer was filled in; the Record has them all"
 
@@ -331,8 +350,7 @@ class _Planned:
     def _keep_files(self) -> None:
         """Copy each file the form is given to the Application's folder under
         SENT, and tell `on_files` when the list changed."""
-        slug = re.sub(r"[^a-z0-9]+", "-", self.posting.company.lower()).strip("-") or "company"
-        folder = SENT / self._today.isoformat() / f"{slug}-{re.sub(r'[^A-Za-z0-9_-]+', '-', self.posting.id)}"
+        folder = sent_folder(self.posting.company, self.posting.id, self._today)
         files, taken = [], set()
         for q in self.questions:
             path = self._answers.get(q.name)
