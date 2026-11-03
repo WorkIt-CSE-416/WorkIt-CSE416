@@ -154,6 +154,14 @@ is the one today; a new right-side sheet gets the look for free. **Re-running
 `shadcn add sheet` undoes both**: diff the file after any `add`, and keep
 the fork's note at the top of `SheetOverlay`.
 
+#### Popover is forked: `anchor` passes through
+
+`src/components/shadcn/popover.tsx`'s `PopoverContent` passes `anchor` to
+its Positioner (KAN-575), so a popover with no trigger of its own hangs from
+another element: a phone's resume card picks Delete from its `⋯` menu, and
+`DeleteResumeConfirm` hangs from that menu's button. **Re-running
+`shadcn add popover` drops it**: diff the file after any `add`.
+
 #### The other exception: Select is wrapped, not replaced
 
 `src/components/ui/select.tsx` is a third shape, and worth knowing about before

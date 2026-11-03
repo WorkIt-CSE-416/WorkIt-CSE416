@@ -2136,7 +2136,9 @@ are in `docs/auth.md`.
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
   newest first, each as its card (`components/resume-row.tsx`'s box, star
   and icons: star, Rename, Download, Delete; Delete asks in a popover
-  under the trash, `DeleteResumeConfirm`, KAN-347), in one card that scrolls
+  under the trash, `DeleteResumeConfirm`, KAN-347; below `@xl` of the
+  row, a phone's, Rename, Download and Delete sit in a `⋯` menu,
+  `RowMoreMenu`, and the name keeps half the row, KAN-575), in one card that scrolls
   inside itself and runs down to the foot of the page (`ResumeScroll`'s
   `fill` in `components/resume-list.tsx`, KAN-434), never shorter than
   five cards under a heading (`FIVE_ROWS`, 351px). Capped at five cards,

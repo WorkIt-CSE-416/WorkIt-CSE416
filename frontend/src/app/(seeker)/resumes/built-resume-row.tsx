@@ -5,7 +5,16 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
-import { PrimaryStar, RESUME_ROW, ROW_ACTION } from "@/components/resume-row";
+import {
+  PrimaryStar,
+  RESUME_ROW,
+  ROW_ACTION,
+  ROW_ACTIONS,
+  ROW_MARK,
+  ROW_NAME,
+  ROW_WIDE,
+  RowMoreMenu,
+} from "@/components/resume-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -37,7 +46,9 @@ import { DownloadNotes, useResumeDownload } from "./download-menu";
  * page while the Jobs page lists it (a closed one's page is a 404). The whole card is
  * one target: the name's link stretches over it (`after:inset-0`), the
  * icons sit above that, and the card lifts under the pointer as every
- * whole-target card does (`docs/motion.md`).
+ * whole-target card does (`docs/motion.md`). Below `@xl` of the row,
+ * Rename, Download PDF and Delete sit in its More menu (`RowMoreMenu`,
+ * KAN-575); the star and Preview stay.
  */
 export function BuiltResumeRow({
   resume,
@@ -82,6 +93,7 @@ export function BuiltResumeRow({
 
   // The API sends edited_at equal to created_at until the first change.
   const edited = Date.parse(resume.edited_at) > Date.parse(resume.created_at);
+  const downloadLabel = download.busy === "pdf" ? "Making PDF…" : "Download PDF";
 
   return (
     <li>
@@ -101,8 +113,8 @@ export function BuiltResumeRow({
             "hover:border-brand/40 hover:shadow-lift ease-glide transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
           )}
         >
-          <PdfIcon className="size-5 shrink-0" />
-          <div className="min-w-0 flex-1">
+          <PdfIcon className={ROW_MARK} />
+          <div className={ROW_NAME}>
             <Link
               href={`/resumes/${encodeURIComponent(resume.id)}`}
               className="text-label text-ink after:rounded-control focus-visible:after:ring-brand-ring block truncate after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
@@ -111,22 +123,26 @@ export function BuiltResumeRow({
             </Link>
             {/* One day: when it was last edited, or made until the first edit.
                 Both together said one day twice for a resume edited the day
-                it was made, and the made day mattered less. */}
-            <p className="text-note text-ink-meta truncate">
-              {edited ? "Last edited" : "Made"}{" "}
-              <LocalDate at={edited ? resume.edited_at : resume.created_at} />
-              {resume.job_posting_id && resume.posting_title && (
-                <>
-                  {" · For "}
-                  <PostingLink resume={resume} />
-                </>
-              )}
-            </p>
+                it was made, and the made day mattered less. Story 90's
+                badge follows it, or wraps under it where both do not fit
+                (KAN-575): beside the icons it took the name's room. The
+                resume still opens and downloads; only Tailor needs a live
+                posting. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p className="text-note text-ink-meta min-w-0 truncate">
+                {edited ? "Last edited" : "Made"}{" "}
+                <LocalDate at={edited ? resume.edited_at : resume.created_at} />
+                {resume.job_posting_id && resume.posting_title && (
+                  <>
+                    {" · For "}
+                    <PostingLink resume={resume} />
+                  </>
+                )}
+              </p>
+              {resume.posting_closed && <Badge tone="inert">Posting Closed</Badge>}
+            </div>
           </div>
-          {/* Story 90: the resume still opens and downloads; only Tailor needs a live posting. */}
-          {resume.posting_closed && <Badge tone="inert">Posting Closed</Badge>}
-          {/* Above the stretched link, so a press on an icon is the icon's. */}
-          <div className="relative z-10 flex shrink-0 items-center">
+          <div className={ROW_ACTIONS}>
             <PrimaryStar
               name={resume.name}
               primary={resume.is_default}
@@ -140,34 +156,46 @@ export function BuiltResumeRow({
             >
               <EyeIcon aria-hidden className="size-4" />
             </IconButton>
-            <IconButton
-              label={`Rename ${resume.name}`}
-              tooltip="Rename"
-              className={ROW_ACTION}
-              onClick={() => setRenaming(true)}
-            >
-              <PencilIcon className="size-4" />
-            </IconButton>
-            <IconButton
-              label={`Download ${resume.name} as a PDF`}
-              tooltip={download.busy === "pdf" ? "Making PDF…" : "Download PDF"}
-              className={ROW_ACTION}
-              disabled={download.busy !== null}
-              onClick={() => download.pick("pdf")}
-            >
-              <FileArrowDownIcon aria-hidden className="size-4" />
-            </IconButton>
-            <DeleteResumeConfirm
+            <div className={ROW_WIDE}>
+              <IconButton
+                label={`Rename ${resume.name}`}
+                tooltip="Rename"
+                className={ROW_ACTION}
+                onClick={() => setRenaming(true)}
+              >
+                <PencilIcon className="size-4" />
+              </IconButton>
+              <IconButton
+                label={`Download ${resume.name} as a PDF`}
+                tooltip={downloadLabel}
+                className={ROW_ACTION}
+                disabled={download.busy !== null}
+                onClick={() => download.pick("pdf")}
+              >
+                <FileArrowDownIcon aria-hidden className="size-4" />
+              </IconButton>
+              <DeleteResumeConfirm
+                onDelete={remove}
+                trigger={
+                  <IconButton
+                    label={`Delete ${resume.name}`}
+                    tooltip="Delete"
+                    className={cn(ROW_ACTION, "hover:text-danger")}
+                  >
+                    <TrashIcon className="size-4" />
+                  </IconButton>
+                }
+              />
+            </div>
+            <RowMoreMenu
+              name={resume.name}
+              onRename={() => setRenaming(true)}
+              download={{
+                label: downloadLabel,
+                busy: download.busy !== null,
+                onPick: () => download.pick("pdf"),
+              }}
               onDelete={remove}
-              trigger={
-                <IconButton
-                  label={`Delete ${resume.name}`}
-                  tooltip="Delete"
-                  className={cn(ROW_ACTION, "hover:text-danger")}
-                >
-                  <TrashIcon className="size-4" />
-                </IconButton>
-              }
             />
           </div>
         </div>
