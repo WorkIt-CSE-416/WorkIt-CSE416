@@ -29,3 +29,28 @@ export function FeatureStage({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+/**
+ * A deep dive's visual: its panel on the feature's ground, 4:3, with `Fit`
+ * scaling the still scene (drawn at `VIGNETTE_W` × `VIGNETTE_H`, visuals/)
+ * to the panel's height and width, so it fills a laptop's half column and
+ * still fits a phone's full width.
+ */
+export function DeepDiveStage({
+  background,
+  children,
+}: {
+  background: string;
+  children: ReactNode;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  return (
+    <div
+      ref={box}
+      className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[2rem] p-4 sm:p-6"
+      style={{ background }}
+    >
+      <Fit box={box}>{children}</Fit>
+    </div>
+  );
+}

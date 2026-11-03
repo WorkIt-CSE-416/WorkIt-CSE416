@@ -6,9 +6,9 @@ import type { ComponentType } from "react";
  * icon and colour are its entry in catalog.ts.
  *
  * Every claim here is a claim about the product: keep it true to what the
- * app does today. Auto apply fills one application at a time and the
- * student clicks Submit on every one (auto-apply/architecture.md), so no
- * page says WorkIt submits or applies in parallel.
+ * app does today. Auto apply fills up to five applications at once and the
+ * student clicks Submit on every one (autofiller_extension/CLAUDE.md), so
+ * no page says WorkIt submits, sends or applies.
  */
 export type FeatureContent = {
   /** One line under the name in the Features menu and on the other pages'
@@ -20,8 +20,8 @@ export type FeatureContent = {
   hero: { title: string; subtitle: string };
   /** The animation shown large under the hero: a client component, drawn
    *  inside the home tour's `MotionConfig` and `Fit` at up to 520px wide.
-   *  Without one the stage shows a placeholder panel (Scout, for now). */
-  animation?: ComponentType;
+   *  Required: a page never ships a placeholder panel (KAN-579). */
+  animation: ComponentType;
   /** Three or four deep dives, text beside a visual, sides alternating. */
   sections: FeatureSection[];
   /** "How it works": three or four steps, in order. */
@@ -38,7 +38,8 @@ export type FeatureSection = {
   body: string;
   /** Up to four short points, each with a tick. */
   points?: string[];
-  /** Fills the visual slot, sized to its panel. Without one the slot shows
-   *  a placeholder in the feature's colour. */
-  visual?: ComponentType;
+  /** Fills the visual slot: a still scene from `visuals/`, drawn at
+   *  `VIGNETTE_W` × `VIGNETTE_H` and scaled to its panel. Required, as the
+   *  animation is: no deep dive ships an empty tile. */
+  visual: ComponentType;
 };

@@ -698,15 +698,28 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   writing one page never touches another's file; all five exist, and
   `content/index.ts`, which maps them, is never edited per page. A content
   file's `line` is also the Features menu's line under the name. Its copy
-  is a product claim like the FAQ's: auto apply fills one application at
-  a time and the student clicks Submit on each, so no page says WorkIt
-  submits or applies in parallel. Until each page's own session rewrites
-  it, a file holds stub copy, marked as such at its top. A content file
+  is a product claim like the FAQ's, checked against the app and tied to
+  its sources in the file's top comment (KAN-579): auto apply fills up to
+  five applications at once, each in its own tab, attaches the default
+  resume and writes no answer to a new written question, and the student
+  clicks Submit on each, so no page says WorkIt submits, sends or
+  applies. Scout's page is about Fill With Scout, the one way into Scout
+  while Ask Scout is greyed out; bring the job questions back to it when
+  `ASK_SCOUT_LIVE` turns on. A content file
   imports its animation, a client component (the four tour visuals carry
   `"use client"` so a server file can import them); the template wraps it
-  in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`. A
-  page with no animation (Scout, for now), or a deep dive with no
-  `visual`, shows a placeholder in the feature's colour. The hero uses
+  in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`.
+  **A page never ships a placeholder** (KAN-579, design audit marketing
+  H1: empty icon tiles read as an unfinished site): `animation` and every
+  deep dive's `visual` are required in `types.ts`. A deep dive's visual is
+  a still scene in `features/visuals/<slug>.tsx`, one piece of the real
+  app drawn with the tour's student and employers (`feature-data.ts`) at
+  400 × 300 (`Vignette` in `visuals/parts.tsx`), which `DeepDiveStage`
+  scales to its 4:3 panel with `Fit`. Each is `aria-hidden` and draws no
+  heading, button or link. A scene is `shrink-0`: as a flex item it
+  otherwise shrank to its content's width on a phone before `Fit` scaled
+  it, and its text was cut off. Scout's hero (`visuals/scout-animation.tsx`)
+  plays its exchange once and holds, so it needs no pause control. The hero uses
   `SocialSignUpButton` (`social-sign-up.tsx`, shared with the home hero),
   the closing call to action is `ClosingCta` (`closing-cta.tsx`, shared
   with the home page; its own file so the client scenes that import

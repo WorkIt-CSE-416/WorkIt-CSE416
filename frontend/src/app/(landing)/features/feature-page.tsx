@@ -10,7 +10,7 @@ import { EmailSignUpLink, SocialSignUpButton } from "../social-sign-up";
 import { backdrop, featurePages, type Feature } from "./catalog";
 import { featureContent } from "./content";
 import { FeatureIcon } from "./feature-icon";
-import { FeatureMotion, FeatureStage } from "./feature-stage";
+import { DeepDiveStage, FeatureMotion, FeatureStage } from "./feature-stage";
 import type { FeatureSection } from "./types";
 
 /**
@@ -48,13 +48,9 @@ export function FeaturePage({ feature }: { feature: Feature }) {
 
             <div className="mx-auto mt-10 max-w-5xl px-2 pb-2 sm:mt-14 sm:px-6 sm:pb-6">
               <div className="rounded-[1.5rem] bg-white/30 ring-1 ring-white/60 lg:rounded-[2rem]">
-                {Animation ? (
-                  <FeatureStage>
-                    <Animation />
-                  </FeatureStage>
-                ) : (
-                  <Placeholder feature={feature} className="h-[20rem] sm:h-[28rem]" />
-                )}
+                <FeatureStage>
+                  <Animation />
+                </FeatureStage>
               </div>
             </div>
           </div>
@@ -187,29 +183,9 @@ function DeepDive({
           </ul>
         )}
       </div>
-      <div
-        className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[2rem] p-6"
-        style={{ background: ground }}
-      >
-        {Visual ? <Visual /> : <Placeholder feature={feature} />}
-      </div>
-    </div>
-  );
-}
-
-/** Stands in for a visual not drawn yet: the feature's icon on a glass
- *  tile, over the feature's ground. */
-function Placeholder({ feature, className }: { feature: Feature; className?: string }) {
-  const { icon: Icon, glow } = feature;
-  return (
-    <div className={cn("flex items-center justify-center", className)}>
-      <span
-        aria-hidden="true"
-        className="glass-card flex size-24 items-center justify-center rounded-3xl"
-        style={{ color: glow }}
-      >
-        <Icon aria-hidden className="size-10" />
-      </span>
+      <DeepDiveStage background={ground}>
+        <Visual />
+      </DeepDiveStage>
     </div>
   );
 }
