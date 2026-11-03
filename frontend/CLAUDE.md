@@ -2057,7 +2057,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   one page is kept for the next plan but not drawn, and the page keeps its
   cuts closed up, since painting it showed a second render when a
   prediction ran a line short. A fit that ends on a held PDF (nothing left
-  to cut, a failed plan) paints it then.
+  to cut, a failed plan) paints it then. **Its buttons stay dim from the click to the
+  last cycle** (`fittingNow`, with the bar on "Saving…"): `saving` alone is
+  false between two cycles, and the button lit up for a moment between each.
   An API with no measure fits on the server (`fitOnServer`, `hideAgain`).
   Every hide closes up at once the same way, not only Fit's, skills too: a
   hidden skill is a cut along its line (`skillCut`, `Gap`'s `x0`/`x1`), so

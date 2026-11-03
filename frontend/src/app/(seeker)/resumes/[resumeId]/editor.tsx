@@ -538,8 +538,12 @@ export function Editor({
   const confirmed = useRef(initialChoices);
   const unanswered = useRef(new Map<string, ChoicesUpdate>());
   const changeCount = useRef(0);
-  // A Fit to One Page under way: a second press waits for nothing
+  // A Fit to One Page under way: a second press waits for nothing. The
+  // state keeps its buttons dim, and the bar on "Saving…", from the click to
+  // the last cycle: between two cycles nothing is saving, and the button
+  // lit up for a moment between each
   const fitting = useRef(false);
+  const [fittingNow, setFittingNow] = useState(false);
   // The editor's renders run one at a time, so each copy holds every
   // edit before it; a copy built while an earlier edit was on its way would
   // print that edit's old text. Saves run one at a time in their own queue
@@ -1471,10 +1475,12 @@ export function Editor({
   async function fit() {
     if (fitting.current) return;
     fitting.current = true;
+    setFittingNow(true);
     try {
       await fitHere();
     } finally {
       fitting.current = false;
+      setFittingNow(false);
     }
   }
 
@@ -1971,7 +1977,7 @@ export function Editor({
     <FitToast
       pages={rendered.page_count}
       linesOver={rendered.lines_over}
-      disabled={saving}
+      disabled={saving || fittingNow}
       onFit={() => {
         setToast(false);
         fit();
@@ -2144,7 +2150,7 @@ export function Editor({
           line={line}
           box={box}
           text={start == null ? null : (drafts[selected!] ?? start)}
-          saving={saving}
+          saving={saving || fittingNow}
           elapsed={elapsed}
           error={error}
           download={download}
@@ -2195,7 +2201,7 @@ export function Editor({
       choices={choices}
       header={header}
       rendered={rendered}
-      saving={saving}
+      saving={saving || fittingNow}
       elapsed={elapsed}
       download={download}
       onApply={apply}
