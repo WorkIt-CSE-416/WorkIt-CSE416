@@ -433,6 +433,7 @@ class Dashboard:
         self._notify, self._told, self._told_at, self._telling = notify, set(), -NOTIFY_EVERY, None
         self._focused_at = -FOCUS_FRESH  # when a poll last said the window was in front
         self._captions: list[dict[str, object]] = [{} for _ in range(workers)]
+        self._picked: list[list[dict]] = [[] for _ in range(workers)]  # files Lisul picked in each tile for its page
         # Every Application this run ended, newest last, kept after its Worker moves on: the Inbox and History.
         self._items: list[dict[str, object]] = []
         self._numbered = 0  # the last item's number, its id in the window
@@ -488,6 +489,10 @@ class Dashboard:
             now, tile = self._now(), self._captions[worker]
             if caption.get("status") == "filling" and tile.get("status") != "filling":
                 tile.clear()  # the next Application: none of the last one's caption
+                self._picked[worker] = []
+            if "files" in caption:  # the plan's files, and each one Lisul picked in the tile too
+                caption["files"] = list(caption["files"] or []) + [
+                    f for f in self._picked[worker] if f not in (caption["files"] or [])]
             tile.update(caption)
             status = str(tile.get("status") or "")
             ended = "status" in caption and status not in ("", "filling", "paused")
@@ -569,7 +574,8 @@ class Dashboard:
         if kind == "choose":
             return {"type": kind, "index": int(event.get("index", -1))}
         if kind == "files":
-            return {"type": kind, "paths": [_saved(f["name"], base64.b64decode(f["data"])) for f in event.get("files", [])]}
+            return {"type": kind, "paths": [self._picked_file(worker, f["name"], base64.b64decode(f["data"]))
+                                            for f in event.get("files", [])]}
         if kind not in ("down", "up", "move", "wheel"):
             return None
         size = jpeg_size(self._frames.frame(worker) or b"")
@@ -583,6 +589,29 @@ class Dashboard:
         if kind == "move":
             return mapped
         return mapped | {"button": event.get("button", "left"), "clicks": int(event.get("clicks") or 1)}
+
+    def _picked_file(self, worker: int, name: str, data: bytes) -> str:
+        """A file Lisul picked in the tile for its page, saved under its own name: with the
+        Application's other files under SENT, and listed on the tile, once the tile names one."""
+        from apply.worker import (
+            keep_sent,  # imported here: the worker imports the adapters, which import this module
+            sent_folder,
+        )
+        picked = Path(_saved(name, data))
+        with self._lock:
+            tile = self._captions[worker] if 0 <= worker < self._workers else {}
+            company, application = str(tile.get("company") or ""), str(tile.get("application_id") or "")
+        if not application:
+            return str(picked)
+        try:
+            kept = keep_sent(sent_folder(company, application, self._now().date()), picked)
+        except OSError:
+            return str(picked)  # the page still gets its file; only the window's copy is missing
+        given = {"label": PICKED, "name": kept.name, "path": str(kept)}
+        with self._lock:
+            self._picked[worker].append(given)
+            self._captions[worker]["files"] = list(self._captions[worker].get("files") or []) + [given]
+        return str(kept)
 
     def state(self) -> dict:
         """Every tile's caption with its verdict, every ended Application's
@@ -657,6 +686,7 @@ class Dashboard:
             .replace("{answers}", answers).replace("{history}", history).replace("{style}", STYLE)
 
 
+PICKED = "Picked in the window for its page"  # the label of a file Lisul gave a page that asked for one
 SAMPLE = '<span id="sample" title="Apply is running as Test Person: put your own files in the data folder">Sample data</span>'
 ANSWERS_TAB = '<button id="tab-answers" role="tab">Answers</button>'
 

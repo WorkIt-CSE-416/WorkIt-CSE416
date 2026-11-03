@@ -11,11 +11,12 @@ import urllib.error
 import urllib.request
 from contextlib import contextmanager
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from playwright.sync_api import sync_playwright
 
-from apply import dashboard, rehearsal
+from apply import dashboard, rehearsal, worker
 from apply.browsers import WorkerBrowsers
 from apply.dashboard import (
     READY,
@@ -731,6 +732,26 @@ def test_a_tile_serves_the_files_its_form_was_sent_and_nothing_else(tmp_path):
 
     assert (kind, body) == ("application/pdf", b"%PDF-1.4 a letter")
     assert missing == [404, 404, 404]
+
+
+def test_a_file_picked_in_a_tile_for_its_page_is_kept_by_its_name_and_listed_on_the_tile(tmp_path):
+    resume = tmp_path / "Lisul_Elvitigala_Resume.pdf"
+    resume.write_bytes(b"%PDF resume")
+    frames = FakeFrames({})
+    with Dashboard(1, frames, now=lambda: datetime(2026, 11, 2, 9)) as board:
+        board.update(0, company="Appian Corporation", application_id="request-17", status="filling")
+        event = {"type": "files", "files": [{"name": "Lisul_Elvitigala_Writing_Sample.pdf",
+                                             "data": base64.b64encode(b"%PDF sample").decode()}]}
+        urllib.request.urlopen(urllib.request.Request(board.url + "/input/0", data=json.dumps(event).encode(), method="POST"))
+        board.update(0, files=[{"label": "Resume", "name": resume.name, "path": str(resume)}])  # the plan's files, later
+        files = board.state()["tiles"][0]["files"]
+
+    [(_, given)] = frames.inputs
+    [kept] = given["paths"]
+    assert [f["name"] for f in files] == ["Lisul_Elvitigala_Resume.pdf", "Lisul_Elvitigala_Writing_Sample.pdf"]
+    assert files[1]["path"] == kept
+    assert Path(kept).read_bytes() == b"%PDF sample"
+    assert Path(kept).parent == worker.SENT / "2026-11-02" / "appian-corporation-request-17"
 
 
 def test_show_in_finder_reveals_a_listed_file_only_for_the_window_itself(tmp_path, monkeypatch):

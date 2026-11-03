@@ -4,6 +4,7 @@ form's last page and stops there; no Filler's submit is ever called and no
 job system records a Submission."""
 
 import _thread
+import json
 import threading
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -54,7 +55,7 @@ from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_UR
 from test_greenhouse_filler import board_listing_schools
 from test_run_answers import profile_with
 
-from apply import rehearsal
+from apply import rehearsal, worker
 from apply.adapters import Adapters
 from apply.ashby import AshbyFiller
 from apply.claude_fill import ClaudeFill
@@ -877,6 +878,55 @@ def test_an_answer_given_in_the_window_is_filled_into_the_held_form(monkeypatch,
     assert board.captions[0]["filled"] == board.before + 1  # the window counts the field filled
     assert "Left blank: Email" in notes[0] and "Email" not in notes[1] and "Last Name" in notes[1]  # the note on the form too
     assert fake.submissions == []
+
+
+def test_a_file_attached_in_the_window_is_listed_on_its_tile_kept_by_its_name_and_recorded(monkeypatch, tmp_path):
+    # Live (Appian): a writing sample attached from Needs you was on the form, but not in the tile's
+    # files, the Record or its README, and the line still listed it as a Missing fact.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    profile = profile_with(tmp_path, **{"identity.email": None})
+    picked = tmp_path / "picked" / "Lisul_Elvitigala_Writing_Sample.pdf"
+    picked.parent.mkdir()
+    picked.write_bytes(b"%PDF-1.4 a writing sample")
+    rescued, held = [], []
+
+    def field(self, page, label, value, error):
+        rescued.append(value)
+        held.append(page)
+        return True
+
+    monkeypatch.setattr(rehearsal.Rescue, "field", field)
+
+    class Board(RecordingBoard):
+        given = [("Email", picked)]
+
+        def answered(self, worker):
+            given, self.given = self.given, []
+            if not given and held:
+                held.pop().close()
+            return given
+
+    board = Board()
+    with FakeJobServer(ARC_FORM) as fake:
+        rehearsal.rehearse([ARC_URL], adapters(fake, board=board, records=FolderRecords(tmp_path / "rehearsals")),
+                           ApplicantProfile.load(profile), 1, keep_open=True, out=lambda line: None)
+
+    [attached] = [f for f in board.captions[0]["files"] if f["label"] == "Email"]
+    kept = Path(attached["path"])
+    assert attached["name"] == kept.name == "Lisul_Elvitigala_Writing_Sample.pdf"
+    assert kept.read_bytes() == b"%PDF-1.4 a writing sample" and kept.parent.parent.parent == worker.SENT
+    assert rescued == [kept]  # the form is given the kept copy, by its own name
+    assert len(board.captions[0]["files"]) > 1  # the résumé still listed beside it
+    [row] = [r for r in json.loads((rehearsal_record(tmp_path) / "answers.json").read_text()) if r["question"] == "Email"]
+    assert row["planned"] == row["on_page"] == "Lisul_Elvitigala_Writing_Sample.pdf"
+    readme = (rehearsal_record(tmp_path) / "README.md").read_text()
+    assert "| Email | Lisul_Elvitigala_Writing_Sample.pdf | Lisul_Elvitigala_Writing_Sample.pdf |" in readme
+    assert "Missing facts: none" in board.captions[0]["line"]
+
+
+def rehearsal_record(tmp_path) -> Path:
+    [readme] = (tmp_path / "rehearsals").glob("*/*/README.md")
+    return readme.parent
 
 
 def test_a_setup_error_stops_its_link_on_one_line_and_leaves_no_repair_request(monkeypatch, tmp_path, capsys):
