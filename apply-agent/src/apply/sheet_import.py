@@ -171,19 +171,14 @@ def show(steps: list[Step], out: TextIO) -> None:
 def write(steps: list[Step], client: WorkIt, out: TextIO) -> tuple[int, int]:
     """Make each add of an approved dry run. Answers how many were added and how many failed. An application that is applied or later
     by the time of its add is left as it is. WorkIt not answering stops the import; run it again later."""
-    me = client.me().id
     added = failed = 0
     for s in (s for s in steps if s.action == "add"):
         name = f"row {s.row.number}: {s.row.company} | {s.row.role}"
         try:
-            job_id, stage = client.add_by_link(s.row.posting, s.row.company, s.row.role)
-            if stage in APPLIED_STAGES:
+            stage = client.record_applied(s.row.posting, s.row.company, s.row.role, s.resume, s.stage, s.applied_on)
+            if stage:
                 print(f"  {name}: already in WorkIt at {stage}, left as it is", file=out)
                 continue
-            sent_id = client.send_resume(me, job_id, s.resume) if s.resume else None
-            client.set_stage(me, job_id, s.stage, s.applied_on)
-            if sent_id:
-                client.link_resume(job_id, sent_id)
         except Unreachable:
             raise
         except WorkItError as error:

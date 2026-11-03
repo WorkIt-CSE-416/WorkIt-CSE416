@@ -86,6 +86,30 @@ def test_a_later_status_for_the_same_job_moves_the_same_row(fake, tmp_path):
     assert len(fake.tracker.sent) == 1
 
 
+def test_a_submit_leaves_a_job_already_past_applied_as_it_is(fake, tmp_path):
+    job = fake.tracker.listed(LOCKHEED, "Lockheed Martin", "Software Engineer Intern")
+    fake.tracker.applied_before(job, "interviewing")
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+
+    assert writes.send(write("applied", resume=resume(tmp_path))) == "already interviewing in your Applications Tracker"
+    assert [(row["stage"], row["sent_resume"]) for row in fake.tracker.tracked()] == [("interviewing", None)]
+    assert fake.tracker.sent == {}
+
+
+def test_a_submit_makes_the_calls_of_record_applied(fake, tmp_path):
+    """One write sequence (WorkIt.record_applied): add by link, the Sent resume, the stage, the resume's link."""
+    client = logged_in(fake, tmp_path)
+    start = len(fake.requests)
+    WaitingWrites(client, tmp_path / "workit-queue.json").send(write("applied", resume=resume(tmp_path)))
+    submit = [(seen.method, seen.path) for seen in fake.requests[start:] if seen.path != "/auth/me"]
+    fake.tracker.applications.clear()
+    start = len(fake.requests)
+    client.record_applied(LOCKHEED, "Lockheed Martin", "Software Engineer Intern", Path(resume(tmp_path)))
+
+    assert [(seen.method, seen.path) for seen in fake.requests[start:]] == submit
+    assert [method for method, _ in submit] == ["POST", "POST", "PUT", "POST"]
+
+
 def test_a_submit_with_no_file_kept_is_applied_with_no_sent_resume(fake, tmp_path):
     writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
 

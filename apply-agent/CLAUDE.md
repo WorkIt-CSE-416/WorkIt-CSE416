@@ -147,10 +147,12 @@ against the fake's `/login`, so run it on your Mac.
 - The dry run writes nothing. It reads `GET /auth/me`, `GET
   /applicants/{id}/applications`, and `POST /jobs/listed-by-link` for each
   row. Then the student types yes (`--dry-run` only lists).
-- Each add, in this order: `POST /jobs/added-by-link`, then `POST
+- Each add is `WorkIt.record_applied`, the same method as a submit's
+  write. In this order: `POST /jobs/added-by-link`, then `POST
   .../sent-resumes/file` (the resume, base64 JSON), then `PUT
   .../applications/{job_id}/stage` with `applied_on`, then `POST
-  /jobs/{job_id}/applied` with `sent_resume_id`.
+  /jobs/{job_id}/applied` with `sent_resume_id`. It does nothing more to
+  an application that is applied or later.
 - It never changes an application that is applied or later in WorkIt. The
   dry run skips it, and the write skips it again if it became applied
   after the dry run. So a second run adds nothing, and a failed run can
@@ -208,8 +210,10 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
 
 - submitted to `applied`, with the resume from the Application's folder
   under `sent/` (`worker.sent_resume`: the profile's resume name, else a
-  PDF named resume) kept as the Sent resume (`POST
-  .../sent-resumes/file`, then `POST /jobs/{id}/applied` with its id).
+  PDF named resume) kept as the Sent resume. This is
+  `WorkIt.record_applied`, the import's write sequence. A job that is
+  applied or later on WorkIt already stays as it is ("already
+  interviewing").
   handoff and missing fact to `needs_you`, held to `queued` (the stage
   PUT; a 409 means the job is applied already, and is not an error).
   Every other status writes nothing.

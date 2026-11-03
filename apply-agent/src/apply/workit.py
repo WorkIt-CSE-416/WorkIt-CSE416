@@ -224,9 +224,22 @@ class WorkIt:
         """Delete the student's queued application on the job. WorkIt refuses (409) one past queued."""
         self.call("DELETE", f"/applicants/{applicant_id}/applications/{job_id}")
 
-    def mark_applied(self, job_id: str) -> None:
-        """Applied with no Sent resume (a later stage, and the date, stay)."""
-        self.call("POST", f"/jobs/{job_id}/applied")
+    def record_applied(self, link: str, company: str, title: str, resume: Path | None = None,
+                       stage: Stage = Stage.APPLIED, applied_on: date | None = None) -> str | None:
+        """Put the job at `link` on the student's Applications Tracker at `stage` (applied or later), with the
+        file at `resume` kept as its Sent resume: add by link, keep the Sent resume, set the stage and the
+        applied date (`applied_on`, else today), then name the Sent resume. Apply's submit writes and the Tracker
+        Sheet import both use it. An application already applied or later stays as it is: answers its stage
+        then, else None."""
+        job, before = self.add_by_link(link, company, title)
+        if before in APPLIED_STAGES:
+            return before
+        me = self.applicant_id()
+        sent = self.send_resume(me, job, resume) if resume else None
+        self.set_stage(me, job, stage, applied_on)
+        if sent:
+            self.link_resume(job, sent)
+        return None
 
     def tailored_resume(self, url: str) -> bytes | None:
         """The PDF of the student's tailored resume for the listed job at `url` (Tailor, KAN-217), rendered now;
@@ -372,14 +385,14 @@ class WaitingWrites:
         return said
 
     def _deliver(self, write: Write) -> str:
-        job, _ = self.client.add_by_link(write.link, write.company, write.title)
         if write.stage == Stage.APPLIED:
             resume = Path(write.resume) if write.resume else None
-            if resume and resume.is_file():
-                self.client.link_resume(job, self.client.send_resume(self.client.applicant_id(), job, resume))
-            else:
-                self.client.mark_applied(job)
+            before = self.client.record_applied(write.link, write.company, write.title,
+                                                resume if resume and resume.is_file() else None)
+            if before:
+                return f"already {SHOWN.get(before, before)} in your Applications Tracker"
         else:
+            job, _ = self.client.add_by_link(write.link, write.company, write.title)
             try:
                 self.client.set_stage(self.client.applicant_id(), job, write.stage)
             except WorkItError as refused:
