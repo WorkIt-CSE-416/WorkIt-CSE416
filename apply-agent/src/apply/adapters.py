@@ -48,9 +48,10 @@ class Tracker(Protocol):
         ...
 
     def approve(self, application_id: str, essay: str | None = None) -> None:
-        """Lisul approves his Hold in the Apply window (KAN-544): Approve, his
-        own cell, as if he ticked it, and `essay`, his edit of its Essay cell,
-        when he edited it there. KeyError for an unknown ID."""
+        """Lisul approves his Hold in the Apply window (KAN-544): Approve, and
+        `essay`, his edit of its essays, when he edited them there. The retired
+        Tracker Sheet (sheet.SheetTracker) takes no approval (ADR 0007).
+        KeyError for an unknown ID."""
         ...
 
     def get(self, application_id: str) -> "Row | None": ...

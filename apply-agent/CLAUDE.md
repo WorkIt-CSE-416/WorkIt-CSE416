@@ -222,7 +222,8 @@ sends a `workit.Write` through a `workit.Outbox`.
   job already applied to. `python -m apply.rankings` still writes its
   ranked tabs to the Sheet when you run it by hand.
 - Lisul approves a Hold with the Apply window's Approve button (`POST
-  /approve`, `Tracker.approve`), not a Sheet checkbox.
+  /approve`, `Tracker.approve`), not a Sheet checkbox. `SheetTracker` has
+  no `approve`: Apply never writes an approval to the Sheet (ADR 0007).
 - A Hold's card shows its essays (the Essay cell, `essays.as_cell`) in a
   box that Lisul can edit before he approves. Approve sends his edit
   (`essay`), and `Tracker.approve` writes it to the row's essay with
