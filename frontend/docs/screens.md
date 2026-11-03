@@ -1662,8 +1662,15 @@ The layout (KAN-429), after Google Calendar: **one toolbar**, the span's
 title at the left, then the **Type** filter (a `FieldFacet` dropdown, as on
 every page with filters: each kind in its glyph and colour with how many
 fall in the span on screen, a cross to clear it; this visit's own state),
-Today, the arrows and **Week / Month / Agenda**, which wrap apart on a
-phone; then the view, the full width of the page. An Upcoming list beside
+Today, the arrows, **Week / Month / Agenda** and Create Event; then the
+view, the full width of the page. **Below `@3xl/main` the toolbar is two
+rows** (KAN-578): the title with Today and the arrows, then the view
+switch, Type and Create Event as a plus. It wrapped to four rows on a
+phone, about 170px of an 812px screen; it is 80px now. **A Month or Week
+with nothing in its span says so** in one line under the toolbar
+("Nothing in this month. Use Create Event to add a date."; with Type
+picked, "Nothing of the picked types…"); the Agenda keeps its own empty
+state. An Upcoming list beside
 it (the next two weeks of what was due) was tried and taken out: the grid
 itself says what is next, and it narrowed the week.
 
@@ -1682,7 +1689,10 @@ itself says what is next, and it narrowed the week.
   hour long without one, in its kind's tint with its stage's bar;
   overlapping events sit side by side (`layout`). A red line marks now on
   today's column. They were a list a day with no hours, which hid when
-  things were.
+  things were. **Below `@3xl/main` it shows three days** from the day in
+  view (KAN-578), and its arrows move three days: seven columns were about
+  55px at a 768px window, and a block read "B 1". The All Day toggle and
+  "+N more" are 24px targets.
 - **What is timed** is one rule, `isTimed` in `entries.ts`: an entry with a
   time of its own, except Applied (its instant is only when the button was
   clicked), Apply By (a day) and Closes (a deadline, not an appointment),
@@ -1697,7 +1707,12 @@ itself says what is next, and it narrowed the week.
   (`useFit`, from the grid's measured height) and folds the rest into "+N
   more"; a short window shows fewer a day, never a scrollbar. A date or "+N
   more" opens the week that holds it. Rows were 112px at least, so a month ran past the
-  fold.
+  fold. **Below `@3xl/main` a day has room for dots only** (KAN-578), so
+  each day is one button the size of its cell, an entry a dot, and a tap
+  opens **the day's sheet** (`day-sheet.tsx`, from the screen's foot): the
+  day's entries as the Agenda lists them, each opening its card, and Open
+  Week. A key under the grid names each kind the month shows. The dots
+  were all there was, so colour was the only information.
 - **Agenda** scrolls inside the page's height too.
 - **The sample week** (`demo.ts`): `/calendar?demo=1`, in local
   development only, adds a spread of made-up entries to the current week

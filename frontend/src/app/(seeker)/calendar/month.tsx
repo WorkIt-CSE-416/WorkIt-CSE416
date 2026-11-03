@@ -15,7 +15,7 @@ import { ShallowLink } from "@/components/shallow-routing";
 import { cn } from "@/lib/cn";
 
 import type { TrackerEvent } from "../tracker";
-import { dayKey, isTimed, KIND_LABEL, longDay, lookOf, timeOf } from "./entries";
+import { dayKey, isTimed, KIND_LABEL, KIND_ORDER, longDay, lookOf, timeOf } from "./entries";
 import { EventEntry } from "./event-card";
 
 /** A chip's height with the gap under it, and what a day spends before its
@@ -70,10 +70,12 @@ function useFit(grid: RefObject<HTMLOListElement | null>, weeks: number) {
  * (ShallowLink), since the Week is drawn here from the same entries. A chip
  * opens its event card (./event-card.tsx).
  *
- * Below @3xl/main a 7-column grid has about 45px a day, too little for any
- * words, so each day shows its entries as dots instead (aria-hidden: the
- * day's number is the link, and its name says how many entries the day
- * holds).
+ * BELOW @3xl/main (KAN-578) a 7-column grid has about 45px a day, too
+ * little for any words, so the Calendar passes `openDay`: each day is one
+ * button the size of its cell, its entries a dot each, and a tap opens the
+ * day's sheet (./day-sheet.tsx) listing them in words. A key under the
+ * grid names each colour the month shows. The dots alone said nothing but
+ * their colour, and a screen reader heard a count.
  */
 export function Month({
   anchor,
@@ -81,12 +83,15 @@ export function Month({
   byDay,
   openHref,
   dayHref,
+  openDay,
 }: {
   anchor: Date;
   today: string;
   byDay: Map<string, TrackerEvent[]>;
   openHref: (applicationId: string) => string;
   dayHref: (day: string) => string;
+  /** Narrow only: a day's tap opens its sheet. */
+  openDay?: (day: string) => void;
 }) {
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(anchor)),
@@ -95,6 +100,11 @@ export function Month({
   const weeks = days.length / 7;
   const grid = useRef<HTMLOListElement>(null);
   const fit = useFit(grid, weeks);
+  // The kinds the month shows, in the filter's order, for the narrow key.
+  const shownKinds = new Set(
+    days.flatMap((day) => (byDay.get(dayKey(day)) ?? []).map((e) => e.kind)),
+  );
+  const legend = KIND_ORDER.filter((kind) => shownKinds.has(kind));
 
   return (
     <div className="border-border-subtle rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
@@ -128,46 +138,62 @@ export function Month({
           // Every entry when they all fit; else one less, for "+N more".
           const shown = count <= fit ? count : Math.max(fit - 1, 0);
 
+          const label = `${format(day, "EEEE, MMMM d")}, ${count === 0 ? "nothing scheduled" : count === 1 ? "1 entry" : `${count} entries`}`;
+          const number = cn(
+            "text-note inline-flex size-6 items-center justify-center rounded-full font-semibold tabular-nums",
+            isToday ? "bg-brand text-on-brand" : inMonth ? "text-ink" : "text-ink-faint",
+          );
+
+          // Narrow: the whole day is the button, its entries a dot each,
+          // four at most.
+          if (openDay) {
+            return (
+              <li key={key} className={cn("min-h-0 min-w-0", inMonth ? "bg-panel" : "bg-app")}>
+                <button
+                  type="button"
+                  aria-label={label}
+                  aria-current={isToday ? "date" : undefined}
+                  onClick={() => openDay(key)}
+                  className="focus-visible:ring-brand-ring hover:bg-hover flex size-full flex-col items-start overflow-hidden p-1.5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+                >
+                  <span className={number}>{format(day, "d")}</span>
+                  {count > 0 && (
+                    <span aria-hidden="true" className="mt-1 flex flex-wrap gap-0.5">
+                      {entries.slice(0, 4).map((event) => (
+                        <span
+                          key={event.id}
+                          className={cn("size-1.5 rounded-full", lookOf(event.kind).fill)}
+                        />
+                      ))}
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          }
+
           return (
             <li
               key={key}
-              className={cn(
-                "min-h-0 min-w-0 overflow-hidden p-1.5 @3xl/main:p-2",
-                inMonth ? "bg-panel" : "bg-app",
-              )}
+              className={cn("min-h-0 min-w-0 overflow-hidden p-2", inMonth ? "bg-panel" : "bg-app")}
             >
               <ShallowLink
                 href={dayHref(key)}
-                aria-label={`${format(day, "EEEE, MMMM d")}, ${count === 0 ? "nothing scheduled" : count === 1 ? "1 entry" : `${count} entries`}`}
+                aria-label={label}
                 aria-current={isToday ? "date" : undefined}
                 className={cn(
-                  "text-note focus-visible:ring-brand-ring inline-flex size-6 items-center justify-center rounded-full font-semibold tabular-nums transition-[background-color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-90",
-                  isToday
-                    ? "bg-brand text-on-brand hover:bg-brand-hover"
-                    : inMonth
-                      ? "text-ink hover:bg-selected"
-                      : "text-ink-faint hover:bg-selected",
+                  number,
+                  "focus-visible:ring-brand-ring transition-[background-color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-90",
+                  isToday ? "hover:bg-brand-hover" : "hover:bg-selected",
                 )}
               >
                 {format(day, "d")}
               </ShallowLink>
 
-              {/* Narrow: a dot per entry, four at most. */}
-              {count > 0 && (
-                <div aria-hidden="true" className="mt-1 flex flex-wrap gap-0.5 @3xl/main:hidden">
-                  {entries.slice(0, 4).map((event) => (
-                    <span
-                      key={event.id}
-                      className={cn("size-1.5 rounded-full", lookOf(event.kind).fill)}
-                    />
-                  ))}
-                </div>
-              )}
-
               {/* Wide: as many chips as the day has room for, then the
                   rest as a count. */}
               {count > 0 && (
-                <ul className="mt-1 hidden flex-col gap-1 @3xl/main:flex">
+                <ul className="mt-1 flex flex-col gap-1">
                   {entries.slice(0, shown).map((event) => {
                     const look = lookOf(event.kind);
                     const { Icon } = look;
@@ -226,6 +252,20 @@ export function Month({
           );
         })}
       </ol>
+
+      {openDay && legend.length > 0 && (
+        <ul
+          aria-label="Key"
+          className="bg-surface border-border-subtle flex shrink-0 flex-wrap gap-x-3 gap-y-1 border-t px-3 py-2"
+        >
+          {legend.map((kind) => (
+            <li key={kind} className="text-note text-ink-meta flex items-center gap-1.5">
+              <span aria-hidden="true" className={cn("size-2 rounded-full", lookOf(kind).fill)} />
+              {KIND_LABEL[kind]}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

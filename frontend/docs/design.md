@@ -51,7 +51,8 @@ sat centred between wide empty margins once the rail freed the room, which
 the user found flawed. A block of prose keeps its own measure (About the
 Role's 68ch), since text past about 80 characters a line is hard to follow. On Applications and
 the Calendar the segmented control sits at the top right of the header
-wherever it fits beside the title, the title wrapping first; Home's range
+wherever it fits beside the title, the title wrapping first (below
+`@3xl/main` the Calendar puts it at the start of its second row, KAN-578); Home's range
 switch sits at the top right of the page, beside the greeting, and wraps
 under it where the page is narrow.
 Pages render a

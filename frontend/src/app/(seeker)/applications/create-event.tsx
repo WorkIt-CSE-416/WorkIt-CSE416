@@ -136,6 +136,7 @@ export function CreateEventDialog({
   applications,
   defaultDay,
   variant = "secondary",
+  iconOnly = false,
 }: {
   /** The application, on its own page. */
   jobId?: string;
@@ -144,16 +145,25 @@ export function CreateEventDialog({
   /** The date field's first value, "YYYY-MM-DD". */
   defaultDay?: string;
   variant?: "default" | "secondary";
+  /** The narrow Calendar's toolbar (KAN-578): the plus alone, named for a
+   *  screen reader and in its tooltip. */
+  iconOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button variant={variant} size="sm">
-            <PlusIcon />
-            Create Event
-          </Button>
+          iconOnly ? (
+            <Button variant={variant} size="icon-lg" aria-label="Create Event" title="Create Event">
+              <PlusIcon />
+            </Button>
+          ) : (
+            <Button variant={variant} size="sm">
+              <PlusIcon />
+              Create Event
+            </Button>
+          )
         }
       />
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
