@@ -14,7 +14,7 @@ column with a constant default is metadata only on Postgres 11+, so it takes
 no table rewrite.
 
 Revision ID: f7b2d4a6c815
-Revises: e1a7c3d5b9f2
+Revises: d3f5a7c9e162
 Create Date: 2026-11-01 22:30:00.000000
 
 """
@@ -26,7 +26,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'f7b2d4a6c815'
-down_revision: Union[str, Sequence[str], None] = 'e1a7c3d5b9f2'
+down_revision: Union[str, Sequence[str], None] = 'd3f5a7c9e162'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

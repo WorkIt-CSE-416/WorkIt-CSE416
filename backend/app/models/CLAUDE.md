@@ -948,6 +948,12 @@ is no backfill. Only the import writes it (`../CLAUDE.md`, The feed import).
 A reason added to the CHECK goes into the import's `CLOSED_REASONS` too, or
 the import files it as `unknown`.
 
+**`unlisted` is in the enum but unused** (`c2e4a6b8d051`, KAN-542, applied
+to production before the design settled on a column). A job a student added
+is `added_by_student` (`f7b2d4a6c815`, KAN-515), never a status, and no code
+writes `unlisted`. Postgres can't drop an enum value in place, so a later
+migration rebuilds the type without it.
+
 **`company_domain` is the employer's own website, for its logo**
 (`d9b579e66623`, KAN-442): the registered domain the scraper found
 (`goldmansachs.com`), never a careers subdomain or a hiring vendor's host
@@ -1046,6 +1052,9 @@ so a batch never picks a saved job. Rules:
   `c0467afe819c`, `saved` from `17ea74fa4573`, the last three from
   `a7d3e5f1c2b4`), a column here rather than a second table, so one row is
   one application. `created_at` orders the queue.
+- **`company_name` and `title` are the text the student typed** for a job
+  they added (`d3f5a7c9e162`, KAN-542; production already has them). NULL
+  on a job saved or queued any other way.
 - **Interviewing, offer and rejected are applied too** (KAN-413).
   Anything that asks "did this student apply?" counts all four, never
   `stage == applied`: the Jobs page's filter, and the Applied button, which
