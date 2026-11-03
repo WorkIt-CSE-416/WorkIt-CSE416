@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { claudeConnectorLink } from "@/lib/claude-connector";
-
 export const metadata: Metadata = {
   title: "WorkIt Connector for Claude",
   description:
@@ -44,7 +42,9 @@ export default function McpDocsPage() {
         <h2>Add WorkIt to Claude</h2>
         <ol>
           <li>
-            Open <a href={claudeConnectorLink()}>Add WorkIt to Claude</a> (Auto Apply in WorkIt has
+            Open{" "}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a route that redirects to claude.ai: a full load is the point */}
+            <a href="/connect/claude/add">Add WorkIt to Claude</a> (Auto Apply in WorkIt has
             the same button). Claude opens its Add Custom Connector dialog with WorkIt&apos;s name
             and address filled in. Check them and continue.
           </li>

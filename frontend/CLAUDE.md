@@ -107,7 +107,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   and its keys carry the build ID, so a deploy never serves the last
   build's HTML. **It is read-only**: a page given `revalidate` would never
   refresh, and the data cache stays off, as under "dummy", so
-  `apiGet`'s `revalidate` fetches reach the API every time. The config
+  `apiGet`'s `revalidate` fetches reach the API every time. **A
+  prerendered page reads no runtime value** (`API_URL`, a Worker var or
+  secret): it is served as the build drew it, and CI builds with none of
+  them. `/docs/mcp`'s Add WorkIt to Claude link read `API_URL` and would
+  have pointed at `localhost:8000/mcp`; it links to `/connect/claude/add`,
+  which builds the link per request. The config
   drops writes, which the stock cache logs as an error each, and keeps
   the stock cache's `name`, which `cf:deploy` checks before it copies the
   pages. A page that must refresh, or a working data cache, needs the R2
@@ -153,8 +158,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   name and `<api>/mcp`, or the directory listing once
   `CLAUDE_CONNECTOR_LINK` is set. Read it on the server and pass it down;
   never write the claude.ai URL anywhere else. What can't read it (the
-  extension's add-Claude step, KAN-387) opens `/connect/claude/add`, a
-  route handler that redirects to it.
+  extension's add-Claude step, KAN-387, and the prerendered `/docs/mcp`,
+  Deployment) opens `/connect/claude/add`, a route handler that redirects
+  to it.
   **Starting the student's Claude is one link too**: `CLAUDE_START_URL`
   and `CLAUDE_TRIGGER` in the same file (a new claude.ai chat with "Write
   my WorkIt answers", the connector prompt's title, in its box, not sent),
