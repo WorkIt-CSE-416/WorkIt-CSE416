@@ -24,7 +24,7 @@ import { FaviconLogo } from "./favicon-logo";
 import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
 import { DiagramLabel, HiringSystems, JobCard } from "./hiring-systems";
-import { useMediaQuery, usePageHidden } from "./hooks";
+import { useLoopsHeld, useMediaQuery } from "./hooks";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TOUR_COVER_VH } from "./layout-parts";
 import { useLoopClock, useSceneTime, type Cue } from "./scene-time";
 import { GLIDE } from "./story";
@@ -194,8 +194,8 @@ function PinnedPipeline() {
   const [phase, setPhase] = React.useState(() => phaseOf(t.get()));
   useMotionValueEvent(t, "change", (v) => setPhase(phaseOf(v)));
   const inView = useInView(stageRef, { amount: 0.2 });
-  const hidden = usePageHidden();
-  const spin = useLoopClock(phase === "ring" && inView && !hidden);
+  const held = useLoopsHeld();
+  const spin = useLoopClock(phase === "ring" && inView && !held);
 
   return (
     // It starts `TOUR_COVER_VH` up the page, over the pinned tour's last
@@ -433,8 +433,8 @@ function Flow({
 }) {
   const rootRef = React.useRef<HTMLDivElement>(null);
   const inView = useInView(rootRef, { amount: 0.2 });
-  const hidden = usePageHidden();
-  const clock = useLoopClock(playing && inView && !hidden);
+  const held = useLoopsHeld();
+  const clock = useLoopClock(playing && inView && !held);
 
   const outlet = useTransform(t, (v) => ease(between(v, OUTLET_IN)));
   // Faded in with WorkIt's mark, for a return to a flow already running;

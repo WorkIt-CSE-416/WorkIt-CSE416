@@ -13,6 +13,7 @@ import { FloatingHeader } from "./floating-header";
 import { GlassButton, OutlineButton } from "./buttons";
 import { NAV_ITEM } from "./layout-parts";
 import { MobileMenu } from "./mobile-menu";
+import { MotionToggle } from "./motion-toggle";
 import { NavMenu, NavMenuGroup } from "./nav-menu";
 import { resourcePages, type Resource } from "./resources/catalog";
 
@@ -47,7 +48,8 @@ export function Header() {
           aria-label="Main"
         >
           <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 lg:justify-self-start">
-            <Link href="/" aria-label={`${site.name} home`} className="flex">
+            {/* h-11: a 44px tap; the logo alone was 32px tall. */}
+            <Link href="/" aria-label={`${site.name} home`} className="flex h-11 items-center">
               <Logo size="card" decorative />
             </Link>
           </div>
@@ -81,14 +83,15 @@ export function Header() {
             </div>
             {/* On a phone too, shortened to fit beside the logo and the menu:
                 with only the menu there, the sign-up was two taps away
-                (KAN-368). */}
+                (KAN-368). 44px tall, like the menu button, for a thumb
+                (KAN-580). */}
             <div className="sm:hidden">
-              <GlassButton href={site.primaryCta.href} label="Get started" className="px-3" />
+              <GlassButton href={site.primaryCta.href} label="Get started" className="h-11 px-3" />
             </div>
             <button
               type="button"
               popoverTarget="mobile-menu"
-              className="text-ink hover:bg-surface inline-flex size-10 items-center justify-center rounded-lg lg:hidden"
+              className="text-ink hover:bg-surface inline-flex size-11 items-center justify-center rounded-lg sm:size-10 lg:hidden"
               aria-label="Open menu"
             >
               <ListIcon className="size-6" aria-hidden="true" />
@@ -107,7 +110,7 @@ export function Header() {
             type="button"
             popoverTarget="mobile-menu"
             popoverTargetAction="hide"
-            className="text-ink hover:bg-surface inline-flex size-10 items-center justify-center rounded-lg"
+            className="text-ink hover:bg-surface inline-flex size-11 items-center justify-center rounded-lg sm:size-10"
             aria-label="Close menu"
           >
             <XIcon className="size-6" aria-hidden="true" />
@@ -134,6 +137,7 @@ export function Header() {
         <OutlineButton href={site.login.href} size="lg" className="mt-2 w-full">
           {site.login.label}
         </OutlineButton>
+        <MotionToggle className="text-ink-meta hover:bg-surface hover:text-ink mt-2 h-11 w-full justify-center rounded-lg text-sm font-medium transition-colors" />
       </MobileMenu>
     </FloatingHeader>
   );
@@ -141,7 +145,9 @@ export function Header() {
 
 /** A menu item's mark, name and link: a feature or a resource. A resource
  *  with no page yet carries `soon`. */
-type MenuItem = Pick<Feature, "href" | "name" | "icon" | "glow"> & Partial<Pick<Resource, "soon">>;
+type MenuItem = Pick<Feature, "href" | "name" | "icon" | "glow"> &
+  Partial<Pick<Feature, "onGlow">> &
+  Partial<Pick<Resource, "soon">>;
 
 /** The surface both menu panels share, the floating bar's. */
 const MENU_PANEL =

@@ -31,6 +31,8 @@ export function EmailSignUpLink() {
  * recoloured). LinkedIn uses the same treatment so the pair matches. Each
  * posts to the same OAuth action as the buttons on /signup. The home hero
  * and every feature page's hero and closing call to action draw the pair.
+ * 44px tall below sm, for a thumb, and 40px above it (KAN-580): Google's
+ * rules set a least height, not a most.
  * https://developers.google.com/identity/branding-guidelines
  */
 export function SocialSignUpButton({ provider }: { provider: OAuthProvider }) {
@@ -39,7 +41,7 @@ export function SocialSignUpButton({ provider }: { provider: OAuthProvider }) {
     <form action={signInWithOAuth.bind(null, provider)} className="w-full max-w-72 sm:w-auto">
       <button
         type="submit"
-        className="font-google inline-flex h-10 w-full items-center justify-center gap-2.5 rounded-full bg-white px-3 text-sm/5 font-medium whitespace-nowrap text-[#1F1F1F] ring-1 ring-[#747775] transition-shadow ring-inset hover:shadow-md"
+        className="font-google inline-flex h-11 w-full items-center justify-center gap-2.5 rounded-full bg-white px-3 text-sm/5 font-medium whitespace-nowrap text-[#1F1F1F] ring-1 ring-[#747775] transition-shadow ring-inset hover:shadow-md sm:h-10"
       >
         {google ? (
           <svg viewBox="0 0 48 48" className="size-5 shrink-0" aria-hidden="true">
