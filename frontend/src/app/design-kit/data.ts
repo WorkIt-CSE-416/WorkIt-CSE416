@@ -191,7 +191,10 @@ export const COLOR_GROUPS: ColorGroup[] = [
         role: "Strong Match, green · 3.81:1 on white",
       },
       { token: "--color-match-good", role: "Good Match, yellow · 3.24:1 on white" },
-      { token: "--color-match-weak", role: "→ --color-danger · Weak Match, red · 5.77:1 on white" },
+      {
+        token: "--color-match-weak",
+        role: "→ --color-ink-muted · Weak Match, neutral until real cut-offs (KAN-569) · 10.70:1 on white",
+      },
     ],
   },
   {

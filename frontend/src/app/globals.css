@@ -407,15 +407,20 @@
    * Dashboard bar's track). --color-positive itself misses it, at 2.8:1, so
    * Strong takes #139564, positive at 33% lightness. --chart-3 shares it.
    *
+   * WEAK IS NEUTRAL INK FOR NOW (KAN-569). The cut-offs in @/lib/match are
+   * placeholders, and every card on the Jobs page scored under 65, so all 50
+   * drew a red ring and the eye had nothing to rank by. Weak goes back to
+   * --color-danger (5.77 on white, 5.39 on the well) once real cut-offs exist.
+   *
    *                white   well
    *   excellent    5.35    4.99
    *   strong       3.81    3.56
    *   good         3.24    3.03
-   *   weak         5.77    5.39 */
+   *   weak        10.70    9.98 */
   --color-match-excellent: var(--color-positive-ink);
   --color-match-strong: #139564;
   --color-match-good: #b98600;
-  --color-match-weak: var(--color-danger);
+  --color-match-weak: var(--color-ink-muted);
 
   /* Updates --------------------------------------------------------------
    * The marketing pages' pink: the tour's Updates stop and the Tracker

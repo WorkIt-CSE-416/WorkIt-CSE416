@@ -1198,7 +1198,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (1440px) inside `SEEKER_GUTTER`, so all start at Home's left edge; the
   Applications Tracker alone has no cap. At `max-w-app` (1024px) they sat
   centred between wide empty margins beside the rail. Prose keeps its own
-  measure (About the Role's 68ch).
+  measure (About the Role's 46ch, set on the text's own 14px, KAN-569).
   The user found the floating panels wasted room, and the 256px panel that
   opened over the page on hover a flaw. A height worked out from the
   shell's chrome (the job rail's `100svh-4rem`) changes with it. A sidebar
@@ -1652,7 +1652,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   nothing about the fit, so the score now shares hues with the stages. The
   ramp's pink lives on as the marketing pages' `--color-updates`: a landing
   scene takes that, never a `--color-match-*` token, which turned amber
-  there when the bands changed.
+  there when the bands changed. **Weak is neutral ink for now** (KAN-569,
+  `--color-match-weak` in `globals.css`): the cut-offs are placeholders, so
+  every job scored Weak and every card drew red. Put it back to
+  `--color-danger` once real cut-offs are set.
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change
@@ -1727,7 +1730,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   measures each logo on load: a square mark
   fills the tile edge to edge, a wide wordmark sits on white with padding.
   Framed with padding, square marks on their own colour (Figma, Cloudflare)
-  looked shrunk. The image is hidden until measured, and next/image only
+  looked shrunk. The image is hidden until measured, with the initials under
+  it until then (KAN-569: a slow or refused image left an empty white
+  box), and next/image only
   reports the load once the browser has decoded it, which a hidden browser
   tab (the Browser pane when it is not shown) can hold back, so check it
   with the page visible.
@@ -1767,7 +1772,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   out** (`ASK_SCOUT_LIVE` in `components/scout/scout-buttons.tsx`, 2026-11-02,
   it does not work): every job's button and the phone editor's two buttons
   stay in place, disabled, the panel's hint is hidden, and the flag brings
-  them back. The phone editor has no other way into its assistant. **The
+  them back. A job's button, and Not Interested, which stores nothing yet,
+  are `soon` on `IconButton` (KAN-569): faded and inert, but still hovered
+  and focused, so the tooltip says "Coming Soon". A disabled button shows no
+  tooltip, so nothing said why; a control that is not built takes `soon`. The phone editor has no other way into its assistant. **The
   Calendar's sidebar row is greyed out too** (`disabled` on a nav item,
   `seeker-sidebar.tsx`): /calendar still answers, and Home's Up Next links to it. The landing page still describes
   it.

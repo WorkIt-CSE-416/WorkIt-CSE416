@@ -24,7 +24,7 @@ const SQUARE = { min: 0.8, max: 1.25 };
  * white with padding, since cropped it reads as a mistake. The padding is a
  * share of the tile, so the 32px tile on a job posting's page keeps room for
  * its logo. The image stays hidden until its shape is known, so it never
- * jumps from framed to filled.
+ * jumps from framed to filled, and the initials show under it until then.
  *
  * BRANDFETCH LOADS STRAIGHT FROM THE BROWSER (`unoptimized`). Its terms allow
  * hotlinking only, with the page's Referer, and refuse a server fetching the
@@ -59,6 +59,10 @@ export function CompanyLogo({
         className,
       )}
     >
+      {/* The initials until the image shows (KAN-569): a slow or refused
+          image left an empty white box. Gone once it shows, since a
+          wordmark's padding would let them through. */}
+      {square == null && <Avatar name={name} className="absolute inset-0 size-full rounded-none" />}
       <Image
         key={url}
         src={url}

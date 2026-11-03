@@ -11,7 +11,9 @@ import { askScoutAbout, SCOUT_LAUNCHER_ID, setScoutOpen, useScout } from "./scou
 
 /** Whether Ask Scout works. Off (2026-11-02) while it does not: every Ask Scout
  *  button stays in its place, greyed out and not clickable, and the panel's
- *  hint to use it is hidden. Set it to true to bring them back at once. */
+ *  hint to use it is hidden. A job's button is `soon` (KAN-569), so its
+ *  tooltip says "Coming Soon"; disabled, it showed no tooltip and nothing said
+ *  why. Set it to true to bring them back at once. */
 export const ASK_SCOUT_LIVE = false;
 
 /** A job's "Ask Scout": opens the panel and asks about that role. An outlined
@@ -33,7 +35,7 @@ export function AskScoutButton({
       tooltip="Ask Scout whether this role fits you"
       variant={quiet ? "quiet" : "outline"}
       className={quiet ? undefined : "size-9 shrink-0"}
-      disabled={!ASK_SCOUT_LIVE}
+      soon={!ASK_SCOUT_LIVE}
       onClick={() => askScoutAbout(job)}
     >
       <SparkleIcon className="size-4" />

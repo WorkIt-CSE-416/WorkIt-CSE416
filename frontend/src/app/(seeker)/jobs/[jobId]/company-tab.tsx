@@ -61,7 +61,7 @@ export function CompanyTab({ name, company }: { name: string; company: JobCompan
           const inCategory = facts.filter((fact) => fact.category === category);
           if (inCategory.length === 0) return null;
           return (
-            <section key={category} className="mt-5 max-w-[68ch]">
+            <section key={category} className="text-body mt-5 max-w-[46ch]">
               <h3 className="text-label text-ink">{heading}</h3>
               <ul className="mt-2 flex list-disc flex-col gap-2 pl-5">
                 {inCategory.map((fact) => {
@@ -76,7 +76,7 @@ export function CompanyTab({ name, company }: { name: string; company: JobCompan
                             href={source}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-brand hover:text-brand-hover"
+                            className="text-brand hover:text-brand-hover underline decoration-current underline-offset-2"
                           >
                             Source<span className="sr-only"> (opens in a new tab)</span>
                           </a>
