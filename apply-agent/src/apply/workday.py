@@ -23,8 +23,10 @@ Keychain before the form is sent, and the verification link from Gmail when
 the tenant mails one. Some tenants answer Create Account with their bare
 Sign In view (Northrop's and Zillow's, live): where the account is to be
 verified, by way of their "verify your account" page (`/login/warning`,
-Zillow's), and Apply then waits for the link; otherwise Apply signs in with
-the new password. Where Lisul made an account himself ("already exists"),
+Zillow's), and Apply then waits for the link. A bare Sign In view without
+that page means Workday never made the account (Northrop's, live, where a
+made account goes straight to the application): Keychain forgets the new
+password and Lisul makes the account. Where Lisul made an account himself ("already exists"),
 a real run resets its password: the new one is saved to Keychain first and
 set through the reset link from Gmail (never in a rehearsal, which stops at
 the sign-in page). Workday accounts are per tenant (the host, or the
@@ -253,18 +255,14 @@ class WorkdayFiller:
             return self._password(page, site, password)
         self._create_account(page, site)
 
-    def _password(self, page: Page, site: str, password: str, since: datetime | None = None) -> None:
-        """Sign In with the account's password. `since`: when Apply made the
-        account just now, so a refusal for want of verifying it waits for the
-        link mailed then."""
+    def _password(self, page: Page, site: str, password: str) -> None:
+        """Sign In with the account's password."""
         form = _auth_form(page, "signInLink", create=False)
         _type(form, {"email": self._accounts.login, "password": password})
         outcome = _send(page, form, lambda: "in" if _on_step(page) else _error(page) and "error")
         if outcome == "error":
             error = _error(page)
             if UNVERIFIED.search(error):  # the password is right: never a failed sign-in
-                if since:
-                    return self._verify(page, since)
                 raise Handoff(f"{NEEDS_SIGN_IN}Workday at {site} said: '{error}' Verify the account through the "
                               "link Workday mailed when Apply made it, then sign in and apply yourself.")
             raise self._accounts.sign_in_failed(site, f"Workday said: {error}")
@@ -291,11 +289,17 @@ class WorkdayFiller:
             if re.search(r"already", error, re.IGNORECASE):
                 return self._reset_password(page, site)
             raise Handoff(f"Workday at {site} refused the new account: '{error}'")
+        if outcome == "sign in":
+            # Back to Sign In with no notice and no verify page: Workday didn't make the account (Northrop's,
+            # live, whose made account went straight to the application). Signing in would fail on it.
+            self._accounts.not_made(site)
+            raise Handoff(f"Workday at {site} went back to its Sign In page without making the account, so Apply "
+                          "didn't sign in and forgot the new password. Create the account yourself and save its "
+                          f"password in Keychain (security add-generic-password -U -s apply-ats -a {site} -w), "
+                          "then apply yourself.")
         self._accounts.created(site)
         if outcome == "verify":
             return self._verify(page, since)
-        if outcome == "sign in":  # Workday's bare Sign In view, for the new account (Northrop's, live)
-            self._password(page, site, password, since)
 
     def _verify(self, page: Page, since: datetime) -> None:
         """Open the verification link mailed since `since` (never asked for

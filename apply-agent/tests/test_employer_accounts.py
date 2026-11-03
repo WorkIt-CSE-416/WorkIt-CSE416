@@ -105,18 +105,18 @@ def test_a_verification_email_missing_after_about_two_minutes_needs_lisul_and_is
     assert server.submissions == []
 
 
-def test_a_new_account_workday_takes_to_its_sign_in_view_is_signed_in_with_its_new_password():
+def test_a_create_account_workday_answers_with_its_bare_sign_in_view_forgets_the_password_and_never_signs_in():
     world = World()
 
-    # Northrop's tenant (live): Create Account loads the bare Sign In view, with no notice.
+    # Northrop's tenant (live): Create Account loads the bare Sign In view, with no notice and no account made.
     with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, to_sign_in=True) as server:
         [row] = world.run(server, caci())
 
-    assert (row.status, row.reason) == ("submitted", "")
-    [made] = server.created
-    assert made["keychain"] == made["password"] == world.keychain.password(CACI)
-    assert server.sign_ins == [(CACI, EMAIL, True)]
-    assert [a.site for a in world.tracker.employer_accounts()] == [CACI]
+    assert row.status == "handoff"
+    assert "without making the account" in row.reason and "Create the account yourself" in row.reason
+    assert server.created == [] and server.sign_ins == []
+    assert world.keychain.password(CACI) is None  # no later run signs in with it
+    assert world.tracker.employer_accounts() == []
 
 
 def test_a_new_account_workday_sends_to_its_verify_page_is_verified_through_gmail_then_signed_in():

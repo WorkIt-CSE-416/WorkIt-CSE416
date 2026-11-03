@@ -98,6 +98,11 @@ class Accounts:
             raise Handoff(NO_RESET.format(site=site, login=self.login, why=why.rstrip(".")))
         return self.new_password(site)
 
+    def not_made(self, site: str) -> None:
+        """The site never made the account its new password was saved for:
+        Keychain forgets it, so no later run signs in with it."""
+        self._keychain.forget(site)
+
     def created(self, site: str) -> None:
         """The site accepted the new account: list it in the Employer accounts tab."""
         self._on_created(EmployerAccount(self._company, site, self.login, self.clock.now().date()))
