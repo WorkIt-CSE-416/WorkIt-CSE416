@@ -292,6 +292,10 @@ class SheetTracker:
         with self._locked():
             self._update(application_id, lisuls=True, answer=text)
 
+    def approve(self, application_id: str) -> None:
+        with self._locked():
+            self._update(application_id, lisuls=True, approve="TRUE")  # the checkbox reads TRUE
+
     def _update(self, application_id: str, lisuls: bool = False, **fields) -> None:
         headers, *cells = self._applications.get_all_values()
         ids = _ids(headers, cells)

@@ -1,9 +1,20 @@
-"""The Tracker: one row per Application."""
+"""The Tracker: one row per Application.
+
+Apply keeps it in the data folder (`FileTracker`, KAN-544). It is Apply's own
+working state: Holds to approve, Missing facts to answer, Requests, Employer
+accounts and the Answers list. The record of where each application stands
+is WorkIt's Applications Tracker (../docs/adr/0007)."""
 
 import dataclasses
+import fcntl
+import json
+import os
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 
+from apply.home import HOME
 from apply.model import Outcome, Posting, Status
 
 
@@ -124,6 +135,10 @@ class InMemoryTracker:
     def answer(self, application_id: str, text: str) -> None:
         self._rows[application_id] = dataclasses.replace(self._rows[application_id], answer=text)
 
+    def approve(self, application_id: str) -> None:
+        """Lisul approves a Hold in the Apply window: the next check sends it."""
+        self._rows[application_id] = dataclasses.replace(self._rows[application_id], approve=True)
+
     def get(self, application_id: str) -> Row | None:
         return self._rows.get(application_id)
 
@@ -164,3 +179,83 @@ class InMemoryTracker:
     def paste_request(self, url: str) -> None:
         """Lisul pastes a Posting link into the Requests tab."""
         self._requests.append(url.strip())
+
+
+# The Tracker file in the data folder.
+TRACKER = HOME / "tracker.json"
+
+# FileTracker's methods that change the file; every other one only reads it.
+_WRITES = ("add", "update", "answer", "approve", "edit_as_lisul", "remove_request", "add_request", "paste_request",
+           "add_employer_account", "add_answer", "edit_answer_as_lisul")
+_READS = ("get", "rows", "requests", "employer_accounts", "answers")
+
+
+class FileTracker(InMemoryTracker):
+    """The Tracker as one JSON file in the data folder (KAN-544). Each call
+    reads the file, and each write saves it again (atomically), under a lock
+    file: several processes (a run, the window, `apply mail`) share it."""
+
+    def __init__(self, path: Path = TRACKER):
+        super().__init__()
+        self.path = path
+
+    @contextmanager
+    def _held(self, write: bool):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.path.with_suffix(".lock"), "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            self._load()
+            yield
+            if write:
+                self._save()
+
+    def _load(self) -> None:
+        try:
+            saved = json.loads(self.path.read_text())
+        except FileNotFoundError:
+            saved = {}
+        self._rows = {row["application_id"]: _row(row) for row in saved.get("applications", [])}
+        self._requests = list(saved.get("requests", []))
+        self._accounts = [EmployerAccount(**{**a, "created": date.fromisoformat(a["created"])})
+                          for a in saved.get("employer_accounts", [])]
+        self._answers = [AnswerRow(**{**a, "options": tuple(a["options"]),
+                                      "first_seen": date.fromisoformat(a["first_seen"]) if a["first_seen"] else None})
+                         for a in saved.get("answers", [])]
+
+    def _save(self) -> None:
+        saved = {"applications": [dataclasses.asdict(row) for row in self._rows.values()],
+                 "requests": self._requests,
+                 "employer_accounts": [dataclasses.asdict(a) for a in self._accounts],
+                 "answers": [dataclasses.asdict(a) for a in self._answers]}
+        part = self.path.with_suffix(".part")
+        part.write_text(json.dumps(saved, indent=1, default=_plain))
+        os.replace(part, self.path)
+
+
+def _plain(value):
+    if isinstance(value, date):
+        return value.isoformat()
+    raise TypeError(type(value).__name__)
+
+
+def _row(saved: dict) -> Row:
+    day = lambda value: date.fromisoformat(value) if value else None
+    return Row(**{**saved, "status": Status(saved["status"]), "date_applied": day(saved["date_applied"]),
+                  "outcome": Outcome(saved["outcome"]) if saved["outcome"] else None,
+                  "suggested_outcome": Outcome(saved["suggested_outcome"]) if saved["suggested_outcome"] else None,
+                  "confirmation_received": day(saved["confirmation_received"])})
+
+
+def _locked_call(name: str, write: bool):
+    method = getattr(InMemoryTracker, name)
+
+    def call(self, *args, **kwargs):
+        with self._held(write):
+            return method(self, *args, **kwargs)
+
+    call.__name__, call.__doc__ = name, method.__doc__
+    return call
+
+
+for _name in _WRITES + _READS:
+    setattr(FileTracker, _name, _locked_call(_name, _name in _WRITES))

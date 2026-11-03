@@ -21,7 +21,7 @@ from apply.sheet import (
     lay_out,
     open_sheet,
 )
-from apply.tracker import InMemoryTracker
+from apply.tracker import FileTracker, InMemoryTracker
 
 
 @contextmanager
@@ -29,6 +29,9 @@ def tracker_and_lisul(kind: str, tmp_path: Path):
     if kind == "memory":
         tracker = InMemoryTracker()
         yield tracker, MemoryLisul(tracker)
+    elif kind == "file":
+        # Lisul's edits come through a second FileTracker on the same file, as another process's would.
+        yield FileTracker(tmp_path / "tracker.json"), MemoryLisul(FileTracker(tmp_path / "tracker.json"))
     elif kind in ("sheet", "checkbox-sheet"):
         blank_rows = 3 if kind == "checkbox-sheet" else 0
         spreadsheet = FakeSpreadsheet(tmp_path / "sheet", TABS, blank_rows=blank_rows)
