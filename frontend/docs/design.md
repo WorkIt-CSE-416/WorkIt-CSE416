@@ -514,7 +514,12 @@ read heavy at 24px. The logo is the mark alone, in a 64px header. The
 profile strength card is a ring tile named Setup there. Below md it is
 shadcn's sheet, with an icon beside each full name. `RailSidebarProvider`
 (`app-sidebar.tsx`) holds shadcn's provider open, so the bar's toggle shows
-below md only and opens the sheet. It replaced a 256px panel that pinned or
+below md only and opens the sheet. **The phone bar holds the toggle, the
+title, the bell and the photo** (KAN-570): the logo is in the sheet's
+header only, since with the mark in the bar there was no room for the bell,
+and the bell was hidden below sm. The sheet is named "Menu", its toggle
+"Open Menu" and the sheet's own toggle "Close Menu", over shadcn's
+"Sidebar" and "Toggle Sidebar" (`docs/shadcn.md`). It replaced a 256px panel that pinned or
 opened over the page on hover (KAN-300), which the user found a flaw.
 
 **The company panel is pinned or opens on hover (KAN-300).**

@@ -31,9 +31,10 @@ export type NotificationItem = {
  *
  * A 32px circle with a 16px glyph and the hover fill, unless the shell passes
  * its own circle: the seeker bar fills it light grey with no border, at 40px,
- * matching its phone search magnifier and the account photo. It steps out
- * below sm in both shells, where the bar's room goes to the toggle, the logo
- * and the account.
+ * matching its phone search magnifier and the account photo. It shows at
+ * every width in both shells (KAN-570): hidden below sm, a phone could never
+ * read a notification, so the seeker's phone bar dropped its logo mark for
+ * the room instead.
  *
  * The popup is named "Notifications" with aria-label, because Base UI names
  * it only from a Popover.Title and this one has none; without it a screen
@@ -66,10 +67,7 @@ export function NotificationsMenu({
         render={
           <IconButton
             label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-            className={cn(
-              "group/bell hover:bg-hover relative hidden size-8 rounded-full sm:inline-flex",
-              className,
-            )}
+            className={cn("group/bell hover:bg-hover relative size-8 rounded-full", className)}
           >
             {/* Swings on its hook once as the pointer arrives. 24px, the sidebar
                 icons' size: with no circle round it, 16px read as too small. */}

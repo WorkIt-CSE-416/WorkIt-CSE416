@@ -1483,6 +1483,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`EmptyState`'s `titleAs`). **A modal never changes the bar title**: with
   Settings open the bar keeps the page behind's title and h1, and the dialog
   names itself; the bar said "Settings" over Jobs, and Jobs' h1 was gone. **Job search is on
+  is the greeting, which the layout reads with the account; below sm it is
+  "Hi, Alex" with the full line as its `title` (KAN-570), since the full line
+  cut the name off in a phone's bar. **The bell shows at every width in both
+  shells** (KAN-570): the phone bar dropped its logo mark (the sheet's header
+  has it) to make room. **Job search is on
   the Jobs page and /search only** (`search/job-search.tsx`): in the bar it
   showed on every page, and it took the phone's magnifier and sheet with it.
   Each page's own heading and line under the bar went, about 60px a page: the
