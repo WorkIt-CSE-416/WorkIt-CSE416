@@ -2,7 +2,7 @@
 
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { MinusIcon, PlusIcon } from "@phosphor-icons/react/ssr";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import { ChevronDownIcon, CloseIcon } from "@/components/icons";
 import {
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Switch } from "@/components/shadcn/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Button } from "@/components/ui/button";
 import { FIELD_CONTROL } from "@/components/ui/text-field";
 import { IconButton } from "@/components/ui/icon-button";
@@ -225,7 +226,7 @@ export function SizeStepper({
     <div role="group" aria-label={role.label} className="flex shrink-0 items-center gap-0.5">
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label={`Smaller ${role.label}`}
         title={`Smaller ${role.label}`}
         disabled={disabled || smaller < role.min}
@@ -251,11 +252,11 @@ export function SizeStepper({
             setTyped(null);
           }
         }}
-        className={cn(FIELD_CONTROL, "sm:text-note h-7 w-11 px-1 text-center font-medium")}
+        className={cn(FIELD_CONTROL, "sm:text-note h-9 w-11 px-1 text-center font-medium")}
       />
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label={`Larger ${role.label}`}
         title={`Larger ${role.label}`}
         disabled={disabled || larger > role.max}
@@ -268,7 +269,12 @@ export function SizeStepper({
 }
 
 /** A toolbar button that opens a panel beside the page, tinted while it
- *  is open: Sections, Format Options. */
+ *  is open: Sections, Format Options. `sm`, as every text button on the bar
+ *  is (KAN-576): at `xs` it stood 26px with 12px type beside 36px ones. It
+ *  keeps its word down to `@3xl`; below that it is the glyph alone, named
+ *  by a tooltip, and its hit area reaches past the box, since touch has no
+ *  hover to read a `title` (KAN-574). The tooltip opens only while the word
+ *  is hidden: over the word it said the same thing twice. */
 export function PanelButton({
   label,
   Icon,
@@ -282,20 +288,41 @@ export function PanelButton({
   disabled: boolean;
   onToggle: () => void;
 }) {
+  const word = useRef<HTMLSpanElement>(null);
+  const [tip, setTip] = useState(false);
   return (
-    <Button
-      variant="ghost"
-      size="xs"
-      aria-pressed={open}
-      title={label}
-      disabled={disabled}
-      className={cn("shrink-0", open && ON)}
-      onClick={onToggle}
+    <Tooltip
+      open={tip}
+      // sr-only draws the word 1px wide
+      onOpenChange={(next) => setTip(next && (word.current?.offsetWidth ?? 0) <= 1)}
     >
-      <Icon aria-hidden /> <span className="@max-5xl/main:sr-only">{label}</span>
-    </Button>
+      <TooltipTrigger
+        disabled={disabled}
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-pressed={open}
+            disabled={disabled}
+            className={cn("shrink-0", NARROW_HIT, open && ON)}
+            onClick={onToggle}
+          />
+        }
+      >
+        <Icon aria-hidden />{" "}
+        <span ref={word} className="@max-3xl/main:sr-only">
+          {label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
+
+/** Below `@3xl`, the `sm` glyph button reaches 10px above and below and
+ *  6px each side, so two neighbours 8px apart overlap by 4px at most. */
+const NARROW_HIT =
+  "@max-3xl/main:relative @max-3xl/main:after:absolute @max-3xl/main:after:-inset-x-1.5 @max-3xl/main:after:-inset-y-2.5 @max-3xl/main:after:content-['']";
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (

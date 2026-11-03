@@ -172,13 +172,13 @@ test("a saved sign-up is used for Create Account and Sign In at every company, a
   expect(api.sent.filter((s) => s.includes(PASSWORD))).toEqual([]);
 });
 
-test("the webapp's Settings opens the sign-up page", async () => {
+test("the webapp's Application Info opens the sign-up page", async () => {
   test.setTimeout(60_000);
   loaded = await loadExtension([new FakeApi().handler, webapp]);
   await signIn(loaded.context);
   const opened = () => loaded!.context.pages().filter((p) => p.url() === SIGNUP_PAGE).length;
   const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
-  await app.goto("http://localhost:3000/settings/security");
+  await app.goto("http://localhost:3000/auto-apply/info");
   expect(await sendFromWebapp(app, { type: "workday/signup-open" })).toMatchObject({ ok: true });
   await expect.poll(opened, { timeout: 15_000 }).toBe(1);
 });

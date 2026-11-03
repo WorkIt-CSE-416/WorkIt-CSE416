@@ -172,7 +172,8 @@ export function HoverSidebarProvider({
 /**
  * The bar's sidebar button: on a desktop it pins and unpins the panel, and
  * says which (aria-pressed, and a tooltip naming what a click will do);
- * below md it opens and closes the sheet, as before.
+ * below md it opens the sheet, named "Open Menu" (KAN-570) over shadcn's
+ * "Toggle Sidebar".
  */
 export function SidebarPinToggle({ className }: { className?: string }) {
   const { pinned } = useSidebarPin();
@@ -183,13 +184,13 @@ export function SidebarPinToggle({ className }: { className?: string }) {
         render={
           <SidebarTrigger
             className={className}
-            aria-label={isMobile ? undefined : "Pin Sidebar"}
+            aria-label={isMobile ? "Open Menu" : "Pin Sidebar"}
             aria-pressed={isMobile ? undefined : pinned}
           />
         }
       />
       <TooltipContent>
-        {isMobile ? "Toggle sidebar" : pinned ? "Unpin sidebar" : "Pin sidebar"}
+        {isMobile ? "Open menu" : pinned ? "Unpin sidebar" : "Pin sidebar"}
       </TooltipContent>
     </Tooltip>
   );

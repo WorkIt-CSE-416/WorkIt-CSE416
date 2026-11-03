@@ -11,15 +11,6 @@ import {
   type ReactNode,
 } from "react";
 
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
 
 type Api = {
@@ -34,9 +25,8 @@ const Unsaved = createContext<Api | null>(null);
 
 /**
  * Settings' guard against losing edits (KAN-364): a form with unsaved
- * changes reports them (`useUnsavedChanges`), and leaving the section, by
- * the nav or by closing the modal, asks "Discard Your Changes?" first
- * (`useLeaveGuard`, `DiscardDialog`). Closing the tab or reloading gets the
+ * changes reports them (`useUnsavedChanges`), and closing the modal asks
+ * "Discard Your Changes?" first (`useLeaveGuard`, `DiscardBar`). Closing the tab or reloading gets the
  * browser's own warning. Before this, an edit to the name or the job
  * preferences vanished without a word when the student switched sections.
  * A history Back is not caught: the browser gives a page no way to hold it.
@@ -97,31 +87,59 @@ export function useLeaveGuard(): (leave: () => void) => void {
   return api ? api.guard : (leave) => leave();
 }
 
-/**
- * The question itself. Placed inside the Settings modal's own content (or
- * on the full page), so it opens as a dialog nested in the modal and the
- * modal's focus trap lets it take focus.
- */
-export function DiscardDialog() {
+/** The question while it is asked, for the modal's own ways out: Escape
+ *  or a click outside answers Keep Editing. */
+export function usePendingLeave(): { asking: boolean; keep: () => void } {
   const api = useContext(Unsaved);
-  if (!api) return null;
+  return { asking: api?.pending != null, keep: () => api?.resolve(false) };
+}
+
+/**
+ * The question itself: a bar across the Settings modal's foot, never a
+ * dialog over it (KAN-563, `docs/design.md`, "Never a dialog over a
+ * dialog"). It was a dialog nested in the modal, which Base UI does not
+ * dim, so it sat over the section with no edge of its own. As a bar the
+ * edits it asks about stay in view above it. It takes the focus on Keep
+ * Editing, the answer that loses nothing, and gives it back to where it
+ * was when Keep Editing ends it.
+ */
+export function DiscardBar() {
+  const api = useContext(Unsaved);
+  const asking = api?.pending != null;
+  const keep = useRef<HTMLButtonElement>(null);
+  const title = useId();
+
+  useEffect(() => {
+    if (!asking) return;
+    const back = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    keep.current?.focus();
+    return () => {
+      if (back?.isConnected) back.focus();
+    };
+  }, [asking]);
+
+  if (!api || !asking) return null;
 
   return (
-    <Dialog open={api.pending !== null} onOpenChange={(open) => !open && api.resolve(false)}>
-      <DialogContent showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">Discard Your Changes?</DialogTitle>
-          <DialogDescription>
-            You have changes you haven&apos;t saved. If you leave now, they&apos;re lost.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <DialogClose render={<Button variant="secondary">Keep Editing</Button>} />
-          <Button variant="destructive" onClick={() => api.resolve(true)}>
-            Discard Changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <div
+      role="alertdialog"
+      aria-labelledby={title}
+      className="border-border-subtle bg-panel animate-fade flex shrink-0 flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:px-6"
+    >
+      <p className="text-body text-ink-meta min-w-0 flex-1">
+        <span id={title} className="text-ink font-semibold">
+          Discard Your Changes?
+        </span>{" "}
+        You have changes you haven&apos;t saved. If you leave now, they&apos;re lost.
+      </p>
+      <div className="flex shrink-0 gap-2 sm:justify-end">
+        <Button ref={keep} variant="secondary" onClick={() => api.resolve(false)}>
+          Keep Editing
+        </Button>
+        <Button variant="destructive" onClick={() => api.resolve(true)}>
+          Discard Changes
+        </Button>
+      </div>
+    </div>
   );
 }

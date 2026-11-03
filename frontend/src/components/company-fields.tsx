@@ -18,7 +18,7 @@ export const COMPANY_SIZES = [
 
 // ink-meta, not ink-faint: "Optional" is text people read before deciding
 // whether to fill a field in, and ink-faint is under AA on the card.
-const OPTIONAL = <span className="text-meta text-ink-meta">Optional</span>;
+const OPTIONAL = <span className="text-note text-ink-meta">Optional</span>;
 
 /** Caption over the group — same type treatment as "Or continue with". */
 export const COMPANY_FIELDS_SECTION = "text-caption text-ink-muted uppercase";
@@ -84,7 +84,7 @@ export function CompanyFields({
           {/* Tied to the picker and announced, so a screen reader hears why
               the form did not submit. */}
           {sizeInvalid && (
-            <p id="company-size-error" role="alert" className="text-meta text-danger">
+            <p id="company-size-error" role="alert" className="text-note text-danger">
               Select your company&apos;s size.
             </p>
           )}

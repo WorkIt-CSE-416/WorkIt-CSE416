@@ -19,10 +19,12 @@ import {
 } from "@phosphor-icons/react/ssr";
 
 import { SparkleIcon } from "@/components/icons";
+import { Logo } from "@/components/logo";
 import { cn } from "@/lib/cn";
 
 import { FaviconLogo } from "./favicon-logo";
 import { autoApplyFeature, type ApplicationField, type GridApplication } from "./feature-data";
+import { useLoopsHeld } from "./hooks";
 import { scoreTone } from "./score-tone";
 import { GLIDE, Story, type StoryScene } from "./story";
 
@@ -91,6 +93,9 @@ const LAST = SCHEDULE[COUNT - 1];
 const READY_AT = LAST.start + LAST.ms + 250;
 /** The student's pointer reaches Submit and clicks it. */
 const CLICK_AT = READY_AT + 950;
+/** When the form reaches each value of `active` from 0, in ms: each field's
+ * start, then READY_AT and CLICK_AT. */
+const MARKS = [...SCHEDULE.map(({ start }) => start), READY_AT, CLICK_AT];
 
 const SCENES = [
   { id: "one", caption: "Auto Apply fills it in. You click Submit.", hold: CLICK_AT + 1500 },
@@ -193,7 +198,7 @@ function Camera({ level }: { level: number }) {
           style={at(cell.row, cell.col)}
         />
       ))}
-      <Application live={level === 0} level={level} style={at(MID, MID)} />
+      <Application live={level === 0} style={at(MID, MID)} />
     </motion.div>
   );
 }
@@ -214,28 +219,25 @@ function topWithin(el: HTMLElement, root: HTMLElement) {
 /** The visible height of the page, under the title bar. */
 const VIEW = H - BAR;
 
-function Application({
-  live,
-  level,
-  style,
-}: {
-  live: boolean;
-  level: number;
-  style: React.CSSProperties;
-}) {
+function Application({ live, style }: { live: boolean; style: React.CSSProperties }) {
   const { job, url, sections } = autoApplyFeature;
   // The field being filled: -1 before the first, COUNT once every field is
   // filled and it waits for the student, COUNT + 1 once they submit. A
   // window that is not live is already submitted.
   const [active, setActive] = React.useState(live ? -1 : COUNT + 1);
 
+  // One step at a time, so Pause Animations holds the form on its field
+  // and Play goes on from there.
+  const held = useLoopsHeld();
   React.useEffect(() => {
-    if (!live) return;
-    const timers = SCHEDULE.map(({ start }, i) => window.setTimeout(() => setActive(i), start));
-    timers.push(window.setTimeout(() => setActive(COUNT), READY_AT));
-    timers.push(window.setTimeout(() => setActive(COUNT + 1), CLICK_AT));
-    return () => timers.forEach(window.clearTimeout);
-  }, [live]);
+    if (!live || held || active > COUNT) return;
+    const next = active + 1;
+    const timer = window.setTimeout(
+      () => setActive(next),
+      MARKS[next] - (active < 0 ? 0 : MARKS[active]),
+    );
+    return () => window.clearTimeout(timer);
+  }, [live, held, active]);
 
   // Where each field sits on the page, so the page scrolls to keep the
   // field being filled in view.
@@ -266,16 +268,8 @@ function Application({
 
   return (
     <div
-      className="absolute flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-slate-900/10 transition-shadow duration-700 motion-reduce:transition-none"
-      style={{
-        ...style,
-        width: W,
-        height: H,
-        // Ringed in the stop's green once the camera pulls back, so the
-        // window that was filled up close stays easy to find; thicker as
-        // the grid grows, since the camera shrinks it.
-        boxShadow: `0 0 0 ${[0, 10, 18, 26][level]}px color-mix(in oklab, var(--color-positive) 75%, transparent)`,
-      }}
+      className="absolute flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-slate-900/10"
+      style={{ ...style, width: W, height: H }}
     >
       <WindowBar>
         <span className="text-ink-meta flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-white px-2 text-[10.5px] ring-1 ring-slate-900/5">
@@ -305,7 +299,7 @@ function Application({
 
           {sections.map((section) => (
             <section key={section.title} className="mt-5 border-t border-slate-900/5 pt-4">
-              <h4 className="text-ink text-[12.5px] font-semibold">{section.title}</h4>
+              <p className="text-ink text-[12.5px] font-semibold">{section.title}</p>
               <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2.5">
                 {section.fields.map((field) => {
                   const i = index++;
@@ -406,7 +400,8 @@ function Application({
   );
 }
 
-/** WorkIt's extension in the browser bar, counting the fields. */
+/** WorkIt's extension in the browser bar, counting the fields, with WorkIt's
+ * own mark in white (a generic AI star said nothing about whose it was). */
 function ExtensionChip({ active }: { active: number }) {
   const sent = active > COUNT;
   const label =
@@ -427,7 +422,7 @@ function ExtensionChip({ active }: { active: number }) {
       {sent ? (
         <CheckIcon className="size-3" weight="bold" aria-hidden="true" />
       ) : (
-        <SparkleIcon className="size-3" aria-hidden="true" />
+        <Logo size="mark" decorative className="h-2.5 brightness-0 invert" />
       )}
       {label}
     </span>

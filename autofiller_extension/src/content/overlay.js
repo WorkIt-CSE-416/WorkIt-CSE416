@@ -377,7 +377,7 @@ window.WIA = window.WIA || {};
   function askSelfId({ questions, onSave }) {
     const card = momentCard("self-id", `
       <h2>Equal-Opportunity Questions</h2>
-      <p>This form asks voluntary self-identification questions. Answer them once and WorkIt fills them on every form from now on. You can change them in My Profile.</p>
+      <p>This form asks voluntary self-identification questions. Answer them once and WorkIt fills them on every form from now on. You can change them later in WorkIt's Application Info.</p>
       ${questions.map((q) => `
         <label>${escape(q.label)}
           <select name="${escape(q.key)}" title="${escape(q.question)}">
@@ -431,7 +431,7 @@ window.WIA = window.WIA || {};
 
   /**
    * The writing samples ask (KAN-387), once the first batch's written answers
-   * landed: Add Samples opens `url` (My Profile's Writing Samples) in a new
+   * landed: Add Samples opens `url` (Application Info's Writing Samples) in a new
    * tab; Skip closes it. Either way it is not asked again.
    * @param {{ url: string }} options
    */

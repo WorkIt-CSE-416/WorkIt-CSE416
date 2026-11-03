@@ -292,11 +292,16 @@ function ViewedUpdate() {
           </div>
         ))}
         {/* A slow scan down the page, as it is read: a CSS loop of a
-            transform (landing.css, .tour-scan). */}
+            transform (landing.css, .tour-scan). Clipped to the page in a
+            layer of its own, so the eye can sit past the page's corner:
+            unclipped, the scan showed as a strip above the page, then was
+            cut off by the panel. */}
         <span
           aria-hidden="true"
-          className="tour-scan via-updates/25 pointer-events-none absolute inset-x-0 top-0 h-8 bg-linear-to-b from-transparent to-transparent"
-        />
+          className="pointer-events-none absolute inset-0 overflow-hidden rounded-md"
+        >
+          <span className="tour-scan via-updates/25 absolute inset-x-0 top-0 h-8 bg-linear-to-b from-transparent to-transparent" />
+        </span>
         <span className="bg-updates absolute -top-2 -right-2 grid size-7 place-items-center rounded-full text-white shadow-md">
           <EyeIcon className="size-3.5" aria-hidden="true" />
         </span>

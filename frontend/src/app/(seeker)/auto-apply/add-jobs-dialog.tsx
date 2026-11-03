@@ -25,11 +25,13 @@ import { queueJob } from "./actions";
 import { openedNote } from "./opened-note";
 import type { LogoSrc } from "@/lib/job-logo";
 
-/** A saved job as Add Jobs lists it: plain data from ./page.tsx. */
+/** A saved job as Add Jobs lists it: plain data from ./(queue)/page.tsx. */
 export type SavedJob = {
   id: string;
   role: string;
   company: string;
+  /** Where the job is, as the Jobs page's card prints it; null if unknown. */
+  place: string | null;
   logoUrl: LogoSrc;
   match: number | null;
   /** Its hiring system is one auto apply can fill (Greenhouse for now). */
@@ -46,9 +48,11 @@ export type SavedJob = {
  *
  * A row's checkbox, or a click on the row but its title (the job's link),
  * picks it; Select All picks every job auto apply can fill. One it can't
- * (not Greenhouse, for now) can't be picked and says why. "Add N to Queue"
- * queues each pick through the same call as a job's own Auto Apply button
- * (queueJob), in the list's order, then asks the extension to open the
+ * (not Greenhouse, for now) can't be picked and says why, on a line of its
+ * own outside the dimmed row. Each row's second line is the company and the
+ * place, so two saved jobs with one title at one company read apart. "Add N
+ * to Queue" queues each pick through the same call as a job's own Auto Apply
+ * button (queueJob), in the list's order, then asks the extension to open the
  * oldest queued job (openNextApplication), says how many went in with a
  * toast, and redraws the page, so the picks join Up Next. There is no
  * "auto apply all saved jobs": the seeker picks each one, so auto apply
@@ -188,18 +192,24 @@ export function AddJobsDialog({
                       !job.autoApply && "opacity-60",
                     )}
                   />
-                  <div className={cn("min-w-0 flex-1", !job.autoApply && "opacity-60")}>
-                    <Link
-                      href={`/jobs/${encodeURIComponent(job.id)}`}
-                      title={job.role}
-                      className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
-                    >
-                      {job.role}
-                    </Link>
-                    <p className="text-note text-ink-meta truncate">
-                      {job.company}
-                      {!job.autoApply && " · Auto Apply can't fill this one"}
-                    </p>
+                  <div className="min-w-0 flex-1">
+                    <div className={cn(!job.autoApply && "opacity-60")}>
+                      <Link
+                        href={`/jobs/${encodeURIComponent(job.id)}`}
+                        title={job.role}
+                        className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+                      >
+                        {job.role}
+                      </Link>
+                      <p className="text-note text-ink-meta truncate">
+                        {job.place ? `${job.company} · ${job.place}` : job.company}
+                      </p>
+                    </div>
+                    {/* Outside the dimmed block: it is the explanation, and
+                        at 60% it fell to about 2.9:1. */}
+                    {!job.autoApply && (
+                      <p className="text-note text-ink-meta">Auto Apply can&apos;t fill this one</p>
+                    )}
                   </div>
                   {job.match != null && <MatchBadge score={job.match} />}
                 </li>

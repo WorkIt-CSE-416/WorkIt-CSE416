@@ -30,7 +30,7 @@ import { CheckIcon } from "@phosphor-icons/react/ssr";
  *   ink-faint would drop to 2.73:1 on hover.
  */
 export const checkRowClasses =
-  "group/check-row data-highlighted:bg-accent data-highlighted:text-accent-foreground text-body font-medium flex w-full cursor-default items-center justify-between gap-2 rounded-md py-1 pr-1.5 pl-2 outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50";
+  "group/check-row data-highlighted:bg-accent data-highlighted:text-accent-foreground text-body font-medium flex w-full cursor-default items-center justify-between gap-2 rounded-md py-1 pr-1.5 pl-2 outline-hidden pointer-coarse:min-h-11 select-none data-disabled:pointer-events-none data-disabled:opacity-50";
 
 export function CheckRowBox() {
   return (

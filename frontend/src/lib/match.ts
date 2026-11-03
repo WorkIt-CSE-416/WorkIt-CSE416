@@ -17,7 +17,10 @@
  * stage, but a pink ring said nothing about the fit: the user wanted the
  * colours everyone reads without a legend. So an Offer card can draw two greens;
  * the ring's shape and number keep it apart from the stage's chip. The tokens'
- * note measures every step on white and on the rail's well.
+ * note measures every step on white and on the rail's well. **Weak draws in
+ * neutral ink for now** (KAN-569): while the thresholds below are placeholders,
+ * nearly every job scores Weak, and a red ring on every card ranked nothing.
+ * Its token goes back to red once the real cut-offs are set.
  *
  * The colour only ever paints a stroke, a bar or a glyph. The tier's
  * words are ink-muted wherever they are printed (see `MatchRail`), so no step

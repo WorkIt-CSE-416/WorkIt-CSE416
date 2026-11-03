@@ -277,7 +277,7 @@ async function handleMessage(message, sender) {
       const [session, { id }] = await Promise.all([getSession(), me()]);
       if ((await writingSamples(id)).length) return { show: false };
       if (!(await claimMoment(id, "samples"))) return { show: false };
-      return { show: true, url: `${session.web_origin}/profile#writing-samples` };
+      return { show: true, url: `${session.web_origin}/auto-apply/info#writing-samples` };
     }
 
     // The student's own words for one of a batch tab's questions that need
@@ -795,7 +795,7 @@ const RUNNER_MESSAGES = {
   "run/close": (message) => closeBatchTab(message),
   "practice/open": (message, sender) => startPractice(sender, message),
   "practice/status": () => practiceStatus(),
-  // The webapp's Settings > Connected Apps: opens the Workday Sign-Up page, which keeps its password in this browser.
+  // The webapp's Application Info: opens the Workday Sign-Up page, which keeps its password in this browser.
   "workday/signup-open": async () => {
     await chrome.runtime.openOptionsPage();
     return {};

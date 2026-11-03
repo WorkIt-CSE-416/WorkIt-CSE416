@@ -361,7 +361,7 @@ here:
   autofill-extension.ts`), using Chrome's `externally_connectable` to ask
   batch apply to open (and fill) the queued applications, which jobs its
   tabs show, and to switch to one of them, and onboarding's practice batch
-  and install check (`ping`, KAN-378), and Settings' link to the Workday
+  and install check (`ping`, KAN-378), and Application Info's link to the Workday
   Sign-Up page (`workday/signup-open`, which only opens it: no login
   crosses) — nothing more. The job cards'
   "Autofill ready" badge, `ping`'s first caller, was removed (KAN-278).
@@ -647,7 +647,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   saved for the tenant), `workdayLogin` answers `needsSignup` and no password,
   and nothing is typed or pressed. The student sets it on the options page
   (`src/options/`, opened from the panel's Settings and the webapp's
-  Settings > Connected Apps, `workday/signup-open`, which only opens it) or on
+  Application Info, `workday/signup-open`, which only opens it) or on
   the consent card (below), which asks for it inline before any Create
   Account: email prefilled from the profile (`profile/get`), password typed
   by the student, Show, and Workday's rules (12+ characters, upper, lower,
@@ -1406,17 +1406,24 @@ fill and groups as a real one, and `practice/status` says where each is.
   how to add Claude, or, with the connector added, that Claude writes such
   answers on real applications.
 
-## Install, update and uninstall (KAN-471)
+## Install, update and uninstall (KAN-471, KAN-495)
 
 `install.js` handles `chrome.runtime.onInstalled`; `stored-data.js` holds
 what storage looks like across versions.
 
-- **Install opens onboarding's extension step**: a tab on
-  `webappOrigin()`'s `/onboarding/applicant?step=extension`. The webapp
-  opens a finished student's onboarding on that step, then the practice
-  batch; a signed-out student signs in first and comes back to it; one
-  who never finished onboarding starts at its first step. No page of its
-  own here.
+- **Install opens the extension setup page**: a tab on `webappOrigin()`'s
+  `/extension-setup` (KAN-495), a standalone page outside both the
+  `(seeker)` and `(landing)` groups — no sign-in required, since a
+  just-installed student may not have one yet. It explains how to use
+  the extension. The popup's "Set Up WorkIt" button opens the same page
+  on demand. **That page's own "I Already Have One" button is what keeps
+  a finished student's route to onboarding's Practice step alive**
+  (`frontend/CLAUDE.md`'s Architecture section, `EXTENSION_STEP_PATH`):
+  this `install.js` no longer opens `/onboarding/applicant?step=extension`
+  directly the way it did before KAN-495, so if `/extension-setup` ever
+  sends a signed-in visitor to plain `/login` instead of that path, a
+  student who already finished onboarding lands on `/home` with no way
+  back to Practice (found in review, KAN-495).
 - **Storage has a schema version** (`workit_storage_version`). Every
   install and update runs `migrateStorage`: each migration after the
   stored version, in order, once. **A change to what a stored key holds
@@ -1447,7 +1454,7 @@ asked on the form that first needs it, in that tab's panel (`overlay.js`'s
 `moments.js`'s `claimMoment` keeps which were shown in `chrome.storage.local`
 (`workit_moments`, by applicant id), one claim at a time, so five tabs
 finishing together show it once. A student who passes it by answers it in
-My Profile instead.
+the webapp's Application Info (`/auto-apply/info`, KAN-550) instead.
 
 - **The self-identification, on the first form that asks it.** Onboarding
   never asks gender, Hispanic or Latino, race, veteran or disability
@@ -1481,7 +1488,9 @@ My Profile instead.
   batch); once its last one shows an answer it says `batch/written`, and
   whether Claude wrote any. When no batch tab still waits and Claude wrote
   for this batch, the tab that finished last asks for samples (Add Samples
-  opens the webapp's `/profile#writing-samples`; Skip closes it), once, and
+  opens the webapp's `/auto-apply/info#writing-samples`, Application Info's
+  Writing Samples, since KAN-550; `/profile#writing-samples`, which versions
+  before it open, forwards there; Skip closes it), once, and
   never for a student who has some (`GET .../writing-samples`). A batch the
   student wrote all by hand doesn't ask: the samples are only for their
   Claude's style card.
@@ -1712,8 +1721,8 @@ read (yes/no as true/false, "declined" as "decline", the rest in
 `frontend/src/lib/autofill-answers.ts`'s own words). The engine picks the
 form's option that says the same thing.
 
-The same bank holds the **Application answers** (KAN-369, My Profile's
-section of that name): `engineProfile`'s `applicationFacts` gives them as
+The same bank holds the **Application answers** (KAN-369, Application
+Info's section of that name): `engineProfile`'s `applicationFacts` gives them as
 `logistics.*` (on-site, 40 h, start and end dates, terms, relocation, ranked
 `location_preferences` one place an area (with its city alone), `referrals` from `referred_at`),
 `identity.home_address` (line 1 and zip over the location's city and state),
@@ -1828,7 +1837,7 @@ real file input is directly targetable underneath both.
 ## Attaching the student's transcript (KAN-369)
 
 Some forms ask for an unofficial transcript (Verkada requires one). The
-student keeps one on My Profile (`backend/app/routers/documents.py`).
+student keeps one in Application Info (`backend/app/routers/documents.py`).
 `resolveTranscriptFile` fetches it with the resume, at profile-fetch time:
 `GET /applicants/{id}/documents`, then `GET .../documents/transcript/bytes`
 (from this API's own origin, as the resume's `.../bytes` and for the same
@@ -1877,9 +1886,16 @@ essay-answer route (KAN-164) is gone.
   is tracked (its submit marks the job applied, as Track on WorkIt's). The
   tab then runs the batch tab's `awaitClaude`: its rows wait for the
   student's Claude with the Written Answers link, and the `batch/*`
-  messages accept the tab (`background.js`'s `applicationJob`). A job
-  WorkIt doesn't list, or one already applied or skipped, can't have one:
-  its rows say why and are the student's.
+  messages accept the tab (`background.js`'s `applicationJob`). **A job
+  WorkIt doesn't list is added from the page** (KAN-515, `track.js`'s
+  `addFromPage`): its company and title as the Fill engine reads them from
+  the job system's API (`jobNamesOf`, with `plan-reads.js`'s `fetchText`,
+  since Ashby's is a POST), sent with the form's link to `POST
+  /jobs/added-by-link`, which keeps the job (on no Jobs feed: it is the
+  student's alone) and its application at needs_you. A page whose names
+  can't be read, a form WorkIt refuses (a job system turned off, past the
+  day's cap of added jobs), or an application already applied or skipped
+  can't have one: its rows say why and are the student's.
 - **AI traps and bans stay the student's.** A form or posting that bans
   AI-written answers, or a posting that speaks to AI agents, makes the Plan
   hand those questions off instead: they never reach the student's Claude,
@@ -2036,7 +2052,7 @@ as from the Auto Apply page); with an empty queue, **Find Jobs** (the
 Jobs page). A queue that can't be read shows nothing rather than "empty".
 Then Open WorkIt, as a quiet link. **No Workday Sign-Up** (KAN-424): on
 every page the popup's link read as "sign in to Workday"; it lives in the
-panel's Settings and the website's Settings > Connected Apps. The three answer
+panel's Settings and the website's Application Info. The three answer
 only the popup's own page (`fromPopup`: the sender's URL is the
 extension's popup.html; a content script's is its job page), so a page's
 script can't open a batch or switch tabs. Tests:
@@ -2523,7 +2539,7 @@ its messages. The gear shows it in place of the tabs; Back returns.
 
 - **Claude**: "Your Claude is connected." with **Disconnect** (`DELETE
   /applicants/{id}/connector`, which revokes the sign-in at once, as the
-  webapp's Settings > Connected Apps does), or "Your Claude isn't
+  webapp's Settings > Integrations does), or "Your Claude isn't
   connected." with **Add to Claude** (a new tab on the webapp's
   `/connect/claude/add`, which goes on to Claude's Add Custom Connector
   dialog). Signed out: "Sign in to WorkIt to connect your Claude." The

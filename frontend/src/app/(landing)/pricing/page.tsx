@@ -1,11 +1,10 @@
 import { CheckIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
-import Link from "next/link";
 import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
 
-import { GlassButton } from "../buttons";
+import { GlassButton, OnFillButton } from "../buttons";
 import { FaqList } from "../faq-list";
 import { FocusIn } from "../focus-in";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "../layout-parts";
@@ -116,11 +115,9 @@ export default function PricingPage() {
                 Sign up and upload a resume, and WorkIt starts ranking jobs by how well you fit. No
                 card needed.
               </p>
-              <GlassButton
-                href="/signup"
-                label="Get started for free"
-                className="mt-8 h-12 px-6 text-base"
-              />
+              <GlassButton href="/signup" size="lg" className="mt-8">
+                Get started for free
+              </GlassButton>
             </div>
           </FocusIn>
         </div>
@@ -427,21 +424,20 @@ function PlanHeader({
 
       <div className="mt-auto pt-5">
         {free ? (
-          <Link
-            href="/signup"
-            className="text-ink hover:bg-surface ring-ink/15 inline-flex h-11 w-full items-center justify-center rounded-full bg-white text-sm font-semibold shadow-sm ring-1 transition-colors ring-inset"
-          >
+          <OnFillButton href="/signup" className="ring-ink/15 w-full ring-1 ring-inset">
             {label}
-          </Link>
+          </OnFillButton>
         ) : featured ? (
-          <Link
+          <OnFillButton
             href="/signup"
-            className="text-landing-brand-900 hover:bg-landing-brand-50 inline-flex h-11 w-full items-center justify-center rounded-full bg-white text-sm font-semibold shadow-[0_10px_24px_-10px_rgb(34_17_75/0.7)] transition-colors focus-visible:outline-white!"
+            className="text-landing-brand-900 hover:bg-landing-brand-50 w-full shadow-[0_10px_24px_-10px_rgb(34_17_75/0.7)] focus-visible:outline-white!"
           >
             {label}
-          </Link>
+          </OnFillButton>
         ) : (
-          <GlassButton href="/signup" label={label} className="h-11 w-full rounded-full" />
+          <GlassButton href="/signup" className="w-full">
+            {label}
+          </GlassButton>
         )}
       </div>
     </div>

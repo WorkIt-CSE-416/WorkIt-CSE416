@@ -2,22 +2,49 @@
 
 import { FileArrowDownIcon, StarIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
+import { useRef, useState } from "react";
 
 import { LocalDate } from "@/app/(seeker)/local-time";
 import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
-import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
+import { EllipsisIcon, PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
 import type { ResumeItem } from "@/lib/resume-actions";
 
 /** One resume row. The in-flight upload (the Resumes view's
  *  upload-resume.tsx) is the same 52px box, so nothing jumps when the real
- *  row arrives. */
+ *  row arrives. It is a container: below `@xl` of its own width (576px,
+ *  KAN-575) Rename, Download and Delete fold into `RowMoreMenu`. Narrower,
+ *  five icons (12px apart on touch) left the name under half the row. A
+ *  phone's row is about 317px, and from a 768px window it is 606px. */
 export const RESUME_ROW =
-  "border-border-subtle bg-app rounded-control mt-2 flex items-center gap-3 border p-2";
+  "border-border-subtle bg-app rounded-control @container mt-2 flex items-center gap-3 border p-2";
 
-/** A row's icon actions: 32px boxes, side by side with no gap. */
+/** A row's icon actions: 32px boxes. */
 export const ROW_ACTION = "rounded-control hover:bg-hover size-8";
+
+/** The row's icons, side by side with no gap: each is a 32px box already.
+ *  On touch they stand 12px apart (KAN-575), so each icon's hit area
+ *  (`IconButton`'s, 8px past its box) is 44px and no neighbour's covers
+ *  it. Above the stretched link, so a press on an icon is the icon's. */
+export const ROW_ACTIONS = "relative z-10 flex shrink-0 items-center pointer-coarse:gap-3";
+
+/** The icons `RowMoreMenu` stands in for, shown from `@xl` of the row. */
+export const ROW_WIDE = "hidden items-center pointer-coarse:gap-3 @xl:flex";
+
+/** The file mark, from `@sm` of the row: a phone's card gives its 32px to
+ *  the name (KAN-575). */
+export const ROW_MARK = "hidden size-5 shrink-0 @sm:block";
+
+/** The name and its line: never under half the row (KAN-575). At 375 the
+ *  icons and a badge squeezed one card's name to 0px. */
+export const ROW_NAME = "min-w-1/2 flex-1";
 
 /**
  * The primary resume's star. On the primary it is filled; on the others it
@@ -56,6 +83,90 @@ export function PrimaryStar({
 }
 
 /**
+ * A narrow row's Rename, Download and Delete, worded, in one ⋯ menu
+ * (KAN-575), shown below `@xl` of the row in place of their icons. On a
+ * phone, five 32px icons and a Posting Closed badge left a card no room
+ * for its name, and its trash ended past the card's edge. The star and
+ * Preview stay out of it. Delete is last and red, and still asks first:
+ * once the menu has closed, the confirm hangs from this menu's button.
+ */
+export function RowMoreMenu({
+  name,
+  onRename,
+  download,
+  onDelete,
+}: {
+  name: string;
+  onRename?: () => void;
+  download?: { label: string; busy?: boolean; onPick: () => void };
+  onDelete?: () => Promise<void>;
+}) {
+  const button = useRef<HTMLButtonElement>(null);
+  const [confirming, setConfirming] = useState(false);
+  // Delete opens the confirm only once the menu has closed, so the menu's
+  // focus return cannot land after the popover has opened.
+  const deleting = useRef(false);
+
+  return (
+    <div className="@xl:hidden">
+      <DropdownMenu
+        onOpenChangeComplete={(open) => {
+          if (open || !deleting.current) return;
+          deleting.current = false;
+          setConfirming(true);
+        }}
+      >
+        <DropdownMenuTrigger
+          render={
+            <IconButton
+              ref={button}
+              label={`More actions for ${name}`}
+              tooltip="More actions"
+              className={ROW_ACTION}
+            >
+              <EllipsisIcon className="size-4" />
+            </IconButton>
+          }
+        />
+        <DropdownMenuContent align="end" className="w-44">
+          {onRename && (
+            <DropdownMenuItem onClick={onRename}>
+              <PencilIcon className="text-ink size-4" />
+              Rename
+            </DropdownMenuItem>
+          )}
+          {download && (
+            <DropdownMenuItem disabled={download.busy} onClick={download.onPick}>
+              <FileArrowDownIcon aria-hidden className="text-ink size-4" />
+              {download.label}
+            </DropdownMenuItem>
+          )}
+          {onDelete && (
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => {
+                deleting.current = true;
+              }}
+            >
+              <TrashIcon className="size-4" />
+              Delete
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {onDelete && (
+        <DeleteResumeConfirm
+          anchor={button}
+          open={confirming}
+          onOpenChange={setConfirming}
+          onDelete={onDelete}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
  * One uploaded resume, with its primary, Rename, Download and delete
  * actions. The whole card is one target, as a built resume's is
  * (KAN-268): the name's link stretches over it (`after:inset-0`) and
@@ -73,7 +184,8 @@ export function PrimaryStar({
  * newer version is a delete and an upload, which leaves the bank the same.
  *
  * Delete asks first, in a popover under the trash (`DeleteResumeConfirm`,
- * KAN-347), so `onDelete` runs only on Delete Resume.
+ * KAN-347), so `onDelete` runs only on Delete Resume. Below `@xl` of the
+ * row, Rename, Download and Delete sit in its More menu (`RowMoreMenu`).
  *
  * The Resumes view passes every action. A screen that only shows a resume passes
  * href alone: the primary's star still marks it, but there is no star
@@ -99,6 +211,7 @@ export function ResumeRow({
   onDelete,
 }: ResumeRowProps) {
   const name = resume.original_filename ?? "Resume";
+  const downloadLabel = resume.storage_path.endsWith(".pdf") ? "Download PDF" : "Download";
 
   return (
     <div
@@ -108,8 +221,8 @@ export function ResumeRow({
         "hover:border-brand/40 hover:shadow-lift ease-glide transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
       )}
     >
-      <PdfIcon className="size-5 shrink-0" />
-      <div className="min-w-0 flex-1">
+      <PdfIcon className={ROW_MARK} />
+      <div className={ROW_NAME}>
         <Link
           href={href}
           className="text-label text-ink after:rounded-control focus-visible:after:ring-brand-ring block truncate after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
@@ -128,42 +241,50 @@ export function ResumeRow({
           )}
         </p>
       </div>
-      {/* No gap between them: each is a 32px box already. Above the
-          stretched button, so a press on an icon is the icon's. */}
-      <div className="relative z-10 flex shrink-0 items-center">
+      <div className={ROW_ACTIONS}>
         <PrimaryStar name={name} primary={resume.is_default} onMakePrimary={onMakePrimary} />
-        {onRename && (
-          <IconButton
-            label={`Rename ${name}`}
-            tooltip="Rename"
-            className={ROW_ACTION}
-            onClick={onRename}
-          >
-            <PencilIcon className="size-4" />
-          </IconButton>
-        )}
-        {onDownload && (
-          <IconButton
-            label={`Download ${name}`}
-            tooltip={resume.storage_path.endsWith(".pdf") ? "Download PDF" : "Download"}
-            className={ROW_ACTION}
-            onClick={onDownload}
-          >
-            <FileArrowDownIcon aria-hidden className="size-4" />
-          </IconButton>
-        )}
-        {onDelete && (
-          <DeleteResumeConfirm
+        <div className={ROW_WIDE}>
+          {onRename && (
+            <IconButton
+              label={`Rename ${name}`}
+              tooltip="Rename"
+              className={ROW_ACTION}
+              onClick={onRename}
+            >
+              <PencilIcon className="size-4" />
+            </IconButton>
+          )}
+          {onDownload && (
+            <IconButton
+              label={`Download ${name}`}
+              tooltip={downloadLabel}
+              className={ROW_ACTION}
+              onClick={onDownload}
+            >
+              <FileArrowDownIcon aria-hidden className="size-4" />
+            </IconButton>
+          )}
+          {onDelete && (
+            <DeleteResumeConfirm
+              onDelete={onDelete}
+              trigger={
+                <IconButton
+                  label={`Delete ${name}`}
+                  tooltip="Delete"
+                  className={cn(ROW_ACTION, "hover:text-danger")}
+                >
+                  <TrashIcon className="size-4" />
+                </IconButton>
+              }
+            />
+          )}
+        </div>
+        {(onRename || onDownload || onDelete) && (
+          <RowMoreMenu
+            name={name}
+            onRename={onRename}
+            download={onDownload && { label: downloadLabel, onPick: onDownload }}
             onDelete={onDelete}
-            trigger={
-              <IconButton
-                label={`Delete ${name}`}
-                tooltip="Delete"
-                className={cn(ROW_ACTION, "hover:text-danger")}
-              >
-                <TrashIcon className="size-4" />
-              </IconButton>
-            }
           />
         )}
       </div>

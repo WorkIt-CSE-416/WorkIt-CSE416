@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { BuildingOfficeIcon, ChartBarIcon, InfoIcon } from "@phosphor-icons/react/ssr";
 
 import { PencilIcon, PinIcon } from "@/components/icons";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CompanyTile } from "@/components/ui/company-tile";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextLink } from "@/components/ui/text-link";
 
+import { COMPANY_PAGE } from "../frame";
 import { COMPANY, OVERVIEW } from "./data";
 
 export const metadata: Metadata = {
@@ -23,32 +25,30 @@ export const metadata: Metadata = {
  * It is also why the nav row says "Company Profile" — the page is about the
  * company, not about the recruiter signed in to edit it.
  *
- * Edit Profile is inert, like the seeker profile's two edit affordances and
- * every other write on the signed-in screens. There is no backend; a control
- * that pretends to save is worse than one that visibly does not.
+ * Edit Profile is disabled, with a Coming Soon badge beside it that says why
+ * (KAN-582): there is no backend to save to, and an enabled button that did
+ * nothing pretended there was. It is the badge, not a tooltip, because a
+ * disabled button takes no hover or focus to open one.
  *
- * No <main>: the company shell's SidebarInset is the landmark for every screen
- * under /company. See the note in ../placeholder.tsx.
+ * No <main> and no h1: the company shell's SidebarInset is the landmark for
+ * every screen under /company, and the bar's title is this page's h1
+ * (../bar-title.tsx).
  */
 export default function CompanyProfilePage() {
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
-      {/* The Dashboard's header: title over a subtitle, and a small grey
-          action beside them rather than a violet one, since an inert edit is
-          not this page's primary action. */}
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-heading text-ink">Company Profile</h1>
-          <p className="text-body text-ink-meta mt-1">
-            What applicants see when they open one of your postings.
-          </p>
-        </div>
-
-        <Button variant="secondary" size="sm">
+    <div className={COMPANY_PAGE}>
+      {/* The page's one action at its top right, small and grey rather than
+          violet, since an edit that does not exist yet is not its primary
+          action. */}
+      <div className="flex items-center justify-end gap-2">
+        <span id="edit-profile-soon" className="flex">
+          <Badge tone="inert">Coming Soon</Badge>
+        </span>
+        <Button variant="secondary" size="sm" disabled aria-describedby="edit-profile-soon">
           <PencilIcon className="size-3.5" />
           Edit Profile
         </Button>
-      </header>
+      </div>
 
       <Hero />
 

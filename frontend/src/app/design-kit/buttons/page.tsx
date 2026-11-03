@@ -1,19 +1,36 @@
-import { CheckIcon, EllipsisIcon, PlusIcon, SearchIcon, SparkleIcon } from "@/components/icons";
+import {
+  BellIcon,
+  CheckIcon,
+  EllipsisIcon,
+  PencilIcon,
+  PlusIcon,
+  SearchIcon,
+  SparkleIcon,
+} from "@/components/icons";
 import { SaveButton } from "@/components/save-button";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Chip, ChipLink } from "@/components/ui/chip";
 import { FilterChip } from "@/components/ui/filter-chip";
+import { IconButton } from "@/components/ui/icon-button";
 import { SectionLink } from "@/components/ui/section-link";
 
-import { BUTTON_ICON_SIZES, BUTTON_SIZES, BUTTON_VARIANTS, CHIP_VARIANTS, SECTIONS } from "../data";
+import {
+  BUTTON_ICON_SIZES,
+  BUTTON_SIZES,
+  BUTTON_VARIANTS,
+  CHIP_VARIANTS,
+  ICON_BUTTON_VARIANTS,
+  SECTIONS,
+} from "../data";
 import { RemovableChipSpecimen } from "../interactive";
 import { Group, KitPage, Row } from "../specimen";
+import { StateCell, StateCells } from "../states";
 
 export const metadata = { title: SECTIONS.buttons.title };
 
 /**
- * Buttons and chips (KAN-251): the two shapes, each size with its role, and
- * the chip's roles. Every specimen is the real component at its real size,
+ * Buttons and chips (KAN-251): the two shapes, each size with its role, the
+ * chip's roles, and every state of each (KAN-564). Every specimen is the real component at its real size,
  * with nothing set at the call site, which is the rule the page teaches.
  */
 export default function ButtonsPage() {
@@ -41,6 +58,37 @@ export default function ButtonsPage() {
         {BUTTON_VARIANTS.map(({ variant, note }) => (
           <Row key={variant} name={`variant="${variant}"`} role={note}>
             <Button variant={variant}>Apply Now</Button>
+          </Row>
+        ))}
+      </Group>
+
+      <Group
+        title="Button States"
+        note="Hover and Focus are forced from the app's own stylesheet, so each is what the pointer or the Tab key draws. A disabled filled button (default, positive, destructive) turns grey with ink-subtle text; the bordered and text-only ones fade to half. Busy is disabled with a label that says what is happening (Saving…), and there is no spinner."
+      >
+        {BUTTON_VARIANTS.map(({ variant }) => (
+          <Row key={variant} name={`variant="${variant}"`}>
+            <StateCells>
+              <StateCell label="Rest">
+                <Button variant={variant}>Save</Button>
+              </StateCell>
+              <StateCell label="Hover" state="hover">
+                <Button variant={variant}>Save</Button>
+              </StateCell>
+              <StateCell label="Focus" state="focus">
+                <Button variant={variant}>Save</Button>
+              </StateCell>
+              <StateCell label="Disabled">
+                <Button variant={variant} disabled>
+                  Save
+                </Button>
+              </StateCell>
+              <StateCell label="Busy">
+                <Button variant={variant} disabled>
+                  Saving…
+                </Button>
+              </StateCell>
+            </StateCells>
           </Row>
         ))}
       </Group>
@@ -101,6 +149,67 @@ export default function ButtonsPage() {
           <FilterChip label="Remote" active />
           <FilterChip label="Full-Time" />
         </Row>
+      </Group>
+
+      <Group
+        title="Chip States"
+        note="A chip has no busy state: a choice made in place takes effect at once. Disabled fades to half."
+      >
+        {CHIP_VARIANTS.map(({ variant, pressed }) => {
+          const chip = (disabled?: boolean) => (
+            <Chip variant={variant} pressed={pressed} disabled={disabled}>
+              {variant === "primary" ? "Use This" : variant === "suggestion" ? "Python" : "Remote"}
+            </Chip>
+          );
+          return (
+            <Row
+              key={`${variant}-${pressed}`}
+              name={`<Chip variant="${variant}"${pressed ? " pressed" : ""}>`}
+            >
+              <StateCells>
+                <StateCell label="Rest">{chip()}</StateCell>
+                <StateCell label="Hover" state="hover">
+                  {chip()}
+                </StateCell>
+                <StateCell label="Focus" state="focus">
+                  {chip()}
+                </StateCell>
+                <StateCell label="Disabled">{chip(true)}</StateCell>
+              </StateCells>
+            </Row>
+          );
+        })}
+      </Group>
+
+      <Group
+        title="IconButton States"
+        note="A glyph you can click is ink at rest; quiet turns brand on hover. Disabled fades to half."
+      >
+        {ICON_BUTTON_VARIANTS.map(({ variant, className, label }) => {
+          const button = (disabled?: boolean) => (
+            <IconButton label={label} variant={variant} className={className} disabled={disabled}>
+              {variant === "brand" ? (
+                <PencilIcon className="size-3.5" />
+              ) : (
+                <BellIcon className="size-4" />
+              )}
+            </IconButton>
+          );
+          return (
+            <Row key={variant} name={`<IconButton variant="${variant}">`}>
+              <StateCells>
+                <StateCell label="Rest">{button()}</StateCell>
+                <StateCell label="Hover" state="hover">
+                  {button()}
+                </StateCell>
+                <StateCell label="Focus" state="focus">
+                  {button()}
+                </StateCell>
+                <StateCell label="Disabled">{button(true)}</StateCell>
+              </StateCells>
+            </Row>
+          );
+        })}
       </Group>
 
       <Group

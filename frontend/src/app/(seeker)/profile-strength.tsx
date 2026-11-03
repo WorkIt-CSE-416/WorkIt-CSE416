@@ -16,7 +16,7 @@ import { getCurrentAccount } from "@/lib/session";
  * scores fixtures would congratulate everyone on the same made-up profile.
  * Add a step here when its data is live. The resume leads: nothing can be
  * matched without one. Each step links to where it is done: the upload on
- * Resumes, the photo on My Profile.
+ * Resumes, the photo in Settings' Personal Details, its one editor (KAN-326).
  *
  * Lavender (--color-rail) on the white panel, the one tinted block in it,
  * so it reads as a card set apart from the rows above without the weight of
@@ -45,7 +45,7 @@ export async function ProfileStrength() {
 
   const steps = [
     { done: resumes.resumes.length > 0, todo: "Upload Your Resume", href: "/resumes" },
-    { done: avatar.url != null, todo: "Add a Profile Photo", href: "/profile" },
+    { done: avatar.url != null, todo: "Add a Profile Photo", href: "/settings/personal" },
   ];
   const done = steps.filter((step) => step.done).length;
   const next = steps.find((step) => !step.done);

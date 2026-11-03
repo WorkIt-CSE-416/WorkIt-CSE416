@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import {
+  AnimatePresence,
   animate,
   motion,
+  useInView,
   useMotionValue,
   useMotionValueEvent,
   useReducedMotion,
@@ -15,396 +17,238 @@ import {
 import { cn } from "@/lib/cn";
 
 import { stages, type Stage } from "./board-data";
-import { applicationsSection as copy, streams } from "./data";
+import { applicationsSection as copy } from "./data";
 import { FaviconLogo } from "./favicon-logo";
-import { followedJob, matchingFeature } from "./feature-data";
+import { followedJob } from "./feature-data";
 import { FocusIn } from "./focus-in";
-import { useMediaQuery } from "./hooks";
+import { useLoopsHeld, useMediaQuery } from "./hooks";
 import { CONTAINER, SectionHeading, SoonChip } from "./layout-parts";
+import { scoreTone } from "./score-tone";
 import { useSceneTime, type Cue } from "./scene-time";
-import { Burst, arrivalAt, stageAt, stepAt } from "./stage-timeline";
+import { Burst, stageAt, stepAt } from "./stage-timeline";
 import { GLIDE } from "./story";
-import { CARD_WIDTH, FollowedCard } from "./thread";
 
 /**
- * The applications section ("Every application, from saved to signed."),
- * drawn as one search's route. Four stops run across the section (Saved,
- * Applied, Interview, Job Offers), and under each a pile of company logos
- * counts the search down: 24 roles saved, 12 sent, 4 in play, 1 signed.
- * From lg up it pins: the followed application, the one the statement
- * ended on, waits on the first stop, then rides the route stop by stop,
- * its stage and next step changing as it lands, while the logos
- * that go on fly from one pile to the next and the ones left close up. The scroll cues each move and
- * the move plays in time (scene-time.ts), so the card never stops between
- * two stops. At the last stop it is the one offer, where its trip down
- * the page ends.
- * Below lg, and with reduced motion, it is the still version: the four
- * stops as a list with every pile full.
+ * The applications section ("Every application, from saved to signed."): one
+ * card, four states. One large application, the one the statement ended on,
+ * changes as it moves through Saved, Applied, Interview and Job Offers, and a
+ * slim rail beside it shows which it has reached. One thing at a time: it
+ * replaced a route with a small card riding a line over piles of logos, where
+ * the card, its caption, the line, the piles and their empty slots all pulled
+ * at the eye at once.
+ *
+ * From lg up it pins, and the scroll cues each move, which plays in time
+ * (scene-time.ts). Below lg it moves on by itself while it is on screen. With
+ * reduced motion it is the card at its last state over the full rail.
+ *
+ * The card shows only what the tracker keeps: the status, the match score, the
+ * resume that went out and the dates. A next step and a deadline per card are
+ * not built, so it shows neither. The tracker stores no employer replies, so
+ * Interview and Job Offers carry "Coming soon" (`soon` on the stage).
  */
 
 // Tailwind's lg breakpoint: pinned from here up.
 const DESKTOP_QUERY = "(min-width: 64rem)";
-/** Laptop screens 800px tall or less draw the card smaller, so the
- * heading, the route and the piles fit under the header. */
-const SHORT_QUERY = "(max-height: 50rem)";
-/** The scroll's cues, as progress through the pinned stretch: the card
- * moves on to each stop as the scroll reaches its cue (`to` is the stop),
- * and holds the offer after. */
+/** The scroll's cues, as progress through the pinned stretch: the card moves
+ * on to each state as the scroll reaches its cue (`to` is the stage), and
+ * holds the offer after. */
 const CUES: Cue[] = [
   { at: 0.2, to: 1 },
   { at: 0.45, to: 2 },
   { at: 0.7, to: 3 },
 ];
-/** A logo tile's size and the gap between tiles in a pile, in px. Change
- * TILE with the tile's `size-[22px]` class. */
-const TILE = 22;
-const TILE_GAP = 5;
-/** Tiles in a pile's row. */
-const PER_ROW = 8;
-/** The card's tallest look at full size, in px: its track's height. */
-const CARD_HEIGHT = 222;
+/** Below lg: how long each state holds, in seconds. */
+const HOLD = 3.4;
 
-type Logo = { company: string; domain: string };
+const LAST = stages.length - 1;
 
-/**
- * The search's roles, furthest first: the followed application, then the
- * board's interviews, applications and saved roles, then Matching's and the
- * hiring-systems stream's postings. The first `stages[i].tally.count`
- * reach stop `i`, so every logo that reaches a stop came from the pile
- * before it, and the last one standing is the followed application.
- */
-const LOGOS: Logo[] = (() => {
-  const seen = new Set<string>();
-  const list: Logo[] = [];
-  const add = ({ company, domain }: Logo) => {
-    if (seen.has(domain)) return;
-    seen.add(domain);
-    list.push({ company, domain });
-  };
-  add(followedJob);
-  for (const id of ["interview", "applied", "saved", "offer"] as const) {
-    stages.find((stage) => stage.id === id)?.jobs.forEach(add);
-  }
-  matchingFeature.jobs.forEach(add);
-  Object.values(streams).flat().forEach(add);
-  return list.slice(0, stages[0].tally.count);
-})();
-
-const clamp = (v: number) => Math.min(1, Math.max(0, v));
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-
-/** Slot `j` of a pile of `count` tiles, from the pile's top centre. */
-function slot(j: number, count: number) {
-  const perRow = Math.min(count, PER_ROW);
-  const width = perRow * TILE + (perRow - 1) * TILE_GAP;
-  return {
-    x: -width / 2 + (j % perRow) * (TILE + TILE_GAP),
-    y: Math.floor(j / perRow) * (TILE + TILE_GAP),
-  };
-}
-
-const PILE_HEIGHT = Math.ceil(stages[0].tally.count / PER_ROW) * (TILE + TILE_GAP);
-
-const COUNTS = stages.map((stage) => stage.tally.count);
-/** The last stop logo `j` reaches. */
-const lastStop = (j: number) => COUNTS.findLastIndex((count) => j < count);
-/** The logos left at stop `i` once the route has gone past it, as a range
- * of LOGOS: the ones that went no further. */
-const leftAt = (i: number): [number, number] => [COUNTS[i + 1] ?? 0, COUNTS[i]];
+/** The card's facts, each filled in once the application reaches its stage
+ * (`from`). `value` takes the stage, for the one fact that changes. */
+const FACTS: { label: string; from: number; value: (step: number) => string }[] = [
+  {
+    label: "Resume",
+    from: 0,
+    value: (step) =>
+      step === 0 ? "Tailored to this posting" : `Alex_Morgan_${followedJob.company}.pdf`,
+  },
+  { label: "Applied", from: 1, value: () => "Oct 1" },
+  { label: "Interview", from: 2, value: () => "Thu, Oct 8" },
+  { label: "Offer", from: 3, value: () => "Summer 2027" },
+];
 
 export function Applications() {
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const reduceMotion = useReducedMotion();
-  if (isDesktop === true && !reduceMotion) return <PinnedApplications />;
-  return <StillApplications />;
+  if (reduceMotion || isDesktop === null) return <StillApplications />;
+  return isDesktop ? <PinnedApplications /> : <LoopingApplications />;
 }
 
 function Heading() {
   return (
     <FocusIn>
-      {/* Centred over the route, which runs the container's width: the
-          sections before it open with a heading on the left (KAN-368). */}
-      <SectionHeading eyebrow={copy.eyebrow} title={copy.title} subtitle={copy.subtitle} />
+      {/* Centred over the card: the sections before it open with a heading
+          on the left (KAN-368). */}
+      <div className="[@media(max-height:40rem)]:lg:[&_h2+p]:hidden">
+        <SectionHeading eyebrow={copy.eyebrow} title={copy.title} subtitle={copy.subtitle} />
+      </div>
     </FocusIn>
+  );
+}
+
+/** The card and the rail, side by side from md up. On a phone the card comes
+ * first, since it is what the rail reads. */
+function Board({
+  s,
+  step,
+  still = false,
+}: {
+  s: MotionValue<number>;
+  step: number;
+  still?: boolean;
+}) {
+  return (
+    <div className="mx-auto grid w-full max-w-[60rem] gap-8 md:grid-cols-[16rem_minmax(0,1fr)] md:items-center md:gap-14">
+      <Rail s={s} step={step} still={still} />
+      <Card s={s} step={step} className="max-md:order-first" />
+    </div>
   );
 }
 
 function PinnedApplications() {
   const ref = React.useRef<HTMLElement>(null);
-  const routeRef = React.useRef<HTMLDivElement>(null);
-  const short = useMediaQuery(SHORT_QUERY) === true;
-  const scale = short ? 0.78 : 1;
-
   // 0 when the section's top meets the screen's top, 1 when its bottom
   // meets the screen's bottom: the stretch where it is pinned.
   const { scrollYProgress: p } = useScroll({ target: ref, offset: ["start start", "end end"] });
-  // The section coming up from the screen's foot to its pin.
-  const { scrollYProgress: entry } = useScroll({
-    target: ref,
-    offset: ["start end", "start start"],
-  });
-  // The route's timeline, in stops: the scroll cues each move, time plays
-  // it, about a second and a quarter a stop.
+  // The card's timeline, in stages: the scroll cues each move, time plays
+  // it, about a second and a quarter a stage.
   const s = useSceneTime(p, CUES, { rate: 0.8, longest: 2 });
   const [step, setStep] = React.useState(() => stepAt(s.get()));
   useMotionValueEvent(s, "change", (v) => setStep(stepAt(v)));
-  // The stop the card rests on, if it rests, once the section has pinned:
-  // the stop's caption shows only then.
-  const [resting, setResting] = React.useState(() => restingAt(s.get()));
-  useMotionValueEvent(s, "change", (v) => setResting(restingAt(v)));
-  const [landed, setLanded] = React.useState(() => entry.get() >= 0.985);
-  useMotionValueEvent(entry, "change", (v) => setLanded(v >= 0.985));
-
-  // The route's width; the stops are laid out from it.
-  const [width, setWidth] = React.useState(0);
-  React.useLayoutEffect(() => {
-    const route = routeRef.current;
-    if (!route) return;
-    const measure = () => setWidth(route.offsetWidth);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(route);
-    return () => observer.disconnect();
-  }, []);
-  // Each stop's centre: the card sits flush with the route's ends at the
-  // first and last stops.
-  const half = (CARD_WIDTH * scale) / 2;
-  const stops = stages.map((_, i) => half + (i * (width - 2 * half)) / (stages.length - 1));
 
   return (
     <section ref={ref} id="applications" className="h-[280vh]">
-      <div className="sticky top-0 flex h-dvh flex-col pt-24 pb-8">
-        <div className={cn(CONTAINER, "flex min-h-0 flex-1 flex-col justify-center")}>
+      <div className="sticky top-0 flex h-dvh flex-col pt-24 pb-8 [@media(max-height:40rem)]:pt-[84px] [@media(max-height:40rem)]:pb-3">
+        <div
+          className={cn(
+            CONTAINER,
+            "flex min-h-0 flex-1 flex-col justify-center gap-10 [@media(max-height:50rem)]:gap-6",
+          )}
+        >
           <Heading />
-
-          <div ref={routeRef} className="relative isolate mt-8 shrink-0">
-            {/* A faint dot grid under the route, like a map's. */}
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute -inset-x-8 -inset-y-6 -z-10 bg-[radial-gradient(circle,rgb(15_23_42/0.09)_1px,transparent_1.2px)] [mask-image:radial-gradient(70%_80%_at_50%_55%,black,transparent)] [background-size:22px_22px]"
-            />
-            {width > 0 && (
-              <>
-                <div className="relative" style={{ height: CARD_HEIGHT * scale + 14 }}>
-                  {stages.map((stage, i) => (
-                    <RouteCaption
-                      key={stage.id}
-                      index={i}
-                      stop={stops[i]}
-                      scale={scale}
-                      shown={landed && resting === i}
-                    />
-                  ))}
-                  <RouteCard s={s} step={step} stops={stops} scale={scale} />
-                </div>
-                <Track s={s} step={step} stops={stops} />
-                <Piles s={s} stops={stops} />
-              </>
-            )}
-          </div>
+          <Board s={s} step={step} />
         </div>
       </div>
     </section>
   );
 }
 
-/** The captions' width, and their gap from the card, in px. */
-const CAPTION_W = 240;
-const CAPTION_GAP = 36;
+/** Below lg, where a pin takes too much of a phone: the states follow one
+ * another in time while the card is on screen, then start again. */
+function LoopingApplications() {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { amount: 0.4 });
+  const held = useLoopsHeld();
+  const s = useMotionValue(0);
+  const [step, setStep] = React.useState(0);
 
-/** The stop the route rests on at `v`, or null while the card moves. */
-const restingAt = (v: number) => (Math.abs(v - Math.round(v)) < 1e-3 ? Math.round(v) : null);
-
-/**
- * One stop's line, beside the card while it rests there: right of the card
- * at the first two stops, left of it at the last two, where the route ends.
- * Each stop has its own caption, fixed at that stop, which fades in once
- * the card has landed (so it matches the card's new stage) and out as soon
- * as it moves on. So no caption changes its words, or its side, while it
- * can be seen: one caption that swapped both as the card landed glitched,
- * since the card's stage changes at the landing.
- */
-function RouteCaption({
-  index,
-  stop,
-  scale,
-  shown,
-}: {
-  index: number;
-  stop: number;
-  scale: number;
-  shown: boolean;
-}) {
-  const half = (CARD_WIDTH * scale) / 2;
-  const right = index < 2;
-  const stage = stages[index];
+  React.useEffect(() => {
+    if (!inView || held) return;
+    const timer = window.setTimeout(
+      () => {
+        const next = (step + 1) % stages.length;
+        setStep(next);
+        if (next === 0) s.set(0);
+        else animate(s, next, { duration: 1, ease: "linear" });
+      },
+      // The offer holds a little longer, as the end of the story.
+      (step === LAST ? 1.5 : 1) * HOLD * 1000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [inView, held, step, s]);
 
   return (
-    <motion.div
-      className="absolute bottom-0 flex items-center"
-      style={{
-        left: right ? stop + half + CAPTION_GAP : stop - half - CAPTION_GAP - CAPTION_W,
-        width: CAPTION_W,
-        height: CARD_HEIGHT * scale,
-      }}
-      initial={false}
-      // In just after the card's landing pop, out at once as it moves on.
-      animate={shown ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
-      transition={
-        shown ? { duration: 0.35, delay: 0.15, ease: GLIDE } : { duration: 0.15, ease: "easeOut" }
-      }
-    >
-      {/* A short rule back towards the card. */}
+    <section id="applications" className="py-20 sm:py-28">
+      <div ref={ref} className={cn(CONTAINER, "flex flex-col gap-10")}>
+        <Heading />
+        <Board s={s} step={step} />
+      </div>
+    </section>
+  );
+}
+
+/** With reduced motion, and until the screen's size is known: the card at its
+ * last state over the full rail. */
+function StillApplications() {
+  const s = useMotionValue(LAST);
+  return (
+    <section id="applications" className="py-20 sm:py-28">
+      <div className={cn(CONTAINER, "flex flex-col gap-10")}>
+        <Heading />
+        <Board s={s} step={LAST} still />
+      </div>
+    </section>
+  );
+}
+
+// --- The rail: the four states, one lit at a time ---
+
+/** A slim line through the four states. Every step keeps its height, so the
+ * line's fill meets each node and nothing moves as a line of text comes in. */
+function Rail({ s, step, still }: { s: MotionValue<number>; step: number; still: boolean }) {
+  const scaleY = useTransform(s, (v) => {
+    const { from, to, u } = stageAt(v);
+    return (from + (to - from) * u) / LAST;
+  });
+  return (
+    <ol aria-label="Application stages" className="relative">
       <span
         aria-hidden="true"
-        className={cn("absolute top-1/2 h-px w-5 bg-slate-300", right ? "-left-7" : "-right-7")}
-      />
-      <div className={cn("w-full", right ? "text-left" : "text-right")}>
-        <p
-          className={cn(
-            "text-landing-brand-700 flex items-center gap-2 text-sm font-semibold tabular-nums",
-            right ? "justify-start" : "justify-end",
-          )}
-        >
-          {String(index + 1).padStart(2, "0")} · {stage.label}
-          {stage.soon && <SoonChip />}
-        </p>
-        <p className="text-ink mt-1 text-xl leading-snug font-medium text-balance">
-          {stage.description}
-        </p>
-      </div>
-    </motion.div>
-  );
-}
-
-/**
- * The followed application riding the route. It holds at its stop, then
- * glides to the next with a small lift and lean, and pops as it lands with
- * the new stage on it.
- */
-function RouteCard({
-  s,
-  step,
-  stops,
-  scale,
-}: {
-  s: MotionValue<number>;
-  step: number;
-  stops: number[];
-  scale: number;
-}) {
-  const half = (CARD_WIDTH * scale) / 2;
-  // One pose a frame, each part read from it.
-  const pose = useTransform(s, (v) => {
-    const { from, to, u } = stageAt(v);
-    return { x: lerp(stops[from], stops[to], u), lift: Math.sin(Math.PI * u) };
-  });
-  const x = useTransform(pose, ({ x }) => x - half);
-  const y = useTransform(pose, ({ lift }) => -lift * 12);
-  const rotate = useTransform(pose, ({ lift }) => lift * 2.5);
-
-  // A small pop as the card lands on a new stop.
-  const pop = useMotionValue(1);
-  const first = React.useRef(true);
-  React.useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    const controls = animate(pop, [1, 1.035, 1], { duration: 0.45, ease: GLIDE });
-    return () => controls.stop();
-  }, [step, pop]);
-
-  const stage = stages[step];
-  return (
-    <motion.div
-      className="absolute bottom-0 left-0 origin-bottom will-change-transform"
-      style={{ x, y, rotate, scale: pop }}
-    >
-      <div className="origin-bottom-left" style={{ transform: `scale(${scale})` }}>
-        <FollowedCard
-          stage={stage.id}
-          className="transition-shadow duration-300"
-          style={{
-            boxShadow: `0 0 0 1.5px color-mix(in oklab, ${stage.color} 55%, transparent), 0 24px 44px -22px rgb(40 20 90 / 0.45)`,
-          }}
-        />
-      </div>
-    </motion.div>
-  );
-}
-
-/** The route: a line through the four stops, filled up to the card, and
- * each stop's node, name and count. */
-function Track({ s, step, stops }: { s: MotionValue<number>; step: number; stops: number[] }) {
-  // The fill is the whole line, scaled from its left end: a width set on
-  // every frame laid the route out again each time.
-  const length = stops[stops.length - 1] - stops[0];
-  const fill = useTransform(s, (v) => {
-    const { from, to, u } = stageAt(v);
-    return (lerp(stops[from], stops[to], u) - stops[0]) / length;
-  });
-
-  // The burst plays each time the card reaches the offer.
-  const [run, setRun] = React.useState(0);
-  const [seen, setSeen] = React.useState(step);
-  if (seen !== step) {
-    setSeen(step);
-    if (step === stages.length - 1) setRun((r) => r + 1);
-  }
-
-  return (
-    <div className="relative mt-4 h-[4.75rem]">
-      <div
-        aria-hidden="true"
-        className="absolute top-[19px] h-0.5 rounded-full bg-slate-200"
-        style={{ left: stops[0], width: length }}
+        className="absolute top-5 bottom-[4.25rem] left-[19px] w-0.5 rounded-full bg-slate-200 [@media(max-height:40rem)]:bottom-[3.5rem]"
       >
-        <motion.div
-          className="bg-brand h-full origin-left rounded-full will-change-transform"
-          style={{ scaleX: fill }}
+        <motion.span
+          className="bg-brand block h-full w-full origin-top rounded-full will-change-transform"
+          style={{ scaleY }}
         />
-      </div>
-      <ol aria-label="Application stages">
-        {stages.map((stage, i) => (
-          <Stop
-            key={stage.id}
-            stage={stage}
-            x={stops[i]}
-            lit={i <= step}
-            current={i === step}
-            burst={stage.id === "offer" && i === step ? run : 0}
-          />
-        ))}
-      </ol>
-    </div>
+      </span>
+      {stages.map((stage, i) => (
+        <RailStep
+          key={stage.id}
+          stage={stage}
+          lit={i <= step}
+          current={i === step}
+          read={still || i === step}
+        />
+      ))}
+    </ol>
   );
 }
 
-function Stop({
+function RailStep({
   stage,
-  x,
   lit,
   current,
-  burst,
+  read,
 }: {
   stage: Stage;
-  x: number;
   lit: boolean;
   current: boolean;
-  burst: number;
+  /** Its line shows. */
+  read: boolean;
 }) {
   const Icon = stage.icon;
   return (
-    <li className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: x }}>
-      <span className="relative grid size-10 place-items-center">
+    <li
+      aria-current={current ? "step" : undefined}
+      className="relative flex h-[5.75rem] gap-4 [@media(max-height:40rem)]:h-[4.75rem]"
+    >
+      <span className="relative grid size-10 shrink-0 place-items-center">
         {current && (
           <motion.span
             key={stage.id}
             aria-hidden="true"
             className="ring-brand/50 absolute inset-0 rounded-full ring-2"
             initial={{ scale: 1, opacity: 0.8 }}
-            animate={{ scale: 1.8, opacity: 0 }}
+            animate={{ scale: 1.7, opacity: 0 }}
             transition={{ duration: 0.9, ease: "easeOut" }}
           />
         )}
@@ -418,184 +262,152 @@ function Stop({
         >
           <Icon className="size-[17px]" aria-hidden="true" />
         </span>
-        {burst > 0 && <Burst key={burst} color="var(--color-brand)" delay={0.1} />}
       </span>
-      <span className="mt-2.5 flex items-center gap-1.5 whitespace-nowrap">
-        <span
+      <div className="min-w-0 pt-2">
+        <p className="flex items-center gap-2">
+          <span
+            className={cn(
+              "text-[15px] font-semibold transition-colors duration-300",
+              lit ? "text-ink" : "text-ink-meta",
+            )}
+          >
+            {stage.label}
+          </span>
+          {stage.soon && <SoonChip />}
+        </p>
+        <p
           className={cn(
-            "text-sm font-semibold transition-colors duration-300",
-            lit ? "text-ink" : "text-ink-meta",
+            "text-ink-meta mt-0.5 text-sm leading-snug text-pretty transition-opacity duration-300",
+            read ? "opacity-100" : "opacity-0",
           )}
         >
-          {stage.label}
-        </span>
-        <span
-          className={cn(
-            "rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums transition-colors duration-300",
-            lit ? "bg-landing-brand-100 text-landing-brand-800" : "bg-surface text-ink-muted",
-          )}
-        >
-          {stage.tally.count} {stage.tally.unit}
-        </span>
-      </span>
+          {stage.description}
+        </p>
+      </div>
     </li>
   );
 }
 
-/**
- * Under each stop, its pile. Each logo is drawn once and moves: the first
- * pile is full from the start (the roles saved); as the card glides to a
- * stop, the logos that go on fly there from the pile before, a little
- * apart, on an arc, and the ones that went no further close up behind
- * them. The stops ahead show dashed slots where the logos will land. A
- * copy of each logo once flew on and left its twin behind, so a role sat
- * in two piles at once (KAN-368).
- */
-function Piles({ s, stops }: { s: MotionValue<number>; stops: number[] }) {
-  return (
-    <div aria-hidden="true" className="relative mt-2" style={{ height: PILE_HEIGHT }}>
-      {stages.slice(1).map((stage, k) => (
-        <Slots key={stage.id} s={s} stop={k + 1} left={stops[k + 1]} />
-      ))}
-      {LOGOS.map((logo, j) => (
-        <MovingTile key={logo.domain} s={s} index={j} stops={stops} />
-      ))}
-    </div>
-  );
-}
+// --- The card: one application, four states ---
 
-/** The dashed slots of a stop ahead, gone once its logos have landed. */
-function Slots({ s, stop, left }: { s: MotionValue<number>; stop: number; left: number }) {
-  const opacity = useTransform(s, (v) => 1 - arrivalAt(stop, v));
+/**
+ * The application at `step`. Its facts fill in as it reaches them, so it reads
+ * as one record that grows, and it lifts a little and settles with each move.
+ * The glow behind it takes the stage's colour, one layer per stage, so the
+ * colour crossfades.
+ */
+function Card({
+  s,
+  step,
+  className,
+}: {
+  s: MotionValue<number>;
+  step: number;
+  className?: string;
+}) {
+  const stage = stages[step];
+  const StageIcon = stage.icon;
+  const y = useTransform(s, (v) => -Math.sin(Math.PI * stageAt(v).u) * 8);
+
+  // A small pop as the card settles into a new state.
+  const pop = useMotionValue(1);
+  const first = React.useRef(true);
+  React.useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (step === 0) return;
+    const controls = animate(pop, [1, 1.02, 1], { duration: 0.45, ease: GLIDE });
+    return () => controls.stop();
+  }, [step, pop]);
+
   return (
-    <motion.div className="absolute inset-0" style={{ opacity }}>
-      {Array.from({ length: COUNTS[stop] }, (_, j) => {
-        const at = slot(j, COUNTS[stop]);
-        return (
+    <motion.div aria-hidden="true" className={cn("relative", className)} style={{ y, scale: pop }}>
+      {stages.map((item, i) => (
+        <span
+          key={item.id}
+          className="absolute -inset-6 -z-10 rounded-[3rem] blur-3xl transition-opacity duration-700 motion-reduce:transition-none"
+          style={{
+            background: `color-mix(in oklab, ${item.color} 26%, transparent)`,
+            opacity: i === step ? 1 : 0,
+          }}
+        />
+      ))}
+      <div className="rounded-[1.75rem] bg-white p-6 shadow-[0_30px_60px_-32px_rgb(40_20_90/0.4)] ring-1 ring-slate-900/5 sm:p-7">
+        <div className="flex h-8 items-center justify-between gap-3">
+          <span className="relative">
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span
+                key={stage.id}
+                className={cn(
+                  "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold whitespace-nowrap",
+                  stage.chipClass,
+                )}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6, transition: { duration: 0.14 } }}
+                transition={{ duration: 0.3, delay: 0.1, ease: GLIDE }}
+              >
+                <StageIcon className={cn("size-3.5", stage.iconClass)} />
+                {stage.cardLabel}
+              </motion.span>
+            </AnimatePresence>
+            {step === LAST && <Burst color="var(--color-positive)" delay={0.2} />}
+          </span>
           <span
-            key={j}
-            className="absolute size-[22px] rounded-[6px] border border-dashed border-slate-300"
-            style={{ left: left + at.x, top: at.y }}
-          />
-        );
-      })}
+            className={cn(
+              "shrink-0 rounded-lg px-2.5 py-1 text-sm font-bold ring-1 ring-inset",
+              scoreTone(followedJob.score),
+            )}
+          >
+            {followedJob.score}% match
+          </span>
+        </div>
+
+        <div className="mt-5 flex items-center gap-4">
+          <FaviconLogo domain={followedJob.domain} eager className="size-14 rounded-2xl" />
+          <div className="min-w-0">
+            <p className="text-ink text-xl leading-tight font-semibold tracking-tight sm:text-2xl">
+              {followedJob.title}
+            </p>
+            <p className="text-ink-muted mt-1 text-[15px]">{followedJob.company}</p>
+          </div>
+        </div>
+
+        <dl className="mt-5 divide-y divide-slate-900/5 border-t border-slate-900/5">
+          {FACTS.map((fact) => (
+            <Fact
+              key={fact.label}
+              label={fact.label}
+              value={step >= fact.from ? fact.value(step) : null}
+            />
+          ))}
+        </dl>
+      </div>
     </motion.div>
   );
 }
 
-const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-
-/**
- * One logo, where the route has taken it at `s`: for each glide up to its
- * last stop it flies from its slot in the pile before to its slot in the
- * next; on the glide after, it closes up in the pile it stays in, once the
- * ones going on have left it.
- */
-function MovingTile({
-  s,
-  index,
-  stops,
-}: {
-  s: MotionValue<number>;
-  index: number;
-  stops: number[];
-}) {
-  const last = lastStop(index);
-  // One pose a frame, as one transform.
-  const transform = useTransform(s, (v) => {
-    const at = slot(index, COUNTS[0]);
-    let x = stops[0] + at.x;
-    let y = at.y;
-    for (let i = 1; i < stages.length; i++) {
-      const a = arrivalAt(i, v);
-      if (a === 0) break;
-      if (i <= last) {
-        const count = COUNTS[i];
-        const stagger = Math.min(0.04, 0.45 / count);
-        const t = clamp((a - index * stagger) / (1 - (count - 1) * stagger));
-        const to = slot(index, count);
-        x = lerp(x, stops[i] + to.x, t);
-        y = lerp(y, to.y, t) - Math.sin(Math.PI * t) * 30;
-      } else if (i === last + 1) {
-        const [from, until] = leftAt(last);
-        const to = slot(index - from, until - from);
-        const t = ease(clamp((a - 0.35) / 0.65));
-        x = lerp(x, stops[last] + to.x, t);
-        y = lerp(y, to.y, t);
-      }
-    }
-    return `translate(${x}px, ${y}px)`;
-  });
+/** One fact: a dash until the application reaches it. */
+function Fact({ label, value }: { label: string; value: string | null }) {
   return (
-    <motion.span className="absolute top-0 left-0 will-change-transform" style={{ transform }}>
-      <LogoTile logo={LOGOS[index]} />
-    </motion.span>
-  );
-}
-
-function LogoTile({ logo }: { logo: Logo }) {
-  return (
-    <FaviconLogo
-      domain={logo.domain}
-      eager
-      className="size-[22px] rounded-[6px] shadow-[0_2px_6px_-2px_rgb(40_20_90/0.25),inset_0_0_0_1px_rgba(76,39,163,0.12)]"
-    />
-  );
-}
-
-/** Logos a still pile shows before the rest become a count. */
-const STILL_PILE = 7;
-
-/** Below lg, and with reduced motion: the four stops as a list, each
- * with the logos left there at the end of the route, and the application
- * at its offer. */
-function StillApplications() {
-  return (
-    <section id="applications" className="py-20 sm:py-28">
-      <div className={CONTAINER}>
-        <Heading />
-        <div className="mt-10 grid gap-10 lg:grid-cols-[auto_1fr] lg:items-start lg:gap-16">
-          <FollowedCard stage="offer" className="max-w-full" />
-          <ol aria-label="Application stages" className="space-y-7">
-            {stages.map((stage, i) => {
-              const Icon = stage.icon;
-              const count = stage.tally.count;
-              // Each logo once, where it ended up, as on the pinned route.
-              const left = LOGOS.slice(...leftAt(i));
-              return (
-                <li key={stage.id} className="flex gap-4">
-                  <span className="bg-brand grid size-10 shrink-0 place-items-center rounded-full text-white">
-                    <Icon className="size-[17px]" aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-2">
-                      <span className="text-ink font-semibold">{stage.label}</span>
-                      <span className="bg-landing-brand-100 text-landing-brand-800 rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums">
-                        {count} {stage.tally.unit}
-                      </span>
-                      {stage.soon && <SoonChip />}
-                    </p>
-                    <p className="text-ink-meta mt-0.5 text-sm text-pretty">{stage.description}</p>
-                    {/* Seven at most, then the rest as a count: the full
-                        piles (24, 12) ran to three rows of 16px tiles that
-                        read as noise on a phone (KAN-368). */}
-                    <div aria-hidden="true" className="mt-3 flex flex-wrap items-center gap-[5px]">
-                      {left.slice(0, STILL_PILE).map((logo) => (
-                        <LogoTile key={logo.domain} logo={logo} />
-                      ))}
-                      {left.length > STILL_PILE && (
-                        <span className="text-ink-meta ml-1 text-xs font-medium tabular-nums">
-                          +{left.length - STILL_PILE}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-      </div>
-    </section>
+    <div className="flex h-11 items-center justify-between gap-4 text-[15px]">
+      <dt className="text-ink-muted shrink-0">{label}</dt>
+      <dd className="min-w-0">
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.span
+            key={value ?? "none"}
+            className={cn("block truncate font-medium", value ? "text-ink" : "text-ink-faint")}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6, transition: { duration: 0.14 } }}
+            transition={{ duration: 0.3, delay: 0.1, ease: GLIDE }}
+          >
+            {value ?? "—"}
+          </motion.span>
+        </AnimatePresence>
+      </dd>
+    </div>
   );
 }

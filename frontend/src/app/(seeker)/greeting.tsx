@@ -8,6 +8,10 @@ import { useSyncExternalStore } from "react";
  * timeless "Welcome Back, Alex" and the browser swaps in the time of day after
  * hydration — useSyncExternalStore's server snapshot is what keeps that from
  * being a hydration mismatch. See frontend/CLAUDE.md on timestamps.
+ *
+ * Below sm it is "Hi, Alex" (KAN-570): the full line cut the name off in a
+ * phone's bar ("Good Evening, And…"). The full line stays the title, so a
+ * pointer can still read it, and screen readers read the line that shows.
  */
 const noSubscription = () => () => {};
 
@@ -33,5 +37,10 @@ export function Greeting({
     () => `Welcome Back, ${firstName}`,
   );
 
-  return <Tag className={className}>{text}</Tag>;
+  return (
+    <Tag title={text} className={className}>
+      <span className="sm:hidden">Hi, {firstName}</span>
+      <span className="hidden sm:inline">{text}</span>
+    </Tag>
+  );
 }

@@ -201,7 +201,7 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
         <Link
           href={applicationHref(app.id)}
           title={app.role}
-          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+          className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring -my-1 block truncate rounded-xs py-1 font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
         >
           {app.role}
         </Link>
@@ -430,7 +430,9 @@ type Drag = { id: ColumnId; over: ColumnId | null } | null;
  * on. Frozen columns neither drag nor take a drop. A drag needs a mouse;
  * a phone keeps the default order, which the Columns menu can reset to.
  *
- * THE RESIZE HANDLE is TanStack's resize handler on mouse and touch, a
+ * THE RESIZE HANDLE is 24px wide across the edge, a target the size the
+ * rest of the table's controls are, with a 2px line (KAN-577; it was 8px).
+ * It is TanStack's resize handler on mouse and touch, a
  * double click back to the default width, and the arrow keys for a
  * keyboard (a focusable separator with its width as its value). Its mouse
  * press cancels the browser's own default, and no move starts while a
@@ -531,7 +533,7 @@ function HeadCell({
             type="button"
             onClick={() => onSort(columnSort)}
             title={SORT_HINT[columnSort]}
-            className="hover:text-ink focus-visible:ring-brand-ring inline-flex min-w-0 items-center gap-1 rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+            className="hover:text-ink focus-visible:ring-brand-ring inline-flex min-h-6 min-w-0 items-center gap-1 rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
           >
             <span className="truncate">{label}</span>
             {/* Keyed on its state, so the glyph pops in when the column
@@ -540,7 +542,7 @@ function HeadCell({
               key={active ? direction : "none"}
               className={cn(
                 "animate-pop size-3.5 shrink-0",
-                active ? "text-brand" : "text-ink-faint",
+                active ? "text-brand" : "text-ink-meta",
               )}
               direction={active ? direction : undefined}
             />
@@ -577,7 +579,7 @@ function HeadCell({
         onDoubleClick={() => column.resetSize()}
         onKeyDown={onKeyDown}
         className={cn(
-          "group/resize focus-visible:ring-brand-ring absolute inset-y-0 -right-1 z-2 flex w-2 cursor-col-resize touch-none justify-center select-none focus-visible:ring-2 focus-visible:outline-none",
+          "group/resize focus-visible:ring-brand-ring absolute inset-y-0 -right-3 z-2 flex w-6 cursor-col-resize touch-none justify-center select-none focus-visible:ring-2 focus-visible:outline-none",
         )}
       >
         <span

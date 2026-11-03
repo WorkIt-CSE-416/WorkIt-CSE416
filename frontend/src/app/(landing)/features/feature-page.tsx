@@ -10,7 +10,7 @@ import { EmailSignUpLink, SocialSignUpButton } from "../social-sign-up";
 import { backdrop, featurePages, type Feature } from "./catalog";
 import { featureContent } from "./content";
 import { FeatureIcon } from "./feature-icon";
-import { FeatureMotion, FeatureStage } from "./feature-stage";
+import { DeepDiveStage, FeatureMotion, FeatureStage } from "./feature-stage";
 import type { FeatureSection } from "./types";
 
 /**
@@ -48,13 +48,9 @@ export function FeaturePage({ feature }: { feature: Feature }) {
 
             <div className="mx-auto mt-10 max-w-5xl px-2 pb-2 sm:mt-14 sm:px-6 sm:pb-6">
               <div className="rounded-[1.5rem] bg-white/30 ring-1 ring-white/60 lg:rounded-[2rem]">
-                {Animation ? (
-                  <FeatureStage>
-                    <Animation />
-                  </FeatureStage>
-                ) : (
-                  <Placeholder feature={feature} className="h-[20rem] sm:h-[28rem]" />
-                )}
+                <FeatureStage>
+                  <Animation />
+                </FeatureStage>
               </div>
             </div>
           </div>
@@ -85,11 +81,11 @@ export function FeaturePage({ feature }: { feature: Feature }) {
                 )}
               >
                 {steps.map((step, i) => (
-                  <li key={step.title} className="rounded-2xl bg-white p-6 ring-1 ring-slate-900/5">
+                  <li key={step.title} className="gloss-card rounded-2xl p-6">
                     <span
                       aria-hidden="true"
-                      className="flex size-8 items-center justify-center rounded-full text-sm font-semibold text-white tabular-nums"
-                      style={{ background: feature.glow }}
+                      className="flex size-8 items-center justify-center rounded-full text-sm font-semibold tabular-nums"
+                      style={{ background: feature.onGlow.fill, color: feature.onGlow.ink }}
                     >
                       {i + 1}
                     </span>
@@ -112,7 +108,7 @@ export function FeaturePage({ feature }: { feature: Feature }) {
                   <li key={page.slug}>
                     <Link
                       href={page.href}
-                      className="group ease-glide hover:shadow-lift flex h-full flex-col rounded-2xl bg-white p-6 ring-1 ring-slate-900/5 transition-[translate,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0"
+                      className="group ease-glide gloss-card flex h-full flex-col rounded-2xl p-6 transition-[translate] duration-200 hover:-translate-y-0.5 active:translate-y-0"
                     >
                       <FeatureIcon feature={page} size="md" />
                       <h3 className="text-ink mt-4 font-semibold">{page.name}</h3>
@@ -176,8 +172,8 @@ function DeepDive({
               <li key={point} className="text-ink-muted flex gap-3">
                 <span
                   aria-hidden="true"
-                  className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-white"
-                  style={{ background: feature.glow }}
+                  className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full"
+                  style={{ background: feature.onGlow.fill, color: feature.onGlow.ink }}
                 >
                   <CheckIcon aria-hidden className="size-3" weight="bold" />
                 </span>
@@ -187,29 +183,9 @@ function DeepDive({
           </ul>
         )}
       </div>
-      <div
-        className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[2rem] p-6"
-        style={{ background: ground }}
-      >
-        {Visual ? <Visual /> : <Placeholder feature={feature} />}
-      </div>
-    </div>
-  );
-}
-
-/** Stands in for a visual not drawn yet: the feature's icon on a glass
- *  tile, over the feature's ground. */
-function Placeholder({ feature, className }: { feature: Feature; className?: string }) {
-  const { icon: Icon, glow } = feature;
-  return (
-    <div className={cn("flex items-center justify-center", className)}>
-      <span
-        aria-hidden="true"
-        className="glass-card flex size-24 items-center justify-center rounded-3xl"
-        style={{ color: glow }}
-      >
-        <Icon aria-hidden className="size-10" />
-      </span>
+      <DeepDiveStage background={ground}>
+        <Visual />
+      </DeepDiveStage>
     </div>
   );
 }

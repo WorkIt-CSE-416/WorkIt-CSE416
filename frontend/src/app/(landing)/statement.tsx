@@ -10,98 +10,103 @@ import {
   useTransform,
   type MotionValue,
 } from "motion/react";
-import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
-import { CheckIcon, RobotIcon, ShieldWarningIcon, XIcon } from "@phosphor-icons/react/ssr";
-import { ScanMagnifyingGlassIcon } from "@/components/custom-icons";
+import { CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
 
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/cn";
 
 import { FaviconLogo } from "./favicon-logo";
 import { followedJob } from "./feature-data";
-import { Fit } from "./fit";
-import { useMediaQuery, usePageHidden } from "./hooks";
+import { useLoopsHeld, useMediaQuery } from "./hooks";
 import { CONTAINER, PANEL, PANEL_INSET } from "./layout-parts";
-import { SlopWord } from "./slop-word";
-import { CARD_WIDTH, FollowedCard } from "./thread";
+import { FollowedCard } from "./thread";
 
 /**
  * The statement between the hiring-systems section and the applications
- * section: "Slop applications get skipped." From lg up it tells a story,
- * one thing at a time, that plays on its own like a carousel and loops
- * (`useStoryLoop`): once the section is on screen, the beats follow one
- * another in time, the finale holds, and the story fades and starts again.
- * The scroll plays no part: it is not pinned, and nothing it does moves
- * the story. Cued beat by beat by the scroll, it stopped whenever the
- * reader did; pinned, with a bar per beat and the scroll taking it to its
- * finale near the pin's end, it still read as driven by the scroll, and
- * the team had it loop on its own. On the right, one
- * screening panel for one posting (`followedJob`, Stripe): three things a
- * student sends blind come in one after another (a generic resume to the
- * ATS filter, a copy-paste application to spam detection, a template cover
- * letter to slop detection). Each is scanned, the panel marks the lines
- * that sink it and gives its verdict, then the page crumples into a ball
- * and is thrown into a wastebasket, where the balls pile up at the rim.
- * Then WorkIt's application for the same posting comes in, as the
- * followed card, and the panel finds it ready to submit. On the left, only
- * the current beat's caption shows, read word by word. Below lg and with
- * reduced motion it shows the finished frame, still.
+ * section: "Slop applications get skipped." The real words are the art: one
+ * application for one posting (`followedJob`, Stripe) shows three things a
+ * student sends blind, one at a time, in large type. A generic line writes
+ * itself, the phrases that sink it are marked and say why, and it rewrites
+ * itself into a specific line from the student's own experience bank. Then
+ * WorkIt's application for the same posting, the followed card, is ready to
+ * submit. Beside it, only one caption shows at a time, read word by word: the
+ * problem while the generic line is up, then why the fix helps once it is
+ * rewritten, since the problem left beside the fixed line read as a complaint
+ * about the fix.
  *
- * The captions and notes are product copy. The gates' are hedged ("often",
- * "look like"): they describe the market, not WorkIt. The finale's claims
- * follow the landing rules: auto apply fills the form, the student clicks
- * Submit, and nothing promises to pass an ATS.
+ * It plays on its own like a carousel and loops (`useStoryLoop`): once the
+ * section is on screen the beats follow one another in time, the finale
+ * holds, and the story fades and starts again. The scroll plays no part: it is
+ * not pinned, and nothing it does moves the story. Cued by the scroll, it
+ * stopped whenever the reader did. With reduced motion it is a still list.
+ *
+ * It replaced a screening panel that crumpled each page into a paper ball and
+ * threw it into a metal wastebasket, the page's only realistic illustration
+ * (KAN-540).
+ *
+ * The lines, notes and captions are product copy. The gates' captions are
+ * hedged ("often", "look like"): they describe the market, not WorkIt. The
+ * specific lines are the demo student's bank (the resume line is the Tailor
+ * scene's own rewrite), and the finale's claims follow the landing rules: auto
+ * apply fills the form, the student clicks Submit, and nothing promises to
+ * pass an ATS.
  */
 
 type Beat = {
   gate: string;
-  /** The gate's icon in the screening panel's header. */
-  icon: PhosphorIcon;
   /** Its moving mark in the caption's chip (`GateIcon`). */
   mark: "scan" | "shield" | "bot";
-  verdict: string;
   text: string;
-  /** What the check marks on the page: each note's line, in px down it. */
-  notes: { y: number; text: string }[];
-  page: React.ComponentType;
+  /** The application's field the line sits in. */
+  field: string;
+  /** The generic line. `**` marks the phrases that sink it. */
+  slop: string;
+  /** Why they sink it, one short reason each. */
+  notes: string[];
+  /** The line WorkIt writes. `**` marks the facts that make it specific. */
+  specific: string;
+  /** Where the specific line comes from. */
+  source: string;
+  /** Why the specific line helps, beside it once it is written. */
+  fix: string;
 };
 
 const BEATS: Beat[] = [
   {
     gate: "ATS filter",
-    icon: ScanMagnifyingGlassIcon,
     mark: "scan",
-    verdict: "Filtered out",
     text: "One resume sent to every posting often gets filtered out before a person reads it.",
-    notes: [
-      { y: 62, text: "Generic objective" },
-      { y: 176, text: "No posting keywords" },
-    ],
-    page: ResumePage,
+    field: "Resume",
+    slop: "**Hard-working team player** with strong communication skills seeking **a challenging role.**",
+    notes: ["Generic objective", "No posting keywords"],
+    specific:
+      "Built a **TypeScript** budgeting app on a **REST API,** used by **200 students** weekly.",
+    source: "Tailored to this posting",
+    fix: "Your resume uses the posting's own keywords, so it reads as written for this job.",
   },
   {
     gate: "Spam detection",
-    icon: ShieldWarningIcon,
     mark: "shield",
-    verdict: "Flagged as spam",
     text: "Two hundred copy-paste applications look like spam, and get treated like it.",
-    notes: [
-      { y: 24, text: "Application #187 today" },
-      { y: 104, text: "Pasted 186 times" },
-    ],
-    page: ApplicationPage,
+    field: `Why do you want to work at ${followedJob.company}?`,
+    slop: "I am passionate about **your company's mission** and **excited to contribute.**",
+    notes: ["Could be any company", "Pasted 186 times"],
+    specific:
+      "I want to build the tools businesses **run their money on,** after shipping a budgeting app for **200 students.**",
+    source: "Drafted from your experience bank",
+    fix: "Each answer is about this company and your real work, so it doesn't read like a copy-paste.",
   },
   {
     gate: "Slop detection",
-    icon: RobotIcon,
     mark: "bot",
-    verdict: "Flagged as slop",
     text: "A template cover letter reads like AI slop, so it gets skipped.",
-    notes: [
-      { y: 62, text: "Placeholders left in" },
-      { y: 120, text: "Template phrasing" },
-    ],
-    page: LetterPage,
+    field: "Cover letter",
+    slop: "Dear **[Hiring Manager],** I am **writing to express my interest** in the **[Position]** role.",
+    notes: ["Placeholders left in", "Template phrasing"],
+    specific:
+      "Teaching **Data Structures** showed me how much clear code matters, and I want to bring that to your **payments APIs.**",
+    source: "Drafted from your experience bank",
+    fix: "Your letter comes from what you've really done, so it sounds like you, not a template.",
   },
 ];
 
@@ -110,39 +115,27 @@ const CLOSE =
 const CHECKS = ["Tailored to this posting", "Fits your skills", "Every field filled in"];
 
 // --- The story's beats, on its timeline from 0 to 1, which plays on its
-// own (`useStoryLoop`). Every range stays inside 0 to 1 (the still
-// version's frame is 1). ---
+// own (`useStoryLoop`). Every range stays inside 0 to 1. ---
 
 const BEAT_AT: [number, number][] = [
-  [0.04, 0.27],
-  [0.27, 0.5],
-  [0.5, 0.73],
+  [0.01, 0.28],
+  [0.28, 0.55],
+  [0.55, 0.82],
 ];
-const FINAL_AT: [number, number] = [0.75, 0.95];
-/** The story's pace on its timeline (about four seconds a beat), how long
- * the finale holds before it starts again, and the fade of each restart,
- * in seconds. At three seconds a beat the page, its marks and its verdict
- * were on screen together for a quarter of a second. */
-const RATE = 0.06;
-const HOLD = 3.2;
+const FINAL_AT: [number, number] = [0.84, 0.98];
+/** The story's pace on its timeline (about eleven seconds a beat, so each
+ * phase ends and can be read: at six seconds the marks, the caption and the
+ * new line were still arriving as the beat moved on), how long the finale
+ * holds before it starts again, and the fade of each restart, in seconds. */
+const RATE = 0.0237;
+const HOLD = 1.5;
 const RESET = 0.35;
-/** Each beat's stretch for its labels (caption, panel title): the first
- * from the story's start, each until the next beat begins. */
-const CAPTION_AT: [number, number][] = [
-  [0, BEAT_AT[1][0]],
-  [BEAT_AT[1][0], BEAT_AT[2][0]],
-  [BEAT_AT[2][0], FINAL_AT[0]],
-  [FINAL_AT[0], 1],
-];
-/** How long a label's fade in or out takes, on the timeline. */
+/** How long a fade takes, on the timeline: about a quarter of a second. */
 const FADE = 0.012;
 
 /**
  * A label's fade across its stretch `[a, b]`: out just after `b`, and in
- * just after the label before it has gone, so the two never overlap. Both
- * come after the boundary, never before it: when the beats rested on their
- * boundaries (cued by the scroll), a swap before it left the resting beat
- * with no caption, title or verdict at all; the finale still rests on 1.
+ * just after the label before it has gone, so the two never overlap.
  */
 function fadeWindow(a: number, b: number) {
   const fadeIn = [a + FADE, a + 2 * FADE];
@@ -151,103 +144,70 @@ function fadeWindow(a: number, b: number) {
   if (b >= 1) return { input: fadeIn, output: [0, 1], first: false, last: true };
   return { input: [...fadeIn, ...fadeOut], output: [0, 1, 1, 0], first: false, last: false };
 }
-/** The share of a beat its caption takes to read, from the beat's start. */
-const READ = 0.4;
+/** How long a beat's caption, and the finale's, take to read, on the
+ * timeline. */
+const READ = 0.06;
+const READ_FINAL = 0.1;
 
-// Within a beat (0 to 1): the page comes in, is scanned, gets its verdict,
-// holds it with its marks and notes (about a second and a quarter, the
-// evidence the caption speaks of), crumples and is thrown.
-const IN: [number, number] = [0, 0.1];
-const SCAN: [number, number] = [0.12, 0.36];
-const VERDICT = 0.38;
-const CRUMPLE: [number, number] = [0.7, 0.77];
-const THROW: [number, number] = [0.77, 0.92];
-const LAND: [number, number] = [0.92, 1];
+// Within a beat (0 to 1): the generic line writes itself, its phrases are
+// marked and say why, all of it holds until the caption has been read, then it
+// rewrites itself word by word, left to right, its facts are marked, and the
+// specific line holds to the beat's end. Each phase ends before the next.
+const WRITE: [number, number] = [0.02, 0.14];
+const FLAG: [number, number] = [0.17, 0.29];
+const REWRITE: [number, number] = [0.5, 0.62];
+const FACTS: [number, number] = [0.63, 0.7];
+/** The share of the rewrite the old words take to go. */
+const GONE = 0.55;
 
-const clamp = (v: number) => Math.min(1, Math.max(0, v));
-/** How far `v` is through the range `[a, b]`, from 0 to 1. */
-const through = (v: number, [a, b]: [number, number]) => clamp((v - a) / (b - a));
-const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-const out = (t: number) => 1 - Math.pow(1 - t, 3);
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /** Progress `t` of the way through `beat`, from 0 to 1. */
 const at = (beat: [number, number], t: number) => beat[0] + (beat[1] - beat[0]) * t;
 
-// --- The scene, drawn at 560 x 520 and scaled to its column by Fit ---
-
-const STAGE_W = 560;
-const STAGE_H = 520;
-/** The screening panel, its header, and the page it is reading. */
-const SCREEN = { x: 0, y: 24, w: 404, h: 396 };
-const HEADER_H = 58;
-const DOC = { x: 28, y: SCREEN.y + HEADER_H + 18, w: 176, h: 228 };
-/** The notes' column, right of the page, and the leader to each note. */
-const NOTES_X = DOC.x + DOC.w + 26;
-/** The wastebasket: its rim's centre and width, its foot's width, height. */
-const BIN = { cx: 482, rim: 328, top: 144, foot: 110, h: 164 };
-/** A paper ball's radius, and where each settles at the rim. */
-const BALL_R = 21;
-const PILE = [
-  { x: BIN.cx - 30, y: BIN.rim + 8, spin: 300 },
-  { x: BIN.cx + 26, y: BIN.rim + 4, spin: -340 },
-  { x: BIN.cx - 2, y: BIN.rim - 8, spin: 400 },
+/** Beat `i`'s two captions' stretches: the problem until the rewrite begins,
+ * from the story's start for the first, then the fix until the next beat. */
+const problemAt = (i: number): [number, number] => [
+  i === 0 ? 0 : BEAT_AT[i][0],
+  at(BEAT_AT[i], REWRITE[0]),
 ];
+const fixAt = (i: number): [number, number] => [
+  at(BEAT_AT[i], REWRITE[0]),
+  BEAT_AT[i + 1]?.[0] ?? FINAL_AT[0],
+];
+/** Where in a beat its fix starts to be read: as the new line comes in. */
+const READ_FIX = 0.56;
 
-// Tailwind's lg breakpoint: pinned from here up.
+type Word = { text: string; marked: boolean };
+
+/** A line's words, each marked if it sits inside `**`. */
+const wordsOf = (line: string): Word[] =>
+  line.split("**").flatMap((part, i) =>
+    part
+      .split(" ")
+      .filter(Boolean)
+      .map((text) => ({ text, marked: i % 2 === 1 })),
+  );
+/** A line as plain text. */
+const plain = (line: string) => line.replaceAll("**", "");
+
+// Tailwind's lg breakpoint.
 const DESKTOP_QUERY = "(min-width: 64rem)";
 
 export function Statement() {
-  const isDesktop = useMediaQuery(DESKTOP_QUERY);
+  // Null until mounted, so the server's HTML and the first render agree.
+  const mounted = useMediaQuery(DESKTOP_QUERY) !== null;
   const reduceMotion = useReducedMotion();
-  if (isDesktop === true && !reduceMotion) return <LoopingStatement />;
-  if (isDesktop === false && !reduceMotion) return <CompactStatement />;
-  return <StillStatement />;
+  return mounted && !reduceMotion ? <PlayingStatement /> : <StillStatement />;
 }
 
-/**
- * Below lg: the same loop, in one column. The beat's caption over the
- * screening panel alone, drawn at about 0.85 on a phone: the whole scene,
- * bin and all, drew at 0.58 with 7px labels, which is why phones showed it
- * still until KAN-368. A rejected page crumples and flies off the panel's
- * edge, towards where the bin stands on a wider screen.
- */
-function CompactStatement() {
+/** The story, looping while it is on screen in a visible tab and resting where
+ * it is otherwise: a screen-high panel from lg up, the line beside its
+ * caption, and one column below it. */
+function PlayingStatement() {
   const stageRef = React.useRef<HTMLDivElement>(null);
   const inView = useInView(stageRef, { amount: 0.4 });
-  const hidden = usePageHidden();
-  const playing = inView && !hidden;
-  const { p, fade } = useStoryLoop(playing);
-  return (
-    <section
-      aria-labelledby="statement-title"
-      data-paused={playing ? undefined : ""}
-      className={cn(PANEL_INSET, "mt-16 sm:mt-24")}
-    >
-      <Panel>
-        <div ref={stageRef} className={cn(CONTAINER, "py-14")}>
-          <Headline />
-          <motion.div className="mt-6" style={{ opacity: fade }}>
-            <Story p={p} compact />
-          </motion.div>
-          <motion.div className="mt-2" style={{ opacity: fade }}>
-            <Fit>
-              <Scene p={p} compact />
-            </Fit>
-          </motion.div>
-        </div>
-      </Panel>
-    </section>
-  );
-}
-
-/** From lg up: a screen-high panel, not pinned, whose story loops while it
- * is on screen in a visible tab and rests where it is otherwise. */
-function LoopingStatement() {
-  const sceneBox = React.useRef<HTMLDivElement>(null);
-  const stageRef = React.useRef<HTMLDivElement>(null);
-  const inView = useInView(stageRef, { amount: 0.5 });
-  const hidden = usePageHidden();
-  const playing = inView && !hidden;
+  const held = useLoopsHeld();
+  const playing = inView && !held;
   const { p, fade } = useStoryLoop(playing);
   return (
     <section
@@ -256,29 +216,17 @@ function LoopingStatement() {
       data-paused={playing ? undefined : ""}
       className={cn(PANEL_INSET, "mt-16 sm:mt-24")}
     >
-      <div ref={stageRef} className="flex h-[clamp(38rem,calc(100dvh-7.5rem),52rem)] flex-col">
+      <div ref={stageRef} className="flex flex-col lg:h-[clamp(38rem,calc(100dvh-7.5rem),52rem)]">
         <Panel>
-          {/* The headline on one line across the top, then the story in two
-              columns: one caption at a time on the left, the scene on the
-              right. */}
-          <div className={cn(CONTAINER, "flex h-full flex-col py-10 xl:py-12")}>
+          <div className={cn(CONTAINER, "flex h-full flex-col py-14 lg:py-10 xl:py-12")}>
             <Headline />
-            {/* pt-14: room for the drips off "Slop" above the first
-                caption's chip. */}
-            <div className="grid min-h-0 flex-1 grid-cols-[1fr_1.1fr] items-center gap-12 pt-14">
-              <motion.div style={{ opacity: fade }}>
-                <Story p={p} />
-              </motion.div>
-              <motion.div
-                ref={sceneBox}
-                className="flex h-full max-h-[600px] min-h-0 items-center"
-                style={{ opacity: fade }}
-              >
-                <Fit box={sceneBox}>
-                  <Scene p={p} />
-                </Fit>
-              </motion.div>
-            </div>
+            <motion.div
+              className="mt-8 grid min-h-0 flex-1 items-center gap-8 lg:mt-0 lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)] lg:gap-12 lg:pt-8"
+              style={{ opacity: fade }}
+            >
+              <Application p={p} />
+              <Story p={p} />
+            </motion.div>
           </div>
         </Panel>
       </div>
@@ -290,8 +238,7 @@ function LoopingStatement() {
  * The story's timeline, playing on its own: from where it is to the end at
  * `RATE`, a hold on the finale, then a fade out, back to the start and a
  * fade in, round and round while `playing`. Paused, it keeps its place.
- * `fade` is the restart's opacity, for both columns, so the reset never
- * jumps in view.
+ * `fade` is the restart's opacity, so the reset never jumps in view.
  */
 function useStoryLoop(playing: boolean) {
   const p = useMotionValue(0);
@@ -337,10 +284,8 @@ function useStoryLoop(playing: boolean) {
   return { p, fade };
 }
 
-/** The finished frame, below lg and with reduced motion: every caption in a
- * short list, then the scene at its end. On a phone only the finale's card
- * and checks, at their own size: the whole scene scaled into the column
- * was a 58% miniature, its labels 7px. */
+/** With reduced motion: every beat in a short list, each generic line struck
+ * through over the line that replaces it, then the finale. */
 function StillStatement() {
   const done = useMotionValue(1);
   return (
@@ -348,11 +293,16 @@ function StillStatement() {
       <Panel>
         <div className={cn(CONTAINER, "py-16")}>
           <Headline />
-          <ol className="mt-8 space-y-4">
+          <ol className="mt-8 space-y-8">
             {BEATS.map((beat) => (
               <li key={beat.gate}>
                 <GateChip beat={beat} />
                 <p className="text-ink-muted mt-1.5 text-lg leading-snug">{beat.text}</p>
+                <p className="text-ink-muted mt-3 text-pretty line-through">{plain(beat.slop)}</p>
+                <p className="text-ink mt-1 text-lg font-semibold text-pretty">
+                  {plain(beat.specific)}
+                </p>
+                <p className="text-ink-muted mt-1.5 text-lg leading-snug">{beat.fix}</p>
               </li>
             ))}
             <li>
@@ -360,8 +310,8 @@ function StillStatement() {
               <p className="text-ink mt-1.5 text-lg leading-snug font-semibold">{CLOSE}</p>
             </li>
           </ol>
-          <div aria-hidden="true" className="mt-10 sm:hidden">
-            <FollowedCard stage="saved" className="mx-auto max-w-full" />
+          <div aria-hidden="true" className="mt-10">
+            <FollowedCard className="mx-auto max-w-full" />
             <div className="mt-4 flex flex-wrap justify-center gap-1.5">
               {CHECKS.map((check) => (
                 <CheckChip key={check} p={done} at={0}>
@@ -369,11 +319,6 @@ function StillStatement() {
                 </CheckChip>
               ))}
             </div>
-          </div>
-          <div className="mt-10 hidden sm:block">
-            <Fit>
-              <Scene p={done} />
-            </Fit>
           </div>
         </div>
       </Panel>
@@ -395,25 +340,24 @@ function Panel({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** "Slop" is drawn as AI slop, dripping (`SlopWord`, KAN-368); a red
- * spell-checker wave under it came first. It was "Stop sending slop
- * applications.", a second "Stop" after the hero's; it now says what the
- * three beats show. */
+/** "Slop" is the headline's own text in a gradient (`.slop-word`, KAN-540).
+ * It was "Stop sending slop applications.", a second "Stop" after the
+ * hero's; it now says what the three beats show. */
 function Headline() {
   return (
     <h2
       id="statement-title"
       className="text-ink text-[2.5rem] leading-[1.08] font-semibold tracking-[-0.035em] text-balance sm:text-6xl lg:text-[clamp(2.75rem,4.2vw,4rem)]"
     >
-      <SlopWord /> applications get skipped.
+      <span className="slop-word">Slop</span> applications get skipped.
     </h2>
   );
 }
 
 /**
  * A caption's gate, as a chip the size of a label one reads: its mark on a
- * white disc, then its name. From lg up the mark moves (`moving`); the team
- * found the small chips with still icons hard to notice.
+ * white disc, then its name. It moves while the story plays (`moving`); the
+ * team found the small chips with still icons hard to notice.
  */
 function GateChip({ beat, moving = false }: { beat: Beat; moving?: boolean }) {
   return (
@@ -474,8 +418,8 @@ function GateIcon({ mark, moving }: { mark: Beat["mark"]; moving: boolean }) {
 
 /**
  * The finale's chip: "With" and WorkIt's own logo, the mark and the word,
- * where it had a check and "With WorkIt" in text. From lg up the figure's
- * head hops now and then, a small cheer (`moving`).
+ * where it had a check and "With WorkIt" in text. While the story plays the
+ * figure's head hops now and then, a small cheer (`moving`).
  */
 function WorkItChip({ moving = false }: { moving?: boolean }) {
   return (
@@ -491,64 +435,78 @@ function WorkItChip({ moving = false }: { moving?: boolean }) {
   );
 }
 
-// --- The story column: one caption at a time ---
+// --- The caption column: one caption at a time ---
 
 /**
- * The current beat's caption alone: the last one lifts away as the next
- * comes in, and its words come into focus as they are read. A bar per beat
- * above it, filling as the story played, was taken out: it read as the
- * scroll's progress, and sat close over the gate's chip.
+ * One caption at a time: the last lifts away as the next comes in, and its
+ * words come into focus as they are read. Each beat has two: the problem under
+ * its gate's red chip, then, as the line is rewritten, why the fix helps under
+ * WorkIt's. The moving application beside it is hidden from screen readers, so
+ * its lines are read here.
  */
-function Story({ p, compact = false }: { p: MotionValue<number>; compact?: boolean }) {
+function Story({ p }: { p: MotionValue<number> }) {
   return (
-    <div>
-      {/* One slot, the captions stacked in it; tall enough for the
-          longest at its widest wrap (a size down in one column). */}
-      <div className={cn("relative", compact ? "h-[11.5rem]" : "h-[15rem]")}>
-        {BEATS.map((beat, i) => (
+    <div className="grid">
+      {BEATS.map((beat, i) => (
+        <React.Fragment key={beat.gate}>
           <Caption
-            key={beat.gate}
             p={p}
-            index={i}
-            beat={BEAT_AT[i]}
+            stretch={problemAt(i)}
+            // Read once the line beside it has been marked: what, then why.
+            readFrom={at(BEAT_AT[i], FLAG[0])}
+            readFor={READ}
             chip={<GateChip beat={beat} moving />}
             text={beat.text}
-            compact={compact}
           />
+          <Caption
+            p={p}
+            stretch={fixAt(i)}
+            readFrom={at(BEAT_AT[i], READ_FIX)}
+            readFor={READ}
+            chip={<WorkItChip moving />}
+            text={beat.fix}
+          />
+        </React.Fragment>
+      ))}
+      <Caption
+        p={p}
+        stretch={[FINAL_AT[0], 1]}
+        readFrom={FINAL_AT[0] + 0.005}
+        readFor={READ_FINAL}
+        chip={<WorkItChip moving />}
+        text={CLOSE}
+        strong
+      />
+      <ul className="sr-only">
+        {BEATS.map((beat) => (
+          <li key={beat.gate}>
+            Instead of &ldquo;{plain(beat.slop)}&rdquo;: &ldquo;{plain(beat.specific)}&rdquo;
+          </li>
         ))}
-        <Caption
-          p={p}
-          index={BEATS.length}
-          beat={FINAL_AT}
-          chip={<WorkItChip moving />}
-          text={CLOSE}
-          strong
-          compact={compact}
-        />
-      </div>
+      </ul>
     </div>
   );
 }
 
 function Caption({
   p,
-  index,
-  beat,
+  stretch: [start, end],
+  readFrom,
+  readFor,
   chip,
   text,
   strong = false,
-  compact = false,
 }: {
   p: MotionValue<number>;
-  index: number;
-  beat: [number, number];
+  /** When it shows, on the timeline. */
+  stretch: [number, number];
+  readFrom: number;
+  readFor: number;
   chip: React.ReactNode;
   text: string;
   strong?: boolean;
-  compact?: boolean;
 }) {
-  const [start, end] = CAPTION_AT[index];
-  // In just after its beat begins (the first is there from the start),
+  // In just after its stretch begins (the first is there from the start),
   // out just after the next begins (the last stays).
   const { input, output, first, last } = fadeWindow(start, end);
   const opacity = useTransform(p, input, output);
@@ -562,30 +520,28 @@ function Caption({
         : ["translateY(14px)", "translateY(0px)", "translateY(0px)", "translateY(-14px)"],
   );
   const words = text.split(" ");
-  const readFrom = Math.max(start, beat[0]) + 0.005;
-  const step = ((beat[1] - beat[0]) * READ) / words.length;
+  const step = readFor / words.length;
 
   return (
-    <motion.div className="absolute inset-x-0 top-0 max-w-[34rem]" style={{ opacity, transform }}>
+    <motion.div className="col-start-1 row-start-1 self-center" style={{ opacity, transform }}>
       {chip}
       <p
         className={cn(
-          "text-ink mt-4 leading-[1.3] tracking-[-0.015em] text-pretty",
-          compact ? "text-xl" : "text-2xl xl:text-[1.75rem]",
+          "text-ink mt-4 text-xl leading-[1.3] tracking-[-0.015em] text-pretty xl:text-2xl",
           strong ? "font-semibold" : "font-medium",
         )}
       >
         {words.map((word, i) => (
-          <Word key={i} p={p} start={readFrom + step * i} span={step * 2.5}>
+          <ReadWord key={i} p={p} start={readFrom + step * i} span={step * 2.5}>
             {word}
-          </Word>
+          </ReadWord>
         ))}
       </p>
     </motion.div>
   );
 }
 
-function Word({
+function ReadWord({
   p,
   start,
   span,
@@ -604,263 +560,46 @@ function Word({
   );
 }
 
-// --- The scene ---
+// --- The application: the lines, then the finale in the same place ---
 
-function Scene({ p, compact = false }: { p: MotionValue<number>; compact?: boolean }) {
+/** The size of the lines: the type is the art, so it stays large on a phone,
+ * where the old scene scaled to a miniature. */
+const LINE =
+  "isolate font-semibold text-pretty text-[1.625rem] leading-[1.22] tracking-[-0.022em] sm:text-[2.125rem] lg:text-[clamp(1.875rem,2.9vw,2.625rem)]";
+
+/** One application for the followed posting, all three lines in one place, so
+ * the card stands still and only the words change. Taller lines hold their
+ * room in the grid, so nothing moves from beat to beat. The words are for
+ * looking at: the same copy is in the caption column for a screen reader. */
+function Application({ p }: { p: MotionValue<number> }) {
+  const opacity = useTransform(p, [BEAT_AT[2][1], FINAL_AT[0]], [1, 0]);
   return (
-    // shrink-0: everything in it is absolute, so as Fit's flex child it would
-    // shrink to the column, and Fit, reading that width, would never scale it.
-    // Compact, it is the screening panel alone, clipped at its edge, with no
-    // bin: a thrown page leaves the panel.
-    <div
-      aria-hidden="true"
-      className={cn("relative shrink-0", compact && "overflow-hidden")}
-      style={
-        compact
-          ? { width: SCREEN.w, height: SCREEN.y + SCREEN.h }
-          : { width: STAGE_W, height: STAGE_H }
-      }
-    >
-      <Screen p={p} />
-      {BEATS.map((beat, i) => (
-        <Notes key={beat.gate} p={p} beat={beat} range={BEAT_AT[i]} />
-      ))}
-      {BEATS.map((beat, i) => (
-        <Page key={beat.gate} p={p} index={i}>
-          <beat.page />
-        </Page>
-      ))}
-      <Finale p={p} />
-      {!compact && <Bin p={p} />}
-    </div>
-  );
-}
-
-/**
- * The screening panel: which check is reading, for which posting, and its
- * status, "Checking" until the verdict. Each beat's title and status are
- * stacked and shown in turn.
- */
-function Screen({ p }: { p: MotionValue<number> }) {
-  return (
-    <div
-      className="gloss-card absolute rounded-2xl"
-      style={{ left: SCREEN.x, top: SCREEN.y, width: SCREEN.w, height: SCREEN.h }}
-    >
-      <div className="relative flex items-center gap-3 px-4" style={{ height: HEADER_H }}>
-        <div className="relative h-9 min-w-0 flex-1">
-          {BEATS.map((beat, i) => (
-            <Shown key={beat.gate} p={p} range={showRange(i)} className="absolute inset-0">
-              <ScreenTitle icon={beat.icon} title={beat.gate} tone="danger" />
-            </Shown>
-          ))}
-          <Shown p={p} range={showRange(BEATS.length)} className="absolute inset-0">
-            {/* WorkIt's own logo, as in the caption's chip. */}
-            <ScreenTitle
-              icon={CheckIcon}
-              title={
-                <span className="inline-flex items-center gap-1.5">
-                  With <Logo size="bar" className="h-[15px]" />
-                </span>
-              }
-              tone="brand"
-            />
-          </Shown>
-        </div>
-        <div className="relative h-7 w-[8.5rem] shrink-0">
-          {BEATS.map((beat, i) => {
-            const [a, b] = showRange(i);
-            const verdict = at(BEAT_AT[i], VERDICT);
-            return (
-              <React.Fragment key={beat.gate}>
-                <Shown p={p} range={[a, verdict]} className="absolute inset-0 flex justify-end">
-                  <Status tone="neutral">Checking</Status>
-                </Shown>
-                <Shown p={p} range={[verdict, b]} className="absolute inset-0 flex justify-end">
-                  <Status tone="danger">{beat.verdict}</Status>
-                </Shown>
-              </React.Fragment>
-            );
-          })}
-          <Shown
-            p={p}
-            range={[FINAL_AT[0], at(FINAL_AT, 0.4)]}
-            className="absolute inset-0 flex justify-end"
-          >
-            <Status tone="neutral">Checking</Status>
-          </Shown>
-          <Shown p={p} range={[at(FINAL_AT, 0.4), 1]} className="absolute inset-0 flex justify-end">
-            <Status tone="positive">Ready to submit</Status>
-          </Shown>
-        </div>
-      </div>
-      <div
-        className="absolute rounded-xl bg-slate-50 ring-1 ring-slate-900/[0.04] ring-inset"
-        style={{ left: 12, right: 12, top: HEADER_H, bottom: 12 }}
-      />
-    </div>
-  );
-}
-
-/** Beat `i`'s stretch on the panel: from its start to the next beat's. */
-function showRange(i: number): [number, number] {
-  const starts = [...BEAT_AT.map((b) => b[0]), FINAL_AT[0]];
-  return [i === 0 ? 0 : starts[i], i === starts.length - 1 ? 1 : starts[i + 1]];
-}
-
-/** Shown across `range`, with a quick fade after each end that is not the
- * timeline's own (`fadeWindow`). */
-function Shown({
-  p,
-  range: [a, b],
-  className,
-  children,
-}: {
-  p: MotionValue<number>;
-  range: [number, number];
-  className?: string;
-  children: React.ReactNode;
-}) {
-  const { input, output } = fadeWindow(a, b);
-  const opacity = useTransform(p, input, output);
-  return (
-    <motion.div className={className} style={{ opacity }}>
-      {children}
-    </motion.div>
-  );
-}
-
-function ScreenTitle({
-  icon: Icon,
-  title,
-  tone,
-}: {
-  icon: PhosphorIcon;
-  title: React.ReactNode;
-  tone: "danger" | "brand";
-}) {
-  return (
-    <div className="flex h-full items-center gap-2.5">
-      <span
-        className={cn(
-          "grid size-9 shrink-0 place-items-center rounded-xl",
-          tone === "danger" ? "bg-slate-100 text-slate-600" : "bg-brand-tint text-brand-ink",
-        )}
+    <div aria-hidden="true" className="grid items-center select-none">
+      <motion.div
+        className="col-start-1 row-start-1 min-w-0 rounded-[1.75rem] bg-white p-6 shadow-xl shadow-slate-900/5 sm:p-8"
+        style={{ opacity }}
       >
-        <Icon aria-hidden className="size-[18px]" weight={tone === "brand" ? "bold" : "regular"} />
-      </span>
-      <span className="min-w-0">
-        <span className="text-ink block text-[13px] leading-tight font-semibold">{title}</span>
-        <span className="text-ink-meta flex items-center gap-1 text-[11px] leading-tight whitespace-nowrap">
-          <FaviconLogo domain={followedJob.domain} eager className="size-3.5 rounded-[4px]" />
-          <span className="truncate">{followedJob.title}</span>
-        </span>
-      </span>
+        <div className="flex items-center gap-2.5">
+          <FaviconLogo domain={followedJob.domain} eager className="size-7 rounded-lg" />
+          <p className="text-ink min-w-0 truncate text-sm font-semibold">
+            {followedJob.title}
+            <span className="text-ink-muted font-medium"> · {followedJob.company}</span>
+          </p>
+        </div>
+        <div className="mt-5 grid">
+          {BEATS.map((beat, i) => (
+            <Lines key={beat.gate} p={p} beat={beat} range={BEAT_AT[i]} />
+          ))}
+        </div>
+      </motion.div>
+      <Finale p={p} />
     </div>
   );
 }
 
-function Status({ tone, children }: { tone: "neutral" | "danger" | "positive"; children: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[11.5px] font-semibold whitespace-nowrap",
-        tone === "neutral" && "bg-slate-100 text-slate-600",
-        tone === "danger" && "bg-danger-tint text-danger",
-        tone === "positive" && "bg-positive-tint text-positive-ink",
-      )}
-    >
-      {tone === "neutral" && (
-        <span className="flex gap-0.5">
-          {[0, 1, 2].map((k) => (
-            <span key={k} className="size-1 rounded-full bg-current opacity-60" />
-          ))}
-        </span>
-      )}
-      {tone === "danger" && <XIcon aria-hidden className="size-3.5" weight="bold" />}
-      {tone === "positive" && <CheckIcon aria-hidden className="size-3.5" weight="bold" />}
-      {children}
-    </span>
-  );
-}
-
-/**
- * One page's way through its beat: in from the left onto the panel, still
- * while it is scanned, then crumpled where it lies (it shrinks and turns
- * as its ball grows in its place, `ballAt`).
- */
-function pageAt(index: number, v: number) {
-  const t = through(v, BEAT_AT[index]);
-  const enter = out(through(t, IN));
-  const crumple = ease(through(t, CRUMPLE));
-  return {
-    x: DOC.x - 36 * (1 - enter),
-    opacity: t <= 0 ? 0 : enter * (1 - clamp((through(t, CRUMPLE) - 0.35) / 0.45)),
-    scale: lerp(1, 0.18, crumple),
-    rotate: lerp(0, index % 2 ? 22 : -22, crumple),
-    scan: through(t, SCAN),
-    marked: through(t, SCAN),
-  };
-}
-
-function Page({
-  p,
-  index,
-  children,
-}: {
-  p: MotionValue<number>;
-  index: number;
-  children: React.ReactNode;
-}) {
-  // One pose per frame, each part read from it.
-  const pose = useTransform(p, (v) => pageAt(index, v));
-  const x = useTransform(pose, (s) => s.x);
-  const opacity = useTransform(pose, (s) => s.opacity);
-  const scale = useTransform(pose, (s) => s.scale);
-  const rotate = useTransform(pose, (s) => s.rotate);
-  // The scan: a thin line down the page, moved by a transform.
-  const scanY = useTransform(pose, (s) => s.scan * DOC.h);
-  const scanOpacity = useTransform(pose, (s) => (s.scan > 0 && s.scan < 1 ? 1 : 0));
-  const marks = BEATS[index].notes;
-
-  return (
-    // On its own layer (will-change), so its moves are composited.
-    <motion.div
-      className="absolute top-0 left-0 overflow-hidden rounded-[6px] bg-white shadow-[0_10px_24px_-14px_rgb(16_48_94/0.45)] ring-1 ring-slate-900/[0.08] will-change-transform"
-      style={{ width: DOC.w, height: DOC.h, x, y: DOC.y, opacity, scale, rotate }}
-    >
-      {children}
-      {/* The lines the check marks: a red wash over each, as the scan
-          passes it. */}
-      {marks.map((mark) => (
-        <Mark key={mark.y} pose={pose} y={mark.y} />
-      ))}
-      <motion.span
-        className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,var(--color-brand)_20%,var(--color-brand)_80%,transparent)]"
-        style={{ y: scanY, opacity: scanOpacity }}
-      />
-      <motion.span
-        className="from-brand/10 absolute inset-x-0 top-0 h-10 -translate-y-full bg-gradient-to-t to-transparent"
-        style={{ y: scanY, opacity: scanOpacity }}
-      />
-    </motion.div>
-  );
-}
-
-/** A marked line on a page: shown once the scan has passed it. */
-function Mark({ pose, y }: { pose: MotionValue<ReturnType<typeof pageAt>>; y: number }) {
-  const opacity = useTransform(pose, (s) => clamp((s.marked * DOC.h - y) / 18));
-  return (
-    <motion.span
-      className="bg-danger/10 border-danger/50 absolute inset-x-2.5 rounded-[3px] border-l-2"
-      style={{ top: y - 12, height: 24, opacity }}
-    />
-  );
-}
-
-/** The check's notes beside the page, each with a leader to its line,
- * written as the scan passes it and gone as the page crumples. */
-function Notes({
+/** One beat: the field, the generic line and its reasons, then the line that
+ * replaces it and where that came from. */
+function Lines({
   p,
   beat,
   range,
@@ -869,405 +608,291 @@ function Notes({
   beat: Beat;
   range: [number, number];
 }) {
+  const slop = wordsOf(beat.slop);
+  const specific = wordsOf(beat.specific);
+  const flagged = slop.filter((word) => word.marked).length;
+  const facts = specific.filter((word) => word.marked).length;
+  let flag = 0;
+  let fact = 0;
   return (
-    <>
-      {beat.notes.map((note) => (
-        <Note key={note.y} p={p} range={range} y={note.y}>
-          {note.text}
-        </Note>
-      ))}
-    </>
+    <div className="col-start-1 row-start-1 min-w-0">
+      <Fading
+        p={p}
+        from={range[0]}
+        to={range[1]}
+        className="text-ink-muted block text-sm font-medium"
+      >
+        {beat.field}
+      </Fading>
+      <div className={cn("mt-3 grid", LINE)}>
+        <p className="text-ink-muted col-start-1 row-start-1">
+          {slop.map((word, i) => {
+            const enter = at(range, lerp(WRITE[0], WRITE[1], i / slop.length));
+            const leave = at(
+              range,
+              lerp(REWRITE[0], lerp(REWRITE[0], REWRITE[1], GONE), i / slop.length),
+            );
+            return (
+              <React.Fragment key={i}>
+                <SlopWord
+                  p={p}
+                  enter={enter}
+                  leave={leave}
+                  index={i}
+                  flag={
+                    word.marked ? at(range, lerp(FLAG[0], FLAG[1], flag++ / flagged)) : undefined
+                  }
+                >
+                  {word.text}
+                </SlopWord>{" "}
+              </React.Fragment>
+            );
+          })}
+        </p>
+        <p className="text-ink col-start-1 row-start-1">
+          {specific.map((word, i) => {
+            const enter = at(
+              range,
+              lerp(lerp(REWRITE[0], REWRITE[1], 1 - GONE), REWRITE[1], i / specific.length),
+            );
+            return (
+              <React.Fragment key={i}>
+                <SpecificWord
+                  p={p}
+                  enter={enter}
+                  leave={range[1] - FADE}
+                  fact={
+                    word.marked ? at(range, lerp(FACTS[0], FACTS[1], fact++ / facts)) : undefined
+                  }
+                >
+                  {word.text}
+                </SpecificWord>{" "}
+              </React.Fragment>
+            );
+          })}
+        </p>
+      </div>
+      {/* The reasons, then in the same place where the new line came from. */}
+      <div className="mt-5 grid">
+        <div className="col-start-1 row-start-1 flex flex-wrap gap-2">
+          {beat.notes.map((note, i) => (
+            <Fading
+              key={note}
+              p={p}
+              from={at(range, lerp(FLAG[0], FLAG[1], i / beat.notes.length))}
+              to={at(range, REWRITE[0]) + FADE}
+              className="bg-danger-tint text-danger inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold whitespace-nowrap"
+            >
+              <XIcon aria-hidden="true" className="size-3.5" weight="bold" />
+              {note}
+            </Fading>
+          ))}
+        </div>
+        <Fading
+          p={p}
+          from={at(range, REWRITE[1])}
+          to={range[1]}
+          className="bg-landing-brand-50 text-landing-brand-800 col-start-1 row-start-1 inline-flex h-8 w-fit items-center gap-2 rounded-full px-3 text-[13px] font-semibold whitespace-nowrap"
+        >
+          <Logo size="mark" decorative className="h-3" />
+          {beat.source}
+        </Fading>
+      </div>
+    </div>
   );
 }
 
-function Note({
+/** Anything that fades in at `from`, lifting, and out by `to`. */
+function Fading({
   p,
-  range,
-  y,
+  from,
+  to,
+  className,
   children,
 }: {
   p: MotionValue<number>;
-  range: [number, number];
-  y: number;
+  from: number;
+  to: number;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const input = [from, from + FADE, to - FADE, to];
+  const opacity = useTransform(p, input, [0, 1, 1, 0]);
+  const transform = useTransform(p, input, [
+    "translateY(6px)",
+    "translateY(0px)",
+    "translateY(0px)",
+    "translateY(0px)",
+  ]);
+  return (
+    <motion.span className={className} style={{ opacity, transform }}>
+      {children}
+    </motion.span>
+  );
+}
+
+/** A word of the generic line: it comes in, takes the headline's flowing
+ * gradient if it is one that sinks the line (`flag`, when), and goes as the
+ * rewrite reaches it. Each word starts the flow a little later (`index`), so
+ * the colour runs along a phrase. */
+function SlopWord({
+  p,
+  enter,
+  leave,
+  index,
+  flag,
+  children,
+}: {
+  p: MotionValue<number>;
+  enter: number;
+  leave: number;
+  index: number;
+  flag?: number;
   children: string;
 }) {
-  // When the scan reaches the note's line, and when the page crumples.
-  const shownAt = at(range, at(SCAN, y / DOC.h));
-  const goneAt = at(range, CRUMPLE[0]);
-  const opacity = useTransform(p, [shownAt, shownAt + 0.012, goneAt, goneAt + 0.015], [0, 1, 1, 0]);
-  const transform = useTransform(
-    p,
-    [shownAt, shownAt + 0.012],
-    ["translateX(-6px)", "translateX(0px)"],
-  );
+  const input = [enter, enter + FADE, leave, leave + FADE];
+  const opacity = useTransform(p, input, [0, 1, 1, 0]);
+  const transform = useTransform(p, input, [
+    "translateY(0.14em)",
+    "translateY(0em)",
+    "translateY(0em)",
+    "translateY(-0.14em)",
+  ]);
   return (
-    <motion.div
-      className="absolute flex items-center"
-      style={{ left: NOTES_X, top: DOC.y + y - 13, height: 26, opacity, transform }}
+    <motion.span
+      className="relative inline-block will-change-transform"
+      style={{ opacity, transform }}
     >
-      {/* The leader, back to the page's edge. */}
-      <span
-        className="bg-danger/35 absolute top-1/2 h-px"
-        style={{ right: "100%", width: NOTES_X - DOC.x - DOC.w }}
-      />
-      <span className="bg-danger/35 absolute top-1/2 right-full -mt-[2px] mr-[22px] size-[5px] rounded-full" />
-      <span className="border-danger/20 text-danger inline-flex h-[26px] items-center gap-1 rounded-lg border bg-white px-2 text-[11px] font-semibold whitespace-nowrap shadow-[0_4px_12px_-8px_rgb(16_48_94/0.4)]">
-        <XIcon aria-hidden className="size-3" weight="bold" />
-        {children}
-      </span>
-    </motion.div>
+      {flag !== undefined && (
+        <Marker p={p} from={flag} className="bg-[color-mix(in_oklab,#e0218a_7%,white)]" />
+      )}
+      {flag !== undefined ? (
+        <Tinted p={p} from={flag} className="slop-word" delay={index * -0.5}>
+          {children}
+        </Tinted>
+      ) : (
+        children
+      )}
+    </motion.span>
   );
 }
 
-const Line = ({ w, className }: { w: string; className?: string }) => (
-  <span className={cn("block h-[4px] rounded-full bg-slate-200", className)} style={{ width: w }} />
-);
-
-// The three pages, laid out on fixed lines so the notes' `y` meet them.
-
-function ResumePage() {
+/** A word of the specific line: it comes in as the rewrite reaches it and is
+ * marked in violet if it is one of the facts (`fact`, when). */
+function SpecificWord({
+  p,
+  enter,
+  leave,
+  fact,
+  children,
+}: {
+  p: MotionValue<number>;
+  enter: number;
+  leave: number;
+  fact?: number;
+  children: string;
+}) {
+  const input = [enter, enter + FADE, leave, leave + FADE];
+  const opacity = useTransform(p, input, [0, 1, 1, 0]);
+  const transform = useTransform(p, input, [
+    "translateY(0.18em)",
+    "translateY(0em)",
+    "translateY(0em)",
+    "translateY(0em)",
+  ]);
   return (
-    <div className="absolute inset-0 px-3.5 pt-3 font-serif text-slate-700">
-      <p className="text-center text-[13px] font-bold">[Your Name]</p>
-      <Line w="64%" className="mx-auto mt-1.5" />
-      <p className="absolute inset-x-3.5 top-[50px] text-[9px] leading-[12px]">
-        Objective: To obtain a position at a company where I can grow.
-      </p>
-      <div className="absolute inset-x-3.5 top-[86px] space-y-1.5">
-        <Line w="36%" className="bg-slate-400" />
-        <Line w="92%" />
-        <Line w="84%" />
-        <Line w="88%" />
-        <Line w="30%" className="mt-3 bg-slate-400" />
-        <Line w="90%" />
-        <Line w="76%" />
-      </div>
-      <p className="absolute inset-x-3.5 top-[164px] text-[9px] leading-[12px]">
-        Skills: Microsoft Office, teamwork, hard worker.
-      </p>
-      <div className="absolute inset-x-3.5 top-[200px] space-y-1.5">
-        <Line w="80%" />
-        <Line w="60%" />
-      </div>
-    </div>
-  );
-}
-
-function ApplicationPage() {
-  return (
-    <div className="absolute inset-0 px-3.5 pt-3">
-      <p className="text-ink text-[12px] font-bold">Application #187</p>
-      <p className="text-ink-meta absolute inset-x-3.5 top-[38px] text-[9px]">Why this company?</p>
-      <p className="absolute inset-x-3.5 top-[52px] rounded-[3px] px-1.5 py-1 text-[9px] whitespace-nowrap text-slate-600 ring-1 ring-slate-200">
-        Excited to join your company.
-      </p>
-      <p className="text-ink-meta absolute inset-x-3.5 top-[78px] text-[9px]">Why this role?</p>
-      <p className="absolute inset-x-3.5 top-[92px] rounded-[3px] px-1.5 py-1 text-[9px] whitespace-nowrap text-slate-600 ring-1 ring-slate-200">
-        I am a hard-working fast learner.
-      </p>
-      <p className="text-ink-meta absolute inset-x-3.5 top-[124px] text-[9px]">Anything else?</p>
-      <p className="absolute inset-x-3.5 top-[138px] h-[34px] rounded-[3px] ring-1 ring-slate-200" />
-      <p className="bg-ink absolute inset-x-3.5 top-[190px] rounded-[4px] py-1.5 text-center text-[9px] font-bold text-white">
-        Easy Apply
-      </p>
-    </div>
-  );
-}
-
-function LetterPage() {
-  return (
-    <div className="absolute inset-0 px-3.5 pt-3 font-serif text-[9px] leading-[12px] text-slate-700">
-      <p className="mt-1">Dear Hiring Manager,</p>
-      <p className="absolute inset-x-3.5 top-[50px]">
-        I am writing to apply for the [Position] role at [Company].
-      </p>
-      <p className="absolute inset-x-3.5 top-[108px]">
-        I am a hard-working team player who is passionate about [Industry].
-      </p>
-      <p className="absolute inset-x-3.5 top-[150px]">I look forward to hearing from you.</p>
-      <p className="absolute inset-x-3.5 top-[180px]">Sincerely,</p>
-      <p className="absolute inset-x-3.5 top-[194px]">[Your Name]</p>
-    </div>
-  );
-}
-
-// --- The paper balls and the wastebasket ---
-
-/** Where page `index`'s ball is: grown in the page's place as it
- * crumples, thrown on an arc (steady across, falling under gravity), then
- * at rest in the pile at the rim, with a small bounce as it lands. */
-function ballAt(index: number, v: number) {
-  const t = through(v, BEAT_AT[index]);
-  const start = { x: DOC.x + DOC.w / 2, y: DOC.y + DOC.h / 2 };
-  const end = PILE[index];
-  const grow = out(through(t, CRUMPLE));
-  const fly = through(t, THROW);
-  const land = through(t, LAND);
-  const arc = 170;
-  const bounce = land > 0 && land < 0.6 ? Math.sin((land / 0.6) * Math.PI) * 7 : 0;
-  return {
-    x: lerp(start.x, end.x, fly) - BALL_R,
-    y: lerp(start.y, end.y, fly) - arc * 4 * fly * (1 - fly) - bounce - BALL_R,
-    rotate: end.spin * out(fly) + (1 - grow) * -40,
-    scale: lerp(0.35, 1, grow),
-    opacity: clamp((through(t, CRUMPLE) - 0.2) / 0.3),
-  };
-}
-
-function Ball({ p, index }: { p: MotionValue<number>; index: number }) {
-  const pose = useTransform(p, (v) => ballAt(index, v));
-  const x = useTransform(pose, (s) => s.x);
-  const y = useTransform(pose, (s) => s.y);
-  const rotate = useTransform(pose, (s) => s.rotate);
-  const scale = useTransform(pose, (s) => s.scale);
-  const opacity = useTransform(pose, (s) => s.opacity);
-  return (
-    <motion.div
-      className="absolute top-0 left-0 drop-shadow-[0_3px_3px_rgb(16_24_40/0.22)] will-change-transform"
-      style={{ x, y, rotate, scale, opacity, width: BALL_R * 2, height: BALL_R * 2 }}
+    <motion.span
+      className="relative inline-block will-change-transform"
+      style={{ opacity, transform }}
     >
-      <PaperBall variant={index} />
-    </motion.div>
+      {fact !== undefined && <Marker p={p} from={fact} className="bg-landing-brand-100" />}
+      {fact !== undefined ? (
+        <Tinted p={p} from={fact} className="text-landing-brand-800">
+          {children}
+        </Tinted>
+      ) : (
+        children
+      )}
+    </motion.span>
   );
 }
 
-/** A crumpled sheet: a lumpy outline, facets in three greys, crease lines. */
-function PaperBall({ variant }: { variant: number }) {
-  const turn = variant * 47;
+/** A highlighter stroke behind a word, drawn left to right. Each runs a little
+ * past its word, so the strokes of a phrase join up. */
+function Marker({
+  p,
+  from,
+  className,
+}: {
+  p: MotionValue<number>;
+  from: number;
+  className: string;
+}) {
+  const scaleX = useTransform(p, [from, from + FADE], [0, 1]);
   return (
-    <svg
-      viewBox="0 0 42 42"
-      className="size-full overflow-visible"
-      style={{ rotate: `${turn}deg` }}
-    >
-      <path
-        d="M21 2.5 L28.5 4.5 L35 9 L39 16 L39.5 24 L36 31.5 L30 37 L22.5 39.5 L14 38 L7.5 33.5 L3 26.5 L2.5 18 L6 10.5 L12.5 5 Z"
-        fill="#f7f8fb"
-        stroke="#aeb3c2"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-      {/* Lit from the upper left: the lower right facets are the darkest. */}
-      <path d="M21 2.5 L19 13 L28.5 4.5 Z" fill="#ffffff" />
-      <path d="M39 16 L27 18 L39.5 24 Z" fill="#d4d8e2" />
-      <path d="M14 38 L17 27 L22.5 39.5 Z" fill="#cfd3de" />
-      <path d="M3 26.5 L12 21 L7.5 33.5 Z" fill="#dde0e9" />
-      <path d="M6 10.5 L12 21 L2.5 18 Z" fill="#fbfbfd" />
-      <path d="M30 37 L27 18 L36 31.5 Z" fill="#c4c9d5" />
-      <path d="M27 18 L39.5 24 L36 31.5 Z" fill="#cbd0db" />
-      <path d="M19 13 L27 18 L17 27 L12 21 Z" fill="#eef0f5" />
-      <path
-        d="M19 13 L27 18 L17 27 L12 21 Z M19 13 L12.5 5 M27 18 L35 9 M17 27 L14 38 M12 21 L3 26.5 M27 18 L30 37"
-        fill="none"
-        stroke="#a9aebd"
-        strokeWidth="0.9"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <motion.span
+      className={cn(
+        "absolute -inset-x-[0.14em] inset-y-[0.04em] -z-10 origin-left rounded-[0.08em]",
+        className,
+      )}
+      style={{ scaleX }}
+    />
   );
 }
 
-/**
- * The wastebasket: a solid, matte pail (never see-through), its far wall
- * and rim drawn behind the balls and its body in front of them, so a ball
- * drops in below the lip and the pile shows above it. It rocks a little as
- * each ball lands, and a count shows how many will never be read.
- */
-function Bin({ p }: { p: MotionValue<number> }) {
-  // A damped rock after each landing, about its foot.
-  const rock = useTransform(p, (v) => {
-    for (let i = 0; i < BEAT_AT.length; i++) {
-      const b = through(through(v, BEAT_AT[i]), LAND);
-      if (b > 0 && b < 1) return 3.2 * Math.exp(-4 * b) * Math.sin(b * Math.PI * 3);
-    }
-    return 0;
-  });
-  const landed = useTransform(
-    p,
-    (v) => BEAT_AT.filter((range) => through(v, range) >= LAND[0]).length,
-  );
-  const count = useTransform(landed, (n) => String(n));
-  const countOpacity = useTransform(landed, (n) => (n > 0 ? 1 : 0));
-  const x = BIN.cx - BIN.top / 2;
-  const top = BIN.rim - 14;
-  const box = { left: x, top, width: BIN.top, height: BIN.h + 28 };
-  const origin = `${BIN.top / 2}px ${BIN.h + 14}px`;
-
+/** A word in its line's colour, crossfading to a copy in `className`: motion
+ * cannot read a colour token or blend into a gradient, and over a word still
+ * in its old colour a gradient's clipped text showed the old colour through. */
+function Tinted({
+  p,
+  from,
+  className,
+  delay,
+  children,
+}: {
+  p: MotionValue<number>;
+  from: number;
+  className: string;
+  /** Where the copy's own animation starts, in seconds. */
+  delay?: number;
+  children: string;
+}) {
+  const reveal = useTransform(p, [from, from + FADE], [0, 1]);
+  const base = useTransform(reveal, [0, 1], [1, 0]);
   return (
     <>
-      <motion.div className="absolute" style={{ ...box, rotate: rock, transformOrigin: origin }}>
-        <BinBack />
-      </motion.div>
-      {BEATS.map((beat, i) => (
-        <Ball key={beat.gate} p={p} index={i} />
-      ))}
-      <motion.div className="absolute" style={{ ...box, rotate: rock, transformOrigin: origin }}>
-        <BinFront />
-        <motion.span
-          className="bg-danger absolute -top-1 -right-2 grid h-6 min-w-6 place-items-center rounded-full px-1.5 text-[12px] font-bold text-white tabular-nums shadow-[0_4px_10px_-4px_rgb(192_42_61/0.6)] ring-2 ring-white"
-          style={{ opacity: countOpacity }}
-        >
-          <motion.span>{count}</motion.span>
-        </motion.span>
-      </motion.div>
+      <motion.span style={{ opacity: base }}>{children}</motion.span>
+      <motion.span
+        className={cn("absolute inset-0", className)}
+        style={{ opacity: reveal, animationDelay: delay === undefined ? undefined : `${delay}s` }}
+      >
+        {children}
+      </motion.span>
     </>
-  );
-}
-
-/** The pail's outline: the rim's two ends, tapering to a rounded foot. */
-function pailPath(w: number, foot: number, h: number) {
-  const inset = (w - foot) / 2;
-  return `M2 14 L${inset} ${h + 6} Q${w / 2} ${h + 18} ${w - inset} ${h + 6} L${w - 2} 14`;
-}
-
-function BinBack() {
-  const w = BIN.top;
-  return (
-    <svg
-      width={w}
-      height={BIN.h + 28}
-      viewBox={`0 0 ${w} ${BIN.h + 28}`}
-      className="overflow-visible"
-    >
-      <defs>
-        <linearGradient id="bin-mouth" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#5b5873" />
-          <stop offset="1" stopColor="#8c88a3" />
-        </linearGradient>
-      </defs>
-      {/* The floor's shadow. */}
-      <ellipse cx={w / 2} cy={BIN.h + 20} rx={w / 2 - 6} ry={7} fill="rgb(16 24 40 / 0.16)" />
-      {/* The dark inside, seen through the mouth, and the rim's far edge. */}
-      <ellipse cx={w / 2} cy={14} rx={w / 2 - 2} ry={12} fill="url(#bin-mouth)" />
-      <path
-        d={`M2 14 A${w / 2 - 2} 12 0 0 1 ${w - 2} 14`}
-        fill="none"
-        stroke="#e7e5ef"
-        strokeWidth="3.5"
-      />
-    </svg>
-  );
-}
-
-function BinFront() {
-  const w = BIN.top;
-  const h = BIN.h;
-  // Ribs moulded into the pail, each a lit edge beside a shadowed one.
-  const ribs = [0.16, 0.32, 0.5, 0.68, 0.84];
-  const inset = (w - BIN.foot) / 2;
-  return (
-    <svg width={w} height={h + 28} viewBox={`0 0 ${w} ${h + 28}`} className="overflow-visible">
-      <defs>
-        {/* Matte plastic: lit from the upper left, rolling off at the sides. */}
-        <linearGradient id="bin-body" x1="0" x2="1">
-          <stop offset="0" stopColor="#b3aec7" />
-          <stop offset="0.16" stopColor="#dedbea" />
-          <stop offset="0.34" stopColor="#f7f6fb" />
-          <stop offset="0.6" stopColor="#dcd9e8" />
-          <stop offset="0.86" stopColor="#bdb8cf" />
-          <stop offset="1" stopColor="#a39dba" />
-        </linearGradient>
-        {/* Darker towards the foot, where less light reaches. */}
-        <linearGradient id="bin-shade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0.5" stopColor="#2f2945" stopOpacity="0" />
-          <stop offset="1" stopColor="#2f2945" stopOpacity="0.22" />
-        </linearGradient>
-        <linearGradient id="bin-lip" x1="0" x2="1">
-          <stop offset="0" stopColor="#d8d5e4" />
-          <stop offset="0.35" stopColor="#ffffff" />
-          <stop offset="1" stopColor="#d4d0e1" />
-        </linearGradient>
-      </defs>
-      <path d={`${pailPath(w, BIN.foot, h)} Q${w / 2} 38 2 14 Z`} fill="url(#bin-body)" />
-      <path d={`${pailPath(w, BIN.foot, h)} Q${w / 2} 38 2 14 Z`} fill="url(#bin-shade)" />
-      {ribs.map((r) => {
-        const bow = Math.sin(Math.PI * r);
-        const x1 = 2 + (w - 4) * r;
-        const x2 = inset + (w - 2 * inset) * r;
-        const y1 = 14 + 22 * bow + 6;
-        const y2 = h + 4 + 10 * bow;
-        return (
-          <g key={r}>
-            <line
-              x1={x1 - 1.2}
-              y1={y1}
-              x2={x2 - 1}
-              y2={y2}
-              stroke="#ffffff"
-              strokeOpacity="0.8"
-              strokeWidth="1.4"
-            />
-            <line
-              x1={x1 + 0.8}
-              y1={y1}
-              x2={x2 + 0.8}
-              y2={y2}
-              stroke="#5d5677"
-              strokeOpacity="0.12"
-              strokeWidth="1.4"
-            />
-          </g>
-        );
-      })}
-      {/* The rolled lip along the near edge of the rim. */}
-      <path
-        d={`M2 14 Q${w / 2} 38 ${w - 2} 14`}
-        fill="none"
-        stroke="url(#bin-lip)"
-        strokeWidth="5"
-        strokeLinecap="round"
-      />
-      <path
-        d={`M2 16.5 Q${w / 2} 40.5 ${w - 2} 16.5`}
-        fill="none"
-        stroke="#7d7795"
-        strokeOpacity="0.18"
-        strokeWidth="1"
-      />
-    </svg>
   );
 }
 
 // --- The finale: WorkIt's application for the same posting ---
 
-/** The followed card, in on the panel, scanned, and found ready. */
+/** The followed card, ready, in the place the lines were. */
 function Finale({ p }: { p: MotionValue<number> }) {
-  const pose = useTransform(p, (v) => {
-    const t = through(v, FINAL_AT);
-    const enter = out(through(t, IN));
-    return { x: -36 * (1 - enter), opacity: enter, scan: through(t, SCAN) };
-  });
-  const x = useTransform(pose, (s) => s.x);
-  const opacity = useTransform(pose, (s) => s.opacity);
-  const scanY = useTransform(pose, (s) => s.scan * 196);
-  const scanOpacity = useTransform(pose, (s) => (s.scan > 0 && s.scan < 1 ? 1 : 0));
-  const left = SCREEN.x + (SCREEN.w - CARD_WIDTH) / 2;
-  const top = SCREEN.y + HEADER_H + 14;
-
+  const input = [FINAL_AT[0], FINAL_AT[0] + 2 * FADE];
+  const opacity = useTransform(p, input, [0, 1]);
+  const transform = useTransform(p, input, ["translateY(14px)", "translateY(0px)"]);
   return (
-    <>
-      <motion.div className="absolute will-change-transform" style={{ left, top, x, opacity }}>
-        <div className="relative">
-          <FollowedCard stage="saved" />
-          <motion.span
-            className="pointer-events-none absolute inset-x-3 top-0 h-px bg-[linear-gradient(90deg,transparent,var(--color-brand)_20%,var(--color-brand)_80%,transparent)]"
-            style={{ y: scanY, opacity: scanOpacity }}
-          />
-        </div>
-      </motion.div>
-      <div
-        className="absolute flex flex-wrap justify-center gap-1.5"
-        // Under the card, both rows inside the panel: the second row of
-        // checks once hung off its foot.
-        style={{ left: SCREEN.x + 16, width: SCREEN.w - 32, top: SCREEN.y + SCREEN.h - 86 }}
-      >
+    <motion.div
+      className="col-start-1 row-start-1 flex min-w-0 flex-col items-center gap-5"
+      style={{ opacity, transform }}
+    >
+      <FollowedCard className="max-w-full" />
+      <div className="flex flex-wrap justify-center gap-1.5">
         {CHECKS.map((check, i) => (
-          <CheckChip key={check} p={p} at={at(FINAL_AT, at(SCAN, 0.35 + i * 0.3))}>
+          <CheckChip key={check} p={p} at={at(FINAL_AT, 0.2 + i * 0.1)}>
             {check}
           </CheckChip>
         ))}
       </div>
-    </>
+    </motion.div>
   );
 }
 
@@ -1280,8 +905,8 @@ function CheckChip({
   at: number;
   children: string;
 }) {
-  const opacity = useTransform(p, [from, from + 0.012], [0, 1]);
-  const transform = useTransform(p, [from, from + 0.012], ["translateY(4px)", "translateY(0px)"]);
+  const opacity = useTransform(p, [from, from + FADE], [0, 1]);
+  const transform = useTransform(p, [from, from + FADE], ["translateY(4px)", "translateY(0px)"]);
   return (
     <motion.span
       className="bg-positive-tint text-positive-ink inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[11.5px] font-semibold whitespace-nowrap"

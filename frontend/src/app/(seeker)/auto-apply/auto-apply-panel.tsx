@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
  * The top of the Auto Apply page: the queue in a line, while it holds a job
  * ("3 in progress · 2 queued", `summary`, counted in the browser by
  * ./up-next.tsx's QueueSummary). `children` is the page's sections, the setup strip and Up Next
- * (./page.tsx).
+ * (./(queue)/page.tsx).
  *
  * NO BUTTON IN THE HEADER. Start Auto Apply sat at its top right until it
  * was dropped (asked for 2026-10-29): the app's page headers hold a view

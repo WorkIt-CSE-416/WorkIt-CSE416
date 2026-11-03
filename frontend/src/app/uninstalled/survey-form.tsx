@@ -5,6 +5,7 @@ import { useActionState } from "react";
 
 import { TextAreaField } from "@/components/text-area-field";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { RadioRow } from "@/components/ui/radio-row";
 import { FIELD_LABEL } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
@@ -12,9 +13,6 @@ import { sendAnswer, type SurveyState } from "./actions";
 import { DETAIL_MAX, REASONS } from "./answer";
 
 const INITIAL_STATE: SurveyState = { sent: false, error: null };
-
-const optionRow =
-  "hover:bg-hover has-checked:border-brand border-border rounded-control text-body text-ink flex cursor-pointer items-center gap-3 border px-3 py-2";
 
 /** The survey's one question and its Send; a thank-you once sent. */
 export function SurveyForm({ version }: { version: string | null }) {
@@ -37,16 +35,9 @@ export function SurveyForm({ version }: { version: string | null }) {
       <fieldset className="flex min-w-0 flex-col gap-1.5">
         <legend className={cn(FIELD_LABEL, "mb-0.5")}>Pick One</legend>
         {REASONS.map((reason) => (
-          <label key={reason.value} className={optionRow}>
-            <input
-              type="radio"
-              name="reason"
-              value={reason.value}
-              required
-              className="accent-brand shrink-0"
-            />
-            <span className="min-w-0 break-words">{reason.label}</span>
-          </label>
+          <RadioRow key={reason.value} name="reason" value={reason.value} required>
+            {reason.label}
+          </RadioRow>
         ))}
       </fieldset>
 

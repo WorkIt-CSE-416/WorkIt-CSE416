@@ -18,7 +18,8 @@ import { SecuritySection } from "./security/section";
  *
  * EACH SECTION THAT READS STREAMS IN ITS OWN <Suspense> (KAN-368). Personal
  * Details reads the profile and the photo, Job Preferences the saved
- * filters and the role options (the facets and the locations), and with no
+ * filters and the role options (the facets and the locations),
+ * Integrations whether the student's Claude is connected, and with no
  * boundary the modal opened only once the slowest of those had answered.
  * Now the route's layout awaits nothing, so the modal opens as soon as the
  * route's first bytes arrive, over each section's skeleton: its own card
@@ -53,7 +54,11 @@ export function allSections() {
         <NotificationsSection />
       </Suspense>
     ),
-    integrations: <IntegrationsSection />,
+    integrations: (
+      <Suspense fallback={<SectionSkeleton title="Integrations" fields={2} />}>
+        <IntegrationsSection />
+      </Suspense>
+    ),
     preferences: (
       <Suspense fallback={<SectionSkeleton title="Job Preferences" fields={4} />}>
         <PreferencesSection />

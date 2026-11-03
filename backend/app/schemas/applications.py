@@ -1,8 +1,16 @@
 import datetime
 import uuid
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.models.dto import application_stage
 from app.schemas.jobs import Highlight, JobListing
@@ -45,6 +53,31 @@ class JobByLink(BaseModel):
 
     job_id: uuid.UUID
     stage: application_stage | None = None
+
+
+class AddByLink(BaseModel):
+    """POST /jobs/added-by-link: the form the student is on and its job's
+    company and title, as the Fill engine reads them from the job system
+    (KAN-515). Each is trimmed; a blank one is refused.
+
+    `track_only` is Apply's (KAN-544, KAN-545): it puts the job on the
+    student's Applications Tracker and nothing more. Any web link is taken,
+    not only a form auto apply fills; a scraped job the feed closed keeps
+    its status and text and gets the application; and a new application is
+    saved, while one the student has keeps its stage."""
+
+    url: str = Field(max_length=2048)
+    company: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
+    track_only: bool = False
+
+    @field_validator("url")
+    @classmethod
+    def _web_link(cls, url: str) -> str:
+        parts = urlsplit(url.strip())
+        if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
+            raise ValueError("Give the job's web link (http or https).")
+        return url.strip()
 
 
 class JobSaved(BaseModel):
@@ -90,7 +123,8 @@ class Application(BaseModel):
     # The sent resume it went out with (KAN-267): job_applications'
     # `sent_resume_id`, null when none was sent or it was since deleted.
     sent_resume: SentResumeResponse | None = None
-    # False once the job posting has closed: the extension skips it.
+    # False once the job posting has closed: the extension skips it. True
+    # on a job a student added (KAN-515), which is open though no feed lists it.
     open: bool
     # The Jobs page's match score (0-100) for this job posting, on ?scored=true
     # only (KAN-256). Null otherwise, for a closed job posting, and while the

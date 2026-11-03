@@ -2,8 +2,8 @@
  * The questions hiring systems repeat on every application (KAN-283), and the
  * shape the API keeps them in (GET and PATCH /applicants/{id}/autofill-answers,
  * the backend's schemas/autofill_answers.py, field for field). Onboarding's
- * Profile step asks them first; My Profile's Application Questions shows and
- * edits them (KAN-269). Both read this one list, so a new question is one
+ * Profile step asks them first; Application Info's question cards show and
+ * edit them (KAN-269). Both read this one list, so a new question is one
  * entry here and one key in the API's schema. Onboarding leaves out the
  * voluntary self-identification (SELF_ID_KEYS, KAN-387): the extension asks
  * it the first time a form does. Server actions:

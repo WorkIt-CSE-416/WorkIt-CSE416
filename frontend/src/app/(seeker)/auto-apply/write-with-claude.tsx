@@ -26,7 +26,7 @@ export function WriteWithClaude({ className }: { className?: string }) {
         <SparkleIcon className="size-4" />
         Write with Claude
       </ButtonLink>
-      <p className="text-meta text-ink-meta">Press Enter in Claude (or paste)</p>
+      <p className="text-note text-ink-meta">Press Enter in Claude (or paste)</p>
     </div>
   );
 }
@@ -45,7 +45,7 @@ export function ConnectClaude({ link, className }: { link: string; className?: s
         <ClaudeIcon className="size-4" />
         Connect Claude
       </ButtonLink>
-      <p className="text-meta text-ink-meta">Optional: lets your Claude write these</p>
+      <p className="text-note text-ink-meta">Optional: lets your Claude write these</p>
     </div>
   );
 }

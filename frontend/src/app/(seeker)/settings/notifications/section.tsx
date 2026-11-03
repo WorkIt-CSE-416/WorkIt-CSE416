@@ -31,7 +31,9 @@ export async function NotificationsSection() {
 
   return (
     <Card as="section" aria-labelledby="notifications" className="flex flex-col gap-4">
-      <SectionHeading id="notifications">Notifications</SectionHeading>
+      <SectionHeading as="h3" id="notifications">
+        Notifications
+      </SectionHeading>
       <p className="text-body text-ink-meta">Choose which emails you get.</p>
       <ul className="divide-border-subtle flex flex-col divide-y">
         <li className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
@@ -39,7 +41,7 @@ export async function NotificationsSection() {
             <p id="new-matches-label" className="text-label text-ink font-semibold">
               New Matches
             </p>
-            <p id="new-matches-line" className="text-meta text-ink-meta">
+            <p id="new-matches-line" className="text-note text-ink-meta">
               Email me when new job postings fit my job preferences.
             </p>
           </div>
@@ -55,7 +57,7 @@ export async function NotificationsSection() {
                 {title}
                 <Badge tone="inert">Coming Soon</Badge>
               </p>
-              <p id={`${key}-line`} className="text-meta text-ink-meta">
+              <p id={`${key}-line`} className="text-note text-ink-meta">
                 {line}
               </p>
             </div>

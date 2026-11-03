@@ -6,11 +6,10 @@ import { stages } from "./board-data";
 
 /**
  * The applications section's stage math, and the offer's burst. The
- * section (applications.tsx) keeps its route's timeline as `s`, from 0 at
- * Saved to 3 at Job Offers, cued by the scroll and played in time;
- * everything that moves with the stages (the card on the route, the
- * route's fill, the logos flying between piles) reads `stageAt`, so they
- * glide to the next stage together and arrive together.
+ * section (applications.tsx) keeps its timeline as `s`, from 0 at Saved to 3
+ * at Job Offers, cued by the scroll and played in time; what moves with the
+ * stages (the card's lift, the rail's fill) reads `stageAt`, so they move
+ * together and arrive together.
  */
 
 const clamp = (v: number) => Math.min(1, Math.max(0, v));
@@ -26,20 +25,12 @@ export function stageAt(s: number) {
   return { from, to, u: ease(clamp(s - from)) };
 }
 
-/** How far the glide into stage `i` has gone at `s`: 0 before it starts,
- * 1 once `s` reaches `i`. */
-export function arrivalAt(i: number, s: number) {
-  if (s >= i) return 1;
-  const { from, u } = stageAt(s);
-  return from === i - 1 ? u : 0;
-}
-
 /** The stage `s` has reached. */
 export function stepAt(s: number) {
   return Math.min(stages.length - 1, Math.floor(s + 1e-6));
 }
 
-/** A few sparks flying out of an offer: the route's last stop, and the
+/** A few sparks flying out of an offer: the tracker card's last state, and the
  * Updates stop's offer. `delay` waits for whatever brought the offer in. */
 export function Burst({ color, delay = 0.55 }: { color: string; delay?: number }) {
   const sparks = 10;

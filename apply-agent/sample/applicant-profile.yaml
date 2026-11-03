@@ -1,0 +1,179 @@
+# The Test Person sample: a made-up applicant, in the shape of
+# apply/applicant-profile.template.yaml. Apply copies this folder into an empty
+# data folder ($APPLY_HOME, default ~/.config/apply) on its first run, so it
+# runs before you add your own files. The person and their stories are invented
+# (the school is a real one, so school searches on forms find it).
+#
+# While sample_data is true, the Apply window says "Sample data", so nothing is
+# sent as Test Person by mistake. Put in your own facts, then delete that line.
+sample_data: true
+
+identity:
+  legal_first_name: Test
+  legal_middle_name:
+  legal_last_name: Person
+  preferred_first_name: Test
+  preferred_last_name:
+  name_pronunciation: TEST PUR-sun
+  name_in_native_script:
+  pronouns: they/them/theirs
+  email: test.person@example.com
+  phone: "+15550100199"
+  current_location:
+    city: Springfield
+    state: IL
+    country: United States
+  home_address:
+    line1: 1 Main St
+    line2:
+    city: Springfield
+    state: IL
+    zip: "62701"
+    country: United States
+  summer_2027_location: Springfield, IL
+  current_company:
+  age_18_or_over: true
+  age_range: 18-20
+  languages:                   # besides English: each with spoken and written, true or false
+  - language: Spanish
+    spoken: true
+    written: true
+
+files:
+  resume_pdf: Test_Person_Resume.pdf   # relative to this folder, or an absolute path
+  unofficial_transcript_pdf: Test_Person_Resume.pdf   # a stand-in: the sample has no transcript
+
+links:
+  linkedin_url: https://www.linkedin.com/in/test-person
+  github_url: https://github.com/test-person
+  portfolio_url: https://test-person.example.com
+  google_scholar_url:
+  x_twitter_url:
+  showcase_project_url: https://github.com/test-person/shelf-scanner
+
+education:
+  school: Illinois State University
+  degree: Bachelor's Degree
+  degree_type: Bachelor of Science
+  degree_level_now: Undergraduate
+  majors: [Computer Science]
+  major_wordings: {}
+  minors: [Mathematics]
+  field_category: STEM
+  class_year: 3rd Year Undergrad (Junior)
+  start_date: 2024-08
+  expected_graduation: 2028-05
+  graduation_day: 15
+  returning_to_school_after_internship: true
+  full_time_available_from: Need to return to school and available upon graduation
+  plans_masters_after_bachelors: Not planning one right now
+  plans_masters_if_no_maybe: false
+  planned_further_degree:
+  second_major_planned:
+  gpa_cumulative: 3.7
+  gpa_scale: 4.0
+  sat_score: N/A
+  act_score: N/A
+  relevant_courses: [Data Structures, Algorithms, Computer Systems, Databases]
+  campus_groups:               # clubs written out in full, with no acronyms
+  - Illinois State University Robotics Club (Software Lead)
+  student_groups: [Robotics Club, Hackathons]
+  past_schools: []
+
+work_authorization:
+  citizenship: US citizen
+  requires_sponsorship_now_or_future: false
+  authorized_to_work_us: true
+  us_person_itar_ear: true
+  on_opt_cpt: false
+  security_clearance: None
+  citizenships_and_birth_country:
+  authorized_outside_us: {}
+
+voluntary_self_id:
+  gender: decline
+  hispanic_or_latino: false
+  race: White
+  race_subgroup:
+  race_detail:
+  veteran: false
+  disability: false
+  transgender: decline
+  sexual_orientation: decline
+  communities: []
+  uk_social_mobility: {}
+
+logistics:
+  available_terms: [Summer 2027]
+  earliest_start_date: 2027-05-24
+  latest_end_date: 2027-08-20
+  dates_note:
+  can_work_full_time_40h: true
+  weeks_available: 12
+  willing_to_relocate_for_summer: true
+  relocation_limits:
+  location_preferences:        # ranked areas, each with the places it covers
+  - [Chicago, Evanston]
+  - [New York City, New York, NYC, Brooklyn]
+  - [Boston, Cambridge, Somerville]
+  onsite_5_days_ok: true
+  hybrid_ok: true
+  needs_relocation_support: Will relocate myself
+  miles_from: {Chicago: 200}
+  housing_in_area: {}
+  referrals: {}
+  career_fairs_attended: []
+
+experience_facts:
+  prior_internships_count: 1
+  prior_swe_internship: true
+  years_relevant_experience: 1
+  years_python: 3
+  skills: [Python, Java, C++, SQL, JavaScript, React, Flask, PostgreSQL, Git, Docker]
+  skill_wordings: {}
+  cpp_experience_summary: Two years of C++ on the Robotics Club's drive and sensor code.
+  employment_history:
+  - employer: Example Logistics
+    title: Software Engineering Intern
+    location: Springfield, IL
+    start: 2026-06
+    end: 2026-08
+    supervisor: Sam Lee
+    phone: "+15550100100"
+    reason_for_leaving: The internship ended.
+    description: Built a Python service that flags late deliveries for the operations team.
+  - employer: Illinois State University Library
+    title: Student Developer
+    location: Springfield, IL
+    start: 2025-09
+    end:
+    supervisor: Alex Kim
+    phone: "+15550100101"
+    reason_for_leaving: Still working there.
+    description: Maintains the library's room booking web app.
+  professional_references: []
+  role_interests: [Backend/Systems, Full-stack]
+
+screeners:
+  previously_employed_by: []
+  previously_applied_to: []
+  prior_us_government_employment: false
+  relatives_at: {}
+  relative_of_public_official: false
+  non_compete_or_conflicting_agreements: false
+  outside_business_activities: false
+  felony_or_pending_legal_proceedings: false
+  smoker: false
+  accepted_other_offer: false
+  pending_offers: []
+  competing_offer_deadline: false
+  interview_recording_ok: true
+  financial_licenses: false
+
+stock_answers:
+  internship_goals: I want to ship code a team keeps using after the summer, and learn how a larger codebase is tested and reviewed.
+  why_this_major: I chose computer science after our robotics club's robot first drove itself across the gym. I liked that a few lines of code could change what a machine does.
+  ai_tools_usage: I use an AI assistant to explain unfamiliar code and to draft tests, and I check what it writes by running the tests myself.
+  top_cs_courses: Computer Systems, because writing a small memory allocator in C showed me how a program really uses memory.
+
+answered_questions: {}

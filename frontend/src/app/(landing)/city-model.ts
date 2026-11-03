@@ -3,8 +3,8 @@
  * York-style towers in a 1600x460 strip. Deterministic (a fixed seed), so
  * every visit draws the same city. Ported from the "Hiring City" design.
  *
- * Six towers take turns turning into a taller violet wireframe that sends up
- * a job tag; two stay wireframe. Heights are capped per column so no
+ * Six towers take turns turning into a taller solid violet tower that sends up
+ * a job tag; two stay violet. Heights are capped per column so no
  * building reaches the hero's text at the 1600px design scale.
  */
 
@@ -26,8 +26,10 @@ export type Piece = {
   e: string;
   hi: string;
   sp: string;
-  /** Wireframe: see-through fill, floor rings, edges. */
-  wf: string;
+  /** A tower: its glass faces (left, right, top), floor lines and edges. */
+  gl: string;
+  gr: string;
+  gt: string;
   wl: string;
   we: string;
 };
@@ -65,6 +67,9 @@ type P2 = [number, number];
 // skyline. Plane units to strip px; the ground starts 200px down the strip.
 const C = 0.866;
 const S = 0.3;
+/** The two ground axes' slopes, for a drawing that must sit on the same plane
+ * (sorting-line.tsx). */
+export const AXES = { x: C, y: S };
 const K = 0.95;
 const P = 46;
 const OX = 800;
@@ -83,7 +88,7 @@ type Prim = {
   op: number;
   polys: Record<"l" | "r" | "t", P2[][]>;
   lines: Record<"fl" | "pi" | "e" | "h" | "sp", P2[][]>;
-  wire: Record<"wf" | "wl" | "we", P2[][]>;
+  wire: Record<"gl" | "gr" | "gt" | "wl" | "we", P2[][]>;
 };
 
 /**
@@ -119,12 +124,13 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
     op: cellOp,
     polys: { l: [], r: [], t: [] },
     lines: { fl: [], pi: [], e: [], h: [], sp: [] },
-    wire: { wf: [], wl: [], we: [] },
+    wire: { gl: [], gr: [], gt: [], wl: [], we: [] },
   });
   const Q = (pr: Prim, cls: "l" | "r" | "t", pts: P3[]) => pr.polys[cls].push(pts.map(pj));
   const L = (pr: Prim, cls: "fl" | "pi" | "e" | "h" | "sp", pts: P3[]) =>
     pr.lines[cls].push(pts.map(pj));
-  const W = (pr: Prim, cls: "wf" | "wl" | "we", pts: P3[]) => pr.wire[cls].push(pts.map(pj));
+  const W = (pr: Prim, cls: "gl" | "gr" | "gt" | "wl" | "we", pts: P3[]) =>
+    pr.wire[cls].push(pts.map(pj));
   const emit = (pr: Prim) => {
     pieces.push({
       tone: pr.tone,
@@ -139,7 +145,9 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
       e: lines(pr.lines.e),
       hi: lines(pr.lines.h),
       sp: lines(pr.lines.sp),
-      wf: polys(pr.wire.wf),
+      gl: polys(pr.wire.gl),
+      gr: polys(pr.wire.gr),
+      gt: polys(pr.wire.gt),
       wl: lines(pr.wire.wl),
       we: lines(pr.wire.we),
     });
@@ -772,20 +780,22 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
   /** The columns either side of the middle a phone's crop shows. */
   const PHONE_REACH = 10;
 
-  // A see-through wireframe tower, every edge drawn. Returns its tip.
+  // A tower of violet glass: solid faces lit like the buildings', with only
+  // the edges and floor lines a viewer can see. Drawn see-through with every
+  // edge, the buildings behind showed through it and their lines crossed its
+  // own, which read as an X-ray, not a tower. Returns its tip.
   const wireTower = (c: Cell, shape: "box" | "round" | "taper", z1: number) => {
     const pr = newPrim("glass");
     const [cx, cy] = mid(c);
     if (shape === "round") {
       const r = 15;
-      W(pr, "wf", [...arc(cx, cy, r, 0, -45, 135, 12), ...arc(cx, cy, r, z1, 135, -45, 12)]);
-      W(pr, "wf", arc(cx, cy, r, z1, 0, 360, 24));
-      W(pr, "we", arc(cx, cy, r, 0, 0, 360, 24));
+      W(pr, "gr", [...arc(cx, cy, r, 0, -45, 45, 6), ...arc(cx, cy, r, z1, 45, -45, 6)]);
+      W(pr, "gl", [...arc(cx, cy, r, 0, 45, 135, 6), ...arc(cx, cy, r, z1, 135, 45, 6)]);
+      W(pr, "gt", arc(cx, cy, r, z1, 0, 360, 24));
+      W(pr, "we", arc(cx, cy, r, 0, -45, 135, 12));
       W(pr, "we", arc(cx, cy, r, z1, 0, 360, 24));
-      [-45, 0, 45, 90, 135, 180, 225, 270].forEach((deg) =>
-        W(pr, "we", [pc(cx, cy, r, deg, 0), pc(cx, cy, r, deg, z1)]),
-      );
-      for (let z = 10; z < z1 - 2; z += 10) W(pr, "wl", arc(cx, cy, r, z, 0, 360, 24));
+      [-45, 45, 135].forEach((deg) => W(pr, "we", [pc(cx, cy, r, deg, 0), pc(cx, cy, r, deg, z1)]));
+      for (let z = 10; z < z1 - 2; z += 10) W(pr, "wl", arc(cx, cy, r, z, -45, 135, 12));
     } else {
       const t = shape === "taper" ? 8 : 0;
       const { x0, y0, x1, y1 } = c;
@@ -793,30 +803,28 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
       const Y0 = y0 + t;
       const X1 = x1 - t;
       const Y1 = y1 - t;
-      W(pr, "wf", [
+      W(pr, "gl", [
         [x0, y1, 0],
         [x1, y1, 0],
         [X1, Y1, z1],
         [X0, Y1, z1],
       ]);
-      W(pr, "wf", [
+      W(pr, "gr", [
         [x1, y1, 0],
         [x1, y0, 0],
         [X1, Y0, z1],
         [X1, Y1, z1],
       ]);
-      W(pr, "wf", [
+      W(pr, "gt", [
         [X0, Y0, z1],
         [X1, Y0, z1],
         [X1, Y1, z1],
         [X0, Y1, z1],
       ]);
       W(pr, "we", [
-        [x0, y0, 0],
         [x1, y0, 0],
         [x1, y1, 0],
         [x0, y1, 0],
-        [x0, y0, 0],
       ]);
       W(pr, "we", [
         [X0, Y0, z1],
@@ -827,7 +835,6 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
       ]);
       (
         [
-          [x0, y0, X0, Y0],
           [x1, y0, X1, Y0],
           [x1, y1, X1, Y1],
           [x0, y1, X0, Y1],
@@ -841,11 +848,9 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
       for (let z = 10; z < z1 - 2; z += 10) {
         const k = z / z1;
         W(pr, "wl", [
-          [x0 + t * k, y0 + t * k, z],
           [x1 - t * k, y0 + t * k, z],
           [x1 - t * k, y1 - t * k, z],
           [x0 + t * k, y1 - t * k, z],
-          [x0 + t * k, y0 + t * k, z],
         ]);
       }
     }

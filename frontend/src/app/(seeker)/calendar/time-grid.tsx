@@ -99,7 +99,9 @@ function useNowMinutes() {
  * the earliest event an hour before, so an empty morning never fills the
  * screen. A block opens its event card, as every entry does
  * (./event-card.tsx). They were a list per day with no hours, which hid when things
- * were.
+ * were. Below @3xl/main the Calendar hands it three days, not seven
+ * (KAN-578): seven columns there were about 55px, and a block read "B 1".
+ * The all-day toggle and "+N more" are 24px targets.
  */
 export function TimeGrid({
   days,
@@ -171,7 +173,7 @@ export function TimeGrid({
               type="button"
               aria-expanded={allDayOpen}
               onClick={() => setAllDayOpen(!allDayOpen)}
-              className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+              className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring inline-flex size-6 items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
             >
               <ChevronDownIcon
                 className={cn(
@@ -202,7 +204,7 @@ export function TimeGrid({
                     openHref={openHref}
                     title={`${KIND_LABEL[event.kind]} · ${event.company}${time ? ` · ${time}` : ""}`}
                     className={cn(
-                      "text-meta focus-visible:ring-brand-ring flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-medium transition-[filter] duration-150 hover:brightness-95 focus-visible:ring-2 focus-visible:outline-none",
+                      "text-note focus-visible:ring-brand-ring flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-medium transition-[filter] duration-150 hover:brightness-95 focus-visible:ring-2 focus-visible:outline-none",
                       look.tint,
                       look.onTint,
                     )}
@@ -221,7 +223,7 @@ export function TimeGrid({
                 <button
                   type="button"
                   onClick={() => setAllDayOpen(true)}
-                  className="text-meta text-ink-meta hover:text-ink focus-visible:ring-brand-ring rounded-xs px-1.5 font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+                  className="text-meta text-ink-meta hover:text-ink focus-visible:ring-brand-ring inline-flex min-h-6 items-center rounded-xs px-1.5 font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
                 >
                   +{untimed[i].length - ALL_DAY_SHOWN} more
                 </button>
@@ -289,7 +291,7 @@ export function TimeGrid({
                         aria-hidden="true"
                         className={cn("absolute inset-y-0 left-0 w-[3px]", look.fill)}
                       />
-                      <span className="text-meta text-ink truncate font-semibold">
+                      <span className="text-note text-ink truncate font-semibold">
                         {event.title}
                       </span>
                       <span className={cn("text-note truncate tabular-nums", look.onTint)}>

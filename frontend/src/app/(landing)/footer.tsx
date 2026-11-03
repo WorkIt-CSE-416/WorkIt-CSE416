@@ -5,6 +5,7 @@ import { Logo } from "@/components/logo";
 import { site } from "./data";
 import { featurePages } from "./features/catalog";
 import { FooterWordmark } from "./footer-wordmark";
+import { MotionToggle } from "./motion-toggle";
 import { resourcePages } from "./resources/catalog";
 
 /** The header's two menus, then the footer's own columns. */
@@ -58,7 +59,7 @@ export function Footer() {
                       href={link.href}
                       // The ::after takes the tap to the middle of the gaps either
                       // side, 32px in all: the 20px line alone was hard to hit.
-                      className="relative text-sm text-white/80 transition-colors after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:text-white"
+                      className="relative inline-block text-sm text-white/80 transition-colors after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:text-white"
                     >
                       {link.label}
                       {"soon" in link && link.soon === true && (
@@ -79,6 +80,9 @@ export function Footer() {
             <p>
               &copy; {year} {site.name}. All rights reserved.
             </p>
+            {/* The page's loops stop here (WCAG 2.2.2, KAN-580). Its ::after
+                takes the tap to 44px without changing the row. */}
+            <MotionToggle className="relative self-start text-white/80 transition-colors after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] hover:text-white sm:self-auto" />
           </div>
         </div>
 

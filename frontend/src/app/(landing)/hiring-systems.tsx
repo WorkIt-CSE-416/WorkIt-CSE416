@@ -22,7 +22,7 @@ import { cn } from "@/lib/cn";
 
 import { hiringSystems, hiringSystemsSection as copy, streams, type StreamPosting } from "./data";
 import { FaviconLogo } from "./favicon-logo";
-import { useMediaQuery, usePageHidden } from "./hooks";
+import { useLoopsHeld, useMediaQuery } from "./hooks";
 import { scoreTone } from "./score-tone";
 import { GLIDE } from "./story";
 
@@ -246,7 +246,7 @@ export function HiringSystems() {
   const rootRef = React.useRef<HTMLDivElement>(null);
   const streamRef = React.useRef<HTMLDivElement>(null);
   const inView = useInView(rootRef, { amount: 0.3 });
-  const hidden = usePageHidden();
+  const held = useLoopsHeld();
   const reduceMotion = useReducedMotion();
   const wide = useMediaQuery(WIDE_QUERY);
   const isWide = wide ?? true;
@@ -274,7 +274,7 @@ export function HiringSystems() {
 
   // The stream's clock, in seconds. It only moves while the section plays.
   const clock = useMotionValue(STILL_AT);
-  const playing = inView && !hidden && !reduceMotion && geometry !== null;
+  const playing = inView && !held && !reduceMotion && geometry !== null;
   React.useEffect(() => {
     if (!playing) return;
     const tick = ({ delta }: FrameData) => clock.set(clock.get() + Math.min(delta, 50) / 1000);
@@ -318,9 +318,8 @@ export function HiringSystems() {
     return () => controls.stop();
   }, [feed.arrivals, nodeScale]);
 
-  const cards = feed.cards
-    .slice(-(isWide ? CARDS.wide : CARDS.narrow))
-    .sort((a, b) => (b.card?.score ?? 0) - (a.card?.score ?? 0));
+  // The newest on top, so the oldest leaves at the foot.
+  const cards = feed.cards.slice(-(isWide ? CARDS.wide : CARDS.narrow)).reverse();
 
   return (
     <MotionConfig reducedMotion="user">
@@ -438,7 +437,7 @@ export function HiringSystems() {
           </div>
 
           {/* The Jobs page side: the newest kept postings as clean cards,
-              best match first. */}
+              the newest on top. */}
           <ul aria-hidden="true" className="relative flex flex-col justify-center gap-2.5 lg:pl-10">
             <li className="absolute inset-x-0 -inset-y-10 -z-10 bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--color-updates)_16%,transparent),transparent)] lg:left-10" />
             <AnimatePresence mode="popLayout" initial={false}>
@@ -589,7 +588,7 @@ export function JobCard({
           {card.facts.map((fact) => (
             <span
               key={fact}
-              className="text-ink-muted rounded-md bg-white/70 px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-slate-900/5"
+              className="text-ink-muted rounded-md bg-white/70 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap ring-1 ring-slate-900/5"
             >
               {fact}
             </span>

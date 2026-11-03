@@ -1,0 +1,26 @@
+# A dummy Applicant profile in the shape of
+# research/applicant-profile.template.yaml. Never Lisul's real data.
+identity:
+  legal_first_name: Test
+  legal_last_name: Person
+  email: test.person@example.com
+  phone: "+1 555 010 0199"
+  current_location:
+    city: Columbus
+    state: OH
+    country: USA
+files:
+  resume_pdf: one-pager.pdf  # relative to this file
+links:
+  linkedin_url: https://www.linkedin.com/in/test-person
+work_authorization:
+  citizenship: US citizen
+  authorized_to_work_us: true
+  requires_sponsorship_now_or_future: false
+voluntary_self_id:
+  veteran: I don't wish to answer
+logistics:
+  earliest_start_date: 2027-05-24
+screeners:
+  prior_us_government_employment: false
+  accept_privacy_and_certifications: true

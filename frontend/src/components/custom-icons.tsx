@@ -126,26 +126,6 @@ export const LightningRoundedIcon = customIcon("LightningRounded", {
   body: <path d={BOLT} />,
 });
 
-/** Scan corners round a magnifying glass: Phosphor's Scan has no magnifier. */
-export const ScanMagnifyingGlassIcon = customIcon("ScanMagnifyingGlass", {
-  outline: (
-    <>
-      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
-      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
-      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
-      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
-    </>
-  ),
-  holes: (
-    <>
-      <circle cx="11.25" cy="11.25" r="3.5" />
-      <path d="m16 16-2.25-2.25" />
-    </>
-  ),
-  tint: <circle cx="11.25" cy="11.25" r="3.5" />,
-  body: <rect x="3" y="3" width="18" height="18" rx="3" />,
-});
-
 /** A page with its corner folded and a check at its foot: Phosphor has no
  *  file with a check. */
 export const FileCheckIcon = customIcon("FileCheck", {

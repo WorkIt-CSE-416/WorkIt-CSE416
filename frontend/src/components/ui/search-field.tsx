@@ -11,14 +11,13 @@ import { cn } from "@/lib/cn";
  * rendered for screen readers: a placeholder is not an accessible name, and
  * it disappears the moment anyone types.
  *
- * A FILLED PILL, NOT AN OUTLINED BOX. It is a wide rounded-full field filled
- * a see-through ink with no border, the way the reference dashboard draws its
- * search, so it reads on white and on the seeker pages' grey ground alike
- * (a solid --color-app vanished into that ground). The bar's controls read as
- * one family of soft shapes. A grey 3:1 outline here made the bar look assembled from stock form parts,
- * and a lavender fill tinted the bar for no reason. The field is still
- * unmistakable: the magnifier, the placeholder and the fill say what it is,
- * and focus draws the app's solid violet ring around the pill.
+ * A FILLED PILL WITH A CONTROL EDGE. It is a wide rounded-full field filled
+ * a see-through ink, so it reads on white and on the seeker pages' grey
+ * ground alike (a solid --color-app vanished into that ground), outlined in
+ * --color-border-control. With no outline, as first drawn for a white page,
+ * the 5% wash was a 1.1:1 edge on the grey ground, under WCAG 1.4.11's 3:1
+ * for the edge of a control (KAN-556). A lavender fill tinted the bar for no
+ * reason. Focus draws the app's solid violet ring around the pill.
  *
  * 40px tall, the bell's and the account photo's height, so the bar's
  * controls share one height. Type is 16px below `sm` so iOS Safari does not
@@ -49,7 +48,7 @@ export function SearchField({ id, label, className, ...input }: SearchFieldProps
       <input
         id={id}
         type="search"
-        className="bg-ink/5 hover:bg-ink/8 text-ink sm:text-body placeholder:text-ink-meta focus-visible:ring-brand-ring h-10 w-full rounded-full pr-4 pl-10 text-base/5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+        className="bg-ink/5 hover:bg-ink/8 border-border-control text-ink sm:text-body placeholder:text-ink-meta focus-visible:ring-brand-ring h-10 w-full rounded-full border pr-4 pl-10 text-base/5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
         {...input}
       />
     </div>

@@ -277,7 +277,9 @@ const RAIL_BUTTON =
   // the custom glyphs' 24 grid alike.
   "[&_svg[viewBox='0_0_256_256']]:[stroke-width:2] [&_svg[viewBox='0_0_24_24']]:[stroke-width:1.7]";
 const RAIL_SHEET_GROUP = "px-4 py-2";
-const RAIL_SHEET_BUTTON = "h-10 px-3";
+// 44px on a touch screen (KAN-557), 40px with a mouse. The rows touch, so
+// the row grows rather than its hit area; GlideMenu's --row follows.
+const RAIL_SHEET_BUTTON = "h-10 px-3 pointer-coarse:h-11";
 const RAIL_CAPTION = "text-caption text-ink-meta px-3 font-semibold uppercase";
 
 /** The seeker shell's provider: shadcn's, held open on a desktop, so the
@@ -340,7 +342,10 @@ export function AppSidebar({
       <div className={cn("flex size-full min-h-0 flex-col", rail && "bg-panel")}>
         {isMobile && (
           <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
-            <SidebarTrigger className="text-ink hover:text-brand shrink-0 hover:bg-transparent [&_svg]:size-4" />
+            <SidebarTrigger
+              aria-label="Close Menu"
+              className="text-ink hover:text-brand shrink-0 hover:bg-transparent [&_svg]:size-4"
+            />
             {rail ? <LogoLockup /> : <Logo size="bar" />}
           </SidebarHeader>
         )}
@@ -459,12 +464,13 @@ function GlideMenu({
     <div
       className={cn(
         "relative",
-        // A row's height: the rail's 64px tile, its sheet's 40px row, and
+        // A row's height: the rail's 64px tile, its sheet's 40px row (44px
+        // on touch, RAIL_SHEET_BUTTON), and
         // MENU_BUTTON's 36px open and shadcn's 32px square collapsed.
         look === "tile"
           ? "[--row:4rem]"
           : look === "sheet"
-            ? "[--row:2.5rem]"
+            ? "[--row:2.5rem] pointer-coarse:[--row:2.75rem]"
             : "[--row:2.25rem] group-data-[collapsible=icon]:[--row:2rem]",
       )}
       onPointerLeave={() => setHover(null)}
