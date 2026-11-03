@@ -69,6 +69,12 @@ The engine's plan names each field it leaves blank on purpose, with why
 decline is one when Hispanic/Latino is answered: picking race's decline
 there sets Hispanic/Latino to the decline too and hides race.
 
+A How did you hear answer that Lisul recorded (the profile's
+`answered_questions`, or his own Answer bank answer, under any how-heard
+wording) wins in the engine's plan on every form that offers it. The
+company's-own-site order applies only when none is recorded (Lisul,
+2026-11-02).
+
 `README.md` is a teammate's setup path, from a clone to a rehearsal. Its
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.
