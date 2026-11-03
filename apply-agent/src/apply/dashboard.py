@@ -41,7 +41,6 @@ import subprocess
 import tempfile
 import threading
 import time
-import urllib.request
 from collections import Counter
 from collections.abc import Callable
 from datetime import datetime
@@ -73,8 +72,6 @@ MAX_BODY = 256 * 1024
 MAX_FILE = 15 * 1024 * 1024  # an answer that is a file, base64 in its JSON
 # Seconds the window's page has to load again after it goes away (a reload) before its window counts as closed.
 CLOSE_GRACE = 3.0
-# How often the window's opener looks for a New Tab a Dock click opened beside it.
-KEEP_EVERY = 1.0
 # Seconds a window opened behind Lisul's app is kept there, while Chrome may still bring itself forward.
 BEHIND_FOR = 10.0
 MAX_ITEMS = 500  # ended Applications the window keeps, the newest
@@ -1281,7 +1278,7 @@ def open_window(url: str, profile: Path, front: bool = True) -> None:
             return
         _quit(pid)
     app = dock_app.install(profile.parent, dock_app.bundle_for(profile.parent))
-    # The DevTools port lets _close_new_tabs see the window's tabs (its port goes in the profile).
+    # The DevTools port lets the window's keeper (dock_app.keep) see its tabs (its port goes in the profile).
     command = ["open", "-na", str(app), "--args", f"--app={url}", f"--user-data-dir={profile}", "--remote-debugging-port=0"]
     if front:
         subprocess.run(command, check=False)
@@ -1291,7 +1288,6 @@ def open_window(url: str, profile: Path, front: bool = True) -> None:
             subprocess.run(command, check=False)
             for pid in _launched(profile):
                 KEEPER.watch(pid, seconds=BEHIND_FOR)  # Chrome comes forward a moment after it starts, too
-    threading.Thread(target=_close_new_tabs, args=(profile,), daemon=True).start()
 
 
 def _launched(profile: Path, timeout: float = 10.0) -> list[int]:
@@ -1300,25 +1296,6 @@ def _launched(profile: Path, timeout: float = 10.0) -> list[int]:
     while not (pids := [pid for pid, _ in _window_chromes(profile)]) and time.monotonic() < deadline:
         time.sleep(0.1)
     return pids
-
-
-def _close_new_tabs(profile: Path) -> None:
-    """While the window is open, close any New Tab beside it and bring the window
-    forward. Chrome counts no app window as a browser window, so a click on Apply
-    in the Dock opened a New Tab window, one per click."""
-    while window_open(profile):
-        try:
-            port = (profile / "DevToolsActivePort").read_text().split()[0]
-            pages = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=2).read())
-            stray = [p["id"] for p in pages if p.get("type") == "page"
-                     and p.get("url", "").startswith(("chrome://newtab", "chrome://new-tab-page", "chrome-search://"))]
-            for page in stray:
-                urllib.request.urlopen(f"http://127.0.0.1:{port}/json/close/{page}", timeout=2).read()
-            if stray:
-                raise_window(profile, timeout=2)
-        except (OSError, ValueError, IndexError, KeyError):
-            pass  # no port yet, or Chrome going
-        threading.Event().wait(KEEP_EVERY)
 
 
 # The window profile each of this process's servers was opened in, by its address.

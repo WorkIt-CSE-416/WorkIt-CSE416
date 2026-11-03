@@ -2,8 +2,6 @@
 Chrome per window profile, and gone from the Dock once its window closes.
 The Mac here is a fake: Chrome processes are entries in a table."""
 
-import http.server
-import json
 import threading
 import time
 import urllib.error
@@ -228,41 +226,3 @@ def test_the_page_says_so_as_its_window_closes(mac, tmp_path):
             assert _eventually(lambda: len(mac.quit) == 1)
         finally:
             browser.close()
-
-
-class DevTools(http.server.BaseHTTPRequestHandler):
-    """The window Chrome's DevTools list: its Apply page, and what a Dock click opened beside it."""
-    pages = [{"id": "apply", "type": "page", "url": "http://127.0.0.1:61234/"},
-             {"id": "tab", "type": "page", "url": "chrome://newtab/"}]
-    closed: list[str] = []
-
-    def do_GET(self):
-        if self.path.startswith("/json/close/"):
-            DevTools.closed.append(self.path.rsplit("/", 1)[1])
-            DevTools.pages = [p for p in DevTools.pages if p["id"] != DevTools.closed[-1]]
-        body = json.dumps(DevTools.pages).encode()
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, *args):
-        pass
-
-
-# Clicking Apply in the Dock with only its window open opened a New Tab window
-# beside it, every click: Chrome counts no app window as a browser window.
-def test_a_new_tab_a_dock_click_opens_is_closed_and_the_window_brought_forward(mac, tmp_path, monkeypatch):
-    monkeypatch.setattr(dashboard, "KEEP_EVERY", 0.02)
-    profile = tmp_path / "profiles" / "dashboard"
-    devtools = http.server.ThreadingHTTPServer(("127.0.0.1", 0), DevTools)
-    threading.Thread(target=devtools.serve_forever, daemon=True).start()
-    profile.mkdir(parents=True)
-    (profile / "DevToolsActivePort").write_text(f"{devtools.server_port}\n/devtools/browser/x\n")
-    try:
-        dashboard.open_window("http://127.0.0.1:61234", profile)
-
-        assert _eventually(lambda: DevTools.closed == ["tab"])
-        assert _eventually(lambda: len(mac.raised) >= 2)  # on opening, and again after the stray tab
-    finally:
-        mac.chromes.clear()  # the window closes, and its keeper stops
-        devtools.shutdown()
