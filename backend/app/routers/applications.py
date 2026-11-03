@@ -38,6 +38,23 @@ POST /jobs/saved-by-link     {"url": "<the page's link>"}: the extension's
                              "WorkIt doesn't list this job yet." when no
                              listed job has that link.
 
+POST /jobs/added-by-link     {"url", "company", "title", "experience_level"?}
+                             (KAN-542, ADR 0008): puts the job at that link
+                             on the student's Applications Tracker and
+                             answers {"job_id", "status", "stage"}. The
+                             listed job with that link (the rules of
+                             saved-by-link), else a scraped posting the feed
+                             closed or one already unlisted, else a new
+                             unlisted posting with the company and title
+                             given. Saved when the student has no
+                             application on it yet; otherwise its stage
+                             stays. A second call with the same link, in any
+                             form, answers the same posting. 409 when the
+                             link is a company's own posting. Only students
+                             with an application on an unlisted posting
+                             reach it: the Jobs page, search and Scout never
+                             list it; POST /jobs/{job_id}/applied marks it.
+
 The Applications board reads saved and applied jobs through auto apply's
 list, GET /applicants/{id}/applications?stage=saved&stage=applied
 (routers/auto_apply.py).
@@ -50,7 +67,8 @@ Its own router, beside jobs.py's, for the same /jobs prefix. The
 /jobs/{job_id}/... paths have one more segment than GET /jobs/{job_id}, and
 POST /jobs/saved-by-link has the same two segments but a method jobs.py
 never serves (its routes are all GETs), so neither router shadows the other
-whatever the order they're registered in. A GET on a two-segment path here
+whatever the order they're registered in; POST /jobs/added-by-link
+likewise. A GET on a two-segment path here
 would need registering before jobs.py's catch-all (routers/CLAUDE.md).
 """
 
@@ -63,6 +81,7 @@ from app.db import get_session
 from app.deps import get_current_account
 from app.queries.applications import (
     KEEP,
+    add_by_link,
     application_stage_of,
     fetch_applied,
     listed_job_by_link,
@@ -72,6 +91,8 @@ from app.queries.applications import (
     unsave_job,
 )
 from app.schemas.applications import (
+    AddByLink,
+    JobAddedByLink,
     JobApplied,
     JobByLink,
     JobSaved,
@@ -155,6 +176,22 @@ async def post_listed_by_link(
     if job_id is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "WorkIt doesn't list this job yet.")
     return JobByLink(job_id=job_id, stage=await application_stage_of(db, applicant_id, job_id))
+
+
+@router.post("/added-by-link", response_model=JobAddedByLink)
+async def post_added_by_link(
+    body: AddByLink,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> JobAddedByLink:
+    """Puts the job at this link on the student's Applications Tracker, as an
+    unlisted job posting when WorkIt does not list it (KAN-542, ADR 0008):
+    Apply's writes and the Tracker Sheet import call it."""
+    applicant_id = _applicant_only(account)
+    added = await add_by_link(db, applicant_id, body.url, body.company, body.title, body.experience_level)
+    if added is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "That link is a company's own job posting on WorkIt.")
+    return JobAddedByLink(**added._asdict())
 
 
 @router.post("/{job_id}/saved", response_model=JobSaved)

@@ -7,7 +7,7 @@ a route that forgot the status check.
 
 import uuid
 
-from sqlalchemy import and_, select
+from sqlalchemy import Text, and_, cast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
 
@@ -17,6 +17,11 @@ from app.models.jobs import Job_Post
 # A published scraped job. Company jobs stay off the Jobs page until the
 # company side ships a listing of its own.
 LISTED = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.published)
+
+# A job a student added by its link because WorkIt does not list it (KAN-542,
+# ADR 0008). Compared as text, so the query runs on a database whose enum has
+# no 'unlisted' yet (models/CLAUDE.md).
+UNLISTED = and_(Job_Post.company_id.is_(None), cast(Job_Post.status, Text) == job_post_status.unlisted.value)
 
 
 async def listed(session: AsyncSession, posting_id: uuid.UUID, *, keywords: bool = False) -> Job_Post | None:

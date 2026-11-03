@@ -11,15 +11,21 @@ import uuid
 from typing import Any, NamedTuple
 from urllib.parse import parse_qs, urlsplit
 
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import and_, case, delete, exists, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.applications import Job_Application
-from app.models.dto import BEFORE_APPLIED, application_stage
+from app.models.dto import (
+    BEFORE_APPLIED,
+    application_stage,
+    experience_level,
+    job_post_status,
+)
 from app.models.jobs import Job_Post
 from app.models.sent_resume import Sent_Resume
 from app.queries.jobs.filters import LISTED
+from app.services.postings import UNLISTED
 
 # mark_applied's default: leave the application's sent resume as it is.
 KEEP: Any = object()
@@ -74,11 +80,15 @@ async def mark_applied(
     '''
     marks this job as applied and answers when, or None for a job that isn't
     in the feed: the same jobs GET /jobs/{job_id} shows, since a seeker can't
-    apply to the rest. With `sent_resume_id` (checked by `sent_to_job`
-    first), the application names that sent resume, or none for None; the
-    default leaves what it names as it is
+    apply to the rest, and the unlisted postings this applicant already has
+    an application on (KAN-542). With `sent_resume_id` (checked by
+    `sent_to_job` first), the application names that sent resume, or none for
+    None; the default leaves what it names as it is
     '''
-    listed = await db.scalar(select(Job_Post.id).where(Job_Post.id == job_id, LISTED))
+    theirs = exists().where(Job_Application.applicant_id == applicant_id, Job_Application.job_id == job_id)
+    listed = await db.scalar(
+        select(Job_Post.id).where(Job_Post.id == job_id, or_(LISTED, and_(UNLISTED, theirs)))
+    )
     if listed is None:
         return None
     # A job queued, skipped or left to the applicant by auto apply becomes
@@ -186,8 +196,16 @@ async def unsave_job(
 
 
 def _bare_link(link):
-    """a link without its query, fragment or trailing slash, the part that names the posting"""
-    return func.rtrim(func.split_part(func.split_part(link, "#", 1), "?", 1), "/")
+    """a link without its scheme, www., query, fragment or trailing slash, in lower case: the part that
+    names the posting (KAN-542). bare_link is the same rule in Python, for the feed import"""
+    no_scheme = func.regexp_replace(link, r"^[a-z][a-z0-9+.-]*://(www\.)?", "", "i")
+    return func.lower(func.rtrim(func.split_part(func.split_part(no_scheme, "#", 1), "?", 1), "/"))
+
+
+def bare_link(url: str) -> str:
+    """_bare_link's rule in Python: the feed import compares a few unlisted postings with the whole feed"""
+    no_scheme = re.sub(r"^[a-z][a-z0-9+.-]*://(www\.)?", "", url, flags=re.IGNORECASE)
+    return no_scheme.split("#", 1)[0].split("?", 1)[0].rstrip("/").lower()
 
 
 def greenhouse_job(url: str | None) -> str | None:
@@ -216,17 +234,33 @@ def greenhouse_job(url: str | None) -> str | None:
     return gh_jid if gh_jid.isdigit() else None
 
 
-async def _listed_greenhouse_job(db: AsyncSession, url: str) -> uuid.UUID | None:
-    '''the listed job whose apply link names the same Greenhouse job as `url` (greenhouse_job), or None'''
+async def _greenhouse_job_where(db: AsyncSession, url: str, where) -> uuid.UUID | None:
+    '''the posting in `where` whose apply link names the same Greenhouse job as `url` (greenhouse_job), or None'''
     job = greenhouse_job(url)
     if job is None:
         return None
     # The id appears in every form of the link; the LIKE narrows to a few rows, greenhouse_job decides.
     rows = (await db.execute(
-        select(Job_Post.id, Job_Post.apply_url).where(Job_Post.apply_url.contains(job, autoescape=True), LISTED)
+        select(Job_Post.id, Job_Post.apply_url).where(Job_Post.apply_url.contains(job, autoescape=True), where)
         .order_by(Job_Post.id)
     )).all()
     return next((row.id for row in rows if greenhouse_job(row.apply_url) == job), None)
+
+
+async def _job_by_link(db: AsyncSession, url: str, where) -> uuid.UUID | None:
+    '''the posting in `where` whose apply link is the page at `url`, by listed_job_by_link's three rules'''
+    exact = await db.scalar(select(Job_Post.id).where(Job_Post.apply_url == url, where))
+    if exact is not None:
+        return exact
+    greenhouse = await _greenhouse_job_where(db, url, where)
+    if greenhouse is not None:
+        return greenhouse
+    # Many postings carry their id only in the query (36 Waymo jobs share careers.withwaymo.com/jobs): the bare
+    # link names one of them only when it is the only one, else the wrong job would be saved, or marked applied.
+    bare = (await db.scalars(
+        select(Job_Post.id).where(_bare_link(Job_Post.apply_url) == _bare_link(url), where).limit(2)
+    )).all()
+    return bare[0] if len(bare) == 1 else None
 
 
 async def listed_job_by_link(db: AsyncSession, url: str) -> uuid.UUID | None:
@@ -234,18 +268,55 @@ async def listed_job_by_link(db: AsyncSession, url: str) -> uuid.UUID | None:
     the feed's job whose apply link is the page at `url` (the toolbar popup's
     Save to WorkIt, KAN-401; the panel's Track on WorkIt, KAN-424), the same
     link first, else the same Greenhouse job in any link form (KAN-526), else
-    the same page without its query, fragment or trailing slash, but only
-    when exactly one listed job has it; None otherwise
+    the same page without its scheme, www., query, fragment or trailing slash, in any
+    case (KAN-542), but only when exactly one listed job has it; None otherwise
     '''
-    exact = await db.scalar(select(Job_Post.id).where(Job_Post.apply_url == url, LISTED))
-    if exact is not None:
-        return exact
-    greenhouse = await _listed_greenhouse_job(db, url)
-    if greenhouse is not None:
-        return greenhouse
-    # Many postings carry their id only in the query (36 Waymo jobs share careers.withwaymo.com/jobs): the bare
-    # link names one of them only when it is the only one, else the wrong job would be saved, or marked applied.
-    bare = (await db.scalars(
-        select(Job_Post.id).where(_bare_link(Job_Post.apply_url) == _bare_link(url), LISTED).limit(2)
-    )).all()
-    return bare[0] if len(bare) == 1 else None
+    return await _job_by_link(db, url, LISTED)
+
+
+# A scraped posting that is not listed now: unlisted, or closed or paused by the feed
+_UNPUBLISHED = and_(Job_Post.company_id.is_(None), Job_Post.status != job_post_status.published)
+
+
+class AddedByLink(NamedTuple):
+    job_id: uuid.UUID
+    status: job_post_status
+    stage: application_stage
+
+
+async def add_by_link(
+    db: AsyncSession, applicant_id: uuid.UUID, url: str, company: str, title: str, level: str
+) -> AddedByLink | None:
+    '''
+    puts the job at `url` on this applicant's Applications Tracker (KAN-542,
+    ADR 0008) and answers the posting and their stage. The listed job with
+    that link first (listed_job_by_link), else a scraped posting the feed no
+    longer lists (an unlisted one, or a closed one: its link is unique), else
+    a new unlisted posting with the company, title and level given. A job
+    with no application yet is saved; one that has one keeps its stage, as
+    save_job does. None when the link is a company's own posting
+    '''
+    job_id = await listed_job_by_link(db, url) or await _job_by_link(db, url, _UNPUBLISHED)
+    if job_id is None:
+        # Two adds of one link at once: the second insert does nothing and the select finds the first.
+        job_id = await db.scalar(
+            insert(Job_Post)
+            .values(apply_url=url, company_name=company, title=title, status=job_post_status.unlisted,
+                    experience_level=experience_level(level))
+            .on_conflict_do_nothing(index_elements=["apply_url"])
+            .returning(Job_Post.id)
+        ) or await db.scalar(select(Job_Post.id).where(Job_Post.apply_url == url, Job_Post.company_id.is_(None)))
+        if job_id is None:
+            return None
+    await db.execute(
+        insert(Job_Application)
+        .values(applicant_id=applicant_id, job_id=job_id, stage=application_stage.saved, applied_at=None)
+        .on_conflict_do_nothing(index_elements=["applicant_id", "job_id"])
+    )
+    await db.commit()
+    row = (await db.execute(
+        select(Job_Post.status, Job_Application.stage)
+        .join(Job_Application, Job_Application.job_id == Job_Post.id)
+        .where(Job_Post.id == job_id, Job_Application.applicant_id == applicant_id)
+    )).one()
+    return AddedByLink(job_id, row.status, row.stage)

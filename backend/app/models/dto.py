@@ -154,6 +154,12 @@ class job_post_status(enum.StrEnum):
     # added by 1ea834081a48; ALTER TYPE, not an edit here, is what changes the column
     paused= "paused"
     closed= "closed"
+    # added by c2e4a6b8d051 (KAN-542, ADR 0008): a job WorkIt does not list,
+    # added by a student by its link. Only students with an application on
+    # it see it; the feed import publishes it when the scraper finds the job.
+    # SQL names it as text (services/postings.py, UNLISTED), never as this
+    # enum, so a query still runs on a database without the migration
+    unlisted= "unlisted"
 
 
 class application_stage(enum.StrEnum):

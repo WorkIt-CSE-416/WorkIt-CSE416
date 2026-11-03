@@ -1,10 +1,18 @@
 import datetime
 import uuid
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
-from app.models.dto import application_stage
+from app.models.dto import application_stage, job_post_status
 from app.schemas.jobs import Highlight, JobListing
 from app.schemas.sent_resume import SentResumeResponse
 
@@ -45,6 +53,36 @@ class JobByLink(BaseModel):
 
     job_id: uuid.UUID
     stage: application_stage | None = None
+
+
+class AddByLink(BaseModel):
+    """POST /jobs/added-by-link (KAN-542): a job's link, and what WorkIt keeps
+    when it does not list the job: the company, the title and who the job is
+    for (a student's, unless the caller knows better)."""
+
+    url: str = Field(max_length=2048)
+    company: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+    experience_level: Literal["student", "new_grad", "experienced"] = "student"
+
+    @field_validator("url")
+    @classmethod
+    def _web_link(cls, url: str) -> str:
+        parts = urlsplit(url.strip())
+        if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
+            raise ValueError("Give the job's web link (http or https).")
+        return url.strip()
+
+
+class JobAddedByLink(BaseModel):
+    """POST /jobs/added-by-link: the job posting the link is, its status
+    (published when WorkIt lists it, unlisted when this route made it, or
+    closed or paused for one WorkIt listed before), and the applicant's
+    stage for it after the add."""
+
+    job_id: uuid.UUID
+    status: job_post_status
+    stage: application_stage
 
 
 class JobSaved(BaseModel):
