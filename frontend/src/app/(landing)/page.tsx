@@ -4,21 +4,23 @@ import type { CSSProperties } from "react";
 import { cn } from "@/lib/cn";
 import { SHARE_DEFAULTS, SHARE_IMAGE } from "@/lib/share-card";
 
-import { Applications } from "./applications";
-import { Bridge } from "./bridge";
 import { ClosingCta } from "./closing-cta";
+import {
+  Applications,
+  Bridge,
+  HiringSystemsSection,
+  ProductTour,
+  Statement,
+} from "./deferred-sections";
 import { closing, faqs, hero, site, testimonial } from "./data";
 import { FaqList } from "./faq-list";
 import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
 import { HeroCity } from "./hero-city";
 import { HeroTitle } from "./hero-title";
-import { HiringSystemsSection } from "./hiring-pipeline";
 import { backdrop } from "./features/catalog";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "./layout-parts";
-import { ProductTour } from "./product-tour";
 import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
-import { Statement } from "./statement";
 import { Testimonial } from "./testimonial";
 
 /** The home page's link preview has room for the whole tagline. */

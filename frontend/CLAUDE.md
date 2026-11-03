@@ -540,10 +540,23 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   The hero's backdrop is an animated SVG city (`city-model.ts` draws it,
   `hero-city.tsx` renders it after hydration, since server-rendered its path
   data would add hundreds of KB to the page): New York-style towers, six of
-  which rise as violet wireframes with a job tag. **It is drawn as layers**
+  which rise as violet towers with a job tag. Its layers are built in the
+  browser's idle time (`requestIdleCallback`, at most 800 ms late; a timer
+  on Safari, which has none), never in the hydration task: built there,
+  its 5,700 paths made the page's first freeze longer (KAN-540). **The violet towers are solid**
+  (KAN-540): faces lit like the buildings' (`gl`, `gr`, `gt`, darker on the
+  left), white floor lines and deep violet edges, drawing only the edges and
+  floor lines a viewer can see. Drawn as see-through wireframes, 7% filled with
+  every edge and floor ring, the buildings behind showed through and their lines
+  crossed the towers', which read as an X-ray and looked off to the team. The
+  city around them is calmer since: window grids and cross-hatching are a hint
+  (`--floor`, `--pier`), the faces a step lighter and the spires softer, so the
+  towers stand out from it; the dense grid on every face made the buildings run
+  together. A change to the hero's look means retaking `public/og-image.jpg`.
+  **It is drawn as layers**
   (`getLayers`, KAN-368): each run of still buildings is one image (an SVG
   document as a blob URL, made once per build), and the pieces that move
-  (the six towers and the two pulsing wireframes) are small inline SVGs
+  (the six towers and the two pulsing towers) are small inline SVGs
   between them, split where they fall in the draw order, so every building
   in front of a tower stays in front; the ground, streaks and pools are
   one inline SVG under them all. One inline SVG of some 5,700 paths made
@@ -636,7 +649,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   animation of every motion element inside it: the old Matching stop's
   rows once sat still at their end value until a tab switch remounted
   them. Violet is
-  the wireframes' alone; keep roofs and spires neutral. It does not use
+  the towers' alone; keep roofs and spires neutral. It does not use
   `ui/` components, Title Case or the type tokens; those rules are for app
   screens. Rules in `landing.css` that set `display` or a size sit in
   `@layer components`, or they beat a `hidden` or `h-12` utility on the
@@ -1139,6 +1152,29 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   - Logos from the Google favicon host load `unoptimized`: they are
     small PNGs already, and some 60 each went through `/_next/image`.
   - Write a `data-*` mark on `<html>` only when it changes.
+- **The home page hydrates in pieces** (KAN-540, `hydrateNear` in
+  `near.tsx`, used by `deferred-sections.tsx`). Each section below the
+  hero (the bridge, the tour, hiring systems, the statement, the
+  applications section) is in the server's HTML from the start, with its
+  text, links, anchors and height, but its script loads and React
+  hydrates it only once it comes within a screen of view. Hydrated at
+  once, the page was one long task: at a 4x CPU slowdown it froze for
+  1.6 s and the city came at 4.4 s. In pieces the longest task is about
+  0.25 s and the city is ready at about 2.5 s (production before this
+  branch: 0.5 s and 2.3 s). So:
+  - A deferred section takes no props, and its parent never renders it
+    again before it hydrates: React would drop the server's HTML and draw
+    it afresh.
+  - The `import()` lives in a client module: a server component's
+    `import()` of a client component is not split, so the code still
+    came with the page.
+  - On the server the gate opens at once: waiting there for a scroll
+    that never comes hung `next build` ("took more than 60 seconds").
+  - After a change, load `/#hiring-systems`, `/#applications` and
+    `/#faq` fresh: each must land on its section.
+  - Measure on a production build (`npm run build`, then `npm run
+    start`) with the CPU slowed 4x: `next dev` ships unminified code and
+    hides or invents the cost.
 - **The legal pages, `/privacy` and `/terms`**, are in `app/(landing)/`
   on the shared `legal-page.tsx` shell (one readable column of text; the group's layout draws the header and footer
   around it, so the shell draws neither) and linked from the footer's Legal
