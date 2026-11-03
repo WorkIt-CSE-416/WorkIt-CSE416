@@ -24,15 +24,25 @@ def named(text: str, profile: ApplicantProfile) -> str:
             .replace(SCHOOL, profile.get("education.school") or "their school"))
 
 
+def pronouns_note(profile: ApplicantProfile) -> str:
+    """The line that tells Claude which pronouns to use for the applicant.
+    Without it, Claude guesses from the name, and a plan or a reason can call
+    a they/them applicant "he"."""
+    pronouns = str(profile.get("identity.pronouns") or "they/them/theirs").strip()
+    return (f"\n\n{NAME}'s pronouns are {pronouns}. Wherever you write about {NAME} in the third person "
+            "(a plan, a note, a reason), use these pronouns only.")
+
+
 class as_applicant:
-    """`claude`, with every ask said as `profile`'s applicant (named)."""
+    """`claude`, with every ask said as `profile`'s applicant (named), and
+    told the applicant's pronouns."""
 
     def __init__(self, claude, profile: ApplicantProfile):
         self._claude, self._profile = claude, profile
 
     def ask(self, *, model: str, system: str, prompt: str, schema: dict) -> dict:
         say = lambda text: named(text, self._profile)
-        return self._claude.ask(model=model, system=say(system), prompt=say(prompt),
+        return self._claude.ask(model=model, system=say(system + pronouns_note(self._profile)), prompt=say(prompt),
                                 schema=json.loads(say(json.dumps(schema))))
 
     def __getattr__(self, name: str):

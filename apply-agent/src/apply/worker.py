@@ -28,6 +28,7 @@ from apply import (
 )
 from apply.adapters import Claude, JobSite, UsageLimitHit
 from apply.answer_bank import LISUL, AnswerBank
+from apply.applicant import as_applicant
 from apply.fill_engine import (
     company_specific,
     left_blank,
@@ -256,7 +257,8 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     sources = essays.sources(profile, planned.known(), facts=True,
                                               types=[e.plan.type for e in planned.written if e.plan]) \
                         if planned.written or drafted else essays.profile_block(profile)
-                    found = review(claude, posting, questions, readback, sources, planned.text, planned.own())
+                    found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
+                                   planned.own())  # its reasons say the applicant's own pronouns
                     holds += [f"Pre-submit review: {p}" for p in found]
                 # For Repair requests: a field Claude filled for the Filler (apply.rescue) is its code's to fix.
                 rescued = tuple(getattr(filler, "rescued", ()))
