@@ -71,6 +71,10 @@ FAILED = "failed"
 # How each job system shows that an application went in; any other, by its words.
 CONFIRMED = {"greenhouse": greenhouse.confirmed, "lever": lever.confirmed, "ashby": ashby.confirmed,
              "workday": workday.confirmed, "eightfold": eightfold.confirmed}
+# How a job system says it turned Lisul's own Submit down, the browser taken for a bot.
+REFUSALS = {"lever": lever.refusal}
+# What the tile says then: sending it again from the Worker's Chrome gets the same answer.
+TURNED_DOWN = "{}, so nothing went in: send it from your own Chrome; the Record has every answer"
 THANKS = re.compile(r"thank you for (applying|your application|submitting)|application (has been |was )?(submitted|received)"
                     r"|we['’]ve received your application|successfully submitted", re.IGNORECASE)
 # The reason of a Tracker row for an Application Lisul submitted himself from a rehearsal.
@@ -197,6 +201,11 @@ def rehearse(
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title,
                             "a captcha came up after your Submit: do the captcha yourself"]))
 
+        def turned_down(why: str) -> None:  # the job system refused Lisul's own Submit: only his own Chrome can send it
+            why = TURNED_DOWN.format(why)
+            adapters.board.update(n, status="handoff", why=why)
+            out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
+
         answers = lambda: [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]
         fill = lambda page, q, a: _fill_answer(page, q, a, adapters, profile, n, done, out)
 
@@ -223,7 +232,7 @@ def rehearse(
             gate.release()  # a paused form holds no Worker's turn while it waits on him
             try:
                 how = site.hold(release, done.posting.job_system, submitted, done.warning(), bool(done.problems),
-                                answers, fill, resume=wants, challenged=challenged)
+                                answers, fill, resume=wants, challenged=challenged, refused=turned_down)
             finally:
                 gate.acquire()
             if how == RESUME:
@@ -259,7 +268,7 @@ def rehearse(
                 hold = lambda: site.hold(release, done.posting.job_system, submitted, done.warning(),
                                          bool(done.problems), answers, fill,
                                          EmailCode(adapters.mailbox, adapters.clock, done.posting.job_system, told),
-                                         challenged=challenged)
+                                         challenged=challenged, refused=turned_down)
                 how = after.pop() if after else hold()
                 while how == AGAIN:  # Fill again
                     with gate:
@@ -653,7 +662,7 @@ class _Kept:
              warning: str = "", wrong: bool = True, answers: Callable[[], list[tuple[str, str]]] = list,
              fill: Callable[[object, str, str], None] = lambda page, question, answer: None,
              code: EmailCode | None = None, resume: Callable[[object], bool] | None = None,
-             challenged: Callable[[], None] = lambda: None) -> str:
+             challenged: Callable[[], None] = lambda: None, refused: Callable[[str], None] = lambda why: None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
         window is closed. Apply is done with it, so it is Lisul's: the submit
@@ -667,7 +676,8 @@ class _Kept:
         A paused rehearsal passes `resume(page)`, whether Lisul pressed Resume and
         it can go on: then RESUME, with the page still his until rearm().
         A captcha that shows after a press of his calls `challenged()`, once:
-        he does it himself, and Apply never touches it.
+        he does it himself, and Apply never touches it. A refusal of `job_system`'s
+        after a press of his (Lever's captcha turning the token down) calls `refused(why)`, once.
         "" when the page closed or `release` was set."""
         if self._page is None or release.is_set():
             return ""
@@ -686,7 +696,8 @@ class _Kept:
         except Exception:
             return ""  # its browser was quit
         self._lifted = self._bound = True
-        kept, closing, told = False, None, False
+        kept, closing, told, turned_down = False, None, False, False
+        refusal = REFUSALS.get(job_system, lambda page: "")
         while not release.is_set():
             try:
                 if self._page.is_closed():
@@ -702,6 +713,9 @@ class _Kept:
                 if pressed and not kept and not told and captcha.shows(self._page):
                     told = True
                     challenged()
+                if pressed and not kept and not turned_down and (why := refusal(self._page)):
+                    turned_down = True
+                    refused(why)
                 if pressed and not kept and _confirmed(self._page, job_system):
                     kept = True
                     submitted(self._page)
