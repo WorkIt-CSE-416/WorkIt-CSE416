@@ -84,8 +84,8 @@ export function FeaturePage({ feature }: { feature: Feature }) {
                   <li key={step.title} className="rounded-2xl bg-white p-6 ring-1 ring-slate-900/5">
                     <span
                       aria-hidden="true"
-                      className="flex size-8 items-center justify-center rounded-full text-sm font-semibold text-white tabular-nums"
-                      style={{ background: feature.glow }}
+                      className="flex size-8 items-center justify-center rounded-full text-sm font-semibold tabular-nums"
+                      style={{ background: feature.onGlow.fill, color: feature.onGlow.ink }}
                     >
                       {i + 1}
                     </span>
@@ -172,8 +172,8 @@ function DeepDive({
               <li key={point} className="text-ink-muted flex gap-3">
                 <span
                   aria-hidden="true"
-                  className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-white"
-                  style={{ background: feature.glow }}
+                  className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full"
+                  style={{ background: feature.onGlow.fill, color: feature.onGlow.ink }}
                 >
                   <CheckIcon aria-hidden className="size-3" weight="bold" />
                 </span>

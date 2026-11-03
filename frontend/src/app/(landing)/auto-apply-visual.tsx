@@ -23,6 +23,7 @@ import { cn } from "@/lib/cn";
 
 import { FaviconLogo } from "./favicon-logo";
 import { autoApplyFeature, type ApplicationField, type GridApplication } from "./feature-data";
+import { useLoopsHeld } from "./hooks";
 import { scoreTone } from "./score-tone";
 import { GLIDE, Story, type StoryScene } from "./story";
 
@@ -91,6 +92,9 @@ const LAST = SCHEDULE[COUNT - 1];
 const READY_AT = LAST.start + LAST.ms + 250;
 /** The student's pointer reaches Submit and clicks it. */
 const CLICK_AT = READY_AT + 950;
+/** When the form reaches each value of `active` from 0, in ms: each field's
+ * start, then READY_AT and CLICK_AT. */
+const MARKS = [...SCHEDULE.map(({ start }) => start), READY_AT, CLICK_AT];
 
 const SCENES = [
   { id: "one", caption: "Auto Apply fills it in. You click Submit.", hold: CLICK_AT + 1500 },
@@ -229,13 +233,18 @@ function Application({
   // window that is not live is already submitted.
   const [active, setActive] = React.useState(live ? -1 : COUNT + 1);
 
+  // One step at a time, so Pause Animations holds the form on its field
+  // and Play goes on from there.
+  const held = useLoopsHeld();
   React.useEffect(() => {
-    if (!live) return;
-    const timers = SCHEDULE.map(({ start }, i) => window.setTimeout(() => setActive(i), start));
-    timers.push(window.setTimeout(() => setActive(COUNT), READY_AT));
-    timers.push(window.setTimeout(() => setActive(COUNT + 1), CLICK_AT));
-    return () => timers.forEach(window.clearTimeout);
-  }, [live]);
+    if (!live || held || active > COUNT) return;
+    const next = active + 1;
+    const timer = window.setTimeout(
+      () => setActive(next),
+      MARKS[next] - (active < 0 ? 0 : MARKS[active]),
+    );
+    return () => window.clearTimeout(timer);
+  }, [live, held, active]);
 
   // Where each field sits on the page, so the page scrolls to keep the
   // field being filled in view.

@@ -187,7 +187,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   footer) is a rounded panel inset from the window (`PANEL` and
   `PANEL_INSET` in `layout-parts.tsx`, the frame every marketing page
   shares with `CONTAINER` and `SectionHeading`; the group's `layout.tsx`
-  renders the header and footer, and each page renders its own `<main>`); the header floats as a white rounded bar
+  renders a Skip to Content link, the header and the footer, and each page
+  renders its own `<main id="main">`, the link's target, KAN-580); the header floats as a white rounded bar
   once the page scrolls (`floating-header.tsx`); and the site's feature
   carousel and grey product placeholder became one pinned product tour
   (`product-tour.tsx`): from lg up it pins to the screen and scrolling steps
@@ -732,7 +733,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   without changing the look**: an FAQ row's padding is its summary's, so
   the whole row opens it (on the `<details>` only a 28px strip did), and
   the footer links, the tour's "Learn more" and the email link widen
-  their tap with an `::after` (18 to 23px boxes before).
+  their tap with an `::after` (18 to 23px boxes before). Below sm the
+  header's logo link, Get started, the menu's open and close buttons and
+  the social sign-up buttons are 44px tall (KAN-580; 32 to 40px before);
+  from sm up the social pair keeps 40px.
   **The header menus** (`NavMenu` in `nav-menu.tsx`, both Features and
   Resources) are disclosures with `aria-expanded`, not ARIA menus, since
   their items are links: a mouse hover opens one, a click pins it, Esc
@@ -1025,7 +1029,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     beats rest on their boundary, and with the swap before it a resting
     beat showed no caption, title or verdict (`fadeWindow`).
   - A phase that should keep moving while it rests runs its own loop on
-    `useLoopClock`, stopped off screen and in a hidden tab: the coin
+    `useLoopClock`, stopped off screen, in a hidden tab and on Pause
+    Animations (`useLoopsHeld`): the coin
     ring, the pipe's flow, the bridge's floating postings (CSS).
   - A reveal on arrival (the testimonial's words, the footer wordmark's
     rows, the headings' and the FAQ's `FocusIn`) plays in time once the
@@ -1041,6 +1046,28 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
     transforms run on the main thread while a phase plays and cost
     nothing at rest; the array-range rule below matters for what is
     still scroll-linked.
+- **Every loop has a pause: Pause Animations** (KAN-580, WCAG 2.2.2), in
+  the footer's bottom row and at the foot of the phone menu
+  (`motion-toggle.tsx`; it reads Play Animations once pressed, and is
+  hidden with reduced motion, where nothing loops). It writes
+  `data-motion="paused"` on `<html>` and keeps it in localStorage
+  (`workit:motion`, `motion-pause.ts`), so it holds on every marketing
+  page and the next visit. It is not reduced motion: that swaps a scene
+  for its still frame, while a pause keeps the frame on screen and Play
+  goes on from it. Two halves, and a new loop joins one of them:
+  - CSS loops hold on their frame through one rule at the top of
+    landing.css that names each loop (`animation-play-state: paused
+    !important`). Never pause every animation there: an entrance (the
+    city's fade in, the hero's rise, Pricing's rows) paused before it ran
+    hides what it brings in.
+  - Timed loops read `useLoopsHeld` (hooks.ts: a hidden tab or the pause),
+    as they read a hidden tab before: the tagline, each `Story`, the
+    statement, the coin ring and the pipe's flow, and the two long scene
+    steps (Resumes' tailoring beats, Auto Apply's form, one field at a
+    time). A story holds on its scene and its hold starts again on Play.
+    A short move already under way, under about 2.5 s (a motion
+    transition, a one-off timer in a scene), still ends: motion has no
+    clock to stop.
 - **The marketing pages run Lenis with the wheel left native**
   (`smooth-scroll.tsx`, mounted by the `(landing)` layout;
   `smoothWheel: false`, as twain.ai runs it, KAN-368): Lenis glides
@@ -1116,7 +1143,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   lines, Soon chips, the tour's scene count); on plain white `ink-meta`
   holds 5.6:1. White text
   sits only on a fill that holds 4.5:1: `positive-ink`, not `positive`
-  (2.8:1), and ink, not white, on the amber fill. The header's links tint
+  (2.8:1), and ink, not white, on the amber fill. So a feature's marks
+  (`FeatureIcon`, a How it works step's number, a deep dive's check) take
+  its `onGlow` pair in `features/catalog.ts`, never its `glow`, which is
+  for the blobs only (KAN-580): on `glow` white read 2.8:1 on Auto Apply's
+  green and 3.19:1 on Scout's amber. The header's links tint
   their box on hover (`NAV_ITEM`), as the menus' items do: slate-800
   darkening to ink was too slight to see.
 - **Scroll-driven motion stays cheap, or the page lags.** A team member

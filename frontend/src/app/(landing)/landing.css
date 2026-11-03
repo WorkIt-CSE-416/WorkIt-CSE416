@@ -40,6 +40,42 @@
 }
 
 /*
+ * Pause Animations (motion-pause.ts, KAN-580): every endless CSS loop holds
+ * on the frame it is at, and Play goes on from there. The loops only, by
+ * name: an entrance (the city's fade in, the hero's rise, Pricing's rows)
+ * paused before it ran would hide what it brings in. A new loop joins this
+ * list. !important beats each piece's `animation` shorthand, as the city's
+ * off-screen pause does.
+ */
+:root[data-motion="paused"]
+  :is(
+    .slop-drip,
+    .slop-bulb,
+    .slop-spark,
+    .slop-shine,
+    .wordmark-drift,
+    .bridge-float,
+    .hero-city .streak,
+    .hero-city .msolid,
+    .hero-city .mwire .wire,
+    .hero-city .mwire .we,
+    .hero-city .swire,
+    .hero-city .pool,
+    .hero-city .tag,
+    .hero-city .tag > * > *,
+    .tour-spin,
+    .tour-sheen,
+    .tour-scan,
+    .tour-typing,
+    .gate-scan *,
+    .gate-shield *,
+    .gate-bot *,
+    .workit-hop circle
+  ) {
+  animation-play-state: paused !important;
+}
+
+/*
  * The statement's red wavy underline under "slop" (statement.tsx), drawn as
  * a layer of its own: a text decoration is repainted with the selected
  * text, only inside the highlight, so selecting the headline cut off the

@@ -6,7 +6,7 @@ import { AnimatePresence, motion, useInView, useReducedMotion, type Variants } f
 import { cn } from "@/lib/cn";
 
 import { hero } from "./data";
-import { usePageHidden } from "./hooks";
+import { useLoopsHeld } from "./hooks";
 import { GLIDE } from "./story";
 
 /**
@@ -45,16 +45,16 @@ export function HeroTitle() {
   const at = reduceMotion ? hero.rest : (hero.rest + step) % hero.phrases.length;
   const phrase = hero.phrases[at];
 
-  // Paused off screen and in a hidden tab: a page opened behind another
-  // does not loop the phrases unseen and then play the stalled swaps all
-  // at once, and a reader further down costs nothing.
-  const hidden = usePageHidden();
+  // Paused off screen, in a hidden tab and by Pause Animations: a page
+  // opened behind another does not loop the phrases unseen and then play
+  // the stalled swaps all at once, and a reader further down costs nothing.
+  const held = useLoopsHeld();
   const inView = useInView(ref);
   React.useEffect(() => {
-    if (reduceMotion || hidden || !inView) return;
+    if (reduceMotion || held || !inView) return;
     const timer = window.setTimeout(() => setStep((s) => s + 1), step === 0 ? FIRST_SWAP : HOLD);
     return () => window.clearTimeout(timer);
-  }, [step, reduceMotion, hidden, inView]);
+  }, [step, reduceMotion, held, inView]);
 
   return (
     <>
