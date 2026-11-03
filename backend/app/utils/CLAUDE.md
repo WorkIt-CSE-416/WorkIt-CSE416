@@ -17,16 +17,83 @@ raw_text -> _clean_text -> _split_sections -> per-section parser -> ParsedResume
 
 1. **`_clean_text`** -- `ftfy.fix_text`, normalize bullet chars to `*`, collapse
    blank lines.
-2. **`_split_sections`** -- `SECTION_RE` matches standalone header lines
-   (Education, Experience, Skills, Projects, Certifications, Leadership &
-   Activities, Awards, etc.). Text between consecutive headers becomes one
-   section. `_normalize_header` checks the leadership words (Leadership,
-   Activities, Extracurricular, Involvement) and the award words (Award,
-   Honor) before "experience", so "Leadership Experience" never lands in the
-   job section. Returns `{}` when no
-   headers are found, which makes `parse_resume` return `None`.
+2. **`_split_sections`** -- `section_of` reads each line; a header line
+   starts a section and the lines up to the next header are its text.
+   Returns `{}` when no headers are found, which makes `parse_resume`
+   return `None`. Two headers that name one section (Experience, then
+   Research Experience) are joined in resume order; before, the second
+   replaced the first.
 3. **Per-section parsers** -- each returns a list of the matching Pydantic model
    or `[]` on empty input.
+
+### Section headers (`section_of`, KAN-348)
+
+**An unknown header is not a section**: its text joins the section above
+it. "Research Experience" and "Publications" were unknown until KAN-348, so
+a lab and a paper below Education read as schools. The header words come
+from career-center guides (Cornell, Purdue, Windsor, Resume Worded) and
+cover the other names for each bank section: Employment History and
+Internships are Experience; Volunteer Experience, Community Service,
+Affiliations and Athletics are Leadership (the model's reading files
+volunteering there too); Educational Background and Relevant Coursework are
+Education; Core Competencies, Programming Languages and Tools are Skills;
+Papers, Presentations and Patents are publications.
+
+- **A header is a whole line** that `SECTION_RE` matches in full: terms
+  joined by "&" or "and", maybe ending in any one word ("Skills &
+  Abilities"). A bullet line is never a header.
+- **Formats come off first**: a colon ("Education:"), a rule or dash
+  ("EXPERIENCE ____", "— Experience —"), a symbol or number in front ("■
+  Experience", "01 Experience"), spaced letters ("E X P E R I E N C E") and
+  a slash for "&" ("Honors / Awards"). Before KAN-348 a colon alone made
+  every header unknown.
+- **The first term decides** (`_section_name`, `_SECTION_WORDS`): "Experience
+  & Leadership" is Experience, "Activities and Honors" Leadership. Within a
+  term the words are checked in `_SECTION_WORDS` order: publications, then
+  projects ("Research Projects"), leadership ("Leadership Experience",
+  "Volunteer Work"), awards, certifications, education ("Coursework" holds
+  "work"), experience, skills.
+- **Sections import does not save are still headers** (Summary,
+  Qualifications, Interests, Hobbies, References, Additional Information,
+  Other), so their text joins nothing. Each keeps its own name.
+- **A coursework header keeps its label** in Education's text, and the line
+  after a label ending in ":" continues it, so the school's parser still
+  finds "Relevant Coursework: ...".
+- **A new header word goes into `_TERM` and `_SECTION_WORDS` together**,
+  with a line in `HEADINGS` in `tests/test_resume_parser.py`, or into the
+  learned labels below. Common words ("Research", "Tools", "Languages",
+  "Other") are headers only alone on a line. `count_sections` uses
+  `section_of` too, so a header word also changes which PDF extraction mode
+  wins: run the fixtures.
+
+### Learned headings (KAN-348)
+
+A heading the rules miss is looked up in `learned_headings.json`: labels a
+model gave once, the scraper's learned headings (`../../scraper/docs/sections.md`)
+for resumes. The rules always win; "none" keeps a line as body text, and
+"other" makes it a section import does not save, under its own name. The
+lookup is the heading's form (`heading_form`: formats off), case and spacing
+ignored.
+
+- **`app/scripts/label_resume_headings.py`** asks Groq (`openai/gpt-oss-20b`,
+  `GROQ_API_KEY`, the scraper's key, so Scout's quota is untouched) for a
+  label for each line of `../../data/resume_heading_candidates.txt` that no
+  rule or label names yet, 50 a request.
+- **The candidates are a word list, never a resume.** The scraper's labeler
+  reads public postings; a heading-shaped line on a resume can be the
+  student's name, school or employer, and ADR 0003 keeps the model off a
+  resume the student has not asked it to read. A heading found in a resume
+  someone shared (the dry run) is retyped into the list by hand.
+- **Never at upload**: a committed file, so an upload calls no model, costs
+  no quota and reads the same every time.
+- **Review every label before committing**: a wrong label files a whole
+  section's text in the wrong place. The model's first run (2026-11-03)
+  put a capstone, a thesis, conferences and workshops in Education, where
+  each would read as a school; 13 of 105 were changed by hand (capstones and
+  theses to Projects, online courses and professional development to
+  Certifications, conferences, workshops and highlights to "other").
+  `test_every_learned_label_is_known_and_no_rule_names_its_heading` fails
+  on an unknown label or a heading the rules have since learned.
 
 ### Entry splitting (`_split_entries`)
 
@@ -90,6 +157,20 @@ holds `Experience` objects. Awards are one per line (`_parse_awards`):
 "Award – Issuer  Date" or "Award | Issuer | Date", issuer and date optional. A
 year alone at the end of the line ("Merit Scholarship  2024") becomes January
 of that year.
+
+### Research and Publications (KAN-348)
+
+"Research Experience" and a lone "Research" header are Experience: a lab
+role has an organization, a role, dates and bullets, so it is a job in the
+bank. "Publications" (and "Research Publications", checked before
+"research") are Projects, since the bank has no Publications section
+(`_parse_publications`): one project per citation, named by the whole
+citation, because no rule tells a paper's title from its authors. `_bullets`
+joins a citation's wrapped lines; its link becomes the project's `url` and
+its month and year the end ("May 2025", taken out of the name), else its
+year alone (January). Known ceilings: a citation over 200
+characters is clipped by import, and unmarked citations that do not end in
+a full stop merge into one.
 
 ### Date parsing
 
@@ -189,15 +270,15 @@ only when the student asks ("Read It With AI", Import Again's
   `services/bank.py`'s `import_upload`; nothing keeps the reading itself
   (`resumes.parsed_json` was dropped in KAN-240).
 
-## Text extraction (lives in `app/routers/resumes.py`, not here)
+## Text extraction (lives in `app/services/text_extraction.py`, not here)
 
-Extraction is in the router because it runs on the uploaded file bytes before
-the parser. Two extractors:
+Extraction runs on the uploaded file bytes before the parser, and moved out
+of the router so the router stays the HTTP layer. Two extractors:
 
-- **`_extract_pdf_text`** -- pypdf with two modes: layout (glyph positions) and
+- **`extract_pdf_text`** -- pypdf with two modes: layout (glyph positions) and
   plain (content-stream order). Picks the winner by comparing section header
   counts, with a median-words-per-line guard against fragmented output.
-- **`_extract_docx_text`** -- python-docx, iterating paragraphs and tables in
+- **`extract_docx_text`** -- python-docx, iterating paragraphs and tables in
   document order. Restores bullet markers that Word stores as numbering
   properties. Deduplicates merged table cells.
 
