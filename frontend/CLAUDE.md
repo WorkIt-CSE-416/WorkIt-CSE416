@@ -2403,6 +2403,10 @@ query, the percent; `node --test`); its read is `getFillHealth` in
 - **Design**: before changing a shell, a page's layout or widths, a colour
   (stage or match), a segmented control or a `ui/` component, read
   `docs/design.md`.
+- **Design principles**: every new or changed app screen is checked against
+  `docs/design.md`'s Design principles (legibility and contrast, hierarchy,
+  component roles and states, tokens, layout, accessibility, copy). A break
+  found and not fixed goes in its Still open list.
 - **Motion**: before adding or changing an animation, transition, hover or
   press state, `<ViewTransition>` or shallow routing, read `docs/motion.md`.
 
