@@ -253,6 +253,31 @@ async def test_a_bare_link_two_listed_jobs_share_names_neither(student, database
     assert (await client.post("/jobs/listed-by-link", json={"url": f"{base}?gh_jid=2"})).status_code == 200
 
 
+@pytest.mark.parametrize("page", [
+    "http://careers.example.com/jobs/{id}",
+    "https://www.careers.example.com/jobs/{id}/",
+    "HTTPS://Careers.Example.com/Jobs/{ID}?utm_source=li#apply",
+])
+async def test_a_link_finds_the_listed_job_whatever_its_scheme_www_or_case(student, database, page):
+    # KAN-542: the link a student kept differs from the feed's in its scheme, www. or case.
+    client, _ = student
+    posting = uuid.uuid4().hex
+    async with database() as session:
+        job = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url, experience_level)"
+                " VALUES (gen_random_uuid(), 'Intern', 'published', 'Acme', :url, 'student') RETURNING id"
+            ),
+            {"url": f"https://careers.example.com/jobs/{posting}?source=feed"},
+        )
+        await session.commit()
+
+    url = page.format(id=posting, ID=posting.upper())
+    res = await client.post("/jobs/listed-by-link", json={"url": url})
+    assert res.status_code == 200
+    assert res.json()["job_id"] == str(job)
+
+
 FIGMA = "https://boards.greenhouse.io/figma/jobs/6143238004?gh_jid=6143238004"
 
 

@@ -56,7 +56,9 @@ import { jobLogo } from "@/lib/job-logo";
  *   salary_*               `salary_*`, when the posting states pay
  *   work_style             `work_style`, when the board states it
  *   experience_level       `experience_level`, always: the scraper keeps
- *                          internship and new-grad roles only
+ *                          internship and new-grad roles only. Not listed
+ *                          for a job a student added from its form
+ *                          (KAN-515), whose page names none
  *   min_years_experience   `min_years_experience`, when the posting asks
  *                          for some; an internship shows `start_term` as
  *                          its own fact instead, since nobody asks an
@@ -181,7 +183,9 @@ export function listingFacts(job: JobListing) {
     jobType: job.job_type ? formatJobType(job.job_type) : NOT_LISTED,
     salary: salary(job),
     workStyle: job.work_style ? formatWorkStyle(job.work_style) : NOT_LISTED,
-    experienceLevel: formatExperienceLevel(job.experience_level),
+    experienceLevel: job.experience_level
+      ? formatExperienceLevel(job.experience_level)
+      : NOT_LISTED,
     ...yearsOrStart(job),
   };
 }

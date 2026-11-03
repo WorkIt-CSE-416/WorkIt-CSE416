@@ -50,8 +50,9 @@ class JobListing(BaseModel):
     company: str
     apply_url: str
     # Who the job is for (KAN-233): a student (every internship), a new grad,
-    # or someone with experience.
-    experience_level: Literal["student", "new_grad", "experienced"]
+    # or someone with experience. The scraper always names one; None only for
+    # a job a student added from its form (KAN-515), whose page names none.
+    experience_level: Literal["student", "new_grad", "experienced"] | None
     # Stated by the posting, else inferred by the scraper from the company's other
     # postings or, for a posting that names a place and no alternative, On site
     # (scraper/CLAUDE.md). None when neither applies.

@@ -1,0 +1,9 @@
+Authentication-Results: mx.google.com; spf=pass smtp.mailfrom=myworkday.com; dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=myworkday.com
+From: Pure Storage <purestorage@myworkday.com>
+To: test.person@example.com
+Subject: Application Received - Software Engineer Intern (Summer 2027)
+Date: Tue, 13 Oct 2026 15:02:44 +0000
+MIME-Version: 1.0
+Content-Type: text/html; charset="UTF-8"
+
+<html><body><p>Dear Test,</p><p>Thank you for applying to the Software Engineer Intern (Summer 2027) position at Pure Storage. Your application has been received and is under review.</p><p>Should your qualifications match our needs, a member of our recruiting team will contact you about next steps.</p><p>Pure Storage Talent Acquisition</p><p><a href="https://purestorage.wd5.myworkdayjobs.com/en-US/purestorage/userHome">Candidate Home</a></p></body></html>
