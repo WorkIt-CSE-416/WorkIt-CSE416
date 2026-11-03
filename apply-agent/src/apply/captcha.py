@@ -24,6 +24,12 @@ CHALLENGES = (
     '[data-testid="TurnstileContainer"]',  # Rippling's Cloudflare Turnstile, shown only when it wants a challenge solved
 )
 CHALLENGE = ", ".join(CHALLENGES)
+# The hosts that serve those challenges' frames. Apply's guards leave a page of these alone, so Lisul can do
+# the captcha there: DataDome's frame posts its own form.
+HOSTS = ("captcha-delivery.com", "hcaptcha.com", "arkoselabs.com", "funcaptcha.com", "challenges.cloudflare.com",
+         "recaptcha.net")
+# reCAPTCHA's frames are on www.google.com, by path.
+PATHS = ("/recaptcha/",)
 
 # How Claude fill's Claude says it stopped at one (claude_fill.py's prompt tells it to).
 SAYS_CAPTCHA = re.compile(r"captcha|not a robot|turnstile|cloudflare|verify (that )?you are (a )?human"

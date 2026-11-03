@@ -466,6 +466,10 @@ challenge there, as data, not in a Filler.
   Arkose Labs, and Rippling's Turnstile box. `captcha.shows(page)` reads
   them. Do not list a checkbox that stays on the page after it passes.
 - `SAYS_CAPTCHA` reads Claude fill's why when Claude stops at a captcha.
+- `HOSTS` and `PATHS` name the hosts of the challenges' frames. The submit
+  guard and the drive guard do nothing in such a frame, so Lisul can do
+  the captcha: DataDome's frame posts its own form, which the guards
+  blocked as "a form submission".
 - `SAYS_BLOCKED` reads a page that refuses the browser (Tesla's "Access
   Denied"). It has no challenge, so it is a Handoff, never a wait. Its
   reason says it plainly: "Tesla blocked the browser; apply in your own

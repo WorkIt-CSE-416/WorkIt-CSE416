@@ -93,3 +93,38 @@ def test_a_captcha_not_done_in_time_ends_the_wait_and_pushes_once(page):
         assert not waits(WHY, page, "LinkedIn")  # the same form's captcha again: no second push
 
     assert len(phone.sent) == 1
+
+
+# DataDome's frame, as SmartRecruiters showed it: its own POST form, which Lisul sends when he does the captcha.
+DATADOME_FRAME = """<form id="human-contact-form" method="post" action="/contact-human"><button>Send</button></form>
+<script>document.forms[0].submit()</script>"""
+
+
+@pytest.mark.parametrize("guarded", ["drive", "rehearsal"])
+def test_neither_guard_stops_lisul_doing_the_captcha_in_its_frame(guarded):
+    from apply.submit_guard import DriveGuard, guard
+
+    posted = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        try:
+            page = browser.new_page()
+
+            def captcha_site(route):
+                if route.request.method == "POST":
+                    posted.append(route.request.url)
+                    return route.fulfill(body="<p>Thanks</p>")
+                return route.fulfill(content_type="text/html", body=DATADOME_FRAME)
+            page.route("**/*captcha-delivery.com/**", captcha_site)
+            page.route("https://jobs.example.com/**", lambda route: route.fulfill(content_type="text/html", body="<p>Form</p>"))
+            page.goto("https://jobs.example.com/apply")
+            drive = DriveGuard(page) if guarded == "drive" else guard(page)
+            page.evaluate("""() => { const f = document.createElement('iframe');
+                f.src = 'https://geo.captcha-delivery.com/captcha/?initialCid=fake'; document.body.appendChild(f); }""")
+            page.wait_for_timeout(1500)
+            blocked = drive.blocked() if guarded == "drive" else []
+        finally:
+            browser.close()
+
+    assert posted == ["https://geo.captcha-delivery.com/contact-human"]
+    assert blocked == []
