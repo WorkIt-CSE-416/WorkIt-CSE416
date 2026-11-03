@@ -652,7 +652,9 @@ Find files with a directory listing; these are the rules for where code goes.
   from `written_answers` directly). A draft of their Claude's brought
   from Apply with no company (no `first_seen`) that names a company WorkIt
   knows (`written.companies_named`; the student's own places don't count)
-  is that company's answer. **The student's own words win**
+  is that company's answer. The companies WorkIt knows
+  (`queries.fetch_company_names`) never include an unlisted posting's
+  company: one student typed it (KAN-542). **The student's own words win**
   (KAN-379): the student's words in a tab (`PUT .../answers`, `own` true:
   written into a field WorkIt didn't fill, or replacing what it filled) set
   the row's `own`, which their Claude's later save never overwrites and

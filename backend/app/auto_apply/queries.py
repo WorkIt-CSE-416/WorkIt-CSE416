@@ -22,6 +22,7 @@ from sqlalchemy import (
     delete,
     func,
     literal,
+    not_,
     null,
     or_,
     select,
@@ -48,7 +49,7 @@ from app.schemas.applications import (
     WrittenQuestion,
 )
 from app.schemas.sent_resume import SentResumeResponse
-from app.services.postings import typed_text
+from app.services.postings import UNLISTED, typed_text
 
 
 async def queue_applications(
@@ -740,9 +741,11 @@ async def fetch_application_companies(db: AsyncSession, applicant_id: uuid.UUID)
 
 async def fetch_company_names(db: AsyncSession) -> list[str]:
     """Every company WorkIt knows by name: its job postings' and its
-    company profiles', each once."""
+    company profiles', each once. Not an unlisted posting's: one student
+    typed that name (KAN-542, ADR 0008), and this list feeds every
+    student's essay check."""
     rows = await db.scalars(
-        select(Job_Post.company_name).where(Job_Post.company_name.is_not(None))
+        select(Job_Post.company_name).where(Job_Post.company_name.is_not(None), not_(UNLISTED))
         .union(select(Company_Profile.company_name).where(Company_Profile.company_name.is_not(None)))
     )
     return list(rows)

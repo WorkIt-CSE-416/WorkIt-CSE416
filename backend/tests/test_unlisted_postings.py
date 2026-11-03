@@ -224,3 +224,14 @@ async def test_a_second_student_on_the_link_never_sees_the_first_ones_typing(stu
         await session.commit()
     [row] = (await client.get(f"/applicants/{me}/applications")).json()
     assert (row["job"]["company"], row["job"]["title"]) == ("Lockheed Martin Corp", "SWE Intern")
+
+
+async def test_an_unlisted_postings_company_is_not_a_known_company(student, database):  # noqa: F811
+    from app.auto_apply.queries import fetch_company_names
+
+    client, _ = student
+    await _seed_listed(database, "https://boards.greenhouse.io/figma/jobs/6143238004")
+    await client.post("/jobs/added-by-link", json=_add(LOCKHEED, company="Kate's Startup"))
+    # The known companies feed every student's essay check: one student's typing stays out.
+    async with database() as session:
+        assert await fetch_company_names(session) == ["Acme"]
