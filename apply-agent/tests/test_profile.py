@@ -1,4 +1,4 @@
-"""The Applicant profile: the template Lisul fills once, and no secrets ever."""
+"""The Applicant profile: the template its owner fills once, and no secrets ever."""
 
 import sys
 import threading
@@ -19,13 +19,12 @@ def leaves(tree, prefix=""):
             yield f"{prefix}{key}", value
 
 
-def test_the_template_settles_only_citizenship_and_sponsorship():
+def test_the_template_leaves_every_fact_blank_for_its_owner():
     import yaml
 
     filled = {key: value for key, value in leaves(yaml.safe_load(TEMPLATE.read_text())) if value not in (None, [], {})}
-    assert filled == {"work_authorization.citizenship": "US citizen", "work_authorization.requires_sponsorship_now_or_future": False}
-    profile = ApplicantProfile.load(TEMPLATE)
-    assert profile.get("work_authorization.citizenship") == "US citizen"
+    assert filled == {}
+    assert ApplicantProfile.load(TEMPLATE).get("work_authorization.citizenship") is None
 
 
 @pytest.mark.parametrize("secret", ["gmail_app_password", "password", "api_key", "service_account_token", "client_secret"])

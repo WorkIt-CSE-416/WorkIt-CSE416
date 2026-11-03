@@ -7,8 +7,8 @@
 # load a profile with a key that looks like one.
 #
 # Every key below answers a question seen on real Summer 2027 forms (58 forms:
-# 30 Greenhouse, 18 Ashby, 10 Lever, plus the Workday step list). Values are blank
-# for Lisul to fill, except citizenship and sponsorship, which are settled.
+# 30 Greenhouse, 18 Ashby, 10 Lever, plus the Workday step list). Every value is
+# blank: fill in your own.
 #
 # Conventions
 #   - `# seen:` lists the option sets forms actually used. The profile stores ONE
@@ -18,12 +18,12 @@
 #   - `freq:` is how many of the 58 forms asked it (approximate, keyword classifier).
 #   - Yes/No facts are true or false. Dates are YYYY-MM or YYYY-MM-DD. A self-ID
 #     answer may be "decline", which picks each form's own decline option.
-#   - A question no key answers is a Missing fact. Lisul answers it in the
-#     Tracker, and the answer is saved here: under its key, or else under
+#   - A question no key answers is a Missing fact. You answer it in the
+#     Apply window (Needs you), and the answer is saved here: under its key, or else under
 #     answered_questions by the question's wording.
 #   - Answer policies (consent boxes, SMS and marketing opt-ins, compensation,
 #     defense roles, "how did you hear", cover letters) are not facts: they
-#     live in apply/policies.yaml.
+#     live in policies.yaml in the data folder (defaults: policies.default.yaml).
 
 identity:
   legal_first_name:            # freq 58 (as First Name / Full name / Legal Name)
@@ -31,7 +31,7 @@ identity:
   legal_last_name:
   preferred_first_name:        # freq 21; 3 forms make it required
   preferred_last_name:         # freq 1 (WhatNot)
-  name_pronunciation:          # how to say his name (Sierra, Palantir)
+  name_pronunciation:          # how to say your name (Sierra, Palantir)
   name_in_native_script:       # freq 1 (xAI: "Full Legal Name in Native Language"); blank = "N/A"
   pronouns:                    # freq 7
     # seen: he/him/his | she/her/hers | they/them/theirs | He/They | Other | I don't wish to answer | free text
@@ -100,9 +100,9 @@ education:
   past_schools: []             # AnaVation wants every school with dates attended, major, degree
 
 work_authorization:
-  citizenship: US citizen      # settled
-  requires_sponsorship_now_or_future: false   # settled. freq 43 forms, 57 questions
-  authorized_to_work_us:       # freq 34. Derives from citizenship; Lisul confirms
+  citizenship:                 # e.g. US citizen
+  requires_sponsorship_now_or_future:         # true or false. freq 43 forms, 57 questions
+  authorized_to_work_us:       # freq 34. Derives from citizenship; you confirm
     # seen: Yes/No | "I am authorized to work in the United States for any employer" | "Yes, no restrictions"
   us_person_itar_ear:          # freq 11. Derives from citizenship
     # seen: "U.S. Citizen" | "A United States citizen or national" | "U.S. person. This ITAR/EAR status includes U.S. citizens..."
@@ -141,14 +141,14 @@ logistics:
   can_work_full_time_40h:      # Yes/No (Cloudflare, Klaviyo, Relay, Viget)
   weeks_available:             # 10 / 12 week programs
   willing_to_relocate_for_summer:   # Yes/No; freq 27 onsite/relocation questions
-  relocation_limits:           # states/cities Lisul will NOT relocate to, if any
+  relocation_limits:           # states/cities you will NOT relocate to, if any
   location_preferences: []     # ranked areas, each a list of the places it covers: [[Chicago, Evanston], [New York City, NYC]]
   onsite_5_days_ok:            # Yes/No
   hybrid_ok:                   # Yes/No
   needs_relocation_support:    # Hadrian 3-way: live here | will relocate myself | would need relocation assistance
-  miles_from: {}               # ranked area -> miles he lives from it (Whatnot's "within 50 miles of a hub")
+  miles_from: {}               # ranked area -> miles you live from it (Whatnot's "within 50 miles of a hub")
   housing_in_area: {}          # MetOx "housing within 30 miles"; default "No" unless local
-  referrals: {}                # company -> referrer name, when Lisul has one
+  referrals: {}                # company -> referrer name, when you have one
   career_fairs_attended: []    # Perpay "Did you attend a fall career fair this year?"
 
 experience_facts:              # derived from the master resume once, so screeners need no Claude call
@@ -164,10 +164,10 @@ experience_facts:              # derived from the master resume once, so screene
   role_interests: []           # Backend/Systems | Full-stack | Frontend | Embedded | Mobile | ML ...
 
 screeners:                     # company-specific yes/no; defaults apply unless the company is listed
-  previously_employed_by: []   # companies Lisul worked or contracted for (freq 11 forms ask)
+  previously_employed_by: []   # companies you worked or contracted for (freq 11 forms ask)
   previously_applied_to: []    # Barnes & Thornburg
   prior_us_government_employment:   # Skydio, Yes/No
-  pending_offers: []                # employers with an offer out to him (Belvedere)
+  pending_offers: []                # employers with an offer out to you (Belvedere)
   competing_offer_deadline:         # Yes/No: any offer with a deadline (Adobe)
   interview_recording_ok:           # Yes/No: may interviews be recorded or transcribed (Sierra)
   relatives_at: {}             # company -> name and relationship (freq 3)
@@ -176,10 +176,10 @@ screeners:                     # company-specific yes/no; defaults apply unless 
   outside_business_activities:  # Yes/No + details
   felony_or_pending_legal_proceedings:   # Gas South, Yes/No
   smoker:                                # Cognex (Workday), Yes/No
-  accepted_other_offer:                  # Yes/No: has he accepted another offer
+  accepted_other_offer:                  # Yes/No: have you accepted another offer
   financial_licenses:          # National Life FINRA/SEC, Yes/No
 
-stock_answers:                 # Lisul's core answers, approved once; each essay adds one detail from the company's own material
+stock_answers:                 # your core answers, approved once; each essay adds one detail from the company's own material
   internship_goals:            # Datacor "what are you looking to gain"
   why_this_major:              # Khan Academy
   ai_tools_usage:              # Glean, SEP
