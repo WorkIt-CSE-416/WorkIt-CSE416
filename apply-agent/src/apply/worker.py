@@ -24,6 +24,7 @@ from apply import (
     description,
     eligibility,
     essays,
+    gates,
     sameness,
     verify,
 )
@@ -524,6 +525,10 @@ class _Planned:
         for n, essay in enumerate(self.written):
             q = essay.question
             if not essay.text:
+                continue
+            if long := gates.over_cap(essay.text, q):
+                if (hold := f"'{one_line(q.label)}' is left off the form: {long[0]}") not in self.holds:
+                    self.holds.append(hold)  # never sent over its limit, Claude's or Lisul's
                 continue
             if q.kind == "file":  # each in its own folder, so the employer still sees its own file name
                 folder = self.scratch / str(n)

@@ -429,8 +429,24 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   from the name, and a plan or a reason can call a they/them applicant
   "he". Wrap each Claude call that writes about the applicant with it.
 - The length gate (`gates.bounds`) reads a limit that the form states,
-  also a hyphenated one ("500-word limit"). Keep it in step with
+  also a hyphenated one ("500-word limit") and one with the unit first
+  ("Word limit: 260", `gates.LIMIT`). Keep it in step with
   `essays.STATED`, which tells the writer that the form states a length.
+- A word or character cap that the form states (`gates.caps`: each range's
+  top, each limit in digits, the field's `maxLength`) always holds, also
+  when `gates.bounds` reads another length first ("2-3 sentences" before
+  "(max 260 words)"). An essay over a cap gets one shorter rewrite
+  (`essays.SHORTER`). If it is still over the cap, the worker keeps it off
+  the form and holds the Application (`gates.over_cap`). This applies to
+  an essay that Lisul approved too. A form refuses a longer answer
+  (MongoDB's 267-word letter, cap 260).
+- The names gate (`gates.traced`) checks each run of capitalized words
+  against the essay's sources: the drafting prompt (Story bank, Stock
+  answers, Company material with the Company brief, the posting) and the
+  question. A run that joins names the sources hold passes (`gates.held`):
+  "MongoDB Intelligent Workload Management" is the company and a brief
+  name, and "Hitachi Rail's CTO" is two Story bank names. A one-word piece
+  must be in the sources with its capital.
 - The not-on-resume gate (`gates.on_resume`) reads the text of the
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".

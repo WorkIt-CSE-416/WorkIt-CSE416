@@ -41,6 +41,9 @@ _NUM = r"(\d[\d,]*|one|two|three|four|five|a single|a couple of|a few)"
 # "[\s-]*": a hyphenated limit counts too (Twitch's "(500-word limit)").
 RANGE = re.compile(rf"\b{_NUM}\s*(?:-|–|to|or)\s*{_NUM}[\s-]*(?:short\s+)?(words?|sentences?|characters?|chars)\b", re.IGNORECASE)
 SINGLE = re.compile(rf"\b{_NUM}[\s-]*(?:short\s+)?(words?|sentences?|characters?|chars)\b", re.IGNORECASE)
+# The unit before the number: "Word limit: 260", "maximum character count of 1,500".
+LIMIT = re.compile(r"\b(words?|characters?|chars)\s+(?:limit|maximum|max|count)\b\s*(?:is\s+|of\s+)?[:-]?\s*(\d[\d,]*)",
+                   re.IGNORECASE)
 
 WORD = re.compile(r"[A-Za-z0-9][\w'’-]*")
 # A run of capitalized words: a name of two or more words ("Hitachi Rail", "Google Cloud Run").
@@ -76,6 +79,9 @@ def bounds(q: Question, kind: str) -> tuple[int, int, str]:
         if m.group(1).lower() == "a few":
             return 3, 4, unit
         return (n, n, unit) if unit == "sentences" else (round(n * (0.75 if unit == "words" else 0.8)), n, unit)
+    if m := LIMIT.search(text):
+        n, unit = _count(m.group(2)), _unit(m.group(1))
+        return round(n * (0.75 if unit == "words" else 0.8)), n, unit
     if q.max_length:
         return round(q.max_length * 0.8), q.max_length, "characters"
     if q.kind == "text":
@@ -84,16 +90,41 @@ def bounds(q: Question, kind: str) -> tuple[int, int, str]:
     return low, high, "words"
 
 
+TOO_LONG = "too long: "  # opens the length gate's failure for an answer over its form's limit
+
+
+def caps(q: Question) -> list[tuple[int, str]]:
+    """Every word or character cap `q` states, as (most, unit): each range's
+    top and each limit given in digits, in its label or description, and the
+    field's character cap. bounds reads only the first length stated, so a
+    label asking "2-3 sentences" and "(max 260 words)" has both."""
+    text = f"{q.label} {q.description}"
+    found = [(_count(m.group(2)), _unit(m.group(3))) for m in RANGE.finditer(text)]
+    found += [(_count(m.group(1)), _unit(m.group(2))) for m in SINGLE.finditer(text) if m.group(1)[0].isdigit()]
+    found += [(_count(m.group(2)), _unit(m.group(1))) for m in LIMIT.finditer(text)]
+    found += [(q.max_length, "characters")] if q.max_length else []
+    return [(n, unit) for n, unit in found if unit != "sentences"]
+
+
+def over_cap(text: str, q: Question) -> list[str]:
+    """The first cap `q` states (caps) that `text` is over, as a length failure; none when it fits."""
+    for most, unit in caps(q):
+        if (n := _measure(text, unit)) > most:
+            return [f"{TOO_LONG}{n} {unit}, the most is {most}"]
+    return []
+
+
 def length(text: str, q: Question, kind: str) -> list[str]:
     """Too long for `q` (bounds), or under UNDER of its lower bound; types in
-    NO_FLOOR and short fields have no lower bound. A field's character cap
-    always holds too."""
+    NO_FLOOR and short fields have no lower bound. Every cap the form
+    states (caps) always holds too: an answer over one never goes on the
+    form (worker)."""
     low, high, unit = bounds(q, kind)
     n = _measure(text, unit)
     if n > high:
-        return [f"too long: {n} {unit}, the most is {high}"]
-    if q.max_length and unit != "characters" and len(text) > q.max_length:
-        return [f"too long: {len(text)} characters, the most is {q.max_length}"]
+        return [f"{TOO_LONG}{n} {unit}, the most is {high}"]
+    if over := over_cap(text, q):
+        return over
     short = q.kind == "text" or (q.max_length or SHORT_FIELD + 1) <= SHORT_FIELD
     if kind not in NO_FLOOR and not short and n < (floor := -(-low * UNDER // 1)):
         return [f"too short: {n} {unit}, at least {floor:.0f} ({UNDER:.0%} of {low})"]
@@ -126,10 +157,25 @@ def traced(text: str, sources: str, company: str) -> list[str]:
     run of two or more capitalized words (its sentence-opening words dropped)
     and each word with a capital inside it ("PyTorch"). The company's own
     name always passes; single capitalized words and acronyms are never
-    checked, so a sentence opener or "AI" never fails."""
-    held = _plain(f"{sources} {company}")
+    checked, so a sentence opener or "AI" never fails. A run that joins
+    names the sources hold passes too (held)."""
     found = [f"{UNTRACED_NUMBER}{n}" for n in unsupported_numbers(text, sources)]
-    return found + [f"a name no source holds: {name}" for name in names(text) if _plain(name) not in held]
+    return found + [f"a name no source holds: {name}" for name in names(text) if not held(name, f"{sources}\n{company}")]
+
+
+def held(name: str, sources: str) -> bool:
+    """Whether `sources` hold `name`, whole or as names side by side: an
+    essay joins them into one capitalized run ("MongoDB Intelligent Workload
+    Management", "IEEE Stony Brook Micromouse", "Hitachi Rail's CTO", its
+    "'s" dropped by names). Each piece of two or more words must be in the
+    sources, in any case; a one-word piece only as that capitalized word."""
+    plain, words = _plain(sources), name.split()
+    piece = lambda part: (_plain(" ".join(part)) in plain if len(part) > 1
+                          else re.search(rf"(?<!\w){re.escape(part[0])}(?!\w)", sources) is not None)
+    split = [True] + [False] * len(words)  # split[j]: words[:j] cut into held pieces
+    for j in range(1, len(words) + 1):
+        split[j] = any(split[i] and piece(words[i:j]) for i in range(j))
+    return split[-1]
 
 
 def names(text: str) -> list[str]:
