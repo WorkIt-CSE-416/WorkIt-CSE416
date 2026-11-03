@@ -429,7 +429,8 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   from the name, and a plan or a reason can call a they/them applicant
   "he". Wrap each Claude call that writes about the applicant with it.
 - The length gate (`gates.bounds`) reads a limit that the form states,
-  also a hyphenated one ("500-word limit"). Keep it in step with
+  also a hyphenated one ("500-word limit") and one with the unit first
+  ("Word limit: 260", `gates.LIMIT`). Keep it in step with
   `essays.STATED`, which tells the writer that the form states a length.
 - A word or character cap that the form states (`gates.caps`: each range's
   top, each limit in digits, the field's `maxLength`) always holds, also

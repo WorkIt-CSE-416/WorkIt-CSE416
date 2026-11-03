@@ -41,6 +41,9 @@ _NUM = r"(\d[\d,]*|one|two|three|four|five|a single|a couple of|a few)"
 # "[\s-]*": a hyphenated limit counts too (Twitch's "(500-word limit)").
 RANGE = re.compile(rf"\b{_NUM}\s*(?:-|–|to|or)\s*{_NUM}[\s-]*(?:short\s+)?(words?|sentences?|characters?|chars)\b", re.IGNORECASE)
 SINGLE = re.compile(rf"\b{_NUM}[\s-]*(?:short\s+)?(words?|sentences?|characters?|chars)\b", re.IGNORECASE)
+# The unit before the number: "Word limit: 260", "maximum character count of 1,500".
+LIMIT = re.compile(r"\b(words?|characters?|chars)\s+(?:limit|maximum|max|count)\b\s*(?:is\s+|of\s+)?[:-]?\s*(\d[\d,]*)",
+                   re.IGNORECASE)
 
 WORD = re.compile(r"[A-Za-z0-9][\w'’-]*")
 # A run of capitalized words: a name of two or more words ("Hitachi Rail", "Google Cloud Run").
@@ -76,6 +79,9 @@ def bounds(q: Question, kind: str) -> tuple[int, int, str]:
         if m.group(1).lower() == "a few":
             return 3, 4, unit
         return (n, n, unit) if unit == "sentences" else (round(n * (0.75 if unit == "words" else 0.8)), n, unit)
+    if m := LIMIT.search(text):
+        n, unit = _count(m.group(2)), _unit(m.group(1))
+        return round(n * (0.75 if unit == "words" else 0.8)), n, unit
     if q.max_length:
         return round(q.max_length * 0.8), q.max_length, "characters"
     if q.kind == "text":
@@ -95,6 +101,7 @@ def caps(q: Question) -> list[tuple[int, str]]:
     text = f"{q.label} {q.description}"
     found = [(_count(m.group(2)), _unit(m.group(3))) for m in RANGE.finditer(text)]
     found += [(_count(m.group(1)), _unit(m.group(2))) for m in SINGLE.finditer(text) if m.group(1)[0].isdigit()]
+    found += [(_count(m.group(2)), _unit(m.group(1))) for m in LIMIT.finditer(text)]
     found += [(q.max_length, "characters")] if q.max_length else []
     return [(n, unit) for n, unit in found if unit != "sentences"]
 
