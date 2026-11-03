@@ -1,9 +1,11 @@
 """Apply writes to the student's Applications Tracker (KAN-544), against a
 fake WorkIt (fake_workit.py): a submit is Applied with the file sent as its
-Sent resume, a Handoff or a Missing fact is Needs you, a Hold is Queued.
+Sent resume, a Handoff, a Missing fact or a Hold is Needs you (never Queued:
+WorkIt's extension fills queued applications).
 WorkIt down: the write waits in the data folder and goes on the next send."""
 
 import dataclasses
+import json
 from pathlib import Path
 
 import pytest
@@ -55,19 +57,18 @@ def test_a_submit_is_applied_with_the_file_sent_as_its_sent_resume(fake, tmp_pat
     assert writes.waiting() == []
 
 
-@pytest.mark.parametrize("stage, shown", [("needs_you", "Needs you"), ("queued", "Queued")])
-def test_a_handoff_or_missing_fact_is_needs_you_and_a_hold_is_queued(fake, tmp_path, stage, shown):
+def test_a_handoff_missing_fact_or_hold_is_needs_you(fake, tmp_path):
     writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
 
-    assert writes.send(write(stage)) == f"in your Applications Tracker as {shown}"
-    assert [row["stage"] for row in fake.tracker.tracked()] == [stage]
+    assert writes.send(write("needs_you")) == "in your Applications Tracker as Needs you"
+    assert [row["stage"] for row in fake.tracker.tracked()] == ["needs_you"]
 
 
 def test_the_writes_read_the_students_id_once(fake, tmp_path):
     writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
     before = sum(seen.path == "/auth/me" for seen in fake.requests)
 
-    writes.send(write("queued"))
+    writes.send(write("needs_you"))
     writes.send(write("applied", resume=resume(tmp_path)))
 
     assert writes.client.applicant_id() == fake.account["id"]
@@ -77,7 +78,6 @@ def test_the_writes_read_the_students_id_once(fake, tmp_path):
 def test_a_later_status_for_the_same_job_moves_the_same_row(fake, tmp_path):
     writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
 
-    writes.send(write("queued"))
     writes.send(write("needs_you"))
     writes.send(write("applied", resume=resume(tmp_path)))
     writes.send(write("applied", resume=resume(tmp_path)))  # sent twice: still one Sent resume
@@ -148,18 +148,26 @@ def test_with_workit_down_the_write_waits_and_the_next_send_takes_it(fake, tmp_p
 def test_with_no_login_the_write_waits_for_apply_login(fake, tmp_path):
     writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
 
-    assert "apply login" in writes.send(write("queued"))
-    assert [w.stage for w in writes.waiting()] == ["queued"]
+    assert "apply login" in writes.send(write("needs_you"))
+    assert [w.stage for w in writes.waiting()] == ["needs_you"]
     assert fake.tracker.tracked() == []
 
 
 def test_a_waiting_write_is_replaced_by_a_later_one_for_the_same_application(fake, tmp_path):
     writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
-    writes.send(write("queued"))
     writes.send(write("needs_you"))
-    writes.send(write("queued", application_id="request-2", link=LOCKHEED + "7"))
+    writes.send(write("applied"))
+    writes.send(write("needs_you", application_id="request-2", link=LOCKHEED + "7"))
 
-    assert [(w.application_id, w.stage) for w in writes.waiting()] == [("request-1", "needs_you"), ("request-2", "queued")]
+    assert [(w.application_id, w.stage) for w in writes.waiting()] == [("request-1", "applied"), ("request-2", "needs_you")]
+
+
+def test_a_hold_kept_as_queued_by_an_older_apply_goes_as_needs_you(fake, tmp_path):
+    queue = tmp_path / "workit-queue.json"
+    queue.write_text(json.dumps([dataclasses.asdict(write("queued"))]))
+
+    assert WaitingWrites(logged_in(fake, tmp_path), queue).flush() == []
+    assert [row["stage"] for row in fake.tracker.tracked()] == ["needs_you"]
 
 
 def test_a_write_workit_refuses_is_dropped_and_said(fake, tmp_path):
@@ -210,7 +218,7 @@ def test_each_status_moves_the_one_row_of_its_job(fake, tmp_path):
     tracker.add(row(Status.FILLING))
     assert fake.tracker.tracked() == []  # filling is not a stage on the tracker
 
-    for status, stage in [(Status.HELD, "queued"), (Status.HANDOFF, "needs_you"),
+    for status, stage in [(Status.HELD, "needs_you"), (Status.HANDOFF, "needs_you"),
                           (Status.MISSING_FACT, "needs_you"), (Status.SUBMITTED, "applied")]:
         tracker.update("request-1", status=status)
         assert [r["stage"] for r in fake.tracker.tracked()] == [stage]

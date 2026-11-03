@@ -194,7 +194,8 @@ def test_workit_refuses_to_delete_an_applied_application(workit_tracker):
 
 
 def test_it_keeps_a_job_apply_is_holding_or_waits_on_you_for(workit_tracker, tmp_path):
-    """Apply writes a Hold as queued and a Missing fact as needs_you (KAN-544): a cleanup must not delete them."""
+    """Apply writes a Hold and a Missing fact as needs_you (KAN-544). Its write may still wait while WorkIt has the
+    job at saved or queued: a cleanup must not delete them."""
     _, tracker, client = workit_tracker
     apply_tracker = FileTracker(tmp_path / "tracker.json")
     for number, (company, url, status) in enumerate([
@@ -209,7 +210,7 @@ def test_it_keeps_a_job_apply_is_holding_or_waits_on_you_for(workit_tracker, tmp
 
     assert status == 0
     text = out.getvalue()
-    assert "  Kite | Mobile Intern | queued: Apply is holding it\n" in text
+    assert "  Kite | Mobile Intern | queued: Apply is waiting for you on it (held)\n" in text
     assert "  Lumen | Data Intern | saved: Apply is waiting for you on it (missing fact)\n" in text
     assert "Done: 2 deleted, 0 failed." in text  # Gale (failed in Apply) and Jade (no --keep here)
     assert ("Kite", "queued") in stages(tracker) and ("Lumen", "saved") in stages(tracker)

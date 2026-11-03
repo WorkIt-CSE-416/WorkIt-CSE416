@@ -5,8 +5,9 @@ Status: proposed 2026-11-02 (KAN-541).
 WorkIt's Applications Tracker is the one record of the jobs a student
 applied to. Apply writes to it, through WorkIt's API as the student, while
 it works: a submit sets Applied and saves the sent file as the Sent resume,
-an Apply Handoff or a missing fact sets Needs you, and a held Application
-sets Queued. The submitted rows of Apply's Tracker Sheet (a Google Sheet)
+and an Apply Handoff, a missing fact or a held Application sets Needs you.
+A held Application never sets Queued: on WorkIt, Queued means the batch
+apply queue, and the extension fills a queued Application. The submitted rows of Apply's Tracker Sheet (a Google Sheet)
 are imported one time. After the import, Apply does not write to the Sheet.
 
 ## Why

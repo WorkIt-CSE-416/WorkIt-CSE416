@@ -317,13 +317,13 @@ class WorkIt:
 
 
 # Each Applications Tracker stage Apply writes, as the tracker names it.
-SHOWN = {Stage.APPLIED: "Applied", Stage.NEEDS_YOU: "Needs you", Stage.QUEUED: "Queued"}
+SHOWN = {Stage.APPLIED: "Applied", Stage.NEEDS_YOU: "Needs you"}
 
 
 @dataclass(frozen=True)
 class Write:
     """One change to the student's Applications Tracker: the job (by its link,
-    company and title) goes to `stage` (Stage.APPLIED, NEEDS_YOU or QUEUED).
+    company and title) goes to `stage` (Stage.APPLIED or NEEDS_YOU).
     `resume`, for applied, is the file the form was given, kept as the
     application's Sent resume. `application_id` is Apply's, so a later write
     for the same Application replaces one still waiting."""
@@ -405,7 +405,9 @@ class WaitingWrites:
 
     def _read(self) -> list[Write]:
         try:
-            return [Write(**w) for w in json.loads(self.path.read_text())]
+            # A Hold an older Apply kept as queued goes as needs_you (KAN-544).
+            return [Write(**{**w, "stage": Stage.NEEDS_YOU if w["stage"] == Stage.QUEUED else w["stage"]})
+                    for w in json.loads(self.path.read_text())]
         except FileNotFoundError:
             return []
 

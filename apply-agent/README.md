@@ -98,8 +98,8 @@ never submits.** Apply runs on macOS only. Before you change code here, read
 
 8. Optional: log in to WorkIt, so Apply can write your applications to
    your Applications Tracker on WorkIt: a submit as Applied (with the
-   resume sent), a Handoff or a missing fact as Needs you, a held
-   application as Queued. You need a WorkIt student account. Rehearsals
+   resume sent), a Handoff, a missing fact or a held application as
+   Needs you. You need a WorkIt student account. Rehearsals
    work without it; the writes wait until you log in.
 
    ```sh

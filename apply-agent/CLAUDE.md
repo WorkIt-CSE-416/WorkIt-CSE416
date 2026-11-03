@@ -182,9 +182,9 @@ the fake WorkIt, with WorkIt's link rule, stages and Sent resumes.
   - the Tracker Sheet has the same job as submitted (not imported yet). The
     dry run then says to run `apply import-sheet` first;
   - Apply's own Tracker (`APPLY_HOME/tracker.json`) has the job as held,
-    missing fact or handoff. Apply writes a Hold as queued and the others
-    as needs_you, so the Hold is live. The dry run says "Apply is holding
-    it" (or "Apply is waiting for you on it");
+    missing fact or handoff. Apply writes these as needs_you, but the
+    write can still wait in the queue. The dry run says "Apply is waiting
+    for you on it (<status>)";
   - the student gave its link or job id with `--keep`.
 - It never deletes or changes an application at applied, interviewing,
   offer or rejected, or at needs_you or skipped.
@@ -216,8 +216,11 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   `WorkIt.record_applied`, the import's write sequence. A job that is
   applied or later on WorkIt already stays as it is ("already
   interviewing").
-  handoff and missing fact to `needs_you`, held to `queued` (the stage
-  PUT; a 409 means the job is applied already, and is not an error).
+  handoff, missing fact and held to `needs_you` (the stage PUT; a 409
+  means the job is applied already, and is not an error). Apply never
+  writes `queued`: on WorkIt that is the batch apply queue, and the
+  extension fills a queued application. A `queued` write still in an
+  older queue file is sent as `needs_you`.
   Every other status writes nothing.
 - The job comes from `POST /jobs/added-by-link`, so a later status moves
   the same row. It is the extension's Write with Claude route (KAN-515);
