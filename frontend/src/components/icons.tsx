@@ -12,6 +12,8 @@ import {
   BuildingOfficeIcon as BuildingOffice,
   CalendarBlankIcon as CalendarBlank,
   CaretDownIcon as CaretDown,
+  CaretLeftIcon as CaretLeft,
+  CaretRightIcon as CaretRight,
   CaretUpDownIcon as CaretUpDown,
   CaretUpIcon as CaretUp,
   CheckIcon as Check,
@@ -128,6 +130,16 @@ export function FilterIcon({ className }: IconProps) {
 /** A filter chip's trailing glyph while it is still a dropdown. */
 export function ChevronDownIcon({ className }: IconProps) {
   return <CaretDown aria-hidden className={className} />;
+}
+
+/** A picker's step back and on: MonthField's year (the Calendar's own
+ *  arrows are the same carets, drawn by shadcn/calendar.tsx). */
+export function ChevronLeftIcon({ className }: IconProps) {
+  return <CaretLeft aria-hidden className={className} />;
+}
+
+export function ChevronRightIcon({ className }: IconProps) {
+  return <CaretRight aria-hidden className={className} />;
 }
 
 /** The same chip's trailing glyph once it has something to remove. */

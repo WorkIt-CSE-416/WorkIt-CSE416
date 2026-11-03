@@ -1629,6 +1629,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   through `cn()`. Never put `hit-area` on an element with a control inside
   it: its `::after` paints over the inner control and takes its presses
   (RemovableChip's pill, whose cross is the control).
+- **A field, a radio or an answer tile comes from `ui/`** (KAN-559,
+  `docs/design.md`, Components): `TextField` (`size="lg"`, `labelIcon`) or
+  its bare `TextInput` under a heading, `TextAreaField` (`grow`) or `TextArea`,
+  `ui/radio-row.tsx`, `ui/choice-tile.tsx`, `DateField`, `MonthField`. A
+  screen never writes its own `<input>`, `<textarea>` or `FIELD_CONTROL`
+  string; the few that must are named there, and a new one joins that list.
 - **Nothing bounces at a scroll's end** (2026-11-02, `globals.css`): the
   document and each shell's `<main>` take `overscroll-y-none`, Y only so the
   trackpad's swipe back works, and a scroll box inside a page takes

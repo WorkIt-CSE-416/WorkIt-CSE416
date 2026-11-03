@@ -17,6 +17,7 @@ import { PrimaryStar, RESUME_ROW, ROW_ACTION } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { Radio } from "@/components/ui/radio-row";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
@@ -297,14 +298,7 @@ function PickCard({
   const day = c.type === "Uploaded" || edited ? c.at : c.madeAt;
   return (
     <label className={pickRowClasses(picked)}>
-      <input
-        type="radio"
-        name={name}
-        value={c.key}
-        checked={picked}
-        onChange={() => onPick(c.key)}
-        className="accent-brand shrink-0"
-      />
+      <Radio name={name} value={c.key} checked={picked} onChange={() => onPick(c.key)} />
       <PdfIcon className="size-5 shrink-0" />
       <span className="min-w-0 flex-1">
         <span className="text-label text-ink block break-words">{c.label}</span>
@@ -511,13 +505,11 @@ export function ResumeChoices({
       {choices.map((c) => (
         // Drawn as the list's cards are (`pickRowClasses`), siblings of theirs.
         <label key={c.key} className={cn(pickRowClasses(picked === c.key), "mt-0")}>
-          <input
-            type="radio"
+          <Radio
             name={name}
             value={c.key}
             checked={picked === c.key}
             onChange={() => onPick(c.key)}
-            className="accent-brand shrink-0"
           />
           {/* The name alone: the section title already says what kind it is,
               and a grey kind line under each name only repeated it. It

@@ -1,15 +1,18 @@
 import { ONBOARDING_STEPS } from "@/app/onboarding/applicant/steps";
 import { Stepper } from "@/components/stepper";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
+import { LinkedInGlyph } from "@/app/(seeker)/profile/icons";
 import { SearchField } from "@/components/ui/search-field";
-import { TextField } from "@/components/ui/text-field";
+import { TextField, TextInput } from "@/components/ui/text-field";
 
 import { SECTIONS } from "../data";
 import { TextAreaField } from "@/components/text-area-field";
 
 import {
+  ChoiceSpecimen,
   DateFieldSpecimen,
   GlyphSelectSpecimen,
+  MonthFieldSpecimen,
   ResumeUploadSpecimen,
   SegmentedSpecimen,
   SelectFieldSpecimen,
@@ -25,6 +28,25 @@ export default function FormsPage() {
         <Row name="<TextField>" role="Label, optional leading icon, optional label action">
           <div className="w-72">
             <TextField id="dk-email" label="Email" type="email" placeholder="you@university.edu" />
+          </div>
+        </Row>
+        <Row
+          name={'<TextField size="lg" labelIcon>'}
+          role="Onboarding's field: 16px type, 44px box, a glyph before its 14px label"
+        >
+          <div className="w-72">
+            <TextField
+              id="dk-linkedin"
+              label="LinkedIn"
+              labelIcon={LinkedInGlyph}
+              size="lg"
+              placeholder="linkedin.com/in/your-name"
+            />
+          </div>
+        </Row>
+        <Row name="<TextInput>" role="TextField's bare box, for a field a section heading names">
+          <div className="w-72">
+            <TextInput aria-label="Location" placeholder="Stony Brook, NY" />
           </div>
         </Row>
         <Row name="<SearchField>" role="Visually-hidden label, leading search glyph">
@@ -63,6 +85,23 @@ export default function FormsPage() {
           <div className="w-72">
             <TextAreaField id="dk-note" label="Note" rows={2} />
           </div>
+        </Row>
+        <Row name="<TextAreaField grow>" role="A box that grows with its text: a written answer">
+          <div className="w-72">
+            <TextAreaField id="dk-answer" label="Your Answer" rows={2} grow />
+          </div>
+        </Row>
+        <Row
+          name="<MonthField>"
+          role="A year and its twelve months in a popover, never the browser's month picker"
+        >
+          <MonthFieldSpecimen />
+        </Row>
+        <Row
+          name="<ChoiceTile> / <RadioRow>"
+          role="A tile: one answer on a one-question screen. A radio row: one pick in a form's list"
+        >
+          <ChoiceSpecimen />
         </Row>
         <Row name="<ResumeUpload>" role="Dropzone and file preview; the caller does the upload">
           <ResumeUploadSpecimen />

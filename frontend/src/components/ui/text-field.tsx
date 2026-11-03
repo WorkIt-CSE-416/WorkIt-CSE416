@@ -72,56 +72,95 @@ export function RequiredMark() {
 const INPUT_WITH_ICON = "pl-11";
 const INPUT_WITHOUT_ICON = "pl-3.5";
 
+/**
+ * A field's two sizes. `default` is the app's form field (42px, a default
+ * button's height). `lg` is onboarding's (44px, 16px type at every width, a
+ * 14px label), where the field is the question on a one-question screen, as
+ * the lg Chip is.
+ */
+type FieldSize = "default" | "lg";
+
+const INPUT_SIZE: Record<FieldSize, string> = {
+  default: "py-2.5 pr-3.5",
+  lg: "text-subtitle sm:text-subtitle h-11 pr-3.5 font-normal",
+};
+
+const LABEL_SIZE: Record<FieldSize, string> = {
+  default: FIELD_LABEL,
+  lg: "text-body text-ink-muted",
+};
+
+type Glyph = ComponentType<{ className?: string }>;
+
+type TextInputProps = {
+  size?: FieldSize;
+  /** A glyph inside the box, at its left: a search field's magnifier. */
+  icon?: Glyph;
+} & Omit<ComponentProps<"input">, "className" | "size">;
+
+/**
+ * The bare box of <TextField>, for a field whose label is not a field label:
+ * one named by a section heading over it (onboarding's Location, My
+ * Profile's Contact & Links, whose labels are the card's 16px headings). A
+ * field with a plain label is a <TextField>, never this with a hand-made
+ * <label>.
+ */
+export function TextInput({ size = "default", icon: Icon, ...input }: TextInputProps) {
+  const box = (
+    <input
+      className={cn(FIELD_CONTROL, INPUT_SIZE[size], Icon ? INPUT_WITH_ICON : INPUT_WITHOUT_ICON)}
+      {...input}
+    />
+  );
+  if (!Icon) return box;
+  return (
+    <div className="relative">
+      <Icon
+        aria-hidden
+        className="text-ink-meta pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2"
+      />
+      {box}
+    </div>
+  );
+}
+
 type TextFieldProps = {
   id: string;
   label: string;
-  icon?: ComponentType<{ className?: string }>;
+  /** A glyph before the label, in the information grey: onboarding's
+   *  LinkedIn, GitHub and website links. */
+  labelIcon?: Glyph;
   labelAction?: ReactNode;
-} & Omit<ComponentProps<"input">, "id" | "className">;
+} & TextInputProps;
 
 export function TextField({
   id,
   label,
-  icon: Icon,
+  labelIcon: LabelIcon,
   labelAction,
   required,
+  size = "default",
   ...input
 }: TextFieldProps) {
+  const labelText = (
+    <label htmlFor={id} className={cn(LABEL_SIZE[size], LabelIcon && "flex items-center gap-2")}>
+      {LabelIcon && <LabelIcon className="text-ink-meta size-4" />}
+      {label}
+      {required && <RequiredMark />}
+    </label>
+  );
   return (
-    <div className="flex flex-col gap-1">
+    <div className={cn("flex flex-col", size === "lg" ? "gap-1.5" : "gap-1")}>
       {labelAction ? (
         <div className="flex items-baseline justify-between gap-3">
-          <label htmlFor={id} className={FIELD_LABEL}>
-            {label}
-            {required && <RequiredMark />}
-          </label>
+          {labelText}
           {labelAction}
         </div>
       ) : (
-        <label htmlFor={id} className={FIELD_LABEL}>
-          {label}
-          {required && <RequiredMark />}
-        </label>
+        labelText
       )}
 
-      <div className="relative">
-        {Icon && (
-          <Icon
-            aria-hidden
-            className="text-ink-meta pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2"
-          />
-        )}
-        <input
-          id={id}
-          required={required}
-          className={cn(
-            FIELD_CONTROL,
-            "py-2.5 pr-3.5",
-            Icon ? INPUT_WITH_ICON : INPUT_WITHOUT_ICON,
-          )}
-          {...input}
-        />
-      </div>
+      <TextInput id={id} required={required} size={size} {...input} />
     </div>
   );
 }

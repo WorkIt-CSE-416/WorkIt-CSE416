@@ -4,8 +4,8 @@ import { CheckCircleIcon, WarningCircleIcon } from "@phosphor-icons/react/ssr";
 import { useId, useRef, useState, useTransition, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
-import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
-import { cn } from "@/lib/cn";
+import { TextArea } from "@/components/text-area-field";
+import { FIELD_LABEL } from "@/components/ui/text-field";
 
 import { saveEssayFact } from "./actions";
 
@@ -72,14 +72,11 @@ export function FactBox({
       <label htmlFor={`${id}-fact`} className="text-body text-ink">
         {ask.startsWith(ASK) ? ask.slice(ASK.length) : ask}
       </label>
-      <textarea
+      <TextArea
         id={`${id}-fact`}
         rows={2}
+        grow
         placeholder="Answer in a sentence or two, in your own words"
-        className={cn(
-          FIELD_CONTROL,
-          "block field-sizing-content min-h-16 resize-none px-3.5 py-2.5",
-        )}
         value={text}
         readOnly={savedTo != null}
         maxLength={500}

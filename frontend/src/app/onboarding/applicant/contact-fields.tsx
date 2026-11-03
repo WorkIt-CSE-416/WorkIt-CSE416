@@ -7,8 +7,7 @@ import {
   WebsiteGlyph,
 } from "@/app/(seeker)/profile/icons";
 import { PinIcon } from "@/components/icons";
-import { FIELD_CONTROL } from "@/components/ui/text-field";
-import { cn } from "@/lib/cn";
+import { TextField, TextInput } from "@/components/ui/text-field";
 import type { ApplicantProfile } from "@/lib/profile-actions";
 
 import { Field, fieldId } from "./role-step";
@@ -50,9 +49,6 @@ export const LINKS = [
   },
 ] as const;
 
-/** A typed answer at the wizard's 16px, in the shared field box. */
-const INPUT = cn(FIELD_CONTROL, "text-subtitle sm:text-subtitle h-11 px-3.5 font-normal");
-
 export function LocationField({
   value,
   onChange,
@@ -63,10 +59,12 @@ export function LocationField({
   const id = fieldId("Location");
   return (
     <Field Icon={PinIcon} label="Location" hint="Where you live, as forms ask it: city and state.">
-      <input
+      {/* Named by the question's heading, so the bare box: a typed answer at
+          the wizard's 16px. */}
+      <TextInput
+        size="lg"
         aria-labelledby={id}
         aria-describedby={`${id}-hint`}
-        className={INPUT}
         placeholder="Stony Brook, NY"
         maxLength={100}
         value={value ?? ""}
@@ -94,15 +92,13 @@ export function LinkFields({
           const bad = invalid.has(key);
           return (
             <div key={key} className="flex flex-col gap-1.5">
-              <label htmlFor={id} className="text-body text-ink-muted flex items-center gap-2">
-                <Icon className="text-ink-meta size-4" />
-                {label}
-              </label>
-              <input
+              <TextField
                 id={id}
+                label={label}
+                labelIcon={Icon}
+                size="lg"
                 type="text"
                 inputMode="url"
-                className={INPUT}
                 placeholder={placeholder}
                 maxLength={500}
                 value={contact[key] ?? ""}
