@@ -111,7 +111,9 @@ Built so far (option A, the typed line only):
   .../fit/plan`, which compiles nothing and answers the cuts that fit by
   prediction. The editor renders and saves them as any hide, so they close
   up on the page about one round trip after the click; while the new PDF
-  is still over one page, it asks for the next cycle. Before, Fit compiled
+  is still over one page, it asks for the next cycle, without painting that
+  PDF: only the final one paints, so a prediction a line short shows one
+  render, not two. Before, Fit compiled
   the page the editor already showed, read the resume from the database,
   compiled again to confirm, wrote, and read the choices back, all before
   the page changed: two compiles and about ten reads. Measured on a laptop

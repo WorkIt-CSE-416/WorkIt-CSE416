@@ -2053,6 +2053,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (`gapsOn`, `Gap` in `pdf-pages.tsx`) while the render and the save go
   behind. While the new PDF is over one page it asks again; a later cycle
   joins the first's step (`apply`'s `into`), so one Undo takes it all back.
+  **Only the final PDF paints** (`apply`'s `hold`): a cycle's PDF still over
+  one page is kept for the next plan but not drawn, and the page keeps its
+  cuts closed up, since painting it showed a second render when a
+  prediction ran a line short. A fit that ends on a held PDF (nothing left
+  to cut, a failed plan) paints it then.
   An API with no measure fits on the server (`fitOnServer`, `hideAgain`).
   Every hide closes up at once the same way, not only Fit's. It has no
   Undo Fit button of its own (gone 2026-11-01, a second way to do what

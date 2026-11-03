@@ -988,9 +988,12 @@ export function Editor({
       recorded = true,
       words: Record<string, string> = {},
       into?: Step<Held, RenderedPdf>,
+      hold?: (pdf: RenderedPdf) => boolean,
     ) => {
       // Its reverse is read before the change shows. `into` is a step this
-      // change joins (a Fit's later cycle), keeping the state before its first
+      // change joins (a Fit's later cycle), keeping the state before its first.
+      // A PDF `hold` returns true for is kept but not painted: the page stays
+      // as the change left it (a Fit's cycle still over one page)
       const step = into ?? (recorded ? record({ changes }) : null);
       const reverse = step && reverseChoices(held.current.bank, held.current.choices, changes);
       if (into && reverse) {
@@ -1072,7 +1075,10 @@ export function Editor({
         if (!current()) return;
         setSaving(false);
         if (!data) return setError(error);
-        keepRendered(data.render);
+        // A held PDF still gives the next copy the header it printed
+        if (hold?.(data.render)) {
+          if (data.render.identity) held.current.printed = printedBy(data.render);
+        } else keepRendered(data.render);
       });
     },
     [
@@ -1464,24 +1470,36 @@ export function Editor({
     let now: RenderMeasure | null = null;
     let taken = 0;
     let step: Step<Held, RenderedPdf> | undefined;
-    for (;;) {
-      const { data, error } = await planFitHere(resumeId, { source, first, now, taken });
-      if (!data) return setError(error);
-      if (!changesAny(data.hide)) return;
-      taken = data.taken;
-      const before = lastPdf.current;
-      const applied = apply(data.hide, undefined, !step, {}, step);
-      step ??= undos.current.at(-1);
-      await applied;
-      const after = lastPdf.current;
-      // Refused or failed: `apply` put the page back and said why
-      if (!after || after === before) return;
-      cutsNow.current = addCuts(cutsNow.current, data.undo);
-      setCuts(cutsNow.current);
-      keepFitCuts(resumeId, cutsNow.current);
-      if (after.page_count <= 1) return;
-      now = measureOf(after);
-      if (!now) return;
+    // Only the final PDF paints: a cycle's PDF still over one page is held,
+    // and the page keeps its cuts closed up while the next cycle plans from
+    // it, so a fit off by a line shows one render, not two. A fit that ends
+    // on a held PDF (nothing left to cut, a failed plan) paints it then.
+    let unpainted: RenderedPdf | null = null;
+    const over = (pdf: RenderedPdf) => pdf.page_count > 1;
+    try {
+      for (;;) {
+        const { data, error } = await planFitHere(resumeId, { source, first, now, taken });
+        if (!data) return setError(error);
+        if (!changesAny(data.hide)) return;
+        taken = data.taken;
+        const before = lastPdf.current;
+        const applied = apply(data.hide, undefined, !step, {}, step, over);
+        step ??= undos.current.at(-1);
+        await applied;
+        const after = lastPdf.current;
+        // Refused or failed: `apply` put the page back and said why
+        if (!after || after === before) return;
+        cutsNow.current = addCuts(cutsNow.current, data.undo);
+        setCuts(cutsNow.current);
+        keepFitCuts(resumeId, cutsNow.current);
+        if (!over(after)) return;
+        unpainted = after;
+        now = measureOf(after);
+        if (!now) return;
+      }
+    } finally {
+      // Not when a newer PDF has landed since (a reload, the final cycle)
+      if (unpainted && lastPdf.current === unpainted) keepRendered(unpainted);
     }
   }
 
