@@ -95,6 +95,9 @@ change the other.
 
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
+- A Gmail search goes to IMAP as one quoted string (`gmail._quoted`). A
+  phrase in quotes in the search stays escaped. Gmail can send a mail's
+  INTERNALDATE before or after its body; `gmail._arrived` reads both.
 
 ## The Apply window
 

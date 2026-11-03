@@ -7,7 +7,7 @@ import imaplib
 import os
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 
 import pytest
@@ -268,3 +268,16 @@ def test_the_real_gmail_signs_in_and_searches():
     box = live_mailbox(os.environ["APPLY_TEST_GMAIL"])
 
     assert box.find_code(search="from:nobody.invalid", since=datetime.now()) is None
+
+
+def test_a_search_with_a_quoted_phrase_stays_one_imap_string():
+    # Oracle's code search has "confirm your identity" in it (seen live): Gmail refused it, and no code was read.
+    from apply.gmail import _quoted
+    assert _quoted('subject:(code OR "confirm your identity")') == '"subject:(code OR \\"confirm your identity\\")"'
+
+
+def test_a_mails_arrival_is_read_when_gmail_sends_it_after_the_body():
+    # Amex's code mail (seen live): INTERNALDATE came after the body's literal.
+    from apply.gmail import _arrived
+    data = [(b"1960 (RFC822 {4}", b"mail"), b' INTERNALDATE "03-Nov-2026 03:11:37 +0000")']
+    assert _arrived(data).astimezone(UTC).replace(tzinfo=None) == datetime(2026, 11, 3, 3, 11, 37)

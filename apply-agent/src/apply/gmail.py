@@ -86,15 +86,15 @@ class GmailMailbox:
         with self._connect(HOST) as imap:
             imap.login(self._address, self._password)
             imap.select("INBOX", readonly=True)
-            _, found = imap.search(None, "X-GM-RAW", f'"{search}"')
+            _, found = imap.search(None, "X-GM-RAW", _quoted(search))
             for number in found[0].split():
                 _, data = imap.fetch(number, "(INTERNALDATE BODY.PEEK[])")
-                head, raw = data[0]
+                _head, raw = data[0]
                 message = email.message_from_bytes(raw)
                 if _authentic(message):
                     mails.append(Mail(
                         sender=_header(message, "From"), subject=_header(message, "Subject"), text=_text(message),
-                        arrived=datetime.fromtimestamp(time.mktime(imaplib.Internaldate2tuple(head))),
+                        arrived=_arrived(data),
                     ))
         return mails
 
@@ -104,17 +104,30 @@ class GmailMailbox:
         with self._connect(HOST) as imap:
             imap.login(self._address, self._password)
             imap.select("INBOX", readonly=True)
-            _, found = imap.search(None, "X-GM-RAW", f'"{search} {WINDOW}"')
+            _, found = imap.search(None, "X-GM-RAW", _quoted(f"{search} {WINDOW}"))
             for number in reversed(found[0].split()):
                 _, data = imap.fetch(number, "(INTERNALDATE RFC822)")
-                head, raw = data[0]
-                arrived = datetime.fromtimestamp(time.mktime(imaplib.Internaldate2tuple(head)))
+                _head, raw = data[0]
+                arrived = _arrived(data)
                 if arrived < since:
                     return None  # newest first: every mail left is older still
                 message = email.message_from_bytes(raw)
                 if _authentic(message) and (value := read(_text(message))):
                     return value
         return None
+
+
+def _arrived(data: list) -> datetime:
+    """When a fetched mail arrived, from its INTERNALDATE, which Gmail may send before the
+    mail's body or after it (Amex's code mail, live)."""
+    parts = b" ".join(part[0] if isinstance(part, tuple) else part for part in data if part)
+    return datetime.fromtimestamp(time.mktime(imaplib.Internaldate2tuple(parts)))
+
+
+def _quoted(search: str) -> str:
+    """`search` as one IMAP quoted string. A phrase in it keeps its quotes, escaped (Oracle's
+    `"confirm your identity"`): bare, they ended the string, and Gmail refused the search."""
+    return '"' + search.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _authentic(message: Message) -> bool:
