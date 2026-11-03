@@ -15,12 +15,14 @@ memory of the Application between calls, and saves each tenant's nested
 prompts (TREES) for the engine to reuse, since reading every category of
 Workday's own How Did You Hear About Us? is slow (14 s on Adobe, live).
 
-Signing in, per the sign-in research: Sign in with Google where the tenant
-offers it (picking Lisul's account is the only click allowed in Google's
-pages); otherwise Sign In with the Keychain password of the account Apply
-made there before; otherwise Create Account, with a new password saved to
-Keychain before the form is sent, and the verification link from Gmail when
-the tenant mails one. Some tenants answer Create Account with their bare
+Signing in, per policies.yaml's workday_sign_in: with email and password
+(`email`, the default), even where the tenant offers Sign in with Google,
+since Google may ask for a passkey after the account pick (ASML's, KLA's);
+or Sign in with Google where offered (`google`: picking Lisul's account is
+the only click allowed in Google's pages). By email: Sign In with the
+Keychain password of the account Apply made there before; otherwise Create
+Account, with a new password saved to Keychain before the form is sent, and
+the verification link from Gmail when the tenant mails one. Some tenants answer Create Account with their bare
 Sign In view (Northrop's and Zillow's, live): where the account is to be
 verified, by way of their "verify your account" page (`/login/warning`,
 Zillow's), and Apply then waits for the link; otherwise Apply signs in with
@@ -77,6 +79,8 @@ SIGN_IN_STEP = re.compile(r"sign in|create account", re.IGNORECASE)
 NEXT_BUTTON = "[data-automation-id=pageFooterNextButton]"  # the step's footer button; at Review, its Submit
 SUBMITTED = re.compile(r"application (has been )?submitted|congratulations|thank you for applying", re.IGNORECASE)
 TIMEOUT = 30.0
+GOOGLE_BUTTON = "[data-automation-id=GoogleSignInButton]"
+SIGN_INS = ("email", "google")  # policies.yaml: workday_sign_in
 GOOGLE_WAIT = 60.0  # s for Workday to come back from Sign in with Google
 FOLLOW_UP_WAIT = 300  # ms for a follow-up question to show once its question is answered
 REFUSED = "won't leave its"  # the engine's Handoff when Save and Continue doesn't leave the step
@@ -145,8 +149,12 @@ class WorkdayFiller:
 
     signs_in_to_read = True  # its Question set is read only once it has signed in
 
-    def __init__(self, accounts: Accounts, rescue: "Rescue | None" = None):
+    def __init__(self, accounts: Accounts, rescue: "Rescue | None" = None, sign_in: str = "email"):
+        """`sign_in` is policies.yaml's workday_sign_in: "email" or "google"."""
+        if sign_in not in SIGN_INS:
+            raise ValueError(f"policies.yaml: workday_sign_in is {sign_in!r}, not one of {', '.join(SIGN_INS)}")
         self._accounts = accounts
+        self._with_google = sign_in == "google"
         self._rescue = rescue
         self._url = ""
         self._readback: Readback = {}
@@ -242,8 +250,9 @@ class WorkdayFiller:
 
     def _sign_in(self, page: Page) -> None:
         site = site_of(self._url)
-        google = page.locator("[data-automation-id=GoogleSignInButton]")
-        if google.is_visible():
+        google = page.locator(GOOGLE_BUTTON)
+        offers_google = google.is_visible()
+        if offers_google and self._with_google:
             return self._google(page, google)
         with_email = page.locator("[data-automation-id=SignInWithEmailButton]")
         if with_email.is_visible():

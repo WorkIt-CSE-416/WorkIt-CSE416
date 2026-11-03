@@ -139,6 +139,13 @@ max_unreviewed_uses: null
 # (2026-10-17), after all three watched headless submits were blocked.
 worker_headless: false
 
+# How Apply signs in to a Workday tenant: email (an Employer account with email
+# and password, its password in Keychain) or google (Sign in with Google where
+# the tenant offers it). Email even where Google is offered, since Google asked
+# for a passkey after the account pick on ASML's and KLA's tenants (2026-11-03).
+# An account made with Google before is Needs sign-in, never a password reset.
+workday_sign_in: email
+
 # Claude fill, for job systems with no Filler, stops at this cap
 # for one Application and hands it off to the applicant. Each row it fills logs what
 # it cost ("Claude fill: ... tokens"); tune the cap from those. About 90% of

@@ -239,6 +239,9 @@ def test_a_claude_fill_record_is_headed_with_the_company_and_role_its_page_names
     assert (Path(done.record) / "README.md").read_text().splitlines()[0] == heading
 
 
+GOOGLE = {"workday_sign_in": "google"}  # policies.yaml: Sign in with Google where the tenant offers it
+
+
 class NeverSubmittingWorkday(WorkdayFiller):
     def submit(self, page):
         pytest.fail("a rehearsal called the Workday Filler's submit")
@@ -324,7 +327,7 @@ def test_a_workday_rehearsal_stops_where_google_wants_more_than_an_account_pick(
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
 
     with FakeWorkdayServer(XCEL_FORM, google="password") as server:
-        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path), records=FolderRecords(tmp_path / "rehearsals"))
+        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path, GOOGLE), records=FolderRecords(tmp_path / "rehearsals"))
 
     assert done.outcome == "handoff" and "Google asked for more than an account pick" in done.why
     assert "Rehearsal, not submitted: handoff: Google asked" in (Path(done.record) / "README.md").read_text()  # its Record too
@@ -335,7 +338,7 @@ def test_a_workday_rehearsal_stops_as_needs_sign_in_when_google_refuses_the_brow
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
 
     with FakeWorkdayServer(XCEL_FORM, google="rejected") as server:
-        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path), records=FolderRecords(tmp_path / "rehearsals"))
+        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path, GOOGLE), records=FolderRecords(tmp_path / "rehearsals"))
 
     assert done.outcome == "needs sign-in" and done.why.startswith("Google refused Sign in with Google")
     assert server.submissions == []

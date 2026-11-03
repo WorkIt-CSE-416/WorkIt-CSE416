@@ -31,13 +31,16 @@ CACI = "caci.wd1.myworkdayjobs.com"
 # Xcel Energy's tenant offers Sign in with Google (and LinkedIn, and email).
 XCEL_FORM = FORMS / "workday-xcel"
 XCEL_URL = "https://xcelenergy.wd1.myworkdayjobs.com/External/job/Denver-CO-80205/Data-Science-Intern-CO--MN_JR116327-1"
+XCEL = "xcelenergy.wd1.myworkdayjobs.com"
+GOOGLE = {"workday_sign_in": "google"}  # policies.yaml: Sign in with Google where the tenant offers it
 NOW = datetime(2026, 10, 15, 9, 30)
 
 
 class World:
     """Everything outside Apply that a sign-in touches, kept across runs."""
 
-    def __init__(self, keychain: InMemoryKeychain | None = None):
+    def __init__(self, keychain: InMemoryKeychain | None = None, policies: dict | None = None):
+        """`policies` are laid over the test policies."""
         # The profile is copied, since a run saves Lisul's Missing fact answers into it.
         self._home = tempfile.TemporaryDirectory()
         home = Path(self._home.name)
@@ -45,6 +48,9 @@ class World:
         profile["files"]["resume_pdf"] = str(FIXTURES / "one-pager.pdf")
         (home / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
         shutil.copy(FIXTURES / "policies.yaml", home / "policies.yaml")
+        if policies:
+            with (home / "policies.yaml").open("a") as f:
+                f.write(yaml.safe_dump(policies))
         self.profile = home / "profile.yaml"
         self.clock = FakeClock(NOW)
         self.mailbox = FakeMailbox(self.clock)
@@ -226,8 +232,25 @@ def xcel() -> dict:
     return feed_record(id="xcel", company_name="Xcel Energy", title="Data Science Intern", url=XCEL_URL)
 
 
-def test_sign_in_with_google_is_used_where_offered_by_picking_lisuls_account():
+def test_by_default_a_tenant_that_offers_google_gets_an_employer_account_by_email():
+    # Seen live (ASML, KLA, 2026-11-03): Google asked for a passkey after the account pick. So Apply makes
+    # the account with email and password, and reads its verification link from Gmail once.
     world = World()
+
+    with FakeWorkdayServer(XCEL_FORM, keychain=world.keychain, mailbox=world.mailbox, google="passkey",
+                           verify_email=(XCEL,)) as server:
+        [row] = world.run(server, xcel())
+
+    assert row.status == "submitted", row.reason
+    [made] = server.created
+    assert made["email"] == EMAIL and made["keychain"] == made["password"] == world.keychain.password(XCEL)
+    assert server.resends == 0
+    assert [a.site for a in world.tracker.employer_accounts()] == [XCEL]
+    assert len(server.submissions) == 1
+
+
+def test_sign_in_with_google_is_used_where_offered_by_picking_lisuls_account():
+    world = World(policies=GOOGLE)
 
     with FakeWorkdayServer(XCEL_FORM, keychain=world.keychain, google="pick") as server:
         [row] = world.run(server, xcel())
@@ -241,7 +264,7 @@ def test_sign_in_with_google_is_used_where_offered_by_picking_lisuls_account():
 
 
 def test_google_asking_for_more_than_an_account_pick_is_a_handoff():
-    world = World()
+    world = World(policies=GOOGLE)
 
     with FakeWorkdayServer(XCEL_FORM, keychain=world.keychain, google="password") as server:
         [row] = world.run(server, xcel())
@@ -255,7 +278,7 @@ def test_google_asking_for_more_than_an_account_pick_is_a_handoff():
 def test_google_asking_for_a_passkey_is_a_handoff_at_once():
     # Seen live (KLA, 2026-11-03): after the account pick, Google asked for a passkey, a page with
     # no box to type in, and Apply waited there 30 s and failed.
-    world = World()
+    world = World(policies=GOOGLE)
 
     with FakeWorkdayServer(XCEL_FORM, keychain=world.keychain, google="passkey") as server:
         started = time.monotonic()
@@ -270,7 +293,7 @@ def test_google_asking_for_a_passkey_is_a_handoff_at_once():
 def test_google_refusing_the_browser_is_needs_sign_in_at_once():
     # Seen live (KLA, 2026-11-03): after the account pick, Google showed "This browser or app may
     # not be secure" on /signin/rejected, and Apply waited there 30 s and failed.
-    world = World()
+    world = World(policies=GOOGLE)
 
     with FakeWorkdayServer(XCEL_FORM, keychain=world.keychain, google="rejected") as server:
         started = time.monotonic()
@@ -304,7 +327,7 @@ def test_a_missing_fact_on_a_later_workday_step_waits_for_lisul_then_the_next_ru
 def test_a_slow_return_from_google_is_waited_for():
     # Seen live (Snap, 2026-10-15): a Worker profile that used Sign in with Google before goes straight back,
     # and Workday sat on applyManually?ssoProvider=google for over 20 s before the first step.
-    world = World()
+    world = World(policies=GOOGLE)
 
     with FakeWorkdayServer(XCEL_FORM, keychain=world.keychain, google="auto", google_delay=25) as server:
         [row] = world.run(server, xcel())
