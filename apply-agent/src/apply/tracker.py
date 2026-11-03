@@ -212,6 +212,13 @@ class FileTracker(InMemoryTracker):
             if write:
                 self._save()
 
+    def fill(self, rows: list[Row], requests: list[str]) -> None:
+        """Put rows and Requests in as they are, Lisul's cells too: the one-time copy of the Sheet."""
+        with self._held(write=True):
+            for row in rows:
+                self._rows.setdefault(row.application_id, row)
+            self._requests += [url for url in requests if url not in self._requests]
+
     def _load(self) -> None:
         try:
             saved = json.loads(self.path.read_text())

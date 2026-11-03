@@ -1,7 +1,10 @@
-"""The Tracker as Lisul's Google Sheet, through gspread with a service account.
+"""The Tracker Sheet: Lisul's Google Sheet, through gspread with a service account.
 
-Set up a Sheet (see apply/docs/tracker-setup.md) with
-`uv run python -m apply.sheet setup <sheet-url>`."""
+Retired (KAN-544, ../docs/adr/0007): Apply no longer writes it. Apply's own
+Tracker is a file in the data folder (tracker.FileTracker), and the record of
+each application is WorkIt's Applications Tracker. What stays here reads the
+Sheet: `copy_into` copies its rows into the Tracker file one time, and
+`apply import-sheet` (sheet_import.py) puts its submitted rows into WorkIt."""
 
 import argparse
 import fcntl
@@ -440,6 +443,44 @@ def _row(cells: dict[str, str]) -> Row:
         date.fromisoformat(values["confirmation_received"]) if values["confirmation_received"] else None
     )
     return Row(**values)
+
+
+def copy_into(spreadsheet, tracker) -> int:
+    """Copy the Sheet's Applications rows and Requests into `tracker` (a FileTracker), one time (KAN-544).
+    Read leniently, as a hand-edited Sheet holds: an unknown Outcome is left blank, a row whose Status
+    Apply does not know is left out. Writes nothing to the Sheet. Returns how many rows went in."""
+    headers, *cells = spreadsheet.worksheet(APPLICATIONS).get_all_values()
+    rows = []
+    for values in cells:
+        cell = {header: value.strip() for header, value in zip(headers, values)}
+        if not cell.get("Application ID"):
+            continue
+        try:
+            rows.append(_lenient(cell))
+        except ValueError:
+            continue
+    requests = [values[0].strip() for values in spreadsheet.worksheet(REQUESTS).get_all_values()[1:]
+                if values and values[0].strip()]
+    tracker.fill(rows, requests)
+    return len(rows)
+
+
+def _lenient(cell: dict[str, str]) -> Row:
+    def day(header: str) -> date | None:
+        try:
+            return date.fromisoformat(cell.get(header, ""))
+        except ValueError:
+            return None
+
+    def outcome(header: str) -> Outcome | None:
+        return next((o for o in Outcome if o.value.lower() == cell.get(header, "").lower()), None)
+
+    values = {field: cell.get(header, "") for header, field in COLUMNS.items()}
+    return Row(**values | {
+        "status": Status(values["status"]), "date_applied": day("Date applied"),
+        "approve": values["approve"].upper() == "TRUE", "outcome": outcome("Outcome"),
+        "suggested_outcome": outcome("Suggested outcome"), "confirmation_received": day("Confirmation received"),
+    })
 
 
 def main(argv: list[str] | None = None) -> None:
