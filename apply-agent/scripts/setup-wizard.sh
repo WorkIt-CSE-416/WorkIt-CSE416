@@ -207,7 +207,6 @@ APPLY_DATA="${APPLY_HOME:-$HOME/.config/apply}"
 # The Worker profiles, as apply.browsers finds them.
 export APPLY_PROFILES="${APPLY_PROFILES:-$APPLY_DATA/profiles}"
 POLICIES="$APPLY_DATA/policies.yaml"
-SHEET_ID_FILE="$APPLY_DATA/sheet-id"
 # The Records repo: $APPLY_RECORDS_REPO (owner/name), else apply-records under your own GitHub account (stage 2).
 RECORDS="${APPLY_RECORDS_REPO:-}"
 
@@ -364,7 +363,7 @@ if policy_on live_runs; then
 else
   say "While live_runs is off, apply run and approve-pass refuse to start. Rehearsals still work."
   say "Once on, a run submits for real, but the first 10 Applications (the Calibration run)"
-  say "are held until you approve each one in the Tracker."
+  say "are held until you approve each one in the Apply window."
   if confirm "Turn live runs on now?"; then
     turn_on live_runs "Turn on live runs"
   else
@@ -391,9 +390,8 @@ elif confirm "Submit one real Application each on Greenhouse, Lever and Ashby no
     apply_cli add "${links[@]}"
     say "Apply fills them now. The Apply window shows each Worker live, and every one is held for you."
     apply_cli run --requests-only || warn "apply run stopped with an error: read its output above."
-    if [[ -f "$SHEET_ID_FILE" ]]; then open_url "https://docs.google.com/spreadsheets/d/$(tr -d '[:space:]' < "$SHEET_ID_FILE")"; fi
-    step "In the Tracker, check each held row: its Record link shows what it will send."
-    step "Tick Approve on each one that's right."
+    step "In the Apply window's Needs you tab, check each held one: its Record shows what it will send."
+    step "Press Approve on each one that's right."
     pause "Press Enter once they're approved, to submit them while you watch."
     apply_cli approve-pass || warn "approve-pass stopped with an error: read its output above."
     say "For each, what happened at submit?"
