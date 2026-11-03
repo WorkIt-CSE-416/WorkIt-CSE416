@@ -9,7 +9,7 @@ import { useSyncExternalStore } from "react";
  * `node autofiller_extension/store/extension-id.mjs --write`
  * (autofiller_extension/test/extension-id.spec.ts fails until this matches).
  */
-const EXTENSION_ID = "cpklhdkoafegnndlafmiceehfloodjgi";
+const EXTENSION_ID = "nejadaaigpkenldhafhhogbmhlfhabda";
 
 /**
  * Sends one message to the extension and resolves to its answer, or to
