@@ -40,7 +40,7 @@ from playwright._impl._driver import compute_driver_executable
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
-from apply.adapters import JobSite
+from apply.adapters import JobSite, SetupError
 from apply.answer_bank import LISUL, AnswerBank
 from apply.model import (
     Answers,
@@ -421,9 +421,13 @@ def load(page: Page) -> None:
         page.evaluate(ENGINE.read_text())
 
 
+class EngineMissing(FillError, SetupError):
+    """No engine bundle at ENGINE: the checkout's setup, not a fill bug."""
+
+
 def _built() -> None:
     if not ENGINE.exists():
-        raise FillError(f"the Fill engine isn't built at {ENGINE}: run `git submodule update --init`")
+        raise EngineMissing(f"the Fill engine isn't built at {ENGINE}: run `git submodule update --init`")
 
 
 def questions_arg(questions: QuestionSet) -> list[dict]:

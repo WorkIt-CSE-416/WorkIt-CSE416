@@ -879,6 +879,26 @@ def test_an_answer_given_in_the_window_is_filled_into_the_held_form(monkeypatch,
     assert fake.submissions == []
 
 
+def test_no_fill_engine_stops_its_link_on_one_line_before_the_form_opens(monkeypatch, tmp_path, capsys):
+    from apply import fill_engine
+
+    def no_engine(*args, **kwargs):
+        raise fill_engine.EngineMissing("the Fill engine isn't built at /nowhere: run `git submodule update --init`")
+
+    monkeypatch.setattr(rehearsal, "resolve", no_engine)
+    repairs = RepairRequests(tmp_path / "repairs")
+    lines = []
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearsal.rehearse([ARC_URL], adapters(fake, repairs=repairs), ApplicantProfile.load(profile_with(tmp_path)),
+                                    1, keep_open=False, out=lines.append)
+
+    assert done.outcome == "failed"
+    [line] = lines
+    assert "git submodule update --init" in line and "\n" not in line
+    assert "Traceback" not in capsys.readouterr().err
+    assert repairs.all() == []
+
+
 def test_a_setup_error_stops_its_link_on_one_line_and_leaves_no_repair_request(monkeypatch, tmp_path, capsys):
     from apply.adapters import SetupError
 
