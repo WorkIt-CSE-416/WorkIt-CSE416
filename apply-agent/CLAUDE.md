@@ -465,6 +465,14 @@ window's card and tile. Run it with `-k`; it opens Chromium.
 
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
+- Some Workday tenants answer Create Account with their bare Sign In view,
+  and show no notice (Northrop's and Zillow's, live). A tenant that mails a
+  link goes there by way of `/login/warning` (Zillow's), so
+  `WorkdayFiller._create_account` watches the requests for that page and
+  then waits for the link. Otherwise it signs in with the new password. A
+  sign-in that Workday refuses because the account is not verified is a
+  Needs sign-in Handoff, not a failed password. The fake Workday's
+  `to_sign_in` plays this flow (`tests/test_employer_accounts.py`).
 - Apply asks a site for a verification code or link once per sign-in and
   never clicks Resend or Send New Code (`accounts.Accounts._wait`): a mail
   that hasn't come in about 2 minutes goes to Needs you ("Type the emailed

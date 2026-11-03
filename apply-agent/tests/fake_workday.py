@@ -209,6 +209,7 @@ AUTH_SCRIPT = r"""
                             accepted: box ? box.checked : null, page: location.href}),
     }).then(r => r.json()).then(r => {
       if (r.next) location.href = r.next;
+      else if (r.signIn) document.querySelector('[data-automation-id=signInLink]').click();  // a bare Sign In view
       else show(r.error || r.notice, r.error ? 'error' : 'verify');
     });
   }, true);
@@ -313,7 +314,11 @@ class FakeWorkdayServer:
     Materials', live). A click it takes disables the button while it saves.
     `review_delay`: seconds the Review step shows only a placeholder, and its
     Submit button, before its answers (NVIDIA's, live).
-    `box_wiring`: seconds after a step shows before its checkboxes take a click."""
+    `box_wiring`: seconds after a step shows before its checkboxes take a click.
+    `to_sign_in`: Create Account goes to a bare Sign In view, with no notice,
+    and the candidate signs in with the new account (Northrop's and Zillow's,
+    live). A tenant that verifies email answers it by way of its
+    `/login/warning` page (Zillow's, live), which the Sign In view never shows."""
 
     def __init__(self, *forms: Path, keychain=None, mailbox: FakeMailbox | None = None,
                  verify_email: tuple[str, ...] = (), links_lost: bool = False,
@@ -322,7 +327,8 @@ class FakeWorkdayServer:
                  in_progress: bool = False, review: str = "Review", step_name_delay: float = 0,
                  ignored_clicks: int = 0, went_wrong: int = 0, review_delay: float = 0,
                  drops_untouched: bool = False, flashes_error: bool = False,
-                 dropped_saves: int = 0, box_wiring: float = 0, lost_picks: int = 0):
+                 dropped_saves: int = 0, box_wiring: float = 0, to_sign_in: bool = False,
+                 lost_picks: int = 0):
         self._responses: dict[str, tuple[int, str, bytes]] = {}
         redirects: dict[str, str] = {}
         for form in forms:
@@ -356,6 +362,7 @@ class FakeWorkdayServer:
         self._flashes_error = flashes_error
         self._dropped_saves = dropped_saves
         self._box_wiring = box_wiring
+        self._to_sign_in = to_sign_in
         # How many of the first saves hold none of the step's dropdown picks, though the page shows them
         # (ASML's Application Questions, live): the step is refused as missing them.
         self._lost_picks = lost_picks
@@ -445,9 +452,14 @@ class FakeWorkdayServer:
         tenant = self._tenant(host)
         body = route.request.post_data_json if route.request.method == "POST" else None
         if path == "create-account":
-            return route.fulfill(json=self._create_account(host, tenant, body))
+            made = self._create_account(host, tenant, body)
+            if self._to_sign_in and "notice" in made:
+                return route.fulfill(status=302, headers={"Location": f"https://{host}/__fake__/login/warning"})
+            return route.fulfill(json={"signIn": True} if self._to_sign_in and "next" in made else made)
         if path == "sign-in":
             return route.fulfill(json=self._sign_in(host, tenant, body))
+        if path == "login/warning":
+            return route.fulfill(json={"signIn": True})
         if path == "resend":
             self.resends += 1
             if not self._links_lost:
@@ -498,7 +510,8 @@ class FakeWorkdayServer:
             if not self._links_lost:
                 self._send_link(host, email)
             return {"notice": f"A verification email was sent to {email}. Click the link in it to verify your account."}
-        tenant.signed_in, tenant.posting = email, _posting(form["page"])
+        if not self._to_sign_in:
+            tenant.signed_in, tenant.posting = email, _posting(form["page"])
         return {"next": "/__fake__/apply/1"}
 
     def _sign_in(self, host: str, tenant: Tenant, form: dict) -> dict:
