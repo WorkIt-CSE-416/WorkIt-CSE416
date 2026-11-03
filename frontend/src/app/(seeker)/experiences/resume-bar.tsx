@@ -16,6 +16,7 @@ import {
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Radio } from "@/components/ui/radio-row";
 import type { BankResume } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
@@ -202,14 +203,7 @@ export function ChooseResume({
         <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1">
           {/* Drawn as the list's cards are: a pick in the same radio group. */}
           <label className={cn(pickRowClasses(all), "mt-0")}>
-            <input
-              type="radio"
-              name="bank-resume"
-              value={ALL}
-              checked={all}
-              onChange={() => setPicked(ALL)}
-              className="accent-brand shrink-0"
-            />
+            <Radio name="bank-resume" value={ALL} checked={all} onChange={() => setPicked(ALL)} />
             <span className="min-w-0 flex-1">
               <span className="text-label text-ink block">All Experiences</span>
               <span className="text-note text-ink-meta block">{ALL_NOTE}</span>

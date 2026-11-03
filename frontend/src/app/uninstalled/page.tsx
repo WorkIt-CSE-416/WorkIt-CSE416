@@ -23,7 +23,7 @@ export default async function UninstalledPage({ searchParams }: PageProps<"/unin
   const { v } = await searchParams;
   return (
     <main className="flex flex-1 items-start justify-center px-6 py-10 lg:pt-[12vh]">
-      <div className="max-w-auth rounded-card border-border bg-surface shadow-card w-full border p-6">
+      <div className="max-w-auth rounded-card border-border bg-panel shadow-card w-full border p-6">
         <Logo size="card" className="mx-auto" />
         <h1 className="text-title text-ink mt-2.5 text-center">Why Did You Remove WorkIt?</h1>
         <p className="text-body text-ink-muted mt-1 text-center">

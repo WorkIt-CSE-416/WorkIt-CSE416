@@ -57,7 +57,7 @@
   /* Borders ------------------------------------------------------------- */
   --color-border: #cfd5df; /* card outline */
   --color-border-subtle: #d6dbe4; /* secondary buttons, rules */
-  --color-border-control: #8a8f9a; /* input outline: 3.05:1 on surface, 3.24:1 on panel (WCAG 1.4.11) */
+  --color-border-control: #878c97; /* the edge of a control or a state: 3.37:1 on panel, 3.09:1 on the app ground, 3.15:1 on well (WCAG 1.4.11; #8a8f9a was 2.97:1 on the ground) */
 
   /* Ink ----------------------------------------------------------------- */
   --color-ink: #121a28; /* headings, secondary-button labels */
@@ -214,15 +214,15 @@
   --color-frame: #f1eef9;
 
   /* App borders ---------------------------------------------------------- */
-  --color-border-strong: #dee5ee; /* dashed dropzone, spent timeline dot */
+  --color-border-strong: #dee5ee; /* a score ring's empty track; never a control's or a state's edge (1.27:1, KAN-556) */
 
   /* App type -------------------------------------------------------------
    * The profile screen needs an 11px with no tracking, so it cannot reuse
    * --text-caption, which bakes in uppercase letter-spacing and weight 600. */
-  --text-meta: 0.6875rem; /* 11px — dates, file meta, helper copy */
+  --text-meta: 0.6875rem; /* 11px — dates, counts, file facts, captions; never reading text */
   --text-meta--line-height: 0.9375rem;
 
-  --text-note: 0.75rem; /* 12px: employer, skill pills */
+  --text-note: 0.75rem; /* 12px: the floor for reading text (hints, errors, statuses) */
   --text-note--line-height: 1rem;
 
   --text-subtitle: 1rem; /* 16px — work-history job titles */
@@ -297,10 +297,13 @@
    * A card's top edge carries its column: pale until it has been acted on,
    * brand once it is in flight, positive once there is an offer. */
   --color-brand-pale: #ddd2ff; /* accent on a saved, not-yet-applied card */
-  --color-positive: #17b076; /* offer accent and its one green button */
+  --color-positive: #17b076; /* offer accent: strokes and fills, never under a word */
   --color-positive-tint: #e3f7f0; /* the offer card's company tile */
-  --color-positive-hover: #139564; /* derived: positive at 33% lightness */
-  --color-positive-active: #107a52; /* derived: positive at 27% lightness */
+  /* The green button fills with --color-positive-ink (white on it is 5.35:1);
+   * white on --color-positive was 2.80:1 (KAN-555). These are its hover and
+   * press, one and two steps deeper, as --color-brand-hover and -active are. */
+  --color-positive-hover: #0e6846; /* derived: positive-ink at 23% lightness, 6.80:1 */
+  --color-positive-active: #0b563a; /* derived: positive-ink at 19% lightness, 8.73:1 */
   /* Focus ring for a positive fill: 5.35:1 on white. The 35% green it replaced
    * was 1.43:1, and no alpha of --color-positive reaches 3:1 (0.7 is 2.05:1). */
   --color-positive-ring: var(--color-positive-ink);
@@ -318,9 +321,8 @@
    * chip. It is now also the KPI row's rise pill, four of them across the top
    * of the first screen a company sees, so it stopped being a corner case.
    *
-   * The hex is the one --color-positive-active happens to hold today. The roles
-   * are unrelated — one is a pressed button, the other is text on a tint — and
-   * either is free to move without the other. */
+   * It is also the green button's fill and the match rail's tick: white on it
+   * is 5.35:1, and on --color-well it is 4.99:1. */
   --color-positive-ink: #107a52;
 
   /* Status chips ---------------------------------------------------------
@@ -403,17 +405,22 @@
    * the floor is the 3:1 a graphic needs, measured on both grounds they are
    * drawn on: white (a board card) and --color-well (the rail, and the
    * Dashboard bar's track). --color-positive itself misses it, at 2.8:1, so
-   * Strong takes its hover step.
+   * Strong takes #139564, positive at 33% lightness. --chart-3 shares it.
+   *
+   * WEAK IS NEUTRAL INK FOR NOW (KAN-569). The cut-offs in @/lib/match are
+   * placeholders, and every card on the Jobs page scored under 65, so all 50
+   * drew a red ring and the eye had nothing to rank by. Weak goes back to
+   * --color-danger (5.77 on white, 5.39 on the well) once real cut-offs exist.
    *
    *                white   well
    *   excellent    5.35    4.99
    *   strong       3.81    3.56
    *   good         3.24    3.03
-   *   weak         5.77    5.39 */
+   *   weak        10.70    9.98 */
   --color-match-excellent: var(--color-positive-ink);
-  --color-match-strong: var(--color-positive-hover);
+  --color-match-strong: #139564;
   --color-match-good: #b98600;
-  --color-match-weak: var(--color-danger);
+  --color-match-weak: var(--color-ink-muted);
 
   /* Updates --------------------------------------------------------------
    * The marketing pages' pink: the tour's Updates stop and the Tracker
@@ -472,7 +479,7 @@
    * Both colours are new because the old ones failed on a lavender, where the
    * step bar these chips replaced was drawn: the app's pale greys vanish on it
    * (--color-inert-tint is 1.01:1 on the tint) and --color-positive is
-   * 2.38:1. The green is the hex --color-positive-hover holds today; the roles
+   * 2.38:1. The green is the hex --color-match-strong holds today; the roles
    * are unrelated and either may move. The ready dot wears it too. The
    * draft's "Ready to save" is words, so it takes --color-positive-ink, the
    * green made for text, as --color-brand-ink is the brand's.
@@ -511,7 +518,8 @@
 
   /* One step lighter than --color-ink-meta. It was a search result's
    * timestamp; now it marks rather than writes: separator dots, list bullets,
-   * a resting sort chevron, a control's 3:1 edge. Too faint for words. */
+   * a control's 3:1 edge. Too faint for words, and for a live arrow such as a
+   * resting sort chevron, which is --color-ink-meta (KAN-555). */
   --color-ink-faint: #8893a4;
 
   /* 28px, the largest type in the app: a Dashboard's headline figures (stat
@@ -966,8 +974,10 @@ body:has([data-shell]) {
   background: var(--color-panel);
 }
 
-/* The seeker shell's page is --color-app (app/(seeker)/layout.tsx). */
-body:has([data-shell="seeker"]) {
+/* Both shells' pages are --color-app (app/(seeker)/layout.tsx,
+ * app/company/layout.tsx). */
+body:has([data-shell="seeker"]),
+body:has([data-shell="company"]) {
   background: var(--color-app);
 }
 
@@ -1094,9 +1104,11 @@ body:has([data-skyline]) {
 
   /* Lines and focus */
   --border: var(--color-border);
-  /* shadcn's own inputs and checkboxes. WorkIt's fields (ui/text-field.tsx)
-   * draw --color-border-control instead. */
-  --input: var(--color-border-subtle);
+  /* shadcn's own inputs, checkboxes and the switch's off track: the edge of a
+   * control, so 3:1 on white and on the grey ground (KAN-556), as WorkIt's
+   * fields (ui/text-field.tsx) draw it. --color-border-subtle (1.4:1) left an
+   * empty checkbox all but invisible. */
+  --input: var(--color-border-control);
   --ring: var(--color-brand);
 
   --radius: var(--radius-card); /* 10px, same value shadcn defaults to */
@@ -1132,10 +1144,16 @@ body:has([data-skyline]) {
    *   normal vision   PASS   worst adjacent pair 17.7 (floor 15)
    *   contrast        WARN   --color-positive is 2.72:1, under the 3:1 mark floor
    *
-   * That WARN is the one constraint a chart here has to honour: it obligates a
-   * visible label rather than a hover-only value, which is why every chart on
-   * /company direct-labels its marks and none of them hide a number in a
-   * tooltip. It is not dismissable — see the note in company/pipeline-ring.tsx.
+   * KAN-555 cleared that WARN: slot 3 is now --color-match-strong and slot 5 a
+   * darker grey, so every mark clears 3:1 on white and on --color-app:
+   *
+   *                white   app
+   *   chart-3      3.81    3.50
+   *   chart-5      3.55    3.25
+   *
+   * The four rows above it were measured with #17b076 and are not re-run.
+   * Every chart on /company still direct-labels its marks and hides no number
+   * in a tooltip, so a stage never rests on its colour alone.
    *
    * WHY THERE ARE FOUR IDENTITIES AND NOT FIVE: --color-warning is the obvious
    * fifth, and it cannot go here. Amber against --color-danger measures 4.8
@@ -1150,7 +1168,7 @@ body:has([data-skyline]) {
    * word and a shape rather than beside red in a stack. */
   --chart-1: var(--color-brand); /* in flight, early — Screening */
   --chart-2: var(--color-advanced); /* in flight, late — Interview */
-  --chart-3: var(--color-positive); /* ended well — Offer */
+  --chart-3: var(--color-match-strong); /* ended well — Offer */
   --chart-4: var(--color-danger); /* ended badly — Rejected */
 
   /* Slot 5 is deliberately NOT a fifth identity. It is the de-emphasis grey:
@@ -1160,11 +1178,11 @@ body:has([data-skyline]) {
    * check asks whether a slot reads as a hue, and this one must not, or it
    * would compete with the four that carry meaning.
    *
-   * --color-ink-subtle rather than a new token: it is already the app's grey
-   * for a mark that is present but not the subject (a stat tile's glyph, a
-   * picker's chevron), and inventing a solid `inert` nobody designed to sit
-   * beside --color-inert-tint would put an unmeasured colour on the dashboard. */
-  --chart-5: var(--color-ink-subtle);
+   * It was --color-ink-subtle, 2.95:1 on white and 2.71:1 on --color-app, and
+   * --color-ink-faint is 2.85:1 on the app ground. This is --color-ink-faint's
+   * slate at 52% lightness instead of 59%: 3.55:1 on white, 3.25:1 on
+   * --color-app, and still lighter than every ink that carries words. */
+  --chart-5: #7d899b;
 
   /* shadcn's Sidebar draws both shells' left panel (components/app-sidebar.tsx).
    * The company shell's docked panel paints --sidebar; the seeker's floating
@@ -1284,6 +1302,22 @@ body:has([data-skyline]) {
   ) {
     font-weight: 500;
   }
+
+  /* On a touch screen those rows are 44px tall (KAN-557): a finger needs
+   * 44px, and rows that touch each other cannot share a wider hit area, so
+   * the row itself grows. With a mouse they keep shadcn's 28 to 32px. */
+  @media (pointer: coarse) {
+    :is(
+      [data-slot="dropdown-menu-item"],
+      [data-slot="dropdown-menu-checkbox-item"],
+      [data-slot="dropdown-menu-radio-item"],
+      [data-slot="dropdown-menu-sub-trigger"],
+      [data-slot="select-item"],
+      [data-slot="combobox-item"]
+    ) {
+      min-height: 44px;
+    }
+  }
 }
 
 /* The rows of a menu, a select or a combobox are choices you click, so they
@@ -1304,6 +1338,104 @@ body:has([data-skyline]) {
     transition:
       background-color 100ms ease-out,
       color 100ms ease-out;
+  }
+}
+
+/* A CONTROL'S HIT AREA IS 24PX OR MORE, AND 44PX ON A TOUCH SCREEN
+ * (KAN-557, WCAG 2.5.8). An invisible ::after centred on the control,
+ * never smaller than the control, so the look and every pixel around it
+ * stay as they are (the KAN-251 sizes): only the area that takes a press
+ * grows. `--hit-grow` reaches that far past the box on every side, for a
+ * part whose own box is a bare glyph or a line of text (IconButton's
+ * `quiet`, Button's `inline` and `section`).
+ *
+ * The ui/ parts carry it (Button, IconButton, Chip, SegmentedControl), so a
+ * call site never sets a target by hand. The element needs a position, so
+ * each part writes `relative` beside it, as a class cn() can replace with a
+ * call site's `absolute`. Never put it on an element with a control inside
+ * (RemovableChip's pill): its ::after paints over the inner one and takes
+ * its presses. Hit areas of controls that touch overlap, and the later one
+ * wins the overlap; rows that touch grow instead (the menu rows above, the
+ * sidebar's sheet rows). */
+@utility hit-area {
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100% + 2 * var(--hit-grow, 0px), 24px);
+    height: max(100% + 2 * var(--hit-grow, 0px), 24px);
+    translate: -50% -50%;
+  }
+
+  @media (pointer: coarse) {
+    &::after {
+      width: max(100% + 2 * var(--hit-grow, 0px), 44px);
+      height: max(100% + 2 * var(--hit-grow, 0px), 44px);
+    }
+  }
+}
+
+/* Two vendored controls, set by data-slot so `shadcn add` can regenerate
+ * their files. Unlayered, so they beat the utilities those files write
+ * (the checkbox's `after:-inset-*`, the close button's `text-brand`).
+ *
+ * A dialog's close X follows the icon colour rule (docs/design.md): ink at
+ * rest, brand on hover, where shadcn's `ghost` Button made it brand purple.
+ * Only the X: the Cancel and Done buttons a dialog wraps in DialogClose
+ * carry the same data-slot, inside the footer. Its 44px on touch comes from
+ * Button's hit area. */
+:is([data-slot="dialog-content"], [data-slot="sheet-content"])
+  > :is([data-slot="dialog-close"], [data-slot="sheet-close"]) {
+  color: var(--color-ink);
+
+  &:hover {
+    color: var(--color-brand);
+  }
+}
+
+/* The checkbox (a 16px box) and the switch (32 by 18px) each have a ::after
+ * 24px wider and 16px taller than themselves; on touch, that or 44px,
+ * whichever is larger (the switch keeps its 54px width). */
+@media (pointer: coarse) {
+  :is([data-slot="checkbox"], [data-slot="switch"])::after {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    width: max(100% + 24px, 44px);
+    height: max(100% + 16px, 44px);
+    translate: -50% -50%;
+  }
+}
+
+/* DIALOGS, by data-slot, so the vendored dialog stays as `shadcn add` wrote
+ * it (KAN-563, docs/design.md, "Never a dialog over a dialog"). In the
+ * utilities layer, where attribute plus a second selector out-specifies the
+ * one class each rule replaces. */
+@layer utilities {
+  /* 16px from the window's edges at every width. The vendored margin is a
+   * `max-w-[calc(100%-2rem)]` that a call site's `sm:max-w-*` replaces, so
+   * the Settings modal stood flush with both edges at 768. The width keeps
+   * the margin now, and the call site's max width still caps it. Only on the
+   * vendored `w-full`: a dialog that sets its own width (`w-[92vw]`) has
+   * that class merged away and keeps its own. */
+  [data-slot="dialog-content"].w-full {
+    width: calc(100% - 2rem);
+  }
+
+  /* Nothing behind an overlay blurs, a dialog's or a panel's: the page
+   * behind is what the dialog is about (All Filters changes the list under
+   * it), and the blur hid it. The light dim stays. */
+  [data-slot="dialog-overlay"][data-slot] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* What scrolls inside a dialog keeps its scrollbar's room, so the content
+   * is one width whether or not it scrolls: Settings' cards were 608px on
+   * Personal Details and 600px on Sign-In & Security. */
+  [data-slot="dialog-scroller"] {
+    scrollbar-gutter: stable;
   }
 }
 

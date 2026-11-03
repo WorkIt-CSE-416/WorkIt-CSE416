@@ -1,9 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
-import { Logo } from "@/components/logo";
 import { ScoutLauncher } from "@/components/scout/scout-buttons";
 import { ScoutPanel } from "@/components/scout/scout-panel";
 import { RailSidebarProvider } from "@/components/app-sidebar";
@@ -151,17 +149,13 @@ export default async function AppLayout({
             beneath them run as one line across the window. */}
         <header className="bg-panel border-border-subtle flex h-16 shrink-0 items-center gap-3 border-b px-3 sm:gap-4 sm:px-4">
           {/* The rail is always open from md, so the toggle only opens the
-              phone's sheet. */}
-          <SidebarTrigger className="text-ink hover:bg-app size-10 shrink-0 rounded-full md:hidden [&_svg]:size-4" />
-
-          {/* The panel's header carries the logo from md; below that the
-              panel is a sheet and the bar is the only place left for it. */}
-          <Link
-            href="/home"
-            className="focus-visible:ring-brand-ring flex shrink-0 rounded-xs transition-transform duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97] md:hidden"
-          >
-            <Logo size="mark" />
-          </Link>
+              phone's sheet. Named here, since shadcn's own name is "Toggle
+              Sidebar". No logo beside it: the sheet's header shows the logo,
+              and the bar's room on a phone goes to the bell (KAN-570). */}
+          <SidebarTrigger
+            aria-label="Open Menu"
+            className="text-ink hover:bg-app size-10 shrink-0 rounded-full md:hidden [&_svg]:size-4"
+          />
 
           <div className="min-w-0 flex-1 md:pl-2 lg:pl-4">
             <BarTitle

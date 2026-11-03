@@ -39,7 +39,9 @@ import {
 } from "../../../resumes/[resumeId]/tailor-review";
 import { OriginalResume } from "./resume-preview";
 import type { JobListing } from "../../listings";
-import { TailorJobLine } from "./tailor-header";
+import { useTailorBack } from "./tailor-back";
+import { TailorFinish, TailorJobLine } from "./tailor-header";
+import { TAILOR_STEPS } from "./tailor-steps";
 
 /**
  * Tailor's review step (docs/tailor_resume.md, "Suggestions"), laid out as
@@ -94,6 +96,25 @@ export function TailorReview({
       Tailor&apos;s suggestions show only in the tab that ran Tailor.
     </p>
   );
+  const back = useTailorBack(job.id, editor.resumeId);
+  const step = TAILOR_STEPS.findIndex((s) => s.value === "review");
+  // The phone editor covers the step's row (`TailorReviewBar`), so its
+  // header carries the job, the step and Finish, and its arrow goes to the
+  // step before (KAN-574).
+  const phoneBar = (
+    <>
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <TailorJobLine job={job} />
+          <p aria-current="step" className="text-note text-ink-meta truncate">
+            {TAILOR_STEPS[step].label} · Step {step + 1} of {TAILOR_STEPS.length}
+          </p>
+        </div>
+        <TailorFinish jobId={job.id} />
+      </div>
+      {noRecord}
+    </>
+  );
 
   return (
     <>
@@ -107,7 +128,8 @@ export function TailorReview({
           </div>
         }
         original={record?.source && <OriginalResume source={record.source} />}
-        phoneBar={noRecord}
+        phoneBar={phoneBar}
+        phoneBack={back}
         suggestions={SuggestionsPanel}
         suggestionPopup={POPUP_LIVE ? SuggestionPopup : undefined}
       />

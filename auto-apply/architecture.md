@@ -943,8 +943,9 @@ This data also shows which hiring systems need adapter work.
 
 **Built** (KAN-283): one JSONB bank of answers per student for the questions
 hiring systems repeat, `backend/app/models/CLAUDE.md`, "The answer bank".
-Onboarding's Profile step fills it, and My Profile's Application Questions
-edits it later (KAN-269): work authorization, sponsorship,
+Onboarding's Profile step fills it, and Application Info's Work
+Authorization and Voluntary Self-Identification cards edit it later
+(KAN-269; on My Profile until KAN-550): work authorization, sponsorship,
 citizenship and visa status, security clearance, gender, Hispanic or
 Latino, race, veteran status and disability. Contact details and links are not in it: auto apply reads
 them from `applicant_profiles`, their one home. `GET` and `PATCH /applicants/{id}/autofill-answers` read and

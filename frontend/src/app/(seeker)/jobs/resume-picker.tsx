@@ -15,8 +15,10 @@ import {
 } from "@/components/resume-list";
 import { PrimaryStar, RESUME_ROW, ROW_ACTION } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { Radio } from "@/components/ui/radio-row";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
@@ -145,6 +147,9 @@ export type PickerUpload = {
   onBusyChange: (busy: boolean) => void;
 };
 
+/** Under a page's list: the card's 18px padding and 1px border. */
+const CARD_FOOT = 19;
+
 /**
  * The student's resumes as the Resumes page lists them (KAN-406): one row
  * with the search (names and the postings they were tailored for), the
@@ -183,6 +188,7 @@ export function ResumeLists({
   onPick,
   onPreview,
   upload,
+  fill = false,
 }: {
   name: string;
   choices: Choice[];
@@ -194,6 +200,9 @@ export function ResumeLists({
   onPreview?: (choice: Choice) => void;
   /** Given, the row has Upload Resume. */
   upload?: PickerUpload;
+  /** On a page, not in a dialog (Tailor's Pick a Resume): the list runs
+   *  down to the page's foot, inside a card (`ResumeScroll`'s `fill`). */
+  fill?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [types, setTypes] = useState<ResumeType[]>([]);
@@ -241,9 +250,10 @@ export function ResumeLists({
       ) : shown.length === 0 ? (
         <p className="text-note text-ink-meta py-2">None of your resumes match these filters.</p>
       ) : (
-        // Its own scroll, so the dialog's footer stays put under a long list.
+        // Its own scroll, so the dialog's footer stays put under a long list,
+        // or, on a page, so the search above it stays in view.
         <div className="border-border-subtle rounded-card bg-panel border">
-          <ResumeScroll label="Your resumes">
+          <ResumeScroll label="Your resumes" fill={fill} below={fill ? CARD_FOOT : 0}>
             {RESUME_TYPES.map(({ value, label }) => {
               const rows = shown.filter((c) => GROUP[c.type] === value).sort(order);
               if (rows.length === 0) return null;
@@ -276,6 +286,40 @@ export function ResumeLists({
   );
 }
 
+/** `ResumeLists` while `loadChoices` runs (KAN-561): the row's search and
+ *  Type filter, then the list's box with a group heading and three cards,
+ *  as bars. One skeleton for all three dialogs, in place of the line
+ *  "Loading your resumes…" each drew. */
+export function ResumeListsSkeleton() {
+  return (
+    <div role="status" className="flex min-w-0 flex-col gap-3">
+      <span className="sr-only">Loading your resumes</span>
+      <div aria-hidden="true" className="flex items-center gap-2">
+        <Skeleton className="h-10 min-w-0 flex-1 rounded-full" />
+        <Skeleton className="h-10 w-36 shrink-0 rounded-full" />
+      </div>
+      <div
+        aria-hidden="true"
+        className="border-border-subtle rounded-card bg-panel border px-3 pb-3"
+      >
+        <div className="flex h-9 items-center pt-2">
+          <Skeleton className="h-3 w-20" />
+        </div>
+        {Array.from({ length: 3 }, (_, i) => (
+          <div key={i} className={RESUME_ROW}>
+            <Skeleton className="size-4 shrink-0 rounded-full" />
+            <Skeleton className="size-5 shrink-0" />
+            <span className="flex min-w-0 flex-1 flex-col gap-1.5 py-0.5">
+              <Skeleton className="h-3.5 w-48 max-w-full" />
+              <Skeleton className="h-3 w-28 max-w-full" />
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** One resume as a pickable card: the Resumes page's file mark, name and
  *  line ("Uploaded Oct 21", "Last edited Oct 21 · For …"), its primary
  *  star, and a radio. The name wraps, never truncates: two resumes
@@ -297,14 +341,7 @@ function PickCard({
   const day = c.type === "Uploaded" || edited ? c.at : c.madeAt;
   return (
     <label className={pickRowClasses(picked)}>
-      <input
-        type="radio"
-        name={name}
-        value={c.key}
-        checked={picked}
-        onChange={() => onPick(c.key)}
-        className="accent-brand shrink-0"
-      />
+      <Radio name={name} value={c.key} checked={picked} onChange={() => onPick(c.key)} />
       <PdfIcon className="size-5 shrink-0" />
       <span className="min-w-0 flex-1">
         <span className="text-label text-ink block break-words">{c.label}</span>
@@ -467,7 +504,7 @@ function useUploadButton(upload: PickerUpload | undefined, onSent: () => void) {
         </>
       )}
       {error && (
-        <p role="alert" className="text-meta text-danger">
+        <p role="alert" className="text-note text-danger">
           {error}
         </p>
       )}
@@ -511,13 +548,11 @@ export function ResumeChoices({
       {choices.map((c) => (
         // Drawn as the list's cards are (`pickRowClasses`), siblings of theirs.
         <label key={c.key} className={cn(pickRowClasses(picked === c.key), "mt-0")}>
-          <input
-            type="radio"
+          <Radio
             name={name}
             value={c.key}
             checked={picked === c.key}
             onChange={() => onPick(c.key)}
-            className="accent-brand shrink-0"
           />
           {/* The name alone: the section title already says what kind it is,
               and a grey kind line under each name only repeated it. It

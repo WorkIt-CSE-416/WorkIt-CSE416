@@ -321,8 +321,13 @@ export function JobDescription({
         {block.text}
       </p>
     );
+  // THE MEASURE IS SET IN THE TEXT'S OWN SIZE (KAN-569): `ch` is read from
+  // this div's font, so it carries `text-body`. At the inherited 16px, 68ch
+  // was 792px and a line ran about 107 characters. Plus Jakarta Sans draws its
+  // "0" (what `ch` measures) at 0.73em, wider than its average letter, so
+  // 46ch prints 64 to 71 characters a line at 14px, and 60ch about 90.
   return (
-    <div className="mt-3 flex max-w-[68ch] flex-col gap-3">
+    <div className="text-body mt-3 flex max-w-[46ch] flex-col gap-3">
       {blocks.map(draw)}
       {extras.length > 0 && (
         <details className="group border-border mt-3 rounded-xl border">

@@ -20,10 +20,12 @@ import { cn } from "@/lib/cn";
  */
 const VARIANTS = {
   /* py-px gave the chip a 17px box, which read as a label squeezed onto its
-   * text rather than a pill sitting around it. py-1 takes it to 23px — still
+   * text rather than a pill sitting around it. py-1 takes it to 24px — still
    * shorter than anything else in a row, which is the point of a chip, but
-   * with enough room that the fill reads as a shape. */
-  status: "text-meta rounded-full px-2.5 py-1",
+   * with enough room that the fill reads as a shape. The label is text-note
+   * (12px, KAN-554): a stage or a posting's state is the row's main fact, and
+   * reading text is never 11px. */
+  status: "text-note rounded-full px-2.5 py-1",
   tag: "text-note rounded-md px-2 py-0.5",
 } as const;
 
@@ -48,7 +50,7 @@ const VARIANTS = {
  * `positive` wears --color-positive-ink rather than --color-positive, which is
  * the one tone whose text colour is not simply its fill colour darkened by
  * convention. --color-positive on --color-positive-tint measures 2.51:1: at
- * 11px that is a green chip with a slightly greener chip printed on it. The ink
+ * 12px that is a green chip with a slightly greener chip printed on it. The ink
  * role clears AA at 4.79:1 on the same fill, so the tint is unchanged and only
  * the glyph moved. See the token's note in globals.css.
  */
@@ -69,7 +71,7 @@ const TONES = {
   inert: "bg-inert-tint text-ink-meta",
   /** Not live at all. No fill, because there is nothing to fill in yet — a
    *  draft is the one state that has never been published. An inset ring, not
-   *  a border, so the pill is the same 23px as its siblings; --color-ink-faint
+   *  a border, so the pill is the same 24px as its siblings; --color-ink-faint
    *  gives the edge 3.11:1 on white. */
   outline: "text-ink-meta ring-ink-faint bg-transparent ring-1 ring-inset",
 } as const;

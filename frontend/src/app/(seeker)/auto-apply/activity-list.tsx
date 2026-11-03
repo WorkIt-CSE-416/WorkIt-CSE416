@@ -62,7 +62,7 @@ export type ActivityItem = {
   appliedAt: string | null;
   /** The job posting's own page; the whole row opens it. None once closed. */
   href?: string;
-  /** The resume a queued job will go out with (./page.tsx): the student's
+  /** The resume a queued job will go out with (./(queue)/page.tsx): the student's
    *  pick, else the rule's; null when it would go with none. Up Next shows
    *  it. */
   resume?: string | null;
@@ -71,8 +71,8 @@ export type ActivityItem = {
   resumeKey?: string | null;
   /** Its job posting closed: the application can't go out (KAN-424). */
   closed?: boolean;
-  /** How many of its written questions have no answer yet (./page.tsx, from
-   *  GET .../written-questions); Up Next's chip links them. */
+  /** How many of its written questions have no answer yet (./(queue)/page.tsx, from
+   *  GET .../written-questions); Up Next's chip counts them. */
   questions?: number;
 };
 
@@ -288,7 +288,7 @@ export const FROZEN =
  * list's frame (applications/list.tsx). Columns: Role (the logo, then the
  * role over its company), Status, Match, Date Added and Date Applied. It
  * lists applied and skipped jobs only (History, archived for now:
- * ./page.tsx); Up Next has its own table (./queue-table.tsx), which shares
+ * ./(queue)/page.tsx); Up Next has its own table (./queue-table.tsx), which shares
  * this one's frame (TH, TD, CENTER, FROZEN).
  *
  * Every column but Role is centred. A row with an `href` (its job posting
@@ -488,7 +488,7 @@ function SortButton({
           sort rather than swapping in place. */}
       <SortIcon
         key={active ? direction : "none"}
-        className={cn("animate-pop size-3.5 shrink-0", active ? "text-brand" : "text-ink-faint")}
+        className={cn("animate-pop size-3.5 shrink-0", active ? "text-brand" : "text-ink-meta")}
         direction={active ? direction : undefined}
       />
     </button>

@@ -4,16 +4,19 @@ import { AnimatePresence, motion, useInView, useReducedMotion } from "motion/rea
 import { cn } from "@/lib/cn";
 
 import { FitScale } from "./fit";
+import { useLoopsHeld } from "./hooks";
 
 /**
  * A product tour stop told as a short story that loops a scene at a time,
  * never every step at once (all four tour stops). It plays only while in
- * view and starts over each time it comes back. A glass pill over the stage
+ * view and starts over each time it comes back; Pause Animations and a hidden
+ * tab hold it on its scene, and the scene's hold starts again on Play. A
+ * glass pill over the stage
  * titles the current scene and numbers it; it is not a switcher (the team
  * removed the step bar's buttons) and has no progress line (removed too).
  * With reduced motion it holds one finished scene, `rest`. Rendered
  * by the product tour, whose MotionConfig makes transforms instant for
- * those visitors.
+ * those visitors. It is `aria-hidden` and draws no heading, button or link.
  */
 
 export type StoryScene<Id extends string> = {
@@ -47,6 +50,7 @@ export function Story<Id extends string>({
   const ref = React.useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { amount: 0.4 });
   const reduceMotion = useReducedMotion();
+  const held = useLoopsHeld();
   const [step, setStep] = React.useState(0);
   // Bumped on every scene change, so the scene's timer restarts.
   const [tick, setTick] = React.useState(0);
@@ -73,10 +77,10 @@ export function Story<Id extends string>({
   }
 
   React.useEffect(() => {
-    if (!inView || reduceMotion) return;
+    if (!inView || reduceMotion || held) return;
     const timer = window.setTimeout(() => go((step + 1) % scenes.length), scenes[step].hold);
     return () => window.clearTimeout(timer);
-  }, [inView, reduceMotion, step, tick, go, scenes]);
+  }, [inView, reduceMotion, held, step, tick, go, scenes]);
 
   const shown = reduceMotion
     ? Math.max(
@@ -97,8 +101,14 @@ export function Story<Id extends string>({
   return (
     // shrink-0: as Fit's flex child, the story shrank to its title's 380px,
     // so Fit read that width, scaled it too little, and its 520px scenes
-    // spilled past the panel and were cut (KAN-368).
-    <div ref={ref} className="flex w-[520px] shrink-0 flex-col items-center gap-4">
+    // spilled past the panel and were cut (KAN-368). Hidden from assistive
+    // technology: the story is a mock of the app, the copy beside it says
+    // what it shows, and its fake headings and fields broke the page's outline.
+    <div
+      ref={ref}
+      aria-hidden="true"
+      className="flex w-[520px] shrink-0 flex-col items-center gap-4"
+    >
       {/* The scene's title: a glass pill with its number, not a switcher.
           The scenes play on their own. */}
       <div

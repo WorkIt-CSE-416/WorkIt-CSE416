@@ -77,6 +77,25 @@ const BOX_CLASS =
 const BOX_MESSAGE =
   "Do not change a button's or chip's box (height, padding, radius, type size, line height, border width) at the call site. Pick a size in ui/button.tsx or ui/chip.tsx; className may only place it.";
 
+/**
+ * READING TEXT IS 12px OR MORE (KAN-554). `text-meta` (11px) is for dates,
+ * counts, file facts and captions; a sentence, hint, error or status takes
+ * `text-note` or larger. 11px had spread to some 80 hints, errors and
+ * statuses across Settings, Application Info, the badges and the company
+ * forms. The rule flags `text-meta` on a `<p>`, and on any element with an
+ * `id` (an `aria-describedby` target needs one) or `role="alert"`/`"status"`.
+ * It reads string literals in className, inside `cn()` too, but not template
+ * strings or variables. Meta on its own line is a `div` or `span`.
+ */
+const META_CLASS = "/(^|\\s)text-meta(\\s|$)/";
+const META_MESSAGE =
+  "text-meta (11px) is for dates, counts and captions. A sentence, hint, error or status is reading text: use text-note (12px) or larger (docs/design.md, Type sizes).";
+const READING_ELEMENT = [
+  'JSXOpeningElement[name.name="p"]',
+  'JSXOpeningElement:has(> JSXAttribute[name.name="id"])',
+  'JSXOpeningElement:has(> JSXAttribute[name.name="role"][value.value=/^(alert|status)$/])',
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -101,6 +120,10 @@ const eslintConfig = defineConfig([
           selector: `CallExpression[callee.name=/^(buttonClasses|chipClasses)$/] Property[key.name="className"] > Literal[value=${BOX_CLASS}]`,
           message: BOX_MESSAGE,
         },
+        ...READING_ELEMENT.map((element) => ({
+          selector: `${element} > JSXAttribute[name.name="className"] Literal[value=${META_CLASS}]`,
+          message: META_MESSAGE,
+        })),
       ],
     },
   },

@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { Suspense, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 
 import { BAR_TITLE } from "./bar";
 
@@ -10,6 +10,7 @@ import { BAR_TITLE } from "./bar";
 const TITLES = [
   ["/jobs", "Jobs"],
   ["/auto-apply/answers", "Written Answers"],
+  ["/auto-apply/info", "Application Info"],
   ["/auto-apply", "Auto Apply"],
   ["/applications", "Applications Tracker"],
   ["/resumes", "Resumes"],
@@ -18,8 +19,10 @@ const TITLES = [
   ["/profile", "My Profile"],
   ["/inbox", "Inbox"],
   ["/help", "Help"],
-  ["/settings", "Settings"],
 ] as const;
+
+/** Settings, a modal over the page it opened from (./settings/settings-modal.tsx). */
+const isSettings = (path: string) => path === "/settings" || path.startsWith("/settings/");
 
 /**
  * The page's title in the top bar (2026-11-02), with no line under it: each
@@ -30,11 +33,19 @@ const TITLES = [
  *
  * It is the page's h1 on a section's own page. A page under it (a job, a
  * resume, an application) has its own h1, and here the section's name is a
- * plain line. Settings is a modal with its own title, so it is a plain line
- * too. `home` is Home's greeting, which the layout reads on the server.
+ * plain line. `home` is Home's greeting, which the layout reads on the server.
+ *
+ * A modal never changes it. With Settings open the bar keeps the title of the
+ * page behind, its h1 included, and the dialog names itself: the bar said
+ * "Settings" over Jobs, and the page's h1 was gone. A hard load of a Settings
+ * address opens over Home (./settings/layout.tsx), so Home's title is the one
+ * kept there.
  */
 export function BarTitle({ home }: { home: ReactNode }) {
-  const pathname = usePathname();
+  const address = usePathname();
+  const [behind, setBehind] = useState(isSettings(address) ? "/home" : address);
+  if (!isSettings(address) && address !== behind) setBehind(address);
+  const pathname = isSettings(address) ? behind : address;
 
   if (pathname === "/home") return home;
   if (pathname === "/search") {
@@ -48,7 +59,7 @@ export function BarTitle({ home }: { home: ReactNode }) {
   const found = TITLES.find(([path]) => pathname === path || pathname.startsWith(`${path}/`));
   if (!found) return null;
   const [path, title] = found;
-  const Tag = pathname === path && path !== "/settings" ? "h1" : "p";
+  const Tag = pathname === path ? "h1" : "p";
   return <Tag className={BAR_TITLE}>{title}</Tag>;
 }
 

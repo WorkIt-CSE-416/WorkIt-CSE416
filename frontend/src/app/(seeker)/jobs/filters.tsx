@@ -39,6 +39,7 @@ import { Select, SelectCheckboxItem, SelectContent, SelectTrigger } from "@/comp
 import { cn } from "@/lib/cn";
 
 import {
+  facetsOn,
   FILTER_KEYS,
   filterEntries,
   isFiltered,
@@ -640,6 +641,7 @@ export function JobFilters({
   }
 
   const filtered = isFiltered(shown);
+  const on = facetsOn(shown);
 
   /** One facet's change, the others as they stand. */
   const set = (change: Partial<FeedFilters>) => apply({ ...shown, ...change });
@@ -766,14 +768,25 @@ export function JobFilters({
           <CloseIcon className="size-4" />
         </IconButton>
       )}
+      {/* Its count is the facets with a pick (KAN-569): below about 1000px of
+          row some facets have stepped out, and their picks showed nowhere
+          else. The count is in its name too, "All Filters, 3 on". */}
       <IconButton
         ref={allFiltersButton}
-        label="All Filters"
+        label={on ? `All Filters, ${on} on` : "All Filters"}
         variant="outline"
         onClick={() => setAllFiltersOpen(true)}
-        className={cn("size-9 shrink-0", !filtered && "ml-auto")}
+        className={cn("relative size-9 shrink-0", !filtered && "ml-auto")}
       >
         <FilterIcon className="size-4" />
+        {on > 0 && (
+          <span
+            aria-hidden
+            className="bg-brand text-on-brand text-meta absolute -top-1.5 -right-1.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 font-semibold tabular-nums"
+          >
+            {on}
+          </span>
+        )}
       </IconButton>
 
       <AllFiltersPanel

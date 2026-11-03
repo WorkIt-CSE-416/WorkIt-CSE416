@@ -5,8 +5,11 @@ import { useId, useRef, useState, useTransition, type FormEvent } from "react";
 
 import { Checkbox } from "@/components/shadcn/checkbox";
 import { Button } from "@/components/ui/button";
-import { FIELD_CONTROL, FIELD_LABEL, RequiredMark } from "@/components/ui/text-field";
+import { TextAreaField } from "@/components/text-area-field";
+import { OPTION_ROW, RadioRow } from "@/components/ui/radio-row";
+import { FIELD_LABEL, RequiredMark } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
+import { formatCount } from "@/lib/format-count";
 
 import { saveWrittenAnswer } from "./actions";
 import type { WrittenQuestion } from "./questions";
@@ -72,9 +75,6 @@ export function AnswerBox({ jobId, question }: { jobId: string; question: Writte
     setReasons(null);
   }
 
-  const optionRow =
-    "hover:bg-hover has-checked:border-brand has-data-checked:border-brand border-border rounded-control text-body text-ink flex cursor-pointer items-center gap-3 border px-3 py-2";
-
   return (
     <form onSubmit={submit} className="flex flex-col gap-2">
       {options ? (
@@ -90,18 +90,16 @@ export function AnswerBox({ jobId, question }: { jobId: string; question: Writte
           </legend>
           {options.map((option) =>
             question.kind === "choice" ? (
-              <label key={option} className={optionRow}>
-                <input
-                  type="radio"
-                  name={`${id}-option`}
-                  checked={picked.includes(option)}
-                  onChange={() => pick(option)}
-                  className="accent-brand shrink-0"
-                />
-                <span className="min-w-0 break-words">{option}</span>
-              </label>
+              <RadioRow
+                key={option}
+                name={`${id}-option`}
+                checked={picked.includes(option)}
+                onChange={() => pick(option)}
+              >
+                {option}
+              </RadioRow>
             ) : (
-              <label key={option} className={optionRow}>
+              <label key={option} className={OPTION_ROW}>
                 {/* The Checkbox's root is a <span>: the fieldset's disabled
                     doesn't reach it. */}
                 <Checkbox
@@ -116,28 +114,21 @@ export function AnswerBox({ jobId, question }: { jobId: string; question: Writte
           )}
         </fieldset>
       ) : (
-        <>
-          <label htmlFor={`${id}-answer`} className={FIELD_LABEL}>
-            {question.label}
-            {question.required && <RequiredMark />}
-          </label>
-          <textarea
-            id={`${id}-answer`}
-            rows={4}
-            placeholder="Write your answer, or paste one from any AI"
-            className={cn(
-              FIELD_CONTROL,
-              "block field-sizing-content min-h-28 resize-none px-3.5 py-2.5",
-            )}
-            value={text}
-            readOnly={saved}
-            aria-describedby={reasons ? `${id}-reasons` : undefined}
-            onChange={(e) => {
-              setText(e.target.value);
-              setReasons(null);
-            }}
-          />
-        </>
+        <TextAreaField
+          id={`${id}-answer`}
+          label={question.label}
+          required={question.required}
+          rows={4}
+          grow
+          placeholder="Write your answer, or paste one from any AI"
+          value={text}
+          readOnly={saved}
+          aria-describedby={reasons ? `${id}-reasons` : undefined}
+          onChange={(e) => {
+            setText(e.target.value);
+            setReasons(null);
+          }}
+        />
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -147,13 +138,20 @@ export function AnswerBox({ jobId, question }: { jobId: string; question: Writte
             Saved. It fills into the job&apos;s open tab within a few seconds.
           </p>
         ) : (
-          <Button type="submit" size="sm" disabled={pending || !answer.trim()}>
+          // Secondary until the box has text: a card holds several questions,
+          // and a primary Save under each one put five on the screen at once.
+          <Button
+            type="submit"
+            size="sm"
+            variant={answer.trim() ? "default" : "secondary"}
+            disabled={pending || !answer.trim()}
+          >
             Check and Save
           </Button>
         )}
         {limit != null && (
           <span className={cn("text-note", over ? "text-warning" : "text-ink-meta")}>
-            {answer.trim().length} / {limit}
+            {formatCount(answer.trim().length)} / {formatCount(limit)}
           </span>
         )}
       </div>

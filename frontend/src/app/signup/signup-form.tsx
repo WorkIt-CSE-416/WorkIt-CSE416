@@ -101,10 +101,10 @@ export function SignupForm({ formId }: { formId: string }) {
             if (next) setCompanyPath(next as CompanyPath);
           }}
           aria-label="Create or Join a Company"
-          /* One column below `sm`, like every paired row in the form below:
-           * at phone width a half-width tile wrapped each label onto two
-           * lines and pushed Join's Soon pill out past its edge. */
-          className="mt-2.5 grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2"
+          /* One column at every width: in the 360px card (AuthCard) a
+           * half-width tile wrapped each label onto two lines and pushed
+           * Join's Soon pill out past its edge. */
+          className="mt-2.5 grid w-full grid-cols-1 gap-2.5"
         >
           {COMPANY_PATHS.map(({ value, label, hint, icon: Icon }) => (
             <ToggleGroupItem
@@ -125,7 +125,7 @@ export function SignupForm({ formId }: { formId: string }) {
                 <span className="group-disabled/toggle:opacity-50">{label}</span>
                 {value === "join" && <SoonBadge />}
               </span>
-              <span className="text-meta text-ink-meta font-normal group-disabled/toggle:opacity-50">
+              <span className="text-note text-ink-meta font-normal group-disabled/toggle:opacity-50">
                 {hint}
               </span>
             </ToggleGroupItem>
@@ -231,7 +231,7 @@ export function SignupForm({ formId }: { formId: string }) {
                 onChange={(event) => setPassword(event.target.value)}
                 aria-describedby="password-hint"
               />
-              <p id="password-hint" className="text-meta text-ink-meta">
+              <p id="password-hint" className="text-note text-ink-meta">
                 At least {PASSWORD_MIN_LENGTH} characters
               </p>
             </div>

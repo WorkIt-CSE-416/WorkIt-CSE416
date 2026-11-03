@@ -26,7 +26,9 @@ import { BackToJobs } from "./page-actions";
  *
  * BELOW md IT SCROLLS AWAY. On a phone the actions wrap to rows beside Back,
  * a lot to hold over a 812px screen; the Jobs page stopped
- * holding its heading on a phone for the same reason.
+ * holding its heading on a phone for the same reason. A job's own actions
+ * (`data-phone-first`, ./job-view.tsx) take a row of their own there, Apply
+ * Now first and across it (KAN-569).
  */
 export function JobActionBar({
   back,
@@ -82,7 +84,9 @@ export function JobActionBar({
       {/* The split view's list is Back's list, already on screen. */}
       {back ?? <BackToJobs className="group/back in-data-split:@4xl/main:hidden" />}
       {tabs}
-      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{children}</div>
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2 max-md:has-data-phone-first:basis-full">
+        {children}
+      </div>
     </div>
   );
 }

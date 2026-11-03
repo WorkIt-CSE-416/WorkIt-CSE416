@@ -6,7 +6,7 @@ import { applicantCall, encodeId } from "@/lib/applicant-call";
  * A student's writing samples (KAN-384's API, GET, POST and DELETE
  * /applicants/{id}/writing-samples): up to three pieces of their own
  * writing, from which their own Claude builds a style card through the
- * connector. My Profile's Writing Samples edits them (KAN-387). Through
+ * connector. Application Info's Writing Samples edits them (KAN-387). Through
  * applicantCall: identity from the session, never an argument.
  */
 

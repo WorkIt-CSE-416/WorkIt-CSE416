@@ -4,6 +4,8 @@ import { ArrowLeftIcon, ClockIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 
+import { COMPANY_PAGE } from "./frame";
+
 /**
  * The body of a company screen that has a route but not a design yet.
  *
@@ -17,10 +19,11 @@ import { EmptyState } from "@/components/ui/empty-state";
  * generalised: every page that grows a real layout stops importing it, and the
  * file goes when the last one does.
  *
- * The heading block matches what the built seeker screens use (text-heading
- * over text-body in ink-meta, inside the same max-w-app container and the same
- * gutter as every built company page), so a stub and a finished screen line
- * up when you click between them.
+ * The bar holds the section's title (./bar-title.tsx), so a section's own stub
+ * draws no heading. A stub under a section (one applicant) passes `title`, its
+ * h1, since the bar's line there names the section, not the page. Either way
+ * it sits in the column every company page uses (./frame.ts), so a stub and a
+ * finished screen line up when you click between them.
  *
  * THE BODY IS FOR THE RECRUITER WHO LANDS HERE, not for whoever builds the
  * page next: an <EmptyState> saying the page is coming and offering the way
@@ -29,12 +32,11 @@ import { EmptyState } from "@/components/ui/empty-state";
  *
  * It is a <div> rather than a <main>: the company shell's SidebarInset is the
  * <main> for every screen under /company, and a page cannot nest a second one
- * inside it. Seeker pages still own their own, because that shell provides no
- * landmark of its own.
+ * inside it.
  */
 type PlaceholderProps = {
-  title: string;
-  description: string;
+  /** The page's h1, for a page under a section only. */
+  title?: string;
   /** The empty state's glyph. A clock, for "later", unless the page has a
    *  glyph of its own (Settings' gear, say). */
   Icon?: ComponentType<{ className?: string }>;
@@ -43,16 +45,14 @@ type PlaceholderProps = {
   children?: ReactNode;
 };
 
-export function Placeholder({ title, description, Icon = ClockIcon, children }: PlaceholderProps) {
+export function Placeholder({ title, Icon = ClockIcon, children }: PlaceholderProps) {
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
-      <h1 className="text-heading text-ink">{title}</h1>
-      <p className="text-body text-ink-meta mt-1">{description}</p>
+    <div className={COMPANY_PAGE}>
+      {title && <h1 className="text-heading text-ink mb-4">{title}</h1>}
 
       <EmptyState
         Icon={Icon}
         title="Coming Soon"
-        className="mt-4"
         action={
           <ButtonLink href="/company" variant="secondary" size="sm">
             <ArrowLeftIcon className="size-3.5" />

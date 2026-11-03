@@ -87,7 +87,7 @@ export default async function ConnectClaudePage({
                 Read your next application&apos;s questions, its job posting and your experience
               </li>
               <li className="flex items-start gap-2">
-                <CheckIcon className="text-positive mt-0.5 size-4 shrink-0" />
+                <CheckIcon className="text-positive-ink mt-0.5 size-4 shrink-0" />
                 Save answers, which WorkIt fills into your open application tabs
               </li>
             </ul>

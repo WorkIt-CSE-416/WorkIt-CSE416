@@ -3,6 +3,8 @@
 import { PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 
+import { MonthField } from "@/components/month-field";
+import { TextAreaField } from "@/components/text-area-field";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { SelectField } from "@/components/ui/select-field";
@@ -31,8 +33,11 @@ import { savable, sectionOf, type EntryDraft } from "./sections";
  * GPA, the facts a resume prints first, and its optional college and
  * location follow. In Scout's panel the form was one column of up to
  * thirteen boxes, with the college and location ahead of the dates intake
- * was asking about. An empty month prints its dashes in the placeholder
- * grey, coursework wraps in a box that grows, and a GPA has no spin arrows.
+ * was asking about. A month is picked from WorkIt's own grid
+ * (components/month-field.tsx), coursework wraps in a box that grows, and a
+ * GPA has no spin arrows. The form stops at `max-w-3xl` (768px), its buttons
+ * with it (KAN-576): on the bank page at 1440 a School or Coursework box ran
+ * 1242px, and a school name filled 15% of it.
  */
 
 const END_OPTIONS = [
@@ -141,16 +146,18 @@ export function EntryEditor({
       <MonthField
         id={field("award-date")}
         label="Award Date"
-        value={draft.award_date}
-        onChange={(award_date) => set({ award_date })}
+        clearable
+        value={draft.award_date ?? ""}
+        onValueChange={(award_date) => set({ award_date: text(award_date) })}
       />
     ) : (
       <>
         <MonthField
           id={field("start")}
           label="Start Month"
-          value={draft.start_month}
-          onChange={(start_month) => set({ start_month })}
+          clearable
+          value={draft.start_month ?? ""}
+          onValueChange={(start_month) => set({ start_month: text(start_month) })}
         />
         <SelectField
           id={field("end-kind")}
@@ -166,8 +173,8 @@ export function EntryEditor({
               id={field("end")}
               label={draft.end_kind === "expected" ? "Expected Month" : "End Month"}
               required
-              value={draft.end_month}
-              onChange={(end_month) => set({ end_month })}
+              value={draft.end_month ?? ""}
+              onValueChange={(end_month) => set({ end_month: text(end_month) })}
             />
           </div>
         )}
@@ -175,7 +182,7 @@ export function EntryEditor({
     );
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
+    <form onSubmit={submit} className="flex max-w-3xl flex-col gap-3">
       {/* No spin arrows on a GPA: nobody steps through one. */}
       <div className="grid grid-cols-2 gap-3 [&_input::-webkit-inner-spin-button]:appearance-none [&_input::-webkit-outer-spin-button]:appearance-none [&_input[type=number]]:[appearance:textfield]">
         <div className="col-span-2">
@@ -409,42 +416,6 @@ export function EntryEditor({
   );
 }
 
-/** A "YYYY-MM" month. Browsers without a month picker show a text box, so
- *  the pattern and placeholder say what to type there. Chrome draws an empty
- *  one as "--------- ----" in the ink colour, which read as a broken field;
- *  in the placeholder grey it reads as the shape to fill in. */
-function MonthField({
-  id,
-  label,
-  value,
-  onChange,
-  required,
-}: {
-  id: string;
-  label: string;
-  value: string | null;
-  onChange: (value: string | null) => void;
-  required?: boolean;
-}) {
-  return (
-    <div
-      data-empty={!value}
-      className="data-[empty=true]:[&_input::-webkit-datetime-edit]:text-ink-meta"
-    >
-      <TextField
-        id={id}
-        label={label}
-        type="month"
-        placeholder="YYYY-MM"
-        pattern="\d{4}-(0[1-9]|1[0-2])"
-        required={required}
-        value={value ?? ""}
-        onChange={(e) => onChange(text(e.target.value))}
-      />
-    </div>
-  );
-}
-
 /** Course names, typed separated by commas, kept as a list. A box that
  *  grows with its text, as a bullet's does, so a long list wraps in view;
  *  a one-line field cut it off after two or three courses. A typed or
@@ -462,30 +433,23 @@ function ListField({
 }) {
   const [typed, setTyped] = useState(value.join(", "));
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className={FIELD_LABEL}>
-        {label}
-      </label>
-      <textarea
-        id={id}
-        rows={1}
-        placeholder="Data Structures, Operating Systems"
-        className={cn(
-          FIELD_CONTROL,
-          "block field-sizing-content min-h-10.5 resize-none px-3.5 py-2.5",
-        )}
-        value={typed}
-        onChange={(e) => {
-          const next = e.target.value.replace(/\s*\n\s*/g, ", ");
-          setTyped(next);
-          onChange(
-            next
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean),
-          );
-        }}
-      />
-    </div>
+    <TextAreaField
+      id={id}
+      label={label}
+      rows={1}
+      grow
+      placeholder="Data Structures, Operating Systems"
+      value={typed}
+      onChange={(e) => {
+        const next = e.target.value.replace(/\s*\n\s*/g, ", ");
+        setTyped(next);
+        onChange(
+          next
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+        );
+      }}
+    />
   );
 }

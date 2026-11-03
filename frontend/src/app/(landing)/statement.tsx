@@ -20,7 +20,7 @@ import { cn } from "@/lib/cn";
 import { FaviconLogo } from "./favicon-logo";
 import { followedJob } from "./feature-data";
 import { Fit } from "./fit";
-import { useMediaQuery, usePageHidden } from "./hooks";
+import { useLoopsHeld, useMediaQuery } from "./hooks";
 import { CONTAINER, PANEL, PANEL_INSET } from "./layout-parts";
 import { SlopWord } from "./slop-word";
 import { CARD_WIDTH, FollowedCard } from "./thread";
@@ -214,8 +214,8 @@ export function Statement() {
 function CompactStatement() {
   const stageRef = React.useRef<HTMLDivElement>(null);
   const inView = useInView(stageRef, { amount: 0.4 });
-  const hidden = usePageHidden();
-  const playing = inView && !hidden;
+  const held = useLoopsHeld();
+  const playing = inView && !held;
   const { p, fade } = useStoryLoop(playing);
   return (
     <section
@@ -246,8 +246,8 @@ function LoopingStatement() {
   const sceneBox = React.useRef<HTMLDivElement>(null);
   const stageRef = React.useRef<HTMLDivElement>(null);
   const inView = useInView(stageRef, { amount: 0.5 });
-  const hidden = usePageHidden();
-  const playing = inView && !hidden;
+  const held = useLoopsHeld();
+  const playing = inView && !held;
   const { p, fade } = useStoryLoop(playing);
   return (
     <section

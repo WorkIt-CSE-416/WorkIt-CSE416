@@ -63,7 +63,7 @@ export function CloseJobDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {error && <p className="text-meta text-danger">{error}</p>}
+        {error && <p className="text-note text-danger">{error}</p>}
 
         <DialogFooter>
           <DialogClose render={<Button variant="secondary">Keep It Open</Button>} />

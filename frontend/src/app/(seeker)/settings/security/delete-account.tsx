@@ -2,29 +2,38 @@
 
 import { useState, useTransition } from "react";
 
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/shadcn/dialog";
 import { TrashIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { deleteAccount } from "@/lib/account-actions";
 import { clearLocalDrafts } from "@/lib/local-drafts";
 
+import { SettingsStep, StepActions, useSettingsStep } from "../settings-step";
+
 /**
- * Delete Account and its confirmation. The delete is final, so the dialog
- * asks the student to type their email first: one click on a red button
- * is too easy to make by mistake. On success the action signs out and
- * opens the landing page; on failure the dialog stays open with the error.
+ * Delete Account and its confirmation, a step of the Settings modal
+ * (../settings-step.tsx). The delete is final, so the step asks the
+ * student to type their email first: one click on a red button is too
+ * easy to make by mistake. On success the action signs out and opens the
+ * landing page; on failure the step stays open with the error.
  */
 export function DeleteAccount({ email }: { email: string }) {
+  const step = useSettingsStep();
+  return (
+    <Button
+      variant="destructive"
+      size="sm"
+      className="self-start"
+      onClick={() => step.open(<DeleteStep email={email} />)}
+    >
+      <TrashIcon />
+      Delete Account
+    </Button>
+  );
+}
+
+function DeleteStep({ email }: { email: string }) {
+  const { close } = useSettingsStep();
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [deleting, startDeleting] = useTransition();
@@ -41,53 +50,38 @@ export function DeleteAccount({ email }: { email: string }) {
   }
 
   return (
-    <Dialog
-      onOpenChange={(open) => {
-        if (!open) {
-          setTyped("");
-          setError(null);
-        }
-      }}
+    <SettingsStep
+      title="Delete Your Account?"
+      description={
+        <>
+          Your profile, resumes, experiences, applications and files go for good. Type{" "}
+          <span className="text-ink font-medium break-all">{email}</span> to confirm.
+        </>
+      }
     >
-      <DialogTrigger
-        render={
-          <Button variant="destructive" size="sm" className="self-start">
-            <TrashIcon />
-            Delete Account
-          </Button>
-        }
+      <TextField
+        id="confirm-email"
+        label="Email"
+        type="email"
+        autoComplete="off"
+        value={typed}
+        onChange={(event) => setTyped(event.target.value)}
       />
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">Delete Your Account?</DialogTitle>
-          <DialogDescription>
-            Your profile, resumes, experiences, applications and files go for good. Type{" "}
-            <span className="text-ink font-medium break-all">{email}</span> to confirm.
-          </DialogDescription>
-        </DialogHeader>
 
-        <TextField
-          id="confirm-email"
-          label="Email"
-          type="email"
-          autoComplete="off"
-          value={typed}
-          onChange={(event) => setTyped(event.target.value)}
-        />
+      {error && (
+        <p role="alert" className="text-note text-danger">
+          {error}
+        </p>
+      )}
 
-        {error && (
-          <p role="alert" className="text-meta text-danger">
-            {error}
-          </p>
-        )}
-
-        <DialogFooter>
-          <DialogClose render={<Button variant="secondary">Keep My Account</Button>} />
-          <Button variant="destructive" onClick={remove} disabled={!confirmed || deleting}>
-            Delete Account
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <StepActions>
+        <Button variant="destructive" onClick={remove} disabled={!confirmed || deleting}>
+          Delete Account
+        </Button>
+        <Button variant="secondary" onClick={close}>
+          Keep My Account
+        </Button>
+      </StepActions>
+    </SettingsStep>
   );
 }

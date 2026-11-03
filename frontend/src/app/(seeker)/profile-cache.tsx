@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useMemo, useRef, type ReactNode } from "react";
 
-import type { AutofillAnswers } from "@/lib/autofill-answers";
 import type { ApplicantProfile } from "@/lib/profile-actions";
 
 /**
@@ -22,10 +21,6 @@ import type { ApplicantProfile } from "@/lib/profile-actions";
 export type ProfileSnapshot = {
   avatarUrl: string | null;
   applicantProfile: ApplicantProfile | null;
-  /** The answer bank, Application Questions' (KAN-269). The same sign-out
-   *  rule keeps it from the next person in the tab, which matters most here:
-   *  it holds the seeker's voluntary self-identification. */
-  answers: AutofillAnswers | null;
 };
 
 type ProfileCache = {
