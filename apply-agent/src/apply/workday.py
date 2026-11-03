@@ -29,8 +29,10 @@ Zillow's), and Apply then waits for the link; otherwise Apply signs in with
 the new password. Where Lisul made an account himself ("already exists"),
 a real run resets its password: the new one is saved to Keychain first and
 set through the reset link from Gmail (never in a rehearsal, which stops at
-the sign-in page). Workday accounts are per tenant (the host, or the
-tenant's path on myworkdaysite.com).
+the sign-in page). But on a tenant that offers Google, that account was made
+with Google: Needs sign-in, and Apply never presses Forgot your password?.
+Workday accounts are per tenant (the host, or the tenant's path on
+myworkdaysite.com).
 
 A field the engine fails to fill (a FillError) is handed to its Rescue, if
 it has one (apply.rescue): Claude fills that field on the open page, and the
@@ -260,7 +262,7 @@ class WorkdayFiller:
         password = self._accounts.password(site)
         if password:
             return self._password(page, site, password)
-        self._create_account(page, site)
+        self._create_account(page, site, offers_google)
 
     def _password(self, page: Page, site: str, password: str, since: datetime | None = None) -> None:
         """Sign In with the account's password. `since`: when Apply made the
@@ -278,7 +280,9 @@ class WorkdayFiller:
                               "link Workday mailed when Apply made it, then sign in and apply yourself.")
             raise self._accounts.sign_in_failed(site, f"Workday said: {error}")
 
-    def _create_account(self, page: Page, site: str) -> None:
+    def _create_account(self, page: Page, site: str, offers_google: bool = False) -> None:
+        """`offers_google`: the tenant shows Sign in with Google, so an account
+        that already exists for Lisul's email was made with Google."""
         form = _auth_form(page, "createAccountLink", create=True)
         password = self._accounts.new_password(site)  # in Keychain before the form is sent
         _type(form, {"email": self._accounts.login, "password": password, "verifyPassword": password})
@@ -287,17 +291,24 @@ class WorkdayFiller:
             accept.check()
         since = self._accounts.clock.now()
         verify = page.get_by_text(re.compile(r"verification (email|link)|verify your (account|email)", re.IGNORECASE))
+        # Some tenants' Create Account view says so before it is sent ("a verification email will be sent",
+        # Xcel's): only a notice shown after the click counts.
+        notices = lambda: set(verify.evaluate_all("els => els.filter(e => e.checkVisibility()).map(e => e.innerText)"))
+        before = notices()
         warned = []  # Workday went to its "verify your account" page, whose notice may never show
         on_request = lambda r: urlsplit(r.url).path.endswith(VERIFY_WARNING) and warned.append(r.url)
         page.on("request", on_request)
         try:
             outcome = _send(page, form, lambda: "in" if _on_step(page) else _error(page) and "error"
-                            or (warned or verify.first.is_visible()) and "verify" or _sign_in_view(page) and "sign in")
+                            or (warned or notices() - before) and "verify" or _sign_in_view(page) and "sign in")
         finally:
             page.remove_listener("request", on_request)
         if outcome == "error":
             error = _error(page)
             if re.search(r"already", error, re.IGNORECASE):
+                if offers_google:  # never Forgot your password?, which mails Lisul
+                    self._accounts.not_created(site)
+                    raise Handoff(MADE_WITH_GOOGLE.format(company=self._accounts.company or site))
                 return self._reset_password(page, site)
             raise Handoff(f"Workday at {site} refused the new account: '{error}'")
         self._accounts.created(site)
@@ -555,6 +566,11 @@ def _google_rejected(page: Page) -> bool:
     """Whether Google refused to sign in this browser ("This browser or app may not be secure")."""
     return urlsplit(page.url).hostname == "accounts.google.com" and "/signin/rejected" in urlsplit(page.url).path
 
+
+# An account exists for Lisul's email on a tenant that offers Google, and Keychain has no password for it.
+MADE_WITH_GOOGLE = (
+    f"{NEEDS_SIGN_IN}{{company}}'s Workday account was made with Google; sign in once yourself, or reset its password"
+)
 
 GOOGLE_REJECTED = (
     f"{NEEDS_SIGN_IN}Google refused Sign in with Google in the Worker's Chrome (\"This browser or app may not be "

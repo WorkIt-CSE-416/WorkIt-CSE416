@@ -249,6 +249,21 @@ def test_by_default_a_tenant_that_offers_google_gets_an_employer_account_by_emai
     assert len(server.submissions) == 1
 
 
+def test_an_account_made_with_google_is_needs_sign_in_and_its_password_is_never_reset():
+    world = World()  # Keychain has no password for the tenant: Lisul made the account with Google
+
+    with FakeWorkdayServer(XCEL_FORM, keychain=world.keychain, mailbox=world.mailbox,
+                           accounts={(XCEL, EMAIL): "Made-With-Google1!"}) as server:
+        [row] = world.run(server, xcel())
+
+    assert row.status == "handoff"
+    assert row.reason.startswith("Needs sign-in: Xcel Energy's Workday account was made with Google; "
+                                 "sign in once yourself, or reset its password"), row.reason
+    assert server.resets == [] and server.sign_ins == []  # never Forgot your password?, which mails Lisul
+    assert world.keychain.password(XCEL) is None and world.tracker.employer_accounts() == []
+    assert server.submissions == []
+
+
 def test_sign_in_with_google_is_used_where_offered_by_picking_lisuls_account():
     world = World(policies=GOOGLE)
 
