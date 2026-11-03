@@ -227,13 +227,16 @@ export const COLOR_GROUPS: ColorGroup[] = [
   {
     title: "Borders",
     tokens: [
-      { token: "--color-border", role: "Card outline" },
+      { token: "--color-border", role: "Card outline, decoration only" },
       { token: "--color-border-subtle", role: "Secondary buttons, rules" },
       {
         token: "--color-border-control",
-        role: "Form field outline: 3.05:1 on surface, 3.24:1 on panel (the search pill has none)",
+        role: "The edge of any control or state: 3.37:1 on panel, 3.09:1 on the app ground",
       },
-      { token: "--color-border-strong", role: "Dashed dropzone, spent timeline dot" },
+      {
+        token: "--color-border-strong",
+        role: "A score ring's empty track, never a control's edge",
+      },
     ],
   },
   {
@@ -255,7 +258,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--accent", role: "→ --color-hover" },
       { token: "--accent-foreground", role: "→ --color-ink" },
       { token: "--border", role: "→ --color-border" },
-      { token: "--input", role: "→ --color-border-subtle" },
+      { token: "--input", role: "→ --color-border-control" },
       { token: "--ring", role: "→ --color-brand" },
       { token: "--destructive", role: "→ --color-danger · unmeasured" },
     ],

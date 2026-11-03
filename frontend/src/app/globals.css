@@ -57,7 +57,7 @@
   /* Borders ------------------------------------------------------------- */
   --color-border: #cfd5df; /* card outline */
   --color-border-subtle: #d6dbe4; /* secondary buttons, rules */
-  --color-border-control: #8a8f9a; /* input outline: 3.05:1 on surface, 3.24:1 on panel (WCAG 1.4.11) */
+  --color-border-control: #878c97; /* the edge of a control or a state: 3.37:1 on panel, 3.09:1 on the app ground, 3.15:1 on well (WCAG 1.4.11; #8a8f9a was 2.97:1 on the ground) */
 
   /* Ink ----------------------------------------------------------------- */
   --color-ink: #121a28; /* headings, secondary-button labels */
@@ -214,7 +214,7 @@
   --color-frame: #f1eef9;
 
   /* App borders ---------------------------------------------------------- */
-  --color-border-strong: #dee5ee; /* dashed dropzone, spent timeline dot */
+  --color-border-strong: #dee5ee; /* a score ring's empty track; never a control's or a state's edge (1.27:1, KAN-556) */
 
   /* App type -------------------------------------------------------------
    * The profile screen needs an 11px with no tracking, so it cannot reuse
@@ -1094,9 +1094,11 @@ body:has([data-skyline]) {
 
   /* Lines and focus */
   --border: var(--color-border);
-  /* shadcn's own inputs and checkboxes. WorkIt's fields (ui/text-field.tsx)
-   * draw --color-border-control instead. */
-  --input: var(--color-border-subtle);
+  /* shadcn's own inputs, checkboxes and the switch's off track: the edge of a
+   * control, so 3:1 on white and on the grey ground (KAN-556), as WorkIt's
+   * fields (ui/text-field.tsx) draw it. --color-border-subtle (1.4:1) left an
+   * empty checkbox all but invisible. */
+  --input: var(--color-border-control);
   --ring: var(--color-brand);
 
   --radius: var(--radius-card); /* 10px, same value shadcn defaults to */

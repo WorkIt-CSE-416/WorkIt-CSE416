@@ -289,6 +289,19 @@ screen moved together: `--color-border` and `--color-border-subtle` to about the
 same mid grey, and `--color-ink-meta` to #465266 (about 7.8:1 on white). The user
 found them faint beside Simplify's. Tune the tokens, never one screen.
 
+**A control's edge is `--color-border-control`; a card's edge is decoration
+only** (KAN-556). Any edge, ring or dash that marks a control or a state (a
+field, the search pill, the segmented track, an empty checkbox or radio, a
+table cell's button, the timeline's step still ahead, an empty slot, the
+upload dropzone) takes `border-control`: 3.37:1 on white, 3.09:1 on the grey
+ground and 3.15:1 on `well`, so it meets WCAG 1.4.11's 3:1 on both grounds.
+`--color-border`, `--color-border-subtle` and `--color-border-strong` are
+1.2:1 to 1.5:1, so they draw only what nothing depends on: a card's outline,
+a rule, a score ring's empty track. The search pill and the segmented track
+had no outline, a 5% ink wash chosen for a white page, and fell to 1.1:1 once
+the seeker pages stood on grey. shadcn's `--input` maps to `border-control`
+too, so its checkboxes, fields and the switch's off track follow.
+
 **An icon's colour says its job** (2026-11-02), never which component drew it:
 black (`ink`) if it can be clicked, purple (`brand`) if it is on or selected, grey
 (`ink-meta`) if it only gives information (a job's facts, a field's magnifier, a
@@ -342,7 +355,9 @@ the server and the browser print the same.
 Calendar's Month, Week and Agenda, Home's range, the Applications
 layouts, the sign-in card's Applicant or Company, the company chart's
 range, and Resumes & Experiences' two views. A pill-shaped track (a 5% ink wash, so it reads on the white page and
-the off-white auth card alike, and no outline) with a white thumb that slides
+the off-white auth card alike, edged in `--color-border-control` as an inset
+ring, since with no outline it was 1.1:1 on the seeker pages' grey ground,
+KAN-556) with a white thumb that slides
 to the chosen option on the 300ms glide (`docs/motion.md`), and jumps under
 reduced motion. The options are equal width, so the thumb is placed with CSS
 alone and the server renders it in place. `SegmentedLinks` is for a choice

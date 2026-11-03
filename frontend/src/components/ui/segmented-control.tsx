@@ -29,8 +29,11 @@ import { cn } from "@/lib/cn";
  * there is no jump on hydration.
  *
  * THE TRACK IS A WASH OF INK, not a grey: 5% ink over whatever it sits on, so
- * it reads on the white page and on the sign-in card's off-white alike. No
- * outline: the bar's controls dropped theirs, and so does this.
+ * it reads on the white page and on the sign-in card's off-white alike, with
+ * a --color-border-control edge. Without the edge, as first drawn for a white
+ * page, the track was 1.1:1 on the seeker pages' grey ground, under WCAG
+ * 1.4.11's 3:1 (KAN-556). The edge is an inset ring, so it takes no room:
+ * the track keeps its 36px and the thumb its inset.
  *
  * Two forms, for the two ways a choice is kept:
  *
@@ -73,7 +76,8 @@ const SIZES: Record<
   },
 };
 
-const TRACK = "bg-ink/5 relative isolate grid w-fit auto-cols-fr grid-flow-col rounded-full";
+const TRACK =
+  "bg-ink/5 inset-ring-border-control inset-ring relative isolate grid w-fit auto-cols-fr grid-flow-col rounded-full";
 
 // An option presses in a little on mouse-down, as every button does, while
 // its label's colour follows the thumb across.

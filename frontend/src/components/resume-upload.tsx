@@ -88,7 +88,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
         }}
         onDrop={handleDrop}
         className={cn(
-          "border-border-strong bg-well rounded-control hover:border-brand/50 flex cursor-pointer flex-col items-center border border-dashed px-4 py-7 transition-colors",
+          "border-border-control bg-well rounded-control hover:border-brand/50 flex cursor-pointer flex-col items-center border border-dashed px-4 py-7 transition-colors",
           dragging && "border-brand bg-brand-tint",
           busy && "cursor-progress opacity-60",
         )}

@@ -306,8 +306,8 @@ function Row({
             // and amber is kept for what stopped. It was an amber pill, which read as a pair with
             // the amber questions link beside it.
             row.resume
-              ? "border-border-subtle hover:text-brand hover:border-brand-ring"
-              : "border-ink-faint text-ink-meta hover:text-brand hover:border-brand-ring border-dashed",
+              ? "border-border-control hover:text-brand hover:border-brand-ring"
+              : "border-border-control text-ink-meta hover:text-brand hover:border-brand-ring border-dashed",
           )}
         >
           {!row.resume && <PlusIcon aria-hidden className="size-3.5 shrink-0" />}

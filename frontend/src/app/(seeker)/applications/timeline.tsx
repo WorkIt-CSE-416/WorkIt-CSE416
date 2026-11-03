@@ -127,7 +127,7 @@ function Step({
           "relative mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full",
           filled
             ? cn(STAGE_COLOR[stage].fill, "text-white")
-            : "bg-panel border-border-strong border-2",
+            : "bg-panel border-border-control border-2",
         )}
       >
         {/* The step it is waiting on rings out from its dot, once the step

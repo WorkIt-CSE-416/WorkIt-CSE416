@@ -1251,7 +1251,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   or a white band shows when it sticks. A surface that lies on the ground is
   `bg-panel`, and a soft fill meant for white or grey is see-through ink
   (`bg-ink/5`, the Segmented Control's track): a solid `bg-app` or `bg-well`
-  vanishes into the ground. Skeletons are `bg-ink/6` for the same reason.
+  vanishes into the ground. A control drawn so takes a `border-control` edge
+  as well (KAN-556): the wash alone was a 1.1:1 edge on the grey, and a card's
+  edge is decoration only (`docs/design.md`, Components). Skeletons are `bg-ink/6` for the same reason.
 - **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
   2026-11-02): it lands on the row at once, because the slide read as
   confusing. Only the hover fill glides.
