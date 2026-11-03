@@ -71,7 +71,7 @@ class Accounts:
         self._mailbox = mailbox
         self.clock = clock
         self.login = login
-        self._company = company
+        self.company = company
         self._on_created = on_created
         self._failed = failed if failed is not None else set()
 
@@ -105,7 +105,7 @@ class Accounts:
 
     def created(self, site: str) -> None:
         """The site accepted the new account: list it in the Employer accounts tab."""
-        self._on_created(EmployerAccount(self._company, site, self.login, self.clock.now().date()))
+        self._on_created(EmployerAccount(self.company, site, self.login, self.clock.now().date()))
 
     def sign_in_failed(self, site: str, why: str) -> Handoff:
         """The Handoff for a refused password, which no Application tries again."""

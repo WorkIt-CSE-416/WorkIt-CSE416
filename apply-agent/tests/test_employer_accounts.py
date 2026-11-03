@@ -101,7 +101,7 @@ def test_a_verification_email_missing_after_about_two_minutes_needs_lisul_and_is
                            links_lost=True) as server:
         [row] = world.run(server, caci())
 
-    assert row.status == "handoff"
+    assert row.status == "handoff", row.reason
     assert "no verification email from myworkday.com or otp.workday.com came within about 2 minutes" in row.reason
     assert server.resends == 0
     assert world.clock.now() - NOW >= timedelta(minutes=2)
@@ -118,7 +118,7 @@ def test_a_create_account_workday_answers_with_its_bare_sign_in_view_forgets_the
     with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, to_sign_in=True) as server:
         [row] = world.run(server, caci())
 
-    assert row.status == "handoff"
+    assert row.status == "handoff", row.reason
     assert "without making the account" in row.reason and "Create the account yourself" in row.reason
     assert server.created == [] and server.sign_ins == []
     assert world.keychain.password(CACI) is None  # no later run signs in with it
@@ -147,7 +147,7 @@ def test_a_sign_in_to_an_account_not_verified_yet_needs_lisul_and_is_no_failed_p
         world.run(server, caci())  # the link never comes
         row = {row.application_id: row for row in world.run(server, caci(1))}["caci-1"]
 
-    assert row.status == "handoff"
+    assert row.status == "handoff", row.reason
     assert "has not been verified" in row.reason and "Verify the account" in row.reason
     assert "won't try that password again" not in row.reason
     assert server.sign_ins == [(CACI, EMAIL, True)] and server.resends == 0
@@ -223,7 +223,7 @@ def test_without_gmail_an_account_keychain_has_no_password_for_is_a_handoff_and_
                            accounts={(CACI, EMAIL): "Made-By-Hand1!"}) as server:
         [row] = world.run(server, caci())
 
-    assert row.status == "handoff"
+    assert row.status == "handoff", row.reason
     assert f"{CACI} already has an account for {EMAIL}, and Keychain has no password for it" in row.reason
     assert "Gmail isn't set up" in row.reason
     assert server.resets == []
@@ -237,7 +237,7 @@ def test_a_reset_link_that_never_comes_is_a_handoff_and_that_password_is_never_t
                            accounts={(CACI, EMAIL): "Made-By-Hand1!"}) as server:
         [row] = world.run(server, caci())
 
-    assert row.status == "handoff"
+    assert row.status == "handoff", row.reason
     assert row.reason.startswith(f"Sign-in failed at {CACI}: the password reset didn't finish")
     assert "no verification email from myworkday.com or otp.workday.com came" in row.reason
     assert len(server.resets) == 1  # asked for once, never again
@@ -273,7 +273,7 @@ def test_an_account_made_with_google_is_needs_sign_in_and_its_password_is_never_
                            accounts={(XCEL, EMAIL): "Made-With-Google1!"}) as server:
         [row] = world.run(server, xcel())
 
-    assert row.status == "handoff"
+    assert row.status == "handoff", row.reason
     assert row.reason.startswith("Needs sign-in: Xcel Energy's Workday account was made with Google; "
                                  "sign in once yourself, or reset its password"), row.reason
     assert server.resets == [] and server.sign_ins == []  # never Forgot your password?, which mails Lisul
@@ -301,7 +301,7 @@ def test_google_asking_for_more_than_an_account_pick_is_a_handoff():
     with FakeWorkdayServer(XCEL_FORM, keychain=world.keychain, google="password") as server:
         [row] = world.run(server, xcel())
 
-    assert row.status == "handoff"
+    assert row.status == "handoff", row.reason
     assert "Google asked for more than an account pick (a password)" in row.reason
     assert "sign the Worker profiles in to Google again by hand" in row.reason
     assert server.created == [] and server.submissions == []
@@ -316,7 +316,7 @@ def test_google_asking_for_a_passkey_is_a_handoff_at_once():
         started = time.monotonic()
         [row] = world.run(server, xcel())
 
-    assert row.status == "handoff"
+    assert row.status == "handoff", row.reason
     assert "Google asked for more than an account pick (a passkey)" in row.reason
     assert time.monotonic() - started < 20
     assert server.created == [] and server.submissions == []
@@ -331,7 +331,7 @@ def test_google_refusing_the_browser_is_needs_sign_in_at_once():
         started = time.monotonic()
         [row] = world.run(server, xcel())
 
-    assert row.status == "handoff"
+    assert row.status == "handoff", row.reason
     assert row.reason.startswith("Needs sign-in: Google refused Sign in with Google")
     assert time.monotonic() - started < 20  # no wait for a page that never comes
     assert server.created == [] and server.submissions == []
