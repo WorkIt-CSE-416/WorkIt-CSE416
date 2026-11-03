@@ -513,6 +513,20 @@ Find files with a directory listing; these are the rules for where code goes.
   /jobs/{id}/applied`. It is a POST so the page's link travels in the body;
   a GET under `/jobs/` would also meet jobs.py's `/{job_id}` first, since
   that router is included first. Tests: `tests/test_saved_jobs.py`.
+  **Add a job by its link** (KAN-542, `POST /jobs/added-by-link`,
+  `add_by_link`, `../docs/adr/0008-unlisted-job-postings.md`): Apply's
+  writes and the Tracker Sheet import put a job on the student's
+  Applications Tracker by its link. The listed job by the rules above,
+  else a scraped posting the feed closed or one already unlisted (its link
+  is unique, so a new row would fail), else a new **unlisted job posting**
+  (status `unlisted`: company, title, link, level). The student's
+  application on it is saved unless one exists. Only a student with an
+  application on an unlisted posting reaches it: `LISTED` leaves it out
+  of the Jobs page, search, Scout and every `postings.listed` caller, and
+  `mark_applied` takes it only with the student's application
+  (`services/postings.py`'s `UNLISTED`, compared as text: models/CLAUDE.md).
+  Sent resumes (`services/sent_resumes.py`) still need a listed posting.
+  Tests: `tests/test_unlisted_postings.py`.
   **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove) and the connector's tools (their Claude reads the
@@ -681,7 +695,9 @@ Find files with a directory listing; these are the rules for where code goes.
   and its text never reaches a model. The one exception: a tailored
   resume's keyword match against its own posting, which still works after
   the posting closes. A route that loads a `Job_Post` by id alone skips
-  this check.
+  this check. An unlisted job posting (KAN-542) is never listed: only the
+  tracker and `POST /jobs/{id}/applied` reach it, for the students with an
+  application on it.
 - **Identity fields load through `app/services/identity.py`**
   (`load_identity`), for Scout's model seam and the bank embedding alike.
   A resume's header prints them from `built_resumes.load_header_identity`
