@@ -215,6 +215,9 @@ def _files(questions, answers, profile) -> list[Flag]:
         wants = "cover letter" if COVER_FIELD.search(q.label) else "transcript" if TRANSCRIPT_FIELD.search(q.label) \
             else "resume" if RESUME_FIELD.search(q.label) else ""
         has = _role(given.name, profile)
+        own = profile.get({"resume": "files.resume_pdf", "transcript": "files.unofficial_transcript_pdf"}.get(wants, "-"))
+        if own and Path(own).name == given.name:
+            continue  # the profile's own file for that field (the sample's resume stands in for its transcript)
         if wants and has and wants != has:
             flags.append(Flag(one_line(q.label), f"has {given.name}, a {has}, in a {wants} field", FILE))
     return flags

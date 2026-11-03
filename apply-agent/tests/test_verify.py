@@ -172,6 +172,17 @@ def test_a_cover_letter_in_the_resume_field_is_flagged(person, tmp_path):
     assert flag.kind == verify.FILE and "cover letter" in flag.why
 
 
+def test_the_profiles_own_file_for_a_field_is_never_flagged(person, tmp_path):
+    # The sample profile's resume stands in for its transcript (Verkada, rehearsed 2026-11-02).
+    person.set("files.unofficial_transcript_pdf", str(person.get("files.resume_pdf")))
+    transcript = Question("transcript", "Undergraduate Transcript", "file")
+    resume = person.get("files.resume_pdf")
+
+    result = verify.check([transcript], {"transcript": resume}, {"transcript": resume.name}, person, POSTING, today=TODAY)
+
+    assert result.flags == ()
+
+
 def test_a_guess_is_noted_but_still_verified(person, tmp_path):
     questions, answers, readback = filled(person, tmp_path)
 
