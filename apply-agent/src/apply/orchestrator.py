@@ -35,6 +35,7 @@ from apply.repair import requests_for
 from apply.request import is_request, resolve
 from apply.rescue import Rescue
 from apply.tracker import AnswerRow, EmployerAccount, Row, options_cell
+from apply.verify import verifying
 from apply.worker import Result, apply_to, named
 
 WORKERS = 3
@@ -351,6 +352,7 @@ class _Run:
             lambda: self._before_submit(posting), self._answers.get(posting.id), self._approved.get(posting.id),
             bank=self._adapters.answer_bank, today=self._adapters.clock.now().date(),
             on_files=lambda files: self._adapters.board.update(worker, files=files),
+            on_verify=lambda verification: self._adapters.board.update(worker, **verifying(verification)),
         )
 
     def _before_submit(self, posting: Posting) -> str:

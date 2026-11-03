@@ -252,6 +252,8 @@ def test_the_dashboard_tile_of_each_worker_says_what_it_applied_to_and_how_it_en
     assert files and all(Path(f["path"]).is_file() for f in files)
     assert board.captions[0].pop("posting_url").startswith("http")  # so the window can link the Posting
     assert board.captions[0].pop("application_id")
+    assert board.captions[0].pop("verifying") is False  # it was verified before it was sent
+    assert board.captions[0].pop("verification")["state"] == "verified"
     assert board.captions == {0: {"company": "Arc", "role": "Software Engineer Intern", "job_system": "greenhouse",
                                   "status": "submitted", "line": "submitted", "why": "", "drafted": [],
                                   "choices": {}, "required": {}}}

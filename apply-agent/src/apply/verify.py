@@ -116,6 +116,13 @@ class Verification:
         return [asdict(f) for f in self.flags]
 
 
+def verifying(verification: "Verification | None") -> dict:
+    """What a tile's caption says of verifying (Dashboard.update): that it is under way (None), then how it went."""
+    if verification is None:
+        return {"verifying": True, "verification": None}
+    return {"verifying": False, "verification": verification.as_json()}
+
+
 def check(
     questions: QuestionSet, answers: Answers, readback: Readback, profile: ApplicantProfile, posting: Posting, *,
     asked: Iterable[str] = (), left: Iterable[str] = (), accepted: dict[str, tuple[str, ...]] | None = None,

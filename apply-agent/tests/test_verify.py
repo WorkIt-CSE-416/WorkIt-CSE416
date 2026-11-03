@@ -204,3 +204,53 @@ def test_a_live_run_holds_a_flagged_application_and_never_submits_it(monkeypatch
     assert "Verify: Cover Letter: names Stripe, another company" in row.reason
     assert form.submitted == []
 
+
+# The Apply window: a tile and a Needs you card say how verifying went.
+
+FLAGGED = verify.Verification((verify.Flag("Why Arc?", "names Stripe, another company", verify.COMPANY),
+                               verify.Flag("Website", "left blank (optional)", verify.BLANK, holds=False)), 7)
+
+
+def test_a_tile_says_verifying_while_the_form_is_checked():
+    from apply.dashboard import verdict
+
+    shown = verdict({"status": "filling", **verify.verifying(None)})
+
+    assert (shown["tone"], shown["label"]) == ("verifying", "Verifying…")
+
+
+def test_a_verified_rehearsal_says_verified_and_not_sent():
+    from apply.dashboard import verdict
+
+    shown = verdict({"status": "ready to submit", "why": "", **verify.verifying(verify.Verification((), 7))})
+
+    assert (shown["tone"], shown["label"], shown["verified"]) == ("ready", "Verified · filled, not sent", True)
+
+
+def test_a_verified_and_submitted_application_says_so():
+    from apply.dashboard import verdict
+
+    shown = verdict({"status": "submitted", **verify.verifying(verify.Verification((), 7))})
+
+    assert (shown["tone"], shown["label"]) == ("submitted", "Verified and sent")
+
+
+def test_a_flagged_application_needs_lisul_with_each_flag_named():
+    from apply.dashboard import verdict
+
+    shown = verdict({"status": "held", "why": "Verify: Why Arc?: names Stripe, another company",
+                     **verify.verifying(FLAGGED)})
+
+    assert (shown["tone"], shown["kind"]) == ("needs", "check")
+    assert shown["label"] == "Verified with 1 item that needs you"
+    assert shown["flags"] == [{"field": "Why Arc?", "why": "names Stripe, another company"}]
+    assert shown["notes"] == ["Website: left blank (optional)"]
+
+
+def test_a_tracker_row_held_by_a_flag_still_needs_lisul():
+    from apply.dashboard import verdict
+
+    shown = verdict({"status": "held", "why": "Verify: Why Arc?: names Stripe, another company"})
+
+    assert (shown["tone"], shown["kind"]) == ("needs", "check")
+    assert "Why Arc?: names Stripe" in shown["why"]

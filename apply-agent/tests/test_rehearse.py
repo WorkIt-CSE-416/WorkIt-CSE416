@@ -623,6 +623,8 @@ def test_each_links_tile_on_the_dashboard_says_what_it_is_and_how_it_ended(monke
     assert files and all(Path(f["path"]).is_file() for f in files)
     assert board.captions[0].pop("posting_url").startswith("http")  # so the window can link the Posting
     assert board.captions[0].pop("application_id")
+    assert board.captions[0].pop("verifying") is False  # verified once it was filled, before it stopped
+    assert board.captions[0].pop("verification")["state"] in ("verified", "flagged")
     assert board.captions == {0: {
         "company": "Arc Boat Company", "role": "Software Engineering Intern", "job_system": "greenhouse",
         "status": "ready to submit", "stage": "", "line": done.line(), "why": done.why,

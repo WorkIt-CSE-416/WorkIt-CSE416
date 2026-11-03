@@ -144,6 +144,9 @@ WORDS = {
     "submitted": ("Sent", "The application went in."),
     "ready to submit": ("Filled, not sent", "A practice run fills the form and stops before Submit."),
     "filling": ("Filling", "Apply is answering this application's questions now."),
+    "verifying": ("Verifying…", "Apply reads the filled form back from the page and checks each answer against your "
+                  "facts, before anything is sent. It never presses Submit."),
+    "verified": ("Verified", "Apply read the filled form back and found nothing that needs you."),
     "skipped": ("Skipped", "Apply didn't apply, for the reason given."),
     "rehearsal": ("Practice run", "Fills forms and sends nothing; each page is yours to check once it stops."),
     "run": ("Live run", "Fills forms and sends them, except those that wait for your OK."),
@@ -155,7 +158,7 @@ SENT = WORDS["submitted"][0]
 IDLE = "Waiting for the next job"
 # Parts of a rehearsal's ready-to-submit reason that Lisul must look at; the
 # rest (Calibration run, Target company...) only say a run would hold it.
-TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review")
+TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ")
 # Each part of a Hold's reason in plain words.
 HOLD_WORDS = [
     (re.compile(r"^Target company: (.+)$"), r"\1 is on your check-first list"),
@@ -200,7 +203,7 @@ def plain(why: str) -> str:
             if pattern.match(part):
                 part = pattern.sub(words, part)
                 break
-        parts.append(part.removeprefix("Pre-submit check failed. ").removeprefix("Missing fact: "))
+        parts.append(part.removeprefix("Pre-submit check failed. ").removeprefix("Missing fact: ").removeprefix("Verify: "))
     return "; ".join(parts)
 
 
@@ -211,6 +214,10 @@ def verdict(caption: dict) -> dict[str, str]:
     that needs Lisul also says its kind (a WORDS key), what to do, why, and
     what then happens: the same three lines its Inbox row shows."""
     status, why = str(caption.get("status") or ""), one_line(str(caption.get("why") or ""))
+    # How verifying the filled form went (apply.verify): its flags that need Lisul, and whether it found none.
+    verification = caption.get("verification") or {}
+    flags = [f for f in verification.get("flags") or [] if f.get("holds")]
+    verified = verification.get("state") == "verified"
     missing = "; ".join(caption.get("missing") or [])
     company, system = str(caption.get("company") or ""), job_system(caption.get("job_system"))
     checks = [part for part in why.split("; ") if part.startswith(TO_CHECK)]
@@ -219,6 +226,9 @@ def verdict(caption: dict) -> dict[str, str]:
     needs = {}
     if not status:
         tone, label, kind = "idle", IDLE, ""
+    elif status == "filling" and caption.get("verifying"):
+        tone, label, kind = "verifying", WORDS["verifying"][0], "verifying"
+        detail = WORDS["verifying"][1]
     elif status == "filling":  # a rehearsal held for Start says how far it got
         stage = {"getting ready": "Getting ready", "ready": "Ready"}.get(str(caption.get("stage") or ""))
         tone, label, kind = "filling", stage or WORDS["filling"][0], "filling"
@@ -226,17 +236,23 @@ def verdict(caption: dict) -> dict[str, str]:
         needs = {"kind": "missing fact", "do": "Answer a question only you know", "why": missing or plain(why),
                  "then": "Saved to your facts, for every form that asks it, and filled in on this form" if missing
                  else "Saved in your Tracker; this application goes on at the next check"}
+    elif flags and status in ("ready to submit", "held"):
+        needs = {"kind": "check", "do": verification.get("label") or WORDS["check"][0],
+                 "why": "; ".join(f"{f['field']}: {f['why']}" if f.get("field") else f["why"] for f in flags),
+                 "then": "Nothing has been sent. Fix each on the page, or dismiss it here"
+                 + (", then press Submit yourself if you want it sent" if status == "ready to submit"
+                    else "; once every one is dismissed, approve it to send it")}
     elif checks:
         needs = {"kind": "check", "do": "Fix an answer before it's sent", "why": plain("; ".join(checks)),
                  "then": "Nothing has been sent. Fix it on the page, then press Submit yourself if you want it sent"
                  if status == "ready to submit" else "Apply checks every answer again before it sends"}
     elif status == "ready to submit":
-        tone, label, kind = "ready", READY, "ready to submit"
+        tone, label, kind = "ready", f"{WORDS['verified'][0]} · {READY.lower()}" if verified else READY, "ready to submit"
         detail = "\n".join(filter(None, [
             "Nothing has been sent. This page is yours now: check it, and press Submit yourself to send it "
             "(it goes in your Tracker)", why and f"In a real run this would wait for your OK: {plain(why)}"]))
     elif status == "submitted":
-        tone, label, kind = "submitted", SENT, "submitted"
+        tone, label, kind = "submitted", f"{WORDS['verified'][0]} and sent" if verified else SENT, "submitted"
         detail = why
     elif status == "held":
         needs = {"kind": "held", "do": "Review and approve before it's sent", "why": plain(why),
@@ -267,6 +283,12 @@ def verdict(caption: dict) -> dict[str, str]:
     if kind:
         shown["kind"] = kind
     shown |= needs
+    if flags and needs.get("kind") == "check":
+        shown["flags"] = [{"field": f.get("field") or "", "why": f["why"]} for f in flags]
+    if verified:
+        shown["verified"] = True
+    if notes := [f for f in verification.get("flags") or [] if not f.get("holds")]:
+        shown["notes"] = [f"{f['field']}: {f['why']}" if f.get("field") else f["why"] for f in notes]
     if tone == "failed" and error:
         shown["error"] = error  # behind Details in the enlarged tile
     if system:
@@ -279,9 +301,9 @@ def summary(tiles: list[dict], items: list[dict] | None = None) -> str:
     "nothing sent yet · 1 needs you · 1 filling · 4 filled, not sent". With
     `items` (every Application this run ended), the ended ones are counted
     from them, so one stays counted once its Worker moves on; else from the tiles."""
-    words = {"needs": "needs you", "filling": "filling", "ready": "filled, not sent", "failed": "couldn't finish",
+    words = {"needs": "needs you", "filling": "filling", "verifying": "verifying", "ready": "filled, not sent", "failed": "couldn't finish",
              "ended": "skipped"}
-    ended = [t for t in tiles if t["tone"] == "filling"] + items if items is not None else tiles
+    ended = [t for t in tiles if t["tone"] in ("filling", "verifying")] + items if items is not None else tiles
     counts = Counter(words[t["tone"]] for t in ended if t["tone"] in words)
     parts = [f"{counts[w]} {'need you' if w == 'needs you' and counts[w] > 1 else w}" for w in words.values() if counts[w]]
     sent = sum(t["tone"] == "submitted" for t in ended)
@@ -638,7 +660,7 @@ class Dashboard:
             answered, approved = dict(self._answered), set(self._approved)
         for item in items:
             item |= verdict(item)
-            if item.get("kind") == "held" and item["id"] in approved:
+            if item.get("kind") in ("held", "check") and item["id"] in approved:
                 item["answered"] = True  # approved here: it waits on Lisul no more
             if item.get("kind") == "missing fact":
                 item["questions"] = [q for q in _questions(item) if f"{item['id']}|{q}" not in answered
@@ -950,7 +972,8 @@ class _Handler(BaseHTTPRequestHandler):
         except (ValueError, KeyError, TypeError):
             return self._json(400, {"error": "Not an approval."})
         item = next((i for i in self.dashboard.state()["items"]
-                     if str(i["id"]) == key and i.get("kind") == "held" and i.get("application_id") and not i.get("answered")), None)
+                     if str(i["id"]) == key and i.get("application_id")
+                     and (i.get("kind") == "held" or (i.get("kind") == "check" and i.get("status") == "held")) and not i.get("answered")), None)
         if item is None:
             return self._json(404, {"error": "That application no longer waits for your approval."})
         try:
