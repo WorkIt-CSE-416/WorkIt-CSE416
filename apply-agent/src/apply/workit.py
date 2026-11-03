@@ -468,14 +468,16 @@ def login(client: WorkIt, browser: Callable[[str, Callable[[dict[str, str]], Acc
 def chrome_sign_in(url: str, accept: Callable[[dict[str, str]], Account | None], chrome: str = CHROME_BINARY,
                    args: tuple[str, ...] = (), timeout: float = 900) -> Account:
     """Open `url` in a new Chrome with an empty profile and wait until the student signs in. Chrome is
-    started as a plain process, not by Playwright, so Google's sign-in accepts it; Apply only reads its
-    cookies through the DevTools port. Apply never types into it. Then it closes Chrome and deletes the profile."""
+    started as a plain process, not by Playwright; Apply only reads its cookies through the DevTools port.
+    That port alone sets navigator.webdriver, and Google's sign-in then refuses the browser (2026-11-03), so
+    Chrome starts with --disable-blink-features=AutomationControlled. Apply never types into it. Then it
+    closes Chrome and deletes the profile."""
     from playwright.sync_api import Error, sync_playwright
 
     with tempfile.TemporaryDirectory(prefix="apply-workit-login-", ignore_cleanup_errors=True) as profile:
         process = subprocess.Popen(
             [chrome, f"--user-data-dir={profile}", "--remote-debugging-port=0", "--no-first-run",
-             "--no-default-browser-check", *args, url],
+             "--no-default-browser-check", "--disable-blink-features=AutomationControlled", *args, url],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         try:

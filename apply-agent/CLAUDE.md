@@ -98,7 +98,9 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
   web app's session cookie through Chrome's DevTools port, as the extension
   reads it (`webapp-session.js`), and checks it with `GET /auth/me`. Then
   Apply closes that Chrome and deletes its profile. Chrome starts as a plain
-  process, not from Playwright, so Google's sign-in accepts it.
+  process, not from Playwright. Its DevTools port alone sets
+  `navigator.webdriver`, and Google's sign-in then refuses it (2026-11-03),
+  so it starts with `--disable-blink-features=AutomationControlled` too.
 - Because that browser is gone, only Apply has the session. Apply refreshes
   the access token itself at Supabase Auth
   (`/auth/v1/token?grant_type=refresh_token`, with the public anon key) and
