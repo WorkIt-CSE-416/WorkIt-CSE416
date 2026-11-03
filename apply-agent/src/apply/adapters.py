@@ -171,6 +171,10 @@ class Keychain(Protocol):
         """Save (or replace) the site's password."""
         ...
 
+    def forget(self, site: str) -> None:
+        """Remove the site's password, if it has one."""
+        ...
+
 
 @dataclass(frozen=True)
 class UsageReading:
