@@ -29,7 +29,7 @@ class Posting:
     url: str
     company: str
     title: str
-    status: str  # "published" or "unlisted"
+    added: bool = False  # a job WorkIt does not list, added by its link (added_by_student)
 
 
 @dataclass
@@ -54,6 +54,8 @@ class FakeTracker:
     applications: dict[str, Application] = field(default_factory=dict)  # by job id
     sent: dict[str, SentResume] = field(default_factory=dict)
     tailored_resumes: dict[str, bytes] = field(default_factory=dict)  # the PDF of each tailored resume, by job id
+    capped: bool = False  # WorkIt's daily cap of added jobs reached: a new added job is 429
+    retry_after: str | None = None  # the 429's Retry-After header, when WorkIt sends one
 
     def __post_init__(self):
         self._ids = itertools.count(1)
@@ -70,7 +72,7 @@ class FakeTracker:
     def listed(self, url: str, company: str, title: str) -> str:
         """A job WorkIt lists: its id."""
         job_id = f"00000000-0000-4000-9000-{next(self._ids):012d}"
-        self.postings[job_id] = Posting(job_id, url, company, title, "published")
+        self.postings[job_id] = Posting(job_id, url, company, title)
         self._job_routes(job_id)
         return job_id
 
@@ -104,20 +106,25 @@ class FakeTracker:
 
     def _listed_by_link(self, seen: Seen) -> Reply:
         posting = self.find(seen.body["url"])
-        if posting is None or posting.status != "published":
+        if posting is None or posting.added:
             return Reply(404, {"detail": "WorkIt doesn't list this job yet."})
         application = self.applications.get(posting.id)
         return Reply(200, {"job_id": posting.id, "stage": application and application.stage})
 
     def _added_by_link(self, seen: Seen) -> Reply:
         body = seen.body
+        if body.get("track_only") is not True:  # Write with Claude's add, which Apply never makes
+            return Reply(422, {"detail": "the fake serves Apply's adds only (track_only)"})
         posting = self.find(body["url"])
+        if posting is None and self.capped:  # services/daily_caps.py, KAN-478
+            return Reply(429, {"detail": "You added 50 jobs today. Try again tomorrow."},
+                         {"Retry-After": self.retry_after} if self.retry_after else {})
         if posting is None:
             job_id = f"00000000-0000-4000-a000-{next(self._ids):012d}"
-            posting = self.postings[job_id] = Posting(job_id, body["url"], body["company"], body["title"], "unlisted")
+            posting = self.postings[job_id] = Posting(job_id, body["url"], body["company"], body["title"], added=True)
             self._job_routes(job_id)
         application = self.applications.setdefault(posting.id, Application("saved"))
-        return Reply(200, {"job_id": posting.id, "status": posting.status, "stage": application.stage})
+        return Reply(200, {"job_id": posting.id, "stage": application.stage})
 
     def _list(self, seen: Seen) -> Reply:
         return Reply(200, [{
@@ -125,7 +132,7 @@ class FakeTracker:
                     "apply_url": self.postings[job_id].url},
             "stage": a.stage, "applied_at": a.applied_at,
             "sent_resume": {"id": a.sent_resume_id} if a.sent_resume_id else None,
-            "open": self.postings[job_id].status == "published",
+            "open": True,  # the fake has no closed job; an added one is open
         } for job_id, a in self.applications.items()])
 
     def _send_resume(self, seen: Seen) -> Reply:
@@ -180,9 +187,9 @@ class FakeTracker:
         if application is None:
             return Reply(404, {"detail": "You have no application for that job."})
         stage = seen.body["stage"]
-        if stage not in ("queued", "needs_you", *APPLIED):
+        if stage not in ("needs_you", *APPLIED):
             return Reply(422, {"detail": "stage"})
-        if stage in ("queued", "needs_you"):  # Apply's (KAN-544): never on an application already applied
+        if stage == "needs_you":  # Apply's (KAN-544): never on an application already applied
             if application.stage in APPLIED:
                 return Reply(409, {"detail": "You already applied to that job."})
             application.stage = stage
@@ -195,7 +202,7 @@ class FakeTracker:
 
     def _applied(self, job_id: str, seen: Seen) -> Reply:
         application = self.applications.get(job_id)
-        if application is None and self.postings[job_id].status != "published":
+        if application is None and self.postings[job_id].added:
             return Reply(404, {"detail": "Not Found"})
         application = self.applications.setdefault(job_id, Application("saved"))
         sent_id = (seen.body or {}).get("sent_resume_id")

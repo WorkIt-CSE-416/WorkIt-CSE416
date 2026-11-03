@@ -33,6 +33,7 @@ that cannot reach WorkIt (no answer, or no live login) waits in
 
 import base64
 import dataclasses
+import email.utils
 import fcntl
 import json
 import os
@@ -44,7 +45,9 @@ import urllib.request
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
+from datetime import time as dtime
+from email.message import Message
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -119,6 +122,16 @@ class Unreachable(WorkItError):
     """No answer from WorkIt (or Supabase Auth), or a server error."""
 
 
+class CapReached(WorkItError):
+    """WorkIt's daily cap refused the call (429; for Apply, the cap of 50 added jobs a day). `until` (epoch
+    seconds) is when to try again: the response's Retry-After, else the next UTC day (WorkIt's caps count UTC
+    days)."""
+
+    def __init__(self, message: str, until: float):
+        super().__init__(message, 429)
+        self.until = until
+
+
 class SignInClosed(WorkItError):
     """The sign-in browser closed, or the time ran out, before the student signed in."""
 
@@ -168,7 +181,9 @@ class WorkIt:
         """One API call as the signed-in student; its JSON answer. A refused token is refreshed one time.
         Raises NotLoggedIn, LoginExpired, Unreachable, or WorkItError for another refusal."""
         for attempt in range(2):
-            status, answer = _send(method, self.site.api + path, body, self._bearer(refresh=attempt > 0))
+            status, answer, headers = _send(method, self.site.api + path, body, self._bearer(refresh=attempt > 0))
+            if status == 429:
+                raise CapReached(f"{method} {path}: 429 {_detail(answer)}", _retry_at(headers.get("Retry-After")))
             if status == 401 and attempt == 0:
                 continue
             if status == 401:
@@ -195,9 +210,11 @@ class WorkIt:
         return self.call("GET", f"/applicants/{applicant_id}/applications")
 
     def add_by_link(self, url: str, company: str, title: str) -> tuple[str, str]:
-        """Put the job at `url` on the student's Applications Tracker (an unlisted job posting when WorkIt does not
-        list it): its job id and the student's stage on it, saved when it is new there."""
-        answer = self.call("POST", "/jobs/added-by-link", {"url": url, "company": company, "title": title})
+        """Put the job at `url` on the student's Applications Tracker (an added job when WorkIt does not list it):
+        its job id and the student's stage on it, saved when it is new there. `track_only` is Apply's form of
+        the extension's Write with Claude add: any link, a closed job kept as it is, and no stage moved."""
+        answer = self.call("POST", "/jobs/added-by-link",
+                           {"url": url, "company": company, "title": title, "track_only": True})
         return str(answer["job_id"]), answer["stage"]
 
     def send_resume(self, applicant_id: str, job_id: str, path: Path) -> str:
@@ -268,7 +285,7 @@ class WorkIt:
         if session is None or session["access_token"] == self._tried:
             return None
         self._tried = session["access_token"]
-        status, answer = _send("GET", self.site.api + "/auth/me", None, session["access_token"])
+        status, answer, _ = _send("GET", self.site.api + "/auth/me", None, session["access_token"])
         if status != 200:
             return None
         self._save(session)
@@ -281,7 +298,7 @@ class WorkIt:
                 raise NotLoggedIn(f"no WorkIt login in {self.login}")
             if not refresh and saved["expires_at"] - EARLY > time.time():
                 return saved["access_token"]
-            status, answer = _send("POST", self.site.auth + "/auth/v1/token?grant_type=refresh_token",
+            status, answer, _ = _send("POST", self.site.auth + "/auth/v1/token?grant_type=refresh_token",
                                    {"refresh_token": saved["refresh_token"]}, None, apikey=self.site.anon_key)
             if status != 200:
                 raise LoginExpired(f"Supabase refused the refresh token: {_detail(answer)}")
@@ -315,16 +332,17 @@ class WorkIt:
 
 
 # Each Applications Tracker stage Apply writes, as the tracker names it.
-SHOWN = {Stage.APPLIED: "Applied", Stage.NEEDS_YOU: "Needs you", Stage.QUEUED: "Queued"}
+SHOWN = {Stage.APPLIED: "Applied", Stage.NEEDS_YOU: "Needs you"}
 
 
 @dataclass(frozen=True)
 class Write:
     """One change to the student's Applications Tracker: the job (by its link,
-    company and title) goes to `stage` (Stage.APPLIED, NEEDS_YOU or QUEUED).
+    company and title) goes to `stage` (Stage.APPLIED or NEEDS_YOU).
     `resume`, for applied, is the file the form was given, kept as the
     application's Sent resume. `application_id` is Apply's, so a later write
-    for the same Application replaces one still waiting."""
+    for the same Application replaces one still waiting. `not_before` keeps
+    a write WorkIt's daily cap refused (429) until the cap resets."""
 
     application_id: str
     link: str
@@ -332,6 +350,15 @@ class Write:
     title: str
     stage: str
     resume: str = ""
+    not_before: float = 0.0  # epoch seconds: past WorkIt's daily cap, the write waits until then
+
+
+def cap_wait(write: Write) -> str:
+    """'waits for WorkIt's daily cap ... until <local time>' for a write the cap holds back now, else ''."""
+    if write.not_before <= time.time():
+        return ""
+    when = datetime.fromtimestamp(write.not_before).strftime("%Y-%m-%d %H:%M")
+    return f"waits for WorkIt's daily cap of added jobs until {when}"
 
 
 class WaitingWrites:
@@ -363,25 +390,31 @@ class WaitingWrites:
         return self._read()
 
     def _flush(self) -> dict[str, str]:
-        """Send the queue in order, until WorkIt cannot be reached. What happened to each, by Application."""
-        said, waiting = {}, self._read()
-        while waiting:
-            write = waiting[0]
+        """Send the queue in order, until WorkIt cannot be reached. A write the daily cap holds back stays and
+        is not sent before its `not_before`. What happened to each, by Application."""
+        said, waiting, kept = {}, self._read(), []
+        for at, write in enumerate(waiting):
+            if cap_wait(write):
+                said[write.application_id] = f"kept to send to your Applications Tracker: it {cap_wait(write)}"
+                kept.append(write)
+                continue
             try:
                 said[write.application_id] = self._deliver(write)
             except (NotLoggedIn, LoginExpired) as error:
-                for w in waiting:
+                for w in waiting[at:]:
                     said[w.application_id] = f"kept to send to your Applications Tracker later ({error}): " \
                                              "run `apply login`"
                 break
             except Unreachable as error:
-                for w in waiting:
+                for w in waiting[at:]:
                     said[w.application_id] = f"kept to send to your Applications Tracker later ({error})"
                 break
+            except CapReached as error:
+                kept.append(dataclasses.replace(write, not_before=error.until))
+                said[write.application_id] = f"kept to send to your Applications Tracker: it {cap_wait(kept[-1])}"
             except WorkItError as error:  # refused for good: sending it again would fail again
                 said[write.application_id] = f"not in your Applications Tracker: WorkIt refused it ({error})"
-            waiting = waiting[1:]
-            self._keep(waiting)
+            self._keep(kept + waiting[at + 1:])
         return said
 
     def _deliver(self, write: Write) -> str:
@@ -403,7 +436,9 @@ class WaitingWrites:
 
     def _read(self) -> list[Write]:
         try:
-            return [Write(**w) for w in json.loads(self.path.read_text())]
+            # A Hold an older Apply kept as queued goes as needs_you (KAN-544).
+            return [Write(**{**w, "stage": Stage.NEEDS_YOU if w["stage"] == Stage.QUEUED else w["stage"]})
+                    for w in json.loads(self.path.read_text())]
         except FileNotFoundError:
             return []
 
@@ -499,8 +534,9 @@ def _session(cookies: dict[str, str], name: str) -> dict | None:
     return session
 
 
-def _send(method: str, url: str, body: Any, token: str | None, apikey: str | None = None) -> tuple[int, Any]:
-    """The status and JSON answer. No answer, or a 5xx, is Unreachable."""
+def _send(method: str, url: str, body: Any, token: str | None, apikey: str | None = None
+          ) -> tuple[int, Any, Message]:
+    """The status, JSON answer and headers. No answer, or a 5xx, is Unreachable."""
     headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
     if body is not None:
         headers["Content-Type"] = "application/json"
@@ -512,17 +548,30 @@ def _send(method: str, url: str, body: Any, token: str | None, apikey: str | Non
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
-            status, raw = response.status, response.read()
+            status, raw, headers = response.status, response.read(), response.headers
     except urllib.error.HTTPError as error:
-        status, raw = error.code, error.read()
+        status, raw, headers = error.code, error.read(), error.headers
     except (OSError, urllib.error.URLError) as error:
         raise Unreachable(f"{urlsplit(url).netloc}: {getattr(error, 'reason', error)}") from None
     if status >= 500:
         raise Unreachable(f"{urlsplit(url).netloc}: {status}")
     try:
-        return status, json.loads(raw) if raw else None
+        return status, json.loads(raw) if raw else None, headers
     except ValueError:
-        return status, raw.decode(errors="replace")[:200]
+        return status, raw.decode(errors="replace")[:200], headers
+
+
+def _retry_at(retry_after: str | None) -> float:
+    """When to try a capped call again: Retry-After (seconds or an HTTP date), else the next UTC midnight."""
+    if retry_after:
+        if retry_after.strip().isdigit():
+            return time.time() + int(retry_after)
+        try:
+            return email.utils.parsedate_to_datetime(retry_after).timestamp()
+        except (TypeError, ValueError):
+            pass
+    tomorrow = datetime.now(UTC).date() + timedelta(days=1)
+    return datetime.combine(tomorrow, dtime(), UTC).timestamp()
 
 
 def _detail(answer: Any) -> str:

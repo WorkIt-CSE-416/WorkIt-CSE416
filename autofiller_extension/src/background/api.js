@@ -795,6 +795,19 @@ export async function listedJobByLink(url) {
 }
 
 /**
+ * POST /jobs/added-by-link: the job of the form at `url`, added from the page
+ * (its company and title, as the Fill engine reads them from the job system)
+ * when WorkIt doesn't list it, with the student's application at needs_you:
+ * Write with Claude on a form they opened themselves (KAN-515). The added job
+ * is on no Jobs feed; a 404 says why WorkIt can't take the form.
+ * @param {{ url: string, company: string, title: string }} page
+ * @returns {Promise<{ job_id: string, stage: string }>}
+ */
+export async function addJobByLink(page) {
+  return apiFetch("/jobs/added-by-link", { method: "POST", body: JSON.stringify(page) });
+}
+
+/**
  * POST /jobs/{job_id}/saved: keeps the job in the student's Applications as
  * saved, or keeps the stage it already has (Track on WorkIt, KAN-424).
  * @param {string} jobId

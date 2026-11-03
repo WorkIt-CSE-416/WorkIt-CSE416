@@ -11,20 +11,15 @@ import uuid
 from typing import Any, NamedTuple
 from urllib.parse import parse_qs, urlsplit
 
-from sqlalchemy import and_, case, delete, func, or_, select
+from sqlalchemy import and_, case, delete, func, not_, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.applications import Job_Application
-from app.models.dto import (
-    BEFORE_APPLIED,
-    application_stage,
-    experience_level,
-    job_post_status,
-)
+from app.models.dto import BEFORE_APPLIED, application_stage, job_post_status
 from app.models.jobs import Job_Post
 from app.models.sent_resume import Sent_Resume
-from app.queries.jobs.filters import LISTED
+from app.queries.jobs.filters import LISTED, OPEN
 from app.services.postings import tracked_by
 
 # mark_applied's default: leave the application's sent resume as it is.
@@ -79,12 +74,13 @@ async def mark_applied(
 ) -> datetime.datetime | None:
     '''
     marks this job as applied and answers when, or None for a job that isn't
-    in the feed: the same jobs GET /jobs/{job_id} shows, since a seeker can't
-    apply to the rest, and the scraped postings this applicant already has
-    an application on: unlisted (KAN-542), or closed by the feed since
-    (KAN-544, `postings.tracked_by`). With `sent_resume_id` (checked by
-    `sent_to_job` first), the application names that sent resume, or none for
-    None; the default leaves what it names as it is
+    in the feed, and isn't a scraped posting this applicant already has an
+    application on (`postings.tracked_by`): one they added from its form
+    (KAN-515), whose tracked tab's submit marks it, or one the feed closed
+    since (KAN-544). Another student's added job is a 404, as it is to read.
+    With `sent_resume_id` (checked by `sent_to_job` first), the application
+    names that sent resume, or none for None; the default leaves what it
+    names as it is
     '''
     listed = await db.scalar(
         select(Job_Post.id).where(Job_Post.id == job_id, or_(LISTED, tracked_by(applicant_id)))
@@ -203,7 +199,7 @@ def _bare_link(link):
 
 
 def bare_link(url: str) -> str:
-    """_bare_link's rule in Python: the feed import compares a few unlisted postings with the whole feed"""
+    """_bare_link's rule in Python: the feed import compares a few added jobs with the whole feed"""
     no_scheme = re.sub(r"^[a-z][a-z0-9+.-]*://(www\.)?", "", url, flags=re.IGNORECASE)
     return no_scheme.split("#", 1)[0].split("?", 1)[0].rstrip("/").lower()
 
@@ -274,43 +270,80 @@ async def listed_job_by_link(db: AsyncSession, url: str) -> uuid.UUID | None:
     return await _job_by_link(db, url, LISTED)
 
 
-# A scraped posting that is not listed now: unlisted, or closed or paused by the feed
-_UNPUBLISHED = and_(Job_Post.company_id.is_(None), Job_Post.status != job_post_status.published)
+# A scraped job no feed lists now: one a student added (KAN-515), or one the feed closed or paused
+_NOT_LISTED = and_(Job_Post.company_id.is_(None), not_(LISTED))
 
 
-class AddedByLink(NamedTuple):
-    job_id: uuid.UUID
-    status: job_post_status
-    stage: application_stage
-
-
-async def add_by_link(
-    db: AsyncSession, applicant_id: uuid.UUID, url: str, company: str, title: str, level: str
-) -> AddedByLink | None:
+async def job_with_link(db: AsyncSession, url: str) -> tuple[uuid.UUID, bool] | None:
     '''
-    puts the job at `url` on this applicant's Applications Tracker (KAN-542,
-    ADR 0008) and answers the posting and their stage. The listed job with
-    that link first (listed_job_by_link), else a scraped posting the feed no
-    longer lists (an unlisted one, or a closed one: its link is unique), else
-    a new unlisted posting with the company, title and level given. A job
-    with no application yet is saved; one that has one keeps its stage, as
-    save_job does. The new application keeps the company and title given:
-    on an unlisted posting the student sees their own text, never the text
-    of the student who made it (postings.typed_text). None when the link is
-    a company's own posting
+    the scraped job no feed lists whose apply link is the page at `url`, by
+    listed_job_by_link's three rules: a job a student added from that form
+    (KAN-515), or one the feed import closed. With whether it is open (OPEN).
+    None when there is none
     '''
-    job_id = await listed_job_by_link(db, url) or await _job_by_link(db, url, _UNPUBLISHED)
+    job_id = await _job_by_link(db, url, _NOT_LISTED)
     if job_id is None:
-        # Two adds of one link at once: the second insert does nothing and the select finds the first.
-        job_id = await db.scalar(
-            insert(Job_Post)
-            .values(apply_url=url, company_name=company, title=title, status=job_post_status.unlisted,
-                    experience_level=experience_level(level))
-            .on_conflict_do_nothing(index_elements=["apply_url"])
-            .returning(Job_Post.id)
-        ) or await db.scalar(select(Job_Post.id).where(Job_Post.apply_url == url, Job_Post.company_id.is_(None)))
-        if job_id is None:
-            return None
+        return None
+    return job_id, bool(await db.scalar(select(OPEN.label("open")).where(Job_Post.id == job_id)))
+
+
+async def add_job(db: AsyncSession, url: str, company: str, title: str) -> uuid.UUID | None:
+    '''
+    keeps the job a student added from its form (KAN-515) and answers its id:
+    a new row marked added_by_student. Never touches a job that already has
+    the link: a closed scraped job stays closed, with the feed's company and
+    title, so no student can reopen or rewrite it for everyone (the router
+    refuses that form, or tracks it as it is). None when the link is a
+    company's own posting. Flushes; the caller commits
+    '''
+    job_id = await db.scalar(
+        insert(Job_Post).values(
+            apply_url=url, company_name=company, title=title,
+            status=job_post_status.published, added_by_student=True,
+        )
+        .on_conflict_do_nothing(index_elements=["apply_url"])
+        .returning(Job_Post.id)
+    )
+    # Another student's add of the same form at once: theirs is the job.
+    return job_id or await db.scalar(
+        select(Job_Post.id).where(Job_Post.apply_url == url, Job_Post.company_id.is_(None)))
+
+
+async def hold_for_writing(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, company: str, title: str
+) -> application_stage:
+    '''
+    gives this applicant's application for this job the needs_you stage, as
+    Write with Claude on a form they opened themselves does (KAN-470): a new
+    one, or a saved or queued one, so a batch never opens it. One past the form
+    (applied, skipped...) keeps its stage. A new one keeps the company and
+    title given, which this student sees on an added job (postings.typed_text,
+    KAN-542). Answers the stage; commits
+    '''
+    await db.execute(
+        insert(Job_Application)
+        .values(applicant_id=applicant_id, job_id=job_id, stage=application_stage.needs_you, applied_at=None,
+                company_name=company, title=title)
+        .on_conflict_do_update(
+            index_elements=["applicant_id", "job_id"],
+            set_={"stage": application_stage.needs_you},
+            where=Job_Application.stage.in_((application_stage.saved, application_stage.queued)),
+        )
+    )
+    await db.commit()
+    return await application_stage_of(db, applicant_id, job_id)
+
+
+async def track(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, company: str, title: str
+) -> application_stage:
+    '''
+    puts this job on this applicant's Applications Tracker for Apply
+    (`track_only`, KAN-544, KAN-545): a new application at saved, with the
+    company and title given (as hold_for_writing keeps them); one they have
+    keeps its stage, as save_job does. Apply sets the stage after. Answers
+    the stage; commits
+    '''
     await db.execute(
         insert(Job_Application)
         .values(applicant_id=applicant_id, job_id=job_id, stage=application_stage.saved, applied_at=None,
@@ -318,9 +351,4 @@ async def add_by_link(
         .on_conflict_do_nothing(index_elements=["applicant_id", "job_id"])
     )
     await db.commit()
-    row = (await db.execute(
-        select(Job_Post.status, Job_Application.stage)
-        .join(Job_Application, Job_Application.job_id == Job_Post.id)
-        .where(Job_Post.id == job_id, Job_Application.applicant_id == applicant_id)
-    )).one()
-    return AddedByLink(job_id, row.status, row.stage)
+    return await application_stage_of(db, applicant_id, job_id)

@@ -27,6 +27,8 @@ class Capped(StrEnum):
     FILL_REPORT = "fill_report"
     JOB_SYSTEM_REQUEST = "job_system_request"
     FILL_EVENT = "fill_event"
+    # A job a student added from its form (KAN-515, POST /jobs/added-by-link).
+    ADDED_JOB = "added_job"
 
 
 # What the 429 says, which the extension shows as it is.
@@ -35,6 +37,7 @@ REFUSALS = {
     Capped.JOB_SYSTEM_REQUEST: "You've sent a lot of requests today. Try again tomorrow.",
     # Never shown: the extension drops a refused fill event.
     Capped.FILL_EVENT: "This account sent its fill numbers for today.",
+    Capped.ADDED_JOB: "You've added a lot of jobs today. Write this answer yourself, or try again tomorrow.",
 }
 
 

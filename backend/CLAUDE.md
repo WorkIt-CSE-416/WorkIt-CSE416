@@ -66,19 +66,18 @@ module docstring has the steps.
   scraped row written any other way never shows up in the location or role
   filter (`app/models/CLAUDE.md`, the resolver sections). Its report ends with
   the titles that named no role, most jobs first: the list to grow the aliases
-  from. The one other scraped-shape row is an **unlisted job posting**
-  (KAN-542, `POST /jobs/added-by-link`), which no student search sees, so
+  from. The one other scraped-shape row is a **job a student added**
+  (KAN-515, `POST /jobs/added-by-link`), which no student search sees, so
   it needs no locations or tags until the import lists it.
-- **It takes over an unlisted job posting** (KAN-542, ADR 0008,
-  `_take_over_unlisted`): before the upsert, an unlisted posting
-  (`services/postings.py`'s `UNLISTED`, the same rule the API uses) whose job
+- **It takes over a job a student added** (KAN-542, ADR 0008,
+  `_take_over_added`): before the upsert, an added job
+  (`services/postings.py`'s `ADDED`, the same rule the API uses) whose job
   the feed has under another form of the link (the same Greenhouse job, or
   the same bare link when only one feed job has it) moves onto the feed's
-  link, so the upsert fills it in and publishes it, with the student's
-  application still on it. One that already has the feed's link needs no
-  move. It never moves onto a link another posting holds. The close step
-  touches only published jobs, so an unlisted one the feed lacks stays
-  unlisted. Tests: `tests/test_import_takeover.py`.
+  link, so the upsert fills it in and clears `added_by_student`, with the
+  student's application still on it. One that already has the feed's link
+  needs no move. It never moves onto a link another posting holds. Tests:
+  `tests/test_import_takeover.py`.
 - **It refuses (exit 2, nothing written) when `job_roles` lacks a slug the
   aliases name**, which is what it does before the role migrations
   (`362182aaa4fd`, `ab07572bba38`) are applied. The API reads those tables and
@@ -107,6 +106,17 @@ module docstring has the steps.
   find a bad close, read the jobs one run closed (`closes_at`) by reason,
   then fix its cause and re-run: a job back in the feed reopens. Reopening
   by hand does nothing, since the next import closes a job the feed lacks.
+- **A job a student added from its form** (`job_postings.added_by_student`,
+  KAN-515, `POST /jobs/added-by-link`) is never closed, embedded or given
+  keywords by the import, since the feed never had it; a feed that lists its
+  link makes it an ordinary scraped job (the flag clears), keeping every
+  application on it. No feed reads it: `services/postings.py`'s `LISTED`
+  leaves it out, and only queries of an applicant's own applications read
+  `OPEN`, which keeps it. A closed scraped job's link is refused (404), never
+  reopened or retitled from the request: that would change the job for every
+  student and send queued applications back into their batches. Apply's
+  `track_only` add puts the student's application on the closed job as it
+  is, which changes neither.
 - The feed's `roles` keys (KAN-172) are ignored: `JobListing` doesn't declare
   them, so a new scraper key never fails the import. A job's roles are its
   `job_role_tags`, resolved from its title (KAN-155).
@@ -525,36 +535,40 @@ Find files with a directory listing; these are the rules for where code goes.
   /jobs/{id}/applied`. It is a POST so the page's link travels in the body;
   a GET under `/jobs/` would also meet jobs.py's `/{job_id}` first, since
   that router is included first. Tests: `tests/test_saved_jobs.py`.
-  **Add a job by its link** (KAN-542, `POST /jobs/added-by-link`,
-  `add_by_link`, `../docs/adr/0008-unlisted-job-postings.md`): Apply's
-  writes and the Tracker Sheet import put a job on the student's
-  Applications Tracker by its link. The listed job by the rules above,
-  else a scraped posting the feed closed or one already unlisted (its link
-  is unique, so a new row would fail), else a new **unlisted job posting**
-  (status `unlisted`: company, title, link, level). The student's
-  application on it is saved unless one exists. **Each student sees their
-  own company and title on an unlisted posting**: the application keeps the
-  text the student typed (`job_applications.company_name`, `title`), and
-  the tracker list shows it through `postings.typed_text` while the posting
-  is unlisted. A second student on the same link never sees the first
-  student's text. A new query that shows a student's applications must use
-  `typed_text` too. Only a student with an
-  application on an unlisted posting reaches it: `LISTED` leaves it out
-  of the Jobs page, search, Scout and every `postings.listed` caller, and
-  `mark_applied` takes it only with the student's application
-  (`services/postings.py`'s `UNLISTED`, compared as text: models/CLAUDE.md).
-  Tests: `tests/test_unlisted_postings.py`. A Sent resume
-  (`services/sent_resumes.py`) and `mark_applied` take a listed posting or
-  one `postings.tracked_by` the student (KAN-544): a scraped posting they
-  have an application on, unlisted or closed by the feed since. Tests:
-  `tests/test_sent_resumes.py` (`-k "unlisted or closed_after"`). The
+  **Apply adds a job by its link with `track_only`** (KAN-542, `POST
+  /jobs/added-by-link`, `../docs/adr/0008-unlisted-job-postings.md`):
+  Apply's writes and the Tracker Sheet import put a job on the student's
+  Applications Tracker by its link, through the route the extension's Write
+  with Claude uses (KAN-515), with `"track_only": true`. The listed job by
+  the rules above, else a scraped job no feed lists (an added one, or one
+  the feed closed: `job_with_link`, the same three rules), else a new
+  **added job** (`add_job`: `added_by_student`, published, only company,
+  title and link). `track_only` takes any web link, not only a form auto
+  apply fills; a closed job gets the application and stays closed, as it
+  is (never reopened or retitled); and the application is saved unless one
+  exists (`track`), where Write with Claude moves it to needs_you. New jobs
+  count against `ADDED_JOB_DAILY_CAP` either way. **Each student sees their
+  own company and title on an added job**: the application keeps the text
+  the student typed (`job_applications.company_name`, `title`), and the
+  tracker list shows it through `postings.typed_text` while the job is an
+  added one (`ADDED`). A second student on the same link never sees the
+  first student's text. A new query that shows a student's applications
+  must use `typed_text` too. No feed reads an added job: `LISTED` leaves
+  it out of the Jobs page, search, Scout and every `postings.listed`
+  caller. Status `unlisted` is unused (models/CLAUDE.md). Tests:
+  `tests/test_added_jobs.py`, `tests/test_unlisted_postings.py`. A Sent
+  resume (`services/sent_resumes.py`) and `mark_applied` take an open
+  posting or one `postings.tracked_by` the student (KAN-544): a scraped
+  posting they have an application on, added or closed by the feed since.
+  Tests: `tests/test_sent_resumes.py` (`-k "added or closed_after"`). The
   file Apply attached becomes a Sent resume as it is (`send_file`, `POST
   .../sent-resumes/file`: a base64 PDF, stored once per content at
   `<applicant_id>/sent/<sha256>.pdf`; `../docs/sent_resume.md`, flow 6a).
   **Apply's stages** (KAN-544): the stage PUT (`routers/tracker.py`,
-  `queries/tracker.py` `set_stage`) also takes needs_you (an Apply Handoff
-  or a missing fact) and queued (a held application), but only on an
-  application that is not applied: an applied or later one answers 409
+  `queries/tracker.py` `set_stage`) also takes needs_you (an Apply Handoff,
+  a missing fact or a held application), but only on an application that
+  is not applied. It never takes queued (422): queued is the batch apply
+  queue, and the extension would fill the application. Not applied: an applied or later one answers 409
   (`AlreadyApplied`) and keeps its stage, so Apply never moves a record
   back. Tests: `tests/test_tracker.py`.
   **A student's writing samples and style card** (KAN-384) are
@@ -654,8 +668,8 @@ Find files with a directory listing; these are the rules for where code goes.
   from Apply with no company (no `first_seen`) that names a company WorkIt
   knows (`written.companies_named`; the student's own places don't count)
   is that company's answer. The companies WorkIt knows
-  (`queries.fetch_company_names`) never include an unlisted posting's
-  company: one student typed it (KAN-542). **The student's own words win**
+  (`queries.fetch_company_names`) never include an added job's company:
+  one student typed it (KAN-515, KAN-542). **The student's own words win**
   (KAN-379): the student's words in a tab (`PUT .../answers`, `own` true:
   written into a field WorkIt didn't fill, or replacing what it filled) set
   the row's `own`, which their Claude's later save never overwrites and
@@ -727,9 +741,11 @@ Find files with a directory listing; these are the rules for where code goes.
   and its text never reaches a model. The one exception: a tailored
   resume's keyword match against its own posting, which still works after
   the posting closes. A route that loads a `Job_Post` by id alone skips
-  this check. An unlisted job posting (KAN-542) is never listed: only the
+  this check. A job a student added (KAN-515) is never listed: only the
   tracker, `POST /jobs/{id}/applied` and a Sent resume reach it, for the
-  students with an application on it (`postings.reachable`, KAN-544).
+  students with an application on it, and so does a scraped job the feed
+  closed after they tracked it (`postings.reachable`, KAN-544). So the
+  panel's resume switch on an added job works.
 - **Identity fields load through `app/services/identity.py`**
   (`load_identity`), for Scout's model seam and the bank embedding alike.
   A resume's header prints them from `built_resumes.load_header_identity`

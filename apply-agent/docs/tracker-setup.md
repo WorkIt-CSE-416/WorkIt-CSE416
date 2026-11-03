@@ -25,7 +25,7 @@ uv run apply login
 | handoff, missing fact | **Needs you** |
 | held | **Queued** |
 
-- Apply finds the job by its link. When WorkIt does not list the job, Apply adds it as an unlisted job posting that only you see.
+- Apply finds the job by its link. When WorkIt does not list the job, Apply adds it as an added job that only you see.
 - A later status for the same job moves the same row. Needs you and Queued never move a job that is already Applied (or later) back.
 - A rehearsal that you do not submit writes nothing.
 - The Sent resume is the copy of the resume in the data folder's `sent/<date>/<application>/` folder.

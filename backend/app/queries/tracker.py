@@ -108,9 +108,9 @@ async def set_stage(
     '''
     the stage menu: moves the application to `stage`, any direction, and
     answers it; None when there is no application. `stage` is applied or
-    later, or (Apply, KAN-544) needs_you or queued, which only an
-    application not applied yet takes: AlreadyApplied otherwise, so a
-    record never goes back to the queue. Those two leave applied_at as it
+    later, or (Apply, KAN-544) needs_you, which only an application not
+    applied yet takes: AlreadyApplied otherwise, so a record never goes
+    back to needs_you. needs_you leaves applied_at as it
     is (null: the application was never applied) and ignore `applied_on`.
     `applied_on`, when given, becomes its applied date (the Tracker Sheet
     import, KAN-545)
@@ -121,7 +121,7 @@ async def set_stage(
     if stage in APPLIED_STAGES:
         await _move(db, applicant_id, job_id, stage, applied_on)
     else:
-        assert stage in (application_stage.needs_you, application_stage.queued)
+        assert stage == application_stage.needs_you
         if current in APPLIED_STAGES:
             raise AlreadyApplied(current)
         await db.execute(
@@ -220,7 +220,7 @@ async def fetch_events(
 
 
 class AlreadyApplied(Exception):
-    '''needs_you or queued asked for an application that is applied or
+    '''needs_you asked for an application that is applied or
     later; its stage stays'''
 
     def __init__(self, stage: application_stage):

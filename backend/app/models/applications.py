@@ -63,11 +63,11 @@ class Job_Application(Base):
     # scraped postings never publish. A date, not an instant, so it is the
     # same day in every zone. NULL while none is set
     apply_by: Mapped[datetime.date | None] = mapped_column(Date)
-    # The company and title this student typed when they added the job by
-    # its link (KAN-542, ADR 0008). Shown to this student only while the
-    # posting is unlisted (services/postings.py, typed_text), so a second
-    # student on the same link never sees the first one's text. NULL for a
-    # job saved or queued any other way
+    # The company and title this student typed when they added the job
+    # (d3f5a7c9e162, KAN-542). Shown to this student only while the job is
+    # an added one (services/postings.py, typed_text), so a second student
+    # on the same link never sees the first one's text. NULL for a job saved
+    # or queued any other way
     company_name: Mapped[str | None] = mapped_column(Text)
     title: Mapped[str | None] = mapped_column(Text)
 

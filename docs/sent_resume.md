@@ -461,7 +461,7 @@ a submit it sends that file to `POST .../sent-resumes/file` as
 The same file sent to two postings is stored once (flow 8 removes it when
 the last row goes); the same file sent again to one posting returns the
 last row. Then Apply marks the job applied with that `sent_resume_id`. The
-posting can be an unlisted one that the student added by its link, or one
+posting can be a job the student added by its link (an added job), or one
 the feed closed since (`postings.reachable`).
 
 ### 7. Open a sent resume

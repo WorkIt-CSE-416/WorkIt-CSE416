@@ -12,7 +12,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.models.dto import application_stage, job_post_status
+from app.models.dto import application_stage
 from app.schemas.jobs import Highlight, JobListing
 from app.schemas.sent_resume import SentResumeResponse
 
@@ -56,14 +56,20 @@ class JobByLink(BaseModel):
 
 
 class AddByLink(BaseModel):
-    """POST /jobs/added-by-link (KAN-542): a job's link, and what WorkIt keeps
-    when it does not list the job: the company, the title and who the job is
-    for (a student's, unless the caller knows better)."""
+    """POST /jobs/added-by-link: the form the student is on and its job's
+    company and title, as the Fill engine reads them from the job system
+    (KAN-515). Each is trimmed; a blank one is refused.
+
+    `track_only` is Apply's (KAN-544, KAN-545): it puts the job on the
+    student's Applications Tracker and nothing more. Any web link is taken,
+    not only a form auto apply fills; a scraped job the feed closed keeps
+    its status and text and gets the application; and a new application is
+    saved, while one the student has keeps its stage."""
 
     url: str = Field(max_length=2048)
-    company: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
-    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
-    experience_level: Literal["student", "new_grad", "experienced"] = "student"
+    company: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
+    track_only: bool = False
 
     @field_validator("url")
     @classmethod
@@ -72,17 +78,6 @@ class AddByLink(BaseModel):
         if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
             raise ValueError("Give the job's web link (http or https).")
         return url.strip()
-
-
-class JobAddedByLink(BaseModel):
-    """POST /jobs/added-by-link: the job posting the link is, its status
-    (published when WorkIt lists it, unlisted when this route made it, or
-    closed or paused for one WorkIt listed before), and the applicant's
-    stage for it after the add."""
-
-    job_id: uuid.UUID
-    status: job_post_status
-    stage: application_stage
 
 
 class JobSaved(BaseModel):
@@ -128,12 +123,9 @@ class Application(BaseModel):
     # The sent resume it went out with (KAN-267): job_applications'
     # `sent_resume_id`, null when none was sent or it was since deleted.
     sent_resume: SentResumeResponse | None = None
-    # False once the job posting has closed: the extension skips it.
+    # False once the job posting has closed: the extension skips it. True
+    # on a job a student added (KAN-515), which is open though no feed lists it.
     open: bool
-    # A job the student added by its link because WorkIt does not list it
-    # (KAN-542, ADR 0008). Not closed, though `open` is False: the extension
-    # and the queue still skip it, and the tracker shows it open.
-    unlisted: bool = False
     # The Jobs page's match score (0-100) for this job posting, on ?scored=true
     # only (KAN-256). Null otherwise, for a closed job posting, and while the
     # experience bank is empty.

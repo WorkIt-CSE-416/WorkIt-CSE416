@@ -65,11 +65,11 @@ The most Matches applied to (submitted or held) in one day, local time, kept in 
 _Avoid_: daily limit, quota, rate limit
 
 **Tracker**:
-Apply's own working state, one row per Application, in a file in the data folder (`tracker.json`). It keeps each Application's status, the Holds Lisul approves and the Missing facts he answers in the Apply window. It also keeps the Requests, the Employer accounts and the Answer bank list. It is not the record of what he applied to: WorkIt's Applications Tracker is the record. Each new status is also written there: submitted as Applied with the resume sent, handoff and missing fact as Needs you, held as Queued. The Google Sheet that held it before, the **Tracker Sheet**, is retired. Apply only reads it, one time, to copy its rows in and to import its submitted rows into WorkIt.
+Apply's own working state, one row per Application, in a file in the data folder (`tracker.json`). It keeps each Application's status, the Holds Lisul approves and the Missing facts he answers in the Apply window. It also keeps the Requests, the Employer accounts and the Answer bank list. It is not the record of what he applied to: WorkIt's Applications Tracker is the record. Each new status is also written there: submitted as Applied with the resume sent, handoff, missing fact and held as Needs you (never as Queued: on WorkIt, Queued is the batch apply queue that the extension fills). The Google Sheet that held it before, the **Tracker Sheet**, is retired. Apply only reads it, one time, to copy its rows in and to import its submitted rows into WorkIt.
 _Avoid_: ledger, log, dashboard
 
 **Waiting write**:
-A write to WorkIt's Applications Tracker that could not reach WorkIt (no answer, or no live login), kept in the data folder (`workit-queue.json`) and sent first by the next run or rehearsal. `apply doctor` lists them. A later status of the same Application replaces one still waiting.
+A write to WorkIt's Applications Tracker that could not reach WorkIt (no answer, or no live login) or that WorkIt's daily cap of added jobs refused, kept in the data folder (`workit-queue.json`) and sent first by the next run or rehearsal. A write the cap refused is not sent again until the cap resets (the next UTC day, or when WorkIt's Retry-After says). `apply doctor` lists them, and says which wait for the cap. A later status of the same Application replaces one still waiting.
 _Avoid_: retry queue, outbox
 
 **WorkIt client**:
