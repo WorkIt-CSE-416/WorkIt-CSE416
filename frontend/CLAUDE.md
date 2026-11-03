@@ -1559,7 +1559,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   it answers to shadcn's variant names so pasted shadcn code composes.
   `shadcn/button.tsx` re-exports it and an ESLint rule keeps app code on the
   canonical path (likewise `badge` and `card`). A control's styling belongs in
-  its component, not at the call site.
+  its component, not at the call site. **A button's label never wraps**
+  (`whitespace-nowrap` in its base, KAN-572): a row too narrow for its
+  buttons wraps the row (onboarding's footer), never a label, which made a
+  48px button 68px tall.
 - **Icons are Phosphor's, from `@phosphor-icons/react/ssr`** (KAN-350),
   through the wrappers in `components/icons.tsx` or a route's own
   `icons.tsx`. Lucide is gone (it read as every AI app's default) and the
@@ -2300,8 +2303,9 @@ are in `docs/auth.md`.
   `onboarding/applicant/claude-step.tsx`): the install link from
   `claudeConnectorLink()`, read in `page.tsx` and passed down, and
   `getClaudeConnected` asked every 3 seconds while the page shows, so the
-  line turns done without a reload. Skip goes on to the practice batch.
-  The wizard's pages are `WIZARD_PAGES` in `steps.ts`, the rail's marks
+  line turns done without a reload. Its main button is Skip for Now,
+  which goes on to the practice batch, until Claude is added; then Next
+  (KAN-572). The wizard's pages are `WIZARD_PAGES` in `steps.ts`, the rail's marks
   `ONBOARDING_STEPS`; `railStep` maps one to the other (Availability under
   Profile, Add Claude under Practice), so a new page needs no rail mark.
   The extension's add-Claude moment (KAN-387) already skips a student whose
