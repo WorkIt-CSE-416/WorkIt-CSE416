@@ -29,7 +29,10 @@ holds unique. One run, in one transaction:
 2. resolves each distinct location string (services/location_resolver.py)
    against the countries and states in the database, and each distinct title
    (services/role_resolver.py) against the roles in job_roles;
-3. inserts new jobs and updates changed ones, description included,
+3. moves each job a student added (KAN-515, KAN-542) whose job the feed
+   has under another form of its link onto the feed's link (_take_over_added),
+   so the next step makes it the feed's in place;
+   then inserts new jobs and updates changed ones, description included,
    ON CONFLICT (apply_url). A row
    whose fields all match is left alone, so updated_at means something and a
    second run on the same feed changes nothing;
@@ -94,11 +97,13 @@ from app.models import dto
 from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
+from app.queries.applications import bare_link, greenhouse_job
 from app.schemas.jobs import JobListing
 from app.services import keywords
 from app.services.location_resolver import LocationResolver, Place, Resolution
 from app.services.matching.embeddings import BATCH_SIZE, embed, job_text
 from app.services.models import get_small_llm
+from app.services.postings import ADDED
 from app.services.role_resolver import RoleResolver
 
 logger = logging.getLogger(__name__)
@@ -165,6 +170,8 @@ class Report:
     updated: int = 0
     unchanged: int = 0
     closed: int = 0
+    # jobs a student added (KAN-542) moved onto a feed job's link, then made the feed's by the upsert
+    taken_over: int = 0
     # closed_reason -> how many jobs this run closed under it
     closed_by_reason: dict[str, int] = field(default_factory=dict)
     # False when the run had no closings.json: every close is UNKNOWN
@@ -340,6 +347,46 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
     report.unchanged = len(rows) - report.inserted - report.updated
 
 
+async def _take_over_added(conn: AsyncConnection, urls: list[str], report: Report) -> None:
+    '''
+    moves each job a student added (KAN-515, KAN-542, ADR 0008) whose job is
+    in the feed under another form of its link onto the feed's link, so the
+    upsert's ON CONFLICT fills it in and clears added_by_student: the posting, and the student's
+    application on it, stay one row. The same Greenhouse job (greenhouse_job)
+    first, else the same bare link (bare_link) when exactly one feed job has
+    it, as listed_job_by_link decides. A feed link another posting already
+    holds is left alone: moving onto it would break the unique apply_url. A
+    posting on the feed's own link needs nothing here
+    '''
+    added = (await conn.execute(
+        select(_jobs.c.id, _jobs.c.apply_url).where(ADDED).order_by(_jobs.c.id)
+    )).all()
+    feed = set(urls)
+    added = [row for row in added if row.apply_url not in feed]
+    if not added:
+        return
+    by_job: dict[str, list[str]] = {}
+    by_bare: dict[str, list[str]] = {}
+    for url in urls:
+        if job := greenhouse_job(url):
+            by_job.setdefault(job, []).append(url)
+        by_bare.setdefault(bare_link(url), []).append(url)
+
+    moves: dict[str, object] = {}
+    for row in added:
+        job = greenhouse_job(row.apply_url)
+        found = by_job.get(job, []) if job else by_bare.get(bare_link(row.apply_url), [])
+        if len(found) == 1 and found[0] not in moves:
+            moves[found[0]] = row.id
+    held = set((await conn.scalars(
+        select(_jobs.c.apply_url).where(_jobs.c.apply_url == any_(_text_array(list(moves))))
+    )).all())
+    for url, job_id in moves.items():
+        if url not in held:
+            await conn.execute(update(_jobs).where(_jobs.c.id == job_id).values(apply_url=url))
+            report.taken_over += 1
+
+
 async def _scraped_ids(conn: AsyncConnection, urls: list[str]) -> dict:
     '''
     apply_url -> id for the scraped jobs among urls; a company's job is never
@@ -509,6 +556,7 @@ async def import_feed(
         unresolved=prepared.unresolved,
         untagged=prepared.untagged,
     )
+    await _take_over_added(conn, list(prepared.places), report)
     await _upsert(conn, prepared.rows, report)
     ids = await _scraped_ids(conn, list(prepared.places))
     await _sync_locations(conn, prepared.places, ids, report)
@@ -633,6 +681,8 @@ def _print_report(report: Report, *, dry_run: bool) -> None:
     print(f"  embedded {report.embedded}")
     print(f"  keywords extracted {report.keywords}")
     reasons = ", ".join(f"{why} {n}" for why, n in sorted(report.closed_by_reason.items()))
+    if report.taken_over:
+        print(f"  added jobs the feed now lists, moved to its link {report.taken_over}")
     print(f"  closed (no longer in the feed) {report.closed}" + (f": {reasons}" if reasons else ""))
     if not report.had_closings:
         print(f"  no closings.json beside the feed: every close this run is {UNKNOWN}")

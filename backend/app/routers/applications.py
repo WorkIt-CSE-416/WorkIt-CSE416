@@ -42,11 +42,12 @@ The Applications board reads saved and applied jobs through auto apply's
 list, GET /applicants/{id}/applications?stage=saved&stage=applied
 (routers/auto_apply.py).
 
-POST /jobs/added-by-link     {"url", "company", "title"}: the extension's
-                             Write with Claude on a form whose job WorkIt
-                             doesn't list (KAN-515). The listed job the link
-                             is (listed_job_by_link), else the job a student
-                             added from that form, else a new one
+POST /jobs/added-by-link     {"url", "company", "title", "track_only"?}:
+                             the extension's Write with Claude on a form
+                             whose job WorkIt doesn't list (KAN-515). The
+                             listed job the link is (listed_job_by_link),
+                             else the job a student added from that form
+                             (by the same three rules), else a new one
                              (added_by_student: on no feed, so no other
                              student sees it), and the signed-in applicant's
                              application for it at needs_you (a saved or
@@ -56,8 +57,20 @@ POST /jobs/added-by-link     {"url", "company", "title"}: the extension's
                              with the reason for a form auto apply can't
                              fill, on a job system WorkIt turned off
                              (KAN-467), or for a closed job's link (never
-                             reopened or rewritten from a request); 429 past
+                             reopened or rewritten from a request); 409 for
+                             a company's own posting; 429 past
                              ADDED_JOB_DAILY_CAP new jobs a day (KAN-478).
+                             A new application keeps the company and title
+                             sent: on an added job each student sees their
+                             own (KAN-542). With "track_only": true, Apply's
+                             writes and the Tracker Sheet import (KAN-544,
+                             KAN-545): any web link; a closed job gets the
+                             application and stays closed, as it is; and the
+                             application is saved when new, else keeps its
+                             stage. POST /jobs/{job_id}/applied marks an
+                             added job, and a Sent resume can name it; the
+                             same holds for a job the feed closed after the
+                             student tracked it (postings.tracked_by).
 
 Applicant accounts only (403 for a company's); the applicant is the token's,
 never a path or body field. A job that isn't open (closed, a company's own,
@@ -67,7 +80,8 @@ Its own router, beside jobs.py's, for the same /jobs prefix. The
 /jobs/{job_id}/... paths have one more segment than GET /jobs/{job_id}, and
 POST /jobs/saved-by-link has the same two segments but a method jobs.py
 never serves (its routes are all GETs), so neither router shadows the other
-whatever the order they're registered in. A GET on a two-segment path here
+whatever the order they're registered in; POST /jobs/added-by-link
+likewise. A GET on a two-segment path here
 would need registering before jobs.py's catch-all (routers/CLAUDE.md).
 """
 
@@ -96,6 +110,7 @@ from app.queries.applications import (
     mark_applied,
     save_job,
     sent_to_job,
+    track,
     unsave_job,
 )
 from app.schemas.applications import (
@@ -195,26 +210,33 @@ async def post_added_by_link(
     """The job of the form the student is on, added from the page when WorkIt
     doesn't list it, with their application at needs_you: Write with Claude
     on a form they opened themselves (KAN-515), so their Claude can write its
-    questions through the connector."""
+    questions through the connector. With `track_only`, Apply's writes and
+    the Tracker Sheet import (KAN-544, KAN-545): any link, a closed job kept
+    as it is, and the application saved or left at its stage."""
     applicant_id = _applicant_only(account)
-    if not auto_apply_supported(body.url):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, refusal(body.url))
-    system = job_system_of(body.url)
-    if system in await fetch_disabled_job_systems(db):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"WorkIt can't fill {JOB_SYSTEMS[system]} right now. Try this job again later.")
+    if not body.track_only:
+        if not auto_apply_supported(body.url):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, refusal(body.url))
+        system = job_system_of(body.url)
+        if system in await fetch_disabled_job_systems(db):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"WorkIt can't fill {JOB_SYSTEMS[system]} right now. Try this job again later.")
     job_id = await listed_job_by_link(db, body.url)
     if job_id is None:
         known = await job_with_link(db, body.url)
-        if known is not None and not known[1]:
+        if known is not None and not known[1] and not body.track_only:
             # A closed scraped job: reopening it would change it for every
             # student and send queued applications back into their batches.
+            # Tracking it changes neither: the job stays closed, as it is.
             raise HTTPException(status.HTTP_404_NOT_FOUND, "This job has closed on WorkIt.")
         if known is not None:
             job_id = known[0]
         else:
             await take_daily(db, applicant_id, Capped.ADDED_JOB)
             job_id = await add_job(db, body.url, body.company, body.title)
-    return JobSavedByLink(job_id=job_id, stage=await hold_for_writing(db, applicant_id, job_id))
+            if job_id is None:
+                raise HTTPException(status.HTTP_409_CONFLICT, "That link is a company's own job posting on WorkIt.")
+    keep = track if body.track_only else hold_for_writing
+    return JobSavedByLink(job_id=job_id, stage=await keep(db, applicant_id, job_id, body.company, body.title))
 
 
 @router.post("/{job_id}/saved", response_model=JobSaved)

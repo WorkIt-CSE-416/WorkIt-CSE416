@@ -1,6 +1,7 @@
 """Interfaces to every outside system. Live implementations talk to the real
 thing; tests pass fakes (apply/tests/fakes.py)."""
 
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -45,6 +46,13 @@ class Tracker(Protocol):
         """Lisul's answer to his Application's Missing fact, typed in the Apply
         window, in his own Answer cell: as if he typed it in the Sheet. The
         only one of his cells Apply writes, and only for him. KeyError for an unknown ID."""
+        ...
+
+    def approve(self, application_id: str, essay: str | None = None) -> None:
+        """Lisul approves his Hold in the Apply window (KAN-544): Approve, and
+        `essay`, his edit of its essays, when he edited them there. The retired
+        Tracker Sheet (sheet.SheetTracker) takes no approval (ADR 0007).
+        KeyError for an unknown ID."""
         ...
 
     def get(self, application_id: str) -> "Row | None": ...
@@ -241,3 +249,5 @@ class Adapters:
     answer_bank: AnswerBank = field(default_factory=AnswerBank)  # live: answer-bank.yaml beside the profile
     # Sites Lisul signed the Worker profiles in to by hand (apply sign-in): their sign-in walls are no Handoff.
     signed_in: frozenset[str] = frozenset()
+    # The student's tailored resume for a Posting (KAN-547), given to its form in place of the profile's resume.
+    tailored: Callable[[Posting], bytes | None] = lambda posting: None

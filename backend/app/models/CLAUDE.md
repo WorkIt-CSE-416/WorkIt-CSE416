@@ -961,7 +961,7 @@ the import files it as `unknown`.
 to production before the design settled on a column). A job a student added
 is `added_by_student` (`f7b2d4a6c815`, KAN-515), never a status, and no code
 writes `unlisted`. Postgres can't drop an enum value in place, so a later
-migration rebuilds the type without it.
+migration rebuilds the type without it (`../../docs/adr/0008-unlisted-job-postings.md`).
 
 **`company_domain` is the employer's own website, for its logo**
 (`d9b579e66623`, KAN-442): the registered domain the scraper found
@@ -1061,9 +1061,12 @@ so a batch never picks a saved job. Rules:
   `c0467afe819c`, `saved` from `17ea74fa4573`, the last three from
   `a7d3e5f1c2b4`), a column here rather than a second table, so one row is
   one application. `created_at` orders the queue.
-- **`company_name` and `title` are the text the student typed** for a job
-  they added (`d3f5a7c9e162`, KAN-542; production already has them). NULL
-  on a job saved or queued any other way.
+- **`company_name` and `title` are the text the student typed** when they
+  added the job (`d3f5a7c9e162`, KAN-542, ADR 0008). The tracker shows them
+  only while the job is an added one (`added_by_student`;
+  `services/postings.py`, `typed_text`), so two students on one added job
+  each see their own text. When the feed lists the job, the flag clears and
+  the feed's text shows. NULL on a job saved or queued another way.
 - **Interviewing, offer and rejected are applied too** (KAN-413).
   Anything that asks "did this student apply?" counts all four, never
   `stage == applied`: the Jobs page's filter, and the Applied button, which

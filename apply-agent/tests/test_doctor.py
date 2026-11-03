@@ -11,14 +11,16 @@ import subprocess
 from dataclasses import replace
 from datetime import datetime
 
+from fake_workit import FakeWorkIt
 from fakes import FakeMailbox, ScriptedUsage
 
-from apply import doctor
+from apply import doctor, workit
 from apply.adapters import UsageReading
 from apply.model import Status
 from apply.orchestrator import SUBMITTING
 from apply.profile import ApplicantProfile
 from apply.tracker import InMemoryTracker, Row
+from apply.workit import WorkIt
 
 
 def chrome(tmp_path, version="141.0.7390.55"):
@@ -244,6 +246,68 @@ def test_gmail_with_no_email_in_the_profile_fails(tmp_path):
     assert "identity.email" in found.fix
 
 
+def workit_check(tmp_path, fake: FakeWorkIt) -> doctor.Check:
+    return check(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json")), "WorkIt")
+
+
+def logged_in(tmp_path, fake: FakeWorkIt) -> None:
+    client = WorkIt(fake.site, tmp_path / "workit-login.json")
+    workit.login(client, lambda url, accept: accept(fake.cookies(fake.session())))
+
+
+def test_workit_logged_in_says_as_whom(tmp_path):
+    with FakeWorkIt() as fake:
+        logged_in(tmp_path, fake)
+        assert workit_check(tmp_path, fake) == doctor.Check("WorkIt", doctor.OK, "logged in as test.person@example.com")
+
+
+def test_workit_with_no_login_warns_and_says_rehearsals_still_work(tmp_path):
+    with FakeWorkIt() as fake:
+        found = workit_check(tmp_path, fake)
+    assert found.level == doctor.WARN  # optional: a user with no WorkIt account still rehearses
+    assert "rehearsals work without it" in found.detail
+    assert "apply login" in found.fix
+    assert fake.requests == []  # no login: nothing to ask WorkIt
+
+
+def test_workit_expired_login_warns_to_log_in_again(tmp_path):
+    with FakeWorkIt() as fake:
+        logged_in(tmp_path, fake)
+        fake.revoke()
+        found = workit_check(tmp_path, fake)
+    assert found.level == doctor.WARN
+    assert "expired" in found.detail
+    assert "apply login" in found.fix
+
+
+def test_workit_unreachable_warns(tmp_path):
+    with FakeWorkIt() as fake:
+        logged_in(tmp_path, fake)
+        fake.stop()
+        found = workit_check(tmp_path, fake)
+    assert found.level == doctor.WARN
+    assert "can't reach WorkIt" in found.detail
+    assert found.fix
+
+
+def test_workit_company_account_warns(tmp_path):
+    with FakeWorkIt(account_type="company") as fake:
+        logged_in(tmp_path, fake)
+        found = workit_check(tmp_path, fake)
+    assert found.level == doctor.WARN
+    assert "student account" in found.fix
+
+
+def test_doctor_never_prints_the_workit_tokens(tmp_path):
+    with FakeWorkIt() as fake:
+        logged_in(tmp_path, fake)
+        fake.expire()  # doctor refreshes it
+        out = io.StringIO()
+        doctor.run(machine(tmp_path, workit=lambda: WorkIt(fake.site, tmp_path / "workit-login.json")), out)
+    assert "WorkIt: logged in as test.person@example.com" in out.getvalue()
+    assert "access-" not in out.getvalue() and "refresh-" not in out.getvalue()
+
+
 def tracker(*rows: tuple[Status, str]):
     """A Tracker holding a row of each (Status, Reason)."""
     sheet = InMemoryTracker()
@@ -252,19 +316,53 @@ def tracker(*rows: tuple[Status, str]):
     return lambda: sheet
 
 
-def no_sheet():
-    raise FileNotFoundError("~/.config/apply/sheet-id")
+def test_the_tracker_says_how_many_applications_it_holds(tmp_path):
+    found = check(machine(tmp_path, tracker=tracker((Status.HELD, ""), (Status.HANDOFF, ""))), "Tracker")
+    assert found == doctor.Check("Tracker", doctor.OK, "2 Applications")
 
 
-def test_the_sheet_reachable_says_how_many_applications_it_holds(tmp_path):
-    found = check(machine(tmp_path, tracker=tracker((Status.HELD, ""), (Status.HANDOFF, ""))), "Tracker Sheet")
-    assert found == doctor.Check("Tracker Sheet", doctor.OK, "reachable; 2 Applications")
+def test_the_tracker_sheet_is_no_longer_checked(tmp_path):
+    assert "Tracker Sheet" not in {c.name for c in doctor.diagnose(machine(tmp_path))}
 
 
-def test_no_sheet_set_up_fails_with_how_to_set_it_up(tmp_path):
-    found = check(machine(tmp_path, tracker=no_sheet), "Tracker Sheet")
-    assert found.level == doctor.FAIL
-    assert "docs/tracker-setup.md" in found.fix
+def test_no_workit_write_waiting_is_ok(tmp_path):
+    from apply.workit import WaitingWrites
+
+    found = check(machine(tmp_path, waiting_writes=lambda: WaitingWrites(path=tmp_path / "workit-queue.json")), "WorkIt writes")
+    assert found == doctor.Check("WorkIt writes", doctor.OK, "none waiting")
+
+
+def test_workit_writes_waiting_are_listed_with_when_they_go(tmp_path):
+    from fake_workit import FakeWorkIt
+
+    from apply.workit import WaitingWrites, Write
+
+    with FakeWorkIt() as fake:
+        waiting_writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+        waiting_writes.send(Write("request-1", "https://jobs.example/1", "Lockheed Martin", "Intern", "applied"))
+        waiting_writes.send(Write("request-2", "https://jobs.example/2", "Arc", "Intern", "needs_you"))  # not logged in
+
+    found = check(machine(tmp_path, waiting_writes=lambda: WaitingWrites(path=tmp_path / "workit-queue.json")), "WorkIt writes")
+    assert found.level == doctor.WARN
+    assert found.detail == "2 waiting to send to your Applications Tracker: Lockheed Martin (Applied), Arc (Needs you)"
+    assert "next run or rehearsal" in found.fix and "apply login" in found.fix
+
+
+def test_a_workit_write_past_the_daily_cap_says_when_it_goes(tmp_path):
+    import datetime
+
+    from apply.workit import WaitingWrites, Write
+
+    until = datetime.datetime(2099, 1, 2, 0, 0, tzinfo=datetime.UTC)
+    waiting = WaitingWrites(path=tmp_path / "workit-queue.json")
+    waiting._keep([Write("request-1", "https://jobs.example/1", "Arc", "Intern", "needs_you",
+                         not_before=until.timestamp())])
+
+    found = check(machine(tmp_path, waiting_writes=lambda: waiting), "WorkIt writes")
+    assert found.level == doctor.WARN
+    shown = until.astimezone().strftime("%Y-%m-%d %H:%M")
+    assert found.detail == ("1 waiting to send to your Applications Tracker: "
+                            f"Arc (Needs you, waits for WorkIt's daily cap of added jobs until {shown})")
 
 
 def test_calibration_run_counts_held_and_submitted_applications(tmp_path):
@@ -280,8 +378,9 @@ def test_calibration_run_done(tmp_path):
     assert "done" in found.detail
 
 
-def test_calibration_run_unknown_without_the_sheet(tmp_path):
-    found = check(machine(tmp_path, tracker=no_sheet, profile=profile(tmp_path, calibration_run=10)), "Calibration run")
+def test_calibration_run_unknown_when_the_tracker_does_not_read(tmp_path):
+    found = check(machine(tmp_path, tracker=UnreadableRows, profile=profile(tmp_path, calibration_run=10)),
+                  "Calibration run")
     assert found.level == doctor.WARN
 
 
@@ -417,16 +516,16 @@ def test_usage_at_its_limit_warns_until_when(tmp_path):
 
 
 class UnreadableRows(InMemoryTracker):
-    """A Sheet that opens, but whose Applications tab doesn't read as rows."""
+    """A Tracker file whose rows don't read."""
 
     def rows(self):
         raise ValueError("'' is not a valid Status")
 
 
-def test_a_sheet_that_opens_but_doesnt_read_fails_saying_a_run_would_stop_too(tmp_path):
-    found = check(machine(tmp_path, tracker=UnreadableRows), "Tracker Sheet")
+def test_a_tracker_that_doesnt_read_fails_saying_a_run_would_stop_too(tmp_path):
+    found = check(machine(tmp_path, tracker=UnreadableRows), "Tracker")
     assert found.level == doctor.FAIL
-    assert found.detail.startswith("reachable, but its rows don't read")
+    assert found.detail.startswith("its rows don't read")
     assert "not a valid Status" in found.detail
     assert "a run" in found.fix
 
@@ -481,10 +580,8 @@ def test_no_records_remote_set_says_records_are_off_and_how_to_turn_them_on(tmp_
     assert "off" in found.detail and "records_remote" in found.fix
 
 
-def test_no_tracker_sheet_set_says_it_is_off_with_how_to_set_it_up(tmp_path, monkeypatch):
-    from apply import sheet
-    monkeypatch.setattr(sheet, "SHEET_ID", tmp_path / "sheet-id")
-    checks = {c.name: c for c in doctor.diagnose(machine(tmp_path, tracker=sheet.live_tracker))}
-    assert checks["Tracker Sheet"].level == doctor.WARN
-    assert "off" in checks["Tracker Sheet"].detail and "docs/tracker-setup.md" in checks["Tracker Sheet"].fix
-    assert checks["Calibration run"].level == doctor.WARN
+def test_a_new_data_folder_has_an_empty_tracker(tmp_path):
+    from apply.tracker import FileTracker
+
+    found = check(machine(tmp_path, tracker=lambda: FileTracker(tmp_path / "tracker.json")), "Tracker")
+    assert found == doctor.Check("Tracker", doctor.OK, "0 Applications")

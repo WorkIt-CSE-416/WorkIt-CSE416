@@ -148,6 +148,9 @@ WORDS = {
     "submitted": ("Sent", "The application went in."),
     "ready to submit": ("Filled, not sent", "A practice run fills the form and stops before Submit."),
     "filling": ("Filling", "Apply is answering this application's questions now."),
+    "verifying": ("Verifying…", "Apply reads the filled form back from the page and checks each answer against your "
+                  "facts, before anything is sent. It never presses Submit."),
+    "verified": ("Verified", "Apply read the filled form back and found nothing that needs you."),
     "skipped": ("Skipped", "Apply didn't apply, for the reason given."),
     "rehearsal": ("Practice run", "Fills forms and sends nothing; each page is yours to check once it stops."),
     "run": ("Live run", "Fills forms and sends them, except those that wait for your OK."),
@@ -159,7 +162,7 @@ SENT = WORDS["submitted"][0]
 IDLE = "Waiting for the next job"
 # Parts of a rehearsal's ready-to-submit reason that Lisul must look at; the
 # rest (Calibration run, Target company...) only say a run would hold it.
-TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review")
+TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ")
 # Each part of a Hold's reason in plain words.
 HOLD_WORDS = [
     (re.compile(r"^Target company: (.+)$"), r"\1 is on your check-first list"),
@@ -204,7 +207,7 @@ def plain(why: str) -> str:
             if pattern.match(part):
                 part = pattern.sub(words, part)
                 break
-        parts.append(part.removeprefix("Pre-submit check failed. ").removeprefix("Missing fact: "))
+        parts.append(part.removeprefix("Pre-submit check failed. ").removeprefix("Missing fact: ").removeprefix("Verify: "))
     return "; ".join(parts)
 
 
@@ -215,6 +218,10 @@ def verdict(caption: dict) -> dict[str, str]:
     that needs Lisul also says its kind (a WORDS key), what to do, why, and
     what then happens: the same three lines its Inbox row shows."""
     status, why = str(caption.get("status") or ""), one_line(str(caption.get("why") or ""))
+    # How verifying the filled form went (apply.verify): its flags that need Lisul, and whether it found none.
+    verification = caption.get("verification") or {}
+    flags = [f for f in verification.get("flags") or [] if f.get("holds")]
+    verified = verification.get("state") == "verified"
     missing = "; ".join(caption.get("missing") or [])
     company, system = str(caption.get("company") or ""), job_system(caption.get("job_system"))
     checks = [part for part in why.split("; ") if part.startswith(TO_CHECK)]
@@ -223,6 +230,9 @@ def verdict(caption: dict) -> dict[str, str]:
     needs = {}
     if not status:
         tone, label, kind = "idle", IDLE, ""
+    elif status == "filling" and caption.get("verifying"):
+        tone, label, kind = "verifying", WORDS["verifying"][0], "verifying"
+        detail = WORDS["verifying"][1]
     elif status == "filling":  # a rehearsal held for Start says how far it got
         stage = {"getting ready": "Getting ready", "ready": "Ready"}.get(str(caption.get("stage") or ""))
         tone, label, kind = "filling", stage or WORDS["filling"][0], "filling"
@@ -230,21 +240,27 @@ def verdict(caption: dict) -> dict[str, str]:
         needs = {"kind": "missing fact", "do": "Answer a question only you know", "why": missing or plain(why),
                  "then": "Saved to your facts, for every form that asks it, and filled in on this form" if missing
                  else "Saved in your Tracker; this application goes on at the next check"}
+    elif flags and status in ("ready to submit", "held"):
+        needs = {"kind": "check", "do": verification.get("label") or WORDS["check"][0],
+                 "why": "; ".join(f"{f['field']}: {f['why']}" if f.get("field") else f["why"] for f in flags),
+                 "then": "Nothing has been sent. Fix each on the page, or dismiss it here"
+                 + (", then press Submit yourself if you want it sent" if status == "ready to submit"
+                    else "; once every one is dismissed, approve it to send it")}
     elif checks:
         needs = {"kind": "check", "do": "Fix an answer before it's sent", "why": plain("; ".join(checks)),
                  "then": "Nothing has been sent. Fix it on the page, then press Submit yourself if you want it sent"
                  if status == "ready to submit" else "Apply checks every answer again before it sends"}
     elif status == "ready to submit":
-        tone, label, kind = "ready", READY, "ready to submit"
+        tone, label, kind = "ready", f"{WORDS['verified'][0]} · {READY.lower()}" if verified else READY, "ready to submit"
         detail = "\n".join(filter(None, [
             "Nothing has been sent. This page is yours now: check it, and press Submit yourself to send it "
             "(it goes in your Tracker)", why and f"In a real run this would wait for your OK: {plain(why)}"]))
     elif status == "submitted":
-        tone, label, kind = "submitted", SENT, "submitted"
+        tone, label, kind = "submitted", f"{WORDS['verified'][0]} and sent" if verified else SENT, "submitted"
         detail = why
     elif status == "held":
         needs = {"kind": "held", "do": "Review and approve before it's sent", "why": plain(why),
-                 "then": "Tick Approve in your Tracker and it's sent at the next check, within 5 minutes"}
+                 "then": "Approve it here and it's sent at the next check, within 5 minutes"}
     elif status == "needs sign-in":
         site = f"{company}'s {system} site" if company and system else f"the {system} site" if system else "this job site"
         needs = {"kind": "needs sign-in", "do": f"Sign in to {site} once", "why": why,
@@ -276,6 +292,12 @@ def verdict(caption: dict) -> dict[str, str]:
     if kind:
         shown["kind"] = kind
     shown |= needs
+    if flags and needs.get("kind") == "check":
+        shown["flags"] = [{"field": f.get("field") or "", "why": f["why"]} for f in flags]
+    if verified:
+        shown["verified"] = True
+    if notes := [f for f in verification.get("flags") or [] if not f.get("holds")]:
+        shown["notes"] = [f"{f['field']}: {f['why']}" if f.get("field") else f["why"] for f in notes]
     if tone == "failed" and error:
         shown["error"] = error  # behind Details in the enlarged tile
     if system:
@@ -288,9 +310,9 @@ def summary(tiles: list[dict], items: list[dict] | None = None) -> str:
     "nothing sent yet · 1 needs you · 1 filling · 4 filled, not sent". With
     `items` (every Application this run ended), the ended ones are counted
     from them, so one stays counted once its Worker moves on; else from the tiles."""
-    words = {"needs": "needs you", "filling": "filling", "ready": "filled, not sent", "failed": "couldn't finish",
+    words = {"needs": "needs you", "filling": "filling", "verifying": "verifying", "ready": "filled, not sent", "failed": "couldn't finish",
              "ended": "skipped"}
-    ended = [t for t in tiles if t["tone"] == "filling"] + items if items is not None else tiles
+    ended = [t for t in tiles if t["tone"] in ("filling", "verifying")] + items if items is not None else tiles
     counts = Counter(words[t["tone"]] for t in ended if t["tone"] in words)
     parts = [f"{counts[w]} {'need you' if w == 'needs you' and counts[w] > 1 else w}" for w in words.values() if counts[w]]
     sent = sum(t["tone"] == "submitted" for t in ended)
@@ -330,7 +352,7 @@ class Board(Protocol):
     def update(self, worker: int, **caption: object) -> None:
         """Set some of Worker `worker`'s caption: company, role, job_system,
         posting_url, application_id, status, line; and once it ends, why (the
-        reason, in full), choices (what each Missing fact offers to pick from,
+        reason, in full), essay (a Hold's essays, for Lisul to edit: essays.as_cell), choices (what each Missing fact offers to pick from,
         by question), and for a rehearsal filled and asked (fields) and missing
         (its Missing facts)."""
         ...
@@ -419,14 +441,18 @@ class Dashboard:
     what newly waits on him while the window is not in front, one a minute at most.
     `show`, when given, brings Worker k's own Chrome window to the front (False:
     it has none), for what the tile cannot do: a sign-in, a captcha, a dialog.
-    `sample`: Apply runs on the Test Person sample data, and the window says so."""
+    `sample`: Apply runs on the Test Person sample data, and the window says so.
+    `approve`, when given, approves a Hold from the Inbox (its Application ID, and
+    `essay=` the Essay cell with his edit of its essays' text if he edited them), as
+    editing the Essay cell and ticking Approve did in the retired Tracker Sheet (KAN-544),
+    and says how it went."""
 
     def __init__(self, workers: int, frames: Frames, answers: AnswersTab | None = None,
                  applied: Callable[[str], str] | None = None, now: Callable[[], datetime] = datetime.now,
                  past: Callable[[], list] | None = None, tracker_url: str = "", sweep_at: str | None = None,
                  answer: Callable[[dict, str, str], str] | None = None,
                  notify: Callable[[str, str], None] | None = None, show: Callable[[int], bool] | None = None,
-                 sample: bool = False):
+                 sample: bool = False, approve: Callable[[str], str] | None = None):
         self._workers = workers
         self._sample = sample
         self._frames = frames
@@ -435,7 +461,9 @@ class Dashboard:
         self._now = now
         self._past, self._read, self._reading = past, None, threading.Lock()  # the Tracker's rows, once read
         self._context = {"tracker_url": tracker_url, "sweep_at": sweep_at, "workers": workers, "answers": bool(answer),
-                         "show": bool(show)}
+                         "show": bool(show), "approve": bool(approve)}
+        self.approve = approve
+        self._approved: set[str] = set()  # the Holds Lisul approved in the window, by item id
         self.show = show
         self.answer = answer
         self._answered: dict[str, str] = {}  # each item's questions Lisul answered in the window, by "id|question"
@@ -630,11 +658,14 @@ class Dashboard:
     def state(self) -> dict:
         """Every tile's caption with its verdict, every ended Application's
         (items, newest first), and the one-line summary of them all."""
+        # Imported here: verify imports the fill engine, which imports this module.
+        from apply import verify
         with self._lock:
             captions = [dict(caption) for caption in self._captions]
             items = [dict(item) for item in reversed(self._items)]
             run = dict(self._run)
         for k, caption in enumerate(captions):
+            caption |= verify.without_dismissed(caption)  # a flag Lisul dismissed holds it no more
             caption |= verdict(caption)
             if chooser := self._frames.chooser(k):
                 caption["file"] = chooser
@@ -645,9 +676,18 @@ class Dashboard:
         past, context = self._tracker()
         items += [item for item in past if item.get("posting_url") not in ours]
         with self._lock:
-            answered = dict(self._answered)
+            answered, approved = dict(self._answered), set(self._approved)
+        from apply.essays import (
+            cell_texts,  # imported here: essays imports the adapters, which import this module
+        )
         for item in items:
+            item |= verify.without_dismissed(item)
             item |= verdict(item)
+            if item.get("kind") == "held":
+                # Only each essay's text is his to edit: the heading and Plan lines stay in the cell (`essay`).
+                item["essays"] = [{"question": q, "text": t} for q, t in cell_texts(str(item.get("essay") or ""))]
+            if item.get("kind") in ("held", "check") and item["id"] in approved:
+                item["answered"] = True  # approved here: it waits on Lisul no more
             if item.get("kind") == "missing fact":
                 item["questions"] = [q for q in _questions(item) if f"{item['id']}|{q}" not in answered
                                      and not (item.get("posting_url") and f"{item['posting_url']}|{q}" in answered)]
@@ -736,6 +776,7 @@ def _waiting(row) -> dict:
     return {"company": row.company, "role": row.role, "posting_url": row.posting_url, "job_system": row.job_system,
             "application_id": row.application_id, "status": str(row.status), "why": one_line(why),
             "record": row.record, "from": "tracker", "id": "t:" + row.application_id,
+            "essay": row.essay if str(row.status) == "held" else "",
             "choices": {row.missing_fact: offered} if (offered := cell_options(row.missing_fact_options)) else {},
             "at": row.date_applied.isoformat() if row.date_applied else None}
 
@@ -785,6 +826,10 @@ class _Handler(BaseHTTPRequestHandler):
             return self._applied()
         if parts.path == "/answer" and self.dashboard.answer:
             return self._answer()
+        if parts.path == "/approve" and self.dashboard.approve:
+            return self._approve()
+        if parts.path == "/dismiss":
+            return self._dismiss()
         if parts.path.startswith("/show/") and self.dashboard.show:
             return self._show(parts.path.removeprefix("/show/"))
         if parts.path.startswith("/answers/") and self.dashboard.answers:
@@ -945,6 +990,69 @@ class _Handler(BaseHTTPRequestHandler):
                 message += " Claude fills it in on the open form now."
         print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {answer}")
         self._json(200, {"message": message})
+
+    def _approve(self) -> None:
+        """Lisul approves a Hold in the Inbox, from the page itself: it is sent at the next check, with
+        the essays as he edited them in their boxes, if he did (`essays`: the text of each, in order).
+        The cell is built here from the stored headings and Plan lines and his text (essays.with_texts),
+        so an edit never loses an essay's heading; an empty essay is refused, with the reason."""
+        token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+        if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin not in (None, self.dashboard.url):
+            return self._json(403, {"error": "Only the Apply window may approve for you."})
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > MAX_BODY:
+            self.close_connection = True
+            return self._json(413, {"error": "That essay is too long."})
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
+            key, texts = str(body["id"]), body.get("essays")
+            if texts is not None and not (isinstance(texts, list) and all(isinstance(t, str) for t in texts)):
+                raise TypeError
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not an approval."})
+        item = next((i for i in self.dashboard.state()["items"]
+                     if str(i["id"]) == key and i.get("application_id")
+                     and (i.get("kind") == "held" or (i.get("kind") == "check" and i.get("status") == "held")) and not i.get("answered")), None)
+        if item is None:
+            return self._json(404, {"error": "That application no longer waits for your approval."})
+        from apply.essays import (
+            with_texts,  # imported here: essays imports the adapters, which import this module
+        )
+        try:
+            essay = None if texts is None else with_texts(str(item.get("essay") or ""), texts)
+        except ValueError as refused:
+            return self._json(400, {"error": str(refused)})
+        try:
+            # His edit of the essays, when he made one, is sent in place of Claude's.
+            message = self.dashboard.approve(item["application_id"], **({"essay": essay} if essay is not None else {}))
+        except Exception as error:  # the Tracker file: say so in the window
+            return self._json(502, {"error": f"Not approved: {error}"})
+        with self.dashboard._lock:
+            self.dashboard._approved.add(key)
+        print(f"Approved in the window: {item.get('company') or 'an application'}")
+        self._json(200, {"message": message})
+
+    def _dismiss(self) -> None:
+        """Lisul dismisses one flag of an Application in the Inbox, from the page itself: it is kept for that
+        Application (verify.dismiss), so it holds it no more, after a reload of the window or in a new run."""
+        # Imported here: verify imports the fill engine, which imports this module.
+        from apply import verify
+
+        token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+        if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin not in (None, self.dashboard.url):
+            return self._json(403, {"error": "Only the Apply window may dismiss a flag."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key, field, why = str(body["id"]), str(body.get("field") or ""), str(body["why"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a flag."})
+        item = next((i for i in self.dashboard.state()["items"] if str(i["id"]) == key and i.get("application_id")
+                     and {"field": field, "why": why} in (i.get("flags") or [])), None)
+        if item is None:
+            return self._json(404, {"error": "That flag no longer needs you."})
+        verify.dismiss(item["application_id"], field, why)
+        print(f"Dismissed in the window, for {item.get('company') or 'an application'}: {field}: {why}")
+        self._json(200, {"message": "Dismissed: it holds this application no more."})
 
     def _in_place(self, item: dict, key: str, question: str, answer: Path | None, message: str) -> None:
         """An answer for this form alone, not saved to his facts: a file to attach, or None for an

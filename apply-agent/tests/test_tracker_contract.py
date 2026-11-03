@@ -1,5 +1,5 @@
 """The Tracker contract. Every Tracker passes it: the in-memory fake used by
-whole-run tests, the Google Sheet Tracker over a fake spreadsheet (empty, and
+whole-run tests, the Tracker file in the data folder (KAN-544), the Google Sheet Tracker over a fake spreadsheet (empty, and
 with blank rows that hold only an unticked checkbox, as Lisul's Sheet has), and
 the Google Sheet Tracker over a real scratch Sheet (skipped without credentials)."""
 
@@ -12,7 +12,7 @@ from apply.model import Outcome, Status
 from apply.tracker import AnswerRow, EmployerAccount, Row
 
 
-@pytest.fixture(params=["memory", "sheet", "checkbox-sheet", "live-sheet"])
+@pytest.fixture(params=["memory", "file", "sheet", "checkbox-sheet", "live-sheet"])
 def both(request, tmp_path):
     with tracker_and_lisul(request.param, tmp_path) as pair:
         yield pair
@@ -85,6 +85,31 @@ def test_lisuls_answer_typed_in_the_apply_window_lands_in_his_answer_cell_alone(
     assert (row.status, row.answer, row.approve) == (Status.MISSING_FACT, "3.9", False)
     with pytest.raises(KeyError):
         tracker.answer("nope", "3.9")
+
+
+def _approves(tracker):
+    if not hasattr(tracker, "approve"):
+        pytest.skip("the retired Tracker Sheet takes no approval (ADR 0007)")
+
+
+def test_lisul_approves_a_hold_in_the_apply_window(tracker):
+    _approves(tracker)
+    tracker.add(arc(status=Status.HELD, date_applied=None, essay="Claude's draft"))
+    tracker.approve("arc-1")
+
+    row = tracker.get("arc-1")
+    assert (row.status, row.approve, row.essay) == (Status.HELD, True, "Claude's draft")
+    with pytest.raises(KeyError):
+        tracker.approve("nope")
+
+
+def test_lisul_edits_a_held_essay_and_approves_it_in_the_apply_window(tracker):
+    _approves(tracker)
+    tracker.add(arc(status=Status.HELD, date_applied=None, essay="## Why Arc?\nClaude's draft"))
+    tracker.approve("arc-1", essay="## Why Arc?\nLisul's own words")
+
+    row = tracker.get("arc-1")
+    assert (row.status, row.approve, row.essay) == (Status.HELD, True, "## Why Arc?\nLisul's own words")
 
 
 @pytest.mark.parametrize("field, value", [
@@ -184,3 +209,18 @@ def test_lisul_edits_an_answer_and_ticks_it_reviewed_in_the_answers_tab(tracker,
     assert tracker.answers() == [
         AnswerRow(HOUSING.question, "No", True, "Yes", ("Yes", "No"), "MetOx", date(2026, 10, 16)), SKILLS,
     ]
+
+
+def test_the_tracker_file_keeps_every_row_between_runs(tmp_path):
+    from apply.tracker import FileTracker
+
+    first = FileTracker(tmp_path / "tracker.json")
+    first.add(arc(suggested_outcome=Outcome.OA, confirmation_received=date(2026, 10, 17)))
+    first.add_request("https://jobs.lever.co/acme/2")
+    first.add_answer(SKILLS)
+    first.add_employer_account(EmployerAccount("IBM", "https://careers.ibm.com", "lisul@example.com", date(2026, 10, 16)))
+
+    again = FileTracker(tmp_path / "tracker.json")
+    assert again.rows() == [arc(suggested_outcome=Outcome.OA, confirmation_received=date(2026, 10, 17))]
+    assert (again.requests(), again.answers()) == (["https://jobs.lever.co/acme/2"], [SKILLS])
+    assert again.employer_accounts()[0].site == "https://careers.ibm.com"

@@ -171,3 +171,36 @@ def test_an_added_answer_lands_in_the_first_blank_row(tmp_path):
         ("Housing within 30 miles?", "FALSE"), ("Skill Areas", "TRUE"), ("", "FALSE"),
     ]
     assert tracker.answers() == [housing, skills]
+
+
+def test_the_sheets_rows_and_requests_are_copied_once_into_the_tracker_file(tmp_path):
+    # KAN-544: Apply stops writing the Sheet. Its rows go into the Tracker file one time, so a run still
+    # knows every job applied to (no second application) and every Hold, read leniently: a real Sheet has
+    # Outcomes typed by hand and older layouts.
+    from apply.sheet import REQUESTS, copy_into
+    from apply.tracker import FileTracker
+
+    spreadsheet = FakeSpreadsheet(tmp_path / "sheet", TABS)
+    headers = TABS[APPLICATIONS]
+    cell = lambda **values: [values.get(h, "") for h in headers]
+    spreadsheet.worksheet(APPLICATIONS).update([
+        headers,
+        cell(**{"Application ID": "arc-1", "Company": "Arc ", "Role": "Intern", "Posting": "https://a/1",
+                "Job system": "greenhouse", "Status": "submitted", "Date applied": "2026-10-15",
+                "Outcome": "Got an OA"}),
+        cell(**{"Application ID": "glean-1", "Company": "Glean", "Role": "Intern", "Posting": "https://g/1",
+                "Status": "held", "Approve": "TRUE", "Essay": "Lisul's essay", "Outcome": "interview"}),
+        cell(**{"Application ID": "odd-1", "Company": "Odd", "Status": "not a status"}),
+        cell(),
+    ])
+    spreadsheet.worksheet(REQUESTS).update([["Link"], ["https://jobs.lever.co/acme/2"]])
+    tracker = FileTracker(tmp_path / "tracker.json")
+
+    assert copy_into(spreadsheet, tracker) == 2
+
+    arc, glean = FileTracker(tmp_path / "tracker.json").rows()
+    assert (arc.application_id, arc.company, arc.status, arc.date_applied, arc.outcome) == (
+        "arc-1", "Arc", Status.SUBMITTED, date(2026, 10, 15), None)
+    assert (glean.status, glean.approve, glean.essay, glean.outcome) == (
+        Status.HELD, True, "Lisul's essay", Outcome.INTERVIEW)
+    assert tracker.requests() == ["https://jobs.lever.co/acme/2"]

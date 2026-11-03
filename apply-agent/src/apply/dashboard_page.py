@@ -147,7 +147,7 @@ setInterval(async () => {
   renderInbox(state);
   state.tiles.forEach((c, k) => {
     const banner = document.getElementById('banner-' + k);
-    banner.className = 'banner ' + c.tone;
+    banner.className = 'banner ' + c.tone + (c.verified ? ' verified' : '');
     banner.querySelector('.label').textContent = c.label;
     banner.querySelector('.fields').textContent = c.asked ? `${c.filled} of ${c.asked} answers` : '';
     banner.title = [c.label, c.detail].filter(Boolean).join('\\n');
@@ -564,8 +564,19 @@ window.openChrome = async (k) => {
 const action = (item) => {
   const k = liveTile(item), ctx = last.context || {};
   if (item.kind === 'missing fact' && ctx.answers) return null;
-  if (item.kind === 'held' && ctx.tracker_url) return make('a', {className: 'button primary', href: ctx.tracker_url, target: '_blank',
-                                                                  textContent: 'Approve in your Tracker ↗'});  // approving resolves it
+  if (item.kind === 'held' && ctx.approve && item.application_id) return make('button', {className: 'primary', textContent: 'Approve',
+    title: 'It is sent at the next check', onclick: async (e) => {  // approving resolves it
+      e.target.disabled = true;
+      try {
+        const edit = editedEssays(item);  // his words in place of Claude's, if he edited them
+        const reply = await fetch('/approve', {method: 'POST', body: JSON.stringify(edit === null ? {id: item.id} : {id: item.id, essays: edit}),
+                                               headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+        const data = await reply.json();
+        if (!reply.ok) throw new Error(data.error || 'Not approved.');
+        essayDrafts.delete(item.application_id); keepEssays();
+        toast(data.message); refresh();
+      } catch (err) { toast(err.message || 'Apply is not answering: is it still running?'); e.target.disabled = false; }
+    }});
   if (k >= 0) {
     const here = (main) => make('button', {className: main ? 'primary' : '', textContent: 'Fix here', title: 'Type into it in this window',
                                            onclick: () => { tab('workers'); control(k); }});
@@ -578,6 +589,22 @@ const action = (item) => {
   if (item.posting_url) return make('a', {className: 'button', href: item.posting_url, target: '_blank', textContent: 'Open the posting ↗'});
   return null;
 };
+// Verifying's flags (apply.verify): each its field and why, each dismissed on its own. Apply keeps a dismissal
+// for the Application (verify.dismiss): its flag is gone after a reload and holds no new run. A Hold of a live
+// run whose every flag is dismissed can then be approved.
+const flagList = (item) => make('ul', {className: 'flags'}, (item.flags || []).map(f => make('li', {},
+  f.field ? make('b', {textContent: f.field}) : null, make('span', {textContent: f.field ? ` ${f.why}` : f.why}),
+  make('button', {className: 'tonal', textContent: 'Dismiss', title: 'Nothing to fix here: drop this flag',
+    onclick: async (e) => {
+      e.target.disabled = true;
+      try {
+        const reply = await fetch('/dismiss', {method: 'POST', body: JSON.stringify({id: item.id, field: f.field, why: f.why}),
+                                               headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+        const data = await reply.json();
+        if (!reply.ok) throw new Error(data.error || 'Not dismissed.');
+        refresh();
+      } catch (err) { toast(err.message || 'Apply is not answering: is it still running?'); e.target.disabled = false; }
+    }}))));
 const dismiss = (item) => make('button', {className: 'close', textContent: '×', title: 'Hide it here; your Tracker keeps it',
   ariaLabel: 'Dismiss', onclick: () => {
     dismissed.add(item.id); keepDismissed(); drawInbox();
@@ -587,6 +614,45 @@ const who = (item) => {
   const words = [item.company || 'An application', item.role, item.system].filter(Boolean).join(' · ');
   return item.posting_url ? make('a', {className: 'name', href: item.posting_url, target: '_blank', textContent: words, title: 'Open the posting'})
     : make('span', {className: 'name', textContent: words});
+};
+// A Hold's essays, his to edit before he approves, as the retired Tracker Sheet's Essay cell was: one box per
+// question, with only the essay's text (the question heading and Plan lines stay with Apply). Approve sends his
+// texts, in order. The edit is kept, by Application ID, until he approves, also if the window reloads.
+const essayDrafts = new Map(Object.entries(JSON.parse((() => { try { return sessionStorage.getItem('apply.essays'); } catch (e) {} })() || '{}')));
+const keepEssays = () => { try { sessionStorage.setItem('apply.essays', JSON.stringify(Object.fromEntries(essayDrafts))); } catch (e) {} };
+const essayTexts = (item) => {  // his draft if it still fits the Hold's essays, else Claude's
+  const draft = essayDrafts.get(item.application_id), claude = item.essays.map((e) => e.text);
+  return Array.isArray(draft) && draft.length === claude.length ? draft : claude;
+};
+const editedEssays = (item) => {
+  const texts = essayTexts(item);
+  return texts.some((text, i) => text !== item.essays[i].text) ? texts : null;
+};
+const essayBox = (item) => {
+  const status = make('span', {className: 'status'});
+  const undo = make('button', {className: 'text', textContent: "Put back Claude's", hidden: true});
+  const boxes = item.essays.map((essay, i) => {
+    const text = make('textarea', {className: 'essay', maxLength: 100000, value: essayTexts(item)[i],
+                                   rows: Math.min(16, 3 + Math.floor(essay.text.length / 90) + essay.text.split('\n').length)});
+    text.dataset.key = `essay|${item.application_id}|${i}`;
+    text.oninput = () => {
+      const texts = [...essayTexts(item)]; texts[i] = text.value;
+      essayDrafts.set(item.application_id, texts); keepEssays(); say();
+    };
+    return [make('label', {className: 'question', textContent: essay.question}), text];
+  });
+  const say = () => {
+    const edited = editedEssays(item) !== null;
+    status.textContent = edited ? 'Edited: Approve sends your edit' : ''; status.className = 'status unsaved';
+    undo.hidden = !edited;
+  };
+  undo.onclick = () => {
+    essayDrafts.delete(item.application_id); keepEssays();
+    boxes.forEach(([, text], i) => { text.value = item.essays[i].text; }); say();
+  };
+  say();
+  return make('div', {className: 'ask'}, make('label', {textContent: 'The essays Claude wrote: edit them here before you approve'}),
+              ...boxes.flat(), make('div', {className: 'essay-row'}, status, undo));
 };
 // A box per question only Lisul can answer: saved where the run reads it, the draft kept if it is refused.
 // One its form offers options for shows them as the form does, a list to pick one or boxes to tick,
@@ -686,11 +752,16 @@ const row = (item) => {
   const card = make('div', {className: 'item ' + item.tone, tabIndex: 0},
     make('div', {className: 'top'},
       make('span', {className: 'kind', textContent: failed ? "Couldn't finish" : KINDS[item.kind] || '', title: (WORDS[item.kind] || ['', ''])[1]}),
+      item.verified ? make('span', {className: 'chip verified', textContent: '✓ Verified', title: (WORDS.verified || ['', ''])[1]}) : null,
       make('span', {className: 'ago', textContent: ago(item.at)}), failed ? null : dismiss(item)),
     make('div', {className: 'do', textContent: failed ? item.label.replace(/^Couldn't finish: /, '').replace(/^./, c => c.toUpperCase()) : item.do}),
     make('div', {className: 'who'}, who(item)),
-    item.why && !asks.length && !failed ? make('div', {className: 'why', textContent: item.why}) : null,
+    item.why && !asks.length && !failed && !item.flags ? make('div', {className: 'why', textContent: item.why}) : null,
+    item.flags ? flagList(item) : null,
+    item.notes && item.notes.length ? make('details', {}, make('summary', {textContent: `Notes from verifying (${item.notes.length})`}),
+      make('div', {textContent: item.notes.join('\n')})) : null,
     asks.map(question => answerBox(item, question)),
+    item.kind === 'held' && ctx.approve && item.application_id && item.essays && item.essays.length ? essayBox(item) : null,
     item.drafted && item.drafted.length ? make('details', {}, make('summary', {textContent: `What Claude wrote (${item.drafted.length})`}),
       make('div', {textContent: item.drafted.join('\n')})) : null,
     item.error ? make('details', {}, make('summary', {textContent: 'Details'}), make('div', {textContent: item.error})) : null,
@@ -700,7 +771,7 @@ const row = (item) => {
   return card;
 };
 const empty = () => {
-  const ctx = last.context || {}, filling = (last.tiles || []).filter(t => t.tone === 'filling').length;
+  const ctx = last.context || {}, filling = (last.tiles || []).filter(t => t.tone === 'filling' || t.tone === 'verifying').length;
   if (!ctx.workers && !ctx.rows && !ctx.tracker_error) return make('div', {className: 'empty-state'},
     make('h2', {textContent: 'Apply fills internship applications for you.'}),
     make('p', {}, 'Try it with a practice run, which sends nothing: ', make('code', {textContent: 'apply rehearse <job link>'})),
@@ -723,6 +794,7 @@ const drawInbox = () => {
   const list = document.getElementById('inbox-list');
   const keep = document.activeElement && document.activeElement.closest('.item')?.dataset.id;
   const typing = document.activeElement && document.activeElement.dataset.key;
+  const caret = typing ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
   const opened = (d) => (d.closest('[data-id]')?.dataset.id || '') + '|' + d.querySelector('summary').textContent.split(' ')[0];
   const open = [...list.querySelectorAll('details[open]')].map(opened);
   const order = Object.keys(KINDS), sorted = [...asks].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
@@ -731,7 +803,11 @@ const drawInbox = () => {
       make('summary', {textContent: `${failed.length} couldn't finish · nothing was sent, and Apply will try again`}),
       failed.map(row)) : '');
   list.querySelectorAll('details').forEach(d => { if (open.includes(opened(d))) d.open = true; });  // as Lisul left them
-  if (typing) list.querySelector(`[data-key="${CSS.escape(typing)}"]`)?.focus();
+  if (typing) {
+    const box = list.querySelector(`[data-key="${CSS.escape(typing)}"]`);
+    box?.focus();
+    if (box && caret[0] !== null && box.setSelectionRange) box.setSelectionRange(...caret);
+  }
   else if (keep) list.querySelector(`[data-id="${CSS.escape(keep)}"]`)?.focus();
   const count = document.getElementById('tab-inbox');
   if (count) count.textContent = asks.length ? `Needs you · ${asks.length}` : 'Needs you';
@@ -740,7 +816,7 @@ const drawInbox = () => {
 // Called with each /state: drawn again only when what the Inbox shows changed.
 const at = (iso) => iso ? iso.slice(11, 16) : '';
 // The status bar: the kind of run, and what it is doing as a whole, in one line.
-const filling = (state) => (state.tiles || []).filter(t => t.tone === 'filling').length;
+const filling = (state) => (state.tiles || []).filter(t => t.tone === 'filling' || t.tone === 'verifying').length;
 const sent = (state) => state.items.filter(i => i.tone === 'submitted' && i.from !== 'tracker').length;
 const drawRun = (state) => {
   const run = state.run || {}, ctx = state.context || {};
@@ -767,7 +843,7 @@ window.renderInbox = (state) => {
   drawRun(state);
   drawHistory(state);
   document.querySelectorAll('.note .chrome').forEach(b => b.hidden = !(state.context || {}).show);
-  const shown = JSON.stringify([state.items.map(i => [i.id, i.status, i.tone, i.questions]), (state.tiles || []).map(t => [t.posting_url, t.status]),
+  const shown = JSON.stringify([state.items.map(i => [i.id, i.status, i.tone, i.kind, i.flags, i.questions, i.answered]), (state.tiles || []).map(t => [t.posting_url, t.status]),
                                 state.context, state.summary, [...dismissed], Math.floor(Date.now() / 60000)]);
   if (shown === drawn) return;
   drawn = shown;
@@ -799,12 +875,12 @@ const drawHistory = (state) => {
   historyDrawn = shown;
   const all = state.items.filter(i => !i.live), ctx = state.context || {};  // a form still filling hasn't ended
   document.getElementById('history-tracker').replaceChildren(ctx.tracker_url
-    ? make('a', {href: ctx.tracker_url, target: '_blank', textContent: 'Every application is in your Tracker ↗'}) : '');
+    ? make('a', {href: ctx.tracker_url, target: '_blank', textContent: 'Every application is in your Applications Tracker on WorkIt ↗'}) : '');
   document.getElementById('history-list').replaceChildren(...(all.length ? all.map(item => {
     const files = item.from === 'tracker' ? [] : (item.files || []);
-    const row = make('div', {className: 'done ' + item.tone, tabIndex: 0},
+    const row = make('div', {className: 'done ' + item.tone + (item.verified ? ' verified' : ''), tabIndex: 0},
       make('span', {className: 'when', textContent: item.at ? (item.at.length > 10 ? item.at.slice(11, 16) : item.at.slice(5)) : ''}),
-      make('span', {className: 'verdict', textContent: VERDICTS[item.tone] || ''}),
+      make('span', {className: 'verdict', textContent: item.verified && item.tone !== 'submitted' ? '✓ Verified' : VERDICTS[item.tone] || ''}),
       make('div', {className: 'what'},
         make('div', {}, item.company ? who(item) : 'The run'),
         make('div', {className: 'why', textContent: whyLine(item)}),
@@ -942,6 +1018,13 @@ STYLE = r"""
   .who a.name { color: var(--muted); font-weight: 400; }
   .who a.name:hover { color: var(--brand); }
   .why { margin-top: 8px; color: var(--body); overflow-wrap: anywhere; }
+  .flags { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  .flags li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; padding: 8px 10px; border-radius: 8px;
+              background: var(--needs-tint); color: var(--body); overflow-wrap: anywhere; }
+  .flags li b { color: var(--needs); font-weight: 600; }
+  .flags li span { flex: 1 1 12em; min-width: 0; }
+  .flags li button { height: 26px; padding: 0 10px; font-size: 12px; }
+  .chip.verified { margin-left: 8px; padding: 1px 8px; border-radius: 999px; font: 500 11px/1.6 var(--sans); background: var(--good-tint); color: var(--good); }
   .item .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
   .item .then { font-size: 12px; color: var(--muted); }
   .item details { margin-top: 10px; font-size: 13px; }
@@ -949,10 +1032,12 @@ STYLE = r"""
   .ask { margin-top: 14px; }
   .ask > label { display: block; margin-bottom: 8px; color: var(--body); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
   .ask .options, .ask select { margin-bottom: 8px; }
+  .ask > label.question { margin: 10px 0 4px; color: var(--ink); font-weight: 600; }
   .ask .need { margin-left: 8px; padding: 1px 6px; border: 1px solid var(--rail-line); border-radius: 999px;
                font-size: 11px; font-weight: 500; color: var(--muted); white-space: nowrap; }
   .ask .need.required { color: var(--body); }
   .answer-row { display: flex; gap: 8px; align-items: center; }
+  .essay-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; min-height: 28px; margin-top: 4px; }
   .answer-row input { flex: 1; min-width: 0; }
   .file-options { display: flex; flex-wrap: wrap; gap: 8px; }
   .file-types { margin-top: 6px; font-size: 12px; color: var(--muted); }
@@ -980,7 +1065,7 @@ STYLE = r"""
   .done .when { padding-top: 1px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .done .verdict { justify-self: start; align-self: start; padding: 2px 10px; border-radius: 999px; font: 500 11px/1.6 var(--sans); white-space: nowrap;
                    background: var(--well); color: var(--muted); }
-  .done.submitted .verdict { background: var(--good-tint); color: var(--good); }
+  .done.submitted .verdict, .done.verified .verdict { background: var(--good-tint); color: var(--good); }
   .done.needs .verdict { background: var(--needs-tint); color: var(--needs); }
   .done.failed .verdict { background: var(--bad-tint); color: var(--bad); }
   .done .what { min-width: 0; overflow-wrap: anywhere; }
@@ -1062,6 +1147,14 @@ STYLE = r"""
   .banner .label { flex: 1 1 11em; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .banner .fields { flex: none; font-weight: 400; font-size: 12px; color: var(--muted); }
   .banner.filling { background: var(--tint); color: var(--tint-ink); }
+  /* Verifying: the form is read back and checked; a small spinner before its label. Verified: a check mark. */
+  .banner.verifying { background: var(--tint); color: var(--tint-ink); }
+  .banner.verifying .label::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; vertical-align: -1px;
+                                     border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+                                     animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .banner.verifying .label::before { animation-duration: 3s; } }
+  .banner.verified .label::before { content: "✓"; margin-right: 6px; color: var(--good); }
   .banner.ready { background: var(--panel); box-shadow: inset 0 -1px 0 var(--line); }  /* filled, not sent: never the green of sent */
   .banner.submitted { background: var(--good-tint); color: var(--good); }
   .banner.needs { background: var(--needs-tint); color: var(--needs); }

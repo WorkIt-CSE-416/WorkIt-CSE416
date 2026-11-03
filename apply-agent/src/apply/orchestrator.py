@@ -11,7 +11,7 @@ from collections.abc import Callable, Collection, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import date, datetime, timedelta
 
-from apply import bot_signals, embedded, greenhouse, oracle, trace, walls
+from apply import bot_signals, embedded, greenhouse, oracle, tailored, trace, walls
 from apply.accounts import Accounts, failed_sites
 from apply.adapters import (
     Adapters,
@@ -35,6 +35,7 @@ from apply.repair import requests_for
 from apply.request import is_request, resolve
 from apply.rescue import Rescue
 from apply.tracker import AnswerRow, EmployerAccount, Row, options_cell
+from apply.verify import verifying
 from apply.worker import Result, apply_to, named
 
 WORKERS = 3
@@ -207,7 +208,7 @@ class _Run:
                     self._adapters.board.update(worker, status=result.status, why=one_line(result.reason),
                                                 line=": ".join(filter(None, [result.status, result.reason])),
                                                 drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices,
-                                                required=result.required)
+                                                required=result.required, essay=result.essay)
                     if result.status == Status.PAUSED:
                         # First in line after the reset.
                         (requests if is_request(posting.id) else queue).appendleft(posting)
@@ -323,9 +324,11 @@ class _Run:
             if (behind := greenhouse.board_behind(posting, self._adapters.site)) == posting:
                 behind = embedded.form_behind(posting, on_worker)  # a Greenhouse, Lever or Ashby form in the page
             posting = behind
+            profile = tailored.resume_for(posting, self._profile, self._adapters.tailored)
             return by_filler(
-                posting, on_worker, self._profile, self._adapters.claude,
-                lambda: self._accounts(posting), lambda filler, site: self._apply_with(posting, filler, site, worker),
+                posting, on_worker, profile, self._adapters.claude,
+                lambda: self._accounts(posting),
+                lambda filler, site: self._apply_with(posting, filler, site, worker, profile),
                 signed_in=self._adapters.signed_in,
             )
         except Exception as error:
@@ -348,12 +351,14 @@ class _Run:
         with self._writing:
             self._adapters.tracker.add_employer_account(account)
 
-    def _apply_with(self, posting: Posting, filler, site, worker: int) -> Result:
+    def _apply_with(self, posting: Posting, filler, site, worker: int, profile: ApplicantProfile) -> Result:
+        """`profile` is the run's, with the Posting's tailored resume in place of its resume when it has one."""
         return apply_to(
-            posting, filler, site, self._profile, self._adapters.claude,
+            posting, filler, site, profile, self._adapters.claude,
             lambda: self._before_submit(posting), self._answers.get(posting.id), self._approved.get(posting.id),
             bank=self._adapters.answer_bank, today=self._adapters.clock.now().date(),
             on_files=lambda files: self._adapters.board.update(worker, files=files),
+            on_verify=lambda verification: self._adapters.board.update(worker, **verifying(verification)),
         )
 
     def _before_submit(self, posting: Posting) -> str:
@@ -569,7 +574,8 @@ def keep_record(adapters: Adapters, posting: Posting, result: Result, today: dat
         return "", result.reason
     try:
         record = Record(posting, result.status, result.reason, result.filled, today, drafted=result.drafted,
-                        named_facts=result.named_facts)
+                        named_facts=result.named_facts,
+                        verification=result.verification.as_json() if result.verification else None)
         return adapters.records.save(record), result.reason
     except Exception as e:
         return "", " ".join(filter(None, [result.reason, f"Record not saved: {e}"]))

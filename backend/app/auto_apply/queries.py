@@ -22,6 +22,7 @@ from sqlalchemy import (
     delete,
     func,
     literal,
+    not_,
     null,
     or_,
     select,
@@ -54,6 +55,7 @@ from app.schemas.applications import (
     WrittenQuestion,
 )
 from app.schemas.sent_resume import SentResumeResponse
+from app.services.postings import ADDED, typed_text
 
 
 async def queue_applications(
@@ -132,7 +134,9 @@ def _applications(applicant_id: uuid.UUID) -> Select:
     and the sent resume it names (KAN-267), if any."""
     return (
         select(
-            *LISTING_COLUMNS,
+            *(column for column in LISTING_COLUMNS if column is not Job_Post.title and column is not Job_Post.company_name),
+            typed_text(Job_Post.title, Job_Application.title),
+            typed_text(Job_Post.company_name, Job_Application.company_name),
             Job_Application.stage.label("stage"),
             Job_Application.created_at.label("added_at"),
             Job_Application.applied_at.label("applied_at"),
@@ -731,10 +735,11 @@ async def fetch_posting_text(db: AsyncSession, job_id: uuid.UUID) -> tuple[str |
 async def fetch_application_companies(db: AsyncSession, applicant_id: uuid.UUID) -> list[str]:
     """The companies of every job posting the applicant has an application
     for, at any stage, each once."""
+    company = typed_text(Job_Post.company_name, Job_Application.company_name)
     rows = await db.scalars(
-        select(Job_Post.company_name)
+        select(company)
         .join(Job_Application, Job_Application.job_id == Job_Post.id)
-        .where(Job_Application.applicant_id == applicant_id, Job_Post.company_name.is_not(None))
+        .where(Job_Application.applicant_id == applicant_id, company.is_not(None))
         .distinct()
     )
     return list(rows)
@@ -742,9 +747,11 @@ async def fetch_application_companies(db: AsyncSession, applicant_id: uuid.UUID)
 
 async def fetch_company_names(db: AsyncSession) -> list[str]:
     """Every company WorkIt knows by name: its job postings' and its
-    company profiles', each once."""
+    company profiles', each once. Not an added job's: one student typed
+    that name (KAN-515, ADR 0008), and this list feeds every student's
+    essay check."""
     rows = await db.scalars(
-        select(Job_Post.company_name).where(Job_Post.company_name.is_not(None))
+        select(Job_Post.company_name).where(Job_Post.company_name.is_not(None), not_(ADDED))
         .union(select(Company_Profile.company_name).where(Company_Profile.company_name.is_not(None)))
     )
     return list(rows)

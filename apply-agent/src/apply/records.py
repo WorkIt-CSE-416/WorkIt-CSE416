@@ -38,6 +38,7 @@ class Record:
     essays: str = ""  # Claude's essays for the form, as in the Essay column
     drafted: tuple[tuple[str, str], ...] = ()  # (question, answer) Claude drafted into the Answer bank
     named_facts: tuple[tuple[str, str], ...] = ()  # (question, Named fact) of each essay that names one
+    verification: dict | None = None  # how verifying the filled form went (apply.verify, Verification.as_json)
 
 
 def folder(record: Record) -> str:
@@ -57,7 +58,8 @@ REDACTED = "(secret, not recorded)"
 def record_files(record: Record) -> dict[str, bytes]:
     """The Record's files by name: answers.json, form.png, a README.md that
     GitHub shows when the Record's link is opened, after-submit.png once the
-    form was submitted, and essays.md when Claude wrote any."""
+    form was submitted, essays.md when Claude wrote any, and verification.json
+    once the form was verified."""
     rows = [
         {"question": q.label.strip(), "field": q.name, "planned": _shown(q, record.filled.answers.get(q.name)), "on_page": _shown(q, record.filled.readback.get(q.name))}
         for q in record.filled.questions
@@ -71,6 +73,8 @@ def record_files(record: Record) -> dict[str, bytes]:
         files["after-submit.png"] = record.filled.after_submit
     if record.essays:
         files["essays.md"] = record.essays.encode()
+    if record.verification is not None:
+        files["verification.json"] = (json.dumps(record.verification, indent=2, ensure_ascii=False) + "\n").encode()
     return files
 
 
@@ -96,11 +100,15 @@ def _readme(record: Record, rows: list[dict]) -> str:
         f"- Application ID: {p.id}",
         f"- Status: {record.status}" + (f" ({record.reason})" if record.reason else ""),
         f"- Date: {record.day.isoformat()}",
+        *([f"- Verification: {record.verification['label']}"] if record.verification else []),
         "",
         "| Question | Planned | On page |",
         "| --- | --- | --- |",
         *(f"| {cell(r['question'])} | {cell(r['planned'])} | {cell(r['on_page'])} |" for r in rows),
         "",
+        *(["## Verification", "", "What Apply found when it read the filled form back, before any submit:", "",
+            *(f"- {f['field'] + ': ' if f['field'] else ''}{f['why']}" + (" (dismissed)" if f.get("dismissed") else "" if f["holds"] else " (note)")
+              for f in record.verification["flags"]), ""] if record.verification and record.verification["flags"] else []),
         *(["## Claude drafted", "", "Answers to one-off questions, now in the Answer bank for you to review:", "",
             *(f"- {question} → {answer}" for question, answer in record.drafted), ""] if record.drafted else []),
         *(["## Named facts", "", "What the essays name about the company: read up on each before an interview.", "",

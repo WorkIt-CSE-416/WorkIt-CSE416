@@ -673,6 +673,44 @@ def from_cell(cell: str, questions: list[Question]) -> list[Essay]:
     return result
 
 
+def headings(cell: str) -> list[Question]:
+    """The questions an Essay cell heads its essays with ("## <question>")."""
+    labels = dict.fromkeys(line[3:].strip() for line in cell.splitlines() if line.startswith("## "))
+    return [Question(f"essay-{n}", label, "textarea", True) for n, label in enumerate(labels) if label]
+
+
+def _blocks(cell: str) -> list[tuple[str, list[str], str]]:
+    """An Essay cell (as_cell's format) cut into its essays: each one's "## " heading line, the Plan, Checks
+    and Named lines under it, and its text."""
+    blocks: list[tuple[str, list[str], list[str]]] = []
+    for line in cell.replace("\r\n", "\n").split("\n"):
+        if line.startswith("## "):
+            blocks.append((line, [], []))
+        elif blocks:
+            _, kept, text = blocks[-1]
+            (kept if not text and line.startswith((PLANNED, CHECKS, NAMED)) else text).append(line)
+    return [(heading, kept, "\n".join(text).strip()) for heading, kept, text in blocks]
+
+
+def cell_texts(cell: str) -> list[tuple[str, str]]:
+    """A held cell's essays as the Apply window shows them for Lisul to edit: each (question, text). Only the
+    text is his to edit: the heading and the Plan, Checks and Named lines stay as Apply wrote them."""
+    return [(one_line(heading[3:]), text) for heading, _, text in _blocks(cell)]
+
+
+def with_texts(cell: str, texts: Sequence[str]) -> str:
+    """The cell with Lisul's text in place of each essay's text, in order (cell_texts), and the headings and
+    the Plan, Checks and Named lines as stored, so `from_cell` reads his words for each question. ValueError,
+    with words for Lisul, for an empty essay or a count that is not the cell's."""
+    blocks = _blocks(cell)
+    if len(texts) != len(blocks):
+        raise ValueError("The essays changed since the window showed them. Reload the window and edit them again.")
+    for (heading, _, _), text in zip(blocks, texts):
+        if not text.strip():
+            raise ValueError(f'The essay for "{one_line(heading[3:])}" is empty. Write it, or put back Claude\'s.')
+    return "\n\n".join("\n".join([heading, *kept, text.strip()]) for (heading, kept, _), text in zip(blocks, texts))
+
+
 def unsupported_numbers(text: str, *sources: str) -> tuple[str, ...]:
     """The numbers `text` states that none of `sources` does. A fact Claude
     invents most often shows as a number: a count, a percentage, a year."""

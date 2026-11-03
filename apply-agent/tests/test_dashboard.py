@@ -267,7 +267,7 @@ def test_a_needs_you_tile_says_what_to_do_why_and_what_then_happens():
     assert (held["kind"], held["do"]) == ("held", "Review and approve before it's sent")
     assert held["why"] == ("Stripe is on your check-first list; it has an essay about the company ('Why Stripe?'); "
                            "it's one of your first 10 applications (4 of 10), so you can check Claude's answers")
-    assert held["then"].startswith("Tick Approve in your Tracker")
+    assert held["then"].startswith("Approve it here")
     asked = verdict({"status": "missing fact", "why": "Missing fact: Do you have a driver's license?"})
     assert (asked["kind"], asked["why"]) == ("missing fact", "Do you have a driver's license?")
 
@@ -794,9 +794,9 @@ def _status(url: str, data: bytes | None = None, headers: dict | None = None) ->
 # The Inbox: what waits on Lisul, kept after its Worker moves on.
 
 def test_the_inbox_lists_each_ask_most_blocking_first_with_what_to_do_and_one_action(window):
-    with Dashboard(3, FakeFrames({}), tracker_url="https://docs.google.com/spreadsheets/d/x") as board:
+    with Dashboard(3, FakeFrames({}), tracker_url="https://workitjobs.ai/applications", approve=lambda i: "ok") as board:
         board.update(0, company="Stripe", role="SWE Intern", job_system="greenhouse", posting_url="https://s.example/1",
-                     status="held", why="Target company: Stripe")
+                     application_id="s1", status="held", why="Target company: Stripe")
         board.update(1, company="Cohere", role="ML Intern", posting_url="https://c.example/2", status="missing fact",
                      why="Missing fact: Do you have a valid driver's license?")
         board.update(2, company="Zipline", role="Embedded Intern", job_system="workday", posting_url="https://z.example/3",
@@ -811,7 +811,7 @@ def test_the_inbox_lists_each_ask_most_blocking_first_with_what_to_do_and_one_ac
         assert rows == [["Sign in", "Sign in to Zipline's Workday site once"], ["Question", "Answer a question only you know"],
                         ["Approve", "Review and approve before it's sent"]]
         assert "Stripe · SWE Intern · Greenhouse" in held.inner_text() and "Stripe is on your check-first list" in held.inner_text()
-        assert held.locator("a.button.primary").inner_text() == "Approve in your Tracker ↗"
+        assert held.locator("button.primary").inner_text() == "Approve"
         assert window.get_attribute("#inbox .item:has-text('Stripe') .who a", "href") == "https://s.example/1"
         assert window.inner_text("#tab-inbox") == "Needs you · 3"
 
@@ -859,13 +859,111 @@ def test_with_no_run_going_the_inbox_lists_what_the_tracker_says_still_waits(win
     from apply.model import Status
     rows = [held_row(), held_row(application_id="a2", company="Done Co", approve=True),
             held_row(application_id="a3", company="Cohere", status=Status.MISSING_FACT, missing_fact="Pronouns", reason="")]
-    with Dashboard(0, NoFrames(), past=lambda: rows, tracker_url="https://docs.google.com/spreadsheets/d/x") as board:
+    approved = []
+    with Dashboard(0, NoFrames(), past=lambda: rows, tracker_url="https://workitjobs.ai/applications",
+                   approve=lambda i: approved.append(i) or "Approved.") as board:
         window.goto(board.url)
         window.wait_for_selector("#inbox .item", timeout=10_000)
         names = window.eval_on_selector_all("#inbox .item .name", "ns => ns.map(n => n.textContent)")
 
         assert names == ["Cohere · SWE Intern · Greenhouse", "Stripe · SWE Intern · Greenhouse"]  # not the approved Hold
-        assert window.get_attribute("#inbox a:has-text('Your Tracker')", "href") == "https://docs.google.com/spreadsheets/d/x"
+        assert window.get_attribute("#history-tracker a", "href") == "https://workitjobs.ai/applications"
+        window.click("#inbox .item:has-text('Stripe') button:has-text('Approve')")
+        window.wait_for_function("() => !document.querySelector('#inbox .item .name')"
+                                 " || ![...document.querySelectorAll('#inbox .item .name')].some(n => n.textContent.startsWith('Stripe'))")
+        assert approved == ["a1"]
+
+
+def post_approve(board, item, token=None, essays=None):
+    body = json.dumps({"id": item["id"]} | ({"essays": essays} if essays is not None else {})).encode()
+    return urllib.request.urlopen(urllib.request.Request(board.url + "/approve", body,
+                                                         {"X-Apply-Token": token or board.token}))
+
+
+def test_a_hold_is_approved_in_the_window_and_waits_no_more():
+    # KAN-544: the Tracker Sheet is gone, so the window's button ticks Approve in Apply's Tracker.
+    approved = []
+    with Dashboard(0, NoFrames(), past=lambda: [held_row()], approve=lambda i: approved.append(i) or "Approved.") as board:
+        [item] = board.state()["items"]
+        assert item["kind"] == "held" and board.state()["context"]["approve"] is True
+        reply = json.loads(post_approve(board, item).read())
+
+        assert (reply["message"], approved) == ("Approved.", ["a1"])
+        assert [i.get("answered") for i in board.state()["items"]] == [True]
+        with pytest.raises(urllib.error.HTTPError) as gone:  # a second press: it no longer waits
+            post_approve(board, item)
+        assert gone.value.code == 404
+
+
+# A held cell as essays.as_cell writes it: each essay's heading, its Plan line, then its text.
+HELD_CELL = ("## Why Stripe?\nPlan: why-company | Hitachi Rail | Payments are infrastructure.\nClaude's draft\n\n"
+             "## A project you're proud of?\nMy bus tracker.")
+
+
+def test_a_held_essay_edited_in_the_window_is_approved_as_edited():
+    # The retired Tracker Sheet let Lisul edit a held essay before he ticked Approve: the window does too,
+    # one box per question with only its text. The heading and Plan line stay as Apply wrote them.
+    approved = []
+    approve = lambda i, essay=None: approved.append((i, essay)) or "Approved."
+    with Dashboard(1, NoFrames(), past=lambda: [held_row(essay=HELD_CELL)], approve=approve) as board:
+        [item] = board.state()["items"]
+        assert item["essays"] == [{"question": "Why Stripe?", "text": "Claude's draft"},
+                                  {"question": "A project you're proud of?", "text": "My bus tracker."}]
+        post_approve(board, item, essays=["My own words", "My bus tracker."])
+        board.update(0, company="Arc", role="Intern", posting_url="https://arc.example/1", application_id="arc-1",
+                     status="held", why="High-stakes essay: Why Arc?", essay="## Why Arc?\nDraft")
+        [live] = [i for i in board.state()["items"] if i["company"] == "Arc"]
+        assert live["essays"] == [{"question": "Why Arc?", "text": "Draft"}]
+        post_approve(board, live)  # not edited: the row's essay stays
+
+    assert approved == [("a1", HELD_CELL.replace("Claude's draft", "My own words")), ("arc-1", None)]
+
+
+def test_an_empty_held_essay_is_refused_and_not_approved():
+    approved = []
+    approve = lambda i, essay=None: approved.append((i, essay)) or "Approved."
+    with Dashboard(0, NoFrames(), past=lambda: [held_row(essay=HELD_CELL)], approve=approve) as board:
+        [item] = board.state()["items"]
+        for essays, said in [(["  ", "My bus tracker."], 'The essay for "Why Stripe?" is empty.'),
+                             (["Only one"], "The essays changed since the window showed them.")]:
+            with pytest.raises(urllib.error.HTTPError) as refused:
+                post_approve(board, item, essays=essays)
+            assert refused.value.code == 400 and json.loads(refused.value.read())["error"].startswith(said)
+        assert [i.get("answered") for i in board.state()["items"]] == [None]  # it still waits on him
+
+    assert approved == []
+
+
+def test_lisul_edits_a_held_essay_on_its_card_and_approve_sends_his_words(window):
+    approved = []
+    approve = lambda i, essay=None: approved.append((i, essay)) or "Approved."
+    with Dashboard(0, NoFrames(), past=lambda: [held_row(essay=HELD_CELL)], approve=approve) as board:
+        window.goto(board.url)
+        card = "#inbox .item:has-text('Stripe')"
+        window.wait_for_selector(f"{card} textarea")
+        boxes = window.locator(f"{card} textarea")
+        # One box per question, each with the essay's text only: no heading or Plan line to edit.
+        assert [boxes.nth(i).input_value() for i in range(boxes.count())] == ["Claude's draft", "My bus tracker."]
+        assert "Why Stripe?" in window.inner_text(card) and "Plan:" not in window.inner_text(card)
+        boxes.first.fill("My own words")
+        window.reload()  # the edit is kept until he approves
+        assert window.locator(f"{card} textarea").first.input_value() == "My own words"
+        assert "Approve sends your edit" in window.inner_text(card)
+        window.click(f"{card} button:has-text('Approve')")
+        window.wait_for_selector(card, state="detached")
+        window.reload()  # approved: the edit is not kept any longer
+        assert window.evaluate("sessionStorage.getItem('apply.essays')") == "{}"
+
+    assert approved == [("a1", HELD_CELL.replace("Claude's draft", "My own words"))]
+
+
+def test_an_approval_from_anywhere_but_the_window_is_refused():
+    approved = []
+    with Dashboard(0, NoFrames(), past=lambda: [held_row()], approve=approved.append) as board:
+        [item] = board.state()["items"]
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            post_approve(board, item, token="guessed")
+    assert refused.value.code == 403 and approved == []
 
 
 def test_a_tracker_missing_fact_brings_the_options_its_form_offered():

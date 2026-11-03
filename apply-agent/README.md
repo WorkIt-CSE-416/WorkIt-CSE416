@@ -98,6 +98,41 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    - `apply-ntfy`: an ntfy topic for phone notifications
      (`./scripts/setup-wizard.sh` sets it up).
 
+8. Optional: log in to WorkIt, so Apply can write your applications to
+   your Applications Tracker on WorkIt: a submit as Applied (with the
+   resume sent), a Handoff, a missing fact or a held application as
+   Needs you. You need a WorkIt student account. Rehearsals
+   work without it; the writes wait until you log in.
+
+   ```sh
+   uv run apply login
+   ```
+
+   Apply opens WorkIt's sign-in page in a new Chrome window. Sign in there.
+   Apply keeps the login in your data folder (`workit-login.json`), never in
+   the repo, and closes the window. You log in one time; Apply refreshes the
+   login by itself.
+
+   `uv run apply doctor` then says "WorkIt: logged in as" your email. If it
+   says that the login expired, run `uv run apply login` again.
+
+   If you used a Tracker Sheet before, put its submitted applications into
+   your Applications Tracker one time. Apply first lists each add and skip,
+   and writes only when you type yes:
+
+   ```sh
+   uv run apply import-sheet
+   ```
+
+   Then you can delete the saved and queued applications of jobs that you
+   did not apply to. Apply first lists each delete and keep, and deletes
+   only when you type yes. It never deletes an application at applied or
+   later. Use `--keep <link>` for a job that you still follow:
+
+   ```sh
+   uv run apply clean-tracker
+   ```
+
 Run `uv run apply doctor` again. Then rehearse a Workday posting.
 
 ## The demo
@@ -123,6 +158,6 @@ touches on your Mac, with `-k`: `uv run pytest tests/test_workday_filler.py
   sign-in.
 - [docs/records-setup.md](docs/records-setup.md): Records repo and
   notifications.
-- [docs/tracker-setup.md](docs/tracker-setup.md): the Tracker Sheet, which
-  only `apply run` needs.
+- [docs/tracker-setup.md](docs/tracker-setup.md): Apply's Tracker (a file
+  in the data folder) and what Apply writes to your Applications Tracker.
 - `./scripts/setup-wizard.sh` walks through all of them.

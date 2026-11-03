@@ -69,8 +69,16 @@ The most Matches applied to (submitted or held) in one day, local time, kept in 
 _Avoid_: daily limit, quota, rate limit
 
 **Tracker**:
-The spreadsheet with one row per Application that Lisul reads to see every Application, its link, its status and its outcome.
+Apply's own working state, one row per Application, in a file in the data folder (`tracker.json`). It keeps each Application's status, the Holds Lisul approves and the Missing facts he answers in the Apply window. It also keeps the Requests, the Employer accounts and the Answer bank list. It is not the record of what he applied to: WorkIt's Applications Tracker is the record. Each new status is also written there: submitted as Applied with the resume sent, handoff, missing fact and held as Needs you (never as Queued: on WorkIt, Queued is the batch apply queue that the extension fills). The Google Sheet that held it before, the **Tracker Sheet**, is retired. Apply only reads it, one time, to copy its rows in and to import its submitted rows into WorkIt.
 _Avoid_: ledger, log, dashboard
+
+**Waiting write**:
+A write to WorkIt's Applications Tracker that could not reach WorkIt (no answer, or no live login) or that WorkIt's daily cap of added jobs refused, kept in the data folder (`workit-queue.json`) and sent first by the next run or rehearsal. A write the cap refused is not sent again until the cap resets (the next UTC day, or when WorkIt's Retry-After says). `apply doctor` lists them, and says which wait for the cap. A later status of the same Application replaces one still waiting.
+_Avoid_: retry queue, outbox
+
+**WorkIt client**:
+The one module in Apply that calls WorkIt's API, as the student that `apply login` signed in. The login is kept in the data folder.
+_Avoid_: API wrapper, WorkIt SDK
 
 **Top 500**:
 The 500 most prestigious non-quant companies with a Summer 2027 software internship open to Lisul, ranked 1 to 500, one row each with the link to its best open Posting and whether he has applied. Ranked by tier first, then intern pay and how much the company innovates. A company ranked above the cutoff with nothing open yet is listed apart as Not open yet.
@@ -199,6 +207,10 @@ _Avoid_: form fields, questionnaire
 **Pre-submit check**:
 The check every filled Application must pass before it is submitted: each answer on the page is read back and compared with what was meant, then Claude reviews the question-and-answer pairs for answers that are valid but wrong.
 _Avoid_: validation, QA, review
+
+**Verifying**:
+The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads the filled form back from the page and checks it against the Applicant profile, the Posting and its own plan, then the Application is Verified, or Verified with flags. A flag names a field and why it needs Lisul (a blank field, a value the page shows otherwise, a wrong file, a date or pay that doesn't fit, a wrong name or pronoun or another company's name in an essay, answers that contradict each other); a flag holds a run's Application in Needs you, where Lisul fixes or dismisses it. A note (an answer Claude guessed, a blank optional field) holds nothing. Verifying only reads: it never presses Submit.
+_Avoid_: validation, QA, double-check
 
 **Employer account**:
 A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google.

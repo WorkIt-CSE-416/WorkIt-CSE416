@@ -244,13 +244,13 @@ async def test_a_closed_jobs_form_is_refused_and_the_job_stays_closed(students, 
 async def test_an_added_job_takes_a_sent_resume_and_a_closed_one_does_not(students, database):
     from app.services.sent_resumes import NotFound, _check_posting
 
-    client, _ = students
+    client, (sam, _) = students
     added = uuid.UUID((await client.post("/jobs/added-by-link", json=_page(_form()))).json()["job_id"])
     url = _form()
     await _import([url])
     await _import([_form()])
     async with database() as session:
         closed = await session.scalar(text("SELECT id FROM job_postings WHERE apply_url = :u"), {"u": url})
-        await _check_posting(session, added)
-        with pytest.raises(NotFound):
-            await _check_posting(session, closed)
+        await _check_posting(session, sam, added)
+        with pytest.raises(NotFound):  # closed, and Sam has no application on it
+            await _check_posting(session, sam, closed)

@@ -2,8 +2,10 @@
 
 A missing Gmail app password or a signed-out Worker profile otherwise shows
 only as Handoffs mid-run. Each check says ok, warn or fail, and how to fix
-it; any fail makes `apply doctor` exit non-zero. No check writes, submits,
-pushes or opens a browser."""
+it; any fail makes `apply doctor` exit non-zero. No check submits, pushes
+or opens a browser, and only one writes: the WorkIt check saves the WorkIt
+login again when it refreshes the access token (Supabase rotates the
+refresh token on each use)."""
 
 import json
 import os
@@ -30,7 +32,15 @@ from apply.model import Status
 from apply.orchestrator import SUBMITTING
 from apply.profile import ApplicantProfile, load_policies
 from apply.records import BRANCH, CLONE
-from apply.sheet import NoSheet, live_tracker
+from apply.tracker import FileTracker
+from apply.workit import (
+    SHOWN,
+    LoginExpired,
+    Unreachable,
+    WaitingWrites,
+    WorkIt,
+    cap_wait,
+)
 
 OK, WARN, FAIL = "ok", "warn", "fail"
 
@@ -72,17 +82,19 @@ class Machine:
     claude: Callable[[], str] = lambda: claude_auth_status()  # `claude auth status`'s output
     profiles: Path = field(default_factory=lambda: WorkerBrowsers().profiles)  # the Worker profiles' folder
     mailbox: Callable[[str], Mailbox] = live_mailbox  # Gmail for an address
-    tracker: Callable[[], Tracker] = live_tracker  # opens the Tracker Sheet
+    tracker: Callable[[], Tracker] = FileTracker  # Apply's Tracker file in the data folder
     # The Records repo: its remote and GitRecords' clone of it. None: policies.yaml's records_remote, and CLONE.
     records: tuple[str | None, Path] | None = None
     engine: Path = ENGINE  # the Fill engine's built bundle
     # Where Playwright keeps the Chromium the tests run (live runs use Chrome).
     playwright: Path = Path(os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or Path.home() / "Library/Caches/ms-playwright")
+    workit: Callable[[], WorkIt] = WorkIt  # the WorkIt client, with the login in the data folder
+    waiting_writes: Callable[[], WaitingWrites] = WaitingWrites  # the writes to the Applications Tracker still waiting
     usage: Usage | None = None  # read only when asked (`--usage`): reading it costs a tiny Haiku call
 
 
 def diagnose(machine: Machine) -> list[Check]:
-    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _worker_profiles, _facts, _resume_gate, _gmail, _records, _live_runs, _tracker]
+    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _worker_profiles, _facts, _resume_gate, _gmail, _records, _live_runs, _workit, _writes, _tracker]
     return [found for c in checks for found in _safely(c, machine)]
 
 
@@ -310,23 +322,48 @@ def _folder(machine: Machine) -> Path:
     return machine.profile.path.parent if isinstance(machine.profile, NoProfile) else machine.profile.folder
 
 
+LOGIN = "run `uv run apply login`"
+
+
+def _workit(machine: Machine) -> Check:
+    """Optional, as Gmail is: only Apply's writes to the Applications Tracker need the login."""
+    client = machine.workit()
+    if not client.logged_in():
+        return Check("WorkIt", WARN, "off: not logged in, so Apply can't write to your Applications Tracker "
+                                     "(rehearsals work without it)", f"{LOGIN} if you have a WorkIt student account")
+    try:
+        account = client.me()
+    except LoginExpired:
+        return Check("WorkIt", WARN, "the login expired or was signed out", f"{LOGIN} again")
+    except Unreachable as e:
+        return Check("WorkIt", WARN, f"can't reach WorkIt ({e})",
+                     f"check your network, and that {client.site.api} answers; Apply's login is still kept")
+    if account.account_type != "applicant":
+        return Check("WorkIt", WARN, f"logged in as {account.email}, a {account.account_type} account",
+                     f"{LOGIN} with a student account: the Applications Tracker needs one")
+    return Check("WorkIt", OK, f"logged in as {account.email}")
+
+
+def _writes(machine: Machine) -> Check:
+    """The writes to the Applications Tracker that could not reach WorkIt yet (KAN-544). Read-only."""
+    waiting = machine.waiting_writes().waiting()
+    if not waiting:
+        return Check("WorkIt writes", OK, "none waiting")
+    return Check("WorkIt writes", WARN, f"{len(waiting)} waiting to send to your Applications Tracker: "
+                 + ", ".join(f"{w.company} ({', '.join(filter(None, [SHOWN[w.stage], cap_wait(w)]))})" for w in waiting),
+                 "they go at the next run or rehearsal; if the WorkIt line says the login expired, "
+                 f"{LOGIN} first")
+
+
 def _tracker(machine: Machine) -> list[Check]:
-    """The Sheet, read once, and from its rows how far the Calibration run is."""
-    unknown = Check("Calibration run", WARN, "unknown: the Tracker Sheet doesn't read")
+    """Apply's Tracker file, read once, and from its rows how far the Calibration run is."""
     try:
-        tracker = machine.tracker()
-    except NoSheet as e:
-        return [Check("Tracker Sheet", WARN, f"off: {e}", "only `apply run` needs it: set up a Sheet with "
-                                                          "docs/tracker-setup.md"), unknown]
+        rows = machine.tracker().rows()
     except Exception as e:
-        return [Check("Tracker Sheet", FAIL, f"not reachable: {type(e).__name__}: {e}",
-                      "set up the Sheet and share it with the service account (docs/tracker-setup.md)"), unknown]
-    try:
-        rows = tracker.rows()
-    except Exception as e:
-        return [Check("Tracker Sheet", FAIL, f"reachable, but its rows don't read: {type(e).__name__}: {e}",
-                      "a run reads the same rows when it starts and would stop there too"), unknown]
-    return [Check("Tracker Sheet", OK, f"reachable; {len(rows)} Applications"), _calibration(machine, rows)]
+        return [Check("Tracker", FAIL, f"its rows don't read: {type(e).__name__}: {e}",
+                      "a run reads the same rows when it starts and would stop there too"),
+                Check("Calibration run", WARN, "unknown: the Tracker doesn't read")]
+    return [Check("Tracker", OK, f"{len(rows)} Applications"), _calibration(machine, rows)]
 
 
 def _calibration(machine: Machine, rows) -> Check:

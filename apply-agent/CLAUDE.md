@@ -13,7 +13,8 @@ own Claude Code login. It is a developer and power-user tool, not a student
 feature: students apply through the extension and the connector (KAN-369).
 
 Apply has its own domain language. Read `GLOSSARY.md` and `docs/adr/` here,
-not the root ones, for its terms (root `GLOSSARY-MAP.md`).
+not the root ones, for its terms (root `GLOSSARY-MAP.md`). Write each
+glossary entry in ASD-STE100 wording: sentences of 25 words or fewer.
 
 ## How it differs from `auto-apply/` and the extension
 
@@ -24,7 +25,8 @@ not the root ones, for its terms (root `GLOSSARY-MAP.md`).
   answers, and the WorkIt backend keeps its state.
 - `apply-agent/` is a Python program (uv, Playwright) that runs its own
   Chrome workers. Claude writes its answers. Its state is files in the data
-  folder, not the WorkIt database. It does not call the WorkIt API.
+  folder, not the WorkIt database. It calls the WorkIt API only through
+  the WorkIt client (next sections), as the signed-in student.
 
 Both Apply and the extension fill forms with the same Fill engine (next
 section). A fix to how a field is read, planned from the profile, filled
@@ -84,6 +86,290 @@ drops `none`. An empty answer without `none` is still no answer.
 `README.md` is a teammate's setup path, from a clone to a rehearsal. Its
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.
+
+## The WorkIt client and `apply login` (KAN-541)
+
+`src/apply/workit.py` is the only module in Apply that calls WorkIt. Do not
+call WorkIt from another module; add a method to `WorkIt` that uses `call`.
+
+- `uv run apply login` opens WorkIt's sign-in page (`/login`) in a new
+  Chrome with an empty, temporary profile. The student signs in there
+  (password, Google or LinkedIn). Apply never types into it. Apply reads the
+  web app's session cookie through Chrome's DevTools port, as the extension
+  reads it (`webapp-session.js`), and checks it with `GET /auth/me`. Then
+  Apply closes that Chrome and deletes its profile. Chrome starts as a plain
+  process, not from Playwright, so Google's sign-in accepts it.
+- Because that browser is gone, only Apply has the session. Apply refreshes
+  the access token itself at Supabase Auth
+  (`/auth/v1/token?grant_type=refresh_token`, with the public anon key) and
+  keeps the new refresh token: Supabase rotates it on each use. The
+  extension must not do this (its CLAUDE.md, KAN-465), but Apply's session
+  is not shared with a web app. A lock file (`workit-login.lock`) stops two
+  processes from using one refresh token.
+- The session is in `APPLY_HOME/workit-login.json` (mode 0600), with the
+  Supabase URL that it belongs to. Never print it, log it or put it in a
+  Record. To log out, delete the file.
+- The API checks the bearer token (`backend/app/deps.py`, `security.py`).
+  `call(method, path, body)` sends one request as the student. On a 401 it
+  refreshes one time and tries again. `applicant_id()` is the student's id
+  for the paths, read from `GET /auth/me` one time per client. Code outside
+  `WorkIt` uses only its public methods.
+- `workit.Stage` names WorkIt's application stages, and
+  `workit.APPLIED_STAGES` is applied or later. Use them; do not write a
+  stage name as a string in another module (`tracker.STAGES`, the import,
+  the cleanup).
+- Errors: `NotLoggedIn` (no file), `LoginExpired` (Supabase or WorkIt
+  refused the login: run `apply login` again), `Unreachable` (no answer, or
+  a 5xx).
+- `apply doctor` has a "WorkIt" line. It is optional, as Gmail is: no
+  login, an expired login, WorkIt that cannot be reached, and a company
+  account are each a warn with a fix line, never a fail. A user with no
+  WorkIt account still rehearses. When the access token expired, doctor
+  refreshes it and saves the login again. This is the only write that
+  doctor makes.
+- Each request sends the `User-Agent` `WorkIt-Apply/1`. Cloudflare, in
+  front of WorkIt's API, refuses the Python-urllib user agent (error 1010).
+- `workit.LIVE` holds the live URLs and the anon key. They are the same
+  public values as `autofiller_extension/src/shared/config.js`, and
+  `test_workit_login.py` checks this. For a local WorkIt stack, set
+  `APPLY_WORKIT_WEB`, `APPLY_WORKIT_API`, `APPLY_WORKIT_AUTH` (the Supabase
+  URL) and `APPLY_WORKIT_ANON_KEY`.
+
+**Tests.** `tests/fake_workit.py` is a fake WorkIt: one local HTTP server
+that answers as Supabase Auth and WorkIt's API, and records each request
+(`fake.requests`). Use `with FakeWorkIt() as fake:` and
+`WorkIt(fake.site, tmp_path / "workit-login.json")`. `fake.session()` makes
+a session, `fake.cookies(session)` gives the web app's cookie for it,
+`fake.expire()` lets the access tokens expire, `fake.revoke()` signs out
+every session, and `fake.stop()` makes WorkIt unreachable. Add a WorkIt
+route with `fake.route(method, path, handler)`. `test_workit_login.py` needs
+no browser and is in CI. `test_workit_sign_in_browser.py` opens Chromium
+against the fake's `/login`, so run it on your Mac.
+
+## `apply import-sheet`: the Tracker Sheet into the Applications Tracker (KAN-545)
+
+`src/apply/sheet_import.py`. It runs one time, after `apply login`. ADR
+0007 says why the Applications Tracker is the record.
+
+- It reads the Applications tab of the Tracker Sheet (`sheet-id`) as text.
+  It does not use `SheetTracker.rows()`, because that stops on an Outcome
+  that is not in `Outcome`.
+- Only rows with status submitted go in. Each other row is a skip, with
+  its status.
+- The stage comes from Outcome: interview to interviewing, offer to offer,
+  rejected to rejected. Each other Outcome, and a blank one, is applied.
+  An Outcome that is not in `Outcome`, and a missing or bad Date applied,
+  go in at applied (or today) and are listed under "Check these".
+- The resume is the file in the Application's folder under `sent/`
+  (`worker.sent_folder`) whose name matches `attach.RESUME` and not
+  `attach.COVER`. The folder of the day applied comes first. With no such
+  file, the application goes in with no Sent resume.
+- The dry run writes nothing. It reads `GET /auth/me`, `GET
+  /applicants/{id}/applications`, and `POST /jobs/listed-by-link` for each
+  row. Then the student types yes (`--dry-run` only lists).
+- Each add is `WorkIt.record_applied`, the same method as a submit's
+  write. In this order: `POST /jobs/added-by-link` (with `"track_only":
+  true`, below), then `POST
+  .../sent-resumes/file` (the resume, base64 JSON), then `PUT
+  .../applications/{job_id}/stage` with `applied_on`, then `POST
+  /jobs/{job_id}/applied` with `sent_resume_id`. It does nothing more to
+  an application that is applied or later.
+- It never changes an application that is applied or later in WorkIt. The
+  dry run skips it, and the write skips it again if it became applied
+  after the dry run. So a second run adds nothing, and a failed run can
+  run again. Two rows of one job (`job_key`: WorkIt's link rule) are one
+  add.
+- A refused add is listed as FAILED and the others continue. WorkIt not
+  answering stops the import.
+
+**Tests.** `tests/test_sheet_import.py` runs the command on
+`tests/fixtures/tracker-sheet.csv` (the real Sheet's columns, made-up rows)
+against `tests/fake_tracker.py`: an Applications Tracker held in memory on
+the fake WorkIt, with WorkIt's link rule, stages and Sent resumes.
+
+## `apply clean-tracker`: delete the jobs the student did not apply to (KAN-546)
+
+`src/apply/tracker_cleanup.py`. Run it after `apply import-sheet`.
+
+- It reads `GET /auth/me`, `GET /applicants/{id}/applications` and the
+  Applications tab of the Tracker Sheet. With no Sheet, it uses WorkIt
+  only.
+- It deletes only saved and queued applications. It keeps a saved or
+  queued application when:
+  - the student has an application at applied or later on the same job
+    (`job_key`, so also on another posting of that job);
+  - the Tracker Sheet has the same job as submitted (not imported yet). The
+    dry run then says to run `apply import-sheet` first;
+  - Apply's own Tracker (`APPLY_HOME/tracker.json`) has the job as held,
+    missing fact or handoff. Apply writes these as needs_you, but the
+    write can still wait in the queue. The dry run says "Apply is waiting
+    for you on it (<status>)";
+  - the student gave its link or job id with `--keep`.
+- It never deletes or changes an application at applied, interviewing,
+  offer or rejected, or at needs_you or skipped.
+- The dry run writes nothing. Then the student types yes (`--dry-run`
+  only lists).
+- Each delete: `DELETE /jobs/{job_id}/saved` for saved, `DELETE
+  /applicants/{id}/applications/{job_id}` for queued. Both routes delete
+  only at that stage, in the same SQL statement, so an application that
+  became applied after the dry run stays. WorkIt then refuses (409): the
+  cleanup lists it as FAILED and continues. WorkIt not answering stops it.
+- After the deletes, it reads the tracker again and prints the count of
+  applied applications before and after. If one is gone, it lists it and
+  exits 1.
+
+**Tests.** `tests/test_tracker_cleanup.py`, against `tests/fake_tracker.py`
+(with the two delete routes), with one application at each stage.
+
+## Apply writes to the Applications Tracker (KAN-544)
+
+Apply's Tracker is a file in the data folder: `tracker.FileTracker`
+(`tracker.json`, one JSON file, a lock file around each read and write).
+`cli.live_tracker()` wraps it in `tracker.WorkItTracker`: each `add` or
+`update` that gives an Application a new status in `tracker.STAGES` also
+sends a `workit.Write` through a `workit.WaitingWrites`.
+
+- submitted to `applied`, with the resume from the Application's folder
+  under `sent/` (`worker.sent_resume`: the profile's resume name, else a
+  PDF named resume) kept as the Sent resume. This is
+  `WorkIt.record_applied`, the import's write sequence. A job that is
+  applied or later on WorkIt already stays as it is ("already
+  interviewing").
+  handoff, missing fact and held to `needs_you` (the stage PUT; a 409
+  means the job is applied already, and is not an error). Apply never
+  writes `queued`: on WorkIt that is the batch apply queue, and the
+  extension fills a queued application. A `queued` write still in an
+  older queue file is sent as `needs_you`.
+  Every other status writes nothing.
+- The job comes from `POST /jobs/added-by-link`, so a later status moves
+  the same row. It is the extension's Write with Claude route (KAN-515);
+  Apply sends `"track_only": true` (`WorkIt.add_by_link`), so WorkIt takes
+  any link (not only a form auto apply fills), tracks a closed job as it
+  is, and saves a new application or keeps its stage, where Write with
+  Claude moves it to needs_you. A job WorkIt does not list becomes an
+  **added job** (`added_by_student`; root `GLOSSARY.md`), never a status.
+  The answer is `{"job_id", "stage"}`. New added jobs count against
+  WorkIt's daily cap (50): a 429 (`workit.CapReached`) keeps the Write
+  with `not_before`, the response's Retry-After or else the next UTC
+  midnight (WorkIt's caps count UTC days). No flush sends it before then.
+- A rehearsal writes only through `submitted_to`, when Lisul presses
+  Submit himself. A rehearsal that he does not submit writes nothing.
+- No answer, or no live login: the Write waits in `workit-queue.json` (one
+  per Application, the newest). `apply run` and `apply rehearse` send the
+  waiting writes first; `apply doctor`'s "WorkIt writes" line lists them
+  ("waits for WorkIt's daily cap of added jobs until <time>" for a capped one).
+  A Write that WorkIt refuses (a 4xx) is dropped and said.
+- A write that fails never stops a run: the row is in Apply's Tracker.
+- Apply does not write to the Tracker Sheet. The first `live_tracker()`
+  with no `tracker.json` copies the Sheet's rows and Requests in, one time
+  and read only (`sheet.copy_into`), so a run does not apply again to a
+  job already applied to. `python -m apply.rankings` still writes its
+  ranked tabs to the Sheet when you run it by hand.
+- Lisul approves a Hold with the Apply window's Approve button (`POST
+  /approve`, `Tracker.approve`), not a Sheet checkbox. `SheetTracker` has
+  no `approve`: Apply never writes an approval to the Sheet (ADR 0007).
+- A Hold's card shows one box per essay, with the essay's text only
+  (`essays.cell_texts`). The `## <question>` heading and the Plan, Checks
+  and Named lines of the Essay cell (`essays.as_cell`) are not in the box,
+  so Lisul cannot change them. Approve sends his texts in order
+  (`essays`). The window builds the cell again from the stored headings
+  and lines and his texts (`essays.with_texts`), and `Tracker.approve`
+  writes it with Approve, in one write. An empty essay is refused (400)
+  with a message, and the Hold still waits. The next check fills the form
+  with his words (`essays.from_cell`); a Plan line never goes to the form.
+  The page keeps the edit in `sessionStorage` (`apply.essays`, by
+  Application ID) until he approves, so a reload does not lose it.
+
+**Tests.** `tests/test_tracker_record.py` (in CI) runs `WaitingWrites` and
+`WorkItTracker` against `tests/fake_tracker.py`. `tests/test_rehearse.py
+-k "applications_tracker or sends_nothing_to_workit"` rehearses a form
+in Chromium: a submit by Lisul is Applied with the Sent resume, and no
+submit sends nothing.
+
+## The tailored resume is the Sent resume (KAN-547)
+
+A student can tailor a resume to a job posting on WorkIt (Tailor,
+`../docs/tailor_resume.md`). When the Posting has a tailored resume, Apply
+gives the form that resume, and the Applications Tracker keeps that same
+file as the Sent resume. Apply does not change how Tailor works.
+
+- `tailored.resume_for` runs before each Application, in a run
+  (`orchestrator._traced`) and in a rehearsal (`rehearsal._rehearse`). It
+  asks `Adapters.tailored` (live: `tailored.from_workit`) for the PDF.
+- `WorkIt.tailored_resume(url)` finds the job with `POST
+  /jobs/listed-by-link`, the student's tailored resume for that job in `GET
+  .../built-resumes` (`job_posting_id`), and renders it with `GET
+  .../built-resumes/{id}/render`. It writes nothing.
+- Apply writes the PDF to `APPLY_HOME/tailored/<application>/` with the
+  file name of the profile's resume. The form gets it under that name, the
+  Worker copies it to `sent/`, and the submit's write sends that copy
+  (`worker.sent_resume`). Thus the file attached and the Sent resume are the
+  same bytes.
+- The Application gets a view of the profile (`tailored._WithResume`): only
+  `files.resume_pdf` changes. The not-on-resume gate and the essays read the
+  tailored resume too. Every write goes to the profile itself, and the
+  profile file never changes.
+- No WorkIt login, a job that WorkIt does not list, no tailored resume, or
+  a profile with no resume: the profile's resume, as before. WorkIt down or
+  a failed render: the profile's resume, and one line on stderr says so.
+
+**Tests.** `tests/test_tailored_resume.py` (in CI) runs against
+`tests/fake_tracker.py` (`FakeTracker.tailored`). `tests/test_run.py -k
+tailored_resume` (the form gets the tailored file) and
+`tests/test_rehearse.py -k tailored_resume` (Lisul's submit keeps it as the
+Sent resume) open Chromium. The backend test
+`backend/tests/test_sent_resumes.py -k tailored_resume_by_the_postings_link`
+runs the same routes on Postgres.
+
+## Verifying a filled form (KAN-549)
+
+After Apply fills a form, and before any submit, the Worker verifies it
+(`worker._Planned.verify`, `verify.check`). This is the last part of the
+Pre-submit check. It applies to rehearsals and to live runs. It only
+reads: it does not click, type or submit.
+
+- `apply_to(on_verify=...)` gets `None` when verifying starts, then the
+  `verify.Verification`. The rehearsal and the Orchestrator send it to the
+  window with `verify.verifying()`: the tile shows "Verifying…" with a
+  spinner, then "Verified" with a check mark, or "Verified with N items
+  that need you".
+- Plain code makes the checks: a blank field that is not a Missing fact
+  and not left blank on purpose (`_Planned.left`), the read-back
+  (`fill_engine.readback_problems`), an empty file or a file in the wrong
+  field, a value that is not one of the field's options, a graduation
+  year that is not the profile's, a start date in the past, pay out of the
+  posting's range (else off `compensation.fallback_hourly`), and in each
+  essay a wrong pronoun or name for the applicant and another company's
+  name (`verify.COMPANIES` and the policies' companies, less any that the
+  sources or the posting name). Claude makes only the judgment checks, in
+  the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
+  answers); its findings join the flags.
+- A flag that `holds` goes in the reason as `Verify: <field>: <why>` and
+  holds a live run (Needs you, kind `check`). Read-back and review flags
+  hold already by their own reason. A blank optional field holds as a
+  blank required field does, also a voluntary self-ID field (Lisul's rule:
+  a blank optional is a bug; the profile answers self-ID, a decline at
+  least). Only an answer that Claude guessed (a new Answer bank draft, a
+  Rescue) and a blank that the engine's plan meant are notes, which do
+  not hold. The plan lists each field it leaves blank on purpose, with why
+  (`Plan.blanks`: a duplicate "Other website", an "If other" follow-up to
+  another pick, an optional fact the profile lacks); the note says why.
+  An approved Hold is not held again by a flag; the read-back still holds
+  it.
+- In the window, each flag shows with its field and why, and has its own
+  Dismiss (`POST /dismiss`). Apply keeps each dismissal for its
+  Application in `APPLY_HOME/dismissed-flags.json` (`verify.dismiss`,
+  `verify.dismissed`). A dismissed flag does not show after a window
+  reload or in a new window (`verify.without_dismissed`), and it does not
+  hold a new run of the same Application: `verify.check(dismissed=...)`
+  keeps it in `verification.json` with `dismissed: true`. When every flag
+  of a live run's Hold is dismissed, the Hold shows Approve.
+- The Record keeps `verification.json` and a Verification section in its
+  README.
+
+**Tests.** `tests/test_verify.py`: a fake form with planted problems, a
+clean form, a live run held by a flag, a dismissed flag in the window and
+in a new run, a blank the engine meant, and the window's states.
 
 ## Prompts and gates
 
@@ -163,6 +449,10 @@ person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 - the applicant profile, answer bank, story bank, voice and story map;
 - the company briefs and stock answers;
 - a `policies.yaml` that overrides `policies.default.yaml` key by key.
+- the WorkIt login (`workit-login.json`), after `apply login`.
+- Apply's Tracker (`tracker.json`) and the writes that wait for WorkIt
+  (`workit-queue.json`).
+- the tailored resumes that Apply gave to forms (`tailored/`, KAN-547).
 
 Apply also writes its output there: rehearsal records, Repairs, Traces and
 the Chrome worker profiles (`APPLY_PROFILES`, under `APPLY_HOME` by

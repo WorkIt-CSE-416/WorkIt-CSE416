@@ -55,6 +55,9 @@ def test_a_submitted_application_links_its_record(job_server):
     email = answers(records, row.record)["email"]
     assert (email["planned"], email["on_page"]) == ("test.person@example.com", "test.person@example.com")
     assert answers(records, row.record)["resume"]["on_page"] == "one-pager.pdf"
+    verification = json.loads(record["verification.json"])
+    assert verification["state"] == "verified"
+    assert f"- Verification: {verification['label']}" in record["README.md"].decode()
 
 
 def test_a_held_application_links_its_record_with_what_the_page_shows():
@@ -67,6 +70,10 @@ def test_a_held_application_links_its_record_with_what_the_page_shows():
     email = answers(records, row.record)["email"]
     assert (email["planned"], email["on_page"]) == ("test.person@example.com", "test.person@example.co")
     assert records.files(row.record)["form.png"].startswith(PNG)
+    verification = json.loads(records.files(row.record)["verification.json"])
+    assert verification["state"] == "flagged"
+    assert [(f["field"], f["kind"]) for f in verification["flags"] if f["holds"]] == [("Email", "readback")]
+    assert "## Verification" in records.files(row.record)["README.md"].decode()
 
 
 class SignUpFormFiller:
