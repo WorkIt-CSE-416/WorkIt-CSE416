@@ -95,6 +95,15 @@ module docstring has the steps.
   find a bad close, read the jobs one run closed (`closes_at`) by reason,
   then fix its cause and re-run: a job back in the feed reopens. Reopening
   by hand does nothing, since the next import closes a job the feed lacks.
+- **A job a student added from its form** (`job_postings.added_by_student`,
+  KAN-515, `POST /jobs/added-by-link`) is never closed, embedded or given
+  keywords by the import, since the feed never had it; a feed that lists its
+  link makes it an ordinary scraped job (the flag clears), keeping every
+  application on it. No feed reads it: `services/postings.py`'s `LISTED`
+  leaves it out, and only queries of an applicant's own applications read
+  `OPEN`, which keeps it. A closed scraped job's link is refused (404), never
+  reopened or retitled from the request: that would change the job for every
+  student and send queued applications back into their batches.
 - The feed's `roles` keys (KAN-172) are ignored: `JobListing` doesn't declare
   them, so a new scraper key never fails the import. A job's roles are its
   `job_role_tags`, resolved from its title (KAN-155).
@@ -681,7 +690,9 @@ Find files with a directory listing; these are the rules for where code goes.
   `postings.listed`, so a company's draft or a closed posting answers 404
   and its text never reaches a model. The one exception: a tailored
   resume's keyword match against its own posting, which still works after
-  the posting closes. A route that loads a `Job_Post` by id alone skips
+  the posting closes. Sent resumes check `postings.is_open` (`OPEN`)
+  instead, so a job a student added from its form (KAN-515) takes their
+  send and the panel's resume switch. A route that loads a `Job_Post` by id alone skips
   this check.
 - **Identity fields load through `app/services/identity.py`**
   (`load_identity`), for Scout's model seam and the bank embedding alike.

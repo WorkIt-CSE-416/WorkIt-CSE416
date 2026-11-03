@@ -1884,9 +1884,16 @@ essay-answer route (KAN-164) is gone.
   is tracked (its submit marks the job applied, as Track on WorkIt's). The
   tab then runs the batch tab's `awaitClaude`: its rows wait for the
   student's Claude with the Written Answers link, and the `batch/*`
-  messages accept the tab (`background.js`'s `applicationJob`). A job
-  WorkIt doesn't list, or one already applied or skipped, can't have one:
-  its rows say why and are the student's.
+  messages accept the tab (`background.js`'s `applicationJob`). **A job
+  WorkIt doesn't list is added from the page** (KAN-515, `track.js`'s
+  `addFromPage`): its company and title as the Fill engine reads them from
+  the job system's API (`jobNamesOf`, with `plan-reads.js`'s `fetchText`,
+  since Ashby's is a POST), sent with the form's link to `POST
+  /jobs/added-by-link`, which keeps the job (on no Jobs feed: it is the
+  student's alone) and its application at needs_you. A page whose names
+  can't be read, a form WorkIt refuses (a job system turned off, past the
+  day's cap of added jobs), or an application already applied or skipped
+  can't have one: its rows say why and are the student's.
 - **AI traps and bans stay the student's.** A form or posting that bans
   AI-written answers, or a posting that speaks to AI agents, makes the Plan
   hand those questions off instead: they never reach the student's Claude,

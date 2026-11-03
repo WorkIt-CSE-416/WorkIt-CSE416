@@ -14,9 +14,14 @@ from sqlalchemy.orm import undefer
 from app.models.dto import job_post_status
 from app.models.jobs import Job_Post
 
-# A published scraped job. Company jobs stay off the Jobs page until the
-# company side ships a listing of its own.
-LISTED = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.published)
+# A published scraped job, or one a student added from its form (KAN-515):
+# open to the applications that hold it. Company jobs stay off the Jobs page
+# until the company side ships a listing of its own.
+OPEN = and_(Job_Post.company_id.is_(None), Job_Post.status == job_post_status.published)
+# A published scraped job: the Jobs page's. A job a student added is theirs
+# alone, so every feed, count and lookup that reads LISTED leaves it out;
+# only a query of an applicant's own applications reads OPEN.
+LISTED = and_(OPEN, Job_Post.added_by_student.is_(False))
 
 
 async def listed(session: AsyncSession, posting_id: uuid.UUID, *, keywords: bool = False) -> Job_Post | None:
@@ -26,3 +31,10 @@ async def listed(session: AsyncSession, posting_id: uuid.UUID, *, keywords: bool
     if keywords:
         query = query.options(undefer(Job_Post.keywords), undefer(Job_Post.keywords_hash))
     return await session.scalar(query)
+
+
+async def is_open(session: AsyncSession, posting_id: uuid.UUID) -> bool:
+    """Whether this posting is OPEN: a listed one, or one a student added
+    from its form (KAN-515), which an applicant's own sends and switches
+    reach though no feed lists it."""
+    return await session.scalar(select(Job_Post.id).where(Job_Post.id == posting_id, OPEN)) is not None

@@ -141,7 +141,9 @@ async def _keep_snapshot(session: AsyncSession, applicant_id: uuid.UUID, digest:
 
 
 async def _check_posting(session: AsyncSession, job_posting_id: uuid.UUID) -> None:
-    if await postings.listed(session, job_posting_id) is None:
+    # OPEN, not LISTED: a job a student added from its form (KAN-515) takes
+    # their sent resume, or the panel's resume switch on it is a 404.
+    if not await postings.is_open(session, job_posting_id):
         raise NotFound
 
 
