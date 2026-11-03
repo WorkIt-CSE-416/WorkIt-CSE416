@@ -208,7 +208,8 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
     beside the form (the Posting description, Company material): an AI trap in it makes the
     Application a Handoff, and an AI ban in it bans AI-written text on the form."""
     bank = bank or AnswerBank()
-    entries = {question: {"answer": entry.answer, "own": entry.source == LISUL} for question, entry in bank.answers().items()}
+    entries = {question: {"answer": entry.answer, "own": entry.source == LISUL, "none": entry.none}
+               for question, entry in bank.answers().items()}
     context = {"posting": posting, "today": (today or date.today()).isoformat(), "postingText": HostCall(functools.cache(posting_text)),
                "employerText": employer_text}
     result = call_without_page("plan", list(questions), _facts(profile), profile.policies(), entries, context, questions=questions)

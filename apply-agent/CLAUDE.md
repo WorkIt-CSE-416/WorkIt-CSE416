@@ -75,6 +75,12 @@ wording) wins in the engine's plan on every form that offers it. The
 company's-own-site order applies only when none is recorded (Lisul,
 2026-11-02).
 
+An Answer bank entry with `answer: []` and `none: true` answers a
+multi-select with none of its options (Roblox's partner organizations):
+its boxes stay unticked, a blank on purpose in the plan.
+`AnswerBank.answer(question, [])` saves one; an answer with options in it
+drops `none`. An empty answer without `none` is still no answer.
+
 `README.md` is a teammate's setup path, from a clone to a rehearsal. Its
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.
