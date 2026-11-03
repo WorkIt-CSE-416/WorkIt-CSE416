@@ -218,22 +218,14 @@ html:has(.landing) {
 
 /*
  * Glass button (buttons.tsx): the two light brand violets with a glassy top
- * highlight, its fill a pseudo-element behind the label. In the components
- * layer, as on the site, so a utility on the element (h-12, hidden) wins.
+ * highlight, its fill a pseudo-element behind the label. Its shape and size
+ * are buttons.tsx's, shared by every marketing button (KAN-581). In the
+ * components layer, as on the site, so a utility on the element wins.
  */
 @layer components {
   .glass-btn {
     position: relative;
     isolation: isolate;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 2.5rem;
-    padding-inline: 1rem;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    white-space: nowrap;
     color: var(--color-landing-brand-950);
     text-shadow: 0 1px 0 rgb(255 255 255 / 0.45);
     transition:

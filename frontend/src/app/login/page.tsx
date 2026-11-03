@@ -30,9 +30,12 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   await redirectIfSignedIn();
   // The page to go back to after signing in: the connector's consent page
   // (actions.ts allows only that one). `error` is set by /auth/confirm when an
-  // email link was bad, expired or used.
+  // email link was bad, expired or used, and to `oauth` when a Google or
+  // LinkedIn sign-in failed (lib/oauth-actions.ts, auth/callback): the
+  // marketing pages' sign-up buttons land a visitor here then (KAN-581).
   const { next, error } = await searchParams;
   const badLink = error === "confirm_failed" || error === "invalid_link";
+  const oauthFailed = error === "oauth";
 
   return (
     <AuthCard
@@ -52,6 +55,17 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <WarningCircleIcon className="mt-px size-4 shrink-0" aria-hidden />
           That email link has expired or was already used. Sign in, or get a new link from Forgot
           Password or Create Account.
+        </p>
+      )}
+
+      {oauthFailed && (
+        <p
+          role="alert"
+          className="text-label text-danger bg-danger-tint rounded-control mt-4 flex items-start gap-2 px-3 py-2"
+        >
+          <WarningCircleIcon className="mt-px size-4 shrink-0" aria-hidden />
+          We couldn&apos;t sign you in with Google or LinkedIn. Try again, or sign in with your
+          email.
         </p>
       )}
 

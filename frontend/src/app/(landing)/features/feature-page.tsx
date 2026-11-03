@@ -81,7 +81,7 @@ export function FeaturePage({ feature }: { feature: Feature }) {
                 )}
               >
                 {steps.map((step, i) => (
-                  <li key={step.title} className="rounded-2xl bg-white p-6 ring-1 ring-slate-900/5">
+                  <li key={step.title} className="gloss-card rounded-2xl p-6">
                     <span
                       aria-hidden="true"
                       className="flex size-8 items-center justify-center rounded-full text-sm font-semibold tabular-nums"
@@ -108,7 +108,7 @@ export function FeaturePage({ feature }: { feature: Feature }) {
                   <li key={page.slug}>
                     <Link
                       href={page.href}
-                      className="group ease-glide hover:shadow-lift flex h-full flex-col rounded-2xl bg-white p-6 ring-1 ring-slate-900/5 transition-[translate,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0"
+                      className="group ease-glide gloss-card flex h-full flex-col rounded-2xl p-6 transition-[translate] duration-200 hover:-translate-y-0.5 active:translate-y-0"
                     >
                       <FeatureIcon feature={page} size="md" />
                       <h3 className="text-ink mt-4 font-semibold">{page.name}</h3>
