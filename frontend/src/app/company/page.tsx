@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { SectionLink } from "@/components/ui/section-link";
 
 import { ApplicantsPreview } from "./applicants-preview";
 import { AttentionHero, NeedsAttention } from "./attention";
 import { NEEDS_ATTENTION } from "./data";
+import { COMPANY_PAGE } from "./frame";
 import { DownloadIcon } from "./icons";
 import { Rail } from "./rail";
 import { RangePicker } from "./range-picker";
@@ -30,37 +32,38 @@ export const metadata: Metadata = {
  * shells behave differently for the same click.
  *
  * ---------------------------------------------------------------------------
- * ONE PRODUCT WITH THE SEEKER DASHBOARD. This page was eleven identical white
+ * ONE PRODUCT WITH THE SEEKER HOME. This page was eleven identical white
  * cards, four of them numbers, and a page of equal boxes has no first place to
- * look. It now uses the seeker Dashboard's surfaces ((seeker)/home/page.tsx)
- * so the two homes read as one app:
+ * look. It now follows the seeker shell (KAN-582): its title is in the bar,
+ * and every section is a white card on the grey ground, as on Home:
  *
- *   the numbers      open under the heading, the stat tiles' plain variant
+ *   the numbers      one card, the stat tiles' plain variant, with the date
+ *                    picker and Export at its top right
  *   Most Urgent      the one solid colour: the longest wait on the company,
  *                    on a violet card where the eye lands first
- *   open sections    the chart, the highlights, the rest of what is waiting
- *                    and the stage ages, under plain headings with a short
- *                    link at the top right where they have one
- *   the band         a grey panel holding the pipeline: the ring and the
- *                    per-role bars
- *   one white card   the applicants table, the only thing whose rows and
- *                    columns need an edge
+ *   section cards    the chart, the highlights, the pipeline, the rest of what
+ *                    is waiting and the stage ages, each under a plain heading
+ *                    with a short link at the top right where it has one
+ *   the table        the applicants table, its heading on the ground over its
+ *                    own white card, as the Job Postings and Applicants
+ *                    tables are
  *
- * Whitespace separates the open sections; only the hero, the band and the
- * table are filled, and none of them nests a bordered box inside another.
+ * It was open sections on white with a grey band for the pipeline until
+ * KAN-582, the reverse of the seeker's grey ground and white cards. No card
+ * nests a bordered box inside another.
  *
  * THE ORDER IS WHAT A RECRUITER DOES WITH THE SCREEN, and each row answers the
  * question the one above it raises:
  *
  *   1  numbers and hero    did anything change, and what do I do first
  *   2  intake over time    is the top of the funnel healthy
- *   3  the pipeline band   where do people stall: overall, and per posting
+ *   3  the pipeline        where do people stall: overall, and per posting
  *   4  what is stuck       what else is waiting on me, and how long things sit
  *   5  who arrived         the feed, last because it is the least actionable
  *
  * Every row splits at the seeker Dashboard's 3:2, the wider half carrying the
  * chart or the list, and breaks on @container/main, the page's own width,
- * since the panel takes 256px of the window when open. Inside the band the
+ * since the panel takes 256px of the window when open. Inside the pipeline the
  * two charts split evenly, from 960px of page, the width at which each half
  * holds the ring beside its legend.
  *
@@ -70,7 +73,7 @@ export const metadata: Metadata = {
  * Applicants, and a second row of tabs would be a second answer to "where am
  * I" sitting six pixels from the first.
  *
- * PAIRS THAT LOOK REDUNDANT AND ARE NOT. The band draws the stage split twice
+ * PAIRS THAT LOOK REDUNDANT AND ARE NOT. The pipeline draws the stage split twice
  * on purpose: the ring is the aggregate shape, and the stacked bars are that
  * same shape per posting, which is the comparison an aggregate cannot make,
  * since a healthy-looking total is usually one posting stalling. The ring owns the
@@ -94,8 +97,9 @@ export const metadata: Metadata = {
  * chart's summary is a row of chips rather than a sentence that wraps
  * differently per range.
  *
- * No <main> here. The shell's SidebarInset is the landmark for every screen
- * under /company; see the note in ./placeholder.tsx.
+ * No <main> here, and no h1: the shell's SidebarInset is the landmark for
+ * every screen under /company, and the bar's title is this page's h1
+ * (./bar-title.tsx).
  */
 export default function CompanyHomePage() {
   /* The longest wait goes on the hero; the list below carries the rest. Sorted
@@ -110,54 +114,53 @@ export default function CompanyHomePage() {
      * those consumers re-render when the window changes; every snapshot
      * section below was rendered on the server and stays exactly as it was. */
     <RangeProvider>
-      <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
-        {/* 1. The heading and the numbers, with the hero beside them. */}
-        <div className="grid grid-cols-1 items-stretch gap-8 @4xl/main:grid-cols-[3fr_2fr]">
-          <div className="@container/kpis flex flex-col">
-            <header className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h1 className="text-heading text-ink">Hiring Overview</h1>
-                <p className="text-body text-ink-meta mt-1">
-                  Here&apos;s how your hiring is moving.
-                </p>
-              </div>
+      <div className={COMPANY_PAGE}>
+        {/* 1. The numbers, with the hero beside them. */}
+        <div className="grid grid-cols-1 items-stretch gap-5 @4xl/main:grid-cols-[3fr_2fr]">
+          <Card
+            as="section"
+            padding="lg"
+            aria-label="Hiring Numbers"
+            className="@container/kpis flex flex-col"
+          >
+            <div className="flex justify-end gap-2">
+              <RangePicker />
 
-              <div className="flex shrink-0 items-center gap-2">
-                <RangePicker />
-
-                <Button variant="secondary" size="sm">
-                  <DownloadIcon className="size-3.5" />
-                  Export
-                </Button>
-              </div>
-            </header>
+              <Button variant="secondary" size="sm">
+                <DownloadIcon className="size-3.5" />
+                Export
+              </Button>
+            </div>
 
             {/* Four current values with no shared unit are a KPI row, not a
                 grouped bar; components/stat-tile.tsx argues it. Three are
                 snapshots and one is measured over the selected window, which
                 is what ./stats-row.tsx sorts out. */}
             <StatsRow />
-          </div>
+          </Card>
 
           <AttentionHero item={first} />
         </div>
 
         {/* 2. Intake, wide, beside the numbers that do not need a chart. */}
-        <div className="mt-12 grid grid-cols-1 gap-10 @4xl/main:grid-cols-[3fr_2fr]">
-          <Trend />
-          <Rail />
+        <div className="mt-5 grid grid-cols-1 gap-5 @4xl/main:grid-cols-[3fr_2fr]">
+          <Card padding="lg">
+            <Trend />
+          </Card>
+          <Card padding="lg">
+            <Rail />
+          </Card>
         </div>
 
-        {/* 3. Every application by stage, and the same split by posting, on
-             the grey band: the change of surface says "a different kind of
-             thing" without another white box. The two halves sit straight on
-             the grey, not in cards of their own, and split evenly from 960px
-             of page rather than at the rows' 896px: (960 - 96 page padding -
-             48 band padding - 40 gap) / 2 is 388px a half, past the 384px at
-             which the ring lays its legend beside itself. Split any earlier
-             and the ring stacks over its legend in half a band, which
-             stretches both halves and spreads the role bars apart. */}
-        <section aria-labelledby="pipeline" className="bg-app rounded-shell mt-12 p-5 sm:p-6">
+        {/* 3. Every application by stage, and the same split by posting, in
+             one card. The two halves sit straight in it, not in cards of
+             their own, and split evenly from 960px of page rather than at the
+             rows' 896px: (960 - 64 page padding - 40 card padding - 40 gap) /
+             2 is 408px a half, past the 384px at which the ring lays its
+             legend beside itself. Split any earlier and the ring stacks over
+             its legend in half a card, which stretches both halves and
+             spreads the role bars apart. */}
+        <Card as="section" padding="lg" aria-labelledby="pipeline" className="mt-5">
           <SectionHeading
             id="pipeline"
             action={
@@ -193,24 +196,26 @@ export default function CompanyHomePage() {
               </div>
             </div>
           </div>
-        </section>
+        </Card>
 
         {/* 4. The two halves of "what is holding this up". */}
-        <div className="mt-12 grid grid-cols-1 gap-10 @4xl/main:grid-cols-[3fr_2fr]">
-          <NeedsAttention items={rest} />
+        <div className="mt-5 grid grid-cols-1 gap-5 @4xl/main:grid-cols-[3fr_2fr]">
+          <Card padding="lg">
+            <NeedsAttention items={rest} />
+          </Card>
 
-          <section aria-labelledby="time-in-stage" className="flex flex-col">
+          <Card as="section" padding="lg" aria-labelledby="time-in-stage" className="flex flex-col">
             <SectionHeading id="time-in-stage">Time in Stage</SectionHeading>
             <p className="text-body text-ink-meta mt-1">How long they have waited, as of today.</p>
 
             <div className="mt-4 flex flex-1 flex-col">
               <StageAge />
             </div>
-          </section>
+          </Card>
         </div>
 
-        {/* 5. The feed, the page's one white card. */}
-        <section aria-labelledby="recent-applicants" className="mt-12">
+        {/* 5. The feed: its heading on the ground, the table in its card. */}
+        <section aria-labelledby="recent-applicants" className="mt-8">
           <SectionHeading
             id="recent-applicants"
             action={

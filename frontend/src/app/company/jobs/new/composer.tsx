@@ -37,6 +37,7 @@ import { fromCompanyJob, toJobPayload } from "./payload";
 import { JobPreview } from "./preview";
 import { ScreeningQuestions } from "./screening-questions";
 import { Stepper } from "@/components/stepper";
+import { COMPANY_PAGE } from "../../frame";
 import { CloseJobDialog } from "../close-job-dialog";
 import { STATUS_LABEL, STATUS_TONE } from "../data";
 
@@ -259,19 +260,16 @@ export function Composer({ job }: { job?: CompanyJob }) {
   }
 
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
+    <div className={COMPANY_PAGE}>
       <div className="min-w-0">
+        {/* A new job's title is the bar's (../../bar-title.tsx). A saved one
+            opens under Job Postings, whose name the bar shows as a plain
+            line, so it has its own h1, with no line under it, as no company
+            page has. The status badge says when it is closed. */}
         <header>
-          <h1 className="text-heading text-ink">
-            {isClosed ? "View Job" : editing ? "Edit Job" : "Post a New Job"}
-          </h1>
-          <p className="text-body text-ink-meta mt-1">
-            {isClosed
-              ? "This job is closed. Its details are shown read-only."
-              : editing
-                ? "Change the details below, then save."
-                : "Fill out the details below to create a new job posting."}
-          </p>
+          {editing && (
+            <h1 className="text-heading text-ink">{isClosed ? "View Job" : "Edit Job"}</h1>
+          )}
 
           {editing && isLive && (
             <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -319,7 +317,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
           )}
         </header>
 
-        <Stepper steps={steps} current={step} className="mt-4" />
+        <Stepper steps={steps} current={step} className={editing && "mt-4"} />
 
         {/* Above the form on Publish, not beside it — it is what the posting
             will look like once it is live, which reads as the thing being
@@ -606,40 +604,14 @@ export function Composer({ job }: { job?: CompanyJob }) {
 
           <hr className="border-border-subtle mx-4.5" />
 
-          {/* One height for every button in the row. On a phone they stack
-              full width, reversed so the primary action is on top. */}
-          <div className="flex flex-col-reverse gap-3 p-4.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-            {step > 0 && (
-              <Button
-                variant="secondary"
-                className={FOOTER_BUTTON}
-                onClick={() => setStep(step - 1)}
-              >
-                Back
-              </Button>
-            )}
-
-            {/* Every mode gets a way out, a new job and a draft included. */}
-            <ButtonLink
-              href="/company/jobs"
-              variant="secondary"
-              className={FOOTER_BUTTON}
-              onClick={confirmLeave}
-            >
-              Cancel
-            </ButtonLink>
-
+          {/* A page form's row: left, the primary first (docs/design.md,
+              Components), then Save Draft, then Back and Cancel. It was
+              right-aligned with the primary last until KAN-582, the dialog
+              rule. One height for every button; on a phone they stack full
+              width in the same order, so the primary is on top. */}
+          <div className="flex flex-col gap-3 p-4.5 sm:flex-row sm:flex-wrap sm:items-center">
             {isLive ? (
               <>
-                {!isPublishStep && (
-                  <Button
-                    variant="secondary"
-                    className={FOOTER_BUTTON}
-                    onClick={() => whenComplete(() => setStep(step + 1))}
-                  >
-                    Continue to {steps[step + 1]}
-                  </Button>
-                )}
                 {!isClosed && (
                   <Button
                     className={FOOTER_BUTTON}
@@ -649,18 +621,18 @@ export function Composer({ job }: { job?: CompanyJob }) {
                     Update Job
                   </Button>
                 )}
+                {!isPublishStep && (
+                  <Button
+                    variant="secondary"
+                    className={FOOTER_BUTTON}
+                    onClick={() => whenComplete(() => setStep(step + 1))}
+                  >
+                    Continue to {steps[step + 1]}
+                  </Button>
+                )}
               </>
             ) : (
               <>
-                <Button
-                  variant="secondary"
-                  className={FOOTER_BUTTON}
-                  onClick={() => whenComplete(() => save("draft"))}
-                  disabled={isSaving}
-                >
-                  Save Draft
-                </Button>
-
                 {step === 0 && (
                   <Button className={FOOTER_BUTTON} onClick={() => whenComplete(() => setStep(1))}>
                     Continue to Screening
@@ -680,8 +652,37 @@ export function Composer({ job }: { job?: CompanyJob }) {
                     Publish
                   </Button>
                 )}
+
+                <Button
+                  variant="secondary"
+                  className={FOOTER_BUTTON}
+                  onClick={() => whenComplete(() => save("draft"))}
+                  disabled={isSaving}
+                >
+                  Save Draft
+                </Button>
               </>
             )}
+
+            {step > 0 && (
+              <Button
+                variant="secondary"
+                className={FOOTER_BUTTON}
+                onClick={() => setStep(step - 1)}
+              >
+                Back
+              </Button>
+            )}
+
+            {/* Every mode gets a way out, a new job and a draft included. */}
+            <ButtonLink
+              href="/company/jobs"
+              variant="secondary"
+              className={FOOTER_BUTTON}
+              onClick={confirmLeave}
+            >
+              Cancel
+            </ButtonLink>
           </div>
         </Card>
       </div>

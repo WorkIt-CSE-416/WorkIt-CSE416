@@ -305,7 +305,7 @@ export const TYPEFACES: { token: string; cls: string; role: string }[] = [
   {
     token: "--font-mono",
     cls: "font-mono",
-    role: "Geist Mono · the audit log's action names, a chart tooltip's figures, token names here",
+    role: "Geist Mono · a fill report's field names, a chart tooltip's figures, token names here",
   },
   {
     token: "--font-heading",

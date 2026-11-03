@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getCompanyJob } from "@/lib/job-queries";
 
+import { COMPANY_PAGE } from "../../../frame";
 import { LoadError } from "../../load-error";
 import { Composer } from "../../new/composer";
 
@@ -22,7 +23,7 @@ export default async function EditJobPage({ params }: PageProps<"/company/jobs/[
 
   if (error) {
     return (
-      <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
+      <div className={COMPANY_PAGE}>
         <LoadError
           error={error}
           title="This Job Isn't Loading Right Now"

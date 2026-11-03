@@ -171,7 +171,7 @@ TypeScript shapes, zero persistence behind them:
 | `(seeker)/jobs` | `JobType`, `ExperienceLevel`, `WorkStyle`, `SalaryPeriod`, `JobPostStatus`, `Recommendation`, `Highlight` |
 | `(seeker)/applications` | `Application`, `Column`, `Stage`, `StagedApplication` |
 | `company/jobs` | `JobStatus`, `Posting` |
-| `company/applicants`, `company/audit-logs`, `company/profile` | Their own local fixture shapes, same pattern |
+| `company/applicants`, `company/profile` | Their own local fixture shapes, same pattern |
 
 Most of these already line up with `backend/app/models/dto.py`'s enums
 backing `job_postings` — `JobType`, `WorkStyle`, `SalaryPeriod`,

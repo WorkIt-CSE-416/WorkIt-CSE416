@@ -11,6 +11,7 @@ import { CompanyTile } from "@/components/ui/company-tile";
 import { getCompanyJob } from "@/lib/job-queries";
 import { Points, Section } from "@/components/ui/section";
 
+import { COMPANY_PAGE } from "../../frame";
 import { STATUS_TONE } from "../data";
 import { ApplicantOverviewPanel } from "./applicant-overview";
 
@@ -49,7 +50,7 @@ export default async function CompanyJobDetailPage({ params }: PageProps<"/compa
   }
 
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
+    <div className={COMPANY_PAGE}>
       <ButtonLink href="/company/jobs" variant="secondary" size="sm" className="mb-3">
         <ArrowLeftIcon className="size-3.5" />
         Back to Jobs
