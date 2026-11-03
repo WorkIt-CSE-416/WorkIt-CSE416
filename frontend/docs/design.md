@@ -4,6 +4,258 @@ What the two shells look like, how a page sizes itself, which colour means
 what, and how the shared components are meant to be used. Read before changing
 a shell, a page layout, a colour token or a `ui/` component.
 
+## Design principles
+
+The rules that every screen is checked against. Each rule gives its reason,
+its source and the WorkIt token or component that applies it, and a reviewer
+can check each one on a screen. The sections after this one hold the details
+and the history; where a rule here points to one of them, that section is the
+rule. Where the app breaks a rule today, the break is in **Still open** at the
+end of this section. Fix the screen, not the rule. These rules are for app
+screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
+
+### Legibility
+
+- **Each kind of text has one size.** The same kind of text then looks the
+  same on every page (Refactoring UI, "Establish a type scale"). Write the
+  token, never a stock size (`text-sm`) or a px value. Each token carries its
+  own line height and, where it has one, its weight and tracking.
+
+  | Token | Size | Use it for |
+  | --- | --- | --- |
+  | `text-caption` | 11px, 600, capitals | A rule label ("OR CONTINUE WITH"). Never a sentence. |
+  | `text-meta` | 11px | Meta: a date, a count, a file size, a status badge. |
+  | `text-note` | 12px | One secondary line: an employer, a pill, a hint under a field. |
+  | `text-label` | 13px, 500 | Field labels, buttons, links, menu rows. |
+  | `text-body` | 14px | Body copy, typed values, table cells, messages. |
+  | `text-subtitle` | 16px, 600 | A block's name: a dialog title, a job's title, an empty state's title. |
+  | `text-title` | 20px, 700 | A card's or a section's heading (`SectionHeading`); the top bar title below md. |
+  | `text-heading` | 26px, 700 | A page's name: the top bar title from md, a sub-page's h1. |
+
+  `text-display`, `text-figure` and `text-hero` are for numbers and
+  onboarding's question only, never for a heading.
+- **A sentence is 12px or larger, and body copy is 14px.** Small text is
+  slow to read, and many students read on a laptop at arm's length
+  (Butterick, "Point size"). 11px (`text-meta`, `text-caption`) holds a few
+  words of meta only.
+- **Reading text holds 4.5:1, and large text, borders that mark a control,
+  and icons hold 3:1.** Below these, text is hard to read for low vision
+  (WCAG 2.2 SC 1.4.3 and 1.4.11). Large text is 24px, or 18.66px at 700:
+  in WorkIt, `text-heading` and `text-title`. Pick the ink by its measured
+  ratio:
+
+  | Token | On `panel` (#fff) | On `app` (#f5f5f5) | Allowed for |
+  | --- | --- | --- | --- |
+  | `ink` #121a28 | 17.44:1 | 16.00:1 | Any text: headings, values. |
+  | `ink-muted` #3b3e46 | 10.70:1 | 9.81:1 | Any text: body copy, labels. |
+  | `ink-meta` #465266 | 7.90:1 | 7.24:1 | Any text: secondary lines, placeholders; icons that inform. |
+  | `ink-faint` #8893a4 | 3.11:1 | 2.85:1 | No text. Marks on white only (a dash, a dot, a resting chevron). |
+  | `ink-subtle` #94969d | 2.95:1 | 2.71:1 | No text. A glyph that cannot be used now (WCAG exempts inactive controls). |
+
+  `brand` (6.26:1 on white, 5.75:1 on `app`) and `brand-ink` (7.99:1) may
+  carry text. `border-control` is 3.24:1 on white and 2.97:1 on `app`, so a
+  field keeps its white fill on the grey ground. A card's own border
+  (`border`, `border-subtle`) is about 1.4:1: it is not what marks a control.
+- **A prose block stops at about 68 characters a line.** Past about 75, the
+  eye loses the next line (Butterick, "Line length": 45 to 90; Baymard: 50
+  to 75). About the Role's `max-w-[68ch]` is the measure; a table or a list
+  of short rows has no measure.
+- **Line height comes from the token.** The tokens set 1.2 to 1.45 times
+  the size, tighter as the size grows (Butterick: 120 to 145%), so a call
+  site sets no
+  `leading-*` on token text. A prose block of three or more lines may open
+  to `leading-5` on `text-note` or `leading-6` on `text-body`.
+- **Four weights, one job each** (450, 500, 600, 700): Type weights, below.
+
+### Hierarchy
+
+- **One h1 per page.** A screen reader lists the page by its headings
+  (WCAG 2.2 SC 1.3.1 and 2.4.6; GOV.UK, "Headings"). On a section's page the
+  h1 is the top bar title (`(seeker)/bar-title.tsx`); on a page under a
+  section (a job, a resume, an application) the page draws its own h1 and the
+  bar shows a plain line.
+- **Heading levels go in order.** h2 follows h1 and h3 follows h2, with no
+  level skipped, so the outline is true. Pick the level by the outline and
+  the size by the role: `SectionHeading`'s `as` changes the level, never the
+  size.
+- **One primary action per view.** Two filled buttons make the student
+  choose which one matters (Material 3, "Buttons": one high-emphasis
+  action; Refactoring UI, "Not every button needs a background"). A view (a
+  page's header, a card, a dialog) has at most one `default` Button; the
+  others are `secondary` or text-only. `lg` is for the one main action of a
+  page.
+- **Rank with size and weight before colour.** Colour alone is a weak and
+  noisy signal, and in WorkIt a colour means something (Refactoring UI,
+  "Hierarchy is everything"). Make the important text larger or heavier
+  first, then step it down through `ink`, `ink-muted` and `ink-meta`. Brand
+  violet means "acts" or "is on", never "is important".
+
+### Components
+
+- **Pick a component by its role, never by its look.** A look picked by eye
+  drifts from screen to screen (GOV.UK Design System; Material 3). The roles
+  are:
+  - Button variants (`ui/button.tsx`): `default` for the one primary action,
+    `secondary` for the others beside it, `outline` for an action inside a
+    recessed area, `ghost` for an inline text action, `section` for a
+    section heading's action, `positive` and `decline` for an accept and
+    decline pair, `destructive` for a permanent delete. A link in running
+    text is `TextLink`. Sizes: "Pick a button's size by where it sits",
+    below.
+  - A button acts and a chip is a choice made in place: "A button is a
+    rounded rectangle; a pill is a chip", below. A filter over a page's
+    items is a `FieldFacet` dropdown. A choice of one among a few is a
+    segmented control.
+  - A surface is `ui/card.tsx`: white (`bg-panel`), `rounded-card`, the
+    subtle border and `shadow-panel`. A card on a white panel takes
+    `elevated={false}`. Inside a card, group with space or a hairline, not a
+    second card (Refactoring UI, "Use fewer borders").
+  - An icon's colour says its job: "An icon's colour says its job", below.
+  - A form's buttons follow the form button placement rule, and a disabled
+    control takes the grey disabled fill (KAN-550, Components, below).
+- **Every control has all its states.** A missing state reads as broken
+  (Material 3, "States"; NN/g, "Visibility of system status"). A reviewer
+  checks each one:
+  - Hover: a fill or colour change (`hover:bg-hover`, or ink to brand).
+  - Focus-visible: the solid `--color-brand-ring` ring (Accessibility, next).
+  - Active: the press in `docs/motion.md` (98% for a button).
+  - Disabled: the grey disabled fill; where it can, a line or a tooltip
+    says why (Scout's Send stays `aria-disabled` so its tooltip shows).
+  - Loading: the control keeps its width, shows that it is busy and takes no
+    second click.
+  - Empty: `ui/empty-state.tsx`, a title that names what will fill the space
+    and an action where there is one.
+  - Error: a failed load is `EmptyState`; a field error is `danger` text
+    under the field, with `aria-invalid` and `aria-describedby`. A toast
+    never carries an error that a form can show beside its field.
+- **A skeleton shows no real text.** One finished line among the bars reads
+  as the only thing done: "A skeleton shows no heading or line of text the
+  page replaces" (`frontend/CLAUDE.md`). Skeletons are `bg-ink/6` at the
+  height of what replaces them.
+
+### Design kit and tokens
+
+- **No raw value where a token exists.** A hand-typed value cannot move
+  when the token moves (Material 3, "Design tokens"). Colours are
+  `--color-*`, type is the `text-*` tokens, radii are `rounded-control`,
+  `rounded-card` and `rounded-shell`, shadows are `shadow-panel`,
+  `shadow-lift` and `shadow-tile`, and spacing is Tailwind's 4px steps. No
+  hex, no px and no arbitrary Tailwind value (`text-[13px]`, `p-[18px]`) in a
+  screen. Other companies' brand marks (`components/icons.tsx`) and data that
+  is itself a colour (a resume's print colours) are not tokens.
+- **A shadcn piece with a WorkIt wrapper goes through the wrapper.** The
+  wrapper holds WorkIt's sizes and labels: `Button`, `Badge`, `Card`,
+  `TextField` and `SearchField` (not `Input`), `SelectField` (not `Select`),
+  `text-area-field.tsx` (not `Textarea`), `SegmentedToggle` (not
+  `ToggleGroup`), `DateField` (not `Calendar`). Import from
+  `components/shadcn` only a primitive WorkIt has not wrapped: a dialog, a
+  menu, a popover, a tooltip, a sheet, a table, a checkbox, a switch, a
+  skeleton.
+- **A new pattern gets its design kit page in the same change.** A pattern
+  that only lives in one screen gets copied by eye. A new token or shared
+  component gets its row on `/design-kit` (`design-kit/data.ts`); a new kind
+  of pattern gets a section there (`SECTIONS`).
+
+### Layout and spacing
+
+- **Space is on a 4px grid.** Even steps make the rhythm read as one system
+  (Material 3, "Layout": 4dp grid). Use Tailwind's whole steps: `1` (4px),
+  `2`, `3`, `4`, `5`, `6`, `8`, `10`, `12`. A half step (`0.5`, `1.5`,
+  `2.5`, `3.5`) only centres content inside a control.
+- **Grey ground, white cards.** The page is `bg-app` and every surface on it
+  is `bg-panel`: "The seeker pages stand on a grey ground"
+  (`frontend/CLAUDE.md`). A soft fill on the ground is see-through ink
+  (`bg-ink/5`), and a sticky bar on the ground is `bg-app`.
+- **Every seeker page has one frame.** Pages then start at the same left
+  edge beside the rail. The frame is `SEEKER_GUTTER` (16px, 24px from sm,
+  32px from lg), `max-w-dashboard` (1440px; the Applications Tracker has no
+  cap) and 24px under the bar (`py-6`). A page breaks on its own width
+  (`@container/main`, `@3xl/main:`), never the window's (`md:`).
+- **Space shows what belongs together.** More space between groups than
+  inside them (Gestalt proximity; Refactoring UI, "Start with too much white
+  space"). Cards in a group sit 16px apart (`gap-4`); groups of cards and
+  sections sit 24px apart (`gap-6`); items inside a card sit 8 to 12px apart.
+- **Everything starts on a shared left edge.** A ragged left edge reads as
+  a mistake (Refactoring UI). Cards, the filter row and the page's content
+  start at the gutter; content in a card starts at the card's padding. An
+  indent shows nesting and nothing else.
+- **A page's header row has a fixed order.** The student then finds the
+  same control in the same place on every page. The title is in the top bar.
+  Under it: the search on its own row where the page has one, then the
+  filters at the left, and the view switcher (a segmented control) and the
+  page's actions at the right. Narrow, the row wraps, filters first. The
+  Applications Tracker and the Resumes page are the model.
+- **Check each screen at 375, 768, 1024 and 1440px, with no sideways
+  scroll.** Students use phones, tablets and laptops, and WCAG 2.2 SC 1.4.10
+  asks for no two-way scroll down to 320px. Only a wide table scrolls
+  sideways, inside its own box (the Applications Tracker).
+
+### Accessibility
+
+- **Focus is always visible.** A keyboard user must see where they are
+  (WCAG 2.2 SC 2.4.7 and 2.4.11). Every control draws the solid
+  `--color-brand-ring` ring on `focus-visible` (6.26:1 on white, 5.75:1 on
+  `app`); `outline-none` never comes without a ring. A sticky bar never
+  covers a focused control (`scroll-mt-*`).
+- **Every control has a name.** A screen reader reads the name, and a
+  placeholder goes away while the student types (WCAG 2.2 SC 1.3.1, 2.5.3
+  and 4.1.2; Luke Wroblewski, "Web Form Design"; NN/g, "Placeholders in form
+  fields are harmful"). A field has a visible label (`TextField` and
+  `SelectField` require one; `hideLabel` only where a visible heading names
+  it), and an icon-only button is `IconButton`, whose `label` is required.
+- **Targets are 24px or more, and 44px on touch.** Small targets cause
+  missed taps (WCAG 2.2 SC 2.5.8: 24 by 24px; Apple HIG: 44pt; Material 3:
+  48dp). A small glyph widens its target with an `::after`, as `IconButton`
+  and the `inline` Button do, never by a larger box. Below md, each target
+  is 44px.
+- **Keyboard order follows reading order.** Tab must go where the eye goes
+  (WCAG 2.2 SC 2.1.1 and 2.4.3). No positive `tabindex`. A group of options
+  is one tab stop with arrow keys (`SegmentedToggle`, menus). Esc closes a
+  dialog or a menu, and focus goes back to what opened it.
+- **Colour is never the only signal.** About 1 in 12 men see some colours
+  as alike (WCAG 2.2 SC 1.4.1). A stage carries its glyph as well as its
+  colour; a match score carries its number.
+
+### Copy
+
+- **Title Case for names, sentence case for sentences**: Conventions in
+  `frontend/CLAUDE.md`, which lists what takes which.
+- **Plain words.** Students scan; they do not read every word (NN/g, "How
+  users read on the web"; GOV.UK, "Writing for user interfaces"). A button
+  names its action with a verb ("Save Entry", never "OK" or "Submit"). An
+  error says what went wrong and what to do next. Put the key word first.
+  Use the job terms from the root `CLAUDE.md` (a hiring system, never an
+  ATS) and one name for one thing on every screen.
+
+### Still open
+
+Breaks found on 2026-11-02, while these rules were written. The design
+audits (`design-audit/`, one report per area) add to this list.
+
+- `ink-faint` carries words: onboarding's Role step prints "Optional" in it
+  (3.11:1), and the Calendar's Month prints the days outside the month in it
+  (`calendar/month.tsx`). Both need `ink-meta`.
+- `ink-subtle` (2.95:1, under 3:1) on glyphs that inform: the stat tile's
+  icon (`components/stat-tile.tsx`) and the company range picker's chevron.
+  The icon rule makes them `ink-meta`.
+- Text under 11px: the score in onboarding's showcase ring is `text-[10px]`
+  (`onboarding/applicant/showcase.tsx`).
+- `text-area-field.tsx` prints its hint, which can be a sentence, at
+  `text-meta` (11px); it moves to `text-note`. `--text-meta`'s comment in
+  `globals.css` still names helper copy.
+- An arbitrary size where a token exists: the phone editor's sheet sets
+  `text-[16px]` (`resumes/[resumeId]/phone.tsx`), which is `text-base`.
+- Disabled controls on `main` still fade to `opacity-50` (Button, Chip,
+  IconButton, the fields) until KAN-550's grey disabled fill reaches them.
+- Touch targets under 44px below md: an `sm` Button and a Chip are 36px, a
+  `quiet` IconButton's target is 32px, and the Calendar's day buttons are
+  24px.
+- A wrapper skipped: the company table imports shadcn's `Input`.
+- Off the grid: `Card`'s `md` padding is 18px (`p-4.5`), as measured from
+  the mockup.
+- No token for the prose measure: About the Role, the company tab and
+  Written Answers each write `max-w-[68ch]`.
+
 ## The two shells
 
 The two shells are separate layouts on purpose, and they no longer look
