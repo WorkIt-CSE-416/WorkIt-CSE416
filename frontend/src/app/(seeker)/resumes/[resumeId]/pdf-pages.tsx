@@ -163,6 +163,7 @@ export function PdfPages({
   extra,
   shiftOf,
   swaps,
+  gaps,
   placeholder,
   marks,
   lit,
@@ -196,6 +197,9 @@ export function PdfPages({
   /** The moves on their way, as strips of the page on screen that trade
    *  places, in order, each against the page after the ones before. */
   swaps?: (boxes: RenderBox[]) => Strip[];
+  /** The hides on their way, as bands of the page on screen that close up,
+   *  read against the boxes once the swaps have moved them (KAN-584). */
+  gaps?: (boxes: RenderBox[]) => Gap[];
   /** Shown until pdf.js has read the PDF: the editor's PageSkeleton, so
    *  its skeleton holds until the canvas. A line of text by default. */
   placeholder?: ReactNode;
@@ -217,9 +221,15 @@ export function PdfPages({
   } | null>(null);
   // The boxes of the PDF on screen, where the moves on their way put them
   const strips = swaps?.(doc?.boxes ?? []) ?? [];
+  const traded = (doc?.boxes ?? []).map((box) => afterStrips(box, strips));
+  // Then the hides on their way close up, and what they hid takes no click
+  const closing = readOnly ? [] : closeUp(gaps?.(traded) ?? []);
   const shown = readOnly
     ? []
-    : [...(doc?.boxes ?? []), ...(extra ? [extra] : [])].map((box) => afterStrips(box, strips));
+    : [...traded, ...(extra ? [afterStrips(extra, strips)] : [])].flatMap((box) => {
+        const kept = afterGaps(box, closing);
+        return kept ? [kept] : [];
+      });
   // Each overlaid line's first box, top to bottom, with what it moves by
   const lives = overlaid
     .map((key) => shown.find((b) => boxKey(b) === key))
@@ -309,6 +319,7 @@ export function PdfPages({
             size={size}
             lives={lives.filter((l) => l.page === i + 1)}
             strips={strips.filter((s) => s.page === i + 1)}
+            gaps={closing.filter((g) => g.page === i + 1)}
             onPainted={() => {
               painted.current.add(i);
               if (painted.current.size === doc.sizes.length) drawn.current?.();
@@ -539,6 +550,60 @@ export function afterStrips<T extends RenderBox>(box: T, strips: Strip[]): T {
   return { ...box, y0, y1 };
 }
 
+/** A band of one page, in PDF points, that a hide on its way closes up:
+ *  everything under it on its page moves up by its height (KAN-584). */
+export type Gap = { page: number; top: number; bottom: number };
+
+/** The gaps sorted down each page, with any that touch or overlap made one. */
+export function closeUp(gaps: Gap[]): Gap[] {
+  const sorted = [...gaps].sort((a, b) => a.page - b.page || a.top - b.top);
+  const out: Gap[] = [];
+  for (const gap of sorted) {
+    const last = out.at(-1);
+    if (last && last.page === gap.page && gap.top <= last.bottom + 0.5) {
+      last.bottom = Math.max(last.bottom, gap.bottom);
+    } else out.push({ ...gap });
+  }
+  return out;
+}
+
+/** Where a box sits once these gaps have closed, or null when one hides it. */
+export function afterGaps<T extends RenderBox>(box: T, gaps: Gap[]): T | null {
+  let by = 0;
+  for (const { page, top, bottom } of gaps) {
+    if (page !== box.page) continue;
+    if (box.y0 >= top - 0.5 && box.y1 <= bottom + 0.5) return null;
+    if (box.y0 >= bottom - 0.5) by += bottom - top;
+  }
+  return by ? { ...box, y0: box.y0 - by, y1: box.y1 - by } : box;
+}
+
+/** The drawing with `gaps` (one page's, from `closeUp`) closed: each band
+ *  between them moved up, and white paper left at the foot. */
+function closed(drawn: HTMLCanvasElement, gaps: Gap[], scale: number) {
+  const next = document.createElement("canvas");
+  next.width = drawn.width;
+  next.height = drawn.height;
+  const context = next.getContext("2d")!;
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, next.width, next.height);
+  let from = 0;
+  let to = 0;
+  const copy = (end: number) => {
+    const height = end - from;
+    if (height > 0) {
+      context.drawImage(drawn, 0, from, next.width, height, 0, to, next.width, height);
+      to += height;
+    }
+  };
+  for (const gap of gaps) {
+    copy(Math.round(gap.top * scale));
+    from = Math.round(gap.bottom * scale);
+  }
+  copy(drawn.height);
+  return next;
+}
+
 /** The drawing with each strip pair traded, in order: `b` moves up to `a`'s
  *  top, then the gap that sat between them, then `a`. */
 function traded(drawn: HTMLCanvasElement, strips: Strip[], scale: number) {
@@ -560,7 +625,8 @@ function traded(drawn: HTMLCanvasElement, strips: Strip[], scale: number) {
 }
 
 /** The page's drawing onto the shown canvas: as drawn, with the moves on
- *  their way traded (`strips`), then each overlaid line (`lives`, top to
+ *  their way traded (`strips`), the hides on their way closed (`gaps`), then
+ *  each overlaid line (`lives`, top to
  *  bottom) cleared and everything under it moved by its `by`, the moves
  *  adding up down the page. The paper is white in either theme, as pdf.js
  *  paints it. */
@@ -568,10 +634,12 @@ function compose(
   shown: HTMLCanvasElement,
   pdfDrawn: HTMLCanvasElement,
   strips: Strip[],
+  gaps: Gap[],
   lives: Live[],
   scale: number,
 ) {
-  const drawn = strips.length ? traded(pdfDrawn, strips, scale) : pdfDrawn;
+  const swapped = strips.length ? traded(pdfDrawn, strips, scale) : pdfDrawn;
+  const drawn = gaps.length ? closed(swapped, gaps, scale) : swapped;
   shown.width = drawn.width;
   shown.height = drawn.height;
   const context = shown.getContext("2d")!;
@@ -604,6 +672,7 @@ function PageCanvas({
   size,
   lives,
   strips,
+  gaps,
   onPainted,
 }: {
   pdf: PDFDocumentProxy;
@@ -611,18 +680,23 @@ function PageCanvas({
   size: Size;
   lives: Live[];
   strips: Strip[];
+  gaps: Gap[];
   onPainted: () => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const drawnCanvas = useRef<{ pdf: PDFDocumentProxy; canvas: HTMLCanvasElement } | null>(null);
-  const latest = useRef({ lives, strips });
-  const layoutKey = JSON.stringify([lives.map((l) => [l.x0, l.y0, l.x1, l.y1, l.by]), strips]);
+  const latest = useRef({ lives, strips, gaps });
+  const layoutKey = JSON.stringify([
+    lives.map((l) => [l.x0, l.y0, l.x1, l.y1, l.by]),
+    strips,
+    gaps,
+  ]);
   useEffect(() => {
-    latest.current = { lives, strips };
+    latest.current = { lives, strips, gaps };
     const shown = canvas.current;
     const drawn = drawnCanvas.current;
     if (shown && drawn?.pdf === pdf) {
-      compose(shown, drawn.canvas, strips, lives, drawn.canvas.width / size.width);
+      compose(shown, drawn.canvas, strips, gaps, lives, drawn.canvas.width / size.width);
     }
   }, [layoutKey, pdf, size.width]); // eslint-disable-line react-hooks/exhaustive-deps
   const painted = useRef(onPainted);
@@ -655,6 +729,7 @@ function PageCanvas({
           element!,
           hidden,
           latest.current.strips,
+          latest.current.gaps,
           latest.current.lives,
           hidden.width / size.width,
         );

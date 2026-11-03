@@ -15,6 +15,7 @@ from app.services.fit_page import (
     Scores,
     apply_cuts,
     fit,
+    next_cuts,
     plan,
     skill_levels,
 )
@@ -283,6 +284,44 @@ def test_fit_reaches_one_page_in_two_renders_and_cuts_at_most_one_item_too_many(
         assert made == cuts
         back = apply_cuts(view, cuts[:-2])
         assert render(back, sample.IDENTITY, "jakes").page_count == 2, extra
+
+
+def _through_the_editor(rendered: Rendered) -> Rendered:
+    """A render as the editor holds it and sends it back (KAN-584): the
+    route's answer, read as a measure, with no PDF."""
+    from app.routers.built_resumes import _render_response
+    from app.schemas.built_resume import RenderMeasure
+    from app.services.resume_copy import measured
+
+    answer = _render_response(rendered, "Resume", sample.IDENTITY, "jakes", PageSettings())
+    return measured(RenderMeasure.model_validate(answer.model_dump()))
+
+
+def test_the_editor_cycle_by_cycle_cuts_what_fit_cuts():
+    # The editor plans each cycle from the PDF it shows and renders the cuts
+    # as an edit (`next_cuts`); it must cut the same items, in the same
+    # order, as the server's own loop, which compiles the first page itself
+    _tectonic_or_skip()
+    for extra in (0, 3, 8):
+        view = _long(extra)
+        cuts, _ = asyncio.run(fit(view, None, _draw))
+        first = _through_the_editor(render(view, sample.IDENTITY, "jakes"))
+        made: list[Cut] = []
+        now, taken = None, 0
+        while True:
+            more, taken = next_cuts(view, None, first, now, taken)
+            if not more:
+                break
+            made += more
+            now = _through_the_editor(render(apply_cuts(view, made), sample.IDENTITY, "jakes"))
+        assert made == cuts, extra
+        assert now is not None and now.page_count == 1
+
+
+def test_the_editor_cuts_nothing_from_a_one_page_resume():
+    _tectonic_or_skip()
+    first = _through_the_editor(render(sample.VIEW, sample.IDENTITY, "jakes"))
+    assert next_cuts(sample.VIEW, None, first, None, 0) == ([], 0)
 
 
 def test_a_dragged_section_order_cuts_about_as_much_as_the_default_order():

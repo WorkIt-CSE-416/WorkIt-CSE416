@@ -248,50 +248,61 @@ export function withWording(
 }
 
 /** Two neighbours a change swaps: an entry within its section, or a
- *  bullet within its entry, `a` the one above before the change. Null for
- *  any other change. The page shows the swap at once (KAN-391). */
+ *  bullet within its entry, `a` the one above before the change. The page
+ *  shows the swap at once (KAN-391). */
 export type Swap = { kind: "entry" | "bullet"; a: string; b: string };
 
-export function swapOf(bank: Bank, choices: Choices, changes: ChoicesUpdate): Swap | null {
+/** Any reorder of one entry's bullets, or of one section's entries, as
+ *  neighbour swaps in order, each against the order after the ones before
+ *  it (a bubble sort), so the page shows the new order at once: a Tailor
+ *  reorder's revert moves several bullets at once (KAN-584). Empty for any
+ *  other change, or one that moves nothing. */
+export function swapsOf(bank: Bank, choices: Choices, changes: ChoicesUpdate): Swap[] {
   const renumber = (list: { position?: number | null }[] | undefined) =>
     list &&
     list.length >= 2 &&
     list.every((c) => Object.keys(c).length === 2 && c.position != null);
-  const swapped = (before: string[], after: string[]): [string, string] | null => {
-    const at = before.findIndex((id, i) => id !== after[i]);
-    if (at < 0 || at + 1 >= before.length) return null;
-    const same = before.every((id, i) =>
-      i === at ? after[i + 1] === id : i === at + 1 ? after[i - 1] === id : after[i] === id,
-    );
-    return same ? [before[at], before[at + 1]] : null;
+  const steps = (kind: Swap["kind"], before: string[], after: string[]): Swap[] => {
+    const want = new Map(after.map((id, i) => [id, i]));
+    if (before.length !== after.length || before.some((id) => !want.has(id))) return [];
+    const now = [...before];
+    const out: Swap[] = [];
+    for (let end = now.length - 1; end > 0; end--) {
+      for (let i = 0; i < end; i++) {
+        if (want.get(now[i])! < want.get(now[i + 1])!) continue;
+        out.push({ kind, a: now[i], b: now[i + 1] });
+        [now[i], now[i + 1]] = [now[i + 1], now[i]];
+      }
+    }
+    return out;
   };
   if (renumber(changes.bullets) && !changes.entries?.length && !changes.skills?.length) {
     const ids = changes.bullets!.map((c) => c.bullet_id);
     const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === ids[0]));
-    if (!entry) return null;
+    if (!entry) return [];
     const before = ordered(entry.bullets, (id) => choices.bullets.find((c) => c.bullet_id === id));
     const after = [...changes.bullets!].sort((x, y) => x.position! - y.position!);
-    const pair = swapped(
+    return steps(
+      "bullet",
       before.map((b) => b.id),
       after.map((c) => c.bullet_id),
     );
-    return pair && { kind: "bullet", a: pair[0], b: pair[1] };
   }
   if (renumber(changes.entries) && !changes.bullets?.length && !changes.skills?.length) {
     const first = bank.entries.find((e) => e.id === changes.entries![0].entry_id);
-    if (!first) return null;
+    if (!first) return [];
     const before = ordered(
       bank.entries.filter((e) => e.section === first.section),
       (id) => choices.entries.find((c) => c.entry_id === id),
     );
     const after = [...changes.entries!].sort((x, y) => x.position! - y.position!);
-    const pair = swapped(
+    return steps(
+      "entry",
       before.map((e) => e.id),
       after.map((c) => c.entry_id),
     );
-    return pair && { kind: "entry", a: pair[0], b: pair[1] };
   }
-  return null;
+  return [];
 }
 
 /** A bullet in the Experiences picker: its words on this resume, and whether

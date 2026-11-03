@@ -373,7 +373,16 @@ two Projects, one Leadership):
   line loses together), `Page` (one render measured: `used`, `saved`,
   `shrink`, `fits`), `apply_cuts` (the view with cuts made, for the
   confirm render), `skill_levels`, and `fit`, the loop.
-- `built_resumes.fit_to_one_page` reads the view, gets the scores
+- **The editor fits cycle by cycle** (KAN-584): `POST .../fit/plan` runs
+  `fit_page.next_cuts`, one cycle of `fit` with the renders left to the
+  editor. It plans from the copy and PDF the fit began with (`first`),
+  every cycle, as `fit` does, and measures the PDF after the steps so far
+  (`now`, `taken`). The editor renders and saves each cycle's cuts as an
+  ordinary hide, so the first render of `fit` (of a page the editor
+  already shows) and its database read and write go. Every cycle is one
+  Undo step. `tests/test_fit_page.py` checks it cuts what `fit` cuts.
+- `built_resumes.fit_to_one_page` (`POST .../fit`, kept for an editor
+  whose API sends no measure) reads the view, gets the scores
   (`fit_scores`), runs `fit_page.fit` and saves the cuts through
   `fit_changes` and `update_choices`. `fit_scores` returns None (position
   order) with no posting, one no longer listed, or one with no

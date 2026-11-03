@@ -81,6 +81,15 @@ POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, undo,
        .../choices body that shows them all again.
        Each render gets a second try (FIT_RENDER_TRIES); 503 like render
        when one fails twice, and then nothing is saved.
+POST   /applicants/{id}/built-resumes/{rid}/fit/plan -> FitPlanned {hide, undo, taken}
+       One cycle of Fit to One Page with no compile (KAN-584): the editor
+       sends its copy (`source`) and the measure of the PDF it shows
+       (`first`, each render's boxes, points, area and shrinks), and for a
+       later cycle the measure after the steps so far (`now`, `taken`).
+       Answers the cuts that fit by prediction; the editor renders and
+       saves them as any edit, and asks again while the page is over one.
+       Reads only the resume's row (and its posting, for the rank); writes
+       nothing.
 GET    /applicants/{id}/built-resumes/{rid}/docx   -> the Word file, as an attachment:
        the editor's Download Word, which keeps nothing (KAN-267)
 GET    /applicants/{id}/built-resumes/{rid}/tex    -> the LaTeX source, as an attachment:
@@ -126,18 +135,24 @@ from app.schemas.built_resume import (
     ChoicesUpdate,
     EditRender,
     EditRendered,
+    FitPlan,
+    FitPlanned,
     FitResponse,
     LineSave,
     LineSaved,
     PageSettings,
+    RenderArea,
     RenderBox,
+    RenderPoint,
     RenderResponse,
+    RenderShrink,
     ResumeChanged,
 )
 from app.schemas.keywords import KeywordMatchResponse
 from app.schemas.profile import ApplicantProfileResponse, ApplicantProfileUpdate
 from app.services import (
     bank,
+    fit_page,
     keywords,
     postings,
     resume_copy,
@@ -326,10 +341,13 @@ def _render_response(
         template=template,
         page_settings=PageSettings(**dataclasses.asdict(page)),
         wrapped_line=rendered.wrapped_line,
+        points=[RenderPoint(**vars(p)) for p in rendered.points],
+        area=RenderArea(**vars(rendered.area)) if rendered.area else None,
+        shrinks=[RenderShrink(**vars(s)) for s in rendered.shrinks],
     )
 
 
-@router.post("/{resume_id}/fit", response_model=FitResponse)
+@router.post("/{resume_id}/fit", response_model=FitResponse, response_model_exclude_none=True)
 async def fit(
     resume_id: uuid.UUID,
     applicant_id: uuid.UUID = Depends(owned_applicant),
@@ -348,6 +366,34 @@ async def fit(
         hidden=[c.id for c in cuts if c.kind == "bullet"],
         undo=ChoicesUpdate(**service.fit_changes(cuts, hide=False)),
         render=_render_response(rendered, resume.name, identity, resume.template, page),
+    )
+
+
+# Each change carries only the fields it sets: a null `variant_id` is a
+# switch to the bank's wording, and with every unset field sent as null the
+# render refused the plan's hides (422)
+@router.post("/{resume_id}/fit/plan", response_model=FitPlanned, response_model_exclude_none=True)
+async def fit_plan(
+    body: FitPlan,
+    resume_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> FitPlanned:
+    # One cycle of Fit to One Page, with no compile (KAN-584): the editor
+    # sends its copy and the measure of the PDF it already shows, and renders
+    # and saves the cuts as any edit, so the student sees them at once. The
+    # resume's row is read only for its posting, which a tailored resume is
+    # ranked by; nothing is written.
+    resume = await _owned(session, applicant_id, resume_id)
+    held, choices, _ = resume_copy.from_copy(body.source)
+    view = build_view(held, choices)
+    scores = await service.fit_scores(session, resume, view)
+    now = resume_copy.measured(body.now) if body.now else None
+    cuts, taken = fit_page.next_cuts(view, scores, resume_copy.measured(body.first), now, body.taken)
+    return FitPlanned(
+        hide=ChoicesUpdate(**service.fit_changes(cuts, hide=True)),
+        undo=ChoicesUpdate(**service.fit_changes(cuts, hide=False)),
+        taken=taken,
     )
 
 

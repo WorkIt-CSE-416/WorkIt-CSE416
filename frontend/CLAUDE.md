@@ -2019,8 +2019,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   change's plain fields (shown, position, the toggles) go into the
   choices at once (`mergeChoices`) and are merged again over each answer
   until their own lands, so a second quick move computes from the first.
-  A move of two neighbours shows at once as their strips of the page
-  trading places (`swapOf`, `swapsOn`, `Strip` in `pdf-pages.tsx`): a
+  Any reorder within one entry or one section shows at once as strips of
+  the page trading places (`swapsOf`, `swapsOn`, `Strip` in
+  `pdf-pages.tsx`): `swapsOf` splits it into neighbour swaps, each against
+  the order the ones before it leave (tested in `swaps.test.ts`). It took
+  only a swap of two neighbours until KAN-584, so a Tailor reorder's
+  revert, which moves several bullets, waited for the compile. A
   swap is kept by item, not by position, so a PDF that lands before its
   own still shows it, and one the page already shows draws nothing.
   A phone's "Saved, N ms" times the render.
@@ -2041,7 +2045,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
   own text undo runs. An open line is saved first, so Undo takes back
   what was just typed. **Fit to One Page is one step like any edit**:
-  Undo shows what it hid, Redo hides it again (`hideAgain`). It has no
+  Undo shows what it hid, Redo hides it again. **It plans from the page on
+  screen** (KAN-584, `fit` in the editor, `../docs/live_page.md`): the copy
+  and the PDF's measure (`measureOf`) go to `/api/resume-fit`, a route
+  handler for `planFit` (`POST .../fit/plan`, no compile), and each cycle's
+  cuts go through `apply` as a hide, so they close up on the page at once
+  (`gapsOn`, `Gap` in `pdf-pages.tsx`) while the render and the save go
+  behind. While the new PDF is over one page it asks again; a later cycle
+  joins the first's step (`apply`'s `into`), so one Undo takes it all back.
+  An API with no measure fits on the server (`fitOnServer`, `hideAgain`).
+  Every hide closes up at once the same way, not only Fit's. It has no
   Undo Fit button of its own (gone 2026-11-01, a second way to do what
   Undo does); the phone's bar shows the same Undo and Redo. **Cut From
   Resume** lists what every fit in the tab cut, entries, bullets and
@@ -2159,7 +2172,7 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   **An open bullet or entry moves from the bar** (`MoveButtons`, Move Up
   and Move Down beside bold and italic, or an entry's size): a bullet within
   its entry, an entry within its section, through `move` and `apply`, so it
-  trades places with its neighbour on the page at once (`swapOf`; an entry
+  trades places with its neighbour on the page at once (`swapsOf`; an entry
   takes its bullets with it, and only when both sit on one page) while the
   save and the render go behind it, and the line stays open on it. The
   Sections panel reorders at once too, since it reads the same choices. It
