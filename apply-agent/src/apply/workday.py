@@ -79,6 +79,8 @@ SUBMITTED = re.compile(r"application (has been )?submitted|congratulations|thank
 TIMEOUT = 30.0
 GOOGLE_WAIT = 60.0  # s for Workday to come back from Sign in with Google
 FOLLOW_UP_WAIT = 300  # ms for a follow-up question to show once its question is answered
+REFUSED = "won't leave its"  # the engine's Handoff when Save and Continue doesn't leave the step
+REFILL_WAIT = 1_000  # ms for a step Workday refused to settle before it is filled again
 SEND_WAIT = 10.0  # s for an auth form's click to send it, before it is clicked again
 SEND_CLICKS = 3  # clicks on an auth form's button at most
 # The page Workday answers a new account with when it mails a link to verify it (Zillow's, live): its notice
@@ -96,10 +98,29 @@ def site_of(url: str) -> str:
 
 def names(url: str, site: JobSite) -> tuple[str, str]:
     """The company and role the Feed lists for a Workday Posting: Workday's own
-    pages name no company, or a legal entity ("2100 NVIDIA USA", live)."""
-    if found := feed.names(url, site.fetch(feed.LIVE)):
-        return found
-    raise LookupError(f"{url} isn't in the Feed")
+    pages name no company, or a legal entity ("2100 NVIDIA USA", live). One the
+    Feed lacks is named by Workday's job API, its legal entity trimmed to the
+    company (ASML's "ASML US, LP. (US30)", live): unnamed, its Record had no company."""
+    try:
+        if found := feed.names(url, site.fetch(feed.LIVE)):
+            return found
+    except Exception:
+        pass  # the Feed unreachable: the job API still names it
+    entity, title = fill_engine.job_names(url, site)
+    return company_of(entity), title
+
+
+# What a legal entity adds to the company's name: a code in brackets, a legal form, a country.
+LEGAL_PART = re.compile(r"\s*\([^)]*\)$|,?\s+(LP|LLP|LLC|L\.L\.C|Inc|Corp|Corporation|Co|Ltd|GmbH|B\.V|N\.V|S\.A|PLC)\.?$"
+                        r"|\s+(US|USA|U\.S\.A?)\.?$", re.IGNORECASE)
+
+
+def company_of(entity: str) -> str:
+    """The company a Workday legal entity names: "ASML US, LP. (US30)" is ASML."""
+    name = entity.strip()
+    while (shorter := LEGAL_PART.sub("", name).strip()) and shorter != name:
+        name = shorter
+    return name
 
 
 def next_step(page: Page, step: str) -> None:
@@ -144,6 +165,7 @@ class WorkdayFiller:
     def fill(self, page: Page, questions: QuestionSet, answers: Answers) -> Readback:
         known = {q.name for q in questions}
         self._known = list(questions)
+        refilled: set[str] = set()  # the steps Workday refused once, filled again
         # The last step is Review, or whichever step's footer button sends (a tenant may name it
         # otherwise): filling stops there, and only submit() clicks that button.
         while not (shown := self._shown(page))["review"] and not (shown["sends"] and not shown["questions"]):
@@ -164,7 +186,16 @@ class WorkdayFiller:
                 continue  # an answer brought up a follow-up question (Snap's H-4 one, live)
             if shown["sends"]:
                 break
-            next_step(page, shown["step"])
+            try:
+                next_step(page, shown["step"])
+            except Handoff as refused:
+                # Workday may drop a step's picks as it loads the step's questions again: ASML's Application
+                # Questions showed each pick, yet Save and Continue found two required answers empty, while the
+                # same picks made by hand then took (live). So a refused step is filled once more, then refused for good.
+                if REFUSED not in str(refused) or shown["step"] in refilled:
+                    raise
+                refilled.add(shown["step"])
+                page.wait_for_timeout(REFILL_WAIT)
         return dict(self._readback)
 
     def resume_blocked(self, page: Page) -> str:

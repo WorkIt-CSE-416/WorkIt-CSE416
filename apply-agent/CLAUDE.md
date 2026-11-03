@@ -456,6 +456,10 @@ window's card and tile. Run it with `-k`; it opens Chromium.
 - A Filler with a `form_url(url)` method names the page that holds its
   form. The Worker opens that page, not the posting link. Lever's form is
   on `/apply`; a link without it opens the job description.
+- A Workday step that Save and Continue refuses ("won't leave its ... step")
+  is filled once more, after a second's wait, and saved again; a second
+  refusal is the Handoff. ASML's Application Questions showed every pick,
+  yet Workday held two of them empty (`WorkdayFiller.fill`).
 
 ## Sign-in pages
 
@@ -494,6 +498,11 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   background, so use SIGTERM there.
 
 ## Rehearsal records
+
+A Workday link is named from the Feed; one the Feed lacks is named by
+Workday's job API, its legal entity trimmed to the company
+(`workday.company_of`: "ASML US, LP. (US30)" is ASML). Unnamed, ASML's
+Record was headed "# : " in a folder named `company-...`.
 
 Every rehearsal outcome writes its Record (`rehearsals/<date>/`), a Handoff or
 a failure too, not only a filled form. A step Workday won't leave keeps what
