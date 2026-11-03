@@ -70,7 +70,8 @@ module docstring has the steps.
   (KAN-542, `POST /jobs/added-by-link`), which no student search sees, so
   it needs no locations or tags until the import lists it.
 - **It takes over an unlisted job posting** (KAN-542, ADR 0008,
-  `_take_over_unlisted`): before the upsert, an unlisted posting whose job
+  `_take_over_unlisted`): before the upsert, an unlisted posting
+  (`services/postings.py`'s `UNLISTED`, the same rule the API uses) whose job
   the feed has under another form of the link (the same Greenhouse job, or
   the same bare link when only one feed job has it) moves onto the feed's
   link, so the upsert fills it in and publishes it, with the student's

@@ -76,7 +76,6 @@ from sqlalchemy import (
     and_,
     any_,
     case,
-    cast,
     column,
     delete,
     func,
@@ -104,6 +103,7 @@ from app.services import keywords
 from app.services.location_resolver import LocationResolver, Place, Resolution
 from app.services.matching.embeddings import BATCH_SIZE, embed, job_text
 from app.services.models import get_small_llm
+from app.services.postings import UNLISTED
 from app.services.role_resolver import RoleResolver
 
 logger = logging.getLogger(__name__)
@@ -355,9 +355,7 @@ async def _take_over_unlisted(conn: AsyncConnection, urls: list[str], report: Re
     posting on the feed's own link needs nothing here
     '''
     unlisted = (await conn.execute(
-        select(_jobs.c.id, _jobs.c.apply_url).where(
-            _jobs.c.company_id.is_(None), cast(_jobs.c.status, Text) == dto.job_post_status.unlisted.value
-        ).order_by(_jobs.c.id)
+        select(_jobs.c.id, _jobs.c.apply_url).where(UNLISTED).order_by(_jobs.c.id)
     )).all()
     feed = set(urls)
     unlisted = [row for row in unlisted if row.apply_url not in feed]
