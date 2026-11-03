@@ -7,7 +7,10 @@ instead of in windows of their own. Lisul signs each profile in to Google once
 by hand. A persistent profile can be open in only one browser at a time, and
 each Worker carries one Application at a time, so they never collide.
 Playwright launches Chrome with --use-mock-keychain --password-store=basic,
-so Lisul must sign in through a Chrome started with those flags too.
+so Lisul must sign in through a Chrome started with those flags too. It also
+starts Chrome with --disable-blink-features=AutomationControlled: Chrome sets
+navigator.webdriver whenever DevTools is on, and Google's sign-in then refuses
+Sign in with Google ("This browser or app may not be secure").
 
 Each Worker's Chrome also listens for the Chrome DevTools Protocol on a free
 local port, so Claude fill's Playwright MCP can work the very
@@ -43,6 +46,8 @@ _HEADED: set[int] = set()
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
 
 
+# Keeps navigator.webdriver false while Chrome listens for DevTools (Chrome 156 sets it for a port or a pipe).
+NOT_WEBDRIVER = "--disable-blink-features=AutomationControlled"
 VIEWPORT = {"width": 1280, "height": 800}  # a dashboard tile's shape on a laptop screen
 CHROME = Path("/Applications/Google Chrome.app/Contents/Info.plist")
 
@@ -249,6 +254,9 @@ class WorkerBrowsers:
             "args": [
                 "--remote-debugging-port=0",  # Chrome picks a free port and writes it to DevToolsActivePort
                 "--hide-crash-restore-bubble",  # a Worker stopped mid-run must not offer to restore its tabs
+                # Any DevTools port or pipe sets navigator.webdriver, and Google's sign-in then refuses
+                # Sign in with Google ("This browser or app may not be secure", KLA, 2026-11-03).
+                NOT_WEBDRIVER,
             ],
         }
 

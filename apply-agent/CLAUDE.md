@@ -459,6 +459,12 @@ window's card and tile. Run it with `-k`; it opens Chromium.
 
 ## Sign-in pages
 
+- Chrome sets `navigator.webdriver` when it listens for DevTools, on a
+  port or a pipe. Then Google's sign-in refuses Sign in with Google ("This
+  browser or app may not be secure", KLA, 2026-11-03). So each Worker's
+  Chrome starts with `--disable-blink-features=AutomationControlled`
+  (`browsers.NOT_WEBDRIVER`). Do not remove it. The keychain flags already
+  match the Chrome that Lisul signs the profile in with.
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
 - Apply asks a site for a verification code or link once per sign-in and

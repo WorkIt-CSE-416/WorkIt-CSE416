@@ -77,6 +77,14 @@ def test_a_worker_runs_headless_as_real_chrome_with_no_window(tmp_path):
     assert "Headless" not in options["user_agent"] and "Chrome/" in options["user_agent"]
     assert not any(a.startswith(("--window-position", "--window-size")) for a in options["args"])
     assert "--hide-crash-restore-bubble" in options["args"]
+    assert "--disable-blink-features=AutomationControlled" in options["args"]  # Google refuses a webdriver
+
+
+def test_a_worker_page_does_not_say_webdriver(tmp_path):
+    # Chrome sets navigator.webdriver for any DevTools port or pipe, and Google's sign-in then
+    # refuses Sign in with Google: "This browser or app may not be secure" (KLA, 2026-11-03).
+    with WorkerBrowsers(tmp_path, headless=True, channel=None).open("about:blank") as page:
+        assert page.evaluate("navigator.webdriver") is False
 
 
 def test_headed_workers_remain_possible_for_debugging(tmp_path):
