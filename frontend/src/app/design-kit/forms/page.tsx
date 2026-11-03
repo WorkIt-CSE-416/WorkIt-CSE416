@@ -14,7 +14,9 @@ import {
   SegmentedSpecimen,
   SelectFieldSpecimen,
 } from "../interactive";
-import { KitPage, Row } from "../specimen";
+import { FieldFacetStates, MultiSelectSpecimen, SortMenuSpecimen } from "../parts";
+import { Group, KitPage, Row } from "../specimen";
+import { SelectFieldStates, StateCell, StateCells } from "../states";
 
 export const metadata = { title: SECTIONS.forms.title };
 
@@ -56,6 +58,24 @@ export default function FormsPage() {
         >
           <GlyphSelectSpecimen />
         </Row>
+        <Row
+          name="<FieldFacet>"
+          role="The filter over a page's items: a dropdown of checkbox rows, tinted while it holds a pick"
+        >
+          <FieldFacetStates />
+        </Row>
+        <Row
+          name="<SortMenu>"
+          role="A list's order, drawn as a filter is; never tinted, since an order is always in force"
+        >
+          <SortMenuSpecimen />
+        </Row>
+        <Row
+          name="<Select multiple> + <SelectCheckboxItem>"
+          role="ui/select: shadcn's Select opening below its trigger, with a checkbox row for several picks"
+        >
+          <MultiSelectSpecimen />
+        </Row>
         <Row name="<DateField>" role="WorkIt's calendar in a popover, never the browser's picker">
           <DateFieldSpecimen />
         </Row>
@@ -87,6 +107,58 @@ export default function FormsPage() {
           </div>
         </Row>
       </div>
+
+      <Group
+        title="Field States"
+        note="A field has no hover look; Focus is forced from the app's stylesheet, as the Tab key or a click draws it. Invalid outlines the box red and names the problem under it in text-note danger. Disabled fades to half and takes no input."
+      >
+        <Row name="<TextField>" className="sm:grid-cols-1">
+          <StateCells>
+            <StateCell label="Empty">
+              <div className="w-48">
+                <TextField id="dk-state-empty" label="School" placeholder="Your school" />
+              </div>
+            </StateCell>
+            <StateCell label="Filled">
+              <div className="w-48">
+                <TextField id="dk-state-filled" label="School" defaultValue="Stony Brook" />
+              </div>
+            </StateCell>
+            <StateCell label="Focus" state="focus">
+              <div className="w-48">
+                <TextField id="dk-state-focus" label="School" placeholder="Your school" />
+              </div>
+            </StateCell>
+            <StateCell label="Invalid">
+              <div className="flex w-48 flex-col gap-1">
+                <TextField
+                  id="dk-state-invalid"
+                  label="Email"
+                  defaultValue="alex@"
+                  aria-invalid
+                  aria-describedby="dk-state-invalid-error"
+                />
+                <p id="dk-state-invalid-error" className="text-note text-danger">
+                  Enter a full email address
+                </p>
+              </div>
+            </StateCell>
+            <StateCell label="Disabled">
+              <div className="w-48">
+                <TextField
+                  id="dk-state-disabled"
+                  label="School"
+                  defaultValue="Stony Brook"
+                  disabled
+                />
+              </div>
+            </StateCell>
+          </StateCells>
+        </Row>
+        <Row name="<SelectField>" className="sm:grid-cols-1">
+          <SelectFieldStates />
+        </Row>
+      </Group>
     </KitPage>
   );
 }

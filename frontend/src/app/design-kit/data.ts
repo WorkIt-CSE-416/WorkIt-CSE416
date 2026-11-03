@@ -86,7 +86,10 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-canvas", role: "Body ground; the auth screens paint a sky over it" },
       { token: "--color-surface", role: "Login card, and every field fill" },
       { token: "--color-surface-tint", role: "Logo tile, subtle fills" },
-      { token: "--color-app", role: "Home and design kit ground; uploaded-file row" },
+      {
+        token: "--color-app",
+        role: "Every seeker page's ground, and the design kit's; uploaded-file row",
+      },
       { token: "--color-panel", role: "Top bar, cards and secondary buttons" },
       { token: "--color-well", role: "Recessed area — the resume dropzone" },
       { token: "--color-frame", role: "Pale lavender; onboarding story panel fade" },
@@ -102,7 +105,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
   },
   {
     title: "Rail",
-    note: "The left panel's lavender. The company shell paints its docked panel and the bar's corner cell in it, so the two read as one frame around the white page. The seeker's floating panel is white and keeps only the border. Hover and current rows are lavender too, where the grey Interaction pair would read as smudges on a coloured panel.",
+    note: "The left panel's lavender. The company shell paints its docked panel and the bar's corner cell in it, so the two read as one frame around the white page. The seeker's rail is white and keeps only the border. Hover and current rows are lavender too, where the grey Interaction pair would read as smudges on a coloured panel.",
     tokens: [
       { token: "--color-rail", role: "Company panel and its corner cell" },
       { token: "--color-rail-hover", role: "Row under the pointer on the rail" },
@@ -116,7 +119,10 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-ink", role: "Headings" },
       { token: "--color-ink-muted", role: "Body copy, field labels" },
       { token: "--color-ink-meta", role: "Nav links, subtitles, dates, glyphs, placeholders" },
-      { token: "--color-ink-subtle", role: "De-emphasised glyphs: stat tiles, a picker's chevron" },
+      {
+        token: "--color-ink-subtle",
+        role: "Anything that cannot be used now: a disabled control's text and glyph",
+      },
       { token: "--color-ink-faint", role: "Separator dots, bullets, resting sort chevrons" },
     ],
   },
@@ -388,7 +394,7 @@ export const WIDTHS: { token: string; cls: string; role: string }[] = [
   {
     token: "--container-dashboard",
     cls: "max-w-dashboard",
-    role: "The seeker Dashboard's wider grid",
+    role: "Every seeker page's cap, Home to the Calendar",
   },
 ];
 
@@ -585,7 +591,10 @@ export const BUTTON_VARIANTS = [
 /** Each size and when to use it (KAN-251). Pick by role, never by look. */
 export const BUTTON_SIZES = [
   { size: "inline", note: "A text action inside a line, no box: Clear Filters, Download Anyway" },
-  { size: "xs", note: "UNMEASURED; no screen uses it for a boxed action" },
+  {
+    size: "xs",
+    note: "UNMEASURED. A glyph action in a dense toolbar: the bank's Add, the editor's format toggles",
+  },
   { size: "sm", note: "36px. An action in a card, a row, a page's header or a panel" },
   { size: "default", note: "42px, a text field's height. An action in a form or a dialog" },
   { size: "lg", note: "48px. The one main action of a page, or the sign-in card's" },
@@ -603,3 +612,10 @@ export const CHIP_VARIANTS = [
   { variant: "primary", pressed: undefined, note: "The one suggestion most people take: Use This" },
 ] as const;
 export const BUTTON_ICON_SIZES = ["icon-xs", "icon-sm", "icon", "icon-lg"] as const;
+
+/** IconButton's variants, each sized as a screen draws it. */
+export const ICON_BUTTON_VARIANTS = [
+  { variant: "quiet", className: undefined, label: "Notifications" },
+  { variant: "outline", className: "size-9", label: "Notifications" },
+  { variant: "brand", className: undefined, label: "Edit avatar" },
+] as const;
