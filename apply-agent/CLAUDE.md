@@ -440,6 +440,13 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   the form and holds the Application (`gates.over_cap`). This applies to
   an essay that Lisul approved too. A form refuses a longer answer
   (MongoDB's 267-word letter, cap 260).
+- The names gate (`gates.traced`) checks each run of capitalized words
+  against the essay's sources: the drafting prompt (Story bank, Stock
+  answers, Company material with the Company brief, the posting) and the
+  question. A run that joins names the sources hold passes (`gates.held`):
+  "MongoDB Intelligent Workload Management" is the company and a brief
+  name, and "Hitachi Rail's CTO" is two Story bank names. A one-word piece
+  must be in the sources with its capital.
 - The not-on-resume gate (`gates.on_resume`) reads the text of the
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".

@@ -157,10 +157,25 @@ def traced(text: str, sources: str, company: str) -> list[str]:
     run of two or more capitalized words (its sentence-opening words dropped)
     and each word with a capital inside it ("PyTorch"). The company's own
     name always passes; single capitalized words and acronyms are never
-    checked, so a sentence opener or "AI" never fails."""
-    held = _plain(f"{sources} {company}")
+    checked, so a sentence opener or "AI" never fails. A run that joins
+    names the sources hold passes too (held)."""
     found = [f"{UNTRACED_NUMBER}{n}" for n in unsupported_numbers(text, sources)]
-    return found + [f"a name no source holds: {name}" for name in names(text) if _plain(name) not in held]
+    return found + [f"a name no source holds: {name}" for name in names(text) if not held(name, f"{sources}\n{company}")]
+
+
+def held(name: str, sources: str) -> bool:
+    """Whether `sources` hold `name`, whole or as names side by side: an
+    essay joins them into one capitalized run ("MongoDB Intelligent Workload
+    Management", "IEEE Stony Brook Micromouse", "Hitachi Rail's CTO", its
+    "'s" dropped by names). Each piece of two or more words must be in the
+    sources, in any case; a one-word piece only as that capitalized word."""
+    plain, words = _plain(sources), name.split()
+    piece = lambda part: (_plain(" ".join(part)) in plain if len(part) > 1
+                          else re.search(rf"(?<!\w){re.escape(part[0])}(?!\w)", sources) is not None)
+    split = [True] + [False] * len(words)  # split[j]: words[:j] cut into held pieces
+    for j in range(1, len(words) + 1):
+        split[j] = any(split[i] and piece(words[i:j]) for i in range(j))
+    return split[-1]
 
 
 def names(text: str) -> list[str]:

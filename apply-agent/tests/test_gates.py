@@ -77,6 +77,17 @@ def test_a_number_or_a_name_no_source_holds_fails():
     assert gates.traced("Figma Make and Dev Mode both help.", SOURCES, "Figma Make") == []  # the company's own name
 
 
+def test_a_name_run_joining_names_the_sources_hold_passes():
+    # MongoDB's and Scout AI's (seen live): held names side by side, and a possessive, read as one unknown name
+    sources = ("<story_bank>## IEEE Stony Brook\nI captained our Micromouse team. I reported to the CTO at Hitachi Rail."
+               "</story_bank>\n<company>\n- **Atlas Search** (2026-05): full-text search.\n</company>")
+    text = "Atlas Search caught my eye. IEEE Stony Brook Micromouse taught me that. I presented to Hitachi Rail's CTO."
+    assert gates.traced(f"At Figma {text}", sources, "Figma") == []
+    assert gates.traced("Figma Atlas Search helps.", sources, "Figma") == []  # the company's name, then a brief's
+    assert gates.traced("IEEE Stony Brook Robotics won.", sources, "Figma") == [
+        "a name no source holds: IEEE Stony Brook Robotics"]
+
+
 def test_names_check_is_conservative_about_sentence_openers_and_acronyms():
     assert gates.traced("When I built WorkIt, it ran on FastAPI. In Dev Mode the AI helps. The GPS feed was live.",
                         SOURCES, "Figma") == []
