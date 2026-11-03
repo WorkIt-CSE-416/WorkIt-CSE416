@@ -58,8 +58,9 @@ try-list picked, so the extension needs none of them.
 - A Workday try-list answer (`a|b|c`) accepts each of its wordings in the
   read-back, because the fill takes the first one that it finds. Only the
   How did you hear question (and a "Details" list right after it) gets a
-  try-list; another answer with a `|` must show whole. Keep
-  `fill_engine.HOW_HEARD` the same as the engine's `HOW_HEARD` (`rules.ts`).
+  try-list; another answer with a `|` must show whole. Which question is
+  the How did you hear one is the engine's answer (`asksHowHeard`, from its
+  own `HOW_HEARD`): Apply keeps no copy of the pattern.
 - A form that Claude fill reads is planned with the company and role that
   its page names, when the link names none.
 
