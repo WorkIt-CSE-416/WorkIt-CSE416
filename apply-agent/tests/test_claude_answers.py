@@ -5,6 +5,7 @@ Filler that keeps what it was sent, so these runs need no browser."""
 import json
 import re
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -334,6 +335,24 @@ def test_an_essay_claude_leaves_blank_is_held_and_never_submitted_blank(monkeypa
 
     assert row.status == "held"
     assert PROJECT in row.reason
+    assert form.submitted == []
+
+
+def test_an_essay_over_its_word_cap_is_rewritten_once_and_if_still_over_held_off_the_form(monkeypatch):
+    # MongoDB's (seen live): a 267-word letter went on a form capped at 260 words
+    form = ResearchForm("Northwood Space")
+    form.questions = [replace(q, label=f"{q.label} (max 30 words)") if q.label.startswith(PROJECT) else q
+                      for q in form.questions]
+    long = " ".join(["He wrote the firmware for the maze robot and tested it on the real maze."] * 3)
+    claude = FakeClaude(essays={PROJECT: long}, repairs={"He wrote": f"{long} He kept going."})
+
+    row = run(monkeypatch, form, claude)
+
+    assert row.status == "held"
+    assert re.search(r"is left off the form: too long: \d+ words, the most is 30", row.reason)
+    shorter = [c for c in claude.calls if "edited" in c["schema"]["properties"] and essays.SHORTER in c["prompt"]]
+    assert len(shorter) == 1  # asked once for a shorter rewrite
+    assert not any(label.startswith(PROJECT) for fill in form.filled for label in fill)
     assert form.submitted == []
 
 

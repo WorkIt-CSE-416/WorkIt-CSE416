@@ -431,6 +431,14 @@ window's card and tile. Run it with `-k`; it opens Chromium.
 - The length gate (`gates.bounds`) reads a limit that the form states,
   also a hyphenated one ("500-word limit"). Keep it in step with
   `essays.STATED`, which tells the writer that the form states a length.
+- A word or character cap that the form states (`gates.caps`: each range's
+  top, each limit in digits, the field's `maxLength`) always holds, also
+  when `gates.bounds` reads another length first ("2-3 sentences" before
+  "(max 260 words)"). An essay over a cap gets one shorter rewrite
+  (`essays.SHORTER`). If it is still over the cap, the worker keeps it off
+  the form and holds the Application (`gates.over_cap`). This applies to
+  an essay that Lisul approved too. A form refuses a longer answer
+  (MongoDB's 267-word letter, cap 260).
 - The not-on-resume gate (`gates.on_resume`) reads the text of the
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".

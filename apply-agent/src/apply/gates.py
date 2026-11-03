@@ -84,16 +84,40 @@ def bounds(q: Question, kind: str) -> tuple[int, int, str]:
     return low, high, "words"
 
 
+TOO_LONG = "too long: "  # opens the length gate's failure for an answer over its form's limit
+
+
+def caps(q: Question) -> list[tuple[int, str]]:
+    """Every word or character cap `q` states, as (most, unit): each range's
+    top and each limit given in digits, in its label or description, and the
+    field's character cap. bounds reads only the first length stated, so a
+    label asking "2-3 sentences" and "(max 260 words)" has both."""
+    text = f"{q.label} {q.description}"
+    found = [(_count(m.group(2)), _unit(m.group(3))) for m in RANGE.finditer(text)]
+    found += [(_count(m.group(1)), _unit(m.group(2))) for m in SINGLE.finditer(text) if m.group(1)[0].isdigit()]
+    found += [(q.max_length, "characters")] if q.max_length else []
+    return [(n, unit) for n, unit in found if unit != "sentences"]
+
+
+def over_cap(text: str, q: Question) -> list[str]:
+    """The first cap `q` states (caps) that `text` is over, as a length failure; none when it fits."""
+    for most, unit in caps(q):
+        if (n := _measure(text, unit)) > most:
+            return [f"{TOO_LONG}{n} {unit}, the most is {most}"]
+    return []
+
+
 def length(text: str, q: Question, kind: str) -> list[str]:
     """Too long for `q` (bounds), or under UNDER of its lower bound; types in
-    NO_FLOOR and short fields have no lower bound. A field's character cap
-    always holds too."""
+    NO_FLOOR and short fields have no lower bound. Every cap the form
+    states (caps) always holds too: an answer over one never goes on the
+    form (worker)."""
     low, high, unit = bounds(q, kind)
     n = _measure(text, unit)
     if n > high:
-        return [f"too long: {n} {unit}, the most is {high}"]
-    if q.max_length and unit != "characters" and len(text) > q.max_length:
-        return [f"too long: {len(text)} characters, the most is {q.max_length}"]
+        return [f"{TOO_LONG}{n} {unit}, the most is {high}"]
+    if over := over_cap(text, q):
+        return over
     short = q.kind == "text" or (q.max_length or SHORT_FIELD + 1) <= SHORT_FIELD
     if kind not in NO_FLOOR and not short and n < (floor := -(-low * UNDER // 1)):
         return [f"too short: {n} {unit}, at least {floor:.0f} ({UNDER:.0%} of {low})"]

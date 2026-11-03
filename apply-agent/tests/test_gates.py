@@ -39,6 +39,9 @@ def test_the_length_comes_from_the_form_else_the_types_default():
     assert gates.bounds(Question("a", "Why Figma? (1,000 characters)", "textarea"), "why-company") == (800, 1000, "characters")
     assert gates.bounds(Question("a", "Why Figma?", "textarea", max_length=500), "why-company") == (400, 500, "characters")
     assert gates.bounds(Question("a", "Why Figma?", "text"), "why-company") == (0, 255, "characters")
+    # a sentence range read first still leaves its word cap in force (caps)
+    both = Question("a", "Why Figma? (2-3 sentences) (max 30 words)", "textarea")
+    assert gates.over_cap(words(31), both) == ["too long: 31 words, the most is 30"]
 
 
 def test_an_answer_over_the_upper_bound_fails_and_one_far_under_the_lower_fails():
