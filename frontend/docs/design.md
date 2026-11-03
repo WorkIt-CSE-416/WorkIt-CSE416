@@ -315,6 +315,17 @@ chose for itself until then, so All Filters was grey beside a black Auto Apply. 
 exception: a segmented control's unpicked option stays grey, since black against
 grey is what says which option is on.
 
+**Contrast holds on white and on the grey ground** (KAN-555): a word 4.5:1, a
+live glyph or a chart mark 3:1, measured on `--color-app` as well as on white.
+So words and live arrows (a sort chevron, a dropdown's arrow, "Optional") are
+`ink-meta` or darker; `ink-faint` (2.85:1 on grey) and `ink-subtle` (2.95:1 on
+white) are for disabled or decorative glyphs only. `--color-positive` (2.80:1)
+never sits under a word or a white glyph: the green button, done discs and the
+match rail's tick take `positive-ink`. Glyphs on the bright amber
+(`warning-fill`) are `ink`; a white glyph needs `warning-strong` (3.19:1) or
+deeper. The
+chart slots clear 3:1 on both grounds; `globals.css` has the numbers.
+
 **A form's buttons sit by what kind of form it is** (2026-11-03). Two rules,
 each with its own reason, and every form follows one of them:
 

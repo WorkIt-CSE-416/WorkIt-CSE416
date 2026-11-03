@@ -227,7 +227,7 @@ export function SortHeader({
       {align === "center" && <span aria-hidden className="size-3.5 shrink-0" />}
       {children}
       <SortIcon
-        className={cn("size-3.5 shrink-0", sorted ? "text-brand" : "text-ink-faint")}
+        className={cn("size-3.5 shrink-0", sorted ? "text-brand" : "text-ink-meta")}
         direction={sorted || undefined}
       />
     </button>

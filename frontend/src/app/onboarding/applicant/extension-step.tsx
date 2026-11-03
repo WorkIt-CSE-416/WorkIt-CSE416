@@ -128,7 +128,7 @@ export function Line({
         aria-hidden
         className={
           done
-            ? "bg-positive text-panel flex size-8 shrink-0 items-center justify-center rounded-full"
+            ? "bg-positive-ink text-panel flex size-8 shrink-0 items-center justify-center rounded-full"
             : "bg-brand-tint text-brand text-body flex size-8 shrink-0 items-center justify-center rounded-full font-semibold"
         }
       >

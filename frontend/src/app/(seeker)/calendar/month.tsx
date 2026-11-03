@@ -146,7 +146,7 @@ export function Month({
                     ? "bg-brand text-on-brand hover:bg-brand-hover"
                     : inMonth
                       ? "text-ink hover:bg-selected"
-                      : "text-ink-faint hover:bg-selected",
+                      : "text-ink-meta hover:bg-selected",
                 )}
               >
                 {format(day, "d")}

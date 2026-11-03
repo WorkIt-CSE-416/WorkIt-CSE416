@@ -283,7 +283,7 @@ export function Field({
           </span>
         ) : (
           <span
-            className={cn("text-ink-faint ml-auto font-normal", dense ? "text-note" : "text-body")}
+            className={cn("text-ink-meta ml-auto font-normal", dense ? "text-note" : "text-body")}
           >
             Optional
           </span>
