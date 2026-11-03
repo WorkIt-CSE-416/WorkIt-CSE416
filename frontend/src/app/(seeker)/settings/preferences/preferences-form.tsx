@@ -78,12 +78,12 @@ export function PreferencesForm({
           end of seven fields it sat below the fold (KAN-364). */}
       <div className="bg-panel border-border-subtle sticky bottom-0 z-10 flex flex-col gap-3 border-t py-4">
         {error && (
-          <p role="alert" className="text-meta text-danger">
+          <p role="alert" className="text-note text-danger">
             {error}
           </p>
         )}
         {changed && !complete && (
-          <p className="text-meta text-ink-meta">
+          <p className="text-note text-ink-meta">
             Pick a role, a job type and a workplace to save.
           </p>
         )}

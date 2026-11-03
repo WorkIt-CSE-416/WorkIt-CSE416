@@ -125,7 +125,7 @@ export function SignupForm({ formId }: { formId: string }) {
                 <span className="group-disabled/toggle:opacity-50">{label}</span>
                 {value === "join" && <SoonBadge />}
               </span>
-              <span className="text-meta text-ink-meta font-normal group-disabled/toggle:opacity-50">
+              <span className="text-note text-ink-meta font-normal group-disabled/toggle:opacity-50">
                 {hint}
               </span>
             </ToggleGroupItem>
@@ -231,7 +231,7 @@ export function SignupForm({ formId }: { formId: string }) {
                 onChange={(event) => setPassword(event.target.value)}
                 aria-describedby="password-hint"
               />
-              <p id="password-hint" className="text-meta text-ink-meta">
+              <p id="password-hint" className="text-note text-ink-meta">
                 At least {PASSWORD_MIN_LENGTH} characters
               </p>
             </div>

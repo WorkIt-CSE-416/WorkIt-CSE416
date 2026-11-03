@@ -500,14 +500,14 @@ function ContactSection({
                       className={cn(FIELD_CONTROL, "px-3.5 py-2.5")}
                     />
                     {invalid ? (
-                      <p id={note} className="text-meta text-danger mt-1">
+                      <p id={note} className="text-note text-danger mt-1">
                         {placeholder
                           ? `Enter a web address, such as ${placeholder}`
                           : "Enter a web address."}
                       </p>
                     ) : (
                       hint && (
-                        <p id={note} className="text-meta text-ink-meta mt-1">
+                        <p id={note} className="text-note text-ink-meta mt-1">
                           {hint}
                         </p>
                       )
@@ -520,7 +520,7 @@ function ContactSection({
           </div>
 
           {error && (
-            <p role="alert" className="text-meta text-danger mt-4">
+            <p role="alert" className="text-note text-danger mt-4">
               {error}
             </p>
           )}
@@ -561,7 +561,7 @@ function ContactSection({
                 ) : (
                   <span className="block truncate">{text}</span>
                 )}
-                {note && <span className="text-meta text-ink-meta mt-0.5 block">{note}</span>}
+                {note && <span className="text-note text-ink-meta mt-0.5 block">{note}</span>}
               </dd>
             </div>
           ))}

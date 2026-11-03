@@ -181,7 +181,7 @@ export function Month({
                           openHref={openHref}
                           title={`${KIND_LABEL[event.kind]} · ${event.company}${time ? ` · ${time}` : ""}`}
                           className={cn(
-                            "text-meta focus-visible:ring-brand-ring ease-glide flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-medium transition-[filter,background-color,transform] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.96]",
+                            "text-note focus-visible:ring-brand-ring ease-glide flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-medium transition-[filter,background-color,transform] duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.96]",
                             timed
                               ? "text-ink hover:bg-hover"
                               : cn(look.tint, look.onTint, "hover:brightness-95"),

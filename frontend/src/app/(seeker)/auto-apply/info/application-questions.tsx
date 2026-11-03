@@ -190,7 +190,7 @@ export function ApplicationQuestions({
                       options={[{ value: UNANSWERED, label: "Not Answered" }, ...q.options]}
                       describedBy={`${fieldId}-question`}
                     />
-                    <p id={`${fieldId}-question`} className="text-meta text-ink-meta mt-1">
+                    <p id={`${fieldId}-question`} className="text-note text-ink-meta mt-1">
                       {q.question}
                     </p>
                   </div>
@@ -200,7 +200,7 @@ export function ApplicationQuestions({
           </div>
 
           {error && (
-            <p role="alert" className="text-meta text-danger mt-4">
+            <p role="alert" className="text-note text-danger mt-4">
               {error}
             </p>
           )}

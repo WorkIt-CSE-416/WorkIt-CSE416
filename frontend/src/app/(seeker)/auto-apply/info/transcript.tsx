@@ -109,7 +109,7 @@ export function Transcript() {
       </p>
 
       {status === "error" && (
-        <p role="status" className="text-meta text-ink-meta mt-4">
+        <p role="status" className="text-note text-ink-meta mt-4">
           Your transcript didn&apos;t load. Refresh the page to try again.
         </p>
       )}
@@ -138,7 +138,7 @@ export function Transcript() {
         <p className="text-body text-ink-meta mt-4">No transcript yet.</p>
       )}
       {error && (
-        <p role="alert" className="text-meta text-danger mt-4">
+        <p role="alert" className="text-note text-danger mt-4">
           {error}
         </p>
       )}

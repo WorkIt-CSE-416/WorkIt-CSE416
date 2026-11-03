@@ -184,9 +184,9 @@ export function PersonalDetails({
               </Button>
             )}
           </div>
-          <p className="text-meta text-ink-meta">JPEG, PNG or WebP, under 5 MB.</p>
+          <p className="text-note text-ink-meta">JPEG, PNG or WebP, under 5 MB.</p>
           {photoError && (
-            <p role="alert" className="text-meta text-danger">
+            <p role="alert" className="text-note text-danger">
               {photoError}
             </p>
           )}
@@ -225,7 +225,7 @@ export function PersonalDetails({
             onChange={(event) => setHeadline(event.target.value)}
             aria-describedby="headline-hint"
           />
-          <p id="headline-hint" className="text-meta text-ink-meta">
+          <p id="headline-hint" className="text-note text-ink-meta">
             The line under your name on My Profile
           </p>
         </div>
@@ -233,7 +233,7 @@ export function PersonalDetails({
         {/* Pinned to the foot of what scrolls, as Job Preferences' is. */}
         <div className="bg-panel border-border-subtle sticky bottom-0 z-10 flex flex-col gap-3 border-t py-4">
           {error && (
-            <p role="alert" className="text-meta text-danger">
+            <p role="alert" className="text-note text-danger">
               {error}
             </p>
           )}

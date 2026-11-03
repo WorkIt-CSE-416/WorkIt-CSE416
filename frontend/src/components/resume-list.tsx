@@ -32,15 +32,15 @@ export function matches(text: string, words: string[]): boolean {
   return words.every((word) => lower.includes(word));
 }
 
-/** A sticky heading (39px: pt-3, the 23px badge, pb-1), five cards of 52px
+/** A sticky heading (40px: pt-3, the 24px badge, pb-1), five cards of 52px
  *  each with its 8px top margin (`RESUME_ROW`), and the list's 12px foot:
- *  351px. A card, heading or gap that changes size changes this too. A list
+ *  352px. A card, heading or gap that changes size changes this too. A list
  *  of fewer cards stops short of it. */
-const FIVE_ROWS = "max-h-[calc(2.4375rem+5*3.75rem+0.75rem)]";
+const FIVE_ROWS = "max-h-[calc(2.5rem+5*3.75rem+0.75rem)]";
 
 /** `fill`'s cap: the room `useFillPage` measured, never under `FIVE_ROWS`,
  *  which also holds until it has measured (the server's render). */
-const FILL_PAGE = "max-h-[max(calc(2.4375rem+5*3.75rem+0.75rem),var(--fill-height,0px))]";
+const FILL_PAGE = "max-h-[max(calc(2.5rem+5*3.75rem+0.75rem),var(--fill-height,0px))]";
 
 /**
  * The list's one scroll, five cards high under a heading, not the shared

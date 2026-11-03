@@ -236,7 +236,7 @@ export function ScreenerCard({ answers, set }: { answers: AutofillAnswers; set: 
                   <p id={id} className="text-label text-ink">
                     {s.label}
                   </p>
-                  <p className="text-meta text-ink-meta mt-0.5">{s.question}</p>
+                  <p className="text-note text-ink-meta mt-0.5">{s.question}</p>
                 </div>
                 <YesNoChips
                   labelledBy={id}

@@ -77,7 +77,7 @@ export function Row({
       <div className="flex min-w-0 flex-wrap items-center gap-2">{children}</div>
       <div className="min-w-0">
         <code className="text-note text-ink block font-mono break-all">{name}</code>
-        {role && <p className="text-meta text-ink-meta mt-0.5">{role}</p>}
+        {role && <p className="text-note text-ink-meta mt-0.5">{role}</p>}
       </div>
     </div>
   );

@@ -25,7 +25,7 @@ export function WorkdaySignupButton() {
         Set Up
       </Button>
       {missing && (
-        <p role="alert" className="text-meta text-danger max-w-56 text-right">
+        <p role="alert" className="text-note text-danger max-w-56 text-right">
           Add the WorkIt Autofiller to Chrome first.
         </p>
       )}

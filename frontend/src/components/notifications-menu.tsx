@@ -100,7 +100,7 @@ export function NotificationsMenu({
                   )}
                 >
                   <span className="text-label text-ink font-medium">{item.title}</span>
-                  <span className="text-meta text-ink-muted">{item.body}</span>
+                  <span className="text-note text-ink-muted">{item.body}</span>
                 </a>
               </li>
             ))}

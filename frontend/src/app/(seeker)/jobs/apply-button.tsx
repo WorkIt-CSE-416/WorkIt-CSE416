@@ -241,7 +241,7 @@ export function ApplyButton({
                   No Resume
                 </Button>
               )}
-              {error && <p className="text-meta text-danger">{error}</p>}
+              {error && <p className="text-note text-danger">{error}</p>}
               <DialogFooter>
                 <Button variant="secondary" onClick={() => setOpen(false)}>
                   Not Yet
@@ -365,7 +365,7 @@ export function ApplyButton({
 //                   onPick={setPicked}
 //                 />
 //               )}
-//               {error && <p className="text-meta text-danger">{error}</p>}
+//               {error && <p className="text-note text-danger">{error}</p>}
 //               <DialogFooter>
 //                 {employerLink("Apply Without a Resume", "secondary")}
 //                 <Button onClick={apply} disabled={busy || picked == null}>

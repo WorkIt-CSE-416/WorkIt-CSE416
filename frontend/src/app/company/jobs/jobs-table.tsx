@@ -61,7 +61,7 @@ const columns = helper.columns([
         <RowLink href={`/company/jobs/${row.original.id}/edit`} className="text-label">
           {row.original.role}
         </RowLink>
-        <p className="text-meta text-ink-meta mt-0.5 truncate">
+        <p className="text-note text-ink-meta mt-0.5 truncate">
           {[row.original.team, row.original.location].filter(Boolean).join(" · ")}
         </p>
       </div>
@@ -197,7 +197,7 @@ function RowActions({ posting }: { posting: Posting }) {
               <span
                 role="alert"
                 tabIndex={0}
-                className="text-meta text-danger focus-visible:ring-brand-ring relative z-10 mr-2 rounded-xs whitespace-nowrap focus-visible:ring-2 focus-visible:outline-none"
+                className="text-note text-danger focus-visible:ring-brand-ring relative z-10 mr-2 rounded-xs whitespace-nowrap focus-visible:ring-2 focus-visible:outline-none"
               />
             }
           >

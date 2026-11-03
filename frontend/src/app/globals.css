@@ -219,10 +219,10 @@
   /* App type -------------------------------------------------------------
    * The profile screen needs an 11px with no tracking, so it cannot reuse
    * --text-caption, which bakes in uppercase letter-spacing and weight 600. */
-  --text-meta: 0.6875rem; /* 11px — dates, file meta, helper copy */
+  --text-meta: 0.6875rem; /* 11px — dates, counts, file facts, captions; never reading text */
   --text-meta--line-height: 0.9375rem;
 
-  --text-note: 0.75rem; /* 12px: employer, skill pills */
+  --text-note: 0.75rem; /* 12px: the floor for reading text (hints, errors, statuses) */
   --text-note--line-height: 1rem;
 
   --text-subtitle: 1rem; /* 16px — work-history job titles */

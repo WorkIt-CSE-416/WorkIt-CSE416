@@ -104,7 +104,7 @@ export function StatusRing() {
         <div className="relative @sm/ring:w-44 @sm/ring:shrink-0">
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
             <p className="text-display text-ink">{total.toLocaleString()}</p>
-            <p className="text-meta text-ink-meta">applications</p>
+            <div className="text-meta text-ink-meta">applications</div>
           </div>
 
           {/* mx-auto and a fixed height rather than an aspect ratio: an
@@ -176,7 +176,7 @@ export function StatusRing() {
               />
               <span className="text-note text-ink-muted flex-1 truncate">{stage}</span>
               <span className="text-note text-ink shrink-0 tabular-nums">{count}</span>
-              <span className="text-meta text-ink-meta w-9 shrink-0 text-right tabular-nums">
+              <span className="text-note text-ink-meta w-9 shrink-0 text-right tabular-nums">
                 {Math.round((count / total) * 100)}%
               </span>
             </li>
@@ -187,7 +187,7 @@ export function StatusRing() {
       {/* What the funnel was for. Three phrases rather than a second chart —
           these are conversions against a cohort, a different question from the
           shares above, and putting them in the ring would conflate the two. */}
-      <p className="text-meta text-ink-meta border-border mt-auto border-t pt-3">
+      <p className="text-note text-ink-meta border-border mt-auto border-t pt-3">
         Of everyone who applied,{" "}
         {conversions.map(({ name, share }, i) => (
           <span key={name}>

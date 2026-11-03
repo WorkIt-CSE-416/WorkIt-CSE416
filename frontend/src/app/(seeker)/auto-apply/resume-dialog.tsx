@@ -101,7 +101,7 @@ export function ResumeDialog({
             onPick={setPicked}
           />
         )}
-        {error && <p className="text-meta text-danger">{error}</p>}
+        {error && <p className="text-note text-danger">{error}</p>}
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel

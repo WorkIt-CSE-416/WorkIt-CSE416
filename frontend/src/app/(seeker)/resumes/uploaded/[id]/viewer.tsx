@@ -116,7 +116,7 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
               </span>
             )}
             {primary && (
-              <span className="text-brand text-meta inline-flex items-center gap-1">
+              <span className="text-brand text-note inline-flex items-center gap-1">
                 <StarIcon aria-hidden weight="fill" className="size-3.5" />
                 Primary
               </span>

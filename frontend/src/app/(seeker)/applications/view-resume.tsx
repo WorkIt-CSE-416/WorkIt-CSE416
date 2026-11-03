@@ -172,7 +172,7 @@ function useResumeViewer(resume: Viewed) {
             </ButtonLink>
           </div>
         ) : error ? (
-          <p role="alert" className="text-meta text-danger">
+          <p role="alert" className="text-note text-danger">
             {error}
           </p>
         ) : file == null ? (

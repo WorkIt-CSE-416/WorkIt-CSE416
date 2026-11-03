@@ -392,7 +392,7 @@ function CreateEventForm({
           <TextAreaField id="event-note" name="note" label="Note" rows={2} maxLength={1000} />
         </div>
         {error && (
-          <p role="alert" className="text-meta text-danger sm:col-span-6">
+          <p role="alert" className="text-note text-danger sm:col-span-6">
             {error}
           </p>
         )}

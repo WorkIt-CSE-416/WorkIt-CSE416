@@ -283,8 +283,12 @@ export const COLOR_GROUPS: ColorGroup[] = [
  */
 export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-caption", cls: "text-caption", role: "Uppercase rule label — OR CONTINUE WITH" },
-  { token: "--text-meta", cls: "text-meta", role: "Dates, file meta, helper copy" },
-  { token: "--text-note", cls: "text-note", role: "Employer, skill pills" },
+  { token: "--text-meta", cls: "text-meta", role: "Dates, counts, file facts, captions" },
+  {
+    token: "--text-note",
+    cls: "text-note",
+    role: "Hints, errors, statuses: the reading-text floor",
+  },
   { token: "--text-label", cls: "text-label", role: "Field labels, links, buttons" },
   { token: "--text-body", cls: "text-body", role: "Body copy, inputs" },
   { token: "--text-subtitle", cls: "text-subtitle", role: "Work-history job titles" },

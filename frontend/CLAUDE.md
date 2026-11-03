@@ -1585,6 +1585,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   weight of their own (KAN-365). Regular text is 450, not 400
   (`--font-weight-normal`): the face's 400 read thin in small grey text. The four weights and their jobs are in
   `docs/design.md`, Type weights, and on `/design-kit/type`.
+- **Reading text is 12px or more** (KAN-554, `docs/design.md`, Type sizes):
+  a sentence, hint, error, status or group name is `text-note` or larger;
+  `text-meta` (11px) is for dates, counts, file facts and captions. The lint
+  fails `text-meta` on a `<p>` and on an element with an `id` or
+  `role="alert"`/`"status"`, so meta on its own line is a `div` or `span`.
 - **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
   KAN-257): every Scout or AI control, and Scout's mark in the chat and
   the panel header, draws it. An ESLint rule refuses Phosphor's sparkle
@@ -2139,7 +2144,7 @@ are in `docs/auth.md`.
   under the trash, `DeleteResumeConfirm`, KAN-347), in one card that scrolls
   inside itself and runs down to the foot of the page (`ResumeScroll`'s
   `fill` in `components/resume-list.tsx`, KAN-434), never shorter than
-  five cards under a heading (`FIVE_ROWS`, 351px). Capped at five cards,
+  five cards under a heading (`FIVE_ROWS`, 352px). Capped at five cards,
   it left half a laptop screen empty under it. The cap is measured from
   the start of the page, not the window: a cap that grew as the list's top
   rose would grow the page with it as it scrolled. **It is laid

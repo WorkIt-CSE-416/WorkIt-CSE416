@@ -7,7 +7,7 @@ import { signInWithOAuth } from "@/lib/oauth-actions";
  * "Soon", on a control that is shown but not built yet: Join a Company on the
  * signup form.
  *
- * The status pill is 23px, taller than the line it sits on. The negative
+ * The status pill is 24px, taller than the line it sits on. The negative
  * margin lets it overhang that line instead of growing it, so a marked tile is
  * the same height as its unmarked sibling and the divider keeps its spacing.
  */

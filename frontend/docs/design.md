@@ -263,6 +263,22 @@ the draft's "Ready to save" is words, so it takes `--color-positive-ink`,
 and "Still needed" takes `--color-warning`, as the bank's own warnings do.
 `globals.css` has the numbers.
 
+## Type sizes
+
+**Reading text is 12px or more** (KAN-554). A sentence, a value, a hint, an
+error, a status and a group name take `text-note` (12px) or larger. `text-meta`
+(11px) is for dates, counts, file facts, units and captions only, and for the
+initials in a logo tile or avatar. 11px had spread to some 80 hints, errors and
+statuses (Settings rows, Application Info, the bell, the company forms), and
+the design audit found Settings hard to read. The status badge
+(`ui/badge.tsx`) is `text-note` too, so a stage pill is 24px tall, and the
+match rail's reasons are 12px. A lint rule (`eslint.config.mjs`, META_CLASS)
+fails `text-meta` on a `<p>`, and on any element with an `id` (an
+`aria-describedby` target needs one) or `role="alert"` or `"status"`. It reads
+string classes, inside `cn()` too, never template strings or variables. Meta
+on its own line is a `div` or a `span`. The marketing pages keep their own
+sizes (`frontend/CLAUDE.md`, the landing page).
+
 ## Type weights
 
 Four weights, each with one job, shown on `/design-kit/type` (Weights):

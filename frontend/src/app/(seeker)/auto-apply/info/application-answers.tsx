@@ -360,7 +360,7 @@ export function ApplicationAnswers({
           </div>
 
           {error && (
-            <p role="alert" className="text-meta text-danger mt-4">
+            <p role="alert" className="text-note text-danger mt-4">
               {error}
             </p>
           )}
@@ -545,7 +545,7 @@ function Fact({
 }
 
 function Note({ children }: { children: ReactNode }) {
-  return <p className="text-meta text-ink-meta">{children}</p>;
+  return <p className="text-note text-ink-meta">{children}</p>;
 }
 
 function communitiesText(list: AutofillAnswers["communities"]) {

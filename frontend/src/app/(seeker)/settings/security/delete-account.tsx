@@ -76,7 +76,7 @@ export function DeleteAccount({ email }: { email: string }) {
         />
 
         {error && (
-          <p role="alert" className="text-meta text-danger">
+          <p role="alert" className="text-note text-danger">
             {error}
           </p>
         )}
