@@ -538,6 +538,12 @@ Find files with a directory listing; these are the rules for where code goes.
   (`services/postings.py`'s `UNLISTED`, compared as text: models/CLAUDE.md).
   Sent resumes (`services/sent_resumes.py`) still need a listed posting.
   Tests: `tests/test_unlisted_postings.py`.
+  **Apply's stages** (KAN-544): the stage PUT (`routers/tracker.py`,
+  `queries/tracker.py` `set_stage`) also takes needs_you (an Apply Handoff
+  or a missing fact) and queued (a held application), but only on an
+  application that is not applied: an applied or later one answers 409
+  (`AlreadyApplied`) and keeps its stage, so Apply never moves a record
+  back. Tests: `tests/test_tracker.py`.
   **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove) and the connector's tools (their Claude reads the
