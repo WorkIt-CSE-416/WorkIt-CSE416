@@ -167,12 +167,13 @@ export function Trend() {
 
   return (
     <section aria-labelledby="applications">
-      {/* One row that never wraps: the heading and the toggle are both fixed
-          widths, so nothing under them moves when the window does. The
-          toggle's -my-[3px] lets its 34px sit centred on the 28px heading
-          without making the row taller, so this heading starts on the same
-          line as Highlights beside it. */}
-      <div className="flex items-center justify-between gap-3">
+      {/* One row: the heading and the toggle are both fixed widths, so
+          nothing under them moves when the window does. It wraps only on a
+          phone, where the card's padding (KAN-582) leaves the two no room
+          side by side. The toggle's -my-[3px] lets its 34px sit centred on
+          the 28px heading without making the row taller, so this heading
+          starts on the same line as Highlights beside it. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionHeading id="applications">Applications</SectionHeading>
 
         {/* The shared segmented control (ui/segmented-control.tsx), with its

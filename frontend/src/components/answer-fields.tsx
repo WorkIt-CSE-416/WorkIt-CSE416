@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip, RemovableChip } from "@/components/ui/chip";
 import { TextField } from "@/components/ui/text-field";
+import { cn } from "@/lib/cn";
 import {
   noneOfTheseApply,
   parseList,
@@ -22,9 +23,16 @@ import {
  * Application Answers and onboarding's Availability step, so one answer looks
  * and behaves the same on both. Each edits a draft of the answer bank
  * through `set`; the screen saves it.
+ *
+ * TWO SIZES, as Chip's (KAN-572). My Profile's cards take `default`;
+ * onboarding, which sets larger than the app (docs/screens.md), takes `lg`:
+ * 42px chips with 16px answers and 14px notes, the size of the Profile
+ * step's tiles one page before. At the default size Availability showed 11px
+ * questions and 36px chips beside them.
  */
 
 type Set = (change: Partial<AutofillAnswers>) => void;
+type Size = "default" | "lg";
 
 /** Yes and No as two choice chips. Pressing the pressed one again clears
  *  the answer, since every one is optional. */
@@ -32,16 +40,23 @@ export function YesNoChips({
   value,
   onChange,
   labelledBy,
+  size,
 }: {
   value: YesNo | null;
   onChange: (next: YesNo | null) => void;
   /** The question's heading, which names the group. */
   labelledBy: string;
+  size?: Size;
 }) {
   return (
     <div role="group" aria-labelledby={labelledBy} className="flex gap-2">
       {(["yes", "no"] as const).map((v) => (
-        <Chip key={v} pressed={value === v} onClick={() => onChange(value === v ? null : v)}>
+        <Chip
+          key={v}
+          size={size}
+          pressed={value === v}
+          onClick={() => onChange(value === v ? null : v)}
+        >
           {v === "yes" ? "Yes" : "No"}
         </Chip>
       ))}
@@ -152,10 +167,12 @@ export function TermChips({
   value,
   onChange,
   labelledBy,
+  size,
 }: {
   value: string[] | null;
   onChange: (next: string[] | null) => void;
   labelledBy: string;
+  size?: Size;
 }) {
   // Worked out once, so the list never shifts while the student picks.
   const [upcoming] = useState(() => upcomingTerms(new Date(), 6));
@@ -168,6 +185,7 @@ export function TermChips({
         return (
           <Chip
             key={term}
+            size={size}
             pressed={on}
             onClick={() => {
               const next = on ? picked.filter((t) => t !== term) : [...picked, term];
@@ -191,7 +209,16 @@ export function TermChips({
  * A Yes with no company typed yet is held here, not saved: an empty list is
  * the student's "none", so it would read as No.
  */
-export function ScreenerCard({ answers, set }: { answers: AutofillAnswers; set: Set }) {
+export function ScreenerCard({
+  answers,
+  set,
+  size,
+}: {
+  answers: AutofillAnswers;
+  set: Set;
+  size?: Size;
+}) {
+  const lg = size === "lg";
   const [yesHeld, setYesHeld] = useState<ReadonlySet<string>>(new Set());
   const unanswered = SCREENERS.some((s) => answers[s.key] == null && !yesHeld.has(s.key));
   return (
@@ -233,12 +260,18 @@ export function ScreenerCard({ answers, set }: { answers: AutofillAnswers; set: 
             <li key={s.key} className="border-border-subtle border-t py-4 first:border-t-0">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p id={id} className="text-label text-ink">
+                  <p
+                    id={id}
+                    className={lg ? "text-subtitle text-ink font-medium" : "text-label text-ink"}
+                  >
                     {s.label}
                   </p>
-                  <p className="text-meta text-ink-meta mt-0.5">{s.question}</p>
+                  <p className={cn("text-ink-meta mt-0.5", lg ? "text-body" : "text-note")}>
+                    {s.question}
+                  </p>
                 </div>
                 <YesNoChips
+                  size={size}
                   labelledBy={id}
                   value={choice}
                   onChange={(next) => {

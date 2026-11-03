@@ -60,6 +60,23 @@ view (`panel-reopen`, `workday-show`), found in the Playwright image
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
 
+The `apply` job (KAN-535) lints and tests Apply (`apply-agent/`) on
+Ubuntu: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
+files. The list holds only the 44 files that need no browser, no network
+and no `claude` CLI: about 770 tests (28 skipped), 10 s of pytest and 14 s
+with `uv sync --locked` and ruff, timed in a Linux container
+(`ghcr.io/astral-sh/uv:python3.12-bookworm`) on 2026-11-02. The tests read
+the engine's saved forms, so the job needs the fill-engine submodule: it
+needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
+that touches `apply-agent/`, the engine pointer, `ci.yml` or
+`engine-token.yml` (the `changes` job).
+**CI does not run the other 28 test files**, which hold the Filler tests
+(`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
+`test_rehearse.py` and more). Most of them need Chromium or the macOS
+`security` tool. The full suite takes more than 20
+minutes. Run the files that a change touches on a Mac, with `-k`
+(`apply-agent/CLAUDE.md`, Testing).
+
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
 `frontend/.prettierignore`, so Prettier never rewrites prose.
@@ -299,3 +316,85 @@ them with those saved forms.
   without a commit there (`gh workflow enable live-canary.yml`).
 - **Run it locally:** `cd autofiller_extension/test && npm ci && node
   canary/run.mjs` writes `canary-out/report.md` and `canary-out/issues/`.
+
+## Publish extension to Chrome Web Store (`workflows/publish-extension.yml`, KAN-447)
+
+Keeps the Store listing in step with `autofiller_extension/` (its own
+`CLAUDE.md` has the extension itself), so published users run what a PR
+here actually reviewed, never a build off someone's machine. Against the
+Chrome Web Store API's **v2** endpoints (`chromewebstore.googleapis.com`)
+— v1.1 (`www.googleapis.com/chromewebstore`) stopped taking requests on
+2026-10-15. v2's resource name is `publishers/<PUBLISHER_ID>/items/<id>`,
+never the item id alone, and upload/publish each return a `state`-style
+enum (`uploadState`, `state`) rather than v1.1's `status` array. Two jobs:
+
+- **`check-version-bump`**, every PR touching the extension: fails unless
+  `autofiller_extension/store/store.json`'s `version` is strictly greater
+  than `main`'s (`dpkg --compare-versions`) — the Store package's own
+  version (`store/build.mjs`, KAN-463, writes it over whatever
+  `manifest.json`'s own `version` says, which is the unpacked dev build's
+  only; the two are deliberately separate numbers, so bumping the wrong
+  one here is a real, easy mistake). The Store API refuses a re-upload of
+  a version it already has, so this catches a forgotten bump before merge
+  rather than after, with no PR left open to fix it from. **The bump is a
+  one-line, by-hand part of the PR**, on purpose — not something this
+  workflow writes and commits itself, which would need write-back
+  permissions and risks a loop for little gained.
+- **`publish`**, on push to `main` (or by hand — **main only**: a push
+  trigger is already branch-filtered, but `workflow_dispatch` has no such
+  filter on GitHub's side, so the job itself checks `github.ref ==
+  'refs/heads/main'` or a dispatch from any other branch would submit
+  unreviewed code for real Store review). Runs `store/build.mjs` (the
+  same Store package `extension-store-build` already builds and checks
+  in CI, above — never a second, ad-hoc zip step here) and pushes the
+  result through the Chrome Web Store API, then submits it for review.
+
+**This does not make an update live by itself.** The extension asks for
+sensitive permissions (`cookies`, several hosts), so Google reviews every
+submission by hand regardless of this workflow — a green run here means
+"queued for review," not "published." A failed or stuck review needs a
+human in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole),
+not a re-run.
+
+- **Secrets:** `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET`,
+  `CHROME_REFRESH_TOKEN` (a Google Cloud OAuth client with the Chrome Web
+  Store API enabled, and a refresh token for the account that owns the
+  Store listing — a one-time human setup, not reproducible from this
+  file), `CHROME_EXTENSION_ID` (the Store item id; this extension pins it
+  via `manifest.json`'s `key`, so it matches the id Chrome already
+  assigns the unpacked dev build, `cpklhdkoafegnndlafmiceehfloodjgi`) and
+  **`CHROME_PUBLISHER_ID`** (Publisher > Settings in the Developer
+  Dashboard — a different value from the item id, and new with the v2
+  endpoints above; v1.1 never needed it) and **`FILL_ENGINE_TOKEN`** (a
+  PAT with read access to the private `WorkIt-CSE-416/fill-engine` repo
+  — the same secret `ci.yml`'s `extension-store-build` job uses; without
+  it `publish`'s checkout can't read the submodule at all, since the
+  default `GITHUB_TOKEN` has no cross-repo access, and the job fails at
+  checkout rather than silently skipping, unlike CI's own gentler
+  `engine-token.yml` skip-when-unset pattern — a real publish with no
+  engine isn't something to skip quietly).
+  **All six must be Actions *secrets*, never Actions *variables*:**
+  a repo variable's value is plaintext, readable by anyone with
+  Settings access and unmasked in logs — found live on 2026-10-31, all
+  three sensitive values set as variables instead (the fourth, the
+  Store item id, under a typo'd name a variable never read by this
+  workflow at all). Fixed by resetting the OAuth client secret, minting
+  a fresh refresh token (Google's Desktop-app loopback flow:
+  `accounts.google.com/o/oauth2/v2/auth` with `redirect_uri=
+  http://localhost:<port>`, copy the `code` off the failed redirect's
+  address bar, then `POST oauth2.googleapis.com/token` for the
+  `refresh_token` — the OAuth Playground's "use your own credentials"
+  only works for a *Web application* client, which this one isn't),
+  deleting the leaked variables, and `gh secret set`-ing all four as
+  secrets. The workflow already read `secrets.*`, never `vars.*`, the
+  whole time — so this cost no code change, only means the publish job
+  silently couldn't have authenticated until the real secrets existed.
+- **The API can only update an existing Store item.** The very first
+  submission — store listing, screenshots, privacy-practice
+  justifications — is a one-time manual step in the Dashboard; this
+  workflow has nothing to push to until that exists.
+- **One run at a time**, same reasoning as the other workflows: two
+  overlapping publishes could submit two versions out of order.
+- **Still open:** no notification when a submitted version clears (or
+  fails) Google's review — that's checked by hand in the Dashboard for
+  now.

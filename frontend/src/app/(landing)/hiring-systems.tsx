@@ -22,7 +22,7 @@ import { cn } from "@/lib/cn";
 
 import { hiringSystems, hiringSystemsSection as copy, streams, type StreamPosting } from "./data";
 import { FaviconLogo } from "./favicon-logo";
-import { useMediaQuery, usePageHidden } from "./hooks";
+import { useLoopsHeld, useMediaQuery } from "./hooks";
 import { scoreTone } from "./score-tone";
 import { GLIDE } from "./story";
 
@@ -246,7 +246,7 @@ export function HiringSystems() {
   const rootRef = React.useRef<HTMLDivElement>(null);
   const streamRef = React.useRef<HTMLDivElement>(null);
   const inView = useInView(rootRef, { amount: 0.3 });
-  const hidden = usePageHidden();
+  const held = useLoopsHeld();
   const reduceMotion = useReducedMotion();
   const wide = useMediaQuery(WIDE_QUERY);
   const isWide = wide ?? true;
@@ -274,7 +274,7 @@ export function HiringSystems() {
 
   // The stream's clock, in seconds. It only moves while the section plays.
   const clock = useMotionValue(STILL_AT);
-  const playing = inView && !hidden && !reduceMotion && geometry !== null;
+  const playing = inView && !held && !reduceMotion && geometry !== null;
   React.useEffect(() => {
     if (!playing) return;
     const tick = ({ delta }: FrameData) => clock.set(clock.get() + Math.min(delta, 50) / 1000);

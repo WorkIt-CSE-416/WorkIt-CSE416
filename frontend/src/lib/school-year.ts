@@ -2,7 +2,7 @@ import { termEnd } from "./autofill-answers.ts";
 
 /**
  * The school-year facts forms ask that WorkIt works out instead of asking
- * (KAN-369, My Profile's Application answers): the student's class year and
+ * (KAN-369, Application Info's Application answers): the student's class year and
  * whether they go back to school after the internship. Both come from the
  * latest education entry's end month (the expected graduation), so they stay
  * right as the years pass, with nothing to keep up to date.

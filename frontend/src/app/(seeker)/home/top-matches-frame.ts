@@ -16,6 +16,6 @@ import { cn } from "@/lib/cn";
  */
 export const LIST = cn(
   "mt-4 flex flex-col gap-2",
-  "@4xl/main:-mr-5 @4xl/main:h-scroll-box @4xl/main:overflow-y-auto @4xl/main:overscroll-contain @4xl/main:pr-5 @4xl/main:pb-6",
+  "@4xl/main:-mr-5 @4xl/main:h-scroll-box @4xl/main:overflow-y-auto @4xl/main:overscroll-none @4xl/main:pr-5 @4xl/main:pb-6",
   "@max-4xl/main:[&>li:nth-child(n+6)]:hidden",
 );

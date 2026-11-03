@@ -149,7 +149,7 @@ export type JobPostingCardData = {
   /** The posting's expanded view. Omit for a plain heading, for the same
    *  reason `companyHref` is optional. */
   titleHref?: string;
-  /** "Posted 3 hours ago" — see (seeker)/jobs/format.ts's `formatPosted`.
+  /** "3 hours ago" — see (seeker)/jobs/format.ts's `formatPosted`.
    *  Printed after the company name, not as a fact. NOT_LISTED prints "Post
    *  date not listed", for a scraped role whose board never dated it. */
   timing: string | null | NotListed;
@@ -309,7 +309,7 @@ export function JobPostingCard({
               ) : (
                 job.timing != null && (
                   <Badge variant="status" tone="positive">
-                    {/* "Posted 5 minutes ago" reads the clock, which moves
+                    {/* "5 minutes ago" reads the clock, which moves
                         between the server render and hydration. */}
                     <span suppressHydrationWarning>{job.timing}</span>
                   </Badge>

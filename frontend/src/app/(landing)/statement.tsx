@@ -17,7 +17,7 @@ import { cn } from "@/lib/cn";
 
 import { FaviconLogo } from "./favicon-logo";
 import { followedJob } from "./feature-data";
-import { useMediaQuery, usePageHidden } from "./hooks";
+import { useLoopsHeld, useMediaQuery } from "./hooks";
 import { CONTAINER, PANEL, PANEL_INSET } from "./layout-parts";
 import { FollowedCard } from "./thread";
 
@@ -206,8 +206,8 @@ export function Statement() {
 function PlayingStatement() {
   const stageRef = React.useRef<HTMLDivElement>(null);
   const inView = useInView(stageRef, { amount: 0.4 });
-  const hidden = usePageHidden();
-  const playing = inView && !hidden;
+  const held = useLoopsHeld();
+  const playing = inView && !held;
   const { p, fade } = useStoryLoop(playing);
   return (
     <section

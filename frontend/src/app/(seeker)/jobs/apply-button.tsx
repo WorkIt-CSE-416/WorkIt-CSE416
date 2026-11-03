@@ -18,7 +18,13 @@ import { type ResumeItem } from "@/lib/resume-actions";
 import { applyWithResume, type SentDownload } from "@/lib/sent-resume-actions";
 
 import { markApplied } from "./actions";
-import { firstChoice, loadChoices, ResumeLists, type Choice } from "./resume-picker";
+import {
+  firstChoice,
+  loadChoices,
+  ResumeLists,
+  ResumeListsSkeleton,
+  type Choice,
+} from "./resume-picker";
 
 /** "Did You Apply?"'s own choice: the student applied without a resume. */
 const NO_RESUME = "none";
@@ -168,6 +174,12 @@ export function ApplyButton({
     router.refresh();
   }
 
+  function askApplied() {
+    setOpen(true);
+    setAsking(true);
+    void load();
+  }
+
   return (
     <>
       {/* sm, as every action in the bar it sits in (./action-bar.tsx): lg
@@ -184,10 +196,7 @@ export function ApplyButton({
         rel="noopener noreferrer"
         className={buttonClasses({ size: "sm", className })}
         onClick={() => {
-          if (!canMarkApplied || applied) return;
-          setOpen(true);
-          setAsking(true);
-          void load();
+          if (canMarkApplied && !applied) askApplied();
         }}
       >
         Apply Now
@@ -214,7 +223,7 @@ export function ApplyButton({
                   list, a file they sent instead (Upload Resume in its row),
                   or none. */}
               {choices == null ? (
-                <p className="text-note text-ink-muted">Loading your resumes…</p>
+                <ResumeListsSkeleton />
               ) : (
                 <ResumeLists
                   name="applied-with"
@@ -238,7 +247,7 @@ export function ApplyButton({
                   No Resume
                 </Button>
               )}
-              {error && <p className="text-meta text-danger">{error}</p>}
+              {error && <p className="text-note text-danger">{error}</p>}
               <DialogFooter>
                 <Button variant="secondary" onClick={() => setOpen(false)}>
                   Not Yet
@@ -362,7 +371,7 @@ export function ApplyButton({
 //                   onPick={setPicked}
 //                 />
 //               )}
-//               {error && <p className="text-meta text-danger">{error}</p>}
+//               {error && <p className="text-note text-danger">{error}</p>}
 //               <DialogFooter>
 //                 {employerLink("Apply Without a Resume", "secondary")}
 //                 <Button onClick={apply} disabled={busy || picked == null}>

@@ -8,7 +8,10 @@ import { HoverSidebarProvider } from "@/components/hover-sidebar";
 import { SidebarInset } from "@/components/shadcn/sidebar";
 import { SidebarBrand } from "@/components/sidebar-brand";
 import { SearchField } from "@/components/ui/search-field";
+import { cn } from "@/lib/cn";
 
+import { SEEKER_GUTTER } from "../(seeker)/gutter";
+import { CompanyBarTitle } from "./bar-title";
 import { CompanySidebar } from "./company-sidebar";
 
 /**
@@ -35,19 +38,22 @@ import { CompanySidebar } from "./company-sidebar";
  * Post a Job is not among them, and that is the same rule applied once more.
  * It acts on one screen's subject rather than on the whole company, so it
  * belongs beside that screen's heading where the thing it creates is listed —
- * see app/company/jobs/page.tsx. A bar-level button would also claim to be
+ * see app/company/jobs/(list)/page.tsx. A bar-level button would also claim to be
  * available everywhere while meaning nothing on Applicants or the profile.
  *
- * The seeker shell took the same layout and has since moved to floating
- * rounded panels (see (seeker)/layout.tsx); this bar is still built as both
- * once were: <SidebarBrand> as the lavender corner cell the panel's width,
- * then the page's own container beside it (max-w-app, on the 16, 32 and
- * 48px gutter the pages use), so the search starts on the page heading's
- * left edge and the avatar ends on the content's right edge. Settings sits
- * at the foot of the panel in both, so the account menu is your name and
- * Sign Out. What is shared is shared as components (the corner, the panel,
- * the bell, the account menu, the field); each layout keeps only its own
- * search target and copy, which is why there is still no <TopBar>.
+ * The seeker shell has since moved to a flat rail (see (seeker)/layout.tsx);
+ * this bar keeps the docked layout: <SidebarBrand> as the lavender corner
+ * cell the panel's width, then a row on the pages' own gutter (./frame.ts),
+ * so the page's title starts on the page's left edge. Settings sits at the
+ * foot of the panel in both, so the account menu is your name and Sign Out.
+ * What is shared is shared as components (the corner, the panel, the bell,
+ * the account menu, the field); each layout keeps only its own search
+ * target and copy, which is why there is still no <TopBar>.
+ *
+ * THE PAGE'S TITLE IS IN THE BAR, as on the seeker side (KAN-582,
+ * ./bar-title.tsx): no company page draws its own heading or description
+ * under the bar, and every page stands on the grey ground in the seeker's
+ * 1440px column (docs/design.md, The two shells).
  *
  * The bar's search is a GET form to /company/applicants, so Enter lands the
  * query there as ?q. The applicants table filters on name alone, and the
@@ -93,9 +99,9 @@ export default async function CompanyLayout({ children }: { children: React.Reac
        * when the two were written as separate h-16/top-16 literals there was
        * nothing linking them: changing one silently misaligned the other.
        *
-       * The white page is not set here any more. This shell used to retarget
-       * --background to --color-panel on its own; now that the seeker shell
-       * is white too, the default in globals.css says so for both.
+       * The page's colour is not set here: the white --background is the
+       * bar's and the panel's, and the page's grey is on the SidebarInset
+       * below.
        *
        * SidebarProvider spreads `style` over its own, so this rides along
        * with the --sidebar-width it already sets. */
@@ -127,36 +133,43 @@ export default async function CompanyLayout({ children }: { children: React.Reac
           stay over the fixed panel's z-10.
 
           Two cells, ruled where the panel's edge is: the corner the panel's
-          width, then the page's container. */}
+          width, then the title, the search and the account on the pages'
+          gutter. The title takes its own width and the search what is
+          left, up to 20rem; past the search's 10rem floor the title gives
+          way (it truncates). */}
       <header className="bg-panel border-border relative z-20 flex h-(--company-bar) shrink-0 border-b">
         <SidebarBrand href="/company" />
 
-        <div className="flex h-full min-w-0 flex-1">
-          <div className="max-w-app mx-auto flex h-full w-full items-center gap-4 px-4 sm:gap-5 sm:px-8 lg:px-12">
-            <Form
-              action="/company/applicants"
-              role="search"
-              className="hidden min-w-0 md:block md:max-w-80 md:flex-1"
-            >
-              <SearchField
-                id="applicant-search"
-                label="Search Applicants"
-                name="q"
-                placeholder="Search applicants by name"
-                enterKeyHint="search"
-                className="w-full"
-              />
-            </Form>
+        <div
+          className={cn("flex h-full min-w-0 flex-1 items-center gap-4 sm:gap-5", SEEKER_GUTTER)}
+        >
+          <div className="min-w-0">
+            <CompanyBarTitle />
+          </div>
 
-            <div className="ml-auto flex items-center gap-4 sm:gap-5">
-              <NotificationsMenu>
-                New applicants and team activity will show up here.
-              </NotificationsMenu>
+          <Form
+            action="/company/applicants"
+            role="search"
+            className="ml-auto hidden min-w-40 md:block md:max-w-80 md:flex-1"
+          >
+            <SearchField
+              id="applicant-search"
+              label="Search Applicants"
+              name="q"
+              placeholder="Search applicants by name"
+              enterKeyHint="search"
+              className="w-full"
+            />
+          </Form>
 
-              {/* Settings is the panel's footer row, so Sign Out is the menu's
-                  one item under the name. */}
-              <AccountMenu name="Jordan Reyes" items={[]} onSignOut={signOut} />
-            </div>
+          <div className="ml-auto flex shrink-0 items-center gap-4 sm:gap-5 md:ml-0">
+            <NotificationsMenu>
+              New applicants and team activity will show up here.
+            </NotificationsMenu>
+
+            {/* Settings is the panel's footer row, so Sign Out is the menu's
+                one item under the name. */}
+            <AccountMenu name="Jordan Reyes" items={[]} onSignOut={signOut} />
           </div>
         </div>
       </header>
@@ -173,16 +186,18 @@ export default async function CompanyLayout({ children }: { children: React.Reac
           fixed element's containing block is the viewport unless an ancestor
           carries a transform, and none does.
 
-          @container/main, overscroll-contain and the skip link's target, as
+          @container/main, overscroll-y-none and the skip link's target, as
           in the seeker shell: pages break on the width beside the panel, a
           fling cannot chain onto the document, and tabIndex -1 lets the
-          <main> take focus without adding a tab stop. */}
+          <main> take focus without adding a tab stop. bg-app is the seeker's
+          grey ground (2026-11-02), so the white cards and tables have
+          something to sit on; the bar and the panel stay white. */}
       <div className="flex min-h-0 w-full flex-1">
         <CompanySidebar />
         <SidebarInset
           id="content"
           tabIndex={-1}
-          className="@container/main flex-1 overflow-y-auto overscroll-contain focus:outline-none"
+          className="bg-app @container/main flex-1 overflow-y-auto overscroll-y-none focus:outline-none"
         >
           {children}
         </SidebarInset>

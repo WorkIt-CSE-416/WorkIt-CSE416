@@ -40,6 +40,11 @@ import { cn } from "@/lib/cn";
  * - **The region is a polite live region**, so a screen reader reads a toast
  *   after whatever it is reading. The toasts themselves take clicks; the
  *   corner they stand in does not.
+ * - **`onClose` runs once the toast is gone, unless its action ran**: its
+ *   time ran out, its cross was pressed, a newer toast pushed it out or
+ *   `dismiss` was called. A write held back for Undo is sent there
+ *   (Application Info's Transcript Remove): the action takes it back by
+ *   never sending it.
  * - Copy follows frontend/CLAUDE.md: the message is sentence case, the
  *   action a Title Case button label.
  */
@@ -55,6 +60,8 @@ export type ToastInput = {
   action?: ToastAction;
   /** How long it stays, in ms. */
   duration?: number;
+  /** Runs once the toast is gone, unless its action ran. */
+  onClose?: () => void;
 };
 
 type ShownToast = ToastInput & { id: number; leaving: boolean };
@@ -82,6 +89,27 @@ export function useToast(): ToastApi {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ShownToast[]>([]);
   const nextId = useRef(0);
+  // Each waiting `onClose` by toast id, and which of those ids a render has
+  // shown: one is run only after its toast was in the list and then left it.
+  const closers = useRef(new Map<number, () => void>());
+  const drawn = useRef(new Set<number>());
+
+  useEffect(() => {
+    const ids = new Set(toasts.map((toast) => toast.id));
+    for (const [id, close] of closers.current) {
+      if (ids.has(id)) drawn.current.add(id);
+      else if (drawn.current.has(id)) {
+        closers.current.delete(id);
+        drawn.current.delete(id);
+        close();
+      }
+    }
+  }, [toasts]);
+
+  // Its action ran, so its `onClose` never will.
+  const settle = useCallback((id: number) => {
+    closers.current.delete(id);
+  }, []);
 
   const remove = useCallback((id: number) => {
     setToasts((list) => list.filter((toast) => toast.id !== id));
@@ -99,6 +127,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const show = useCallback((toast: ToastInput) => {
     const id = ++nextId.current;
+    if (toast.onClose) closers.current.set(id, toast.onClose);
     setToasts((list) => [
       ...list.filter((shown) => !shown.leaving).slice(-(MAX_TOASTS - 1)),
       { ...toast, id, leaving: false },
@@ -117,23 +146,31 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         className="pointer-events-none fixed right-4 bottom-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
       >
         {toasts.map((toast) => (
-          <ToastCard key={toast.id} toast={toast} dismiss={dismiss} remove={remove} />
+          <ToastCard
+            key={toast.id}
+            toast={toast}
+            dismiss={dismiss}
+            remove={remove}
+            settle={settle}
+          />
         ))}
       </section>
     </ToastContext>
   );
 }
 
-/** One toast. `dismiss` and `remove` are the provider's, stable across
- *  renders, so the timer restarts only when it pauses or resumes. */
+/** One toast. `dismiss`, `remove` and `settle` are the provider's, stable
+ *  across renders, so the timer restarts only when it pauses or resumes. */
 function ToastCard({
   toast,
   dismiss,
   remove,
+  settle,
 }: {
   toast: ShownToast;
   dismiss: (id: number) => void;
   remove: (id: number) => void;
+  settle: (id: number) => void;
 }) {
   const { id } = toast;
   const [paused, setPaused] = useState(false);
@@ -152,6 +189,7 @@ function ToastCard({
 
   async function act(action: ToastAction) {
     setActing(true);
+    settle(id);
     try {
       await action.onClick();
     } finally {

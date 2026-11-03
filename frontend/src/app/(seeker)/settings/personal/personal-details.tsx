@@ -173,16 +173,20 @@ export function PersonalDetails({
               <UploadIcon />
               {avatarUrl ? "Change Photo" : "Add Photo"}
             </Button>
+            {/* Muted ink, as a card's own actions are (`section`): it was
+                brand text, which gave a removal a picked colour and set it
+                against Save for the eye (docs/design.md, Components). Boxed
+                at sm, so it lines up with Change Photo. */}
             {avatarUrl && (
-              <Button variant="ghost" size="sm" disabled={photoBusy} onClick={dropPhoto}>
+              <Button variant="section" size="sm" disabled={photoBusy} onClick={dropPhoto}>
                 <TrashIcon />
                 Remove Photo
               </Button>
             )}
           </div>
-          <p className="text-meta text-ink-meta">JPEG, PNG or WebP, under 5 MB.</p>
+          <p className="text-note text-ink-meta">JPEG, PNG or WebP, under 5 MB.</p>
           {photoError && (
-            <p role="alert" className="text-meta text-danger">
+            <p role="alert" className="text-note text-danger">
               {photoError}
             </p>
           )}
@@ -221,7 +225,7 @@ export function PersonalDetails({
             onChange={(event) => setHeadline(event.target.value)}
             aria-describedby="headline-hint"
           />
-          <p id="headline-hint" className="text-meta text-ink-meta">
+          <p id="headline-hint" className="text-note text-ink-meta">
             The line under your name on My Profile
           </p>
         </div>
@@ -229,7 +233,7 @@ export function PersonalDetails({
         {/* Pinned to the foot of what scrolls, as Job Preferences' is. */}
         <div className="bg-panel border-border-subtle sticky bottom-0 z-10 flex flex-col gap-3 border-t py-4">
           {error && (
-            <p role="alert" className="text-meta text-danger">
+            <p role="alert" className="text-note text-danger">
               {error}
             </p>
           )}

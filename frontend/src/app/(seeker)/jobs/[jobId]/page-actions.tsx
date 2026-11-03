@@ -1,18 +1,10 @@
 "use client";
 
-import { FlagIcon, LinkSimpleIcon } from "@phosphor-icons/react/ssr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
-import { ArrowLeftIcon, EllipsisIcon } from "@/components/icons";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
+import { ArrowLeftIcon } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
 import { formatDate } from "@/lib/format-date";
 
 import { cameFrom, restoreScrollOn } from "../../scroll-memory";
@@ -127,72 +119,6 @@ export function BackToJobs({ className }: { className?: string }) {
       <ArrowLeftIcon className="ease-glide size-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" />
       Back
     </ButtonLink>
-  );
-}
-
-/**
- * The header's "…" menu (KAN-250): the job's less used actions, so the row
- * keeps only what a seeker acts on (Save, Ask Scout, Auto Apply, Tailor My
- * Resume, Apply Now). Eight buttons in one row pushed into the company line,
- * cut off the posted date and squeezed the title to a word a line (KAN-246).
- *
- * Copy Link copies this page's link, and a note under the trigger says so for
- * a moment: the menu has closed by then, so it cannot say it itself. The note
- * floats rather than sitting in the row, which shifted every button after it
- * for two seconds. A
- * clipboard the browser refuses (an insecure origin, a denied permission) says
- * that instead. Report is still inert, as it was as its own button.
- */
-export function MoreActions({ title }: { title: string }) {
-  const [said, setSaid] = useState<"Link copied" | "Couldn't copy the link" | null>(null);
-  useEffect(() => {
-    if (!said) return;
-    const timer = setTimeout(() => setSaid(null), 2000);
-    return () => clearTimeout(timer);
-  }, [said]);
-
-  return (
-    <span className="relative flex shrink-0">
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <IconButton
-              label={`More actions for ${title}`}
-              tooltip="More actions"
-              variant="outline"
-              className="size-8 shrink-0"
-            >
-              <EllipsisIcon className="size-4" />
-            </IconButton>
-          }
-        />
-        <DropdownMenuContent align="start" className="w-44">
-          <DropdownMenuItem
-            onClick={() =>
-              // Inside a promise, so a missing clipboard (an http address on a
-              // phone, where navigator.clipboard is undefined) lands in the catch.
-              Promise.resolve()
-                .then(() => navigator.clipboard.writeText(window.location.href))
-                .then(() => setSaid("Link copied"))
-                .catch(() => setSaid("Couldn't copy the link"))
-            }
-          >
-            <LinkSimpleIcon aria-hidden className="text-ink-meta size-4" />
-            Copy Link
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <FlagIcon aria-hidden className="text-ink-meta size-4" />
-            Report
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <span
-        role="status"
-        className="text-note text-ink-meta pointer-events-none absolute top-full left-0 mt-1 whitespace-nowrap"
-      >
-        {said}
-      </span>
-    </span>
   );
 }
 

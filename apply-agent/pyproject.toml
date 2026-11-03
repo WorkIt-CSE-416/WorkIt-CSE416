@@ -1,0 +1,43 @@
+[project]
+name = "apply"
+version = "0.1.0"
+description = "Finds Summer 2027 internship Matches and submits Applications to them."
+requires-python = ">=3.12"
+dependencies = [
+    "gspread>=6.2.1",
+    "playwright>=1.55",
+    "pypdf>=6.21.4",
+    "pyyaml>=6.0.3",
+    "ruamel-yaml>=0.19.1",
+]
+
+[project.scripts]
+apply = "apply.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff==0.16.8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# The backend's ruff config (backend/pyproject.toml), so both Python projects lint alike.
+[tool.ruff.lint]
+ignore = ["B008", "BLE001", "SIM103"]
+
+# Findings Apply keeps on purpose (KAN-534), by folder:
+# - DTZ*: Apply runs on one Mac and uses local, naive dates and times.
+# - S110, S112: best-effort browser and page clean-up, where a failure changes nothing.
+# - PLW1510: these subprocess calls read the return code themselves.
+# - ISC004: long strings wrapped over lines inside a list or dict.
+# - B023: each closure is called in the same loop pass that made it.
+# - Tests only: F811 (pytest fixtures imported, then named as arguments),
+#   SIM117 and RUF012 (fakes and nested contexts), B035 (the last match wins),
+#   UP031 (JavaScript in % strings, where {} would need doubling).
+[tool.ruff.lint.per-file-ignores]
+"src/**" = ["DTZ005", "DTZ006", "DTZ011", "S110", "S112", "PLW1510", "ISC004", "B023"]
+"tests/**" = ["DTZ001", "DTZ005", "DTZ006", "DTZ011", "S110", "PLW1510", "ISC004", "F811", "SIM117", "RUF012",
+              "B035", "UP031"]

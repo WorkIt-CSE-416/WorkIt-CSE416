@@ -38,8 +38,10 @@ import { markSubmitted } from "./actions";
  *                        Undo, a started one whose tab closed is skipped, and one open
  *                        in a tab has its tab closed first.
  *
- * The row leaves a click on a button alone (components/clickable-row.tsx),
- * so opening the menu never opens the job posting. One action per row at a
+ * The row leaves a click on a button or a menu item alone, and any click
+ * from outside it, as this menu's portal is (components/clickable-row.tsx),
+ * so neither opening the menu nor an item opens the job posting: each item
+ * did until KAN-566. One action per row at a
  * time (`busy`, a ref): `pending` lands a render late, and a fast double
  * press sent two requests.
  */
@@ -96,11 +98,11 @@ export function RowMenu<T extends ActivityItem>({
       />
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuItem onClick={() => onResume(item)}>
-          <FileTextIcon aria-hidden className="text-ink-meta size-4" />
+          <FileTextIcon aria-hidden className="text-ink size-4" />
           Change Resume
         </DropdownMenuItem>
         <DropdownMenuItem onClick={markApplied}>
-          <Applied className="text-ink-meta size-4" />I Already Applied
+          <Applied className="text-ink size-4" />I Already Applied
         </DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onClick={() => onRemove(item)}>
           <XIcon aria-hidden className="size-4" />

@@ -18,14 +18,16 @@ import { openDownload } from "@/lib/save-file";
 
 import { LocalDate } from "../../../local-time";
 import { PageSkeleton, PdfPages } from "../../[resumeId]/pdf-pages";
+import { SLIM_BAR } from "../../[resumeId]/slim-bar";
 import { Zoom, zoomWidth } from "../../[resumeId]/zoom";
 import { RenameForm } from "../../built-resume-row";
 import { DeleteResumeConfirm } from "../../delete-confirm";
 
 /**
- * An uploaded resume's page (KAN-366): its name, then a sticky bar drawn
- * as the editor's is (../../[resumeId]/editor.tsx: the brand tint, the
- * actions at its end), then the file. The bar says when it was uploaded
+ * An uploaded resume's page (KAN-366): its name, then a sticky bar in the
+ * editor's own look (`SLIM_BAR`, ../../[resumeId]/slim-bar.ts: a quiet white
+ * row, the actions at its end; it was a lavender bar with a ring and a
+ * shadow until KAN-576), then the file. The bar says when it was uploaded
  * and marks the primary resume; its buttons are Make Primary (while it is
  * not), Rename, Delete and Download, the page's main action, filled. They
  * call what the upload's card on the Resumes view calls
@@ -108,42 +110,59 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
       )}
 
       <div className="mt-4 flex flex-col gap-4">
-        <div className="bg-brand-tint/95 ring-brand-pale sticky top-2 z-20 flex min-h-12 flex-wrap items-center gap-2 rounded-2xl p-1.5 pl-3 shadow-sm ring-1 backdrop-blur">
-          <span className="text-label text-ink flex items-center gap-3">
+        <div className={SLIM_BAR}>
+          {/* Under the buttons where the page is narrow, so Download stays
+              in the first row: last in the bar, it wrapped alone at 768 */}
+          <span className="text-note text-ink-meta flex items-center gap-3 pl-1 @max-2xl/main:order-last @max-2xl/main:basis-full">
             {resume.created_at && (
               <span>
                 Uploaded <LocalDate at={resume.created_at} />
               </span>
             )}
             {primary && (
-              <span className="text-brand text-meta inline-flex items-center gap-1">
+              <span className="text-brand text-note inline-flex items-center gap-1">
                 <StarIcon aria-hidden weight="fill" className="size-3.5" />
                 Primary
               </span>
             )}
           </span>
-          {/* The bar's end wraps as one, so on a narrow page the buttons stay
-              together at the right. */}
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-            {pdf && <Zoom zoom={zoom} onZoom={setZoom} />}
+          {/* One row that never wraps: it gives way first. Below @3xl the
+              three lesser buttons keep their glyph alone, named by `title`,
+              and below @md the zoom goes, where even its 50% step (408px)
+              is wider than the page's column, so no step changes anything */}
+          <div className="ml-auto flex items-center gap-2">
+            {pdf && (
+              <div className="@max-md/main:hidden">
+                <Zoom zoom={zoom} onZoom={setZoom} />
+              </div>
+            )}
             {!primary && (
-              <Button variant="secondary" size="sm" onClick={makePrimary} disabled={saving}>
-                <StarIcon aria-hidden className="size-4" /> Make Primary
+              <Button
+                variant="secondary"
+                size="sm"
+                title="Make Primary"
+                onClick={makePrimary}
+                disabled={saving}
+              >
+                <StarIcon aria-hidden className="size-4" />
+                <span className="@max-3xl/main:sr-only">Make Primary</span>
               </Button>
             )}
-            <Button variant="secondary" size="sm" onClick={() => setRenaming(true)}>
-              <PencilIcon className="size-4" /> Rename
+            <Button variant="secondary" size="sm" title="Rename" onClick={() => setRenaming(true)}>
+              <PencilIcon className="size-4" />
+              <span className="@max-3xl/main:sr-only">Rename</span>
             </Button>
             <DeleteResumeConfirm
               busy={deleting}
               onDelete={remove}
               trigger={
-                <Button variant="secondary" size="sm" disabled={deleting}>
-                  <TrashIcon className="size-4" /> Delete
+                <Button variant="secondary" size="sm" title="Delete" disabled={deleting}>
+                  <TrashIcon className="size-4" />
+                  <span className="@max-3xl/main:sr-only">Delete</span>
                 </Button>
               }
             />
-            <Button size="sm" onClick={download}>
+            <Button size="sm" data-bar-action onClick={download}>
               <FileArrowDownIcon aria-hidden className="size-4" /> Download
             </Button>
           </div>

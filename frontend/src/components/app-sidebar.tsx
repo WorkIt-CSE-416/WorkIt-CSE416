@@ -129,13 +129,13 @@ const MENU_BUTTON = "h-9";
 const CURRENT_ITEM = "data-active:text-brand-ink hover:text-brand-ink active:text-brand-ink";
 
 /**
- * THE FILLS GLIDE. A row no longer paints its own hover or current fill;
- * each menu draws one hover highlight and one current highlight behind its
- * rows (GlideMenu below), and moves them. Pointing down the panel, the hover
- * fill travels from row to row instead of blinking off one and onto the
- * next; following a link, the current fill travels to the new section from
- * the click (GlideMenu says how), while the page changes beside it. Both
- * ride --ease-glide, 320ms.
+ * THE HOVER FILL GLIDES. A row no longer paints its own hover or current
+ * fill; each menu draws one hover highlight and one current highlight behind
+ * its rows (GlideMenu below), and moves them. Pointing down the panel, the
+ * hover fill travels from row to row on --ease-glide, 320ms, instead of
+ * blinking off one and onto the next. The current fill does not travel: it
+ * slid to the new section until 2026-11-02, and the slide read as confusing,
+ * so it now lands on the row at once.
  *
  * So every row clears the fills shadcn's button paints itself
  * (hover:, active: and data-active: bg-sidebar-accent), each restated with
@@ -172,9 +172,10 @@ function currentIndex(items: SidebarNavItem[], pathname: string) {
  * at i * (row + 4px). Nothing is measured, so the server draws the current
  * fill in place and nothing jumps when the page hydrates.
  *
- * `glide` false moves it without a transition, for the hover fill's first
- * appearance: arriving from outside the menu, it should appear under the
- * pointer, not slide in from wherever it last faded out. Width and height
+ * `glide` false moves it without a transition, for the current fill and the
+ * hover fill's first appearance: arriving from outside the menu, the hover
+ * fill should appear under the pointer, not slide in from wherever it last
+ * faded out. Width and height
  * follow the panel's own 200ms linear when it collapses to the rail.
  */
 function Highlight({
@@ -229,6 +230,9 @@ export type SidebarNavItem = NavRowBase &
         /** Other paths this row owns, with their subtrees: one section shown
          *  as two routes, like Resumes & Experiences (/resumes and /experiences). */
         also?: string[];
+        /** A section that does not work yet: its row stays, greyed out, with
+         *  no link. */
+        disabled?: boolean;
       }
     | { action: () => void | Promise<void> }
   );
@@ -273,7 +277,9 @@ const RAIL_BUTTON =
   // the custom glyphs' 24 grid alike.
   "[&_svg[viewBox='0_0_256_256']]:[stroke-width:2] [&_svg[viewBox='0_0_24_24']]:[stroke-width:1.7]";
 const RAIL_SHEET_GROUP = "px-4 py-2";
-const RAIL_SHEET_BUTTON = "h-10 px-3";
+// 44px on a touch screen (KAN-557), 40px with a mouse. The rows touch, so
+// the row grows rather than its hit area; GlideMenu's --row follows.
+const RAIL_SHEET_BUTTON = "h-10 px-3 pointer-coarse:h-11";
 const RAIL_CAPTION = "text-caption text-ink-meta px-3 font-semibold uppercase";
 
 /** The seeker shell's provider: shadcn's, held open on a desktop, so the
@@ -336,7 +342,10 @@ export function AppSidebar({
       <div className={cn("flex size-full min-h-0 flex-col", rail && "bg-panel")}>
         {isMobile && (
           <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
-            <SidebarTrigger className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent [&_svg]:size-4" />
+            <SidebarTrigger
+              aria-label="Close Menu"
+              className="text-ink hover:text-brand shrink-0 hover:bg-transparent [&_svg]:size-4"
+            />
             {rail ? <LogoLockup /> : <Logo size="bar" />}
           </SidebarHeader>
         )}
@@ -399,8 +408,8 @@ function RailBrand({ href }: { href: string }) {
 }
 
 /**
- * A menu with its two gliding fills: hover under the current, so pointing
- * at the current row leaves its stronger fill in charge. The hover fill
+ * A menu with its two fills: hover under the current, so pointing at the
+ * current row leaves its stronger fill in charge. The hover fill
  * follows the pointer and keyboard focus (focus-visible only, so a click does
  * not leave it behind), and fades where it is when the pointer leaves.
  *
@@ -409,8 +418,8 @@ function RailBrand({ href }: { href: string }) {
  * pathname changes, and the fill, placed from the pathname, sat on the old
  * row for that whole wait, so the click looked ignored. Each row's link
  * reports while its navigation is pending (PendingMark, Next's
- * useLinkStatus), and the fill glides to that row at once, on the same
- * 320ms glide; its label takes the current colour with it. The pending row
+ * useLinkStatus), and the fill moves to that row at once; its label takes
+ * the current colour with it. The pending row
  * holds only for the pathname it was clicked from, so the commit, or any
  * other move, hands the fill back to the pathname. `aria-current` stays on
  * the committed row: a screen reader is not told of a page that has not
@@ -455,12 +464,13 @@ function GlideMenu({
     <div
       className={cn(
         "relative",
-        // A row's height: the rail's 64px tile, its sheet's 40px row, and
+        // A row's height: the rail's 64px tile, its sheet's 40px row (44px
+        // on touch, RAIL_SHEET_BUTTON), and
         // MENU_BUTTON's 36px open and shadcn's 32px square collapsed.
         look === "tile"
           ? "[--row:4rem]"
           : look === "sheet"
-            ? "[--row:2.5rem]"
+            ? "[--row:2.5rem] pointer-coarse:[--row:2.75rem]"
             : "[--row:2.25rem] group-data-[collapsible=icon]:[--row:2rem]",
       )}
       onPointerLeave={() => setHover(null)}
@@ -471,7 +481,7 @@ function GlideMenu({
         glide={hover?.glide ?? false}
         className="bg-rail-hover"
       />
-      <Highlight index={lit} visible={lit >= 0} glide className="bg-rail-selected" />
+      <Highlight index={lit} visible={lit >= 0} glide={false} className="bg-rail-selected" />
       <SidebarMenu className={cn(MENU, "relative")}>
         {items.map((item, i) => (
           <NavRow
@@ -539,6 +549,17 @@ function NavRow({
           aria-label={name}
           className={cn(size, ROW, "cursor-pointer")}
         >
+          <Icon aria-hidden className="size-4" />
+          <span>{text}</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  if (item.disabled) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton disabled aria-label={name} className={cn(size, ROW, "opacity-50")}>
           <Icon aria-hidden className="size-4" />
           <span>{text}</span>
         </SidebarMenuButton>

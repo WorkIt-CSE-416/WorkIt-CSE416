@@ -381,7 +381,7 @@ function schoolYear(school, answers, today) {
   });
 }
 
-/** The Application answers (My Profile's section, KAN-369) as the engine's logistics, home address,
+/** The Application answers (Application Info's section, KAN-369) as the engine's logistics, home address,
  * languages and screeners. A screener is only ever the student's own answer: an empty list is their "none". */
 function applicationFacts(answers, place) {
   const list = (value) => (Array.isArray(value) ? value : undefined);

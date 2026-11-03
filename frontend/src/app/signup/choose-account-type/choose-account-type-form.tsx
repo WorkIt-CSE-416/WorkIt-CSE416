@@ -49,7 +49,7 @@ export function ChooseAccountTypeForm() {
             setSizeAttempted(true);
           }
         }}
-        className="mt-4 flex flex-col"
+        className="mt-5 flex flex-col"
       >
         {isCompany && (
           <div className="flex flex-col gap-2.5">
@@ -70,9 +70,9 @@ export function ChooseAccountTypeForm() {
           </div>
         )}
 
-        {state.error && <p className="text-meta text-danger mt-2.5">{state.error}</p>}
+        {state.error && <p className="text-note text-danger mt-2.5">{state.error}</p>}
 
-        <Button type="submit" size="lg" className="mt-4" disabled={pending}>
+        <Button type="submit" size="lg" className="mt-2.5" disabled={pending}>
           {pending ? "Continuing…" : "Continue"}
           <ArrowRightIcon className="size-4" />
         </Button>

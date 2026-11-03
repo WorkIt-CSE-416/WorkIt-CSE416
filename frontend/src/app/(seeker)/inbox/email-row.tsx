@@ -69,7 +69,7 @@ export function EmailRowContent({
           <ReceivedShort at={email.receivedAt} bold={unread} />
         </div>
         <p
-          className={cn("text-meta text-ink truncate", unread ? "font-semibold" : "text-ink-muted")}
+          className={cn("text-note text-ink truncate", unread ? "font-semibold" : "text-ink-muted")}
         >
           {email.title}
         </p>

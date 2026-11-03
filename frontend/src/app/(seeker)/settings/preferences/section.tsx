@@ -17,7 +17,9 @@ export async function PreferencesSection() {
 
   return (
     <Card as="section" aria-labelledby="job-preferences" className="flex flex-col gap-4">
-      <SectionHeading id="job-preferences">Job Preferences</SectionHeading>
+      <SectionHeading as="h3" id="job-preferences">
+        Job Preferences
+      </SectionHeading>
       <p className="text-body text-ink-meta">
         What you&apos;re looking for. The Jobs page starts filtered by these each time you open it.
       </p>

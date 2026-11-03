@@ -445,6 +445,8 @@ weight.
 - **On a phone** the panel is a sheet opened by "Suggestions (5)" in the
   bottom bar, with the same cards; an open card's Show on Resume closes
   the sheet and tints its line, and a dot opens the sheet on its card.
+  The phone editor covers the step's row, so its header carries the job,
+  the step and Finish, and its arrow goes to the step before (KAN-574).
 - **When every card is handled**, the panel says so in one line under the
   score.
 

@@ -16,13 +16,24 @@ POST   /applicants/{id}/sent-resumes            SentResumeCreate
        -> 200 SentResumeDownload: the same content was sent to this posting
           before from this built resume; the last sent resume comes back,
           with no new file.
+POST   /applicants/{id}/sent-resumes/file       SentFileCreate
+       {job_posting_id, file_name, content (base64)}: the file Apply
+       attached to the form (KAN-544), a PDF under 5 MB (422 otherwise),
+       kept in Storage as it is, one file per content
+       (`<applicant_id>/sent/<sha256>.pdf`). -> 201 SentResumeDownload;
+       the same file sent again to the same posting answers 200 with the
+       last one. 404 as above for the posting, 502 when Storage refuses
+       the upload.
        SentResumeDownload is the sent resume plus its file, as GET .../file
        answers it, and `missing_characters` (the font lacks them; a repeat
        answers []). A built resume keeps no PDF: the sent resume is a
        snapshot (KAN-267), so its file comes back as `data`. 422 unless
        exactly one source is given. 404 for a
        resume that is not the student's or a posting the Jobs page does not
-       list (unknown, draft, paused, closed), 503 when the PDF cannot be made.
+       list (unknown, draft, paused, closed), unless it is a scraped posting
+       the student has an application on (a job they added, KAN-515, or one
+       the feed closed since: KAN-544, `postings.reachable`).
+       503 when the PDF cannot be made.
 GET    /applicants/{id}/sent-resumes            -> [SentResumeResponse], newest first;
        `rebuilt` marks one rebuilt from an uploaded file's text (below)
 GET    /applicants/{id}/sent-resumes/{sid}/file -> SentResumeFile: a stored file
@@ -49,6 +60,7 @@ from app.db import get_session, get_supabase
 from app.deps import owned_applicant
 from app.models.sent_resume import Sent_Resume
 from app.schemas.sent_resume import (
+    SentFileCreate,
     SentResumeCreate,
     SentResumeDownload,
     SentResumeFile,
@@ -117,6 +129,40 @@ async def send(
         response.status_code = 200
 
     return SentResumeDownload.of(sent.row, await _file(session, sent.row, pdf=sent.pdf), sent.missing_characters)
+
+
+@router.post("/file", status_code=201, response_model=SentResumeDownload)
+async def send_file(
+    body: SentFileCreate,
+    response: Response,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> SentResumeDownload:
+    """The file Apply sent (KAN-544), kept in Storage as it is."""
+    pdf = body.pdf()
+    try:
+        sent = await service.send_file(
+            session, get_supabase().storage, applicant_id, body.file_name, pdf, job_posting_id=body.job_posting_id)
+    except NotFound:
+        raise HTTPException(404, "Job posting not found")
+    except SQLAlchemyError:
+        raise
+    except Exception:
+        logger.exception("Storage upload failed", extra={"applicant_id": str(applicant_id)})
+        raise HTTPException(502, "File upload failed")
+    if sent.created:
+        try:
+            await session.commit()
+        except SQLAlchemyError:
+            await session.rollback()
+            logger.exception("Failed to save the sent resume")
+            path = service.sent_path(applicant_id, pdf)
+            if not await service.file_in_use(session, path):
+                await _remove_file(path)
+            raise HTTPException(500, "Failed to save the sent resume")
+    else:
+        response.status_code = 200
+    return SentResumeDownload.of(sent.row, await _file(session, sent.row))
 
 
 @router.get("", response_model=list[SentResumeResponse])

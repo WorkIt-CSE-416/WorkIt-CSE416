@@ -12,7 +12,7 @@ import {
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
-  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, unmarkSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
+  batchStatus, batchTabIds, forgetTab, inBatch, inPractice, jobInTab, jobTypeInTab, markSubmitted, unmarkSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
   showBatchTab, closeBatchTab, skipTab, closeClosedTab, startBatch, startPractice, submitPractice,
 } from "./batch.js";
 import { popupPage, reportTab, requestTabSystem, saveTabJob, webappOrigin } from "./panel-states.js";
@@ -252,6 +252,13 @@ async function handleMessage(message, sender) {
     // the tab fills. The job is the batch's own for that tab, never the message's.
     case "batch/questions":
     case "batch/answers": {
+      // A practice tab has no application at WorkIt, so no Claude writes its
+      // question (KAN-507): the tab says whether the student's Claude would
+      // on a real one, or how to add it.
+      if (message.type === "batch/questions" && (await inPractice(sender.tab.id))) {
+        const { id } = await me();
+        return { practice: true, claude: await connectorAdded(id).catch(() => false) };
+      }
       const jobId = await requiredApplicationJob(sender.tab.id);
       const { id } = await me();
       const questions = message.type === "batch/questions"
@@ -270,7 +277,7 @@ async function handleMessage(message, sender) {
       const [session, { id }] = await Promise.all([getSession(), me()]);
       if ((await writingSamples(id)).length) return { show: false };
       if (!(await claimMoment(id, "samples"))) return { show: false };
-      return { show: true, url: `${session.web_origin}/profile#writing-samples` };
+      return { show: true, url: `${session.web_origin}/auto-apply/info#writing-samples` };
     }
 
     // The student's own words for one of a batch tab's questions that need
@@ -788,7 +795,7 @@ const RUNNER_MESSAGES = {
   "run/close": (message) => closeBatchTab(message),
   "practice/open": (message, sender) => startPractice(sender, message),
   "practice/status": () => practiceStatus(),
-  // The webapp's Settings > Connected Apps: opens the Workday Sign-Up page, which keeps its password in this browser.
+  // The webapp's Application Info: opens the Workday Sign-Up page, which keeps its password in this browser.
   "workday/signup-open": async () => {
     await chrome.runtime.openOptionsPage();
     return {};

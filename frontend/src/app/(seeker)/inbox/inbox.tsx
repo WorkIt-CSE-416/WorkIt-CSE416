@@ -6,6 +6,7 @@ import { useEffect, useState, useTransition } from "react";
 import { type FacetOption, FieldFacet } from "@/components/field-facet";
 import { ArrowLeftIcon, CloseIcon } from "@/components/icons";
 import { ShallowLink, useShallowParams, useShallowPush } from "@/components/shallow-routing";
+import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
@@ -157,7 +158,10 @@ export function Inbox({ emails, jobs }: { emails: Email[]; jobs: EmailJob[] }) {
         )}
       </div>
 
-      <div className="border-border-subtle rounded-card bg-panel mt-4 grid min-h-80 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden border md:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]">
+      <Card
+        padding="none"
+        className="mt-4 grid min-h-80 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden md:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]"
+      >
         <InboxToolbar
           className={cn("col-span-full", open && "hidden md:flex")}
           shown={shown}
@@ -171,7 +175,7 @@ export function Inbox({ emails, jobs }: { emails: Email[]; jobs: EmailJob[] }) {
 
         <div
           className={cn(
-            "border-border-subtle overflow-y-auto overscroll-contain md:border-r",
+            "border-border-subtle overflow-y-auto overscroll-none md:border-r",
             // Below md the open email takes the whole frame.
             open && "hidden md:block",
           )}
@@ -222,7 +226,7 @@ export function Inbox({ emails, jobs }: { emails: Email[]; jobs: EmailJob[] }) {
           )}
         </div>
 
-        <div className={cn("overflow-y-auto overscroll-contain", !open && "hidden md:block")}>
+        <div className={cn("overflow-y-auto overscroll-none", !open && "hidden md:block")}>
           {open ? (
             <>
               <ShallowLink
@@ -242,7 +246,7 @@ export function Inbox({ emails, jobs }: { emails: Email[]; jobs: EmailJob[] }) {
             <NoEmailPicked />
           )}
         </div>
-      </div>
+      </Card>
     </>
   );
 }

@@ -7,6 +7,7 @@ import { site, streams } from "./data";
 import { followedJob, matchingFeature } from "./feature-data";
 import { featurePages } from "./features/catalog";
 import { FooterWordmark } from "./footer-wordmark";
+import { MotionToggle } from "./motion-toggle";
 import { resourcePages } from "./resources/catalog";
 
 /** The wordmark's job titles: the board's, Matching's and the
@@ -92,6 +93,9 @@ export function Footer() {
             <p>
               &copy; {year} {site.name}. All rights reserved.
             </p>
+            {/* The page's loops stop here (WCAG 2.2.2, KAN-580). Its ::after
+                takes the tap to 44px without changing the row. */}
+            <MotionToggle className="relative self-start text-white/80 transition-colors after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] hover:text-white sm:self-auto" />
           </div>
         </div>
 

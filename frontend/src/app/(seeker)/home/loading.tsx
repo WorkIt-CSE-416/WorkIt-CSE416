@@ -1,4 +1,4 @@
-import { HomeFrame, HeadingSkeleton } from "./frame";
+import { HomeFrame } from "./frame";
 import { HeadlineSkeleton } from "./headline";
 import { StreakSkeleton } from "./streak";
 import { TopMatchesSkeleton } from "./top-matches";
@@ -17,9 +17,14 @@ import { TopMatchesSkeleton } from "./top-matches";
  * click's next frame. It is worth it only where a page waits on slow reads:
  * React keeps a fallback it has shown for at least 300ms, so on a page that
  * draws in 150ms a skeleton only makes it slower (no loading.tsx on the
- * Experiences, Resumes, My Profile, Help or Search pages for that reason;
- * Settings' modal has none for another, ../settings/sections.tsx). Never
- * one beside the seeker layout: it would wrap the @modal slot too.
+ * My Profile, Help or Search pages for that reason; Settings' modal has
+ * none for another, ../settings/sections.tsx). Experiences and Resumes got
+ * one in KAN-561, when the design audit saw each wait on the server with
+ * nothing drawn. Never one beside the seeker layout: it would wrap the
+ * @modal slot too. A folder whose page has child routes keeps its page and
+ * loading.tsx in a route group (../resumes/(list), ../auto-apply/(queue)):
+ * Next prefetches a dynamic route only down to its first loading boundary,
+ * so the parent's skeleton showed first on the way to a child.
  *
  * The page-enter motion ((seeker)/template.tsx) now plays on this skeleton,
  * and the page then replaces it without a transition of its own.
@@ -27,7 +32,6 @@ import { TopMatchesSkeleton } from "./top-matches";
 export default function HomeLoading() {
   return (
     <HomeFrame
-      heading={<HeadingSkeleton />}
       tiles={<HeadlineSkeleton />}
       topMatches={<TopMatchesSkeleton className="mt-4" />}
       activity={<StreakSkeleton className="mt-4" />}

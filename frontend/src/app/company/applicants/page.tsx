@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { COMPANY_PAGE } from "../frame";
 import { ApplicantsTable } from "./applicants-table";
 
 export const metadata: Metadata = {
@@ -34,14 +35,7 @@ export default async function CompanyApplicantsPage({
   const query = typeof q === "string" ? q.trim() : "";
 
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
-      <header className="mb-5">
-        <h1 className="text-heading text-ink">Applicants</h1>
-        <p className="text-body text-ink-meta mt-1">
-          Everyone who has applied to you, across every posting.
-        </p>
-      </header>
-
+    <div className={COMPANY_PAGE}>
       <ApplicantsTable key={query} query={query} />
     </div>
   );

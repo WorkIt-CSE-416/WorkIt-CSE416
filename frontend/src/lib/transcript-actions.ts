@@ -9,7 +9,7 @@ import { getApplicantSession } from "@/lib/session";
  * The student's unofficial transcript (KAN-369's API, GET, PUT and DELETE
  * /applicants/{id}/documents/transcript, backend/app/routers/documents.py):
  * one file, kept beside the resumes, which the autofiller attaches to a
- * form's transcript upload. My Profile's Transcript section edits it.
+ * form's transcript upload. Application Info's Transcript card edits it.
  * Identity comes from the session, never an argument.
  */
 

@@ -26,7 +26,7 @@ import { STATUS_BY_ROLE, ROLE_STAGES, STAGE_PAINT, type RoleStatus } from "./dat
  *
  * WHAT THE MARKS FOLLOW, here and in ./stage-age.tsx:
  *
- *   - Bars are capped well under the row height, so the band's leftover stays
+ *   - Bars are capped well under the row height, so the card's leftover stays
  *     air rather than ink.
  *   - A bar a reader measures TO is rounded at the data end and square at the
  *     baseline, so the end that carries the value is the end that is shaped.
@@ -48,7 +48,7 @@ import { STATUS_BY_ROLE, ROLE_STAGES, STAGE_PAINT, type RoleStatus } from "./dat
  * direct-labelled with its own total; and the per-role breakdown is spoken in
  * full for a screen reader, which is also the honest way to expose numbers
  * that a sighted reader gets from segment length. Per-applicant detail is one
- * click away in the table the band's View All links to.
+ * click away in the table the pipeline's View All links to.
  *
  * NO SORTING. Rows are in STATUS_BY_ROLE's order, widest first, and stay
  * there. A chart that re-sorts itself when the data moves makes a reader
@@ -64,12 +64,12 @@ export function StatusByRole() {
   return (
     /* h-full and a column so the row list can take flex-1 and space its five
      * rows down the height the ring beside it sets, so the last bar ends level
-     * with the ring's footnote rather than over an empty corner of the band. */
+     * with the ring's footnote rather than over an empty corner of the card. */
     <div className="flex h-full flex-col">
       {/* The legend is always present: five series is well past the point
           where colour alone can carry identity. Names only, no counts — the
           ring beside this one is the same five stage totals, and
-          printing them twice in one band invites a reader to look for the
+          printing them twice in one card invites a reader to look for the
           difference between two copies of one number. */}
       <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
         {ROLE_STAGES.map((stage) => (
@@ -78,7 +78,7 @@ export function StatusByRole() {
               aria-hidden="true"
               className={cn("size-2.5 shrink-0 rounded-[3px]", STAGE_PAINT[stage].fill)}
             />
-            <span className="text-meta text-ink-muted">{stage}</span>
+            <span className="text-note text-ink-muted">{stage}</span>
           </li>
         ))}
       </ul>

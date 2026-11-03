@@ -413,11 +413,11 @@ function StackedTour() {
 function StopCopy({ id }: { id: FeatureId }) {
   const feature = features.find((item) => item.id === id) ?? features[0];
   const { icon: Icon, label, page } = STOPS[id];
-  const { glow, href, name } = FEATURES[page];
+  const { glow, onGlow, href, name } = FEATURES[page];
   return (
     <>
       <p className="text-ink inline-flex items-center gap-2 text-sm font-medium">
-        <FeatureIcon feature={{ icon: Icon, glow }} />
+        <FeatureIcon feature={{ icon: Icon, glow, onGlow }} />
         {label}
         {feature.soon && <SoonChip />}
       </p>

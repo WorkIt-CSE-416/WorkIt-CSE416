@@ -14,10 +14,8 @@ export const metadata: Metadata = {
  *  Next's stock 404. It reads no id yet: there is nothing to look one up in. */
 export default function CompanyApplicantPage() {
   return (
-    <Placeholder
-      Icon={UserIcon}
-      title="Applicant"
-      description="One applicant's application, resume and stage history."
-    />
+    <Placeholder Icon={UserIcon} title="Applicant">
+      One applicant&apos;s application, resume and stage history will be here.
+    </Placeholder>
   );
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore, useTransition } from "react";
 
+import { StatusIcon } from "@/app/(seeker)/applications/icons";
 import { EllipsisIcon } from "@/components/icons";
 import {
   DropdownMenu,
@@ -13,8 +14,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { IconButton } from "@/components/ui/icon-button";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { changeJobStatus } from "@/lib/job-actions";
 
@@ -61,7 +63,7 @@ const columns = helper.columns([
         <RowLink href={`/company/jobs/${row.original.id}/edit`} className="text-label">
           {row.original.role}
         </RowLink>
-        <p className="text-meta text-ink-meta mt-0.5 truncate">
+        <p className="text-note text-ink-meta mt-0.5 truncate">
           {[row.original.team, row.original.location].filter(Boolean).join(" · ")}
         </p>
       </div>
@@ -161,58 +163,66 @@ const columns = helper.columns([
  * Edit alone. Pause and Resume act at once, since Resume undoes Pause; only
  * Close asks first.
  *
- * relative z-10 lifts the trigger above <RowLink>'s row-wide overlay, or
- * opening the menu would open the job.
+ * The trigger is IconButton (KAN-582), as Up Next's row menu is: ink at rest
+ * and a 32px box, where a hand-built one was grey and 28px. z-10 lifts it
+ * above <RowLink>'s row-wide overlay, or opening the menu would open the job.
  *
- * A failed Pause or Resume says so in two words, with the API's message in a
- * tooltip: the column is sized to its content (`w-px`), so a sentence here
- * wrapped one word per line and stretched the row. The alert still reads the
- * whole message out, through the sr-only part, and the two words take focus
- * (ringed like the ⋯ trigger), so the tooltip opens from the keyboard as well
- * as on hover.
+ * A Pause or Resume says how it went in a toast (KAN-562), never in the row:
+ * the column is sized to its content (`w-px`), so a sentence there wrapped
+ * one word per line, and the two words that stood in for it put the reason
+ * in a tooltip behind a tab stop. A done one offers Undo, the other status,
+ * whose own toast offers none; a failed one gives the API's reason and
+ * Retry.
  */
 function RowActions({ posting }: { posting: Posting }) {
   const [isClosing, setIsClosing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isChanging, startChanging] = useTransition();
   const router = useRouter();
+  const toast = useToast();
   const isLive = posting.status === "Open" || posting.status === "Paused";
 
-  function setStatus(status: "published" | "paused") {
-    setError(null);
-    startChanging(async () => {
-      const result = await changeJobStatus(posting.id, status);
-      if (result.error) setError(result.error);
-      // Re-runs the server page, so the row comes back with its new status.
-      else router.refresh();
+  /** Sets the status and says so; `undo` offers the other one in the toast. */
+  async function change(status: "published" | "paused", undo: boolean) {
+    const done = status === "paused" ? "paused" : "resumed";
+    const result = await changeJobStatus(posting.id, status);
+    if (result.error) {
+      toast.show({
+        message: `${posting.role} couldn't be ${done}. ${result.error}`,
+        action: { label: "Retry", onClick: () => change(status, undo) },
+      });
+      return;
+    }
+    // Re-runs the server page, so the row comes back with its new status.
+    router.refresh();
+    toast.show({
+      message: `${posting.role} is ${done}.`,
+      ...(undo && {
+        action: {
+          label: "Undo",
+          onClick: () => change(status === "paused" ? "published" : "paused", false),
+        },
+      }),
     });
+  }
+
+  function setStatus(status: "published" | "paused") {
+    startChanging(() => change(status, true));
   }
 
   return (
     <>
-      {error && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <span
-                role="alert"
-                tabIndex={0}
-                className="text-meta text-danger focus-visible:ring-brand-ring relative z-10 mr-2 rounded-xs whitespace-nowrap focus-visible:ring-2 focus-visible:outline-none"
-              />
-            }
-          >
-            Couldn&apos;t update<span className="sr-only">: {error}</span>
-          </TooltipTrigger>
-          <TooltipContent>{error}</TooltipContent>
-        </Tooltip>
-      )}
       <DropdownMenu>
         <DropdownMenuTrigger
-          aria-label={`Actions for ${posting.role}`}
-          className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring relative z-10 inline-flex size-7 cursor-pointer items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
-        >
-          <EllipsisIcon className="size-4" />
-        </DropdownMenuTrigger>
+          render={
+            <IconButton
+              label={`Actions for ${posting.role}`}
+              tooltip="More actions"
+              className="z-10 size-8"
+            >
+              <EllipsisIcon className="size-4" />
+            </IconButton>
+          }
+        />
 
         <DropdownMenuContent align="end" className="w-36">
           <DropdownMenuItem render={<Link href={`/company/jobs/${posting.id}/edit`} />}>
@@ -251,7 +261,7 @@ function RowActions({ posting }: { posting: Posting }) {
 }
 
 const FILTERS: FilterSpec[] = [
-  { columnId: "status", label: "Status", plural: "Statuses", options: STATUSES },
+  { columnId: "status", label: "Status", Icon: StatusIcon, options: STATUSES },
 ];
 
 /**

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui/card";
 
 import { localDay } from "../tracker";
 import type { AppliedApplication } from "./data";
@@ -19,7 +20,6 @@ import {
   type AppliedDay,
   type Cell,
 } from "./streak-model";
-import { SectionCard } from "./section-card";
 
 /**
  * Activity — the seeker's year of applications as a streak heat map that folds
@@ -29,7 +29,7 @@ import { SectionCard } from "./section-card";
  * why).
  *
  * In a white card under its heading, like every Home section
- * (./section-card.tsx). The view switch sits where a section's one way
+ * (ui/card.tsx, `tone="tile"`). The view switch sits where a section's one way
  * onward does, at the top right, in the applications ViewSwitcher's segmented
  * style. Buttons rather than links, because the morph between the views is
  * the point and a navigation would cut it.
@@ -242,14 +242,17 @@ export function Streak({
   ];
 
   return (
-    <SectionCard
+    <Card
+      as="section"
+      tone="tile"
+      padding="lg"
       ref={rootRef}
       aria-labelledby="streak"
       className={cn("@container/streak", className)}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 id="streak" className="text-subtitle text-ink font-medium">
+          <h2 id="streak" className="text-subtitle text-ink">
             Activity
           </h2>
           {applied === null && (
@@ -340,7 +343,7 @@ export function Streak({
           onClose={() => setDay({ ...day, open: false })}
         />
       )}
-    </SectionCard>
+    </Card>
   );
 }
 
@@ -375,8 +378,8 @@ function Stat({ label, value, unit, sub }: StatBlock) {
 
 /**
  * Activity while the tracker loads (Home streams it in its own
- * <Suspense>, and its loading.tsx draws it too): the heading, the view
- * switch's pill, the heat map's room at its default 150px (--streak-h2's
+ * <Suspense>, and its loading.tsx draws it too): the heading as a bar, the
+ * view switch's pill, the heat map's room at its default 150px (--streak-h2's
  * fallback, which the canvas resets to the map's own height on mount) and
  * the four wells, each with its label, figure and dates pill as bars of
  * those lines' heights. The section is the page's last, so a map a few
@@ -384,15 +387,16 @@ function Stat({ label, value, unit, sub }: StatBlock) {
  */
 export function StreakSkeleton({ className }: { className?: string }) {
   return (
-    <SectionCard
-      aria-labelledby="streak"
+    <Card
+      as="section"
+      tone="tile"
+      padding="lg"
+      aria-label="Activity"
       aria-busy="true"
       className={cn("@container/streak", className)}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="streak" className="text-subtitle text-ink font-medium">
-          Activity
-        </h2>
+      <div aria-hidden="true" className="flex flex-wrap items-center justify-between gap-3">
+        <Skeleton className="h-4 w-20" />
         <Skeleton className="h-9 w-20 rounded-full" />
       </div>
       <div aria-hidden="true" className="mt-3">
@@ -410,6 +414,6 @@ export function StreakSkeleton({ className }: { className?: string }) {
           ))}
         </div>
       </div>
-    </SectionCard>
+    </Card>
   );
 }

@@ -39,6 +39,39 @@
   outline-offset: 2px;
 }
 
+/*
+ * Pause Animations (motion-pause.ts, KAN-580): every endless CSS loop holds
+ * on the frame it is at, and Play goes on from there. The loops only, by
+ * name: an entrance (the city's fade in, the hero's rise, Pricing's rows)
+ * paused before it ran would hide what it brings in. A new loop joins this
+ * list. !important beats each piece's `animation` shorthand, as the city's
+ * off-screen pause does.
+ */
+:root[data-motion="paused"]
+  :is(
+    .slop-word,
+    .line-scan,
+    .wordmark-drift,
+    .bridge-float,
+    .hero-city .streak,
+    .hero-city .msolid,
+    .hero-city .mwire .wire,
+    .hero-city .mwire .we,
+    .hero-city .swire,
+    .hero-city .pool,
+    .hero-city .tag,
+    .hero-city .tag > * > *,
+    .tour-spin,
+    .tour-scan,
+    .tour-typing,
+    .gate-scan *,
+    .gate-shield *,
+    .gate-bot *,
+    .workit-hop circle
+  ) {
+  animation-play-state: paused !important;
+}
+
 /* The scan's sheet of light in the sorting line's gate (sorting-line.tsx). */
 .line-scan {
   opacity: 0.1;
@@ -107,7 +140,7 @@ html:has(.landing) {
 }
 
 .lenis [data-lenis-prevent] {
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
 }
 
 .lenis.lenis-smooth iframe {
@@ -116,22 +149,14 @@ html:has(.landing) {
 
 /*
  * Glass button (buttons.tsx): the two light brand violets with a glassy top
- * highlight, its fill a pseudo-element behind the label. In the components
- * layer, as on the site, so a utility on the element (h-12, hidden) wins.
+ * highlight, its fill a pseudo-element behind the label. Its shape and size
+ * are buttons.tsx's, shared by every marketing button (KAN-581). In the
+ * components layer, as on the site, so a utility on the element wins.
  */
 @layer components {
   .glass-btn {
     position: relative;
     isolation: isolate;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 2.5rem;
-    padding-inline: 1rem;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    white-space: nowrap;
     color: var(--color-landing-brand-950);
     text-shadow: 0 1px 0 rgb(255 255 255 / 0.45);
     transition:
@@ -322,18 +347,26 @@ html:has(.landing) {
   }
 }
 
-.hero-city .wf {
-  fill: rgb(109 63 216 / 0.07);
+/* The violet towers' glass faces, lit like the buildings': solid, so nothing
+ * behind shows through (city-model.ts, wireTower). */
+.hero-city .gl {
+  fill: #7d5ce8;
+}
+.hero-city .gr {
+  fill: #9b80f2;
+}
+.hero-city .gt {
+  fill: #cdbefb;
 }
 .hero-city .wl {
   fill: none;
-  stroke: var(--holo);
+  stroke: #fff;
   stroke-width: 0.8;
-  opacity: 0.4;
+  opacity: 0.28;
 }
 .hero-city .we {
   fill: none;
-  stroke: var(--holo);
+  stroke: #5a2fd0;
   stroke-width: 1.2;
   stroke-linejoin: round;
   stroke-linecap: round;

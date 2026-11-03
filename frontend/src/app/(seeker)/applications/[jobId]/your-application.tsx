@@ -257,7 +257,7 @@ export function YourApplication({
  *  empty. */
 function EmptySlot({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <div className="border-border-strong bg-well rounded-card mt-2 flex flex-col items-center gap-2 border border-dashed px-4 py-7">
+    <div className="border-border-control bg-well rounded-card mt-2 flex flex-col items-center gap-2 border border-dashed px-4 py-7">
       {icon}
       <p className="text-body text-ink-meta text-center">{children}</p>
     </div>

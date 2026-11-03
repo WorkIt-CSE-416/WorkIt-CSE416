@@ -28,6 +28,10 @@ import { cn } from "@/lib/cn";
  * selects, so next spring is one pick, not a dozen clicks on the arrow. It
  * needs `startMonth` and `endMonth`: unbounded, react-day-picker's year
  * select runs 100 years back and stops at the end of this year.
+ *
+ * `error` shows under the field, tied to the trigger, and edges it red,
+ * as a field error must be (docs/design.md, Components): the form moves the
+ * focus to the trigger (its `id`).
  */
 export function DateField({
   id,
@@ -39,6 +43,7 @@ export function DateField({
   clearable,
   from,
   disabled,
+  error,
 }: {
   id: string;
   label: string;
@@ -53,6 +58,7 @@ export function DateField({
    *  lets the student pick a past day, as for an interview already held. */
   from?: Date;
   disabled?: boolean;
+  error?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const selected = parseDay(value);
@@ -73,7 +79,9 @@ export function DateField({
               type="button"
               id={id}
               aria-labelledby={`${id}-label`}
-              className={PICKER_TRIGGER}
+              aria-describedby={error ? `${id}-error` : undefined}
+              // A button takes no aria-invalid, so the red edge is set here.
+              className={cn(PICKER_TRIGGER, error && "border-danger")}
             >
               <span
                 className={cn(
@@ -133,6 +141,12 @@ export function DateField({
           )}
         </PopoverContent>
       </Popover>
+
+      {error && (
+        <p id={`${id}-error`} className="text-note text-danger">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

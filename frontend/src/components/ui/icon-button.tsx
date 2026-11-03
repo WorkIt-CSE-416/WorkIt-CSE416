@@ -25,17 +25,17 @@ import { cn } from "@/lib/cn";
  */
 const VARIANTS = {
   /** Bare glyph: top-bar utilities and row actions. Centred in whatever box
-   *  the call site sizes it to, and the ::after reaches 8px past the box, so
-   *  an unsized 16px glyph is still a 32px target without moving anything
-   *  around it. */
+   *  the call site sizes it to, and the hit area reaches 8px past the box,
+   *  so an unsized 16px glyph is still a 32px target with a mouse (44px on
+   *  touch) without moving anything around it. */
   quiet:
-    "text-ink-meta hover:text-ink focus-visible:ring-brand-ring relative inline-flex items-center justify-center rounded-xs after:absolute after:-inset-2 after:content-[''] focus-visible:ring-2",
+    "text-ink hover:text-brand focus-visible:ring-brand-ring inline-flex items-center justify-center rounded-xs [--hit-grow:8px] focus-visible:ring-2",
   /** Bordered — an icon action that has to hold its own beside a filled
    *  button, so it needs the same visual weight a button has. Size it at the
    *  call site: the feed card's Not Interested button is size-9, the `sm`
    *  button height (36px), to line up with the actions beside it. */
   outline:
-    "border-border-subtle bg-panel text-ink-meta hover:bg-hover hover:text-ink focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-[3px]",
+    "border-border-subtle bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-[3px]",
   /** Brand disc — an edit affordance overlapping the thing it edits. The border
    *  matches the panel behind it so the disc reads as cut out of the surface. */
   brand:
@@ -49,6 +49,11 @@ type IconButtonProps = {
   /** Shown on hover in place of `label`, for a label too specific to read well. */
   tooltip?: string;
   variant?: IconButtonVariant;
+  /** Not built yet (KAN-569): the button stays in its place, faded, does
+   *  nothing, and says "Coming Soon" in its tooltip and its name. Unlike
+   *  `disabled` it still takes the pointer and focus, since a disabled button
+   *  shows no tooltip and so could not say why. */
+  soon?: boolean;
   className?: string;
   children: ReactNode;
 } & Omit<ComponentProps<"button">, "className" | "children" | "aria-label">;
@@ -57,28 +62,43 @@ export function IconButton({
   label,
   tooltip = label,
   variant = "quiet",
+  soon = false,
   className,
   type = "button",
+  disabled,
+  onClick,
   children,
   ...props
 }: IconButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger
+        // `disabled` on the trigger only stops the tooltip: the button itself
+        // takes it through `render`, or a disabled button still clicks.
+        render={<button disabled={disabled} />}
+        disabled={disabled}
         type={type}
-        aria-label={label}
+        aria-label={soon ? `${label}, coming soon` : label}
+        aria-disabled={soon || undefined}
+        onClick={soon ? undefined : onClick}
         className={cn(
+          // Every variant's target is 24px or more, 44px on touch (the
+          // hit-area utility in globals.css, KAN-557).
+          "hit-area relative",
           VARIANTS[variant],
           // Presses in further than a button (90%): a glyph is small, and a
           // smaller squeeze would not read. Colours fade on the same clock.
           "transition-[color,background-color,border-color,transform] duration-150 ease-out focus-visible:outline-none active:scale-90 disabled:pointer-events-none disabled:opacity-50",
           className,
+          // After the call site's classes, so no hover or press state outlives it.
+          soon && "text-ink-subtle hover:text-ink-subtle cursor-default active:scale-100",
+          soon && variant === "outline" && "hover:bg-panel",
         )}
         {...props}
       >
         {children}
       </TooltipTrigger>
-      <TooltipContent>{tooltip}</TooltipContent>
+      <TooltipContent>{soon ? `${tooltip}: Coming Soon` : tooltip}</TooltipContent>
     </Tooltip>
   );
 }

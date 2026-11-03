@@ -20,6 +20,9 @@ import { cn } from "@/lib/cn";
  * The title may break mid-word, because a caller can echo user input in it
  * (/search puts the query there): an unbroken one, a pasted URL say, would
  * otherwise widen the card past a phone's screen and scroll the page sideways.
+ *
+ * `titleAs` is h1 where the state is the whole view, a 404 under a section
+ * whose bar title is then a plain line; an h2 under the page's h1 otherwise.
  */
 export function EmptyState({
   Icon,
@@ -27,6 +30,7 @@ export function EmptyState({
   children,
   detail,
   action,
+  titleAs: Title = "h2",
   className,
 }: {
   Icon: ComponentType<{ className?: string }>;
@@ -34,6 +38,7 @@ export function EmptyState({
   children?: ReactNode;
   detail?: ReactNode;
   action?: ReactNode;
+  titleAs?: "h1" | "h2";
   className?: string;
 }) {
   return (
@@ -46,7 +51,7 @@ export function EmptyState({
       <span className="bg-brand-tint text-brand rounded-control flex size-10 items-center justify-center">
         <Icon aria-hidden className="size-5" />
       </span>
-      <h2 className="text-subtitle text-ink mt-3 max-w-full break-words">{title}</h2>
+      <Title className="text-subtitle text-ink mt-3 max-w-full break-words">{title}</Title>
       {children && <p className="text-body text-ink-meta mt-1 max-w-md">{children}</p>}
       {action && <div className="mt-4">{action}</div>}
       {detail && <p className="text-note text-ink-meta mt-3 max-w-md">{detail}</p>}
