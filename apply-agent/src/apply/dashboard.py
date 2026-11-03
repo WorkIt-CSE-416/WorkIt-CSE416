@@ -138,7 +138,7 @@ WORDS = {
               "one didn't match."),
     "captcha": ("Do the captcha", "Apply never solves a captcha. Do it on the form's page; Apply waits, and goes on "
                 "by itself once it's gone."),
-    "handoff": ("Finish this one yourself", "Apply got as far as it could; the rest needs a person, such as a captcha."),
+    "handoff": ("Finish this one yourself", "Apply got as far as it could; the rest needs a person, such as a site that blocks it."),
     "needs code": ("Type the emailed code", "After you pressed Submit, the job site asked for a code it emailed "
                    "you. Apply looks for it in Gmail and types it in; this time it couldn't, so it typed nothing."),
     "code filled": ("Code filled, not sent", "After you pressed Submit, the job site asked for a code it emailed "

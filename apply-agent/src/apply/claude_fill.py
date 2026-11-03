@@ -15,7 +15,7 @@ Claude calls get it though the job system has no API. The submit is a plain clic
 the Pre-submit check passes, and it is Submitted only once the page confirms
 it (plain code reads the page; where it can't tell, one Haiku read does); a
 submit it can't confirm is a Handoff, as it may not have gone. Hitting the cap, or a form Claude can't fill
-alone (a captcha), is a Handoff.
+alone, is a Handoff. A captcha is a model.Captcha: Lisul does it, and the Worker drives again (apply.captcha).
 
 A sign-in, create-account or verification page in the way of the form, with
 no Sign in with Google, is got past as apply.account_pages says: Claude says
