@@ -216,18 +216,18 @@ class WorkIt:
         listed = self.listed_by_link(url)
         if listed is None:
             return None
-        me = self._me().id
+        me = self.applicant_id()
         resume = next((r for r in self.call("GET", f"/applicants/{me}/built-resumes")
                        if r.get("job_posting_id") == listed[0]), None)
         if resume is None:
             return None
         return base64.b64decode(self.call("GET", f"/applicants/{me}/built-resumes/{resume['id']}/render")["pdf"])
 
-    def _me(self) -> Account:
-        """The signed-in account, read once: the writes name the student's id."""
+    def applicant_id(self) -> str:
+        """The signed-in student's id, read once (`GET /auth/me`): the writes name it in their paths."""
         if self._account is None:
             self._account = self.me()
-        return self._account
+        return self._account.id
 
     def accept(self, cookies: dict[str, str]) -> Account | None:
         """For `login`: the account of the web app's session in `cookies`, kept, or None while it has none
@@ -357,12 +357,12 @@ class WaitingWrites:
         if write.stage == "applied":
             resume = Path(write.resume) if write.resume else None
             if resume and resume.is_file():
-                self.client.link_resume(job, self.client.send_resume(self.client._me().id, job, resume))
+                self.client.link_resume(job, self.client.send_resume(self.client.applicant_id(), job, resume))
             else:
                 self.client.mark_applied(job)
         else:
             try:
-                self.client.set_stage(self.client._me().id, job, write.stage)
+                self.client.set_stage(self.client.applicant_id(), job, write.stage)
             except WorkItError as refused:
                 if refused.status != 409:
                     raise

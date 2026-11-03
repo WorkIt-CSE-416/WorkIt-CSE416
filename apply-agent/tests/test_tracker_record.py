@@ -63,6 +63,17 @@ def test_a_handoff_or_missing_fact_is_needs_you_and_a_hold_is_queued(fake, tmp_p
     assert [row["stage"] for row in fake.tracker.tracked()] == [stage]
 
 
+def test_the_writes_read_the_students_id_once(fake, tmp_path):
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+    before = sum(seen.path == "/auth/me" for seen in fake.requests)
+
+    writes.send(write("queued"))
+    writes.send(write("applied", resume=resume(tmp_path)))
+
+    assert writes.client.applicant_id() == fake.account["id"]
+    assert sum(seen.path == "/auth/me" for seen in fake.requests) == before + 1
+
+
 def test_a_later_status_for_the_same_job_moves_the_same_row(fake, tmp_path):
     writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
 

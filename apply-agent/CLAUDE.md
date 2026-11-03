@@ -91,7 +91,9 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
   Record. To log out, delete the file.
 - The API checks the bearer token (`backend/app/deps.py`, `security.py`).
   `call(method, path, body)` sends one request as the student. On a 401 it
-  refreshes one time and tries again.
+  refreshes one time and tries again. `applicant_id()` is the student's id
+  for the paths, read from `GET /auth/me` one time per client. Code outside
+  `WorkIt` uses only its public methods.
 - Errors: `NotLoggedIn` (no file), `LoginExpired` (Supabase or WorkIt
   refused the login: run `apply login` again), `Unreachable` (no answer, or
   a 5xx).
