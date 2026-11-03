@@ -47,12 +47,12 @@ class MacKeychain:
         )
 
     def forget(self, site: str) -> None:
-        gone = subprocess.run(
+        found = subprocess.run(
             ["security", "delete-generic-password", "-s", self._service, "-a", site, *self._keychain],
             capture_output=True, text=True,
         )
-        if gone.returncode not in (0, NOT_FOUND):
-            raise RuntimeError(f"security delete-generic-password failed ({gone.returncode}): {gone.stderr.strip()}")
+        if found.returncode not in (0, NOT_FOUND):
+            raise RuntimeError(f"security delete-generic-password failed ({found.returncode}): {found.stderr.strip()}")
 
 
 class InMemoryKeychain:

@@ -9,10 +9,10 @@ the page and never posted to the API.
 
 from playwright.sync_api import Page
 
-from apply import bot_signals, fill_engine
+from apply import fill_engine
 from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
-from apply.model import Answers, Handoff, QuestionSet, Readback
+from apply.model import Answers, QuestionSet, Readback
 
 
 class RipplingFiller:
@@ -34,16 +34,6 @@ def _open_form(page: Page) -> None:
         page.goto(page.url.split("?")[0].rstrip("/") + "/apply?step=application")
 
 
-TURNSTILE = (
-    "Cloudflare asked to prove a human is applying at the submit click, so the form was not sent. "
-    "Apply yourself from the posting link; the Record has every answer"
-)
-
-
 def _confirmed(page: Page) -> bool:
-    """Rippling's thanks; Cloudflare's Turnstile shows its box only when it
-    wants the visitor to solve a challenge."""
-    challenge = page.locator('[data-testid="TurnstileContainer"]')
-    if challenge.count() and challenge.first.is_visible():
-        raise Handoff(TURNSTILE, bot_signal=bot_signals.CAPTCHA)
+    """Rippling's thanks. Its Turnstile box is a captcha challenge (apply.captcha)."""
     return page.get_by_text("You have successfully applied").count() > 0

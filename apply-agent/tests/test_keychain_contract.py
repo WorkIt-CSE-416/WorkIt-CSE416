@@ -61,3 +61,14 @@ def test_passwords_with_shell_characters_survive(keychain):
     keychain.save("acme.wd5.myworkdayjobs.com", password)
 
     assert keychain.password("acme.wd5.myworkdayjobs.com") == password
+
+
+def test_a_forgotten_password_is_gone_and_forgetting_none_is_fine(keychain):
+    keychain.save("acme.wd5.myworkdayjobs.com", "Pa55-word!")
+    keychain.save("other.wd1.myworkdayjobs.com", "Different#9")
+
+    keychain.forget("acme.wd5.myworkdayjobs.com")
+    keychain.forget("never.wd1.myworkdayjobs.com")
+
+    assert keychain.password("acme.wd5.myworkdayjobs.com") is None
+    assert keychain.password("other.wd1.myworkdayjobs.com") == "Different#9"

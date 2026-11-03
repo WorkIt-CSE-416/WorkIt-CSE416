@@ -47,9 +47,11 @@ from test_claude_fill import (
     LUNAR_URL,
     WHY_LUNAR,
     BambooDriver,
+    CaptchaDriver,
     JobviteDriver,
     PaylocityDriver,
     SendingDriver,
+    captcha_profile,
 )
 from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_URL, World
 from test_greenhouse_filler import board_listing_schools
@@ -65,6 +67,7 @@ from apply.greenhouse import GreenhouseFiller
 from apply.keychain import InMemoryKeychain
 from apply.lever import LeverFiller
 from apply.model import Posting
+from apply.notify import RecordingNotifier
 from apply.profile import ApplicantProfile
 from apply.records import FolderRecords
 from apply.repair import RepairRequests
@@ -392,6 +395,22 @@ def test_each_page_stays_open_where_it_stopped_until_ctrl_c(monkeypatch, tmp_pat
     assert lines[-1] == "Closed the browsers."
 
 
+def test_a_captcha_mid_fill_in_a_rehearsal_waits_for_lisul_then_fills_to_the_last_page(monkeypatch, tmp_path):
+    # LinkedIn (2026-11-03): the slider stopped the read; Lisul does it, and the rehearsal goes on by itself.
+    monkeypatch.setattr(ClaudeFill, "submit", lambda self, page: pytest.fail("a rehearsal clicked Claude fill's submit"))
+    phone = RecordingNotifier()
+    claude = FakeClaude(driver=CaptchaDriver(solved_ms=1500), essays={"Tell us why": WHY_LUNAR})
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [done] = rehearse([LUNAR_URL], server, captcha_profile(tmp_path, 1), claude, phone=phone)
+
+    assert done.outcome == "ready to submit", done.why
+    assert phone.sent == [("Apply: do the captcha", "Do the captcha on Lunar Outpost. Apply goes on by itself once it's done.")]
+    assert [line.split(" ", 1)[1] for line in done.history] == [
+        "Paused: do the captcha", "Resumed: the captcha is done; Apply went on from the page"]
+    assert server.submissions == []
+
+
 def test_each_page_held_open_for_lisul_is_his_to_submit_once_its_link_has_ended(monkeypatch, tmp_path):
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
     lifted = []
@@ -497,6 +516,24 @@ def test_lisuls_own_submit_on_a_held_page_is_kept_in_the_tracker_as_submitted(mo
     assert (row.status, row.date_applied, row.posting_url) == ("submitted", NOW.date(), ARC_URL)
     assert row.company == "Arc Boat Company" and "You submitted it" in row.reason
     assert any(line.startswith("Arc Boat Company | ") and "you submitted it; it is in the Tracker" in line for line in lines)
+
+
+def test_a_captcha_after_lisuls_own_submit_pushes_him_to_do_it(monkeypatch, tmp_path):
+    # Lisul (2026-11-03): in a rehearsal he presses Submit and does the captcha himself; Apply only tells him.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
+    profile, phone, board = ApplicantProfile.load(captcha_profile(tmp_path, 1)), RecordingNotifier(), RecordingBoard()
+
+    with FakeJobServer(ARC_FORM, challenge=True) as fake:
+        lines = hold_until(fake, profile, lambda lines: "do the captcha" in lines[-1],
+                           with_adapters={"phone": phone, "board": board})
+        submissions = fake.submissions
+
+    assert phone.sent == [("Apply: do the captcha", "Do the captcha on Arc Boat Company. "
+                                                    "Apply goes on by itself once it's done.")]
+    assert any(line.startswith("Arc Boat Company | ") and "do the captcha yourself" in line for line in lines)
+    assert (board.captions[0]["status"], board.captions[0]["captcha"]) == ("handoff", True)
+    assert submissions == []  # nothing goes until the captcha is done
 
 
 def test_lisuls_own_submit_from_a_rehearsal_is_applied_in_his_applications_tracker(monkeypatch, tmp_path):

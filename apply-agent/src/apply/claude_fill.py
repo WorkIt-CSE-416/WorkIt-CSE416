@@ -15,7 +15,7 @@ Claude calls get it though the job system has no API. The submit is a plain clic
 the Pre-submit check passes, and it is Submitted only once the page confirms
 it (plain code reads the page; where it can't tell, one Haiku read does); a
 submit it can't confirm is a Handoff, as it may not have gone. Hitting the cap, or a form Claude can't fill
-alone (a captcha), is a Handoff.
+alone, is a Handoff. A captcha is a model.Captcha: Lisul does it, and the Worker drives again (apply.captcha).
 
 A sign-in, create-account or verification page in the way of the form, with
 no Sign in with Google, is got past as apply.account_pages says: Claude says
@@ -51,7 +51,7 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import Page
 
-from apply import bot_signals, description
+from apply import captcha, description
 from apply.account_pages import FIELDS as ACCOUNT_FIELDS
 from apply.account_pages import PROMPT as ACCOUNT_PROMPT
 from apply.account_pages import SENDS, AccountPages
@@ -61,6 +61,7 @@ from apply.attach import RESUME, attach_resume, clear_pop_up, pass_jobvite_gate
 from apply.confirmation import wait_for_confirmation
 from apply.model import (
     Answers,
+    Captcha,
     Closed,
     Handoff,
     MoreQuestions,
@@ -445,6 +446,7 @@ class ClaudeFill:
         if self._guard is None:
             self._guard = DriveGuard(page, **self._opt_ins)
         self._guard.arm()
+        before = len(self._guard.blocked())  # a block of an earlier drive was its Handoff already (Lisul resumed after)
         drive = self._claude.drive(
             page=page, model=MODEL, system=system, prompt=prompt, schema=schema, files=files,
             max_turns=self._max_turns - self._turns, max_tokens=self._max_tokens - self._tokens,
@@ -452,7 +454,7 @@ class ClaudeFill:
         self._sessions += 1
         self._turns += drive.turns
         self._tokens += drive.tokens
-        blocked = self._guard.blocked()
+        blocked = self._guard.blocked()[before:]
         if blocked and drive.output and _only_its_submit(blocked, drive.output):
             # Claude clicked the button it then named as the one that sends: the guard stopped it, so
             # the form is filled and unsent, as a Filler leaves it (Roblox's, live: a Handoff after 1.2M tokens).
@@ -468,8 +470,11 @@ class ClaudeFill:
             )
         if drive.output.get("blocked") is True:
             why = str(drive.output.get("why")).strip()
-            raise Handoff(f"Claude fill can't finish this form: {why}",
-                          bot_signal=bot_signals.CAPTCHA if bot_signals.SAYS_CAPTCHA.search(why) else "")
+            if captcha.SAYS_BLOCKED.search(why):  # no challenge to solve: Lisul applies in his own Chrome
+                raise Handoff(captcha.blocked(self.names[0], self._url or page.url))
+            if captcha.SAYS_CAPTCHA.search(why):  # Lisul does it, and the Worker drives again from this page
+                raise Captcha(f"Claude fill can't finish this form: {why}", page)
+            raise Handoff(f"Claude fill can't finish this form: {why}")
         return drive.output
 
 

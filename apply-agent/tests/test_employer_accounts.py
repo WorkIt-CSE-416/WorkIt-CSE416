@@ -111,18 +111,18 @@ def test_a_verification_email_missing_after_about_two_minutes_needs_lisul_and_is
     assert server.submissions == []
 
 
-def test_a_new_account_workday_takes_to_its_sign_in_view_is_signed_in_with_its_new_password():
+def test_a_create_account_workday_answers_with_its_bare_sign_in_view_forgets_the_password_and_never_signs_in():
     world = World()
 
-    # Northrop's tenant (live): Create Account loads the bare Sign In view, with no notice.
+    # Northrop's tenant (live): Create Account loads the bare Sign In view, with no notice and no account made.
     with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, to_sign_in=True) as server:
         [row] = world.run(server, caci())
 
-    assert (row.status, row.reason) == ("submitted", "")
-    [made] = server.created
-    assert made["keychain"] == made["password"] == world.keychain.password(CACI)
-    assert server.sign_ins == [(CACI, EMAIL, True)]
-    assert [a.site for a in world.tracker.employer_accounts()] == [CACI]
+    assert row.status == "handoff"
+    assert "without making the account" in row.reason and "Create the account yourself" in row.reason
+    assert server.created == [] and server.sign_ins == []
+    assert world.keychain.password(CACI) is None  # no later run signs in with it
+    assert world.tracker.employer_accounts() == []
 
 
 def test_a_new_account_workday_sends_to_its_verify_page_is_verified_through_gmail_then_signed_in():
@@ -151,6 +151,23 @@ def test_a_sign_in_to_an_account_not_verified_yet_needs_lisul_and_is_no_failed_p
     assert "has not been verified" in row.reason and "Verify the account" in row.reason
     assert "won't try that password again" not in row.reason
     assert server.sign_ins == [(CACI, EMAIL, True)] and server.resends == 0
+
+
+def test_an_account_an_earlier_run_made_is_verified_through_the_link_gmail_still_has():
+    world = World(InMemoryKeychain({CACI: "Kept-Pa55word!"}))
+
+    # Zillow's (live): an earlier run made the account, and its link came, but it was never opened.
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox,
+                           accounts={(CACI, EMAIL): "Kept-Pa55word!"}) as server:
+        server.account(CACI, EMAIL)["verified"] = False
+        server._send_link(CACI, EMAIL)
+        world.clock.sleep_until(NOW + timedelta(hours=10))
+        [row] = world.run(server, caci())
+
+    assert (row.status, row.reason) == ("submitted", "")
+    assert server.account(CACI, EMAIL)["verified"]
+    assert server.sign_ins == [(CACI, EMAIL, True), (CACI, EMAIL, True)]  # refused unverified, then in
+    assert server.resends == 0 and server.created == []
 
 
 def test_a_sign_in_click_workday_drops_is_clicked_again_with_the_keychain_password():
