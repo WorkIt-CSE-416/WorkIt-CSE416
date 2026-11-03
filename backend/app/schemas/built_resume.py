@@ -4,7 +4,13 @@ import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, StringConstraints, field_serializer, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    StringConstraints,
+    field_serializer,
+    model_validator,
+)
 
 from app.schemas.bank import EntryResponse, SkillResponse
 from app.schemas.profile import ApplicantProfileResponse
