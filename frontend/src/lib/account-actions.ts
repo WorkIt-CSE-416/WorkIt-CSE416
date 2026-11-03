@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
 import type { OAuthProvider } from "@/lib/oauth-actions";
 import { PASSWORD_MIN_LENGTH } from "@/lib/password-rules";
+import { startGoogleFlow } from "@/lib/google-oauth-start";
 import { requestOrigin } from "@/lib/request-origin";
 import { getAccessToken, getSignInProviders } from "@/lib/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -132,6 +133,13 @@ export async function changeEmail(_prev: EmailState, formData: FormData): Promis
  * without it Supabase refuses, and this says so.
  */
 export async function connectProvider(provider: OAuthProvider): Promise<{ error: string }> {
+  // Google links through WorkIt's own callback, as it signs in
+  // (lib/google-oauth.ts).
+  if (provider === "google") {
+    const googleUrl = await startGoogleFlow("link");
+    if (googleUrl) redirect(googleUrl);
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.linkIdentity({
     provider,
