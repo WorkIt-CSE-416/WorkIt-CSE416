@@ -19,8 +19,9 @@ The API checks the bearer token itself (`backend/app/deps.py`,
 `security.py`): the token's signature, audience and issuer, then the
 account row.
 
-Later tickets add the writes (add a job by its link, set a stage, save a
-Sent resume) as methods that use `call`.
+The Applications Tracker's reads and writes (find or add a job by its
+link, set a stage and the applied date, keep a Sent resume) are methods
+that use `call`.
 """
 
 import base64
@@ -35,6 +36,7 @@ import urllib.request
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -87,7 +89,11 @@ def site() -> Site:
 
 
 class WorkItError(Exception):
-    pass
+    """WorkIt refused a call. `status` is its HTTP status, when it answered one."""
+
+    def __init__(self, message: str = "", status: int | None = None):
+        super().__init__(message)
+        self.status = status
 
 
 class NotLoggedIn(WorkItError):
@@ -138,8 +144,47 @@ class WorkIt:
             if status == 401:
                 raise LoginExpired("WorkIt refused the login")
             if status >= 400:
-                raise WorkItError(f"{method} {path}: {status} {_detail(answer)}")
+                raise WorkItError(f"{method} {path}: {status} {_detail(answer)}", status)
             return answer
+
+    # The Applications Tracker's reads and writes (KAN-545), as the signed-in student.
+
+    def listed_by_link(self, url: str) -> tuple[str, str | None] | None:
+        """The listed job at `url` and the student's stage on it (None: no application), or None when WorkIt
+        does not list it. Writes nothing."""
+        try:
+            answer = self.call("POST", "/jobs/listed-by-link", {"url": url})
+        except WorkItError as error:
+            if error.status == 404:
+                return None
+            raise
+        return str(answer["job_id"]), answer.get("stage")
+
+    def applications(self, applicant_id: str) -> list[dict]:
+        """Every application on the student's Applications Tracker, as WorkIt lists them (job, stage, applied_at)."""
+        return self.call("GET", f"/applicants/{applicant_id}/applications")
+
+    def add_by_link(self, url: str, company: str, title: str) -> tuple[str, str]:
+        """Put the job at `url` on the student's Applications Tracker (an unlisted job posting when WorkIt does not
+        list it): its job id and the student's stage on it, saved when it is new there."""
+        answer = self.call("POST", "/jobs/added-by-link", {"url": url, "company": company, "title": title})
+        return str(answer["job_id"]), answer["stage"]
+
+    def send_resume(self, applicant_id: str, job_id: str, path: Path) -> str:
+        """Keep the file at `path` as a Sent resume to the job: its id."""
+        answer = self.call("POST", f"/applicants/{applicant_id}/sent-resumes/file", {
+            "job_posting_id": job_id, "file_name": path.name,
+            "content": base64.b64encode(path.read_bytes()).decode()})
+        return str(answer["id"])
+
+    def set_stage(self, applicant_id: str, job_id: str, stage: str, applied_on: date | None = None) -> None:
+        """Move the application to `stage` (applied or later); `applied_on` becomes its applied date."""
+        body = {"stage": stage} | ({"applied_on": applied_on.isoformat()} if applied_on else {})
+        self.call("PUT", f"/applicants/{applicant_id}/applications/{job_id}/stage", body)
+
+    def link_resume(self, job_id: str, sent_resume_id: str) -> None:
+        """Name the Sent resume the application went out with. Its stage and applied date stay."""
+        self.call("POST", f"/jobs/{job_id}/applied", {"sent_resume_id": sent_resume_id})
 
     def accept(self, cookies: dict[str, str]) -> Account | None:
         """For `login`: the account of the web app's session in `cookies`, kept, or None while it has none

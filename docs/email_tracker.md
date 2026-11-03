@@ -339,7 +339,7 @@ Every route checks that the caller owns `{id}`. Built in step 1
 
 | Method | Path | Does |
 |---|---|---|
-| PUT | `/applicants/{id}/applications/{job_id}/stage` | The stage menu: applied, interviewing, offer or rejected, any direction; an undated application gets today |
+| PUT | `/applicants/{id}/applications/{job_id}/stage` | The stage menu: applied, interviewing, offer or rejected, any direction; an undated application gets today, or `applied_on` (a date) sets the applied date |
 | GET | `/applicants/{id}/events` | Every accepted event, soonest first; the tracker joins them by `job_id` |
 | POST | `/applicants/{id}/applications/{job_id}/events` | Create Event; answers the event and the stage after it |
 | DELETE | `/applicants/{id}/events/{event_id}` | The stage stays |

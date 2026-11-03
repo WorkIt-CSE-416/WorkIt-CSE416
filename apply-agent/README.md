@@ -112,6 +112,14 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    `uv run apply doctor` then says "WorkIt: logged in as" your email. If it
    says that the login expired, run `uv run apply login` again.
 
+   If you used a Tracker Sheet before, put its submitted applications into
+   your Applications Tracker one time. Apply first lists each add and skip,
+   and writes only when you type yes:
+
+   ```sh
+   uv run apply import-sheet
+   ```
+
 Run `uv run apply doctor` again. Then rehearse a Workday posting.
 
 ## The demo
