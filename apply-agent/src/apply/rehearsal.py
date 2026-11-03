@@ -288,7 +288,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     if result.filled:
         try:
             saved = Record(posting, result.status, _record_reason(rehearsed), result.filled, adapters.clock.now().date(),
-                           result.essay, result.drafted, result.named_facts)
+                           result.essay, result.drafted, result.named_facts,
+                           result.verification.as_json() if result.verification else None)
             rehearsed.record, rehearsed.saved = adapters.records.save(saved), saved
         except Exception as error:
             rehearsed.why = "; ".join(filter(None, [rehearsed.why, f"Record not saved: {error}"]))
