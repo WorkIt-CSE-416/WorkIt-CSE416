@@ -136,6 +136,8 @@ WORDS = {
                       "every job on that site."),
     "check": ("Answer to check before sending", "Before it sends, Apply checks every answer against your facts; "
               "one didn't match."),
+    "captcha": ("Do the captcha", "Apply never solves a captcha. Do it on the form's page; Apply waits, and goes on "
+                "by itself once it's gone."),
     "handoff": ("Finish this one yourself", "Apply got as far as it could; the rest needs a person, such as a captcha."),
     "needs code": ("Type the emailed code", "After you pressed Submit, the job site asked for a code it emailed "
                    "you. Apply looks for it in Gmail and types it in; this time it couldn't, so it typed nothing."),
@@ -267,6 +269,10 @@ def verdict(caption: dict) -> dict[str, str]:
                  "then": "Nothing more was sent. Type the code from your email, then press Submit yourself"}
     elif status == "code filled":
         tone, label, kind, detail = "ready", WORDS["code filled"][0], "code filled", why
+    elif status == "handoff" and caption.get("captcha"):
+        needs = {"kind": "captcha", "do": WORDS["captcha"][0], "why": plain(why),
+                 "then": "Do it on the page (Fix here, or Open in Chrome). Apply goes on by itself once it's gone, "
+                 "or press Resume"}
     elif status == "handoff":
         needs = {"kind": "handoff", "do": WORDS["handoff"][0], "why": plain(why),
                  "then": "Nothing was sent. Open it and finish the form, then press Submit"}
@@ -279,7 +285,7 @@ def verdict(caption: dict) -> dict[str, str]:
     elif status == "paused":
         tone, label, kind = "ended", "Paused at Claude's usage limit; it goes on by itself", "skipped"
     resume = caption.get("resume") or {}
-    if needs and resume.get("ok"):  # a rehearsal paused mid-form: Lisul fixes the page, and Resume goes on
+    if needs and resume.get("ok") and needs["kind"] != "captcha":  # a rehearsal paused mid-form: Lisul fixes the page, and Resume goes on
         needs["then"] = ("Nothing was sent. Fix it on the page (Fix here, or Open in Chrome), then press Resume: "
                          "Apply goes on from the page as you left it, and never presses Submit")
     if needs:

@@ -51,7 +51,7 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import Page
 
-from apply import bot_signals, captcha, description
+from apply import captcha, description
 from apply.account_pages import FIELDS as ACCOUNT_FIELDS
 from apply.account_pages import PROMPT as ACCOUNT_PROMPT
 from apply.account_pages import SENDS, AccountPages
@@ -61,6 +61,7 @@ from apply.attach import RESUME, attach_resume, clear_pop_up, pass_jobvite_gate
 from apply.confirmation import wait_for_confirmation
 from apply.model import (
     Answers,
+    Captcha,
     Closed,
     Handoff,
     MoreQuestions,
@@ -470,8 +471,9 @@ class ClaudeFill:
             why = str(drive.output.get("why")).strip()
             if captcha.SAYS_BLOCKED.search(why):  # no challenge to solve: Lisul applies in his own Chrome
                 raise Handoff(captcha.blocked(self.names[0], self._url or page.url))
-            raise Handoff(f"Claude fill can't finish this form: {why}",
-                          bot_signal=bot_signals.CAPTCHA if captcha.SAYS_CAPTCHA.search(why) else "")
+            if captcha.SAYS_CAPTCHA.search(why):  # Lisul does it, and the Worker drives again from this page
+                raise Captcha(f"Claude fill can't finish this form: {why}", page)
+            raise Handoff(f"Claude fill can't finish this form: {why}")
         return drive.output
 
 

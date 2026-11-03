@@ -23,6 +23,7 @@ from apply.adapters import (
 )
 from apply.answer_bank import Entry
 from apply.answer_bank import key as bank_key
+from apply.captcha import Waiter
 from apply.claude_fill import ClaudeFill, OnePage
 from apply.feed import repost_keys
 from apply.fillers import FILLERS
@@ -353,12 +354,16 @@ class _Run:
 
     def _apply_with(self, posting: Posting, filler, site, worker: int, profile: ApplicantProfile) -> Result:
         """`profile` is the run's, with the Posting's tailored resume in place of its resume when it has one."""
+        board = self._adapters.board
+        caption = lambda: {"company": posting.company, "role": posting.title, "job_system": posting.job_system,
+                           "posting_url": posting.url, "application_id": posting.id}
         return apply_to(
             posting, filler, site, profile, self._adapters.claude,
             lambda: self._before_submit(posting), self._answers.get(posting.id), self._approved.get(posting.id),
             bank=self._adapters.answer_bank, today=self._adapters.clock.now().date(),
-            on_files=lambda files: self._adapters.board.update(worker, files=files),
-            on_verify=lambda verification: self._adapters.board.update(worker, **verifying(verification)),
+            on_files=lambda files: board.update(worker, files=files),
+            on_verify=lambda verification: board.update(worker, **verifying(verification)),
+            on_captcha=Waiter(board, worker, self._adapters.phone, profile, caption),
         )
 
     def _before_submit(self, posting: Posting) -> str:

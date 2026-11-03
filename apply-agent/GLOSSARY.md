@@ -109,8 +109,12 @@ What the latest Employer mail about a submitted Application says came of it (rej
 _Avoid_: auto outcome, detected outcome, status
 
 **Handoff**:
-An Application the system cannot finish alone, for example because of a captcha, or a Posting description that speaks to AI agents (handed off before its form opens, quoting the sentence). Lisul finishes it from the Tracker row.
+An Application the system cannot finish alone, for example a site that blocks the browser, or a Posting description that speaks to AI agents (handed off before its form opens, quoting the sentence). A captcha that Lisul did not do within the Captcha wait is also a Handoff. Lisul finishes it from the Tracker row.
 _Avoid_: manual, fallback, failed
+
+**Captcha wait**:
+The time that Apply keeps a form open for Lisul to do its captcha. Apply never solves a captcha. It pushes "Do the captcha on <company>" to his phone and shows the captcha in the Apply window. When the challenge goes away, or he presses Resume, the fill continues on the same page. After `captcha_wait_minutes` (15), the Application is a Handoff. A bot block, such as an "Access Denied" page, has no challenge, so it gets no Captcha wait.
+_Avoid_: captcha solve, captcha bypass
 
 **Resume**:
 The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue.

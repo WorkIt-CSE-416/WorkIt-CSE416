@@ -469,6 +469,24 @@ challenge there, as data, not in a Filler.
   name in the link's host). It is not a Bot signal.
 - Apply never solves a captcha or gets around a block in code.
 
+**Lisul does the captcha, and Apply goes on.** A captcha that stops a fill
+is a `model.Captcha` (a Handoff with its page). Claude fill raises it when
+Claude stops at one (`SAYS_CAPTCHA`).
+
+- `apply_to(on_captcha=...)` gets it first, in a run and in a rehearsal,
+  while Apply reads the questions and while it fills. `captcha.Waiter` is
+  that wait: the tile shows "Do the captcha" (status handoff, `captcha:
+  True`, kind `captcha`) with Resume, and the phone gets one push per
+  Application, "Do the captcha on <company>" (the ntfy path of `apply
+  push-test`, only with `phone_push` on).
+- The wait polls the page each second (`captcha.wait`). It ends when the
+  challenge that showed is gone, or when Lisul presses Resume (`POST
+  /resume`, `Board.resumed`). Then the Filler reads or fills again, on the
+  same page, with the same plan. The page keeps the submit guard on.
+- After `captcha_wait_minutes` (policies, default 15), or when the tab
+  closed, it is the usual Handoff: a run's ends, a rehearsal's pauses
+  (KAN-551). `0` hands off at once; the test policies set 0.
+
 ## Form pages
 
 - A Filler with a `form_url(url)` method names the page that holds its

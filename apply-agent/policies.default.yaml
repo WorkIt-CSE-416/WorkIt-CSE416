@@ -16,6 +16,12 @@ live_runs: false
 # push-test` says how, and sends a test push whether this is on or off).
 phone_push: false
 
+# Captchas: Apply never solves one. When a captcha stops a fill or a submit, it
+# keeps the page open, pushes "Do the captcha on <company>" (with phone_push
+# on) and waits this many minutes for the applicant to do it, then goes on by
+# itself. After that it is a Handoff. 0: no wait, a Handoff at once.
+captcha_wait_minutes: 15
+
 # "I certify / I agree / I acknowledge" boxes are ticked only when what they
 # certify is true of the Applicant profile. false: never tick one (each becomes
 # a Missing fact for the applicant).
