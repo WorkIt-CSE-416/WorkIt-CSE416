@@ -24,7 +24,8 @@ not the root ones, for its terms (root `GLOSSARY-MAP.md`).
   answers, and the WorkIt backend keeps its state.
 - `apply-agent/` is a Python program (uv, Playwright) that runs its own
   Chrome workers. Claude writes its answers. Its state is files in the data
-  folder, not the WorkIt database. It does not call the WorkIt API.
+  folder, not the WorkIt database. It calls the WorkIt API only through
+  the WorkIt client (next sections), as the signed-in student.
 
 Both Apply and the extension fill forms with the same Fill engine (next
 section). A fix to how a field is read, planned from the profile, filled
@@ -66,6 +67,51 @@ try-list picked, so the extension needs none of them.
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.
 
+## The WorkIt client and `apply login` (KAN-541)
+
+`src/apply/workit.py` is the only module in Apply that calls WorkIt. Do not
+call WorkIt from another module; add a method to `WorkIt` that uses `call`.
+
+- `uv run apply login` opens WorkIt's sign-in page (`/login`) in a new
+  Chrome with an empty, temporary profile. The student signs in there
+  (password, Google or LinkedIn). Apply never types into it. Apply reads the
+  web app's session cookie through Chrome's DevTools port, as the extension
+  reads it (`webapp-session.js`), and checks it with `GET /auth/me`. Then
+  Apply closes that Chrome and deletes its profile. Chrome starts as a plain
+  process, not from Playwright, so Google's sign-in accepts it.
+- Because that browser is gone, only Apply has the session. Apply refreshes
+  the access token itself at Supabase Auth
+  (`/auth/v1/token?grant_type=refresh_token`, with the public anon key) and
+  keeps the new refresh token: Supabase rotates it on each use. The
+  extension must not do this (its CLAUDE.md, KAN-465), but Apply's session
+  is not shared with a web app. A lock file (`workit-login.lock`) stops two
+  processes from using one refresh token.
+- The session is in `APPLY_HOME/workit-login.json` (mode 0600), with the
+  Supabase URL that it belongs to. Never print it, log it or put it in a
+  Record. To log out, delete the file.
+- The API checks the bearer token (`backend/app/deps.py`, `security.py`).
+  `call(method, path, body)` sends one request as the student. On a 401 it
+  refreshes one time and tries again.
+- Errors: `NotLoggedIn` (no file), `LoginExpired` (Supabase or WorkIt
+  refused the login: run `apply login` again), `Unreachable` (no answer, or
+  a 5xx).
+- `workit.LIVE` holds the live URLs and the anon key. They are the same
+  public values as `autofiller_extension/src/shared/config.js`, and
+  `test_workit_login.py` checks this. For a local WorkIt stack, set
+  `APPLY_WORKIT_WEB`, `APPLY_WORKIT_API`, `APPLY_WORKIT_AUTH` (the Supabase
+  URL) and `APPLY_WORKIT_ANON_KEY`.
+
+**Tests.** `tests/fake_workit.py` is a fake WorkIt: one local HTTP server
+that answers as Supabase Auth and WorkIt's API, and records each request
+(`fake.requests`). Use `with FakeWorkIt() as fake:` and
+`WorkIt(fake.site, tmp_path / "workit-login.json")`. `fake.session()` makes
+a session, `fake.cookies(session)` gives the web app's cookie for it,
+`fake.expire()` lets the access tokens expire, `fake.revoke()` signs out
+every session, and `fake.stop()` makes WorkIt unreachable. Add a WorkIt
+route with `fake.route(method, path, handler)`. `test_workit_login.py` needs
+no browser and is in CI. `test_workit_sign_in_browser.py` opens Chromium
+against the fake's `/login`, so run it on your Mac.
+
 ## Prompts and gates
 
 - Every prompt names the applicant as `@NAME@` and their school as
@@ -85,6 +131,7 @@ person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 - the applicant profile, answer bank, story bank, voice and story map;
 - the company briefs and stock answers;
 - a `policies.yaml` that overrides `policies.default.yaml` key by key.
+- the WorkIt login (`workit-login.json`), after `apply login`.
 
 Apply also writes its output there: rehearsal records, Repairs, Traces and
 the Chrome worker profiles (`APPLY_PROFILES`, under `APPLY_HOME` by

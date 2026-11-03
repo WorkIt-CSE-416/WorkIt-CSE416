@@ -198,7 +198,8 @@ jobs:
             tests/test_stock.py \
             tests/test_story_map.py \
             tests/test_tracker_contract.py \
-            tests/test_worker_date.py
+            tests/test_worker_date.py \
+            tests/test_workit_login.py
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.

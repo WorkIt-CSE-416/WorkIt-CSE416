@@ -96,6 +96,19 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    - `apply-ntfy`: an ntfy topic for phone notifications
      (`./scripts/setup-wizard.sh` sets it up).
 
+8. Optional: log in to WorkIt, so Apply can write your applications to
+   your Applications Tracker on WorkIt. You need a WorkIt student account.
+   Rehearsals work without it.
+
+   ```sh
+   uv run apply login
+   ```
+
+   Apply opens WorkIt's sign-in page in a new Chrome window. Sign in there.
+   Apply keeps the login in your data folder (`workit-login.json`), never in
+   the repo, and closes the window. You log in one time; Apply refreshes the
+   login by itself.
+
 Run `uv run apply doctor` again. Then rehearse a Workday posting.
 
 ## The demo
