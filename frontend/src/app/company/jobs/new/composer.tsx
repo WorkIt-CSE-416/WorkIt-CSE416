@@ -314,7 +314,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
                   />
                 </>
               )}
-              {statusError && <p className="text-meta text-danger">{statusError}</p>}
+              {statusError && <p className="text-note text-danger">{statusError}</p>}
             </div>
           )}
         </header>
@@ -388,7 +388,7 @@ export function Composer({ job }: { job?: CompanyJob }) {
                         onValueChange={(department) => set("department", department)}
                         options={DEPARTMENTS}
                       />
-                      <p id="department-hint" className="text-meta text-ink-meta">
+                      <p id="department-hint" className="text-note text-ink-meta">
                         Not saved with the job yet.
                       </p>
                     </div>
@@ -587,21 +587,21 @@ export function Composer({ job }: { job?: CompanyJob }) {
               pad only below: the step's section already pads 18px above, so
               each line sits 18px clear of the form and of the rule. */}
           {step === 0 && !attempted && !isClosed && (
-            <p className="text-meta text-ink-meta px-4.5 pb-4.5">Fields marked * are required.</p>
+            <p className="text-note text-ink-meta px-4.5 pb-4.5">Fields marked * are required.</p>
           )}
           <div role="alert" className="flex flex-col gap-1 px-4.5 pb-4.5 empty:hidden">
             {step === 0 && attempted && missingFields.length > 0 && (
-              <p className="text-meta text-danger">
+              <p className="text-note text-danger">
                 Complete the required fields to continue: {missingFields.join(", ")}.
               </p>
             )}
             {step === 0 &&
               invalidFields.map((problem) => (
-                <p key={problem} className="text-meta text-danger">
+                <p key={problem} className="text-note text-danger">
                   {problem}.
                 </p>
               ))}
-            {saveError && <p className="text-meta text-danger">{saveError}</p>}
+            {saveError && <p className="text-note text-danger">{saveError}</p>}
           </div>
 
           <hr className="border-border-subtle mx-4.5" />

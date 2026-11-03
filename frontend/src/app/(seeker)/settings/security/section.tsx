@@ -135,7 +135,7 @@ export async function SecuritySection() {
       <Card as="section" aria-labelledby="session" className="flex items-center gap-4">
         <div className="min-w-0 flex-1">
           <SectionHeading id="session">Sign Out</SectionHeading>
-          <p className="text-meta text-ink-meta">Signs you out here and on your other devices.</p>
+          <p className="text-note text-ink-meta">Signs you out here and on your other devices.</p>
         </div>
         <SignOutButton />
       </Card>

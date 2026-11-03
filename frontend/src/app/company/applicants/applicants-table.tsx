@@ -39,7 +39,7 @@ const columns = helper.columns([
           <RowLink href={`/company/applicants/${row.original.id}`} className="text-label">
             {row.original.name}
           </RowLink>
-          <p className="text-meta text-ink-meta mt-0.5 truncate">{row.original.location}</p>
+          <p className="text-note text-ink-meta mt-0.5 truncate">{row.original.location}</p>
         </div>
       </div>
     ),

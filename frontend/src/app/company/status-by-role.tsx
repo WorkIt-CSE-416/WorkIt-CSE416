@@ -78,7 +78,7 @@ export function StatusByRole() {
               aria-hidden="true"
               className={cn("size-2.5 shrink-0 rounded-[3px]", STAGE_PAINT[stage].fill)}
             />
-            <span className="text-meta text-ink-muted">{stage}</span>
+            <span className="text-note text-ink-muted">{stage}</span>
           </li>
         ))}
       </ul>

@@ -227,7 +227,7 @@ function Decision({ email, job, jobs }: { email: Email; job?: EmailJob; jobs: Em
             </div>
           </div>
         ) : unlisted ? (
-          <p className="text-meta text-ink-muted">
+          <p className="text-note text-ink-muted">
             It goes on the application the tracker matched it to.
           </p>
         ) : (

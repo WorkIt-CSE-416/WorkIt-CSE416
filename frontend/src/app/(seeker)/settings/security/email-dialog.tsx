@@ -83,7 +83,7 @@ function EmailForm({ current }: { current: string }) {
           defaultValue=""
         />
         {state.error && (
-          <p role="alert" className="text-meta text-danger">
+          <p role="alert" className="text-note text-danger">
             {state.error}
           </p>
         )}

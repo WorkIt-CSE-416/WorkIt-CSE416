@@ -27,7 +27,7 @@ export function SettingRow({
         <div className="text-label text-ink flex flex-wrap items-center gap-2 font-semibold">
           {label}
         </div>
-        <div className="text-meta text-ink-meta break-all">{value}</div>
+        <div className="text-note text-ink-meta break-all">{value}</div>
       </div>
       {children}
     </li>

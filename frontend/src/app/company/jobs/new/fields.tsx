@@ -200,7 +200,7 @@ export function LocationField({
                 ))}
 
                 {filtered.length === 0 && (
-                  <li className="text-meta text-ink-meta px-2 py-1.5">No saved locations match.</li>
+                  <li className="text-note text-ink-meta px-2 py-1.5">No saved locations match.</li>
                 )}
               </ul>
 
@@ -221,7 +221,7 @@ export function LocationField({
       </Popover>
 
       {hint && (
-        <p id={`${id}-hint`} className="text-meta text-ink-meta">
+        <p id={`${id}-hint`} className="text-note text-ink-meta">
           {hint}
         </p>
       )}

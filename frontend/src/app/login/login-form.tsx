@@ -58,7 +58,7 @@ export function LoginForm({ formId, next }: { formId: string; next?: string }) {
             aria-invalid={invalid}
             aria-describedby={describedBy}
           />
-          <p className="text-meta text-right">
+          <p className="text-note text-right">
             <TextLink href="/login/reset-password">Forgot Password?</TextLink>
           </p>
         </div>

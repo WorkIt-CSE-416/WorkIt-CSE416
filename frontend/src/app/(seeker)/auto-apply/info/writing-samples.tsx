@@ -127,7 +127,7 @@ export function WritingSamples() {
       </p>
 
       {loadError && (
-        <p role="status" className="text-meta text-ink-meta mt-4">
+        <p role="status" className="text-note text-ink-meta mt-4">
           Your writing samples didn&apos;t load. Refresh the page to try again.
         </p>
       )}
@@ -174,7 +174,7 @@ export function WritingSamples() {
             onKeyDown={(e) => e.key === "Escape" && !saving && setAdding(false)}
           />
           {error && (
-            <p role="alert" className="text-meta text-danger mt-2">
+            <p role="alert" className="text-note text-danger mt-2">
               {error}
             </p>
           )}
@@ -194,7 +194,7 @@ export function WritingSamples() {
         </form>
       )}
       {!adding && error && (
-        <p role="alert" className="text-meta text-danger mt-4">
+        <p role="alert" className="text-note text-danger mt-4">
           {error}
         </p>
       )}

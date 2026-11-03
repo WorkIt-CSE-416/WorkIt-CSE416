@@ -202,7 +202,7 @@ export function TimeGrid({
                     openHref={openHref}
                     title={`${KIND_LABEL[event.kind]} · ${event.company}${time ? ` · ${time}` : ""}`}
                     className={cn(
-                      "text-meta focus-visible:ring-brand-ring flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-medium transition-[filter] duration-150 hover:brightness-95 focus-visible:ring-2 focus-visible:outline-none",
+                      "text-note focus-visible:ring-brand-ring flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-medium transition-[filter] duration-150 hover:brightness-95 focus-visible:ring-2 focus-visible:outline-none",
                       look.tint,
                       look.onTint,
                     )}
@@ -289,7 +289,7 @@ export function TimeGrid({
                         aria-hidden="true"
                         className={cn("absolute inset-y-0 left-0 w-[3px]", look.fill)}
                       />
-                      <span className="text-meta text-ink truncate font-semibold">
+                      <span className="text-note text-ink truncate font-semibold">
                         {event.title}
                       </span>
                       <span className={cn("text-note truncate tabular-nums", look.onTint)}>

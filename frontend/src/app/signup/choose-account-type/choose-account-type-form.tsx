@@ -70,7 +70,7 @@ export function ChooseAccountTypeForm() {
           </div>
         )}
 
-        {state.error && <p className="text-meta text-danger mt-2.5">{state.error}</p>}
+        {state.error && <p className="text-note text-danger mt-2.5">{state.error}</p>}
 
         <Button type="submit" size="lg" className="mt-4" disabled={pending}>
           {pending ? "Continuing…" : "Continue"}

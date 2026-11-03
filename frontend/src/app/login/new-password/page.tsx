@@ -58,7 +58,7 @@ export default function NewPasswordPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 aria-describedby="password-hint"
               />
-              <p id="password-hint" className="text-meta text-ink-meta">
+              <p id="password-hint" className="text-note text-ink-meta">
                 At least {PASSWORD_MIN_LENGTH} characters
               </p>
             </div>
@@ -78,7 +78,7 @@ export default function NewPasswordPage() {
                 aria-describedby={showError ? "confirm-error" : undefined}
               />
               {showError && (
-                <p id="confirm-error" role="alert" className="text-meta text-danger">
+                <p id="confirm-error" role="alert" className="text-note text-danger">
                   Passwords do not match.
                 </p>
               )}

@@ -467,7 +467,7 @@ function useUploadButton(upload: PickerUpload | undefined, onSent: () => void) {
         </>
       )}
       {error && (
-        <p role="alert" className="text-meta text-danger">
+        <p role="alert" className="text-note text-danger">
           {error}
         </p>
       )}

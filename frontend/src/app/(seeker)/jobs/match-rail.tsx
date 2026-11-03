@@ -179,7 +179,7 @@ export function MatchRail({
               ) : (
                 <Dot />
               )}
-              <span className={cn("text-meta", highlight.met ? "text-ink-muted" : "text-ink-meta")}>
+              <span className={cn("text-note", highlight.met ? "text-ink-muted" : "text-ink-meta")}>
                 {highlight.text}
               </span>
             </li>

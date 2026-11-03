@@ -41,7 +41,7 @@ export function TextAreaField({
       />
 
       {hint && (
-        <p id={`${id}-hint`} className="text-meta text-ink-meta">
+        <p id={`${id}-hint`} className="text-note text-ink-meta">
           {hint}
         </p>
       )}

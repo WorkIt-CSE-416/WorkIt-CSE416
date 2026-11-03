@@ -95,7 +95,7 @@ function PasswordForm({ hasPassword, onChanged }: { hasPassword: boolean; onChan
           minLength={PASSWORD_MIN_LENGTH}
           aria-describedby="new-password-hint"
         />
-        <p id="new-password-hint" className="text-meta text-ink-meta">
+        <p id="new-password-hint" className="text-note text-ink-meta">
           At least {PASSWORD_MIN_LENGTH} characters
         </p>
       </div>
@@ -110,7 +110,7 @@ function PasswordForm({ hasPassword, onChanged }: { hasPassword: boolean; onChan
       />
 
       {state.error && (
-        <p role="alert" className="text-meta text-danger">
+        <p role="alert" className="text-note text-danger">
           {state.error}
         </p>
       )}
