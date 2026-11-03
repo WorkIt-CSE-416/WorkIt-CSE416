@@ -15,6 +15,7 @@ import { NAV_ITEM } from "./layout-parts";
 import { MobileMenu } from "./mobile-menu";
 import { NavMenu, NavMenuGroup } from "./nav-menu";
 import { resourcePages, type Resource } from "./resources/catalog";
+import { SessionSwap } from "./session-swap";
 
 /** The Features menu's foot row: the first few hiring systems by name. */
 const WORKS_WITH = hiringSystems.slice(0, 3);
@@ -24,7 +25,9 @@ const WORKS_WITH = hiringSystems.slice(0, 3);
  * floats: the bar becomes a white rounded panel with a shadow, inset from
  * the window's edges like the panels below it (FloatingHeader sets the
  * state). The links: Features ▾ (the feature pages, features/catalog.ts),
- * Resources ▾ (resources/catalog.ts), Pricing, then Log in and Get started.
+ * Resources ▾ (resources/catalog.ts), Pricing, then Log in and Get started,
+ * or one "Open WorkIt" once FloatingHeader's SessionProbe finds a session
+ * (KAN-581).
  *
  * The site's Applicant / Company switcher is left out while the business side
  * is hidden (KAN-239, frontend/CLAUDE.md).
@@ -73,18 +76,27 @@ export function Header() {
           </NavMenuGroup>
 
           <div className="flex items-center gap-2 lg:justify-self-end">
-            <div className="hidden md:block">
-              <OutlineButton href={site.login.href}>{site.login.label}</OutlineButton>
-            </div>
-            <div className="hidden sm:block">
-              <GlassButton href={site.primaryCta.href} label={site.primaryCta.label} />
-            </div>
-            {/* On a phone too, shortened to fit beside the logo and the menu:
-                with only the menu there, the sign-up was two taps away
-                (KAN-368). */}
-            <div className="sm:hidden">
-              <GlassButton href={site.primaryCta.href} label="Get started" className="px-3" />
-            </div>
+            <SessionSwap
+              signedOut={
+                <>
+                  <div className="hidden md:block">
+                    <OutlineButton href={site.login.href}>{site.login.label}</OutlineButton>
+                  </div>
+                  <div className="hidden sm:block">
+                    <GlassButton href={site.primaryCta.href}>{site.primaryCta.label}</GlassButton>
+                  </div>
+                  {/* On a phone too, shortened to fit beside the logo and the menu:
+                      with only the menu there, the sign-up was two taps away
+                      (KAN-368). */}
+                  <div className="sm:hidden">
+                    <GlassButton href={site.primaryCta.href} className="px-3">
+                      Get started
+                    </GlassButton>
+                  </div>
+                </>
+              }
+              signedIn={<OpenWorkIt className="px-3 sm:px-4" />}
+            />
             <button
               type="button"
               popoverTarget="mobile-menu"
@@ -126,14 +138,19 @@ export function Header() {
             </Link>
           </li>
         </ul>
-        <GlassButton
-          href={site.primaryCta.href}
-          label={site.primaryCta.label}
-          className="mt-4 h-12 w-full text-base"
+        <SessionSwap
+          signedOut={
+            <>
+              <GlassButton href={site.primaryCta.href} size="lg" className="mt-4 w-full">
+                {site.primaryCta.label}
+              </GlassButton>
+              <OutlineButton href={site.login.href} size="lg" className="mt-2 w-full">
+                {site.login.label}
+              </OutlineButton>
+            </>
+          }
+          signedIn={<OpenWorkIt size="lg" className="mt-4 w-full" />}
         />
-        <OutlineButton href={site.login.href} size="lg" className="mt-2 w-full">
-          {site.login.label}
-        </OutlineButton>
       </MobileMenu>
     </FloatingHeader>
   );
@@ -142,6 +159,19 @@ export function Header() {
 /** A menu item's mark, name and link: a feature or a resource. A resource
  *  with no page yet carries `soon`. */
 type MenuItem = Pick<Feature, "href" | "name" | "icon" | "glow"> & Partial<Pick<Resource, "soon">>;
+
+/**
+ * A signed-in student's one way into the app, in place of Log in and Get
+ * started: /go-home sends each account to its own home. No prefetch, since
+ * that route reads the session.
+ */
+function OpenWorkIt({ size, className }: { size?: "lg"; className: string }) {
+  return (
+    <GlassButton href="/go-home" prefetch={false} size={size} className={className}>
+      Open WorkIt
+    </GlassButton>
+  );
+}
 
 /** The surface both menu panels share, the floating bar's. */
 const MENU_PANEL =

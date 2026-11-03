@@ -695,7 +695,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`. A
   page with no animation (Scout, for now), or a deep dive with no
   `visual`, shows a placeholder in the feature's colour. The hero uses
-  `SocialSignUpButton` (`social-sign-up.tsx`, shared with the home hero),
+  `SocialSignUpButton` (`social-sign-up.tsx`, shared with the home hero;
+  its form is `oauth-form.tsx`, disabled and "Opening Google…" while the
+  action runs, so a second click cannot post again, and a failure lands on
+  `/login`, which says so in words: KAN-581),
   the closing call to action is `ClosingCta` (`closing-cta.tsx`, shared
   with the home page; its own file so the client scenes that import
   `layout-parts.tsx` do not pull the sign-up's server action in), and the
@@ -1072,7 +1075,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   card over colour, where its blur has something to show; over a grey or
   white panel it read as that same flat card. An element with it carries
   no `ring-*` or `shadow-*` utility, which would replace its shadows, and
-  paper (a resume page, the statement's pages) stays flat paper.
+  paper (a resume page, the statement's pages) stays flat paper. The
+  feature pages' steps and "More from WorkIt" cards are `.gloss-card` too
+  (KAN-581); a related card's hover lifts it by translate alone.
+- **A marketing button is one of three roles in `buttons.tsx`** (KAN-581):
+  `GlassButton` (primary), `OutlineButton` (secondary) and `OnFillButton`
+  (white on a coloured or grey panel, the plan cards), all in one shape
+  (`rounded-control`, the app's) and two heights, `md` 44px and `lg`
+  48px. A page may change a role's colours for a tier (Pricing's Free ring
+  and Plus violet), never its shape or height. The site had five recipes,
+  three corner shapes and four heights, three of them in Pricing's one
+  row. The social sign-up pair keeps Google's branded colours but takes
+  the same shape and `md` height (`BUTTON_SHAPE`, `BUTTON_SIZES`).
+  `.glass-btn` in landing.css is only the glass fill and edge.
+- **A signed-in visitor's header says "Open WorkIt"** (KAN-581), to
+  `/go-home`, in place of Log in and Get started, in the bar and the phone
+  menu. The pages stay prerendered: the header is drawn signed out, and
+  `session-swap.tsx` (a client island) asks `GET /api/session` once it
+  mounts, which answers whether an `sb-*-auth-token` cookie exists, never
+  its value. The page cannot look itself, since the cookies are httpOnly.
+  A signed-in visitor sees Log in for the moment the answer takes.
 - **Type on the marketing pages.** Plus Jakarta Sans is 1.26em tall
   (ascent 1.038, descent 0.222), taller than any display line, so a
   wrapped heading's lines overlap by a few pixels. The selection
@@ -2004,9 +2026,11 @@ are in `docs/auth.md`.
   one left out still works, with one proxy call more. Every session-reading
   path and every path with a proxy redirect (`/company*`,
   `/onboarding/company`, `/dashboard`) must stay matched, and so must
-  `/go-home`, which reads the session. **Still open:** time
-  spent only on marketing pages no longer extends the 7-day idle cookie; the
-  first app request does. It is a convenience, not security: the
+  `/go-home`, which reads the session, and `/api/session`, which the
+  marketing header asks after each load (KAN-581): through it the proxy
+  refreshes the session, so time spent only on marketing pages extends the
+  7-day idle cookie again, and clears a dead one, so the header then reads
+  signed out. It is a convenience, not security: the
   API is reachable without Next and checks every token. Its session step
   no-ops when the Supabase env vars are unset, so a clone with no env file
   boots; the business-side redirect above runs first, either way.

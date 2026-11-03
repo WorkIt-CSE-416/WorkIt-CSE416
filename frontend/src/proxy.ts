@@ -13,8 +13,9 @@ import { sessionCookieOptions } from "@/lib/supabase/cookies";
  *
  * It runs on every request that renders session-dependent content, not on
  * every request: `config.matcher` below leaves out the static marketing
- * pages. Time spent only on those pages no longer extends the 7-day idle
- * cookie (lib/supabase/cookies.ts); the next app request refreshes it.
+ * pages. Their header's GET /api/session (KAN-581) comes through here after
+ * each load, so time spent only on those pages still extends the 7-day idle
+ * cookie (lib/supabase/cookies.ts).
  *
  * Not a security boundary. The Python API verifies every token it is handed
  * and is reachable without going through Next at all. A redirect for
