@@ -316,19 +316,36 @@ def tracker(*rows: tuple[Status, str]):
     return lambda: sheet
 
 
-def no_sheet():
-    raise FileNotFoundError("~/.config/apply/sheet-id")
+def test_the_tracker_says_how_many_applications_it_holds(tmp_path):
+    found = check(machine(tmp_path, tracker=tracker((Status.HELD, ""), (Status.HANDOFF, ""))), "Tracker")
+    assert found == doctor.Check("Tracker", doctor.OK, "2 Applications")
 
 
-def test_the_sheet_reachable_says_how_many_applications_it_holds(tmp_path):
-    found = check(machine(tmp_path, tracker=tracker((Status.HELD, ""), (Status.HANDOFF, ""))), "Tracker Sheet")
-    assert found == doctor.Check("Tracker Sheet", doctor.OK, "reachable; 2 Applications")
+def test_the_tracker_sheet_is_no_longer_checked(tmp_path):
+    assert "Tracker Sheet" not in {c.name for c in doctor.diagnose(machine(tmp_path))}
 
 
-def test_no_sheet_set_up_fails_with_how_to_set_it_up(tmp_path):
-    found = check(machine(tmp_path, tracker=no_sheet), "Tracker Sheet")
-    assert found.level == doctor.FAIL
-    assert "docs/tracker-setup.md" in found.fix
+def test_no_workit_write_waiting_is_ok(tmp_path):
+    from apply.workit import Outbox
+
+    found = check(machine(tmp_path, outbox=lambda: Outbox(path=tmp_path / "workit-queue.json")), "WorkIt writes")
+    assert found == doctor.Check("WorkIt writes", doctor.OK, "none waiting")
+
+
+def test_workit_writes_waiting_are_listed_with_when_they_go(tmp_path):
+    from fake_workit import FakeWorkIt
+
+    from apply.workit import Outbox, Write
+
+    with FakeWorkIt(tracker=True) as fake:
+        outbox = Outbox(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+        outbox.send(Write("request-1", "https://jobs.example/1", "Lockheed Martin", "Intern", "applied"))
+        outbox.send(Write("request-2", "https://jobs.example/2", "Arc", "Intern", "needs_you"))  # not logged in
+
+    found = check(machine(tmp_path, outbox=lambda: Outbox(path=tmp_path / "workit-queue.json")), "WorkIt writes")
+    assert found.level == doctor.WARN
+    assert found.detail == "2 waiting to send to your Applications Tracker: Lockheed Martin (Applied), Arc (Needs you)"
+    assert "next run or rehearsal" in found.fix and "apply login" in found.fix
 
 
 def test_calibration_run_counts_held_and_submitted_applications(tmp_path):
@@ -344,8 +361,9 @@ def test_calibration_run_done(tmp_path):
     assert "done" in found.detail
 
 
-def test_calibration_run_unknown_without_the_sheet(tmp_path):
-    found = check(machine(tmp_path, tracker=no_sheet, profile=profile(tmp_path, calibration_run=10)), "Calibration run")
+def test_calibration_run_unknown_when_the_tracker_does_not_read(tmp_path):
+    found = check(machine(tmp_path, tracker=UnreadableRows, profile=profile(tmp_path, calibration_run=10)),
+                  "Calibration run")
     assert found.level == doctor.WARN
 
 
@@ -481,16 +499,16 @@ def test_usage_at_its_limit_warns_until_when(tmp_path):
 
 
 class UnreadableRows(InMemoryTracker):
-    """A Sheet that opens, but whose Applications tab doesn't read as rows."""
+    """A Tracker file whose rows don't read."""
 
     def rows(self):
         raise ValueError("'' is not a valid Status")
 
 
-def test_a_sheet_that_opens_but_doesnt_read_fails_saying_a_run_would_stop_too(tmp_path):
-    found = check(machine(tmp_path, tracker=UnreadableRows), "Tracker Sheet")
+def test_a_tracker_that_doesnt_read_fails_saying_a_run_would_stop_too(tmp_path):
+    found = check(machine(tmp_path, tracker=UnreadableRows), "Tracker")
     assert found.level == doctor.FAIL
-    assert found.detail.startswith("reachable, but its rows don't read")
+    assert found.detail.startswith("its rows don't read")
     assert "not a valid Status" in found.detail
     assert "a run" in found.fix
 
@@ -545,10 +563,8 @@ def test_no_records_remote_set_says_records_are_off_and_how_to_turn_them_on(tmp_
     assert "off" in found.detail and "records_remote" in found.fix
 
 
-def test_no_tracker_sheet_set_says_it_is_off_with_how_to_set_it_up(tmp_path, monkeypatch):
-    from apply import sheet
-    monkeypatch.setattr(sheet, "SHEET_ID", tmp_path / "sheet-id")
-    checks = {c.name: c for c in doctor.diagnose(machine(tmp_path, tracker=sheet.live_tracker))}
-    assert checks["Tracker Sheet"].level == doctor.WARN
-    assert "off" in checks["Tracker Sheet"].detail and "docs/tracker-setup.md" in checks["Tracker Sheet"].fix
-    assert checks["Calibration run"].level == doctor.WARN
+def test_a_new_data_folder_has_an_empty_tracker(tmp_path):
+    from apply.tracker import FileTracker
+
+    found = check(machine(tmp_path, tracker=lambda: FileTracker(tmp_path / "tracker.json")), "Tracker")
+    assert found == doctor.Check("Tracker", doctor.OK, "0 Applications")
