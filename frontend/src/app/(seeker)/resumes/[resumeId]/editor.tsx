@@ -1998,6 +1998,20 @@ export function Editor({
       onSaveHeader={addContact}
       composing={Boolean(adding && !adding.sent)}
       onAddBullet={() => line && startBullet(line)}
+      moves={
+        line?.kind === "bullet"
+          ? {
+              up: Boolean(move(bank, choices, line, -1)),
+              down: Boolean(move(bank, choices, line, 1)),
+              onMove: (by) => {
+                // Typed text goes first, so the move's render prints it
+                flush();
+                const changes = move(held.current.bank, held.current.choices, line, by);
+                if (changes) void apply(changes);
+              },
+            }
+          : null
+      }
       onClose={() => select(null)}
       onFit={fit}
       experiences={
@@ -2348,6 +2362,7 @@ function Bar({
   onSaveHeader,
   composing,
   onAddBullet,
+  moves,
   onClose,
   onFit,
   experiences,
@@ -2370,6 +2385,8 @@ function Bar({
   /** A bullet is being added: its field is the open line. */
   composing: boolean;
   onAddBullet: () => void;
+  /** The open bullet's Move Up and Move Down; null for any other line. */
+  moves: MoveTools | null;
   onClose: () => void;
   onFit: () => void;
   experiences: ExperiencesTools | null;
@@ -2412,6 +2429,7 @@ function Bar({
                 format={format}
               />
               {line.kind === "bullet" && <MarkTools />}
+              {moves && <MoveButtons moves={moves} />}
               {(line.kind === "bullet" || line.kind === "entry") && (
                 <Button size="sm" data-bar-action className="shrink-0" onClick={onAddBullet}>
                   <PlusIcon aria-hidden /> Add Bullet
@@ -2497,6 +2515,40 @@ function MarkTools() {
         onClick={() => press("italic")}
       >
         <TextItalicIcon aria-hidden />
+      </Button>
+    </div>
+  );
+}
+
+/** Move Up and Move Down for the open bullet, within its entry. */
+type MoveTools = { up: boolean; down: boolean; onMove: (by: -1 | 1) => void };
+
+/** Beside bold and italic: the bullet trades places with its neighbour on
+ *  the page at once (`swapOf`), its save and render go behind it, and the
+ *  line stays open on the bullet, so a second press moves it again. */
+function MoveButtons({ moves }: { moves: MoveTools }) {
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Move Up"
+        title="Move Up"
+        disabled={!moves.up}
+        onClick={() => moves.onMove(-1)}
+      >
+        <ArrowUpIcon aria-hidden />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Move Down"
+        title="Move Down"
+        disabled={!moves.down}
+        onClick={() => moves.onMove(1)}
+      >
+        <ArrowDownIcon aria-hidden />
       </Button>
     </div>
   );
@@ -2886,7 +2938,8 @@ function LineActions({
   onApply: (changes: ChoicesUpdate) => void;
   onSaveHeader: (field: HeaderField, text: string) => void;
   onHide: (changes: ChoicesUpdate) => void;
-  /** A phone's way to move a line; a desktop has the Sections panel. */
+  /** A phone's way to move a line; a desktop's bar has `MoveButtons` for a
+   *  bullet and the Sections panel for the rest. */
   up?: ChoicesUpdate | null;
   down?: ChoicesUpdate | null;
 }) {
