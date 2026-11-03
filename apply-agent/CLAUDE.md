@@ -85,6 +85,11 @@ change the other.
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".
 
+## Sign-in pages
+
+- Oracle's cookie banner covers the email step's Next button.
+  `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
+
 ## The Apply window
 
 - The status line counts a link as "queued" only until a Worker starts it.

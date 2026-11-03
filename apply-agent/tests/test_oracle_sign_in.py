@@ -111,3 +111,22 @@ def test_a_code_missing_after_one_resend_and_about_two_minutes_is_a_handoff():
     assert server.resends == 1
     assert world.clock.now() - NOW >= timedelta(minutes=2)
     assert server.tried_codes == [] and claude.calls == []
+
+
+def test_the_cookie_banner_over_the_email_step_is_declined_before_next():
+    # American Express's Oracle site (seen live): the banner took the click on Next, and sign-in timed out.
+    from playwright.sync_api import sync_playwright
+
+    from apply import oracle
+
+    banner = ('<div class="cookie-consent-modal" style="position:fixed;inset:0;background:#fff">Our Use of Cookies'
+              '<button onclick="this.parentElement.style.display=\'none\'">Reject All</button><button>Accept All</button></div>'
+              '<button onclick="document.title=\'next\'">Next</button>')
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(banner)
+        oracle._decline_cookies(page)
+        page.get_by_role("button", name="Next").click(timeout=2000)
+        assert page.title() == "next"
+        browser.close()

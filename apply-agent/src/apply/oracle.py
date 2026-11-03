@@ -34,6 +34,21 @@ WRONG_CODE = re.compile(r"(code|pin) (is )?(incorrect|invalid|expired|wrong)|inc
 
 
 
+# The site's cookie banner, which covers the email step's Next button until it is answered (American Express's, live).
+COOKIES = ".cookie-consent-modal"
+DECLINE = re.compile(r"^\s*(reject all|decline( all)?|reject|only (strictly )?necessary)\s*$", re.IGNORECASE)
+
+
+def _decline_cookies(page: Page) -> None:
+    """Decline the optional cookies when the site's banner shows, so it stops covering the page."""
+    banner = page.locator(COOKIES)
+    if banner.count() and banner.first.is_visible():
+        decline = banner.first.get_by_role("button", name=DECLINE)
+        if decline.count():
+            decline.first.click()
+            banner.first.wait_for(state="hidden", timeout=TIMEOUT * 1000)
+
+
 def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool) -> None:
     """From the open posting to its application form. `agree_to_terms` is
     Lisul's policy on privacy and terms boxes (tick_consent_when_true)."""
@@ -49,6 +64,7 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
             raise Handoff("Oracle asks you to agree to the site's terms before applying, which your policies leave to you.")
         _agree(page, disclaimer)
     since = accounts.clock.now()
+    _decline_cookies(page)
     page.get_by_role("button", name=re.compile(r"^\s*next\s*$", re.IGNORECASE)).click()
     _until(page, lambda: not email.is_visible() or _error(page))
     if email.is_visible():
