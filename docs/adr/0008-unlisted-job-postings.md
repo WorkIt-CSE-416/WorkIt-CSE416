@@ -5,8 +5,10 @@ Status: proposed 2026-11-02 (KAN-541).
 An application must point to a job posting (its key is applicant and job
 posting). To track a job that WorkIt does not list, the student adds it by
 its link, and WorkIt makes a job posting with the status `unlisted`: only
-the company, the title and the link. Job search, Scout and other students
-never see an unlisted posting. When the scraper later finds a job whose
+the company, the title and the link. Job search and Scout never show an
+unlisted posting, and a student sees one only on their own tracker. A second
+student who adds the same link gets the same posting, so the link stays
+unique: they see the company and title the first student gave. When the scraper later finds a job whose
 link matches an unlisted posting, it fills in that posting and publishes
 it. It does not make a second one, so the link stays unique and the
 student's application stays on it.

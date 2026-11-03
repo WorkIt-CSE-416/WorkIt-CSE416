@@ -130,6 +130,10 @@ class Application(BaseModel):
     sent_resume: SentResumeResponse | None = None
     # False once the job posting has closed: the extension skips it.
     open: bool
+    # A job the student added by its link because WorkIt does not list it
+    # (KAN-542, ADR 0008). Not closed, though `open` is False: the extension
+    # and the queue still skip it, and the tracker shows it open.
+    unlisted: bool = False
     # The Jobs page's match score (0-100) for this job posting, on ?scored=true
     # only (KAN-256). Null otherwise, for a closed job posting, and while the
     # experience bank is empty.
