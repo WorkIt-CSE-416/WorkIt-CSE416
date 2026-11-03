@@ -20,7 +20,9 @@ export type FeatureContent = {
   hero: { title: string; subtitle: string };
   /** The animation shown large under the hero: a client component, drawn
    *  inside the home tour's `MotionConfig` and `Fit` at up to 520px wide.
-   *  Without one the stage shows a placeholder panel (Scout, for now). */
+   *  Import it from `../animations`, never the visual itself, or it loads
+   *  on every marketing page. Without one the stage shows a placeholder
+   *  panel (Scout, for now). */
   animation?: ComponentType;
   /** Three or four deep dives, text beside a visual, sides alternating. */
   sections: FeatureSection[];
@@ -38,7 +40,8 @@ export type FeatureSection = {
   body: string;
   /** Up to four short points, each with a tick. */
   points?: string[];
-  /** Fills the visual slot, sized to its panel. Without one the slot shows
+  /** Fills the visual slot, sized to its panel. A client one comes from
+   *  `../animations`, as `animation` does. Without one the slot shows
    *  a placeholder in the feature's colour. */
   visual?: ComponentType;
 };

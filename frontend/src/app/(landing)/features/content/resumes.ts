@@ -4,7 +4,7 @@
  * own visuals. The claims are checked against the app (the experience
  * bank, Tailor, sent resumes), but the wording is not final.
  */
-import ResumeVisual from "../../resume-visual";
+import { ResumeAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 
 const content: FeatureContent = {
@@ -19,7 +19,7 @@ const content: FeatureContent = {
     subtitle:
       "Put everything you have done in one experience bank, or upload the resume you have. WorkIt builds your resume from it and tailors a copy to each job posting.",
   },
-  animation: ResumeVisual,
+  animation: ResumeAnimation,
   sections: [
     {
       eyebrow: "Experience bank",

@@ -6,7 +6,7 @@
  * jobs only for now, since Interviewing and Offer stay empty until the API
  * stores them. The wording is not final.
  */
-import UpdatesVisual from "../../updates-visual";
+import { UpdatesAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 
 const content: FeatureContent = {
@@ -22,7 +22,7 @@ const content: FeatureContent = {
       "Save a job or apply to it and it lands on your tracker, with its status, its match score and the resume you sent.",
   },
   // The home tour's Updates stop.
-  animation: UpdatesVisual,
+  animation: UpdatesAnimation,
   sections: [
     {
       eyebrow: "One list",

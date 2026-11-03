@@ -18,7 +18,7 @@ import {
   PaperclipIcon,
 } from "@phosphor-icons/react/ssr";
 
-import { SparkleIcon } from "@/components/icons";
+import { SparkleIcon } from "@/components/sparkle-icon";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/cn";
 

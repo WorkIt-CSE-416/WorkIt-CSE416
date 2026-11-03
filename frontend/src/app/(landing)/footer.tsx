@@ -2,10 +2,23 @@ import Link from "next/link";
 
 import { Logo } from "@/components/logo";
 
-import { site } from "./data";
+import { stages } from "./board-data";
+import { site, streams } from "./data";
+import { followedJob, matchingFeature } from "./feature-data";
 import { featurePages } from "./features/catalog";
 import { FooterWordmark } from "./footer-wordmark";
 import { resourcePages } from "./resources/catalog";
+
+/** The wordmark's job titles: the board's, Matching's and the
+ *  hiring-systems stream's. Read here, on the server, so the data files
+ *  stay out of every marketing page's bundle. */
+const TITLES = [
+  ...new Set([
+    ...stages.flatMap((stage) => stage.jobs.map((job) => job.title)),
+    ...matchingFeature.jobs.map((job) => job.title),
+    ...Object.values(streams).flatMap((list) => list.map((posting) => posting.title)),
+  ]),
+];
 
 /** The header's two menus, then the footer's own columns. */
 const COLUMNS = [
@@ -83,7 +96,7 @@ export function Footer() {
         </div>
 
         <div className="px-4 pt-4 pb-6 sm:px-8 lg:px-10 lg:pb-10">
-          <FooterWordmark />
+          <FooterWordmark titles={TITLES} followed={followedJob.title} />
         </div>
       </div>
     </footer>

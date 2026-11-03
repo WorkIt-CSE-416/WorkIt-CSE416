@@ -6,7 +6,7 @@
  * extension fills one application at a time and the student clicks Submit
  * on every one. Never say WorkIt submits, sends or applies in parallel.
  */
-import AutoApplyVisual from "../../auto-apply-visual";
+import { AutoApplyAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 
 const content: FeatureContent = {
@@ -21,7 +21,7 @@ const content: FeatureContent = {
     subtitle:
       "WorkIt queues your best matches. The Chrome extension fills each application with your details and the right resume, one at a time, and you check every one before you submit it.",
   },
-  animation: AutoApplyVisual,
+  animation: AutoApplyAnimation,
   sections: [
     {
       eyebrow: "Queue",

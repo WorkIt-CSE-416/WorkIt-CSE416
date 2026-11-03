@@ -5,7 +5,7 @@
  * backend/app/services/matching/scoring.py, the hiring systems in data.ts),
  * but the wording is not final.
  */
-import MatchingVisual from "../../matching-visual";
+import { MatchingAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 
 const content: FeatureContent = {
@@ -20,7 +20,7 @@ const content: FeatureContent = {
     subtitle:
       "WorkIt scores every internship and new-grad job posting against your experience bank, then puts the best fits at the top.",
   },
-  animation: MatchingVisual,
+  animation: MatchingAnimation,
   sections: [
     {
       eyebrow: "Your score",

@@ -702,9 +702,17 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   is a product claim like the FAQ's: auto apply fills one application at
   a time and the student clicks Submit on each, so no page says WorkIt
   submits or applies in parallel. Until each page's own session rewrites
-  it, a file holds stub copy, marked as such at its top. A content file
-  imports its animation, a client component (the four tour visuals carry
-  `"use client"` so a server file can import them); the template wraps it
+  it, a file holds stub copy, marked as such at its top. **A content file
+  imports its animation from `features/animations.tsx`, never the visual
+  itself**: each there is a `next/dynamic` wrapper, server-rendered as
+  before, whose chunk only the page that shows it loads. A client
+  component a server file imports joins the browser bundle of every route
+  that imports that file, and the header reads every content file for its
+  menu lines: imported directly, all four tour visuals and motion loaded
+  on every marketing page (`/privacy` loaded 340 KB compressed of
+  JavaScript, the same as a feature page), and each feature page carried
+  the three it does not show. A new visual joins `animations.tsx` the
+  same way. The template wraps it
   in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`. A
   page with no animation (Scout, for now), or a deep dive with no
   `visual`, shows a placeholder in the feature's colour. The hero uses
@@ -948,7 +956,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on every marketing page, closes on "workit" (the logo's own outline,
   `LOGO_WORD` from `components/logo.tsx`, as a CSS mask) filled with
   HTML rows of the page's job titles, the followed one in the pale
-  brand violet a weight up, which slide in from alternate sides, in time,
+  brand violet a weight up (each row one run of text, with only that
+  title in an element of its own: a span per title made the wordmark
+  about 950 of the 1,400 elements on a legal page, all styled, laid out
+  and hydrated on every marketing page; the titles are read by
+  `footer.tsx` on the server and passed in, or the three data files they
+  come from load on every page), which slide in from alternate sides, in time,
   once 60% of the word shows (`footer-wordmark.tsx`, `useArrived` with a
   threshold: a line a third up the screen was out of reach on a tall
   window), then keep drifting slowly (`.wordmark-drift`, a track of the
@@ -1023,7 +1036,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   native and reduced motion turns Lenis off. It ticks in motion's
   `frame.setup`, before motion reads the scroll; in `frame.update`, as
   Lenis's docs show, every scroll-linked value ran a frame behind and the
-  flying card and pills trailed their ends. A script scroll goes through
+  flying card and pills trailed their ends. **It ticks only while it
+  glides** (`GlideLenis`: every glide starts in `scrollTo`, and the tick
+  stops once `isSmooth` is false). Ticked on every frame, it kept the
+  browser drawing a main-thread frame at rest on every marketing page, and
+  each of those frames updated every running CSS animation: at the footer,
+  with the wordmark's 29 drifting rows, the main thread was 96% busy at
+  rest on a 4x slower CPU, and under 1% with no frame loop. So nothing on
+  these pages runs a frame loop at rest (a `keepAlive` frame, an endless
+  `requestAnimationFrame`): a composited CSS animation is free only while
+  nothing else asks for frames. A script scroll goes through
   `scrollPageTo` (a native smooth scroll fought the glide), which
   measures the page again first, since Lenis clamps a scroll to the
   height it measured up to 250 ms before; a scroll area inside a page
@@ -1139,6 +1161,20 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   - Logos from the Google favicon host load `unoptimized`: they are
     small PNGs already, and some 60 each went through `/_next/image`.
   - Write a `data-*` mark on `<html>` only when it changes.
+- **What a shell pulls into the browser, every page under it loads**
+  (2026-11-02). The root layout's and the `(landing)` layout's client
+  components, and every client component that a server file in their
+  import graph reaches (the header reads the feature content files), go
+  into one bundle that every marketing page loads, `/privacy` included.
+  So a client component only some pages draw is lazy
+  (`features/animations.tsx`), and data a client component in the shell
+  needs is read on the server and passed in (the footer wordmark's
+  titles). Check after changing a layout, the header, the footer or a
+  content file: on `next build` and `next start`, `/privacy` loads about
+  214 KB compressed of JavaScript up to its load event (340 KB before this
+  rule); Next then prefetches the linked pages' chunks, about 130 KB more,
+  which is expected. A jump means a client import leaked in. Measure
+  speed on a production build, never `next dev`.
 - **The legal pages, `/privacy` and `/terms`**, are in `app/(landing)/`
   on the shared `legal-page.tsx` shell (one readable column of text; the group's layout draws the header and footer
   around it, so the shell draws neither) and linked from the footer's Legal
@@ -1514,15 +1550,24 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   at `size-4`, not Phosphor's 1px: one rule in `globals.css` thickens them
   (KAN-365), and `custom-icons.tsx`'s `STROKE` matches it. A glyph
   Phosphor lacks goes in `components/custom-icons.tsx` with all its
-  weights (`docs/design.md`, Brand and icons).
+  weights (`docs/design.md`, Brand and icons). **The bundler takes
+  `icons.tsx` whole**, all six weights of each of its 56 glyphs (about
+  170 KB, 41 KB compressed), however few a file imports, since its
+  wrappers are one module. So a client component the root layout mounts,
+  or one a marketing page draws, never imports from it: it draws
+  Phosphor's glyph itself (`ui/toast.tsx`'s close button), or the sparkle
+  from `sparkle-icon.tsx`. The toast's one `CloseIcon` loaded it on every
+  page, and the Resumes and Auto Apply animations' sparkle on their
+  feature pages.
 - **Anything clicked or picked is medium (500)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
   combobox rows, which `globals.css` sets by `data-slot` since they set no
   weight of their own (KAN-365). Regular text is 450, not 400
   (`--font-weight-normal`): the face's 400 read thin in small grey text. The four weights and their jobs are in
   `docs/design.md`, Type weights, and on `/design-kit/type`.
-- **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
-  KAN-257): every Scout or AI control, and Scout's mark in the chat and
+- **One mark for Scout and AI, `SparkleIcon`**
+  (`components/sparkle-icon.tsx`, which `icons.tsx` re-exports; KAN-257):
+  every Scout or AI control, and Scout's mark in the chat and
   the panel header, draws it. An ESLint rule refuses Phosphor's sparkle
   imported anywhere else; a hand-drawn sparkle beside Lucide's had given
   the assistant two marks (`docs/design.md`, Brand and icons). Tailor My
