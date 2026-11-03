@@ -51,7 +51,9 @@ sign-in or create-account form's own button or submission), a payment,
 withdrawing or deleting the application, account or profile (a file's
 Delete goes on), and ticking an opt-in to texts or marketing. Unlike the
 rehearsal's, it is lifted for Claude fill's own submit click, and says what
-it blocked, so Claude fill makes a blocked attempt a Handoff. Plain code's
+it blocked, so Claude fill makes a blocked attempt a Handoff (but for a
+click on the submit button Claude names on the form's last step: nothing
+went, and the form is left filled). Plain code's
 click on a sign-in or account page's button (apply.account_pages) goes
 through it, and that button's POST form through a rehearsal's guard too; a
 button that sends and the application request stay blocked. On a rehearsal's page it hears what
@@ -432,6 +434,10 @@ class DriveGuard:
         except Exception:
             pass  # a page that went away has said all it will
         return list(self._blocked)
+
+    def forget(self) -> None:
+        """Clear what it has blocked so far, once Claude fill has made sense of it."""
+        self._blocked.clear()
 
     def lift(self) -> None:
         self._in_frames("window.__applyDriveLifted = true")

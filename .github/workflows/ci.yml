@@ -193,6 +193,7 @@ jobs:
             tests/test_requests.py \
             tests/test_sameness.py \
             tests/test_schedule.py \
+            tests/test_send_click.py \
             tests/test_sheet_tidy.py \
             tests/test_sheet_tracker.py \
             tests/test_stock.py \

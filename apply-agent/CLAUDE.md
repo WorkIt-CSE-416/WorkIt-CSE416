@@ -85,6 +85,15 @@ change the other.
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".
 
+## Claude fill
+
+- Claude fill stops at the form's last step and names the button that
+  sends; it never clicks it. A PreToolUse hook (`apply.send_click`, passed
+  with `--settings` in `claude_cli.drive`) refuses a click Claude names as
+  that button, with word to stop. A click the drive guard still blocked on
+  the button Claude then names as the submit leaves the form filled
+  (`claude_fill._only_its_submit`); any other block is a Handoff.
+
 ## Form pages
 
 - A Filler with a `form_url(url)` method names the page that holds its

@@ -19,6 +19,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -26,7 +27,7 @@ from collections.abc import Callable, Iterator
 from datetime import datetime
 from pathlib import Path
 
-from apply import trace
+from apply import send_click, trace
 from apply.adapters import Drive, SetupError, UsageLimitHit, UsageReading
 from apply.browsers import cdp_endpoint
 
@@ -159,7 +160,8 @@ class ClaudeCLI:
         attached to the Worker's own browser. It runs in an empty folder holding
         only `files`, which bounds what it can attach. Every turn's tokens
         (cache reads included) count toward `max_tokens`; past either cap,
-        claude and its MCP server are stopped."""
+        claude and its MCP server are stopped. A click Claude names as the
+        button that sends is refused before it runs (apply.send_click)."""
         mcp = {"mcpServers": {"playwright": {"command": shutil.which("npx") or "npx", "args": [
             "-y", PLAYWRIGHT_MCP, "--cdp-endpoint", self._endpoint(page), "--image-responses", "omit",
         ]}}}
@@ -167,6 +169,7 @@ class ClaudeCLI:
             "--mcp-config", json.dumps(mcp),
             "--allowedTools", ",".join(f"mcp__playwright__{t}" for t in BROWSER_TOOLS),
             "--disallowedTools", ",".join(f"mcp__playwright__{t}" for t in NO_BROWSER_TOOLS),
+            "--settings", send_click.settings(sys.executable),  # a click on the button that sends is refused
         ])
         NEUTRAL.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=NEUTRAL) as folder:

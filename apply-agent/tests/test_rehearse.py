@@ -180,17 +180,19 @@ def test_holds_do_not_stop_a_rehearsal_and_claude_fill_never_clicks_submit(monke
     assert server.submissions == []
 
 
-def test_claude_clicking_the_forms_submit_in_a_rehearsal_is_the_handoff_a_run_would_make_and_sends_nothing(
-        monkeypatch, tmp_path):
+@pytest.mark.parametrize(("names", "outcome"), [("Submit Application", "ready to submit"), ("", "handoff")])
+def test_claude_clicking_the_forms_submit_in_a_rehearsal_sends_nothing(monkeypatch, tmp_path, names, outcome):
+    # Roblox (live): a click on the submit Claude then names leaves the form filled, not sent; any other is a Handoff.
     monkeypatch.setattr(ClaudeFill, "submit", lambda self, page: pytest.fail("a rehearsal clicked Claude fill's submit"))
     profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items()},
                            **{f"answered_questions.{ESSAY}": "Lunar rovers are what I build in my spare time."})
 
     with FakeBambooServer(LUNAR_FORM) as server:
-        [done] = rehearse([LUNAR_URL], server, profile, FakeClaude(driver=SendingDriver()))
+        [done] = rehearse([LUNAR_URL], server, profile, FakeClaude(driver=SendingDriver(names=names)))
 
-    assert done.outcome == "handoff"
-    assert 'Apply blocked the "Submit Application" click while Claude filled the form' in done.why
+    assert done.outcome == outcome
+    if names == "":
+        assert 'Apply blocked the "Submit Application" click while Claude filled the form' in done.why
     assert server.submissions == []
 
 
