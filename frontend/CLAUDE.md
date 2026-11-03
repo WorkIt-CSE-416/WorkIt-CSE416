@@ -2059,7 +2059,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   prediction ran a line short. A fit that ends on a held PDF (nothing left
   to cut, a failed plan) paints it then.
   An API with no measure fits on the server (`fitOnServer`, `hideAgain`).
-  Every hide closes up at once the same way, not only Fit's. It has no
+  Every hide closes up at once the same way, not only Fit's, skills too: a
+  hidden skill is a cut along its line (`skillCut`, `Gap`'s `x0`/`x1`), so
+  every Tailor revert (a wording, an order, an added skill) shows before
+  its compile. It has no
   Undo Fit button of its own (gone 2026-11-01, a second way to do what
   Undo does); the phone's bar shows the same Undo and Redo. **Cut From
   Resume** lists what every fit in the tab cut, entries, bullets and

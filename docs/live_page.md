@@ -102,9 +102,14 @@ Built so far (option A, the typed line only):
   until the PDF lands. **A hide shows at once too** (KAN-584): each hidden
   entry's or bullet's band of the page closes up, with the space under it
   when the next line is close, and the lines below rise (`gapsOn` in the
-  editor, `Gap` in `pdf-pages.tsx`). A section emptied by it keeps its
-  heading, and a hidden skill keeps its place, until the PDF lands. Show
-  and wording switches show nothing until then.
+  editor, `Gap` in `pdf-pages.tsx`). A hidden skill leaves its line
+  instead (`skillCut`): from its start to the next skill's, since each
+  skill's box holds its comma, and the rest of the line moves left; the
+  line's last skill takes the comma before it. So a Tailor revert of an
+  added skill shows at once, as a reworded line's old words and a reorder
+  already did. A section emptied by a hide keeps its heading, and a line a
+  skill leaves does not pull the next line's skills up, until the PDF
+  lands. Show and wording switches show nothing until then.
 - **Fit to One Page is an edit like the others** (KAN-584): the editor
   sends its copy and the measure of the PDF it shows (each render answers
   its points, text area and shrinks beside the boxes) to `POST
@@ -155,8 +160,9 @@ Still open for step 1:
   TeX.
 - A line split across a page break moves only its first page.
 - A line the student is still on when the tab closes is not saved.
-- Show and a wording switch show nothing until the PDF lands; nor does
-  a hidden skill, or the heading of a section a hide empties.
+- Show and a wording switch show nothing until the PDF lands; a section
+  a hide empties keeps its heading, and a skill line keeps its wrap, until
+  then.
 - The time of one compile alone on the deployed API. A compile is nearly
   all CPU, 0.41 CPU seconds in a laptop's 0.42 s of waiting (KAN-524,
   2026-11-02), and the Container has 1/4 vCPU

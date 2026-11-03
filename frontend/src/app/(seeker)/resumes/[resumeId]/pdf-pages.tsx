@@ -550,32 +550,88 @@ export function afterStrips<T extends RenderBox>(box: T, strips: Strip[]): T {
   return { ...box, y0, y1 };
 }
 
-/** A band of one page, in PDF points, that a hide on its way closes up:
- *  everything under it on its page moves up by its height (KAN-584). */
-export type Gap = { page: number; top: number; bottom: number };
+/** What a hide on its way closes up on one page, in PDF points (KAN-584).
+ *  A band (no `x0`): everything under it on its page moves up by its height.
+ *  A cut (`x0` to `x1`, one line's `top` to `bottom`): what follows it on
+ *  that line moves left by its width, as a skill leaves its line. */
+export type Gap = { page: number; top: number; bottom: number; x0?: number; x1?: number };
 
-/** The gaps sorted down each page, with any that touch or overlap made one. */
+const isCut = (gap: Gap) => gap.x0 !== undefined && gap.x1 !== undefined;
+
+/** The gaps sorted, with any that touch or overlap made one: bands down
+ *  each page, and cuts along each line. */
 export function closeUp(gaps: Gap[]): Gap[] {
-  const sorted = [...gaps].sort((a, b) => a.page - b.page || a.top - b.top);
+  const bands = [...gaps.filter((g) => !isCut(g))].sort((a, b) => a.page - b.page || a.top - b.top);
+  const cuts = [...gaps.filter(isCut)].sort(
+    (a, b) => a.page - b.page || a.top - b.top || a.x0! - b.x0!,
+  );
   const out: Gap[] = [];
-  for (const gap of sorted) {
+  for (const gap of bands) {
     const last = out.at(-1);
     if (last && last.page === gap.page && gap.top <= last.bottom + 0.5) {
       last.bottom = Math.max(last.bottom, gap.bottom);
     } else out.push({ ...gap });
   }
-  return out;
+  const lines: Gap[] = [];
+  for (const cut of cuts) {
+    const last = lines.at(-1);
+    if (
+      last &&
+      last.page === cut.page &&
+      Math.abs(last.top - cut.top) < 1 &&
+      cut.x0! <= last.x1! + 0.5
+    ) {
+      last.x1 = Math.max(last.x1!, cut.x1!);
+    } else lines.push({ ...cut });
+  }
+  return [...out, ...lines];
 }
 
-/** Where a box sits once these gaps have closed, or null when one hides it. */
+/** Where a box sits once these gaps have closed, or null when one hides it:
+ *  first along its line (cuts), then down its page (bands). */
 export function afterGaps<T extends RenderBox>(box: T, gaps: Gap[]): T | null {
+  let left = 0;
+  for (const cut of gaps.filter(isCut)) {
+    if (cut.page !== box.page || box.y0 < cut.top - 0.5 || box.y1 > cut.bottom + 0.5) continue;
+    if (box.x0 >= cut.x0! - 0.5 && box.x1 <= cut.x1! + 0.5) return null;
+    if (box.x0 >= cut.x1! - 0.5) left += cut.x1! - cut.x0!;
+  }
   let by = 0;
-  for (const { page, top, bottom } of gaps) {
+  for (const { page, top, bottom } of gaps.filter((g) => !isCut(g))) {
     if (page !== box.page) continue;
     if (box.y0 >= top - 0.5 && box.y1 <= bottom + 0.5) return null;
     if (box.y0 >= bottom - 0.5) by += bottom - top;
   }
-  return by ? { ...box, y0: box.y0 - by, y1: box.y1 - by } : box;
+  return by || left
+    ? { ...box, x0: box.x0 - left, x1: box.x1 - left, y0: box.y0 - by, y1: box.y1 - by }
+    : box;
+}
+
+/** The drawing with each cut (from `closeUp`) taken out of its line: the
+ *  rest of the line moved left over it, right to left so each cut's place
+ *  holds, and white paper left at the line's end. */
+function cutOut(drawn: HTMLCanvasElement, cuts: Gap[], scale: number) {
+  const next = document.createElement("canvas");
+  next.width = drawn.width;
+  next.height = drawn.height;
+  const context = next.getContext("2d")!;
+  context.drawImage(drawn, 0, 0);
+  context.fillStyle = "#fff";
+  for (const cut of [...cuts].sort((a, b) => b.x0! - a.x0!)) {
+    const [top, bottom, x0, x1] = [cut.top, cut.bottom, cut.x0!, cut.x1!].map((v) =>
+      Math.round(v * scale),
+    );
+    const height = bottom - top;
+    const rest = next.width - x1;
+    // The rest of the line, as this canvas holds it after the cuts to its right
+    const line = document.createElement("canvas");
+    line.width = Math.max(1, rest);
+    line.height = Math.max(1, height);
+    line.getContext("2d")!.drawImage(next, x1, top, rest, height, 0, 0, rest, height);
+    context.fillRect(x0, top, next.width - x0, height);
+    context.drawImage(line, 0, 0, rest, height, x0, top, rest, height);
+  }
+  return next;
 }
 
 /** The drawing with `gaps` (one page's, from `closeUp`) closed: each band
@@ -639,7 +695,10 @@ function compose(
   scale: number,
 ) {
   const swapped = strips.length ? traded(pdfDrawn, strips, scale) : pdfDrawn;
-  const drawn = gaps.length ? closed(swapped, gaps, scale) : swapped;
+  const cuts = gaps.filter(isCut);
+  const bands = gaps.filter((g) => !isCut(g));
+  const lined = cuts.length ? cutOut(swapped, cuts, scale) : swapped;
+  const drawn = bands.length ? closed(lined, bands, scale) : lined;
   shown.width = drawn.width;
   shown.height = drawn.height;
   const context = shown.getContext("2d")!;

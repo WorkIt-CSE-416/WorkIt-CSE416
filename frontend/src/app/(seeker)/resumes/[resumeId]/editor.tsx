@@ -307,12 +307,33 @@ function samePage(a: PageSettings, b: PageSettings) {
   );
 }
 
-/** The entries and bullets a change hides. */
+/** The entries, bullets and skills a change hides. */
 function hiddenBy(changes: ChoicesUpdate): string[] {
   return [
     ...(changes.entries ?? []).filter((c) => c.shown === false).map((c) => c.entry_id),
     ...(changes.bullets ?? []).filter((c) => c.shown === false).map((c) => c.bullet_id),
+    ...(changes.skills ?? []).filter((c) => c.shown === false).map((c) => c.skill_id),
   ];
+}
+
+/** Where a hidden skill leaves its line (KAN-584): from its start to the
+ *  next skill's start, since each skill's box holds its comma, so the rest
+ *  of the line moves left over it. The line's last skill goes from the comma
+ *  of the kept skill before it, or that comma would end the line. A skill
+ *  broken across two lines waits for the PDF. */
+function skillCut(box: RenderBox, boxes: RenderBox[], gone: Set<string>, line: number): Gap[] {
+  if (box.y1 - box.y0 > line * 1.5) return [];
+  const row = boxes
+    .filter((b) => b.kind === "skill" && b.page === box.page && Math.abs(b.y0 - box.y0) < 1)
+    .sort((a, b) => a.x0 - b.x0);
+  const at = row.indexOf(box);
+  const band = { page: box.page, top: box.y0, bottom: box.y1 };
+  const next = row[at + 1];
+  if (next) return [{ ...band, x0: box.x0, x1: next.x0 }];
+  const kept = row.slice(0, at).findLast((b) => !gone.has(b.item_id));
+  if (!kept?.text.endsWith(",")) return [{ ...band, x0: box.x0, x1: box.x1 }];
+  const comma = ((kept.x1 - kept.x0) / kept.text.length) * 0.55;
+  return [{ ...band, x0: kept.x1 - comma, x1: box.x1 }];
 }
 
 /** Whether a change changes anything. */
@@ -1632,14 +1653,18 @@ export function Editor({
   // entry is its fields' and bullets' boxes, a bullet its box, each with the
   // space under it when the next line is close (`GAP_SPACE`), so the lines
   // below rise to where the hidden ones began. A larger space is a section
-  // heading's, which stays. A skill waits for the PDF, since it shares its
-  // line; an item the page no longer prints draws nothing.
+  // heading's, which stays. A skill leaves its line instead (`skillCut`);
+  // an item the page no longer prints draws nothing.
   const gapsOn = (boxes: RenderBox[]): Gap[] => {
     if (!hides.length) return [];
     const gone = new Set(hides.flatMap((h) => h.items));
     for (const entry of bank.entries)
       if (gone.has(entry.id)) for (const b of entry.bullets) gone.add(b.id);
-    return boxes
+    const line = rendered?.wrapped_line ?? DEFAULT_WRAPPED_LINE;
+    const skills = boxes
+      .filter((box) => box.kind === "skill" && gone.has(box.item_id))
+      .flatMap((box) => skillCut(box, boxes, gone, line));
+    const bands = boxes
       .filter((box) => box.kind !== "skill" && gone.has(box.item_id))
       .map((box) => {
         const next = Math.min(
@@ -1648,6 +1673,7 @@ export function Editor({
         const space = next - box.y1;
         return { page: box.page, top: box.y0, bottom: box.y1 + (space <= GAP_SPACE ? space : 0) };
       });
+    return [...bands, ...skills];
   };
 
   /** The text a typed line's field opens on: what the line prints. */
@@ -2897,12 +2923,8 @@ function SlimBar({
     </span>
   );
   const box = docs ? DOCS_BAR : SLIM_BAR;
-  const docsZoom = docs && zoom && (
-    <>
-      {rendered ? zoom : <ZoomSkeleton />}
-      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
-    </>
-  );
+  // `Zoom` ends in its own divider; a second one here stood beside it
+  const docsZoom = docs && zoom && (rendered ? zoom : <ZoomSkeleton />);
   // Gone while a bullet is being added: a fit would read a resume without it
   const fitButton = !composing && rendered && rendered.page_count > 1 && (
     <FitButton
