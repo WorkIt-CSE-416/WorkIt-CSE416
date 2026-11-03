@@ -39,6 +39,7 @@ class Record:
     drafted: tuple[tuple[str, str], ...] = ()  # (question, answer) Claude drafted into the Answer bank
     named_facts: tuple[tuple[str, str], ...] = ()  # (question, Named fact) of each essay that names one
     verification: dict | None = None  # how verifying the filled form went (apply.verify, Verification.as_json)
+    history: tuple[str, ...] = ()  # a rehearsal's pauses and Resumes, "HH:MM Paused: why", in order
 
 
 def folder(record: Record) -> str:
@@ -109,6 +110,8 @@ def _readme(record: Record, rows: list[dict]) -> str:
         *(["## Verification", "", "What Apply found when it read the filled form back, before any submit:", "",
             *(f"- {f['field'] + ': ' if f['field'] else ''}{f['why']}" + (" (dismissed)" if f.get("dismissed") else "" if f["holds"] else " (note)")
               for f in record.verification["flags"]), ""] if record.verification and record.verification["flags"] else []),
+        *(["## Pauses", "", "Where the fill stopped for you, and where you pressed Resume:", "",
+            *(f"- {line}" for line in record.history), ""] if record.history else []),
         *(["## Claude drafted", "", "Answers to one-off questions, now in the Answer bank for you to review:", "",
             *(f"- {question} → {answer}" for question, answer in record.drafted), ""] if record.drafted else []),
         *(["## Named facts", "", "What the essays name about the company: read up on each before an interview.", "",

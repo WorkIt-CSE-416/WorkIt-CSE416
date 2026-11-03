@@ -756,3 +756,6 @@ class RecordingBoard:
 
     def file_given(self, worker: int) -> None:
         pass
+
+    def resumed(self, worker: int) -> bool:
+        return False

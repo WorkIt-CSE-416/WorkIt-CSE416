@@ -29,6 +29,13 @@ tenant's path on myworkdaysite.com).
 A field the engine fails to fill (a FillError) is handed to its Rescue, if
 it has one (apply.rescue): Claude fills that field on the open page, and the
 step goes on. It is read back like any other.
+
+A rehearsal paused on a step (a step Workday won't leave, a sign-in Lisul
+finishes) goes on from the step the page shows when he presses Resume: it
+never clicks Apply or signs in again, and the values he put on that step
+stay (`resumed`). Until the page shows an application step (on Workday's
+or Google's sign-in page), Resume waits for him to sign in
+(`resume_blocked`), so it never asks Workday for another code or link.
 """
 
 import json
@@ -115,6 +122,7 @@ class WorkdayFiller:
         self._readback: Readback = {}
         self._known: QuestionSet = []  # the questions fill() was given, which the engine fills against
         self._state: dict = {}  # the engine's memory of this Application, kept between its calls
+        self._his: tuple[str, set[str]] = ("", set())  # (step, fields) Lisul filled before Resume: not filled again
 
     # --- The Filler ------------------------------------------------------------------
 
@@ -134,10 +142,11 @@ class WorkdayFiller:
             new = [q for q in fields if q.name not in known]
             if new:
                 raise MoreQuestions(new)
-            if sections := {name: answers[name] for name in shown["sections"] if name in answers}:
+            kept = self._his[1] if shown["step"] == self._his[0] else set()
+            if sections := {name: answers[name] for name in shown["sections"] if name in answers and name not in kept}:
                 self._fill(page, sections)  # the step's new panels' fields are MoreQuestions
             for q in fields:
-                if q.name in answers and q.name not in sections:
+                if q.name in answers and q.name not in sections and q.name not in kept:
                     self._put_or_rescue(page, q, None, answers[q.name])
             answered = [q.name for q in fields if q.name in answers]
             self._readback |= fill_engine.call(page, "readback", "workday", [], answered, self._engine_state())
@@ -149,6 +158,27 @@ class WorkdayFiller:
             next_step(page, shown["step"])
         return dict(self._readback)
 
+    def resume_blocked(self, page: Page) -> str:
+        """Why Resume can't go on from the page now, or "": only from an
+        application step. On a sign-in page (Workday's or Google's), Lisul signs in first."""
+        try:
+            on_step = _on_step(page)
+        except Exception:
+            on_step = False  # the page navigating: not a step yet
+        if not on_step:
+            return "The form isn't on an application step yet: sign in on the page, then press Resume"
+        return ""
+
+    def resumed(self, page: Page) -> dict:
+        """The values on the step shown, as Lisul left it before pressing
+        Resume, by Question name: fill() leaves those fields as they are."""
+        shown = self._shown(page)
+        names = [q.name for q in shown["questions"] if q.kind != "file" and q.name not in shown["sections"]]
+        values = fill_engine.call(page, "readback", "workday", [], names, self._engine_state()) if names else {}
+        kept = {name: value for name, value in values.items() if value not in (None, "", [])}
+        self._his = (shown["step"], set(kept))
+        return kept
+
     def submit(self, page: Page) -> None:
         page.locator(NEXT_BUTTON).click()
         wait_for_confirmation(page, lambda: confirmed(page), TIMEOUT)
@@ -156,7 +186,10 @@ class WorkdayFiller:
     # --- Signing in ----------------------------------------------------------------
 
     def _start(self, page: Page) -> None:
-        """From the posting to the first application step, signed in."""
+        """From the posting to the first application step, signed in. On a
+        step already (a rehearsal resumed after Lisul signed in), nothing."""
+        if _on_step(page):
+            return
         # Continue Application, where the Worker profile started this application before.
         page.locator("[data-automation-id=adventureButton], [data-automation-id=continueButton]").first.click()
         manual = page.locator("[data-automation-id=applyManually]")

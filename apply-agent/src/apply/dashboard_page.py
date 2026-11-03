@@ -181,6 +181,12 @@ setInterval(async () => {
       }));
       sent.hidden = !files.length;
     }
+    const paused = document.getElementById('resume-' + k), resume = c.resume;
+    paused.hidden = !resume;
+    if (resume) {
+      paused.querySelector('button').disabled = !resume.ok;
+      paused.querySelector('.why').textContent = resume.why || 'Fixed it on the page? Resume goes on from there.';
+    }
     const bar = document.getElementById('file-' + k);
     bar.hidden = !c.file;
     bar.querySelector('input').multiple = c.file === 'selectMultiple';
@@ -560,8 +566,35 @@ window.openChrome = async (k) => {
     if (!reply.ok) toast((await reply.json()).error || "That browser couldn't be opened.");
   } catch (e) { toast('Apply is not answering: is it still running?'); }
 };
+// Resume: a rehearsal paused mid-form goes on from the page as Lisul left it. When it can't (its tab
+// closed), the button stays, off, and says why.
+const resume = async (id, button) => {
+  button.disabled = true;
+  try {
+    const reply = await fetch('/resume', {method: 'POST', body: JSON.stringify({id}),
+                                          headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+    const data = await reply.json();
+    if (!reply.ok) throw new Error(data.error || 'Not resumed.');
+    toast(data.message); refresh();
+  } catch (err) { toast(err.message || 'Apply is not answering: is it still running?'); button.disabled = false; }
+};
+const resumeButton = (item) => make('button', {className: 'primary', textContent: 'Resume', disabled: !item.resume.ok,
+  title: item.resume.ok ? 'Apply goes on from the page as you left it; it never presses Submit' : item.resume.why,
+  onclick: (e) => resume(item.id, e.target)});
+// A tile's own Resume (Live tab), by its Worker's number; the click doesn't enlarge the tile.
+document.addEventListener('click', (e) => {
+  const button = e.target.closest && e.target.closest('.resumebar button');
+  if (!button) return;
+  e.stopPropagation();
+  resume(`tile-${button.closest('.resumebar').id.replace('resume-', '')}`, button);
+}, true);
 // What resolves a row, the main one first (an answer box does, for a question).
 const action = (item) => {
+  if (item.resume) {
+    const rest = (({resume: _, ...other}) => action(other))(item);
+    return [resumeButton(item), ...[].concat(rest || []).map(b => { if (b && b.classList) b.classList.remove('primary'); return b; }),
+            item.resume.why ? make('span', {className: 'then', textContent: item.resume.why}) : null];
+  }
   const k = liveTile(item), ctx = last.context || {};
   if (item.kind === 'missing fact' && ctx.answers) return null;
   if (item.kind === 'held' && ctx.approve && item.application_id) return make('button', {className: 'primary', textContent: 'Approve',
@@ -1181,6 +1214,8 @@ STYLE = r"""
   .menu div:hover { background: var(--hover); }
   .menu div.chosen { background: var(--chosen); color: var(--tint-ink); }
   .menu div.disabled { color: var(--faint); pointer-events: none; }
+  .resumebar { display: flex; align-items: center; gap: 12px; padding: 0 14px 8px; font-size: 12px; color: var(--muted); }
+  .resumebar button { height: 30px; }
   .filebar { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 3; display: flex; align-items: center; gap: 8px;
              padding: 6px 6px 6px 16px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--panel); color: var(--ink);
              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: var(--lift-high); }

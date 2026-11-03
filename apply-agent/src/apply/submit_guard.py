@@ -64,7 +64,9 @@ Once a rehearsed link has ended, its page is held open for Lisul and lift()
 takes both guards off: Apply no longer drives it, so his own Submit goes
 through, and a green note says so, with a Fill again button. The page tells
 Apply when he clicks a button that sends, so a rehearsal can keep his
-submission in the Tracker."""
+submission in the Tracker. A rehearsal paused mid-form is lifted the same
+way while Lisul fixes its page; Resume puts both guards back on with
+rearm(), without a reload, so his fixes stay, before Apply drives it again."""
 
 import json
 import re
@@ -364,25 +366,53 @@ LIFTED = r"""
 
 
 def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callable[[], None] | None = None,
-         warning: str = "", wrong: bool = True) -> None:
+         warning: str = "", wrong: bool = True, bound: bool = False) -> None:
     """Hand a guarded page to Lisul once Apply is done with it: no Filler or
     Claude drives it any more, so a Submit on it can only be his, and it goes
     through, on this page and every page he loads from it. `pressed` hears
     the words of each button he clicks that sends; `again`, when he presses
     the note's Fill again. Both are called on the page's own thread. A
     `warning` goes on the note, red when an answer is `wrong`, amber when
-    it only names fields left blank."""
+    it only names fields left blank. `bound`: the page was lifted before
+    (a paused rehearsal, resumed), so its bindings are there already, and
+    its note keeps the Fill again button."""
+    if bound:
+        pressed = again = None
     if pressed:
         page.expose_binding("__applyLisulPressed", lambda source, words: pressed(words))
     if again:
         page.expose_binding("__applyFillAgain", lambda source: again())
     page.context.unroute(ROUTED, _refuse)
-    script = LIFTED.replace("AGAIN", "true" if again else "false").replace("WRONG", "true" if wrong else "false")
+    script = LIFTED.replace("AGAIN", "true" if again or bound else "false").replace("WRONG", "true" if wrong else "false")
     script = script.replace("WARNING", json.dumps(warning))  # last: the warning's own words stay as they are
     page.context.add_init_script(script)
     for frame in page.frames:
         try:
             frame.evaluate(script)
+        except Exception:
+            pass  # a frame gone or going: one loaded later gets the init script
+
+
+# Undoes LIFTED on a page that Apply drives again (Resume): the guards are on, and the note is gone.
+REARMED = r"""
+(() => {
+  window.__applyRehearsalLifted = false;
+  window.__applyDriveLifted = false;
+  const drop = () => { const box = document.getElementById('apply-rehearsal-blocked'); if (box) box.remove(); };
+  if (document.body) drop(); else document.addEventListener('DOMContentLoaded', drop);
+})();
+"""
+
+
+def rearm(page: Page) -> None:
+    """Put the guard back on a page lift() handed to Lisul, for Resume: Apply
+    drives it again. No reload, so what he typed on the page stays; a page
+    loaded from it later is guarded too (after lift's script, this one runs)."""
+    page.context.route(ROUTED, _refuse)
+    page.context.add_init_script(REARMED)
+    for frame in page.frames:
+        try:
+            frame.evaluate(REARMED)
         except Exception:
             pass  # a frame gone or going: one loaded later gets the init script
 

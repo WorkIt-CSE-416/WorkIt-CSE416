@@ -281,6 +281,10 @@ def verdict(caption: dict) -> dict[str, str]:
         tone, label, kind = "ended", f"Skipped: {why}", "skipped"
     elif status == "paused":
         tone, label, kind = "ended", "Paused at Claude's usage limit; it goes on by itself", "skipped"
+    resume = caption.get("resume") or {}
+    if needs and resume.get("ok"):  # a rehearsal paused mid-form: Lisul fixes the page, and Resume goes on
+        needs["then"] = ("Nothing was sent. Fix it on the page (Fix here, or Open in Chrome), then press Resume: "
+                         "Apply goes on from the page as you left it, and never presses Submit")
     if needs:
         tone, label, kind = "needs", needs["do"], needs["kind"]
         detail = f"{needs['why']}\n{needs['then']}" if needs["why"] else needs["then"]
@@ -302,6 +306,10 @@ def verdict(caption: dict) -> dict[str, str]:
         shown["error"] = error  # behind Details in the enlarged tile
     if system:
         shown["system"] = system
+    if resume and needs:
+        shown["resume"] = {"ok": bool(resume.get("ok")), "why": str(resume.get("why") or "")}
+    if history := caption.get("history"):  # each pause and Resume, under the verdict
+        shown["detail"] = "\n".join(filter(None, [shown["detail"], *history]))
     return shown
 
 
@@ -383,6 +391,11 @@ class Board(Protocol):
         window stops asking Lisul for one."""
         ...
 
+    def resumed(self, worker: int) -> bool:
+        """Whether Lisul pressed Resume on Worker `worker`'s paused form since
+        it last asked; each press is given once."""
+        ...
+
     def wait_for_start(self, timeout: float | None) -> None:
         """Show the Start button and return once Lisul presses it, or after
         `timeout` seconds (None: however long he takes): a rehearsal for
@@ -410,6 +423,9 @@ class NoBoard:
 
     def answered(self, worker: int) -> list[tuple[str, str]]:
         return []
+
+    def resumed(self, worker: int) -> bool:
+        return False
 
 
 class NoFrames:
@@ -486,6 +502,7 @@ class Dashboard:
         self._loaded = 0.0  # when the window last loaded the page
         self._started = threading.Event()  # Lisul pressed Start
         self._to_fill: dict[int, list[tuple[str, str]]] = {}  # answers to fill on each Worker's open form (answered)
+        self._resume: set[int] = set()  # the Workers whose paused form Lisul pressed Resume on (resumed)
 
     def __enter__(self) -> Self:
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
@@ -586,6 +603,37 @@ class Dashboard:
         with self._lock:
             return self._to_fill.pop(worker, [])
 
+    def resumed(self, worker: int) -> bool:
+        with self._lock:
+            pressed = worker in self._resume
+            self._resume.discard(worker)
+            return pressed
+
+    def resume(self, key: str) -> str:
+        """Lisul pressed Resume on an item (its id) or a tile ("tile-<k>"): its
+        Worker goes on with the paused form. Raises Refused, with why, when it
+        can't: its tab was closed, or the Worker has moved on."""
+        state = self.state()
+        if key.startswith("tile-") and key.removeprefix("tile-").isdigit():
+            k = int(key.removeprefix("tile-"))
+            shown = state["tiles"][k] if k < len(state["tiles"]) else {}
+        else:
+            item = next((i for i in state["items"] if str(i["id"]) == key), None)
+            if item is None or not isinstance(item.get("worker"), int) or item["worker"] < 0:
+                raise Refused("That application no longer waits for Resume.", 404)
+            k, shown = item["worker"], item
+        resume = shown.get("resume") or {}
+        tile = state["tiles"][k] if 0 <= k < len(state["tiles"]) else {}
+        if not resume:
+            raise Refused("That application no longer waits for Resume.", 404)
+        if not resume.get("ok"):
+            raise Refused(resume.get("why") or TAB_CLOSED, 409)
+        if tile.get("posting_url") != shown.get("posting_url") or not (tile.get("resume") or {}).get("ok"):
+            raise Refused(TAB_CLOSED, 409)  # its Worker moved on, and the form's tab with it
+        with self._lock:
+            self._resume.add(k)
+        return "Resuming: Apply reads the page as you left it and goes on. It never presses Submit."
+
     def start(self) -> None:
         """Lisul pressed Start."""
         self._started.set()
@@ -680,9 +728,13 @@ class Dashboard:
         from apply.essays import (
             cell_texts,  # imported here: essays imports the adapters, which import this module
         )
+        # A form that fills again (Resume, Fill again) waits on Lisul no more for how it stopped before.
+        filling = {c.get("posting_url") for c in captions if c.get("tone") in ("filling", "verifying") and c.get("posting_url")}
         for item in items:
             item |= verify.without_dismissed(item)
             item |= verdict(item)
+            if not item.get("live") and item.get("from") != "tracker" and item.get("posting_url") in filling:
+                item["answered"] = True
             if item.get("kind") == "held":
                 # Only each essay's text is his to edit: the heading and Plan lines stay in the cell (`essay`).
                 item["essays"] = [{"question": q, "text": t} for q, t in cell_texts(str(item.get("essay") or ""))]
@@ -720,6 +772,8 @@ class Dashboard:
             f'<div class="tile" data-k="{k}"><div class="banner idle" id="banner-{k}"><span class="label">{IDLE}</span>'
             f'<span class="fields"></span></div><div class="caption" id="caption-{k}">Browser {k + 1}</div>'
             f'<div class="sent" id="sent-{k}" hidden></div>'
+            f'<div class="resumebar" id="resume-{k}" hidden><button class="primary">Resume</button>'
+            f'<span class="why"></span></div>'
             f'<img id="frame-{k}" alt="Browser {k + 1}" tabindex="0" draggable="false">'
             f'<div class="hint">Open to look or type</div>'
             f'<div class="note">You\'re controlling this browser — Esc to return '
@@ -740,6 +794,7 @@ class Dashboard:
             .replace("{answers}", answers).replace("{history}", history).replace("{style}", STYLE)
 
 
+TAB_CLOSED = "The form's tab was closed: start it again"  # rehearsal.TAB_CLOSED: Resume can't go on
 PICKED = "Picked in the window for its page"  # the label of a file Lisul gave a page that asked for one
 SAMPLE = '<span id="sample" title="Apply is running as Test Person: put your own files in the data folder">Sample data</span>'
 ANSWERS_TAB = '<button id="tab-answers" role="tab">Answers</button>'
@@ -830,6 +885,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._approve()
         if parts.path == "/dismiss":
             return self._dismiss()
+        if parts.path == "/resume":
+            return self._resume()
         if parts.path.startswith("/show/") and self.dashboard.show:
             return self._show(parts.path.removeprefix("/show/"))
         if parts.path.startswith("/answers/") and self.dashboard.answers:
@@ -1053,6 +1110,23 @@ class _Handler(BaseHTTPRequestHandler):
         verify.dismiss(item["application_id"], field, why)
         print(f"Dismissed in the window, for {item.get('company') or 'an application'}: {field}: {why}")
         self._json(200, {"message": "Dismissed: it holds this application no more."})
+
+    def _resume(self) -> None:
+        """Lisul pressed Resume on a paused form, from the page itself: its Worker goes on with it."""
+        token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+        if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin not in (None, self.dashboard.url):
+            return self._json(403, {"error": "Only the Apply window may resume a form."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key = str(body["id"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a Resume."})
+        try:
+            message = self.dashboard.resume(key)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Resume pressed in the window ({key})")
+        self._json(200, {"message": message})
 
     def _in_place(self, item: dict, key: str, question: str, answer: Path | None, message: str) -> None:
         """An answer for this form alone, not saved to his facts: a file to attach, or None for an
