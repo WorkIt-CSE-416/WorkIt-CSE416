@@ -341,7 +341,8 @@ Now is a plain link that opens the employer's posting in a new tab, and for
 a signed-in applicant who has not marked the job the same click opens
 "Did You Apply?" (below) behind it, its resume list starting on the one
 Pick a Resume would have picked (tailored, else the default). Yes, I
-Applied stays off, under "Loading your resumes…", until that list is in:
+Applied stays off, over the list's skeleton (`ResumeListsSkeleton`, the
+three dialogs' one, KAN-561), until that list is in:
 before it, the pick is only a guess. **Upload Resume**, in the list's row
 beside the search and the Type filter (KAN-406), uploads the file the
 student sent (`uploadResume`, which reads it into Experiences as any
@@ -1441,7 +1442,7 @@ page with one action.
   resume the application names; the run's resume step then sends that
   resume, from its current content. The cell shows that pick
   (`sent_resume`), else the run's rule, `pick_resume`, worked out in
-  `auto-apply/page.tsx` (`ruleFor`): the built resume tailored to that job
+  `auto-apply/(queue)/page.tsx` (`ruleFor`): the built resume tailored to that job
   posting, else the default, else none. Keep `ruleFor` in step with
   `pick_resume`. **Still open: the extension does not ask the API which
   resume to attach**: it attaches the default resume itself
@@ -1465,7 +1466,7 @@ page with one action.
   Applications Tracker already, so the table only repeated it, and a
   skipped one needs nothing. **Needs-you jobs moved into Up Next**
   (Couldn't Finish, "Finish it on the job's page"): they wait on the
-  seeker, and the Tracker doesn't list them. `auto-apply/page.tsx` says how
+  seeker, and the Tracker doesn't list them. `auto-apply/(queue)/page.tsx` says how
   to bring History back.
 
 **Up Next is live: the seeker's applications from the API**
@@ -1588,7 +1589,8 @@ Month, Week or Agenda (two weeks), `?date=` anchors it on a bare day, and
 now the Calendar's alone), with a way across to its own page.
 Without `?date=` it opens on the viewer's today, which the server cannot
 know, so the views render in the browser behind a placeholder
-(`calendar-view.tsx`, `useHydrated`). They read the view and the day from
+(`calendar-view.tsx`, `useHydrated`): the toolbar and a month's grid as
+bars, its cells white so it reads on the grey ground (KAN-561). They read the view and the day from
 the page's query themselves (`useCalendarQuery` in `view-switch.tsx`), and
 the view switch, the arrows, Today and a day's number move it in place.
 
@@ -1736,7 +1738,8 @@ three link cards, each a whole-card link (`<Card href>`) with a grey glyph and a
 Resumes, Experiences and Application Info (`profile/more-of-you.tsx`),
 three across where they fit and stacked beside the identity card until
 `@6xl/main`. The link cards show no counts: each would be another API read
-on every visit. While the profile loads, Contact & Links is a skeleton card.
+on every visit. While the profile loads, Contact & Links is a skeleton card
+and the identity card draws its photo, name and headline as bars (KAN-561).
 
 - **The page is a server page around a client screen** (`profile/page.tsx`,
   `profile-screen.tsx`). The screen still reads the photo and profile
@@ -1887,7 +1890,10 @@ cards sits on the left and stays in view; below it the cards stack with no
 nav. The answer bank and the experience bank (for School Year) are read on
 the server; a failed answer-bank read shows one notice, a failed
 experience-bank read leaves School Year unknown. Transcript and Writing
-Samples read their own.
+Samples read their own, each over a skeleton line until it lands, so
+nothing below moves (KAN-561). The page has its own `loading.tsx`, and Up
+Next's sits in the `(queue)` route group, so it never stands in for this
+page or Written Answers on the way in.
 
 **Work Authorization and Voluntary Self-Identification (KAN-269)** are two
 cards drawn by one component (`application-questions.tsx`), the questions
@@ -2010,7 +2016,8 @@ Show All and Change Resume in it, and a click on it opens the resume), the
 section
 nav, then the section cards and Skills. An entry's editor names the other
 built resumes a save changes too (KAN-363); a name in it shows that resume
-here.
+here. While the bank loads, `experiences/loading.tsx` draws this layout as
+bars, with the switcher live (KAN-561).
 The section nav (KAN-349) is a row of links, one per card with its count
 under the current pick, held at the top of the page while the cards scroll
 under it: a click glides to that card, and the card in view is lit, so a
@@ -2585,7 +2592,10 @@ until KAN-249; the spec's "the resumes page" now means this view. The
 editor lives under it (`/resumes/[resumeId]`), so the sidebar keeps the row
 lit there and the phone editor's back arrow lands here. The page needs
 the built list and the uploaded list: if either fails it
-shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
+shows "Your Resumes Aren't Loading Right Now" and a Try Again link. While
+both load, `resumes/(list)/loading.tsx` draws the page's frame (KAN-561);
+it sits in a route group so it never stands in for the editor or an
+upload's page.
 
 - **Uploaded** (Upload Resume and the upload's row are
   `upload-resume.tsx`; the Your Uploaded Resumes card until KAN-362,
@@ -3024,7 +3034,8 @@ student who opened a resume from Experiences landed on another view.
   LaTeX render without awaiting it; `editor.tsx` reads it with `use()` inside
   a `<Suspense>` around the page area only, over a Letter-sized skeleton with
   its own error state, so Back, the title and the bar do not wait on the
-  compile. Line editing, the assistant and the Experiences picker stay off until it lands, and
+  compile. Until the first render lands, the bar's panel buttons and zoom
+  are bars, not their names in grey (KAN-561). Line editing, the assistant and the Experiences picker stay off until it lands, and
   the phone's "Click a line" is not offered when the first render failed. pdf.js starts
   downloading as the editor mounts. The editor and an upload's page each have
   a `loading.tsx` in their own frame.
@@ -3455,7 +3466,12 @@ is the hiring dashboard; /company/jobs lists the company's real jobs;
 a saved job. `lib/job-actions.ts` saves a job (create, or update with the
 `updated_at` it was loaded with, so a save over someone else's is a 409) and
 pauses, resumes or closes it; `lib/job-queries.ts` holds the Server-Component
-reads.
+reads. The three pages that wait on them (the jobs list, a job's page and
+its edit) each have a `loading.tsx` in their own shape, the first two in a
+route group, `(list)` and `(detail)`, so neither stands in for the composer
+(KAN-561). `company/error.tsx` and `company/not-found.tsx` keep the shell up
+around a thrown read or a job that is not the company's, as the seeker
+side's do.
 
 The two company list screens share `app/company/table.tsx` — a TanStack Table
 shell over shadcn's `Table`, with sorting, filtering and row selection. **It is

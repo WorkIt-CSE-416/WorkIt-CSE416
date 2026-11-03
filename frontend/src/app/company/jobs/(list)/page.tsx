@@ -4,9 +4,9 @@ import { connection } from "next/server";
 import { ButtonLink } from "@/components/ui/button";
 import { listCompanyJobs } from "@/lib/job-queries";
 
-import { toPosting } from "./data";
-import { JobsTable } from "./jobs-table";
-import { LoadError } from "./load-error";
+import { toPosting } from "../data";
+import { JobsTable } from "../jobs-table";
+import { LoadError } from "../load-error";
 
 export const metadata: Metadata = {
   title: "Job Postings",

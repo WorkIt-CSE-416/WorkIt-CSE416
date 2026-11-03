@@ -3,15 +3,18 @@ import { Card } from "@/components/ui/card";
 import { SectionHeadingSkeleton } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
-import { SEEKER_GUTTER } from "../gutter";
-import { AutoApplyPanel } from "./auto-apply-panel";
+import { SEEKER_GUTTER } from "../../gutter";
+import { AutoApplyPanel } from "../auto-apply-panel";
 
 /**
  * Auto Apply while its four reads land (KAN-368): the queue, the saved jobs
  * with their scores, and both resume lists (./page.tsx). Two of them score,
  * so a click on the sidebar's row drew nothing new for a while; now the
  * prefetched state below is drawn in the click's next frame
- * (../home/loading.tsx says why only the slow pages have one).
+ * (../../home/loading.tsx says why only the slow pages have one). It sits
+ * in this route group with the page so it covers Up Next alone: beside
+ * ../info and ../answers it was the first loading boundary on their way in,
+ * so a click to either drew this page's skeleton first (KAN-561).
  *
  * The page's own frame: the width, then the page's panel
  * (./auto-apply-panel.tsx). Then Up Next's heading and Add Jobs as bars, and

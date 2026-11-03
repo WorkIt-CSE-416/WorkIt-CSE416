@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import { FileIcon, TrashIcon, UploadIcon } from "@/components/icons";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import {
@@ -108,6 +109,14 @@ export function Transcript() {
         autofiller attaches it for you.
       </p>
 
+      {/* The empty line's place while the read runs, so nothing below
+          moves when it lands (KAN-561). */}
+      {status === "loading" && (
+        <div role="status" className="mt-4 flex h-5 items-center">
+          <span className="sr-only">Loading your transcript</span>
+          <Skeleton aria-hidden="true" className="h-3.5 w-40" />
+        </div>
+      )}
       {status === "error" && (
         <p role="status" className="text-note text-ink-meta mt-4">
           Your transcript didn&apos;t load. Refresh the page to try again.

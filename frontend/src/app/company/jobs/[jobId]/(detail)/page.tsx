@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
-import { BuildingIcon } from "../../icons";
+import { BuildingIcon } from "../../../icons";
 import { ArrowLeftIcon, PencilIcon } from "@/components/icons";
 import { getJobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
@@ -11,8 +11,8 @@ import { CompanyTile } from "@/components/ui/company-tile";
 import { getCompanyJob } from "@/lib/job-queries";
 import { Points, Section } from "@/components/ui/section";
 
-import { STATUS_TONE } from "../data";
-import { ApplicantOverviewPanel } from "./applicant-overview";
+import { STATUS_TONE } from "../../data";
+import { ApplicantOverviewPanel } from "../applicant-overview";
 
 export async function generateMetadata({
   params,

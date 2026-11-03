@@ -1272,6 +1272,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   and name the section with `aria-label`. What stays real is what works or
   stays the same while it waits: the top bar's title, Back, tabs, filters, the
   Tailor steps, and a sentence that says what a long wait is doing.
+  **A page with child routes keeps its page and `loading.tsx` in a route
+  group** (`resumes/(list)`, `auto-apply/(queue)`, the company's
+  `jobs/(list)` and `jobs/[jobId]/(detail)`; KAN-561): a `loading.tsx` wraps
+  every route under its folder, and the prefetch stops at the first one, so
+  Up Next's skeleton showed on the way to Application Info. The company side
+  follows the same rules, with its own `error.tsx` and `not-found.tsx`. A
+  client-side read draws a skeleton line in its place too (Transcript, the
+  resume pickers' `ResumeListsSkeleton`), never a "Loading…" line.
   A page with two long reads streams each in its own `<Suspense>` over a
   skeleton of its shape, and starts every read before its first `await` (the
   Home: only the account is awaited). **Settings' modal has no

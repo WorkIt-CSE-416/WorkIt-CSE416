@@ -6,16 +6,16 @@ import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 import { listResumes } from "@/lib/resume-actions";
 
-import { SEEKER_GUTTER } from "../gutter";
-import { RememberFeed } from "../jobs/[jobId]/page-actions";
-import { activityOf } from "./activity-list";
-import { getApplications, getRunApplications } from "./applications";
-import { getWrittenQuestions } from "./answers/questions";
-import { AutoApplyPanel } from "./auto-apply-panel";
-import { InfoLink } from "./info-link";
-import type { SavedJob } from "./add-jobs-dialog";
-import { SetupStrip } from "./setup-strip";
-import { QueueSummary, UpNext } from "./up-next";
+import { SEEKER_GUTTER } from "../../gutter";
+import { RememberFeed } from "../../jobs/[jobId]/page-actions";
+import { activityOf } from "../activity-list";
+import { getApplications, getRunApplications } from "../applications";
+import { getWrittenQuestions } from "../answers/questions";
+import { AutoApplyPanel } from "../auto-apply-panel";
+import { InfoLink } from "../info-link";
+import type { SavedJob } from "../add-jobs-dialog";
+import { SetupStrip } from "../setup-strip";
+import { QueueSummary, UpNext } from "../up-next";
 import { jobLogo } from "@/lib/job-logo";
 
 export const metadata: Metadata = {
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
  *              changes, and Add Jobs to queue saved ones (./up-next.tsx).
  *              Needs-you jobs stay in it, since they wait on the seeker.
  *   Application a row card that links to Application Info
- *   Info        (./info/page.tsx, KAN-550; ./info-link.tsx): the answers
+ *   Info        (../info/page.tsx, KAN-550; ../info-link.tsx): the answers
  *               and files the extension fills in beyond the resume.
  *
  * HISTORY IS ARCHIVED FOR NOW (KAN-359), its code kept: an applied job is
@@ -53,7 +53,7 @@ export const metadata: Metadata = {
  * default resume and the student's Claude are optional, so the rows carry
  * them: No Resume, and a chip counting a row's written questions
  * (`questions`, from GET .../written-questions) that links to Written
- * Answers (./answers/page.tsx), which offers Connect Claude. The strip
+ * Answers (../answers/page.tsx), which offers Connect Claude. The strip
  * replaced the header's Add to Claude, and the Written Questions Waiting
  * card (KAN-385), which counted the questions without saying whose. A
  * failed read of the questions leaves the chips out: Up Next says when the

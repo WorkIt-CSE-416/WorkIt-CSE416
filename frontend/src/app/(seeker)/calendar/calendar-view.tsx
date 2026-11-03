@@ -89,11 +89,38 @@ export function CalendarView({
   const hydrated = useHydrated();
   const { view, date, demo } = useCalendarQuery();
 
+  // Until it hydrates: the toolbar and a month's grid as bars (KAN-561),
+  // the cells white so the grid reads on the grey ground, not one slab.
   if (!hydrated) {
     return (
       <div aria-hidden="true" className="flex min-h-0 flex-1 flex-col">
-        <Skeleton className="rounded-control h-9 w-48" />
-        <Skeleton className="rounded-card mt-4 flex-1" />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Skeleton className="mr-auto h-6 w-44" />
+          <Skeleton className="h-9 w-24 rounded-full" />
+          <span className="flex items-center gap-2">
+            <Skeleton className="h-9 w-16 rounded-full" />
+            <Skeleton className="size-9 rounded-full" />
+            <Skeleton className="size-9 rounded-full" />
+          </span>
+          <Skeleton className="h-9 w-40 rounded-full" />
+          <Skeleton className="h-9 w-32" />
+        </div>
+        <div className="border-border-subtle rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
+          <div className="bg-panel border-border-subtle grid shrink-0 grid-cols-7 border-b">
+            {Array.from({ length: 7 }, (_, i) => (
+              <span key={i} className="flex justify-center py-2.5">
+                <Skeleton className="h-3 w-8" />
+              </span>
+            ))}
+          </div>
+          <div className="bg-border-subtle grid min-h-80 flex-1 grid-cols-7 gap-px">
+            {Array.from({ length: 35 }, (_, i) => (
+              <span key={i} className="bg-panel p-2">
+                <Skeleton className="size-5 rounded-full" />
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

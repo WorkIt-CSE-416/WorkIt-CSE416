@@ -15,6 +15,7 @@ import {
 } from "@/components/resume-list";
 import { PrimaryStar, RESUME_ROW, ROW_ACTION } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Radio } from "@/components/ui/radio-row";
@@ -273,6 +274,40 @@ export function ResumeLists({
           </ResumeScroll>
         </div>
       )}
+    </div>
+  );
+}
+
+/** `ResumeLists` while `loadChoices` runs (KAN-561): the row's search and
+ *  Type filter, then the list's box with a group heading and three cards,
+ *  as bars. One skeleton for all three dialogs, in place of the line
+ *  "Loading your resumes…" each drew. */
+export function ResumeListsSkeleton() {
+  return (
+    <div role="status" className="flex min-w-0 flex-col gap-3">
+      <span className="sr-only">Loading your resumes</span>
+      <div aria-hidden="true" className="flex items-center gap-2">
+        <Skeleton className="h-10 min-w-0 flex-1 rounded-full" />
+        <Skeleton className="h-10 w-36 shrink-0 rounded-full" />
+      </div>
+      <div
+        aria-hidden="true"
+        className="border-border-subtle rounded-card bg-panel border px-3 pb-3"
+      >
+        <div className="flex h-9 items-center pt-2">
+          <Skeleton className="h-3 w-20" />
+        </div>
+        {Array.from({ length: 3 }, (_, i) => (
+          <div key={i} className={RESUME_ROW}>
+            <Skeleton className="size-4 shrink-0 rounded-full" />
+            <Skeleton className="size-5 shrink-0" />
+            <span className="flex min-w-0 flex-1 flex-col gap-1.5 py-0.5">
+              <Skeleton className="h-3.5 w-48 max-w-full" />
+              <Skeleton className="h-3 w-28 max-w-full" />
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

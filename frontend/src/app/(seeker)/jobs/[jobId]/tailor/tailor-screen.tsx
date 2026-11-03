@@ -30,7 +30,7 @@ import {
 } from "@/lib/tailor-actions";
 
 import type { MatchShift, TailorReviewRecord } from "../../../resumes/[resumeId]/tailor-review";
-import { loadChoices, ResumeLists, type Choice } from "../../resume-picker";
+import { loadChoices, ResumeLists, ResumeListsSkeleton, type Choice } from "../../resume-picker";
 import { ResumePreviewDialog } from "./resume-preview";
 import { BackToJobs } from "../page-actions";
 import type { JobListing } from "../../listings";
@@ -290,7 +290,7 @@ export function TailorScreen({
           <>
             <Card as="section" aria-label="Pick a Resume" className="flex min-w-0 flex-col gap-3">
               {choices == null ? (
-                <p className="text-note text-ink-muted">Loading your resumes…</p>
+                <ResumeListsSkeleton />
               ) : (
                 <>
                   <ResumeLists

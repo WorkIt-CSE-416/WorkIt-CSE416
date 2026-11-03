@@ -147,21 +147,39 @@ export function ProfileScreen({ school, extras }: { school: ReactNode; extras: R
         <Card
           as="section"
           padding="none"
-          aria-labelledby="identity"
+          aria-labelledby={applicantProfile ? "identity" : undefined}
+          aria-label={applicantProfile ? undefined : "Your Profile"}
           className={cn(SECTION_CARD, "flex flex-col items-center text-center")}
         >
-          <Avatar
-            name={applicantProfile?.full_name ?? ""}
-            src={avatarUrl}
-            className="text-display size-24"
-          />
-          <SectionHeading id="identity" className="mt-4">
-            {applicantProfile?.full_name ?? " "}
-          </SectionHeading>
-          {/* A held line while the profile loads; once loaded, no headline
-              means no line, rather than an empty row under the name. */}
-          {(!applicantProfile || applicantProfile.headline) && (
-            <p className="text-body text-ink-meta mt-0.5">{applicantProfile?.headline ?? " "}</p>
+          {applicantProfile ? (
+            <>
+              <Avatar
+                name={applicantProfile.full_name}
+                src={avatarUrl}
+                className="text-display size-24"
+              />
+              <SectionHeading id="identity" className="mt-4">
+                {applicantProfile.full_name}
+              </SectionHeading>
+              {/* No headline means no line, rather than an empty row under
+                  the name. */}
+              {applicantProfile.headline && (
+                <p className="text-body text-ink-meta mt-0.5">{applicantProfile.headline}</p>
+              )}
+            </>
+          ) : (
+            // While the profile loads: the photo, the name and the headline
+            // as bars on their own lines (KAN-561), not a blank circle and
+            // empty rows.
+            <div aria-hidden="true" className="flex flex-col items-center">
+              <Skeleton className="size-24 rounded-full" />
+              <div className="mt-4 flex h-7 items-center">
+                <Skeleton className="h-5 w-36" />
+              </div>
+              <div className="mt-0.5 flex h-5 items-center">
+                <Skeleton className="h-3.5 w-28" />
+              </div>
+            </div>
           )}
           <ButtonLink
             href="/settings/personal"
