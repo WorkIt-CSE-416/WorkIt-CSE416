@@ -492,6 +492,11 @@ Claude stops at one (`SAYS_CAPTCHA`).
   the job system's confirmation starts again, and the Application is
   Submitted through the usual submit proof. If he does not, it is the
   Handoff that it was before.
+- In a rehearsal Lisul presses Submit himself. A captcha after his press
+  (`_Kept.hold`, `challenged`) gets the same push, once, and the tile
+  shows "Do the captcha" (`captcha.AFTER_HIS_SUBMIT`). He does it himself;
+  Apply never touches it. The form's confirmation then keeps the
+  Application as submitted, as for any submit of his.
 - A rehearsal keeps each captcha wait in its history ("Paused: do the
   captcha", "Resumed: the captcha is done"), on the tile and in the Record,
   and a `captcha` event in the Trace. A wait that timed out leaves only

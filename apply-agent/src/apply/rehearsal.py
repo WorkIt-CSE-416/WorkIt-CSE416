@@ -38,6 +38,7 @@ from urllib.parse import urlsplit
 
 from apply import (
     ashby,
+    captcha,
     eightfold,
     embedded,
     greenhouse,
@@ -188,6 +189,14 @@ def rehearse(
             if together:
                 adapters.board.update(n, stage="")
 
+        tells = Waiter(adapters.board, n, adapters.phone, profile, dict)
+
+        def challenged() -> None:  # a captcha after Lisul's own Submit: his to do; Apply only tells him
+            tells.tell(done.posting.company)
+            adapters.board.update(n, status="handoff", why=captcha.AFTER_HIS_SUBMIT, captcha=True)
+            out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title,
+                            "a captcha came up after your Submit: do the captcha yourself"]))
+
         answers = lambda: [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]
         fill = lambda page, q, a: _fill_answer(page, q, a, adapters, profile, n, done, out)
 
@@ -214,7 +223,7 @@ def rehearse(
             gate.release()  # a paused form holds no Worker's turn while it waits on him
             try:
                 how = site.hold(release, done.posting.job_system, submitted, done.warning(), bool(done.problems),
-                                answers, fill, resume=wants)
+                                answers, fill, resume=wants, challenged=challenged)
             finally:
                 gate.acquire()
             if how == RESUME:
@@ -249,7 +258,8 @@ def rehearse(
             try:
                 hold = lambda: site.hold(release, done.posting.job_system, submitted, done.warning(),
                                          bool(done.problems), answers, fill,
-                                         EmailCode(adapters.mailbox, adapters.clock, done.posting.job_system, told))
+                                         EmailCode(adapters.mailbox, adapters.clock, done.posting.job_system, told),
+                                         challenged=challenged)
                 how = after.pop() if after else hold()
                 while how == AGAIN:  # Fill again
                     with gate:
@@ -642,7 +652,8 @@ class _Kept:
     def hold(self, release: threading.Event, job_system: str = "", submitted: Callable[[object], None] = lambda page: None,
              warning: str = "", wrong: bool = True, answers: Callable[[], list[tuple[str, str]]] = list,
              fill: Callable[[object, str, str], None] = lambda page, question, answer: None,
-             code: EmailCode | None = None, resume: Callable[[object], bool] | None = None) -> str:
+             code: EmailCode | None = None, resume: Callable[[object], bool] | None = None,
+             challenged: Callable[[], None] = lambda: None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
         window is closed. Apply is done with it, so it is Lisul's: the submit
@@ -655,6 +666,8 @@ class _Kept:
         in and presses nothing. AGAIN when he presses Fill again: fill the form anew.
         A paused rehearsal passes `resume(page)`, whether Lisul pressed Resume and
         it can go on: then RESUME, with the page still his until rearm().
+        A captcha that shows after a press of his calls `challenged()`, once:
+        he does it himself, and Apply never touches it.
         "" when the page closed or `release` was set."""
         if self._page is None or release.is_set():
             return ""
@@ -673,7 +686,7 @@ class _Kept:
         except Exception:
             return ""  # its browser was quit
         self._lifted = self._bound = True
-        kept, closing = False, None
+        kept, closing, told = False, None, False
         while not release.is_set():
             try:
                 if self._page.is_closed():
@@ -686,6 +699,9 @@ class _Kept:
                     fill(self._page, question, answer)
                 if code and not kept:
                     code.tick(self._page)
+                if pressed and not kept and not told and captcha.shows(self._page):
+                    told = True
+                    challenged()
                 if pressed and not kept and _confirmed(self._page, job_system):
                     kept = True
                     submitted(self._page)

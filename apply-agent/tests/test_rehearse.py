@@ -505,6 +505,24 @@ def test_lisuls_own_submit_on_a_held_page_is_kept_in_the_tracker_as_submitted(mo
     assert any(line.startswith("Arc Boat Company | ") and "you submitted it; it is in the Tracker" in line for line in lines)
 
 
+def test_a_captcha_after_lisuls_own_submit_pushes_him_to_do_it(monkeypatch, tmp_path):
+    # Lisul (2026-11-03): in a rehearsal he presses Submit and does the captcha himself; Apply only tells him.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
+    profile, phone, board = ApplicantProfile.load(captcha_profile(tmp_path, 1)), RecordingNotifier(), RecordingBoard()
+
+    with FakeJobServer(ARC_FORM, challenge=True) as fake:
+        lines = hold_until(fake, profile, lambda lines: "do the captcha" in lines[-1],
+                           with_adapters={"phone": phone, "board": board})
+        submissions = fake.submissions
+
+    assert phone.sent == [("Apply: do the captcha", "Do the captcha on Arc Boat Company. "
+                                                    "Apply goes on by itself once it's done.")]
+    assert any(line.startswith("Arc Boat Company | ") and "do the captcha yourself" in line for line in lines)
+    assert (board.captions[0]["status"], board.captions[0]["captcha"]) == ("handoff", True)
+    assert submissions == []  # nothing goes until the captcha is done
+
+
 def test_lisuls_own_submit_from_a_rehearsal_is_applied_in_his_applications_tracker(monkeypatch, tmp_path):
     # KAN-544: the submit he made goes to WorkIt as Applied, the resume the form was given as its Sent resume.
     from fake_tracker import FakeTracker

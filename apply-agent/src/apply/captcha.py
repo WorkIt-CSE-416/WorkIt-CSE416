@@ -59,6 +59,8 @@ def blocked(company: str, url: str) -> str:
 _AT_SUBMIT: ContextVar[Callable[[Page], bool]] = ContextVar("at_submit", default=lambda page: False)
 # The reason the window shows for one.
 AT_SUBMIT = "A captcha came up after the submit click, so the form waits to be sent"
+# A rehearsal's, after Lisul's own Submit: his to do, as the Submit was.
+AFTER_HIS_SUBMIT = "A captcha came up after your Submit: do the captcha, and the form goes in"
 
 
 @contextmanager
@@ -129,7 +131,7 @@ class Waiter:
             return False
         board, n = self._board, self._worker
         board.update(n, status="handoff", why=why, captcha=True, resume={"ok": True})
-        self._tell(company or self._caption().get("company") or "")
+        self.tell(company or self._caption().get("company") or "")
         done = wait(page, lambda: board.resumed(n), self.minutes)
         if done:  # filling again, which clears the tile: its caption anew, as a fill's start gives it
             board.update(n, **self._caption(), status="filling")
@@ -137,7 +139,7 @@ class Waiter:
             board.update(n, captcha=False)
         return done
 
-    def _tell(self, company: str) -> None:
+    def tell(self, company: str) -> None:
         """One push per Application: a second challenge on the same form pushes nothing more."""
         if self._pushed or not self._push or self._phone is None:
             return
