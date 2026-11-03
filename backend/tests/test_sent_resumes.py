@@ -661,3 +661,55 @@ async def test_the_database_refuses_a_link_to_another_applicants_sent_resume(stu
                 text("UPDATE job_applications SET sent_resume_id = :s WHERE applicant_id = :a"),
                 {"s": uuid.UUID(theirs["id"]), "a": uuid.UUID(me.split("/")[2])})
             await session.commit()
+
+
+# --- a job the student added by its link (KAN-544) ---------------------------
+
+
+async def _added(client, link: str) -> str:
+    """A job on the student's tracker by its link (KAN-542): unlisted when no listed job has it."""
+    res = await client.post("/jobs/added-by-link", json={"url": link, "company": "Lockheed Martin", "title": "Intern"})
+    assert res.status_code == 200
+    return res.json()["job_id"]
+
+
+async def test_apply_to_an_unlisted_job_the_student_added_keeps_its_sent_resume(student, storage, database):
+    client, me = student
+    uploaded = (await _upload(client, me)).json()
+    job = await _added(client, "https://lockheedmartin.eightfold.ai/careers/job/7123456")
+
+    res = await client.post(f"{me}/sent-resumes", json={"uploaded_resume_id": uploaded["id"], "job_posting_id": job})
+    assert res.status_code == 201
+    marked = await client.post(f"/jobs/{job}/applied", json={"sent_resume_id": res.json()["id"]})
+    assert (marked.status_code, marked.json()["sent_resume_id"]) == (200, res.json()["id"])
+
+
+async def test_apply_to_a_job_the_feed_closed_after_the_student_tracked_it_keeps_its_sent_resume(
+    student, storage, database
+):
+    client, me = student
+    uploaded = (await _upload(client, me)).json()
+    job = await _seed_posting(database, "https://example.com/closed-later")
+    assert (await client.post(f"/jobs/{job}/saved")).status_code == 200
+    async with database() as session:
+        await session.execute(text("UPDATE job_postings SET status = 'closed' WHERE id = :id"), {"id": job})
+        await session.commit()
+
+    res = await client.post(f"{me}/sent-resumes", json={"uploaded_resume_id": uploaded["id"], "job_posting_id": job})
+    assert res.status_code == 201
+    assert (await client.post(f"/jobs/{job}/applied", json={"sent_resume_id": res.json()["id"]})).status_code == 200
+
+
+async def test_another_students_unlisted_job_takes_no_sent_resume(student, storage, database):
+    from tests.test_built_resumes import _seed_applicant, _sign_in
+
+    client, _ = student
+    job = await _added(client, "https://lockheedmartin.eightfold.ai/careers/job/7123457")
+    async with database() as session:
+        other = await _seed_applicant(session)
+    _sign_in(other)
+    uploaded = (await _upload(client, f"/applicants/{other}")).json()
+
+    res = await client.post(f"/applicants/{other}/sent-resumes",
+                            json={"uploaded_resume_id": uploaded["id"], "job_posting_id": job})
+    assert res.status_code == 404

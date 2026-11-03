@@ -536,8 +536,11 @@ Find files with a directory listing; these are the rules for where code goes.
   of the Jobs page, search, Scout and every `postings.listed` caller, and
   `mark_applied` takes it only with the student's application
   (`services/postings.py`'s `UNLISTED`, compared as text: models/CLAUDE.md).
-  Sent resumes (`services/sent_resumes.py`) still need a listed posting.
-  Tests: `tests/test_unlisted_postings.py`.
+  Tests: `tests/test_unlisted_postings.py`. A Sent resume
+  (`services/sent_resumes.py`) and `mark_applied` take a listed posting or
+  one `postings.tracked_by` the student (KAN-544): a scraped posting they
+  have an application on, unlisted or closed by the feed since. Tests:
+  `tests/test_sent_resumes.py` (`-k "unlisted or closed_after"`).
   **Apply's stages** (KAN-544): the stage PUT (`routers/tracker.py`,
   `queries/tracker.py` `set_stage`) also takes needs_you (an Apply Handoff
   or a missing fact) and queued (a held application), but only on an
@@ -713,8 +716,8 @@ Find files with a directory listing; these are the rules for where code goes.
   resume's keyword match against its own posting, which still works after
   the posting closes. A route that loads a `Job_Post` by id alone skips
   this check. An unlisted job posting (KAN-542) is never listed: only the
-  tracker and `POST /jobs/{id}/applied` reach it, for the students with an
-  application on it.
+  tracker, `POST /jobs/{id}/applied` and a Sent resume reach it, for the
+  students with an application on it (`postings.reachable`, KAN-544).
 - **Identity fields load through `app/services/identity.py`**
   (`load_identity`), for Scout's model seam and the bank embedding alike.
   A resume's header prints them from `built_resumes.load_header_identity`

@@ -22,7 +22,10 @@ POST   /applicants/{id}/sent-resumes            SentResumeCreate
        snapshot (KAN-267), so its file comes back as `data`. 422 unless
        exactly one source is given. 404 for a
        resume that is not the student's or a posting the Jobs page does not
-       list (unknown, draft, paused, closed), 503 when the PDF cannot be made.
+       list (unknown, draft, paused, closed), unless it is a scraped posting
+       the student has an application on (an unlisted one they added by its
+       link, or one the feed closed since: KAN-544, `postings.reachable`).
+       503 when the PDF cannot be made.
 GET    /applicants/{id}/sent-resumes            -> [SentResumeResponse], newest first;
        `rebuilt` marks one rebuilt from an uploaded file's text (below)
 GET    /applicants/{id}/sent-resumes/{sid}/file -> SentResumeFile: a stored file

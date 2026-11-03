@@ -140,8 +140,10 @@ async def _keep_snapshot(session: AsyncSession, applicant_id: uuid.UUID, digest:
         Resume_Snapshot.applicant_id == applicant_id, Resume_Snapshot.content_hash == digest))
 
 
-async def _check_posting(session: AsyncSession, job_posting_id: uuid.UUID) -> None:
-    if await postings.listed(session, job_posting_id) is None:
+async def _check_posting(session: AsyncSession, applicant_id: uuid.UUID, job_posting_id: uuid.UUID) -> None:
+    """A listed posting, or a scraped one the student tracks (unlisted, or
+    closed since: KAN-544). Anything else is NotFound."""
+    if await postings.reachable(session, job_posting_id, applicant_id) is None:
         raise NotFound
 
 
@@ -171,7 +173,7 @@ async def send_built(
     snapshot. Raises NotFound for a built resume that is not the
     applicant's, and resume_render.TectonicUnavailable when the PDF cannot
     be made. Stores nothing in Storage."""
-    await _check_posting(session, job_posting_id)
+    await _check_posting(session, applicant_id, job_posting_id)
     resume, view = await built_resumes.load_view(session, applicant_id, built_resume_id)
     identity = await built_resumes.load_header_identity(session, applicant_id)
     page = built_resumes.page_of(resume)
@@ -205,7 +207,7 @@ async def send_uploaded(
 ) -> Sent:
     """A sent resume that points at an uploaded resume's own file. The file
     never changes, so a repeat (same resume, same posting) returns the last."""
-    await _check_posting(session, job_posting_id)
+    await _check_posting(session, applicant_id, job_posting_id)
     resume = await session.scalar(
         select(Resume).where(Resume.id == resume_id, Resume.applicant_id == applicant_id)
     )
