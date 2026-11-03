@@ -27,8 +27,9 @@ export const metadata: Metadata = {
  * from @4xl/main up: Work Authorization and Voluntary Self-Identification
  * (./application-questions.tsx, the second closed while reading),
  * Application Answers (./application-answers.tsx), Transcript
- * (./transcript.tsx) and Writing Samples (./writing-samples.tsx, at
- * `#writing-samples`, the address the extension's ask opens).
+ * (./transcript.tsx), Writing Samples (./writing-samples.tsx, at
+ * `#writing-samples`, the address the extension's ask opens) and Workday
+ * Sign-Up (./workday-signup.tsx, which opens the extension's own page).
  *
  * The answer bank is read here, on the server, with the experience bank,
  * whose education entries give Application Answers' School Year; a failed

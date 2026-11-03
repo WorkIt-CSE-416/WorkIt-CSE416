@@ -795,7 +795,7 @@ const RUNNER_MESSAGES = {
   "run/close": (message) => closeBatchTab(message),
   "practice/open": (message, sender) => startPractice(sender, message),
   "practice/status": () => practiceStatus(),
-  // The webapp's Settings > Connected Apps: opens the Workday Sign-Up page, which keeps its password in this browser.
+  // The webapp's Application Info: opens the Workday Sign-Up page, which keeps its password in this browser.
   "workday/signup-open": async () => {
     await chrome.runtime.openOptionsPage();
     return {};

@@ -149,8 +149,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   used only by Write with Claude (`auto-apply/write-with-claude.tsx`),
   which also copies the trigger since claude.ai's `?q=` is undocumented.
   Never put the student's data in that link: it lands in browser history.
-  Disconnecting is WorkIt's, in Settings' Sign-In & Security, Connected
-  Apps (`lib/connector-actions.ts`, `DELETE /applicants/{id}/connector`):
+  Disconnecting is WorkIt's, in Settings' Integrations, on Claude's row
+  (`lib/connector-actions.ts`, `DELETE /applicants/{id}/connector`):
   it revokes every token the student's Claude holds, which removing the
   connector in Claude alone doesn't.
 - **The business side is hidden until it ships** (KAN-239). `src/proxy.ts`
