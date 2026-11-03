@@ -62,7 +62,7 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
     <div className="flex shrink-0 items-center gap-0.5">
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label="Zoom out"
         title="Zoom out"
         disabled={at <= 0}
@@ -90,7 +90,7 @@ export function Zoom({ zoom, onZoom }: { zoom: number; onZoom: (zoom: number) =>
       </DropdownMenu>
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label="Zoom in"
         title="Zoom in"
         disabled={at >= ZOOMS.length - 1}

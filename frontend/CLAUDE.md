@@ -1672,7 +1672,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Scout's chat while the page is mounted, so the bar's Scout button opens
   the page's assistant. The Experience Bank puts intake there, and the
   resume editor its assistant (KAN-411), which is why the editor's
-  toolbar has no Ask Scout. Open it only
+  toolbar has no Ask Scout. The editor passes `float`, so below xl the
+  panel floats over the page instead of taking room (KAN-576): docked at
+  1024 it left the resume a 416px column. Open it only
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
   **The bar's Scout button is archived** (`SCOUT_LAUNCHER_LIVE` in
@@ -1704,9 +1706,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   own height before, and Add Jobs grew to 90% of the window. The grouped
   resume list is the one exception: five cards under a group heading in
   every resume picker (`ResumeScroll`, `components/resume-list.tsx`),
-  since 320px showed three and a half, and on the Resumes page it scrolls
-  inside itself down to the foot of the page (`fill`, KAN-434), so the
-  search and buttons above it stay in view.
+  since 320px showed three and a half, and on a page (the Resumes page,
+  KAN-434, and Tailor's Pick a Resume, KAN-576) it scrolls inside itself
+  down to the foot of the page (`fill`), so the search and buttons above
+  it stay in view: on Tailor, the dialog's five cards left 230px empty and
+  cut the last card in half. Five cards are for a dialog.
 - **A filter whose rows the page already holds moves the URL in place**
   (`useShallowPush`, `docs/motion.md`): Live Activity's Status and sort
   (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of
@@ -1920,6 +1924,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   panel dropped, so a resume set that way prints as it did. The bar mutes every
   button's words (`SLIM_BAR`, `DOCS_BAR`), so a real action there (Add Bullet,
   `FitButton`) carries `data-bar-action`, or a filled button reads grey on purple.
+  **One bar, one height** (KAN-576): every button on it is 36px, text
+  buttons `sm` and icon buttons `icon-lg` (the kit's `icon-sm` is 28px);
+  `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. An upload's
+  page draws the same box (`SLIM_BAR`, `[resumeId]/slim-bar.ts`).
 - **A bullet's one wording button is Original** (`LineActions`), shown
   only while the bullet shows another wording (Tailor's, or one typed on
   this resume): it puts the bank's text back, and Undo takes that back.

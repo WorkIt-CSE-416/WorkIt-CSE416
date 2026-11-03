@@ -145,6 +145,9 @@ export type PickerUpload = {
   onBusyChange: (busy: boolean) => void;
 };
 
+/** Under a page's list: the card's 18px padding and 1px border. */
+const CARD_FOOT = 19;
+
 /**
  * The student's resumes as the Resumes page lists them (KAN-406): one row
  * with the search (names and the postings they were tailored for), the
@@ -183,6 +186,7 @@ export function ResumeLists({
   onPick,
   onPreview,
   upload,
+  fill = false,
 }: {
   name: string;
   choices: Choice[];
@@ -194,6 +198,9 @@ export function ResumeLists({
   onPreview?: (choice: Choice) => void;
   /** Given, the row has Upload Resume. */
   upload?: PickerUpload;
+  /** On a page, not in a dialog (Tailor's Pick a Resume): the list runs
+   *  down to the page's foot, inside a card (`ResumeScroll`'s `fill`). */
+  fill?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [types, setTypes] = useState<ResumeType[]>([]);
@@ -241,9 +248,10 @@ export function ResumeLists({
       ) : shown.length === 0 ? (
         <p className="text-note text-ink-meta py-2">None of your resumes match these filters.</p>
       ) : (
-        // Its own scroll, so the dialog's footer stays put under a long list.
+        // Its own scroll, so the dialog's footer stays put under a long list,
+        // or, on a page, so the search above it stays in view.
         <div className="border-border-subtle rounded-card bg-panel border">
-          <ResumeScroll label="Your resumes">
+          <ResumeScroll label="Your resumes" fill={fill} below={fill ? CARD_FOOT : 0}>
             {RESUME_TYPES.map(({ value, label }) => {
               const rows = shown.filter((c) => GROUP[c.type] === value).sort(order);
               if (rows.length === 0) return null;

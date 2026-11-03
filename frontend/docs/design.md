@@ -39,7 +39,12 @@ shell renders them inside `@container/main`. A layout that splits into
 columns uses `@3xl/main:` and friends, and a card that rearranges itself
 (the job card) is its own `@container`. Scout's panel takes room beside the
 page when open, and the page fits itself to what is left. **The panel never
-changes the page's width**: it is a fixed rail. Until 2026-10-27 it
+changes the page's width**: it is a fixed rail. One exception: below xl
+the resume editor's panel (Format Options, Sections, Experiences, Cut From
+Resume, its assistant) floats over the page instead (`ScoutTakeover`'s
+`float`, KAN-576), as Tailor's review's column does below `@6xl/main`,
+since there the page is the work: docked at 1024, the resume drew 414px
+wide with about 4px text. Until 2026-10-27 it
 collapsed and opened, and a `--panel-gain` length (with its readers on
 Applications, Tailor and the job rail) kept each page at its open-panel
 width through the move; that went with the collapse. Applications has no
@@ -456,7 +461,9 @@ edges, with `rounded-shell` corners, a full border and `shadow-lift`, over
 a light dim of the page that stays sharp. It was a full-height square slab
 against the window's edge over a blurred page, which read as a different
 app from the rounded cards around it, and the blur hid what the panel was
-about. The application detail panel (the Calendar's) is the one today.
+about. The application detail panel (the Calendar's) is the modal one; the
+resume editor's panels float the same way below xl with no dim, since the
+page under them still works (KAN-576).
 
 **A button is a rounded rectangle; a pill is a chip** (KAN-251). A button
 acts (saves, opens, sends, goes somewhere); a chip is a choice made in

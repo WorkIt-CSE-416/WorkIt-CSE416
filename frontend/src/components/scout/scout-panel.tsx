@@ -60,10 +60,18 @@ import type { ScoutMessage } from "./stream";
  * panel for a while, under its own `mark`: the resume editor's Experiences
  * picker does, and the bar's Scout then goes back to the page's assistant
  * (`away`), since Scout is not what is open.
+ *
+ * A TAKEOVER CAN FLOAT (`float`, KAN-576): the resume editor's. From md to
+ * xl the panel then takes no room and floats over the page's right side, as
+ * the Calendar's detail panel does (inset 12px under the bar, the shell's
+ * corners, a full border and `shadow-lift`), with no dim, since the page
+ * under it still works. Docked at 1024, its Format Options left the resume
+ * a 416px column with about 4px text. From xl it docks as any other.
  */
 export function ScoutPanel() {
   const { open, messages, reply, error, takeover } = useScout();
   const width = takeover ? "md:w-112" : "md:w-96";
+  const floats = Boolean(takeover?.float);
   const answering = reply !== null;
   // "closed" only once it has been open, so a page load does not play the
   // page's settle for a panel nobody opened.
@@ -123,7 +131,7 @@ export function ScoutPanel() {
         // edge (the row clips it at the window's).
         "md:visible md:static md:inset-auto md:z-auto md:translate-y-0 md:opacity-100",
         "md:relative md:shrink-0",
-        open ? width : "md:w-0",
+        open ? (floats ? "md:w-0 xl:w-112" : width) : "md:w-0",
       )}
     >
       <div
@@ -131,6 +139,9 @@ export function ScoutPanel() {
           "bg-panel flex h-full flex-col",
           "md:border-border-subtle md:absolute md:inset-y-0 md:right-0 md:border-l",
           width,
+          // Over the page, below the bar's 64px, until xl
+          floats &&
+            "md:max-xl:rounded-shell md:max-xl:shadow-lift md:max-xl:top-19 md:max-xl:right-3 md:max-xl:bottom-3 md:max-xl:z-30 md:max-xl:h-auto md:max-xl:overflow-hidden md:max-xl:border",
           // Slides from just past the window's edge into the room made for it.
           "md:transition-[opacity,translate] md:delay-0",
           open

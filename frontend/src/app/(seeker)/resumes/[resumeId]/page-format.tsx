@@ -225,7 +225,7 @@ export function SizeStepper({
     <div role="group" aria-label={role.label} className="flex shrink-0 items-center gap-0.5">
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label={`Smaller ${role.label}`}
         title={`Smaller ${role.label}`}
         disabled={disabled || smaller < role.min}
@@ -251,11 +251,11 @@ export function SizeStepper({
             setTyped(null);
           }
         }}
-        className={cn(FIELD_CONTROL, "sm:text-note h-7 w-11 px-1 text-center font-medium")}
+        className={cn(FIELD_CONTROL, "sm:text-note h-9 w-11 px-1 text-center font-medium")}
       />
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label={`Larger ${role.label}`}
         title={`Larger ${role.label}`}
         disabled={disabled || larger > role.max}
@@ -268,7 +268,8 @@ export function SizeStepper({
 }
 
 /** A toolbar button that opens a panel beside the page, tinted while it
- *  is open: Sections, Format Options. */
+ *  is open: Sections, Format Options. `sm`, as every text button on the bar
+ *  is (KAN-576): at `xs` it stood 26px with 12px type beside 36px ones. */
 export function PanelButton({
   label,
   Icon,
@@ -285,7 +286,7 @@ export function PanelButton({
   return (
     <Button
       variant="ghost"
-      size="xs"
+      size="sm"
       aria-pressed={open}
       title={label}
       disabled={disabled}
