@@ -456,6 +456,10 @@ window's card and tile. Run it with `-k`; it opens Chromium.
 - A Filler with a `form_url(url)` method names the page that holds its
   form. The Worker opens that page, not the posting link. Lever's form is
   on `/apply`; a link without it opens the job description.
+- A Workday step that Save and Continue refuses ("won't leave its ... step")
+  is filled once more, after a second's wait, and saved again; a second
+  refusal is the Handoff. ASML's Application Questions showed every pick,
+  yet Workday held two of them empty (`WorkdayFiller.fill`).
 
 ## Sign-in pages
 
