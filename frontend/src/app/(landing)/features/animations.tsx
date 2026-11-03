@@ -3,9 +3,10 @@
 import dynamic from "next/dynamic";
 
 /**
- * The home tour's four animations as the feature pages draw them, each in a
- * chunk of its own that only the page showing it loads. Server-rendered as
- * before; the browser preloads the one chunk and hydrates the page with it.
+ * The feature pages' hero animations (the home tour's four and Scout's),
+ * each in a chunk of its own that only the page showing it loads.
+ * Server-rendered as before; the browser preloads the one chunk and
+ * hydrates the page with it.
  *
  * A content file imports its animation from here, never the visual itself:
  * a client component a server file imports joins the browser bundle of
@@ -18,3 +19,4 @@ export const ResumeAnimation = dynamic(() => import("../resume-visual"));
 export const MatchingAnimation = dynamic(() => import("../matching-visual"));
 export const AutoApplyAnimation = dynamic(() => import("../auto-apply-visual"));
 export const UpdatesAnimation = dynamic(() => import("../updates-visual"));
+export const ScoutAnimation = dynamic(() => import("./visuals/scout-animation"));
