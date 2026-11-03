@@ -5,6 +5,7 @@ never solves one. A bot block is a page that refuses the browser outright
 (Tesla's "Access Denied"): there is nothing to solve, so it is a Handoff."""
 
 import re
+from urllib.parse import urlsplit
 
 from playwright.sync_api import Page
 
@@ -34,3 +35,16 @@ def shows(page: Page) -> bool:
         return any(challenge.nth(i).is_visible() for i in range(challenge.count()))
     except Exception:
         return False
+
+
+# A bot block's Handoff: plain words, as Lisul asked for Tesla's.
+BLOCKED = "{} blocked the browser; apply in your own Chrome"
+# Parts of a host that name no company.
+_NO_NAME = {"www", "careers", "jobs", "apply", "boards", "job-boards"}
+
+
+def blocked(company: str, url: str) -> str:
+    """The Handoff's reason for a page that blocks the browser: the company,
+    else the name in the link's host (www.tesla.com: Tesla)."""
+    labels = [part for part in urlsplit(url).hostname.split(".") if part not in _NO_NAME] if url else []
+    return BLOCKED.format(company or (labels[0].capitalize() if labels else "The job site"))

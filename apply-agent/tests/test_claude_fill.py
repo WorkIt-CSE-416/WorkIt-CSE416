@@ -296,6 +296,22 @@ def test_a_captcha_claude_fill_stops_at_is_a_bot_signal(tmp_path, why):
     assert row.bot_signals == "headless: captcha"
 
 
+def test_a_page_that_blocks_the_browser_says_so_plainly_and_is_no_captcha(tmp_path):
+    # Tesla (2026-11-03): an "Access Denied" page, a bot block with no challenge to solve.
+    profile = profile_with(tmp_path)
+    why = ('The tab shows an "Access Denied" error from the server (Reference #18.6424c317) at '
+           "https://lunaroutpost.bamboohr.com/careers/398. No job posting or application form is visible.")
+    claude = FakeClaude(driver=BambooDriver(blocked=why))
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [row] = run(server, profile, requests=[LUNAR_URL], claude=claude)
+
+    assert row.status == "handoff"
+    assert row.reason.startswith("Lunar Outpost blocked the browser; apply in your own Chrome")
+    assert row.bot_signals == ""
+    assert server.submissions == []
+
+
 class SendingDriver(BambooDriver):
     """Plays Haiku clicking the form's Submit itself once it has filled the
     form, though its prompt says never to. `names` is the button it then

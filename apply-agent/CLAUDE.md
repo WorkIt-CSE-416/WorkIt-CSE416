@@ -463,7 +463,10 @@ challenge there, as data, not in a Filler.
   them. Do not list a checkbox that stays on the page after it passes.
 - `SAYS_CAPTCHA` reads Claude fill's why when Claude stops at a captcha.
 - `SAYS_BLOCKED` reads a page that refuses the browser (Tesla's "Access
-  Denied"). It has no challenge, so it is a Handoff, never a wait.
+  Denied"). It has no challenge, so it is a Handoff, never a wait. Its
+  reason says it plainly: "Tesla blocked the browser; apply in your own
+  Chrome" (`captcha.blocked`: the company that the page names, else the
+  name in the link's host). It is not a Bot signal.
 - Apply never solves a captcha or gets around a block in code.
 
 ## Form pages
