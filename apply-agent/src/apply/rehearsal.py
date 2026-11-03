@@ -45,6 +45,7 @@ from apply.request import resolve
 from apply.rescue import Rescue
 from apply.submit_guard import guard, lift, renote
 from apply.tracker import Row
+from apply.verify import verifying
 from apply.worker import Result, apply_to, keep_sent, named, sent_folder
 
 # Claude fill's cost, which ends its reason; a rehearsal shows it as tokens.
@@ -271,7 +272,9 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                                                        on_files=on_files,
                                                        on_missing=lambda missing, choices, required: board.update(
                                                            n, missing=list(missing), choices=choices, required=required),
-                                                       before_fill=before_fill),
+                                                       before_fill=before_fill,
+                                                       on_verify=lambda verification: board.update(
+                                                           n, **verifying(verification))),
                     signed_in=adapters.signed_in,
                 )
             except SetupError as error:  # the Mac's setup, not Apply's code: its one line says how to fix it
@@ -289,7 +292,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     if result.filled:
         try:
             saved = Record(posting, result.status, _record_reason(rehearsed), result.filled, adapters.clock.now().date(),
-                           result.essay, result.drafted, result.named_facts)
+                           result.essay, result.drafted, result.named_facts,
+                           result.verification.as_json() if result.verification else None)
             rehearsed.record, rehearsed.saved = adapters.records.save(saved), saved
         except Exception as error:
             rehearsed.why = "; ".join(filter(None, [rehearsed.why, f"Record not saved: {error}"]))

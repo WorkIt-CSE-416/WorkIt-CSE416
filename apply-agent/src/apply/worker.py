@@ -25,6 +25,7 @@ from apply import (
     eligibility,
     essays,
     sameness,
+    verify,
 )
 from apply.adapters import Claude, JobSite, UsageLimitHit
 from apply.answer_bank import LISUL, AnswerBank
@@ -117,6 +118,7 @@ class Result:
     # (question, answer, uses) of each unreviewed draft the Answer bank answered this form with, in form order
     reused: tuple[tuple[str, str, int], ...] = ()
     bot_signals: tuple[str, ...] = ()  # what suggested the job system took the browser for a bot (apply.bot_signals)
+    verification: "verify.Verification | None" = None  # how verifying the filled form went (apply.verify)
 
     def drafted_note(self) -> str:
         """The drafts, as the Tracker row and the Record list them."""
@@ -138,6 +140,7 @@ def apply_to(
     on_files: Callable[[list[dict]], None] = lambda files: None,
     before_fill: Callable[[], None] = lambda: None,
     on_missing: Callable[[tuple[str, ...], dict[str, dict], dict[str, bool]], None] = lambda *heard: None,
+    on_verify: Callable[["verify.Verification | None"], None] = lambda verification: None,
 ) -> Result:
     """`before_submit` runs just before the form is submitted. It returns why
     the Orchestrator holds the Application anyway (the Calibration run), or "";
@@ -166,11 +169,16 @@ def apply_to(
     every Claude call for the Application gets it. Read from its job system's
     API, else its page with a plain fetch, it is also checked before any form
     opens: one that speaks to AI agents is a Handoff quoting it, and no page
-    opens and Claude is never asked."""
+    opens and Claude is never asked.
+    Once the form is filled, and before any submit, it is verified
+    (apply.verify): `on_verify` hears None as verifying starts, then the
+    Verification. A flag that needs Lisul holds a run's Application, unless
+    Lisul approved it after he saw the flags, or dismissed that flag for this
+    Application before (verify.dismiss); verifying never submits."""
     planned = _Planned(posting, site, profile, claude, answered or {}, approved, rehearse, bank or AnswerBank(),
                        today or date.today(), on_files, on_missing)
     try:
-        result = _apply(planned, filler, site, before_submit, rehearse, before_fill)
+        result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify)
     except Handoff as handoff:
         result = _handed_off(handoff)
     except Closed as closed:  # skipped before any form is filled
@@ -192,7 +200,8 @@ def apply_to(
     return result
 
 
-def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fill=lambda: None) -> Result:
+def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fill=lambda: None,
+           on_verify=lambda verification: None) -> Result:
     posting, profile, claude = planned.posting, planned.profile, planned.claude
     read = description.from_api(posting, site)
     if why := eligibility.not_eligible(read):  # before any form opens or Claude is asked
@@ -260,6 +269,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     checked = ["Pre-submit check failed. " + "; ".join(problems)] if problems else []
                     return Result(Status.HANDOFF, "; ".join(planned.handoffs + checked + [FILLED_BUT]), filled)
                 holds += planned.overused()
+                on_verify(None)  # Verifying: the window shows it while the form is read back and checked
                 found = []
                 if problems:
                     holds.insert(0, "Pre-submit check failed. " + "; ".join(problems))
@@ -274,22 +284,30 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     holds += [f"Pre-submit review: {p}" for p in found]
                 # For Repair requests: a field Claude filled for the Filler (apply.rescue) is its code's to fix.
                 rescued = tuple(getattr(filler, "rescued", ()))
+                verification = planned.verify(readback, found, rescued)
+                on_verify(verification)
+                if planned.approved is None:  # once Lisul approved it, he saw them: no flag holds it again
+                    holds += [verify.PREFIX + f.line() for f in verification.needs
+                              if f.kind not in (verify.READBACK, verify.REVIEW)]  # those two hold it already
                 wrong = tuple(planned.unfilled + problems + found) + rescued
                 if rehearse:  # on its last page, never submitted
                     holds += filter(None, [before_submit()])
                     return Result(Status.HELD, "; ".join(holds), filled, essay=planned.essay_cell, missing=planned.missing,
-                                  choices=planned.choices, required=planned.required, problems=wrong)
+                                  choices=planned.choices, required=planned.required, problems=wrong,
+                                  verification=verification)
                 if holds:
-                    return Result(Status.HELD, "; ".join(holds), filled, essay=planned.essay_cell, problems=wrong)
+                    return Result(Status.HELD, "; ".join(holds), filled, essay=planned.essay_cell, problems=wrong,
+                                  verification=verification)
                 hold = before_submit()
                 if hold:
-                    return Result(Status.HELD, hold, filled, essay=planned.essay_cell, problems=rescued)
+                    return Result(Status.HELD, hold, filled, essay=planned.essay_cell, problems=rescued,
+                                  verification=verification)
                 try:
                     met = filler.submit(page)
                 except Handoff as handoff:  # it may have gone: the Record shows where the click left the page
                     return _handed_off(handoff, filled=replace(filled, after_submit=_screenshot(page)))
                 return Result(Status.SUBMITTED, filled=replace(filled, after_submit=_screenshot(page)),
-                              bot_signals=tuple(met or ()), problems=rescued)
+                              bot_signals=tuple(met or ()), problems=rescued, verification=verification)
 
 
 PLACEHOLDER = re.compile(r"^\W*(select|choose|pick)\b.*|^\W*$")  # "Select...", or no words: not an option
@@ -327,6 +345,7 @@ class _Planned:
         self._on_missing = on_missing
         self.posting, self._site, self.profile, self.claude = posting, site, profile, claude
         self._answered, self._approved = answered, approved
+        self.approved = approved
         self._rehearse, self._bank, self._today = rehearse, bank, today
         self.scratch: Path | None = None  # where cover letters are written, while the form is filled
         self.missing: tuple[str, ...] = ()  # left blank, in a rehearsal
@@ -334,9 +353,11 @@ class _Planned:
         self.required: dict[str, bool] = {}  # whether its form requires each of those, by question
         self.unfilled: list[str] = []  # why a rehearsal's Filler couldn't fill each answer it left out
         self._skipped: set[str] = set()
+        self.left: set[str] = set()  # fields left blank on purpose: an N/A optional, a follow-up not called for
         self.questions: list[Question] = []
         self._answers: dict = {}
         self.accepted: dict[str, tuple[str, ...]] = {}  # other wordings Lisul accepts for an answer, by Question name
+        self.blanks: dict[str, str] = {}  # fields the engine's plan leaves blank on purpose, by name: why
         self.holds: list[str] = []
         self.handoffs: list[str] = []  # what Lisul must answer himself; the rest is still filled
         self.written: list[essays.Essay] = []
@@ -410,6 +431,7 @@ class _Planned:
         planned.drafts = [q for q in planned.drafts if not (SECRET.search(q.label) or SECRET.search(q.name))]
         self.banked = planned.banked
         self.accepted = planned.accepted
+        self.blanks = planned.blanks
         if planned.not_eligible:
             return Result(Status.NOT_ELIGIBLE, planned.not_eligible)
         if planned.handoffs:  # a form Lisul finishes gets no Claude call: its one-off questions are his too
@@ -457,6 +479,8 @@ class _Planned:
         answers = dict(planned.answers) | {d.question.name: d.answer for d in self.drafted + self.unbanked
                                            if not left_blank(d.question, d.answer) and d.question not in moot}
         answers |= {q.name: answer for q, answer in moot.items() if answer is not None}
+        self.left |= {q.name for q in moot} | {d.question.name for d in self.drafted + self.unbanked
+                                               if left_blank(d.question, d.answer)}
         for n, essay in enumerate(self.written):
             q = essay.question
             if not essay.text:
@@ -469,6 +493,17 @@ class _Planned:
                 answers[q.name] = essay.text
         self.answers = {name: answer for name, answer in answers.items() if name not in self._skipped}
         return None
+
+    def verify(self, readback: dict, review: list[str], rescued: tuple[str, ...]) -> "verify.Verification":
+        """Verify the filled form (apply.verify), with the Pre-submit review's findings and what Claude guessed."""
+        guessed = [(one_line(d.question.label), d.shown) for d in self.drafted + self.unbanked] \
+            + [(str(r).split(":", 1)[0], "filled by Claude for the Filler (a Rescue)") for r in rescued]
+        return verify.check(
+            self.questions, self.answers, readback, self.profile, self.posting, asked=self.missing,
+            left=self.left | self._skipped, blanks=self.blanks, accepted=self.accepted, today=self._today, guessed=guessed, review=review,
+            essays={e.question.name: e.text for e in self.written if e.text},
+            allowed=essays.sources(self.profile, self.known(), facts=True), posting_text=self.text,
+            dismissed=verify.dismissed(self.posting.id))
 
     def _letter_file(self, text: str, folder: Path) -> Path:
         """An essay asked as an upload, as the PDF cover letter; as plain text

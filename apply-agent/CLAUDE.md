@@ -302,6 +302,56 @@ Sent resume) open Chromium. The backend test
 `backend/tests/test_sent_resumes.py -k tailored_resume_by_the_postings_link`
 runs the same routes on Postgres.
 
+## Verifying a filled form (KAN-549)
+
+After Apply fills a form, and before any submit, the Worker verifies it
+(`worker._Planned.verify`, `verify.check`). This is the last part of the
+Pre-submit check. It applies to rehearsals and to live runs. It only
+reads: it does not click, type or submit.
+
+- `apply_to(on_verify=...)` gets `None` when verifying starts, then the
+  `verify.Verification`. The rehearsal and the Orchestrator send it to the
+  window with `verify.verifying()`: the tile shows "Verifying…" with a
+  spinner, then "Verified" with a check mark, or "Verified with N items
+  that need you".
+- Plain code makes the checks: a blank field that is not a Missing fact
+  and not left blank on purpose (`_Planned.left`), the read-back
+  (`fill_engine.readback_problems`), an empty file or a file in the wrong
+  field, a value that is not one of the field's options, a graduation
+  year that is not the profile's, a start date in the past, pay out of the
+  posting's range (else off `compensation.fallback_hourly`), and in each
+  essay a wrong pronoun or name for the applicant and another company's
+  name (`verify.COMPANIES` and the policies' companies, less any that the
+  sources or the posting name). Claude makes only the judgment checks, in
+  the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
+  answers); its findings join the flags.
+- A flag that `holds` goes in the reason as `Verify: <field>: <why>` and
+  holds a live run (Needs you, kind `check`). Read-back and review flags
+  hold already by their own reason. A blank optional field holds as a
+  blank required field does, also a voluntary self-ID field (Lisul's rule:
+  a blank optional is a bug; the profile answers self-ID, a decline at
+  least). Only an answer that Claude guessed (a new Answer bank draft, a
+  Rescue) and a blank that the engine's plan meant are notes, which do
+  not hold. The plan lists each field it leaves blank on purpose, with why
+  (`Plan.blanks`: a duplicate "Other website", an "If other" follow-up to
+  another pick, an optional fact the profile lacks); the note says why.
+  An approved Hold is not held again by a flag; the read-back still holds
+  it.
+- In the window, each flag shows with its field and why, and has its own
+  Dismiss (`POST /dismiss`). Apply keeps each dismissal for its
+  Application in `APPLY_HOME/dismissed-flags.json` (`verify.dismiss`,
+  `verify.dismissed`). A dismissed flag does not show after a window
+  reload or in a new window (`verify.without_dismissed`), and it does not
+  hold a new run of the same Application: `verify.check(dismissed=...)`
+  keeps it in `verification.json` with `dismissed: true`. When every flag
+  of a live run's Hold is dismissed, the Hold shows Approve.
+- The Record keeps `verification.json` and a Verification section in its
+  README.
+
+**Tests.** `tests/test_verify.py`: a fake form with planted problems, a
+clean form, a live run held by a flag, a dismissed flag in the window and
+in a new run, a blank the engine meant, and the window's states.
+
 ## Prompts and gates
 
 - Every prompt names the applicant as `@NAME@` and their school as
