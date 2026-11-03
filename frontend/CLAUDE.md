@@ -68,7 +68,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `cf:deploy` uploads it. Each is one binary, so `cf:preview` and `cf:deploy`
   need a fresh `cf:build` first. `npx wrangler deploy --dry-run --outdir
   <dir>` prints the upload size with no Cloudflare login: the Workers Paid cap
-  is 10 MiB gzip (3.6 MiB on 2026-10-20). Never run a real deploy locally.
+  is 10 MiB gzip (4.8 MiB on 2026-11-02; the cached pages are assets and
+  do not count). Never run a real deploy locally.
 - **`@opennextjs/cloudflare` is pinned exactly**: each release's peer range
   sets a floor on `next` (1.20.6 is the newest that takes `next` 16.3.3).
   Raise them together; a newer adapter on an older Next fails to install.
@@ -100,10 +101,32 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   would stop updating for users after a deploy. After a
   deploy, `curl -sI` one chunk, one CSS file and one woff2 and look for
   `immutable`.
-- **Still open: on Cloudflare the prerendered marketing pages render per
-  request** until an incremental cache is set (OpenNext's default is the
-  "dummy" cache), so production does not get the prerender gain below yet
-  (KAN-368).
+- **Prerendered pages come from the static-assets cache**
+  (`open-next.config.ts`, KAN-368). `cf:deploy` copies each prerendered
+  page's `.cache` file (`/`, `/pricing`, `/features/*`, `/privacy`,
+  `/terms`) into the Worker's static assets under `cdn-cgi/`, which only
+  the Worker can read, and the Worker answers from it with no render.
+  Under OpenNext's default "dummy" cache every request rendered the page:
+  `x-nextjs-cache: MISS` and a first byte of 0.17 to 1.4 s on 2026-11-02.
+  It needs no bucket, tag cache or queue (none to create on Cloudflare),
+  and its keys carry the build ID, so a deploy never serves the last
+  build's HTML. **It is read-only**: a page given `revalidate` would never
+  refresh, and the data cache stays off, as under "dummy", so
+  `apiGet`'s `revalidate` fetches reach the API every time. **A
+  prerendered page reads no runtime value** (`API_URL`, a Worker var or
+  secret): it is served as the build drew it, and CI builds with none of
+  them. `/docs/mcp`'s Add WorkIt to Claude link read `API_URL` and would
+  have pointed at `localhost:8000/mcp`; it links to `/connect/claude/add`,
+  which builds the link per request. The config
+  drops writes, which the stock cache logs as an error each, and keeps
+  the stock cache's `name`, which `cf:deploy` checks before it copies the
+  pages. A page that must refresh, or a working data cache, needs the R2
+  cache and a bucket instead. After a deploy, `curl -sI
+  https://workitjobs.ai/` must show `x-nextjs-cache: HIT`, and `curl -so
+  /dev/null -w '%{time_starttransfer}\n' https://workitjobs.ai/` run a few
+  times should stay well under 0.2 s. **Still open:** a cold isolate still
+  loads the Next server before it reads the cache; `enableCacheInterception`
+  (in `dangerous`) would answer before that, and is untried.
 - **The OpenNext build is not guaranteed on Windows.** Run `cf:*` in WSL, or
   leave them to CI; `dev`, `build` and the rest work natively.
 - **OAuth needs each origin allow-listed in Supabase** (Authentication → URL
@@ -146,8 +169,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   name and `<api>/mcp`, or the directory listing once
   `CLAUDE_CONNECTOR_LINK` is set. Read it on the server and pass it down;
   never write the claude.ai URL anywhere else. What can't read it (the
-  extension's add-Claude step, KAN-387) opens `/connect/claude/add`, a
-  route handler that redirects to it.
+  extension's add-Claude step, KAN-387, and the prerendered `/docs/mcp`,
+  Deployment) opens `/connect/claude/add`, a route handler that redirects
+  to it.
   **Starting the student's Claude is one link too**: `CLAUDE_START_URL`
   and `CLAUDE_TRIGGER` in the same file (a new claude.ai chat with "Write
   my WorkIt answers", the connector prompt's title, in its box, not sent),
