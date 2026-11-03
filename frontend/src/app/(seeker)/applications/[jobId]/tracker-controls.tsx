@@ -8,6 +8,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { SelectField } from "@/components/ui/select-field";
 import { useToast } from "@/components/ui/toast";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 
 import { When } from "../../local-time";
@@ -92,11 +93,11 @@ export function TrackerEvents({ jobId, events }: { jobId: string; events: Applic
         <CreateEventDialog jobId={jobId} />
       </div>
       {events.length > 0 ? (
-        <ul className="divide-border-subtle border-border-subtle rounded-card bg-panel mt-3 divide-y border">
+        <Card as="ul" padding="none" className="divide-border-subtle mt-3 divide-y">
           {events.map((event) => (
             <EventRow key={event.id ?? event.at + event.title} event={event} />
           ))}
-        </ul>
+        </Card>
       ) : (
         <p className="text-body text-ink-meta mt-3">
           Add interviews, assessments, offers and replies here. They show on your timeline and your

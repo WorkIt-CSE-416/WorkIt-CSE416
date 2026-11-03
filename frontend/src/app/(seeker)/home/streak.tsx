@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui/card";
 
 import { localDay } from "../tracker";
 import type { AppliedApplication } from "./data";
@@ -19,7 +20,6 @@ import {
   type AppliedDay,
   type Cell,
 } from "./streak-model";
-import { SectionCard } from "./section-card";
 
 /**
  * Activity — the seeker's year of applications as a streak heat map that folds
@@ -29,7 +29,7 @@ import { SectionCard } from "./section-card";
  * why).
  *
  * In a white card under its heading, like every Home section
- * (./section-card.tsx). The view switch sits where a section's one way
+ * (ui/card.tsx, `tone="tile"`). The view switch sits where a section's one way
  * onward does, at the top right, in the applications ViewSwitcher's segmented
  * style. Buttons rather than links, because the morph between the views is
  * the point and a navigation would cut it.
@@ -242,14 +242,17 @@ export function Streak({
   ];
 
   return (
-    <SectionCard
+    <Card
+      as="section"
+      tone="tile"
+      padding="lg"
       ref={rootRef}
       aria-labelledby="streak"
       className={cn("@container/streak", className)}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 id="streak" className="text-subtitle text-ink font-medium">
+          <h2 id="streak" className="text-subtitle text-ink">
             Activity
           </h2>
           {applied === null && (
@@ -340,7 +343,7 @@ export function Streak({
           onClose={() => setDay({ ...day, open: false })}
         />
       )}
-    </SectionCard>
+    </Card>
   );
 }
 
@@ -384,7 +387,10 @@ function Stat({ label, value, unit, sub }: StatBlock) {
  */
 export function StreakSkeleton({ className }: { className?: string }) {
   return (
-    <SectionCard
+    <Card
+      as="section"
+      tone="tile"
+      padding="lg"
       aria-label="Activity"
       aria-busy="true"
       className={cn("@container/streak", className)}
@@ -408,6 +414,6 @@ export function StreakSkeleton({ className }: { className?: string }) {
           ))}
         </div>
       </div>
-    </SectionCard>
+    </Card>
   );
 }

@@ -2,10 +2,10 @@ import { CalendarIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui/card";
 
 import { DayLink, When } from "../local-time";
 import type { UpNextItem } from "./data";
-import { SectionCard } from "./section-card";
 
 /**
  * The one thing that most needs the seeker: the top of Up Next, lifted out of
@@ -38,8 +38,14 @@ export function NextUpHero({
   className?: string;
 }) {
   return (
-    <SectionCard aria-labelledby="next-up" className={cn("flex min-h-52 flex-col", className)}>
-      <h2 id="next-up" className="text-subtitle text-ink font-medium">
+    <Card
+      as="section"
+      tone="tile"
+      padding="lg"
+      aria-labelledby="next-up"
+      className={cn("flex min-h-52 flex-col", className)}
+    >
+      <h2 id="next-up" className="text-subtitle text-ink">
         Next Up
       </h2>
 
@@ -88,6 +94,6 @@ export function NextUpHero({
           {item ? "View Details" : "Browse Jobs"}
         </ButtonLink>
       </div>
-    </SectionCard>
+    </Card>
   );
 }

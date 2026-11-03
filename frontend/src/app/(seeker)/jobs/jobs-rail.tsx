@@ -12,6 +12,7 @@ import {
 
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 
 import { loadStages } from "./actions";
@@ -338,22 +339,28 @@ function JobsRail({
       >
         {showable ? (
           <>
-            <ul
-              className={cn(
-                !split && "divide-border-subtle border-border-subtle divide-y border-y",
-                split && "max-@4xl/main:divide-border-subtle max-@4xl/main:divide-y",
-              )}
-            >
-              {showable.jobs.map((job) => (
-                <li key={job.id} data-open={job.id === openId || undefined}>
-                  <CompactJobCard
-                    job={job}
-                    stage={showable.stages?.[job.id] ?? null}
-                    current={job.id === openId}
-                  />
-                </li>
-              ))}
-            </ul>
+            {/* Below @4xl/main, where the split view is the list alone, the
+                list is a white card as /search's is (./feed-list.tsx, KAN-558);
+                its edge lines up with the title above it. From @4xl/main the
+                card steps aside (`contents`) and the rows sit in the panel. */}
+            <Card padding="none" className="mx-4 overflow-hidden @4xl/main:contents">
+              <ul
+                className={cn(
+                  !split && "divide-border-subtle border-border-subtle divide-y border-y",
+                  split && "max-@4xl/main:divide-border-subtle max-@4xl/main:divide-y",
+                )}
+              >
+                {showable.jobs.map((job) => (
+                  <li key={job.id} data-open={job.id === openId || undefined}>
+                    <CompactJobCard
+                      job={job}
+                      stage={showable.stages?.[job.id] ?? null}
+                      current={job.id === openId}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </Card>
             {showable.more && (
               <div className="px-4">
                 <Button

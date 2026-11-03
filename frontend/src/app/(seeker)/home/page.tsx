@@ -54,8 +54,8 @@ export const metadata: Metadata = {
  *
  * A BENTO OF TILES (KAN-173), modelled on a reference the user picked: white
  * tiles with no outline, set apart from the white page by a soft shadow
- * (./section-card.tsx), headings and figures at medium weight, actions as
- * pills. An outline on every tile read as a grid of grey boxes, a lavender
+ * (ui/card.tsx's `tile` tone, KAN-558), figures at medium weight and
+ * headings at the 600 every card title wears, actions as pills. An outline on every tile read as a grid of grey boxes, a lavender
  * ground under them read as muted beside the shell's white panels, and open
  * sections separated only by whitespace read as cluttered and fit little.
  *

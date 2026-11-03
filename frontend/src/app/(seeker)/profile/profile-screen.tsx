@@ -139,7 +139,7 @@ export function ProfileScreen({ school, extras }: { school: ReactNode; extras: R
         </p>
       )}
 
-      <div className="grid items-start gap-5 @4xl/main:grid-cols-[17rem_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 @4xl/main:grid-cols-[17rem_minmax(0,1fr)]">
         {/* The identity card. The photo leads the name the way a company
             logo leads a job title everywhere else in the app. Edit Profile
             opens Settings' Personal Details, the one editor of the photo,
@@ -189,7 +189,7 @@ export function ProfileScreen({ school, extras }: { school: ReactNode; extras: R
           </ul>
         </Card>
 
-        <div className="flex min-w-0 flex-col gap-5">
+        <div className="flex min-w-0 flex-col gap-4">
           {applicantProfile ? (
             <ContactSection profile={applicantProfile} onSaved={setApplicantProfile} />
           ) : (

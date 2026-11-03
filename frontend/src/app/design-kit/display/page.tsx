@@ -305,7 +305,10 @@ export default function DisplayPage() {
             </SectionHeading>
           </div>
         </Row>
-        <Row name="<Card>" role="Five paddings, three status accents, optional selection">
+        <Row
+          name="<Card>"
+          role="Five paddings, three status accents, selection, Home's tile tone, a link form"
+        >
           <div className="flex flex-wrap items-start gap-3">
             <Card padding="sm" className="w-40">
               <p className="text-note text-ink-meta">Default</p>
@@ -318,6 +321,12 @@ export default function DisplayPage() {
             </Card>
             <Card padding="sm" selected className="w-40">
               <p className="text-note text-ink-meta">selected</p>
+            </Card>
+            <Card padding="sm" tone="tile" className="w-40">
+              <p className="text-note text-ink-meta">tone=&quot;tile&quot;</p>
+            </Card>
+            <Card padding="sm" href="/design-kit" className="w-40">
+              <p className="text-note text-ink-meta">href</p>
             </Card>
           </div>
         </Row>

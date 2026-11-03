@@ -126,17 +126,28 @@ Sign In without `onSignOut`).
 `plain` variant; its card form has no caller today; the seeker Home
 draws its own numbers (`home/headline.tsx`).
 
-The company Dashboard and the seeker Profile still use open sections, the
-seeker Home's old surfaces (it moved to tiles in KAN-173). On
+**One card on seeker pages** (KAN-558): every white block on a seeker page
+is `ui/card.tsx`, 16px from the next, titled with `SectionHeading` (16px at
+600, the weight that names a block). Home, My Profile and Settings drew
+three kinds until then (two corners, two edges, two shadows, three title
+styles, 16 or 20px apart). `tone="tile"` is Home's tile, which keeps
+KAN-173's look: no outline, `--shadow-tile`, the 20px corner; a headline
+tile adds its tint as a `bg-*` token. `href` makes the whole card a link
+(an outline that darkens under the pointer, a focus ring, `group/card` for
+the arrow): My Profile's link cards and Auto Apply's Application Info row.
+A pill in a card is `<Badge variant="tag" pill>`. A seeker page draws no
+card from raw classes.
+
+The company Dashboard still uses open sections, the seeker Home's old
+surfaces (it moved to tiles in KAN-173). On
 /company: open KPI tiles beside one violet Most Urgent hero, open sections for
 the chart, Highlights and Needs Your Attention, a grey Hiring Pipeline band
-with no cards inside it, and one white card, the Recent Applicants table. On
-/profile: an open identity band, Resume as the only card, and an open
-Experiences section. The company hero draws
+with no cards inside it, and one white card, the Recent Applicants table.
+The company hero draws
 `components/hero-arcs.tsx`. A section's one way onward, open or carded, sits
 at the top right of its heading: `ui/section-link.tsx` for a link, `<Button
-variant="section">` for an action. Whether those two pages should move to
-cards as well is still open. Each page's docblock says what goes where.
+variant="section">` for an action. Whether the company Dashboard should move
+to cards as well is still open. Each page's docblock says what goes where.
 
 The auth screens (/login, /signup, /signup/choose-account-type) sit outside
 both shells. Each is its card alone over a skyline (`components/skyline.tsx`):

@@ -219,8 +219,9 @@ shared and reloaded as it always could, and beside a job the header reads the
 order and filters from the shown list, since the URL has none; a filter pick
 there goes to /jobs with that list's order (`list` on `JobFilters`), which opens
 the new list's first job. Back hides from `@4xl/main`, where the list is on
-screen. Below `@4xl/main` the switch draws a list: the rail is the page, and a job
-opens alone with Back.
+screen. Below `@4xl/main` the switch draws a list: the rail is the page, its rows in
+one white card as /search's compact list is (KAN-558; they sat on the grey
+ground with only a hairline until then), and a job opens alone with Back.
 
 **A compact card puts its title and company beside its buttons and match, and runs
 where it is, its pay, type and age under them on the card's whole width**, each
@@ -637,11 +638,12 @@ and came back ordered by fit at the user's ask. The notes below that name
 New Matches describe the archived three-column layout.
 
 **The seeker Home is a bento of tiles** (KAN-173), modelled on a
-reference the user picked: white tiles with no outline on the white page
-panel, set apart by a soft violet-tinted `--shadow-tile` alone,
-`rounded-shell`, `p-5`, 16px apart. An outline on every tile read as a grid
+reference the user picked: white tiles with no outline, set apart by a
+soft violet-tinted `--shadow-tile` alone, `rounded-shell`, `p-5`, 16px
+apart: `<Card tone="tile" padding="lg">` (KAN-558). An outline on every tile read as a grid
 of grey boxes, and a lavender ground under them read as muted beside the
-shell's white panels; keep both off. Headings and figures are medium weight, figures in
+shell's white panels; keep both off. Headings are `SectionHeading`, at
+600 as every card title (KAN-558), figures medium weight, figures in
 `--text-figure` (36px), and actions are the app's rectangular buttons (they
 were pills, `shape="pill"`, until KAN-251 made every pill a chip). It
 is capped at `max-w-dashboard` (1440px), as every seeker page now is.
@@ -662,7 +664,7 @@ positions the tiles; from `@3xl/main` they pair up two by two through
 `grid-flow-dense`; stacked, the numbers come first, then Next Up.
 Activity's canvas is capped in height (`MAX_H2`/`MAX_H3` in
 `streak-canvas.ts`) so its row stays short.
-Draw a new Home section with `SectionCard`, never a one-off box.
+Draw a new Home section with `<Card tone="tile">`, never a one-off box.
 Dates and times sit in pills (`<Badge variant="tag" pill>`): Next Up's,
 which links to the Calendar, Up Next's and New Matches' posted time; as 12px
 meta grey in Plus Jakarta Sans they read too faint. A pill sits in its text's
@@ -1728,7 +1730,7 @@ of facts with grey glyphs: the home location, when set, and the school
 Class of 2026" from `lib/school-year`), or Add Your School, a link to
 Experiences, without one. The right column holds Contact & Links, then
 **Job Preferences** and **Top Skills** side by side where they fit, then
-three link cards, each a whole-card link with a grey glyph and an ink arrow:
+three link cards, each a whole-card link (`<Card href>`) with a grey glyph and an ink arrow:
 Resumes, Experiences and Application Info (`profile/more-of-you.tsx`),
 three across where they fit and stacked beside the identity card until
 `@6xl/main`. The link cards show no counts: each would be another API read
@@ -1748,7 +1750,8 @@ on every visit. While the profile loads, Contact & Links is a skeleton card.
   options. Its Edit opens Settings there, so the preferences keep one
   editor. With none saved (or a failed read, which the API's read cannot
   tell apart) it says none show.
-- **Top Skills** shows up to 12 skills from the bank as grey pills, those on
+- **Top Skills** shows up to 12 skills from the bank as tag pills
+  (`<Badge variant="tag" pill>`, KAN-558), those on
   the most uploads first, each name once (ADR 0005 gives each upload its
   own copy), with View All to Experiences' Skills card.
 
