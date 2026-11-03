@@ -95,6 +95,14 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
 - Errors: `NotLoggedIn` (no file), `LoginExpired` (Supabase or WorkIt
   refused the login: run `apply login` again), `Unreachable` (no answer, or
   a 5xx).
+- `apply doctor` has a "WorkIt" line. It is optional, as Gmail is: no
+  login, an expired login, WorkIt that cannot be reached, and a company
+  account are each a warn with a fix line, never a fail. A user with no
+  WorkIt account still rehearses. When the access token expired, doctor
+  refreshes it and saves the login again. This is the only write that
+  doctor makes.
+- Each request sends the `User-Agent` `WorkIt-Apply/1`. Cloudflare, in
+  front of WorkIt's API, refuses the Python-urllib user agent (error 1010).
 - `workit.LIVE` holds the live URLs and the anon key. They are the same
   public values as `autofiller_extension/src/shared/config.js`, and
   `test_workit_login.py` checks this. For a local WorkIt stack, set

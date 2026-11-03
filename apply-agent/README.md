@@ -109,6 +109,9 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    the repo, and closes the window. You log in one time; Apply refreshes the
    login by itself.
 
+   `uv run apply doctor` then says "WorkIt: logged in as" your email. If it
+   says that the login expired, run `uv run apply login` again.
+
 Run `uv run apply doctor` again. Then rehearse a Workday posting.
 
 ## The demo
