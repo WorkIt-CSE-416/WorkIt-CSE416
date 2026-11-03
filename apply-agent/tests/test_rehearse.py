@@ -501,7 +501,7 @@ def test_lisuls_own_submit_from_a_rehearsal_is_applied_in_his_applications_track
         applications = FakeTracker(wi)
         client = workit.WorkIt(wi.site, tmp_path / "workit-login.json")
         workit.login(client, lambda url, accept: accept(wi.cookies(wi.session())))
-        tracker = WorkItTracker(InMemoryTracker(), workit.Outbox(client, tmp_path / "workit-queue.json"),
+        tracker = WorkItTracker(InMemoryTracker(), workit.WaitingWrites(client, tmp_path / "workit-queue.json"),
                                 lambda application_id: sent_resume(application_id, resume_name))
         hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=tracker)
 
@@ -531,7 +531,7 @@ def test_lisuls_submit_sends_his_tailored_resume_and_keeps_that_file_as_the_sent
         applications.tailored(applications.listed(ARC_URL, "Arc Boat Company", "Intern"), tailored_pdf)
         client = workit.WorkIt(wi.site, tmp_path / "workit-login.json")
         workit.login(client, lambda url, accept: accept(wi.cookies(wi.session())))
-        tracker = WorkItTracker(InMemoryTracker(), workit.Outbox(client, tmp_path / "workit-queue.json"),
+        tracker = WorkItTracker(InMemoryTracker(), workit.WaitingWrites(client, tmp_path / "workit-queue.json"),
                                 lambda application_id: sent_resume(application_id, resume_name, tmp_path / "sent"))
         hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=tracker,
                    with_adapters={"tailored": tailored.from_workit(client)})
@@ -562,7 +562,7 @@ def test_a_rehearsal_lisul_does_not_submit_sends_nothing_to_workit(monkeypatch, 
         client = workit.WorkIt(wi.site, tmp_path / "workit-login.json")
         workit.login(client, lambda url, accept: accept(wi.cookies(wi.session())))
         wi.requests.clear()
-        tracker = WorkItTracker(InMemoryTracker(), workit.Outbox(client, tmp_path / "workit-queue.json"),
+        tracker = WorkItTracker(InMemoryTracker(), workit.WaitingWrites(client, tmp_path / "workit-queue.json"),
                                 lambda application_id: "")
         hold_until(fake, profile, lambda lines: "Ctrl-C" in lines[-1], submitted_to=tracker)
 

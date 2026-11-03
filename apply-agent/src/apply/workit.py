@@ -25,7 +25,7 @@ that use `call`. So is the read of the student's tailored resume for a
 job (KAN-547).
 
 Apply's writes to the student's Applications Tracker (KAN-544) are `Write`s
-sent through an `Outbox`: it adds the job by its link, sets the stage, and
+sent through `WaitingWrites`: it adds the job by its link, sets the stage, and
 for a submit keeps the file sent as the application's Sent resume. A write
 that cannot reach WorkIt (no answer, or no live login) waits in
 `APPLY_HOME/workit-queue.json` and goes with the next send or `flush`.
@@ -302,8 +302,8 @@ class Write:
     resume: str = ""
 
 
-class Outbox:
-    """Sends Writes to the Applications Tracker, and keeps each one that
+class WaitingWrites:
+    """The Waiting writes (GLOSSARY.md). Sends Writes to the Applications Tracker, and keeps each one that
     cannot reach WorkIt in a queue file until a later send or flush. One
     process at a time sends (a lock file), so a write is never sent twice
     at once."""

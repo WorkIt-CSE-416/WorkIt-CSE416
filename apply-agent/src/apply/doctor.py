@@ -33,7 +33,7 @@ from apply.orchestrator import SUBMITTING
 from apply.profile import ApplicantProfile, load_policies
 from apply.records import BRANCH, CLONE
 from apply.tracker import FileTracker
-from apply.workit import SHOWN, LoginExpired, Outbox, Unreachable, WorkIt
+from apply.workit import SHOWN, LoginExpired, Unreachable, WaitingWrites, WorkIt
 
 OK, WARN, FAIL = "ok", "warn", "fail"
 
@@ -82,7 +82,7 @@ class Machine:
     # Where Playwright keeps the Chromium the tests run (live runs use Chrome).
     playwright: Path = Path(os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or Path.home() / "Library/Caches/ms-playwright")
     workit: Callable[[], WorkIt] = WorkIt  # the WorkIt client, with the login in the data folder
-    outbox: Callable[[], Outbox] = Outbox  # the writes to the Applications Tracker still waiting
+    waiting_writes: Callable[[], WaitingWrites] = WaitingWrites  # the writes to the Applications Tracker still waiting
     usage: Usage | None = None  # read only when asked (`--usage`): reading it costs a tiny Haiku call
 
 
@@ -339,7 +339,7 @@ def _workit(machine: Machine) -> Check:
 
 def _writes(machine: Machine) -> Check:
     """The writes to the Applications Tracker that could not reach WorkIt yet (KAN-544). Read-only."""
-    waiting = machine.outbox().waiting()
+    waiting = machine.waiting_writes().waiting()
     if not waiting:
         return Check("WorkIt writes", OK, "none waiting")
     return Check("WorkIt writes", WARN, f"{len(waiting)} waiting to send to your Applications Tracker: "

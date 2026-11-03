@@ -326,23 +326,23 @@ def test_the_tracker_sheet_is_no_longer_checked(tmp_path):
 
 
 def test_no_workit_write_waiting_is_ok(tmp_path):
-    from apply.workit import Outbox
+    from apply.workit import WaitingWrites
 
-    found = check(machine(tmp_path, outbox=lambda: Outbox(path=tmp_path / "workit-queue.json")), "WorkIt writes")
+    found = check(machine(tmp_path, waiting_writes=lambda: WaitingWrites(path=tmp_path / "workit-queue.json")), "WorkIt writes")
     assert found == doctor.Check("WorkIt writes", doctor.OK, "none waiting")
 
 
 def test_workit_writes_waiting_are_listed_with_when_they_go(tmp_path):
     from fake_workit import FakeWorkIt
 
-    from apply.workit import Outbox, Write
+    from apply.workit import WaitingWrites, Write
 
     with FakeWorkIt() as fake:
-        outbox = Outbox(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
-        outbox.send(Write("request-1", "https://jobs.example/1", "Lockheed Martin", "Intern", "applied"))
-        outbox.send(Write("request-2", "https://jobs.example/2", "Arc", "Intern", "needs_you"))  # not logged in
+        waiting_writes = WaitingWrites(WorkIt(fake.site, tmp_path / "workit-login.json"), tmp_path / "workit-queue.json")
+        waiting_writes.send(Write("request-1", "https://jobs.example/1", "Lockheed Martin", "Intern", "applied"))
+        waiting_writes.send(Write("request-2", "https://jobs.example/2", "Arc", "Intern", "needs_you"))  # not logged in
 
-    found = check(machine(tmp_path, outbox=lambda: Outbox(path=tmp_path / "workit-queue.json")), "WorkIt writes")
+    found = check(machine(tmp_path, waiting_writes=lambda: WaitingWrites(path=tmp_path / "workit-queue.json")), "WorkIt writes")
     assert found.level == doctor.WARN
     assert found.detail == "2 waiting to send to your Applications Tracker: Lockheed Martin (Applied), Arc (Needs you)"
     assert "next run or rehearsal" in found.fix and "apply login" in found.fix

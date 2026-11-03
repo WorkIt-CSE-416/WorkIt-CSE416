@@ -198,7 +198,7 @@ Apply's Tracker is a file in the data folder: `tracker.FileTracker`
 (`tracker.json`, one JSON file, a lock file around each read and write).
 `cli.live_tracker()` wraps it in `tracker.WorkItTracker`: each `add` or
 `update` that gives an Application a new status in `tracker.STAGES` also
-sends a `workit.Write` through a `workit.Outbox`.
+sends a `workit.Write` through a `workit.WaitingWrites`.
 
 - submitted to `applied`, with the resume from the Application's folder
   under `sent/` (`worker.sent_resume`: the profile's resume name, else a
@@ -231,7 +231,7 @@ sends a `workit.Write` through a `workit.Outbox`.
   The page keeps the edit in `sessionStorage` (`apply.essays`, by
   Application ID) until he approves, so a reload does not lose it.
 
-**Tests.** `tests/test_tracker_record.py` (in CI) runs the Outbox and
+**Tests.** `tests/test_tracker_record.py` (in CI) runs `WaitingWrites` and
 `WorkItTracker` against `tests/fake_tracker.py`. `tests/test_rehearse.py
 -k "applications_tracker or sends_nothing_to_workit"` rehearses a form
 in Chromium: a submit by Lisul is Applied with the Sent resume, and no
