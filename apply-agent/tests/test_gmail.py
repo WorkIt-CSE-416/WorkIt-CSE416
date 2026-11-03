@@ -7,13 +7,13 @@ import imaplib
 import os
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 
 import pytest
 
 from apply import workday
-from apply.gmail import GmailMailbox, live_mailbox
+from apply.gmail import GmailMailbox, MailedCode, live_mailbox, sure_code
 from apply.keychain import InMemoryKeychain
 from apply.model import Handoff
 
@@ -142,6 +142,39 @@ def test_mail_that_fails_dmarc_is_not_trusted():
     assert box.find_code(search="from:oraclecloud.com", since=NOW) == "482913"
 
 
+# --- A code Apply types with no person reading the mail (email_code.py) -----
+
+def test_a_mailed_code_comes_with_its_senders_domain_and_only_after_the_request():
+    html = "<p>Copy and paste this code into the security code field on your application:</p><h1>q7XmPa2R</h1>"
+    box, imap = mailbox(
+        (NOW - timedelta(minutes=5), mail("Greenhouse <no-reply@us.greenhouse-mail.io>", "Security code", "x", html.replace("q7XmPa2R", "OLD0ld00"))),
+        (NOW + timedelta(seconds=15), mail("Greenhouse <no-reply@us.greenhouse-mail.io>", "Security code", "x", html)),
+    )
+
+    assert box.find_mailed_code(search="from:greenhouse-mail.io", since=NOW) == MailedCode("q7XmPa2R", "us.greenhouse-mail.io")
+    assert imap.selected == ("INBOX", True)
+    assert box.find_mailed_code(search="from:greenhouse-mail.io", since=NOW + timedelta(minutes=1)) is None
+
+
+@pytest.mark.parametrize("text, code", [
+    ("Your verification code is 482913. It expires in 10 minutes.", "482913"),
+    ("<p>Use this code to confirm it's you:</p><p><b>730 118</b></p>", "730118"),
+    ("Your code: © 2026 Acme. 5512", "5512"),  # a year is never the code
+])
+def test_a_sure_code_is_the_one_named_as_a_code(text, code):
+    assert sure_code(text) == code
+
+
+@pytest.mark.parametrize("text", [
+    "Save 25% on fall courses! Call 555 0123 or visit us at 482913 Main St.",  # no code named: no guess
+    '<style>.code { color: #333333 }</style><p>Your code expired.</p>',  # a color is no code
+    "Verify: https://example.com/verify?code=123456&u=99887766 to continue",  # a link's numbers are no code
+    "Your access code ABCD-1234-EFGH is below",  # a shape Apply can't read for sure
+])
+def test_a_mail_that_names_no_code_for_sure_gives_none(text):
+    assert sure_code(text) is None
+
+
 def test_the_verification_link_is_found_among_the_mails_links():
     html = (
         '<p>Welcome!</p><a href="https://acme.wd5.myworkdayjobs.com/External">Careers</a>'
@@ -268,3 +301,16 @@ def test_the_real_gmail_signs_in_and_searches():
     box = live_mailbox(os.environ["APPLY_TEST_GMAIL"])
 
     assert box.find_code(search="from:nobody.invalid", since=datetime.now()) is None
+
+
+def test_a_search_with_a_quoted_phrase_stays_one_imap_string():
+    # Oracle's code search has "confirm your identity" in it (seen live): Gmail refused it, and no code was read.
+    from apply.gmail import _quoted
+    assert _quoted('subject:(code OR "confirm your identity")') == '"subject:(code OR \\"confirm your identity\\")"'
+
+
+def test_a_mails_arrival_is_read_when_gmail_sends_it_after_the_body():
+    # Amex's code mail (seen live): INTERNALDATE came after the body's literal.
+    from apply.gmail import _arrived
+    data = [(b"1960 (RFC822 {4}", b"mail"), b' INTERNALDATE "03-Nov-2026 03:11:37 +0000")']
+    assert _arrived(data).astimezone(UTC).replace(tzinfo=None) == datetime(2026, 11, 3, 3, 11, 37)

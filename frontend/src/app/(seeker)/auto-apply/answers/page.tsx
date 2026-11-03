@@ -77,17 +77,13 @@ export default async function WrittenAnswersPage() {
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <BackLink parent={{ href: "/auto-apply", name: "Auto Apply" }} named />
       {shown != null && <SeenNow at={shown} />}
-      <div className="flex flex-col gap-3 @2xl/main:flex-row @2xl/main:items-start @2xl/main:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-heading text-ink">Written Answers</h1>
-          <p className="text-body text-ink-meta mt-1 max-w-[68ch]">
-            The questions your open applications ask you to write. Let your Claude write them, write
-            your own answer, or paste one from any AI. WorkIt checks each answer, then fills it into
-            the job&apos;s open tab.
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <BackLink
+          parent={{ href: "/auto-apply", name: "Auto Apply" }}
+          named
+          className="group/back"
+        />
         {postings &&
           postings.length > 0 &&
           // Connect first while their Claude has no WorkIt connector; a failed read shows Write with Claude.

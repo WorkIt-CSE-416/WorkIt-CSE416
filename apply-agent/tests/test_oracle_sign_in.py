@@ -99,7 +99,7 @@ def test_a_code_sent_by_text_message_is_a_handoff_before_claude_spends_a_token()
     assert claude.calls == [] and server.submissions == []
 
 
-def test_a_code_missing_after_one_resend_and_about_two_minutes_is_a_handoff():
+def test_a_code_missing_after_about_two_minutes_needs_lisul_and_send_new_code_is_never_clicked():
     world = World()
     claude = FakeClaude(driver=oracle_driver)
 
@@ -107,7 +107,26 @@ def test_a_code_missing_after_one_resend_and_about_two_minutes_is_a_handoff():
         row = run(world, server, claude)
 
     assert row.status == "handoff"
-    assert "No verification code" in row.reason and "after asking once more" in row.reason
-    assert server.resends == 1
+    assert "Type the emailed code: no verification code" in row.reason
+    assert server.resends == 0
     assert world.clock.now() - NOW >= timedelta(minutes=2)
     assert server.tried_codes == [] and claude.calls == []
+
+
+def test_the_cookie_banner_over_the_email_step_is_declined_before_next():
+    # American Express's Oracle site (seen live): the banner took the click on Next, and sign-in timed out.
+    from playwright.sync_api import sync_playwright
+
+    from apply import oracle
+
+    banner = ('<div class="cookie-consent-modal" style="position:fixed;inset:0;background:#fff">Our Use of Cookies'
+              '<button onclick="this.parentElement.style.display=\'none\'">Reject All</button><button>Accept All</button></div>'
+              '<button onclick="document.title=\'next\'">Next</button>')
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(banner)
+        oracle._decline_cookies(page)
+        page.get_by_role("button", name="Next").click(timeout=2000)
+        assert page.title() == "next"
+        browser.close()

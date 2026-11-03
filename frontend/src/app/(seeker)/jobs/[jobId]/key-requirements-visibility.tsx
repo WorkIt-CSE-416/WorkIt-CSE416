@@ -49,7 +49,10 @@ export function KeyRequirementsVisibility({ children }: { children: ReactNode })
   }
 
   return (
-    <section aria-labelledby={titleId} className="border-border mt-6 rounded-xl border p-4">
+    <section
+      aria-labelledby={titleId}
+      className="border-border bg-panel mt-6 rounded-xl border p-4"
+    >
       <div className="flex items-center justify-between gap-4">
         <h2 id={titleId} className="text-subtitle text-ink font-semibold">
           Key Requirements

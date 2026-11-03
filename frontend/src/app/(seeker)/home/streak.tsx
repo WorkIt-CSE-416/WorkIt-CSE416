@@ -375,8 +375,8 @@ function Stat({ label, value, unit, sub }: StatBlock) {
 
 /**
  * Activity while the tracker loads (Home streams it in its own
- * <Suspense>, and its loading.tsx draws it too): the heading, the view
- * switch's pill, the heat map's room at its default 150px (--streak-h2's
+ * <Suspense>, and its loading.tsx draws it too): the heading as a bar, the
+ * view switch's pill, the heat map's room at its default 150px (--streak-h2's
  * fallback, which the canvas resets to the map's own height on mount) and
  * the four wells, each with its label, figure and dates pill as bars of
  * those lines' heights. The section is the page's last, so a map a few
@@ -385,14 +385,12 @@ function Stat({ label, value, unit, sub }: StatBlock) {
 export function StreakSkeleton({ className }: { className?: string }) {
   return (
     <SectionCard
-      aria-labelledby="streak"
+      aria-label="Activity"
       aria-busy="true"
       className={cn("@container/streak", className)}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="streak" className="text-subtitle text-ink font-medium">
-          Activity
-        </h2>
+      <div aria-hidden="true" className="flex flex-wrap items-center justify-between gap-3">
+        <Skeleton className="h-4 w-20" />
         <Skeleton className="h-9 w-20 rounded-full" />
       </div>
       <div aria-hidden="true" className="mt-3">

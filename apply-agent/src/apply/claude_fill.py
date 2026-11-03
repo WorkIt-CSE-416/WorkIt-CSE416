@@ -29,8 +29,12 @@ its rules: it blocks the button that sends, a sign-in other than Google's
 (another site's, or the sign-in or new account's own button: plain code's
 click alone goes through), a payment, withdrawing or deleting the
 application, account or profile, and ticking an opt-in Lisul's policy says
-no to. Any it blocked is a Handoff. It is lifted only for the submit's own
-click, and put back on before Claude drives again.
+no to. Any it blocked is a Handoff, but for a click on the very button
+Claude then names as the one that sends: nothing went, and the form is
+filled as a Filler leaves it. Such a click is refused before it runs anyway
+(apply.send_click), and the prompt says to stop at the last step. The guard
+is lifted only for the submit's own click, and put back on before Claude
+drives again.
 
 The form must stay open between the two sessions, so the Orchestrator runs a
 Claude fill Application on OnePage, which opens the form once.
@@ -174,7 +178,7 @@ Then read each field back: `shown` is exactly the text, option or file name the 
 If the step asks a question <fields> doesn't hold, leave it and go on: list it in `unlisted` like a question read off the form (label exactly as shown, with the help text under it after it in parentheses; kind, required, options). Don't stop for it.
 If a question in <fields> is not on this step, leave it out of `filled` and go on.
 If this step has a button that goes on to the form's next step ("Next", "Continue"), name it exactly in `next_button` and leave `submit_button` empty.
-On the last step, name exactly the button that would send the application in `submit_button` and leave `next_button` empty.
+On the last step, name exactly the button that would send the application in `submit_button` and leave `next_button` empty. Never click that button, press Enter to send or try it again: once the fields are filled and read back, you are done. Apply sends the form itself, after its own checks.
 {RULES}"""
 FILL_SCHEMA = {
     "type": "object",
@@ -448,7 +452,13 @@ class ClaudeFill:
         self._sessions += 1
         self._turns += drive.turns
         self._tokens += drive.tokens
-        if blocked := self._guard.blocked():
+        blocked = self._guard.blocked()
+        if blocked and drive.output and _only_its_submit(blocked, drive.output):
+            # Claude clicked the button it then named as the one that sends: the guard stopped it, so
+            # the form is filled and unsent, as a Filler leaves it (Roblox's, live: a Handoff after 1.2M tokens).
+            self._guard.forget()
+            blocked = []
+        if blocked:
             raise Handoff(f"Apply blocked {blocked[0]} while Claude filled the form (a click that may send it, sign in, "
                           "pay, withdraw or opt in), so nothing it blocked was sent. Check the form and finish it yourself.")
         if drive.capped or drive.output is None:
@@ -464,6 +474,18 @@ class ClaudeFill:
 
 
 _UNSET = object()
+BLOCKED_CLICK = re.compile(r'^the "(.*)" click$')
+
+
+def _only_its_submit(blocked: list[str], said: dict) -> bool:
+    """Whether every click the guard blocked was on the button that sends,
+    the one Claude named itself on the form's last step, so nothing else (a
+    sign-in, a payment, an opt-in) was tried."""
+    button = str(said.get("submit_button") or "").strip()
+    if not button or str(said.get("next_button") or "").strip() or said.get("blocked") is True:
+        return False
+    clicks = [BLOCKED_CLICK.match(b) for b in blocked]
+    return all(c and c[1].strip() and button.startswith(c[1].strip()) and SENDS.search(c[1]) for c in clicks)
 
 
 def _the_next(page: Page, name: str):

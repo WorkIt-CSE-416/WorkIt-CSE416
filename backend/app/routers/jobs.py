@@ -77,6 +77,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auto_apply import briefs
 from app.db import get_session
 from app.deps import (
     assert_applicant_owns,
@@ -98,6 +99,7 @@ from app.queries.jobs.search import read_search, terms_in
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import (
     HomeMatches,
+    JobCompany,
     JobCount,
     JobFacets,
     JobListing,
@@ -379,6 +381,25 @@ async def get_job_requirements(
     if job is None:
         raise HTTPException(404, "That job isn't open any more.")
     return requirements.extract(job.description)
+
+
+@router.get("/{job_id}/company", response_model=JobCompany)
+async def get_job_company(
+    job_id: uuid.UUID,
+    db: AsyncSession = Depends(get_session),
+) -> JobCompany:
+    """The employer's website and the shared company brief's checked facts, for
+    the job page's Company tab. Public facts about employers only, as the
+    brief is (app/auto_apply/briefs.py); no facts for a company nobody has
+    researched yet."""
+    job = await postings.listed(db, job_id)
+    if job is None:
+        raise HTTPException(404, "That job isn't open any more.")
+    return JobCompany(
+        company=job.company_name or "",
+        website=f"https://{job.company_domain}" if job.company_domain else None,
+        facts=await briefs.brief_for(db, job.company_name, job_id),
+    )
 
 
 # Last, so the paths above ("/count", "/facets", "/locations", "/roles") are matched as

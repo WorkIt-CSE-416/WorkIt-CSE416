@@ -173,7 +173,7 @@ html:has(.landing) {
 }
 
 .lenis [data-lenis-prevent] {
-  overscroll-behavior: contain;
+  overscroll-behavior: none;
 }
 
 .lenis.lenis-smooth iframe {

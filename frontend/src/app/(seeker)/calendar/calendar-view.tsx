@@ -19,6 +19,7 @@ import { useState, ViewTransition, type ReactNode } from "react";
 
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
 import { CloseIcon } from "@/components/icons";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { ShallowLink } from "@/components/shallow-routing";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
@@ -91,8 +92,8 @@ export function CalendarView({
   if (!hydrated) {
     return (
       <div aria-hidden="true" className="flex min-h-0 flex-1 flex-col">
-        <div className="bg-well rounded-control h-9 w-48 animate-pulse" />
-        <div className="bg-well rounded-card mt-4 flex-1 animate-pulse" />
+        <Skeleton className="rounded-control h-9 w-48" />
+        <Skeleton className="rounded-card mt-4 flex-1" />
       </div>
     );
   }
@@ -119,7 +120,7 @@ export function CalendarView({
  * does.
  */
 const CONTROL =
-  "bg-app text-ink-meta hover:bg-selected hover:text-ink focus-visible:ring-brand-ring flex h-9 items-center justify-center rounded-full transition-[color,background-color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none";
+  "bg-ink/5 text-ink-meta hover:bg-ink/10 hover:text-ink focus-visible:ring-brand-ring flex h-9 items-center justify-center rounded-full transition-[color,background-color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none";
 const ARROW = cn(
   CONTROL,
   "w-9 active:scale-90 [&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-glide",

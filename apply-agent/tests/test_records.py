@@ -123,3 +123,11 @@ def test_a_record_that_cannot_be_saved_never_loses_the_tracker_row(monkeypatch):
     assert row.status == "submitted"
     assert row.record == ""
     assert "Record not saved: disk full" in row.reason
+
+
+def test_a_security_clearance_question_is_no_secret():
+    # Astro Mechanica's (seen live): its Yes/No was hidden from the Record, and kept from Claude, as a password is.
+    from apply.records import SECRET
+    assert not SECRET.search("Do you currently possess an active U.S. Top Secret security clearance?")
+    assert not SECRET.search("Do you hold a Secret clearance?")
+    assert SECRET.search("Secret question answer") and SECRET.search("Password")

@@ -4,6 +4,7 @@ import argparse
 import imaplib
 import os
 import queue
+import signal
 import subprocess
 import sys
 import threading
@@ -160,6 +161,8 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
     mapped.add_argument("--gaps", action="store_true", help="print the follow-ups the bank can't answer as "
                                                            "bank/questions.md lines; no model call")
     args = parser.parse_args(argv)
+    if adapters is None and threading.current_thread() is threading.main_thread():
+        signal.signal(signal.SIGTERM, _stop)  # `kill <pid>` closes the browsers and the window, as Ctrl-C does
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
     if args.command not in ("doctor", "login", "import-sheet", "clean-tracker") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
@@ -365,6 +368,11 @@ def _refuse_busy_worker_profiles(command: str) -> None:
 
 # Beside the Worker profiles: the address of the dashboard of the run going, for `apply watch`.
 DASHBOARD_URL = "dashboard.url"
+
+
+def _stop(signum, frame) -> None:
+    """A SIGTERM: stop as Ctrl-C stops, so each `finally` closes what it opened."""
+    raise KeyboardInterrupt
 
 
 @contextmanager

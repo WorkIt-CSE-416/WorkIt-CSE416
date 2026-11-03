@@ -12,10 +12,10 @@ import { cn } from "@/lib/cn";
  * it disappears the moment anyone types.
  *
  * A FILLED PILL, NOT AN OUTLINED BOX. It is a wide rounded-full field filled
- * a neutral light grey (--color-app) with no border, the way the reference
- * dashboard draws its search, and the same fill as the bar's round bell (see
- * (seeker)/bar.ts), so the bar's controls read as one family of soft shapes.
- * A grey 3:1 outline here made the bar look assembled from stock form parts,
+ * a see-through ink with no border, the way the reference dashboard draws its
+ * search, so it reads on white and on the seeker pages' grey ground alike
+ * (a solid --color-app vanished into that ground). The bar's controls read as
+ * one family of soft shapes. A grey 3:1 outline here made the bar look assembled from stock form parts,
  * and a lavender fill tinted the bar for no reason. The field is still
  * unmistakable: the magnifier, the placeholder and the fill say what it is,
  * and focus draws the app's solid violet ring around the pill.
@@ -23,7 +23,7 @@ import { cn } from "@/lib/cn";
  * 40px tall, the bell's and the account photo's height, so the bar's
  * controls share one height. Type is 16px below `sm` so iOS Safari does not
  * zoom the page on focus, at a 20px line so the pill stays 40px; the
- * placeholder is --color-ink-meta, 5.13:1 on the fill.
+ * placeholder is --color-ink-meta.
  *
  * It answers the pointer too: the fill steps a shade deeper on hover, and the
  * magnifier darkens while the field has focus, so the field looks awake
@@ -49,7 +49,7 @@ export function SearchField({ id, label, className, ...input }: SearchFieldProps
       <input
         id={id}
         type="search"
-        className="bg-app hover:bg-hover text-ink sm:text-body placeholder:text-ink-meta focus-visible:ring-brand-ring h-10 w-full rounded-full pr-4 pl-10 text-base/5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+        className="bg-ink/5 hover:bg-ink/8 text-ink sm:text-body placeholder:text-ink-meta focus-visible:ring-brand-ring h-10 w-full rounded-full pr-4 pl-10 text-base/5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
         {...input}
       />
     </div>

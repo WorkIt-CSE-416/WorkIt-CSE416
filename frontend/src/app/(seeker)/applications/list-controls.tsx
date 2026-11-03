@@ -61,7 +61,7 @@ export function ColumnsMenu({ className }: { className?: string }) {
       <DropdownMenuTrigger
         render={<Button variant="secondary" size="sm" className={cn(inUse && IN_USE, className)} />}
       >
-        <ColumnsIcon className={inUse ? "text-brand" : "text-ink-meta"} />
+        <ColumnsIcon className={inUse ? "text-brand" : "text-ink"} />
         Columns
         {layout.hidden.length > 0 && (
           <span className="sr-only">, {layout.hidden.length} hidden</span>

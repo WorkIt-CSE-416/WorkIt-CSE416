@@ -532,7 +532,8 @@ addEventListener('DOMContentLoaded', () => tab(location.hash.slice(1)));
 addEventListener('hashchange', () => tab(location.hash.slice(1)));  // a link to #history, say, with no reload
 
 // Asks, in the order they come: a sign-in blocks every job on its site; an answer, an OK, a fix, a finish.
-const KINDS = {'needs sign-in': 'Sign in', 'missing fact': 'Question', held: 'Approve', check: 'Fix', handoff: 'Finish'};
+const KINDS = {'needs sign-in': 'Sign in', 'missing fact': 'Question', held: 'Approve', check: 'Fix', 'needs code': 'Code',
+               handoff: 'Finish'};
 const dismissed = new Set(JSON.parse((() => { try { return sessionStorage.getItem('apply.dismissed'); } catch (e) {} })() || '[]'));
 const keepDismissed = () => { try { sessionStorage.setItem('apply.dismissed', JSON.stringify([...dismissed])); } catch (e) {} };
 let last = null, drawn = '';

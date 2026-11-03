@@ -12,6 +12,11 @@ from apply.model import Answers, QuestionSet, Readback
 
 
 class LeverFiller:
+    def form_url(self, url: str) -> str:
+        """The /apply page, where the form is: a posting link without /apply opens the job's
+        description, which has no form (Hermeus's, live: "the form never finished loading")."""
+        return (fill_engine.job_of(url) or {}).get("form") or url
+
     def question_set(self, url: str, site: JobSite) -> QuestionSet:
         return fill_engine.fetched_question_set(url, site)
 

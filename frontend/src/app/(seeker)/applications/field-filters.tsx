@@ -155,9 +155,9 @@ export function SearchFacet({
           />
         </div>
         <ComboboxEmpty className="text-ink-meta text-body py-3">{empty}</ComboboxEmpty>
-        {/* overscroll-contain: the list's own scroll stops at its ends
+        {/* overscroll-none: the list's own scroll stops at its ends
             instead of moving the page behind it. */}
-        <ComboboxPrimitive.List className="max-h-[min(24rem,calc(var(--available-height)-3.25rem))] scroll-py-1 overflow-y-auto overscroll-contain p-1 empty:p-0">
+        <ComboboxPrimitive.List className="max-h-[min(24rem,calc(var(--available-height)-3.25rem))] scroll-py-1 overflow-y-auto overscroll-none p-1 empty:p-0">
           {(value: string) => (
             <ComboboxPrimitive.Item key={value} value={value} className={checkRowClasses}>
               <span className="truncate">{value}</span>
@@ -254,9 +254,9 @@ function PanelBody({
 
   return (
     <>
-      {/* overscroll-contain: a fling past the end stops here instead of
+      {/* overscroll-none: a fling past the end stops here instead of
           scrolling the page behind. */}
-      <div data-panel-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5">
+      <div data-panel-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-none px-5">
         <Section Icon={StatusIcon} label="Status" first>
           {STAGE_ORDER.map((stage) => (
             <Chip

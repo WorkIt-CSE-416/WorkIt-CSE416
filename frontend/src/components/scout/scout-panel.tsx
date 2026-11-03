@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 
 import { Composer, Message, Typing, ScoutMark } from "./chat";
 import { ReplyText } from "./reply-text";
+import { ASK_SCOUT_LIVE } from "./scout-buttons";
 import { closeScout, sendToScout, useScout } from "./scout-store";
 import { SCOUT_SLOT_ID } from "./scout-takeover";
 import type { ScoutMessage } from "./stream";
@@ -165,7 +166,7 @@ export function ScoutPanel() {
             composer rather than being ruled off from them. */}
             <div
               ref={log}
-              className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-16px),transparent)] px-4 py-4"
+              className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-none [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-16px),transparent)] px-4 py-4"
             >
               <Bubble>Hi, I&apos;m Scout! You&apos;ve just unlocked your chat with me.</Bubble>
               <Suggestions onPick={sendToScout} disabled={answering} />
@@ -233,10 +234,12 @@ function Suggestions({ onPick, disabled }: { onPick: (text: string) => void; dis
         disabled={disabled}
         onClick={() => onPick("Which jobs am I a top match for?")}
       />
-      <p className="text-note text-ink-meta flex items-start gap-2 px-2 pt-2 pb-1">
-        <ChatCircleIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-        Click &ldquo;Ask Scout&rdquo; on any job for insights on that role.
-      </p>
+      {ASK_SCOUT_LIVE && (
+        <p className="text-note text-ink-meta flex items-start gap-2 px-2 pt-2 pb-1">
+          <ChatCircleIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+          Click &ldquo;Ask Scout&rdquo; on any job for insights on that role.
+        </p>
+      )}
     </div>
   );
 }

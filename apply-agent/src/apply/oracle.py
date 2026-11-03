@@ -5,7 +5,8 @@ Oracle has no passwords: the candidate gives an email address (ticking the
 site's legal disclaimer, never its honeypot box), a returning candidate
 confirms their last name, and Oracle may mail a one-time code, read here from
 Gmail. A code sent by text message is a Handoff, and so is a code that
-doesn't come after one "Send New Code" and about 2 minutes, a code Oracle
+doesn't come within about 2 minutes (Apply never clicks Send New Code: it
+goes to Needs you, and Lisul retries himself), a code Oracle
 refuses (it allows 4 tries, then locks for 30 minutes), or an identity
 question other than the last name.
 
@@ -34,6 +35,21 @@ WRONG_CODE = re.compile(r"(code|pin) (is )?(incorrect|invalid|expired|wrong)|inc
 
 
 
+# The site's cookie banner, which covers the email step's Next button until it is answered (American Express's, live).
+COOKIES = ".cookie-consent-modal"
+DECLINE = re.compile(r"^\s*(reject all|decline( all)?|reject|only (strictly )?necessary)\s*$", re.IGNORECASE)
+
+
+def _decline_cookies(page: Page) -> None:
+    """Decline the optional cookies when the site's banner shows, so it stops covering the page."""
+    banner = page.locator(COOKIES)
+    if banner.count() and banner.first.is_visible():
+        decline = banner.first.get_by_role("button", name=DECLINE)
+        if decline.count():
+            decline.first.click()
+            banner.first.wait_for(state="hidden", timeout=TIMEOUT * 1000)
+
+
 def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool) -> None:
     """From the open posting to its application form. `agree_to_terms` is
     Lisul's policy on privacy and terms boxes (tick_consent_when_true)."""
@@ -49,6 +65,7 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
             raise Handoff("Oracle asks you to agree to the site's terms before applying, which your policies leave to you.")
         _agree(page, disclaimer)
     since = accounts.clock.now()
+    _decline_cookies(page)
     page.get_by_role("button", name=re.compile(r"^\s*next\s*$", re.IGNORECASE)).click()
     _until(page, lambda: not email.is_visible() or _error(page))
     if email.is_visible():
@@ -71,8 +88,7 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
         if re.search(r"date of birth|birth ?date", text, re.IGNORECASE) and CODE_PAGE.search(text) is None:
             raise Handoff("Oracle asks your date of birth to confirm it's you, which Apply doesn't hold: apply yourself.")
         if CODE_PAGE.search(text):
-            resend = page.get_by_role("button", name=re.compile(r"send new code|resend", re.IGNORECASE))
-            code = accounts.code(MAIL_SEARCH, since, lambda: resend.first.click())
+            code = accounts.code(MAIL_SEARCH, since)  # asked for once: never Send New Code
             _type_code(page, code)
             page.get_by_role("button", name=re.compile(r"^\s*(verify|submit|next|continue)\s*$", re.IGNORECASE)).click()
             _until(page, lambda: not CODE_PAGE.search(page.locator("body").inner_text()) or WRONG_CODE.search(_error(page)))

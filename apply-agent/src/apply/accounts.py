@@ -5,8 +5,10 @@ them while it signs in. Plain code, zero tokens.
   the sign-up form is sent, so a crash never leaves an account whose password
   is lost.
 - A verification code or link is read from Gmail: looked for every few
-  seconds for about a minute, asked for once more, then looked for about a
-  minute again. Still nothing is a Handoff, and so is Gmail not set up.
+  seconds for about 2 minutes. Apply never asks the site to send it again
+  (no Resend or Send New Code click, anywhere): still nothing goes to Needs
+  you ("Type the emailed code"), and Lisul retries himself. Gmail not set
+  up goes there too.
 - A failed password sign-in is a Handoff at once, and no Application tries
   that site's password again (Workday locks an account after a few
   failures), in this run or a later one.
@@ -22,8 +24,8 @@ from apply.adapters import Clock, Keychain, Mailbox
 from apply.model import Handoff
 from apply.tracker import EmployerAccount
 
-# How long to look for a mail before asking for it again, and after.
-MAIL_WAIT = timedelta(minutes=1)
+# How long to look for a mail. It is asked for once per sign-in, never again.
+MAIL_WAIT = timedelta(minutes=2)
 MAIL_POLL = timedelta(seconds=5)
 PASSWORD_LENGTH = 20
 # Every class Workday's password rules can ask for; no quotes or backslashes.
@@ -45,8 +47,8 @@ NO_RESET = (
     "through Gmail, but {why}. " + SAVE_PASSWORD
 )
 NO_MAIL = (
-    "No {what} from {search} came within about 2 minutes, after asking once more. "
-    "Check Gmail (spam too) and finish the application yourself."
+    NEEDS_SIGN_IN + "Type the emailed code: no {what} from {search} came within about 2 minutes, and Apply "
+    "never asks for another. Check Gmail (spam too), then sign in and finish the application yourself."
 )
 
 
@@ -110,30 +112,27 @@ class Accounts:
         """Why Gmail can't be read (no app password), or None."""
         return self._mailbox.unavailable()
 
-    def code(self, search: str, since: datetime, resend: Callable[[], None]) -> str:
+    def code(self, search: str, since: datetime) -> str:
         """The one-time code mailed since `since`, found by Gmail `search`."""
-        return self._wait("verification code", search, since, resend, self._mailbox.find_code)
+        return self._wait("verification code", search, since, self._mailbox.find_code)
 
-    def link(self, search: str, since: datetime, resend: Callable[[], None], hosts: tuple[str, ...]) -> str:
+    def link(self, search: str, since: datetime, hosts: tuple[str, ...]) -> str:
         """The verification link mailed since `since`, found by Gmail `search`,
         to one of `hosts` (the site's own, or its job system's)."""
-        return self._wait("verification email", search, since, resend,
+        return self._wait("verification email", search, since,
                           lambda **look: self._mailbox.find_link(**look, hosts=hosts))
 
-    def _wait(self, what, search, since, resend, find) -> str:
+    def _wait(self, what, search, since, find) -> str:
+        """Gmail looked at until the mail comes or MAIL_WAIT passes. Never a
+        second ask: a site may lock or rate-limit an account that asks again."""
         if why := self._mailbox.unavailable():
             raise Handoff(f"{NEEDS_SIGN_IN}{why.rstrip('.')}, so the {what} can't be read.")
-        resent = False
         until = self.clock.now() + MAIL_WAIT
         while True:
             if found := find(search=search, since=since):
                 return found
             if self.clock.now() >= until:
-                if resent:
-                    raise Handoff(NO_MAIL.format(what=what, search=_senders(search)))
-                resend()
-                resent = True
-                until = self.clock.now() + MAIL_WAIT
+                raise Handoff(NO_MAIL.format(what=what, search=_senders(search)))
             self.clock.sleep_until(self.clock.now() + MAIL_POLL)
 
 

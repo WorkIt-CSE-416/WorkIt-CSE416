@@ -68,18 +68,18 @@ ALLOWED = ("apply-agent/src/apply/", "apply-agent/tests/", "apply-agent/docs/")
 # And never these: whatever decides submit or hold (the submit guard, the
 # Orchestrator and Worker, the Pre-submit check (the Hold rules are the engine's,
 # ENGINE_PROTECTED), each Filler's submit (PROTECTED_CODE), the wait for a job
-# system's confirmation), what rules an Application out or writes its essays,
+# system's confirmation, the emailed code typed after Lisul's own Submit), what rules an Application out or writes its essays,
 # the browsers, sign-in, mail and passwords, Lisul's own facts, answers and
 # policies, the dependencies, and the Repair machinery itself (with the tests
 # that pin it).
 PROTECTED = tuple(f"apply-agent/src/apply/{name}.py" for name in (
     "submit_guard", "orchestrator", "worker", "presubmit", "confirmation", "rehearsal", "eligibility",
-    "essays", "browsers", "walls", "gmail", "keychain", "accounts", "account_pages", "oracle", "claude_cli", "repair",
+    "essays", "browsers", "walls", "gmail", "email_code", "keychain", "accounts", "account_pages", "oracle", "claude_cli", "repair",
     "repairer", "cli",
 )) + (
     "apply-agent/policies.default.yaml", "apply-agent/policies.yaml", "apply-agent/applicant-profile.yaml", "apply-agent/applicant-profile.template.yaml", "apply-agent/story-bank.md",
     "apply-agent/answer-bank.yaml", "apply-agent/pyproject.toml", "apply-agent/uv.lock",
-    "apply-agent/tests/test_submit_guard.py", "apply-agent/tests/test_repairer.py", "apply-agent/tests/test_repair_requests.py",
+    "apply-agent/tests/test_submit_guard.py", "apply-agent/tests/test_email_code.py", "apply-agent/tests/test_repairer.py", "apply-agent/tests/test_repair_requests.py",
 )
 # The applicant's own files, in the data folder outside every checkout: a Repair reads them, never edits them.
 FACTS = tuple(HOME / name for name in ("applicant-profile.yaml", "story-bank.md", "answer-bank.yaml"))
@@ -235,7 +235,12 @@ class Repairer:
 
     def repair_waiting(self) -> list[RepairRequest]:
         """Repair each waiting request, up to the day's cap. Returns those
-        repaired (or judged), in order. None if another Repair is going."""
+        repaired (or judged), in order. None if another Repair is going.
+        Never on main: its pushes would move fill-engine's main and WorkIt's
+        main to code Claude wrote, and only WorkIt's main is protected."""
+        if self._branch == "main":
+            print("Repairs never run on main: run Apply from a branch of its own, or set repair.branch.")
+            return []
         self._worktrees.mkdir(parents=True, exist_ok=True)
         with open(self._worktrees / ".lock", "a") as lock:
             try:

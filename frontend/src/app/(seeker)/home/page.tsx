@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { getCurrentAccount } from "@/lib/session";
-
-import { Greeting } from "../greeting";
 import { getAppliedApplications, getHeadline } from "./data";
 import { HomeFrame } from "./frame";
 import { Headline, HeadlineSkeleton } from "./headline";
@@ -124,19 +121,8 @@ export default async function HomePage() {
   const stats = getHeadline();
   const applied = getAppliedApplications();
 
-  // Only the greeting waits: one plain read, which the bar makes too.
-  const account = await getCurrentAccount();
-  const firstName = account?.full_name.split(" ")[0];
-
   return (
     <HomeFrame
-      heading={
-        firstName ? (
-          <Greeting as="h1" firstName={firstName} className="text-heading text-ink font-semibold" />
-        ) : (
-          <h1 className="text-heading text-ink font-semibold">Home</h1>
-        )
-      }
       tiles={
         <Suspense fallback={<HeadlineSkeleton />}>
           <HeadlineTiles stats={stats} />

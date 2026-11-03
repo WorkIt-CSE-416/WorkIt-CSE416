@@ -55,14 +55,33 @@ read-back. The engine's `fillEach` already accepts the wording that a
 try-list picked, so the extension needs none of them.
 
 - A secret question (a password) is never sent to Claude to draft. It
-  stays blank for the Filler.
+  stays blank for the Filler. `records.SECRET` finds it. A security clearance
+  question ("Top Secret clearance?") is not a secret.
 - A Workday try-list answer (`a|b|c`) accepts each of its wordings in the
   read-back, because the fill takes the first one that it finds. Only the
   How did you hear question (and a "Details" list right after it) gets a
-  try-list; another answer with a `|` must show whole. Keep
-  `fill_engine.HOW_HEARD` the same as the engine's `HOW_HEARD` (`rules.ts`).
+  try-list; another answer with a `|` must show whole. Which question is
+  the How did you hear one is the engine's answer (`asksHowHeard`, from its
+  own `HOW_HEARD`): Apply keeps no copy of the pattern.
 - A form that Claude fill reads is planned with the company and role that
   its page names, when the link names none.
+
+The engine's plan names each field it leaves blank on purpose, with why
+(`fill_engine.Plan.blanks`). On Greenhouse's self-ID block, a race to
+decline is one when Hispanic/Latino is answered: picking race's decline
+there sets Hispanic/Latino to the decline too and hides race.
+
+A How did you hear answer that Lisul recorded (the profile's
+`answered_questions`, or his own Answer bank answer, under any how-heard
+wording) wins in the engine's plan on every form that offers it. The
+company's-own-site order applies only when none is recorded (Lisul,
+2026-11-02).
+
+An Answer bank entry with `answer: []` and `none: true` answers a
+multi-select with none of its options (Roblox's partner organizations):
+its boxes stay unticked, a blank on purpose in the plan.
+`AnswerBank.answer(question, [])` saves one; an answer with options in it
+drops `none`. An empty answer without `none` is still no answer.
 
 `README.md` is a teammate's setup path, from a clone to a rehearsal. Its
 steps and doctor's fix lines say the same thing. When you change one,
@@ -405,9 +424,68 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   Say "they" for the applicant, or `@NAME@` where "they" already means the
   company or the sources. Never write a person's name, pronoun or project
   into a prompt or its examples.
+- `as_applicant` also adds the profile's `identity.pronouns` (default
+  they/them/theirs) to each system prompt. Without them, Claude guesses
+  from the name, and a plan or a reason can call a they/them applicant
+  "he". Wrap each Claude call that writes about the applicant with it.
+- The length gate (`gates.bounds`) reads a limit that the form states,
+  also a hyphenated one ("500-word limit"). Keep it in step with
+  `essays.STATED`, which tells the writer that the form states a length.
 - The not-on-resume gate (`gates.on_resume`) reads the text of the
   profile's resume PDF. With no PDF, or one with no text, the gate passes
   every answer; `apply doctor` shows this as "Not-on-resume gate: off".
+
+## Claude fill
+
+- Claude fill stops at the form's last step and names the button that
+  sends; it never clicks it. A PreToolUse hook (`apply.send_click`, passed
+  with `--settings` in `claude_cli.drive`) refuses a click Claude names as
+  that button, with word to stop. A click the drive guard still blocked on
+  the button Claude then names as the submit leaves the form filled
+  (`claude_fill._only_its_submit`); any other block is a Handoff.
+- A careers page that embeds a Greenhouse form goes to the Greenhouse Filler
+  (`greenhouse.board_behind`): by `?gh_jid=`, or by a job id in its path
+  that the job API says is shown on that same host (Roblox). Failing that,
+  `embedded.form_behind` opens a page of no known job system, reads its
+  frames (after one click on its Apply button outside any form) and sends an
+  embedded Greenhouse, Lever or Ashby form to that system's Filler. Claude
+  fill is only the fallback.
+
+## Form pages
+
+- A Filler with a `form_url(url)` method names the page that holds its
+  form. The Worker opens that page, not the posting link. Lever's form is
+  on `/apply`; a link without it opens the job description.
+
+## Sign-in pages
+
+- Oracle's cookie banner covers the email step's Next button.
+  `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
+- Apply asks a site for a verification code or link once per sign-in and
+  never clicks Resend or Send New Code (`accounts.Accounts._wait`): a mail
+  that hasn't come in about 2 minutes goes to Needs you ("Type the emailed
+  code"), and Lisul retries himself.
+- A Gmail search goes to IMAP as one quoted string (`gmail._quoted`). A
+  phrase in quotes in the search stays escaped. Gmail can send a mail's
+  INTERNALDATE before or after its body; `gmail._arrived` reads both.
+
+## The Apply window
+
+- The status line counts a link as "queued" only until a Worker starts it.
+  A rehearsal sends `board.run(queued=...)` each time a link starts.
+- When a run or rehearsal ends, its window closes (`Dashboard.__exit__`).
+  A window with no server shows a run that is gone.
+- `kill <pid>` (SIGTERM) stops Apply as Ctrl-C does: the Worker browsers
+  and the window close. Ctrl-C does not reach Apply when it runs in the
+  background, so use SIGTERM there.
+
+## Rehearsal records
+
+Every rehearsal outcome writes its Record (`rehearsals/<date>/`), a Handoff or
+a failure too, not only a filled form. A step Workday won't leave keeps what
+was planned and what each field showed up to there
+(`WorkdayFiller.shown_so_far`); an outcome before any form opened keeps a
+screenshot of the page it stopped on.
 
 ## The data folder (`APPLY_HOME`)
 
@@ -459,6 +537,14 @@ into it and the window shows "Sample data".
 - **Never press Submit** on a form, and never turn on `live_runs` for a
   test. A rehearsal leaves the browser open on the last page; leave it
   there.
+- **Never press a button after an Emailed code.** On a page held for Lisul,
+  `email_code.py` types the code that a job system emails after his own
+  Submit, and nothing more (`test_email_code.py` checks that it has no click
+  or key press). Test it on the fakes only: never press Submit on a real
+  posting to make a code come. Two held pages whose lookups overlap on the
+  same senders type neither code (`_join`, `CROSSED`): Greenhouse mails
+  every company's code from one sender, and the newest mail after each press
+  could be the other page's.
 - Kill only the processes you started, by PID. Other people's rehearsals
   can run on the same Mac.
 
@@ -470,7 +556,9 @@ A Repair is Claude's fix to Apply's own code for a fill bug (`GLOSSARY.md`,
 merges into the branch Apply runs from (or `repair.branch`) and pushes to
 this checkout's `origin`, the WorkIt repo. It also moves the engine pointer
 `autofiller_extension/fill-engine` on that branch, which is the extension's
-pointer too. Keep Repairs off on `main`.
+pointer too. A Repair never runs on `main` (`repair_waiting` refuses it):
+its pushes would move fill-engine's `main` and WorkIt's `main` to code
+Claude wrote, and only WorkIt's `main` is protected.
 
 ## The privacy gate
 

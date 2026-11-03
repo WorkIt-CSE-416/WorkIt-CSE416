@@ -60,10 +60,7 @@ export function FacetLabel({
   return (
     <>
       <span className="flex min-w-0 items-center gap-1.5">
-        <Icon
-          aria-hidden
-          className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink-meta")}
-        />
+        <Icon aria-hidden className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink")} />
         <span className="truncate">{label}</span>
       </span>
       {count > 0 && <span className="sr-only">, {count} selected</span>}
@@ -78,7 +75,7 @@ export function OptionLabel({ option }: { option: FacetOption }) {
       {option.Icon && (
         <option.Icon
           aria-hidden
-          className={cn("size-4 shrink-0", option.iconClassName ?? "text-ink-meta")}
+          className={cn("size-4 shrink-0", option.iconClassName ?? "text-ink")}
         />
       )}
       <span className="truncate">{option.label}</span>

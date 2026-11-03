@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   useEffect,
   useRef,
@@ -11,41 +10,147 @@ import {
   type ReactNode,
 } from "react";
 
-import { CompanyLogo } from "@/components/company-logo";
-import { JobFactGrid } from "@/components/job-posting-card";
-import { MatchBadge } from "@/components/match-badge";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
-import { formatPosted } from "./format";
+import { loadStages } from "./actions";
+import { CompactJobCard } from "./compact-job-card";
+import { FeedHeader } from "./feed-header";
+import { keep } from "./feed-pages";
+import { FeedTransition, PendingFeed } from "./feed-transition";
+import {
+  filtersQuery,
+  listQuery,
+  queryParams,
+  readFilters,
+  readSort,
+  sortHref,
+  type FeedFilters,
+  type Sort,
+} from "./filter-query";
+import { JobFilters } from "./filters";
+import { JobsTopRow } from "./jobs-top-row";
 import { nextPage } from "./list-pages";
-import { listingFacts } from "./listing-card";
+import type { JobFacets, JobLocationOption } from "./listings";
 import { isFresh, readShownList, rememberList, subscribe, type ShownList } from "./shown-list";
-import { jobLogo } from "@/lib/job-logo";
 
 /** A job posting's own page, /jobs/<id>; not its Tailor page under it. */
 const JOB_PAGE = /^\/jobs\/([^/]+)$/;
 
+/** The filter row's options, which the layout starts in the split view. */
+type FilterOptions = {
+  locations: Promise<JobLocationOption[]>;
+  facets: Promise<JobFacets>;
+};
+
 /**
  * The jobs layout's frame (./layout.tsx, KAN-297): on a job posting's page,
  * the rail of jobs on the left and the page beside it, as Cooper's job board
- * does; on /jobs and Tailor, the page alone, as before. The rail lives in the
- * layout, above the job's own segment, so it stays mounted, scrolled where
- * it was, as the seeker opens one job after another from it.
+ * does; on Tailor, the page alone. The rail lives in the layout, above the
+ * job's own segment, so it stays mounted, scrolled where it was, as the seeker
+ * opens one job after another from it. Beside it the job takes all the room
+ * left, and About the Role keeps its own measure.
  *
- * Beside the rail the job's page stops at 60rem, not its own full width, and
- * the rail takes the room that leaves: at 70rem the description ran far wider
- * than the rail's cards.
+ * THE SPLIT VIEW IS THIS FRAME TOO (`filterOptions`, KAN-519), on /jobs and on
+ * a job's page: the Jobs page's header over the rail and the job, each pane
+ * scrolling on its own under it, held to the height under the shell's 64px bar.
+ * /jobs draws only the list's first job (./page.tsx) and a click opens that
+ * job's page, so a job is one read of its own: the list and its Best Match
+ * scores are never read again, and the rail never moves. A list from /search
+ * keeps the plain frame, since the Jobs page's header is not its header.
+ *
+ * Below `@4xl/main` the frame flows with the page, so the header sticks as it
+ * does on the cards: on /jobs the rail is the whole width, the job does not
+ * show (./page.tsx), and a job's page is the job alone with Back.
  */
-export function JobsRailFrame({ children }: { children: ReactNode }) {
-  const jobId = JOB_PAGE.exec(usePathname())?.[1];
-  if (!jobId) return children;
+export function JobsRailFrame({
+  filterOptions,
+  children,
+}: {
+  filterOptions?: FilterOptions;
+  children: ReactNode;
+}) {
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const list = useSyncExternalStore(subscribe, readShownList, () => null);
+  const jobId = JOB_PAGE.exec(pathname)?.[1];
+  const onList = pathname === "/jobs";
+  const searched = list != null && new URLSearchParams(list.query).has("q");
+  const split = filterOptions != null && (onList || (jobId != null && !searched));
+
+  const pane = useRef<HTMLDivElement>(null);
+  // The pane stays mounted, so each job would open scrolled as far as the last.
+  useEffect(() => {
+    pane.current?.scrollTo(0, 0);
+  }, [pathname]);
+
+  if (!jobId && !split) return children;
+
+  // What the header shows: the address on /jobs, the list's own beside a job.
+  const shown = queryParams(onList ? params.toString() : (list?.query ?? ""));
+  const sort = onList || list?.source !== "feed" ? readSort(shown) : "newest";
+  const filters = readFilters(shown);
+
   return (
-    <div className="flex flex-1">
-      <JobsRail currentId={decodeURIComponent(jobId)} />
-      <div className="flex max-w-[60rem] min-w-0 flex-1 flex-col">{children}</div>
-    </div>
+    <FeedTransition>
+      <div
+        data-split={split || undefined}
+        className={cn(
+          "flex flex-1 flex-col",
+          split && "@4xl/main:h-[calc(100svh-4rem)] @4xl/main:flex-none @4xl/main:overflow-hidden",
+        )}
+      >
+        {split && filterOptions && (
+          <FeedHeader
+            flush
+            top={<JobsTopRow view="split" />}
+            className={cn("@4xl/main:shrink-0", !onList && "hidden @4xl/main:block")}
+          >
+            <JobFilters
+              locations={filterOptions.locations}
+              facets={filterOptions.facets}
+              filters={filters}
+              sort={sort}
+              list={
+                onList
+                  ? undefined
+                  : { path: "/jobs", query: sortHref(sort, filters).slice("/jobs".length) }
+              }
+            />
+          </FeedHeader>
+        )}
+        {/* The split view from @4xl/main is one rounded panel, in the page's
+            gutters, after Simplify's: the list and the job share its edge, and
+            nothing but the panel divides the filters from them. It runs off the
+            foot of the window, open, so the two columns get every pixel. */}
+        <PendingFeed
+          className={cn(
+            "flex min-h-0 flex-1 flex-col @4xl/main:flex-row",
+            split &&
+              "@4xl/main:bg-panel @4xl/main:border-border @4xl/main:rounded-t-card @4xl/main:mx-6 @4xl/main:overflow-hidden @4xl/main:border @4xl/main:border-b-0 lg:@4xl/main:mx-8",
+          )}
+        >
+          <JobsRail
+            list={list}
+            currentId={jobId ? decodeURIComponent(jobId) : undefined}
+            split={split}
+            onList={onList}
+            wanted={onList ? { sort, filters } : undefined}
+          />
+          <div
+            ref={pane}
+            data-job-scroller={split || undefined}
+            className={cn(
+              "flex min-w-0 flex-1 flex-col",
+              split && "@4xl/main:min-h-0 @4xl/main:overflow-y-auto @4xl/main:overscroll-none",
+            )}
+          >
+            {children}
+          </div>
+        </PendingFeed>
+      </div>
+    </FeedTransition>
   );
 }
 
@@ -57,56 +162,97 @@ export function JobsRailFrame({ children }: { children: ReactNode }) {
  * an hour is fetched again, since roles close. Load More continues the list
  * with its own query, as the list's own Load More would.
  *
- * FROM @4xl/main ONLY. It takes what the page has past the job's 60rem
- * (JobsRailFrame caps the job there beside it), between 18rem and
- * 40rem. At a 1280px window
- * that is 288px and the job keeps 683px, its action bar on one row and its
- * facts in three columns; at 320px from @5xl/main it hid on every 1280px
- * laptop. Below @4xl/main the page is as it was, with Back.
+ * In the split view on /jobs the page writes the list (./remember-shown-list),
+ * so the rail fetches nothing there and waits, on `wanted`, for the list of the
+ * address on screen, with the alternative that Best Match with an empty bank
+ * draws the plain feed. The list's first job is the open one. What it loads is
+ * kept with the feed's own pages (./feed-pages), so Back finds the list as long
+ * as it was. A list left open on /jobs past half an hour stays shown, as the
+ * cards do: the rail fetches nothing there, so hiding it left the skeleton.
  *
- * Its own scroll, held to the page panel's height while the page scrolls
- * beside it. 4rem is the shell's 64px bar above the page
- * ((seeker)/layout.tsx); the rail never shows below sm.
+ * FROM @4xl/main ONLY, but for the split view on /jobs, where it is the list at
+ * every width. 20rem to 26rem wide (KAN-519): the compact card needs about
+ * 20rem for two lines of title, and past 26rem it only adds air. It took all the
+ * room past the job's 60rem until then, up to 40rem, for the six-fact cards.
+ *
+ * Its own scroll. Beside a job's page it is sticky, held to the page panel's
+ * height while the page scrolls beside it; 4rem is the shell's 64px bar above
+ * the page ((seeker)/layout.tsx). In the split view the frame holds its height.
  */
-function JobsRail({ currentId }: { currentId: string }) {
-  const list = useSyncExternalStore(subscribe, readShownList, () => null);
+function JobsRail({
+  list,
+  currentId,
+  split,
+  onList,
+  wanted,
+}: {
+  list: ShownList | null;
+  currentId?: string;
+  split: boolean;
+  onList: boolean;
+  wanted?: { sort: Sort; filters: FeedFilters };
+}) {
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const scroller = useRef<HTMLDivElement>(null);
-  const showable = list && isFresh(list) ? list : null;
+  const stale = list != null && !isFresh(list);
+  const showable =
+    list &&
+    (onList || !stale) &&
+    (!wanted ||
+      list.query === listQuery(wanted.sort, wanted.filters) ||
+      list.query === filtersQuery(wanted.filters))
+      ? list
+      : null;
+  const openId = currentId ?? showable?.jobs[0]?.id;
 
   // No list, or a stale one: ask for its first page again (the newest
-  // roles when there is none). Checked on every job opened, not once: the
-  // rail stays mounted while its list ages, and checked only on mount it
-  // sat on its skeleton for good once the list passed half an hour.
+  // roles when there is none). Checked on every job opened and whenever the
+  // list goes stale, not once: the rail stays mounted while its list ages,
+  // and checked only on mount it sat on its skeleton for good once the list
+  // passed half an hour.
   useEffect(() => {
+    if (onList) return;
     const stored = readShownList();
     if (stored && isFresh(stored)) return;
     let live = true;
     const query = stored?.query ?? "";
     const source = stored?.source ?? "feed";
-    void nextPage({ query, source, jobs: [], offset: 0 }).then((page) => {
-      if (!live) return;
-      if (page.error != null) setError("Couldn't load the jobs list.");
-      else rememberList({ query, source, jobs: page.fresh, offset: page.offset, more: page.more });
-    });
+    void Promise.all([nextPage({ query, source, jobs: [], offset: 0 }), loadStages()]).then(
+      ([page, stages]) => {
+        if (!live) return;
+        if (page.error != null) setError("Couldn't load the jobs list.");
+        else {
+          rememberList({
+            query,
+            source,
+            jobs: page.fresh,
+            offset: page.offset,
+            more: page.more,
+            stages,
+          });
+        }
+      },
+    );
     return () => {
       live = false;
     };
-  }, [currentId]);
+  }, [currentId, onList, stale]);
 
   // Brings the open job into the rail's view when it is out of it, by the
-  // rail's own scroll: scrollIntoView would scroll the page panel too.
-  const listed = showable?.jobs.length ?? 0;
+  // rail's own scroll: scrollIntoView would scroll the page panel too. Only
+  // when the job changes or the list lands: on each Load More it scrolled the
+  // list back up to the open job.
+  const landed = showable != null;
   useEffect(() => {
     const box = scroller.current;
-    const row = box?.querySelector<HTMLElement>('[aria-current="page"]');
+    const row = box?.querySelector<HTMLElement>("[data-open]");
     if (!box || !row) return;
     const top = row.offsetTop;
     if (top < box.scrollTop || top + row.offsetHeight > box.scrollTop + box.clientHeight) {
       box.scrollTop = top - box.clientHeight / 3;
     }
-  }, [currentId, listed]);
+  }, [openId, landed]);
 
   function loadMore(from: ShownList) {
     start(async () => {
@@ -116,10 +262,19 @@ function JobsRail({ currentId }: { currentId: string }) {
         return;
       }
       setError(null);
+      const jobs = [...from.jobs, ...page.fresh];
       rememberList({
         query: from.query,
         source: from.source,
-        jobs: [...from.jobs, ...page.fresh],
+        jobs,
+        offset: page.offset,
+        more: page.more,
+        stages: from.stages,
+      });
+      keep({
+        path: new URLSearchParams(from.query).has("q") ? "/search" : "/jobs",
+        query: from.query,
+        jobs,
         offset: page.offset,
         more: page.more,
       });
@@ -129,10 +284,39 @@ function JobsRail({ currentId }: { currentId: string }) {
   return (
     <aside
       aria-label="Jobs"
-      className="border-border-subtle sticky top-0 hidden h-[calc(100svh-4rem)] w-[clamp(18rem,100cqw_-_60rem,40rem)] shrink-0 flex-col self-start border-r @4xl/main:flex"
+      className={cn(
+        "border-border-subtle shrink-0 flex-col @4xl/main:w-[clamp(20rem,30cqw,26rem)] @4xl/main:border-r",
+        // Beside a job with no panel, off the sidebar by SEEKER_GUTTER less the
+        // rows' own 16px, so the logos start on the page's line.
+        split
+          ? "@4xl/main:min-h-0"
+          : "sticky top-0 h-[calc(100svh-4rem)] self-start sm:@4xl/main:ml-2 lg:@4xl/main:ml-4",
+        split && onList ? "flex" : "hidden @4xl/main:flex",
+      )}
     >
-      <div className="px-4 pt-6 pb-3">
-        <h2 className="text-label text-ink">{showable ? listTitle(showable) : "Jobs"}</h2>
+      {/* In the panel, the job's action bar's height, so one rule runs across. */}
+      <div
+        className={cn(
+          "px-4 pt-4 pb-3",
+          split &&
+            "@4xl/main:border-border-subtle @4xl/main:flex @4xl/main:h-15 @4xl/main:shrink-0 @4xl/main:flex-col @4xl/main:justify-center @4xl/main:border-b @4xl/main:py-0",
+        )}
+      >
+        {showable || error ? (
+          <h2 className="text-body text-ink font-semibold">
+            {showable ? listTitle(showable) : "Jobs"}
+          </h2>
+        ) : (
+          // The title's and the count's lines, as bars over the list's own.
+          <div aria-hidden="true">
+            <div className="flex h-5 items-center">
+              <Skeleton className="h-3.5 w-24" />
+            </div>
+            <div className="mt-0.5 flex h-[15px] items-center">
+              <Skeleton className="h-2.5 w-14" />
+            </div>
+          </div>
+        )}
         {showable && (
           <p className="text-meta text-ink-meta mt-0.5">
             {showable.jobs.length} {showable.jobs.length === 1 ? "role" : "roles"}
@@ -143,34 +327,52 @@ function JobsRail({ currentId }: { currentId: string }) {
 
       <div
         ref={scroller}
-        className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4"
+        className={cn(
+          // No bar here: its 8px of room left the open job's tint short of the
+          // column's edge, and only a bar that takes room can be styled.
+          "relative min-h-0 flex-1 [scrollbar-width:none] pb-4",
+          !split || !onList
+            ? "overflow-y-auto overscroll-none"
+            : "@4xl/main:overflow-y-auto @4xl/main:overscroll-none",
+        )}
       >
         {showable ? (
           <>
-            <ul className="flex flex-col gap-2">
+            <ul
+              className={cn(
+                !split && "divide-border-subtle border-border-subtle divide-y border-y",
+                split && "max-@4xl/main:divide-border-subtle max-@4xl/main:divide-y",
+              )}
+            >
               {showable.jobs.map((job) => (
-                <li key={job.id}>
-                  <RailRow job={job} current={job.id === currentId} />
+                <li key={job.id} data-open={job.id === openId || undefined}>
+                  <CompactJobCard
+                    job={job}
+                    stage={showable.stages?.[job.id] ?? null}
+                    current={job.id === openId}
+                  />
                 </li>
               ))}
             </ul>
             {showable.more && (
-              <Button
-                variant="secondary"
-                size="sm"
-                className="mt-3 w-full"
-                onClick={() => loadMore(showable)}
-                disabled={pending}
-              >
-                {pending ? "Loading…" : error ? "Try Again" : "Load More Jobs"}
-              </Button>
+              <div className="px-4">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-3 w-full"
+                  onClick={() => loadMore(showable)}
+                  disabled={pending}
+                >
+                  {pending ? "Loading…" : error ? "Try Again" : "Load More Jobs"}
+                </Button>
+              </div>
             )}
           </>
         ) : error ? null : (
           <RailSkeleton />
         )}
         {error && (
-          <p role="alert" className="text-body text-danger mt-3">
+          <p role="alert" className="text-body text-danger mt-3 px-4">
             {error}
           </p>
         )}
@@ -185,62 +387,17 @@ function listTitle({ source, query }: ShownList): string {
   return new URLSearchParams(query).get("q") ? "Search Results" : "Newest Jobs";
 }
 
-/** One role as a rail card: who and what, when it was posted and its match,
- *  then the feed card's own six facts (location, job type, salary, work
- *  style, level, start or years) in its grid, empty slots and all
- *  (`JobFactGrid`, `listingFacts`). Two columns of facts in a narrow rail,
- *  three once the card is 448px wide, as on the feed card. */
-function RailRow({ job, current }: { job: ShownList["jobs"][number]; current: boolean }) {
-  return (
-    <Link
-      href={`/jobs/${encodeURIComponent(job.id)}`}
-      aria-current={current ? "page" : undefined}
-      className={cn(
-        "rounded-card focus-visible:ring-brand-ring @container block border p-4 transition-colors focus-visible:ring-2 focus-visible:outline-none",
-        current ? "border-brand bg-brand-tint" : "border-border-subtle hover:bg-hover",
-      )}
-    >
-      <span className="flex items-start gap-3">
-        <CompanyLogo
-          name={job.company}
-          src={jobLogo(job)}
-          className="text-label rounded-control size-11 shrink-0"
-        />
-        <span className="min-w-0 flex-1">
-          <span title={job.title} className="text-label text-ink block truncate">
-            {job.title}
-          </span>
-          <span className="text-meta text-ink-meta mt-0.5 block truncate">
-            {job.company}
-            {/* The clock moves between the server render and hydration. */}
-            {job.posted_at && (
-              <span suppressHydrationWarning> · {formatPosted(job.posted_at)}</span>
-            )}
-          </span>
-        </span>
-        {job.match != null && <MatchBadge score={job.match} />}
-      </span>
-      <JobFactGrid job={listingFacts(job)} className="border-border-subtle mt-3 border-t pt-3" />
-    </Link>
-  );
-}
-
 function RailSkeleton() {
   return (
-    <ul aria-hidden="true" className="flex flex-col gap-2">
+    <ul aria-hidden="true" className="divide-border-subtle border-border-subtle divide-y border-y">
       {Array.from({ length: 6 }, (_, i) => (
-        <li key={i} className="rounded-card border-border-subtle border p-4">
-          <span className="flex gap-3">
-            <Skeleton className="rounded-control size-11 shrink-0" />
-            <span className="flex flex-1 flex-col gap-2 pt-1">
-              <Skeleton className="h-3 w-4/5" />
-              <Skeleton className="h-2.5 w-3/5" />
-            </span>
-          </span>
-          <span className="border-border-subtle mt-3 grid grid-cols-2 gap-2 border-t pt-3">
-            {Array.from({ length: 4 }, (_, j) => (
-              <Skeleton key={j} className="h-2.5 w-3/4" />
-            ))}
+        <li key={i} className="flex gap-3 px-3.5 py-4">
+          <Skeleton className="rounded-control size-10 shrink-0" />
+          <span className="flex flex-1 flex-col gap-2 pt-0.5">
+            <Skeleton className="h-3 w-2/5" />
+            <Skeleton className="h-3.5 w-4/5" />
+            <Skeleton className="h-3 w-3/5" />
+            <Skeleton className="h-3 w-1/2" />
           </span>
         </li>
       ))}

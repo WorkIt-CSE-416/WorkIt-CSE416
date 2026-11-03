@@ -233,7 +233,7 @@ export function TimeGrid({
 
       {/* The hours. */}
       {/* Only the hours scroll, filling the page's height (./page.tsx). */}
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-none">
         <div className="relative grid" style={{ ...columns, height: 24 * HOUR }}>
           {/* Hour labels, and a hairline across every hour. */}
           <div aria-hidden="true" className="relative">

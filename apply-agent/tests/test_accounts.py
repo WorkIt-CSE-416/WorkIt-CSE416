@@ -6,7 +6,7 @@ from datetime import datetime
 import pytest
 from fakes import FakeClock, FakeMailbox
 
-from apply.accounts import Accounts
+from apply.accounts import MAIL_WAIT, Accounts
 from apply.keychain import InMemoryKeychain
 from apply.model import Handoff
 
@@ -30,7 +30,7 @@ def test_without_gmail_a_code_is_never_waited_for_and_the_handoff_needs_sign_in_
     accounts = Accounts(InMemoryKeychain(), mailbox, FakeClock(NOW), EMAIL, "CACI")
 
     with pytest.raises(Handoff) as handoff:
-        accounts.code("from:(icims.com)", NOW, lambda: pytest.fail("asked for the code again"))
+        accounts.code("from:(icims.com)", NOW)
     assert str(handoff.value) == ("Needs sign-in: Gmail isn't set up for Apply: no Gmail app password in Keychain, "
                                   "so the verification code can't be read.")
     assert mailbox.looks == 0
@@ -47,3 +47,16 @@ def test_without_gmail_no_password_is_reset_and_the_handoff_says_why():
         "Apply resets its password through Gmail, but Gmail isn't set up"
     )
     assert keychain.password(SITE) is None
+
+
+def test_a_code_that_never_comes_is_waited_for_about_2_minutes_once_then_needs_lisul():
+    # American Express on Oracle (live): Apply asked for a new code after a wait. It never asks again now.
+    mailbox = FakeMailbox()
+    clock = FakeClock(NOW)
+    accounts = Accounts(InMemoryKeychain(), mailbox, clock, EMAIL, "CACI")
+
+    with pytest.raises(Handoff) as handoff:
+        accounts.code("from:(icims.com)", NOW)
+
+    assert str(handoff.value).startswith("Needs sign-in: Type the emailed code: no verification code from icims.com")
+    assert clock.now() - NOW >= MAIL_WAIT

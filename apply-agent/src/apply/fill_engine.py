@@ -63,9 +63,6 @@ ENGINE = ENGINE_DIR / "dist" / "engine.js"
 
 # Calls the engine in the page through its dispatcher: {value}, or {error: {name, message}}.
 CALL = "({name, args}) => FillEngine.call(name, args)"
-# The engine's how-heard question (its rules.ts HOW_HEARD), whose Workday plan is a try-list.
-HOW_HEARD = re.compile(r"how did you (first )?(hear|learn|connect|find)|where did you (hear|learn|find out)"
-                       r"|how did you find out|how did you come across|how you (heard|learned|found)")
 NAVIGATED = re.compile(r"context was destroyed|navigat|FillEngine is not defined", re.IGNORECASE)
 CALLS = 5  # times a call is made, each cut short by a navigation, before its error stands
 
@@ -211,7 +208,8 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
     beside the form (the Posting description, Company material): an AI trap in it makes the
     Application a Handoff, and an AI ban in it bans AI-written text on the form."""
     bank = bank or AnswerBank()
-    entries = {question: {"answer": entry.answer, "own": entry.source == LISUL} for question, entry in bank.answers().items()}
+    entries = {question: {"answer": entry.answer, "own": entry.source == LISUL, "none": entry.none}
+               for question, entry in bank.answers().items()}
     context = {"posting": posting, "today": (today or date.today()).isoformat(), "postingText": HostCall(functools.cache(posting_text)),
                "employerText": employer_text}
     result = call_without_page("plan", list(questions), _facts(profile), profile.policies(), entries, context, questions=questions)
@@ -223,10 +221,11 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         # shows one of them, and that one shows the answer.
         # Only that plan is a try-list: another answer with a "|" (the Answer bank's, say) must show whole.
         # So is a "Details" list right after it, which the engine answers the same way.
+        # The engine says which ask it (its own HOW_HEARD): Apply keeps no copy to drift from it.
         listed = list(questions)
-        for before, question in zip([None, *listed], listed, strict=False):
-            source = HOW_HEARD.search(question.label.lower()) or (
-                question.label.strip().lower() == "details" and before and HOW_HEARD.search(before.label.lower()))
+        heard = call_without_page("asksHowHeard", [q.label for q in listed]) if listed else []
+        for i, question in enumerate(listed):
+            source = heard[i] or (question.label.strip().lower() == "details" and i > 0 and heard[i - 1])
             answer = answers.get(question.name)
             if isinstance(answer, str) and "|" in answer and source:
                 accepted[question.name] = (*accepted.get(question.name, ()), *answer.split("|"))

@@ -34,6 +34,8 @@ def test_the_length_comes_from_the_form_else_the_types_default():
     assert gates.bounds(Question("a", "Why Figma?", "textarea", description="Max 200 words."), "why-company") == (150, 200, "words")
     assert gates.bounds(Question("a", "Why Figma? Answer in a few sentences.", "textarea"), "why-company") == (3, 4, "sentences")
     assert gates.bounds(Question("a", "Why Figma? (2-3 sentences)", "textarea"), "why-company") == (2, 3, "sentences")
+    # Twitch's (seen live): a hyphenated limit, read as the type's default 120 words before
+    assert gates.bounds(Question("a", "Why Twitch? (500-word limit)", "textarea"), "why-company") == (375, 500, "words")
     assert gates.bounds(Question("a", "Why Figma? (1,000 characters)", "textarea"), "why-company") == (800, 1000, "characters")
     assert gates.bounds(Question("a", "Why Figma?", "textarea", max_length=500), "why-company") == (400, 500, "characters")
     assert gates.bounds(Question("a", "Why Figma?", "text"), "why-company") == (0, 255, "characters")

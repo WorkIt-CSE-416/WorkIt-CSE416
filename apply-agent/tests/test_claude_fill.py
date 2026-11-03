@@ -298,23 +298,41 @@ def test_a_captcha_claude_fill_stops_at_is_a_bot_signal(tmp_path, why):
 
 class SendingDriver(BambooDriver):
     """Plays Haiku clicking the form's Submit itself once it has filled the
-    form, though its prompt says never to."""
+    form, though its prompt says never to. `names` is the button it then
+    names as the one that sends."""
+
+    def __init__(self, names: str = "Submit Application"):
+        super().__init__()
+        self._names = names
 
     def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
         done = super().__call__(page, schema, prompt, files)
         if "filled" in schema["properties"]:
             page.get_by_role("button", name="Submit Application").click()
             page.wait_for_timeout(500)
+            done["submit_button"] = self._names
         return done
 
 
-def test_claude_clicking_the_forms_submit_itself_sends_nothing_and_is_a_handoff(tmp_path):
+def test_claude_clicking_the_submit_it_names_sends_nothing_and_leaves_the_form_filled(tmp_path):
+    # Roblox (seen live): Haiku clicked "Submit application"; the guard blocked it, and the
+    # filled form was a Handoff. Now it is filled, as a Filler leaves it: Apply's own submit sends it, once.
     profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items()},
                            **{f"answered_questions.{ESSAY}": "Lunar rovers are what I build in my spare time."})
-    claude = FakeClaude(driver=SendingDriver())
 
     with FakeBambooServer(LUNAR_FORM) as server:
-        [row] = run(server, profile, lunar_match(), claude=claude)
+        [row] = run(server, profile, lunar_match(), claude=FakeClaude(driver=SendingDriver()))
+
+    assert row.status == "submitted"
+    assert len(server.submissions) == 1
+
+
+def test_claude_clicking_a_submit_it_does_not_name_sends_nothing_and_is_a_handoff(tmp_path):
+    profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items()},
+                           **{f"answered_questions.{ESSAY}": "Lunar rovers are what I build in my spare time."})
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [row] = run(server, profile, lunar_match(), claude=FakeClaude(driver=SendingDriver(names="")))
 
     assert row.status == "handoff"
     assert 'the "Submit Application" click' in row.reason
