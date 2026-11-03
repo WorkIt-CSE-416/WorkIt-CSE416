@@ -12,14 +12,18 @@ Use it as a context manager:
     with FakeWorkIt() as fake:
         client = WorkIt(fake.site, tmp_path / "workit-login.json")
 
-Later tickets add WorkIt's write routes with `route(method, path, handler)`.
+Add a route with `route(method, path, handler)`. `FakeWorkIt(tracker=True)`
+also answers the Applications Tracker routes that Apply writes to (KAN-544),
+as WorkIt's backend does, and keeps what they wrote in `fake.applications`.
 """
 
 import base64
 import itertools
 import json
+import re
 import threading
 import time
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -55,7 +59,7 @@ Handler = Callable[[Seen, "FakeWorkIt"], Reply]
 
 class FakeWorkIt:
     def __init__(self, email: str = "test.person@example.com", full_name: str = "Test Person",
-                 account_type: str = "applicant"):
+                 account_type: str = "applicant", tracker: bool = False):
         self.account = {"id": "00000000-0000-4000-8000-000000000001", "email": email, "full_name": full_name,
                         "account_type": account_type, "onboarding_completed": True}
         self.requests: list[Seen] = []
@@ -68,6 +72,19 @@ class FakeWorkIt:
             ("GET", "/auth/me"): _me,
             ("GET", "/login"): _login_page,
         }
+        # The Applications Tracker (tracker=True): each job by its link, and the student's application on it.
+        self.jobs: dict[str, dict] = {}  # job id: {"link", "company", "title"}
+        self.applications: dict[str, dict] = {}  # job id: {"stage", "sent_resume"}
+        self.sent_resumes: dict[str, dict] = {}  # id: {"name", "data" (bytes), "job"}
+        self._patterns: list[tuple[str, re.Pattern, Handler]] = []
+        if tracker:
+            me = re.escape(self.account["id"])
+            self._patterns += [
+                ("POST", re.compile(r"/jobs/added-by-link"), _added_by_link),
+                ("PUT", re.compile(rf"/applicants/{me}/applications/(?P<job>[^/]+)/stage"), _stage),
+                ("POST", re.compile(rf"/applicants/{me}/sent-resumes"), _sent_resume),
+                ("POST", re.compile(r"/jobs/(?P<job>[^/]+)/applied"), _applied),
+            ]
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), _handler(self))
         self.url = f"http://127.0.0.1:{self._server.server_address[1]}"
         self.site = Site(web=self.url, api=self.url, auth=self.url, anon_key=ANON_KEY)
@@ -117,6 +134,19 @@ class FakeWorkIt:
             self._access.clear()
             self._refresh.clear()
 
+    def tracked(self) -> list[dict]:
+        """The student's Applications Tracker: one row per job, with its link and the Sent resume's name."""
+        return [{"link": self.jobs[job]["link"], "company": self.jobs[job]["company"], "stage": app["stage"],
+                 "sent_resume": self.sent_resumes[app["sent_resume"]]["name"] if app["sent_resume"] else None}
+                for job, app in self.applications.items()]
+
+    def handler(self, method: str, path: str) -> Handler | None:
+        found = self._routes.get((method, path))
+        for verb, pattern, handler in self._patterns:
+            if found is None and verb == method and pattern.fullmatch(path):
+                found = handler
+        return found
+
     def signed_in(self, seen: Seen) -> bool:
         """Whether the request carries an access token that the fake issued and that has not expired."""
         token = seen.headers.get("authorization", "").removeprefix("Bearer ")
@@ -147,6 +177,80 @@ def _me(seen: Seen, fake: FakeWorkIt) -> Reply:
     return Reply(200, fake.account)
 
 
+APPLIED = ("applied", "interviewing", "offer", "rejected")
+
+
+def _job_of(seen: Seen) -> str:
+    """The job id in a path such as /jobs/{job}/applied or .../applications/{job}/stage."""
+    return re.fullmatch(r".*/(?:jobs|applications)/([^/]+)/\w+", urlsplit(seen.path).path)[1]
+
+
+def _added_by_link(seen: Seen, fake: FakeWorkIt) -> Reply:
+    """POST /jobs/added-by-link: the job with that exact link, else a new unlisted one; saved when untracked."""
+    if not fake.signed_in(seen):
+        return Reply(401, {"detail": "Not authenticated"})
+    body = seen.body or {}
+    if not body.get("url") or not body.get("company") or not body.get("title"):
+        return Reply(422, {"detail": "url, company and title are required"})
+    job = next((j for j, known in fake.jobs.items() if known["link"] == body["url"]), None)
+    if job is None:
+        job = str(uuid.uuid4())
+        fake.jobs[job] = {"link": body["url"], "company": body["company"], "title": body["title"]}
+    application = fake.applications.setdefault(job, {"stage": "saved", "sent_resume": None})
+    return Reply(200, {"job_id": job, "status": "unlisted", "stage": application["stage"]})
+
+
+def _stage(seen: Seen, fake: FakeWorkIt) -> Reply:
+    """PUT .../applications/{job}/stage: needs_you and queued only on an application not applied (409)."""
+    if not fake.signed_in(seen):
+        return Reply(401, {"detail": "Not authenticated"})
+    application, stage = fake.applications.get(_job_of(seen)), (seen.body or {}).get("stage")
+    if stage not in ("queued", "needs_you", *APPLIED):
+        return Reply(422, {"detail": "not a stage"})
+    if application is None:
+        return Reply(404, {"detail": "You have no application for that job."})
+    if stage in ("queued", "needs_you") and application["stage"] in APPLIED:
+        return Reply(409, {"detail": "You already applied to that job."})
+    application["stage"] = stage
+    return Reply(200, {"job_id": _job_of(seen), "stage": stage})
+
+
+def _sent_resume(seen: Seen, fake: FakeWorkIt) -> Reply:
+    """POST .../sent-resumes with a `file`: kept once per job and content."""
+    if not fake.signed_in(seen):
+        return Reply(401, {"detail": "Not authenticated"})
+    body = seen.body or {}
+    if body.get("job_posting_id") not in fake.applications:
+        return Reply(404, {"detail": "Job posting not found"})
+    data = base64.b64decode(body["file"]["data"])
+    if not data.startswith(b"%PDF"):
+        return Reply(422, {"detail": "Only a PDF is kept as a sent file"})
+    for sent_id, sent in fake.sent_resumes.items():
+        if sent["job"] == body["job_posting_id"] and sent["data"] == data:
+            return Reply(200, {"id": sent_id, "name": sent["name"]})
+    sent_id = str(uuid.uuid4())
+    fake.sent_resumes[sent_id] = {"name": body["file"]["name"], "data": data, "job": body["job_posting_id"]}
+    return Reply(201, {"id": sent_id, "name": body["file"]["name"]})
+
+
+def _applied(seen: Seen, fake: FakeWorkIt) -> Reply:
+    """POST /jobs/{job}/applied: applied (a later stage stays), naming the sent resume when the body does."""
+    if not fake.signed_in(seen):
+        return Reply(401, {"detail": "Not authenticated"})
+    job = _job_of(seen)
+    application = fake.applications.get(job)
+    if application is None:
+        return Reply(404, {"detail": "Job not found"})
+    if "sent_resume_id" in (seen.body or {}):
+        sent = seen.body["sent_resume_id"]
+        if sent is not None and fake.sent_resumes.get(sent, {}).get("job") != job:
+            return Reply(404, {"detail": "That resume wasn't sent to this job."})
+        application["sent_resume"] = sent
+    if application["stage"] not in APPLIED:
+        application["stage"] = "applied"
+    return Reply(200, {"applied_at": "2026-11-02T12:00:00Z", "sent_resume_id": application["sent_resume"]})
+
+
 def _login_page(seen: Seen, fake: FakeWorkIt) -> Reply:
     """WorkIt's sign-in page, already signed in: it sets a new session's cookie, as the web app does after a
     sign-in."""
@@ -163,7 +267,7 @@ def _handler(fake: FakeWorkIt) -> type[BaseHTTPRequestHandler]:
             seen = Seen(self.command, self.path, {k.lower(): v for k, v in self.headers.items()},
                         json.loads(raw) if raw else None)
             fake.requests.append(seen)
-            handler = fake._routes.get((self.command, urlsplit(self.path).path))
+            handler = fake.handler(self.command, urlsplit(self.path).path)
             reply = handler(seen, fake) if handler else Reply(404, {"detail": "Not Found"})
             data = reply.html.encode() if reply.html is not None else json.dumps(reply.body).encode()
             self.send_response(reply.status)

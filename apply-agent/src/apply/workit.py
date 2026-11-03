@@ -19,11 +19,15 @@ The API checks the bearer token itself (`backend/app/deps.py`,
 `security.py`): the token's signature, audience and issuer, then the
 account row.
 
-Later tickets add the writes (add a job by its link, set a stage, save a
-Sent resume) as methods that use `call`.
+Apply's writes to the student's Applications Tracker (KAN-544) are `Write`s
+sent through an `Outbox`: it adds the job by its link, sets the stage, and
+for a submit keeps the file sent as the application's Sent resume. A write
+that cannot reach WorkIt (no answer, or no live login) waits in
+`APPLY_HOME/workit-queue.json` and goes with the next send or `flush`.
 """
 
 import base64
+import dataclasses
 import fcntl
 import json
 import os
@@ -42,6 +46,8 @@ from urllib.parse import urlsplit
 from apply.home import HOME
 
 LOGIN = HOME / "workit-login.json"
+# Writes to the Applications Tracker that could not reach WorkIt yet.
+QUEUE = HOME / "workit-queue.json"
 # Refresh an access token this many seconds before it expires, so it does not expire on its way.
 EARLY = 60
 TIMEOUT = 20
@@ -90,6 +96,14 @@ class WorkItError(Exception):
     pass
 
 
+class Refused(WorkItError):
+    """WorkIt answered the request with a 4xx other than 401: `status` says which."""
+
+    def __init__(self, message: str, status: int):
+        super().__init__(message)
+        self.status = status
+
+
 class NotLoggedIn(WorkItError):
     pass
 
@@ -121,6 +135,7 @@ class WorkIt:
         self.site = at or site()
         self.login = login
         self._tried: str | None = None  # the last access token `accept` checked
+        self._account: Account | None = None  # the signed-in account, read once for the writes
 
     def logged_in(self) -> bool:
         return self._saved() is not None
@@ -138,8 +153,32 @@ class WorkIt:
             if status == 401:
                 raise LoginExpired("WorkIt refused the login")
             if status >= 400:
-                raise WorkItError(f"{method} {path}: {status} {_detail(answer)}")
+                raise Refused(f"{method} {path}: {status} {_detail(answer)}", status)
             return answer
+
+    def add_by_link(self, link: str, company: str, title: str) -> str:
+        """The job's id on the student's Applications Tracker: the listed job with this link, else an
+        unlisted job posting (KAN-542). Saved, unless the student has an application on it already."""
+        return self.call("POST", "/jobs/added-by-link", {"url": link, "company": company, "title": title})["job_id"]
+
+    def set_stage(self, job_id: str, stage: str) -> None:
+        """Move the student's application to `stage`. Refused 409 for needs_you or queued on an applied one."""
+        self.call("PUT", f"/applicants/{self._me().id}/applications/{job_id}/stage", {"stage": stage})
+
+    def keep_sent_resume(self, job_id: str, path: Path) -> str:
+        """The id of the Sent resume that keeps the PDF `path` for the job (the same one when sent again)."""
+        body = {"file": {"name": path.name, "data": base64.b64encode(path.read_bytes()).decode()},
+                "job_posting_id": job_id}
+        return self.call("POST", f"/applicants/{self._me().id}/sent-resumes", body)["id"]
+
+    def mark_applied(self, job_id: str, sent_resume_id: str | None) -> None:
+        """Applied (a later stage stays), naming the Sent resume, or none when None."""
+        self.call("POST", f"/jobs/{job_id}/applied", {"sent_resume_id": sent_resume_id})
+
+    def _me(self) -> Account:
+        if self._account is None:
+            self._account = self.me()
+        return self._account
 
     def accept(self, cookies: dict[str, str]) -> Account | None:
         """For `login`: the account of the web app's session in `cookies`, kept, or None while it has none
@@ -190,6 +229,113 @@ class WorkIt:
     def _locked(self):
         self.login.parent.mkdir(parents=True, exist_ok=True)
         with open(self.login.with_suffix(".lock"), "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            yield
+
+
+# Each Applications Tracker stage Apply writes, as the tracker names it.
+SHOWN = {"applied": "Applied", "needs_you": "Needs you", "queued": "Queued"}
+
+
+@dataclass(frozen=True)
+class Write:
+    """One change to the student's Applications Tracker: the job (by its link,
+    company and title) goes to `stage` ("applied", "needs_you" or "queued").
+    `resume`, for applied, is the file the form was given, kept as the
+    application's Sent resume. `application_id` is Apply's, so a later write
+    for the same Application replaces one still waiting."""
+
+    application_id: str
+    link: str
+    company: str
+    title: str
+    stage: str
+    resume: str = ""
+
+
+class Outbox:
+    """Sends Writes to the Applications Tracker, and keeps each one that
+    cannot reach WorkIt in a queue file until a later send or flush. One
+    process at a time sends (a lock file), so a write is never sent twice
+    at once."""
+
+    def __init__(self, client: WorkIt | None = None, path: Path = QUEUE):
+        self.client = client or WorkIt()
+        self.path = path
+
+    def send(self, write: Write) -> str:
+        """Queue `write` (in place of a waiting one for the same Application), send every waiting write,
+        and say in a few words where this one is."""
+        with self._locked():
+            waiting = [w for w in self._read() if w.application_id != write.application_id] + [write]
+            self._keep(waiting)
+            said = self._flush()
+        return said.get(write.application_id, f"in your Applications Tracker as {SHOWN[write.stage]}")
+
+    def flush(self) -> list[str]:
+        """Send every waiting write, oldest first; what went wrong, a line each (nothing when all went or
+        WorkIt still cannot be reached: those stay queued)."""
+        with self._locked():
+            return [said for said in self._flush().values() if said.startswith("not in")]
+
+    def waiting(self) -> list[Write]:
+        return self._read()
+
+    def _flush(self) -> dict[str, str]:
+        """Send the queue in order, until WorkIt cannot be reached. What happened to each, by Application."""
+        said, waiting = {}, self._read()
+        while waiting:
+            write = waiting[0]
+            try:
+                said[write.application_id] = self._deliver(write)
+            except (NotLoggedIn, LoginExpired) as error:
+                for w in waiting:
+                    said[w.application_id] = f"kept to send to your Applications Tracker later ({error}): " \
+                                             "run `apply login`"
+                break
+            except Unreachable as error:
+                for w in waiting:
+                    said[w.application_id] = f"kept to send to your Applications Tracker later ({error})"
+                break
+            except WorkItError as error:  # refused for good: sending it again would fail again
+                said[write.application_id] = f"not in your Applications Tracker: WorkIt refused it ({error})"
+            waiting = waiting[1:]
+            self._keep(waiting)
+        return said
+
+    def _deliver(self, write: Write) -> str:
+        job = self.client.add_by_link(write.link, write.company, write.title)
+        if write.stage == "applied":
+            resume = Path(write.resume) if write.resume else None
+            sent = self.client.keep_sent_resume(job, resume) if resume and resume.is_file() else None
+            self.client.mark_applied(job, sent)
+        else:
+            try:
+                self.client.set_stage(job, write.stage)
+            except Refused as refused:
+                if refused.status != 409:
+                    raise
+                return "already Applied in your Applications Tracker"
+        return f"in your Applications Tracker as {SHOWN[write.stage]}"
+
+    def _read(self) -> list[Write]:
+        try:
+            return [Write(**w) for w in json.loads(self.path.read_text())]
+        except FileNotFoundError:
+            return []
+
+    def _keep(self, waiting: list[Write]) -> None:
+        if not waiting:
+            self.path.unlink(missing_ok=True)
+            return
+        part = self.path.with_suffix(".part")
+        part.write_text(json.dumps([dataclasses.asdict(w) for w in waiting], indent=1))
+        part.replace(self.path)
+
+    @contextmanager
+    def _locked(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.path.with_suffix(".lock"), "w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             yield
 
