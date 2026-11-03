@@ -31,3 +31,10 @@ async def listed(session: AsyncSession, posting_id: uuid.UUID, *, keywords: bool
     if keywords:
         query = query.options(undefer(Job_Post.keywords), undefer(Job_Post.keywords_hash))
     return await session.scalar(query)
+
+
+async def is_open(session: AsyncSession, posting_id: uuid.UUID) -> bool:
+    """Whether this posting is OPEN: a listed one, or one a student added
+    from its form (KAN-515), which an applicant's own sends and switches
+    reach though no feed lists it."""
+    return await session.scalar(select(Job_Post.id).where(Job_Post.id == posting_id, OPEN)) is not None

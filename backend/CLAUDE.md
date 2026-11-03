@@ -683,7 +683,9 @@ Find files with a directory listing; these are the rules for where code goes.
   `postings.listed`, so a company's draft or a closed posting answers 404
   and its text never reaches a model. The one exception: a tailored
   resume's keyword match against its own posting, which still works after
-  the posting closes. A route that loads a `Job_Post` by id alone skips
+  the posting closes. Sent resumes check `postings.is_open` (`OPEN`)
+  instead, so a job a student added from its form (KAN-515) takes their
+  send and the panel's resume switch. A route that loads a `Job_Post` by id alone skips
   this check.
 - **Identity fields load through `app/services/identity.py`**
   (`load_identity`), for Scout's model seam and the bank embedding alike.
