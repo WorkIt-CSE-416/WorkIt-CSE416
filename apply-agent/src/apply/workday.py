@@ -15,12 +15,14 @@ memory of the Application between calls, and saves each tenant's nested
 prompts (TREES) for the engine to reuse, since reading every category of
 Workday's own How Did You Hear About Us? is slow (14 s on Adobe, live).
 
-Signing in, per the sign-in research: Sign in with Google where the tenant
-offers it (picking Lisul's account is the only click allowed in Google's
-pages); otherwise Sign In with the Keychain password of the account Apply
-made there before; otherwise Create Account, with a new password saved to
-Keychain before the form is sent, and the verification link from Gmail when
-the tenant mails one. Some tenants answer Create Account with their bare
+Signing in, per policies.yaml's workday_sign_in: with email and password
+(`email`, the default), even where the tenant offers Sign in with Google,
+since Google may ask for a passkey after the account pick (ASML's, KLA's);
+or Sign in with Google where offered (`google`: picking Lisul's account is
+the only click allowed in Google's pages). By email: Sign In with the
+Keychain password of the account Apply made there before; otherwise Create
+Account, with a new password saved to Keychain before the form is sent, and
+the verification link from Gmail when the tenant mails one. Some tenants answer Create Account with their bare
 Sign In view (Northrop's and Zillow's, live): where the account is to be
 verified, by way of their "verify your account" page (`/login/warning`,
 Zillow's), and Apply then waits for the link. A bare Sign In view without
@@ -31,8 +33,10 @@ earlier run made but never verified opens the link Workday mailed then, if
 Gmail still has it, once. Where Lisul made an account himself ("already exists"),
 a real run resets its password: the new one is saved to Keychain first and
 set through the reset link from Gmail (never in a rehearsal, which stops at
-the sign-in page). Workday accounts are per tenant (the host, or the
-tenant's path on myworkdaysite.com).
+the sign-in page). But on a tenant that offers Google, that account was made
+with Google: Needs sign-in, and Apply never presses Forgot your password?.
+Workday accounts are per tenant (the host, or the tenant's path on
+myworkdaysite.com).
 
 A field the engine fails to fill (a FillError) is handed to its Rescue, if
 it has one (apply.rescue): Claude fills that field on the open page, and the
@@ -81,6 +85,8 @@ SIGN_IN_STEP = re.compile(r"sign in|create account", re.IGNORECASE)
 NEXT_BUTTON = "[data-automation-id=pageFooterNextButton]"  # the step's footer button; at Review, its Submit
 SUBMITTED = re.compile(r"application (has been )?submitted|congratulations|thank you for applying", re.IGNORECASE)
 TIMEOUT = 30.0
+GOOGLE_BUTTON = "[data-automation-id=GoogleSignInButton]"
+SIGN_INS = ("email", "google")  # policies.yaml: workday_sign_in
 GOOGLE_WAIT = 60.0  # s for Workday to come back from Sign in with Google
 FOLLOW_UP_WAIT = 300  # ms for a follow-up question to show once its question is answered
 REFUSED = "won't leave its"  # the engine's Handoff when Save and Continue doesn't leave the step
@@ -151,8 +157,12 @@ class WorkdayFiller:
 
     signs_in_to_read = True  # its Question set is read only once it has signed in
 
-    def __init__(self, accounts: Accounts, rescue: "Rescue | None" = None):
+    def __init__(self, accounts: Accounts, rescue: "Rescue | None" = None, sign_in: str = "email"):
+        """`sign_in` is policies.yaml's workday_sign_in: "email" or "google"."""
+        if sign_in not in SIGN_INS:
+            raise ValueError(f"policies.yaml: workday_sign_in is {sign_in!r}, not one of {', '.join(SIGN_INS)}")
         self._accounts = accounts
+        self._with_google = sign_in == "google"
         self._rescue = rescue
         self._url = ""
         self._readback: Readback = {}
@@ -249,8 +259,9 @@ class WorkdayFiller:
 
     def _sign_in(self, page: Page) -> None:
         site = site_of(self._url)
-        google = page.locator("[data-automation-id=GoogleSignInButton]")
-        if google.is_visible():
+        google = page.locator(GOOGLE_BUTTON)
+        offers_google = google.is_visible()
+        if offers_google and self._with_google:
             return self._google(page, google)
         with_email = page.locator("[data-automation-id=SignInWithEmailButton]")
         if with_email.is_visible():
@@ -258,7 +269,7 @@ class WorkdayFiller:
         password = self._accounts.password(site)
         if password:
             return self._password(page, site, password)
-        self._create_account(page, site)
+        self._create_account(page, site, offers_google)
 
     def _password(self, page: Page, site: str, password: str) -> None:
         """Sign In with the account's password. A refusal for want of
@@ -280,7 +291,9 @@ class WorkdayFiller:
                               "link Workday mailed when Apply made it, then sign in and apply yourself.")
             raise self._accounts.sign_in_failed(site, f"Workday said: {error}")
 
-    def _create_account(self, page: Page, site: str) -> None:
+    def _create_account(self, page: Page, site: str, offers_google: bool = False) -> None:
+        """`offers_google`: the tenant shows Sign in with Google, so an account
+        that already exists for Lisul's email was made with Google."""
         form = _auth_form(page, "createAccountLink", create=True)
         password = self._accounts.new_password(site)  # in Keychain before the form is sent
         _type(form, {"email": self._accounts.login, "password": password, "verifyPassword": password})
@@ -289,17 +302,24 @@ class WorkdayFiller:
             accept.check()
         since = self._accounts.clock.now()
         verify = page.get_by_text(re.compile(r"verification (email|link)|verify your (account|email)", re.IGNORECASE))
+        # Some tenants' Create Account view says so before it is sent ("a verification email will be sent",
+        # Xcel's): only a notice shown after the click counts.
+        notices = lambda: set(verify.evaluate_all("els => els.filter(e => e.checkVisibility()).map(e => e.innerText)"))
+        before = notices()
         warned = []  # Workday went to its "verify your account" page, whose notice may never show
         on_request = lambda r: urlsplit(r.url).path.endswith(VERIFY_WARNING) and warned.append(r.url)
         page.on("request", on_request)
         try:
             outcome = _send(page, form, lambda: "in" if _on_step(page) else _error(page) and "error"
-                            or (warned or verify.first.is_visible()) and "verify" or _sign_in_view(page) and "sign in")
+                            or (warned or notices() - before) and "verify" or _sign_in_view(page) and "sign in")
         finally:
             page.remove_listener("request", on_request)
         if outcome == "error":
             error = _error(page)
             if re.search(r"already", error, re.IGNORECASE):
+                if offers_google:  # never Forgot your password?, which mails Lisul
+                    self._accounts.not_made(site)
+                    raise Handoff(MADE_WITH_GOOGLE.format(company=self._accounts.company or site))
                 return self._reset_password(page, site)
             raise Handoff(f"Workday at {site} refused the new account: '{error}'")
         if outcome == "sign in":
@@ -566,6 +586,11 @@ def _google_rejected(page: Page) -> bool:
     """Whether Google refused to sign in this browser ("This browser or app may not be secure")."""
     return urlsplit(page.url).hostname == "accounts.google.com" and "/signin/rejected" in urlsplit(page.url).path
 
+
+# An account exists for Lisul's email on a tenant that offers Google, and Keychain has no password for it.
+MADE_WITH_GOOGLE = (
+    f"{NEEDS_SIGN_IN}{{company}}'s Workday account was made with Google; sign in once yourself, or reset its password"
+)
 
 GOOGLE_REJECTED = (
     f"{NEEDS_SIGN_IN}Google refused Sign in with Google in the Worker's Chrome (\"This browser or app may not be "

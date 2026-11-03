@@ -521,8 +521,10 @@ def by_filler(
     if isinstance(filler, type):  # with a Rescue: Claude fills a field its own code fails on
         rescue = Rescue(claude, sms_opt_in=profile.policy("sms_opt_in") is True,
                         marketing_opt_in=profile.policy("marketing_opt_in") is True)
+        # policies.yaml: workday_sign_in, email (the default) or google.
+        options = {"sign_in": profile.policy("workday_sign_in") or "email"} if posting.job_system == "workday" else {}
         with OnePage(site) as page_site:
-            return apply(filler(accounts(), rescue), page_site)
+            return apply(filler(accounts(), rescue, **options), page_site)
     if filler:
         if hasattr(filler, "with_accounts"):  # it reads the Application's mail, yet opens its form afresh each time
             filler = filler.with_accounts(accounts())

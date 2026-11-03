@@ -546,6 +546,21 @@ Claude stops at one (`SAYS_CAPTCHA`).
   Chrome starts with `--disable-blink-features=AutomationControlled`
   (`browsers.NOT_WEBDRIVER`). Do not remove it. The keychain flags already
   match the Chrome that Lisul signs the profile in with.
+- On Workday, Apply signs in or makes the account with email and password,
+  even where the tenant offers Sign in with Google: Google asked for a
+  passkey after the account pick on ASML's and KLA's tenants (2026-11-03).
+  `policies.yaml: workday_sign_in` picks `email` (the default) or `google`;
+  `orchestrator.by_filler` reads it into `WorkdayFiller(sign_in=...)`. The
+  tests of the Google path set `google` (`GOOGLE` in the test files).
+- On a tenant that offers Google, Create Account's "already exists" means
+  Lisul made the account with Google, and Keychain has no password for it.
+  That is Needs sign-in at once (`workday.MADE_WITH_GOOGLE`), and the unused
+  new password leaves Keychain (`Accounts.not_made`). Apply never presses
+  Forgot your password? there, since that mails Lisul. A tenant without
+  Google still resets the password in a real run.
+- A Create Account view may say "a verification email will be sent" before
+  it is sent (Xcel's). `WorkdayFiller._create_account` counts only a notice
+  that shows after the click.
 - If Google still refuses (its `/signin/rejected` page), the Workday Filler
   stops at once as Needs sign-in (`workday.GOOGLE_REJECTED`), never a 30 s
   timeout. It never clicks Try again. The fake Workday's
