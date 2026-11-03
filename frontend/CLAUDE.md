@@ -1441,6 +1441,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   **Its one way in is Up Next's Write N Questions** (KAN-566): a row's
   questions chip goes to the tab, and for a while no link reached the
   page, so a student without Claude could not answer. Keep a link there.
+  never the danger red (the student fixes it; nothing broke). Each box's
+  save is `secondary` until the box has text (KAN-568): a card holds
+  several questions, and a brand Save under each put five on one screen.
   A question whose answer waits on an Essay fact (KAN-369: a fact the
   student's Claude asked for rather than invent) shows the question above
   its box (`answers/fact-box.tsx`), saved with `PUT .../essay-facts` into

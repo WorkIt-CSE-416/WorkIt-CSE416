@@ -1284,6 +1284,9 @@ answers them here: every question the batch's open tabs need written and
 have no answer for (`GET .../written-questions`), one white card per job
 posting, oldest application first, each question with a box for their own
 draft or text pasted from any AI (`auto-apply/answers/answer-box.tsx`).
+The page stops at `max-w-dashboard` as every seeker page does, and the
+questions and answers inside each card keep the 68ch measure (KAN-568: at
+`max-w-app` its left edge sat 184px right of its siblings' at 1440).
 **Check and Save** sends it through the connector's own save, so WorkIt's
 checks run on it as on Claude's (machine-made words, numbers the student's
 experience and the posting don't hold, another employer's name, the form's
@@ -1291,7 +1294,10 @@ own limit...). A failing answer shows each reason in the warning amber
 under its box and is not saved, so it never reaches the form; a passing one
 says Saved, and the open tab fills it within about ten seconds and moves to
 Ready once nothing else needs the student. The count under a box is the
-form's own limit, amber past it. The list is read once as the page loads;
+form's own limit, amber past it. **Check and Save is secondary until its
+box has text** (KAN-568), and the fact box's Save to My Experience too: a
+card holds several questions, and a brand button under each put five on
+one screen. The list is read once as the page loads;
 a saved answer stays, marked Saved, until the next visit. Nothing left
 reads "Nothing Left to Write". **No screen links to it yet** (KAN-566
 adds the way in): only its address and the bar's title reach it. A row's
@@ -1490,7 +1496,11 @@ page with one action.
   click per job, and the Applications Tracker is the record. A row's
   checkbox, or a click on the row but its title, picks it; Select All picks
   every job auto apply can fill. One it can't fill (not Greenhouse, for
-  now) can't be picked and says why. "Add N to Queue" queues each pick
+  now) can't be picked and is dimmed, and says why on a line of its own
+  in `ink-meta`, outside the dimmed block (KAN-568: dimmed with it, the
+  reason fell to about 2.9:1). Each row's second line is the company and
+  the place ("Stripe · New York, NY"), so two saved jobs with one title at
+  one company read apart. "Add N to Queue" queues each pick
   through `queueJob` in the list's order, asks the extension to open the
   oldest queued job, toasts how many went in, and redraws the page. There
   is no "auto apply all saved jobs": the seeker picks each one. It was a
@@ -1953,7 +1963,10 @@ answers.
   A separate check box for it in Contact & Links was built and removed
   on 2026-10-21: it asked the same question twice.
 - **The same two modes as Contact & Links.** Reading, each question is its
-  answer's label or "Not answered" in grey. Edit turns every answer into a
+  answer's label or "Not answered" in grey, and a card with no answers is
+  one "Not answered" line (KAN-568). Each question's glyph is grey
+  (`ink-meta`), since it only informs (`docs/design.md`, the icon colour
+  rule). Edit turns every answer into a
   picker (`ui/select-field.tsx`) in place, the first one focused, each over
   the question as forms word it, with Cancel and Save; "Not Answered" in a
   picker clears that answer. Escape cancels, but Escape in a picker's open
@@ -1991,7 +2004,12 @@ Facts, one card with Yes and No each and a None of
 These Apply button that answers only the unanswered ones; a Yes on a list
 question asks which companies. School Year (class year, back to school after
 the internship) is worked out from the latest education entry's end month
-(`lib/school-year.ts`) and only shown, with "From your education: ...". The
+(`lib/school-year.ts`) and only shown, with "From your education: ...".
+Reading, each group is its heading (a grey glyph) over its facts, **each
+fact a label in 12px meta grey over its value in body ink** (KAN-568): on
+one line, in two greys a point apart, a label and its value read as one
+phrase. A group with no fact answered is one "Not answered" line, not one
+per fact, which put it on the card more than 15 times. The
 same controls are `components/answer-fields.tsx`, shared with onboarding.
 Voluntary Self-Identification also lists the EEO extras (sexual orientation,
 transgender, pronouns), each with a decline answer; onboarding skips them

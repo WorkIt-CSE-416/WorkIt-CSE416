@@ -381,87 +381,91 @@ export function ApplicationAnswers({
       ) : (
         <div className={FIELD_GRID}>
           <Group icon="availability" title="Availability">
-            <dl className="grid gap-2">
-              {AVAILABILITY.map((q) => (
-                <Fact key={q.key} label={q.label} value={yesNo(answers[q.key])} />
-              ))}
-            </dl>
+            <Facts
+              facts={AVAILABILITY.map((q) => ({ label: q.label, value: yesNo(answers[q.key]) }))}
+            />
           </Group>
           <Group icon="startWindow" title="Start Window">
-            <dl className="grid gap-2">
-              <Fact label="Earliest Start" value={day(answers.earliest_start)} />
-              <Fact label="Latest End" value={day(answers.latest_end)} />
-              <Fact label="Terms" value={answers.available_terms?.map(termLabel).join(", ")} />
-            </dl>
+            <Facts
+              facts={[
+                { label: "Earliest Start", value: day(answers.earliest_start) },
+                { label: "Latest End", value: day(answers.latest_end) },
+                { label: "Terms", value: answers.available_terms?.map(termLabel).join(", ") },
+              ]}
+            />
           </Group>
           <Group icon="relocation" title="Relocation">
-            <dl className="grid gap-2">
-              <Fact label="Willing to Relocate" value={yesNo(answers.willing_to_relocate)} />
-              <Fact label="Places" value={answers.location_preferences?.join(" · ")} />
-              <Fact label="During the Internship" value={answers.internship_location} />
-            </dl>
+            <Facts
+              facts={[
+                { label: "Willing to Relocate", value: yesNo(answers.willing_to_relocate) },
+                { label: "Places", value: answers.location_preferences?.join(" · ") },
+                { label: "During the Internship", value: answers.internship_location },
+              ]}
+            />
           </Group>
           <Group icon="address" title="Address">
-            <dl className="grid gap-2">
-              <Fact label="Street" value={answers.address_line1} />
-              <Fact label="ZIP Code" value={answers.postal_code} />
-            </dl>
+            <Facts
+              facts={[
+                { label: "Street", value: answers.address_line1 },
+                { label: "ZIP Code", value: answers.postal_code },
+              ]}
+            />
           </Group>
           <Group icon="languages" title="Languages">
-            <p className="text-body text-ink-muted">
+            <p className="text-body text-ink">
               {(answers.languages ?? SUGGESTED_LANGUAGES).join(", ")}
               {!answers.languages && <span className="text-ink-meta"> (suggested)</span>}
             </p>
           </Group>
           <Group icon="agePay" title="Age and Pay">
-            <dl className="grid gap-2">
-              <Fact label="18 or Older" value={yesNo(answers.age_18_or_over)} />
-              <Fact
-                label="Expected Pay"
-                value={
-                  answers.expected_hourly_pay == null ? null : `$${answers.expected_hourly_pay}/hr`
-                }
-              />
-              <Fact label="Posted Range Is Fine" value={yesNo(answers.accept_posted_pay)} />
-            </dl>
+            <Facts
+              facts={[
+                { label: "18 or Older", value: yesNo(answers.age_18_or_over) },
+                {
+                  label: "Expected Pay",
+                  value:
+                    answers.expected_hourly_pay == null
+                      ? null
+                      : `$${answers.expected_hourly_pay}/hr`,
+                },
+                { label: "Posted Range Is Fine", value: yesNo(answers.accept_posted_pay) },
+              ]}
+            />
           </Group>
           <Group icon="interests" title="More About You">
-            <dl className="grid gap-2">
-              <Fact
-                label="Kinds of Work"
-                value={answers.role_interests
-                  ?.map((k) => ROLE_INTEREST_OPTIONS.find((o) => o.value === k)?.label)
-                  .join(", ")}
-              />
-              <Fact label="X Profile" value={answers.x_url} />
-              <Fact label="Citizenship" value={answers.citizenship_countries?.join(", ")} />
-            </dl>
+            <Facts
+              facts={[
+                {
+                  label: "Kinds of Work",
+                  value: answers.role_interests
+                    ?.map((k) => ROLE_INTEREST_OPTIONS.find((o) => o.value === k)?.label)
+                    .join(", "),
+                },
+                { label: "X Profile", value: answers.x_url },
+                { label: "Citizenship", value: answers.citizenship_countries?.join(", ") },
+              ]}
+            />
           </Group>
           <Group icon="communities" title="Communities">
-            <p className="text-body text-ink-muted">
-              {communitiesText(answers.communities) ?? (
-                <span className="text-ink-meta">Not answered</span>
-              )}
-            </p>
+            {communitiesText(answers.communities) ? (
+              <p className="text-body text-ink">{communitiesText(answers.communities)}</p>
+            ) : (
+              <NotAnswered />
+            )}
           </Group>
           <Group icon="screeners" title="Screener Facts">
-            <dl className="grid gap-2">
-              {SCREENERS.map((s) => {
+            <Facts
+              facts={SCREENERS.map((s) => {
                 const value = answers[s.key];
-                const choice = screenerChoice(answers, s.key);
-                return (
-                  <Fact
-                    key={s.key}
-                    label={s.label}
-                    value={
-                      Array.isArray(value) && value.length
-                        ? `Yes: ${value.join(", ")}`
-                        : yesNo(choice)
-                    }
-                  />
-                );
+                return {
+                  label: s.label,
+                  value:
+                    Array.isArray(value) && value.length
+                      ? `Yes: ${value.join(", ")}`
+                      : yesNo(screenerChoice(answers, s.key)),
+                };
               })}
-            </dl>
+            />
           </Group>
           <SchoolYearGroup year={year} />
         </div>
@@ -475,7 +479,7 @@ export function ApplicationAnswers({
 function SchoolYearGroup({ year }: { year: SchoolYear }) {
   return (
     <Group icon="schoolYear" title="School Year">
-      <dl className="grid gap-2">
+      <dl className="grid gap-3">
         <Fact label="Class Year" value={year.classYear} empty="Unknown" />
         <Fact
           label="Back to School After the Internship"
@@ -505,7 +509,7 @@ function Group({
   return (
     <div className="min-w-0">
       <h3 className={FIELD_HEADING}>
-        <Icon className="text-brand size-5 shrink-0" />
+        <Icon aria-hidden className="text-ink-meta size-5 shrink-0" />
         {title}
       </h3>
       <div className={cn("mt-2 grid gap-3", VALUE_INDENT)}>{children}</div>
@@ -524,24 +528,43 @@ function Question({ id, label, children }: { id: string; label: string; children
   );
 }
 
+type FactRow = { label: string; value: string | null | undefined };
+
+/** A group's facts, or one "Not answered" line when none has a value: a line
+ *  per empty fact put "Not answered" on the card more than 15 times. */
+function Facts({ facts }: { facts: FactRow[] }) {
+  if (!facts.some((f) => f.value)) return <NotAnswered />;
+  return (
+    <dl className="grid gap-3">
+      {facts.map((f) => (
+        <Fact key={f.label} label={f.label} value={f.value} />
+      ))}
+    </dl>
+  );
+}
+
+/** A label over its value, apart in size and colour: on one line, at 13px
+ *  against 14px in two greys, the two read as one phrase. */
 function Fact({
   label,
   value,
   empty = "Not answered",
-}: {
-  label: string;
-  value: string | null | undefined;
+}: FactRow & {
   /** What an empty value says. */
   empty?: string;
 }) {
   return (
-    <div className="flex flex-wrap gap-x-2">
-      <dt className="text-label text-ink-meta">{label}</dt>
-      <dd className="text-body text-ink-muted min-w-0">
+    <div className="min-w-0">
+      <dt className="text-note text-ink-meta">{label}</dt>
+      <dd className="text-body text-ink min-w-0">
         {value || <span className="text-ink-meta">{empty}</span>}
       </dd>
     </div>
   );
+}
+
+function NotAnswered() {
+  return <p className="text-body text-ink-meta">Not answered</p>;
 }
 
 function Note({ children }: { children: ReactNode }) {

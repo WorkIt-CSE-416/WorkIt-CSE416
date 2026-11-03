@@ -11,7 +11,9 @@
  * Each field is drawn as a job posting's section heading is
  * (jobs/[jobId]/description.tsx, Heading): 16px bold ink beside a 20px brand
  * glyph, its value or control hanging under the heading's text (VALUE_INDENT).
- * Two columns where the card is wide, one on a phone.
+ * Application Info's glyphs are grey (`ink-meta`, KAN-568), since they only
+ * inform; My Profile's are still brand. Two columns where the card is wide,
+ * one on a phone.
  */
 export const SECTION_CARD = "scroll-mt-6 p-5 @xl/main:p-6";
 export const FIELD_HEADING = "text-subtitle text-ink flex items-center gap-2 font-bold";

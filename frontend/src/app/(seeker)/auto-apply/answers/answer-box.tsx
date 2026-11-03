@@ -9,6 +9,7 @@ import { TextAreaField } from "@/components/text-area-field";
 import { OPTION_ROW, RadioRow } from "@/components/ui/radio-row";
 import { FIELD_LABEL, RequiredMark } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
+import { formatCount } from "@/lib/format-count";
 
 import { saveWrittenAnswer } from "./actions";
 import type { WrittenQuestion } from "./questions";
@@ -137,13 +138,20 @@ export function AnswerBox({ jobId, question }: { jobId: string; question: Writte
             Saved. It fills into the job&apos;s open tab within a few seconds.
           </p>
         ) : (
-          <Button type="submit" size="sm" disabled={pending || !answer.trim()}>
+          // Secondary until the box has text: a card holds several questions,
+          // and a primary Save under each one put five on the screen at once.
+          <Button
+            type="submit"
+            size="sm"
+            variant={answer.trim() ? "default" : "secondary"}
+            disabled={pending || !answer.trim()}
+          >
             Check and Save
           </Button>
         )}
         {limit != null && (
           <span className={cn("text-note", over ? "text-warning" : "text-ink-meta")}>
-            {answer.trim().length} / {limit}
+            {formatCount(answer.trim().length)} / {formatCount(limit)}
           </span>
         )}
       </div>

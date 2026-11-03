@@ -97,7 +97,14 @@ export function FactBox({
           Saved to {savedTo}. Your Claude writes this answer the next time it runs.
         </p>
       ) : (
-        <Button type="submit" size="sm" className="self-start" disabled={pending || !text.trim()}>
+        // Secondary until the box has text, as the answer box's Save is.
+        <Button
+          type="submit"
+          size="sm"
+          variant={text.trim() ? "default" : "secondary"}
+          className="self-start"
+          disabled={pending || !text.trim()}
+        >
           Save to My Experience
         </Button>
       )}
