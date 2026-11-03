@@ -11,7 +11,7 @@ from collections.abc import Callable, Collection, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import date, datetime, timedelta
 
-from apply import bot_signals, greenhouse, oracle, trace, walls
+from apply import bot_signals, embedded, greenhouse, oracle, trace, walls
 from apply.accounts import Accounts, failed_sites
 from apply.adapters import (
     Adapters,
@@ -319,9 +319,12 @@ class _Run:
 
     def _traced(self, posting: Posting, worker: int) -> Result:
         try:
-            posting = greenhouse.board_behind(posting, self._adapters.site)
+            on_worker = _OnWorker(self._adapters.site, worker)
+            if (behind := greenhouse.board_behind(posting, self._adapters.site)) == posting:
+                behind = embedded.form_behind(posting, on_worker)  # a Greenhouse, Lever or Ashby form in the page
+            posting = behind
             return by_filler(
-                posting, _OnWorker(self._adapters.site, worker), self._profile, self._adapters.claude,
+                posting, on_worker, self._profile, self._adapters.claude,
                 lambda: self._accounts(posting), lambda filler, site: self._apply_with(posting, filler, site, worker),
                 signed_in=self._adapters.signed_in,
             )

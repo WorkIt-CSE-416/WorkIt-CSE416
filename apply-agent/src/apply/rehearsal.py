@@ -34,7 +34,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from apply import ashby, eightfold, greenhouse, lever, trace, workday
+from apply import ashby, eightfold, embedded, greenhouse, lever, trace, workday
 from apply.accounts import NEEDS_SIGN_IN, Accounts
 from apply.adapters import Adapters, JobSite, SetupError, Tracker
 from apply.model import Posting, Status, one_line
@@ -257,8 +257,11 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     claude, board = adapters.claude, adapters.board
     started, spent = time.monotonic(), claude.spent()
     posting, result = resolve(url, site)
-    if (behind := greenhouse.board_behind(posting, site)) != posting:
-        posting = replace(resolve(behind.url, site)[0], id=posting.id)  # named by Greenhouse now
+    behind = greenhouse.board_behind(posting, site)
+    if behind == posting and result is None:
+        behind = embedded.form_behind(posting, site)  # a Greenhouse, Lever or Ashby form in the page
+    if behind != posting:
+        posting = replace(resolve(behind.url, site)[0], id=posting.id)  # named by its job system now
     board.update(n, company=posting.company, role=posting.title, job_system=posting.job_system, posting_url=posting.url,
                  application_id=posting.id, status="filling", files=[], stage=stage)
     files: list[dict] = []

@@ -95,7 +95,11 @@ change the other.
   (`claude_fill._only_its_submit`); any other block is a Handoff.
 - A careers page that embeds a Greenhouse form goes to the Greenhouse Filler
   (`greenhouse.board_behind`): by `?gh_jid=`, or by a job id in its path
-  that the job API says is shown on that same host (Roblox).
+  that the job API says is shown on that same host (Roblox). Failing that,
+  `embedded.form_behind` opens a page of no known job system, reads its
+  frames (after one click on its Apply button outside any form) and sends an
+  embedded Greenhouse, Lever or Ashby form to that system's Filler. Claude
+  fill is only the fallback.
 
 ## Form pages
 
