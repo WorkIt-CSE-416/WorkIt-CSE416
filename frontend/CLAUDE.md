@@ -1411,7 +1411,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   worded, the same three on every row (Change Resume, I Already Applied,
   Remove From Queue), never as bare icon buttons beside each other.
   Remove works on every row (`remove` in `up-next.tsx`: closes its tab,
-  dequeues a queued job, skips a started one whose tab is closed). **Several rows at once
+  dequeues a queued job, skips a started one whose tab is closed). **The
+  ⋯ column stays at the table's right edge at every width** (KAN-567),
+  with an edge shadow while columns are hidden past it (`useClipped`),
+  and below `@3xl/main` Match and Date Added fold into the Role cell's
+  second line, and Role, then unfrozen, takes their width: the 960px
+  table scrolls sideways, and until then at 1024px and below the scroll
+  hid the only Remove with no cue. A role title wraps, never truncates:
+  a `title` tooltip is not there for touch or keyboard. A folded column
+  closes to no width rather than leaving the DOM, since the group
+  heading's `colSpan` counts every column. **Several rows at once
   go through Up Next's select boxes**: while any row is picked, the
   heading's right end shows the count, Remove and Auto Apply in place of
   Add Jobs, and Select All unpicks them, as the Inbox's does; keep the

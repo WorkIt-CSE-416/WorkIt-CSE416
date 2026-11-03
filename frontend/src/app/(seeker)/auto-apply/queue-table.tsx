@@ -2,7 +2,7 @@
 
 import { CheckIcon, PencilLineIcon, WarningIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 
 import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo } from "@/components/company-logo";
@@ -24,7 +24,7 @@ import type { BatchTabState } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
 
 import { LocalDate } from "../local-time";
-import { CENTER, FROZEN, TD, TH, type ActivityItem } from "./activity-list";
+import { CENTER, TD, TH, type ActivityItem } from "./activity-list";
 import { RowMenu } from "./row-menu";
 
 /** Whether WorkIt has started an Up Next job: In Progress (opened in a
@@ -77,15 +77,73 @@ const TAB_STATUS: Record<BatchTabState, { label: string; ink: string; Icon: type
   applied: { label: "Submitted", ink: "text-brand", Icon: CheckIcon },
 };
 
-const COLUMNS: { id: string; label: string; width?: string }[] = [
+/** Match and Date Added fold into the Role cell below @3xl/main (KAN-567):
+ *  their columns close to no width and Role, the leftover column, takes what
+ *  they free (456px of the 960px table). Closed, not removed: the group
+ *  heading's `colSpan` counts six columns, and a missing one would hand
+ *  Role's width to an empty slot. Below @xl/main (a phone) the table is
+ *  752px instead (TABLE_WIDTH), so Role keeps 248px: at 456px it ran past
+ *  the card and the ⋯ column covered the end of a long title. */
+const COLUMNS: { id: string; label: string; width?: string; folds?: boolean }[] = [
   { id: "role", label: "Role" },
   // "Ready to Submit · Review" with its glyph, about 200px.
   { id: "status", label: "Status", width: "w-60" },
   { id: "resume", label: "Resume", width: "w-52" },
-  { id: "match", label: "Match", width: "w-24" },
-  { id: "added", label: "Date Added", width: "w-28" },
+  { id: "match", label: "Match", width: "w-0 @3xl/main:w-24", folds: true },
+  { id: "added", label: "Date Added", width: "w-0 @3xl/main:w-28", folds: true },
   { id: "menu", label: "More", width: "w-14" },
 ];
+
+/** Role is frozen at the left from @3xl/main, not from @2xl/main as Live
+ *  Activity's (FROZEN in ./activity-list.tsx): below that it is wide with
+ *  the folded columns' width, and frozen it covered most of the card, so
+ *  Status and Resume scrolled by behind it in a strip. */
+const ROLE_FROZEN =
+  "z-1 bg-panel @3xl/main:sticky @3xl/main:left-0 @3xl/main:shadow-[1px_0_0_var(--color-border-subtle)]";
+
+const TABLE_WIDTH = "min-w-[47rem] @xl/main:min-w-[60rem]";
+
+/** A folded column's cell: no padding while it is closed, its content hidden. */
+const FOLDS = "px-0 @3xl/main:px-4";
+const FOLDED = "hidden @3xl/main:inline";
+
+/** The ⋯ column stays at the right edge while the table scrolls, at every
+ *  width, so a row's menu (Remove is only there) is always in reach. While
+ *  columns are hidden past that edge (`data-clipped` on the card,
+ *  `useClipped`) it draws an edge shadow, the cue that the table scrolls. */
+const STICKY_END =
+  "sticky right-0 z-1 bg-panel in-data-clipped:shadow-[-1px_0_0_var(--color-border-subtle),-8px_0_12px_-4px_rgb(18_26_40/0.2)]";
+
+/** A sticky cell paints the row's own background so scrolled cells don't
+ *  show through it, so it follows the row's tint: picked, hovered, or with
+ *  its ⋯ menu open (`data-popup-open` on the trigger: the pointer leaves for
+ *  the menu, and a sticky cell alone kept its hover tint). */
+function stickyTint(picked: boolean) {
+  return picked
+    ? "bg-brand-tint"
+    : "group-hover/row:bg-hover [tr:has([data-popup-open])_&]:bg-hover";
+}
+
+/** Whether the table hides columns past its right edge, kept current as it
+ *  scrolls and resizes. Returns the flag and the ref for the `<table>`; its
+ *  parent is the scrolling box (`shadcn/table.tsx`). */
+function useClipped() {
+  const [clipped, setClipped] = useState(false);
+  const ref = useCallback((table: HTMLTableElement | null) => {
+    const box = table?.parentElement;
+    if (!table || !box) return;
+    const measure = () => setClipped(box.scrollLeft + box.clientWidth < box.scrollWidth - 1);
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    observer.observe(table);
+    box.addEventListener("scroll", measure, { passive: true });
+    return () => {
+      observer.disconnect();
+      box.removeEventListener("scroll", measure);
+    };
+  }, []);
+  return [clipped, ref] as const;
+}
 
 /**
  * Up Next's table (./up-next.tsx): every queued job in two groups, each
@@ -126,6 +184,7 @@ export function QueueTable({
   onRemove: (row: QueueRow) => void;
 }) {
   const [folded, setFolded] = useState<ReadonlySet<QueueGroup>>(new Set());
+  const [clipped, tableRef] = useClipped();
   const all = rows.length > 0 && rows.every((row) => picked.has(row.id));
   const some = rows.some((row) => picked.has(row.id));
 
@@ -141,14 +200,20 @@ export function QueueTable({
   }
 
   return (
-    <Card padding="none" className="mt-3 overflow-hidden">
-      <Table className="min-w-[60rem] table-fixed">
+    <Card padding="none" className="mt-3 overflow-hidden" data-clipped={clipped || undefined}>
+      <Table ref={tableRef} className={cn(TABLE_WIDTH, "table-fixed")}>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             {COLUMNS.map((column) => (
               <TableHead
                 key={column.id}
-                className={cn(TH, column.width, column.id === "role" ? FROZEN : CENTER)}
+                className={cn(
+                  TH,
+                  column.width,
+                  column.id === "role" ? ROLE_FROZEN : CENTER,
+                  column.folds && FOLDS,
+                  column.id === "menu" && STICKY_END,
+                )}
               >
                 {column.id === "role" ? (
                   <span className="flex items-center gap-3">
@@ -167,6 +232,8 @@ export function QueueTable({
                   </span>
                 ) : column.id === "menu" ? (
                   <span className="sr-only">{column.label}</span>
+                ) : column.folds ? (
+                  <span className={FOLDED}>{column.label}</span>
                 ) : (
                   column.label
                 )}
@@ -244,18 +311,7 @@ function Row({
 }) {
   const cells: ReactNode = (
     <>
-      <TableCell
-        className={cn(
-          TD,
-          FROZEN,
-          "transition-colors",
-          // The whole row tints while its ⋯ menu is open (`data-popup-open` on the trigger): the pointer
-          // leaves for the menu, and the frozen cell alone kept its hover tint.
-          picked
-            ? "bg-brand-tint"
-            : "group-hover/row:bg-hover [tr:has([data-popup-open])_&]:bg-hover",
-        )}
-      >
+      <TableCell className={cn(TD, ROLE_FROZEN, "transition-colors", stickyTint(picked))}>
         <div className="flex min-w-0 items-center gap-3">
           <PickBox>
             <Checkbox
@@ -271,21 +327,33 @@ function Row({
             className="text-meta size-8 shrink-0 rounded"
           />
           <div className="min-w-0">
+            {/* The title wraps rather than cutting off (KAN-567): Role is the leftover column, about
+                248px at 1024, and a cut title read whole only in a tooltip, which touch and keyboard
+                never get. */}
             {row.href ? (
               <Link
                 href={row.href}
-                title={row.role}
-                className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+                className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block rounded-xs font-semibold wrap-break-word whitespace-normal transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
               >
                 {row.role}
               </Link>
             ) : (
-              <p className="text-label text-ink truncate font-semibold" title={row.role}>
+              <p className="text-label text-ink font-semibold wrap-break-word whitespace-normal">
                 {row.role}
               </p>
             )}
-            <p className="text-note text-ink-meta truncate" title={row.company}>
-              {row.company}
+            <p className="text-note text-ink-meta flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="truncate" title={row.company}>
+                {row.company}
+              </span>
+              {/* Match and Date Added, here while their columns are closed (COLUMNS); under the
+                  company where the line has no room. */}
+              <span className="flex shrink-0 items-center gap-2 @3xl/main:hidden">
+                {row.match != null && <MatchBadge score={row.match} />}
+                <span>
+                  Added <LocalDate at={row.addedAt} />
+                </span>
+              </span>
             </p>
           </div>
         </div>
@@ -319,22 +387,28 @@ function Row({
         </button>
       </TableCell>
 
-      <TableCell className={cn(TD, CENTER)}>
-        {row.match != null ? (
-          <MatchBadge score={row.match} />
-        ) : (
-          <span className="text-ink-faint">
-            <span aria-hidden="true">–</span>
-            <span className="sr-only">Not scored</span>
-          </span>
-        )}
+      <TableCell className={cn(TD, CENTER, FOLDS)}>
+        <span className={FOLDED}>
+          {row.match != null ? (
+            <MatchBadge score={row.match} />
+          ) : (
+            <span className="text-ink-faint">
+              <span aria-hidden="true">–</span>
+              <span className="sr-only">Not scored</span>
+            </span>
+          )}
+        </span>
       </TableCell>
 
-      <TableCell className={cn(TD, CENTER)}>
-        <LocalDate at={row.addedAt} />
+      <TableCell className={cn(TD, CENTER, FOLDS)}>
+        <span className={FOLDED}>
+          <LocalDate at={row.addedAt} />
+        </span>
       </TableCell>
 
-      <TableCell className={cn(TD, CENTER, "py-0")}>
+      <TableCell
+        className={cn(TD, CENTER, STICKY_END, "py-0 transition-colors", stickyTint(picked))}
+      >
         {row.tab !== "applied" && <RowMenu item={row} onResume={onResume} onRemove={onRemove} />}
       </TableCell>
     </>
