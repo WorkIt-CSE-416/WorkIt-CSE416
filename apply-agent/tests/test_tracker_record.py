@@ -5,7 +5,9 @@ WorkIt's extension fills queued applications).
 WorkIt down: the write waits in the data folder and goes on the next send."""
 
 import dataclasses
+import datetime
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -168,6 +170,38 @@ def test_a_hold_kept_as_queued_by_an_older_apply_goes_as_needs_you(fake, tmp_pat
 
     assert WaitingWrites(logged_in(fake, tmp_path), queue).flush() == []
     assert [row["stage"] for row in fake.tracker.tracked()] == ["needs_you"]
+
+
+def test_a_write_past_the_daily_cap_waits_until_the_next_utc_day(fake, tmp_path, monkeypatch):
+    fake.tracker.capped = True
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+    tomorrow = datetime.datetime.combine(datetime.datetime.now(datetime.UTC).date() + datetime.timedelta(days=1),
+                                         datetime.time(), datetime.UTC).timestamp()
+
+    assert "daily cap" in writes.send(write("needs_you"))
+    assert [(w.stage, w.not_before) for w in writes.waiting()] == [("needs_you", tomorrow)]
+    # Before the cap resets, a flush does not ask WorkIt again.
+    asked = len(fake.requests)
+    assert writes.flush() == []
+    assert len(fake.requests) == asked
+    # The next day it goes.
+    fake.tracker.capped = False
+    monkeypatch.setattr(workit.time, "time", lambda: tomorrow + 1)
+    assert writes.flush() == []
+    assert [row["stage"] for row in fake.tracker.tracked()] == ["needs_you"]
+    assert writes.waiting() == []
+
+
+def test_a_write_past_the_daily_cap_waits_as_retry_after_says(fake, tmp_path):
+    fake.tracker.capped, fake.tracker.retry_after = True, "120"
+    writes = WaitingWrites(logged_in(fake, tmp_path), tmp_path / "workit-queue.json")
+    start = time.time()
+
+    writes.send(write("applied", resume=resume(tmp_path)))
+    writes.send(write("needs_you", application_id="request-2", link=LOCKHEED + "7"))
+
+    assert [w.application_id for w in writes.waiting()] == ["request-1", "request-2"]
+    assert all(start + 119 <= w.not_before <= time.time() + 121 for w in writes.waiting())
 
 
 def test_a_write_workit_refuses_is_dropped_and_said(fake, tmp_path):

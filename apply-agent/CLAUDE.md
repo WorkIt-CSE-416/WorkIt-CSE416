@@ -230,12 +230,15 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   Claude moves it to needs_you. A job WorkIt does not list becomes an
   **added job** (`added_by_student`; root `GLOSSARY.md`), never a status.
   The answer is `{"job_id", "stage"}`. New added jobs count against
-  WorkIt's daily cap (50): a 429 is a refusal, said and not kept.
+  WorkIt's daily cap (50): a 429 (`workit.CapReached`) keeps the Write
+  with `not_before`, the response's Retry-After or else the next UTC
+  midnight (WorkIt's caps count UTC days). No flush sends it before then.
 - A rehearsal writes only through `submitted_to`, when Lisul presses
   Submit himself. A rehearsal that he does not submit writes nothing.
 - No answer, or no live login: the Write waits in `workit-queue.json` (one
   per Application, the newest). `apply run` and `apply rehearse` send the
-  waiting writes first; `apply doctor`'s "WorkIt writes" line lists them.
+  waiting writes first; `apply doctor`'s "WorkIt writes" line lists them
+  ("waits for WorkIt's daily cap of added jobs until <time>" for a capped one).
   A Write that WorkIt refuses (a 4xx) is dropped and said.
 - A write that fails never stops a run: the row is in Apply's Tracker.
 - Apply does not write to the Tracker Sheet. The first `live_tracker()`

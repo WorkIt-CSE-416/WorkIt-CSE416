@@ -69,7 +69,7 @@ Apply's own working state, one row per Application, in a file in the data folder
 _Avoid_: ledger, log, dashboard
 
 **Waiting write**:
-A write to WorkIt's Applications Tracker that could not reach WorkIt (no answer, or no live login), kept in the data folder (`workit-queue.json`) and sent first by the next run or rehearsal. `apply doctor` lists them. A later status of the same Application replaces one still waiting.
+A write to WorkIt's Applications Tracker that could not reach WorkIt (no answer, or no live login) or that WorkIt's daily cap of added jobs refused, kept in the data folder (`workit-queue.json`) and sent first by the next run or rehearsal. A write the cap refused is not sent again until the cap resets (the next UTC day, or when WorkIt's Retry-After says). `apply doctor` lists them, and says which wait for the cap. A later status of the same Application replaces one still waiting.
 _Avoid_: retry queue, outbox
 
 **WorkIt client**:
