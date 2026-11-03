@@ -72,7 +72,7 @@ export type ActivityItem = {
   /** Its job posting closed: the application can't go out (KAN-424). */
   closed?: boolean;
   /** How many of its written questions have no answer yet (./page.tsx, from
-   *  GET .../written-questions); Up Next's chip links them. */
+   *  GET .../written-questions); Up Next's chip counts them. */
   questions?: number;
 };
 

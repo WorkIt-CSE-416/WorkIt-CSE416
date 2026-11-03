@@ -1321,8 +1321,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   KAN-267: `openSentResume`, nothing downloaded). A button inside a
   clickable row or card must not open the application on a near miss: the
   list's cell prevents its clicks and the card's strip sits over the
-  stretched link, and a dialog opened from one stops its own clicks, since
-  React passes them up through the portal. A row or card opens the application's own page,
+  stretched link, and a click from a menu or dialog the row opened is
+  never the row's, since React passes it up through the portal:
+  `ClickableRow` leaves a click from outside the row alone, and one on a
+  link, button or menu item (`lib/row-click.ts`, KAN-566: Up Next's ⋯
+  items each opened the job posting too). A card's dialog still stops its
+  own clicks. A row or card opens the application's own page,
   `/applications/[jobId]` (KAN-256), not a side panel. **Interviewing, Offer
   and Rejected, and dated events, are stored** (KAN-413,
   `../docs/email_tracker.md`): the application's page has the stage menu
@@ -1407,6 +1411,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   come from any AI, and never send it to the extension; the open tab fills
   it on its own poll. A failed check is the warning amber under its box,
   never the danger red (the student fixes it; nothing broke).
+  **Its one way in is Up Next's Write N Questions** (KAN-566): a row's
+  questions chip goes to the tab, and for a while no link reached the
+  page, so a student without Claude could not answer. Keep a link there.
   A question whose answer waits on an Essay fact (KAN-369: a fact the
   student's Claude asked for rather than invent) shows the question above
   its box (`answers/fact-box.tsx`), saved with `PUT .../essay-facts` into

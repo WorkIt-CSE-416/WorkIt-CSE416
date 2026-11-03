@@ -1289,11 +1289,14 @@ Ready once nothing else needs the student. The count under a box is the
 form's own limit, amber past it. The list is read once as the page loads;
 a saved answer stays, marked Saved, until the next visit. Nothing left
 reads "Nothing Left to Write". **The Auto Apply page links to it** from
-each Up Next row with questions waiting, whose chip ("2 Questions to
-Write") opens it, and, while the student's Claude isn't connected, from
-the setup strip's Or Write Them Yourself (KAN-424). A card over Up Next,
-"N Written Questions Waiting", did this until KAN-424; it counted the
-questions without saying whose. **Write with Claude** (`auto-apply/write-with-claude.tsx`,
+Up Next's heading, "Write 3 Questions" before Add Jobs while any row's
+questions wait (`auto-apply/up-next.tsx`, KAN-566), queued rows counted
+too. A row's chip ("2 Questions to Write") goes to the job's tab, as
+every status does, not here. A card over Up Next, "N Written Questions
+Waiting", linked here until KAN-424 (it counted the questions without
+saying whose); then the setup strip's Or Write Them Yourself did, until
+the strip came to show only the extension, which left no link here until
+KAN-566. **Write with Claude** (`auto-apply/write-with-claude.tsx`,
 beside Written Answers' heading while a question waits) is a
 secondary button with the sparkle: it opens a new claude.ai chat in a new
 tab with "Write my WorkIt answers" in its box, not sent, and copies the
@@ -1346,7 +1349,7 @@ page with one action.
   dialog that counted a default resume and the Claude MCP too, and students
   read all three as required. Both are optional, so each shows where it
   helps: a row with no resume says No Resume and its Resume cell picks one,
-  and a row's Questions to Write chip links to Written Answers, whose
+  and Up Next's Write N Questions links to Written Answers, whose
   heading offers **Connect Claude** (Claude's Add Custom Connector dialog,
   wearing Claude's spark, never `SparkleIcon`) in Write with Claude's place
   while the student's Claude has no WorkIt connector (GET `.../connector`).
@@ -1417,7 +1420,11 @@ page with one action.
   queue with Undo in its toast; a started one with its tab closed, which the queue's
   DELETE refuses, is skipped (`skipJob`), with no Undo. Remove was offered
   on queued rows only until 2026-10-29, so a Couldn't Finish row's menu
-  had no way out.
+  had no way out. **An item does only its own action** (KAN-566): the
+  menu sits in a portal, React still passed its click up to the row, and
+  the row opened the job posting on Change Resume, I Already Applied and
+  Remove From Queue too. `ClickableRow` now leaves alone a click from
+  outside the row and one on a menu item (`lib/row-click.ts`, tested).
 - **Picked rows**: each Role cell has a select box and Role's heading
   Select All, which, as the Inbox's, picks every row or unpicks them while
   any is picked. While any row is picked, Up Next's heading shows the
@@ -1444,6 +1451,10 @@ page with one action.
   (`resolveResumeFile`, `autofiller_extension/src/background/api.js`), so
   a pick reaches the form only once the extension calls `POST
   .../applications/{job_id}/resume` for the job it fills.
+- **Write N Questions**, before Add Jobs while any row's written
+  questions wait, is a `SectionLink` to Written Answers (KAN-566), the
+  page's one way there for a student without Claude. It sums every row's
+  count, queued ones too, and hides while rows are picked.
 - **Add Jobs**, at Up Next's right, opens the seeker's saved jobs in a
   dialog (`auto-apply/add-jobs-dialog.tsx`). **The one place a seeker
   queues several jobs at once**: the Jobs page and Home keep one
