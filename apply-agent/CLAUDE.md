@@ -64,6 +64,11 @@ try-list picked, so the extension needs none of them.
 - A form that Claude fill reads is planned with the company and role that
   its page names, when the link names none.
 
+The engine's plan names each field it leaves blank on purpose, with why
+(`fill_engine.Plan.blanks`). On Greenhouse's self-ID block, a race to
+decline is one when Hispanic/Latino is answered: picking race's decline
+there sets Hispanic/Latino to the decline too and hides race.
+
 `README.md` is a teammate's setup path, from a clone to a rehearsal. Its
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.

@@ -195,6 +195,9 @@ class Plan:
     # Other wordings of an answer that state its fact too, by Question name: the page may
     # show one instead (a Workday search picks the tenant's own name for Lisul's major).
     accepted: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    # The questions the engine leaves blank on purpose, by name, each with why (a duplicate "Other website",
+    # an "If other" follow-up to another pick, an optional fact the profile lacks): Verifying notes these.
+    blanks: dict[str, str] = field(default_factory=dict)
 
 
 def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, bank: AnswerBank | None = None,
@@ -229,7 +232,7 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         answers=answers,
         essays=result["essays"], missing=result["missing"], not_eligible=result["not_eligible"],
         high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=result["drafts"], banked=result["banked"],
-        accepted=accepted,
+        accepted=accepted, blanks=dict(result.get("blanks") or {}),
     )
 
 
