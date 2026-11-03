@@ -432,8 +432,8 @@ def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict
 
 def _approving(tracker: Callable[[], object]) -> Callable[[str], str]:
     """Approve a Hold from the Apply window, in Apply's Tracker (KAN-544): the next check sends it."""
-    def approve(application_id: str) -> str:
-        tracker().approve(application_id)
+    def approve(application_id: str, essay: str | None = None) -> str:
+        tracker().approve(application_id, essay)
         return "Approved: it is sent at the next check, within 5 minutes."
     return approve
 

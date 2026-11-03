@@ -567,10 +567,12 @@ const action = (item) => {
     title: 'It is sent at the next check', onclick: async (e) => {  // approving resolves it
       e.target.disabled = true;
       try {
-        const reply = await fetch('/approve', {method: 'POST', body: JSON.stringify({id: item.id}),
+        const edit = editedEssay(item);  // his words in place of Claude's, if he edited them
+        const reply = await fetch('/approve', {method: 'POST', body: JSON.stringify(edit === null ? {id: item.id} : {id: item.id, essay: edit}),
                                                headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
         const data = await reply.json();
         if (!reply.ok) throw new Error(data.error || 'Not approved.');
+        essayDrafts.delete(item.application_id); keepEssays();
         toast(data.message); refresh();
       } catch (err) { toast(err.message || 'Apply is not answering: is it still running?'); e.target.disabled = false; }
     }});
@@ -595,6 +597,29 @@ const who = (item) => {
   const words = [item.company || 'An application', item.role, item.system].filter(Boolean).join(' · ');
   return item.posting_url ? make('a', {className: 'name', href: item.posting_url, target: '_blank', textContent: words, title: 'Open the posting'})
     : make('span', {className: 'name', textContent: words});
+};
+// A Hold's essays, his to edit before he approves, as the retired Tracker Sheet's Essay cell was: Approve sends
+// his edit. The edit is kept, by Application ID, until he approves, also if the window reloads.
+const essayDrafts = new Map(Object.entries(JSON.parse((() => { try { return sessionStorage.getItem('apply.essays'); } catch (e) {} })() || '{}')));
+const keepEssays = () => { try { sessionStorage.setItem('apply.essays', JSON.stringify(Object.fromEntries(essayDrafts))); } catch (e) {} };
+const editedEssay = (item) => essayDrafts.has(item.application_id) && essayDrafts.get(item.application_id) !== item.essay
+  ? essayDrafts.get(item.application_id) : null;
+const essayBox = (item) => {
+  const key = 'essay|' + item.application_id, status = make('span', {className: 'status'});
+  const text = make('textarea', {className: 'essay', maxLength: 100000, value: editedEssay(item) ?? item.essay,
+                                 rows: Math.min(16, 3 + Math.floor(item.essay.length / 90) + item.essay.split('\n').length)});
+  text.dataset.key = key;
+  const undo = make('button', {className: 'text', textContent: "Put back Claude's", hidden: true});
+  const say = () => {
+    const edited = editedEssay(item) !== null;
+    status.textContent = edited ? 'Edited: Approve sends your edit' : ''; status.className = 'status unsaved';
+    undo.hidden = !edited;
+  };
+  text.oninput = () => { essayDrafts.set(item.application_id, text.value); keepEssays(); say(); };
+  undo.onclick = () => { essayDrafts.delete(item.application_id); keepEssays(); text.value = item.essay; say(); };
+  say();
+  return make('div', {className: 'ask'}, make('label', {textContent: 'The essay Claude wrote: edit it here before you approve'}),
+              text, make('div', {className: 'essay-row'}, status, undo));
 };
 // A box per question only Lisul can answer: saved where the run reads it, the draft kept if it is refused.
 // One its form offers options for shows them as the form does, a list to pick one or boxes to tick,
@@ -699,6 +724,7 @@ const row = (item) => {
     make('div', {className: 'who'}, who(item)),
     item.why && !asks.length && !failed ? make('div', {className: 'why', textContent: item.why}) : null,
     asks.map(question => answerBox(item, question)),
+    item.kind === 'held' && ctx.approve && item.application_id && item.essay ? essayBox(item) : null,
     item.drafted && item.drafted.length ? make('details', {}, make('summary', {textContent: `What Claude wrote (${item.drafted.length})`}),
       make('div', {textContent: item.drafted.join('\n')})) : null,
     item.error ? make('details', {}, make('summary', {textContent: 'Details'}), make('div', {textContent: item.error})) : null,
@@ -731,6 +757,7 @@ const drawInbox = () => {
   const list = document.getElementById('inbox-list');
   const keep = document.activeElement && document.activeElement.closest('.item')?.dataset.id;
   const typing = document.activeElement && document.activeElement.dataset.key;
+  const caret = typing ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
   const opened = (d) => (d.closest('[data-id]')?.dataset.id || '') + '|' + d.querySelector('summary').textContent.split(' ')[0];
   const open = [...list.querySelectorAll('details[open]')].map(opened);
   const order = Object.keys(KINDS), sorted = [...asks].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
@@ -739,7 +766,11 @@ const drawInbox = () => {
       make('summary', {textContent: `${failed.length} couldn't finish · nothing was sent, and Apply will try again`}),
       failed.map(row)) : '');
   list.querySelectorAll('details').forEach(d => { if (open.includes(opened(d))) d.open = true; });  // as Lisul left them
-  if (typing) list.querySelector(`[data-key="${CSS.escape(typing)}"]`)?.focus();
+  if (typing) {
+    const box = list.querySelector(`[data-key="${CSS.escape(typing)}"]`);
+    box?.focus();
+    if (box && caret[0] !== null && box.setSelectionRange) box.setSelectionRange(...caret);
+  }
   else if (keep) list.querySelector(`[data-id="${CSS.escape(keep)}"]`)?.focus();
   const count = document.getElementById('tab-inbox');
   if (count) count.textContent = asks.length ? `Needs you · ${asks.length}` : 'Needs you';
@@ -961,6 +992,7 @@ STYLE = r"""
                font-size: 11px; font-weight: 500; color: var(--muted); white-space: nowrap; }
   .ask .need.required { color: var(--body); }
   .answer-row { display: flex; gap: 8px; align-items: center; }
+  .essay-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; min-height: 28px; margin-top: 4px; }
   .answer-row input { flex: 1; min-width: 0; }
   .file-options { display: flex; flex-wrap: wrap; gap: 8px; }
   .file-types { margin-top: 6px; font-size: 12px; color: var(--muted); }
