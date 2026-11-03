@@ -98,7 +98,9 @@ call WorkIt from another module; add a method to `WorkIt` that uses `call`.
   web app's session cookie through Chrome's DevTools port, as the extension
   reads it (`webapp-session.js`), and checks it with `GET /auth/me`. Then
   Apply closes that Chrome and deletes its profile. Chrome starts as a plain
-  process, not from Playwright, so Google's sign-in accepts it.
+  process, not from Playwright. Its DevTools port alone sets
+  `navigator.webdriver`, and Google's sign-in then refuses it (2026-11-03),
+  so it starts with `--disable-blink-features=AutomationControlled` too.
 - Because that browser is gone, only Apply has the session. Apply refreshes
   the access token itself at Supabase Auth
   (`/auth/v1/token?grant_type=refresh_token`, with the public anon key) and
@@ -479,6 +481,20 @@ window's card and tile. Run it with `-k`; it opens Chromium.
 
 ## Sign-in pages
 
+- Chrome sets `navigator.webdriver` when it listens for DevTools, on a
+  port or a pipe. Then Google's sign-in refuses Sign in with Google ("This
+  browser or app may not be secure", KLA, 2026-11-03). So each Worker's
+  Chrome starts with `--disable-blink-features=AutomationControlled`
+  (`browsers.NOT_WEBDRIVER`). Do not remove it. The keychain flags already
+  match the Chrome that Lisul signs the profile in with.
+- If Google still refuses (its `/signin/rejected` page), the Workday Filler
+  stops at once as Needs sign-in (`workday.GOOGLE_REJECTED`), never a 30 s
+  timeout. It never clicks Try again. The fake Workday's
+  `google="rejected"` plays this page.
+- A Google challenge page (`/signin/challenge/`, for example a passkey,
+  which has no box to type in) is a Handoff at once too: "Google asked for
+  more than an account pick (a passkey)". Apply never answers a challenge.
+  The fake's `google="passkey"` plays it.
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
 - Some Workday tenants answer Create Account with their bare Sign In view,

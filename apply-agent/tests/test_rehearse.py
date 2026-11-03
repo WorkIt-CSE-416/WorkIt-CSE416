@@ -331,6 +331,16 @@ def test_a_workday_rehearsal_stops_where_google_wants_more_than_an_account_pick(
     assert server.submissions == []
 
 
+def test_a_workday_rehearsal_stops_as_needs_sign_in_when_google_refuses_the_browser(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+
+    with FakeWorkdayServer(XCEL_FORM, google="rejected") as server:
+        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path), records=FolderRecords(tmp_path / "rehearsals"))
+
+    assert done.outcome == "needs sign-in" and done.why.startswith("Google refused Sign in with Google")
+    assert server.submissions == []
+
+
 class Watched:
     """A job site that counts its open pages, opened and closed on several threads."""
 
