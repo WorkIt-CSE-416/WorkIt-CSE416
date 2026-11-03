@@ -127,6 +127,13 @@ class Accounts:
         return self._wait("verification email", search, since,
                           lambda **look: self._mailbox.find_link(**look, hosts=hosts))
 
+    def mailed_link(self, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
+        """A verification link already mailed since `since`, in one look, or
+        None: for an account made in an earlier run. Never waits, never asks."""
+        if self._mailbox.unavailable():
+            return None
+        return self._mailbox.find_link(search=search, since=since, hosts=hosts)
+
     def _wait(self, what, search, since, find) -> str:
         """Gmail looked at until the mail comes or MAIL_WAIT passes. Never a
         second ask: a site may lock or rate-limit an account that asks again."""

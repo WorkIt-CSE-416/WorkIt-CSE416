@@ -26,7 +26,9 @@ verified, by way of their "verify your account" page (`/login/warning`,
 Zillow's), and Apply then waits for the link. A bare Sign In view without
 that page means Workday never made the account (Northrop's, live, where a
 made account goes straight to the application): Keychain forgets the new
-password and Lisul makes the account. Where Lisul made an account himself ("already exists"),
+password and Lisul makes the account. A sign-in to an account that an
+earlier run made but never verified opens the link Workday mailed then, if
+Gmail still has it, once. Where Lisul made an account himself ("already exists"),
 a real run resets its password: the new one is saved to Keychain first and
 set through the reset link from Gmail (never in a rehearsal, which stops at
 the sign-in page). Workday accounts are per tenant (the host, or the
@@ -47,7 +49,7 @@ or Google's sign-in page), Resume waits for him to sign in
 import json
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
@@ -89,6 +91,8 @@ SEND_CLICKS = 3  # clicks on an auth form's button at most
 # may never show, since Workday then loads its bare Sign In view.
 VERIFY_WARNING = "/login/warning"
 UNVERIFIED = re.compile(r"verif", re.IGNORECASE)  # Workday's refusal of a sign-in to an account not verified yet
+# How far back Gmail is read for the link of an account an earlier run made (Gmail's own search reads a day).
+VERIFY_LOOKBACK = timedelta(days=1)
 # Each tenant's nested prompts as last read: "<tenant> / <label>" -> its categories and each choice's category.
 TREES = HOME / "workday-trees.json"
 
@@ -155,6 +159,7 @@ class WorkdayFiller:
         self._known: QuestionSet = []  # the questions fill() was given, which the engine fills against
         self._state: dict = {}  # the engine's memory of this Application, kept between its calls
         self._his: tuple[str, set[str]] = ("", set())  # (step, fields) Lisul filled before Resume: not filled again
+        self._link_opened = False  # a verification link was opened: one that didn't verify is never opened again
 
     # --- The Filler ------------------------------------------------------------------
 
@@ -256,13 +261,21 @@ class WorkdayFiller:
         self._create_account(page, site)
 
     def _password(self, page: Page, site: str, password: str) -> None:
-        """Sign In with the account's password."""
+        """Sign In with the account's password. A refusal for want of
+        verifying the account opens the link Workday mailed, if Gmail has it."""
         form = _auth_form(page, "signInLink", create=False)
         _type(form, {"email": self._accounts.login, "password": password})
         outcome = _send(page, form, lambda: "in" if _on_step(page) else _error(page) and "error")
         if outcome == "error":
             error = _error(page)
             if UNVERIFIED.search(error):  # the password is right: never a failed sign-in
+                if self._link_opened:
+                    raise Handoff(f"{NEEDS_SIGN_IN}Workday at {site} still said: '{error}' after Apply opened the "
+                                  "link it mailed. Verify the account yourself, then sign in and apply yourself.")
+                # Made in an earlier run: its link may be in Gmail still (Zillow's, live).
+                earlier = self._accounts.clock.now() - VERIFY_LOOKBACK
+                if link := self._accounts.mailed_link(MAIL_SEARCH, earlier, (urlsplit(self._url).hostname or "",)):
+                    return self._open_link(page, link)
                 raise Handoff(f"{NEEDS_SIGN_IN}Workday at {site} said: '{error}' Verify the account through the "
                               "link Workday mailed when Apply made it, then sign in and apply yourself.")
             raise self._accounts.sign_in_failed(site, f"Workday said: {error}")
@@ -304,7 +317,10 @@ class WorkdayFiller:
     def _verify(self, page: Page, since: datetime) -> None:
         """Open the verification link mailed since `since` (never asked for
         again), then start the application over, signing in."""
-        link = self._accounts.link(MAIL_SEARCH, since, self._link_hosts())
+        self._open_link(page, self._accounts.link(MAIL_SEARCH, since, self._link_hosts()))
+
+    def _open_link(self, page: Page, link: str) -> None:
+        self._link_opened = True
         page.goto(link)
         page.goto(self._url)
         self._start(page)

@@ -147,6 +147,23 @@ def test_a_sign_in_to_an_account_not_verified_yet_needs_lisul_and_is_no_failed_p
     assert server.sign_ins == [(CACI, EMAIL, True)] and server.resends == 0
 
 
+def test_an_account_an_earlier_run_made_is_verified_through_the_link_gmail_still_has():
+    world = World(InMemoryKeychain({CACI: "Kept-Pa55word!"}))
+
+    # Zillow's (live): an earlier run made the account, and its link came, but it was never opened.
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox,
+                           accounts={(CACI, EMAIL): "Kept-Pa55word!"}) as server:
+        server.account(CACI, EMAIL)["verified"] = False
+        server._send_link(CACI, EMAIL)
+        world.clock.sleep_until(NOW + timedelta(hours=10))
+        [row] = world.run(server, caci())
+
+    assert (row.status, row.reason) == ("submitted", "")
+    assert server.account(CACI, EMAIL)["verified"]
+    assert server.sign_ins == [(CACI, EMAIL, True), (CACI, EMAIL, True)]  # refused unverified, then in
+    assert server.resends == 0 and server.created == []
+
+
 def test_a_sign_in_click_workday_drops_is_clicked_again_with_the_keychain_password():
     world = World(InMemoryKeychain({CACI: "Kept-Pa55word!"}))
 

@@ -506,7 +506,10 @@ window's card and tile. Run it with `-k`; it opens Chromium.
   to the application). Apply then forgets the new password in Keychain,
   never signs in, and hands off for Lisul to make the account. A
   sign-in that Workday refuses because the account is not verified is a
-  Needs sign-in Handoff, not a failed password. The fake Workday's
+  Needs sign-in Handoff, not a failed password. First, Apply looks once in
+  Gmail for the link Workday mailed (to the tenant's own host, within a
+  day) when an earlier run made the account (Zillow's, live). It opens that
+  link once and never asks for a new one. The fake Workday's
   `to_sign_in` plays this flow (`tests/test_employer_accounts.py`).
 - Apply asks a site for a verification code or link once per sign-in and
   never clicks Resend or Send New Code (`accounts.Accounts._wait`): a mail
