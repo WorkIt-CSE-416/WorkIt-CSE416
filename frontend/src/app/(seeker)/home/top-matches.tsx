@@ -8,10 +8,10 @@ import { getApplicationStages } from "../auto-apply/applications";
 import { formatPosted } from "../jobs/format";
 import { isApplicant, type JobListing } from "../jobs/listings";
 import { getMatches } from "./data";
-import { SectionCard } from "./section-card";
 import { LIST } from "./top-matches-frame";
 import { TopMatchesList, type TopMatchRow } from "./top-matches-list";
 import { jobLogo } from "@/lib/job-logo";
+import { Card } from "@/components/ui/card";
 
 /**
  * Top Matches, under the headline numbers (KAN-342): the seeker's best-scoring
@@ -73,7 +73,13 @@ export async function TopMatches({
 
   if (top === "empty" || top === null || top.length === 0) {
     return (
-      <SectionCard aria-labelledby="top-matches" className={className}>
+      <Card
+        as="section"
+        tone="tile"
+        padding="lg"
+        aria-labelledby="top-matches"
+        className={className}
+      >
         <StaticHeading />
         <p className="text-body text-ink-meta mt-3">
           {top === "empty" ? (
@@ -88,7 +94,7 @@ export async function TopMatches({
             "No open jobs to match yet. They show up here as companies post them."
           )}
         </p>
-      </SectionCard>
+      </Card>
     );
   }
 
@@ -105,13 +111,13 @@ export async function TopMatches({
   });
 
   return (
-    <SectionCard aria-labelledby="top-matches" className={className}>
+    <Card as="section" tone="tile" padding="lg" aria-labelledby="top-matches" className={className}>
       <TopMatchesList
         rows={top.map(toRow)}
         autoRows={matches && matches !== "empty" ? matches.autoApply.map(toRow) : []}
         canMarkApplied={canMarkApplied}
       />
-    </SectionCard>
+    </Card>
   );
 }
 
@@ -121,7 +127,7 @@ function StaticHeading() {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 id="top-matches" className="text-subtitle text-ink font-medium">
+        <h2 id="top-matches" className="text-subtitle text-ink">
           Top Matches
         </h2>
         <p className="text-body text-ink-meta mt-1">Your highest-scoring jobs right now.</p>
@@ -143,7 +149,14 @@ function StaticHeading() {
  *  Activity jumped by that much when the jobs arrived (KAN-368). */
 export function TopMatchesSkeleton({ className }: { className?: string }) {
   return (
-    <SectionCard aria-label="Top Matches" aria-busy="true" className={className}>
+    <Card
+      as="section"
+      tone="tile"
+      padding="lg"
+      aria-label="Top Matches"
+      aria-busy="true"
+      className={className}
+    >
       {/* StaticHeading's lines and its button, each a bar. */}
       <div aria-hidden="true" className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -181,6 +194,6 @@ export function TopMatchesSkeleton({ className }: { className?: string }) {
           </li>
         ))}
       </ul>
-    </SectionCard>
+    </Card>
   );
 }

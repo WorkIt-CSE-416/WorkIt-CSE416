@@ -1,4 +1,5 @@
-import type { ElementType, HTMLAttributes } from "react";
+import Link from "next/link";
+import type { ElementType, HTMLAttributes, Ref } from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -24,8 +25,27 @@ import { cn } from "@/lib/cn";
  * stylesheet order rather than source order, and cn() cannot fix that — the two
  * are different utility groups, so both survive the merge. Setting each side
  * explicitly is what keeps the accent visible.
+ *
+ * ONE CARD FOR SEEKER PAGES (KAN-558): Home, My Profile and Settings drew
+ * three kinds of card until then, each with its own corner, edge, shadow and
+ * title. Every white block on a seeker page is this card now, 16px from the
+ * next, titled with ui/section-heading.tsx. `tone` is the one way a card
+ * may look different: `tile` is Home's tile, which keeps KAN-173's look (no
+ * outline, set apart by --shadow-tile, the 20px corner), and a tinted
+ * headline tile passes its tint as a `bg-*` token over the white. `href`
+ * makes the whole card a link: an outline that darkens under the pointer,
+ * a focus ring, and `group/card` for an arrow that slides
+ * (`group-hover/card:translate-x-0.5`).
  */
-const BASE = "rounded-card bg-panel";
+const BASE = "bg-panel";
+
+const TONE = {
+  default: "rounded-card",
+  tile: "rounded-shell shadow-tile relative",
+} as const;
+
+const LINK =
+  "group/card hover:border-border focus-visible:ring-brand-ring block transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none";
 
 const PADDING = {
   none: "",
@@ -43,12 +63,17 @@ const ACCENT = {
 
 export type CardPadding = keyof typeof PADDING;
 export type CardAccent = keyof typeof ACCENT;
+export type CardTone = keyof typeof TONE;
 
 /** Every element a card is rendered as today. */
-type CardElement = "div" | "section" | "article" | "header" | "li";
+type CardElement = "div" | "section" | "article" | "header" | "li" | "ul";
 
 type CardProps = {
   as?: CardElement;
+  /** Renders the card as a link to this address, the whole card the target. */
+  href?: string;
+  /** `tile` is Home's tile: no outline, --shadow-tile, the 20px corner. */
+  tone?: CardTone;
   padding?: CardPadding;
   /** Paints the top edge with a status colour and thickens it to 3px. */
   accent?: CardAccent;
@@ -57,6 +82,7 @@ type CardProps = {
   /** Drop the shadow for a card sitting on a panel rather than on the page. */
   elevated?: boolean;
   className?: string;
+  ref?: Ref<HTMLElement>;
   /** Attributes are typed against the generic HTMLElement rather than any one
    *  tag: `as` decides the element, so nothing narrower is true for all of
    *  them. That covers everything a card actually passes — aria-labelledby,
@@ -78,6 +104,8 @@ function edge(accent: CardAccent | undefined, selected: boolean) {
 
 export function Card({
   as = "div",
+  href,
+  tone = "default",
   padding = "md",
   accent,
   selected = false,
@@ -85,14 +113,16 @@ export function Card({
   className,
   ...props
 }: CardProps) {
-  const Tag = as as ElementType;
+  const Tag = (href ? Link : as) as ElementType;
 
   return (
     <Tag
+      href={href}
       className={cn(
         BASE,
-        elevated && "shadow-panel",
-        edge(accent, selected),
+        TONE[tone],
+        tone === "default" && [elevated && "shadow-panel", edge(accent, selected)],
+        href && LINK,
         PADDING[padding],
         className,
       )}

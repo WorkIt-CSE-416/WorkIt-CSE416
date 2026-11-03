@@ -157,7 +157,7 @@ export function TopMatchesList({
     <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 id="top-matches" className="text-subtitle text-ink font-medium">
+          <h2 id="top-matches" className="text-subtitle text-ink">
             Top Matches
           </h2>
           <p className="text-body text-ink-meta mt-1">

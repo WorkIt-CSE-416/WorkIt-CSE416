@@ -15,12 +15,12 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/format-count";
+import { Card } from "@/components/ui/card";
 
 import { STAGE_COLOR } from "../stage-colors";
 import type { HomeStat, StatKey } from "./data";
 import { RANGES, type RangeKey } from "./range";
 import { useRange } from "./range-switch";
-import { SectionCard } from "./section-card";
 
 /** Each tile's glyph, by what it counts: the data is plain, so the icons stay
  *  on this side of the server boundary. */
@@ -96,7 +96,9 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
             : null;
 
         return (
-          <SectionCard
+          <Card
+            tone="tile"
+            padding="lg"
             key={stat.key}
             as="div"
             className={cn(
@@ -202,7 +204,7 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
                 </>
               )}
             </p>
-          </SectionCard>
+          </Card>
         );
       })}
     </>
@@ -226,7 +228,9 @@ export function HeadlineSkeleton() {
   return (
     <>
       {STAT_ORDER.map((key) => (
-        <SectionCard
+        <Card
+          tone="tile"
+          padding="lg"
           key={key}
           as="div"
           aria-hidden="true"
@@ -241,7 +245,7 @@ export function HeadlineSkeleton() {
           <div className="mt-2 flex h-5 items-center">
             <Skeleton className="bg-panel h-3 w-28" />
           </div>
-        </SectionCard>
+        </Card>
       ))}
     </>
   );

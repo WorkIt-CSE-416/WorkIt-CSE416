@@ -1,10 +1,10 @@
 import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { ArrowRightIcon, BookmarkIcon, SearchIcon } from "@/components/icons";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
@@ -74,9 +74,10 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
           table of them stacked on this list read as a second copy of it.
           Off while the Inbox is archived (KAN-428, ../inbox/live.ts). */}
       {waiting > 0 && (
-        <Link
+        <Card
           href="/inbox"
-          className="border-border-subtle bg-panel rounded-card text-meta text-ink hover:bg-hover focus-visible:ring-brand-ring mb-5 flex items-center gap-2 border px-4 py-2.5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+          padding="none"
+          className="text-meta text-ink mb-4 flex items-center gap-2 px-4 py-2.5"
         >
           <span aria-hidden="true" className="bg-brand size-2 rounded-full" />
           {waiting === 1 ? "1 email needs a look" : `${waiting} emails need a look`}
@@ -84,7 +85,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
             Open Inbox
             <ArrowRightIcon className="size-4" />
           </span>
-        </Link>
+        </Card>
       )}
 
       <FilterBar

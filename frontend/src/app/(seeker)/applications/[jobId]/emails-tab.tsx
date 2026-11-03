@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 
+import { Card } from "@/components/ui/card";
+
 import type { Email } from "../tracked";
 import { EmailRowContent, type EmailJob } from "../../inbox/email-row";
 
@@ -28,7 +30,7 @@ export function EmailsTab({ emails, job }: { emails: Email[] | null; job: EmailJ
     );
   }
   return (
-    <ul className="border-border-subtle rounded-card bg-panel divide-border-subtle mt-6 divide-y overflow-hidden border">
+    <Card as="ul" padding="none" className="divide-border-subtle mt-6 divide-y overflow-hidden">
       {emails.map((email) => (
         <li key={email.id}>
           <Link
@@ -39,6 +41,6 @@ export function EmailsTab({ emails, job }: { emails: Email[] | null; job: EmailJ
           </Link>
         </li>
       ))}
-    </ul>
+    </Card>
   );
 }

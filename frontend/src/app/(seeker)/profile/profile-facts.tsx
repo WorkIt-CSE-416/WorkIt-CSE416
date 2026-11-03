@@ -6,6 +6,7 @@ import Link from "next/link";
 import { getRoleOptions } from "@/app/onboarding/applicant/role-options";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { PencilIcon } from "@/components/icons";
+import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeading, SectionHeadingSkeleton } from "@/components/ui/section-heading";
@@ -122,7 +123,7 @@ export async function ProfileExtras({
   );
 }
 
-const EXTRAS_GRID = "grid gap-5 @3xl/main:grid-cols-2 @4xl/main:grid-cols-1 @6xl/main:grid-cols-2";
+const EXTRAS_GRID = "grid gap-4 @3xl/main:grid-cols-2 @4xl/main:grid-cols-1 @6xl/main:grid-cols-2";
 
 /** Both cards while they load, at about their height. */
 export function ProfileExtrasSkeleton() {
@@ -263,11 +264,10 @@ function TopSkills({ skills, failed }: { skills: string[] | null; failed: boolea
       ) : shown.length > 0 ? (
         <ul className="mt-4 flex flex-wrap gap-2">
           {shown.map((skill) => (
-            <li
-              key={skill.name}
-              className="bg-ink/5 text-note text-ink rounded-full px-3 py-1 font-medium"
-            >
-              {skill.name}
+            <li key={skill.name}>
+              <Badge variant="tag" pill>
+                {skill.name}
+              </Badge>
             </li>
           ))}
         </ul>

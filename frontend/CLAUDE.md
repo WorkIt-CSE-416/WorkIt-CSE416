@@ -1616,6 +1616,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   while the pointer is over what it scrolls. macOS's own bar drew a grey rail
   over the job list's rows. Never set `scrollbar-width` or `scrollbar-color` on
   an element, but for `none`: Chrome then drops these rules there.
+- **Every white block on a seeker page is `ui/card.tsx`** (KAN-558): Home's
+  tiles are `tone="tile"`, a whole-card link is `href`, a pill in a card is
+  `<Badge variant="tag" pill>`, and the title is `SectionHeading` (16px at
+  600, company pages included). Three hand-built card kinds drifted apart in
+  corner, edge, shadow, title and gap before; never build one from raw
+  classes (`docs/design.md`, The two shells).
 - **Build class strings with `cn()` from `@/lib/cn`.** Plain interpolation
   leaves both conflicting utilities in the attribute and the stylesheet's
   emit order picks the winner. `cn()` cannot merge across groups (`border` and

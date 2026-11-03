@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 import { keep, keepSnapshot, readKept, readSnapshot, subscribe } from "./feed-pages";
 import { PAGE_SIZE } from "./filter-query";
@@ -178,42 +179,49 @@ export function FeedList({
       />
     );
 
+  const items = (
+    <ul
+      ref={list}
+      className={compact ? "divide-border-subtle divide-y" : "mt-4 flex flex-col gap-3"}
+    >
+      {first.map((job, i) => (
+        // The cards rise in as the feed arrives, 50ms apart and capped at
+        // the sixth, about a screenful, so the list never makes anyone wait.
+        <li
+          key={job.id}
+          data-job-id={job.id}
+          style={fromSnapshot ? undefined : { animationDelay: `${Math.min(i, 6) * 50}ms` }}
+          className={fromSnapshot ? undefined : "animate-rise"}
+        >
+          {card(job)}
+        </li>
+      ))}
+      {loaded.map((job, i) => (
+        // A loaded page rises in the same way, counted within its own page.
+        <li
+          key={job.id}
+          data-job-id={job.id}
+          style={
+            fromSnapshot ? undefined : { animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }
+          }
+          className={fromSnapshot ? undefined : "animate-rise"}
+        >
+          {card(job)}
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
     <>
-      <ul
-        ref={list}
-        className={
-          compact
-            ? "rounded-card border-border-subtle divide-border-subtle mt-4 max-w-3xl divide-y overflow-hidden border"
-            : "mt-4 flex flex-col gap-3"
-        }
-      >
-        {first.map((job, i) => (
-          // The cards rise in as the feed arrives, 50ms apart and capped at
-          // the sixth, about a screenful, so the list never makes anyone wait.
-          <li
-            key={job.id}
-            data-job-id={job.id}
-            style={fromSnapshot ? undefined : { animationDelay: `${Math.min(i, 6) * 50}ms` }}
-            className={fromSnapshot ? undefined : "animate-rise"}
-          >
-            {card(job)}
-          </li>
-        ))}
-        {loaded.map((job, i) => (
-          // A loaded page rises in the same way, counted within its own page.
-          <li
-            key={job.id}
-            data-job-id={job.id}
-            style={
-              fromSnapshot ? undefined : { animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }
-            }
-            className={fromSnapshot ? undefined : "animate-rise"}
-          >
-            {card(job)}
-          </li>
-        ))}
-      </ul>
+      {/* The compact list is one white card, as on /jobs (./jobs-rail.tsx). */}
+      {compact ? (
+        <Card padding="none" className="mt-4 max-w-3xl overflow-hidden">
+          {items}
+        </Card>
+      ) : (
+        items
+      )}
 
       <div className="mt-6 flex flex-col items-center gap-2">
         {more ? (
