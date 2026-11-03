@@ -12,7 +12,10 @@ can check each one on a screen. The sections after this one hold the details
 and the history; where a rule here points to one of them, that section is the
 rule. Where the app breaks a rule today, the break is in **Still open** at the
 end of this section. Fix the screen, not the rule. These rules are for app
-screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
+screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules,
+and only the rules that name them (Accessibility, Copy). The design audit of
+2026-11-03 (Epic KAN-553) added the concrete rules here and settled four
+open choices (Settled choices, near the end).
 
 ### Legibility
 
@@ -24,8 +27,8 @@ screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
   | Token | Size | Use it for |
   | --- | --- | --- |
   | `text-caption` | 11px, 600, capitals | A rule label ("OR CONTINUE WITH"). Never a sentence. |
-  | `text-meta` | 11px | Meta: a date, a count, a file size, a status badge. |
-  | `text-note` | 12px | One secondary line: an employer, a pill, a hint under a field. |
+  | `text-meta` | 11px | Meta: a date, a count, a file size, a caption. |
+  | `text-note` | 12px | One secondary line: an employer, a pill, a status badge, a group name, a hint or an error under a field. |
   | `text-label` | 13px, 500 | Field labels, buttons, links, menu rows. |
   | `text-body` | 14px | Body copy, typed values, table cells, messages. |
   | `text-subtitle` | 16px, 600 | A block's name: a dialog title, a job's title, an empty state's title. |
@@ -34,10 +37,12 @@ screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
 
   `text-display`, `text-figure` and `text-hero` are for numbers and
   onboarding's question only, never for a heading.
-- **A sentence is 12px or larger, and body copy is 14px.** Small text is
+- **Reading text is 12px or larger, and body copy is 14px.** Small text is
   slow to read, and many students read on a laptop at arm's length
-  (Butterick, "Point size"). 11px (`text-meta`, `text-caption`) holds a few
-  words of meta only.
+  (Butterick, "Point size"). Any sentence, value, hint, error, status or
+  group name is `text-note` or larger. 11px (`text-meta`, `text-caption`)
+  holds a date, a count or a caption only. A reviewer checks every `p` and
+  every `aria-describedby` target in `text-meta`.
 - **Reading text holds 4.5:1, and large text, borders that mark a control,
   and icons hold 3:1.** Below these, text is hard to read for low vision
   (WCAG 2.2 SC 1.4.3 and 1.4.11). Large text is 24px, or 18.66px at 700:
@@ -53,12 +58,27 @@ screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
   | `ink-subtle` #94969d | 2.95:1 | 2.71:1 | No text. A glyph that cannot be used now (WCAG exempts inactive controls). |
 
   `brand` (6.26:1 on white, 5.75:1 on `app`) and `brand-ink` (7.99:1) may
-  carry text. `border-control` is 3.24:1 on white and 2.97:1 on `app`, so a
-  field keeps its white fill on the grey ground. A card's own border
-  (`border`, `border-subtle`) is about 1.4:1: it is not what marks a control.
+  carry text. So words use `ink`, `ink-muted`, `ink-meta`, `brand` or
+  `brand-ink`, never `ink-faint` or `ink-subtle`, which are for a disabled
+  or decorative glyph only. A filled button's text holds 4.5:1 on its fill:
+  white goes on `positive-ink`, never on `positive` (2.80:1), and words and
+  glyphs on the Scout amber are `ink`, never white (3.19:1).
+- **Rings, control borders and chart marks hold 3:1 on white and on grey.**
+  A ring, a dash or an edge that marks a control or a state (a field, a
+  segmented track, a choice tile, a table pill, the timeline's upcoming
+  ring, an empty slot) uses `border-control`, and a chart's series colours
+  reach 3:1 on `panel` and on `app` (WCAG 2.2 SC 1.4.11). `border-control`
+  is 3.24:1 on white and 2.97:1 on `app`, so a control keeps its white fill
+  on the grey ground. A card's own border (`border`, `border-subtle`) is
+  about 1.4:1: card edges are decoration only, never what marks a control.
 - **A prose block stops at about 68 characters a line.** Past about 75, the
   eye loses the next line (Butterick, "Line length": 45 to 90; Baymard: 50
-  to 75). About the Role's `max-w-[68ch]` is the measure; a table or a list
+  to 75). The measure is one token, `--measure-prose` (68ch, Settled
+  choices), and a single-column form stops at `--measure-form` (48rem), so
+  a one-line field never runs a card's full width. A `ch` cap goes on the
+  element whose font size is the text's, or on the text itself: on a 16px
+  wrapper over 14px text, 68ch let About the Role run about 107 characters
+  a line. Check a new cap by counting characters a line. A table or a list
   of short rows has no measure.
 - **Line height comes from the token.** The tokens set 1.2 to 1.45 times
   the size, tighter as the size grows (Butterick: 120 to 145%), so a call
@@ -69,11 +89,16 @@ screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
 
 ### Hierarchy
 
-- **One h1 per page.** A screen reader lists the page by its headings
+- **One h1 per view.** A screen reader lists the page by its headings
   (WCAG 2.2 SC 1.3.1 and 2.4.6; GOV.UK, "Headings"). On a section's page the
   h1 is the top bar title (`(seeker)/bar-title.tsx`); on a page under a
   section (a job, a resume, an application) the page draws its own h1 and the
-  bar shows a plain line.
+  bar shows a plain line. A job or a resume drawn beside its list (the Jobs
+  page's Split view) is an h2 under the list's h1. A modal never changes the
+  bar title: the bar names the page behind it, and the dialog's title names
+  the dialog, as its h2, with its cards' titles as h3. An h1 never
+  truncates to nothing: a phone takes a shorter form of it (Home's
+  greeting), with the full text as its title.
 - **Heading levels go in order.** h2 follows h1 and h3 follows h2, with no
   level skipped, so the outline is true. Pick the level by the outline and
   the size by the role: `SectionHeading`'s `as` changes the level, never the
@@ -106,13 +131,29 @@ screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
     rounded rectangle; a pill is a chip", below. A filter over a page's
     items is a `FieldFacet` dropdown. A choice of one among a few is a
     segmented control.
-  - A surface is `ui/card.tsx`: white (`bg-panel`), `rounded-card`, the
-    subtle border and `shadow-panel`. A card on a white panel takes
-    `elevated={false}`. Inside a card, group with space or a hairline, not a
-    second card (Refactoring UI, "Use fewer borders").
-  - An icon's colour says its job: "An icon's colour says its job", below.
+  - **One card per surface.** On a seeker page a surface is `ui/card.tsx`:
+    white (`bg-panel`), `rounded-card`, the subtle border and
+    `shadow-panel`, with one title style (600). A tinted block (Home's stat
+    tile) is the same card with a tone, and a link that looks like a card
+    is the card's link form, never a hand-built one. A card on a white
+    panel takes `elevated={false}`. Inside a card, group with space or a
+    hairline, not a second card (Refactoring UI, "Use fewer borders"). A
+    marketing page's card is `.gloss-card` or `.glass-card`
+    (`frontend/CLAUDE.md`), and an auth page's is the one `AuthCard`.
+  - An icon's colour says its job: clickable is `ink`, informing is
+    `ink-meta`, `brand` only when on or selected ("An icon's colour says
+    its job", below). The rule has no exception for brand marks beside
+    labels (Settled choices).
   - A form's buttons follow the form button placement rule, and a disabled
     control takes the grey disabled fill (KAN-550, Components, below).
+- **Controls come from `ui/`.** A field, a radio, a checkbox, a pill and a
+  tile come from their `ui/` part, at the part's sizes: `TextField`,
+  `TextAreaField`, `SelectField`, `DateField`, CheckRow and the radio row,
+  `Chip`, `Badge`. No screen builds one by hand from raw classes, and no
+  field opens the browser's own picker, months included ("No field opens
+  the browser's own picker", below). One toolbar uses one height (`sm` and
+  `icon-sm`, 36px), and a button label never wraps. An exception is named
+  here, or it is a break.
 - **Every control has all its states.** A missing state reads as broken
   (Material 3, "States"; NN/g, "Visibility of system status"). A reviewer
   checks each one:
@@ -128,10 +169,34 @@ screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
   - Error: a failed load is `EmptyState`; a field error is `danger` text
     under the field, with `aria-invalid` and `aria-describedby`. A toast
     never carries an error that a form can show beside its field.
+- **Every route group has `loading.tsx`, `error.tsx` and `not-found.tsx`.**
+  A route with none shows nothing while it reads, and a failure falls to
+  the root's page, out of its shell. A child page whose shape differs from
+  its parent's gets its own `loading.tsx`, since a parent's covers its
+  children. A card that reads its own data draws skeleton lines under its
+  heading until it lands, so nothing pops in and moves the page. Settings'
+  modal is the named exception (`frontend/CLAUDE.md`: a `loading.tsx` under
+  `@modal` drew a second modal).
 - **A skeleton shows no real text.** One finished line among the bars reads
   as the only thing done: "A skeleton shows no heading or line of text the
   page replaces" (`frontend/CLAUDE.md`). Skeletons are `bg-ink/6` at the
-  height of what replaces them.
+  height of what replaces them, and copy the real layout: a list loads as
+  skeleton rows, never as a "Loading…" line.
+- **A write that cannot be taken back asks first or offers Undo.** A
+  student who slips must be able to recover (NN/g, "Preventing user
+  errors"; GOV.UK, "Warning text"). A delete of the student's own content
+  asks first (`DeleteResumeConfirm`), or acts at once with Undo in its
+  toast (`useToast().show({ action })`, as Up Next's Remove does). A
+  result the page does not show by itself is a toast, with Retry where it
+  failed. A field error sits under its field, and the submit moves focus
+  to the first bad field.
+- **No inert or orphan UI.** A control that does nothing reads as broken.
+  A control that cannot act now is disabled and says why, in a visible
+  line or a tooltip (never `title` alone, which touch and keyboard never
+  see); a control with no feature behind it yet is hidden. Every route has
+  a link in from at least one screen before it merges, and `screens.md`
+  names it. A control that shows on hover also shows at rest where touch
+  can reach it.
 
 ### Design kit and tokens
 
@@ -154,7 +219,14 @@ screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
 - **A new pattern gets its design kit page in the same change.** A pattern
   that only lives in one screen gets copied by eye. A new token or shared
   component gets its row on `/design-kit` (`design-kit/data.ts`); a new kind
-  of pattern gets a section there (`SECTIONS`).
+  of pattern gets a section there (`SECTIONS`). A kit page shows every
+  state of its part (rest, hover, focus-visible, disabled, loading), and its
+  words say what this document says.
+- **The layout values are tokens too.** A page is `max-w-dashboard` with
+  one top padding (`py-6`), never `max-w-app`. Prose is `--measure-prose`
+  and a form `--measure-form`, never `max-w-[68ch]` or another arbitrary
+  width. A list or table in a dialog or a tile is `--spacing-scroll-box`.
+  The second arbitrary value of one kind is a new token.
 
 ### Layout and spacing
 
@@ -173,8 +245,9 @@ screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
   (`@container/main`, `@3xl/main:`), never the window's (`md:`).
 - **Space shows what belongs together.** More space between groups than
   inside them (Gestalt proximity; Refactoring UI, "Start with too much white
-  space"). Cards in a group sit 16px apart (`gap-4`); groups of cards and
-  sections sit 24px apart (`gap-6`); items inside a card sit 8 to 12px apart.
+  space"). Cards in a group sit 16px apart (`gap-4`, Settled choices) on
+  every seeker page; groups of cards and sections sit 24px apart (`gap-6`);
+  items inside a card sit 8 to 12px apart.
 - **Everything starts on a shared left edge.** A ragged left edge reads as
   a mistake (Refactoring UI). Cards, the filter row and the page's content
   start at the gutter; content in a card starts at the card's padding. An
@@ -189,6 +262,19 @@ screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
   scroll.** Students use phones, tablets and laptops, and WCAG 2.2 SC 1.4.10
   asks for no two-way scroll down to 320px. Only a wide table scrolls
   sideways, inside its own box (the Applications Tracker).
+- **Narrow widths keep what the student needs.** 375 and 1024 are the
+  widths that fail most, so check those two first. At a narrow width:
+  - a filter pick stays visible: a facet folded into All Filters puts its
+    count on that button and in its name;
+  - a table that scrolls sideways keeps its action column in view (sticky
+    at the right, with an edge shadow), and its low-priority columns fold
+    into the first cell below `@3xl/main`;
+  - a row's name keeps at least half the row: a badge moves to the date
+    line, and more than two icon actions go into a More menu below `@sm`;
+  - the phone keeps the desktop's one primary action (Finish, Download,
+    Apply Now) and the bar's bell;
+  - a `fixed` layer (a phone bar, a sheet, a toast) renders in a portal to
+    `body`, since `@container/main` is its containing block.
 
 ### Accessibility
 
@@ -205,16 +291,38 @@ screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
   it), and an icon-only button is `IconButton`, whose `label` is required.
 - **Targets are 24px or more, and 44px on touch.** Small targets cause
   missed taps (WCAG 2.2 SC 2.5.8: 24 by 24px; Apple HIG: 44pt; Material 3:
-  48dp). A small glyph widens its target with an `::after`, as `IconButton`
-  and the `inline` Button do, never by a larger box. Below md, each target
-  is 44px.
+  48dp). The `ui/` part sets the hit area, never the call site: a small
+  glyph widens its target with an `::after`, as `IconButton` and the
+  `inline` Button do, never by a larger box, so the desktop look stays.
+  Under `pointer: coarse`, each target is 44px; a link alone on its row is
+  a target, and only a link inside a sentence may be shorter.
 - **Keyboard order follows reading order.** Tab must go where the eye goes
   (WCAG 2.2 SC 2.1.1 and 2.4.3). No positive `tabindex`. A group of options
   is one tab stop with arrow keys (`SegmentedToggle`, menus). Esc closes a
   dialog or a menu, and focus goes back to what opened it.
 - **Colour is never the only signal.** About 1 in 12 men see some colours
   as alike (WCAG 2.2 SC 1.4.1). A stage carries its glyph as well as its
-  colour; a match score carries its number.
+  colour; a match score carries its number; a link in running text is
+  underlined.
+- **Marketing pages have a skip link and a pause control.** A "Skip to
+  Content" link is the first stop, and the looping animations can be
+  paused (WCAG 2.2 SC 2.4.1 and 2.2.2, level A). They ship no placeholder
+  art: a visual column with no art yet is dropped.
+
+### Dialogs
+
+- **Never a dialog over a dialog.** A second layer reads as a page laid
+  over a page (KAN-429). A pick or a form that opens from a dialog is a
+  step of that dialog, with a Back arrow beside its title ("Never a dialog
+  over a dialog", below). Only a one-line confirm may open over a dialog.
+- **A dialog keeps a 16px margin at every width**, and its scrolling part
+  keeps `scrollbar-gutter: stable`, so its width never jumps when a
+  scrollbar shows.
+- **A dialog's backdrop dims and blurs 4px; a panel from the right only
+  dims** ("A panel from the right floats", below).
+- **A dialog's buttons sit right, the primary last**, and its close
+  button is `ink`, with a 44px target on touch. Its field errors follow
+  the form rule: under the field, with focus on the first bad one.
 
 ### Copy
 
@@ -226,6 +334,32 @@ screens; the marketing pages follow `frontend/CLAUDE.md`'s landing rules.
   error says what went wrong and what to do next. Put the key word first.
   Use the job terms from the root `CLAUDE.md` (a hiring system, never an
   ATS) and one name for one thing on every screen.
+- **One meaning per label.** Two fields on one flow never share a title, a
+  label says "Optional" once per step when every field is optional, and an
+  exit names what it does ("Skip" moves one step; "Skip Setup" leaves).
+  On the Jobs screens a posting is a "job" or "job posting", never a
+  "role", tooltips and counts included. Labels are Title Case, tooltips
+  too, in US spelling. A public page that looks like the app (a marketing
+  card, a coming-soon page) follows the same copy rules.
+
+### Settled choices
+
+Four choices the audits left open, settled on 2026-11-03 (KAN-565). Other
+rules here follow them; change one only with the user.
+
+- **Cards in a group are 16px apart** (`gap-4`), not 20px: the existing
+  spacing rule, Home's gap, and a step of the 4px grid that matches the
+  `gap-6` between groups. My Profile's and Auto Apply's `gap-5` moves to it.
+- **The prose measure is 68ch**, as `--measure-prose`, with
+  `--measure-form` at 48rem (`max-w-3xl`'s width) for a single-column form.
+  68ch is About the Role's measure today and sits inside Baymard's 50 to 75.
+- **A wizard footer is a third kind of form** (Components, "A form's
+  buttons sit by what kind of form it is"): Back on the left, the one
+  forward button on the right.
+- **The icon colour rule has no Experiences exception.** A glyph beside a
+  label only informs, so it is `ink-meta`; `brand` stays for on or
+  selected. The Experiences page's group marks (Colour, below) move to
+  `ink-meta` with the rest.
 
 ### Still open
 
@@ -253,8 +387,35 @@ audits (`design-audit/`, one report per area) add to this list.
 - A wrapper skipped: the company table imports shadcn's `Input`.
 - Off the grid: `Card`'s `md` padding is 18px (`p-4.5`), as measured from
   the mockup.
-- No token for the prose measure: About the Role, the company tab and
-  Written Answers each write `max-w-[68ch]`.
+- No token for the measures yet: `--measure-prose` (68ch) and
+  `--measure-form` (48rem) are settled but not in `globals.css`. About the
+  Role, the company tab and Written Answers each write `max-w-[68ch]`, and
+  About the Role's sits on a 16px wrapper over 14px text.
+
+Found by the design audit of 2026-11-03. Its tickets sit under Epic
+KAN-553 (KAN-554 to KAN-582), and each one removes its line here when it
+lands. These have no ticket of their own yet:
+
+- The Experiences page's group marks are `text-brand`
+  (`experiences/bank-screen.tsx`), against the icon rule's settled choice.
+- Up Next's Resume cell is a hand-built bordered pill that acts, and the
+  row's status is a hand-built text button (`auto-apply/queue-table.tsx`).
+  The Resume cell becomes a `Button` (`outline`, `sm`) and the status the
+  `section` variant: no pill that acts is added to the exceptions.
+- The Experiences entry editor's Start and End are native month inputs
+  (`experiences/entry-editor.tsx`), waiting on KAN-559's `MonthField`.
+- My Profile's Contact & Links draws a 20px `brand` glyph and a 700 label
+  beside each field; the icon rule makes the glyph `ink-meta` and the
+  label 600 (KAN-571).
+- A card's title is 600 (Type weights), but `text-title`, the
+  `SectionHeading` size, carries 700; KAN-558 sets the one card title.
+- `ChoiceTile` still lives in the onboarding route, with off-grid values
+  (`rounded-[5px]`, `size-4.5`); it moves to `components/ui/` (KAN-559).
+- The design kit still says what these rules replace, until KAN-564 and
+  KAN-555 correct it: `--text-meta` is "Dates, file meta, helper copy"
+  and `--color-ink-subtle` is "stat tiles, a picker's chevron"
+  (`design-kit/data.ts`), `Chip size="lg"` is "onboarding's answers"
+  (`design-kit/buttons/page.tsx`), and the Home tiles have "no outline".
 
 ## The two shells
 
@@ -470,7 +631,9 @@ and did not say what the button does. Scissors stay Fit to One Page's.
 
 **Small brand text is `text-brand-ink`, and a brand glyph `text-brand`**: on
 `--color-brand-tint`, `brand-ink` reads 6.80:1 (`globals.css`). The Experiences
-page's group labels and marks use the pair (KAN-440). Keep a reading's own
+page's group labels and marks use the pair (KAN-440); a mark there only
+informs, so the icon colour rule makes it `ink-meta` (Settled choices; Still
+open until it moves). Keep a reading's own
 words in ink, and siblings drawn alike: every card's heading wears the same
 mark.
 
@@ -549,10 +712,11 @@ for a status. `IconButton` is black at rest and its `quiet` variant turns purple
 on hover, and an icon beside a label takes the label's colour. Each component
 chose for itself until then, so All Filters was grey beside a black Auto Apply. One
 exception: a segmented control's unpicked option stays grey, since black against
-grey is what says which option is on.
+grey is what says which option is on. There is no other exception: a brand
+mark beside a label only informs, so it is `ink-meta` (Settled choices).
 
-**A form's buttons sit by what kind of form it is** (2026-11-03). Two rules,
-each with its own reason, and every form follows one of them:
+**A form's buttons sit by what kind of form it is** (2026-11-03). Three
+rules, each with its own reason, and every form follows one of them:
 
 - **A page or Settings form: left, the primary first** (Save, then Discard).
   The eye runs down a single-column form's left edge, so a button there is
@@ -563,6 +727,13 @@ each with its own reason, and every form follows one of them:
   Material, and shadcn's `DialogFooter` already sets it. My Profile's Contact
   & Links, Application Info's cards and the Experiences entry editor are
   this kind.
+- **A wizard: Back on the left, the one forward button on the right**,
+  pinned to the foot (KAN-565). Each step moves on, so the forward button
+  sits where the next step comes from, and Back stays apart from it.
+  Onboarding's footer is this kind. A skip is `variant="section"` beside
+  the forward button. The footer holds buttons only: an error, a hint or
+  why Next is off goes above it, full width, as the sign-in pages' error
+  banner.
 
 Nielsen Norman Group's finding is that either order works and mixing them on
 like screens costs the user, so a new form takes its kind's rule. **A
@@ -628,6 +799,9 @@ date and time inputs and plain text lists for Type and Application, which
 broke both rules. My Profile's Start Window and onboarding's Availability
 step moved to `DateField` with it; no native date or time input is left in
 `src`, so a search for `type="date"` or `type="time"` finds a regression.
+The rule holds for months too: the Experiences entry editor's Start and End
+are still `type="month"` (Still open), and a `MonthField` on the `DateField`
+pattern replaces them.
 
 **An application or a resume is never picked from a dropdown** (KAN-429).
 An application is picked in Choose Application
@@ -727,7 +901,10 @@ with them.
 There is exactly one Chip, `ui/chip.tsx`, at two sizes: `default` (36px, an
 sm button's height, so they line up in a row) and `lg` (42px, a default
 button's and a text field's height, 16px type) for a screen where the chips
-are the question itself, onboarding's filter steps. Its roles: `choice` with `pressed` for filters and
+are the question itself: onboarding's Salary presets. Every other answer on
+onboarding's one-question steps is a `ChoiceTile`
+(`app/onboarding/applicant/choice-tile.tsx`, a box for any-of, a dot for
+one-of), a tile, not a chip. Its roles: `choice` with `pressed` for filters and
 toggles, `suggestion` for an offered answer, `primary` for the one most
 people take, and `ChipLink` for a filter kept in the URL. **A call site
 never changes a button's or chip's box**: a `no-restricted-syntax` rule in

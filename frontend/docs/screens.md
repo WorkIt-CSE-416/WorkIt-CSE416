@@ -1288,12 +1288,12 @@ says Saved, and the open tab fills it within about ten seconds and moves to
 Ready once nothing else needs the student. The count under a box is the
 form's own limit, amber past it. The list is read once as the page loads;
 a saved answer stays, marked Saved, until the next visit. Nothing left
-reads "Nothing Left to Write". **The Auto Apply page links to it** from
-each Up Next row with questions waiting, whose chip ("2 Questions to
-Write") opens it, and, while the student's Claude isn't connected, from
-the setup strip's Or Write Them Yourself (KAN-424). A card over Up Next,
-"N Written Questions Waiting", did this until KAN-424; it counted the
-questions without saying whose. **Write with Claude** (`auto-apply/write-with-claude.tsx`,
+reads "Nothing Left to Write". **No screen links to it yet** (KAN-566
+adds the way in): only its address and the bar's title reach it. A row's
+"2 Questions to Write" status opens that job's tab, not this page, and
+the setup strip has no Or Write Them Yourself, so a student without Claude
+cannot find it. A card over Up Next, "N Written Questions Waiting", linked
+here until KAN-424; it counted the questions without saying whose. **Write with Claude** (`auto-apply/write-with-claude.tsx`,
 beside Written Answers' heading while a question waits) is a
 secondary button with the sparkle: it opens a new claude.ai chat in a new
 tab with "Write my WorkIt answers" in its box, not sent, and copies the
@@ -1346,8 +1346,8 @@ page with one action.
   dialog that counted a default resume and the Claude MCP too, and students
   read all three as required. Both are optional, so each shows where it
   helps: a row with no resume says No Resume and its Resume cell picks one,
-  and a row's Questions to Write chip links to Written Answers, whose
-  heading offers **Connect Claude** (Claude's Add Custom Connector dialog,
+  and a row's Questions to Write status opens its tab, where the student's
+  Claude writes them; Written Answers' heading offers **Connect Claude** (Claude's Add Custom Connector dialog,
   wearing Claude's spark, never `SparkleIcon`) in Write with Claude's place
   while the student's Claude has no WorkIt connector (GET `.../connector`).
   Disconnecting stays in Settings.
@@ -1427,8 +1427,11 @@ page with one action.
   Clear were there too and went the same day: Stop's square read as one
   more select box and Remove already closes the tab, and Select All
   clears a pick.
-- **The Resume cell is a button** (a bordered pill with a pencil): it
-  opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
+- **The Resume cell is a button**, drawn today as a hand-built bordered
+  pill with a pencil. That breaks `design.md`'s rule that a button is a
+  rounded rectangle, and its 1.4:1 edge is the only cue that it acts, so
+  it becomes a `Button` (`outline`, `sm`); a pill that acts in a table is
+  not an exception (`design.md`, Still open). It opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
   Apply dialog's own resume list (`jobs/resume-picker.tsx`, Job posting
   page), opened on the row's resume. It links nowhere else: Tailor for
   This Job and Build a New Resume links under it went (KAN-360), since
@@ -1769,7 +1772,9 @@ home location onboarding asks ("Stony Brook, NY", KAN-372), which no screen
 showed or edited after onboarding until then, though Application Answers'
 Address said its city and state came from here. Each field is drawn like a job posting's
 section heading (16px bold ink beside a 20px brand glyph), its value hanging
-under the heading's text.
+under the heading's text. That glyph only informs, so `design.md`'s icon rule
+makes it `ink-meta`, and the label 600, not bold (KAN-571; `design.md`,
+Still open).
 
 - **Two modes, like a form you open.** Reading, each field is text: its
   value (the email a mail link, the phone a call link, each link opening in
@@ -2222,8 +2227,10 @@ in Docs (suggested answers in the chat, not a banner).
   intake drafts: it edits a draft and hands the whole draft
   back, and the caller decides between create and edit. Only the title is
   required. Each section adds its own fields (`sections.ts` names the
-  title and organization for each). Months use the browser's month picker,
-  which falls back to a `YYYY-MM` text box where there is none.
+  title and organization for each). Months use the browser's month picker
+  today (`type="month"`, a `YYYY-MM` text box where there is none), which
+  breaks `design.md`'s rule that no field opens the browser's own picker;
+  a `MonthField` on the `DateField` pattern replaces it (KAN-559).
   **Two columns at every width** (KAN-257): a pair of short fields shares
   a row (the start and end, with the end month under End; a degree and its
   field; a GPA and its scale), a long one takes the row, and the
