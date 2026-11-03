@@ -52,7 +52,7 @@ export function OptionChip({
 }) {
   return (
     <Chip pressed={pressed} size={size} onClick={onClick}>
-      {Icon && <Icon aria-hidden className={cn("size-3.5", !pressed && "text-ink-meta")} />}
+      {Icon && <Icon aria-hidden className="size-3.5" />}
       {children}
     </Chip>
   );
@@ -243,7 +243,7 @@ export function SearchPicker({
         </div>
 
         {open && (
-          // overscroll-contain: the list's own scroll stops at its ends
+          // overscroll-none: the list's own scroll stops at its ends
           // instead of moving the panel behind it.
           <div
             id={listId}
@@ -254,7 +254,7 @@ export function SearchPicker({
             onPointerDown={(event) => event.preventDefault()}
             style={{ maxHeight: place.height }}
             className={cn(
-              "bg-popover ring-foreground/10 absolute inset-x-0 z-20 flex flex-col overflow-y-auto overscroll-contain rounded-md p-1 shadow-md ring-1",
+              "bg-popover ring-foreground/10 absolute inset-x-0 z-20 flex flex-col overflow-y-auto overscroll-none rounded-md p-1 shadow-md ring-1",
               place.above ? "bottom-full mb-1" : "top-full mt-1",
             )}
           >

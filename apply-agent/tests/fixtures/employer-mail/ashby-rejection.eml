@@ -1,0 +1,17 @@
+Authentication-Results: mx.google.com; spf=pass smtp.mailfrom=ashbyhq.com; dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=ashbyhq.com
+From: Ramp Recruiting <no-reply@ashbyhq.com>
+To: test.person@example.com
+Subject: Your application to Ramp
+Date: Thu, 15 Oct 2026 18:20:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="UTF-8"
+
+Hi Test,
+
+Thank you for your interest in the Software Engineer Intern role at Ramp and for the time you put into your application.
+
+Unfortunately, after careful consideration, we have decided to move forward with other candidates whose experience more closely matches our needs at this time.
+
+We will keep your information on file and wish you the best in your search.
+
+The Ramp Recruiting Team

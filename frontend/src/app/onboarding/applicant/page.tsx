@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { getSavedFilters } from "@/app/(seeker)/jobs/listings";
 import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
+import { claudeConnectorLink } from "@/lib/claude-connector";
 import { getProfile } from "@/lib/profile-actions";
 import { getCurrentAccount, getSessionUser } from "@/lib/session";
 
@@ -31,12 +32,14 @@ export const metadata: Metadata = {
  * answers, and Finish saves the edits. ?step=2 opens it on Profile, now
  * the third step (KAN-372); intake's "Back to Pay & Visa" linked there until
  * KAN-275 took intake out of onboarding. ?step=extension opens it on the
- * extension's install step: the tab the WorkIt extension opens when it is
- * added (KAN-471), signed out by way of sign-in. ?step=2 is honoured only
- * with saved answers (./steps' startStep), since the first step holds the
- * answers that must be given; ?step=extension also for a seeker who
- * finished onboarding, so loading the extension never sends them back to
- * the first step.
+ * extension's install step (Extension, leading to Practice): not opened
+ * directly by the extension's install anymore (KAN-471's own tab is
+ * `/extension-setup` now, KAN-495) -- reached instead through that page's
+ * "I Already Have One" button, signed out by way of sign-in. ?step=2 is
+ * honoured only with saved answers (./steps' startStep), since the first
+ * step holds the answers that must be given; ?step=extension also for a
+ * seeker who finished onboarding, so loading the extension never sends
+ * them back to the first step.
  *
  * The Role step's pickers offer what the Jobs page's filters offer
  * (./role-options, shared with Settings' Job Preferences).
@@ -47,7 +50,7 @@ export default async function ApplicantOnboardingPage({
   await connection();
   const user = await getSessionUser();
   if (!user) {
-    // The extension's install tab (KAN-471) comes back to its step after a password sign-in.
+    // /extension-setup's "I Already Have One" button (KAN-495) comes back to this step after a password sign-in.
     const { step } = await searchParams;
     redirect(
       step === "extension" ? `/login?next=${encodeURIComponent(EXTENSION_STEP_PATH)}` : "/login",
@@ -80,6 +83,7 @@ export default async function ApplicantOnboardingPage({
           : undefined
       }
       email={user.email}
+      claudeLink={claudeConnectorLink()}
       startStep={startStep(params.step, saved != null, account?.onboarding_completed === true)}
     />
   );

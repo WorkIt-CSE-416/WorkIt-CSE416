@@ -46,6 +46,7 @@ import {
 } from "@/lib/bank-actions";
 
 import { DeleteConfirm } from "../resumes/delete-confirm";
+import { RESUMES_SEARCH, ResumesHeader } from "../resumes/header";
 import { ClearAll } from "./clear-all";
 import { EntryEditor } from "./entry-editor";
 import { EntryRow } from "./entry-row";
@@ -101,11 +102,14 @@ export function BankScreen({
   initial,
   autoImport = false,
   resumeParam,
+  action,
 }: {
   initial: Bank;
   autoImport?: boolean;
   /** The URL's `?resume=`: a resume id or "none". */
   resumeParam?: string;
+  /** The header's primary action, Fill With Scout. */
+  action?: ReactNode;
 }) {
   const [saved, setBank] = useState(initial);
   // What the page draws: the bank less any skill whose delete is still on
@@ -316,7 +320,23 @@ export function BankScreen({
   }
 
   return (
-    <div className="mt-4 flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
+      <ResumesHeader
+        view="experiences"
+        action={action}
+        search={
+          (bank.entries.length > 0 || bank.skills.length > 0) && (
+            <SearchField
+              id="experiences-search"
+              label="Search your experiences"
+              placeholder="Search your experiences"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className={RESUMES_SEARCH}
+            />
+          )
+        }
+      />
       <ScoutTakeover title="Scout" subtitle="Fills your experience bank as you talk">
         <Intake
           filled={bank.entries.map((e) => e.section)}
@@ -338,15 +358,6 @@ export function BankScreen({
         </p>
       )}
       {picked && ownsNothing && <LinkUpload resumeId={picked.id} reload={reload} />}
-      {(bank.entries.length > 0 || bank.skills.length > 0) && (
-        <SearchField
-          id="experiences-search"
-          label="Search your experiences"
-          placeholder="Search your experiences"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      )}
       <SectionNav sections={navSections} />
       {SECTIONS.map((section) => {
         const entries = entriesIn(section.id);

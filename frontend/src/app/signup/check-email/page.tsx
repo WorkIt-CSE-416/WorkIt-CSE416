@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
-import { Logo } from "@/components/logo";
-import { SkylineBackdrop } from "@/components/skyline";
+import { AuthCard } from "@/components/auth-card";
 import { TextLink } from "@/components/ui/text-link";
 
 export const metadata: Metadata = {
@@ -17,22 +16,14 @@ export const metadata: Metadata = {
  */
 export default function CheckEmailPage() {
   return (
-    <main className="flex flex-1 items-start justify-center p-6 lg:pt-[12vh]">
-      <SkylineBackdrop />
-
-      <div className="max-w-auth rounded-card border-border bg-surface shadow-card w-full border p-6 text-center">
-        <Logo size="card" className="mx-auto" />
-
-        <h1 className="text-title text-ink mt-4">Check Your Inbox</h1>
-        <p className="text-body text-ink-muted mt-2">
-          We sent a confirmation link to your email address. Click the link to verify your account,
-          then sign in.
-        </p>
-
-        <p className="text-body text-ink-muted mt-6">
+    <AuthCard
+      title="Check Your Inbox"
+      subtitle="We sent a confirmation link to your email address. Click the link to verify your account, then sign in."
+      footer={
+        <>
           Already verified? <TextLink href="/login">Sign In</TextLink>
-        </p>
-      </div>
-    </main>
+        </>
+      }
+    />
   );
 }

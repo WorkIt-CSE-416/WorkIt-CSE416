@@ -265,10 +265,11 @@ transaction**: if any step fails, nothing changes.
 |---|---|
 | 1. Check | Every row is checked against the API's schema |
 | 2. Read places | Each location's text is turned into place codes (section 5.2) |
+| 3a. Take over | A job a student added (section 5.1, `added_by_student`) whose job is in the feed under another form of its link (the same Greenhouse job, or the same link without its scheme, `www.`, query and trailing slash) gets the feed's link, so the upsert fills it in and makes it an ordinary scraped job. The student's application stays on it. KAN-542 |
 | 3. Upsert | New job postings are added, changed ones updated, unchanged ones left alone. A job posting is identified by its apply link. The feed's `roles` keys are ignored (KAN-155): roles come from step 5. A changed description clears the job posting's cached keywords (section 5.1) |
 | 4. Places | Each job posting's place rows are brought in line |
 | 5. Role tags | Each title is matched against the `job_roles` list (section 5.3) and the job posting's `job_role_tags` rows are brought in line. The report lists titles that matched no role |
-| 6. Close | Job postings no longer in the feed are marked closed, with the reason the scraper gives in `closings.json` (gone from its company job board, the board gone, no longer kept by the shortlist, or replaced by another copy), else "unknown"; one that comes back reopens |
+| 6. Close | Job postings no longer in the feed are marked closed, with the reason the scraper gives in `closings.json` (gone from its company job board, the board gone, no longer kept by the shortlist, or replaced by another copy), else "unknown"; one that comes back reopens. A job a student added from its form (KAN-515, `added_by_student`) is never closed, since the feed never had it; a feed that lists its link makes it an ordinary scraped job, keeping its applications. A student can't reopen a closed job by adding its form: that link is refused. Apply's tracking (`track_only`) puts the student's application on the closed job and leaves it closed |
 
 **Safety net:** the import refuses to close more than half the job postings at
 once and rolls back. A broken scrape fails loudly instead of emptying the site.
@@ -298,7 +299,8 @@ table. Scraped ones have no `company_id`.
 | `start_term` | As the job posting says it, like "Summer 2027" |
 | `min_years_experience` | A number, or empty |
 | `sponsorship` | Section 3.2's three values, or empty |
-| `status`, `posted_at` | Published or closed; when the company job board says it went up |
+| `status`, `posted_at` | Published or closed; when the company job board says it went up. The type also has `unlisted` (KAN-542), which nothing writes: a job a student added is `added_by_student` (ADR 0008), and a later migration removes the value |
+| `added_by_student` | A job WorkIt does not list that a student added by its link (`POST /jobs/added-by-link`, KAN-515): only the company, the title and the link, published. The Jobs page, search and Scout never show it, and the import makes it an ordinary scraped job when the scraper finds the same job |
 | `embedding`, `fts` | For job matching (KAN-139): the Jobs page's Best Match order ranks by them (KAN-231, KAN-288). The embedding reads the title, Overview (or the intro when there is none), Responsibilities, Requirements and Preferred Qualifications (KAN-229) |
 | `keywords`, `keywords_hash` | Tailor's keywords (KAN-215): at most 20, each required or preferred, read by the model, with a hash of what the model read: the title and the job's own sections of the description, not its perks (`posting_text_hash`, which the import and Tailor's check share). The import reads them after it commits, for new and changed job postings, at most 100 a run (KAN-392); a company's job posting is read when it is saved as published. A job posting neither has reached yet is read the first time a student's resume is matched against it. A change to the title or the job's sections makes them stale, and the import clears them when the description changes |
 

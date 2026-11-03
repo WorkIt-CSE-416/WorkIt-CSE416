@@ -120,9 +120,9 @@ function PanelBody({
 
   return (
     <>
-      {/* overscroll-contain: a fling past the end stops here instead of
+      {/* overscroll-none: a fling past the end stops here instead of
           scrolling the page behind. */}
-      <div data-panel-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5">
+      <div data-panel-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-none px-5">
         <Section Icon={PinIcon} label="Location" first>
           <SearchPicker
             key={`places-${cleared}`}

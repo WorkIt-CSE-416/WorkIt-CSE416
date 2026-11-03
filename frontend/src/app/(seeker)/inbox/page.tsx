@@ -60,11 +60,6 @@ export default async function InboxPage() {
         SEEKER_GUTTER,
       )}
     >
-      <h1 className="text-heading text-ink">Inbox</h1>
-      <p className="text-body text-ink-meta mt-1">
-        Replies about your applications, filed onto their jobs.
-      </p>
-
       {emails == null || applications == null ? (
         <EmptyState
           Icon={CloudSlashIcon}

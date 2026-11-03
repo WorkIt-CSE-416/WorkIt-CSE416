@@ -100,6 +100,8 @@ export class FakeApi {
   readonly systemRequests: unknown[] = [];
   /** In order: "next:<job>" when GET .../applications/next hands a job out (its tab opens), "questions:<job>" when its questions arrive. */
   readonly events: string[] = [];
+  /** The jobs the extension added from a form WorkIt doesn't list (POST /jobs/added-by-link, KAN-515), each as its body, in order. */
+  readonly added: { url: string; company: string; title: string }[] = [];
 
   /** The connector's save (backend/app/connector/tools.py): the student's Claude answered one question. */
   /** The student's Claude asks the student for a fact one question's answer needs (KAN-369, save_fact_question). */
@@ -236,6 +238,17 @@ export class FakeApi {
       if (!found) return { status: 404, json: { detail: "WorkIt doesn't list this job yet." } };
       if (!this.stages.has(found.id)) this.stages.set(found.id, "saved");
       return { json: { job_id: found.id, stage: this.stages.get(found.id) } };
+    }
+    // Write with Claude on a form WorkIt doesn't list (KAN-515): the job added from the page, which no
+    // link lookup finds, with an application at needs_you; a form already added is that job again.
+    if (path === "/jobs/added-by-link" && method === "POST") {
+      const page = JSON.parse(body.toString());
+      if (!page.company?.trim() || !page.title?.trim()) return { status: 422, json: { detail: "The page names no company or title." } };
+      let at = this.added.findIndex((job) => job.url === page.url);
+      if (at < 0) at = this.added.push(page) - 1;
+      const id = `added-${at}`;
+      if (!this.stages.has(id) || ["saved", "queued"].includes(this.stages.get(id)!)) this.stages.set(id, "needs_you");
+      return { json: { job_id: id, stage: this.stages.get(id) } };
     }
     // Track on WorkIt (KAN-424): the listed job a link is, with the student's stage (writes nothing);
     // the job kept saved (a stage it has stays); and marked applied, as the website's Applied button does.

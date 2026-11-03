@@ -17,6 +17,10 @@ Where a sent resume's file is (KAN-267, docs/sent_resume.md):
   one snapshot, whatever their posting. Opening one renders it again.
 - **From an uploaded resume** (`send_uploaded`): no new file; the row
   points at the uploaded resume's stored file.
+- **From the file Apply sent** (`send_file`, KAN-544): the PDF itself, in
+  Storage at `<applicant_id>/sent/<sha256>.pdf`. The same file sent to
+  another posting shares that path, and the same file sent again to one
+  posting returns the last sent resume. No source link, no hash.
 - **Until that upload is replaced or deleted** (`freeze_upload`, called by
   both routes before the row loses its file): its sent resumes then become
   an `upload` snapshot of the file's text as the parser reads it, with the
@@ -140,8 +144,11 @@ async def _keep_snapshot(session: AsyncSession, applicant_id: uuid.UUID, digest:
         Resume_Snapshot.applicant_id == applicant_id, Resume_Snapshot.content_hash == digest))
 
 
-async def _check_posting(session: AsyncSession, job_posting_id: uuid.UUID) -> None:
-    if await postings.listed(session, job_posting_id) is None:
+async def _check_posting(session: AsyncSession, applicant_id: uuid.UUID, job_posting_id: uuid.UUID) -> None:
+    """A listed posting, or a scraped one the student tracks: a job they
+    added (KAN-515), or one closed since (KAN-544). Anything else is
+    NotFound, so the panel's resume switch on an added job works."""
+    if await postings.reachable(session, job_posting_id, applicant_id) is None:
         raise NotFound
 
 
@@ -171,7 +178,7 @@ async def send_built(
     snapshot. Raises NotFound for a built resume that is not the
     applicant's, and resume_render.TectonicUnavailable when the PDF cannot
     be made. Stores nothing in Storage."""
-    await _check_posting(session, job_posting_id)
+    await _check_posting(session, applicant_id, job_posting_id)
     resume, view = await built_resumes.load_view(session, applicant_id, built_resume_id)
     identity = await built_resumes.load_header_identity(session, applicant_id)
     page = built_resumes.page_of(resume)
@@ -205,7 +212,7 @@ async def send_uploaded(
 ) -> Sent:
     """A sent resume that points at an uploaded resume's own file. The file
     never changes, so a repeat (same resume, same posting) returns the last."""
-    await _check_posting(session, job_posting_id)
+    await _check_posting(session, applicant_id, job_posting_id)
     resume = await session.scalar(
         select(Resume).where(Resume.id == resume_id, Resume.applicant_id == applicant_id)
     )
@@ -219,6 +226,41 @@ async def send_uploaded(
         name=resume.original_filename or "Uploaded resume", uploaded_resume_id=resume.id,
         job_posting_id=job_posting_id,
     )
+    session.add(row)
+    await session.flush()
+    await session.refresh(row)
+    return Sent(row, created=True)
+
+
+def sent_path(applicant_id: uuid.UUID, pdf: bytes) -> str:
+    """Where a sent file is kept: one path per content per applicant."""
+    return f"{applicant_id}/sent/{hashlib.sha256(pdf).hexdigest()}.pdf"
+
+
+async def send_file(
+    session: AsyncSession,
+    storage: Any,
+    applicant_id: uuid.UUID,
+    name: str,
+    pdf: bytes,
+    *,
+    job_posting_id: uuid.UUID,
+) -> Sent:
+    """The file Apply sent to the job posting, kept as it is (KAN-544).
+    Uploads it unless a sent resume already holds it; raises NotFound for a
+    posting the student cannot reach, before any upload, and whatever
+    Storage raises. After a failed commit the caller removes the file unless
+    `file_in_use`."""
+    await _check_posting(session, applicant_id, job_posting_id)
+    path = sent_path(applicant_id, pdf)
+    last = await _last_match(session, applicant_id, job_posting_id, Sent_Resume.storage_path == path)
+    if last is not None:
+        return Sent(last, created=False)
+    if not await file_in_use(session, path):
+        await asyncio.to_thread(
+            storage.from_(BUCKET).upload, path, pdf, {"content-type": "application/pdf", "upsert": "true"})
+    row = Sent_Resume(
+        id=uuid.uuid4(), applicant_id=applicant_id, storage_path=path, name=name, job_posting_id=job_posting_id)
     session.add(row)
     await session.flush()
     await session.refresh(row)

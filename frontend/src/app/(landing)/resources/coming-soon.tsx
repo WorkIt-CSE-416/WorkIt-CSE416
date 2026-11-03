@@ -52,11 +52,9 @@ export function ComingSoonPage({ resource }: { resource: Resource }) {
               {soon.summary}
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <GlassButton
-                href={site.primaryCta.href}
-                label={site.primaryCta.label}
-                className="h-12 px-6 text-base"
-              />
+              <GlassButton href={site.primaryCta.href} size="lg">
+                {site.primaryCta.label}
+              </GlassButton>
               <OutlineButton href={soon.meanwhile.href} size="lg">
                 {soon.meanwhile.label}
               </OutlineButton>

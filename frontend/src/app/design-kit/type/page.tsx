@@ -51,10 +51,10 @@ export default function TypePage() {
         <Row name="Phosphor, regular" role="Every glyph, through components/icons.tsx">
           <span className="text-body text-ink flex items-center gap-4 font-medium">
             <span className="flex items-center gap-1.5">
-              <GearIcon className="text-ink-meta size-4" /> Settings
+              <GearIcon className="size-4" /> Settings
             </span>
             <span className="flex items-center gap-1.5">
-              <SignOutIcon className="text-ink-meta size-4" /> Sign Out
+              <SignOutIcon className="size-4" /> Sign Out
             </span>
             <SearchIcon className="size-4" />
             <BellIcon className="size-4" />
@@ -72,10 +72,10 @@ export default function TypePage() {
         >
           <span className="text-body text-ink flex items-center gap-4 font-medium">
             <span className="flex items-center gap-1.5">
-              <RoleIcon className="text-ink-meta size-4" /> Role
+              <RoleIcon className="size-4" /> Role
             </span>
             <span className="flex items-center gap-1.5">
-              <LightningRoundedIcon aria-hidden className="text-ink-meta size-4" /> Auto Apply
+              <LightningRoundedIcon aria-hidden className="size-4" /> Auto Apply
             </span>
           </span>
         </Row>

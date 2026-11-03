@@ -17,7 +17,6 @@ import {
   BriefcaseIcon,
   CheckIcon,
   ChevronDownIcon,
-  ClockIcon,
   CloseIcon,
   FilterIcon,
   PinIcon,
@@ -32,20 +31,15 @@ import {
   ComboboxTrigger,
 } from "@/components/shadcn/combobox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
-import { Button, buttonClasses } from "@/components/ui/button";
+import { SortMenu } from "@/components/sort-menu";
+import { buttonClasses } from "@/components/ui/button";
 import { CheckRowBox, checkRowClasses } from "@/components/ui/check-row";
 import { IconButton } from "@/components/ui/icon-button";
-import {
-  Select,
-  SelectCheckboxItem,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
+import { Select, SelectCheckboxItem, SelectContent, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 
 import {
-  DATE_POSTED_OPTIONS,
+  facetsOn,
   FILTER_KEYS,
   filterEntries,
   isFiltered,
@@ -53,6 +47,9 @@ import {
   NO_FILTERS,
   WORKPLACE_OPTIONS,
   type FeedFilters,
+  SORT_OPTIONS,
+  sortHref,
+  type Sort,
 } from "./filter-query";
 import { AllFiltersPanel } from "./all-filters";
 import { useFeedTransition } from "./feed-transition";
@@ -81,9 +78,8 @@ import type { JobFacets, JobLocationOption } from "./listings";
  *
  * EACH FACET WEARS ITS FACT'S GLYPH, the one the job card draws beside the
  * same fact (Location's pin, Salary's coin, Job Type's briefcase, Experience's
- * mortarboard), so the row and the card read as one vocabulary. Date Posted
- * takes a clock, not the card's calendar, which there means the start date,
- * and Role, a fact the card doesn't print, takes a person in a suit of its own.
+ * mortarboard), so the row and the card read as one vocabulary. Role, a fact
+ * the card doesn't print, takes a person in a suit of its own.
  * Inside a popup an option has a glyph only where it differs by option:
  * Workplace's building, two arrows and house, exactly as the card picks them
  * (workStyleIcon), and, in All Filters, Experience Level's mortarboard and
@@ -113,15 +109,12 @@ function facetTriggerClasses(count: number, open: boolean, className?: string) {
 
 type Glyph = ComponentType<{ className?: string }>;
 
-/** A facet button's glyph and label, the glyph in the card's grey until the
- *  facet is in use, then in the brand with the label. */
+/** A facet button's glyph and label, the glyph in ink with the label until the
+ *  facet is in use, then in the brand with it. */
 function FacetLabel({ Icon, label, active }: { Icon: Glyph; label: string; active: boolean }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      <Icon
-        aria-hidden
-        className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink-meta")}
-      />
+      <Icon aria-hidden className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink")} />
       <span className="truncate">{label}</span>
     </span>
   );
@@ -165,13 +158,10 @@ function FacetTrigger({
 type Option = { value: string; label: string; Icon?: Glyph };
 
 /** The list every Select facet's popup shares (Role's Combobox draws the
- *  same rows): checkbox rows where a facet takes several picks, the vendored
- *  check-mark rows where it takes one. Options are
+ *  same rows): checkbox rows. Options are
  *  medium weight, as the buttons above them are, and carry no job count
  *  (both KAN-252): at body weight the list read thin beside the row. */
-function FacetPopup({ options, multiple }: { options: readonly Option[]; multiple: boolean }) {
-  const Item = multiple ? SelectCheckboxItem : SelectItem;
-
+function FacetPopup({ options }: { options: readonly Option[] }) {
   return (
     // Below the button and level with its left edge, like every popup in the
     // row. Base UI's default lays the list over the button so the picked row
@@ -187,25 +177,19 @@ function FacetPopup({ options, multiple }: { options: readonly Option[]; multipl
       className="w-max max-w-[calc(100vw-2rem)] min-w-(--anchor-width)"
     >
       {options.map((option) => (
-        <Item key={option.value} value={option.value} className="font-medium">
+        <SelectCheckboxItem key={option.value} value={option.value} className="font-medium">
           <span className="flex items-center gap-2">
-            {option.Icon && <option.Icon aria-hidden className="text-ink-meta size-4 shrink-0" />}
+            {option.Icon && <option.Icon aria-hidden className="text-ink size-4 shrink-0" />}
             {option.label}
           </span>
-        </Item>
+        </SelectCheckboxItem>
       ))}
     </SelectContent>
   );
 }
 
-/** One facet. By default every option is a checkbox, so the facet takes any
- *  number of picks, and picking one leaves the popup open for the next.
- *
- *  `multiple={false}` is for nested thresholds (date posted, salary), where
- *  "Past 24 Hours" sits inside "Past Week" and ticking both says nothing. It
- *  takes one pick and closes on it. Picking the checked option again clears
- *  it: Base UI reports that press with the same value, and with no "Any"
- *  option there is otherwise no way back to no pick from the row. */
+/** One facet. Every option is a checkbox, so the facet takes any number of
+ *  picks, and picking one leaves the popup open for the next. */
 function Facet({
   Icon,
   label,
@@ -213,7 +197,6 @@ function Facet({
   values,
   picked = values.length,
   onChange,
-  multiple = true,
   className,
 }: {
   Icon: Glyph;
@@ -224,28 +207,9 @@ function Facet({
    *  options (a role from a link that no job holds today). */
   picked?: number;
   onChange: (values: string[]) => void;
-  multiple?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const trigger = (
-    <FacetTrigger Icon={Icon} label={label} count={picked} open={open} className={className} />
-  );
-
-  if (!multiple) {
-    return (
-      <Select
-        value={values[0] ?? null}
-        onValueChange={(value) =>
-          onChange(value == null || value === values[0] ? [] : [value as string])
-        }
-        onOpenChange={setOpen}
-      >
-        {trigger}
-        <FacetPopup options={options} multiple={false} />
-      </Select>
-    );
-  }
 
   return (
     <Select
@@ -257,8 +221,8 @@ function Facet({
       onOpenChange={setOpen}
       multiple
     >
-      {trigger}
-      <FacetPopup options={options} multiple />
+      <FacetTrigger Icon={Icon} label={label} count={picked} open={open} className={className} />
+      <FacetPopup options={options} />
     </Select>
   );
 }
@@ -414,7 +378,7 @@ function LocationFacet({
         <div className="bg-border my-1 h-px sm:mx-1 sm:my-0 sm:h-auto sm:w-px" />
 
         {/* Fixed width, so the popup keeps its size as countries are ticked
-            and the states come and go. overscroll-contain: a fling past the
+            and the states come and go. overscroll-none: a fling past the
             end of the states stops here instead of scrolling the page. */}
         <div className="flex w-full flex-col sm:w-56">
           <PanelHeading>State</PanelHeading>
@@ -426,7 +390,7 @@ function LocationFacet({
             <div
               role="group"
               aria-label={`States in ${countries.find(({ code }) => code === shown)?.label}`}
-              className="flex max-h-72 flex-col overflow-y-auto overscroll-contain"
+              className="flex max-h-72 flex-col overflow-y-auto overscroll-none"
             >
               {statesOf(shown).map(({ code, label }) => (
                 <CheckRow
@@ -543,9 +507,9 @@ function RoleFacetOptions({
         <ComboboxEmpty className="text-ink-meta text-body py-3">
           No role by that name.
         </ComboboxEmpty>
-        {/* overscroll-contain: the list's own scroll stops at its ends
+        {/* overscroll-none: the list's own scroll stops at its ends
             instead of moving the page behind it. */}
-        <ComboboxPrimitive.List className="max-h-[min(24rem,calc(var(--available-height)-3.25rem))] scroll-py-1 overflow-y-auto overscroll-contain p-1 empty:p-0">
+        <ComboboxPrimitive.List className="max-h-[min(24rem,calc(var(--available-height)-3.25rem))] scroll-py-1 overflow-y-auto overscroll-none p-1 empty:p-0">
           {(value: string) => (
             <ComboboxPrimitive.Item key={value} value={value} className={checkRowClasses}>
               {labelOf(value)}
@@ -618,11 +582,18 @@ export function JobFilters({
   locations: locationsLoading,
   facets: facetsLoading,
   filters,
+  sort,
+  list,
 }: {
   locations: Promise<JobLocationOption[]>;
   /** GET /jobs/facets: the Role and Start Date options, still loading. */
   facets: Promise<JobFacets>;
   filters: FeedFilters;
+  /** The Jobs page's order, for the row's Sort. /search has one order. */
+  sort?: Sort;
+  /** The list these filters narrow, when the row sits on a job's page beside
+   *  it (./jobs-rail.tsx): a pick then goes to that list, not this address. */
+  list?: { path: string; query: string };
 }) {
   const [allFiltersOpen, setAllFiltersOpen] = useState(false);
   // Clear Filters leaves with the last pick, so its press hands focus here.
@@ -635,10 +606,12 @@ export function JobFilters({
   const facets = useHeldOnceFilled(facetsLoading, hasFacets);
   const startFeedTransition = useFeedTransition();
   const router = useRouter();
-  const pathname = usePathname();
+  const here = usePathname();
+  const pathname = list?.path ?? here;
   // The picks show checked at once; `filters` catches up when the narrowed
   // page arrives.
   const [shown, show] = useOptimistic(filters);
+  const [shownSort, showSort] = useOptimistic(sort);
 
   /** Moves the URL's filters to these, keeping the rest of the query (?q on
    *  /search). The server draws the feed again, narrowed. */
@@ -647,7 +620,7 @@ export function JobFilters({
     // (./feed-transition).
     startFeedTransition(() => {
       show(next);
-      const query = new URLSearchParams(window.location.search);
+      const query = new URLSearchParams(list?.query ?? window.location.search);
       for (const key of FILTER_KEYS) query.delete(key);
       for (const [key, value] of filterEntries(next)) query.append(key, value);
       let search = query.toString();
@@ -659,7 +632,16 @@ export function JobFilters({
     });
   }
 
+  /** The list in this order, under the filters as they stand. */
+  function applySort(next: Sort) {
+    startFeedTransition(() => {
+      showSort(next);
+      router.push(sortHref(next, shown), { scroll: false });
+    });
+  }
+
   const filtered = isFiltered(shown);
+  const on = facetsOn(shown);
 
   /** One facet's change, the others as they stand. */
   const set = (change: Partial<FeedFilters>) => apply({ ...shown, ...change });
@@ -699,17 +681,6 @@ export function JobFilters({
         className={className}
       />
     ),
-    datePosted: (className: string) => (
-      <Facet
-        Icon={ClockIcon}
-        label="Date Posted"
-        options={optionsOf(DATE_POSTED_OPTIONS)}
-        values={shown.postedWithin != null ? [String(shown.postedWithin)] : []}
-        onChange={([value]) => set({ postedWithin: value != null ? Number(value) : null })}
-        multiple={false}
-        className={className}
-      />
-    ),
     location: (className: string) => (
       <Location
         locations={locations}
@@ -723,18 +694,17 @@ export function JobFilters({
   return (
     <>
       {/* THE FACETS STEP OUT ONE AT A TIME, least used first, from the right,
-          and All Filters stays a normal button at every width. Each facet is
-          at least 144px and as wide as its label needs (Date Posted 149px:
-          at 144 sm's padding cut it to "Date Post…"), All Filters 105 and
-          Clear Filters 36, with 8px gaps, so the row fits them on one line
-          from these widths of row (the page's @container, so an open sidebar
-          or Scout counts): Location and All Filters anywhere (301px, a 360px
-          phone's row is 310), then Role from 456px, Workplace 608, Job Type
-          768 and Date Posted 920, each a few pixels over what it needs, for a
+          and All Filters stays at every width, a 36px icon named by its tooltip
+          (KAN-519; in words it took 105px of the row). Each facet is at least
+          144px and as wide as its label needs, Clear Filters 36, with 8px gaps,
+          so the row fits them on one line from these widths of row (the page's
+          @container, so an open sidebar or Scout counts): on /search Location
+          and All Filters anywhere, then Role from 392px, Workplace 544 and Job
+          Type 704, each a few pixels over what it needs, for a
           label that renders a little wider elsewhere. Those leave room for
           Clear Filters whether or not it shows, so a pick never pushes a
           facet out of the row or All Filters onto a second line (KAN-252).
-          From 920px the row holds all five facets. Job Type took Experience's place (KAN-284):
+          Job Type took Experience's place (KAN-284):
           it is where Internship is picked, and a pick out of sight emptied
           the feed (Student with Full-Time). Experience Level is in the panel
           only; until the scraper keeps experienced roles, its Entry Level
@@ -744,21 +714,42 @@ export function JobFilters({
           seeker narrows by, and software and engineering are half of it
           (1,660 of 3,507 job postings on 2026-10-10), so a marketing or
           design seeker otherwise scrolls past them all. Visa is in the
-          panel only (asked for 2026-10-10). The
-          row used to drop all its facets at once below 896px and stretch All
+          panel only (asked for 2026-10-10), and so is Date Posted (2026-11-02),
+          which left the row for the room. The row used to drop all its facets at once below 896px and stretch All
           Filters across the row, which on a laptop with the sidebar open
           left one wide bar where four filters had fit. The panel holds
-          every facet, and Salary and Start Date, which the row has no room for. */}
-      {facet.location("min-w-36")}
-      {facet.role("hidden min-w-36 @min-[28.5rem]:flex")}
-      {facet.workplace("hidden min-w-36 @min-[38rem]:flex")}
-      {facet.jobType("hidden min-w-36 @min-[48rem]:flex")}
-      {facet.datePosted("hidden min-w-36 @min-[57.5rem]:flex")}
+          every facet, and Salary, Start Date and Date Posted, which the row has no
+          room for. */}
+      {/* Sort is always in the row, first, so on the Jobs page each facet steps
+          out one place sooner: Sort takes Location's place on a phone. */}
+      {shownSort && (
+        <SortMenu
+          value={shownSort}
+          options={SORT_OPTIONS}
+          onChange={applySort}
+          className="min-w-36"
+        />
+      )}
+      {sort ? (
+        <>
+          {facet.location("hidden min-w-36 @min-[24.5rem]:flex")}
+          {facet.role("hidden min-w-36 @min-[34rem]:flex")}
+          {facet.workplace("hidden min-w-36 @min-[44rem]:flex")}
+          {facet.jobType("hidden min-w-36 @min-[53.5rem]:flex")}
+        </>
+      ) : (
+        <>
+          {facet.location("min-w-36")}
+          {facet.role("hidden min-w-36 @min-[24.5rem]:flex")}
+          {facet.workplace("hidden min-w-36 @min-[34rem]:flex")}
+          {facet.jobType("hidden min-w-36 @min-[44rem]:flex")}
+        </>
+      )}
 
       {/* Every pick off in one press (KAN-252), shown only while there is
           one: the panel's Clear All, without opening the panel. An outlined
           X at All Filters' height, its name in the tooltip: as the words
-          "Clear Filters" (93px) it cost the row Date Posted at every width,
+          "Clear Filters" (93px) it cost the row a facet at every width,
           and on a phone it pushed All Filters onto a second line. It keeps
           ?sort and ?q as every pick does, and apply() keeps /jobs off the
           bare URL, so the list stays cleared rather than bringing the saved
@@ -777,16 +768,26 @@ export function JobFilters({
           <CloseIcon className="size-4" />
         </IconButton>
       )}
-      <Button
+      {/* Its count is the facets with a pick (KAN-569): below about 1000px of
+          row some facets have stepped out, and their picks showed nowhere
+          else. The count is in its name too, "All Filters, 3 on". */}
+      <IconButton
         ref={allFiltersButton}
-        variant="secondary"
-        size="sm"
+        label={on ? `All Filters, ${on} on` : "All Filters"}
+        variant="outline"
         onClick={() => setAllFiltersOpen(true)}
-        className={cn(!filtered && "ml-auto")}
+        className={cn("relative size-9 shrink-0", !filtered && "ml-auto")}
       >
         <FilterIcon className="size-4" />
-        All Filters
-      </Button>
+        {on > 0 && (
+          <span
+            aria-hidden
+            className="bg-brand text-on-brand text-meta absolute -top-1.5 -right-1.5 flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 font-semibold tabular-nums"
+          >
+            {on}
+          </span>
+        )}
+      </IconButton>
 
       <AllFiltersPanel
         open={allFiltersOpen}

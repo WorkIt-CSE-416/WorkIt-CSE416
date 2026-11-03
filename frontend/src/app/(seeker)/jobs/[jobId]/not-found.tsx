@@ -16,6 +16,7 @@ export default function JobNotFound() {
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <EmptyState
+        titleAs="h1"
         Icon={BriefcaseIcon}
         title="This Job Isn't Available"
         action={

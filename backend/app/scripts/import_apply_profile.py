@@ -2,12 +2,14 @@
 Bring a student's Apply files into their WorkIt record, so WorkIt's forms
 fill as completely as Apply's (models/CLAUDE.md, "The Fill engine's profile").
 
-    uv run python -m app.scripts.import_apply_profile <applicant_id> <apply_dir>
-    uv run python -m app.scripts.import_apply_profile <applicant_id> <apply_dir> --dry-run
+    uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]
+    uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>] --dry-run
 
-`apply_dir` holds Apply's applicant-profile.yaml, policies.yaml and
-answer-bank.yaml, already in the Fill engine's own shapes (Apply runs the
-same engine). One run, in one transaction:
+`apply_dir` is Apply's data folder. Without it, the import reads the folder
+Apply reads: $APPLY_HOME, else ~/.config/apply. The folder holds Apply's
+applicant-profile.yaml, policies.yaml and answer-bank.yaml, already in the
+Fill engine's own shapes (Apply runs the same engine). One run, in one
+transaction:
 
 1. `fill_profile`: the profile, but `files` (its resume and transcript come
    as WorkIt's own rows, step 5);
@@ -22,7 +24,9 @@ same engine). One run, in one transaction:
 4. WorkIt's own fields from the profile's identity: name, contact email,
    phone, links, home location, and the education entry (the student's own,
    matched by school);
-5. the resume the profile names, copied into the student's folder in
+5. the resume the profile names (`files.resume_pdf`: a relative path is
+   read from the data folder, `~` is expanded, an absolute path is kept, as
+   Apply reads it), copied into the student's folder in
    LOCAL_FILES_DIR and made the default upload as
    `local:<applicant_id>/<file name>` (services/local_files.py): nothing
    goes to Storage. Without LOCAL_FILES_DIR it is left out. The unofficial
@@ -207,6 +211,12 @@ async def _set_education(session: AsyncSession, applicant_id: uuid.UUID, facts: 
         report.education = "updated"
 
 
+def _file(apply_dir: Path, named: Any) -> Path:
+    """A `files:` path as Apply reads it (profile.py's get): `~` expanded, an
+    absolute path kept, a relative one from the data folder."""
+    return (apply_dir / Path(str(named)).expanduser()).resolve()
+
+
 def _copy_local(applicant_id: uuid.UUID, source: Path) -> str:
     """Copy a file into the student's own folder in LOCAL_FILES_DIR; its storage path."""
     path = local_files.local_path(applicant_id, source.name)
@@ -222,7 +232,7 @@ async def _set_resume(
     named = (facts.get("files") or {}).get("resume_pdf")
     if not named:
         return
-    source = (apply_dir / str(named)).resolve()
+    source = _file(apply_dir, named)
     folder = get_settings().local_files_dir
     if folder is None:
         report.notes.append("resume left out: set LOCAL_FILES_DIR to attach it from this computer")
@@ -253,7 +263,7 @@ async def _set_transcript(
     named = (facts.get("files") or {}).get("unofficial_transcript_pdf")
     if not named:
         return
-    source = (apply_dir / str(named)).resolve()
+    source = _file(apply_dir, named)
     folder = get_settings().local_files_dir
     if folder is None:
         report.notes.append("transcript left out: set LOCAL_FILES_DIR to attach it from this computer")
@@ -270,8 +280,10 @@ async def _set_transcript(
     report.transcript = source.name
 
 
-async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir: Path) -> Report:
-    """Steps 1-8 of the module docstring in the caller's session; flushes, never commits."""
+async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir: Path | None = None) -> Report:
+    """Steps 1-8 of the module docstring in the caller's session; flushes, never commits.
+    With no `apply_dir`, Apply's data folder (import_apply_writing.apply_home)."""
+    apply_dir = (apply_dir or import_apply_writing.apply_home()).expanduser().resolve()
     profile = await session.get(Applicant_Profile, applicant_id)
     if profile is None:
         raise ImportRefused(f"No applicant {applicant_id}.")
@@ -309,7 +321,7 @@ def _local(url: str) -> bool:
     return (urlsplit(url).hostname or "") in ("localhost", "127.0.0.1", "::1")
 
 
-async def _run(applicant_id: uuid.UUID, apply_dir: Path, *, dry_run: bool) -> Report:
+async def _run(applicant_id: uuid.UUID, apply_dir: Path | None, *, dry_run: bool) -> Report:
     async with get_sessionmaker()() as session:
         report = await import_apply(session, applicant_id, apply_dir)
         await (session.rollback() if dry_run else session.commit())
@@ -319,14 +331,15 @@ async def _run(applicant_id: uuid.UUID, apply_dir: Path, *, dry_run: bool) -> Re
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("applicant_id", type=uuid.UUID)
-    parser.add_argument("apply_dir", type=Path)
+    parser.add_argument("apply_dir", type=Path, nargs="?",
+                        help="Apply's data folder (default: $APPLY_HOME, else ~/.config/apply)")
     parser.add_argument("--dry-run", action="store_true", help="run every step, then roll back")
     args = parser.parse_args(argv)
     if not _local(get_settings().app_url):
         print("DATABASE_URL is not on this computer: the import writes only to a local database.", file=sys.stderr)
         return 2
     try:
-        report = asyncio.run(_run(args.applicant_id, args.apply_dir.resolve(), dry_run=args.dry_run))
+        report = asyncio.run(_run(args.applicant_id, args.apply_dir, dry_run=args.dry_run))
     except ImportRefused as exc:
         print(str(exc), file=sys.stderr)
         return 1

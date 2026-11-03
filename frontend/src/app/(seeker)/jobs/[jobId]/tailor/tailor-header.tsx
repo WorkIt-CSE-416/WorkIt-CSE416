@@ -86,13 +86,19 @@ export function TailorReviewBar({ job, resumeId }: { job: JobListing; resumeId: 
       <TailorBar
         step="review"
         back={<TailorBack jobId={job.id} resumeId={resumeId} />}
-        next={
-          <ButtonLink href={`/jobs/${encodeURIComponent(job.id)}`} size="sm">
-            <CheckIcon aria-hidden className="size-4" /> Finish
-          </ButtonLink>
-        }
+        next={<TailorFinish jobId={job.id} />}
       />
     </>
+  );
+}
+
+/** The review's one primary action, on this row and in the phone
+ *  editor's header (`TailorReview`'s `phoneBar`), which covers this row. */
+export function TailorFinish({ jobId }: { jobId: string }) {
+  return (
+    <ButtonLink href={`/jobs/${encodeURIComponent(jobId)}`} size="sm">
+      <CheckIcon aria-hidden className="size-4" /> Finish
+    </ButtonLink>
   );
 }
 

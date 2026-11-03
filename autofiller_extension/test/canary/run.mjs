@@ -166,7 +166,8 @@ function issue(run) {
   return lines.join("\n");
 }
 
-const browser = await chromium.launch({ headless: true });
+// Live pages: the installed Chrome, which updates itself, with its sandbox on (KAN-552).
+const browser = await chromium.launch({ headless: true, channel: "chrome", chromiumSandbox: true });
 const runs = [];
 try {
   for (const system of CONFIG.systems) runs.push(await checkSystem(browser, system));

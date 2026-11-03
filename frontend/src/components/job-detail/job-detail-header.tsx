@@ -3,10 +3,15 @@ import type { ReactNode } from "react";
 
 import { formatPosted } from "@/app/(seeker)/jobs/format";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
 
 import { ClosesOn } from "./closes-on";
 import type { JobPosting } from "./data";
 import { JobFacts } from "./job-facts";
+
+/** The card drawn flat in the split view's panel: a box in a box read heavy. */
+export const JOB_CARD_IN_PANEL =
+  "in-data-split:@4xl/main:rounded-none in-data-split:@4xl/main:border-0 in-data-split:@4xl/main:p-0";
 
 type JobDetailHeaderProps = {
   posting: JobPosting;
@@ -25,15 +30,20 @@ type JobDetailHeaderProps = {
    *  in the browser by `ClosesOn`, since `closesAt` is a full timestamp. */
   showDeadline?: boolean;
   /** The status badge and Edit on the company side, beside the title. The
-   *  seeker page passes none: its actions sit in the bar pinned above this card
-   *  (`[jobId]/action-bar.tsx`), where the card's six controls once squeezed
-   *  the title to a word a line (KAN-246). */
+   *  seeker page passes its bare glyphs (Save and the like, `JobCardActions`);
+   *  its buttons sit in the bar pinned above this card
+   *  (`[jobId]/action-bar.tsx`), where six controls once squeezed the title to
+   *  a word a line (KAN-246). */
   actions?: ReactNode;
   /** The right rail this job's audience gets: `MatchRail` (`standalone`) for
    *  a seeker, `ApplicantOverviewPanel` for the company managing the
    *  posting, each its own rounded card, sitting beside the facts. Omit it
    *  (a job nothing has scored) and the facts take the full width. */
   rail?: ReactNode;
+  /** The title's level. An h1 on the job's own page; an h2 where it is drawn
+   *  beside a list whose page has the h1 (the split view on /jobs), and an h3
+   *  in the design kit, under a group's h2. One h1 per view. */
+  titleAs?: "h1" | "h2" | "h3";
 };
 
 /**
@@ -64,9 +74,9 @@ type JobDetailHeaderProps = {
  * that, the actions drop to a full-width row of their own under the title,
  * and the rail stacks under the facts, so neither squeezes the title or the
  * facts into a sliver beside it. The row wraps rather than overflowing. The
- * seeker page passes no actions: its six sit in the bar pinned above the card,
- * since beside the title they took the row's whole width, the title wrapped a
- * word a line and the posted date ran under the buttons (KAN-246).
+ * seeker page's buttons sit in the bar pinned above the card, since beside the
+ * title they took the row's whole width, the title wrapped a word a line and
+ * the posted date ran under the buttons (KAN-246).
  *
  * `actions` and `rail` are the only things that differ between the company
  * and seeker pages that render this; everything else is shared.
@@ -78,6 +88,7 @@ export function JobDetailHeader({
   showDeadline = false,
   actions,
   rail,
+  titleAs: Title = "h1",
 }: JobDetailHeaderProps) {
   const timing =
     showDeadline && posting.closesAt ? (
@@ -90,7 +101,12 @@ export function JobDetailHeader({
     );
 
   return (
-    <Card as="header" padding="lg" elevated={false} className="@container flex flex-col gap-4">
+    <Card
+      as="header"
+      padding="lg"
+      elevated={false}
+      className={cn("@container flex flex-col gap-4", JOB_CARD_IN_PANEL)}
+    >
       <div className="flex flex-col gap-3 @xl:flex-row @xl:items-start @xl:justify-between @xl:gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-3">
@@ -102,7 +118,7 @@ export function JobDetailHeader({
                 as on the feed card, rather than wrapping "ago" alone. The name
                 is a size up from the timing (KAN-279): at the timing's 13px
                 the employer read as small print under a 36px title. */}
-            <p className="text-label text-ink-meta min-w-0 font-normal">
+            <p className="text-label text-ink-muted min-w-0 font-normal">
               {companyHref ? (
                 // Ink, not brand: a name that turns brand on hover/focus
                 // rather than sitting violet at rest, the same call the feed
@@ -123,7 +139,7 @@ export function JobDetailHeader({
             </p>
           </div>
 
-          <h1 className="text-display text-ink mt-2">{posting.title}</h1>
+          <Title className="text-display text-ink mt-2">{posting.title}</Title>
         </div>
 
         {/* Wraps rather than overflows: a row wider than the card ran under

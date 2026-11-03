@@ -2,7 +2,9 @@
 
 import { createColumnHelper, useTable } from "@tanstack/react-table";
 
+import { StatusIcon } from "@/app/(seeker)/applications/icons";
 import { Avatar } from "@/components/avatar";
+import { RoleIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 
 import {
@@ -39,7 +41,7 @@ const columns = helper.columns([
           <RowLink href={`/company/applicants/${row.original.id}`} className="text-label">
             {row.original.name}
           </RowLink>
-          <p className="text-meta text-ink-meta mt-0.5 truncate">{row.original.location}</p>
+          <p className="text-note text-ink-meta mt-0.5 truncate">{row.original.location}</p>
         </div>
       </div>
     ),
@@ -108,8 +110,8 @@ const columns = helper.columns([
 ]);
 
 const FILTERS: FilterSpec[] = [
-  { columnId: "stage", label: "Stage", plural: "Stages", options: STAGES },
-  { columnId: "role", label: "Role", plural: "Roles", options: ROLES },
+  { columnId: "stage", label: "Stage", Icon: StatusIcon, options: STAGES },
+  { columnId: "role", label: "Role", Icon: RoleIcon, options: ROLES },
 ];
 
 /** `query` is the bar's ?q=, the starting value of the name search. The page

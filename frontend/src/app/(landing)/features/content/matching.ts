@@ -1,50 +1,59 @@
 /*
- * STUB COPY. Placeholder text so the Job Matching page renders; the page's
- * own session replaces every string here and may give the sections their
- * own visuals. The claims are checked against the app (the score in
- * backend/app/services/matching/scoring.py, the hiring systems in data.ts),
- * but the wording is not final.
+ * The Job Matching page. Every line is a product claim, checked against
+ * the app: the score's four parts and its freshness discount
+ * (backend/app/services/matching/scoring.py), Best Match as the Jobs
+ * page's first sort (frontend/docs/screens.md), the hiring systems the
+ * scraper reads (scraper/, data.ts) and the roles it keeps (Intern and New
+ * Grad, in every field).
  */
 import MatchingVisual from "../../matching-visual";
 import type { FeatureContent } from "../types";
+import { BestMatchVisual, ScoreVisual, SourcesVisual } from "../visuals/matching";
 
 const content: FeatureContent = {
   line: "Every job posting scored on how well you fit.",
   meta: {
     title: "Job Matching",
     description:
-      "WorkIt scores internships and new-grad job postings against your experience and puts the best fits first.",
+      "WorkIt scores internship and new-grad job postings against your experience bank and puts the best fits first.",
   },
   hero: {
     title: "The jobs you fit, first",
     subtitle:
-      "WorkIt scores every internship and new-grad job posting against your experience bank, then puts the best fits at the top.",
+      "WorkIt scores every internship and new-grad job posting against your experience bank, then puts the best fits at the top of your Jobs page.",
   },
   animation: MatchingVisual,
   sections: [
     {
       eyebrow: "Your score",
       title: "Scored on what you have done",
-      body: "The score reads your experience bank: how closely your background matches the job's description, your skills, the titles you have held and your experience.",
-      points: ["A match score on every job posting", "Built from your own experience bank"],
+      body: "Your match score weighs four things from your experience bank: how closely your background reads like the job’s description, your skills, the titles you have held, and the years of experience the posting asks for.",
+      points: [
+        "A match score on every job posting",
+        "Built from your own experience bank",
+        "Older postings rank a little lower",
+      ],
+      visual: ScoreVisual,
     },
     {
       eyebrow: "Best Match",
       title: "The best fits at the top",
-      body: "Sort the Jobs page by Best Match and the postings that fit you most come first, each with its score on the card.",
+      body: "Your Jobs page opens on Best Match, so the postings that fit you most come first, each with its score. Switch to Newest any time.",
+      visual: BestMatchVisual,
     },
     {
       eyebrow: "Hiring systems",
       title: "Straight from company job boards",
-      body: "WorkIt reads job postings from company job boards on hiring systems such as Greenhouse, Lever, Ashby and Workday, so every role links to the company's own application.",
+      body: "WorkIt reads job postings from company job boards on the hiring systems companies use, such as Greenhouse, Lever, Ashby and Workday. Apply Now opens the company’s own application.",
+      visual: SourcesVisual,
     },
   ],
   howItWorks: {
     title: "From your experience to your best matches",
     steps: [
-      { title: "Fill your bank", body: "Upload a resume or add your experience by hand." },
+      { title: "Fill your bank", body: "Upload a resume or add your experience yourself." },
       { title: "Get scored", body: "WorkIt scores every job posting against your bank." },
-      { title: "Start at the top", body: "Sort by Best Match and open the roles that fit." },
+      { title: "Start at the top", body: "Open the roles that fit you best first." },
     ],
   },
   faqs: [
@@ -56,11 +65,15 @@ const content: FeatureContent = {
     {
       question: "What does the score look at?",
       answer:
-        "Your experience bank: how closely it matches the job's description, your skills, the titles you have held and your experience.",
+        "Your experience bank: how closely it reads like the job’s description, your skills, the titles you have held and the experience the posting asks for.",
     },
     {
       question: "Which roles are listed?",
-      answer: "Internships and new-grad roles.",
+      answer: "Internships and new-grad roles, in every field, not only tech.",
+    },
+    {
+      question: "Why does a job have no score?",
+      answer: "Scores come from your experience bank. Add your experience and every job gets one.",
     },
   ],
   cta: {

@@ -1,0 +1,188 @@
+# Applicant profile TEMPLATE. Copy it to applicant-profile.yaml in the data
+# folder ($APPLY_HOME) and fill it in once; `apply run` reads that file. Built
+# from research on the questions that application forms ask.
+#
+# Never put a secret here (a password, an app password, a key or a token):
+# secrets live only in macOS Keychain or gitignored files, and Apply refuses to
+# load a profile with a key that looks like one.
+#
+# Every key below answers a question seen on real Summer 2027 forms (58 forms:
+# 30 Greenhouse, 18 Ashby, 10 Lever, plus the Workday step list). Every value is
+# blank: fill in your own.
+#
+# Conventions
+#   - `# seen:` lists the option sets forms actually used. The profile stores ONE
+#     canonical value; the filler maps it onto whichever option set a form shows
+#     (e.g. graduation 2028-05 -> "May 2028", "Spring 2028", "2028",
+#     "December 2027 - August 2028", or "Yes" to "Will you graduate in 2028?").
+#   - `freq:` is how many of the 58 forms asked it (approximate, keyword classifier).
+#   - Yes/No facts are true or false. Dates are YYYY-MM or YYYY-MM-DD. A self-ID
+#     answer may be "decline", which picks each form's own decline option.
+#   - A question no key answers is a Missing fact. You answer it in the
+#     Apply window (Needs you), and the answer is saved here: under its key, or else under
+#     answered_questions by the question's wording.
+#   - Answer policies (consent boxes, SMS and marketing opt-ins, compensation,
+#     defense roles, "how did you hear", cover letters) are not facts: they
+#     live in policies.yaml in the data folder (defaults: policies.default.yaml).
+
+identity:
+  legal_first_name:            # freq 58 (as First Name / Full name / Legal Name)
+  legal_middle_name:           # freq 2 (Lever TriNet card, Workday)
+  legal_last_name:
+  preferred_first_name:        # freq 21; 3 forms make it required
+  preferred_last_name:         # freq 1 (WhatNot)
+  name_pronunciation:          # how to say your name (Sierra, Palantir)
+  name_in_native_script:       # freq 1 (xAI: "Full Legal Name in Native Language"); blank = "N/A"
+  pronouns:                    # freq 7
+    # seen: he/him/his | she/her/hers | they/them/theirs | He/They | Other | I don't wish to answer | free text
+  email:                       # freq 58
+  phone:                       # freq 54 (E.164, e.g. +1XXXXXXXXXX)
+  current_location:            # freq 33 ("City, ST"; Greenhouse also geocodes it to lat/long)
+    city:
+    state:
+    country:
+  home_address:                # freq 6 (Gas South, Relay, Field AI, AnaVation, Barnes & Thornburg, Workday "My Information")
+    line1:
+    line2:
+    city:
+    state:
+    zip:
+    country:
+  summer_2027_location:        # freq 3 ("where will you be located during the internship")
+  current_company:             # freq 13 (Lever standard field; usually optional; blank or current employer)
+  age_18_or_over:              # freq 4 (Yes/No)
+  age_range:                   # freq 1 (Lever survey) seen: 17 or younger | 18-20 | 21-29 | ...
+  languages: []                # besides English, each {language, spoken, written}, spoken/written true or false (Point72)
+
+files:
+  resume_pdf:                  # absolute, or relative to APPLY_HOME: Test_Person_Resume.pdf
+  unofficial_transcript_pdf:   # freq 4 (Brattle, Apera, Rhombus, Workday sometimes); required where asked
+
+links:
+  linkedin_url:                # freq 49 (required on 11)
+  github_url:                  # freq 11
+  portfolio_url:               # freq 24 (Website / Portfolio / Other website)
+  google_scholar_url:          # freq 1 (xAI)
+  x_twitter_url:               # freq 6
+  showcase_project_url:        # freq 4 ("link to something you've built and shipped", "research project you're proud of")
+
+education:
+  school:                      # freq 16 free text + 21 Greenhouse/Ashby education blocks + WhatNot dropdown
+    # Greenhouse education block picks from a fixed list: boards-api.greenhouse.io/v1/boards/{token}/education/schools
+  degree:                      # seen (Greenhouse list): Associate's Degree | Bachelor's Degree | Master's Degree | Doctor of Philosophy (Ph.D.) | Engineer's Degree | Other
+    # seen elsewhere: Bachelor's | Master's | MBA | PhD | Other (Associate's, Bootcamp, etc) | N/A
+  degree_type:                 # e.g. Bachelor of Science; picks between kinds of the degree (Snap's Workday: B.A. | B.S. | M.A. | M.S.)
+  degree_level_now:            # Undergraduate | Graduate  (Pure Storage, ONE Finance, Datacor, Neighbor screen for Master's/PhD only)
+  majors: []                   # Greenhouse discipline list: Computer Science | Engineering | Mathematics | Information Systems | ... | Other
+  major_wordings: {}           # major -> other names of it to accept where a list lacks it (AmFam's Workday: Computer and Information Science)
+  minors: []
+  field_category:              # Talos: STEM (Science, Technology/Computer Science, Engineering, Mathematics) | Finance | Economics | ...
+  class_year:                  # Rhombus: 3rd Year Undergrad (Junior) | 4th Year Undergrad (Senior) | Other ; Gas South "grade level"
+  start_date:                  # MM/YYYY (Shield AI "When did you begin your current degree program?")
+  expected_graduation:         # YYYY-MM. freq 21. Mapped to buckets, e.g.
+    # seen: "December 2027 - August 2028" | "May 2028" | "Spring 2028" | "2028" | "2028 academic school year"
+    #       | "Spring/Summer 2028" | Yes/No "Are you graduating in December 2027 or May/June 2028?"
+  graduation_day:              # day of the month, for forms whose graduation date needs a day
+  returning_to_school_after_internship:   # Yes/No (Cloudflare, Pure Storage, SEP)
+  full_time_available_from:    # Cloudflare: Immediately after the internship ends | Need to return to school and available upon graduation ; Helion MM/YYYY
+  plans_masters_after_bachelors:          # freq 1 (Enova, free text)
+  plans_masters_if_no_maybe:              # Yes/No where a form offers no Maybe or TBD
+  planned_further_degree:                 # the degree planned next (Five Rings: Bachelor's | Master's | PhD or Doctorate | Other); unset is a Master's unless no plans
+  second_major_planned:        # a second major not yet declared, with when it will be declared
+  gpa_cumulative:              # freq 9 numeric, mapped to buckets
+    # seen: 3.5 - 3.74 | 3.75 - 4 | 4.0 or above | 3.6 - 4.0 | 3.5 - 3.9 | one-decimal list 4.0, 3.9, ...
+  gpa_scale:                   # 4.0 on every form seen
+  sat_score:                   # freq 1 (xAI, required)
+  act_score:                   # freq 1 (xAI, required); "N/A" if not taken
+  relevant_courses: []         # Qumulo "top 1-2 computer science courses and why" draws on this
+  student_groups: []           # Shield AI multi-select: Robotics Club | Hackathons | Autonomous Vehicles | ...
+  campus_groups: []            # on-campus clubs, written out in full with no acronyms (Netflix)
+  past_schools: []             # AnaVation wants every school with dates attended, major, degree
+
+work_authorization:
+  citizenship:                 # e.g. US citizen
+  requires_sponsorship_now_or_future:         # true or false. freq 43 forms, 57 questions
+  authorized_to_work_us:       # freq 34. Derives from citizenship; you confirm
+    # seen: Yes/No | "I am authorized to work in the United States for any employer" | "Yes, no restrictions"
+  us_person_itar_ear:          # freq 11. Derives from citizenship
+    # seen: "U.S. Citizen" | "A United States citizen or national" | "U.S. person. This ITAR/EAR status includes U.S. citizens..."
+  on_opt_cpt:                  # freq 3 (No / Not Applicable)
+  security_clearance:          # freq 1 (AnaVation: "level and granting agency", or "None")
+  citizenships_and_birth_country:   # Helion asks only of non-U.S. persons / dual citizens; blank unless dual
+  authorized_outside_us: {}    # UK / Canada questions appear on mis-filed non-US forms; expected unused
+
+voluntary_self_id:             # every value must allow "decline"; freq: gender 36, race 33, veteran 32, disability 13
+  gender:
+    # seen: Male | Female | Non-binary | Decline To Self Identify / I don't wish to answer
+    #       | Man | Woman | Prefer to self-describe
+  hispanic_or_latino:          # Yes | No | I don't wish to answer (asked separately on 3 forms)
+  race:
+    # seen (EEOC set): American Indian or Alaska(n) Native | Asian | Black or African American | Hispanic or Latino
+    #   | Native Hawaiian or Other Pacific Islander | White | Two or More Races | Decline To Self Identify
+    # Ashby/Lever variant: "Asian (Not Hispanic or Latino)" etc.  Arc variant: East Asian | South Asian | Southeast Asian | Middle Eastern or North African ...
+  race_subgroup:               # where a list splits a race into subgroups (Roblox: East Asian | South Asian | Southeast Asian)
+  race_detail:                 # free text where a form asks to describe it further, in the applicant's own words
+  veteran:
+    # seen: I am not a protected veteran | I identify as one or more of the classifications of a protected veteran | I don't wish to answer
+    #       | I am not a veteran (Lever) | No, I am not a veteran or active member (Arc)
+  disability:
+    # seen: No, I do not have a disability and have not had one in the past | Yes, I have a disability, or have had one in the past | I do not want to answer
+    # Workday "Self Identify" step = OFCCP form CC-305 (name + date + the same three choices)
+  transgender:                 # Yes | No | I don't wish to answer (2 forms)
+  sexual_orientation:          # Straight/Heterosexual | Gay | Lesbian | Bisexual | Queer | ... | I don't wish to answer (2 forms)
+  communities: []              # Cyvl: Immigrant | LGBTQIA+ | Military or Veteran | Neurodivergent | Parent or Caregiver | Person with disability | Skip
+  uk_social_mobility: {}       # Talos only (parent education, free school meals, school type, household earner); expected "Prefer not to say"
+
+logistics:
+  available_terms: []          # Summer 2027 | Spring 2027 Co-Op | Fall 2027 ...  (Cloudflare, Hadrian, MegazoneCloud, Rugged)
+  earliest_start_date:         # YYYY-MM-DD. freq ~10. seen buckets: May 2027 | June 2027 | July 2027
+  latest_end_date:             # Datacor "earliest start date and latest end date"
+  dates_note:                  # e.g. the dates are a preference, not a limit
+  can_work_full_time_40h:      # Yes/No (Cloudflare, Klaviyo, Relay, Viget)
+  weeks_available:             # 10 / 12 week programs
+  willing_to_relocate_for_summer:   # Yes/No; freq 27 onsite/relocation questions
+  relocation_limits:           # states/cities you will NOT relocate to, if any
+  location_preferences: []     # ranked areas, each a list of the places it covers: [[Chicago, Evanston], [New York City, NYC]]
+  onsite_5_days_ok:            # Yes/No
+  hybrid_ok:                   # Yes/No
+  needs_relocation_support:    # Hadrian 3-way: live here | will relocate myself | would need relocation assistance
+  miles_from: {}               # ranked area -> miles you live from it (Whatnot's "within 50 miles of a hub")
+  housing_in_area: {}          # MetOx "housing within 30 miles"; default "No" unless local
+  referrals: {}                # company -> referrer name, when you have one
+  career_fairs_attended: []    # Perpay "Did you attend a fall career fair this year?"
+
+experience_facts:              # derived from the master resume once, so screeners need no Claude call
+  prior_internships_count:     # Klaviyo: None | 1 | 2 | 3 | 3+ ; DoorDash/Cadence Yes/No
+  prior_swe_internship:        # Yes/No (Khan, Cadence, WhatNot)
+  years_relevant_experience:   # free number (Glean, SEP)
+  years_python:                # CoVar
+  skills: []                   # the one-pager's Skills line, in its order (Workday's skills prompt)
+  skill_wordings: {}           # other names a Workday skills catalog gives a skill above, tried in order
+  cpp_experience_summary:      # Shield AI
+  employment_history: []       # AnaVation: employer, title, dates, supervisor, reason for leaving (last 3)
+  professional_references: []  # AnaVation: 3 x name, relationship, phone, email
+  role_interests: []           # Backend/Systems | Full-stack | Frontend | Embedded | Mobile | ML ...
+
+screeners:                     # company-specific yes/no; defaults apply unless the company is listed
+  previously_employed_by: []   # companies you worked or contracted for (freq 11 forms ask)
+  previously_applied_to: []    # Barnes & Thornburg
+  prior_us_government_employment:   # Skydio, Yes/No
+  pending_offers: []                # employers with an offer out to you (Belvedere)
+  competing_offer_deadline:         # Yes/No: any offer with a deadline (Adobe)
+  interview_recording_ok:           # Yes/No: may interviews be recorded or transcribed (Sierra)
+  relatives_at: {}             # company -> name and relationship (freq 3)
+  relative_of_public_official:  # Yes/No: is a close relative a government official (Coinbase)
+  non_compete_or_conflicting_agreements:   # Yes/No + details (freq 5)
+  outside_business_activities:  # Yes/No + details
+  felony_or_pending_legal_proceedings:   # Gas South, Yes/No
+  smoker:                                # Cognex (Workday), Yes/No
+  accepted_other_offer:                  # Yes/No: have you accepted another offer
+  financial_licenses:          # National Life FINRA/SEC, Yes/No
+
+stock_answers:                 # your core answers, approved once; each essay adds one detail from the company's own material
+  internship_goals:            # Datacor "what are you looking to gain"
+  why_this_major:              # Khan Academy
+  ai_tools_usage:              # Glean, SEP
+  top_cs_courses:              # Qumulo
+
+answered_questions: {}         # Missing facts no key above holds, by the question's wording

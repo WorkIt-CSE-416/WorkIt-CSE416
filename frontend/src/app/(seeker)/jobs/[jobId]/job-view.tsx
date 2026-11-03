@@ -1,12 +1,15 @@
+import type { ReactNode } from "react";
+
 import { CompanyLogo } from "@/components/company-logo";
 import { TailorIcon } from "@/components/icons";
-import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
+import { JOB_CARD_IN_PANEL, JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
+import { cn } from "@/lib/cn";
 import { listSentResumes } from "@/lib/sent-resume-actions";
 
 import type { ApplicationStage } from "../../auto-apply/actions";
@@ -15,12 +18,14 @@ import { AutoApplyButton } from "../../auto-apply/auto-apply-button";
 import { placesOf } from "../format";
 import { listingFacts } from "../listing-card";
 import { getApplied, getJobListing, type JobListing } from "../listings";
+import { NotInterestedButton } from "../not-interested-button";
 import { SaveJobButton } from "../save-job-button";
 import { factText, toPosting } from "../to-posting";
 import { ApplyButton } from "../apply-button";
 import { JobDescription } from "./description";
+import { getCompany, type JobCompany } from "./company-tab";
 import { getRequirements, KeyRequirementsCard, type Requirement } from "./key-requirements";
-import { AppliedNote, MoreActions } from "./page-actions";
+import { AppliedNote } from "./page-actions";
 import { SentNote } from "./sent-note";
 import { jobLogo } from "@/lib/job-logo";
 
@@ -35,10 +40,11 @@ export type JobView = Awaited<ReturnType<typeof loadJobView>>;
 
 /** A job's page width: every seeker page's `max-w-dashboard` (2026-10-27;
  *  it was 70rem, after 1024px left the header's six facts cramped, KAN-279).
- *  About the Role keeps its own 68ch measure, so its lines do not grow with
+ *  About the Role keeps its own 46ch measure, so its lines do not grow with
  *  it. The job page and the application's own page share it, so the two
  *  stay identical. */
-export const JOB_PAGE_WIDTH = "max-w-dashboard mx-auto w-full flex-1 py-6";
+export const JOB_PAGE_WIDTH =
+  "max-w-dashboard mx-auto w-full flex-1 py-6 in-data-split:@4xl/main:px-4!";
 
 /** What the application page already knows about its job from the
  *  tracker's row: its stage and when it was applied. Null when the row is
@@ -47,6 +53,9 @@ export type KnownApplication = { stage: ApplicationStage | null; appliedAt: stri
 
 /** No requirements to read: About the Role alone draws no card. */
 const NO_REQUIREMENTS: Promise<Requirement[]> = Promise.resolve([]);
+
+/** No Company tab: the application's page draws none. */
+const NO_COMPANY: Promise<JobCompany | null> = Promise.resolve(null);
 
 /**
  * Everything the job page reads, in parallel. `job` is null for one that has
@@ -70,7 +79,7 @@ export async function loadJobView(
     application,
   }: { descriptionOnly?: boolean; application?: Promise<KnownApplication> } = {},
 ) {
-  const [{ job, error }, resumes, sent, applied, stage, requirements] = await Promise.all([
+  const [{ job, error }, resumes, sent, applied, stage, requirements, company] = await Promise.all([
     getJobListing(jobId),
     listBuiltResumes(),
     listSentResumes(),
@@ -79,6 +88,7 @@ export async function loadJobView(
       : getApplied(jobId),
     application ? application.then((known) => known?.stage ?? null) : getApplicationStage(jobId),
     descriptionOnly ? NO_REQUIREMENTS : getRequirements(jobId),
+    descriptionOnly ? NO_COMPANY : getCompany(jobId),
   ]);
   // The sent resumes linked to this posting, newest first, so the first is
   // the last one sent.
@@ -91,32 +101,42 @@ export async function loadJobView(
     sent: sentHere,
     tailored: resumes.data?.some((r) => r.job_posting_id === job?.id) ?? false,
     requirements,
+    company,
   };
 }
 
-/** The job's actions, for JobActionBar: Save, the "…" menu, Ask Scout, Auto
- *  Apply where it can fill the form, Tailor My Resume and Apply Now. */
+/** The job's actions, for JobActionBar: Auto Apply where it
+ *  can fill the form, Tailor My Resume and Apply Now. What only keeps or sets
+ *  the job aside sits on its card (JobCardActions), after Simplify, so the bar
+ *  holds one row beside the tabs.
+ *
+ *  BELOW md APPLY NOW COMES FIRST, ACROSS THE PAGE (KAN-569), with Auto Apply
+ *  and Tailor filling the row under it (each on its own row where the two do
+ *  not fit): wrapped in this order, the bar took three rows and the one
+ *  primary action was the last thing found.
+ *  `data-phone-first` tells the bar to give the actions a row of their own. */
 export function JobViewActions({ view, job }: { view: JobView; job: JobListing }) {
   const { stage, applied, tailored } = view;
   return (
     <>
-      {/* Outlined like the feed card's icon actions. */}
-      <SaveJobButton jobId={job.id} title={job.title} stage={stage} />
-      <MoreActions title={job.title} />
-      <AskScoutButton id={job.id} title={job.title} company={job.company} />
-      {/* Only where auto apply can fill the form (Greenhouse for now). */}
-      {job.auto_apply && (
-        <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
-      )}
-      <ButtonLink
-        href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
-        variant="secondary"
-        size="sm"
-        className="shrink-0"
+      <div
+        data-phone-first
+        className="contents max-md:flex max-md:basis-full max-md:flex-wrap max-md:gap-2 max-md:*:grow"
       >
-        <TailorIcon className="size-4" />
-        {tailored ? "Your Tailored Resume" : "Tailor My Resume"}
-      </ButtonLink>
+        {/* Only where auto apply can fill the form (Greenhouse for now). */}
+        {job.auto_apply && (
+          <AutoApplyButton jobId={job.id} title={job.title} company={job.company} stage={stage} />
+        )}
+        <ButtonLink
+          href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
+          variant="secondary"
+          size="sm"
+          className="shrink-0"
+        >
+          <TailorIcon className="size-4" />
+          {tailored ? "Tailored Resume" : "Tailor My Resume"}
+        </ButtonLink>
+      </div>
       <ApplyButton
         jobId={job.id}
         title={job.title}
@@ -124,17 +144,48 @@ export function JobViewActions({ view, job }: { view: JobView; job: JobListing }
         canMarkApplied={applied != null}
         applied={applied?.appliedAt != null}
         showsSent
-        className="shrink-0"
+        className="shrink-0 max-md:order-first max-md:basis-full"
       />
     </>
   );
 }
 
-/** Who is hiring, the title and the facts. No match rail: see ./page.tsx. */
-export function JobViewHeader({ job }: { job: JobListing }) {
+/** The job card's bare glyphs, at its top right, in the compact card's order:
+ *  Ask Scout, then Not Interested on the job's own page (inert, as on the compact
+ *  card) and Save. gap-4 clears each glyph's tap area. */
+export function JobCardActions({
+  view,
+  job,
+  notInterested = false,
+}: {
+  view: JobView;
+  job: JobListing;
+  notInterested?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-4">
+      <AskScoutButton id={job.id} title={job.title} company={job.company} quiet />
+      {notInterested && <NotInterestedButton title={job.title} quiet />}
+      <SaveJobButton jobId={job.id} title={job.title} stage={view.stage} quiet />
+    </div>
+  );
+}
+
+/** Who is hiring, the title and the facts. No match rail: see ./page.tsx.
+ *  `titleAs` is h2 beside the list on /jobs, where the bar's "Jobs" is the h1. */
+export function JobViewHeader({
+  job,
+  actions,
+  titleAs,
+}: {
+  job: JobListing;
+  actions?: ReactNode;
+  titleAs?: "h1" | "h2";
+}) {
   return (
     <JobDetailHeader
       posting={toPosting(job)}
+      titleAs={titleAs}
       // The employer's own logo, as on the card, at the header's 40px; its
       // initials when it has none.
       tile={
@@ -144,6 +195,7 @@ export function JobViewHeader({ job }: { job: JobListing }) {
           className="text-label rounded-control size-10"
         />
       }
+      actions={actions}
     />
   );
 }
@@ -159,7 +211,7 @@ export function JobViewHeaderSkeleton() {
       padding="lg"
       elevated={false}
       aria-hidden="true"
-      className="@container flex flex-col gap-4"
+      className={cn("@container flex flex-col gap-4", JOB_CARD_IN_PANEL)}
     >
       <div>
         <div className="flex items-center gap-3">

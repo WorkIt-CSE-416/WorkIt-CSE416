@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 
 import { apiGet } from "@/lib/api";
@@ -16,6 +17,7 @@ import {
   type FeedFilters,
   type SavedPreferences,
 } from "./filter-query";
+import { JOBS_VIEW_COOKIE, type JobsView } from "./view";
 
 /**
  * The live feed: scraped roles from the API's `GET /jobs`, which reads the
@@ -41,8 +43,10 @@ export type JobListing = {
   company: string;
   apply_url: string;
   /** Who the job is for, the API's `Literal["student", "new_grad",
-   *  "experienced"]` (KAN-233); every internship is a student job. */
-  experience_level: ExperienceLevel;
+   *  "experienced"]` (KAN-233); every internship is a student job. Null only
+   *  for a job a student added from its form (KAN-515), which no feed lists:
+   *  it reaches only their own applications. */
+  experience_level: ExperienceLevel | null;
   work_style: WorkStyle | null;
   location: string | null;
   /** The card's version, "San Francisco, CA", where the import placed a US
@@ -285,6 +289,11 @@ export async function getSearchFacts(q: string): Promise<SearchFact[]> {
  *  filter change used to pay again. */
 const COUNTS_TTL = 300;
 
+/** The Jobs page's view, from the student's choice (./view). */
+export async function getJobsView(): Promise<JobsView> {
+  return (await cookies()).get(JOBS_VIEW_COOKIE)?.value === "split" ? "split" : "cards";
+}
+
 /** The Location filter's options. Empty when the API can't be reached: the
  *  facet then shows disabled, and the feed below reports the error itself. */
 export async function getJobLocations(): Promise<JobLocationOption[]> {
@@ -402,7 +411,7 @@ export async function isApplicant(): Promise<boolean> {
 }
 
 /** The job ids the seeker has a tailored resume for, so each card's Tailor
- *  button can read "Your Tailored Resume" as the job's page does. Empty when
+ *  button can read "Tailored Resume" as the job's page does. Empty when
  *  it can't be read (signed out, the API down): every button then reads
  *  Tailor My Resume, and Tailor itself shows the real one. */
 export async function getTailoredJobIds(): Promise<string[]> {

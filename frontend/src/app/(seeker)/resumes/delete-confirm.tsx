@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactElement, type ReactNode } from "react";
+import { useState, type ReactElement, type ReactNode, type RefObject } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Button } from "@/components/ui/button";
@@ -56,18 +56,31 @@ export function DeleteConfirm({
  * delete runs, with Delete Resume held (`busy`): a deleted resume's row
  * takes it away, and a failed one closes it so the error under the row
  * shows.
+ *
+ * A phone's card picks Delete from its More menu (`RowMoreMenu`, KAN-575):
+ * that menu passes no `trigger` but `open` and `anchor`, and the popover
+ * hangs from the menu's button and gives the focus back to it.
  */
 export function DeleteResumeConfirm({
   trigger,
+  anchor,
+  open: shown,
+  onOpenChange,
   busy = false,
   onDelete,
 }: {
   /** The button the popover hangs from. */
-  trigger: ReactElement;
+  trigger?: ReactElement;
+  /** With no trigger: what the popover hangs from, and `open` says when. */
+  anchor?: RefObject<HTMLElement | null>;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   busy?: boolean;
   onDelete: () => Promise<void>;
 }) {
-  const [open, setOpen] = useState(false);
+  const [own, setOwn] = useState(false);
+  const open = shown ?? own;
+  const setOpen = onOpenChange ?? setOwn;
 
   async function remove() {
     await onDelete();
@@ -76,8 +89,13 @@ export function DeleteResumeConfirm({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={trigger} />
-      <PopoverContent align="end" className="w-auto max-w-72 gap-3">
+      {trigger && <PopoverTrigger render={trigger} />}
+      <PopoverContent
+        anchor={anchor}
+        finalFocus={anchor}
+        align="end"
+        className="w-auto max-w-72 gap-3"
+      >
         <p className="text-note text-ink-muted text-pretty">
           Delete this resume? Files you already sent are kept.
         </p>

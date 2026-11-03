@@ -29,8 +29,11 @@ import { cn } from "@/lib/cn";
  * there is no jump on hydration.
  *
  * THE TRACK IS A WASH OF INK, not a grey: 5% ink over whatever it sits on, so
- * it reads on the white page and on the sign-in card's off-white alike. No
- * outline: the bar's controls dropped theirs, and so does this.
+ * it reads on the white page and on the sign-in card's off-white alike, with
+ * a --color-border-control edge. Without the edge, as first drawn for a white
+ * page, the track was 1.1:1 on the seeker pages' grey ground, under WCAG
+ * 1.4.11's 3:1 (KAN-556). The edge is an inset ring, so it takes no room:
+ * the track keeps its 36px and the thumb its inset.
  *
  * Two forms, for the two ways a choice is kept:
  *
@@ -73,12 +76,15 @@ const SIZES: Record<
   },
 };
 
-const TRACK = "bg-ink/5 relative isolate grid w-fit auto-cols-fr grid-flow-col rounded-full";
+const TRACK =
+  "bg-ink/5 inset-ring-border-control inset-ring relative isolate grid w-fit auto-cols-fr grid-flow-col rounded-full";
 
 // An option presses in a little on mouse-down, as every button does, while
 // its label's colour follows the thumb across.
+// Each option's target is 44px tall on touch (the hit-area utility in
+// globals.css, KAN-557); the track keeps its 36px look.
 const ITEM =
-  "focus-visible:ring-brand-ring relative z-10 flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[color,transform] duration-200 ease-glide select-none focus-visible:ring-2 focus-visible:outline-none active:scale-[0.96]";
+  "focus-visible:ring-brand-ring hit-area relative z-10 flex items-center justify-center gap-1.5 rounded-full font-medium whitespace-nowrap transition-[color,transform] duration-200 ease-glide select-none focus-visible:ring-2 focus-visible:outline-none active:scale-[0.96]";
 
 function itemClass(size: Size, active: boolean, iconOnly = false) {
   return cn(
@@ -204,6 +210,9 @@ export type SegmentedToggleOption = {
   label: ReactNode;
   /** Its accessible name, when `label` is abbreviated ("7D"). */
   ariaLabel?: string;
+  /** Draws the option as this glyph alone, sized by the caller (`size-4`);
+   *  `label` is then its tooltip and, as text, its accessible name. */
+  icon?: ReactNode;
 };
 
 export function SegmentedToggle({
@@ -238,16 +247,28 @@ export function SegmentedToggle({
         count={options.length}
         size={size}
       />
-      {options.map((option) => (
-        <Toggle
-          key={option.value}
-          value={option.value}
-          aria-label={option.ariaLabel}
-          className={itemClass(size, option.value === value)}
-        >
-          {option.label}
-        </Toggle>
-      ))}
+      {options.map((option) => {
+        const toggle = (
+          <Toggle
+            key={option.value}
+            value={option.value}
+            aria-label={option.icon ? String(option.label) : option.ariaLabel}
+            className={itemClass(size, option.value === value, Boolean(option.icon))}
+          >
+            {option.icon ?? option.label}
+          </Toggle>
+        );
+
+        // As SegmentedLinks does: a glyph says nothing until it is named.
+        return option.icon ? (
+          <Tooltip key={option.value}>
+            <TooltipTrigger render={toggle} />
+            <TooltipContent>{option.label}</TooltipContent>
+          </Tooltip>
+        ) : (
+          toggle
+        );
+      })}
     </ToggleGroup>
   );
 }

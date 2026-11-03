@@ -21,6 +21,7 @@ import {
   JOB_PAGE_WIDTH,
   JobViewActions,
   JobViewBody,
+  JobCardActions,
   JobViewHeader,
   loadJobView,
   type KnownApplication,
@@ -158,7 +159,10 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
       </JobActionBar>
 
       {job ? (
-        <JobViewHeader job={job} />
+        <JobViewHeader
+          job={job}
+          actions={actionable ? <JobCardActions view={view} job={job} /> : undefined}
+        />
       ) : (
         <JobDetailHeader
           posting={closedPosting(app)}

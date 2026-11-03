@@ -113,6 +113,7 @@ import {
 } from "./page-format";
 import { PhoneEditor, usePhone } from "./phone";
 import { SectionsOutline } from "./sections-panel";
+import { SLIM_BAR } from "./slim-bar";
 import { readMarked, runs, showMarked, unmarked } from "./text-marks";
 import {
   cardsOf,
@@ -357,6 +358,7 @@ export function Editor({
   initialChoices,
   initialHeader,
   phoneBar,
+  phoneBack,
   suggestions,
   suggestionPopup,
   heading,
@@ -386,6 +388,8 @@ export function Editor({
   /** A row the phone layout's header shows under its buttons: the page's
    *  own controls, which the full-screen phone editor would cover. */
   phoneBar?: ReactNode;
+  /** The phone arrow's target, when not the page that opened the editor. */
+  phoneBack?: ComponentProps<typeof PhoneEditor>["back"];
 }) {
   // Null until the first render lands (FirstRenderPane hands it over).
   const [rendered, setRendered] = useState<RenderedPdf | null>(null);
@@ -455,6 +459,11 @@ export function Editor({
   // print that edit's old text. Saves run one at a time in their own queue
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const saves = useRef<Promise<unknown>>(Promise.resolve());
+  // How many jobs the queue has been given, and which of those waiting are a
+  // page's settings: a page's compile goes only if no newer page is next
+  const jobs = useRef(0);
+  const pageJobs = useRef(new Set<number>());
+  const skippedPage = useRef(false);
   // Each typed bullet's saved wording, which the render could not know
   const wordings = useRef(new Map<string, { variant_id: string | null; text: string }>());
   // The moves on their way, shown on the page at once (./pdf-pages.tsx)
@@ -593,6 +602,7 @@ export function Editor({
 
   /** Runs a request after every request before it has answered. */
   const enqueue = useCallback(<T,>(job: () => Promise<T>): Promise<T> => {
+    jobs.current += 1;
     const run = queue.current.then(job);
     queue.current = run.catch(() => undefined);
     return run;
@@ -864,13 +874,25 @@ export function Editor({
       if (step) step.undo = { page: pageNow.current };
       keepPage(settings);
       sendPage(settings);
+      const job = jobs.current + 1;
+      pageJobs.current.add(job);
       return enqueue(async () => {
+        pageJobs.current.delete(job);
+        // Each click on a size or a font is a compile, one at a time, and
+        // the next page replaces this one whole, so five quick clicks compile
+        // the first and the last. A skipped step keeps no PDF, and neither
+        // does the step's before after it: Undo renders those
+        if (pageJobs.current.has(job + 1)) {
+          skippedPage.current = true;
+          return;
+        }
         const current = begin();
         started.current = performance.now();
         if (step) {
           step.before = settled();
-          step.pdfBefore = lastPdf.current;
+          step.pdfBefore = skippedPage.current ? null : lastPdf.current;
         }
+        skippedPage.current = false;
         const { data, error } = await renderEdit(resumeId, { page: settings }, copy());
         if (data) {
           lastPdf.current = data.render;
@@ -1191,7 +1213,9 @@ export function Editor({
         const saved = back ? step.after : step.before;
         if (!edit) return;
         if ("name" in edit) return applyName.current?.(edit.name, () => forget(step));
-        if (state && pdf && saved?.printed) {
+        // Not past a page's render still queued (a skipped step's Undo sends
+        // one): it would land after this and print its settings over them
+        if (state && pdf && saved?.printed && pageJobs.current.size === 0) {
           restore(state, pdf);
           const source = {
             entries: saved.bank.entries,
@@ -1921,6 +1945,7 @@ export function Editor({
           error={error}
           download={download}
           bar={phoneBar}
+          back={phoneBack}
           page={page}
           onPage={applyPage}
           suggestions={
@@ -2024,13 +2049,16 @@ export function Editor({
     <div
       className={cn(
         "grid items-start gap-5",
+        // The column docks beside the page from @6xl only; below it floats
+        // over the page (`floating`)
         (shownPanel || shownFormat || shownSections || shownCut) &&
-          "@4xl/main:grid-cols-[minmax(0,1fr)_24rem]",
+          "@6xl/main:grid-cols-[minmax(0,1fr)_24rem]",
         // The two resumes at one width, so a line reads against its twin
         shownOriginal && "@4xl/main:grid-cols-2",
       )}
     >
-      <div className="flex min-w-0 flex-col gap-2">
+      {/* Placed, so a column floating in the same cell never pushes it down */}
+      <div className="flex min-w-0 flex-col gap-2 @4xl/main:col-start-1 @4xl/main:row-start-1">
         {comparing ? (
           <div className="flex min-h-9 items-center">
             <h2 className={compareHeading}>Tailored Resume</h2>
@@ -2101,9 +2129,12 @@ export function Editor({
           count and acts through renders, so until then the panel is
           Scout's job chat. The Experiences picker shares the panel (KAN-440):
           the toolbar's Experiences opens it, and the top bar's Scout goes
-          back to the assistant, which stays mounted under it, for its chat */}
+          back to the assistant, which stays mounted under it, for its chat.
+          It floats over the page below xl (`float`, KAN-576): docked at
+          1024, it left the resume a 416px column with about 4px text */}
       {rendered && !suggestions && (
         <ScoutTakeover
+          float
           mark={
             panelView === "experiences"
               ? EXPERIENCES_MARK
@@ -2140,12 +2171,12 @@ export function Editor({
               {assistant("flex-1")}
             </div>
             {panelView === "experiences" && (
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
                 <ExperiencesPicker bank={bank} choices={choices} onApply={apply} />
               </div>
             )}
             {panelView === "cut" && (
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-4">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pt-2 pb-4">
                 <CutPicker bank={bank} choices={choices} cuts={cuts} onApply={apply} />
               </div>
             )}
@@ -2168,12 +2199,18 @@ export function Editor({
           rounded corners went up with the list. The cap is measured
           (`useFitToWindow`): a fixed one, the window less 15rem, ran the
           panel's foot below the window before the page scrolled and left a
-          gap under it after, once the title row grew */}
+          gap under it after, once the title row grew.
+          Below @6xl it floats over the page's right side in the page's own
+          cell (KAN-576), under the 44px bar, with `shadow-lift`: docked at
+          1024, the 384px column left the resume about 480px wide */}
       {(shownPanel || shownFormat || shownSections || shownCut) && (
         <div
           data-keeps-selection
           ref={fitPanel}
-          className="max-h-scroll-box -order-1 flex flex-col @4xl/main:sticky @4xl/main:top-2 @4xl/main:order-none @4xl/main:max-h-(--fit-height)"
+          className={cn(
+            "max-h-scroll-box -order-1 flex flex-col @4xl/main:sticky @4xl/main:order-none @4xl/main:max-h-(--fit-height)",
+            FLOATING,
+          )}
         >
           {shownFormat ? (
             <SidePanel title="Format Options" onClose={() => showSide(null)}>
@@ -2220,7 +2257,7 @@ export function Editor({
   // toolbar spanned both too for a day, which put the panel under it, apart
   // from the page it reviews
   return (
-    <div data-no-bounce className={cn("flex flex-col", suggestions ? "mt-2 gap-2" : "mt-4 gap-3")}>
+    <div className={cn("flex flex-col", suggestions ? "mt-2 gap-2" : "mt-4 gap-3")}>
       <div className="flex items-center gap-4">
         <div className="min-w-0 flex-1">
           <TitleHistoryContext value={titleHistory}>{heading}</TitleHistoryContext>
@@ -2284,6 +2321,14 @@ function useFitToWindow(foot = 24) {
   }, [el, foot]);
   return setEl;
 }
+
+/** The review's column from @4xl to @6xl: in the page's cell, at its right,
+ *  over the page, below the 44px bar (`DOCS_BAR`) at rest and when stuck.
+ *  From @6xl it docks in the grid's second column, level with the bar. */
+const FLOATING = cn(
+  "@4xl/main:col-start-1 @4xl/main:row-start-1 @4xl/main:z-30 @4xl/main:mt-13 @4xl/main:top-15 @4xl/main:w-96 @4xl/main:justify-self-end @4xl/main:rounded-2xl @4xl/main:shadow-lift",
+  "@6xl/main:col-start-2 @6xl/main:z-auto @6xl/main:mt-0 @6xl/main:top-2 @6xl/main:w-auto @6xl/main:justify-self-stretch @6xl/main:shadow-none",
+);
 
 /** The sticky bar above the page (`SlimBar`), on the editor's own page
  *  and on Tailor's review: the selected line's kind and actions, or the
@@ -2433,7 +2478,7 @@ function MarkTools() {
     <div className="flex shrink-0 items-center gap-0.5">
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label="Bold"
         title="Bold"
         aria-pressed={on.bold}
@@ -2444,7 +2489,7 @@ function MarkTools() {
       </Button>
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label="Italic"
         title="Italic"
         aria-pressed={on.italic}
@@ -2491,21 +2536,12 @@ type ReviewTools = {
   hasOriginal: boolean;
 };
 
-/** The slim bar's box: a quiet white row, not the brand-tinted bar. */
-/** Every button on the bar reads muted, but for its real actions
- *  (`data-bar-action`), which keep their own colour: a filled button's words
- *  would be grey on purple. */
-const SLIM_BAR = cn(
-  "bg-panel/95 ring-border-subtle sticky top-2 z-20 flex min-h-10 flex-wrap items-center gap-2 rounded-xl px-2 py-1 ring-1 backdrop-blur",
-  "[&_button:not([aria-pressed=true]):not([data-bar-action])]:text-ink-muted [&_button:not([aria-pressed=true]):not([data-bar-action]):hover]:text-ink",
-);
-
 /** The bar on Tailor's review, as Google Docs draws its own (KAN-499): a
- *  grey pill with no outline, its tools from the left. Both bars' buttons are
- *  dark grey, as Docs' are, and only a pressed one takes the brand. The page
- *  count's amber chip keeps its colour. */
+ *  pill, its tools from the left, white and ruled since the page's ground
+ *  went grey. Both bars' buttons are dark grey, as Docs' are, and only a
+ *  pressed one takes the brand. The page count's amber chip keeps its colour. */
 const DOCS_BAR = cn(
-  "bg-app sticky top-2 z-20 flex min-h-11 flex-wrap items-center gap-2 rounded-full px-3 py-1",
+  "bg-panel ring-border-subtle sticky top-2 z-20 flex min-h-11 flex-wrap items-center gap-2 rounded-full px-3 py-1 ring-1",
   "[&_button:not([aria-pressed=true]):not([data-bar-action])]:text-ink-muted [&_button:not([aria-pressed=true]):not([data-bar-action]):hover]:text-ink",
 );
 
@@ -2529,7 +2565,7 @@ function History({ tools }: { tools?: HistoryTools }) {
     <div className="flex shrink-0 items-center gap-0.5">
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label="Undo"
         title="Undo"
         disabled={!tools?.canUndo}
@@ -2539,7 +2575,7 @@ function History({ tools }: { tools?: HistoryTools }) {
       </Button>
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label="Redo"
         title="Redo"
         disabled={!tools?.canRedo}
@@ -2628,7 +2664,7 @@ function SlimBar({
   const box = docs ? DOCS_BAR : SLIM_BAR;
   const docsZoom = docs && zoom && (
     <>
-      {zoom}
+      {rendered ? zoom : <ZoomSkeleton />}
       <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
     </>
   );
@@ -2704,7 +2740,16 @@ function SlimBar({
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {status}
-        {format && (
+        {/* Until the first render lands, the panel buttons and the zoom
+            are bars, not their names in grey (KAN-561). */}
+        {format && !rendered && (
+          <span aria-hidden="true" className="flex items-center gap-2">
+            {format.marks && <Skeleton className="h-7 w-28" />}
+            <Skeleton className="h-7 w-24" />
+            <Skeleton className="h-7 w-28" />
+          </span>
+        )}
+        {format && rendered && (
           <>
             {format.marks && (
               <PanelButton
@@ -2731,7 +2776,7 @@ function SlimBar({
             />
           </>
         )}
-        {!docs && zoom}
+        {!docs && (rendered ? zoom : zoom && <ZoomSkeleton />)}
         {/* On Tailor's review it sits in the name's row, as Docs' Share does.
             Secondary: Finish is the review's one filled button, and in the
             brand fill too, the two competed */}
@@ -3050,6 +3095,11 @@ function FirstRenderPane({
       {error}
     </EmptyState>
   );
+}
+
+/** The zoom control (./zoom.tsx) as a bar, until the first render lands. */
+function ZoomSkeleton() {
+  return <Skeleton aria-hidden="true" className="h-7 w-20 shrink-0" />;
 }
 
 /**

@@ -222,10 +222,10 @@ Lisul makes the account and sends the form; nobody else creates it.
    written questions. Leave every one unsubmitted.
 5. Write down the email, password and the number of open applications for
    the form's bracketed parts.
-6. After your own test, disconnect Claude in Settings > Sign-In & Security >
-   Connected Apps, so the reviewer starts from a clean connection. Answers
-   you saved stay on the applications; start a fresh batch if fewer than
-   three are left unanswered.
+6. After your own test, disconnect Claude in Settings > Integrations, so
+   the reviewer starts from a clean connection. Answers you saved stay on
+   the applications; start a fresh batch if fewer than three are left
+   unanswered.
 
 ### In Claude
 

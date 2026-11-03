@@ -1,0 +1,13 @@
+Authentication-Results: mx.google.com; spf=pass smtp.mailfrom=myworkday.com; dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=myworkday.com
+From: Pure Storage <purestorage@myworkday.com>
+To: test.person@example.com
+Subject: Complete your application to Pure Storage
+Date: Mon, 12 Oct 2026 11:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="UTF-8"
+
+Dear Test,
+
+Thank you for your interest in Pure Storage. You started an application for Software Engineer Intern (Summer 2027) but it has not yet been submitted. Sign in to complete your application.
+
+Pure Storage Talent Acquisition

@@ -1,0 +1,26 @@
+Authentication-Results: mx.google.com; spf=pass smtp.mailfrom=hackerrankforwork.com; dmarc=pass (p=QUARANTINE sp=QUARANTINE dis=NONE) header.from=hackerrankforwork.com
+From: Glean <support@hackerrankforwork.com>
+To: test.person@example.com
+Subject: Glean has invited you to take the Software Engineer Intern assessment
+Date: Thu, 15 Oct 2026 09:12:31 +0000
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="hr-boundary"
+
+--hr-boundary
+Content-Type: text/plain; charset="UTF-8"
+
+Hi Test,
+
+Thank you for your interest in Glean. As the next step, please complete the online assessment for the Software Engineer Intern role.
+
+The test takes 90 minutes. Please complete it by October 22, 2026 at 11:59 PM PT.
+
+Start test: https://www.hackerrank.com/test/7f3k2p9q1a/login?b=eyJ1c2VybmFtZSI6InRlc3QifQ
+
+Unsubscribe: https://www.hackerrank.com/unsubscribe?u=abc
+
+--hr-boundary
+Content-Type: text/html; charset="UTF-8"
+
+<p>Hi Test,</p><p>Thank you for your interest in Glean. As the next step, please complete the online assessment for the Software Engineer Intern role.</p><p>The test takes 90 minutes. Please complete it by <b>October 22, 2026</b> at 11:59 PM PT.</p><p><a href="https://www.hackerrank.com/test/7f3k2p9q1a/login?b=eyJ1c2VybmFtZSI6InRlc3QifQ&amp;src=email">Start test</a></p><p><a href="https://www.hackerrank.com/privacy">Privacy</a> | <a href="https://www.hackerrank.com/unsubscribe?u=abc">Unsubscribe</a></p>
+--hr-boundary--

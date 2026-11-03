@@ -32,7 +32,7 @@ export function SearchFacts({ facts, filters }: { facts: SearchFact[]; filters: 
   if (facts.length === 0) return null;
   return (
     <div className="mt-4 flex flex-wrap items-center gap-2">
-      <p className="text-meta text-ink-meta">Your search also filters by</p>
+      <p className="text-note text-ink-meta">Your search also filters by</p>
       <ul className="contents">
         {facts.map((fact) => {
           const label = factLabel(fact);

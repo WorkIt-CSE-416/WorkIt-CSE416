@@ -1,9 +1,10 @@
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { SectionHeading } from "@/components/ui/section-heading";
+import { SectionHeadingSkeleton } from "@/components/ui/section-heading";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../../gutter";
 import { JobActionBar } from "./action-bar";
+import { JobTabs } from "./job-tabs";
 import { JOB_PAGE_WIDTH, JobViewHeaderSkeleton } from "./job-view";
 
 /**
@@ -30,7 +31,7 @@ import { JOB_PAGE_WIDTH, JobViewHeaderSkeleton } from "./job-view";
 export default function JobLoading() {
   return (
     <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
-      <JobActionBar>
+      <JobActionBar tabs={<JobTabs />}>
         <ActionsSkeleton />
       </JobActionBar>
       <JobPageSkeleton />
@@ -38,14 +39,11 @@ export default function JobLoading() {
   );
 }
 
-/** The bar's actions while they load: Save, the menu, Ask Scout, Tailor My
- *  Resume and Apply Now, each its sm button's 36px. */
+/** The bar's actions while they load: Tailor My Resume and Apply Now, each its
+ *  sm button's 36px. */
 function ActionsSkeleton() {
   return (
     <span aria-hidden="true" className="flex flex-wrap items-center justify-end gap-2">
-      <Skeleton className="size-9" />
-      <Skeleton className="size-9" />
-      <Skeleton className="h-9 w-28" />
       <Skeleton className="h-9 w-40" />
       <Skeleton className="h-9 w-28" />
     </span>
@@ -62,7 +60,7 @@ function JobPageSkeleton() {
       {/* Key Requirements' box (./key-requirements-visibility.tsx): its
           28px heading row, then three of its label-and-line groups, each
           two 20px lines. */}
-      <div aria-hidden="true" className="border-border mt-6 rounded-xl border p-4">
+      <div aria-hidden="true" className="border-border bg-panel mt-6 rounded-xl border p-4">
         <div className="flex h-7 items-center">
           <Skeleton className="h-5 w-40" />
         </div>
@@ -80,14 +78,14 @@ function JobPageSkeleton() {
         </div>
       </div>
 
-      <section className="mt-5">
-        <SectionHeading>About the Role</SectionHeading>
-        <div aria-hidden="true" className="mt-3 flex max-w-[68ch] flex-col gap-2">
+      <div className="mt-5">
+        <SectionHeadingSkeleton />
+        <div aria-hidden="true" className="text-body mt-3 flex max-w-[46ch] flex-col gap-2">
           {["w-full", "w-11/12", "w-full", "w-4/5", "w-full", "w-2/3"].map((width, i) => (
             <Skeleton key={i} className={cn("h-4", width)} />
           ))}
         </div>
-      </section>
+      </div>
     </div>
   );
 }

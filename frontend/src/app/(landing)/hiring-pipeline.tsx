@@ -25,7 +25,7 @@ import { FaviconLogo } from "./favicon-logo";
 import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
 import { DiagramLabel, HiringSystems, JobCard } from "./hiring-systems";
-import { useMediaQuery, usePageHidden } from "./hooks";
+import { useLoopsHeld, useMediaQuery } from "./hooks";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TOUR_COVER_VH } from "./layout-parts";
 import { useLoopClock, useSceneTime, type Cue } from "./scene-time";
 import { LineBack, LineFront, Parcel, SIGN_SKEW, lineFor, type Line } from "./sorting-line";
@@ -181,8 +181,8 @@ function PinnedPipeline() {
   const [shown, setShown] = React.useState(() => cover.get() > 0);
   useMotionValueEvent(cover, "change", (v) => setShown(v > 0));
   const inView = useInView(stageRef, { amount: 0.2 });
-  const hidden = usePageHidden();
-  const spin = useLoopClock(phase === "ring" && shown && inView && !hidden);
+  const held = useLoopsHeld();
+  const spin = useLoopClock(phase === "ring" && shown && inView && !held);
 
   // The line needs the room: the paragraph goes as it forms, and on a short
   // window the heading with it.
@@ -382,8 +382,8 @@ function Coin({
 function Flow({ line, playing, t }: { line: Line; playing: boolean; t: MotionValue<number> }) {
   const rootRef = React.useRef<HTMLDivElement>(null);
   const inView = useInView(rootRef, { amount: 0.2 });
-  const hidden = usePageHidden();
-  const clock = useLoopClock(playing && inView && !hidden);
+  const held = useLoopsHeld();
+  const clock = useLoopClock(playing && inView && !held);
 
   const built = useTransform(t, (v) => ease(between(v, LINE_IN)));
   const rise = useTransform(built, (v) => (1 - v) * 18);

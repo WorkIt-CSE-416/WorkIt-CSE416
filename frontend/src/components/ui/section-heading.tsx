@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
 
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { cn } from "@/lib/cn";
 
 /**
- * The title of a section inside a card.
+ * The title of a section inside a card: 16px at 600, the weight that names
+ * a block (docs/design.md, Type weights). Every seeker card wears it,
+ * Home's tiles included (KAN-558); it was 20px at 700 until then, beside
+ * Home's 16px at 500 and the link cards' 16px at 700.
  *
  * `text-title text-ink` was written out at nine call sites, which made the
  * section-title type style a convention held in memory rather than in one
@@ -40,7 +44,7 @@ export function SectionHeading({
   children,
 }: SectionHeadingProps) {
   const heading = (
-    <Tag id={id} className={cn("text-title text-ink text-balance", className)}>
+    <Tag id={id} className={cn("text-subtitle text-ink text-balance", className)}>
       {children}
     </Tag>
   );
@@ -51,6 +55,17 @@ export function SectionHeading({
     <div className="flex items-baseline justify-between gap-4">
       {heading}
       {action}
+    </div>
+  );
+}
+
+/** A title while its section loads: a bar on the title's 22px line, since a
+ *  real title among the bars stood out as the one finished thing on the page.
+ *  Hidden from a screen reader, so the section names itself with `aria-label`. */
+export function SectionHeadingSkeleton() {
+  return (
+    <div aria-hidden="true" className="flex h-5.5 items-center">
+      <Skeleton className="h-4 w-40" />
     </div>
   );
 }

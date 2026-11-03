@@ -27,6 +27,7 @@ import { SparkleIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
 import { candidate, resumeFeature, type BankEntry, type ResumeSuggestion } from "./feature-data";
+import { useLoopsHeld } from "./hooks";
 import { scoreTone } from "./score-tone";
 import { GLIDE, Story, type StoryScene } from "./story";
 
@@ -377,11 +378,13 @@ function ResumeScene({ tailored }: { tailored: boolean }) {
     setWasTailored(tailored);
     setBeat(0);
   }
+  // Held on its beat by Pause Animations, like the story around it.
+  const held = useLoopsHeld();
   React.useEffect(() => {
-    if (!tailored || beat >= suggestions.length * 2) return;
+    if (!tailored || held || beat >= suggestions.length * 2) return;
     const timer = window.setTimeout(() => setBeat((b) => b + 1), beat === 0 ? 900 : BEAT);
     return () => window.clearTimeout(timer);
-  }, [tailored, beat, suggestions.length]);
+  }, [tailored, held, beat, suggestions.length]);
 
   const shown = (i: number) => tailored && beat >= i * 2 + 1;
   const applied = (target: Target) => {

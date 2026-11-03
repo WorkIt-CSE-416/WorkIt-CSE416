@@ -88,7 +88,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
         }}
         onDrop={handleDrop}
         className={cn(
-          "border-border-strong bg-well rounded-control hover:border-brand/50 flex cursor-pointer flex-col items-center border border-dashed px-4 py-7 transition-colors",
+          "border-border-control bg-well rounded-control hover:border-brand/50 flex cursor-pointer flex-col items-center border border-dashed px-4 py-7 transition-colors",
           dragging && "border-brand bg-brand-tint",
           busy && "cursor-progress opacity-60",
         )}
@@ -104,7 +104,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
             </>
           )}
         </p>
-        <p className="text-meta text-ink-meta mt-1.5">Supported formats: PDF, DOCX (up to 5 MB)</p>
+        <p className="text-note text-ink-meta mt-1.5">Supported formats: PDF, DOCX (up to 5 MB)</p>
         <Button type="button" variant="outline" className="mt-2" disabled={busy}>
           Browse Files
         </Button>
@@ -112,7 +112,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
       <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
 
       {fileError && (
-        <p role="alert" className="text-meta text-danger mt-2">
+        <p role="alert" className="text-note text-danger mt-2">
           {fileError}
         </p>
       )}
@@ -122,7 +122,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
           <PdfIcon className="size-5 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="text-label text-ink truncate">{file.name}</p>
-            <p className="text-meta text-ink-meta">{formatBytes(file.size)}</p>
+            <div className="text-meta text-ink-meta">{formatBytes(file.size)}</div>
           </div>
           <IconButton label="Remove resume" onClick={onRemove}>
             <TrashIcon className="size-4" />

@@ -175,11 +175,11 @@ export function MatchRail({
                 {highlight.met ? "In your favour:" : "Worth weighing:"}
               </span>
               {highlight.met ? (
-                <CheckIcon className="text-positive mt-px size-3.5 shrink-0" />
+                <CheckIcon className="text-positive-ink mt-px size-3.5 shrink-0" />
               ) : (
                 <Dot />
               )}
-              <span className={cn("text-meta", highlight.met ? "text-ink-muted" : "text-ink-meta")}>
+              <span className={cn("text-note", highlight.met ? "text-ink-muted" : "text-ink-meta")}>
                 {highlight.text}
               </span>
             </li>

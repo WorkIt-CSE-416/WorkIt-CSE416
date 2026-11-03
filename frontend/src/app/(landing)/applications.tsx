@@ -21,7 +21,7 @@ import { applicationsSection as copy } from "./data";
 import { FaviconLogo } from "./favicon-logo";
 import { followedJob } from "./feature-data";
 import { FocusIn } from "./focus-in";
-import { useMediaQuery, usePageHidden } from "./hooks";
+import { useLoopsHeld, useMediaQuery } from "./hooks";
 import { CONTAINER, SectionHeading, SoonChip } from "./layout-parts";
 import { scoreTone } from "./score-tone";
 import { useSceneTime, type Cue } from "./scene-time";
@@ -147,12 +147,12 @@ function PinnedApplications() {
 function LoopingApplications() {
   const ref = React.useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { amount: 0.4 });
-  const hidden = usePageHidden();
+  const held = useLoopsHeld();
   const s = useMotionValue(0);
   const [step, setStep] = React.useState(0);
 
   React.useEffect(() => {
-    if (!inView || hidden) return;
+    if (!inView || held) return;
     const timer = window.setTimeout(
       () => {
         const next = (step + 1) % stages.length;
@@ -164,7 +164,7 @@ function LoopingApplications() {
       (step === LAST ? 1.5 : 1) * HOLD * 1000,
     );
     return () => window.clearTimeout(timer);
-  }, [inView, hidden, step, s]);
+  }, [inView, held, step, s]);
 
   return (
     <section id="applications" className="py-20 sm:py-28">
