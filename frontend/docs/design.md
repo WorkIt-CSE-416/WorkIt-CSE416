@@ -433,8 +433,8 @@ frame wasted room and read as three separate containers, so keep it flat:
 no gaps, no rounded or shadowed shell panels. Scout's
 panel docks at the right the same way, with a left rule. The panel is the
 rail (below). The company shell is still docked: a full-width bar with the
-lavender corner cell (`components/sidebar-brand.tsx`, company only now) over
-a full-bleed panel. `app-sidebar.tsx` draws both, as `variant="rail"` or
+lavender corner cell (`components/sidebar-brand.tsx`, company only now; the
+mark alone below md) over a full-bleed panel. `app-sidebar.tsx` draws both, as `variant="rail"` or
 the default `docked`. Their other shared parts (the bell, the account menu,
 the search field) are in `src/components`. The company bar's search is a GET
 `next/form` to `/company/applicants`. **The seeker bar has no search: it holds
@@ -448,6 +448,22 @@ under it, and a modal never changes it (KAN-560). The field is
 `(seeker)/search/query-field.tsx`, a client component that shows `?q` while on
 /search, because the split frame is drawn by a layout, which never receives
 searchParams.
+
+**The company shell follows the seeker's page decisions** (2026-11-03,
+KAN-582): the 2026-10-27 width and the 2026-11-02 title and grey ground.
+Its pages stop at `max-w-dashboard` inside the seeker's gutter
+(`company/frame.ts`, `COMPANY_PAGE`, which reads `SEEKER_GUTTER`), so they
+start at the page's left edge beside the panel; at the centred 1024px
+`max-w-app` they left 80px of empty margin each side at 1440 with the panel
+pinned, the layout the user ruled flawed for the seeker. The bar holds the
+page's title (`company/bar-title.tsx`, the seeker's `BAR_TITLE`), on the
+left, with the applicant search after it, and no company page draws a heading
+or description of its own; a page under a section (a job, the editor, an
+applicant) keeps its own h1, as on the seeker side. The page stands on the
+grey ground, its sections in white cards. What still differs, until the user
+decides: the company panel docks, pins and opens on hover where the seeker's
+is a fixed rail, and the bar keeps its lavender corner cell and its applicant
+search.
 
 Seeker pages break on the width they actually get, not the window's: the
 shell renders them inside `@container/main`. A layout that splits into
@@ -584,6 +600,18 @@ The company hero draws
 at the top right of its heading: `ui/section-link.tsx` for a link, `<Button
 variant="section">` for an action. Whether the company Dashboard should move
 to cards as well is still open. Each page's docblock says what goes where.
+The company Dashboard moved to cards in KAN-582: on /company each section is
+a white card on the grey ground (the KPI tiles with the date picker, the
+chart, Highlights, the Hiring Pipeline, Needs Your Attention, Time in Stage)
+beside one violet Most Urgent hero, and the Recent Applicants table keeps its
+heading on the ground over its own card, as the company's other tables do.
+Until then it used open sections on white and a grey Hiring Pipeline band,
+the reverse of the seeker's grey ground and white cards. The company hero
+draws `components/hero-arcs.tsx`. A section's one way onward sits
+at the top right of its heading: `ui/section-link.tsx` for a link, `<Button
+variant="section">` for an action. A page's own action with no heading to sit
+beside (Post a Job, Edit Profile) sits at the top right of the page. Each
+page's docblock says what goes where.
 
 The auth screens (/login, /signup, the two reset pages under /login,
 /signup/check-email and /signup/choose-account-type) sit outside both shells.
@@ -823,7 +851,10 @@ rules, each with its own reason, and every form follows one of them:
 - **A page or Settings form: left, the primary first** (Save, then Discard).
   The eye runs down a single-column form's left edge, so a button there is
   found first (Luke Wroblewski's form studies; the GOV.UK Design System).
-  Settings' sections pin this row to the foot of what scrolls.
+  Settings' sections pin this row to the foot of what scrolls. A multi-step
+  form is a page form too: the company job composer leads with its step's
+  primary (Continue, Publish or Update Job), then Save Draft, Back and
+  Cancel (KAN-582; it was right-aligned with the primary last).
 - **A dialog, or a card edited in place: right, the primary last** (Cancel,
   then Save). The last button is where the task goes on, as on macOS and in
   Material, and shadcn's `DialogFooter` already sets it. My Profile's Contact

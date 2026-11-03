@@ -3681,6 +3681,17 @@ reads. A job row's Pause or Resume says how it went in a toast, never in the
 row: Undo when it is done, the API's reason and Retry when it fails
 (KAN-562).
 
+Each page's title is in the bar, its sections stand on the grey ground in the
+seeker's 1440px column (KAN-582, `docs/design.md`, The two shells). Post a Job
+and Edit Profile sit at the top right of their pages. **Edit Profile is
+disabled, with a Coming Soon badge beside it**: there is nothing to save to,
+and an enabled button that did nothing pretended there was. A job row's ⋯
+menu opens from an `IconButton`, as Up Next's does. The composer's buttons
+follow the page-form rule: left, its step's primary first. **There is no
+audit log**: `/company/audit-logs` had no link in, inert Next and Export CSV
+buttons and a fixed "of 1,248 entries", and was deleted in KAN-582. A log of
+system activity belongs under `/admin`, built on `DataTable`, if it returns.
+
 The two company list screens share `app/company/table.tsx` — a TanStack Table
 shell over shadcn's `Table`, with sorting, filtering and row selection. **It is
 TanStack v9, and every shadcn data-table example in circulation is v8**: v8's

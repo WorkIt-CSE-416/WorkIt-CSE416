@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { ButtonLink } from "@/components/ui/button";
 import { listCompanyJobs } from "@/lib/job-queries";
 
+import { COMPANY_PAGE } from "../../frame";
 import { toPosting } from "../data";
 import { JobsTable } from "../jobs-table";
 import { LoadError } from "../load-error";
@@ -31,23 +32,15 @@ export default async function CompanyJobsPage() {
   const { jobs, error } = await listCompanyJobs();
 
   return (
-    <div className="max-w-app mx-auto w-full flex-1 px-4 py-6 sm:px-8 lg:px-12">
+    <div className={COMPANY_PAGE}>
       {/* The action sits with the list it adds to rather than in the shell's
-          bar. items-start keeps the button on the heading's line rather than
-          centred against a two-line block, so it lines up with the title
-          instead of drifting toward the description. */}
-      <header className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-heading text-ink">Job Postings</h1>
-          <p className="text-body text-ink-meta mt-1">
-            Every role you have open, and how far along each one is.
-          </p>
-        </div>
-
-        <ButtonLink href="/company/jobs/new" size="sm" className="shrink-0">
+          bar, at the top right of the page, where the page's heading was
+          before the title moved into the bar (../bar-title.tsx). */}
+      <div className="mb-5 flex justify-end">
+        <ButtonLink href="/company/jobs/new" size="sm">
           Post a Job
         </ButtonLink>
-      </header>
+      </div>
 
       {/* A failed load replaces the table rather than sitting above it: an
           empty table under the error said "0 total" and blamed the filters.

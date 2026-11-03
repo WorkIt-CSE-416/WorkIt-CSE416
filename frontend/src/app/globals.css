@@ -974,8 +974,10 @@ body:has([data-shell]) {
   background: var(--color-panel);
 }
 
-/* The seeker shell's page is --color-app (app/(seeker)/layout.tsx). */
-body:has([data-shell="seeker"]) {
+/* Both shells' pages are --color-app (app/(seeker)/layout.tsx,
+ * app/company/layout.tsx). */
+body:has([data-shell="seeker"]),
+body:has([data-shell="company"]) {
   background: var(--color-app);
 }
 

@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { changeJobStatus } from "@/lib/job-actions";
@@ -162,8 +163,9 @@ const columns = helper.columns([
  * Edit alone. Pause and Resume act at once, since Resume undoes Pause; only
  * Close asks first.
  *
- * relative z-10 lifts the trigger above <RowLink>'s row-wide overlay, or
- * opening the menu would open the job.
+ * The trigger is IconButton (KAN-582), as Up Next's row menu is: ink at rest
+ * and a 32px box, where a hand-built one was grey and 28px. z-10 lifts it
+ * above <RowLink>'s row-wide overlay, or opening the menu would open the job.
  *
  * A Pause or Resume says how it went in a toast (KAN-562), never in the row:
  * the column is sized to its content (`w-px`), so a sentence there wrapped
@@ -211,11 +213,16 @@ function RowActions({ posting }: { posting: Posting }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
-          aria-label={`Actions for ${posting.role}`}
-          className="text-ink-meta hover:text-ink focus-visible:ring-brand-ring relative z-10 inline-flex size-7 cursor-pointer items-center justify-center rounded-xs focus-visible:ring-2 focus-visible:outline-none"
-        >
-          <EllipsisIcon className="size-4" />
-        </DropdownMenuTrigger>
+          render={
+            <IconButton
+              label={`Actions for ${posting.role}`}
+              tooltip="More actions"
+              className="z-10 size-8"
+            >
+              <EllipsisIcon className="size-4" />
+            </IconButton>
+          }
+        />
 
         <DropdownMenuContent align="end" className="w-36">
           <DropdownMenuItem render={<Link href={`/company/jobs/${posting.id}/edit`} />}>

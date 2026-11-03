@@ -1337,8 +1337,11 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   signed-in spread is unmeasured.
 - **The seeker pages stand on a grey ground** (`bg-app` on `<main>`,
   2026-11-02, after Simplify and Jobright): all white left cards and panels
-  with nothing to sit on. The top bar and sidebar stay white, and the company
-  shell is unchanged. A sticky bar on the ground is `bg-app`, not `bg-panel`,
+  with nothing to sit on. The top bar and sidebar stay white. The company
+  shell took the same ground, the same 1440px column and gutter
+  (`company/frame.ts`) and the title in its bar (`company/bar-title.tsx`) in
+  KAN-582 (`docs/design.md`, The two shells); its docked, pinned panel
+  still differs. A sticky bar on the ground is `bg-app`, not `bg-panel`,
   or a white band shows when it sticks. A surface that lies on the ground is
   `bg-panel`, and a soft fill meant for white or grey is see-through ink
   (`bg-ink/5`, the Segmented Control's track): a solid `bg-app` or `bg-well`
@@ -1580,7 +1583,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Each page's own heading and line under the bar went, about 60px a page: the
   line under Written Answers too, so that page no longer says how answers
   reach the tab. Auto Apply keeps its queue line, which is a count, not a
-  description.
+  description. **The company bar does the same** (KAN-582,
+  `company/bar-title.tsx`, its own `TITLES`): a new company section joins
+  that list, and a company page draws no heading of its own unless it is a
+  page under a section.
 - **/search keeps the filter row, and shows what its words filter by**
   (KAN-308). A new search from the top bar sends only ?q, so it starts
   with no filters; the row stays on /search to narrow the results. The

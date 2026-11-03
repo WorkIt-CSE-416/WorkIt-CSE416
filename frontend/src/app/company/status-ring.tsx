@@ -78,12 +78,12 @@ const conversions = STAGE_REACH.slice(1).map(({ name, count }) => ({
 
 export function StatusRing() {
   return (
-    /* h-full and a column, so the band's stretched height is this component's
-     * to spend: the footnote takes mt-auto and settles on the band's bottom
+    /* h-full and a column, so the card's stretched height is this component's
+     * to spend: the footnote takes mt-auto and settles on the card's bottom
      * edge, level with the last role bar beside it.
      *
      * RING AND LEGEND SIDE BY SIDE once the column is 384px wide (@sm/ring),
-     * stacked below that. Stacked at every width, the half of the band this
+     * stacked below that. Stacked at every width, the half of the card this
      * sits in ran to 440px tall, and the five role bars beside it spread 49px
      * apart to fill it; side by side it is the height of the ring. Keyed to
      * this column rather than the page, since the column is what decides
@@ -133,12 +133,12 @@ export function StatusRing() {
                 innerRadius={52}
                 outerRadius={78}
                 /* The 2px surface gap the marks spec asks for, spent as an angular
-               gap plus a stroke in the band's own grey (--color-app, what the
-               ring sits on) so the separation holds at the inner edge as well
-               as the outer. A white stroke would draw a white outline on the
-               grey instead of a gap. */
+               gap plus a stroke in the card's own white (--color-panel, what
+               the ring sits on since KAN-582) so the separation holds at the
+               inner edge as well as the outer. A stroke of any other colour
+               would draw an outline instead of a gap. */
                 paddingAngle={2}
-                stroke="var(--color-app)"
+                stroke="var(--color-panel)"
                 strokeWidth={2}
                 /* Twelve o'clock, clockwise, so the wedges run in funnel order from
                the top the way a reader scans them. Recharts starts at three
@@ -160,7 +160,7 @@ export function StatusRing() {
 
         {/* The legend is the chart's labels, not a key to it: every wedge's count
           and share are here, in wedge order, so the ring needs no interaction
-          to be read. Capped at 18rem beside the ring, so a full-width band
+          to be read. Capped at 18rem beside the ring, so a full-width card
           (the page stacks it under 960px) does not push each count a
           paragraph away from its stage. */}
         <ul className="flex flex-col @sm/ring:max-w-72 @sm/ring:min-w-0 @sm/ring:flex-1">
