@@ -2331,6 +2331,10 @@ in Docs (suggested answers in the chat, not a banner).
   today (`type="month"`, a `YYYY-MM` text box where there is none), which
   breaks `design.md`'s rule that no field opens the browser's own picker;
   a `MonthField` on the `DateField` pattern replaces it (KAN-559).
+  title and organization for each). The form stops at `max-w-3xl` (768px),
+  its buttons with it (KAN-576): on the bank page at 1440 a School or
+  Coursework box ran 1242px. Months use the browser's month picker,
+  which falls back to a `YYYY-MM` text box where there is none.
   **Two columns at every width** (KAN-257): a pair of short fields shares
   a row (the start and end, with the end month under End; a degree and its
   field; a GPA and its scale), a long one takes the row, and the
@@ -2497,7 +2501,10 @@ with no proposals to accept and no Done (2026-10-25).
   Finish. Then the step's title and its job line (`TailorHeader`), then the step's own view (`TailorScreen` keeps the step in state; a
   reload starts at the pick). The keyword match appeared under the picker
   on one page before, so the student scrolled past the list to read it.
-  Pick a Resume shows the list across the full width, and each card's
+  Pick a Resume shows the list across the full width, running down to the
+  page's foot as the Resumes page's does (`ResumeLists`' `fill`, KAN-576):
+  a dialog's five-card cap left about 230px empty under it at 1440 and cut
+  the last card in half. Each card's
   Preview opens that resume in a dialog (below). The top row replaced a
   step timeline (`TailorSteps`, circles and lines), the pick steps' Back
   above the title, and the way on, Back and Tailor Resume at each
@@ -2597,7 +2604,11 @@ with no proposals to accept and no Done (2026-10-25).
   "Suggestions" with its count in a
   filled pill over a 384px panel in the brand tint (the editor's bar's
   colour) of white sections that sticks beside the page, its top fixed
-  and its sections scrolling under it. The
+  and its sections scrolling under it. It docks beside the page only
+  from `@6xl/main` (72rem of page width); narrower, it floats over the
+  page's right side under the toolbar, with `shadow-lift`, and the page
+  keeps its width (KAN-576): docked at 1024, it left the resume about
+  480px wide. The
   page is laid out as a Google Doc (KAN-499), edge to edge with a 16px
   gutter and no width cap: the resume's name over the job under the step's
   row, with the Original and Suggestions icons and Download at that row's
@@ -2759,7 +2770,8 @@ upload's page.
   and the buttons stay in view however many resumes a student keeps. On
   a window too short for that the page scrolls too. It stopped at five
   cards until KAN-434, which left half a laptop screen empty under it;
-  the resume pickers keep five cards, since they sit in a dialog. It is
+  the resume dialogs keep five cards, and Tailor's Pick a Resume, a page,
+  fills too (KAN-576). It is
   grouped by
   type, as Notion's Group by (KAN-404): **Uploaded**, **Generated**, then
   **Tailored**, each under a heading with its name in a pill (`Badge`,
@@ -2870,7 +2882,9 @@ KAN-366: an upload's own page, opened from its card on the Resumes view,
 so every resume opens inside WorkIt (a built one opens the editor, next).
 Back (to the page that opened it, such as Experiences, else `/resumes`;
 `(seeker)/back-link.tsx`), the file's name as the heading, then a sticky bar in
-the editor's look: "Uploaded Oct 21" and "★ Primary" on the primary, then
+the editor's look, its own box (`SLIM_BAR`, `[resumeId]/slim-bar.ts`; a
+lavender bar with a ring and a shadow until KAN-576): "Uploaded Oct 21" and
+"★ Primary" on the primary, then
 Make Primary (while it is not), Rename, Delete and **Download**, the
 page's main action, filled. Under it the PDF, drawn page by page with the
 editor's pdf.js preview (`PdfPages`, no click targets: an upload is read
@@ -2882,8 +2896,13 @@ Download. Rename turns the heading into the cards' Rename form; Delete
 asks in a popover under its button, as a card's trash does, and then
 returns to the Resumes view.
 An id the student has no upload by is a 404; a list or file that fails
-to load shows "This Resume Isn't Loading Right Now" with Try Again. On a
-phone the bar's buttons wrap and the pages take the width.
+to load shows "This Resume Isn't Loading Right Now" with Try Again. The
+buttons are one row that never wraps, so Download stays in the first row
+(at 768 it wrapped alone onto a second): below `@2xl/main` the date line
+goes under them, below `@3xl/main` Make Primary, Rename and Delete keep
+their glyph alone, named by `title`, and below `@md/main` the zoom goes,
+since even its 50% step is wider than the page there. On a phone the
+pages take the width.
 
 ## Resume editor
 
@@ -2947,7 +2966,10 @@ student who opened a resume from Experiences landed on another view.
   shows it over the error.
 - **The sticky bar is the slim toolbar** (`SlimBar`), the same on this
   page and on Tailor's review (KAN-411), so a line's actions never cover
-  nearby lines. It is a quiet white row (`--color-panel`). At its left,
+  nearby lines. It is a quiet white row (`--color-panel`). Every button on
+  it is 36px: text buttons `sm`, icon buttons `icon-lg` (KAN-576; Sections
+  and Format Options were `xs`, 26px with 12px type, and Undo, Redo, the
+  zoom arrows and the size stepper 28px). At its left,
   Undo and Redo, UI only: the editor keeps no history yet, so both stay
   disabled. With a line selected: the line's kind, Move Up and Move Down
   first (`LineActions`' `movesFirst`: entries within their section,
@@ -3065,7 +3087,9 @@ student who opened a resume from Experiences landed on another view.
   Tailor's review it opens
   in the Suggestions column, with the same X, and one column shows at a time. On
   the editor's own page it opens in Scout's panel, as the Experiences picker
-  does. On a phone a Format button opens it in a sheet, with no Undo there. Each
+  does; below xl that panel floats over the page instead of taking room
+  beside it (`ScoutTakeover`'s `float`, KAN-576), since docked at 1024 it
+  left the resume 414px wide with about 4px text. On a phone a Format button opens it in a sheet, with no Undo there. Each
   pick shows on the page, saves on its own, and Undo takes it back. It held
   eleven controls in five groups until 2026-11-01, then five that left out the
   font and a size per kind of text, which the user found missing. Spacing is one

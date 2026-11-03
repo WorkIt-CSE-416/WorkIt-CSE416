@@ -307,6 +307,8 @@ export function TailorScreen({
                       setPreviewOpen(true);
                     }}
                     upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
+                    // A page, not a dialog: the list runs to the page's foot
+                    fill
                   />
                 </>
               )}

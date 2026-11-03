@@ -226,7 +226,7 @@ export function SizeStepper({
     <div role="group" aria-label={role.label} className="flex shrink-0 items-center gap-0.5">
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label={`Smaller ${role.label}`}
         title={`Smaller ${role.label}`}
         disabled={disabled || smaller < role.min}
@@ -252,11 +252,11 @@ export function SizeStepper({
             setTyped(null);
           }
         }}
-        className={cn(FIELD_CONTROL, "sm:text-note h-7 w-11 px-1 text-center font-medium")}
+        className={cn(FIELD_CONTROL, "sm:text-note h-9 w-11 px-1 text-center font-medium")}
       />
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label={`Larger ${role.label}`}
         title={`Larger ${role.label}`}
         disabled={disabled || larger > role.max}
@@ -269,11 +269,12 @@ export function SizeStepper({
 }
 
 /** A toolbar button that opens a panel beside the page, tinted while it
- *  is open: Sections, Format Options. It keeps its word down to `@3xl`;
- *  below that it is the glyph alone, named by a tooltip, and its hit area
- *  reaches 44px past the box, since touch has no hover to read a `title`
- *  (KAN-574). The tooltip opens only while the word is hidden: over the
- *  word it said the same thing twice. */
+ *  is open: Sections, Format Options. `sm`, as every text button on the bar
+ *  is (KAN-576): at `xs` it stood 26px with 12px type beside 36px ones. It
+ *  keeps its word down to `@3xl`; below that it is the glyph alone, named
+ *  by a tooltip, and its hit area reaches past the box, since touch has no
+ *  hover to read a `title` (KAN-574). The tooltip opens only while the word
+ *  is hidden: over the word it said the same thing twice. */
 export function PanelButton({
   label,
   Icon,
@@ -300,7 +301,7 @@ export function PanelButton({
         render={
           <Button
             variant="ghost"
-            size="xs"
+            size="sm"
             aria-pressed={open}
             disabled={disabled}
             className={cn("shrink-0", NARROW_HIT, open && ON)}
@@ -318,9 +319,8 @@ export function PanelButton({
   );
 }
 
-/** Below `@3xl`, an `xs` glyph button (26 by 32px) reaches 46 by 44px:
- *  10px above and below, 6px each side, so two neighbours 8px apart
- *  overlap by 4px at most. */
+/** Below `@3xl`, the `sm` glyph button reaches 10px above and below and
+ *  6px each side, so two neighbours 8px apart overlap by 4px at most. */
 const NARROW_HIT =
   "@max-3xl/main:relative @max-3xl/main:after:absolute @max-3xl/main:after:-inset-x-1.5 @max-3xl/main:after:-inset-y-2.5 @max-3xl/main:after:content-['']";
 

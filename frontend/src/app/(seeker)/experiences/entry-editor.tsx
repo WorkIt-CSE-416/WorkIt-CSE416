@@ -35,7 +35,9 @@ import { savable, sectionOf, type EntryDraft } from "./sections";
  * thirteen boxes, with the college and location ahead of the dates intake
  * was asking about. A month is picked from WorkIt's own grid
  * (components/month-field.tsx), coursework wraps in a box that grows, and a
- * GPA has no spin arrows.
+ * GPA has no spin arrows. The form stops at `max-w-3xl` (768px), its buttons
+ * with it (KAN-576): on the bank page at 1440 a School or Coursework box ran
+ * 1242px, and a school name filled 15% of it.
  */
 
 const END_OPTIONS = [
@@ -180,7 +182,7 @@ export function EntryEditor({
     );
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
+    <form onSubmit={submit} className="flex max-w-3xl flex-col gap-3">
       {/* No spin arrows on a GPA: nobody steps through one. */}
       <div className="grid grid-cols-2 gap-3 [&_input::-webkit-inner-spin-button]:appearance-none [&_input::-webkit-outer-spin-button]:appearance-none [&_input[type=number]]:[appearance:textfield]">
         <div className="col-span-2">
