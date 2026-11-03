@@ -22,7 +22,8 @@ import { BackToJobs } from "./page-actions";
  * does) and as the split view draws the list's first job on /jobs (KAN-519).
  *
  * `listed`: the job came from a list, so one that has closed since draws
- * nothing beside it. On its own page it is not found.
+ * nothing beside it, and its title is an h2 under the bar's "Jobs" h1. On its
+ * own page it is not found.
  */
 export async function JobPage({ jobId, listed = false }: { jobId: string; listed?: boolean }) {
   const view = await loadJobView(jobId);
@@ -50,7 +51,11 @@ export async function JobPage({ jobId, listed = false }: { jobId: string; listed
       <JobActionBar tabs={<JobTabs />}>
         <JobViewActions view={view} job={job} />
       </JobActionBar>
-      <JobViewHeader job={job} actions={<JobCardActions view={view} job={job} notInterested />} />
+      <JobViewHeader
+        job={job}
+        actions={<JobCardActions view={view} job={job} notInterested />}
+        titleAs={listed ? "h2" : "h1"}
+      />
       <JobTabPanes
         overview={<JobViewBody view={view} job={job} />}
         company={<CompanyTab name={job.company} company={view.company} />}

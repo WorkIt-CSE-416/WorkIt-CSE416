@@ -40,6 +40,10 @@ type JobDetailHeaderProps = {
    *  posting, each its own rounded card, sitting beside the facts. Omit it
    *  (a job nothing has scored) and the facts take the full width. */
   rail?: ReactNode;
+  /** The title's level. An h1 on the job's own page; an h2 where it is drawn
+   *  beside a list whose page has the h1 (the split view on /jobs), and an h3
+   *  in the design kit, under a group's h2. One h1 per view. */
+  titleAs?: "h1" | "h2" | "h3";
 };
 
 /**
@@ -84,6 +88,7 @@ export function JobDetailHeader({
   showDeadline = false,
   actions,
   rail,
+  titleAs: Title = "h1",
 }: JobDetailHeaderProps) {
   const timing =
     showDeadline && posting.closesAt ? (
@@ -134,7 +139,7 @@ export function JobDetailHeader({
             </p>
           </div>
 
-          <h1 className="text-display text-ink mt-2">{posting.title}</h1>
+          <Title className="text-display text-ink mt-2">{posting.title}</Title>
         </div>
 
         {/* Wraps rather than overflows: a row wider than the card ran under

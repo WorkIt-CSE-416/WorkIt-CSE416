@@ -29,7 +29,9 @@ the page's title** (`(seeker)/bar-title.tsx`, 2026-11-02). Job search showed on
 every page there, so it moved to the Jobs page and /search
 (`(seeker)/search/job-search.tsx`), and each page's heading and description went:
 the title moved up, and the description is gone, to give every page about 60px.
-Pages add no heading or description of their own under the bar. The field is
+Pages add no heading or description of their own under the bar. The bar
+title is the view's one h1; a job beside the list (the split view) is an h2
+under it, and a modal never changes it (KAN-560). The field is
 `(seeker)/search/query-field.tsx`, a client component that shows `?q` while on
 /search, because the split frame is drawn by a layout, which never receives
 searchParams.

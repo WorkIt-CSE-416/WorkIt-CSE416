@@ -54,7 +54,9 @@ export function IntegrationsSection() {
   return (
     <Card as="section" aria-labelledby="integrations" className="flex flex-col gap-4">
       <div>
-        <SectionHeading id="integrations">Integrations</SectionHeading>
+        <SectionHeading as="h3" id="integrations">
+          Integrations
+        </SectionHeading>
         <p className="text-meta text-ink-meta mt-1">
           Connect your apps so your tracker keeps itself up to date.
         </p>

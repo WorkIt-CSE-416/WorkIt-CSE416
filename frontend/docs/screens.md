@@ -238,7 +238,9 @@ column's edge. The wheel and trackpad still scroll it.
 the foot of the window** in the page's gutters, with no bottom edge (after
 Simplify's, 2026-11-02): the list and the job share its edge, one rule runs
 under the list's heading and the job's action bar, both 60px, and the job's card
-is drawn flat inside it (`JOB_CARD_IN_PANEL`). The header above it has no rule: a
+is drawn flat inside it (`JOB_CARD_IN_PANEL`). On /jobs the job's title is an
+h2 under the bar's "Jobs" h1 (KAN-560: both were h1); on the job's own address
+the bar is a plain line and the title is the h1. The header above it has no rule: a
 full-width line under the filters read as cutting the page in two. The panel's
 pane has a 16px gutter, so the bar's one row fits at a 1280px window beside a
 355px list.
@@ -3356,6 +3358,10 @@ into view: a segmented control's equal widths do not fit "Sign-In &
 Security" and three other labels at 375px. The section area is its own
 `@container/main`, so the sections' container queries (the name fields'
 three columns) read the modal's width. Each section is cards in a column.
+**The dialog's title, Settings, is the h2 and each card title an h3**
+(KAN-560): the title was 16px under 20px card titles. It is `text-title`, at
+700, since it stands for the Settings page. While it is open the top bar keeps
+the title and h1 of the page behind (`bar-title.tsx`).
 
 **Unsaved edits are guarded** (`settings/unsaved-changes.tsx`): a form with
 unsaved changes (Personal Details' names and headline, Job Preferences)

@@ -305,7 +305,7 @@ function Application({
 
           {sections.map((section) => (
             <section key={section.title} className="mt-5 border-t border-slate-900/5 pt-4">
-              <h4 className="text-ink text-[12.5px] font-semibold">{section.title}</h4>
+              <p className="text-ink text-[12.5px] font-semibold">{section.title}</p>
               <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2.5">
                 {section.fields.map((field) => {
                   const i = index++;
