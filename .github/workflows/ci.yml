@@ -198,6 +198,7 @@ jobs:
             tests/test_sheet_tracker.py \
             tests/test_stock.py \
             tests/test_story_map.py \
+            tests/test_tracker_cleanup.py \
             tests/test_tracker_contract.py \
             tests/test_tracker_record.py \
             tests/test_worker_date.py \

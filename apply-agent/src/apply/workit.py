@@ -196,6 +196,14 @@ class WorkIt:
         """Name the Sent resume the application went out with. Its stage and applied date stay."""
         self.call("POST", f"/jobs/{job_id}/applied", {"sent_resume_id": sent_resume_id})
 
+    def unsave(self, job_id: str) -> None:
+        """Delete the student's saved application on the job. WorkIt refuses (409) one past saved."""
+        self.call("DELETE", f"/jobs/{job_id}/saved")
+
+    def dequeue(self, applicant_id: str, job_id: str) -> None:
+        """Delete the student's queued application on the job. WorkIt refuses (409) one past queued."""
+        self.call("DELETE", f"/applicants/{applicant_id}/applications/{job_id}")
+
     def mark_applied(self, job_id: str) -> None:
         """Applied with no Sent resume (a later stage, and the date, stay)."""
         self.call("POST", f"/jobs/{job_id}/applied")

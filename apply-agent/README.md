@@ -122,6 +122,15 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    uv run apply import-sheet
    ```
 
+   Then you can delete the saved and queued applications of jobs that you
+   did not apply to. Apply first lists each delete and keep, and deletes
+   only when you type yes. It never deletes an application at applied or
+   later. Use `--keep <link>` for a job that you still follow:
+
+   ```sh
+   uv run apply clean-tracker
+   ```
+
 Run `uv run apply doctor` again. Then rehearse a Workday posting.
 
 ## The demo
