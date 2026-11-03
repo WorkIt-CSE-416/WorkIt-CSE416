@@ -26,6 +26,7 @@ from apply import (
     own_application,
     rehearsal,
     schedule,
+    sheet_import,
     story_map,
     trace,
     walls,
@@ -48,8 +49,15 @@ from apply.records import FolderRecords, GitRecords
 from apply.repair import FOLDER as REPAIRS
 from apply.repair import RepairRequests
 from apply.repairer import Repairer, repair_later
-from apply.sheet import SHEET_ID, live_tracker
+from apply.sheet import (
+    APPLICATIONS,
+    SHEET_ID,
+    NoSheet,
+    live_tracker,
+    live_tracker_sheet,
+)
 from apply.tracker import InMemoryTracker
+from apply.worker import SENT
 
 DEFAULT_PROFILE = HOME / "applicant-profile.yaml"
 # The Answer bank's file, beside the Applicant profile.
@@ -114,6 +122,10 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
     sign_in.add_argument("url", help="a Posting on that site, as a Handoff's reason gives it")
     commands.add_parser("login", help="log in to WorkIt one time, in a Chrome window that it opens, so Apply can "
                                       "write to your Applications Tracker; Apply keeps the login in the data folder")
+    import_sheet = commands.add_parser(
+        "import-sheet", help="one time: put each submitted row of the Tracker Sheet into your WorkIt Applications "
+                             "Tracker. It lists every add and skip first, and writes only when you type yes")
+    import_sheet.add_argument("--dry-run", action="store_true", help="only list what it would do; write nothing")
     commands.add_parser("push-test", help="send one test push to your phone (ntfy), or say how to set it up")
     scheduled = commands.add_parser(
         "schedule", help="launchd jobs for the Daily sweep (`apply run` at policies.yaml's schedule.daily_sweep_at) "
@@ -141,8 +153,8 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
     mapped.add_argument("--gaps", action="store_true", help="print the follow-ups the bank can't answer as "
                                                            "bank/questions.md lines; no model call")
     args = parser.parse_args(argv)
-    # doctor only reads: it says the profile is missing. login needs no profile.
-    if args.command not in ("doctor", "login") and home.fill_from_sample():
+    # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
+    if args.command not in ("doctor", "login", "import-sheet") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
 
@@ -224,6 +236,15 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
         print(f"Logged in to WorkIt as {account.email}. The login is in {client.login}.")
         if account.account_type != "applicant":
             print(f"That is a {account.account_type} account: the Applications Tracker needs a student account.")
+    elif args.command == "import-sheet":
+        client = workit.WorkIt()
+        if not client.logged_in():
+            sys.exit("apply import-sheet: no WorkIt login. Run `uv run apply login` first.")
+        try:
+            cells = live_tracker_sheet().worksheet(APPLICATIONS).get_all_values()
+            sys.exit(sheet_import.run(cells, client, SENT, dry_run=args.dry_run))
+        except (NoSheet, workit.WorkItError) as error:
+            sys.exit(f"apply import-sheet: {error}")
     elif args.command == "signals":
         print(bot_signals.summary((adapters.tracker if adapters else live_tracker()).rows()))
     elif args.command == "repair":
