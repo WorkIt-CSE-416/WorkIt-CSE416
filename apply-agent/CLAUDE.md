@@ -860,6 +860,46 @@ through the WorkIt extension in his own Chrome. Never through a Worker.
   and the window close. Ctrl-C does not reach Apply when it runs in the
   background, so use SIGTERM there.
 
+## Plain Workers' tiles and Fix from the window (KAN-609)
+
+Plain Workers (KAN-606, `apply/plain/`, protocol in
+`docs/plain-workers/PROTOCOL.md`) have no CDP, so `CdpFrames` can't reach
+them. `apply.plain.tile.PortFrames` is their frame source for the same
+`Dashboard`: `Dashboard(n, PortFrames(n, workers.bridge.connection))`.
+
+- **Frames.** The worker extension captures the shown tab with
+  `captureVisibleTab`, at most every 500 ms (Chrome's quota is about two a
+  second per browser), scaled to the tab's CSS size, and sends a frame only
+  when the picture changed. The tile is about 2 fps, not the screencast's
+  rate. Tile frames and `page.screenshot` share one gate
+  (`ops/shared.js: capture`), so neither hits the quota error.
+- **Covered windows still stream** because of
+  `--disable-backgrounding-occluded-windows`. A minimized window doesn't:
+  never minimize a plain Worker.
+- **Input.** The window's events go to `tile.input`, which replays them as
+  synthetic DOM events (`page/tile.js`). It handles press, release, move,
+  wheel, keys, text, copy, and choosing from a `<select>` menu, and it
+  reaches into iframes, cross-origin ones too. Keys reuse `page/dom.js`'s
+  `press`, which now moves the caret for Arrow, Home and End.
+- **Files.** An untrusted click opens no file picker. The extension marks
+  the input a click asked for: an input or its label, or a page script's
+  `input.click()` or `showPicker()`. The tile then asks Lisul for the file,
+  and `chooser.set` gives it to the input through DataTransfer. The hook acts
+  only without user activation, so Lisul's real mouse in the Worker's window
+  still gets the real picker. `PortPage.expect_file_chooser` and
+  `PortPage.mouse` use the same ops (`attach.py`'s upload behind a button
+  works on a plain Worker).
+- **Never take Lisul's focus.** Plain Workers start with `open -g -n`
+  (`launcher.start_in_background`), small, at the screen's top-left
+  corner. Only his Show brings one forward. Tests share one Worker and
+  stop it when they end.
+- **Not wired into runs yet.** `cli._dashboard` still builds `CdpFrames`. S8
+  (KAN-614) picks `PortFrames` per Worker when `worker_mode: plain`.
+- **Live check.** `uv run apply plain tile lever-immuta` fills a saved form
+  in a plain Worker and prints the window's address. Click the tile and type.
+  The tests are in `tests/test_plain_tile.py`: they need Chrome for Testing,
+  each run takes about 30 s, and they use their own socket.
+
 ## Asking Lisul a question (`apply.asking`, KAN-527)
 
 Every question that reaches the Needs you tab (a Missing fact, an Essay

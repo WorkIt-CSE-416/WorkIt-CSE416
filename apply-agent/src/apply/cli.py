@@ -180,6 +180,12 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
     filled.add_argument("form", help="a saved form's name, such as lever-immuta")
     filled.add_argument("--chrome", choices=("testing", "chrome"), default="testing",
                         help="Chrome for Testing (default), or branded Chrome from the seed profile")
+    tiled = plain.add_parser("tile", help="fill a saved form in a plain Worker shown live in an Apply window tile, then "
+                                          "leave it there to click and type in from the tile; never submits")
+    tiled.add_argument("form", help="a saved form's name, such as lever-immuta")
+    tiled.add_argument("--seconds", type=float, default=300, help="how long the tile stays up after the fill")
+    tiled.add_argument("--chrome", choices=("testing", "chrome"), default="testing",
+                       help="Chrome for Testing (default), or branded Chrome from the seed profile")
     plain.add_parser("prepare", help="write the worker extension's engine bundle and Playwright's injected script")
     plain.add_parser("seed", help="open branded Chrome on the seed profile to install the worker extension once")
     args = parser.parse_args(argv)
@@ -342,6 +348,8 @@ def _plain(args) -> None:
         print("\n".join(demo.ping(args.workers, args.chrome)))
     elif args.action == "fill":
         print("\n".join(demo.fill(args.form, args.chrome)))
+    elif args.action == "tile":
+        demo.tile(args.form, args.seconds, args.chrome)
     elif args.action == "prepare":
         identity = PlainWorkers(kind="testing").prepare()
         print(f"Worker extension ready: Fill engine {identity['version']}.")

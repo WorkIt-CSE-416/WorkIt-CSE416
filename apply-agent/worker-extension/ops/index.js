@@ -5,5 +5,6 @@ import { ops as dom } from "./dom.js";
 import { ops as engine } from "./engine.js";
 import { ops as records } from "./records.js";
 import { ops as tabs } from "./tabs.js";
+import { ops as tile } from "./tile.js";
 
-export const ops = { ...core, ...tabs, ...engine, ...dom, ...records };
+export const ops = { ...core, ...tabs, ...engine, ...dom, ...tile, ...records };

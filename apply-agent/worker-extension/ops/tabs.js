@@ -1,6 +1,6 @@
 // S2 ops: navigation, load states, frames and screenshots of a Worker's tabs.
 
-import { inPage, named, sleep } from "./shared.js";
+import { capture, inPage, named, sleep } from "./shared.js";
 
 // Resolves once the tab's top frame reaches `waitUntil` ("commit", "domcontentloaded" or "load")
 // after a navigation that starts from now; rejects on a failed navigation, a closed tab or the timeout.
@@ -77,7 +77,7 @@ async function waitForLoad({ tab, state = "load", timeout = 30000 }) {
   }
 }
 
-// captureVisibleTab allows about 2 calls a second per browser: wait out the quota.
+// captureVisibleTab allows about 2 calls a second per browser: the shared gate spaces them, and this waits out the quota.
 async function screenshot({ tab, format = "png", quality }) {
   const t = await chrome.tabs.get(tab);
   if (!t.active) {
@@ -86,7 +86,7 @@ async function screenshot({ tab, format = "png", quality }) {
   }
   for (let attempt = 0; ; attempt++) {
     try {
-      const url = await chrome.tabs.captureVisibleTab(t.windowId, format === "jpeg" ? { format, quality: quality ?? 80 } : { format: "png" });
+      const url = await capture(t.windowId, format === "jpeg" ? { format, quality: quality ?? 80 } : { format: "png" });
       return { data: url.slice(url.indexOf(",") + 1) };
     } catch (error) {
       if (attempt < 10 && /MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND/.test(String(error?.message))) {
