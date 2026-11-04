@@ -527,6 +527,8 @@ class Dashboard:
     def __exit__(self, *exc) -> None:
         self._server.shutdown()
         self._server.server_close()
+        if self.accounts:
+            self.accounts.close()  # a password copied less than a minute ago leaves the clipboard
         self._quit_window()  # its page has no server now: a window left open shows a dead run
 
     def _quit_window(self) -> None:
@@ -910,6 +912,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._resume()
         if parts.path == "/everyday" and self.dashboard.everyday:
             return self._everyday()
+        if parts.path == "/accounts/copy" and self.dashboard.accounts:
+            return self._copy_password()
         if parts.path.startswith("/show/") and self.dashboard.show:
             return self._show(parts.path.removeprefix("/show/"))
         if parts.path.startswith("/answers/") and self.dashboard.answers:
@@ -1175,6 +1179,23 @@ class _Handler(BaseHTTPRequestHandler):
         print(f"Opened {item['posting_url']} in your Chrome, as you asked in the window")
         self._json(200, {"message": f"Opened {item.get('company') or 'the posting'} in your Chrome: "
                                     "the extension fills it there."})
+
+    def _copy_password(self) -> None:
+        """Lisul pressed Copy password in the Accounts tab (KAN-591): the server puts it on the clipboard. The reply,
+        and the line printed, never hold it."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only the Apply window may copy a password."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            site = body["site"]
+        except (ValueError, KeyError, TypeError):
+            return self._json(400, {"error": "Not an account."})
+        try:
+            message = self.dashboard.accounts.copy(site)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Copied the password for {site} to the clipboard, as you asked in the window")
+        self._json(200, {"message": message})
 
     def _in_place(self, item: dict, key: str, question: str, answer: Path | None, message: str) -> None:
         """An answer for this form alone, not saved to his facts: a file to attach, or None for an
