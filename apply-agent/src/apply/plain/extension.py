@@ -8,7 +8,9 @@ is fixed by manifest.json's `key`. `prepare` writes its generated files into ven
 - engine.json: that bundle's version and sha256, which the extension reports in its hello;
 - injected.js: Playwright's own injected script (playwright-core's injectedScriptSource,
   Apache-2.0), from the installed Python package's driver, wrapped to set
-  `globalThis.__applyPW` in the extension's isolated world.
+  `globalThis.__applyPW` in the extension's isolated world;
+- fixed.js: Apply's fixed page functions (apply.plain.fixed: Needs you's field, Resume's field
+  error, the emailed code's boxes), which `fixed.call` runs with no eval (KAN-611).
 """
 
 import base64
@@ -23,6 +25,7 @@ from playwright._impl._driver import compute_driver_executable
 
 from apply import fill_engine
 from apply.home import CODE
+from apply.plain import fixed
 
 EXTENSION_DIR = CODE / "worker-extension"
 VENDOR = EXTENSION_DIR / "vendor"
@@ -80,7 +83,7 @@ def _driver_bundle() -> Path:
 
 
 def prepare(vendor: Path = VENDOR) -> dict:
-    """Write vendor/engine.js, engine.json and injected.js, each only when it changed.
+    """Write vendor/engine.js, engine.json, injected.js and fixed.js, each only when it changed.
     Returns the engine's identity."""
     fill_engine._built()
     vendor.mkdir(parents=True, exist_ok=True)
@@ -93,6 +96,7 @@ def prepare(vendor: Path = VENDOR) -> dict:
     _write(vendor / "injected.js", "// Playwright's injected script (Apache-2.0), from the installed playwright package.\n"
            "(() => {\nif (globalThis.__applyPW) return;\nconst module = {};\n" + source +
            f"\nglobalThis.__applyPW = new (module.exports.InjectedScript())(globalThis, {json.dumps(INJECTED_OPTIONS)});\n}})();\n")
+    _write(vendor / "fixed.js", fixed.script())
     return identity
 
 
