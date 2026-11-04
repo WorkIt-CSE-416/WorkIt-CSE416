@@ -9,6 +9,7 @@ server refuses and records any POST: nothing is ever sent.
 
 import http.server
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -19,10 +20,12 @@ from pathlib import Path
 
 import pytest
 
-from apply.claude_cli import BROWSER_TOOLS
+from apply import claude_fill, rescue
+from apply.claude_cli import BROWSER_TOOLS, ClaudeCLI
+from apply.model import FillError
 from apply.plain.bridge import Bridge
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
-from apply.plain.page import PortPage
+from apply.plain.page import PortContext, PortPage
 from apply.plain.tools import ToolServer
 
 try:
@@ -31,6 +34,8 @@ try:
 except FileNotFoundError:
     HAVE_CHROME = False
 needs_chrome = pytest.mark.skipif(not HAVE_CHROME, reason="needs Chrome for Testing (uv run playwright install chromium)")
+live_claude = pytest.mark.skipif(os.environ.get("APPLY_LIVE_CLAUDE") != "1",
+                                 reason="runs real Haiku on the Max login: set APPLY_LIVE_CLAUDE=1")
 
 TOOLS_FORM = """<!doctype html><title>Fake form</title><h1>Apply to Acme</h1>
 <label>First name <input id=first></label>
@@ -172,6 +177,36 @@ def test_the_server_lists_playwright_mcps_own_tools_by_the_same_names_and_inputs
     assert not {"browser_evaluate", "browser_run_code_unsafe", "browser_take_screenshot"} & {t["name"] for t in tools}
 
 
+def test_a_drive_on_a_plain_workers_page_gets_apply_s_server_under_playwright_s_name(monkeypatch, tmp_path):
+    class Worker:
+        def __init__(self):
+            self.calls = []
+
+        def call(self, op, **params):
+            self.calls.append(op)
+
+        def on(self, *_):
+            pass
+
+    seen = {}
+
+    def stream(argv, stdin, env, cwd):
+        seen["argv"] = argv
+        yield json.dumps({"type": "result", "is_error": False, "structured_output": {"ok": True}, "result": "{}"})
+
+    page = PortPage(Worker(), 7, PortContext(None))
+    done = ClaudeCLI(stream=stream, endpoint=lambda p: pytest.fail("no CDP endpoint for a plain Worker")).drive(
+        page=page, model="haiku", system="s", prompt="p", schema={}, files=[], max_turns=5, max_tokens=1000)
+
+    assert done.output == {"ok": True} and page.worker.calls == ["mcp.arm"]
+    argv = seen["argv"]
+    [(name, server)] = json.loads(argv[argv.index("--mcp-config") + 1])["mcpServers"].items()
+    assert name == "playwright" and server["command"] == sys.executable
+    assert server["args"][:3] == ["-I", "-m", "apply.plain.mcp"] and not Path(server["args"][-1]).exists()  # closed after
+    assert argv[argv.index("--allowedTools") + 1] == ",".join(f"mcp__playwright__{t}" for t in BROWSER_TOOLS)
+    assert "mcp__playwright__browser_click" in argv[argv.index("--settings") + 1]  # the submit-click hook, unchanged
+
+
 @needs_chrome
 def test_snapshot_refs_drive_the_fields_in_the_page_and_its_frames(page, tmp_path):
     with tools_on(page, tmp_path) as tools:
@@ -221,3 +256,74 @@ def test_a_file_goes_only_to_the_chooser_a_click_opened_and_only_from_the_drives
         said, error = tools.tool("browser_file_upload", paths=[str(tmp_path / "Test_Person_Resume.pdf")])
         assert not error and "[File chooser]" not in said
     assert page.evaluate("() => window.picked") == "Test_Person_Resume.pdf"
+
+
+class PlainSite:
+    """The JobSite a Claude fill opens its page through: the plain Worker's tab."""
+
+    def __init__(self, page: PortPage):
+        self._page = page
+
+    @contextmanager
+    def open(self, url: str):
+        self._page.goto(url)
+        yield self._page
+
+    def fetch(self, url: str, body: bytes | None = None) -> bytes:
+        raise AssertionError("no fetch")
+
+
+@pytest.fixture
+def guard(monkeypatch):
+    """The drive guard on a PortPage is S4's (KAN-610). Until it lands there, a stand-in that blocks
+    nothing; the fake forms refuse every POST, and the submit-click hook still runs."""
+    if hasattr(PortContext, "on"):
+        return
+    class StandIn:
+        def __init__(self, page, **_):
+            pass
+        arm = lift = forget = let_account_click = lambda self: None
+        def blocked(self):
+            return []
+    monkeypatch.setattr(claude_fill, "DriveGuard", StandIn)
+    monkeypatch.setattr(rescue, "DriveGuard", StandIn)
+
+
+@needs_chrome
+@live_claude
+def test_claude_fill_reads_and_fills_a_form_with_no_filler_on_a_plain_worker_and_sends_nothing(worker, site, guard):
+    page = PortPage.first(worker.connection)
+    fill = claude_fill.ClaudeFill(ClaudeCLI())
+    questions = fill.question_set(f"{site.url}/posting", PlainSite(page))
+    by_label = {q.label.rstrip(" *"): q for q in questions}
+    assert {"First Name", "Last Name", "Email", "School", "Why Acme?"} <= set(by_label), [q.label for q in questions]
+    auth = next(q for q in questions if "authorized" in q.label)
+    answers = {by_label["First Name"].name: "Testy", by_label["Last Name"].name: "McTestface",
+               by_label["Email"].name: "testy@example.com", by_label["School"].name: "Stony Brook University",
+               auth.name: "Yes", by_label["Why Acme?"].name: "I like rovers."}
+
+    readback = fill.fill(page, questions, answers)
+
+    assert page.input_value("#fn") == "Testy" and page.input_value("#ln") == "McTestface"
+    assert page.input_value("#em") == "testy@example.com" and page.input_value("#school") == "Stony Brook University"
+    assert page.is_checked("input[name=auth][value=yes]") and page.input_value("#why") == "I like rovers."
+    assert readback, readback  # what Claude read back; the Pre-submit check judges it, as for any Filler
+    assert fill._submit_button.lower() == "submit application" and not site.posted
+    print(fill.usage(), readback)
+
+
+@needs_chrome
+@live_claude
+def test_a_rescue_fills_on_a_plain_worker_the_field_the_filler_could_not(worker, site, guard):
+    page = PortPage.first(worker.connection)
+    page.goto(f"{site.url}/rescue")
+    page.fill("#name", "Testy McTestface")
+    with pytest.raises(Exception) as failed:  # the Filler's own try: a <select> call on a listbox
+        page.get_by_role("combobox", name="Pronouns").select_option("they/them", timeout=1000)
+
+    helped = rescue.Rescue(ClaudeCLI())
+    done = helped.field(page, "Pronouns", "they/them", FillError(str(failed.value)))
+
+    assert done and page.evaluate("() => window.picked") == "they/them"
+    assert page.input_value("#name") == "Testy McTestface" and not page.evaluate("() => window.next")
+    assert helped.notes and not site.posted
