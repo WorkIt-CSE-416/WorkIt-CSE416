@@ -256,6 +256,10 @@ _Avoid_: manual application, custom link, add
 An Application Lisul submitted himself, outside Apply, that he adds to the Tracker by pasting a link to its Posting or to the page the employer showed after he submitted (`apply applied <link>`, or the box atop the Apply window's Answers tab). One Haiku call reads the company and role off the link and its page, and the row starts as submitted, dated that day, so the Repost check keeps Apply from applying to that Posting again.
 _Avoid_: manual application, logged application, self-apply
 
+**Regenerate**:
+Lisul's request that Claude write one of its answers on a held form again, with context he types. He presses "Add context and regenerate" beside the field, on the form or in the Apply window. His context joins the Story bank with the question it was for. Claude writes the answer by the usual essay path, and the answer replaces the field's value. An answer over the form's limit, or with a fact no source holds, stays off the form. Nothing is sent.
+_Avoid_: redo, rewrite, retry
+
 **Rescue**:
 Claude filling, live on the open form, one field a Filler's own code failed on (a FillError, or a click that timed out), so the Application goes on to the next step instead of failing. It runs under the drive guard, is read back and checked like any field, and leaves a Repair request so the Filler's code is fixed too. Workday's Filler has one.
 _Avoid_: fallback, live repair, retry
