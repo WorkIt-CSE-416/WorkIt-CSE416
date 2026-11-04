@@ -156,6 +156,10 @@ _Avoid_: question category, prompt kind, essay kind
 What one Essay will say, picked for the whole form before any is written: its Question type, the Story bank story it leads with, the Company brief fact it ties to him (if any), its angle (a point away from the typical applicant's answer), and its slots: the parts a great answer of that type holds (a claim, a decision and its reason, a result), each with the Story bank or Company brief lines that back it, quoted. An Essay says only what its slots' quotes back: a required slot with no backing becomes a Missing fact for Lisul, and an optional one (a lesson, a feeling, why he cared) is left out. Code checks every quote is word for word in the sources. No two essays on a form lead with the same story. A held row shows each essay's plan above its text.
 _Avoid_: outline, essay brief, strategy
 
+**Catch-all box**:
+An optional free-text question that asks for anything at all rather than one thing ("Additional information", "Anything else you'd like us to know?", "Comments", "Other information"), on any job system: the anything-else Question type on a question the form doesn't require. It stays blank unless Apply has something new (not on the resume, the form's other answers or the cover letter) and relevant to this employer and role (a project close to the job the resume leaves out, a link the form didn't ask for, an availability note the form never asked), said in at most two sentences. A blank one is blank on purpose: Verifying notes it, and it never reaches Needs you. The one exception to "a blank optional is a bug".
+_Avoid_: additional info field, comments box
+
 **High-stakes essay**:
 A required free-text answer that asks about this company specifically, asks for something beyond the resume, sits on a form that bans AI-written text (or whose Posting description or Company material does, if only by saying "Do not use AI."), or sits on an Ashby form (held in case Ashby flags AI-written text). Answers about projects, experience or courses drawn from the master resume are not high-stakes.
 _Avoid_: hard question, important essay

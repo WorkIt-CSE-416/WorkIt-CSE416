@@ -360,6 +360,8 @@ reads: it does not click, type or submit.
   not hold. The plan lists each field it leaves blank on purpose, with why
   (`Plan.blanks`: a duplicate "Other website", an "If other" follow-up to
   another pick, an optional fact the profile lacks); the note says why.
+  An optional catch-all box that Apply left blank on purpose
+  (`_Planned.kept_blank`, below) is a note too.
   An approved Hold is not held again by a flag; the read-back still holds
   it.
 - In the window, each flag shows with its field and why, and has its own
@@ -485,6 +487,28 @@ error shapes, and a killed `claude -p`. Run it with `-k`; it opens Chromium.
   the form and holds the Application (`gates.over_cap`). This applies to
   an essay that Lisul approved too. A form refuses a longer answer
   (MongoDB's 267-word letter, cap 260).
+- An optional catch-all box ("Additional information", "Anything else
+  you'd like us to know?", "Comments", "Other information": an
+  `anything-else` question that the form does not require,
+  `essays.catch_all`) stays blank unless Apply has something new and
+  relevant to say (Lisul, 2026-11-04). New: not on the resume PDF, in the
+  form's other answers or in its cover letter. Relevant: a project close to
+  the job that the resume leaves out, a link the form didn't ask for, or an
+  availability note the form never asked. The planner may give it no slots
+  and never asks Lisul for it (`check_plan`'s `blank_ok`, its asks
+  cleared), and the writer leaves it empty or writes at most two
+  sentences. The worker then checks the draft (`_Planned._kept_blank`,
+  `gates.nothing_new`): one that is over two sentences, says it needs
+  Lisul, or mostly repeats the resume or the form (`gates.MOSTLY` of its
+  stemmed words, or `gates.SOME` with a result the resume states, such as
+  2.75) is emptied. The field is then blank on purpose: it is in
+  `_Planned.kept_blank` with why, so Verifying notes it and does not hold
+  it, Needs you never asks it, and it gets no "Claude wrote nothing" or
+  High-stakes hold. A one-line catch-all box drafted as a one-off question
+  is checked the same way and is never put in the Answer bank. A required
+  catch-all box is still always answered, and every other optional
+  question too. Voleon's Ashby form showed why: its "Additional
+  information" got a Micromouse paragraph that repeated a resume bullet.
 - The names gate (`gates.traced`) checks each run of capitalized words
   against the essay's sources: the drafting prompt (Story bank, Stock
   answers, Company material with the Company brief, the posting) and the
