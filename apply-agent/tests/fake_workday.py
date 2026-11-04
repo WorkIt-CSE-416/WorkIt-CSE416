@@ -203,14 +203,14 @@ AUTH_SCRIPT = r"""
         .then(r => r.json()).then(r => show(r.error || r.notice, r.error ? 'error' : 'alert'));
       return;
     }
-    fetch('/__fake__/' + (creating ? 'create-account' : 'sign-in'), {
+    fetch('/__fake__/' + (creating ? 'register' : 'sign-in'), {
       method: 'POST',
       body: JSON.stringify({email: value('email'), password: value('password'), verify: value('verifyPassword'),
                             accepted: box ? box.checked : null, page: location.href}),
     }).then(r => r.json()).then(r => {
       if (r.next) location.href = r.next;
       else if (r.signIn) document.querySelector('[data-automation-id=signInLink]').click();  // a bare Sign In view
-      else show(r.error || r.notice, r.error ? 'error' : 'verify');
+      else if (!(creating && r.error && window.__fakeHidesErrors)) show(r.error || r.notice, r.error ? 'error' : 'verify');
     });
   }, true);
 })();
@@ -316,12 +316,16 @@ class FakeWorkdayServer:
     `review_delay`: seconds the Review step shows only a placeholder, and its
     Submit button, before its answers (NVIDIA's, live).
     `box_wiring`: seconds after a step shows before its checkboxes take a click.
-    `to_sign_in`: Create Account goes to a bare Sign In view, with no notice.
-    A tenant that verifies email makes the account and goes there by way of
-    its `/login/warning` page (Zillow's, live), which the Sign In view never
-    shows. Any other tenant makes no account (Northrop's, live).
+    `to_sign_in`: Create Account makes the account and goes to a bare Sign
+    In view, with no notice, as Workday's own code does on a success that
+    says isLoginRedirect (Visa's, Northrop's, live). A tenant that verifies
+    email goes there by way of its `/login/warning` page (Zillow's, Sonos's,
+    live), which the Sign In view never shows. Create Account is answered in
+    Workday's shape: `{"widget": "root"}` for an account made, `{"type":
+    "ERROR", "message": ...}` for a refusal.
     `exists_quietly`: Create Account for an email that has an account goes
-    to the bare Sign In view, with no error (ASML's, live)."""
+    to the bare Sign In view, with no error (ASML's, live). `hides_errors`:
+    Create Account's refusal is in Workday's answer only, never on the page."""
 
     def __init__(self, *forms: Path, keychain=None, mailbox: FakeMailbox | None = None,
                  verify_email: tuple[str, ...] = (), links_lost: bool = False,
@@ -331,7 +335,7 @@ class FakeWorkdayServer:
                  ignored_clicks: int = 0, went_wrong: int = 0, review_delay: float = 0,
                  drops_untouched: bool = False, flashes_error: bool = False,
                  dropped_saves: int = 0, box_wiring: float = 0, to_sign_in: bool = False,
-                 lost_picks: int = 0, exists_quietly: bool = False):
+                 lost_picks: int = 0, exists_quietly: bool = False, hides_errors: bool = False):
         self._responses: dict[str, tuple[int, str, bytes]] = {}
         redirects: dict[str, str] = {}
         for form in forms:
@@ -367,6 +371,7 @@ class FakeWorkdayServer:
         self._box_wiring = box_wiring
         self._to_sign_in = to_sign_in
         self._exists_quietly = exists_quietly
+        self._hides_errors = hides_errors
         # How many of the first saves hold none of the step's dropdown picks, though the page shows them
         # (ASML's Application Questions, live): the step is refused as missing them.
         self._lost_picks = lost_picks
@@ -406,6 +411,7 @@ class FakeWorkdayServer:
             context.add_init_script(f"window.__fakeFlashesError = {str(self._flashes_error).lower()}")
             context.add_init_script(f"window.__fakeDroppedSaves = {self._dropped_saves}")
             context.add_init_script(f"window.__fakeBoxWiring = {self._box_wiring}")
+            context.add_init_script(f"window.__fakeHidesErrors = {str(self._hides_errors).lower()}")
             context.add_init_script(AUTH_SCRIPT)
             if self._in_progress:
                 context.add_init_script(CONTINUE_SCRIPT)
@@ -455,11 +461,13 @@ class FakeWorkdayServer:
     def _fake(self, route: Route, host: str, path: str, query: dict) -> None:
         tenant = self._tenant(host)
         body = route.request.post_data_json if route.request.method == "POST" else None
-        if path == "create-account":
+        if path == "register":
             made = self._create_account(host, tenant, body)
             if self._to_sign_in and "notice" in made:
                 return route.fulfill(status=302, headers={"Location": f"https://{host}/__fake__/login/warning"})
-            return route.fulfill(json=made)
+            # Workday's shape: a refusal is a message of type ERROR; anything else is a root widget.
+            shape = {"type": "ERROR", "message": made["error"]} if "error" in made else {"widget": "root"}
+            return route.fulfill(json=made | shape)
         if path == "sign-in":
             return route.fulfill(json=self._sign_in(host, tenant, body))
         if path == "login/warning":
@@ -509,8 +517,6 @@ class FakeWorkdayServer:
             if self._exists_quietly:
                 return {"signIn": True}  # back to Sign In, and no word of the account it has
             return {"error": "An account with this email address already exists."}
-        if self._to_sign_in and not tenant.verify_email:
-            return {"signIn": True}  # back to Sign In, no account made
         kept = self._keychain.password(host) if self._keychain else None
         self.created.append({"host": host, "email": email, "password": password, "keychain": kept})
         tenant.accounts[email] = {"password": password, "verified": not tenant.verify_email}
@@ -518,6 +524,8 @@ class FakeWorkdayServer:
             if not self._links_lost:
                 self._send_link(host, email)
             return {"notice": f"A verification email was sent to {email}. Click the link in it to verify your account."}
+        if self._to_sign_in:
+            return {"signIn": True}  # made, and back to Sign In to sign in with it
         tenant.signed_in, tenant.posting = email, _posting(form["page"])
         return {"next": "/__fake__/apply/1"}
 
