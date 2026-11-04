@@ -624,6 +624,20 @@ on the fake Lever form (Hermeus) in Chromium; it opens a browser.
   frames (after one click on its Apply button outside any form) and sends an
   embedded Greenhouse, Lever or Ashby form to that system's Filler. Claude
   fill is only the fallback.
+- On a plain Worker (KAN-612; a PortPage, no CDP), `claude_cli.drive` gives
+  `claude -p` Apply's own MCP server under the same name, `playwright`
+  (`apply.plain.mcp`, a stdio relay, and `apply.plain.tools`, which runs
+  each tool on the page through the Worker's port). Its tools are Playwright
+  MCP's, by name and input (`apply/plain/mcp_tools.json`, from
+  @playwright/mcp@0.0.83's own list), so the prompts, `BROWSER_TOOLS`,
+  `NO_BROWSER_TOOLS` and the `send_click` hook don't change. Keep that file
+  in step with `PLAYWRIGHT_MCP` when the pin moves. Dialogs are answered as
+  they open (`browser_handle_dialog` sets the next answer), and a file is
+  attached only to a chooser a click opened and only from the drive's own
+  folder. The CDP-only calls and their stand-ins are listed in
+  `docs/plain-workers/PROTOCOL.md` ("Ops (S6)"). Test with
+  `tests/test_plain_claude.py`; its two real-Haiku tests run only with
+  `APPLY_LIVE_CLAUDE=1`.
 
 ## Captchas and bot blocks (KAN-527)
 

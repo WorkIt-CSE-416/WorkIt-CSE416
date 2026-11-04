@@ -145,6 +145,56 @@ Events (S2 sends these; later slices add their own):
 `{"event": "tab.created", "tab", "opener"}`, `{"event": "tab.removed", "tab"}`,
 `{"event": "navigated", "tab", "frame", "url"}` (committed).
 
+## Ops (S6: Claude fill and Rescue)
+
+KAN-612. In `worker-extension/ops/claude.js`, with `page/modal.js`. They serve Apply's MCP server
+(below); fixed functions through `chrome.scripting`, so no eval and no user scripts.
+
+| Op | Params | Value |
+|---|---|---|
+| `mcp.arm` | `tab` | `null`; registers `page/modal.js` as a content script (MAIN world, `document_start`, all frames, `<all_urls>`, not persisted) once per browser, and injects it into the tab's open frames |
+| `mcp.modal` | `tab`, `clear` (`["dialogs"]` default; `"chooser"` too to close the chooser) | `[{"frame", "dialogs": [{"type", "message", "accepted", "at"}], "chooser": {"token", "multiple", "accept", "at"} \| null}]`, one per frame that has `modal.js`; the dialogs are those answered since the last call that cleared them |
+| `mcp.answer` | `tab`, `accept`, `promptText?` | `null`; the answer to the next `alert`/`confirm`/`prompt` in any frame of the tab |
+
+`page/modal.js` answers each native dialog at once and records it: `confirm` and `prompt` are
+dismissed unless `mcp.answer` said otherwise (as Playwright dismisses a dialog no one handles).
+A file input that would open its picker (a click on it or its label, `input.click()`, or
+`showPicker()`) is recorded as the open chooser and marked `data-apply-chooser="<token>"`;
+`dom` `files` on `[data-apply-chooser="<token>"]` then sets its files. It adds no events of its own.
+
+### Apply's MCP server
+
+`claude_cli.drive` on a PortPage starts `apply.plain.tools.ToolServer` (a Unix socket of its own
+for that drive, 0600 in `/tmp/apply-<uid>/`, 0700) and gives `claude -p` this server as
+`playwright`: `python -I -m apply.plain.mcp --socket <path>`. That stdio process (stdlib only)
+answers `initialize` and `tools/list` itself (`apply/plain/mcp_tools.json`: @playwright/mcp@0.0.83's
+own schemas for `claude_cli.BROWSER_TOOLS`, nothing else) and sends each `tools/call` as one JSON
+line `{"name", "arguments"}` over the socket; Apply answers one line `{"content": [...], "isError"?}`.
+Tool names, inputs and the `mcp__playwright__` prefix are unchanged, so the prompts, the allowed
+and denied tool lists and the submit-click hook (`apply.send_click`) are too. A CDP Worker's drive
+is unchanged (Playwright MCP over `--cdp-endpoint`).
+
+Every CDP-only call Claude fill and Rescue made, and what stands in for it:
+
+| Today (Playwright MCP over CDP) | Plain Worker |
+|---|---|
+| `--cdp-endpoint` from `DevToolsActivePort` (`browsers.cdp_endpoint`) | the drive's ToolServer socket; no endpoint |
+| `browser_snapshot`: `_snapshotForAI` with `[ref=eN]`, iframes as `f<n>eN` | `dom` `aria` on `body` with `{mode: "ai"}` in each frame (Playwright's injected script); a child frame's refs are written `f<webNavigation frame id>eN` |
+| A ref resolved by the `aria-ref=eN` selector | the same selector through `dom`, in the ref's frame (the injected script keeps each frame's last snapshot) |
+| `browser_click` / `type` / `fill_form` / `select_option` / `hover`: CDP `Input.dispatchMouseEvent` / `insertText` (trusted) | `dom` `click` / `fill` / `type` / `check` / `select` / `hover` (synthetic). Only left clicks. |
+| `browser_press_key`: `Input.dispatchKeyEvent` | `dom` `keys` on the focused element |
+| `browser_handle_dialog`: `Page.javascriptDialogOpening` held open, answered by CDP | `page/modal.js` answers at once; `mcp.answer` sets the next answer; tool replies list answered dialogs under `### Modal state` |
+| `browser_file_upload`: `Page.setInterceptFileChooserDialog`, `fileChooserOpened`, `DOM.setFileInputFiles` | the chooser `modal.js` recorded, then `dom` `files` (DataTransfer); paths only inside the drive's folder |
+| `browser_navigate` / `navigate_back` | `tabs.goto` / `history.back()` |
+| `browser_tabs`: CDP targets | `tabs.query` / `tabs.create` / `tabs.activate` / `tabs.close` |
+| `browser_wait_for` | `dom` `state` on `get_by_text` (5 s, as Playwright MCP's), or a sleep of at most 30 s |
+| `browser_find` | a text or regex search of the snapshot above |
+
+Claude fill's and Rescue's own Python code runs on the PortPage like any Filler's. The
+CDP-only calls it reaches belong to other slices: the drive guard (`DriveGuard`:
+`context.add_init_script`, `context.on("console")`) is S4's, and `attach.attach_resume`'s
+`expect_file_chooser` is S3's.
+
 ## Adding ops in later slices (S3 to S7)
 
 - **Extension:** put each slice's ops in its own file, `worker-extension/ops/<slice>.js`,
@@ -238,6 +288,11 @@ connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),
 - **A stored extension service worker survives restarts**, so the launcher deletes the profile's
   `Default/Service Worker` folder before each start (an updated extension would run old code).
 - `--load-extension` works only in Chrome for Testing; branded Chrome needs the seed (`apply plain seed`).
+- **Dialogs are answered as they open** (S6). A plain Worker can't hold a native dialog open the way
+  CDP does, so `browser_handle_dialog` sets the answer to the next one; a dialog already answered
+  is shown in the tool's reply. `beforeunload` prompts can't be answered.
+- **Only the file inputs `modal.js` saw open a picker** take a `browser_file_upload`; an input made
+  in script and never attached to the page is missed.
 
 ## Demos
 
