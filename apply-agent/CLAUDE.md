@@ -663,6 +663,10 @@ passwords in Lisul's own Chrome (KAN-236).
   HTML, a JSON reply, a printed line, a Trace or a Record. Only the window's
   server reads it (`AccountsTab.copy`), and only to put it on the clipboard.
   Do not add a route, a field or a log line that carries it.
+- A password never goes in argv, which `ps` shows. `MacKeychain.save` sends
+  its command to `security -i` on stdin, then reads the item back, as
+  `security -i` exits 0 when a command fails. `password()` gets it on
+  stdout. Neither prints it or puts it in an error.
 - `GET /accounts`, `POST /accounts/copy {site}` and `POST /accounts/open
   {site}` check the window's token and Origin (`_Handler._from_window`), as
   the window's other routes do. Each route reads only a site in the Employer
