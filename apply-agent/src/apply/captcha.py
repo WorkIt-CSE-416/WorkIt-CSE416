@@ -35,17 +35,40 @@ PATHS = ("/recaptcha/",)
 SAYS_CAPTCHA = re.compile(r"captcha|not a robot|turnstile|cloudflare|verify (that )?you are (a )?human"
                           r"|verification required|slide (right|to)", re.IGNORECASE)
 
-# How a page that blocks the browser words it, as Claude fill's Claude reads it: no challenge to solve.
-SAYS_BLOCKED = re.compile(r"access denied|you don'?t have permission to access", re.IGNORECASE)
+# Bot blocks: how each page that refuses Apply's Chrome words it. Nothing on it is Lisul's to solve, so it is
+# a Handoff at once, to his own Chrome, and never a wait or a retry (KAN-590).
+BLOCKS = (
+    # DataDome's block, in its captcha-delivery frame (LinkedIn's SmartRecruiters form, 2026-11-03).
+    r"we detected unusual activity from your device or network",
+    # Lever, when its invisible hCaptcha turns the sent form down (Simbe Robotics, 2026-11-03).
+    r"there was an error verifying your application",
+    # Akamai's "Access Denied" (Tesla, 2026-11-03).
+    r"you don'?t have permission to access",
+)
+BLOCK = re.compile("|".join(BLOCKS), re.IGNORECASE)
+# How Claude fill's Claude words a bot block: the pages' own words, or Tesla's title.
+SAYS_BLOCKED = re.compile("|".join((*BLOCKS, r"access denied", r"unusual activity")), re.IGNORECASE)
 
 
 def shows(page: Page) -> bool:
-    """Whether the page shows a captcha's challenge now. A page that is gone shows none."""
+    """Whether the page shows a captcha's challenge now. A page that is gone
+    shows none, and a bot block (DataDome's, in the same frame) is none."""
     try:
         challenge = page.locator(CHALLENGE)
-        return any(challenge.nth(i).is_visible() for i in range(challenge.count()))
+        return any(challenge.nth(i).is_visible() for i in range(challenge.count())) and not blocks(page)
     except Exception:
         return False
+
+
+def blocks(page: Page) -> str:
+    """The words of a bot block that the page or one of its frames shows, else ""."""
+    for frame in page.frames:
+        try:
+            if found := BLOCK.search(frame.locator("body").inner_text(timeout=1000)):
+                return found[0]
+        except Exception:
+            continue  # a frame loading, or gone
+    return ""
 
 
 # A bot block's Handoff: plain words, as Lisul asked for Tesla's.

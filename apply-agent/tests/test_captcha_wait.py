@@ -128,3 +128,47 @@ def test_neither_guard_stops_lisul_doing_the_captcha_in_its_frame(guarded):
 
     assert posted == ["https://geo.captcha-delivery.com/contact-human"]
     assert blocked == []
+
+
+# Bot blocks (KAN-590): pages that refuse the Worker's Chrome, with nothing for Lisul to solve there.
+BLOCK_PAGES = {
+    # DataDome's block, in its frame on LinkedIn's SmartRecruiters form (2026-11-03).
+    "datadome": ("frame", "<p>We detected unusual activity from your device or network.</p>"),
+    # Lever's notice when its hCaptcha turns the sent form down (Simbe Robotics, 2026-11-03).
+    "lever": ("page", '<div class="application-error">There was an error verifying your application. '
+                      "Please try again.</div>"),
+    # Tesla's careers page (2026-11-03).
+    "tesla": ("page", "<h1>Access Denied</h1><p>You don't have permission to access this server.</p>"),
+}
+
+
+@pytest.mark.parametrize("site", BLOCK_PAGES)
+def test_a_bot_block_page_is_a_block_and_no_captcha_to_wait_for(site):
+    from apply import captcha
+
+    where, body = BLOCK_PAGES[site]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        try:
+            page = browser.new_page()
+            page.route("**/*captcha-delivery.com/**", lambda route: route.fulfill(content_type="text/html", body=body))
+            page.route("https://jobs.example.com/**", lambda route: route.fulfill(
+                content_type="text/html", body=body if where == "page" else "<p>Apply</p>"))
+            page.goto("https://jobs.example.com/apply")
+            if where == "frame":
+                page.evaluate("""() => { const f = document.createElement('iframe');
+                    f.src = 'https://geo.captcha-delivery.com/captcha/?initialCid=fake'; document.body.appendChild(f); }""")
+                page.wait_for_timeout(1000)
+            said, shows = captcha.blocks(page), captcha.shows(page)
+        finally:
+            browser.close()
+
+    assert said and said in body
+    assert not shows
+
+
+def test_a_form_page_is_no_bot_block(page):
+    from apply import captcha
+
+    page.set_content("<form><label>Name <input></label><button>Submit application</button></form>")
+    assert captcha.blocks(page) == ""
