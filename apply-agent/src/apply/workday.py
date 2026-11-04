@@ -395,16 +395,16 @@ class WorkdayFiller:
         a new one goes to Keychain first, then Forgot your password? mails a
         reset link (read from Gmail, to this tenant's host or Workday's), whose
         page takes the new password; then Apply signs in with it. Should the
-        reset not finish, that password is never tried (a sign-in failure)."""
+        reset not finish, that password is never tried (a sign-in failure). Both
+        forms go through _send, since Workday may drop a click that comes
+        straight after typing (Visa's and Northrop's, live)."""
         password = self._accounts.reset_password(site)  # in Keychain; a rehearsal or no Gmail stops here
         form = _auth_form(page, "signInLink", create=False)
         page.locator("[data-automation-id=forgotPasswordLink]").click()
         _until(page, lambda: form.locator("[data-automation-id=resetPasswordButton]").count() > 0)
         _type(form, {"email": self._accounts.login})
-        send = form.locator("[data-automation-id=click_filter]")
         since = self._accounts.clock.now()
-        send.click()
-        if _until(page, lambda: _error(page) and "error" or _alert(page) and "sent") == "error":
+        if _send(page, form, lambda: _error(page) and "error" or _alert(page) and "sent") == "error":
             raise self._accounts.sign_in_failed(site, f"Workday wouldn't reset the password: {_error(page)}")
         try:
             link = self._accounts.link(MAIL_SEARCH, since, self._link_hosts())
@@ -414,8 +414,8 @@ class WorkdayFiller:
         form = page.locator("[data-automation-id=signInFormo]")
         form.locator("[data-automation-id=verifyPassword]").wait_for(timeout=TIMEOUT * 1000)
         _type(form, {"password": password, "verifyPassword": password})
-        form.locator("[data-automation-id=click_filter]").click()
-        if _until(page, lambda: _error(page) and "error" or _alert(page) and "reset") == "error":
+        # Workday may answer a reset with its notice or by going back to Sign In (Northrop's, live).
+        if _send(page, form, lambda: _error(page) and "error" or (_alert(page) or _sign_in_view(page)) and "reset") == "error":
             raise self._accounts.sign_in_failed(site, f"Workday refused the new password: {_error(page)}")
         self._accounts.created(site)  # Apply holds its password now: list it
         page.goto(self._url)
