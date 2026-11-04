@@ -347,7 +347,13 @@ Worker forward except Lisul's own Show (`PlainWorkers.show`): no `chrome.windows
 true})`, no AppleScript focus, no full-screen. Tests use one Worker, shared by the module, and stop it
 when they end.
 
-`policies.yaml: worker_mode: cdp|plain` (default `cdp`) is read by S8's routing; S1 only adds the key.
+`policies.yaml: worker_mode: cdp|plain|protected` (default `cdp`) picks the Worker for each form (S8,
+`apply.plain.site`): `plain` puts every form on a plain Worker (`PlainSite`), `protected` only those on
+`plain_worker_hosts` (Lever, SmartRecruiters, Workable) and on each host a bot block was seen on
+(`APPLY_HOME/plain-hosts.json`, written by `captcha.blocked`), the rest on CDP Workers (`RoutedSite`).
+`PlainSite.open` keeps a Worker's Chrome up across the Applications it carries: on reuse it calls
+`guards.reset(worker)` and closes the last one's tabs; after each it leaves one blank tab, so the window
+stays. `close()` stops every Chrome it started, by PID, when the run or rehearsal ends.
 
 ## Known limits (found in S1/S2, on Chrome for Testing 156)
 
@@ -362,6 +368,8 @@ when they end.
 - **A stored extension service worker survives restarts**, so the launcher deletes the profile's
   `Default/Service Worker` folder before each start (an updated extension would run old code).
 - `--load-extension` works only in Chrome for Testing; branded Chrome needs the seed (`apply plain seed`).
+- **Claude fill and Rescue** need S6's MCP server (`apply.plain.tools`). Until it is merged, a plain page
+  that needs either is a Handoff that says so (`claude_fill.refuse_plain`, a TODO for KAN-612).
 
 - **Guards (S4).** A rule can't fulfill or modify a request, only block it, so `route` takes only
   `submit_guard._refuse`. Rules are tab-scoped; a tab a guarded tab opens joins its rules a moment
