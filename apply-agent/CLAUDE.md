@@ -617,28 +617,43 @@ Claude stops at one (`SAYS_CAPTCHA`).
   The fake's `google="passkey"` plays it.
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
-- Some Workday tenants answer Create Account with their bare Sign In view,
-  and show no notice (Northrop's and Zillow's, live). A tenant that mails a
-  link goes there by way of `/login/warning` (Zillow's), so
-  `WorkdayFiller._create_account` watches the requests for that page and
-  then waits for the link. A bare Sign In view with no such page, or no
-  answer at all after the form was sent (`_send(unanswered=...)`), may mean
-  Workday made no account (Northrop's, live) or that one exists already
-  (ASML's, live, made with Google). Workday answers both alike: the same
-  Sign In page, and no error status on the request (the Trace shows none).
-  So a run resets the password once (`WorkdayFiller._may_exist`): the new
-  password goes to Keychain first, then one Forgot your password?, and the
-  link from Gmail; a reset that does not finish forgets the password.
-  This holds on a tenant that offers Google too (Lisul, 2026-11-03). A
-  rehearsal resets nothing: it forgets the new password and stops with
-  `workday.MAY_EXIST` (`Accounts.rehearsal`). The fake's `exists_quietly`
-  plays ASML's flow. A
-  sign-in that Workday refuses because the account is not verified is a
-  Needs sign-in Handoff, not a failed password. First, Apply looks once in
-  Gmail for the link Workday mailed (to the tenant's own host, within a
-  day) when an earlier run made the account (Zillow's, live). It opens that
-  link once and never asks for a new one. The fake Workday's
-  `to_sign_in` plays this flow (`tests/test_employer_accounts.py`).
+- Workday's Create Account is a `POST <site>/register` that answers JSON
+  (Workday's cx-jobs code, 2026.44). A refusal is `{"type": "ERROR",
+  "message": ...}`. A made account is a root (or redirect) widget. Then
+  Workday's own code loads `<site>/login`, its bare Sign In view, when the
+  tenant verifies email or the answer says `isLoginRedirect` (Visa's,
+  Northrop's, ASML's, live, 2026-11-03: no reCAPTCHA or Arkose loaded, and
+  no error status). Its `infoText` waits in sessionStorage for that page.
+  So the bare Sign In view means the account was made, never "not made".
+  `WorkdayFiller._create_account` reads the answer (`_register_answer`)
+  and puts its shape in the Trace (`create_account`). A refusal that only
+  the answer has is handled as a shown one.
+- After that Sign In view, Apply signs in once with the new password
+  (`_password(made_since=...)`). Signed in, the account is listed. A
+  refusal because the account is not verified waits for the mailed link.
+  Any other refusal means an account was there already: Workday answers
+  that email as it answers a new account (ASML's, live). Then a run resets
+  the password once (`WorkdayFiller._may_exist`): the new password goes to
+  Keychain first, then one Forgot your password?, and the link from Gmail;
+  a reset that does not finish forgets the password. This holds on a
+  tenant that offers Google too (Lisul, 2026-11-03). A rehearsal resets
+  nothing: it forgets the new password and stops with `workday.MAY_EXIST`
+  (`Accounts.rehearsal`). No answer at all after the form was sent
+  (`_send(unanswered=...)`) goes to `_may_exist` too.
+- A tenant that mails a link goes to Sign In by way of `/login/warning`
+  (Zillow's, Sonos's), so `_create_account` watches the requests for that
+  page and then waits for the link. A sign-in that Workday refuses because
+  the account is not verified is a Needs sign-in Handoff, not a failed
+  password. First, Apply looks once in Gmail for the link Workday mailed
+  (to the tenant's own host, within a day) when an earlier run made the
+  account (Zillow's, live). It opens that link once and never asks for a
+  new one. The fake Workday's `to_sign_in`, `exists_quietly` and
+  `hides_errors` play these flows (`tests/test_employer_accounts.py`).
+- In its Sign in with email view, Workday names the auth button "Submit"
+  (Sonos's, live). A rehearsal's guard blocks a button that says submit,
+  so `workday._send` sets `window.__applyAccountClick` for its own click.
+  The guard then lets a click or submit in a form with a password box go
+  through. No application's final button is in such a form.
 - Apply asks a site for a verification code or link once per sign-in and
   never clicks Resend or Send New Code (`accounts.Accounts._wait`): a mail
   that hasn't come in about 2 minutes goes to Needs you ("Type the emailed

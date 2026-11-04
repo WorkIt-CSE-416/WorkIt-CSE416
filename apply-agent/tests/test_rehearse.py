@@ -264,6 +264,20 @@ def test_a_workday_rehearsal_whose_create_account_goes_back_to_sign_in_resets_no
     assert server.resets == [] and world.keychain.password(CACI) is None
 
 
+def test_a_workday_rehearsal_whose_create_account_goes_to_the_bare_sign_in_view_signs_in_and_stops_unsent(monkeypatch):
+    # Visa's tenant (live, 2026-11-03): Workday made the account, then loaded its bare Sign In view.
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    world = World()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, to_sign_in=True) as server:
+        [done] = rehearse([CACI_URL], server, world.profile, keychain=world.keychain, mailbox=world.mailbox)
+
+    assert done.outcome == "ready to submit", done.why
+    [made] = server.created
+    assert world.keychain.password(CACI) == made["password"]
+    assert server.sign_ins == [(CACI, "test.person@example.com", True)] and server.submissions == []
+
+
 def test_a_workday_rehearsal_makes_an_employer_account_reads_its_link_from_gmail_and_stops_unsent(monkeypatch):
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
     world, tracker = World(), InMemoryTracker()
