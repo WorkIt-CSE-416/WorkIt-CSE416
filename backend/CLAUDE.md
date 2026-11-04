@@ -15,6 +15,13 @@ imports none of its code.
 package: a library with no database or HTTP of its own, handed everything by
 `routers/scout.py`. Read `../scout/CLAUDE.md` before touching Scout.
 
+**The second exception is `../scraper/`**, installed as `workit-scraper`
+(KAN-605): `app/scraper/worker.py` calls provider readers through
+`asyncio.to_thread` to scrape boards into Postgres-backed observations. The
+scraper stays stdlib-only; the backend uses it as a library. Three tables
+(`scraper_schedules`, `scraper_tasks`, `scraper_observations`) track board
+catalogs, task leasing and per-posting versioned state.
+
 **Not PostgREST, deliberately.** Queries go to Postgres directly over asyncpg,
 because the job search needs ltree containment and trigram ranking, which
 PostgREST's filter syntax expresses badly. `supabase-py` is installed only for
@@ -44,6 +51,7 @@ uv run python -m app.scripts.fill_report <id>   a fill report's fix brief + form
 uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  a student's Apply data folder ($APPLY_HOME, else ~/.config/apply) into WorkIt (--dry-run rolls back; local DB only; app/models/CLAUDE.md, "The Fill engine's profile")
 uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
+uv run python -m app.scripts.scrape_worker   one scraper worker cycle: sync catalog, claim boards, scrape, checkpoint (--dry-run shows what it would do)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 

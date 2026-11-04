@@ -20,6 +20,11 @@ buffers output sent to a file, and the log stays empty until the run ends. A
 full run takes about 10 minutes. `--offline` re-renders in seconds from
 `jobs.json` with no network, but finds no new facts (see Card facts).
 
+**The backend installs this package as `workit-scraper`** (`backend/pyproject.toml`,
+`[tool.uv.sources]`), so `app/scraper/worker.py` calls provider readers through
+`asyncio.to_thread`. The scraper stays stdlib-only; the backend uses it as a
+library. A change to a provider's reader signature would break the worker.
+
 ## How it fits together
 
 ```
