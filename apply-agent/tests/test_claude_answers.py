@@ -356,6 +356,22 @@ def test_an_essay_over_its_word_cap_is_rewritten_once_and_if_still_over_held_off
     assert form.submitted == []
 
 
+def test_an_essay_over_its_default_length_the_editor_left_long_is_cut_once_more(monkeypatch):
+    # Bedrock's (Ashby, live 2026-11-04): a 132-word answer, where its type allows 120 and the form states no
+    # limit, went on the form after the editor's passes left it long; only a word or character cap was re-cut.
+    # This question's "2-3 sentences" was not one either.
+    form = ResearchForm("Northwood Space")
+    long = " ".join(["He wrote the firmware for the maze robot and tested it on the real maze."] * 40)
+    claude = FakeClaude(essays={PROJECT: long}, repairs={"He wrote": f"{long} He kept going."})
+
+    row = run(monkeypatch, form, claude)
+
+    recut = [c for c in claude.calls if "edited" in c["schema"]["properties"] and essays.CUT in c["prompt"]]
+    assert len(recut) == 1 and essays.SHORTER not in recut[0]["prompt"]  # no word or character cap: not refused
+    assert re.search(r"too long: \d+ sentences, the most is 3", row.reason)  # still long: held with its check
+    assert form.submitted == []
+
+
 def test_a_required_cover_letter_is_written_and_attached_as_a_file(monkeypatch):
     form = ResearchForm("Varda Space")
     letter = "I build software that has to work the first time, like the adapters I wrote at Hitachi Rail."
