@@ -46,12 +46,14 @@ from collections.abc import Callable
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Protocol, Self
+from typing import TYPE_CHECKING, Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
 from apply import bot_signals, captcha, dock_app
 from apply.answers_tab import AnswersTab, Refused
 from apply.dashboard_page import (
+    ACCOUNTS,
+    ACCOUNTS_TAB,
     ANSWERS,
     APPLIED,
     HISTORY,
@@ -64,6 +66,10 @@ from apply.dashboard_page import (
 from apply.focus import KEEPER
 from apply.model import one_line
 from apply.tracker import cell_options
+
+if TYPE_CHECKING:
+    # The Accounts tab imports the adapters, which import this module.
+    from apply.accounts_tab import AccountsTab
 
 JPEG_QUALITY = 70
 MODIFIERS = ("Alt", "Control", "Meta", "Shift")
@@ -478,8 +484,9 @@ class Dashboard:
                  answer: Callable[[dict, str, str], str] | None = None,
                  notify: Callable[[str, str], None] | None = None, show: Callable[[int], bool] | None = None,
                  sample: bool = False, approve: Callable[[str], str] | None = None,
-                 everyday: Callable[[str], None] | None = None):
+                 everyday: Callable[[str], None] | None = None, accounts: "AccountsTab | None" = None):
         self._workers = workers
+        self.accounts = accounts  # the Accounts tab: each Employer account, its password only in Keychain
         self._sample = sample
         self._frames = frames
         self.answers = answers
@@ -522,6 +529,8 @@ class Dashboard:
     def __exit__(self, *exc) -> None:
         self._server.shutdown()
         self._server.server_close()
+        if self.accounts:
+            self.accounts.close()  # a password copied less than a minute ago leaves the clipboard
         self._quit_window()  # its page has no server now: a window left open shows a dead run
 
     def _quit_window(self) -> None:
@@ -800,7 +809,9 @@ class Dashboard:
         return PAGE.replace("{columns}", str(columns)).replace("{rows}", str(rows)) \
             .replace("{workers}", str(self._workers)).replace("{tiles}", tiles) \
             .replace("{tabs}", TABS.replace("{answers_tab}", ANSWERS_TAB if self.answers else "")
+                     .replace("{accounts_tab}", ACCOUNTS_TAB if self.accounts else "")
                      .replace("{sample}", SAMPLE if self._sample else "")) \
+            .replace("{accounts}", ACCOUNTS if self.accounts else "") \
             .replace("{inbox}", INBOX.replace("{words}", json.dumps(WORDS))).replace("{closing}", self.token) \
             .replace("{answers}", answers).replace("{history}", history).replace("{style}", STYLE)
 
@@ -872,6 +883,10 @@ class _Handler(BaseHTTPRequestHandler):
             return self._all_frames()
         if path == "/answers" and self.dashboard.answers:
             return self._json(200, self.dashboard.answers.view())
+        if path == "/accounts" and self.dashboard.accounts:
+            if not self._from_window():
+                return self._json(403, {"error": "Only the Apply window may list your accounts."})
+            return self._json(200, self.dashboard.accounts.view())
         if path.startswith("/stream/"):
             return self._stream(int(path.removeprefix("/stream/")))
         if path.startswith("/file/"):
@@ -901,6 +916,10 @@ class _Handler(BaseHTTPRequestHandler):
             return self._resume()
         if parts.path == "/everyday" and self.dashboard.everyday:
             return self._everyday()
+        if parts.path == "/accounts/copy" and self.dashboard.accounts:
+            return self._account("copy a password", self.dashboard.accounts.copy)
+        if parts.path == "/accounts/open" and self.dashboard.accounts:
+            return self._account("open your Chrome", self.dashboard.accounts.open_sign_in)
         if parts.path.startswith("/show/") and self.dashboard.show:
             return self._show(parts.path.removeprefix("/show/"))
         if parts.path.startswith("/answers/") and self.dashboard.answers:
@@ -951,6 +970,12 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json(404, {"error": "That file is gone."})
         subprocess.run(["open", "-R", str(listed)], check=False)
         self._send(204, "text/plain", b"")
+
+    def _from_window(self) -> bool:
+        """Whether a request comes from the window's own page: its token, which no other site can read, and no
+        other site's Origin."""
+        token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+        return hmac.compare_digest(token.encode(), self.dashboard.token.encode()) and origin in (None, self.dashboard.url)
 
     def _own_host(self) -> bool:
         """Whether the request names this server as it is: another site's name
@@ -1160,6 +1185,23 @@ class _Handler(BaseHTTPRequestHandler):
         print(f"Opened {item['posting_url']} in your Chrome, as you asked in the window")
         self._json(200, {"message": f"Opened {item.get('company') or 'the posting'} in your Chrome: "
                                     "the extension fills it there."})
+
+    def _account(self, does: str, press: Callable[[object], str]) -> None:
+        """Lisul pressed Copy password or Open sign-in page on an account in the Accounts tab (KAN-591). A password
+        goes only to the clipboard: the reply, and the line printed, never hold it."""
+        if not self._from_window():
+            return self._json(403, {"error": f"Only the Apply window may {does}."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            site = body["site"]
+        except (ValueError, KeyError, TypeError):
+            return self._json(400, {"error": "Not an account."})
+        try:
+            message = press(site)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Accounts tab, {site}: {message}")
+        self._json(200, {"message": message})
 
     def _in_place(self, item: dict, key: str, question: str, answer: Path | None, message: str) -> None:
         """An answer for this form alone, not saved to his facts: a file to attach, or None for an

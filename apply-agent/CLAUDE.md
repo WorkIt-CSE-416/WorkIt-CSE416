@@ -7,7 +7,7 @@ Loaded on top of the root `../CLAUDE.md` when you work in `apply-agent/`.
 Apply is a command-line agent that applies to job postings for one person.
 It reads a job posting, fills the application form in Chrome through the
 Fill engine, writes the answers and essays with Claude, and shows the Apply
-window (Start, Needs you, Answers). A rehearsal fills the form and never
+window (Start, Needs you, Answers, Accounts). A rehearsal fills the form and never
 submits. It runs on the person's own Mac, with their own Chrome and their
 own Claude Code login. It is a developer and power-user tool, not a student
 feature: students apply through the extension and the connector (KAN-369).
@@ -677,6 +677,52 @@ Claude stops at one (`SAYS_CAPTCHA`).
 - `kill <pid>` (SIGTERM) stops Apply as Ctrl-C does: the Worker browsers
   and the window close. Ctrl-C does not reach Apply when it runs in the
   background, so use SIGTERM there.
+
+## The Accounts tab: Copy password and Open sign-in page (KAN-591)
+
+`src/apply/accounts_tab.py`. The tab lists each Employer account in the
+Tracker (`employer_accounts()`), newest first: company, site, login and the
+date Apply made it. Lisul uses it to sign in himself later, for example to
+check an application's status. It is step 1 of the plan for Apply's
+passwords in Lisul's own Chrome (KAN-236).
+
+- **A password stays in Keychain.** It is never in the page, the window's
+  HTML, a JSON reply, a printed line, a Trace or a Record. Only the window's
+  server reads it (`AccountsTab.copy`), and only to put it on the clipboard.
+  Do not add a route, a field or a log line that carries it.
+- A password never goes in argv, which `ps` shows. `MacKeychain.save` sends
+  its command to `security -i` on stdin, then reads the item back, as
+  `security -i` exits 0 when a command fails. `password()` gets it on
+  stdout. Neither prints it or puts it in an error.
+- `GET /accounts`, `POST /accounts/copy {site}` and `POST /accounts/open
+  {site}` check the window's token and Origin (`_Handler._from_window`), as
+  the window's other routes do. Each route reads only a site in the Employer
+  accounts list, so the page cannot name any other Keychain item.
+- Copy password: `MacClipboard` writes NSPasteboard through `osascript -l
+  JavaScript` (JXA, no new dependency). The password goes on stdin, never
+  in argv, which `ps` shows. It is written as `NSPasteboardTypeString` with
+  the markers `org.nspasteboard.ConcealedType` and
+  `org.nspasteboard.TransientType` (nspasteboard.org), so clipboard managers
+  (Maccy, Paste, Raycast, Alfred, 1Password) skip it and keep no history of
+  it. After 60 s (`CLEAR_AFTER`) the tab clears the clipboard, but only if
+  its `changeCount` is still the one after its own write: anything copied
+  since stays. The tab keeps that count, not the password. When the window
+  closes (`Dashboard.__exit__`), a password still on the clipboard is
+  cleared at once. An app that reads the clipboard itself can still read it
+  in that minute.
+- Open sign-in page: the newest Posting of that site in the Tracker, opened
+  in Lisul's everyday Chrome with `open -a "Google Chrome"`
+  (`captcha.to_everyday_chrome`), never over DevTools. Workday's job page has
+  Sign In in its header. With no Posting, the site's home page.
+- With no Keychain password (an account made with Google), Copy password
+  says so (404) and the clipboard does not change.
+
+**Tests.** `tests/test_accounts_tab.py` (in CI, no browser) uses
+`InMemoryKeychain`, a fake clipboard and a fake runner for `MacClipboard`.
+Never read a real Keychain password in a test, and never write the real
+clipboard: to try the JXA, pass `MacClipboard("<a pasteboard name>")`. `tests/test_dashboard.py -k
+accounts_tab` clicks the tab in Chromium and checks that the page's HTML
+has no password.
 
 ## Rehearsal records
 

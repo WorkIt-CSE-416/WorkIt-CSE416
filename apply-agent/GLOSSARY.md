@@ -141,7 +141,7 @@ A Worker's own browser profile that persists between runs and stays signed in to
 _Avoid_: session, browser, Chrome profile
 
 **Apply window**:
-The one window where Lisul watches every Worker live (a tile each), reads and edits his answers (the Answers tab) and pastes his Own applications (atop that tab), opened by a run or rehearsal, `apply watch` or `apply answers`. On the Mac it is its own app, Apply (~/Applications/Apply.app), in the Dock: click it to bring the window forward, Quit or close the window to end it, and keep it in the Dock to open it again.
+The one window where Lisul watches every Worker live (a tile each), reads and edits his answers (the Answers tab), signs in to his Employer accounts (the Accounts tab) and pastes his Own applications (atop that tab), opened by a run or rehearsal, `apply watch` or `apply answers`. On the Mac it is its own app, Apply (~/Applications/Apply.app), in the Dock: click it to bring the window forward, Quit or close the window to end it, and keep it in the Dock to open it again.
 _Avoid_: dashboard, Chrome window
 
 **Essay**:
@@ -225,7 +225,7 @@ The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads
 _Avoid_: validation, QA, double-check
 
 **Employer account**:
-A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google. On Workday, the system creates one even when the site offers Sign in with Google, unless Lisul's policies say `workday_sign_in: google`.
+A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google. On Workday, the system creates one even when the site offers Sign in with Google, unless Lisul's policies say `workday_sign_in: google`. Its password is only in the macOS Keychain. The Accounts tab of the Apply window lists each one. Copy password puts the password on the clipboard for 60 s, and Open sign-in page opens the site in Lisul's own Chrome.
 _Avoid_: ATS account, candidate account
 
 **Not eligible**:
