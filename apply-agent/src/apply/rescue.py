@@ -22,7 +22,7 @@ from pathlib import Path
 from playwright.sync_api import Page
 
 from apply.adapters import Claude
-from apply.claude_fill import BLOCKED, MODEL, REPORTED, RULES, refuse_plain
+from apply.claude_fill import BLOCKED, MODEL, REPORTED, RULES
 from apply.model import Handoff, one_line
 from apply.submit_guard import DriveGuard
 
@@ -62,7 +62,6 @@ class Rescue:
         if self._tried >= self._max_fields:
             return False
         self._tried += 1
-        refuse_plain(page, "Rescue")  # TODO(KAN-612): gone once S6's MCP server is in
         if self._guard is None:
             self._guard = DriveGuard(page, **self._opt_ins)
         was_blocked = len(self._guard.blocked())

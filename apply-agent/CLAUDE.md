@@ -1174,9 +1174,9 @@ What changes on a plain Worker:
   (`stuck.field_error(page)`) on the window's own thread.
 - **Go to question never raises a plain Worker** (`Dashboard(quiet=site.plain)`). It scrolls and
   focuses the field, and the tile shows it. Only Lisul's own Show brings the window forward.
-- **Claude fill and Rescue** wait on S6 (KAN-612). Until S6's MCP server is merged, a plain page that
-  needs either is the usual Handoff, and its reason says so (`claude_fill.refuse_plain`). Delete
-  that check once `apply.plain.tools` exists.
+- **Claude fill and Rescue** run on a plain Worker as on a CDP one: `claude_cli.drive` gives Claude
+  Apply's own MCP server (S6, KAN-612) when the page is a PortPage, so a run or rehearsal in `plain`
+  or `protected` mode needs no other wiring.
 - **The production seed.** `uv run apply plain seed` opens branded Chrome on `APPLY_PROFILES/plain-seed`
   and prints Lisul's four steps: Developer mode, Load unpacked with the worker extension's folder,
   Details, Allow User Scripts, then quit (`launcher.seed_steps`). `plain_chrome: chrome` (the

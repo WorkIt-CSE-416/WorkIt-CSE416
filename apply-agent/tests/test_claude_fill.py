@@ -23,12 +23,11 @@ from test_run_answers import profile_with
 
 from apply import claude_fill
 from apply.adapters import Adapters, UsageLimitHit
-from apply.claude_fill import FILL, NO_CLAUDE_ON_PLAIN, ClaudeFill, refuse_plain
+from apply.claude_fill import FILL, ClaudeFill
 from apply.cli import main
 from apply.feed import SimplifyFeed
 from apply.model import Handoff
 from apply.notify import RecordingNotifier
-from apply.plain.page import PortPage
 from apply.records import InMemoryRecords
 from apply.tracker import InMemoryTracker, Row
 
@@ -1102,11 +1101,3 @@ def test_a_rehearsal_at_a_bot_block_waits_for_lisuls_press_to_open_his_chrome(tm
     assert done.outcome == "handoff" and "Finish Lunar Outpost in your Chrome" in done.why
     assert board.captions[0]["blocked"] is True and "resume" not in board.captions[0]
     assert opened == []
-
-
-def test_claude_fill_or_rescue_on_a_plain_page_is_a_handoff_until_s6():
-    # TODO(KAN-612): once S6's MCP server (apply.plain.tools) is in, a plain page drives as a CDP one.
-    with pytest.raises(Handoff, match="^Rescue doesn't run on plain Workers yet"):
-        refuse_plain(PortPage.__new__(PortPage), "Rescue")
-    refuse_plain(object())  # a CDP Worker's page drives as before
-    assert NO_CLAUDE_ON_PLAIN.format("Claude fill").startswith("Claude fill doesn't run on plain Workers yet")
