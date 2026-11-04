@@ -278,6 +278,23 @@ of the router so the router stays the HTTP layer. Two extractors:
 - **`extract_pdf_text`** -- pypdf with two modes: layout (glyph positions) and
   plain (content-stream order). Picks the winner by comparing section header
   counts, with a median-words-per-line guard against fragmented output.
+- **A visible gap between two words is a space** (KAN-303,
+  `services/pdf_spaces.py`). A PDF shows a space as a character or as a gap,
+  and pypdf dropped some gaps, so "scanning 2,000+" read "scanning2,000+".
+  Layout mode rounds a gap to whole spaces (under half is none), plain mode
+  spaces a TJ kern only from half a space, and neither moves past a run shown
+  before a font change or a new TJ array, so the gap after it is measured
+  from the wrong place. `glued_pairs` walks each page's runs itself (pypdf's
+  layout-mode text state, a private API that `tests/test_pdf_spaces.py`
+  checks) and lists each word pair a gap of `GAP_EM` (0.08 em) or more
+  separates on one baseline; `restore_spaces` adds a space wherever either
+  mode's text has that pair glued. It only adds spaces, never moves text,
+  and a walk that fails changes nothing. LaTeX (Tectonic) and Chrome PDFs
+  already kept every space and read the same; no real failing PDF was found,
+  so the cases are hand-built PDFs. **Ceilings:** text inside a Form
+  XObject is not walked, and a pair is fixed everywhere it appears glued on
+  that page. A re-upload of a resume this fixes has a new `text_hash`, so
+  the duplicate check lets it through once.
 - **`extract_docx_text`** -- python-docx, iterating paragraphs and tables in
   document order. Restores bullet markers that Word stores as numbering
   properties. Deduplicates merged table cells.
