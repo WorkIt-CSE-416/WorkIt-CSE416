@@ -134,4 +134,11 @@ Never a website guessed from a name with no check: in the first batch, the
 guess for "Global Infrastructure" was an investment firm, and its jobs were a
 Canadian design firm's. The first batch was the 100 companies with the most
 jobs showing initials: 95 passed, 5 went to a person (renamed firms, a typo in
-our data, a board host that names another company).
+our data, a board host that names another company). The second batch
+(2026-11-04) was the 20 employers with the most jobs and no `company_domain`
+(10,498 of 17,577 such jobs, H&R Block alone 5,789), plus Garmin: 17 passed.
+H&R Block, Keysight and Nestle refuse scripts (403, or a Cloudflare
+challenge) and Gallagher's home page is empty to one, so each was checked in a
+browser and by the logo Brandfetch draws for it, and its row's note says so.
+A site that refuses scripts is no reason to leave a row out: Brandfetch's own
+logo for the domain is a second check that the domain is the company's.

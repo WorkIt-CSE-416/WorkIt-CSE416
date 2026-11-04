@@ -11,7 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from app.utils.resume_parser import parse_resume
+from app.utils import resume_parser
+from app.utils.resume_parser import count_sections, parse_resume, section_of
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -138,6 +139,25 @@ EXPECTED = {
         "projects": ["Line Following Robot", "Plant Disease Classifier", "Arm Control Demo"],
         "skill_count": 11,
     },
+    # KAN-348: "Research Experience" and "Publications" once joined Education,
+    # so a lab and a paper read as schools. Lab roles are jobs; papers are
+    # projects, one per citation, wrapped lines and all
+    "research_and_publications.txt": {
+        "education": [
+            ("Hillcrest State University", "B.S", "Computer Science", 3.71, "2027-05-01"),
+        ],
+        "experience": [
+            ("Northwind Analytics", "Data Science Intern", "Boston, MA", "2025-06-01", "2025-08-01", 1),
+            ("Computational Systems Lab", "Undergraduate Researcher", "Hillcrest, NY", "2025-01-01", None, 2),
+            ("Vision and Learning Group", "Research Assistant", "Hillcrest, NY", "2024-09-01", "2024-12-01", 1),
+        ],
+        "projects": [
+            ("Lee, R., Ortiz, M. (2025). Faster Cache Simulation with Sampled Traces. Proceedings "
+             "of the Workshop on Systems Research."),
+            "Ortiz, M., Lee, R. (2024). A Benchmark for Small-Object Detection. arXiv preprint",
+        ],
+        "skill_count": 5,
+    },
 }
 
 
@@ -196,6 +216,185 @@ def test_jakes_layout_details():
     # the wrapped "Concepts" line keeps its group
     assert [(s.skill_name, s.category) for s in parsed.skills[-2:]] == [
         ("Machine Learning", "Concepts"), ("Agile", "Concepts"),
+    ]
+
+
+# Section headings from career-center guides (KAN-348). A heading the parser
+# does not know is no section: its text joins the section above it.
+HEADINGS = [
+    # formats: a colon, a rule, a dash, a symbol, a number, spaced letters, a slash
+    ("Education:", "education"),
+    ("LEADERSHIP EXPERIENCE:", "leadership"),
+    ("EXPERIENCE ______", "experience"),
+    ("— Experience —", "experience"),
+    ("| Experience |", "experience"),
+    ("■ Experience", "experience"),
+    ("# Projects", "projects"),
+    ("01 Experience", "experience"),
+    ("E X P E R I E N C E", "experience"),
+    ("W O R K  E X P E R I E N C E", "experience"),
+    ("Honors / Awards", "awards"),
+    ("Skills/Tools", "skills"),
+    # Experience
+    ("Relevant Experience", "experience"),
+    ("Career Related Experience", "experience"),
+    ("Additional Experience", "experience"),
+    ("Internship Experience", "experience"),
+    ("Internships", "experience"),
+    ("Employment History", "experience"),
+    ("Work History", "experience"),
+    ("Professional Background", "experience"),
+    ("Experiences", "experience"),
+    ("Teaching Experience", "experience"),
+    ("Academic Experience", "experience"),
+    ("Work & Research Experience", "experience"),
+    # Leadership: clubs, activities and volunteering
+    ("Volunteer Experience", "leadership"),
+    ("Volunteering", "leadership"),
+    ("Community Service", "leadership"),
+    ("Community Involvement", "leadership"),
+    ("Professional Affiliations", "leadership"),
+    ("Memberships", "leadership"),
+    ("Student Organizations", "leadership"),
+    ("Athletics", "leadership"),
+    ("Leadership and Community Involvement", "leadership"),
+    # Education
+    ("Education and Training", "education"),
+    ("Educational Background", "education"),
+    ("Academic Background", "education"),
+    ("Relevant Coursework", "education"),
+    # Skills
+    ("Technical Proficiencies", "skills"),
+    ("Core Competencies", "skills"),
+    ("Programming Languages", "skills"),
+    ("Languages & Technologies", "skills"),
+    ("Tools", "skills"),
+    ("Skills Summary", "skills"),
+    # Projects, and papers as projects
+    ("Technical Projects", "projects"),
+    ("Related Course Projects", "projects"),
+    ("Research Projects", "projects"),
+    ("Portfolio", "projects"),
+    ("Hackathons", "projects"),
+    ("Papers", "publications"),
+    ("Publications & Presentations", "publications"),
+    ("Conference Presentations", "publications"),
+    ("Patents", "publications"),
+    # Awards and Certifications
+    ("Achievements", "awards"),
+    ("Scholarships", "awards"),
+    ("Awards & Achievements", "awards"),
+    ("Certificates", "certifications"),
+    ("Licenses and Certifications", "certifications"),
+    # the first part of a combined heading decides
+    ("Experience & Leadership", "experience"),
+    ("Education & Certifications", "education"),
+    ("Projects & Research", "projects"),
+    ("Honors and Activities", "awards"),
+    ("Activities and Honors", "leadership"),
+    # learned labels (app/utils/learned_headings.json), as reviewed
+    ("Co-op Experience", "experience"),
+    ("Greek Life", "leadership"),
+    ("Tech Stack:", "skills"),
+    ("CAPSTONE PROJECT", "projects"),
+    ("Courses", "education"),
+    ("Online Courses", "certifications"),
+    ("Personal Statement", "personal statement"),
+    # found but not saved, so their text joins no other section
+    ("Professional Summary", "professional summary"),
+    ("Summary of Qualifications", "summary of qualifications"),
+    ("About Me", "about me"),
+    ("Additional Information", "additional information"),
+    ("Hobbies", "hobbies"),
+    ("References", "references"),
+]
+
+
+@pytest.mark.parametrize(("line", "section"), HEADINGS)
+def test_heading_names_its_section(line, section):
+    assert section_of(line) == section
+
+
+@pytest.mark.parametrize("line", [
+    "• Skills",                              # a bullet, not a heading
+    "Languages: Python, C++",                # a skills line
+    "Software Engineer Intern",              # a role
+    "Undergraduate Researcher",
+    "Built the research pipeline.",
+    "Acme Corp  Jan 2024 - Present",
+])
+def test_body_line_is_no_heading(line):
+    assert section_of(line) is None
+
+
+def test_a_learned_heading_names_its_section_after_the_rules(monkeypatch):
+    monkeypatch.setattr(resume_parser, "LEARNED", {
+        "tech stack": "skills", "personal statement": "other", "a typical day": "none",
+        "education": "none",
+    })
+    assert section_of("TECH STACK:") == "skills"
+    assert section_of("Personal Statement") == "personal statement"
+    assert section_of("A Typical Day") is None
+    # a rule always wins over a learned label
+    assert section_of("Education") == "education"
+    parsed = parse_resume("Tech Stack\n• Languages: Python, Go\n")
+    assert [s.skill_name for s in parsed.skills] == ["Python", "Go"]
+
+
+def test_every_learned_label_is_known_and_no_rule_names_its_heading():
+    # a heading the rules learned to name since is a stale label: drop it
+    for heading, label in resume_parser.LEARNED.items():
+        assert label in resume_parser.LEARNED_LABELS, heading
+        assert not resume_parser.SECTION_RE.fullmatch(heading), heading
+
+
+def test_count_sections_reads_every_format():
+    assert count_sections("EDUCATION:\nSchool\nE X P E R I E N C E\nJob\nSkills/Tools\nGo\n") == 3
+
+
+def test_an_unsaved_section_stops_its_text_joining_the_one_above():
+    parsed = parse_resume(
+        "Experience\nAcme Corp  Jan 2024 - Present\nSoftware Engineer Intern\n• Built an API.\n"
+        "Hobbies\nChess, hiking\n"
+    )
+    assert parsed.experience[0].description == "Built an API."
+
+
+@pytest.mark.parametrize("heading", ["Relevant Coursework:", "COURSES"])
+def test_a_coursework_heading_joins_the_school_above(heading):
+    parsed = parse_resume(
+        "Education\nHillcrest State University  May 2027\nB.S. in Computer Science\n"
+        f"{heading}\nData Structures, Algorithms, Operating Systems\n"
+    )
+    assert [e.institution for e in parsed.education] == ["Hillcrest State University"]
+    assert parsed.education[0].description == (
+        f"{heading.rstrip(':')}: Data Structures, Algorithms, Operating Systems"
+    )
+
+
+def test_a_publication_keeps_its_year_and_link():
+    parsed = parse_resume((FIXTURES / "research_and_publications.txt").read_text(encoding="utf-8"))
+    assert [(_iso(p.end_date), p.url, p.description) for p in parsed.projects] == [
+        ("2025-01-01", None, None),
+        ("2024-01-01", "https://arxiv.org/abs/2409.01234", None),
+    ]
+
+
+def test_a_publication_dated_by_month_drops_the_date_from_its_name():
+    parsed = parse_resume("Publications\nA Paper Title, Systems Conference  May 2025\n")
+    assert [(p.project_name, _iso(p.end_date)) for p in parsed.projects] == [
+        ("A Paper Title, Systems Conference", "2025-05-01"),
+    ]
+
+
+def test_a_lone_research_header_is_experience():
+    parsed = parse_resume(
+        "Education\nHillcrest State University  May 2027\n"
+        "Research\nComputational Systems Lab  Jan 2025 - Present\nUndergraduate Researcher\n"
+    )
+    assert [e.institution for e in parsed.education] == ["Hillcrest State University"]
+    assert [(e.company_name, e.title) for e in parsed.experience] == [
+        ("Computational Systems Lab", "Undergraduate Researcher"),
     ]
 
 

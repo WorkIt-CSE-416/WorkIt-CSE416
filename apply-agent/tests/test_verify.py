@@ -168,6 +168,17 @@ def test_a_start_date_already_past_is_flagged(person, tmp_path):
     assert any(f.kind == verify.DATE and "already past" in f.why for f in flags)
 
 
+def test_a_past_start_date_of_a_school_or_job_held_is_not_flagged(person):
+    # Infleqtion's Workable (live, 2026-11-04): each Education and Work Experience start date was flagged as past.
+    questions = [Question("e1", "Education 1 / Start date, up to this month (MM/YYYY)", "text"),
+                 Question("w1", "Work Experience 1 / Start date, up to this month (MM/YYYY)", "text"),
+                 Question("s", "Employment start date", "text"), Question("a", "Internship start date", "text")]
+    shown = {"e1": "08/2024", "w1": "06/2025", "s": "01/2025", "a": "05/2025"}
+    result = verify.check(questions, shown, shown, person, POSTING, today=TODAY)
+
+    assert [f.field for f in result.flags if f.kind == verify.DATE] == ["Internship start date"]
+
+
 def test_pay_off_the_fallback_rate_is_flagged(person, tmp_path):
     pay = Question("pay", "Desired hourly rate", "text")
     result = verify.check([pay], {"pay": "$45"}, {"pay": "$45"}, person, POSTING, today=TODAY)

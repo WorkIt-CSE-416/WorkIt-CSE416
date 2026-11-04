@@ -85,7 +85,7 @@ export const STAGE_COLOR: Record<
     fill: "bg-ink-meta",
     tint: "bg-inert-tint",
     onTint: "text-ink-meta",
-    panel: "bg-app border-border-subtle",
+    panel: "bg-well border-border-subtle",
     tone: "inert",
   },
   applied: {

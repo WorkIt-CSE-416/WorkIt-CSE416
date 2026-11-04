@@ -134,14 +134,21 @@ export default async function CompanyLayout({ children }: { children: React.Reac
 
           Two cells, ruled where the panel's edge is: the corner the panel's
           width, then the title, the search and the account on the pages'
-          gutter. The title takes its own width and the search what is
+          gutter. From md the bar's rule runs under the second cell only, so
+          the panel's edge runs up through the corner unbroken and the rule
+          stops at it; across the corner too, the two crossed in a "+"
+          (2026-11-03). Below md there is no docked panel, and the rule runs
+          the bar's width. The title takes its own width and the search what is
           left, up to 20rem; past the search's 10rem floor the title gives
           way (it truncates). */}
-      <header className="bg-panel border-border relative z-20 flex h-(--company-bar) shrink-0 border-b">
+      <header className="bg-panel border-border relative z-20 flex h-(--company-bar) shrink-0 border-b md:border-b-0">
         <SidebarBrand href="/company" />
 
         <div
-          className={cn("flex h-full min-w-0 flex-1 items-center gap-4 sm:gap-5", SEEKER_GUTTER)}
+          className={cn(
+            "md:border-border flex h-full min-w-0 flex-1 items-center gap-4 sm:gap-5 md:border-b",
+            SEEKER_GUTTER,
+          )}
         >
           <div className="min-w-0">
             <CompanyBarTitle />
@@ -190,8 +197,8 @@ export default async function CompanyLayout({ children }: { children: React.Reac
           in the seeker shell: pages break on the width beside the panel, a
           fling cannot chain onto the document, and tabIndex -1 lets the
           <main> take focus without adding a tab stop. bg-app is the seeker's
-          grey ground (2026-11-02), so the white cards and tables have
-          something to sit on; the bar and the panel stay white. */}
+          near-white ground (2026-11-03), and the white cards and tables
+          stand on their dark control edge; the bar and the panel stay white. */}
       <div className="flex min-h-0 w-full flex-1">
         <CompanySidebar />
         <SidebarInset

@@ -1,9 +1,10 @@
 "use client";
 
+// Phosphor's X itself, not icons.tsx's CloseIcon: icons.tsx loads whole
+// (frontend/CLAUDE.md, Icons).
+import { XIcon } from "@phosphor-icons/react/ssr";
 import { motion } from "motion/react";
 import type { ReactNode } from "react";
-
-import { CloseIcon } from "@/components/icons";
 
 import { GLIDE } from "../../story";
 import { ANSWER, Bubble, Composer, DraftCard, QUESTION, ScoutMark, StageCard } from "./scout";
@@ -22,7 +23,7 @@ export default function ScoutAnimation() {
         <div className="flex items-center gap-2">
           <ScoutMark />
           <p className="text-ink flex-1 text-[14px] font-semibold">Scout</p>
-          <CloseIcon className="text-ink-meta size-4" />
+          <XIcon aria-hidden className="text-ink-meta size-4" />
         </div>
         <Rise at={0.2}>
           <StageCard />

@@ -24,7 +24,7 @@ import type { ResumeItem } from "@/lib/resume-actions";
  *  five icons (12px apart on touch) left the name under half the row. A
  *  phone's row is about 317px, and from a 768px window it is 606px. */
 export const RESUME_ROW =
-  "border-border-subtle bg-app rounded-control @container mt-2 flex items-center gap-3 border p-2";
+  "border-border-subtle bg-well rounded-control @container mt-2 flex items-center gap-3 border p-2";
 
 /** A row's icon actions: 32px boxes. */
 export const ROW_ACTION = "rounded-control hover:bg-hover size-8";
@@ -218,7 +218,7 @@ export function ResumeRow({
       className={cn(
         "group relative",
         RESUME_ROW,
-        "hover:border-brand/40 hover:shadow-lift ease-glide transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
+        "hover:border-ink-meta hover:shadow-lift ease-glide transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
       )}
     >
       <PdfIcon className={ROW_MARK} />

@@ -49,7 +49,7 @@ open choices (Settled choices, near the end).
   in WorkIt, `text-heading` and `text-title`. Pick the ink by its measured
   ratio:
 
-  | Token | On `panel` (#fff) | On `app` (#f5f5f5) | Allowed for |
+  | Token | On `panel` (#fff) | On `well` (#f5f5f5) | Allowed for |
   | --- | --- | --- | --- |
   | `ink` #121a28 | 17.44:1 | 16.00:1 | Any text: headings, values. |
   | `ink-muted` #3b3e46 | 10.70:1 | 9.81:1 | Any text: body copy, labels. |
@@ -66,11 +66,13 @@ open choices (Settled choices, near the end).
 - **Rings, control borders and chart marks hold 3:1 on white and on grey.**
   A ring, a dash or an edge that marks a control or a state (a field, a
   segmented track, a choice tile, a table pill, the timeline's upcoming
-  ring, an empty slot) uses `border-control`, and a chart's series colours
-  reach 3:1 on `panel` and on `app` (WCAG 2.2 SC 1.4.11). `border-control`
-  is 3.24:1 on white and 2.97:1 on `app`, so a control keeps its white fill
-  on the grey ground. A card's own border (`border`, `border-subtle`) is
-  about 1.4:1: card edges are decoration only, never what marks a control.
+  ring, an empty slot, an outlined button or chip) uses `border-control`,
+  and a chart's series colours reach 3:1 on `panel` and on `app` (WCAG 2.2
+  SC 1.4.11). `border-control` is 3.37:1 on white, 3.29:1 on `app` and
+  3.09:1 on `well`, so a control keeps its white fill on the ground. A
+  card's outer edge takes `border-control` too (2026-11-03), so cards and
+  controls match; a rule inside a card (`border`, `border-subtle`) is about
+  1.2:1, decoration only, never what marks a control.
 - **A prose block stops at about 68 characters a line.** Past about 75, the
   eye loses the next line (Butterick, "Line length": 45 to 90; Baymard: 50
   to 75). The measure is one token, `--measure-prose` (68ch, Settled
@@ -234,14 +236,15 @@ open choices (Settled choices, near the end).
   (Material 3, "Layout": 4dp grid). Use Tailwind's whole steps: `1` (4px),
   `2`, `3`, `4`, `5`, `6`, `8`, `10`, `12`. A half step (`0.5`, `1.5`,
   `2.5`, `3.5`) only centres content inside a control.
-- **Grey ground, white cards.** The page is `bg-app` and every surface on it
-  is `bg-panel`: "The seeker pages stand on a grey ground"
-  (`frontend/CLAUDE.md`). The grey is the ground's alone: a field on the
+- **Near-white ground, white cards, dark edges.** The page is `bg-app`
+  (#fcfcfc), as Simplify's is, and every surface on it is `bg-panel` with a
+  `border-control` edge, the edge its buttons and fields have: "The seeker
+  pages stand on a near-white ground" (`frontend/CLAUDE.md`). A field on the
   ground is white with a `border-control` edge, a panel at a card's edge (the
-  match rail) is white with a hairline, and a grey fill (`bg-well`,
-  `bg-ink/5`) sits only inside a white surface, away from its edge. A search
-  bar filled with 5% ink and a `bg-well` match rail each blended into the
-  ground (2026-11-03). A sticky bar on the ground is `bg-app`.
+  match rail) is white with an #e8e8e8 rule, and a grey fill (`bg-well`,
+  `bg-ink/5`, never `bg-app`) sits only inside a white surface, away from
+  its edge. A search bar filled with 5% ink and a `bg-well` match rail each
+  blended into the old grey ground (2026-11-03). A sticky bar on the ground is `bg-app`.
 - **Every seeker page has one frame.** Pages then start at the same left
   edge beside the rail. The frame is `SEEKER_GUTTER` (16px, 24px from sm,
   32px from lg), `max-w-dashboard` (1440px; the Applications Tracker has no
@@ -722,8 +725,7 @@ say the same thing about an application (the grid and list, and the board
 when it returns): its role, company, date and match
 score (KAN-256). There is no progress bar; it only restated the stage.
 
-A match score is red, yellow or green (KAN-518): Weak red (neutral ink for
-now, below), Good yellow,
+A match score is red, yellow or green (KAN-518): Weak red, Good yellow,
 Strong green and Excellent a deeper green, so it says good or bad with no
 legend. The four `--color-match-*` tokens in `globals.css` are read only
 through `matchColor()` in `lib/match.ts`: the Applications match badge, the
@@ -736,12 +738,11 @@ green and red with the Offer and Rejected stages, and its shape, a ring or a
 bar with a number, keeps it apart from a stage's chip. A new score display
 takes `matchColor()` and a new stage display takes its stage map, never the
 other's. The marketing pages' pink, which borrowed that ramp, is
-`--color-updates`. **Weak draws in neutral ink for now** (KAN-569):
-`--color-match-weak` is `--color-ink-muted` while the cut-offs in
-`lib/match.ts` are placeholders. Every card on the Jobs page scored under 65,
-so all 50 drew a red ring and the eye had nothing to rank by. Colour stays
-for Good and above, and Weak goes back to `--color-danger` once real
-cut-offs exist.
+`--color-updates`. **Every band keeps its colour, Weak included**
+(2026-11-03). KAN-569 drew Weak in neutral ink while the cut-offs in
+`lib/match.ts` are placeholders, since every card on the Jobs page scored
+under 65 and all 50 drew a red ring. The user brought red back: a black ring
+read as a fault rather than a score.
 
 Intake's step chips say what became of each section with a corner badge
 in two of those (KAN-257): a check on `--color-step-done` green, a dash on
@@ -798,18 +799,93 @@ screen moved together: `--color-border` and `--color-border-subtle` to about the
 same mid grey, and `--color-ink-meta` to #465266 (about 7.8:1 on white). The user
 found them faint beside Simplify's. Tune the tokens, never one screen.
 
-**A control's edge is `--color-border-control`; a card's edge is decoration
-only** (KAN-556). Any edge, ring or dash that marks a control or a state (a
+**Then the ground went near white and the card edges went light**
+(2026-11-03). The user still found the signed-in app muted beside Simplify.
+Measured on simplify.jobs, its page is #fcfcfc and its card and button
+edges #e8e8e8: lighter than WorkIt's #d6dbe4, not darker. What made
+WorkIt's cards look muted was the #f5f5f5 ground under them. So `app` and
+`canvas` are #fcfcfc, `border` and `border-subtle` are #e8e8e8 (neutral,
+not blue-grey), and `well` took the old ground's #f5f5f5 for the grey
+fills inside white surfaces that had used `bg-app`.
+
+**Then cards took the control edge** (2026-11-03, the same day). With
+buttons dark-edged and cards in #e8e8e8, the user found the Jobs page's
+cards and sections did not match its buttons. So `Card`'s outline (every
+seeker card, KAN-558) and each hand-drawn page-level surface (the calendar
+frame, the company table, the auth card, the onboarding step cards) take
+`border-control`. Only the outer edge: the rules inside a card and a box
+nested in one (the match rail's divider, Key Requirements, a dialog's list)
+keep `border-subtle`. Setting `--color-border-subtle` itself to the dark
+grey was tried first and rejected, because the rules went dark too and
+every card read as a heavy box. Home's tiles (`tone="tile"`) keep their
+shadow and no outline (KAN-173). A link card's hover darkens its edge to
+`ink-meta`.
+
+**A control's edge is `--color-border-control`; a rule is decoration only**
+(KAN-556). Any edge, ring or dash that marks a control or a state (a
 field, the search pill, the segmented track, an empty checkbox or radio, a
 table cell's button, the timeline's step still ahead, an empty slot, the
-upload dropzone) takes `border-control`: 3.37:1 on white, 3.09:1 on the grey
-ground and 3.15:1 on `well`, so it meets WCAG 1.4.11's 3:1 on both grounds.
+upload dropzone) takes `border-control`: 3.37:1 on white, 3.29:1 on the
+ground and 3.09:1 on `well`, so it meets WCAG 1.4.11's 3:1 on each.
 `--color-border`, `--color-border-subtle` and `--color-border-strong` are
-1.2:1 to 1.5:1, so they draw only what nothing depends on: a card's outline,
-a rule, a score ring's empty track. The search pill and the segmented track
+1.2:1 to 1.5:1, so they draw only what nothing depends on: a rule inside a
+card, a box nested in one, a score ring's empty track. A card's outline is
+`border-control` for the look, not for contrast (below). The search pill and the segmented track
 had no outline, a 5% ink wash chosen for a white page, and fell to 1.1:1 once
-the seeker pages stood on grey. shadcn's `--input` maps to `border-control`
+the seeker pages stood on grey (#f5f5f5, until 2026-11-03). shadcn's `--input` maps to `border-control`
 too, so its checkboxes, fields and the switch's off track follow.
+
+**Every outlined control takes the same edge, buttons included**
+(2026-11-03). A `secondary` Button, an `outline` IconButton, an unpressed
+choice Chip and the signup tiles are drawn in `border-control`, as the
+search pill and the fields are. A labelled button does not need a 3:1 edge
+under WCAG 1.4.11, since its words say what it is; it takes one so that a
+toolbar reads as one set. The Jobs page's search pill sat in a dark edge
+over a row of filter buttons in `border-subtle`, and the user saw the two
+as a mismatch. Cards then took the same edge (above), so an outer edge on
+the page is dark and a rule, a nested box or a toast is light. A choice Chip's hover darkens
+its edge to `ink-meta`, as the search pill's does; a Button's hover keeps
+its `hover` fill.
+
+**The seeker shell is ruled in the control edge too** (2026-11-03): the top
+bar's rule and the rail's edge are `border-control`, tried and kept, so the
+frame matches the cards, the split panel and the buttons on it. The company
+shell keeps its lavender `rail-border`, since its docked panel is lavender;
+the phone's menu sheet keeps its light rule.
+
+**A separator dot is round** (2026-11-03). Plus Jakarta Sans draws "·"
+(U+00B7) as a square, the same as its full stop, and the user found the
+square dots between a job's facts odd. `--font-sans` starts with "Round
+Dot", an `@font-face` in `globals.css` that takes U+00B7 alone from Georgia
+(or Helvetica Neue): round, and centred at Jakarta's height. Keep writing
+"·" in text; never draw a dot with markup or swap in "•", which is about
+three times the size.
+
+**The match score pill takes the control edge** (2026-11-03): it is to open a
+modal that explains the score, so `MatchBadge` is edged in `border-control`,
+as a button is.
+
+**Rules meet in a T, never a "+"** (2026-11-03). Where a column's edge meets a
+row's rule, one of them stops at the other. The rail's logo header has no
+rule, so the rail's edge runs the window's height and the top bar's rule stops
+at it; the company bar rules only its second cell from md, so the panel's edge
+runs up through the lavender corner; the split view's list heading has no
+rule, so the job's action bar rule stops at the list's edge. Each had a rule
+lined up with its neighbour's "as one line across", and each crossed a column's
+edge in a "+" that the user found busy. A table's grid (the calendar's week)
+is the exception.
+
+**A purple edge is solid brand, and only on what is on or selected**
+(2026-11-03). A selected card, a pressed chip or tile, a filter in use, a
+`Button` `outline` and a suggestion Chip are edged in `border-brand`, and an
+on state fills with `bg-brand-tint`, as the open job in the split view and a
+pressed Chip are. A filter in use was edged in `brand/50` over `brand/10`
+beside the open job's solid brand edge, and the user saw the light purple as
+the weaker of two looks for one meaning. A hover is never purple: a card or a
+dropzone that answers the pointer darkens its edge to `ink-meta`, as a link
+`Card` and a Chip do. It was `brand/40`, a pale purple that, over the dark
+control edge, made the edge lighter on hover. Tints that are not a state (a
+stage's panel, the phone editor's bars, a dashed note) keep their pale edge.
 
 **An icon's colour says its job** (2026-11-02), never which component drew it:
 black (`ink`) if it can be clicked, purple (`brand`) if it is on or selected, grey
@@ -836,8 +912,10 @@ sidebar's sheet rows are 44px. The vendored checkbox and switch get 44px by
 `data-slot` too. Two controls closer than 44px have overlapping hit areas on
 touch, and the later one takes the overlap.
 
-**Contrast holds on white and on the grey ground** (KAN-555): a word 4.5:1, a
-live glyph or a chart mark 3:1, measured on `--color-app` as well as on white.
+**Contrast holds on white and on `well`** (KAN-555): a word 4.5:1, a
+live glyph or a chart mark 3:1, measured on `--color-well` (#f5f5f5, the
+darkest surface words sit on, and the page ground until 2026-11-03) as well
+as on white.
 So words and live arrows (a sort chevron, a dropdown's arrow, "Optional") are
 `ink-meta` or darker; `ink-faint` (2.85:1 on grey) and `ink-subtle` (2.95:1 on
 white) are for disabled or decorative glyphs only. `--color-positive` (2.80:1)

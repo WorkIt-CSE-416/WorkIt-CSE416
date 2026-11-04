@@ -7,7 +7,7 @@
  * Fit to One Page (docs/cut_to_one_page.md) and sent resumes
  * (docs/sent_resume.md).
  */
-import ResumeVisual from "../../resume-visual";
+import { ResumeAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 import { BankVisual, BuildVisual, SentResumeVisual, TailorVisual } from "../visuals/resumes";
 
@@ -23,7 +23,7 @@ const content: FeatureContent = {
     subtitle:
       "Put everything you have done in one experience bank, or upload the resume you have. WorkIt builds your resume from it and tailors a copy to each job posting you pick.",
   },
-  animation: ResumeVisual,
+  animation: ResumeAnimation,
   sections: [
     {
       eyebrow: "Experience bank",

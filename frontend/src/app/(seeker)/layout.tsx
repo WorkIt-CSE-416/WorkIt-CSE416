@@ -21,16 +21,22 @@ import { SeekerNotificationsBell } from "./seeker-notifications-bell";
 import { SeekerSidebar } from "./seeker-sidebar";
 
 /**
- * Chrome shared by every signed-in seeker screen, ruled into regions by
- * hairlines (--color-border-subtle). The section panel runs the full height
+ * Chrome shared by every signed-in seeker screen, ruled into regions by the
+ * control edge (--color-border-control, 2026-11-03), the edge the cards and
+ * buttons have, so the frame and what is on it read as one set; in the light
+ * hairline it was the only faint line left on the page. The section panel
+ * runs the full height
  * on the left, flush with the window; beside it, the top bar along the top,
  * and under the bar the page itself.
  *
- * THE PANEL AND THE BAR ARE WHITE AND THE PAGE IS GREY (--color-app,
- * 2026-11-02), after Simplify and Jobright: with the page white too, white
- * cards blended into it. Anything that sits on the page and needs its own
- * edge is white; a sticky bar is the page's grey, so it hides what scrolls
- * under it without showing as a strip.
+ * THE PANEL AND THE BAR ARE WHITE AND THE PAGE IS NEAR WHITE (--color-app,
+ * #fcfcfc, 2026-11-03), as Simplify's is. On 2026-11-02 the page went grey
+ * (#f5f5f5) because white cards blended into a white page; on the grey,
+ * white cards and light edges read as muted. Simplify's own page is #fcfcfc
+ * with #e8e8e8 hairlines; here a card's outer edge is --color-border-control,
+ * as a button's is (ui/card.tsx), and only its rules are #e8e8e8. Anything that sits on the page and needs its
+ * own edge is white; a sticky bar is the page's colour, so it hides what
+ * scrolls under it without showing as a strip.
  *
  * IT WAS THREE FLOATING PANELS until 2026-10-27: white rounded panels 12px
  * apart on a lavender ground (--color-frame), after a dashboard the user had
@@ -145,16 +151,18 @@ export default async function AppLayout({
 
       {/* The bar and the page. */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* 64px with its rule, the panel header's height, so the two rules
-            beneath them run as one line across the window. */}
-        <header className="bg-panel border-border-subtle flex h-16 shrink-0 items-center gap-3 border-b px-3 sm:gap-4 sm:px-4">
+        {/* 64px with its rule, the rail's logo header's height. The rule stops
+            at the rail's edge, which runs the window's full height: the
+            logo header has no rule, since one there crossed that edge in a
+            "+" (2026-11-03). */}
+        <header className="bg-panel border-border-control flex h-16 shrink-0 items-center gap-3 border-b px-3 sm:gap-4 sm:px-4">
           {/* The rail is always open from md, so the toggle only opens the
               phone's sheet. Named here, since shadcn's own name is "Toggle
               Sidebar". No logo beside it: the sheet's header shows the logo,
               and the bar's room on a phone goes to the bell (KAN-570). */}
           <SidebarTrigger
             aria-label="Open Menu"
-            className="text-ink hover:bg-app size-10 shrink-0 rounded-full md:hidden [&_svg]:size-4"
+            className="text-ink hover:bg-well size-10 shrink-0 rounded-full md:hidden [&_svg]:size-4"
           />
 
           <div className="min-w-0 flex-1 md:pl-2 lg:pl-4">

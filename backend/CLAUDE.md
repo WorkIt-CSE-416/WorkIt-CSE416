@@ -42,6 +42,7 @@ uv run python -m app.scripts.ship_check ...   the connector's blind read, KAN-38
 uv run python -m app.scripts.clean_bank_entries  one-off: split "| C++, Go" off older bank titles, drop read skills the catalog lacks; --typed also drops Tailor-added degrees/"AI tools" (dry run unless --apply; local DB only)
 uv run python -m app.scripts.fill_report <id>   a fill report's fix brief + form fixture into fill-reports/ (--latest; reads DATABASE_URL, writes nothing)
 uv run python -m app.scripts.import_apply_profile <applicant_id> [<apply_dir>]  a student's Apply data folder ($APPLY_HOME, else ~/.config/apply) into WorkIt (--dry-run rolls back; local DB only; app/models/CLAUDE.md, "The Fill engine's profile")
+uv run python -m app.scripts.label_resume_headings  label data/resume_heading_candidates.txt's resume headings once with Groq into app/utils/learned_headings.json (--dry-run lists them; review the diff; app/utils/CLAUDE.md, Learned headings)
 uv run python -m app.scripts.purge_old_data  delete rows past app/services/retention.py's periods, KAN-482 (--dry-run counts, deletes nothing; daily in CI)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
@@ -912,7 +913,20 @@ Find files with a directory listing; these are the rules for where code goes.
   Projects, Experience), with Skills, Awards and Certifications, and
   Education on schedules opened by the share of those entries cut, and at
   the last the floors (one skill line, one job, one school) too, so it
-  always reaches one page. A cut never leaves an entry with no bullets:
+  always reaches one page. **The editor fits without it** (KAN-584): `POST
+  .../fit/plan` takes the editor's copy and the measure of the PDF it shows
+  (every render answers `points`, `area` and `shrinks` beside the boxes)
+  and answers one cycle's cuts (`fit_page.next_cuts`), compiling nothing
+  and reading only the resume's row and its posting; the editor renders
+  and saves them as any hide. `POST .../fit` stays for an editor whose API
+  sends no measure. Each change either one answers carries only the fields
+  it sets: `variant_id: null` means a
+  switch to the bank's wording, and the plan's first build, which sent
+  every unset field as null, had its hides refused by the render (422).
+  The plan answers with `response_model_exclude_none`; `/fit` drops nulls
+  from `undo` only (`FitResponse`'s serializer), since its render must keep
+  null page settings such as `body_size`, which the route-wide flag dropped
+  (CI, 2026-11-03). A cut never leaves an entry with no bullets:
   the cut of an entry's last bullet takes the entry (the last school
   keeps its bullet instead). A tailored resume is cut by its posting's rank
   (`fit_scores`: `tailor.rank_shown` on the wording the resume shows, and

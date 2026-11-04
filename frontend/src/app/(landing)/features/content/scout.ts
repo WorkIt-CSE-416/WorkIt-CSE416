@@ -8,9 +8,9 @@
  * (scout/ identity.py). Bring the job questions back here when the flag
  * turns on.
  */
+import { ScoutAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 import { DraftVisual, PrivacyVisual, WalkVisual } from "../visuals/scout";
-import ScoutAnimation from "../visuals/scout-animation";
 
 const content: FeatureContent = {
   line: "Talk it through. Scout fills your experience bank.",

@@ -83,6 +83,20 @@ its boxes stay unticked, a blank on purpose in the plan.
 `AnswerBank.answer(question, [])` saves one; an answer with options in it
 drops `none`. An empty answer without `none` is still no answer.
 
+A bare date (From, To, Start date, End date: a label that does not say
+what the date is for) is answered for its section (KAN-595). The engine
+finds the section from the field's panel, its help text, the heading or
+intro just before it, or the questions before it. The section is
+education, work experience or availability (`Plan.sections`). The plan
+answers a school's or the internship's dates itself. Claude drafts any
+other bare date and is told its section (`"about"` in the draft call); a
+date that nothing places goes to Lisul. The Answer bank files a bare
+date's answer under its section and label
+(`"education / From (MM/DD/YYYY)"`, `Plan.filed`). A date that no section
+places is never banked. An older entry filed under a bare label alone is
+never read again. Lisul's own answer to a bare date applies to that form
+only; Apply does not save it to the profile by its wording.
+
 `README.md` is a teammate's setup path, from a clone to a rehearsal. Its
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.
@@ -350,6 +364,18 @@ reads: it does not click, type or submit.
   sources or the posting name). Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags.
+- A review finding can name the right answer when the sources give it
+  (`presubmit.Found.fixes`: an internship start in a school's From).
+  Apply fills that answer in place of the wrong one (`_Planned.fix`). It
+  then fills the form again, in a fresh page, and reviews it again, all
+  before the window shows the form as ready. It does this once. A fix
+  replaces only Claude's guesses (its drafts, and its drafts the Answer
+  bank gave back). It never replaces an answer from the profile, Lisul's
+  own answer, an essay, a file or a secret. A
+  Claude draft that a fix replaces leaves the Answer bank. On Workday, the
+  next fill goes Back to the step that holds the fixed answer
+  (`WorkdayFiller._back_to_changed`). A read-back replan also refills
+  this way.
 - A flag that `holds` goes in the reason as `Verify: <field>: <why>` and
   holds a live run (Needs you, kind `check`). Read-back and review flags
   hold already by their own reason. A blank optional field holds as a
@@ -360,6 +386,8 @@ reads: it does not click, type or submit.
   not hold. The plan lists each field it leaves blank on purpose, with why
   (`Plan.blanks`: a duplicate "Other website", an "If other" follow-up to
   another pick, an optional fact the profile lacks); the note says why.
+  An optional catch-all box that Apply left blank on purpose
+  (`_Planned.kept_blank`, below) is a note too.
   An approved Hold is not held again by a flag; the read-back still holds
   it.
 - In the window, each flag shows with its field and why, and has its own
@@ -462,6 +490,59 @@ Review with his answer and no submit. Also each reason a tile offers
 Resume, the `/resume` route, the field-error check on each job system's
 error shapes, and a killed `claude -p`. Run it with `-k`; it opens Chromium.
 
+## Add context and regenerate (KAN-599)
+
+`src/apply/regenerate.py`. While Lisul reviews a rehearsal's held form, each
+answer that Claude wrote for that Application has a small "Add context and
+regenerate" button. He types what Claude should know or change, and Claude
+writes that one answer again.
+
+- **Which answers.** `regenerate.form_of` (the Worker's `Result.regenerable`,
+  rehearsals only) lists each essay, Answer bank draft and company-only
+  one-off that went into a text field. A profile fact, a pick from a list, a
+  file and Lisul's own Answer bank answer get no button.
+- **On the form (the main place).** When the page is lifted for Lisul
+  (`_Kept.hold`), `regenerate.offer` draws the button over the page, above
+  the field's top right. It is on the page's body, fixed, never inside the
+  form, so the page's own code never sees a new node. A scan every 500 ms
+  finds the field again (the field that shows Claude's text, else its id or
+  name). The Live tile streams the same page, so the button works from the
+  window too. A press calls the `__applyRegenerate` binding; the hold loop
+  takes it on its next turn.
+- **In the window.** A Needs you card lists "What Claude wrote" with the
+  same button and a context box (`POST /regenerate {id, name, context}`,
+  with the window's token). `Dashboard.regenerate` refuses no context, an
+  answer Claude did not write, a form that fills again, and one already
+  being rewritten. `Board.regenerations(k)` hands each press to the hold
+  loop once.
+- **While it runs.** The field is read-only and dimmed, and the button says
+  "Claude is rewriting this answer". The tile's `written` entry has `state:
+  working`. Nothing is clicked or sent.
+- **How it writes.** His context joins the Story bank first, under "Added
+  while reviewing answers", as one line that names the question (and
+  `asking.where` for a bare label) and the company: never a bare label
+  alone. Then `essays.answer` runs with `redo={question: (old, context)}`:
+  the plan and the draft both get a `<redo>` block (`essays.REDO`,
+  `REDO_PLAN`). It is the usual path: the same sources, plan, editor, code
+  gates and caps. A form that read no Company material reads it now
+  (`company.gather`, `brief.brief`) for an essay or a company question.
+- **What stays off the form.** An answer over the form's cap
+  (`gates.over_cap`), or with a name or number no source holds
+  (`regenerate.INVENTED`), is not put on the form. The old answer stays and
+  the note says why. Other gate and verifier flags (`verify.essay`) go on
+  the note beside the field.
+- **After.** Plain code sets the field with the page's own input events and
+  reads it back (`regenerate.done`). The field is editable again. The
+  Record is saved again: `answers.json`, `essays.md` and a history line
+  ("Regenerated '<q>' with your context"). A draft in the Answer bank is
+  replaced (`AnswerBank.redraft`: still Claude's, unreviewed). Lisul's own
+  answer and a bare label are never replaced.
+
+**Tests.** `tests/test_regenerate.py` (in CI, no browser): the regenerate,
+its Story bank line, the caps and invented facts, the Answer bank, the
+window's route. `tests/test_rehearse.py -k regenerate` presses the button
+on the fake Lever form (Hermeus) in Chromium; it opens a browser.
+
 ## Prompts and gates
 
 - Every prompt names the applicant as `@NAME@` and their school as
@@ -485,6 +566,34 @@ error shapes, and a killed `claude -p`. Run it with `-k`; it opens Chromium.
   the form and holds the Application (`gates.over_cap`). This applies to
   an essay that Lisul approved too. A form refuses a longer answer
   (MongoDB's 267-word letter, cap 260).
+- An optional catch-all box ("Additional information", "Anything else
+  you'd like us to know?", "Comments", "Other information": an
+  `anything-else` question that the form does not require,
+  `essays.catch_all`) stays blank unless Apply has something new and
+  relevant to say (Lisul, 2026-11-04). New: not on the resume PDF, in the
+  form's other answers or in its cover letter. Relevant: a project close to
+  the job that the resume leaves out, a link the form didn't ask for, or an
+  availability note the form never asked. The planner may give it no slots
+  and never asks Lisul for it (`check_plan`'s `blank_ok`, its asks
+  cleared), and the writer leaves it empty or writes at most two
+  sentences. The worker then checks the draft (`_Planned._kept_blank`,
+  `gates.nothing_new`): one that is over two sentences, says it needs
+  Lisul, or mostly repeats the resume or the form (`gates.MOSTLY` of its
+  stemmed words, or `gates.SOME` with a result the resume states, such as
+  2.75) is emptied. The field is then blank on purpose: it is in
+  `_Planned.kept_blank` with why, so Verifying notes it and does not hold
+  it, Needs you never asks it, and it gets no "Claude wrote nothing" or
+  High-stakes hold. A one-line catch-all box drafted as a one-off question
+  is checked the same way and is never put in the Answer bank. A required
+  catch-all box is still always answered, and every other optional
+  question too. Voleon's Ashby form showed why: its "Additional
+  information" got a Micromouse paragraph that repeated a resume bullet.
+
+- An essay that the editor's passes leave over the most that its length
+  allows (`gates.length`: a stated sentence count, or its type's default
+  when the form states none) also gets one shorter rewrite (`essays.CUT`)
+  before the form is shown. If it is still over, it goes on the form, and
+  its failed check holds the Application (Bedrock's 132 words of 120).
 - The names gate (`gates.traced`) checks each run of capitalized words
   against the essay's sources: the drafting prompt (Story bank, Stock
   answers, Company material with the Company brief, the posting) and the
@@ -778,6 +887,53 @@ through `worker._Planned._missing` first.
 
 **Tests.** `test_claude_answers.py -k already_holds` and
 `test_dashboard.py -k says_where_it_sits` (opens Chromium).
+
+## Needs you on the page: Go to question, and answers typed there (KAN-600)
+
+`src/apply/on_page.py`. Lisul can answer a Missing fact or an Essay fact
+on the held form itself, not only in its Needs you card.
+
+- **Go to question.** Each question of a card whose form is still held open
+  in its Worker's browser (a rehearsal's, ended or paused:
+  `dashboard.on_form`) has a Go to question button. A form still filling
+  has none: Apply drives it. `POST /goto {id, question}` brings the
+  Worker's Chrome to the front (`site.show`). The window opens the form's
+  tile when the Worker has no window of its own. The request waits
+  (`GO_TO_WAIT`) for the held page's hold loop (`Board.wanted`): Playwright
+  answers only on the Worker's own thread. There `on_page.go_to` scrolls to
+  the field, focuses it and outlines it for `OUTLINE_S`.
+- The field is found in each frame of the page: by the job system's id or
+  name, else by its label (Lever's labels are divs). A Workday name is
+  `<step> / <panel> / <label>`: the nearest panel that names a part of it
+  wins. Apply's own note on the page is never a field. An Essay fact's
+  field is its essay's (`asking.for_essay` is its context line).
+- A field on another Workday step is not on the page. Apply says which step
+  holds it and moves nothing, so nothing filled is lost. Lisul goes there
+  with the form's own Back or Save and Continue.
+- **An answer typed on the page** (the bug this fixes: before, only an
+  answer from the card left Needs you; the hold loop never read the page).
+  `on_page.Watch` reads each waiting field on every turn of the hold loop
+  (`_Kept.hold(tend=...)`). What the field showed when the watch began is
+  Apply's, never his answer. A changed text field is his answer once he
+  leaves it (blur) and it rests `IDLE_S`, or rests `TYPING_S` with the
+  caret still in it. A pick (a list, a radio button, a box, a date) counts
+  once it rests `IDLE_S`. The value is the engine's read-back where the
+  engine fills that job system, else what the page shows.
+- Then `rehearsal._answered_on_page` saves it as a card's answer is saved
+  (`Board.typed`, then the window's `answer`: `cli._answering`), so it
+  joins the profile, or the Story bank for an Essay fact. All the Essay
+  facts of one essay are saved as one Story bank line. The card leaves
+  Needs you, the tile's counts and the note on the form change, and the
+  Record (its plan and read-back) is saved again (`_record_again`).
+- A bare date (From, To, Start date: `on_page.bare`, the engine's
+  `contextFree` when the pin has it) is never saved by its label, from the
+  card or the page. It stays that form's answer only (KAN-595).
+- Nothing is read off a page after Lisul pressed its Submit.
+
+**Tests.** `tests/test_on_page.py`: Go to question and a typed answer on the
+fake Greenhouse, Go to question on a paused fake Workday step, finding a
+field by its label and panel, the rest rules, and the window's `/goto` and
+`typed` (opens Chromium).
 
 ## The Accounts tab: Copy password and Open sign-in page (KAN-591)
 

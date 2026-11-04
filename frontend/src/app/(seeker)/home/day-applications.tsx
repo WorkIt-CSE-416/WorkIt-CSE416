@@ -79,7 +79,7 @@ export function DayApplications({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="border-border-subtle rounded-card overflow-hidden border">
+        <div className="border-border-control rounded-card overflow-hidden border">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">

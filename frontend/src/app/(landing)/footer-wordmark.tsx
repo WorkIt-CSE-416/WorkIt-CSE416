@@ -6,18 +6,17 @@ import { useReducedMotion } from "motion/react";
 import { LOGO_WORD } from "@/components/logo";
 import { cn } from "@/lib/cn";
 
-import { stages } from "./board-data";
-import { streams } from "./data";
-import { followedJob, matchingFeature } from "./feature-data";
 import { useArrived, useMediaQuery } from "./hooks";
 
 /**
  * The footer's closing mark: "workit", the logo's own word outline, set
  * large and filled with rows of tiny job titles, the ones the page has
- * shown (the board's, Matching's and the hiring-systems stream's), with
- * the followed application's in violet. From lg up, once the word is well
- * on screen, the rows slide in from alternate sides, middle rows first,
- * and settle into the word, so the page's postings end as the name. They
+ * shown, with the followed application's in violet (`titles` and
+ * `followed`, read by footer.tsx on the server: imported here, the three
+ * data files they come from loaded on every marketing page). From lg up,
+ * once the word is well on screen, the rows slide in from alternate
+ * sides, middle rows first, and settle into the word, so the page's
+ * postings end as the name. They
  * play in time (CSS transitions): scrubbed by the scroll they rested half
  * slid whenever the reader stopped (scene-time.ts). Below lg and with
  * reduced motion they sit in place. Decorative: the footer's logo already
@@ -49,18 +48,10 @@ const slide = (units: number) => `translateX(${(units / VIEW.w) * 100}%)`;
 /** Where every row rests: what it shows below lg and with reduced motion. */
 const REST = slide(-30);
 
-const TITLES = [
-  ...new Set([
-    ...stages.flatMap((stage) => stage.jobs.map((job) => job.title)),
-    ...matchingFeature.jobs.map((job) => job.title),
-    ...Object.values(streams).flatMap((list) => list.map((posting) => posting.title)),
-  ]),
-];
-
 /** A row's titles: the list turned by a step per row, long enough to fill
  * the word with room to slide. */
-function rowTitles(row: number) {
-  const turned = [...TITLES.slice((row * 7) % TITLES.length), ...TITLES];
+function rowTitles(titles: readonly string[], row: number) {
+  const turned = [...titles.slice((row * 7) % titles.length), ...titles];
   const list: string[] = [];
   let length = 0;
   for (const title of [...turned, ...turned]) {
@@ -71,7 +62,40 @@ function rowTitles(row: number) {
   return list;
 }
 
-export function FooterWordmark() {
+/**
+ * A row's track: its titles twice, as runs of plain text, with only the
+ * followed title in an element of its own. A span per title made the
+ * wordmark about 950 of the 1,400 elements on a legal page, each styled,
+ * laid out and hydrated on every marketing page. `nowrap` collapses the
+ * spaces round each dot across the runs as it did across the spans.
+ */
+function track(titles: string[], followed: string) {
+  const parts: React.ReactNode[] = [];
+  let run = "";
+  for (const title of [...titles, ...titles]) {
+    if (title !== followed) {
+      run += `${title}  ·  `;
+      continue;
+    }
+    if (run) parts.push(run);
+    run = "";
+    parts.push(
+      <span key={parts.length} className="text-landing-brand-200 font-semibold">
+        {`${title}  ·  `}
+      </span>,
+    );
+  }
+  if (run) parts.push(run);
+  return parts;
+}
+
+export function FooterWordmark({
+  titles,
+  followed,
+}: {
+  titles: readonly string[];
+  followed: string;
+}) {
   const ref = React.useRef<HTMLDivElement>(null);
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const reduceMotion = useReducedMotion();
@@ -80,7 +104,10 @@ export function FooterWordmark() {
   // third up the screen was out of reach on a tall one, and the word stayed
   // empty); out only once it is wholly below the screen.
   const arrived = useArrived(ref, moving, { margin: "0px", threshold: 0.6 });
-  const rows = React.useMemo(() => Array.from({ length: ROWS }, (_, i) => rowTitles(i)), []);
+  const rows = React.useMemo(
+    () => Array.from({ length: ROWS }, (_, i) => track(rowTitles(titles, i), followed)),
+    [titles, followed],
+  );
 
   return (
     <div
@@ -105,8 +132,8 @@ export function FooterWordmark() {
           lineHeight: ROW_H / FONT,
         }}
       >
-        {rows.map((titles, i) => (
-          <Row key={i} index={i} titles={titles} arrived={arrived} moving={moving} />
+        {rows.map((parts, i) => (
+          <Row key={i} index={i} parts={parts} arrived={arrived} moving={moving} />
         ))}
       </div>
     </div>
@@ -115,12 +142,12 @@ export function FooterWordmark() {
 
 function Row({
   index,
-  titles,
+  parts,
   arrived,
   moving,
 }: {
   index: number;
-  titles: string[];
+  parts: React.ReactNode[];
   arrived: boolean;
   moving: boolean;
 }) {
@@ -148,20 +175,10 @@ function Row({
           no seam. The followed application's title, in the brand's pale
           violet and a weight up, can be found among the rest. */}
       <div
-        className={cn("w-max", moving && "wordmark-drift")}
+        className={cn("w-max text-white/60", moving && "wordmark-drift")}
         style={{ animationDirection: index % 2 ? "reverse" : undefined }}
       >
-        {[...titles, ...titles].map((title, k) => (
-          <span
-            key={k}
-            className={
-              title === followedJob.title ? "text-landing-brand-200 font-semibold" : "text-white/60"
-            }
-          >
-            {title}
-            {"  ·  "}
-          </span>
-        ))}
+        {parts}
       </div>
     </div>
   );

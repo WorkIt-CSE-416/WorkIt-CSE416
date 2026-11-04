@@ -770,25 +770,30 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   clicks Submit on each, so no page says WorkIt submits, sends or
   applies. Scout's page is about Fill With Scout, the one way into Scout
   while Ask Scout is greyed out; bring the job questions back to it when
-  `ASK_SCOUT_LIVE` turns on. A content file
-  imports its animation, a client component (the four tour visuals carry
-  `"use client"` so a server file can import them); the template wraps it
-  in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`.
+  `ASK_SCOUT_LIVE` turns on. **A content file imports its animation from
+  `features/animations.tsx`, never the animation itself**: each there is
+  a `next/dynamic` wrapper, server-rendered as before, whose chunk only
+  the page that shows it loads. A client component a server file imports
+  joins the browser bundle of every route that imports that file, and the
+  header reads every content file for its menu lines: imported directly,
+  all four tour visuals and motion loaded on every marketing page
+  (`/privacy` loaded 340 KB compressed of JavaScript, the same as a
+  feature page), and each feature page carried the ones it does not show.
+  A new animation joins `animations.tsx` the same way. The template wraps
+  it in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`.
   **A page never ships a placeholder** (KAN-579, design audit marketing
   H1: empty icon tiles read as an unfinished site): `animation` and every
   deep dive's `visual` are required in `types.ts`. A deep dive's visual is
   a still scene in `features/visuals/<slug>.tsx`, one piece of the real
   app drawn with the tour's student and employers (`feature-data.ts`) at
   400 × 300 (`Vignette` in `visuals/parts.tsx`), which `DeepDiveStage`
-  scales to its 4:3 panel with `Fit`. Each is `aria-hidden` and draws no
+  scales to its 4:3 panel with `Fit`. The scenes are server components,
+  so they ship no script; one that needs the browser goes through
+  `animations.tsx` too. Each is `aria-hidden` and draws no
   heading, button or link. A scene is `shrink-0`: as a flex item it
   otherwise shrank to its content's width on a phone before `Fit` scaled
   it, and its text was cut off. Scout's hero (`visuals/scout-animation.tsx`)
   plays its exchange once and holds, so it needs no pause control. The hero uses
-  `SocialSignUpButton` (`social-sign-up.tsx`, shared with the home hero),
-  in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`. A
-  page with no animation (Scout, for now), or a deep dive with no
-  `visual`, shows a placeholder in the feature's colour. The hero uses
   `SocialSignUpButton` (`social-sign-up.tsx`, shared with the home hero;
   its form is `oauth-form.tsx`, disabled and "Opening Google…" while the
   action runs, so a second click cannot post again, and a failure lands on
@@ -1035,7 +1040,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on every marketing page, closes on "workit" (the logo's own outline,
   `LOGO_WORD` from `components/logo.tsx`, as a CSS mask) filled with
   HTML rows of the page's job titles, the followed one in the pale
-  brand violet a weight up, which slide in from alternate sides, in time,
+  brand violet a weight up (each row one run of text, with only that
+  title in an element of its own: a span per title made the wordmark
+  about 950 of the 1,400 elements on a legal page, all styled, laid out
+  and hydrated on every marketing page; the titles are read by
+  `footer.tsx` on the server and passed in, or the three data files they
+  come from load on every page), which slide in from alternate sides, in time,
   once 60% of the word shows (`footer-wordmark.tsx`, `useArrived` with a
   threshold: a line a third up the screen was out of reach on a tall
   window), then keep drifting slowly (`.wordmark-drift`, a track of the
@@ -1134,7 +1144,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   native and reduced motion turns Lenis off. It ticks in motion's
   `frame.setup`, before motion reads the scroll; in `frame.update`, as
   Lenis's docs show, every scroll-linked value ran a frame behind and the
-  flying card and pills trailed their ends. A script scroll goes through
+  flying card and pills trailed their ends. **It ticks only while it
+  glides** (`GlideLenis`: every glide starts in `scrollTo`, and the tick
+  stops once `isSmooth` is false). Ticked on every frame, it kept the
+  browser drawing a main-thread frame at rest on every marketing page, and
+  each of those frames updated every running CSS animation: at the footer,
+  with the wordmark's 29 drifting rows, the main thread was 96% busy at
+  rest on a 4x slower CPU, and under 1% with no frame loop. So nothing on
+  these pages runs a frame loop at rest (a `keepAlive` frame, an endless
+  `requestAnimationFrame`): a composited CSS animation is free only while
+  nothing else asks for frames. A script scroll goes through
   `scrollPageTo` (a native smooth scroll fought the glide), which
   measures the page again first, since Lenis clamps a scroll to the
   height it measured up to 250 ms before; a scroll area inside a page
@@ -1273,6 +1292,20 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   - Logos from the Google favicon host load `unoptimized`: they are
     small PNGs already, and some 60 each went through `/_next/image`.
   - Write a `data-*` mark on `<html>` only when it changes.
+- **What a shell pulls into the browser, every page under it loads**
+  (2026-11-02). The root layout's and the `(landing)` layout's client
+  components, and every client component that a server file in their
+  import graph reaches (the header reads the feature content files), go
+  into one bundle that every marketing page loads, `/privacy` included.
+  So a client component only some pages draw is lazy
+  (`features/animations.tsx`), and data a client component in the shell
+  needs is read on the server and passed in (the footer wordmark's
+  titles). Check after changing a layout, the header, the footer or a
+  content file: on `next build` and `next start`, `/privacy` loads about
+  215 KB compressed of JavaScript up to its load event (340 KB before this
+  rule; 2026-11-03); Next then prefetches the linked pages' chunks, 80 to
+  130 KB more, which is expected. A jump means a client import leaked in.
+  Measure speed on a production build, never `next dev`.
 - **The home page hydrates in pieces** (KAN-540, `hydrateNear` in
   `near.tsx`, used by `deferred-sections.tsx`). Each section below the
   hero (the bridge, the tour, hiring systems, the statement, the
@@ -1405,25 +1438,49 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   sooner than 300 ms after the shell's first frame, so a fast page can land
   up to about 300 ms later on a hard load; only slow pages gain. The real
   signed-in spread is unmeasured.
-- **The seeker pages stand on a grey ground** (`bg-app` on `<main>`,
-  2026-11-02, after Simplify and Jobright): all white left cards and panels
-  with nothing to sit on. The top bar and sidebar stay white. The company
+- **The seeker pages stand on a near-white ground** (`bg-app` on `<main>`,
+  #fcfcfc, 2026-11-03, as Simplify's is). The ground was white until
+  2026-11-02, and white cards blended into it; then grey (#f5f5f5), and the
+  user found every white card and light edge muted on it. **A card's outer
+  edge is `border-control`, as a button's is** (2026-11-03): `Card` draws
+  it, and a hand-drawn page-level surface (a calendar frame, a table box)
+  uses it too. Rules inside a card and boxes nested in one stay
+  `border-subtle` (#e8e8e8): darkening that token darkened them as well,
+  and every card read as a heavy box. The top bar and sidebar stay white. The company
   shell took the same ground, the same 1440px column and gutter
   (`company/frame.ts`) and the title in its bar (`company/bar-title.tsx`) in
   KAN-582 (`docs/design.md`, The two shells); its docked, pinned panel
   still differs. A sticky bar on the ground is `bg-app`, not `bg-panel`,
-  or a white band shows when it sticks. **The grey is the ground's alone:
-  anything on the ground, or at a card's edge, is `bg-panel`** (2026-11-03).
+  or a white band shows when it sticks. **Anything on the ground, or at a
+  card's edge, is `bg-panel`** (2026-11-03).
   A field on the ground is white with a `border-control` edge, as
   `TextField` and `SearchField` are, and a panel at a card's edge (the match
-  rail) is white with a hairline. A grey fill (`bg-well`, `bg-ink/5`) goes
-  only inside a white surface, away from its edge: the search bar's 5% wash
-  and the match rail's `bg-well` were each one shade off the ground, and both
+  rail) is white with an #e8e8e8 rule. A grey fill goes only inside a white surface, away from its
+  edge, and is `bg-well` (#f5f5f5, the old ground) or `bg-ink/5`, never
+  `bg-app` or `bg-canvas`: those are the near-white ground, and an uploaded-
+  file row or a calendar day outside the month in `bg-app` lost its fill
+  when the ground went near white. The search bar's 5% wash and the match
+  rail's `bg-well` were each one shade off the old grey ground, and both
   blended into the Jobs page. A see-through ink wash stays for a track inside
   a control (the Segmented Control's, under its white thumb). A control takes
   a `border-control` edge (KAN-556): a fill alone was a 1.1:1 edge on the
-  grey, and a card's edge is decoration only (`docs/design.md`, Components).
-  Skeletons are `bg-ink/6`, so they show on white and on grey.
+  old grey, and a rule is decoration only (`docs/design.md`, Components).
+  Outlined buttons and chips take it too (2026-11-03): a filter row in
+  `border-subtle` under the dark-edged search pill read as a mismatch, so
+  a hand-drawn button uses `border-control`, never `border-subtle`. A
+  selected or in-use edge is solid `border-brand` over `bg-brand-tint`, never
+  `brand/50` or `brand-pale`, and a hover edge is `ink-meta`, never purple
+  (`docs/design.md`, Components): a filter in use in light purple beside the
+  open job's solid brand edge read as inconsistent. Rules meet in a T, never a
+  "+": a column's edge and a row's rule never both run through the point
+  where they meet (`docs/design.md`, Components); the rail's logo header, the
+  company bar's corner and the split view's list heading each crossed one
+  until 2026-11-03. The seeker top bar's rule and the rail's edge are
+  `border-control` too (2026-11-03); the company shell keeps its lavender
+  `rail-border`. A "·" between facts is round: the "Round Dot" face in
+  `globals.css` draws U+00B7 from Georgia, since Jakarta's is square; keep
+  typing "·" and never draw a dot in markup (`docs/design.md`, Components).
+  Skeletons are `bg-ink/6`, so they show on white and on the ground.
 - **The sidebar's current fill never slides** (`components/app-sidebar.tsx`,
   2026-11-02): it lands on the row at once, because the slide read as
   confusing. Only the hover fill glides.
@@ -1749,6 +1806,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   needs `flex-none` at its fixed height, or the rail grows with its list and
   never scrolls. It is one panel in the page's gutters, after Simplify's,
   rounded at the top and open at the foot of the window, with the job's card flat inside it and no rule under the filters.
+  In the panel each job in the list is a card of its own in `border-control`,
+  the open one in brand (`SPLIT_ROW` in `jobs/jobs-rail.tsx`, 2026-11-03).
+  The panel's edge, the list's edge and the rule under the job's action bar
+  are all `border-control`; rules inside the job's own content stay light.
   The rail beside a job opened from Cards has no panel: it stands off the sidebar
   by the page gutter less its rows' padding, since flush it read as one block
   with the sidebar.
@@ -1790,17 +1851,26 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   at `size-4`, not Phosphor's 1px: one rule in `globals.css` thickens them
   (KAN-365), and `custom-icons.tsx`'s `STROKE` matches it. A glyph
   Phosphor lacks goes in `components/custom-icons.tsx` with all its
-  weights (`docs/design.md`, Brand and icons).
+  weights (`docs/design.md`, Brand and icons). **The bundler takes
+  `icons.tsx` whole**, all six weights of every glyph in it (65 glyphs,
+  about 150 KB, 36 KB compressed, on 2026-11-03), however few a file
+  imports, since its wrappers are one module. So a client component the
+  root layout mounts, or one a marketing page draws, never imports from
+  it: it draws Phosphor's glyph itself (`ui/toast.tsx`'s close button,
+  Scout's animation's), or the sparkle from `sparkle-icon.tsx`. The
+  toast's one `CloseIcon` loaded it on every page, and the Resumes and
+  Auto Apply animations' sparkle on their feature pages.
 - **An icon's colour says its job** (`docs/design.md`, Components): black to
   click, purple when on, grey for information. Never set a clickable icon to
   `text-ink-meta`.
-- **Contrast is measured on white and on the grey ground** (KAN-555,
+- **Contrast is measured on white and on `well`** (KAN-555,
   `docs/design.md`, Components): a word 4.5:1, a live glyph or chart mark
   3:1. `ink-faint` and `ink-subtle` never colour a word or a live arrow (a
   resting sort chevron, a dropdown's arrow are `ink-meta`), and
   `--color-positive` never sits under a word or a white glyph: the green
   button and done discs fill with `positive-ink`. A new grey or green is
-  checked against `--color-app` (#f5f5f5) too, where `ink-faint` is 2.85:1.
+  checked against `--color-well` (#f5f5f5, the old ground and the darkest
+  surface words sit on) too, where `ink-faint` is 2.85:1.
 - **A form's buttons sit by its kind** (`docs/design.md`, Components): a
   page or Settings form left, Save first; a dialog or a card edited in place
   right, Save last; a wizard Back on the left and the forward button on the
@@ -1818,8 +1888,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `text-meta` (11px) is for dates, counts, file facts and captions. The lint
   fails `text-meta` on a `<p>` and on an element with an `id` or
   `role="alert"`/`"status"`, so meta on its own line is a `div` or `span`.
-- **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
-  KAN-257): every Scout or AI control, and Scout's mark in the chat and
+- **One mark for Scout and AI, `SparkleIcon`**
+  (`components/sparkle-icon.tsx`, which `icons.tsx` re-exports; KAN-257):
+  every Scout or AI control, and Scout's mark in the chat and
   the panel header, draws it. An ESLint rule refuses Phosphor's sparkle
   imported anywhere else; a hand-drawn sparkle beside Lucide's had given
   the assistant two marks (`docs/design.md`, Brand and icons). Tailor My
@@ -1830,10 +1901,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   nothing about the fit, so the score now shares hues with the stages. The
   ramp's pink lives on as the marketing pages' `--color-updates`: a landing
   scene takes that, never a `--color-match-*` token, which turned amber
-  there when the bands changed. **Weak is neutral ink for now** (KAN-569,
-  `--color-match-weak` in `globals.css`): the cut-offs are placeholders, so
-  every job scored Weak and every card drew red. Put it back to
-  `--color-danger` once real cut-offs are set.
+  there when the bands changed. **Weak is red** (`--color-match-weak` is
+  `--color-danger`): KAN-569 drew it in neutral ink while the cut-offs are
+  placeholders, and the user brought the bands back on 2026-11-03, since a
+  black ring read as a fault. Keep all four bands coloured.
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
   Pick a button's size by where it sits (`docs/design.md`, Components). A
   `className` on a Button or Chip may place it or colour a state, never change
@@ -2057,8 +2128,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   change's plain fields (shown, position, the toggles) go into the
   choices at once (`mergeChoices`) and are merged again over each answer
   until their own lands, so a second quick move computes from the first.
-  A move of two neighbours shows at once as their strips of the page
-  trading places (`swapOf`, `swapsOn`, `Strip` in `pdf-pages.tsx`): a
+  Any reorder within one entry or one section shows at once as strips of
+  the page trading places (`swapsOf`, `swapsOn`, `Strip` in
+  `pdf-pages.tsx`): `swapsOf` splits it into neighbour swaps, each against
+  the order the ones before it leave (tested in `swaps.test.ts`). It took
+  only a swap of two neighbours until KAN-584, so a Tailor reorder's
+  revert, which moves several bullets, waited for the compile. A
   swap is kept by item, not by position, so a PDF that lands before its
   own still shows it, and one the page already shows draws nothing.
   A phone's "Saved, N ms" times the render.
@@ -2079,7 +2154,34 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
   own text undo runs. An open line is saved first, so Undo takes back
   what was just typed. **Fit to One Page is one step like any edit**:
-  Undo shows what it hid, Redo hides it again (`hideAgain`). It has no
+  Undo shows what it hid, Redo hides it again. **It plans from the page on
+  screen** (KAN-584, `fit` in the editor, `../docs/live_page.md`): the copy
+  and the PDF's measure (`measureOf`) go to `/api/resume-fit`, a route
+  handler for `planFit` (`POST .../fit/plan`, no compile), and each cycle's
+  cuts go through `apply` as a hide, so they close up on the page at once
+  (`gapsOn`, `Gap` in `pdf-pages.tsx`) while the render and the save go
+  behind. While the new PDF is over one page it asks again; a later cycle
+  joins the first's step (`apply`'s `into`), so one Undo takes it all back.
+  **Only the final PDF paints** (`apply`'s `hold`): a cycle's PDF still over
+  one page is kept for the next plan but not drawn, and the page keeps its
+  cuts closed up, since painting it showed a second render when a
+  prediction ran a line short. A fit that ends on a held PDF (nothing left
+  to cut, a failed plan) paints it then. **Its buttons stay dim from the click to the
+  last cycle** (`fittingNow`): `saving` alone is false between two cycles,
+  and the button lit up for a moment between each. The button reads
+  "Fitting…" with a spinner (the phone's "Fit" keeps its word) and the
+  status "Fitting to One Page…". **Undo, Redo and opening a line wait for
+  it too** (`fitting` in `travel` and `select`, `canUndo`): a later cycle
+  joins the first cycle's step, so an Undo between two cycles put that
+  step on the Redo stack, left the later hides with no Undo, and planned
+  the next cycle from a page with the first cuts shown again. No modal:
+  the page stays in view, where the cuts close up as they come, the
+  progress a modal would cover.
+  An API with no measure fits on the server (`fitOnServer`, `hideAgain`).
+  Every hide closes up at once the same way, not only Fit's, skills too: a
+  hidden skill is a cut along its line (`skillCut`, `Gap`'s `x0`/`x1`), so
+  every Tailor revert (a wording, an order, an added skill) shows before
+  its compile. It has no
   Undo Fit button of its own (gone 2026-11-01, a second way to do what
   Undo does); the phone's bar shows the same Undo and Redo. **Cut From
   Resume** lists what every fit in the tab cut, entries, bullets and
@@ -2194,6 +2296,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   panel dropped, so a resume set that way prints as it did. The bar mutes every
   button's words (`SLIM_BAR`, `DOCS_BAR`), so a real action there (Add Bullet,
   `FitButton`) carries `data-bar-action`, or a filled button reads grey on purple.
+  **An open bullet or entry moves from the bar** (`MoveButtons`, Move Up
+  and Move Down beside bold and italic, or an entry's size): a bullet within
+  its entry, an entry within its section, through `move` and `apply`, so it
+  trades places with its neighbour on the page at once (`swapsOf`; an entry
+  takes its bullets with it, and only when both sit on one page) while the
+  save and the render go behind it, and the line stays open on it. The
+  Sections panel reorders at once too, since it reads the same choices. It
+  sends the line's typed text first (`flush`), so the move's render prints
+  it. A section moves only in the Sections panel.
   **One bar, one height** (KAN-576): every button on it is 36px, text
   buttons `sm` and icon buttons `icon-lg` (the kit's `icon-sm` is 28px);
   `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. An upload's

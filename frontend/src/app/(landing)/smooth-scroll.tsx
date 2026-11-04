@@ -17,7 +17,8 @@ import { cancelFrame, frame, useReducedMotion } from "motion/react";
  * `requestAnimationFrame`, in the first step
  * (`setup`), before motion reads the scroll: ticked in `update`, as Lenis's
  * docs show, every scroll-linked value read the page one step behind, and
- * the flying cards and pills trailed their ends. Touch scrolling stays
+ * the flying cards and pills trailed their ends. It ticks only while it
+ * glides (`GlideLenis`). Touch scrolling stays
  * native (Lenis's default), and with reduced motion it does not run at
  * all. Its styles are in landing.css, not lenis.css, whose
  * `html.lenis { height: auto }` undid `h-full` on <html>.
@@ -30,6 +31,52 @@ import { cancelFrame, frame, useReducedMotion } from "motion/react";
  * opens at its top, and Back or Forward returns to where the reader was.
  */
 
+/**
+ * Lenis that ticks only while it glides. With the wheel native, a glide
+ * (an anchor's, `scrollPageTo`'s) is the only thing its tick moves, and
+ * every glide starts in `scrollTo`. Ticked on every frame, it kept the
+ * browser drawing a frame on the main thread at rest on every marketing
+ * page, and each of those frames updated every running CSS animation
+ * there too: at the footer, whose wordmark runs 29, the main thread was
+ * 96% busy at rest on a 4x slower CPU, and under 1% with it stopped.
+ */
+class GlideLenis extends Lenis {
+  /** The time Lenis steps by. It stands still between glides, since Lenis
+   * steps by the time since its last tick, and across a rest that would
+   * end a new glide in one frame. */
+  private clock = 0;
+  /** The last tick's frame, or null before a glide's first. */
+  private previous: number | null = null;
+  private gliding = false;
+
+  private tick = ({ timestamp, delta }: { timestamp: number; delta: number }) => {
+    // The first frame of a glide steps by motion's frame time.
+    this.clock += this.previous === null ? delta : timestamp - this.previous;
+    this.previous = timestamp;
+    this.raf(this.clock);
+    // Ended, cut off by the wheel or a jump, or stopped.
+    if (!this.isSmooth) this.rest();
+  };
+
+  private rest() {
+    cancelFrame(this.tick);
+    this.gliding = false;
+    this.previous = null;
+  }
+
+  override scrollTo(...args: Parameters<Lenis["scrollTo"]>) {
+    super.scrollTo(...args);
+    if (!this.isSmooth || this.gliding) return;
+    this.gliding = true;
+    frame.setup(this.tick, true);
+  }
+
+  override destroy() {
+    this.rest();
+    super.destroy();
+  }
+}
+
 let lenis: Lenis | null = null;
 
 export function SmoothScroll() {
@@ -38,7 +85,7 @@ export function SmoothScroll() {
 
   React.useEffect(() => {
     if (reduceMotion) return;
-    const instance = new Lenis({
+    const instance = new GlideLenis({
       autoRaf: false,
       anchors: true,
       // The wheel and trackpad scroll natively (see above).
@@ -47,10 +94,7 @@ export function SmoothScroll() {
       stopInertiaOnNavigate: true,
     });
     lenis = instance;
-    const tick = ({ timestamp }: { timestamp: number }) => instance.raf(timestamp);
-    frame.setup(tick, true);
     return () => {
-      cancelFrame(tick);
       instance.destroy();
       lenis = null;
     };

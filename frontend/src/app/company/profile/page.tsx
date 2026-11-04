@@ -143,7 +143,7 @@ export default function CompanyProfilePage() {
  */
 function Hero() {
   return (
-    <div className="rounded-card border-border-subtle shadow-panel relative isolate mt-4 flex h-56 items-end overflow-hidden border sm:h-72 lg:h-80">
+    <div className="rounded-card border-border-control shadow-panel relative isolate mt-4 flex h-56 items-end overflow-hidden border sm:h-72 lg:h-80">
       <div
         aria-hidden="true"
         className="from-ink via-ink to-brand absolute inset-0 -z-10 bg-gradient-to-br"

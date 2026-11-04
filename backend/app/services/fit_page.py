@@ -5,6 +5,8 @@ docs/cut_to_one_page.md; this module is its pure half, with no database and
 no render:
 
     fit(view, scores, render)   the loop: the cuts and the last render
+    next_cuts(view, scores, first, now, taken)
+                                one cycle of it, for the editor (KAN-584)
     plan(view, scores, page)    every cut Fit may make, in order, as steps
     Page(rendered, view)        one render, measured: fits(cut_ids)
     apply_cuts(view, cuts)      the view with those cuts made, in memory
@@ -511,6 +513,40 @@ def plan(view: ResumeView, scores: Scores | None, page: Page) -> list[Step]:
     return steps
 
 
+def _cycle(page: Page, steps: list[Step], done: int) -> tuple[list[Cut], int]:
+    '''One cycle's cuts: the steps after the first `done`, one at a time,
+    until `page` (the last render, measured) fits by subtraction. At least
+    one step, so a prediction wrong by a line never renders the same resume
+    forever. Returns the cuts and the steps made in all.'''
+    cuts: list[Cut] = []
+    cycle: set[uuid.UUID] = set()
+    while done < len(steps):
+        cuts.extend(steps[done])
+        cycle.update(c.id for c in steps[done])
+        done += 1
+        if page.fits(cycle):
+            break
+    return cuts, done
+
+
+def next_cuts(
+    view: ResumeView, scores: Scores | None, first: Rendered, now: Rendered | None, taken: int
+) -> tuple[list[Cut], int]:
+    '''`fit`'s loop one cycle at a time, with the renders left to the caller
+    (KAN-584): the editor already shows `first`, the render of `view`, and
+    renders each cycle's cuts as an edit. The plan comes from `first` every
+    cycle, as `fit` keeps it; `now` is the render after the first `taken`
+    steps (None on the first cycle). Returns this cycle's cuts, none once the
+    page is one page or the plan is spent, and the steps made in all.'''
+    current = now or first
+    if current.page_count <= 1:
+        return [], taken
+    steps = plan(view, scores, Page(first, view))
+    done = min(taken, len(steps))
+    shown = apply_cuts(view, [c for step in steps[:done] for c in step])
+    return _cycle(Page(current, shown), steps, done)
+
+
 async def fit(
     view: ResumeView, scores: Scores | None, render: Callable[[ResumeView], Awaitable[Rendered]]
 ) -> tuple[list[Cut], Rendered]:
@@ -528,14 +564,8 @@ async def fit(
     shown = view
     done = 0
     while rendered.page_count > 1 and done < len(steps):
-        page = Page(rendered, shown)
-        cycle: set[uuid.UUID] = set()
-        while done < len(steps):
-            cuts.extend(steps[done])
-            cycle.update(c.id for c in steps[done])
-            done += 1
-            if page.fits(cycle):
-                break
+        made, done = _cycle(Page(rendered, shown), steps, done)
+        cuts.extend(made)
         shown = apply_cuts(view, cuts)
         rendered = await render(shown)
     return cuts, rendered

@@ -19,6 +19,11 @@ import { cn } from "@/lib/cn";
  * (the search detail header): the mockup draws no shadow there, and a shadow
  * against an identical background would only muddy the edge.
  *
+ * THE EDGE IS --color-border-control (2026-11-03), the same edge as a button
+ * and a field, so a card and the controls on it read as one set; the user
+ * found light-edged cards beside dark-edged buttons a mismatch. Rules inside
+ * a card stay --color-border-subtle, or every card reads as a heavy box.
+ *
  * ACCENT AND BORDER COLOUR: with an accent the top edge is 3px and the other
  * three are 1px, so the three plain sides get their colour individually. A
  * shorthand `border-<colour>` beside a `border-t-<colour>` would resolve by
@@ -45,7 +50,7 @@ const TONE = {
 } as const;
 
 const LINK =
-  "group/card hover:border-border focus-visible:ring-brand-ring block transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none";
+  "group/card hover:border-ink-meta focus-visible:ring-brand-ring block transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none";
 
 const PADDING = {
   none: "",
@@ -92,12 +97,12 @@ type CardProps = {
 
 function edge(accent: CardAccent | undefined, selected: boolean) {
   if (!accent) {
-    return ["border", selected ? "border-brand" : "border-border-subtle"];
+    return ["border", selected ? "border-brand" : "border-border-control"];
   }
 
   return [
     "border-x border-b border-t-[3px]",
-    selected ? "border-x-brand border-b-brand" : "border-x-border-subtle border-b-border-subtle",
+    selected ? "border-x-brand border-b-brand" : "border-x-border-control border-b-border-control",
     ACCENT[accent],
   ];
 }

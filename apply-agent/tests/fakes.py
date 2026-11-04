@@ -461,8 +461,8 @@ class FakeClaude:
     questions the same call drafts for the Answer bank; any other gets its
     first option, or a short plain answer. `needs_lisul` holds the starts of
     essay and one-off questions Claude says its sources can't answer. `reviews` are the
-    problems each review finds, in order; once they run out, every review
-    passes. `replans` maps the start of a question whose answer the page
+    problems each review finds, in order (or a review's whole answer, a dict with its
+    `problems` and `fixes`); once they run out, every review passes. `replans` maps the start of a question whose answer the page
     showed otherwise to the answer to fill instead, when Sonnet plans it
     again; any other is left as planned. Keeps every call it was sent.
 
@@ -593,8 +593,9 @@ class FakeClaude:
                                for key, text in drafts.items()}}
         if "unsupported" in wanted:  # the claim check (apply.writing): finds nothing
             return {"unsupported": {key: [] for key in wanted["unsupported"]["properties"]}}
-        if "problems" in wanted:
-            return {"problems": self._reviews.pop(0) if self._reviews else []}
+        if "problems" in wanted:  # a review: its problems, or a dict of them with the fixes it gives
+            found = self._reviews.pop(0) if self._reviews else []
+            return found if isinstance(found, dict) else {"problems": found}
         if "sent" in wanted:
             if isinstance(self._sent, Exception):
                 raise self._sent
@@ -770,3 +771,13 @@ class RecordingBoard:
 
     def resumed(self, worker: int) -> bool:
         return False
+
+    def regenerations(self, worker: int) -> list[tuple[str, str]]:
+        return []
+    def wanted(self, worker: int) -> list[tuple[str, Callable[[str], None]]]:
+        return []
+
+    def typed(self, worker: int, questions: list[str], answer: str) -> str:
+        with self._lock:
+            self.typed_in = getattr(self, "typed_in", []) + [(worker, list(questions), answer)]
+        return ""

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { ArrowRightIcon, CheckIcon, MicrophoneIcon } from "@phosphor-icons/react/ssr";
 
-import { SparkleIcon } from "@/components/icons";
+import { SparkleIcon } from "@/components/sparkle-icon";
 import { cn } from "@/lib/cn";
 
 import { candidate } from "../../feature-data";
@@ -130,7 +130,7 @@ export function DraftCard({ lines = Infinity }: { lines?: number }) {
 /** The composer: the box to type in, the mic and Send. */
 export function Composer() {
   return (
-    <div className="bg-app rounded-2xl p-2.5">
+    <div className="bg-well rounded-2xl p-2.5">
       <p className="text-ink-meta text-[11px]">Ask me anything...</p>
       <div className="mt-1.5 flex justify-end gap-1.5">
         <span className="text-ink grid size-6 place-items-center rounded-full bg-white ring-1 ring-slate-900/10">

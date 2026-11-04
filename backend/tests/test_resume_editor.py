@@ -545,6 +545,44 @@ async def test_a_save_never_compiles(student, monkeypatch):
     assert res.status_code == 503
 
 
+async def test_the_editors_fit_plans_from_its_own_pdf_and_renders_the_cuts_as_an_edit(student):
+    # KAN-584: the plan compiles nothing; the editor renders each cycle's
+    # `hide` as an edit, saves it, and asks again while the page is over one
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    await _long_bank(client, me)
+    resume_id = await _generate(client, me)
+    # Every cycle plans from the copy and PDF the fit began with; each render
+    # goes from the copy as the edits before it left it
+    start = source = await _copy(client, me, resume_id)
+    first = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert first["page_count"] == 2 and first["shrinks"] and first["area"]
+    now, taken, hidden = None, 0, 0
+    while True:
+        res = await client.post(f"{me}/built-resumes/{resume_id}/fit/plan",
+                                json={"source": start, "first": first, "now": now, "taken": taken})
+        assert res.status_code == 200, res.text
+        plan = res.json()
+        # A change carries only what it sets: a null variant_id would switch
+        # a bullet to the bank's wording
+        assert all(set(c) == {"bullet_id", "shown"} for c in plan["hide"]["bullets"])
+        if not any(plan["hide"].values()):
+            break
+        taken = plan["taken"]
+        hidden += sum(len(v) for v in plan["hide"].values())
+        rendered = await _render_changes(client, me, resume_id, plan["hide"], source)
+        assert rendered.status_code == 200, rendered.text
+        res = await client.patch(f"{me}/built-resumes/{resume_id}/choices", json=plan["hide"])
+        assert res.status_code == 200, res.text
+        source = {**source, "choices": rendered.json()["choices"]}
+        now = rendered.json()["render"]
+        if now["page_count"] == 1:
+            break
+    assert hidden and now["page_count"] == 1
+    assert (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["page_count"] == 1
+
+
 # The editor's copy (`source`, KAN-391): the PDF compiles from it, no read first
 
 async def _copy(client, me, resume_id):

@@ -58,7 +58,7 @@ function GridCard({ item, href, delay }: { item: Application; href: string; dela
       padding="none"
       // Rises in after the cards before it and lifts under the pointer, as
       // a board card does.
-      className="hover:border-brand/40 hover:shadow-lift ease-glide animate-rise relative flex flex-col overflow-hidden transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
+      className="hover:border-ink-meta hover:shadow-lift ease-glide animate-rise relative flex flex-col overflow-hidden transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="bg-well border-border-subtle flex items-start gap-2 border-b p-3">

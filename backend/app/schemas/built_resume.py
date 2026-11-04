@@ -4,7 +4,13 @@ import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    StringConstraints,
+    field_serializer,
+    model_validator,
+)
 
 from app.schemas.bank import EntryResponse, SkillResponse
 from app.schemas.profile import ApplicantProfileResponse
@@ -117,6 +123,47 @@ class PageSettings(BaseModel):
         return self
 
 
+class RenderPoint(BaseModel):
+    """Where a \\wipoint landed (resume_render.Point): a skill line's start,
+    which Fit to One Page reads a line's width from."""
+
+    name: str = Field(max_length=200)
+    page: int
+    x: float
+    y: float
+
+
+class RenderShrink(BaseModel):
+    """One start marker's page total and shrink (resume_render.Shrink): how
+    far the glue under it can give, which Fit to One Page counts."""
+
+    name: str = Field(max_length=200)
+    page: int
+    total: float
+    shrink: float
+
+
+class RenderArea(BaseModel):
+    """The page's text area (resume_render.TextArea), in PDF points."""
+
+    top: float
+    height: float
+    right: float
+
+
+class RenderMeasure(BaseModel):
+    """What Fit to One Page measures a render by (fit_page.Page), as the
+    editor holds it from a render's answer, with no PDF: the editor sends it
+    back so a fit needs no compile of the page it already shows (KAN-584)."""
+
+    page_count: int = Field(ge=1)
+    boxes: list[RenderBox] = Field(max_length=5000)
+    points: list[RenderPoint] = Field(max_length=500)
+    area: RenderArea | None = None
+    shrinks: list[RenderShrink] = Field(max_length=5000)
+    wrapped_line: float = 12.0
+
+
 class RenderResponse(BaseModel):
     """The rendered PDF, base64, with what the student is warned about
     before download and the editor's boxes, in page order."""
@@ -138,6 +185,11 @@ class RenderResponse(BaseModel):
     # baselines there, which reads a box's height as lines
     page_settings: PageSettings = PageSettings()
     wrapped_line: float = 12.0
+    # What Fit to One Page measures the page by (RenderMeasure): the editor
+    # sends them back with the boxes, so a fit plans with no compile
+    points: list[RenderPoint] = []
+    area: RenderArea | None = None
+    shrinks: list[RenderShrink] = []
 
 
 class EntryChoiceResponse(BaseModel):
@@ -314,6 +366,31 @@ class EditRendered(BaseModel):
     entry: EntryResponse | None = None
 
 
+class FitPlan(BaseModel):
+    """One cycle of Fit to One Page from the editor (KAN-584), with no
+    compile and no read of the resume's content: `source`, the editor's copy
+    as it stood when the fit began, and `first`, the measure of the PDF that
+    copy printed, which every cycle plans from; `now`, the measure of the
+    PDF after the first `taken` steps (none on the first cycle)."""
+
+    source: ResumeCopy
+    first: RenderMeasure
+    now: RenderMeasure | None = None
+    taken: int = Field(0, ge=0, le=10_000)
+
+
+class FitPlanned(BaseModel):
+    """This cycle's cuts: `hide`, the PATCH .../choices body that makes
+    them, which the editor renders and saves as any edit; `undo`, the body
+    that shows them again; and `taken`, the steps made so far, sent back on
+    the next cycle. An empty `hide` means the page fits, or nothing is left
+    to cut."""
+
+    hide: ChoicesUpdate
+    undo: ChoicesUpdate
+    taken: int
+
+
 class FitResponse(BaseModel):
     """Fit to One Page (KAN-218, KAN-320): the bullets it hid, in the order
     it hid them; `undo`, the PATCH .../choices body that shows everything it
@@ -323,3 +400,12 @@ class FitResponse(BaseModel):
     hidden: list[UUID]
     undo: ChoicesUpdate
     render: RenderResponse
+
+    # `undo` carries only the fields each change sets: a null `variant_id`
+    # is a switch to the bank's wording, so a null for every unset field
+    # made the render refuse it (422). Only `undo`: dropping every null
+    # from the response also dropped the render's null page settings
+    # (`body_size`)
+    @field_serializer("undo")
+    def _undo_sets_only(self, undo: ChoicesUpdate) -> dict:
+        return undo.model_dump(mode="json", exclude_none=True)

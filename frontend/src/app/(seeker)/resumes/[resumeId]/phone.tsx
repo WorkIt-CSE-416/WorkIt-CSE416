@@ -125,6 +125,7 @@ export function PhoneEditor({
   box,
   text,
   saving,
+  fitting,
   elapsed,
   error,
   download,
@@ -159,6 +160,8 @@ export function PhoneEditor({
   /** The selected line's typed text, or null when it is not typed in place. */
   text: string | null;
   saving: boolean;
+  /** A Fit to One Page is under way, as on the desktop bar. */
+  fitting: boolean;
   elapsed: number | null;
   error: string | null;
   /** The page's settings, in the Format sheet (./page-format.tsx). */
@@ -245,6 +248,7 @@ export function PhoneEditor({
                 fitLabel="Fit"
                 onFit={onFit}
                 disabled={saving}
+                fitting={fitting}
               />
             </span>
           ) : (
@@ -256,7 +260,13 @@ export function PhoneEditor({
             )
           )}
           <span className="text-note text-ink-meta ml-auto" aria-live="polite">
-            {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
+            {fitting
+              ? "Fitting…"
+              : saving
+                ? "Saving…"
+                : elapsed != null
+                  ? `Saved, ${elapsed} ms`
+                  : ""}
           </span>
         </div>
         <div className={cn("flex flex-wrap items-center gap-2", TAP)}>

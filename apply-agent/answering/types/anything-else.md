@@ -39,14 +39,14 @@ The new fact in the first sentence, then the meaning in one clause if the source
 **Topic label** ("your motivation to apply", "notable accomplishments", "interest in X"): the new fact must be on that topic. An accomplishment or a reason to apply is allowed here, as long as no other answer on the form used it.
 **Clarify label** ("clarify any answers"): clarify only what needs it.
 
-Always answer, even when the box is optional: a blank box is a bug in this system. When no new fact exists, the required slot asks @NAME@.
+**Optional box: blank by default** (Lisul, 2026-11-04). An optional catch-all box stays empty unless the sources give a fact that is both new and relevant. New: not on the resume (a project's results and numbers from the Story bank are on it), not in another answer on this form, not in the cover letter. Relevant to this employer and role: a project close to the job that the resume leaves out, a link the form didn't ask for, or an availability or scheduling note the form never asked (terms, a start date). A repeated resume bullet is filler and slightly harmful: Voleon's "Additional information" got a Micromouse firmware paragraph its resume already gave. With nothing new and relevant, leave the answer empty and never ask @NAME@: Apply reports the box as blank on purpose. A required box always gets a fact; when none exists, the required slot asks @NAME@.
 
 ## Rules
 
 Each is a yes/no check on the draft.
 
 1. **Is it at most two sentences, unless the label asks for more?** The good YC answers are 23 and 31 words; the weak one is three paragraphs (A41).
-2. **Does every sentence carry a fact not already on the form?** Read every other answer first. The accepted Z Fellows applicant re-pitched traction they had given elsewhere (O20); USC lists "Another personal statement or short answer" as what does not belong (O21).
+2. **Does every sentence carry a fact not already on the form or the resume?** Read every other answer first. The accepted Z Fellows applicant re-pitched traction they had given elsewhere (O20); USC lists "Another personal statement or short answer" as what does not belong (O21).
 3. **Does it answer what the label asks?** For a bare label, it holds no "why I want to join" and no restated accomplishment (Tuck, B11). For OpenAI's or Anthropic's label, motivation or an accomplishment is the point (O21 note).
 4. **Is it free of definitions and lessons?** "Other examples of certified B Corps include Patagonia, The Honest Company and Plum Organics" is the weak answer's line (A41 Flex).
 5. **Is it free of thanks, enthusiasm and sign-offs?** None of the good answers (A41, the O20 model) has one; a line with no fact fails rule 2.

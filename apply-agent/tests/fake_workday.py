@@ -73,6 +73,7 @@ class Field:
     format: str = "MM/YYYY"  # a date's sections: MM/YYYY, YYYY or MM/DD/YYYY
     group: str = ""  # the titled group it sits in, whose title says what a vague label doesn't
     shown_if: tuple[str, str] = ()  # (key, answer): shown, and asked, only once that field has that answer
+    intro: str = ""  # the step's own text just before it, outside every field (a heading or an intro)
 
 
 @dataclass(frozen=True)
@@ -632,6 +633,9 @@ class FakeWorkdayServer:
             + '<div data-automation-id="pageFooter"><button data-automation-id="pageFooterBackButton">Back</button>'
             f'<button type="button" data-automation-id="pageFooterNextButton">{footer}</button></div>'
             f"</div><script>{STEP_SCRIPT}</script>"
+            # Back goes to the step before, as it saved it (none before the first)
+            + (f"<script>document.querySelector('[data-automation-id=pageFooterBackButton]').addEventListener('click', "
+               f"() => {{ location.href = '/__fake__/apply/{step - 1}'; }})</script>" if step > 1 else "")
         )
 
     def _google_page(self, route: Route, parts) -> None:
@@ -716,6 +720,9 @@ def _section_html(s: Section, panels: list[dict] | None) -> str:
 def _field_html(f: "Field | Section", value, prefix: str = "") -> str:
     if isinstance(f, Section):
         return _section_html(f, value)
+    if f.intro:
+        return (f'<div data-automation-id="richText"><p>{html.escape(f.intro)}</p></div>'
+                + _field_html(replace(f, intro=""), value, prefix))
     if f.group:
         heading = f"{prefix}{f.key}-group"
         return (f'<div role="group" aria-labelledby="{heading}"><h4 id="{heading}">{html.escape(f.group)}</h4>'

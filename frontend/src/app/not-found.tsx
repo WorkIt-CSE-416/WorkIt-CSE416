@@ -38,7 +38,7 @@ export const metadata: Metadata = { title: "Page Not Found" };
 export default function NotFound() {
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <div className="max-w-auth rounded-card border-border bg-panel shadow-card w-full border p-6 text-center">
+      <div className="max-w-auth rounded-card border-border-control bg-panel shadow-card w-full border p-6 text-center">
         <Logo size="card" className="mx-auto" />
 
         <h1 className="text-title text-ink mt-2.5">Page Not Found</h1>

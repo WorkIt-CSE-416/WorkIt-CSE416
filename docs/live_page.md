@@ -99,8 +99,34 @@ Built so far (option A, the typed line only):
   is sent once more; if it fails again it does the same, since its save
   may have gone through.
 - **Moves show at once:** two neighbours' strips of the page trade places
-  until the PDF lands. Hide, show and wording switches show nothing until
-  then.
+  until the PDF lands. **A hide shows at once too** (KAN-584): each hidden
+  entry's or bullet's band of the page closes up, with the space under it
+  when the next line is close, and the lines below rise (`gapsOn` in the
+  editor, `Gap` in `pdf-pages.tsx`). A hidden skill leaves its line
+  instead (`skillCut`): from its start to the next skill's, since each
+  skill's box holds its comma, and the rest of the line moves left; the
+  line's last skill takes the comma before it. So a Tailor revert of an
+  added skill shows at once, as a reworded line's old words and a reorder
+  already did. A section emptied by a hide keeps its heading, and a line a
+  skill leaves does not pull the next line's skills up, until the PDF
+  lands. Show and wording switches show nothing until then.
+- **Fit to One Page is an edit like the others** (KAN-584): the editor
+  sends its copy and the measure of the PDF it shows (each render answers
+  its points, text area and shrinks beside the boxes) to `POST
+  .../fit/plan`, which compiles nothing and answers the cuts that fit by
+  prediction. The editor renders and saves them as any hide, so they close
+  up on the page about one round trip after the click; while the new PDF
+  is still over one page, it asks for the next cycle, without painting that
+  PDF: only the final one paints, so a prediction a line short shows one
+  render, not two. Before, Fit compiled
+  the page the editor already showed, read the resume from the database,
+  compiled again to confirm, wrote, and read the choices back, all before
+  the page changed: two compiles and about ten reads. Measured on a laptop
+  (2026-11-03): the cuts left the page 0.42 s after the click, and a
+  two-cycle fit ended at about 2.2 s. While it runs, the button reads
+  "Fitting…" and the bar "Fitting to One Page…", and Undo, Redo and
+  opening a line wait for the last cycle: the page stays in view rather
+  than under a modal, since its cuts closing up are the progress.
 - **A page setting's compile is skipped when a newer one is next in the
   queue** (each is a full replacement), so five quick clicks on a size
   compile twice, not five times. Every click still saves. A skipped step
@@ -137,7 +163,9 @@ Still open for step 1:
   TeX.
 - A line split across a page break moves only its first page.
 - A line the student is still on when the tab closes is not saved.
-- Hide, show and a wording switch show nothing until the PDF lands.
+- Show and a wording switch show nothing until the PDF lands; a section
+  a hide empties keeps its heading, and a skill line keeps its wrap, until
+  then.
 - The time of one compile alone on the deployed API. A compile is nearly
   all CPU, 0.41 CPU seconds in a laptop's 0.42 s of waiting (KAN-524,
   2026-11-02), and the Container has 1/4 vCPU

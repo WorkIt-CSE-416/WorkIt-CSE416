@@ -38,7 +38,7 @@ export function AuthCard({
     <main className="flex flex-1 items-start justify-center p-6 lg:pt-[12vh]">
       <SkylineBackdrop />
 
-      <div className="max-w-auth rounded-card border-border bg-surface shadow-card w-full border p-6">
+      <div className="max-w-auth rounded-card border-border-control bg-surface shadow-card w-full border p-6">
         <Logo size="card" className="mx-auto" />
 
         <h1 className="text-title text-ink mt-2.5 text-center">{title}</h1>

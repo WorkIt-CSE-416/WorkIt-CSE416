@@ -78,21 +78,43 @@ class AnswerBank:
     def entries(self) -> list[Entry]:
         return [entry for k in list(self._entries) if (entry := self.get(k))]
 
-    def add(self, question: Question, answer: str | list[str], company: str, day: date, facts: list[str] = ()) -> bool:
+    def add(self, question: Question, answer: str | list[str], company: str, day: date, facts: list[str] = (),
+            wording: str | None = None) -> bool:
         """Add Claude's draft answer to `question`, first asked at `company` on `day`,
-        drawn from `facts` (profile keys and Story bank lines), if Claude named any.
-        False if the bank already has an answer to it, which stays."""
+        drawn from `facts` (profile keys and Story bank lines), if Claude named any,
+        filed under `wording` (a bare date's section and label, fill_engine.Plan.filed),
+        else under the question's label. False if the bank already has an answer to it, which stays."""
+        filed = wording or question.label
         with self._writing() as entries:
-            if _find(entries, question.label) is not None:
+            if _find(entries, filed) is not None:
                 return False
-            entries[key(question.label)] = {
-                "question": one_line(question.label),
+            entries[key(filed)] = {
+                "question": one_line(filed),
                 "answer": [_text(a) for a in answer] if isinstance(answer, list) else _text(answer),
                 "options": [_text(o) for o in question.options],
                 "source": CLAUDE,
                 "reviewed": False,
                 "first_seen": {"date": day, "company": company},
             } | ({"facts": list(facts)} if facts else {})
+            return True
+
+    def redraft(self, question: Question, answer: str | list[str], company: str, day: date) -> bool:
+        """Claude's new draft to `question`, written again with context Lisul
+        added (apply.regenerate), in place of its old draft: still Claude's and
+        unreviewed, first seen as before. Lisul's own answer stays. False
+        when the bank keeps his."""
+        with self._writing() as entries:
+            found = _find(entries, question.label)
+            if isinstance(found, dict) and found.get("source") == LISUL:
+                return False
+            if not isinstance(found, dict):
+                found = entries[key(question.label)] = {"question": one_line(question.label),
+                                                        "options": [_text(o) for o in question.options],
+                                                        "first_seen": {"date": day, "company": company}}
+            found["answer"] = [_text(a) for a in answer] if isinstance(answer, list) else _text(answer)
+            found["source"], found["reviewed"] = CLAUDE, False
+            found.pop("facts", None)  # what the old draft drew on
+            found.pop("none", None)
             return True
 
     def take_edits(self, rows: list["AnswerRow"]) -> list[str]:
