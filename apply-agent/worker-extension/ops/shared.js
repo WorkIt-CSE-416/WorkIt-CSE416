@@ -28,3 +28,28 @@ export async function inPage(params, world, func, args = []) {
   if (!result) throw named("NoFrame", `no frame ${params.frame ?? 0} in tab ${params.tab}`);
   return result.result;
 }
+
+// captureVisibleTab allows about 2 calls a second per browser, and the tile (S3) and
+// screenshots share it: every capture goes through this one gate, spaced CAPTURE_GAP apart.
+// A capture that never answers (a minimized window) gives up after CAPTURE_WAIT.
+const CAPTURE_GAP = 520; // ms
+const CAPTURE_WAIT = 5000; // ms
+let gate = Promise.resolve();
+let capturedAt = 0;
+
+export function capture(windowId, options) {
+  const run = gate.then(async () => {
+    const wait = capturedAt + CAPTURE_GAP - Date.now();
+    if (wait > 0) await sleep(wait);
+    try {
+      return await Promise.race([
+        chrome.tabs.captureVisibleTab(windowId, options),
+        sleep(CAPTURE_WAIT).then(() => { throw named("TimeoutError", `captureVisibleTab: no answer in ${CAPTURE_WAIT} ms (is the window minimized?)`); }),
+      ]);
+    } finally {
+      capturedAt = Date.now();
+    }
+  });
+  gate = run.catch(() => {});
+  return run;
+}

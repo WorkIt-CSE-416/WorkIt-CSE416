@@ -1,6 +1,6 @@
 # Plain Workers protocol (v1)
 
-S1 (KAN-607) and S2 (KAN-608) own this; S3 to S7 build on it. Spec: KAN-606. This file
+S1 (KAN-607) and S2 (KAN-608) own this; S3 to S7 build on it (S3, KAN-609: the tile ops). Spec: KAN-606. This file
 is the source; change it in the PR that changes the protocol.
 
 Hard rule: never evade bot detection. Nothing here hides automation; a plain
@@ -141,9 +141,44 @@ Playwright's Python client builds them, so `internal:role=...`, `internal:text=.
 | `unmark` | `token` | `null` |
 | `aria` | `selector`, `{mode?}` | Playwright's `ariaSnapshot` text |
 
+## Ops (S3: the live tile and Fix from the window, KAN-609)
+
+In `worker-extension/ops/tile.js` and `page/tile.js`; Apply's side is `apply.plain.tile`.
+
+| Op | Params | Value |
+|---|---|---|
+| `tile.start` | `interval?` ms (500), `quality?` (70), `maxWidth?` (1280), `maxHeight?` (800) | `null`; from now on the Worker sends `tile.frame` events of its shown tab (the active tab of the window last switched to), at most one per `interval`, only when the picture changed. Calling it again restarts it with the new settings. |
+| `tile.stop` | | `null` |
+| `tile.input` | `tab?` (default: the shown tab), `event`, `width?`, `height?` | replays one tile event (below) as synthetic DOM events; `null`, `{"menu": {options: [{label, disabled}], selected}}` (a press on a `<select>`), `{"chooser": "selectSingle"\|"selectMultiple", tab, frame}` (a click asked for a file), or `{"text"}` (a copy) |
+| `chooser.watch` | `tab` | `null`; clears any file request and hooks every frame of the tab (below) |
+| `chooser.get` | `tab` | `{"mode", "frame"}` of the file input a page asked for since the last watch or set, or `null` |
+| `chooser.set` | `tab`, `frame?`, `files` (`[{name, mimeType, base64}]`; `[]` cancels) | `true` if the input was there; sets `input.files` through DataTransfer in the MAIN world, fires `input` and `change` (`cancel` for none) |
+
+`tile.input` events are the Apply window's (`dashboard.Frames.input`): `{"type": "down"|"up", x, y,
+button, clicks}`, `{"type": "move", x, y}`, `{"type": "wheel", x, y, dx, dy}`, `{"type": "key", key,
+modifiers?}`, `{"type": "text", text}` (one character: a key press; more: a paste), `{"type": "copy"}`,
+`{"type": "choose", index}` (an option of the last `<select>` pressed). Points are in pixels of a frame
+`width` x `height` (the frame Lisul clicked on; the page scales them by `innerWidth / width`), or CSS
+pixels of the viewport when `width` is null (`PortPage.mouse`). A point on an `<iframe>`, or a key while
+one has the focus, is replayed in that frame (found among `webNavigation.getAllFrames` by its address).
+A press focuses what it lands on (the caret at the end of a field's text); a click goes to the nearest
+element holding both press and release, as Chrome's does; the wheel dispatches `wheel`, then scrolls the
+nearest box under the point that can scroll that way, else the page.
+
+File choosers: an untrusted click opens no picker (no user activation). So a click that would open one
+marks the input instead: an isolated-world `click` listener catches a synthetic click reaching a file
+input (on it or its label), and a MAIN-world hook on `HTMLInputElement.prototype.click` and
+`showPicker` catches a page script's own call (a dropzone's button). The mark is
+`data-apply-chooser="<mode>"` on `<html>`, plus `data-apply-chooser-input` on an attached input (a
+detached one is kept in the MAIN world). The hook only acts **without** user activation: Lisul's own
+mouse in the Worker's window still opens the real picker. `tile.input` hooks the frame before each
+press and release; `chooser.watch` hooks all frames (`PortPage.expect_file_chooser`).
+
 Events (S2 sends these; later slices add their own):
 `{"event": "tab.created", "tab", "opener"}`, `{"event": "tab.removed", "tab"}`,
 `{"event": "navigated", "tab", "frame", "url"}` (committed).
+S3: `{"event": "tile.frame", "tab", "url", "data": base64 JPEG, "width", "height"}`, the tab's
+viewport at its CSS size (a Retina capture is scaled down), fitted within `maxWidth` x `maxHeight`.
 
 ## Ops (S4: the submit and drive guards)
 
@@ -221,15 +256,18 @@ and defaults (timeouts in ms, default 30000). Covered in S2:
   tab; the callback runs on its own thread with `source = {context, page, frame}`), and
   `route(regex, submit_guard._refuse)` / `unroute` (declarativeNetRequest: blocks non-GETs; a glob
   or another handler raises `NotImplementedError`, since no Python handler can run).
-- **Not yet (a later slice adds it, in this module):** `full_page=True` stitching (S5); `expect_file_chooser`,
-  `mouse` (S3); `add_locator_handler` (S7); frame locators across frames
+- **S3 adds:** `PortPage.mouse` (`move`, `down`, `up`, `click`, `dblclick`, `wheel`, at viewport
+  points) and `PortPage.expect_file_chooser(timeout=)`, whose `.value` is a FileChooser
+  (`set_files`, `is_multiple`, `page`; no `element`), in `apply.plain.tile`.
+- **Not yet (a later slice adds it, in this module):** `full_page=True` stitching (S5); `add_locator_handler` (S7); frame locators across frames
   (`frame_locator`, `content_frame`) (S5/S7). Each raises `NotImplementedError` naming the slice.
 
 Auto-wait: actions poll their `dom` op every 100 ms while it answers `{"retry": ...}` or
 `NotFound`, until the timeout, then raise `PortTimeoutError` with Playwright's wording
 ("Locator.click: Timeout 30000ms exceeded."). Events are synthetic (`isTrusted: false`):
 `fill` focuses, selects all and uses `execCommand("insertText")`, falling back to the
-native value setter plus `input`/`change`; `click` dispatches pointer and mouse events
+native value setter plus `input`/`change`; `press` emulates the default of Enter, Tab,
+Backspace, Delete, Space and (S3) the caret keys ArrowLeft/ArrowRight/Home/End (Shift extends); `click` dispatches pointer and mouse events
 at the element's centre on the hit target, then `click`.
 
 ## How a Filler calls it
@@ -260,6 +298,15 @@ connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),
 `--load-extension=<worker-extension>`. Never `--remote-debugging-port`,
 `--enable-automation`, `--headless`. Workers are never minimized and sit on-screen.
 
+**Background launch (Lisul, 2026-11-04):** a Worker's Chrome starts through
+`/usr/bin/open -g -n -a <Chrome app> --args ...` (`launcher.start_in_background`), never by running
+the binary, which macOS brings to the front. Its PID is then read from the profile's
+`SingletonLock` (`PlainWorker.process` is a `launcher.Chrome`, stopped by that PID). Windows are
+900 x 640 at the top-left corner, staggered 20 px a Worker, wholly on-screen. Nothing may bring a
+Worker forward except Lisul's own Show (`PlainWorkers.show`): no `chrome.windows.update({focused:
+true})`, no AppleScript focus, no full-screen. Tests use one Worker, shared by the module, and stop it
+when they end.
+
 `policies.yaml: worker_mode: cdp|plain` (default `cdp`) is read by S8's routing; S1 only adds the key.
 
 ## Known limits (found in S1/S2, on Chrome for Testing 156)
@@ -283,6 +330,20 @@ connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),
   blocked. A lifted tab's note and bindings go in at each commit, a moment after the page's first
   script; the guard reads its lifted flag only when something is pressed.
 
+## The tile (S3)
+
+`apply.plain.tile.PortFrames(workers, connection)` is the Apply window's frame source
+(`dashboard.Frames`) for plain Workers, as `dashboard.CdpFrames` is for CDP ones:
+`Dashboard(n, PortFrames(n, workers.bridge.connection))`. Its thread calls `tile.start` on each
+Worker's connection as it appears (again after a reconnect), keeps the newest `tile.frame` per Worker,
+replays the window's input with `tile.input` (the window sends events one at a time, in order),
+answers a file the tile picked with `chooser.set`, and reads the field error (`apply.stuck`) every 2 s
+over `eval`. Every capture, the tile's and `tabs.screenshot`'s, goes through one gate in the
+extension (`shared.capture`), spaced 520 ms apart: Chrome allows about two a second per browser, so a
+screenshot waits at most one tile frame. With `--disable-backgrounding-occluded-windows` a Worker
+covered by other windows still sends fresh frames (`test_plain_tile`). A minimized window's capture
+never answers: it gives up after 5 s, and Workers are never minimized.
+
 ## Demos
 
 - `uv run apply plain ping [--workers N]`: starts N plain Workers, prints each hello
@@ -291,3 +352,6 @@ connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),
   forms on 127.0.0.1 (POSTs refused), opens it in a plain Worker, reads its questions, plans Test
   Person's answers (the sample's made-up applicant), fills them through `fill_engine.fill` and
   prints the read-back. Never submits. `apply.plain.demo.replay(folder)` is the same server for tests.
+- `uv run apply plain tile <saved-form> [--seconds N]` (S3): the same fill, shown live in an Apply
+  window tile (it prints the window's address); then the tile stays up N seconds (300) for clicking and
+  typing in the form from it. Never submits: the saved form's server refuses every POST.

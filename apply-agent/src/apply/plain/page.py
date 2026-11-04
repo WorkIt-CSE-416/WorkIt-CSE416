@@ -46,6 +46,20 @@ ROLE_ARGUMENTS = ("checked", "disabled", "expanded", "include_hidden", "level", 
                   "description")
 
 
+def file_payloads(files) -> list[dict]:
+    """Paths or {name, mimeType, buffer} payloads as the ops take files: [{name, mimeType, base64}]."""
+    payloads = []
+    for file in files if isinstance(files, (list, tuple)) else [files]:
+        if isinstance(file, (str, Path)):
+            path = Path(file)
+            payloads.append({"name": path.name, "mimeType": mimetypes.guess_type(path.name)[0] or "application/octet-stream",
+                             "base64": base64.b64encode(path.read_bytes()).decode()})
+        else:
+            payloads.append({"name": file["name"], "mimeType": file.get("mimeType") or "application/octet-stream",
+                             "base64": base64.b64encode(file["buffer"]).decode()})
+    return payloads
+
+
 def later(what: str, slice_: str):
     raise NotImplementedError(f"{what} on a plain Worker comes in {slice_} (apply-agent/docs/plain-workers/PROTOCOL.md)")
 
@@ -381,16 +395,7 @@ class PortLocator(_Queries):
     def set_input_files(self, files, timeout: float | None = None, **_) -> None:
         """Paths or {name, mimeType, buffer} payloads, set on the input through DataTransfer. The bytes
         go down the port as base64; the bridge chunks a message over 512 KiB."""
-        payloads = []
-        for file in files if isinstance(files, (list, tuple)) else [files]:
-            if isinstance(file, (str, Path)):
-                path = Path(file)
-                payloads.append({"name": path.name, "mimeType": mimetypes.guess_type(path.name)[0] or "application/octet-stream",
-                                 "base64": base64.b64encode(path.read_bytes()).decode()})
-            else:
-                payloads.append({"name": file["name"], "mimeType": file.get("mimeType") or "application/octet-stream",
-                                 "base64": base64.b64encode(file["buffer"]).decode()})
-        self._do("set_input_files", "files", payloads, timeout=timeout)
+        self._do("set_input_files", "files", file_payloads(files), timeout=timeout)
 
     def focus(self, timeout: float | None = None, **_) -> None:
         self._do("focus", "focus", timeout=timeout)
@@ -660,6 +665,7 @@ class PortPage(PortFrame):
         self.context = context or PortContext(worker)
         self.context._pages.setdefault(tab, self)
         self.keyboard = Keyboard(self)
+        self._mouse = None
         self._closed = False
         self._listeners: dict[str, list[tuple[Callable, Callable]]] = {}
         worker.on("tab.removed", self._removed)
@@ -825,12 +831,18 @@ class PortPage(PortFrame):
 
     # --- what a later slice adds
 
-    def expect_file_chooser(self, *_, **__):
-        later("expect_file_chooser", "S3")
+    def expect_file_chooser(self, predicate=None, timeout: float | None = None):
+        """What the block does asks for a file; `.value` is then its FileChooser (apply.plain.tile)."""
+        from apply.plain.tile import expect_file_chooser
+        return expect_file_chooser(self, DEFAULT_TIMEOUT if timeout is None else timeout)
 
     @property
     def mouse(self):
-        return later("mouse", "S3")
+        """Synthetic pointer and mouse events at viewport points (apply.plain.tile.Mouse)."""
+        if self._mouse is None:
+            from apply.plain.tile import Mouse
+            self._mouse = Mouse(self)
+        return self._mouse
 
     def add_locator_handler(self, *_, **__):
         later("add_locator_handler", "S7")
