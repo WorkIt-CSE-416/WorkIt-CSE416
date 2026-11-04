@@ -624,15 +624,17 @@ class _Planned:
 
     def fix(self, fixes: dict[str, str], readback: dict) -> bool:
         """Fill the Pre-submit review's `fixes` (its right answer, by the question's label on one line) in
-        place of the plan's answers, so no plan writes over them. Never over Lisul's own answer (on the page
-        or in the Answer bank), an essay, a file or a secret, nor an answer that isn't one of the question's
-        options. A draft it fixes leaves the Answer bank: the bank never keeps an answer known wrong.
-        True if any answer changed."""
+        place of Claude's guesses: its drafts, and its earlier drafts the Answer bank answered with. Never over
+        an answer the plan took from the profile (General Motors' degree, live: the review called "Bachelor
+        Degree" wrong), Lisul's own answer (on the page or in the Answer bank), an essay, a file or a secret,
+        nor an answer that isn't one of the question's options. So no plan writes over them, and a draft it
+        fixes leaves the Answer bank: the bank never keeps an answer known wrong. True if any answer changed."""
         own, essays_asked = self.own(), {e.question.name for e in self.written}
+        guessed = {d.question.name for d in self.drafted + self.unbanked} | {q.name for q in self.banked if q.name not in own}
         changed = False
         for q in self.questions:
             answer = fixes.get(one_line(q.label))
-            if (answer is None or q.kind in ("file", "multi_select") or q.name in self.lisuls or q.name in own
+            if (answer is None or q.name not in guessed or q.kind in ("file", "multi_select") or q.name in self.lisuls
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
                     or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
                 continue
