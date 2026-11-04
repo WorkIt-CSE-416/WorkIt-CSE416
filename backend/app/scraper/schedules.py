@@ -91,7 +91,8 @@ async def record_missing(conn: AsyncConnection, schedule_id) -> None:
             .values(missing_at=text("now()"))
         )
     else:
-        # Second miss: count as complete read with nothing listed
+        # Second miss: count as complete read with nothing listed.
+        # Clear failures and rest, same as advance_reads.
         await conn.execute(
             update(_schedules)
             .where(_schedules.c.id == schedule_id)
@@ -99,6 +100,8 @@ async def record_missing(conn: AsyncConnection, schedule_id) -> None:
                 prior_read_at=_schedules.c.missing_at,
                 last_read_at=text("now()"),
                 missing_at=None,
+                consecutive_failures=0,
+                rest_until=None,
             )
         )
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from sqlalchemy import text, update
+from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -20,14 +20,29 @@ LEASE_DURATION = timedelta(minutes=30)
 
 
 async def create_tasks(conn: AsyncConnection, schedule_ids: list) -> int:
-    """Insert one pending task per schedule id. Returns count inserted."""
+    """Insert one pending task per schedule id. Returns count inserted.
+
+    Skips schedules that already have a pending or claimed task, so repeated
+    cycles never pile up duplicate work items.
+    """
     if not schedule_ids:
         return 0
-    rows = [{"schedule_id": sid} for sid in schedule_ids]
-    stmt = insert(_tasks).values(rows)
-    # Skip if a pending task already exists for this schedule.
-    stmt = stmt.on_conflict_do_nothing()
-    result = await conn.execute(stmt)
+    # Exclude schedules that already have an active (pending/claimed) task.
+    existing = (
+        await conn.execute(
+            select(_tasks.c.schedule_id).where(
+                _tasks.c.schedule_id.in_(schedule_ids),
+                _tasks.c.status.in_(["pending", "claimed"]),
+            )
+        )
+    ).all()
+    already = {row.schedule_id for row in existing}
+    to_create = [sid for sid in schedule_ids if sid not in already]
+    if not to_create:
+        return 0
+    result = await conn.execute(
+        insert(_tasks).values([{"schedule_id": sid} for sid in to_create])
+    )
     return result.rowcount
 
 

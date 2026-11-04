@@ -35,9 +35,6 @@ from app.scraper.tasks import (
 
 logger = logging.getLogger(__name__)
 
-# ponytail: SURGE guard uses same threshold as __main__.scrape
-SURGE = 3
-
 
 async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
     """One full worker cycle. Returns a summary dict."""
@@ -140,6 +137,10 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> None:
 
     # Advance reads on the schedule.
     await advance_reads(conn, task.schedule_id)
+
+    # TODO(KAN-605): publish observations to job_postings via publish.py's
+    # build_listings / build_closings → import_jobs._upsert / _close_missing.
+
     await mark_done(conn, task.id, boards_s=boards_s)
     await conn.commit()
     summary["boards_ok"] += 1

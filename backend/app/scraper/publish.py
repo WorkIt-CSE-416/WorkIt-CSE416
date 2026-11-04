@@ -60,6 +60,8 @@ async def build_closings(conn, schedule_id) -> dict[str, str]:
 def _experience_level(facts: dict) -> str | None:
     """Map facts to the feed's experience_level values."""
     jt = facts.get("job_type")
+    if jt is None:
+        return None
     if jt == "internship":
         return "student"
     return "new_grad"
