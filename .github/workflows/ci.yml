@@ -70,6 +70,7 @@ jobs:
     outputs:
       extension: ${{ steps.filter.outputs.extension }}
       apply: ${{ steps.filter.outputs.apply }}
+      backend: ${{ steps.filter.outputs.backend }}
     steps:
       # A PR's files come from the API; any other event diffs the checkout.
       - uses: actions/checkout@v4
@@ -77,6 +78,12 @@ jobs:
         id: filter
         with:
           filters: |
+            # The backend's tests read only backend/ and scout/ (the package
+            # it installs); no other folder can break them
+            backend:
+              - backend/**
+              - scout/**
+              - .github/workflows/ci.yml
             extension:
               - autofiller_extension/**
               - .github/workflows/ci.yml
@@ -224,7 +231,12 @@ jobs:
       - run: npm ci
       - run: npm run check
 
+  # Skipped on a PR that touches neither backend/ nor scout/ (the changes
+  # job): 37 of the 40 PRs merged before 2026-11-04 touched neither, and each
+  # waited about 7 minutes for it. A skipped job passes a required check.
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -259,7 +271,10 @@ jobs:
           path: backend/vendor
           key: tectonic-${{ hashFiles('backend/scripts/fetch_tectonic.py', 'backend/app/services/resume_render/*.py', 'backend/app/services/resume_render/*.tex') }}
       - run: python3 scripts/fetch_tectonic.py
-      - run: uv run pytest
+      # One pytest worker per core (pytest-xdist): each worker makes and
+      # migrates its own test database (tests/conftest.py), so they share no
+      # table. Run one at a time, the suite took about 6.5 minutes.
+      - run: uv run pytest -n auto
       # Scout's package (../scout) is installed here, so it is linted and tested here.
       - run: uv run ruff check ../scout
       - run: uv run pytest ../scout/tests

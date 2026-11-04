@@ -18,6 +18,22 @@ the same image and port as the local test container, and sets
 there, a test database that cannot be reached fails the job instead of
 skipping the tests.
 
+**The backend job runs only on a PR that touches `backend/`, `scout/` or
+`ci.yml`** (the `changes` job's `backend` filter). Its tests read no other
+folder: the API reads the scraper's feed as data from `backend/data/`, and
+the root `.env` is absent in CI. Only 3 of the 40 PRs merged before
+2026-11-04 touched either folder; the rest waited about 7 minutes for a
+job their change could not fail. A skipped job passes a required check. A
+new backend test that reads a file outside those folders adds that folder
+to the filter, or a PR that changes the file merges untested.
+
+The backend job runs pytest with one worker per core (`-n auto`,
+pytest-xdist). One at a time, its 2,368 tests took 6.5 of the job's 7.3
+minutes (2026-11-04): about 40% resume tests that each compile a real PDF
+(about 1 s), the rest database tests that each empty every table after
+them. Each worker imports `tests/conftest.py` on its own, so each makes and
+migrates its own randomly named database and the workers share no table.
+
 The backend job installs real Tectonic with `backend/scripts/fetch_tectonic.py`
 (kept in the Actions cache) before pytest. Because `CI` is set, the resume
 template text test fails, never skips, when Tectonic is missing
