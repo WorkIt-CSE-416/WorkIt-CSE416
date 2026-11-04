@@ -66,7 +66,7 @@ from apply.rescue import Rescue
 from apply.submit_guard import guard, lift, rearm, renote
 from apply.tracker import Row
 from apply.verify import verifying
-from apply.worker import Result, apply_to, keep_sent, named, sent_folder
+from apply.worker import Result, apply_to, keep_sent, named, page_html, sent_folder
 
 # Claude fill's cost, which ends its reason; a rehearsal shows it as tokens.
 CLAUDE_FILL_COST = re.compile(r"(^|; )Claude fill: \d+ sessions, [^;]*tokens$")
@@ -408,7 +408,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         shown.append(summary)
         # Its Record now, while the page is open to screenshot: a shutdown while the page is held never gets
         # to the save at the fill's end (HPE and Cohesity, 2026-11-03).
-        _save_record(summary, stopped, stopped.filled or Filled((), {}, {}, site.screenshot()), adapters, shown)
+        _save_record(summary, stopped, stopped.filled or Filled((), {}, {}, site.screenshot(), html=site.html()), adapters,
+                     shown)
         trace.event("pause", reason=stopped.reason)
         board.update(n, status=summary.outcome, line=summary.line(), why=one_line(summary.why), filled=summary.filled,
                      asked=summary.asked, missing=list(summary.missing), resume={"ok": True}, history=list(history))
@@ -487,7 +488,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     if filled is None:
         paused = next((s.saved.filled for s in reversed(shown) if s.saved), None)
         shot = site.screenshot()
-        filled = Filled((), {}, {}, shot) if shot or paused is None else paused
+        filled = Filled((), {}, {}, shot, html=site.html()) if shot or paused is None else paused
     _save_record(rehearsed, result, filled, adapters, shown)
     board.update(n, status=rehearsed.outcome, line=rehearsed.line(), why=one_line(rehearsed.why),
                  filled=rehearsed.filled, asked=rehearsed.asked, missing=list(rehearsed.missing),
@@ -921,11 +922,23 @@ class _Kept:
             return ""
 
     def screenshot(self) -> bytes:
-        """What the page shows now, for a Record; none once it is gone."""
+        """What the page shows now, for a Record; none once it is gone. A plain Worker's page
+        (KAN-611), the whole page: its scroll and stitch never lays the form out anew in his window."""
         try:
-            return self._page.screenshot(timeout=15_000) if self._page and not self._page.is_closed() else b""
+            if not self._page or self._page.is_closed():
+                return b""
+            if hasattr(self._page, "record_html"):
+                return self._page.screenshot(full_page=True, timeout=15_000)
+            return self._page.screenshot(timeout=15_000)
         except Exception:
             return b""
+
+    def html(self) -> str:
+        """The page's HTML for a Record, from a plain Worker's page; "" from any other, or none."""
+        try:
+            return page_html(self._page) if self._page and not self._page.is_closed() else ""
+        except Exception:
+            return ""
 
     def close(self) -> None:
         stack, self._stack, self._page, self._lifted, self._bound = self._stack, None, None, False, False

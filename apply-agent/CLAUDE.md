@@ -722,6 +722,37 @@ Claude stops at one (`SAYS_CAPTCHA`).
   and a `captcha` event in the Trace. A wait that timed out leaves only
   the pause's own line.
 
+## Plain Workers: the submit and drive guards (KAN-610)
+
+On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.md`),
+`submit_guard.guard`, `lift`, `rearm`, `renote` and `DriveGuard` hand over to
+`apply.plain.guards`. The CDP path is unchanged: its scripts are byte for byte the same.
+
+- **The same scripts, as files.** `apply plain prepare` writes `submit_guard`'s scripts into
+  `worker-extension/vendor/guards/` (the rehearsal guard, the four drive guards, LIFTED,
+  REARMED). The extension registers one as a MAIN-world content script at `document_start` in
+  every frame, so it runs before the page's code with no eval and no user scripts. It refuses
+  a file whose sha256 is not Apply's: re-run `prepare` after changing `submit_guard.py`.
+- **Below them, declarativeNetRequest.** `guard` puts one session rule per final application
+  URL (the guard script's FINAL_URLS, which cover ROUTED) on the tab, the tabs it opens and
+  service workers. It blocks a non-GET before it leaves Chrome: page code from another realm,
+  a worker, a beacon, or a form's native POST. `lift` takes the rules off and `rearm` puts them
+  back.
+- **Presses are untrusted.** The plain copy of the guard script (`port=True`) counts as a touch
+  the `__apply_touch` the extension sends before each press: Apply's own (`page/dom.js`) and
+  Lisul's from the tile (`tile.input` calls `touch()` in `ops/guard.js`, which also sends `guard.touched`
+  up the port). It also reports each block as a `guard.said` event, which `PlainDriveGuard.blocked()`
+  reads, since no console reaches Apply.
+- **Bindings.** `expose_binding` defines `window[name]` in each document of the tab. A call
+  comes up as a `binding` event, and the callback runs on its own thread.
+- **Live runs.** Nothing here adds a guard to a live run. `filler.submit` clicks Submit only
+  where the live-run rules already allow it. DriveGuard lifts only for Claude fill's own submit
+  click, as under CDP.
+- Tests: `tests/test_plain_guards.py` (Chrome for Testing). A fake job system on 127.0.0.1
+  records every POST. A page that sends by script (fetch from a fresh realm, a worker, a beacon,
+  requestSubmit, a native POST) sends nothing once guarded, and the rules alone stop it too.
+  A tile press shows the blocked note, and a lifted page's Submit goes through and is heard.
+
 ## Form pages
 
 - A Filler with a `form_url(url)` method names the page that holds its
@@ -890,7 +921,8 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   `PortPage.mouse` use the same ops (`attach.py`'s upload behind a button
   works on a plain Worker).
 - **Never take Lisul's focus.** Plain Workers start with `open -g -n`
-  (`launcher.start_in_background`), small, at the screen's top-left
+  (`launcher.start_in_background`) with `--no-startup-window`, then the
+  extension opens the window unfocused (`windows.create`), small, at the screen's top-left
   corner. Only his Show brings one forward. Tests share one Worker and
   stop it when they end.
 - **Not wired into runs yet.** `cli._dashboard` still builds `CdpFrames`. S8
@@ -1033,6 +1065,50 @@ a failure too, not only a filled form. A step Workday won't leave keeps what
 was planned and what each field showed up to there
 (`WorkdayFiller.shown_so_far`); an outcome before any form opened keeps a
 screenshot of the page it stopped on.
+
+## Plain Workers: Records, Needs you, Resume and the emailed code (KAN-611)
+
+A plain Worker is a Chrome with no CDP, driven by the worker extension
+(`docs/plain-workers/PROTOCOL.md`). On its page (`apply.plain.page.PortPage`):
+
+- **Full-page screenshot.** `page.screenshot(full_page=True)` scrolls the page
+  one viewport at a time and joins the strips (`tabs.fullScreenshot`). Fixed
+  and sticky elements show once, at the top. The image has 1 px for each CSS
+  px, and it covers at most `FULL_PAGE_MAX` (20000) CSS px of the page.
+  Each strip takes about 0.55 s (captureVisibleTab allows about 2 a second).
+  The page scrolls in its window for that time, then goes back to where it was.
+  `worker._screenshot` and `_Kept.screenshot` take the whole page for a plain
+  page. A CDP page keeps its old screenshot.
+- **Page HTML in a Record.** A plain page's Record has `page.html`
+  (`Filled.html`, from `PortPage.record_html()`). It has each field's value as
+  the page shows it, but no scripts, no Apply note and no password value. It
+  has a `<base>`, so it opens with its styles. `records.record_files` replaces
+  each secret question's answer with REDACTED. A CDP page's Record has no
+  `page.html`: `worker.page_html` gives "" for it.
+- **Fixed page functions.** On a plain page, `evaluate(code)` needs eval. A
+  page whose CSP forbids eval refuses it in Chrome for Testing, where
+  Allow User Scripts can't be turned on. So the page functions that the held
+  page runs on each turn are fixed extension code: `on_page.FIELD` (Go to
+  question and the Watch), `stuck.FIELD_ERROR` (Resume), and
+  `email_code.WORDS`, `ARM` and `DISARM`. `apply.plain.fixed` lists them.
+  `apply plain prepare` writes them into `vendor/fixed.js` from these same
+  strings. `PortPage.evaluate` and `Locator.evaluate` run the fixed copy when
+  they get one of these strings (the `fixed.call` op). Thus `on_page`,
+  `stuck` and `email_code` don't change, and one source serves both kinds of
+  Worker. To run new page code on each turn of a held plain page, add its
+  string to `apply.plain.fixed`. Do not use eval for it.
+- **Focus.** Go to question focuses the field. The Worker's window is behind
+  Lisul's apps, so `:focus` doesn't match. `document.activeElement` is set,
+  and that is what the Watch reads.
+- The window's own field-error read (`CdpFrames._read_errors`) needs CDP.
+  For a plain Worker, the window reads `stuck.field_error(page)` over the
+  port, from its own thread (S3's frames).
+
+`tests/test_plain_records.py` proves all of it on a page whose CSP forbids
+eval. It includes a held rehearsal in a plain Worker: the fill pauses, Lisul
+presses Resume, he uses Go to question, and his answer typed on the page is
+taken. The Record has a full-page `form.png` and `page.html`. Until S4
+(KAN-610) puts the submit guard on PortPage, that test turns the guard off.
 
 ## The data folder (`APPLY_HOME`)
 

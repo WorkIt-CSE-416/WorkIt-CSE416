@@ -120,10 +120,10 @@ _TEMPLATE = r"""
   const APPLY = /\bapply\b/i;
   const blocked = window.__@KEY@Blocked = [];
   let touched = false;  // a real click or key on the page: Apply's or Lisul's
-  for (const kind of ['pointerdown', 'keydown']) addEventListener(kind, (event) => { if (event.isTrusted) touched = true; }, true);
+  for (const kind of ['pointerdown', 'keydown']) addEventListener(kind, (event) => { if (event.isTrusted) touched = true; }, true);@PORT_TOUCH@
   const note = (what) => {
     blocked.push(what);
-    console.warn('@NAME@ blocked ' + what);
+    console.warn('@NAME@ blocked ' + what);@PORT_SAID@
     // The page's own script, with no click or key on it yet (a cookie banner, analytics): blocked, unshown.
     if (!touched) return;
     try {
@@ -290,17 +290,28 @@ _CONTROLS = r"""
 """
 
 
-def _script(key: str, name: str, lifted: str = "false", extra: str = "") -> str:
+def _script(key: str, name: str, lifted: str = "false", extra: str = "", port: bool = False) -> str:
     """The guard's script under its own `window.__<key>Guard`, so two guards
     can share a page, naming itself `name` in the note on what it blocked:
-    off while the JS `lifted` is true, and blocking `extra`'s controls too."""
+    off while the JS `lifted` is true, and blocking `extra`'s controls too.
+    `port`: a plain Worker's copy (apply.plain.guards), whose page events are
+    all untrusted: it also counts a press the worker extension marks
+    (Apply's own, or Lisul's from the tile) as a touch, and tells the
+    extension what it blocked, since no console reaches Apply there."""
     box = name.lower().replace(" ", "-") + "-blocked"
     script = _TEMPLATE
-    for placeholder, value in {"@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@EXTRA@": extra,
+    for placeholder, value in {"@PORT_TOUCH@": PORT_TOUCH if port else "", "@PORT_SAID@": PORT_SAID if port else "",
+                               "@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@EXTRA@": extra,
                                "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
                                "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS)}.items():
         script = script.replace(placeholder, value)
     return script
+
+
+# A plain Worker's additions (port=True): the worker extension dispatches `__apply_touch` on the
+# page before each press it makes (Apply's own, and Lisul's from the tile), and hears `__apply_said`.
+PORT_TOUCH = "\n  addEventListener('__apply_touch', () => { touched = true; }, true);"
+PORT_SAID = "\n    document.dispatchEvent(new CustomEvent('__apply_said', {detail: '@NAME@ blocked ' + what}));"
 
 
 # Lever's Apply with LinkedIn button never loads in a Worker's Chrome and spins on
@@ -314,21 +325,27 @@ HIDE_LINKEDIN_BUTTON = r"""
 })();
 """
 
-# Lifted once the page is Lisul's (lift()).
-SCRIPT = _script("applyRehearsal", "Apply rehearsal", lifted="window.__applyRehearsalLifted === true") \
-    + HIDE_LINKEDIN_BUTTON
+
+def rehearsal_script(port: bool = False) -> str:
+    """SCRIPT, or with `port` a plain Worker's copy of it."""
+    return _script("applyRehearsal", "Apply rehearsal", lifted="window.__applyRehearsalLifted === true", port=port) \
+        + HIDE_LINKEDIN_BUTTON
 
 
-def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False) -> str:
+def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False, port: bool = False) -> str:
     """The drive guard's script, letting through ticking an opt-in to texts or
-    marketing that Lisul's policy says yes to."""
+    marketing that Lisul's policy says yes to (`port`: a plain Worker's copy)."""
     controls = _CONTROLS.replace("@SMS_OPT_IN@", _js(sms_opt_in)).replace("@MARKETING_OPT_IN@", _js(marketing_opt_in))
-    return _script("applyDrive", "Apply drive guard", lifted="window.__applyDriveLifted === true", extra=controls)
+    return _script("applyDrive", "Apply drive guard", lifted="window.__applyDriveLifted === true", extra=controls,
+                   port=port)
 
 
 def _js(yes: bool) -> str:
     return "true" if yes else "false"
 
+
+# Lifted once the page is Lisul's (lift()).
+SCRIPT = rehearsal_script()
 
 DRIVE_BLOCKED = "Apply drive guard blocked "  # how the drive guard tells what it blocked, on the page's console
 # What the drive guard hears on the page's console: its own blocks, and a rehearsal guard's, which
@@ -339,7 +356,9 @@ HEARD = (DRIVE_BLOCKED, "Apply rehearsal blocked ")
 def guard(page: Page) -> None:
     """Put the guard on an open page, every page its context opens later and
     all their workers. The page is loaded again under it, so the guard runs
-    before the page's own code."""
+    before the page's own code. A plain Worker's page: apply.plain.guards."""
+    if _plain(page):
+        return _plain(page).guard(page)
     page.context.route(ROUTED, _refuse)
     page.context.add_init_script(SCRIPT)
     # Its document is enough: a page whose last tracker never loads (Scale AI's, Coinbase's, live) would time out.
@@ -406,6 +425,8 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     it only names fields left blank. `bound`: the page was lifted before
     (a paused rehearsal, resumed), so its bindings are there already, and
     its note keeps the Fill again button."""
+    if _plain(page):
+        return _plain(page).lift(page, pressed, again, warning, wrong, bound)
     if bound:
         pressed = again = None
     if pressed:
@@ -438,6 +459,8 @@ def rearm(page: Page) -> None:
     """Put the guard back on a page lift() handed to Lisul, for Resume: Apply
     drives it again. No reload, so what he typed on the page stays; a page
     loaded from it later is guarded too (after lift's script, this one runs)."""
+    if _plain(page):
+        return _plain(page).rearm(page)
     page.context.route(ROUTED, _refuse)
     page.context.add_init_script(REARMED)
     for frame in page.frames:
@@ -450,6 +473,8 @@ def rearm(page: Page) -> None:
 def renote(page: Page, warning: str = "", wrong: bool = True) -> None:
     """Say the note of a page already lifted anew: Lisul answered in the window
     what it said was left blank. Its Fill again button stays."""
+    if _plain(page):
+        return _plain(page).renote(page, warning, wrong)
     script = LIFTED.replace("AGAIN", "true").replace("WRONG", "true" if wrong else "false")
     script = script.replace("WARNING", json.dumps(warning))
     page.context.add_init_script(script)  # after lift's: a page loaded from it says the same
@@ -458,6 +483,14 @@ def renote(page: Page, warning: str = "", wrong: bool = True) -> None:
             frame.evaluate(script)
         except Exception:
             pass
+
+
+def _plain(page):
+    """apply.plain.guards when `page` is a plain Worker's (a PortPage), else None."""
+    if getattr(page, "plain", False) is not True:  # a Mock's attribute is no plain page
+        return None
+    from apply.plain import guards
+    return guards
 
 
 def _refuse(route: Route) -> None:
@@ -476,7 +509,14 @@ class DriveGuard:
     or gate led to stays as it is. It's lifted only for Claude fill's own
     submit click, and put back on before Claude drives again; a rehearsal's
     own guard is never lifted. Ticking an opt-in to texts or marketing goes
-    on only where Lisul's sms_opt_in or marketing_opt_in policy says yes."""
+    on only where Lisul's sms_opt_in or marketing_opt_in policy says yes.
+    On a plain Worker's page it is apply.plain.guards.PlainDriveGuard."""
+
+    def __new__(cls, page: Page, *args, **kwargs):
+        plain = _plain(page)
+        if plain and cls is DriveGuard:
+            return super().__new__(plain.PlainDriveGuard)
+        return super().__new__(cls)
 
     def __init__(self, page: Page, sms_opt_in: bool = False, marketing_opt_in: bool = False):
         self._page = page

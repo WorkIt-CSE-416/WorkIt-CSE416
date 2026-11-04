@@ -15,10 +15,12 @@ What a later slice adds raises NotImplementedError naming the slice (PROTOCOL.md
 """
 
 import base64
+import hashlib
 import inspect
 import json
 import mimetypes
 import re
+import threading
 import time
 import uuid
 from collections.abc import Callable
@@ -35,11 +37,15 @@ from playwright._impl._locator import (
 )
 from playwright._impl._str_utils import escape_for_text_selector
 
+from apply.plain import fixed
 from apply.plain.bridge import Connection, PortError, PortTimeoutError
 from apply.plain.script import evaluate as evaluate_in
 
 DEFAULT_TIMEOUT = 30000  # ms, as Playwright's
 POLL = 0.1  # s between tries of an action whose element is missing or not actionable
+FULL_PAGE_MAX = 20000  # CSS px of a page a full-page screenshot covers, from its top
+STRIP_S = 0.6  # s a full-page screenshot takes for each viewport of the page
+VIEWPORT = "() => ({width: innerWidth, height: innerHeight})"  # page.viewport_size (a fixed function)
 NAVIGATED = re.compile(r"context was destroyed|navigat", re.IGNORECASE)
 # Page events read from the tab's requests (ops/accounts.js net.watch), by the port's event each comes from.
 WATCHED = {"request": "request", "response": "response", "requestfinished": "response", "requestfailed": "requestfailed"}
@@ -111,6 +117,8 @@ def _filtered(selector: str, has_text=None, has_not_text=None, has=None, has_not
 
 class PortFrame(_Queries):
     """One frame of a Worker's tab (frame 0 is the top)."""
+
+    plain = True  # a plain Worker's: apply.submit_guard guards it through apply.plain.guards
 
     def __init__(self, page: "PortPage", frame: int = 0, url: str = "", parent: int | None = None):
         self._page, self._frame, self._url, self._parent = page, frame, url, parent
@@ -184,7 +192,30 @@ class PortFrame(_Queries):
         return PortFrameLocator(self, selector)
 
     def evaluate(self, expression: str, arg: Any = None) -> Any:
+        if found := fixed.lookup(expression):  # Apply's own page function: its fixed copy, no eval (KAN-611)
+            return self._fixed(*found, arg)
         return evaluate_in(self._page.worker, self._page.tab, expression, arg, self._frame)
+
+    def _fixed(self, name: str, world: str, arg: Any, selector: str | None = None, every: bool = False,
+               timeout: float | None = None) -> Any:
+        """Fixed function `name` in this frame, on `arg` (and the element `selector` matches, waited for,
+        or every one): its value, or its error raised as PortError."""
+        timeout = DEFAULT_TIMEOUT if timeout is None else timeout
+        deadline = time.monotonic() + timeout / 1000
+        while True:
+            answer = self._page.worker.call("fixed.call", tab=self._page.tab, frame=self._frame, name=name, world=world,
+                                            arg=arg, selector=selector, all=every)
+            if not isinstance(answer, dict):
+                raise PortError("EvalError", f"fixed.{name}: no answer")
+            if "err" in answer:
+                error = answer["err"] or {}
+                raise PortError("BadOp" if error.get("name") == "BadOp" else "EvalError",
+                                f"{error.get('name', 'Error')}: {error.get('message', '')}")
+            if "retry" not in answer:
+                return answer.get("ok")
+            if timeout and time.monotonic() > deadline:
+                raise PortTimeoutError(f"Locator.evaluate: Timeout {timeout:.0f}ms exceeded.\nCall log:\n  - {answer['retry']}")
+            time.sleep(POLL)
 
     def evaluate_handle(self, expression: str, arg: Any = None):
         later("evaluate_handle", "a later slice (no handles over the port)")
@@ -501,6 +532,8 @@ class PortLocator(_Queries):
     # --- page code on elements: marked in the isolated world, found by the mark in MAIN
 
     def _on_marked(self, expression: str, arg: Any, every: bool, timeout: float | None):
+        if found := fixed.lookup(expression):  # Apply's own page function: its fixed copy, no eval (KAN-611)
+            return self._frame._fixed(*found, arg, selector=self._selector, every=every, timeout=timeout)
         token = uuid.uuid4().hex
         if every:
             self._frame._now("mark", self._selector, token)
@@ -529,8 +562,14 @@ class PortLocator(_Queries):
     def element_handle(self, **_):
         later("element_handle", "a later slice (no handles over the port)")
 
-    def screenshot(self, **_):
-        later("Locator.screenshot", "S5")
+    def screenshot(self, path: str | Path | None = None, type: str | None = None, quality: int | None = None,
+                   timeout: float | None = None, **_) -> bytes:
+        """The element, cut from the page by scroll and stitch (it may be taller than the window)."""
+        self.scroll_into_view_if_needed(timeout=timeout)
+        box = self._frame._now("read", self._selector, "box") if self._frame._frame == 0 else None
+        if not box:
+            raise PortError("NotFound", f"Locator.screenshot: {self._selector} has no box in the top frame")
+        return self.page._full(path, type, quality, timeout, clip={**box, "viewport": True})
 
 
 class _ElementFrame(PortFrame):
@@ -705,6 +744,64 @@ class Keyboard:
         self._page._now("insert", text)
 
 
+def _init_script(worker: Connection, script: str | None, path) -> None:
+    """add_init_script: a guard's script goes in as its fixed file (apply.plain.guards); any other
+    needs chrome.userScripts, so Allow User Scripts on (PortError UserScriptsOff without)."""
+    from apply.plain import guards
+
+    script = Path(path).read_text() if path is not None else script
+    if not script:
+        raise ValueError("add_init_script needs a script or a path")
+    worker.call("guard.script", **guards.init_script(script))
+
+
+def _bind(worker: Connection, tab: int | None, name: str, callback: Callable, context: "PortContext") -> None:
+    """expose_binding: window[name] in every frame of the tab (None: every tab), now and on each
+    page it loads; a call of it runs `callback(source, *args)` on its own thread (never the bridge's
+    reader, so the callback may call the Worker), and returns nothing to the page."""
+    bound = worker.__dict__.setdefault("_bindings", set())
+    for scope in (tab, None):
+        if (scope, name) in bound:
+            raise PortError("Error", f'Function "{name}" has been already registered')
+    bound.add((tab, name))
+
+    def heard(message: dict) -> None:
+        if message.get("name") != name or (tab is not None and message.get("tab") != tab):
+            return
+        page = context.page(message["tab"])
+        frame = page if message.get("frame", 0) == 0 else PortFrame(page, message["frame"])
+        source = {"context": page.context, "page": page, "frame": frame}
+        threading.Thread(target=callback, args=(source, *message.get("args", [])), daemon=True).start()
+    worker.on("binding", heard)
+    worker.call("guard.bind", tab=tab, name=name)
+
+
+def _route_key(tab: int | None, url) -> tuple[str, list[str], bool]:
+    """A route's key and its declarativeNetRequest regexes. Only a compiled regex can be one."""
+    from apply.plain import guards
+
+    if not isinstance(url, re.Pattern):
+        later(f"route({url!r}) with a glob or a predicate", "a later slice (a plain route takes a compiled regex)")
+    key = f"{tab}:{hashlib.sha256(url.pattern.encode()).hexdigest()[:16]}"
+    return key, guards.alternatives(url.pattern), not url.flags & re.IGNORECASE
+
+
+def _route(worker: Connection, tab: int | None, url, handler: Callable) -> None:
+    """route: a plain Worker's routes run no Python handler; declarativeNetRequest blocks a non-GET
+    request matching `url` before it leaves Chrome, as submit_guard._refuse aborts one. Any other
+    handler raises NotImplementedError."""
+    from apply import submit_guard
+
+    if handler is not submit_guard._refuse:
+        later("route with a handler other than submit_guard's", "a later slice (a plain route can only block)")
+    key, regexes, case_sensitive = _route_key(tab, url)
+    worker.call("guard.route", key=key, tab=tab, regexes=regexes, caseSensitive=case_sensitive)
+
+
+def _unroute(worker: Connection, tab: int | None, url) -> None:
+    worker.call("guard.unroute", key=_route_key(tab, url)[0])
+
+
 class PortContext:
     """page.context: the Worker's browser, whose tabs are its pages."""
 
@@ -724,17 +821,20 @@ class PortContext:
     def new_page(self) -> "PortPage":
         return self.page(self.worker.call("tabs.create", active=True)["tab"])
 
-    def add_init_script(self, *_, **__):
-        later("add_init_script", "S4")
+    def add_init_script(self, script: str | None = None, path: str | Path | None = None) -> None:
+        _init_script(self.worker, script, path)
 
-    def expose_binding(self, *_, **__):
-        later("expose_binding", "S4")
+    def expose_binding(self, name: str, callback: Callable, handle: bool | None = None) -> None:
+        _bind(self.worker, None, name, callback, self)
 
-    def route(self, *_, **__):
-        later("route", "S4")
+    def expose_function(self, name: str, callback: Callable) -> None:
+        self.expose_binding(name, lambda source, *args: callback(*args))
 
-    def unroute(self, *_, **__):
-        later("unroute", "S4")
+    def route(self, url, handler: Callable, times: int | None = None) -> None:
+        _route(self.worker, None, url, handler)
+
+    def unroute(self, url, handler: Callable | None = None) -> None:
+        _unroute(self.worker, None, url)
 
     def cookies(self, *_, **__):
         later("cookies", "a later slice")
@@ -849,14 +949,37 @@ class PortPage(PortFrame):
 
     def screenshot(self, path: str | Path | None = None, type: str | None = None, quality: int | None = None,
                    full_page: bool = False, timeout: float | None = None, **_) -> bytes:
-        """The visible part of the tab (captureVisibleTab, about 2 a second per Worker)."""
+        """The visible part of the tab (captureVisibleTab, about 2 a second per Worker), or with
+        `full_page` the whole page, by scroll and stitch (KAN-611)."""
         if full_page:
-            later("screenshot(full_page=True)", "S5")
+            return self._full(path, type, quality, timeout)
         kind = type or ("jpeg" if path and str(path).lower().endswith((".jpg", ".jpeg")) else "png")
         data = base64.b64decode(self.worker.call("tabs.screenshot", tab=self.tab, format=kind, quality=quality)["data"])
         if path:
             Path(path).write_bytes(data)
         return data
+
+    def _full(self, path, type, quality, timeout, clip: dict | None = None) -> bytes:
+        """Scroll and stitch: a strip a viewport tall about every 0.55 s (captureVisibleTab's quota), fixed
+        and sticky elements shown once, at 1 px per CSS px, at most FULL_PAGE_MAX CSS px tall. Its time
+        grows with the page: `timeout` (Playwright's 30 s, or the caller's) is only its floor."""
+        kind = type or ("jpeg" if path and str(path).lower().endswith((".jpg", ".jpeg")) else "png")
+        wait = max((DEFAULT_TIMEOUT if timeout is None else timeout) / 1000, FULL_PAGE_MAX / 600 * STRIP_S + 10)
+        shot = self.worker.call("tabs.fullScreenshot", timeout=wait, tab=self.tab, format=kind, quality=quality, clip=clip,
+                                maxHeight=FULL_PAGE_MAX)
+        data = base64.b64decode(shot["data"])
+        if path:
+            Path(path).write_bytes(data)
+        return data
+
+    def content(self) -> str:
+        """The page's HTML, as Playwright's page.content() gives it."""
+        return self.worker.call("page.html", tab=self.tab, frame=0, snapshot=False)
+
+    def record_html(self) -> str:
+        """The page's HTML for a Record (KAN-611): each field's value as the page shows it, no scripts, no
+        Apply note, no password, and a <base> so it opens with its styles."""
+        return self.worker.call("page.html", tab=self.tab, frame=0, snapshot=True)
 
     def set_default_timeout(self, timeout: float) -> None:
         global DEFAULT_TIMEOUT
@@ -864,7 +987,7 @@ class PortPage(PortFrame):
 
     @property
     def viewport_size(self) -> dict | None:
-        return self.evaluate("() => ({width: innerWidth, height: innerHeight})")
+        return self.evaluate(VIEWPORT)
 
     # --- events: close, popup, framenavigated, request, response and requestfailed; others are
     # accepted and ignored until their slice wires them
@@ -925,19 +1048,26 @@ class PortPage(PortFrame):
                 if event in WATCHED or event == "popup":
                     self._watch(-1)
 
+    # --- init scripts, bindings and routes (S4: apply.plain.guards)
+
+    def add_init_script(self, script: str | None = None, path: str | Path | None = None) -> None:
+        """For every page from now: the Worker's browser is one context (Playwright's is per page, but
+        Apply adds init scripts only to a context or its one page)."""
+        _init_script(self.worker, script, path)
+
+    def expose_binding(self, name: str, callback: Callable, handle: bool | None = None) -> None:
+        _bind(self.worker, self.tab, name, callback, self.context)
+
+    def expose_function(self, name: str, callback: Callable) -> None:
+        self.expose_binding(name, lambda source, *args: callback(*args))
+
+    def route(self, url, handler: Callable, times: int | None = None) -> None:
+        _route(self.worker, self.tab, url, handler)
+
+    def unroute(self, url, handler: Callable | None = None) -> None:
+        _unroute(self.worker, self.tab, url)
+
     # --- what a later slice adds
-
-    def add_init_script(self, *_, **__):
-        later("add_init_script", "S4")
-
-    def expose_binding(self, *_, **__):
-        later("expose_binding", "S4")
-
-    def route(self, *_, **__):
-        later("route", "S4")
-
-    def unroute(self, *_, **__):
-        later("unroute", "S4")
 
     def expect_file_chooser(self, predicate=None, timeout: float | None = None):
         """What the block does asks for a file; `.value` is then its FileChooser (apply.plain.tile)."""

@@ -40,7 +40,7 @@ from apply.browsers import (
 )
 from apply.focus import KEEPER
 from apply.plain import extension, host
-from apply.plain.bridge import Bridge, Connection
+from apply.plain.bridge import Bridge, Connection, PortError
 from apply.profile import load_policies
 
 BRANDED = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
@@ -114,15 +114,22 @@ class PlainWorkers:
     def binary(self) -> Path:
         return chrome_for_testing() if self.kind == "testing" else BRANDED
 
+    @staticmethod
+    def position(worker: int) -> tuple[int, int]:
+        """The top-left corner, staggered: never minimized or off-screen."""
+        return 20 * worker, 25 + 20 * worker
+
     def arguments(self, worker: int) -> list[str]:
         """Worker `worker`'s Chrome command line."""
-        x, y = 20 * worker, 25 + 20 * worker  # the top-left corner, staggered: never minimized or off-screen
+        x, y = self.position(worker)
         arguments = [str(self.binary()), f"--user-data-dir={self.profile(worker)}", *FLAGS,
                      f"--window-position={x},{y}", f"--window-size={WINDOW[0]},{WINDOW[1]}"]
         if self.kind == "testing":
             arguments.append(f"--load-extension={self.extension_dir}")
             arguments += self.test_flags
-        arguments.append("about:blank")
+        # No window at start: Chrome activates itself when it shows its first window, even under
+        # `open -g`. The extension opens the Worker's window unfocused once it says hello.
+        arguments.append("--no-startup-window")
         assert not any(a.startswith(NEVER) for a in arguments)
         return arguments
 
@@ -174,6 +181,11 @@ class PlainWorkers:
         KEEPER.watch(process.pid)
         try:
             connection = self.bridge.wait_for(worker, HELLO_WAIT)
+            x, y = self.position(worker)
+            try:
+                connection.call("windows.create", left=x, top=y, width=WINDOW[0], height=WINDOW[1])
+            except PortError:  # a seed's extension from before windows.create: a window all the same
+                connection.call("tabs.create")
         except BaseException as error:
             _stop(process)
             KEEPER.forget(process.pid)

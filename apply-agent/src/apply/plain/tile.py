@@ -163,7 +163,7 @@ class Mouse:
         self._x = self._y = 0.0
 
     def _send(self, event: dict):
-        return self._page.worker.call("tile.input", tab=self._page.tab, event=event)
+        return self._page.worker.call("tile.input", tab=self._page.tab, event=event, by="apply")
 
     def move(self, x: float, y: float, steps: int = 1) -> None:
         self._x, self._y = x, y

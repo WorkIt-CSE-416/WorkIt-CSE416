@@ -313,14 +313,15 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         shown = dict(getattr(filler, "shown_so_far", {}))
                         stopped = _handed_off(handoff, missing=planned.missing, choices=planned.choices,
                                               required=planned.required, where=planned.where,
-                                              filled=Filled(planned.questions, planned.answers, shown, _screenshot(page)))
+                                              filled=Filled(planned.questions, planned.answers, shown, _screenshot(page),
+                                                            html=page_html(page)))
                         if isinstance(handoff, Blocked) or not (rehearse and on_pause(stopped, blocked)):
                             return stopped  # a bot block is never paused: Resume would only try again
                         # Resume: what Lisul put on the step it stopped on stays, as his answers.
                         planned.keep(getattr(filler, "resumed", lambda page: {})(page))
                 questions, answers, holds = planned.questions, planned.answers, list(planned.holds)
                 holds = [f"Not filled: {e}" for e in planned.unfilled] + holds
-                filled = Filled(questions, answers, readback, _screenshot(page))
+                filled = Filled(questions, answers, readback, _screenshot(page), html=page_html(page))
                 problems = readback_problems(questions, answers, readback, planned.accepted)
                 if problems and not replanned and attempt < 2:
                     # Perhaps a timing glitch, or the page words it its own way: Sonnet plans
@@ -882,6 +883,18 @@ def _screenshot(page) -> bytes:
         except Exception:
             continue
     return b""
+
+
+def page_html(page) -> str:
+    """The page's HTML for its Record, from a plain Worker's page (KAN-611); "" from any other page,
+    or one that can't be read."""
+    record_html = getattr(page, "record_html", None)
+    if record_html is None:
+        return ""
+    try:
+        return record_html()
+    except Exception:
+        return ""
 
 
 def _is_target(posting: Posting, profile: ApplicantProfile) -> bool:
