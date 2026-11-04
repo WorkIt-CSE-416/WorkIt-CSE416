@@ -11,7 +11,9 @@ import subprocess
 import threading
 from collections.abc import Callable
 from typing import Protocol
+from urllib.parse import urlsplit
 
+from apply import captcha, fill_engine
 from apply.adapters import Keychain
 from apply.answers_tab import Refused
 from apply.tracker import EmployerAccount
@@ -47,13 +49,17 @@ def _digest(text: str) -> bytes:
 
 
 class AccountsTab:
-    """`accounts` reads the Tracker's Employer accounts list; `keychain` holds their passwords. `later(seconds,
-    then)` runs `then` once that many seconds are up (tests pass their own)."""
+    """`accounts` reads the Tracker's Employer accounts list; `keychain` holds their passwords; `rows` reads the
+    Tracker's rows, for each account's Posting link. `everyday` opens a link in Lisul's everyday Chrome.
+    `later(seconds, then)` runs `then` once that many seconds are up (tests pass their own)."""
 
     def __init__(self, accounts: Callable[[], list[EmployerAccount]], keychain: Keychain,
+                 rows: Callable[[], list] = list, everyday: Callable[[str], None] = captcha.to_everyday_chrome,
                  clipboard: Clipboard | None = None, later: Callable[[float, Callable[[], None]], None] = _later):
         self._accounts = accounts
         self._keychain = keychain
+        self._rows = rows
+        self._everyday = everyday
         self._clipboard = clipboard or MacClipboard()
         self._later = later
         self._lock = threading.Lock()
@@ -84,6 +90,17 @@ class AccountsTab:
         self._later(CLEAR_AFTER, lambda: self._clear(copy))
         return f"Copied the password for {account.company or account.site}. Paste it within a minute: " \
                "then Apply clears the clipboard."
+
+    def open_sign_in(self, site: object) -> str:
+        """Open the listed account's sign-in in Lisul's everyday Chrome (`open`, never over DevTools): the newest
+        Posting of its site in the Tracker, whose page has Sign In in its header, else the site's home."""
+        account = self._listed(site)
+        host = account.site.partition("/")[0]
+        postings = [str(row.posting_url) for row in self._rows() if urlsplit(str(row.posting_url)).hostname == host]
+        if "/" in account.site:  # a myworkdaysite.com tenant: host/<site>, as the engine names it
+            postings = [url for url in postings if (fill_engine.job_of(url) or {}).get("tenant") == account.site]
+        self._everyday(postings[-1] if postings else f"https://{host}/")
+        return f"Opened {account.company or account.site} in your Chrome: press Sign In there, and paste the password."
 
     def close(self) -> None:
         """The window is closing: a password still on the clipboard goes now, as its clear would never run."""

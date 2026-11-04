@@ -913,7 +913,9 @@ class _Handler(BaseHTTPRequestHandler):
         if parts.path == "/everyday" and self.dashboard.everyday:
             return self._everyday()
         if parts.path == "/accounts/copy" and self.dashboard.accounts:
-            return self._copy_password()
+            return self._account("copy a password", self.dashboard.accounts.copy)
+        if parts.path == "/accounts/open" and self.dashboard.accounts:
+            return self._account("open your Chrome", self.dashboard.accounts.open_sign_in)
         if parts.path.startswith("/show/") and self.dashboard.show:
             return self._show(parts.path.removeprefix("/show/"))
         if parts.path.startswith("/answers/") and self.dashboard.answers:
@@ -1180,21 +1182,21 @@ class _Handler(BaseHTTPRequestHandler):
         self._json(200, {"message": f"Opened {item.get('company') or 'the posting'} in your Chrome: "
                                     "the extension fills it there."})
 
-    def _copy_password(self) -> None:
-        """Lisul pressed Copy password in the Accounts tab (KAN-591): the server puts it on the clipboard. The reply,
-        and the line printed, never hold it."""
+    def _account(self, does: str, press: Callable[[object], str]) -> None:
+        """Lisul pressed Copy password or Open sign-in page on an account in the Accounts tab (KAN-591). A password
+        goes only to the clipboard: the reply, and the line printed, never hold it."""
         if not self._from_window():
-            return self._json(403, {"error": "Only the Apply window may copy a password."})
+            return self._json(403, {"error": f"Only the Apply window may {does}."})
         try:
             body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
             site = body["site"]
         except (ValueError, KeyError, TypeError):
             return self._json(400, {"error": "Not an account."})
         try:
-            message = self.dashboard.accounts.copy(site)
+            message = press(site)
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
-        print(f"Copied the password for {site} to the clipboard, as you asked in the window")
+        print(f"Accounts tab, {site}: {message}")
         self._json(200, {"message": message})
 
     def _in_place(self, item: dict, key: str, question: str, answer: Path | None, message: str) -> None:

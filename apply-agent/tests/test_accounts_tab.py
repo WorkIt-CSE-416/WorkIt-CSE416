@@ -6,6 +6,7 @@ import json
 import urllib.error
 import urllib.request
 from datetime import date
+from types import SimpleNamespace
 
 import pytest
 
@@ -160,3 +161,45 @@ def test_closing_the_window_clears_a_password_still_on_the_clipboard():
         call(board, "/accounts/copy", {"site": ASML.site})
 
     assert clipboard.text == ""  # the run ended before the minute was up: its clear would never run
+
+
+ASML_POSTING = "https://asml.wd3.myworkdayjobs.com/en-US/ASMLExternal/job/US-Wilton/Intern_R12345"
+KLA_POSTING = "https://wd5.myworkdaysite.com/recruiting/kla/Search/job/Milpitas/Intern_R1"
+
+
+def opening(rows):
+    opened = []
+    tab = AccountsTab(lambda: [ASML, KLA], InMemoryKeychain(), rows=lambda: rows, everyday=opened.append)
+    return tab, opened
+
+
+def test_open_sign_in_page_opens_the_accounts_posting_in_lisuls_own_chrome():
+    # Workday's job page has Sign In in its header; the tenant alone names no site path.
+    rows = [SimpleNamespace(posting_url="https://boards.greenhouse.io/stripe/jobs/1"),
+            SimpleNamespace(posting_url=KLA_POSTING), SimpleNamespace(posting_url=ASML_POSTING)]
+    tab, opened = opening(rows)
+    with window(tab) as board:
+        status, body = call(board, "/accounts/open", {"site": ASML.site})
+        call(board, "/accounts/open", {"site": KLA.site})
+
+    assert status == 200
+    assert "your Chrome" in json.loads(body)["message"]
+    assert opened == [ASML_POSTING, KLA_POSTING]
+
+
+def test_an_account_with_no_posting_in_the_tracker_opens_its_site():
+    tab, opened = opening([])
+    with window(tab) as board:
+        call(board, "/accounts/open", {"site": KLA.site})
+
+    assert opened == ["https://wd5.myworkdaysite.com/"]
+
+
+def test_only_the_window_may_open_a_sign_in_page_and_only_for_a_listed_account():
+    tab, opened = opening([SimpleNamespace(posting_url=ASML_POSTING)])
+    with window(tab) as board:
+        assert call(board, "/accounts/open", {"site": ASML.site}, token="guessed")[0] == 403
+        assert call(board, "/accounts/open", {"site": ASML.site}, origin="https://evil.example")[0] == 403
+        assert call(board, "/accounts/open", {"site": "evil.example"})[0] == 404
+
+    assert opened == []
