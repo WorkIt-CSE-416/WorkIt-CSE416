@@ -46,7 +46,7 @@ from collections.abc import Callable
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Protocol, Self
+from typing import TYPE_CHECKING, Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
 from apply import bot_signals, captcha, dock_app
@@ -64,6 +64,10 @@ from apply.dashboard_page import (
 from apply.focus import KEEPER
 from apply.model import one_line
 from apply.tracker import cell_options
+
+if TYPE_CHECKING:
+    # The Accounts tab imports the adapters, which import this module.
+    from apply.accounts_tab import AccountsTab
 
 JPEG_QUALITY = 70
 MODIFIERS = ("Alt", "Control", "Meta", "Shift")
@@ -478,8 +482,9 @@ class Dashboard:
                  answer: Callable[[dict, str, str], str] | None = None,
                  notify: Callable[[str, str], None] | None = None, show: Callable[[int], bool] | None = None,
                  sample: bool = False, approve: Callable[[str], str] | None = None,
-                 everyday: Callable[[str], None] | None = None):
+                 everyday: Callable[[str], None] | None = None, accounts: "AccountsTab | None" = None):
         self._workers = workers
+        self.accounts = accounts  # the Accounts tab: each Employer account, its password only in Keychain
         self._sample = sample
         self._frames = frames
         self.answers = answers
@@ -872,6 +877,10 @@ class _Handler(BaseHTTPRequestHandler):
             return self._all_frames()
         if path == "/answers" and self.dashboard.answers:
             return self._json(200, self.dashboard.answers.view())
+        if path == "/accounts" and self.dashboard.accounts:
+            if not self._from_window():
+                return self._json(403, {"error": "Only the Apply window may list your accounts."})
+            return self._json(200, self.dashboard.accounts.view())
         if path.startswith("/stream/"):
             return self._stream(int(path.removeprefix("/stream/")))
         if path.startswith("/file/"):
@@ -951,6 +960,12 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json(404, {"error": "That file is gone."})
         subprocess.run(["open", "-R", str(listed)], check=False)
         self._send(204, "text/plain", b"")
+
+    def _from_window(self) -> bool:
+        """Whether a request comes from the window's own page: its token, which no other site can read, and no
+        other site's Origin."""
+        token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+        return hmac.compare_digest(token.encode(), self.dashboard.token.encode()) and origin in (None, self.dashboard.url)
 
     def _own_host(self) -> bool:
         """Whether the request names this server as it is: another site's name
