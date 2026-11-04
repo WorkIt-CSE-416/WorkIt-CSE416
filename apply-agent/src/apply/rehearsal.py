@@ -71,10 +71,9 @@ FAILED = "failed"
 # How each job system shows that an application went in; any other, by its words.
 CONFIRMED = {"greenhouse": greenhouse.confirmed, "lever": lever.confirmed, "ashby": ashby.confirmed,
              "workday": workday.confirmed, "eightfold": eightfold.confirmed}
-# How a job system says it turned Lisul's own Submit down, the browser taken for a bot.
-REFUSALS = {"lever": lever.refusal}
-# What the tile says then: sending it again from the Worker's Chrome gets the same answer.
-TURNED_DOWN = "{}, so nothing went in: send it from your own Chrome; the Record has every answer"
+# What the tile says when a job system turned Lisul's own Submit down as a bot's (Lever's "error verifying"):
+# sending it again from the Worker's Chrome gets the same answer.
+TURNED_DOWN = "Nothing went in. {}; the Record has every answer"
 THANKS = re.compile(r"thank you for (applying|your application|submitting)|application (has been |was )?(submitted|received)"
                     r"|we['’]ve received your application|successfully submitted", re.IGNORECASE)
 # The reason of a Tracker row for an Application Lisul submitted himself from a rehearsal.
@@ -201,9 +200,9 @@ def rehearse(
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title,
                             "a captcha came up after your Submit: do the captcha yourself"]))
 
-        def turned_down(why: str) -> None:  # the job system refused Lisul's own Submit: only his own Chrome can send it
-            why = TURNED_DOWN.format(why)
-            adapters.board.update(n, status="handoff", why=why)
+        def turned_down(said: str) -> None:  # the job system refused Lisul's own Submit: only his own Chrome can send it
+            why = TURNED_DOWN.format(captcha.blocked(done.posting.company, done.posting.url, said))
+            adapters.board.update(n, status="handoff", why=why, blocked=True)
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
         answers = lambda: [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]
@@ -676,8 +675,8 @@ class _Kept:
         A paused rehearsal passes `resume(page)`, whether Lisul pressed Resume and
         it can go on: then RESUME, with the page still his until rearm().
         A captcha that shows after a press of his calls `challenged()`, once:
-        he does it himself, and Apply never touches it. A refusal of `job_system`'s
-        after a press of his (Lever's captcha turning the token down) calls `refused(why)`, once.
+        he does it himself, and Apply never touches it. A bot block after a press
+        of his (Lever's captcha turning the token down) calls `refused(said)`, once.
         "" when the page closed or `release` was set."""
         if self._page is None or release.is_set():
             return ""
@@ -697,7 +696,6 @@ class _Kept:
             return ""  # its browser was quit
         self._lifted = self._bound = True
         kept, closing, told, turned_down = False, None, False, False
-        refusal = REFUSALS.get(job_system, lambda page: "")
         while not release.is_set():
             try:
                 if self._page.is_closed():
@@ -713,7 +711,7 @@ class _Kept:
                 if pressed and not kept and not told and captcha.shows(self._page):
                     told = True
                     challenged()
-                if pressed and not kept and not turned_down and (why := refusal(self._page)):
+                if pressed and not kept and not turned_down and (why := captcha.blocks(self._page)):
                     turned_down = True
                     refused(why)
                 if pressed and not kept and _confirmed(self._page, job_system):

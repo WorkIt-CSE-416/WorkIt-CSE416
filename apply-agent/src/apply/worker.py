@@ -49,6 +49,7 @@ from apply.gates import UNTRACED_NUMBER
 from apply.home import HOME
 from apply.model import (
     NOT_A_POSTING,
+    Blocked,
     Captcha,
     Closed,
     FillError,
@@ -245,10 +246,14 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 if error.code in (404, 410):
                     raise Closed(f"the job system no longer has this Posting (HTTP {error.code})") from error
                 raise
-            except Handoff as handoff:  # a sign-in Lisul finishes himself, then Resume reads the questions
+            except Handoff as stopped:  # a sign-in Lisul finishes himself, then Resume reads the questions
+                handoff = captcha.as_block(stopped, getattr(stopped, "page", None), _company(planned.posting, filler),
+                                           posting.url)
                 if isinstance(handoff, Captcha) and on_captcha(str(handoff), handoff.page, _company(planned.posting, filler)):
                     continue  # he did the captcha: the questions are read again, from the page he left
-                if not (rehearse and on_pause(_handed_off(handoff), blocked)):
+                if handoff is not stopped:  # a bot block: at once, to his own Chrome, never paused for a Resume that retries
+                    raise handoff from stopped
+                if isinstance(handoff, Blocked) or not (rehearse and on_pause(_handed_off(handoff), blocked)):
                     raise
         # No API for it: what the Filler read off the open posting page (Claude fill), else the plain fetch.
         planned.text = read or getattr(filler, "posting_text", "") or fetched
@@ -278,6 +283,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         if not (rehearse and planned.skip(error)):
                             raise
                     except Handoff as handoff:  # a rehearsal says which blanks may have stopped it
+                        handoff = captcha.as_block(handoff, page, _company(planned.posting, filler), posting.url)
                         if isinstance(handoff, Captcha) and on_captcha(str(handoff), handoff.page, _company(planned.posting, filler)):
                             continue  # he did the captcha: the fill goes on from the page he left
                         # What it planned and what the page showed so far, for its Record: a step Workday won't
@@ -286,8 +292,8 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         stopped = _handed_off(handoff, missing=planned.missing, choices=planned.choices,
                                               required=planned.required,
                                               filled=Filled(planned.questions, planned.answers, shown, _screenshot(page)))
-                        if not (rehearse and on_pause(stopped, blocked)):
-                            return stopped
+                        if isinstance(handoff, Blocked) or not (rehearse and on_pause(stopped, blocked)):
+                            return stopped  # a bot block is never paused: Resume would only try again
                         # Resume: what Lisul put on the step it stopped on stays, as his answers.
                         planned.keep(getattr(filler, "resumed", lambda page: {})(page))
                 questions, answers, holds = planned.questions, planned.answers, list(planned.holds)
@@ -347,6 +353,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                                                                    _company(planned.posting, filler))):
                         met = filler.submit(page)
                 except Handoff as handoff:  # it may have gone: the Record shows where the click left the page
+                    handoff = captcha.as_block(handoff, page, _company(planned.posting, filler), posting.url)
                     return _handed_off(handoff, filled=replace(filled, after_submit=_screenshot(page)))
                 return Result(Status.SUBMITTED, filled=replace(filled, after_submit=_screenshot(page)),
                               bot_signals=tuple(met or ()), problems=rescued, verification=verification)

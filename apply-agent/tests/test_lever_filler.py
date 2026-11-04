@@ -16,8 +16,8 @@ from conftest import (
 from fake_lever import FakeLeverServer
 
 from apply import bot_signals
-from apply.lever import REFUSED, LeverFiller
-from apply.model import Handoff
+from apply.lever import LeverFiller
+from apply.model import Blocked
 
 WORK_AUTH_CARD = "cards[db60ba3f-3128-46de-8310-9d3a73d8a6c8]"
 RHOMBUS_CARD = "cards[172bc91a-073a-4fe0-b995-520a2ed2e1a0]"
@@ -55,7 +55,7 @@ def test_fills_and_reads_back_a_saved_form_and_stops_before_submit(lever_server,
     assert lever_server.submissions == []
 
 
-def test_lever_turning_the_captcha_token_down_at_the_submit_is_a_handoff_that_says_so(one_pager):
+def test_lever_turning_the_captcha_token_down_at_the_submit_is_a_bot_block(one_pager):
     # Simbe Robotics, 2026-11-03: "There was an error verifying your application", not a confirmation timeout.
     filler = LeverFiller()
     with FakeLeverServer(IMMUTA_FORM, parse_delay=0, refuse=True) as server:
@@ -66,11 +66,11 @@ def test_lever_turning_the_captcha_token_down_at_the_submit_is_a_handoff_that_sa
                 "phone": "+1 555 010 0199", "location": "Columbus, OH, USA",
                 f"{WORK_AUTH_CARD}[field0]": "Yes", f"{WORK_AUTH_CARD}[field1]": "No", "consent[store]": "Yes",
             })
-            with pytest.raises(Handoff) as handoff:
+            with pytest.raises(Blocked) as handoff:
                 filler.submit(page)
 
-    assert REFUSED in str(handoff.value)
-    assert handoff.value.bot_signal == bot_signals.REFUSED
+    assert handoff.value.said == "There was an error verifying your application"
+    assert handoff.value.bot_signal == bot_signals.BLOCKED
     assert server.submissions == []
 
 
