@@ -1,0 +1,129 @@
+# Resume section headings no rule in app/utils/resume_parser.py names, for
+# app/scripts/label_resume_headings.py to label once with a model. One per
+# line; a line starting "#" is a comment. Only headings go here, never a line
+# copied from a student's resume: this file is sent to Groq and committed.
+# A heading the dry run finds in a resume someone shared is retyped here by
+# hand, and only when it holds nothing about them.
+
+# jobs
+Co-op Experience
+Co-ops
+Externships
+Apprenticeships
+Fieldwork
+Field Experience
+Lab Experience
+Laboratory Experience
+Military Experience
+Military Service
+Positions Held
+Positions of Responsibility
+Selected Work
+Relevant Work
+Work
+Career History
+Professional History
+Experience Highlights
+Teaching
+Tutoring
+Mentorship
+Study Abroad
+
+# clubs, activities and volunteering
+Clubs
+Clubs & Organizations
+Campus Activities
+Co-Curricular Activities
+Extra-Curricular Activities
+Extra Curricular Activities
+Sports
+Honor Societies
+Societies
+Greek Life
+Service Learning
+Outreach
+Community Outreach
+Professional Service
+
+# education
+Courses
+Online Courses
+Bootcamps
+Professional Development
+Continuing Education
+Workshops
+Conferences
+Thesis
+Academic History
+
+# projects
+Senior Design Project
+Capstone Project
+Capstone
+Design Projects
+Coding Projects
+Open Source
+Open Source Contributions
+Contributions
+Creative Work
+Exhibitions
+Performances
+Writing Samples
+
+# skills
+Key Skills
+Areas of Expertise
+Expertise
+Technical Expertise
+Strengths
+Soft Skills
+Hard Skills
+Frameworks
+Databases
+Software
+Computer Skills
+Tech Stack
+Toolbox
+Laboratory Skills
+Language Skills
+Spoken Languages
+
+# awards
+Distinctions
+Grants
+Fellowships
+Grants & Fellowships
+Accomplishments
+Key Achievements
+Selected Accomplishments
+Career Highlights
+Highlights
+
+# certifications
+Credentials
+Professional Credentials
+Licensure
+
+# publications and talks
+Talks
+Speaking
+Speaking Engagements
+Research Interests
+Media
+Press
+
+# not saved
+Executive Summary
+Career Summary
+Profile Summary
+Professional Profile
+Personal Statement
+Overview
+Highlights of Qualifications
+Personal Interests
+Personal
+Contact
+Contact Information
+Links
+Online Presence
+Social

@@ -1,5 +1,7 @@
+import json
 import re
 from datetime import date
+from pathlib import Path
 
 import ftfy  # fix broken unicode
 
@@ -36,21 +38,47 @@ EXPECTED_RE = re.compile(
 # Bare "Month Year" ending a line or a "|" field — no range, no "Expected"
 BARE_DATE_RE = re.compile(rf'({MONTH})\s+{YEAR}\s*(?=\||$)', re.IGNORECASE | re.MULTILINE)
 
-SECTION_RE = re.compile(
-    r'^\s*('
-    r'Education|'
-    r'(?:Work\s+|Professional\s+)?Experience|'
-    r'(?:Leadership(?:\s+Experience)?|Extracurricular\s+Activities|Extracurriculars|'
-    r'(?:Campus\s+)?Involvement)(?:\s+(?:&|and)\s+\w+)?|'
-    r'(?:Personal\s+|Academic\s+)?Projects?|'
-    r'(?:Technical\s+)?Skills(?:\s+(?:&|and)\s+\w+)?|Technologies|'
-    r'Activities(?:\s+(?:&|and)\s+\w+)?|Interests|'
-    r'Certifications?\s*(?:&\s*Licenses)?|Licenses|'
-    r'Summary|(?:Career\s+)?Objective|Profile|'
-    r'(?:Awards?|Honors?)(?:\s+(?:&|and)\s+(?:Awards?|Honors?))?'
-    r')\s*$',
-    re.MULTILINE | re.IGNORECASE,
+# Section headings, from career-center guides (KAN-348). One term is one
+# section's name; a heading is terms joined by "&" or "and", and may end in
+# any one word ("Skills & Abilities"). The first term decides the section
+# (`_section_name`). A heading the parser does not know is no section: its
+# text joins the section above it, which made a lab and a paper read as
+# schools.
+_PREFIX = (
+    r'(?:Work|Professional|Research|Relevant|Related|Career\s+Related|Additional|Other|'
+    r'Internship|Technical|Engineering|Industry|Teaching|Clinical|Freelance|Academic|'
+    r'Volunteer|Leadership|Management|Software|Previous|Selected)'
 )
+_TERM = (
+    r'(?:'
+    # jobs and lab roles
+    rf'(?:{_PREFIX}\s+(?:&|and)\s+)?(?:{_PREFIX}\s+)?Experiences?|'
+    r'Internships?|Employment(?:\s+History)?|Work\s+History|Professional\s+Background|Research|'
+    # papers, which import keeps as projects
+    r'(?:Research\s+)?Publications?|Papers|(?:Conference\s+)?Presentations|Patents|'
+    # clubs, activities and volunteering
+    r'Leadership|Extracurricular\s+Activities|Extracurriculars|'
+    r'(?:Campus|Community|Athletic)\s+Involvement|Involvement|Activities|'
+    r'Volunteer(?:ing|\s+Work)?|Community\s+(?:Service|Engagement)|'
+    r'(?:Professional\s+)?(?:Affiliations|Memberships)|(?:Student\s+)?Organizations|Athletics|'
+    r'Education|Educational\s+(?:Background|Qualifications)|Academic\s+Background|'
+    r'(?:Professional\s+)?Training|(?:Relevant\s+)?Coursework|Relevant\s+Courses|'
+    r'(?:(?:Personal|Academic|Technical|Engineering|University|Course|Related\s+Course|'
+    r'Selected|Side|Research|Software|Independent|Class)\s+)?Projects?|Portfolio|Hackathons|'
+    r'(?:Technical\s+|Core\s+)?Skills(?:\s+Summary)?|Technologies|Technical\s+Proficiencies|'
+    r'(?:Core\s+)?Competencies|(?:Programming\s+)?Languages|Tools|'
+    r'(?:Professional\s+)?Certifications?|Certificates|Licenses|'
+    r'Awards?|Honors?|Achievements|Scholarships|Recognition|'
+    # found but not saved
+    r'(?:Professional\s+)?Summary|Summary\s+of\s+Qualifications|Qualifications|'
+    r'(?:Career\s+)?Objective|Profile|About\s+Me|Interests|Hobbies|'
+    r'Additional\s+Information|References|Other'
+    r')'
+)
+SECTION_RE = re.compile(rf'{_TERM}(?:\s+(?:&|and)\s+{_TERM})*(?:\s+(?:&|and)\s+\w+)?', re.IGNORECASE)
+COURSEWORK_RE = re.compile(r'(?:Relevant\s+)?(?:Coursework|Courses)\b', re.IGNORECASE)
+# "E X P E R I E N C E": one letter at a time, words two spaces apart
+_SPACED_RE = re.compile(r'[A-Za-z](?: [A-Za-z&])+(?:\s{2,}[A-Za-z](?: [A-Za-z&])+)*')
 
 # "GPA: 3.81/4.00" gives the scale too
 GPA_RE = re.compile(r'GPA[:\s]*(\d+(?:\.\d+)?)(?:\s*/\s*(\d+(?:\.\d+)?))?', re.IGNORECASE)
@@ -108,7 +136,9 @@ def parse_resume(raw_text: str) -> ParsedResume | None:
         education=_parse_education(sections.get("education", "")),
         experience=_parse_experience(sections.get("experience", "")),
         skills=_parse_skills(sections.get("skills", "")),
-        projects=_parse_projects(sections.get("projects", "")),
+        # the bank has no Publications section: a paper is a project (KAN-348)
+        projects=_parse_projects(sections.get("projects", ""))
+        + _parse_publications(sections.get("publications", "")),
         certifications=_parse_certifications(sections.get("certifications", "")),
         # club roles read like jobs: organization, role, dates, bullets
         leadership=_parse_experience(sections.get("leadership", "")),
@@ -118,7 +148,63 @@ def parse_resume(raw_text: str) -> ParsedResume | None:
 def count_sections(text: str) -> int:
     """How many section headers sit on lines of their own — the extractor
     uses this to tell which PDF extraction mode kept the structure intact."""
-    return len(SECTION_RE.findall(text))
+    return sum(1 for line in text.splitlines() if section_of(line))
+
+
+def section_of(line: str) -> str | None:
+    """The section a heading line names ("experience", or the heading itself
+    for a section import does not save), or None for a body line. The rules
+    decide first; a heading they miss is looked up in the learned labels."""
+    s = heading_form(line)
+    if not s:
+        return None
+    if SECTION_RE.fullmatch(s):
+        return _section_name(s)
+    label = LEARNED.get(learned_key(s))
+    if label is None or label == "none":
+        return None
+    # a section import does not save keeps its own name, as with the rules
+    return learned_key(s) if label == "other" else label
+
+
+def heading_form(line: str) -> str:
+    """A line as a heading reads once its format is off, or "" for a bullet."""
+    s = line.strip()
+    # a bullet is a body line, whatever it says
+    if not s or s.startswith("•"):
+        return ""
+    if _SPACED_RE.fullmatch(s):
+        s = " ".join(word.replace(" ", "") for word in re.split(r"\s{2,}", s))
+    # "Education:", "EXPERIENCE ____", "— Experience —", "■ Experience", "01 Experience"
+    s = re.sub(r"^[^A-Za-z]+|[^A-Za-z]+$", "", s)
+    # "Honors / Awards" is "Honors & Awards"
+    return re.sub(r"\s*/\s*", " & ", s)
+
+
+def learned_key(heading: str) -> str:
+    return " ".join(heading.casefold().split())
+
+
+# Headings no rule names, labeled once by a model from a reviewed word list
+# (app/scripts/label_resume_headings.py, the scraper's learned headings for
+# resumes). A committed file, never a call at upload: ADR 0003 keeps the
+# model off a resume the student has not asked it to read.
+LEARNED_PATH = Path(__file__).with_name("learned_headings.json")
+# the sections import reads, "other" for one it does not save, "none" for no heading
+LEARNED_LABELS = (
+    "education", "experience", "leadership", "awards", "skills", "projects",
+    "certifications", "publications", "other", "none",
+)
+
+
+def _load_learned() -> dict[str, str]:
+    if not LEARNED_PATH.exists():
+        return {}
+    labels = json.loads(LEARNED_PATH.read_text(encoding="utf-8")).get("labels", {})
+    return {learned_key(heading): label for heading, label in labels.items() if label in LEARNED_LABELS}
+
+
+LEARNED = _load_learned()
 
 
 def _clean_text(text: str) -> str:
@@ -133,36 +219,49 @@ def _clean_text(text: str) -> str:
 
 # Split sections so each category is parsed individually by its own parser
 def _split_sections(text: str) -> dict[str, str]:
-    matches = list(SECTION_RE.finditer(text))       # list and find sections
-    if not matches:
-        return {}
-    sections: dict[str, str] = {}                   # store text based on sections
-    for i, m in enumerate(matches):
-        name = _normalize_header(m.group(1))
-        start = m.end()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        sections[name] = text[start:end].strip()    # grab that section of text
-    return sections
+    sections: dict[str, list[str]] = {}             # store text based on sections
+    lines: list[str] | None = None                  # text before the first header goes
+    for line in text.splitlines():
+        name = section_of(line)
+        if name:
+            # two headers can name one section (Experience, Research Experience):
+            # keep both, or the second replaces the first
+            lines = sections.setdefault(name, [])
+            # the school's parser finds its courses by this label, and its
+            # colon carries the list on the next line onto it
+            if COURSEWORK_RE.match(heading_form(line)):
+                lines.append(heading_form(line) + ":")
+        elif lines is not None:
+            lines.append(line)
+    return {name: "\n".join(body).strip() for name, body in sections.items()}
 
 
-def _normalize_header(header: str) -> str:
-    h = header.strip().lower()
-    # before "experience": "Leadership Experience" is not a job section
-    if any(w in h for w in ("leadership", "activit", "extracurricular", "involvement")):
-        return "leadership"
-    if "award" in h or "honor" in h:
-        return "awards"
-    if "experience" in h:
-        return "experience"
-    if "education" in h:
-        return "education"
-    if "skill" in h or "technologies" in h:
-        return "skills"
-    if "project" in h:
-        return "projects"
-    if "certification" in h or "license" in h:
-        return "certifications"
-    return h
+# Which section a heading's first term names, checked in this order: each
+# word comes before a later one it shares a heading with ("Research
+# Projects" are projects, "Leadership Experience" is no job, "Coursework"
+# holds "work")
+_SECTION_WORDS = [
+    ("publications", ("publication", "paper", "presentation", "patent")),
+    ("projects", ("project", "portfolio", "hackathon")),
+    ("leadership", ("leadership", "activit", "extracurricular", "involvement", "volunteer",
+                    "community", "affiliation", "membership", "organization", "athletic")),
+    ("awards", ("award", "honor", "achievement", "scholarship", "recognition")),
+    ("certifications", ("certif", "license")),
+    ("education", ("education", "coursework", "course", "training", "academic background")),
+    # a lab role reads like a job: organization, role, dates, bullets
+    ("experience", ("experience", "internship", "employment", "work", "background", "research")),
+    ("skills", ("skill", "technolog", "proficienc", "competenc", "language", "tool")),
+]
+
+
+def _section_name(heading: str) -> str:
+    # the first part decides: "Experience & Leadership" is Experience
+    first = re.split(r"\s+(?:&|and)\s+", heading.lower())[0]
+    for name, words in _SECTION_WORDS:
+        if any(w in first for w in words):
+            return name
+    # a section import does not save keeps its own name ("hobbies")
+    return " ".join(heading.lower().split())
 
 
 def _month_to_int(month_str: str) -> int:
@@ -397,12 +496,13 @@ def _parse_education(text: str) -> list[Education]:
         desc_parts: list[str] = []
         for ln in lines[1:]:
             stripped = ln.strip()
-            if re.match(r'(?:Relevant\s+)?(?:Coursework|Courses)\b', stripped, re.IGNORECASE):
+            if COURSEWORK_RE.match(stripped):
                 desc_parts.append(stripped)
             elif BULLET_RE.match(stripped):
                 desc_parts.append(BULLET_RE.sub("", stripped).strip())
-            elif desc_parts and (desc_parts[-1].endswith(",") or stripped[0].islower()):
-                # a PDF-wrapped coursework or bullet line
+            elif desc_parts and (desc_parts[-1].endswith((",", ":")) or stripped[0].islower()):
+                # a PDF-wrapped coursework or bullet line, or the list
+                # under a "Relevant Coursework:" heading
                 desc_parts[-1] += " " + stripped
         desc = "\n".join(re.sub(r'\s{2,}', ' ', d) for d in desc_parts) if desc_parts else None
 
@@ -603,6 +703,29 @@ def _split_undated_projects(lines: list[str]) -> list[list[str]]:
         else:
             out.append([ln])
     return out
+
+
+# A citation's year: "(2025)" or "2025." anywhere in it
+CITATION_YEAR_RE = re.compile(r'\b((?:19|20)\d{2})\b')
+
+
+def _parse_publications(text: str) -> list[Project]:
+    """One project per citation, named by the whole citation: no rule tells
+    a paper's title from its authors. `_bullets` joins a citation's
+    PDF-wrapped lines; its link becomes the project's url, its year the end."""
+    results: list[Project] = []
+    for item in (_bullets(text.splitlines()) or "").splitlines():
+        url_m = URL_RE.search(item)
+        name = URL_RE.sub("", item).strip().rstrip(",").strip()
+        _, when = _parse_date_range(name)
+        year = CITATION_YEAR_RE.search(name)
+        if when is None and year:
+            when = date(int(year.group(1)), 1, 1)
+        # "Paper, Venue  May 2025": the month is the end, not the name
+        name = _strip_dates(name) or name
+        if name:
+            results.append(Project(project_name=name, url=url_m.group(0) if url_m else None, end_date=when))
+    return results
 
 
 def _parse_certifications(text: str) -> list[Certification]:
