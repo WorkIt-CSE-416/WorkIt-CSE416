@@ -15,6 +15,7 @@ What a later slice adds raises NotImplementedError naming the slice (PROTOCOL.md
 """
 
 import base64
+import inspect
 import json
 import mimetypes
 import re
@@ -40,6 +41,8 @@ from apply.plain.script import evaluate as evaluate_in
 DEFAULT_TIMEOUT = 30000  # ms, as Playwright's
 POLL = 0.1  # s between tries of an action whose element is missing or not actionable
 NAVIGATED = re.compile(r"context was destroyed|navigat", re.IGNORECASE)
+# Page events read from the tab's requests (ops/accounts.js net.watch), by the port's event each comes from.
+WATCHED = {"request": "request", "response": "response", "requestfinished": "response", "requestfailed": "requestfailed"}
 ROLE_ARGUMENTS = ("checked", "disabled", "expanded", "include_hidden", "level", "name", "pressed", "selected", "exact",
                   "description")
 
@@ -143,6 +146,7 @@ class PortFrame(_Queries):
         deadline = time.monotonic() + timeout / 1000
         reason = ""
         while True:
+            self._page._clear_overlays()
             try:
                 answer = self._dom(method, *args)
             except PortError as error:
@@ -162,8 +166,8 @@ class PortFrame(_Queries):
         selector = selector._selector if isinstance(selector, PortLocator) else selector
         return PortLocator(self, _filtered(selector, has_text, has_not_text, has, has_not))
 
-    def frame_locator(self, selector: str):
-        later("frame_locator", "S5/S7")
+    def frame_locator(self, selector: str) -> "PortFrameLocator":
+        return PortFrameLocator(self, selector)
 
     def evaluate(self, expression: str, arg: Any = None) -> Any:
         return evaluate_in(self._page.worker, self._page.tab, expression, arg, self._frame)
@@ -312,11 +316,13 @@ class PortLocator(_Queries):
     def count(self) -> int:
         return self._frame._now("count", self._selector)
 
-    def content_frame(self):
-        later("content_frame", "S5/S7")
+    @property
+    def content_frame(self) -> "PortFrameLocator":
+        """The frame of the <iframe> this locator finds, as Playwright's Locator.content_frame."""
+        return PortFrameLocator(self._frame, self._selector)
 
-    def frame_locator(self, selector: str):
-        later("frame_locator", "S5/S7")
+    def frame_locator(self, selector: str) -> "PortFrameLocator":
+        return PortFrameLocator(self._frame, f"{self._selector} >> {selector}")
 
     # --- actions
 
@@ -522,6 +528,153 @@ class PortLocator(_Queries):
         later("Locator.screenshot", "S5")
 
 
+class _ElementFrame(PortFrame):
+    """The frame of an <iframe> in `parent`, found by `selector` on each call (Chrome keeps a frame's
+    id across its navigations, but the element may be replaced): what a FrameLocator's locators run in."""
+
+    def __init__(self, parent: PortFrame, selector: str):
+        self._page, self._parent_frame, self._selector, self._url, self._parent = parent._page, parent, selector, "", None
+
+    def _id(self) -> int | None:
+        """The frame's id, or None while its <iframe> is missing or has no document yet."""
+        parent = self._parent_frame
+        answer = parent._page.worker.call("frames.of", tab=parent._page.tab, frame=parent._frame, selector=self._selector)
+        return answer.get("ok") if isinstance(answer, dict) else None
+
+    @property
+    def _frame(self) -> int:
+        found = self._id()
+        if found is None:
+            raise PortError("NotFound", f"waiting for frame locator('{self._selector}')")
+        return found
+
+    @_frame.setter
+    def _frame(self, _value) -> None:
+        pass
+
+    @property
+    def parent_frame(self) -> PortFrame:
+        return self._parent_frame
+
+    def _dom(self, method: str, *args) -> dict:
+        found = self._id()
+        if found is None:
+            return {"retry": f"waiting for frame locator('{self._selector}')"}
+        answer = self._page.worker.call("dom", tab=self._page.tab, frame=found, method=method, args=list(args))
+        if isinstance(answer, dict) and "err" in answer:
+            error = answer["err"] or {}
+            raise PortError(error.get("name", "Error"), f"{error.get('name', 'Error')}: {error.get('message', '')}")
+        return answer
+
+
+class PortFrameLocator(_Queries):
+    """Playwright's FrameLocator: locators inside the frame of the <iframe> `selector` finds in `parent`.
+    The frame may be on another origin: the extension scripts every frame (`<all_urls>`)."""
+
+    def __init__(self, parent: PortFrame, selector: str):
+        self._parent, self._selector = parent, selector
+
+    def __repr__(self) -> str:
+        return f"<PortFrameLocator selector={self._selector!r}>"
+
+    @property
+    def _inner(self) -> _ElementFrame:
+        return _ElementFrame(self._parent, self._selector)
+
+    def locator(self, selector, has_text=None, has_not_text=None, has=None, has_not=None) -> PortLocator:
+        inner = selector._selector if isinstance(selector, PortLocator) else selector
+        return PortLocator(self._inner, _filtered(inner, has_text, has_not_text, has, has_not))
+
+    def frame_locator(self, selector: str) -> "PortFrameLocator":
+        return PortFrameLocator(self._inner, selector)
+
+    @property
+    def owner(self) -> PortLocator:
+        return PortLocator(self._parent, self._selector)
+
+    def nth(self, index: int) -> "PortFrameLocator":
+        return PortFrameLocator(self._parent, f"{self._selector} >> nth={index}")
+
+    @property
+    def first(self) -> "PortFrameLocator":
+        return self.nth(0)
+
+    @property
+    def last(self) -> "PortFrameLocator":
+        return self.nth(-1)
+
+
+class PortRequest:
+    """A request the tab made, as Playwright's Request (from webRequest: no headers or body)."""
+
+    def __init__(self, page: "PortPage", message: dict):
+        self._page = page
+        self.url: str = message.get("requested") or message.get("url", "")
+        self.method: str = message.get("method", "GET")
+        self.resource_type: str = {"main_frame": "document", "sub_frame": "document", "xmlhttprequest": "fetch"}.get(
+            message.get("type", ""), message.get("type", "other"))
+        self.failure: str | None = message.get("error")
+        self.headers: dict = {}
+        self.post_data = None
+        self.redirected_from = None
+        self._frame = message.get("frame", 0)
+
+    def __repr__(self) -> str:
+        return f"<PortRequest {self.method} {self.url}>"
+
+    @property
+    def frame(self) -> PortFrame:
+        return self._page if not self._frame else PortFrame(self._page, self._frame)
+
+    def is_navigation_request(self) -> bool:
+        return self.resource_type == "document"
+
+    def all_headers(self) -> dict:
+        return {}
+
+
+class PortResponse:
+    """A response the tab got, as Playwright's Response. Its body is known only for a fetch or XHR
+    call that isn't a GET (page/net-main.js reads it): json(), text() and body() raise otherwise."""
+
+    def __init__(self, page: "PortPage", message: dict):
+        self.request = PortRequest(page, message)
+        self.url: str = message.get("url", "")
+        self.status: int = int(message.get("status") or 0)
+        self.headers: dict = {}
+        self._body: str | None = message.get("body")
+        self.frame = self.request.frame
+
+    def __repr__(self) -> str:
+        return f"<PortResponse {self.status} {self.url}>"
+
+    @property
+    def ok(self) -> bool:
+        return self.status == 0 or 200 <= self.status <= 299
+
+    @property
+    def status_text(self) -> str:
+        return ""
+
+    def all_headers(self) -> dict:
+        return {}
+
+    def finished(self) -> None:
+        return None
+
+    def text(self) -> str:
+        if self._body is None:
+            raise PortError("NoBody", f"Response.text: the body of {self.request.method} {self.url} isn't read on a plain Worker "
+                                      "(only a fetch or XHR call that isn't a GET)")
+        return self._body
+
+    def body(self) -> bytes:
+        return self.text().encode()
+
+    def json(self) -> Any:
+        return json.loads(self.text())
+
+
 class Keyboard:
     """page.keyboard: keys and text on whatever has focus in the top frame."""
 
@@ -597,6 +750,9 @@ class PortPage(PortFrame):
         self.keyboard = Keyboard(self)
         self._closed = False
         self._listeners: dict[str, list[tuple[Callable, Callable]]] = {}
+        self._overlays: list[dict] = []  # add_locator_handler's, in order
+        self._clearing = False  # a locator handler is running: its own actions don't run handlers
+        self._watching = 0  # listeners that need the tab watched (request, response, popup)
         worker.on("tab.removed", self._removed)
 
     @classmethod
@@ -704,20 +860,42 @@ class PortPage(PortFrame):
     def viewport_size(self) -> dict | None:
         return self.evaluate("() => ({width: innerWidth, height: innerHeight})")
 
-    # --- events: close, popup and framenavigated now; the rest when their slice wires them
+    # --- events: close, popup, framenavigated, request, response and requestfailed; others are
+    # accepted and ignored until their slice wires them
+
+    def _watch(self, more: int) -> None:
+        """Count a listener that needs the tab watched (ops/accounts.js net.watch), and start or stop it."""
+        before, self._watching = self._watching, max(0, self._watching + more)
+        if (before == 0) != (self._watching == 0) and not self.is_closed():
+            try:
+                self.worker.call("net.watch", tab=self.tab, on=self._watching > 0)
+            except PortError:
+                pass  # the tab is going: nothing to watch
 
     def on(self, event: str, handler: Callable) -> None:
         wired: Callable | None = None
+        if event in WATCHED:
+            def wired(message):
+                if message.get("tab") == self.tab:
+                    handler(PortRequest(self, message) if event in ("request", "requestfailed") else
+                            PortResponse(self, message).request if event == "requestfinished" else PortResponse(self, message))
+            self.worker.on(WATCHED[event], wired)
+            self._listeners.setdefault(event, []).append((handler, wired))
+            self._watch(+1)
+            return
         if event == "close":
             def wired(message):
                 if message.get("tab") == self.tab:
                     handler(self)
             self.worker.on("tab.removed", wired)
         elif event == "popup":
+            # A target=_blank link's tab, or one window.open asked for and Chrome's pop-up blocker refused
+            # (no user activation), which the extension opens by its URL with this page as its opener.
             def wired(message):
                 if message.get("opener") == self.tab:
                     handler(self.context.page(message["tab"]))
             self.worker.on("tab.created", wired)
+            self._watch(+1)
         elif event == "framenavigated":
             def wired(message):
                 if message.get("tab") == self.tab:
@@ -733,11 +911,13 @@ class PortPage(PortFrame):
         self.on(event, one_time)
 
     def remove_listener(self, event: str, handler: Callable) -> None:
-        names = {"close": "tab.removed", "popup": "tab.created", "framenavigated": "navigated"}
+        names = {"close": "tab.removed", "popup": "tab.created", "framenavigated": "navigated", **WATCHED}
         for pair in list(self._listeners.get(event, [])):
             if pair[0] is handler:
                 self._listeners[event].remove(pair)
                 self.worker.off(names[event], pair[1])
+                if event in WATCHED or event == "popup":
+                    self._watch(-1)
 
     # --- what a later slice adds
 
@@ -760,8 +940,42 @@ class PortPage(PortFrame):
     def mouse(self):
         return later("mouse", "S3")
 
-    def add_locator_handler(self, *_, **__):
-        later("add_locator_handler", "S7")
+    # --- locator handlers: an overlay (a cookie banner) cleared before each action, as Playwright's
 
-    def remove_locator_handler(self, *_, **__):
-        later("remove_locator_handler", "S7")
+    def add_locator_handler(self, locator: PortLocator, handler: Callable, no_wait_after: bool | None = None,
+                            times: int | None = None) -> None:
+        """Run `handler` (given `locator`, if it takes an argument) whenever `locator` shows before an
+        action or one of its retries; then wait until it is hidden, unless `no_wait_after`. `times`:
+        at most that many runs. Checked from Apply (one `dom` call per action), not by page code."""
+        self._overlays.append({"locator": locator, "handler": handler, "wait": not no_wait_after, "times": times})
+
+    def remove_locator_handler(self, locator: PortLocator) -> None:
+        self._overlays = [o for o in self._overlays if o["locator"]._selector != locator._selector]
+
+    def _clear_overlays(self) -> None:
+        if not self._overlays or self._clearing:
+            return
+        self._clearing = True
+        try:
+            for overlay in list(self._overlays):
+                locator = overlay["locator"]
+                try:
+                    shown = locator._frame._now("state", locator._selector, "visible")["value"]
+                except PortError:
+                    continue  # its frame navigating: checked again before the next try
+                if not shown:
+                    continue
+                handler = overlay["handler"]
+                try:
+                    takes = len(inspect.signature(handler).parameters)
+                except (TypeError, ValueError):
+                    takes = 1
+                handler(locator) if takes else handler()
+                if overlay["times"] is not None:
+                    overlay["times"] -= 1
+                    if overlay["times"] <= 0:
+                        self._overlays.remove(overlay)
+                if overlay["wait"]:
+                    locator.first.wait_for(state="hidden")
+        finally:
+            self._clearing = False
