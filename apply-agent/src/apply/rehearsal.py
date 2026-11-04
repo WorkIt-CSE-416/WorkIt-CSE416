@@ -44,6 +44,7 @@ from apply import (
     embedded,
     greenhouse,
     lever,
+    stuck,
     tailored,
     trace,
     workday,
@@ -397,6 +398,13 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                        "stage": "", "history": list(history)}
     waits = Waiter(board, n, adapters.phone, profile, caption)
 
+    def on_resumed(doing: str) -> None:
+        """Lisul pressed Resume while the form filled (apply.stuck): Apply went on from the page."""
+        doing = doing[:1].lower() + doing[1:] if doing else "filling the form"
+        history.append(f"{adapters.clock.now().strftime('%H:%M')} {stuck.RESUMED.format(doing)}")
+        trace.event("resume", doing=doing)
+        board.update(n, history=list(history), waiting=False)
+
     def on_captcha(why: str, page, company: str) -> bool:
         """A captcha stopped the fill: Lisul does it on the page, and the fill goes on by itself."""
         history.append(f"{adapters.clock.now().strftime('%H:%M')} Paused: do the captcha")
@@ -411,12 +419,13 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         board.update(n, history=list(history))
         return True
     if result is None:
-        with trace.tracing(posting.id, posting.url):
+        with trace.tracing(posting.id, posting.url), stuck.watching(board, n, on_resumed):
             try:
                 profile = tailored.resume_for(posting, profile, adapters.tailored)
+                waited = stuck.Waits(claude)  # a wait on Claude that Lisul's Resume can stop
                 result = by_filler(
-                    posting, site, profile, claude, lambda: accounts(posting),
-                    lambda filler, page_site: apply_to(posting, filler, page_site, profile, claude, calibration,
+                    posting, site, profile, waited, lambda: accounts(posting),
+                    lambda filler, page_site: apply_to(posting, filler, page_site, profile, waited, calibration,
                                                        rehearse=True, bank=adapters.answer_bank,
                                                        today=adapters.clock.now().date(),
                                                        on_files=on_files,
