@@ -101,7 +101,7 @@ export class FakeApi {
   /** In order: "next:<job>" when GET .../applications/next hands a job out (its tab opens), "questions:<job>" when its questions arrive. */
   readonly events: string[] = [];
   /** The jobs the extension added from a form WorkIt doesn't list (POST /jobs/added-by-link, KAN-515), each as its body, in order. */
-  readonly added: { url: string; company: string; title: string }[] = [];
+  readonly added: { url: string; company: string; title: string; track_only?: boolean }[] = [];
 
   /** The connector's save (backend/app/connector/tools.py): the student's Claude answered one question. */
   /** The student's Claude asks the student for a fact one question's answer needs (KAN-369, save_fact_question). */
@@ -247,7 +247,10 @@ export class FakeApi {
       let at = this.added.findIndex((job) => job.url === page.url);
       if (at < 0) at = this.added.push(page) - 1;
       const id = `added-${at}`;
-      if (!this.stages.has(id) || ["saved", "queued"].includes(this.stages.get(id)!)) this.stages.set(id, "needs_you");
+      // With track_only (a filled tab's submit, KAN-589): the application saved when new, else kept at its stage.
+      if (page.track_only) {
+        if (!this.stages.has(id)) this.stages.set(id, "saved");
+      } else if (!this.stages.has(id) || ["saved", "queued"].includes(this.stages.get(id)!)) this.stages.set(id, "needs_you");
       return { json: { job_id: id, stage: this.stages.get(id) } };
     }
     // Track on WorkIt (KAN-424): the listed job a link is, with the student's stage (writes nothing);
@@ -263,7 +266,8 @@ export class FakeApi {
     const jobMark = /^\/jobs\/([^/]+)\/(saved|applied)$/.exec(path);
     if (jobMark && method === "POST") {
       const [, id, what] = jobMark;
-      if (!this.postings.has(id)) return { status: 404, json: { detail: "That job isn't open any more." } };
+      // An added job (KAN-515) is marked too, as the backend's POST /jobs/{id}/applied does.
+      if (!this.postings.has(id) && !/^added-\d+$/.test(id)) return { status: 404, json: { detail: "That job isn't open any more." } };
       if (what === "saved") {
         if (!this.stages.has(id)) this.stages.set(id, "saved");
         return { json: { stage: this.stages.get(id) } };

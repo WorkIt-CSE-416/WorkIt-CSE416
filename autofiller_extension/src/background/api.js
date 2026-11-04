@@ -799,8 +799,10 @@ export async function listedJobByLink(url) {
  * (its company and title, as the Fill engine reads them from the job system)
  * when WorkIt doesn't list it, with the student's application at needs_you:
  * Write with Claude on a form they opened themselves (KAN-515). The added job
- * is on no Jobs feed; a 404 says why WorkIt can't take the form.
- * @param {{ url: string, company: string, title: string }} page
+ * is on no Jobs feed; a 404 says why WorkIt can't take the form. With
+ * `track_only` (a filled tab's proven submit, KAN-589): any link, and the
+ * application saved when new, else kept at its stage (ADR 0008).
+ * @param {{ url: string, company: string, title: string, track_only?: boolean }} page
  * @returns {Promise<{ job_id: string, stage: string }>}
  */
 export async function addJobByLink(page) {

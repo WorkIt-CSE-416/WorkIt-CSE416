@@ -344,8 +344,8 @@
 
   // This tab's side of batch apply: its state for the background, Next Thing That Needs You, the student's submit.
   const { report, answerTheWalk, watchSubmit } = window.WIA.batchTab({ batch, note });
-  // Every fill asks: a batch tab and a tab tracked on WorkIt (KAN-424) are watched; any other keeps its key with the
-  // background until Track on WorkIt starts the watch (background.js batch/watch).
+  // Every fill asks, and every filled tab is watched: a batch tab's submit marks its application, any other tab's
+  // puts its job on the student's tracker as applied (KAN-589, background.js batch/watch).
   watchSubmit();
   // Holds the student's Submit while something on the page is still open, and says what (submit-warning.js).
   if (batch) window.WIA.submitWarning();

@@ -1336,13 +1336,25 @@ already on the form, and a queued job would open again in the next batch.
 - **The same proof as a batch tab's submit** (submit-proof.js): the
   background's `markAnySubmitted` marks a batch tab's application
   (`markSubmitted`) or a tracked tab's job (`markTracked`), and nothing for
-  any other tab, so the job system's answer to a submit in a tab nobody
-  tracks marks nothing. Greenhouse's answer proves it alone; elsewhere the
+  any other tab. Greenhouse's answer proves it alone; elsewhere the
   page's hint is needed too, as in a batch. **Every fill asks to watch**
-  (`batch/watch`); the background watches a batch tab or a tracked one at
-  once and keeps any other tab's key (`unwatched`) until Track on WorkIt
-  starts its watch, so a press after the fill is caught. `batch/submitted`
-  answers `untracked` for a tab nobody tracks, and the page says nothing.
+  (`batch/watch`), and the background watches it at once.
+- **A filled tab is tracked too** (KAN-589): a fill on a tab that is not
+  a batch's keeps it as `filled` (`noteFilled`: the form's link, no job,
+  nothing written at WorkIt), so the student's proven submit there puts
+  the job on their Applications Tracker as applied, listed or not.
+  `markTracked` finds its job first (`jobOfFilled`): the listed job by
+  link, else `POST /jobs/added-by-link` with `track_only` and the company
+  and title the Fill engine reads (an added job, ADR 0008, as Apply's
+  `record_applied`), then `POST /jobs/{id}/applied`, unless the stage is
+  already applied or later. Before, a tab nobody tracked marked nothing,
+  and Track on WorkIt shows only for a listed job, so a submit on a job
+  WorkIt doesn't list (Simbe Robotics' Lever form, 2026-11-03) never
+  reached the tracker. A filled tab still offers Track on WorkIt for a
+  listed job (`trackState` reads only a tab with a job as tracked). A tab
+  the extension never filled is never marked: `batch/submitted` answers
+  `untracked`, and the page says nothing. A page that names no company or
+  title can't be added: the mark fails with a warning in the worker's log.
 - **A tracked tab is one job**: kept in chrome.storage.session
   (`tracked_tabs`) with the job's identity (the engine's jobOf, as the job
   card matches a page to a posting); a tab that moves to another job's page
@@ -1356,8 +1368,10 @@ already on the form, and a queued job would open again in the next batch.
   on the website's Applications page).
 
 Tests: `test/track.extension.spec.ts` (Ashby's Cohere form: Track, then the
-student's submit marks it applied; an untracked form's submit marks
-nothing; a job WorkIt doesn't list offers nothing).
+student's submit marks it applied; a filled form's submit marks it applied
+untracked; Lever's Rhombus form, a job WorkIt doesn't list: the submit adds
+it by link and marks it applied; a form never filled marks nothing; a job
+WorkIt doesn't list offers no Track).
 
 ## The practice batch (KAN-378): onboarding's batch on WorkIt's own forms
 
