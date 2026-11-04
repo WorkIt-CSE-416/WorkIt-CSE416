@@ -748,9 +748,12 @@ const answerBox = (item, question) => {
   }});
   box.addEventListener('keydown', e => { if (e.key === 'Enter') save.click(); });
   // An optional one still gets an answer, but may be saved blank to skip it.
-  return make('div', {className: 'ask'}, make('label', {textContent: question}, needFlag(need)), options,
-              make('div', {className: 'answer-row'}, box, save), status);
+  return make('div', {className: 'ask'}, make('label', {textContent: question}, needFlag(need)), whereLine(item, question),
+              options, make('div', {className: 'answer-row'}, box, save), status);
 };
+// The question's one context line (apply.asking): its step, the question it follows and its pair, or its essay.
+const whereLine = (item, question) => (item.where || {})[question]
+  ? make('div', {className: 'where', textContent: item.where[question]}) : null;
 // Whether the form requires it, as its own flag says.
 const needFlag = (need) => need === undefined ? null : make('span', {className: 'need ' + (need ? 'required' : 'optional'),
                                                                      textContent: need ? 'Required' : 'Optional'});
@@ -789,7 +792,7 @@ const fileBox = (item, question, need) => {
     make('button', {textContent: 'Dropbox', onclick: onForm('Dropbox')}),
     make('button', {textContent: 'Google Drive', onclick: onForm('Google Drive')}),
     need === false ? make('button', {textContent: 'Skip', onclick: () => send(null)}) : null, pick);
-  return make('div', {className: 'ask'}, make('label', {textContent: question}, needFlag(need)), buttons,
+  return make('div', {className: 'ask'}, make('label', {textContent: question}, needFlag(need)), whereLine(item, question), buttons,
               make('div', {className: 'file-types', textContent: 'PDF, Word, text or RTF'}), status);
 };
 const row = (item) => {
@@ -1078,6 +1081,7 @@ STYLE = r"""
   .ask { margin-top: 14px; }
   .ask > label { display: block; margin-bottom: 8px; color: var(--body); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
   .ask .options, .ask select { margin-bottom: 8px; }
+  .ask > .where { margin: -4px 0 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
   .ask > label.question { margin: 10px 0 4px; color: var(--ink); font-weight: 600; }
   .ask .need { margin-left: 8px; padding: 1px 6px; border: 1px solid var(--rail-line); border-radius: 999px;
                font-size: 11px; font-weight: 500; color: var(--muted); white-space: nowrap; }

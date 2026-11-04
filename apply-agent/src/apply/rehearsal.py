@@ -420,8 +420,9 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                                                        rehearse=True, bank=adapters.answer_bank,
                                                        today=adapters.clock.now().date(),
                                                        on_files=on_files,
-                                                       on_missing=lambda missing, choices, required: board.update(
-                                                           n, missing=list(missing), choices=choices, required=required),
+                                                       on_missing=lambda missing, choices, required, where: board.update(
+                                                           n, missing=list(missing), choices=choices, required=required,
+                                                           where=where),
                                                        before_fill=before_fill,
                                                        on_verify=lambda verification: board.update(
                                                            n, **verifying(verification)),
@@ -455,7 +456,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     board.update(n, status=rehearsed.outcome, line=rehearsed.line(), why=one_line(rehearsed.why),
                  filled=rehearsed.filled, asked=rehearsed.asked, missing=list(rehearsed.missing),
                  drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices, required=result.required,
-                 history=list(history), blocked=bot_signals.BLOCKED in result.bot_signals)  # Open in my Chrome, on his press
+                 where=result.where, history=list(history), blocked=bot_signals.BLOCKED in result.bot_signals)  # Open in my Chrome, on his press
     return rehearsed
 
 
