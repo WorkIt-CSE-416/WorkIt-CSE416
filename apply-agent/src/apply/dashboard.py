@@ -25,6 +25,8 @@ The frames come from the dashboard's own thread (CdpFrames), with its own
 Playwright connected over CDP to each Worker's Chrome: a Worker thread's
 Playwright only answers while that thread calls it, and freezes while it
 waits on `claude -p`, so the dashboard never touches the Workers' own.
+Plain Workers (no CDP, apply.plain) have their own frame source with the
+same Frames shape: apply.plain.tile.PortFrames, over each Worker's port.
 """
 
 import base64

@@ -186,6 +186,19 @@ def test_keyboard_enter_submits_the_form(page):
     assert page.evaluate("() => document.body.dataset.submitted") == "yes"
 
 
+def test_the_caret_keys_move_the_caret_as_a_keyboard_does(page):
+    page.locator("#first").focus()
+    page.keyboard.type("BC")
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.type("x")
+    page.keyboard.press("Home")
+    page.keyboard.type("A")
+    page.keyboard.press("End")
+    page.keyboard.press("Shift+ArrowLeft")
+    page.keyboard.type("D")
+    assert page.input_value("#first") == "ABxD"
+
+
 def test_screenshot_is_a_png(page, tmp_path):
     data = page.screenshot(path=tmp_path / "shot.png")
     assert data[:8] == b"\x89PNG\r\n\x1a\n" and (tmp_path / "shot.png").read_bytes() == data
