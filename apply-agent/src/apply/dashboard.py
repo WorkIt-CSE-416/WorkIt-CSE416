@@ -420,6 +420,11 @@ class Board(Protocol):
         it last asked; each press is given once."""
         ...
 
+    def typed(self, worker: int, questions: list[str], answer: str) -> str:
+        """Lisul answered `questions` (a Missing fact, or each Essay fact of one essay) on Worker `worker`'s
+        held form himself: save the answer as his answer in Needs you is, and ask them no more. Says how it went."""
+        ...
+
     def wait_for_start(self, timeout: float | None) -> None:
         """Show the Start button and return once Lisul presses it, or after
         `timeout` seconds (None: however long he takes): a rehearsal for
@@ -450,6 +455,9 @@ class NoBoard:
 
     def resumed(self, worker: int) -> bool:
         return False
+
+    def typed(self, worker: int, questions: list[str], answer: str) -> str:
+        return ""
 
 
 class NoFrames:
@@ -640,6 +648,24 @@ class Dashboard:
             pressed = worker in self._resume
             self._resume.discard(worker)
             return pressed
+
+    def typed(self, worker: int, questions: list[str], answer: str) -> str:
+        item = next((i for i in self.state()["items"] if i.get("worker") == worker and not i.get("live")
+                     and questions[0] in (i.get("questions") or _questions(i))), None)
+        if item is None:
+            return ""
+        from apply.essays import (
+            ASK,  # imported here: essays imports the adapters, which import this module
+        )
+        asked = questions[0] if len(questions) == 1 else ASK + "; ".join(q.removeprefix(ASK) for q in questions)
+        message = self.answer(item, asked, answer) if self.answer else ""
+        with self._lock:
+            for question in questions:
+                self._answered[f"{item['id']}|{question}"] = answer
+                if item.get("posting_url"):
+                    self._answered[f"{item['posting_url']}|{question}"] = answer
+        print(f"Answered on the form, for {item.get('company') or 'an application'}: {asked} → {answer}")
+        return message
 
     def resume(self, key: str) -> str:
         """Lisul pressed Resume on an item (its id) or a tile ("tile-<k>"): its

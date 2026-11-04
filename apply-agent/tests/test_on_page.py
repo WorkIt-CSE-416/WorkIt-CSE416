@@ -1,11 +1,26 @@
-"""Needs you on the page (KAN-600): finding a Missing fact's field on the
-held form, and the rules for when an answer typed there is finished."""
+"""Needs you on the page (KAN-600): an answer Lisul types on the held form
+himself is saved as a card's answer is, and leaves Needs you."""
+
+import json
 
 import pytest
+import yaml
+from conftest import ARC_FORM, ARC_URL
+from fakes import FakeJobServer, RecordingBoard
 from playwright.sync_api import sync_playwright
+from test_dashboard import FakeFrames
+from test_rehearse import NeverSubmits, adapters
+from test_run_answers import profile_with
 
-from apply import on_page
+from apply import cli, essays, on_page, rehearsal
+from apply.answer_bank import AnswerBank
+from apply.answers_tab import AnswersTab
+from apply.dashboard import Dashboard
+from apply.fillers import FILLERS
+from apply.greenhouse import GreenhouseFiller
 from apply.model import Question
+from apply.profile import ApplicantProfile
+from apply.records import FolderRecords
 
 
 @pytest.fixture
@@ -16,6 +31,55 @@ def page():
             yield browser.new_page()
         finally:
             browser.close()
+
+
+class TypesOnThePage(RecordingBoard):
+    """Lisul, on the held form: types `answer` into the field `selector`, and leaves it (Tab). The page
+    closes once Apply took his answer, which ends the hold."""
+
+    def __init__(self, selector: str, answer: str):
+        super().__init__()
+        self.selector, self.answer, self.typed_in, self.page = selector, answer, [], None
+        self._typing = True
+
+    def answered(self, worker):  # on the held page's own thread, each turn
+        if self.page is None:
+            return []
+        if self._typing:
+            self._typing = False
+            self.page.focus(self.selector)
+            self.page.keyboard.type(self.answer)
+            self.page.keyboard.press("Tab")
+        elif self.typed_in:
+            self.page.close()
+        return []
+
+
+def test_an_answer_typed_on_the_held_form_is_saved_and_leaves_needs_you(monkeypatch, tmp_path):
+    # Live: Lisul answered a Missing fact on the form itself, and its card stayed in Needs you.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(on_page, "IDLE_S", 0.5)
+    profile = profile_with(tmp_path, **{"identity.email": None})
+    board = TypesOnThePage("#email", "lisul@example.com")
+    ticked = on_page.Watch.tick
+
+    def tick(self, page, questions):
+        board.page = page
+        return ticked(self, page, questions)
+    monkeypatch.setattr(on_page.Watch, "tick", tick)
+    lines = []
+    with FakeJobServer(ARC_FORM) as fake:
+        rehearsal.rehearse([ARC_URL], adapters(fake, board=board, records=FolderRecords(tmp_path / "rehearsals")),
+                           ApplicantProfile.load(profile), 1, keep_open=True, out=lines.append)
+
+    assert board.typed_in == [(0, ["Email"], "lisul@example.com")]  # saved as a card's answer is
+    assert board.captions[0]["missing"] == []  # it leaves Needs you
+    assert "Missing facts: none" in board.captions[0]["line"]
+    assert any("took your answer to 'Email' from the page" in line for line in lines)
+    [readme] = (tmp_path / "rehearsals").glob("*/*/README.md")
+    [row] = [r for r in json.loads((readme.parent / "answers.json").read_text()) if r["question"] == "Email"]
+    assert row["planned"] == row["on_page"] == "lisul@example.com"  # the Record and its plan have his answer
+    assert fake.submissions == []
 
 
 FORM = """<form>
@@ -101,3 +165,38 @@ def test_text_left_with_the_caret_in_it_counts_once_it_rests_long(page):
 def test_a_bare_date_is_bare_and_a_dated_label_is_not():
     assert on_page.bare("From (MM/DD/YYYY)") and on_page.bare("To") and on_page.bare("Start date*")
     assert not on_page.bare("Expected graduation date") and not on_page.bare("Education 1 / From")
+
+
+# The window's side: a typed answer is saved as a card's is.
+
+def test_an_answer_typed_on_the_form_is_saved_as_a_cards_answer_and_a_bare_date_is_not(monkeypatch, tmp_path):
+    profile_file = tmp_path / "applicant-profile.yaml"
+    profile_file.write_text(yaml.safe_dump({"identity": {"legal_first_name": "Lisul"}}))
+    story = tmp_path / "story-bank.md"
+    story.write_text("# Story bank\n")
+    monkeypatch.setattr(essays.data_folder, "STORY_BANK", story)
+    tab = AnswersTab(AnswerBank(tmp_path / "answer-bank.yaml"), profile_file)
+    ask1, ask2 = "Essay fact: what did the robot do?", "Essay fact: what did you learn?"
+    with Dashboard(1, FakeFrames({}), tab, answer=cli._answering(lambda: None, tab)) as board:
+        board.update(0, company="Point72", posting_url="https://p.example/1", status=rehearsal.READY,
+                     missing=["Pronouns", "From (MM/DD/YYYY)", ask1, ask2])
+        saved = board.typed(0, ["Pronouns"], "he/him")
+        bare = board.typed(0, ["From (MM/DD/YYYY)"], "08/01/2024")
+        essay = board.typed(0, [ask1, ask2], "It solved the maze, and I learned to test early.")
+        [item] = board.state()["items"]
+
+    assert saved.startswith("Saved to your facts") and bare.startswith("Kept on this form only")
+    assert essay.startswith("Saved to your Story bank")
+    assert item["questions"] == [] and item["answered"]  # it leaves Needs you
+    answered = ApplicantProfile.load(profile_file).get("answered_questions") or {}
+    assert "he/him" in json.dumps(answered) and "08/01/2024" not in json.dumps(answered)
+    assert "- what did the robot do?; what did you learn? It solved the maze" in story.read_text()
+
+
+def test_an_essay_facts_field_is_its_essays():
+    essay = Question("q_9", "Why Point72?", "textarea")
+    done = rehearsal.Rehearsed(None, rehearsal.READY, questions=(Question("q_1", "Pronouns", "text"), essay),
+                               where={"Essay fact: what?": rehearsal.for_essay(essay)})
+    assert rehearsal._field_of(done, "Essay fact: what?") is essay
+    assert rehearsal._field_of(done, "Pronouns").name == "q_1"
+    assert rehearsal._field_of(done, "Essay fact: other?") is None
