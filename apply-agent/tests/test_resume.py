@@ -3,6 +3,7 @@ open page. He fixes the page himself and presses Resume, and Apply goes on
 from the step the page shows, keeping his fix, to the form's last page.
 Nothing is ever submitted. When the form's tab is gone, Resume says so."""
 
+import _thread
 import json
 import urllib.error
 import urllib.request
@@ -19,6 +20,7 @@ from apply import rehearsal
 from apply.dashboard import Dashboard, verdict
 from apply.fillers import FILLERS
 from apply.profile import ApplicantProfile
+from apply.records import FolderRecords
 
 XCEL = "xcelenergy.wd1.myworkdayjobs.com"
 
@@ -134,6 +136,59 @@ def test_resume_on_a_sign_in_page_waits_for_lisul_to_sign_in_and_signs_in_no_mor
     assert board.captions[0]["resume"]["why"] == rehearsal.TAB_CLOSED  # then he closed the tab
     assert any("can't resume yet: The form isn't on an application step yet" in line for line in lines)
     assert len(handed) == 1 and server.created == [] and server.submissions == []
+
+
+def test_a_paused_rehearsal_saves_its_record_while_its_page_is_held(monkeypatch, tmp_path):
+    # HPE and Cohesity (2026-11-03): Workday wouldn't leave Application Questions, and the pause wrote no Record.
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    handed = handed_pages(monkeypatch)
+    records, seen = FolderRecords(tmp_path / "rehearsals"), []
+
+    class Lisul(RecordingBoard):
+        def answered(self, worker):  # the page is held for him: its Record is there already, then he closes it
+            if handed and not handed[-1].is_closed():
+                seen.extend(tmp_path.glob("rehearsals/*/*/form.png"))
+                handed[-1].close()
+            return []
+
+    world = experience_profile()
+    with FakeWorkdayServer(XCEL_FORM, steps=EXPERIENCE_STEPS) as server:
+        [done] = rehearsal.rehearse([XCEL_URL], adapters(server, board=Lisul(), records=records),
+                                    ApplicantProfile.load(world.profile), 1, keep_open=True, out=lambda line: None)
+
+    assert done.outcome == "handoff" and "won't leave its 'My Experience' step" in done.why
+    [png] = seen
+    assert png.stat().st_size > 0
+    assert "- Status: handoff" in (png.parent / "README.md").read_text()
+    assert done.record == str(png.parent)
+    assert server.submissions == []
+
+
+def test_a_shutdown_while_a_page_is_held_keeps_its_records_screenshot(monkeypatch, tmp_path):
+    # Visa, Northrop and Zillow (2026-11-03): held at sign-in, and the shutdown's Ctrl-C quit Chrome too. The
+    # Record saved after it screenshotted no page, and an empty form.png took the place of the good one.
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    handed = handed_pages(monkeypatch)
+    records, at_pause = FolderRecords(tmp_path / "rehearsals"), []
+
+    class Shutdown(RecordingBoard):
+        def answered(self, worker):  # the page held: SIGTERM (rehearse hears it as Ctrl-C), and Chrome goes with it
+            if handed and not handed[-1].is_closed():
+                at_pause.extend(png.read_bytes() for png in tmp_path.glob("rehearsals/*/*/form.png"))
+                handed[-1].context.close()
+                _thread.interrupt_main()
+            return []
+
+    with FakeWorkdayServer(XCEL_FORM, google="password") as server:
+        [done] = rehearsal.rehearse([XCEL_URL], adapters(server, board=Shutdown(), records=records),
+                                    ApplicantProfile.load(profile_with(tmp_path, GOOGLE)), 1, keep_open=True,
+                                    out=lambda line: None)
+
+    [png] = tmp_path.glob("rehearsals/*/*/form.png")
+    assert at_pause and at_pause[0] and png.read_bytes() == at_pause[0]
+    assert done.saved.filled.screenshot == at_pause[0]  # the Record after the shutdown keeps what the pause saw
+    assert "- Status: handoff" in (png.parent / "README.md").read_text()
+    assert server.submissions == []
 
 
 PAUSED = {"company": "Xcel Energy", "role": "Intern", "posting_url": XCEL_URL, "application_id": "xcel-1",

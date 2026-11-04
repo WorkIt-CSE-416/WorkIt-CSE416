@@ -406,6 +406,9 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         history.append(f"{at} Paused: {one_line(summary.why) or summary.outcome}")
         summary.history = tuple(history)
         shown.append(summary)
+        # Its Record now, while the page is open to screenshot: a shutdown while the page is held never gets
+        # to the save at the fill's end (HPE and Cohesity, 2026-11-03).
+        _save_record(summary, stopped, stopped.filled or Filled((), {}, {}, site.screenshot()), adapters, shown)
         trace.event("pause", reason=stopped.reason)
         board.update(n, status=summary.outcome, line=summary.line(), why=one_line(summary.why), filled=summary.filled,
                      asked=summary.asked, missing=list(summary.missing), resume={"ok": True}, history=list(history))
@@ -479,9 +482,26 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     rehearsed.history = tuple(history)
     rehearsed.form = result.regenerable
     # Every outcome has its Record, one that stopped before any form was filled too: what the page showed.
-    filled = result.filled or Filled((), {}, {}, site.screenshot())
+    # A page gone by now (a shutdown closed it) shows nothing: what a pause saw stands instead.
+    filled = result.filled
+    if filled is None:
+        paused = next((s.saved.filled for s in reversed(shown) if s.saved), None)
+        shot = site.screenshot()
+        filled = Filled((), {}, {}, shot) if shot or paused is None else paused
+    _save_record(rehearsed, result, filled, adapters, shown)
+    board.update(n, status=rehearsed.outcome, line=rehearsed.line(), why=one_line(rehearsed.why),
+                 filled=rehearsed.filled, asked=rehearsed.asked, missing=list(rehearsed.missing),
+                 drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices, required=result.required,
+                 where=result.where, history=list(history), blocked=bot_signals.BLOCKED in result.bot_signals,  # Open in my Chrome, on his press
+                 written=rehearsed.form.shown() if rehearsed.form else [])
+    return rehearsed
+
+
+def _save_record(rehearsed: Rehearsed, result: Result, filled: Filled, adapters: Adapters,
+                 shown: list[Rehearsed]) -> None:
+    """Save the rehearsal's Record as `rehearsed` says it went, linked from it and from each pause's summary."""
     try:
-        saved = Record(posting, result.status, _record_reason(rehearsed), filled, adapters.clock.now().date(),
+        saved = Record(rehearsed.posting, result.status, _record_reason(rehearsed), filled, adapters.clock.now().date(),
                        result.essay, result.drafted, result.named_facts,
                        result.verification.as_json() if result.verification else None, rehearsed.history)
         rehearsed.record, rehearsed.saved = adapters.records.save(saved), saved
@@ -489,12 +509,6 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
             summary.record, summary.saved = rehearsed.record, saved
     except Exception as error:
         rehearsed.why = "; ".join(filter(None, [rehearsed.why, f"Record not saved: {error}"]))
-    board.update(n, status=rehearsed.outcome, line=rehearsed.line(), why=one_line(rehearsed.why),
-                 filled=rehearsed.filled, asked=rehearsed.asked, missing=list(rehearsed.missing),
-                 drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices, required=result.required,
-                 where=result.where, history=list(history), blocked=bot_signals.BLOCKED in result.bot_signals,  # Open in my Chrome, on his press
-                 written=rehearsed.form.shown() if rehearsed.form else [])
-    return rehearsed
 
 
 def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Adapters, profile: ApplicantProfile, n: int,
