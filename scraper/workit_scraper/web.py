@@ -10,6 +10,7 @@ too, under the same rules.
 from __future__ import annotations
 
 import json
+import threading
 import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
@@ -33,12 +34,27 @@ class _SameOriginRedirects(urllib.request.HTTPRedirectHandler):
 
 _OPENER = urllib.request.build_opener(_SameOriginRedirects)
 
+_lock = threading.Lock()
+_requests = 0
+_received_bytes = 0
+
+
+def stats() -> dict[str, int]:
+    """Thread-safe snapshot of request and byte counters since import."""
+    with _lock:
+        return {"requests": _requests, "received_bytes": _received_bytes}
+
 
 def get(url: str, *, timeout: float, headers: dict[str, str] | None = None) -> bytes:
     """GET `url` and return the body. HTTP errors propagate as `HTTPError`."""
+    global _requests, _received_bytes
     request = urllib.request.Request(url, headers={**(headers or {}), "User-Agent": USER_AGENT})
     with _OPENER.open(request, timeout=timeout) as response:
-        return response.read()
+        body = response.read()
+    with _lock:
+        _requests += 1
+        _received_bytes += len(body)
+    return body
 
 
 def post(
@@ -47,6 +63,7 @@ def post(
     """POST `payload` as JSON to `url` and return the body. HTTP errors propagate
     as `HTTPError`. Same User-Agent and same-origin rule as `get`; `headers` adds
     any a provider's search needs (TikTok's `website-path`)."""
+    global _requests, _received_bytes
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode(),
@@ -59,4 +76,8 @@ def post(
         },
     )
     with _OPENER.open(request, timeout=timeout) as response:
-        return response.read()
+        body = response.read()
+    with _lock:
+        _requests += 1
+        _received_bytes += len(body)
+    return body
