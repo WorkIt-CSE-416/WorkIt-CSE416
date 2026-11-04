@@ -111,18 +111,33 @@ def test_a_verification_email_missing_after_about_two_minutes_needs_lisul_and_is
     assert server.submissions == []
 
 
-def test_a_create_account_workday_answers_with_its_bare_sign_in_view_forgets_the_password_and_never_signs_in():
+def test_a_create_account_workday_answers_with_its_bare_sign_in_view_resets_once_then_forgets_the_password():
     world = World()
 
     # Northrop's tenant (live): Create Account loads the bare Sign In view, with no notice and no account made.
-    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, to_sign_in=True) as server:
+    # Workday answers so for an account that exists too (ASML's), so Apply resets once; no mail comes here.
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, to_sign_in=True) as server:
         [row] = world.run(server, caci())
 
     assert row.status == "handoff", row.reason
-    assert "without making the account" in row.reason and "Create the account yourself" in row.reason
-    assert server.created == [] and server.sign_ins == []
+    assert row.reason.startswith(f"Sign-in failed at {CACI}: the password reset didn't finish"), row.reason
+    assert server.created == [] and server.sign_ins == [] and len(server.resets) == 1  # once, never again
     assert world.keychain.password(CACI) is None  # no later run signs in with it
     assert world.tracker.employer_accounts() == []
+
+
+def test_create_account_back_at_sign_in_for_an_account_that_exists_resets_its_password_once():
+    # ASML (live, 2026-11-03): Lisul had an account; Create Account showed Sign In with no error.
+    world = World()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, exists_quietly=True,
+                           accounts={(CACI, EMAIL): "Made-By-Hand1!"}) as server:
+        [row] = world.run(server, caci())
+
+    assert row.status == "submitted", row.reason
+    [reset] = server.resets
+    assert reset["keychain"] == world.keychain.password(CACI) == server.account(CACI, EMAIL)["password"]
+    assert len(server.submissions) == 1
 
 
 def test_a_new_account_workday_sends_to_its_verify_page_is_verified_through_gmail_then_signed_in():

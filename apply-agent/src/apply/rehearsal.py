@@ -599,7 +599,8 @@ class _Accounts:
 
     def __call__(self, posting: Posting) -> Accounts:
         a = self._adapters
-        return Accounts(a.keychain, a.mailbox, a.clock, self._login, posting.company, self._add, self._failed)
+        return Accounts(a.keychain, a.mailbox, a.clock, self._login, posting.company, self._add, self._failed,
+                        rehearsal=True)
 
     def _add(self, account) -> None:
         with self._writing:

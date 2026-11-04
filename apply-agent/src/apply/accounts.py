@@ -62,11 +62,13 @@ class Accounts:
         company: str = "",
         on_created: Callable[[EmployerAccount], None] = lambda account: None,
         failed: set[str] | None = None,
+        rehearsal: bool = False,
     ):
         """`login` is the email Lisul applies with. `on_created` lists a new
         account in the Tracker. `failed` holds the sites whose password
         sign-in has failed, shared by every Application of a run or
-        Rehearsal."""
+        Rehearsal. `rehearsal`: a Rehearsal's, which never resets a password
+        that only may exist (workday.MAY_EXIST)."""
         self._keychain = keychain
         self._mailbox = mailbox
         self.clock = clock
@@ -74,6 +76,7 @@ class Accounts:
         self.company = company
         self._on_created = on_created
         self._failed = failed if failed is not None else set()
+        self.rehearsal = rehearsal
 
     def password(self, site: str) -> str | None:
         """The site's password, if Apply made an account there. A Handoff if a

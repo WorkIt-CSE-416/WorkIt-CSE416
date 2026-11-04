@@ -250,6 +250,20 @@ class NeverSubmittingWorkday(WorkdayFiller):
         pytest.fail("a rehearsal called the Workday Filler's submit")
 
 
+def test_a_workday_rehearsal_whose_create_account_goes_back_to_sign_in_resets_nothing_and_says_so(monkeypatch):
+    # ASML (live, 2026-11-03): Workday showed Sign In with no error, and Lisul had an account there already.
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    world = World()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, exists_quietly=True,
+                           accounts={(CACI, "test.person@example.com"): "Made-By-Hand1!"}) as server:
+        [done] = rehearse([CACI_URL], server, world.profile, keychain=world.keychain, mailbox=world.mailbox)
+
+    assert "may already have an account for your email: reset its password once, or save it with " \
+           f"security add-generic-password -U -s apply-ats -a {CACI} -w" in done.why, done.why
+    assert server.resets == [] and world.keychain.password(CACI) is None
+
+
 def test_a_workday_rehearsal_makes_an_employer_account_reads_its_link_from_gmail_and_stops_unsent(monkeypatch):
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
     world, tracker = World(), InMemoryTracker()
