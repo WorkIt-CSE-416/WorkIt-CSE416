@@ -151,6 +151,7 @@ def _measure(text: str, unit: str) -> int:
 # (b) Numbers and names traced.
 
 UNTRACED_NUMBER = "a number no source holds: "  # opens the gate's failure for each such number
+UNTRACED_NAME = "a name no source holds: "  # opens the gate's failure for each such name
 
 def traced(text: str, sources: str, company: str) -> list[str]:
     """Numbers in `text` no source states, and names no source holds: each
@@ -160,7 +161,7 @@ def traced(text: str, sources: str, company: str) -> list[str]:
     checked, so a sentence opener or "AI" never fails. A run that joins
     names the sources hold passes too (held)."""
     found = [f"{UNTRACED_NUMBER}{n}" for n in unsupported_numbers(text, sources)]
-    return found + [f"a name no source holds: {name}" for name in names(text) if not held(name, f"{sources}\n{company}")]
+    return found + [f"{UNTRACED_NAME}{name}" for name in names(text) if not held(name, f"{sources}\n{company}")]
 
 
 def held(name: str, sources: str) -> bool:

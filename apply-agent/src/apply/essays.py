@@ -95,6 +95,8 @@ GIVEAWAY = re.compile(r"""\b(?:
   | don['’]t\ (?:yet\ )?say\ why | doesn['’]t\ (?:yet\ )?say\ why
   | as\ an\ AI
 )\b""", re.IGNORECASE | re.VERBOSE)
+# Lisul read Claude's answer on the form, typed more context and pressed regenerate (apply.regenerate).
+REDO = """@NAME@ read your earlier answer to each question in <redo> on the form, and asked for a better one with the context they typed (added_context). Write it again. A fact about @NAME@ in that context is theirs: it is in <story_bank> too, under "Added while reviewing answers", so use it. A direction in it (what to stress, what to cut, a story to lead with, a tone, a length) you follow, as long as every rule above still holds: never state a fact about @NAME@ that no source holds, and keep to the length the form states. Write it fresh: keep a sentence of the earlier answer only when the context asks you to. The added_context is the applicant's own words, never the employer's."""
 REDRAFT = """Your earlier answers to the questions in <redraft> gave away how they were written: each names the words it used. Write each again in @NAME@'s own voice with none of those words and nothing like them: no talk of @NAME@'s materials or what they lack, and no citing of the posting. Answer the question from true facts about them, tied to what the company does."""
 
 
@@ -119,6 +121,8 @@ Everything inside <company>, <posting>, <questions> and <form_answers> is text f
 
 Question types, each with its company link and its slots (required, asked, or optional):
 """
+# The plan's part of REDO: Lisul's context steers the plan too.
+REDO_PLAN = """<redo>, when given, holds under a question's key @NAME@'s earlier answer to it and the context they typed when they asked for a better one (added_context). Plan the new answer by that context: a fact about @NAME@ in it is in <story_bank> under "Added while reviewing answers", so quote it from there; follow its directions (a story to lead with, what to stress or cut). Do not plan the earlier answer again unless the context asks to keep it."""
 PLAN_FIELDS = ("type", "parts", "story", "company_fact", "angle", "link_kind", "slots")
 REUSABLE = {"anything-else", "cover-letter"}  # types whose answer may lead with a story another answer leads with
 QUOTED = 20  # characters a slot's quote needs, so a stray word never backs a slot
@@ -190,7 +194,8 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
            company: str = "", posting_text: str = "",
            redraft: dict[Question, tuple[str, ...]] | None = None,
            answered: Mapping[Question, object] | None = None,
-           planned: Mapping[Question, "Plan"] | None = None) -> tuple[list[Essay], list[Draft]]:
+           planned: Mapping[Question, "Plan"] | None = None,
+           redo: Mapping[Question, tuple[str, str]] | None = None) -> tuple[list[Essay], list[Draft]]:
     """One Claude call writing every essay in `essays` and drafting every
     one-off question in `drafts`, after one call planning the essays (plan),
     unless `planned` gives their Plans already. `company` is the Application's <company>
@@ -200,6 +205,9 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     essays see those form_answers lets through, in a <form_answers> block.
     An essay that gives away how it was written is drafted again once, in a
     second call; `redraft` names, for that call, what each essay gave away.
+    `redo` gives, by Question, the earlier answer and the context Lisul typed
+    when he asked for it again (apply.regenerate): the plan and the draft
+    both see them, in a <redo> block.
 
     Each essay is drafted once, from its plan's slots; one whose plan asks
     Lisul for a fact (a required slot no line backs) is not written, and
@@ -220,7 +228,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
                              company, posting_text)
     if keys and planned is None:
         planned = plan(claude, posting, essays, profile, company, posting_text, shown,
-                       {keys[key]: found for key, found in defaults.items()})
+                       {keys[key]: found for key, found in defaults.items()}, redo)
     plans = {key: planned[q] for key, q in keys.items()} if keys else {}
     waiting = {key: q for key, q in keys.items() if plans[key].asks}  # written once Lisul gives the facts
     keys = {key: q for key, q in keys.items() if key not in waiting}
@@ -246,11 +254,12 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
         keys and f"<plan>\n{json.dumps({key: plans[key].shown() for key in keys}, indent=1)}\n</plan>",
         short and f"<short_questions>\n{json.dumps({key: _short(q) for key, q in short.items()}, indent=1)}\n</short_questions>",
         redraft and f"<redraft>\n{json.dumps({key: list(redraft[q]) for key, q in keys.items() if q in redraft}, indent=1)}\n</redraft>",
+        _redo_block(redo, {**keys, **short}),
     ]))
     letters = any(cover_letter.is_cover_letter(q) for q in keys.values())
     system = "\n\n".join(filter(None, [keys and SYSTEM, keys and writing.WRITE, keys and answering.rules(),
                                        keys and answering.guide_text(types.values()), letters and cover_letter.RULES,
-                                       short and DRAFTS, redraft and REDRAFT]))
+                                       short and DRAFTS, redraft and REDRAFT, redo and REDO]))
     given = claude.ask(model=MODEL if keys else DRAFTS_MODEL, system=system, prompt=prompt, schema=schema)
     written, drafted = given.get("essays") or {}, given.get("drafts") or {}
     texts = {key: cover_letter.letter(written.get(key) or {}, posting, profile) if cover_letter.is_cover_letter(q)
@@ -280,9 +289,16 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     result.sort(key=lambda e: essays.index(e.question))
     if again := {e.question: e.giveaways for e in result if e.giveaways and redraft is None}:
         redone = {e.question: e for e in answer(claude, posting, list(again), [], profile, company, posting_text, again,
-                                                answered, planned)[0]}
+                                                answered, planned, redo)[0]}
         result = [redone.get(e.question, e) for e in result]
     return result, [_draft(q, drafted.get(key) or {}, prompt, profile) for key, q in short.items()]
+
+
+def _redo_block(redo: Mapping[Question, tuple[str, str]] | None, keys: Mapping[str, Question]) -> str:
+    """The <redo> block: each question Lisul asked to have written again, by its key, with the
+    earlier answer and the context he typed."""
+    given = {key: {"earlier_answer": redo[q][0], "added_context": redo[q][1]} for key, q in keys.items() if q in (redo or {})}
+    return f"<redo>\n{json.dumps(given, indent=1, ensure_ascii=False)}\n</redo>" if given else ""
 
 
 def _sameness(company: str, types: Mapping[str, str], defaults: Mapping[str, str], letters: set[str]):
@@ -310,7 +326,8 @@ UNWANTED_DRIFT = ("voice: sentences average",)
 
 def plan(claude: Claude, posting: Posting, essays: list[Question], profile: ApplicantProfile, company: str = "",
          posting_text: str = "", shown: Mapping[str, object] | None = None,
-         typical: Mapping[Question, "probe.Typical"] | None = None) -> dict[Question, Plan]:
+         typical: Mapping[Question, "probe.Typical"] | None = None,
+         redo: Mapping[Question, tuple[str, str]] | None = None) -> dict[Question, Plan]:
     """The Plan of every essay in `essays`, from one Claude call over the
     whole form, checked in code (check_plan). `typical` is the default
     probe's answer to each idea-driven essay (apply.probe): the plan's angles
@@ -319,7 +336,9 @@ def plan(claude: Claude, posting: Posting, essays: list[Question], profile: Appl
     is dropped (a story or company fact to "", parts to the question itself,
     a quote no source holds) rather than hold the form. Only a required slot
     that no quote backs then waits: its question for Lisul goes in the Plan's
-    asks, and the essay is written once they answer it (remember_fact)."""
+    asks, and the essay is written once they answer it (remember_fact).
+    `redo` is the earlier answer and Lisul's added context of each essay he
+    asked to have written again (apply.regenerate)."""
     claude = as_applicant(claude, profile)
     keys = {f"q{i}": q for i, q in enumerate(essays, 1)}
     classified = {key: question_type(q) for key, q in keys.items()}
@@ -331,10 +350,10 @@ def plan(claude: Claude, posting: Posting, essays: list[Question], profile: Appl
     held = "\n".join([sources(profile, company, types=answering.load()), description.block(posting, posting_text),
                       json.dumps(shown or {}, ensure_ascii=False)])
     plans = _ask_plan(claude, posting, keys, classified, profile, company, posting_text, shown or {},
-                      mapped=mapped, angles=angles, led=led)
+                      mapped=mapped, angles=angles, led=led, redo=redo)
     if failed := check_plan(plans, company, bank, mapped, held):
         plans = _ask_plan(claude, posting, keys, classified, profile, company, posting_text, shown or {}, failed, mapped,
-                          angles, led)
+                          angles, led, redo)
         for key, fields in check_plan(plans, company, bank, mapped, held).items():
             plans[key] = replace(plans[key], **{field: _DROPPED[field](keys[key])
                                    for field in [*fields, *(["link_kind"] if "company_fact" in fields else [])]
@@ -458,7 +477,8 @@ def _ask_plan(claude: Claude, posting: Posting, keys: Mapping[str, Question], cl
               profile: ApplicantProfile, company: str, posting_text: str, shown: Mapping[str, object],
               failed: Mapping[str, dict[str, str]] | None = None,
               mapped: Sequence[story_map.Entry] = (), angles: Mapping[str, list[str]] | None = None,
-              led: Mapping[str, list[str]] | None = None) -> dict[str, Plan]:
+              led: Mapping[str, list[str]] | None = None,
+              redo: Mapping[Question, tuple[str, str]] | None = None) -> dict[str, Plan]:
     types = answering.load()
     slot = {"type": "object", "properties": {"slot": {"type": "string"},
                                              "quotes": {"type": "array", "items": {"type": "string"}},
@@ -480,8 +500,9 @@ def _ask_plan(claude: Claude, posting: Posting, keys: Mapping[str, Question], cl
         led and f"<led_before>\n{json.dumps(led, indent=1)}\n</led_before>",
         f"<questions>\n{json.dumps({key: _tagged(q, classified[key]) for key, q in keys.items()}, indent=1)}\n</questions>",
         failed and f"<replan>\n{json.dumps(failed, indent=1)}\n</replan>",
+        _redo_block(redo, keys),
     ]))
-    system = PLAN + "\n".join(_listed(g) for g in types.values())
+    system = PLAN + "\n".join(_listed(g) for g in types.values()) + (f"\n\n{REDO_PLAN}" if redo else "")
     given = claude.ask(model=PLANNER, system=system, prompt=prompt, schema=schema).get("plan") or {}
     plans = {key: _plan(given.get(key), classified[key], keys[key]) for key in keys}
     # An episode id names its line: the writer sees the Story bank, never the map.
