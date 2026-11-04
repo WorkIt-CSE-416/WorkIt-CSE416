@@ -287,25 +287,9 @@ class PlainSite:
         raise AssertionError("no fetch")
 
 
-@pytest.fixture
-def guard(monkeypatch):
-    """The drive guard on a PortPage is S4's (KAN-610). Until it lands there, a stand-in that blocks
-    nothing; the fake forms refuse every POST, and the submit-click hook still runs."""
-    if hasattr(PortContext, "on"):
-        return
-    class StandIn:
-        def __init__(self, page, **_):
-            pass
-        arm = lift = forget = let_account_click = lambda self: None
-        def blocked(self):
-            return []
-    monkeypatch.setattr(claude_fill, "DriveGuard", StandIn)
-    monkeypatch.setattr(rescue, "DriveGuard", StandIn)
-
-
 @needs_chrome
 @live_claude
-def test_claude_fill_reads_and_fills_a_form_with_no_filler_on_a_plain_worker_and_sends_nothing(worker, site, guard):
+def test_claude_fill_reads_and_fills_a_form_with_no_filler_on_a_plain_worker_and_sends_nothing(worker, site):
     page = PortPage.first(worker.connection)
     fill = claude_fill.ClaudeFill(ClaudeCLI())
     questions = fill.question_set(f"{site.url}/posting", PlainSite(page))
@@ -329,7 +313,7 @@ def test_claude_fill_reads_and_fills_a_form_with_no_filler_on_a_plain_worker_and
 
 @needs_chrome
 @live_claude
-def test_a_rescue_fills_on_a_plain_worker_the_field_the_filler_could_not(worker, site, guard):
+def test_a_rescue_fills_on_a_plain_worker_the_field_the_filler_could_not(worker, site):
     page = PortPage.first(worker.connection)
     page.goto(f"{site.url}/rescue")
     page.fill("#name", "Testy McTestface")
