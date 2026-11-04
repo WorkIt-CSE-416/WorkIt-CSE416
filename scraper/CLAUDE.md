@@ -492,13 +492,16 @@ sources. A complete provider read shows that a board is live; it does not prove
 the source named the right company. Developers review proposed catalog changes
 before merging them. Postings are always scraped from the employer.
 
-- **Daily discovery commits new boards directly to main**, separately from
-  the three-hour scrape, so the next scrape reads them with no human bottleneck.
-  The rejection ledger (`discovery-review.json`) and `validate_catalog` gate
-  prevent rejected rows from returning. To reject a board, add
-  `"decision": "rejected"` to its ledger entry and remove its CSV row. The
-  rules are below; operation is documented in `docs/discovery.md`.
-  `build_boards.py` remains a manual legacy importer.
+- **Daily discovery maintains one human-review PR**, separately from the
+  three-hour scrape. It never pushes additions directly to main or merges the
+  PR. Developers retain accepted rows, correct names, and remove rejected rows;
+  a durable ledger prevents removed proposals from being re-added. The rules
+  are below; operation is documented in `docs/discovery.md`.
+  `build_boards.py` remains a manual legacy importer; do not restore it to the
+  scheduled scrape, which would bypass review. KAN-446 had it commit straight to
+  main; review found that a wrong name (a careers page, an agency, a parent
+  company) would reach job cards at the next scrape with no one looking, so the
+  PR stayed, the open-jobs pool included (2026-11-04).
 - **A board on a provider's second host is still its board.** Greenhouse's EU
   boards (`job-boards.eu.greenhouse.io`) answer on the same
   `boards-api.greenhouse.io`, but its apply-link pattern missed the `.eu.` and dropped 26
@@ -532,9 +535,11 @@ before merging them. Postings are always scraped from the employer.
 Indirect-link resolution is bounded separately from board validation:
 `board_resolve.resolve_links` owns grouping, three-attempt retries and deadline
 checks for both commands. Discovery defaults to 100 groups / 120 seconds and
-resumes from `discovery-resolution.json` on main; never restore per-posting
-resolution loops before those bounds. Commit the next offset together with new
-boards, including cursor-only progress when nothing new was found.
+resumes from `discovery-resolution.json` on the proposal branch (on main once
+its PR merges); never restore per-posting resolution loops before those bounds.
+The next offset rides on the proposal branch with new boards, and is pushed
+there even when nothing new was found, with no PR opened: left behind, every
+run would resolve the same pages again.
 Short links stay separate by URL because one company's links can name different
 boards. Budget exhaustion keeps completed discoveries and still writes the report
 and publishes successes. Operation and counters: `docs/discovery.md`.
@@ -547,14 +552,14 @@ scraper standard-library-only.
 - Preview is the default. Local `--apply` adds only new boards whose existing
   provider reader completed and whose evidence supplies one unambiguous name.
   An empty successful response is a live board; a failed or partial read is not.
-  A live read does not prove company ownership. Scheduled discovery commits
-  new boards directly to main so the next scrape reads them.
+  A live read does not prove company ownership: developers review catalog changes
+  before merging. Scheduled discovery proposes changes in a PR, never on main.
 - Search URLs without company attribution remain `needs_company` in the report.
   Do not turn their slugs or search snippets into company names: every downstream
   card trusts boards.csv. Supply a verified URL and company through the CLI.
-- **The one exception is the open-jobs pool** (`--channel openjobs`, ADR 0007,
-  proposed, not yet agreed by the team): open-jobs' frozen list of boards, which
-  names none. A pool board is proposed only when it lists a posting
+- **The one exception is the open-jobs pool** (`--channel openjobs`, ADR 0007):
+  open-jobs' frozen list of boards, which names none. It goes through the same
+  review PR; only how much a person checks differs. A pool board is proposed only when it lists a posting
   `shortlist.pick` keeps, under the name its own hiring system gives it
   (`Provider.read_name`); one its system does not name stays `needs_company`.
   **So does one named like a careers page or a program**
@@ -602,16 +607,22 @@ Collection returns evidence and per-source failures; a failed independent source
 must not discard successful evidence. Reports retain company attribution per
 evidence entry, and report/catalog paths must never alias, even during preview.
 
-`discovery_pr.py` commits new boards directly to main. It fetches `origin/main`,
-runs discovery in a worktree, reconciles against the catalog and rejection ledger,
-and pushes to main. Keep its default a local preview; publishing needs explicit
-`--publish`. If someone pushes to main between our fetch and our push, git
-rejects the non-fast-forward and the next daily run retries.
+`discovery_pr.py` maintains one rolling PR on a `codex/board-discovery-<cycle>`
+branch. It reads proposal data but executes only trusted main code. No automatic
+approval, merge, or push to main is permitted. Keep its default a local preview;
+publishing needs explicit `--publish`. Main changes merge into the proposal
+branch without force pushes; conflicts fail visibly. A closed, unmerged PR
+pauses publishing until reopened. Merge that PR with its rejection ledger
+retained to finish the cycle; the next proposal then starts a new cycle. A run
+that only moved the resolution cursor pushes the branch and opens no PR; the
+first run with a proposal opens it on that same branch.
 
-`discovery-review.json` stores observations and durable review decisions. To
-reject a board, add `"decision": "rejected"` to its ledger entry and remove its
-CSV row; discovery will not re-add it. Preserve company-name corrections and
-merge rejected ledger entries even when no boards are added. CI checks the actual
+`discovery-review.json` stores observations and durable review decisions. A
+developer's removal of a proposed CSV row means rejection; never re-add it on
+rediscovery. Preserve company-name corrections and merge rejected ledger entries
+even when no proposed boards are accepted. Explicit `decision: rejected` queues
+CSV removal for the next discovery run; the rejected row must be removed before
+merging, either by the reviewer or by rerunning discovery. CI checks the actual
 catalog against the ledger, and the scraper and publisher must call
 `discovery_review.validate_catalog` before consuming/publishing it. This prevents
 a ledger-only rejection merged between daily runs from becoming an active board.

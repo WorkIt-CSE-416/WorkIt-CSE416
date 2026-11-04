@@ -1,9 +1,10 @@
 # A pool board is named by its own hiring system, and a person checks a sample
 
-Status: proposed 2026-10-29 (KAN-446); built, waiting for the team's
-agreement before it merges. Amends the discovery review rule in
-`scraper/CLAUDE.md` for one source, the open-jobs pool; every other source
-is reviewed board by board as before.
+Status: accepted 2026-11-04 (KAN-446), with pool boards proposed in the
+same daily review PR as every other source; never committed straight to
+main. Amends the discovery review rule in `scraper/CLAUDE.md` for one source,
+the open-jobs pool: a person checks a sample of its boards, where every other
+source is reviewed board by board as before.
 
 open-jobs (github.com/elliottdehn/open-jobs, CC0) left a list of about
 75,000 live company job boards when it stopped on 2026-10-10. About 15,600
@@ -29,6 +30,11 @@ tenth and at least five (`discovery_review.sampled`). A person checks those
 names on each company's own website. If any is wrong, they check that whole
 run's pool boards and remove the wrong rows; otherwise they merge the rest
 unread.
+
+The review PR is the point where that check happens: KAN-446 first had
+discovery commit straight to main, and review rejected it, since a wrong name
+(a careers page, an agency, a parent company) would then reach job cards at
+the next scrape with no one ever looking at the sample.
 
 ## Why
 

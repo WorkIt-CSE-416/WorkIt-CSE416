@@ -14,7 +14,7 @@ supply leads; no search API credentials are needed. The validation limit is 20,
 with a UTC-day offset that rotates through candidates rather than repeatedly
 checking only the first ones.
 
-**The open-jobs pool** (ADR 0007, proposed) is a third source: open-jobs'
+**The open-jobs pool** (ADR 0007) is a third source: open-jobs'
 frozen list of about 15,600 boards on Greenhouse, Workable, Ashby and Lever
 that `boards.csv` lacks, read over a 16-day pass (`discovery_pr.POOL_DAYS`):
 each board has a fixed day, from a hash of its key, so about 1,000 are read a
@@ -115,9 +115,11 @@ for the same company can lead to different boards.
 
 The shared resolver in `workit_scraper/board_resolve.py` serves both commands.
 Groups are sorted for a stable rotation. `scraper/discovery-resolution.json`
-stores the next group offset on main, advanced past the groups actually attempted
-and committed together with discoveries. It advances even when no new boards are
-found. A group interrupted by the deadline is retried on the next pass, so one
+stores the next group offset on the proposal branch (and on main once its PR
+merges), advanced past the groups actually attempted and pushed together with
+discoveries. It advances even when no new boards are found: the run then pushes
+the branch with only the offset and opens no PR, and the first run with a
+proposal opens the PR on that same branch. A group interrupted by the deadline is retried on the next pass, so one
 slow group cannot block all later groups. Local runs can choose `--resolve-limit`,
 `--resolve-offset`, and `--resolve-seconds`; `--resolve-limit 0` skips resolution.
 These budgets are independent of `--limit` and `--pool-limit` for board validation.
