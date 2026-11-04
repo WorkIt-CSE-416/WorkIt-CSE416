@@ -7,6 +7,7 @@
 // the chooser ops stand in for the file picker an untrusted click can't open.
 
 import { capture, inPage, named, sleep } from "./shared.js";
+import { touch } from "./guard.js";
 
 const SHOWN = { interval: 500, quality: 70, maxWidth: 1280, maxHeight: 800 };
 let stream = null; // {settings, generation}
@@ -177,13 +178,19 @@ async function childFrame(tab, parent, { url, index }) {
 
 // One tile event on `tab` (default: the tab the tile shows). Points are in the pixels of a
 // frame `width` x `height` (the one Lisul saw), or CSS pixels of the page without them.
-async function input({ tab, event, width, height }) {
+// A press (`by`: "lisul" from the tile, "apply" from PortPage.mouse) first touches the frame it
+// lands in, so a held page's guard counts it as a real press (ops/guard.js); `guard.touched`
+// goes up once per press.
+const PRESSES = new Set(["down", "key", "text", "choose"]);
+
+async function input({ tab, event, width, height, by = "lisul" }) {
   tab = tab ?? (await shownTab())?.id;
   if (tab === undefined) throw named("NoTab", "no tab to replay a tile event on");
   let frame = event.type === "choose" ? menus.get(tab) ?? 0 : 0;
   let shown = { ...event, width, height };
   for (let depth = 0; depth < 8; depth++) {
     if (shown.type === "down" || shown.type === "up") await hook(tab, frame);
+    if (PRESSES.has(shown.type)) await touch({ tab, frame, by }, depth === 0 ? undefined : null);
     const answer = await replay(tab, frame, shown);
     if (answer?.descend) {
       const inner = await childFrame(tab, frame, answer.descend.child);

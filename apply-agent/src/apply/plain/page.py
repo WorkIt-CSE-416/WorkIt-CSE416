@@ -15,9 +15,11 @@ What a later slice adds raises NotImplementedError naming the slice (PROTOCOL.md
 """
 
 import base64
+import hashlib
 import json
 import mimetypes
 import re
+import threading
 import time
 import uuid
 from collections.abc import Callable
@@ -112,6 +114,8 @@ def _filtered(selector: str, has_text=None, has_not_text=None, has=None, has_not
 
 class PortFrame(_Queries):
     """One frame of a Worker's tab (frame 0 is the top)."""
+
+    plain = True  # a plain Worker's: apply.submit_guard guards it through apply.plain.guards
 
     def __init__(self, page: "PortPage", frame: int = 0, url: str = "", parent: int | None = None):
         self._page, self._frame, self._url, self._parent = page, frame, url, parent
@@ -587,6 +591,64 @@ class Keyboard:
         self._page._now("insert", text)
 
 
+def _init_script(worker: Connection, script: str | None, path) -> None:
+    """add_init_script: a guard's script goes in as its fixed file (apply.plain.guards); any other
+    needs chrome.userScripts, so Allow User Scripts on (PortError UserScriptsOff without)."""
+    from apply.plain import guards
+
+    script = Path(path).read_text() if path is not None else script
+    if not script:
+        raise ValueError("add_init_script needs a script or a path")
+    worker.call("guard.script", **guards.init_script(script))
+
+
+def _bind(worker: Connection, tab: int | None, name: str, callback: Callable, context: "PortContext") -> None:
+    """expose_binding: window[name] in every frame of the tab (None: every tab), now and on each
+    page it loads; a call of it runs `callback(source, *args)` on its own thread (never the bridge's
+    reader, so the callback may call the Worker), and returns nothing to the page."""
+    bound = worker.__dict__.setdefault("_bindings", set())
+    for scope in (tab, None):
+        if (scope, name) in bound:
+            raise PortError("Error", f'Function "{name}" has been already registered')
+    bound.add((tab, name))
+
+    def heard(message: dict) -> None:
+        if message.get("name") != name or (tab is not None and message.get("tab") != tab):
+            return
+        page = context.page(message["tab"])
+        frame = page if message.get("frame", 0) == 0 else PortFrame(page, message["frame"])
+        source = {"context": page.context, "page": page, "frame": frame}
+        threading.Thread(target=callback, args=(source, *message.get("args", [])), daemon=True).start()
+    worker.on("binding", heard)
+    worker.call("guard.bind", tab=tab, name=name)
+
+
+def _route_key(tab: int | None, url) -> tuple[str, list[str], bool]:
+    """A route's key and its declarativeNetRequest regexes. Only a compiled regex can be one."""
+    from apply.plain import guards
+
+    if not isinstance(url, re.Pattern):
+        later(f"route({url!r}) with a glob or a predicate", "a later slice (a plain route takes a compiled regex)")
+    key = f"{tab}:{hashlib.sha256(url.pattern.encode()).hexdigest()[:16]}"
+    return key, guards.alternatives(url.pattern), not url.flags & re.IGNORECASE
+
+
+def _route(worker: Connection, tab: int | None, url, handler: Callable) -> None:
+    """route: a plain Worker's routes run no Python handler; declarativeNetRequest blocks a non-GET
+    request matching `url` before it leaves Chrome, as submit_guard._refuse aborts one. Any other
+    handler raises NotImplementedError."""
+    from apply import submit_guard
+
+    if handler is not submit_guard._refuse:
+        later("route with a handler other than submit_guard's", "a later slice (a plain route can only block)")
+    key, regexes, case_sensitive = _route_key(tab, url)
+    worker.call("guard.route", key=key, tab=tab, regexes=regexes, caseSensitive=case_sensitive)
+
+
+def _unroute(worker: Connection, tab: int | None, url) -> None:
+    worker.call("guard.unroute", key=_route_key(tab, url)[0])
+
+
 class PortContext:
     """page.context: the Worker's browser, whose tabs are its pages."""
 
@@ -606,17 +668,20 @@ class PortContext:
     def new_page(self) -> "PortPage":
         return self.page(self.worker.call("tabs.create", active=True)["tab"])
 
-    def add_init_script(self, *_, **__):
-        later("add_init_script", "S4")
+    def add_init_script(self, script: str | None = None, path: str | Path | None = None) -> None:
+        _init_script(self.worker, script, path)
 
-    def expose_binding(self, *_, **__):
-        later("expose_binding", "S4")
+    def expose_binding(self, name: str, callback: Callable, handle: bool | None = None) -> None:
+        _bind(self.worker, None, name, callback, self)
 
-    def route(self, *_, **__):
-        later("route", "S4")
+    def expose_function(self, name: str, callback: Callable) -> None:
+        self.expose_binding(name, lambda source, *args: callback(*args))
 
-    def unroute(self, *_, **__):
-        later("unroute", "S4")
+    def route(self, url, handler: Callable, times: int | None = None) -> None:
+        _route(self.worker, None, url, handler)
+
+    def unroute(self, url, handler: Callable | None = None) -> None:
+        _unroute(self.worker, None, url)
 
     def cookies(self, *_, **__):
         later("cookies", "a later slice")
@@ -803,19 +868,26 @@ class PortPage(PortFrame):
                 self._listeners[event].remove(pair)
                 self.worker.off(names[event], pair[1])
 
+    # --- init scripts, bindings and routes (S4: apply.plain.guards)
+
+    def add_init_script(self, script: str | None = None, path: str | Path | None = None) -> None:
+        """For every page from now: the Worker's browser is one context (Playwright's is per page, but
+        Apply adds init scripts only to a context or its one page)."""
+        _init_script(self.worker, script, path)
+
+    def expose_binding(self, name: str, callback: Callable, handle: bool | None = None) -> None:
+        _bind(self.worker, self.tab, name, callback, self.context)
+
+    def expose_function(self, name: str, callback: Callable) -> None:
+        self.expose_binding(name, lambda source, *args: callback(*args))
+
+    def route(self, url, handler: Callable, times: int | None = None) -> None:
+        _route(self.worker, self.tab, url, handler)
+
+    def unroute(self, url, handler: Callable | None = None) -> None:
+        _unroute(self.worker, self.tab, url)
+
     # --- what a later slice adds
-
-    def add_init_script(self, *_, **__):
-        later("add_init_script", "S4")
-
-    def expose_binding(self, *_, **__):
-        later("expose_binding", "S4")
-
-    def route(self, *_, **__):
-        later("route", "S4")
-
-    def unroute(self, *_, **__):
-        later("unroute", "S4")
 
     def expect_file_chooser(self, predicate=None, timeout: float | None = None):
         """What the block does asks for a file; `.value` is then its FileChooser (apply.plain.tile)."""

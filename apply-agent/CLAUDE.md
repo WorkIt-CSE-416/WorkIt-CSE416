@@ -722,6 +722,37 @@ Claude stops at one (`SAYS_CAPTCHA`).
   and a `captcha` event in the Trace. A wait that timed out leaves only
   the pause's own line.
 
+## Plain Workers: the submit and drive guards (KAN-610)
+
+On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.md`),
+`submit_guard.guard`, `lift`, `rearm`, `renote` and `DriveGuard` hand over to
+`apply.plain.guards`. The CDP path is unchanged: its scripts are byte for byte the same.
+
+- **The same scripts, as files.** `apply plain prepare` writes `submit_guard`'s scripts into
+  `worker-extension/vendor/guards/` (the rehearsal guard, the four drive guards, LIFTED,
+  REARMED). The extension registers one as a MAIN-world content script at `document_start` in
+  every frame, so it runs before the page's code with no eval and no user scripts. It refuses
+  a file whose sha256 is not Apply's: re-run `prepare` after changing `submit_guard.py`.
+- **Below them, declarativeNetRequest.** `guard` puts one session rule per final application
+  URL (the guard script's FINAL_URLS, which cover ROUTED) on the tab, the tabs it opens and
+  service workers. It blocks a non-GET before it leaves Chrome: page code from another realm,
+  a worker, a beacon, or a form's native POST. `lift` takes the rules off and `rearm` puts them
+  back.
+- **Presses are untrusted.** The plain copy of the guard script (`port=True`) counts as a touch
+  the `__apply_touch` the extension sends before each press: Apply's own (`page/dom.js`) and
+  Lisul's from the tile (`tile.input` calls `touch()` in `ops/guard.js`, which also sends `guard.touched`
+  up the port). It also reports each block as a `guard.said` event, which `PlainDriveGuard.blocked()`
+  reads, since no console reaches Apply.
+- **Bindings.** `expose_binding` defines `window[name]` in each document of the tab. A call
+  comes up as a `binding` event, and the callback runs on its own thread.
+- **Live runs.** Nothing here adds a guard to a live run. `filler.submit` clicks Submit only
+  where the live-run rules already allow it. DriveGuard lifts only for Claude fill's own submit
+  click, as under CDP.
+- Tests: `tests/test_plain_guards.py` (Chrome for Testing). A fake job system on 127.0.0.1
+  records every POST. A page that sends by script (fetch from a fresh realm, a worker, a beacon,
+  requestSubmit, a native POST) sends nothing once guarded, and the rules alone stop it too.
+  A tile press shows the blocked note, and a lifted page's Submit goes through and is heard.
+
 ## Form pages
 
 - A Filler with a `form_url(url)` method names the page that holds its

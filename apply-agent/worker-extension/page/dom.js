@@ -341,10 +341,15 @@
     aria: (selector, options = {}) => pw.ariaSnapshot(one(selector), { mode: "expect", ...options }),
   };
 
+  const TOUCHES = new Set(["click", "type", "press", "keys", "check"]);
+
   globalThis.__applyDom = {
     run(method, args) {
       const fn = METHODS[method];
       if (!fn) return { err: { name: "BadOp", message: `no dom method ${method}` } };
+      // A press of Apply's counts as a touch for the page's guard (apply.plain.guards), as a
+      // trusted click of Playwright's does: the guard then shows what it blocked.
+      if (TOUCHES.has(method)) window.dispatchEvent(new CustomEvent("__apply_touch", { detail: "apply" }));
       try {
         const value = fn(...args);
         return { ok: value === undefined ? null : value };
