@@ -30,7 +30,8 @@ from fake_jobvite import FakeJobviteServer
 from fake_lever import FakeLeverServer
 from fake_paylocity import URL as PAYLOCITY_URL
 from fake_paylocity import FakePaylocityServer
-from fake_workday import EXPERIENCE_STEPS, FakeWorkdayServer
+from fake_workday import EXPERIENCE_STEPS, STEPS, FakeWorkdayServer
+from fake_workday import Field as WorkdayField
 from fakes import (
     FakeClaude,
     FakeClock,
@@ -59,6 +60,7 @@ from test_run_answers import profile_with
 
 from apply import rehearsal, worker
 from apply.adapters import Adapters
+from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
 from apply.claude_fill import ClaudeFill
 from apply.feed import SimplifyFeed
@@ -323,6 +325,60 @@ def test_a_workday_rehearsal_fills_my_experience_an_entry_per_job_and_school_to_
                                    "fieldOfStudy": ["Computer and Information Science"], "gradeAverage": "3.77",
                                    "firstYearAttended": "2024", "lastYearAttended": "2028"}]
     assert saved["websites"] == [{"url": "https://test-person.example.com"}]  # the profile's portfolio
+    assert server.submissions == []
+
+
+# Arrowstreet Capital's Application Questions 1 of 2 (rehearsed 2026-11-04): an intro, the current school's questions, a
+# bare From and the graduation, whose help text asks the first of the month. Claude answered From with the internship's
+# start, and the Answer bank kept it as "from (mm/dd/yyyy)" for every form.
+SCHOOL_INTRO = "When entering your education information below, please enter your current university information."
+SCHOOL_QUESTIONS = ("Application Questions 1 of 2", [
+    WorkdayField("school", "Current School/University", "text", True, intro=SCHOOL_INTRO),
+    WorkdayField("degree", "Degree", "dropdown", True, ("Bachelors", "Masters")),
+    WorkdayField("gpa", "Overall GPA", "text", True),
+    WorkdayField("from", "From", "date", True, format="MM/DD/YYYY"),
+    WorkdayField("graduation", "Please enter the first of the month and year that you are planning to graduate. "
+                 "Anticipated Graduation", "date", True, format="MM/DD/YYYY"),
+])
+
+
+def _steps(step) -> list:
+    return [*STEPS[:2], step, *STEPS[2:]]
+
+
+def test_a_workday_rehearsal_answers_a_bare_from_for_its_school_and_banks_nothing_by_its_label(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    world = experience_profile(graduation_day=21)
+    bank, claude = AnswerBank(tmp_path / "answer-bank.yaml"), FakeClaude(drafts={"From": "05/26/2027"})
+
+    with FakeWorkdayServer(XCEL_FORM, steps=_steps(SCHOOL_QUESTIONS)) as server:
+        [done] = rehearse([XCEL_URL], server, world.profile, claude, answer_bank=bank)
+
+    assert done.outcome == "ready to submit", done.why
+    saved = server.saved("xcelenergy.wd1.myworkdayjobs.com")
+    # The school's start, not the internship's; the graduation on the first of its month, as its help text asks.
+    assert (saved["from"], saved["graduation"]) == ("08/01/2024", "05/01/2028")
+    assert not any("drafts" in call["schema"]["properties"] for call in claude.calls)  # the plan answered it
+    assert all("from" not in question.casefold() for question in bank.answers())
+    assert server.submissions == []
+
+
+def test_a_bare_from_claude_drafts_is_told_its_section_and_banked_only_under_it(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    job = ("Application Questions 1 of 2", [WorkdayField("title", "Job Title", "text", True),
+                                            WorkdayField("from", "From", "date", True, format="MM/DD/YYYY")])
+    bank, claude = AnswerBank(tmp_path / "answer-bank.yaml"), FakeClaude(drafts={"Job Title": "Intern", "From": "05/24/2027"})
+
+    world = experience_profile()  # kept: its folder holds the profile
+    with FakeWorkdayServer(XCEL_FORM, steps=_steps(job)) as server:
+        [done] = rehearse([XCEL_URL], server, world.profile, claude, answer_bank=bank)
+
+    assert done.outcome == "ready to submit", done.why
+    [drafts] = [json.loads(call["prompt"].split("<short_questions>\n")[1].split("\n</short_questions>")[0])
+                for call in claude.calls if "drafts" in call["schema"]["properties"]]
+    asked = {d["question"]: d for d in drafts.values()}
+    assert asked["From (MM/DD/YYYY)"]["about"] == "work experience" and "about" not in asked["Job Title"]
+    assert [entry.question for entry in bank.entries()] == ["Job Title", "work experience / From (MM/DD/YYYY)"]
     assert server.submissions == []
 
 

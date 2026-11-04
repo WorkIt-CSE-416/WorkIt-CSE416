@@ -83,6 +83,20 @@ its boxes stay unticked, a blank on purpose in the plan.
 `AnswerBank.answer(question, [])` saves one; an answer with options in it
 drops `none`. An empty answer without `none` is still no answer.
 
+A bare date (From, To, Start date, End date: a label that does not say
+what the date is for) is answered for its section (KAN-595). The engine
+finds the section from the field's panel, its help text, the heading or
+intro just before it, or the questions before it. The section is
+education, work experience or availability (`Plan.sections`). The plan
+answers a school's or the internship's dates itself. Claude drafts any
+other bare date and is told its section (`"about"` in the draft call); a
+date that nothing places goes to Lisul. The Answer bank files a bare
+date's answer under its section and label
+(`"education / From (MM/DD/YYYY)"`, `Plan.filed`). A date that no section
+places is never banked. An older entry filed under a bare label alone is
+never read again. Lisul's own answer to a bare date applies to that form
+only; Apply does not save it to the profile by its wording.
+
 `README.md` is a teammate's setup path, from a clone to a rehearsal. Its
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.

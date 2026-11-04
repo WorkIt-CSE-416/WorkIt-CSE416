@@ -34,6 +34,7 @@ from apply.answer_bank import LISUL, AnswerBank
 from apply.applicant import as_applicant
 from apply.fill_engine import (
     company_specific,
+    context_free,
     left_blank,
     not_called_for,
     plan,
@@ -213,7 +214,7 @@ def apply_to(
                 ledger.add(planned.posting.company, one_line(e.question.label),
                            e.plan.type if e.plan else essays.question_type(e.question), e.text,
                            story=e.plan.story if e.plan else "")
-    result.drafted = tuple((one_line(d.question.label), d.shown) for d in planned.drafted)
+    result.drafted = tuple((one_line(planned.wording(d.question)), d.shown) for d in planned.drafted)
     result.reused = tuple(planned.reused)
     result.named_facts = tuple((one_line(e.question.label), e.named) for e in planned.written if e.named)
     return result
@@ -413,6 +414,8 @@ class _Planned:
         self._answers: dict = {}
         self.accepted: dict[str, tuple[str, ...]] = {}  # other wordings Lisul accepts for an answer, by Question name
         self.blanks: dict[str, str] = {}  # fields the engine's plan leaves blank on purpose, by name: why
+        self.filed: dict[str, str | None] = {}  # each bare date's Answer bank wording, by name (fill_engine.Plan.filed)
+        self.sections: dict[str, str] = {}  # each bare date's section, by name (fill_engine.Plan.sections)
         self.holds: list[str] = []
         self.handoffs: list[str] = []  # what Lisul must answer himself; the rest is still filled
         self.written: list[essays.Essay] = []
@@ -486,7 +489,8 @@ class _Planned:
         or speaks to AI agents, which then never reaches Claude."""
         posting, profile = self.posting, self.profile
         for q in questions:
-            if q.label.strip() in self._answered:
+            # A bare date's answer (From, To) is one section's: it is this form's alone, never kept by its wording.
+            if q.label.strip() in self._answered and not context_free(q.label):
                 remember(profile, posting, q, self._answered[q.label.strip()])
         for asked, answer in self._answered.items():  # what an essay asked him: its answer joins the Story bank
             if asked.startswith(essays.ASK):
@@ -500,6 +504,12 @@ class _Planned:
         self.banked = planned.banked
         self.accepted = planned.accepted
         self.blanks = planned.blanks
+        self.filed, self.sections = planned.filed, planned.sections
+        for q in self.questions:  # Lisul's answer to a bare date on this form, as he gave it
+            if q.name in planned.filed and (given := self._answered.get(q.label.strip())) is not None:
+                planned.answers[q.name] = given
+                planned.missing = [m for m in planned.missing if m.name != q.name]
+                planned.drafts = [d for d in planned.drafts if d.name != q.name]
         if planned.not_eligible:
             return Result(Status.NOT_ELIGIBLE, planned.not_eligible)
         if planned.handoffs:  # a form Lisul finishes gets no Claude call: its one-off questions are his too
@@ -521,7 +531,7 @@ class _Planned:
         given = planned.answers | {d.question.name: d.answer for d in self.drafted + self.unbanked}
         answered = {q: given[q.name] for q in self.questions if q.name in given}  # "the area you picked above"
         written, drafted = essays.answer(self.claude, posting, ask, to_draft, profile, self.known(), self.text,
-                                         answered=answered) if ask or to_draft else ([], [])
+                                         answered=answered, sections=self.sections) if ask or to_draft else ([], [])
         if self._approved is not None:
             written = essays.from_cell(self._approved, new)
         self.written += written
@@ -529,10 +539,12 @@ class _Planned:
         for draft in drafted:
             if draft.needs_lisul:
                 continue
-            if company_specific(draft.question, posting):  # true of this company only: drafted again each time
+            # True of this company only, or a bare date no section places: drafted again each time, never banked.
+            if company_specific(draft.question, posting) or self.filed.get(draft.question.name, "") is None:
                 self.unbanked.append(draft)
             else:
-                self._bank.add(draft.question, draft.answer, posting.company, self._today, list(draft.facts))
+                self._bank.add(draft.question, draft.answer, posting.company, self._today, list(draft.facts),
+                               wording=self.wording(draft.question))
                 self.drafted.append(draft)
         given = {d.question.name: d.answer for d in self.drafted + self.unbanked}
         # A follow-up to a question Claude just answered ("If yes, ...", answered No) that the answer doesn't call for.
@@ -590,13 +602,17 @@ class _Planned:
 
     def own(self) -> set[str]:
         """The questions the form took Lisul's own Answer bank answer for."""
-        return {q.name for q in self.banked if (entry := self._bank.get(q.label)) and entry.source == LISUL}
+        return {q.name for q in self.banked if (entry := self._bank.get(self.wording(q))) and entry.source == LISUL}
+
+    def wording(self, q: Question) -> str:
+        """The wording the Answer bank files `q`'s answer under: a bare date's section and label, else its label."""
+        return self.filed.get(q.name) or q.label
 
     def use_bank(self) -> None:
         """Count one use of each Answer bank answer the filled form took (a
         rehearsal, which sends nothing, counts none), and note the unreviewed
         drafts among them with their uses, this one included."""
-        labels = [q.label for q in self.banked if q.name in self.answers]
+        labels = [self.wording(q) for q in self.banked if q.name in self.answers]
         if not self._rehearse:
             self._bank.use(labels, self._today)
         drafts = [entry for label in labels if (entry := self._bank.get(label)) and not entry.reviewed]
