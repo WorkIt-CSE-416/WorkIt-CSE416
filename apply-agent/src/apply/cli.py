@@ -168,11 +168,20 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
                                                             "gone); no model call")
     mapped.add_argument("--gaps", action="store_true", help="print the follow-ups the bank can't answer as "
                                                            "bank/questions.md lines; no model call")
+    plain = commands.add_parser(
+        "plain", help="plain Workers (KAN-606): Chromes with no CDP, driven through the worker extension",
+    ).add_subparsers(dest="action", required=True)
+    ping = plain.add_parser("ping", help="start plain Workers, print each one's hello and checks, then quit them")
+    ping.add_argument("--workers", type=int, default=1, help="how many plain Workers to start")
+    ping.add_argument("--chrome", choices=("testing", "chrome"), default="testing",
+                      help="Chrome for Testing with --load-extension (default), or branded Chrome from the seed profile")
+    plain.add_parser("prepare", help="write the worker extension's engine bundle and Playwright's injected script")
+    plain.add_parser("seed", help="open branded Chrome on the seed profile to install the worker extension once")
     args = parser.parse_args(argv)
     if adapters is None and threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, _stop)  # `kill <pid>` closes the browsers and the window, as Ctrl-C does
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
-    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker") and home.fill_from_sample():
+    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "plain") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
 
@@ -316,6 +325,24 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             print(add(url))
     elif args.command == "story-map":
         _story_map(args, adapters.claude if adapters else None)
+    elif args.command == "plain":
+        _plain(args)
+
+
+def _plain(args) -> None:
+    from apply.plain import demo
+    from apply.plain.launcher import PlainWorkers
+
+    if args.action == "ping":
+        print("\n".join(demo.ping(args.workers, args.chrome)))
+    elif args.action == "prepare":
+        identity = PlainWorkers(kind="testing").prepare()
+        print(f"Worker extension ready: Fill engine {identity['version']}.")
+    elif args.action == "seed":
+        workers = PlainWorkers(kind="chrome")
+        workers.prepare()
+        print(f"Opened Google Chrome on {workers.seed}. Once, by hand:")
+        print("\n".join(f"  {n}. {step}" for n, step in enumerate(workers.seed_profile(), 1)))
 
 
 def _push_test(phone) -> None:
