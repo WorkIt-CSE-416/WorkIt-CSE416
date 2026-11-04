@@ -1401,3 +1401,56 @@ def test_start_holds_until_the_window_presses_it_and_only_the_window_may():
         waited.join(2)
         assert not waited.is_alive()
         assert board.state()["run"]["start"] == "started"
+
+
+# A bot block (KAN-590): LinkedIn's SmartRecruiters form, refused by DataDome, finished in Lisul's own Chrome.
+BLOCKED = {"company": "LinkedIn", "role": "Software Engineer Intern", "job_system": "other",
+           "posting_url": "https://jobs.smartrecruiters.com/LinkedIn3/744000158394370", "status": "handoff",
+           "blocked": True, "why": "LinkedIn blocked Apply's Chrome as a bot. "
+                                   "Finish LinkedIn in your Chrome: the extension fills it"}
+
+
+def post_everyday(board, key, token=None):
+    body = json.dumps({"id": key}).encode()
+    return urllib.request.urlopen(urllib.request.Request(board.url + "/everyday", body,
+                                                         {"X-Apply-Token": token or board.token}))
+
+
+def test_a_bot_block_waits_on_lisul_to_finish_it_in_his_own_chrome():
+    shown = verdict(BLOCKED)
+
+    assert (shown["tone"], shown["kind"]) == ("needs", "blocked")
+    assert shown["do"] == "Finish LinkedIn in your Chrome: the extension fills it"
+    assert "Open in my Chrome" in shown["then"]
+
+
+def test_open_in_my_chrome_opens_the_posting_only_when_lisul_presses_it():
+    opened = []
+    with Dashboard(1, NoFrames(), everyday=opened.append) as board:
+        board.update(0, **BLOCKED)
+        board.update(0, status="")  # its Worker moved on: the item stays in Needs you
+        [item] = [i for i in board.state()["items"] if i.get("kind") == "blocked"]
+        assert opened == []  # a rehearsal never pops a window by itself
+
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            post_everyday(board, item["id"], token="not the window's")
+        assert refused.value.code == 403
+        reply = json.loads(post_everyday(board, item["id"]).read())
+
+    assert opened == [BLOCKED["posting_url"]]
+    assert "your Chrome" in reply["message"]
+
+
+def test_a_live_runs_bot_block_in_the_tracker_offers_open_in_my_chrome(window):
+    # KAN-590: a live run opened it already; the window opens it again only on Lisul's press.
+    from apply.model import Status
+    row = held_row(company="LinkedIn", job_system="other", posting_url=BLOCKED["posting_url"], status=Status.HANDOFF,
+                   reason=BLOCKED["why"], bot_signals="headed: blocked")
+    opened = []
+    with Dashboard(0, NoFrames(), past=lambda: [row], everyday=opened.append) as board:
+        window.goto(board.url)
+        window.wait_for_selector("#inbox .item", timeout=10_000)
+        window.get_by_role("button", name="Open in my Chrome").click()
+        window.wait_for_function("() => document.body.innerText.includes('the extension fills it there')", timeout=5_000)
+
+    assert opened == [BLOCKED["posting_url"]]

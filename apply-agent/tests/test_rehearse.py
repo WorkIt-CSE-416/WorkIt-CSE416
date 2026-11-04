@@ -537,19 +537,22 @@ def test_a_captcha_after_lisuls_own_submit_pushes_him_to_do_it(monkeypatch, tmp_
     assert submissions == []  # nothing goes until the captcha is done
 
 
-def test_lever_turning_down_lisuls_own_submit_tells_him_to_send_it_from_his_own_chrome(monkeypatch, tmp_path):
+def test_lever_turning_down_lisuls_own_submit_is_a_bot_block_for_his_own_chrome(monkeypatch, tmp_path):
     # Simbe Robotics, 2026-11-03: Lever's hCaptcha turned the token of the Worker's Chrome down at his Submit.
     monkeypatch.setitem(FILLERS, "lever", NeverSubmits(LeverFiller()))
     lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
     profile, board, tracker = ApplicantProfile.load(profile_with(tmp_path)), RecordingBoard(), InMemoryTracker()
 
     with FakeLeverServer(IMMUTA_FORM, parse_delay=0.2, refuse=True) as fake:
-        lines = hold_until(fake, profile, lambda lines: "own Chrome" in lines[-1], url=IMMUTA_URL,
+        lines = hold_until(fake, profile, lambda lines: "in your Chrome" in lines[-1], url=IMMUTA_URL,
                            with_adapters={"board": board}, submitted_to=tracker)
         submissions = fake.submissions
 
-    assert board.captions[0]["status"] == "handoff" and "Lever's captcha turned down" in board.captions[0]["why"]
-    assert any(line.startswith("Immuta | ") and "send it from your own Chrome" in line for line in lines)
+    caption = board.captions[0]
+    assert caption["status"] == "handoff" and caption["blocked"] is True
+    assert "Immuta blocked Apply's Chrome as a bot (\"There was an error verifying your application\")" in caption["why"]
+    assert any(line.startswith("Immuta | ") and "Finish Immuta in your Chrome: the extension fills it" in line
+               for line in lines)
     assert submissions == [] and tracker.rows() == []  # nothing went in, so nothing is kept as submitted
 
 

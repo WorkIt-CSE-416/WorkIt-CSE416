@@ -11,7 +11,16 @@ from collections.abc import Callable, Collection, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import date, datetime, timedelta
 
-from apply import bot_signals, embedded, greenhouse, oracle, tailored, trace, walls
+from apply import (
+    bot_signals,
+    captcha,
+    embedded,
+    greenhouse,
+    oracle,
+    tailored,
+    trace,
+    walls,
+)
 from apply.accounts import Accounts, failed_sites
 from apply.adapters import (
     Adapters,
@@ -415,6 +424,8 @@ class _Run:
         self._write(posting, result.status, reason, today if submitted else None, record, result.missing_fact, result.essay,
                     signals, options_cell(result.choices.get(result.missing_fact)))
         self.statuses[result.status] += 1
+        if bot_signals.BLOCKED in result.bot_signals:
+            self._to_everyday_chrome(named_posting)
         if result.status in WAITING:
             # A Missing fact's reason starts with "Missing fact": its question says it all.
             self.waiting.append((result.status, named_posting.company, named_posting.title, result.missing_fact or reason))
@@ -428,6 +439,21 @@ class _Run:
             was = self.reused.get(bank_key(question))
             if not was or was[2] < uses:
                 self.reused[bank_key(question)] = (question, answer, uses)
+
+    def _to_everyday_chrome(self, posting: Posting) -> None:
+        """A bot block's Handoff (KAN-590): open the posting in Lisul's everyday Chrome, where the extension fills
+        it, and push him to finish it there. Once, with no retry; the row stays at Needs you meanwhile."""
+        adapters, company = self._adapters, captcha.company_of(posting.company, posting.url)
+        try:
+            adapters.everyday(posting.url)
+        except Exception as failed:
+            print(f"Couldn't open {posting.url} in your Chrome ({failed}); open it yourself.", file=sys.stderr)
+        if self._profile.policy("phone_push") is not True or adapters.phone is None:
+            return
+        try:
+            adapters.phone.notify(captcha.FINISH_TITLE, captcha.FINISH.format(company))
+        except Exception as failed:
+            print(f"Couldn't push {company}'s block to your phone ({failed}); the Tracker lists it.", file=sys.stderr)
 
     def _over_limits(self, request: Posting, today: date) -> str:
         """The note for a Request applied to over an employer's own limit,

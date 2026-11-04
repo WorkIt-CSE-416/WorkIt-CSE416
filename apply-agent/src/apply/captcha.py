@@ -5,6 +5,7 @@ never solves one. A bot block is a page that refuses the browser outright
 (Tesla's "Access Denied"): there is nothing to solve, so it is a Handoff."""
 
 import re
+import subprocess
 import sys
 import time
 from collections.abc import Callable
@@ -13,6 +14,8 @@ from contextvars import ContextVar
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Page
+
+from apply.model import Blocked, Handoff
 
 # A captcha's challenge, once shown on the page. Each one goes away when it is solved.
 CHALLENGES = (
@@ -35,30 +38,76 @@ PATHS = ("/recaptcha/",)
 SAYS_CAPTCHA = re.compile(r"captcha|not a robot|turnstile|cloudflare|verify (that )?you are (a )?human"
                           r"|verification required|slide (right|to)", re.IGNORECASE)
 
-# How a page that blocks the browser words it, as Claude fill's Claude reads it: no challenge to solve.
-SAYS_BLOCKED = re.compile(r"access denied|you don'?t have permission to access", re.IGNORECASE)
+# Bot blocks: how each page that refuses Apply's Chrome words it. Nothing on it is Lisul's to solve, so it is
+# a Handoff at once, to his own Chrome, and never a wait or a retry (KAN-590).
+BLOCKS = (
+    # DataDome's block, in its captcha-delivery frame (LinkedIn's SmartRecruiters form, 2026-11-03).
+    r"we detected unusual activity from your device or network",
+    # Lever, when its invisible hCaptcha turns the sent form down (Simbe Robotics, 2026-11-03).
+    r"there was an error verifying your application",
+    # Akamai's "Access Denied" (Tesla, 2026-11-03).
+    r"you don'?t have permission to access",
+)
+BLOCK = re.compile("|".join(BLOCKS), re.IGNORECASE)
+# How Claude fill's Claude words a bot block: the pages' own words, or Tesla's title.
+SAYS_BLOCKED = re.compile("|".join((*BLOCKS, r"access denied", r"unusual activity")), re.IGNORECASE)
 
 
 def shows(page: Page) -> bool:
-    """Whether the page shows a captcha's challenge now. A page that is gone shows none."""
+    """Whether the page shows a captcha's challenge now. A page that is gone
+    shows none, and a bot block (DataDome's, in the same frame) is none."""
     try:
         challenge = page.locator(CHALLENGE)
-        return any(challenge.nth(i).is_visible() for i in range(challenge.count()))
+        return any(challenge.nth(i).is_visible() for i in range(challenge.count())) and not blocks(page)
     except Exception:
         return False
 
 
-# A bot block's Handoff: plain words, as Lisul asked for Tesla's.
-BLOCKED = "{} blocked the browser; apply in your own Chrome"
+def blocks(page: Page) -> str:
+    """The words of a bot block that the page or one of its frames shows, else ""."""
+    for frame in getattr(page, "frames", ()):  # a test's stand-in page has none
+        try:
+            if found := BLOCK.search(frame.locator("body").inner_text(timeout=1000)):
+                return found[0]
+        except Exception:
+            continue  # a frame loading, or gone
+    return ""
+
+
+# A bot block's Handoff: plain words, as Lisul asked for Tesla's. The page's own words go in the brackets.
+BLOCKED = "{} blocked Apply's Chrome as a bot{}. "
+# What the Apply window and the push tell him to do: the extension fills the form in his own Chrome.
+FINISH = "Finish {} in your Chrome: the extension fills it"
+FINISH_TITLE = "Apply: finish it in your Chrome"
 # Parts of a host that name no company.
 _NO_NAME = {"www", "careers", "jobs", "apply", "boards", "job-boards"}
 
 
-def blocked(company: str, url: str) -> str:
-    """The Handoff's reason for a page that blocks the browser: the company,
-    else the name in the link's host (www.tesla.com: Tesla)."""
-    labels = [part for part in urlsplit(url).hostname.split(".") if part not in _NO_NAME] if url else []
-    return BLOCKED.format(company or (labels[0].capitalize() if labels else "The job site"))
+def company_of(company: str, url: str) -> str:
+    """The company, else the name in the link's host (www.tesla.com: Tesla)."""
+    labels = [part for part in (urlsplit(url).hostname or "").split(".") if part not in _NO_NAME] if url else []
+    return company or (labels[0].capitalize() if labels else "the job site")
+
+
+def blocked(company: str, url: str, said: str = "") -> Blocked:
+    """The Handoff of a page that blocks the browser, for `company`'s posting at `url`."""
+    who = company_of(company, url)
+    return Blocked(BLOCKED.format(who[:1].upper() + who[1:], f' ("{said}")' if said else "") + FINISH.format(who),
+                   who, url, said)
+
+
+def as_block(handoff: Handoff, page: Page | None, company: str, url: str) -> Handoff:
+    """`handoff` as a Blocked, named for `company`'s posting, when it is one or its page shows a bot block."""
+    if isinstance(handoff, Blocked):
+        return handoff if handoff.company else blocked(company, url, handoff.said)
+    said = blocks(page) if page is not None else ""
+    return blocked(company, url, said) if said else handoff
+
+
+def to_everyday_chrome(url: str) -> None:
+    """Open `url` in the student's everyday Chrome, as a click in the Dock would: never over DevTools, and never
+    in a Worker profile, so the job system sees their own browser. The extension fills the form there."""
+    subprocess.run(["open", "-a", "Google Chrome", url], check=False)
 
 
 # The submit's wait for a captcha that shows once the form is sent (at_submit); none outside it.

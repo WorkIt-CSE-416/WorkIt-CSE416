@@ -14,7 +14,7 @@ from collections.abc import Callable
 from playwright.sync_api import Page
 
 from apply import bot_signals, captcha
-from apply.model import Handoff
+from apply.model import Blocked, Handoff
 
 CAPTCHA = (
     "A captcha challenge came up at the submit click, so the form was not sent. "
@@ -27,13 +27,16 @@ def wait_for_confirmation(page: Page, confirmed: Callable[[], bool], timeout: fl
                           refused: Callable[[], str] = lambda: "") -> None:
     """Return once `confirmed()` is true. Raises Handoff if a captcha
     challenge shows first, or `refused()` says why the job system refused the
-    form, and TimeoutError after `timeout` seconds."""
+    form; Blocked if the page shows a bot block (Lever's "error verifying");
+    and TimeoutError after `timeout` seconds."""
     deadline = time.monotonic() + timeout
     while not confirmed():
         if captcha.shows(page):
             if not captcha.done_at_submit(page):  # Lisul did not do it in time, or no one waits for him
                 raise Handoff(CAPTCHA, bot_signal=bot_signals.CAPTCHA)
             deadline = time.monotonic() + timeout  # he did it: the job system confirms from now
+        if said := captcha.blocks(page):  # sending it again from this Chrome gets the same answer
+            raise Blocked(said, said=said)
         if why := refused():
             raise Handoff(REFUSED.format(why.rstrip(".")))
         if time.monotonic() > deadline:

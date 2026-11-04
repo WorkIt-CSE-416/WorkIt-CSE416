@@ -596,6 +596,19 @@ const action = (item) => {
             item.resume.why ? make('span', {className: 'then', textContent: item.resume.why}) : null];
   }
   const k = liveTile(item), ctx = last.context || {};
+  if (item.kind === 'blocked' && ctx.everyday && item.posting_url) return make('button', {className: 'primary',
+    textContent: 'Open in my Chrome', title: 'Your everyday Chrome, where the WorkIt extension fills it',
+    onclick: async (e) => {  // only his press opens it: a rehearsal never pops a window by itself (KAN-590)
+      e.target.disabled = true;
+      try {
+        const reply = await fetch('/everyday', {method: 'POST', body: JSON.stringify({id: item.id}),
+                                                headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+        const data = await reply.json();
+        if (!reply.ok) throw new Error(data.error || 'Not opened.');
+        toast(data.message);
+      } catch (err) { toast(err.message || 'Apply is not answering: is it still running?'); }
+      e.target.disabled = false;
+    }});
   if (item.kind === 'missing fact' && ctx.answers) return null;
   if (item.kind === 'held' && ctx.approve && item.application_id) return make('button', {className: 'primary', textContent: 'Approve',
     title: 'It is sent at the next check', onclick: async (e) => {  // approving resolves it

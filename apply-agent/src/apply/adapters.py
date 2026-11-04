@@ -255,3 +255,5 @@ class Adapters:
     signed_in: frozenset[str] = frozenset()
     # The student's tailored resume for a Posting (KAN-547), given to its form in place of the profile's resume.
     tailored: Callable[[Posting], bytes | None] = lambda posting: None
+    # Opens a bot-blocked posting in the student's everyday Chrome (KAN-590); live: captcha.to_everyday_chrome.
+    everyday: Callable[[str], None] = lambda url: None
