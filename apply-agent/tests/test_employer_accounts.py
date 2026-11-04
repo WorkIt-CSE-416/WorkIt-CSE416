@@ -10,6 +10,7 @@ import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+import pytest
 import yaml
 from conftest import FIXTURES, FORMS
 from fake_workday import STEPS, FakeWorkdayServer, Field
@@ -22,6 +23,7 @@ from apply.feed import SimplifyFeed
 from apply.keychain import InMemoryKeychain
 from apply.notify import RecordingNotifier
 from apply.tracker import EmployerAccount, InMemoryTracker
+from apply.workday import WorkdayFiller
 
 PROFILE = FIXTURES / "planner-profile.yaml"
 EMAIL = "test.person@example.com"
@@ -111,18 +113,33 @@ def test_a_verification_email_missing_after_about_two_minutes_needs_lisul_and_is
     assert server.submissions == []
 
 
-def test_a_create_account_workday_answers_with_its_bare_sign_in_view_forgets_the_password_and_never_signs_in():
+def test_a_create_account_workday_answers_with_its_bare_sign_in_view_made_the_account_and_signs_in_with_it():
     world = World()
 
-    # Northrop's tenant (live): Create Account loads the bare Sign In view, with no notice and no account made.
-    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, to_sign_in=True) as server:
+    # Visa's and Northrop's tenants (live): Workday's answer made the account (a root widget), and its own code
+    # then loads the bare Sign In view, with no notice. The new password signs in there.
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, to_sign_in=True) as server:
         [row] = world.run(server, caci())
 
-    assert row.status == "handoff", row.reason
-    assert "without making the account" in row.reason and "Create the account yourself" in row.reason
-    assert server.created == [] and server.sign_ins == []
-    assert world.keychain.password(CACI) is None  # no later run signs in with it
-    assert world.tracker.employer_accounts() == []
+    assert (row.status, row.reason) == ("submitted", "")
+    [made] = server.created
+    assert world.keychain.password(CACI) == made["password"]  # kept, not forgotten
+    assert server.sign_ins == [(CACI, EMAIL, True)] and server.resets == []
+    assert [a.site for a in world.tracker.employer_accounts()] == [CACI]
+
+
+def test_create_account_back_at_sign_in_for_an_account_that_exists_resets_its_password_once():
+    # ASML (live, 2026-11-03): Lisul had an account; Create Account showed Sign In with no error.
+    world = World()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, exists_quietly=True,
+                           accounts={(CACI, EMAIL): "Made-By-Hand1!"}) as server:
+        [row] = world.run(server, caci())
+
+    assert row.status == "submitted", row.reason
+    [reset] = server.resets
+    assert reset["keychain"] == world.keychain.password(CACI) == server.account(CACI, EMAIL)["password"]
+    assert len(server.submissions) == 1
 
 
 def test_a_new_account_workday_sends_to_its_verify_page_is_verified_through_gmail_then_signed_in():
@@ -213,6 +230,20 @@ def test_an_account_lisul_made_himself_gets_a_new_password_through_gmail_and_is_
     assert server.created == [] and server.sign_ins == [(CACI, EMAIL, True)]
     assert [a.site for a in world.tracker.employer_accounts()] == [CACI]
     assert len(server.submissions) == 1
+
+
+def test_an_already_exists_that_only_workdays_answer_says_is_read_from_it(monkeypatch):
+    # Workday's answer to Create Account carries its refusal ({"type": "ERROR", "message": ...}), which a
+    # tenant's page may never show: Apply reads it there, and resets the password as for a shown one.
+    monkeypatch.setattr(WorkdayFiller, "_may_exist", lambda *a: pytest.fail("the answer's refusal went unread"))
+    world = World()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, hides_errors=True,
+                           accounts={(CACI, EMAIL): "Made-By-Hand1!"}) as server:
+        [row] = world.run(server, caci())
+
+    assert row.status == "submitted", row.reason
+    assert len(server.resets) == 1 and server.created == []
 
 
 def test_without_gmail_an_account_keychain_has_no_password_for_is_a_handoff_and_is_not_reset():

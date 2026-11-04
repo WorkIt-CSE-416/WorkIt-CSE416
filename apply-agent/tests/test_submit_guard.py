@@ -391,6 +391,23 @@ def test_plain_codes_account_click_goes_through_the_drive_guard_and_a_rehearsals
 
 
 
+def test_plain_codes_click_on_a_sign_in_button_named_submit_goes_through_a_rehearsals_guard():
+    # Workday names its email Sign In's button "Submit" (Sonos's, live): Apply's own click signs in.
+    with _account_page(ACCOUNT_LOGIN) as (page, server):
+        guard(page)
+        page.get_by_label("Email").fill("test.person@example.com")
+        page.get_by_label("Password").fill("Pa55word!")
+        page.evaluate("document.querySelector('#login button').textContent = 'Submit'")
+        page.get_by_role("button", name="Submit").click()  # not plain code's: blocked
+        page.wait_for_timeout(500)
+        assert server.sign_ins == []
+        page.evaluate("window.__applyAccountClick = true")
+        page.get_by_role("button", name="Submit").click()
+        page.wait_for_load_state()
+        page.wait_for_timeout(500)
+        assert len(server.sign_ins) == 1
+
+
 def test_a_blocked_application_request_is_named_with_its_method_and_link():
     submit = "https://apply.workable.com/api/v1/jobs/D309E69A5B/apply"
     with FakeWorkableServer(PERRY_FORM) as fake:

@@ -1491,3 +1491,42 @@ def test_a_live_runs_bot_block_in_the_tracker_offers_open_in_my_chrome(window):
         window.wait_for_function("() => document.body.innerText.includes('the extension fills it there')", timeout=5_000)
 
     assert opened == [BLOCKED["posting_url"]]
+
+
+# The Accounts tab (KAN-591): each Employer account, Copy password and Open sign-in page, no password in the page.
+
+def test_the_accounts_tab_copies_a_password_it_never_shows(window):
+    from datetime import date
+    from types import SimpleNamespace
+
+    from apply.accounts_tab import AccountsTab
+    from apply.keychain import InMemoryKeychain
+    from apply.tracker import EmployerAccount
+
+    password, posting = "Fake-Keychain-Pw-7x!Q", "https://asml.wd3.myworkdayjobs.com/en-US/ASMLExternal/job/X_R1"
+    account = EmployerAccount("ASML", "asml.wd3.myworkdayjobs.com", "lisul@example.com", date(2026, 11, 2))
+    clipboard, opened = SimpleNamespace(text=""), []
+    clipboard.put_secret = lambda text: setattr(clipboard, "text", text) or 1
+    clipboard.clear = lambda written: setattr(clipboard, "text", "")
+    tab = AccountsTab(lambda: [account], InMemoryKeychain({account.site: password}),
+                      rows=lambda: [SimpleNamespace(posting_url=posting)], everyday=opened.append,
+                      clipboard=clipboard, later=lambda seconds, then: None)
+    with Dashboard(0, NoFrames(), accounts=tab) as board:
+        window.goto(board.url)
+        window.get_by_role("tab", name="Accounts").click()
+        window.wait_for_selector("#accounts .account", timeout=10_000)
+        assert "asml.wd3.myworkdayjobs.com" in window.inner_text("#accounts")
+        window.get_by_role("button", name="Copy password").click()
+        window.wait_for_function("() => document.body.innerText.includes('Paste it within a minute')", timeout=5_000)
+        assert clipboard.text == password
+        window.get_by_role("button", name="Open sign-in page").click()
+        window.wait_for_function("() => document.body.innerText.includes('press Sign In there')", timeout=5_000)
+        html = window.content()
+
+    assert opened == [posting]
+    assert password not in html
+
+
+def test_a_window_with_no_accounts_tab_shows_none():
+    with Dashboard(0, NoFrames()) as board:
+        assert "tab-accounts" not in board.page()
