@@ -656,7 +656,7 @@ class PortRequest:
         self.url: str = message.get("requested") or message.get("url", "")
         self.method: str = message.get("method", "GET")
         self.resource_type: str = {"main_frame": "document", "sub_frame": "document", "xmlhttprequest": "fetch"}.get(
-            message.get("type", ""), message.get("type", "other"))
+            message.get("resource", ""), message.get("resource", "other"))
         self.failure: str | None = message.get("error")
         self.headers: dict = {}
         self.post_data = None
@@ -1020,10 +1020,19 @@ class PortPage(PortFrame):
         elif event == "popup":
             # A target=_blank link's tab, or one window.open asked for and Chrome's pop-up blocker refused
             # (no user activation), which the extension opens by its URL with this page as its opener.
+            # The extension's tab has no opener in its tab.created, so its popup.blocked names it.
+            seen: set[int] = set()
+
             def wired(message):
-                if message.get("opener") == self.tab:
-                    handler(self.context.page(message["tab"]))
+                if "popup" in message:  # popup.blocked
+                    opened = message["popup"] if message.get("tab") == self.tab else None
+                else:  # tab.created
+                    opened = message["tab"] if message.get("opener") == self.tab else None
+                if opened is not None and opened not in seen:
+                    seen.add(opened)
+                    handler(self.context.page(opened))
             self.worker.on("tab.created", wired)
+            self.worker.on("popup.blocked", wired)
             self._watch(+1)
         elif event == "framenavigated":
             def wired(message):
@@ -1045,6 +1054,8 @@ class PortPage(PortFrame):
             if pair[0] is handler:
                 self._listeners[event].remove(pair)
                 self.worker.off(names[event], pair[1])
+                if event == "popup":
+                    self.worker.off("popup.blocked", pair[1])
                 if event in WATCHED or event == "popup":
                     self._watch(-1)
 
