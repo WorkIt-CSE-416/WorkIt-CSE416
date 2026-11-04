@@ -64,6 +64,7 @@ links:
   portfolio_url:               # freq 24 (Website / Portfolio / Other website)
   google_scholar_url:          # freq 1 (xAI)
   x_twitter_url:               # freq 6
+  facebook_url:                # freq 1 (KLA's Workday); blank: an optional one stays blank
   showcase_project_url:        # freq 4 ("link to something you've built and shipped", "research project you're proud of")
 
 education:

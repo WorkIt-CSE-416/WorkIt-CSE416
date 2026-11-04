@@ -319,7 +319,9 @@ class FakeWorkdayServer:
     `to_sign_in`: Create Account goes to a bare Sign In view, with no notice.
     A tenant that verifies email makes the account and goes there by way of
     its `/login/warning` page (Zillow's, live), which the Sign In view never
-    shows. Any other tenant makes no account (Northrop's, live)."""
+    shows. Any other tenant makes no account (Northrop's, live).
+    `exists_quietly`: Create Account for an email that has an account goes
+    to the bare Sign In view, with no error (ASML's, live)."""
 
     def __init__(self, *forms: Path, keychain=None, mailbox: FakeMailbox | None = None,
                  verify_email: tuple[str, ...] = (), links_lost: bool = False,
@@ -329,7 +331,7 @@ class FakeWorkdayServer:
                  ignored_clicks: int = 0, went_wrong: int = 0, review_delay: float = 0,
                  drops_untouched: bool = False, flashes_error: bool = False,
                  dropped_saves: int = 0, box_wiring: float = 0, to_sign_in: bool = False,
-                 lost_picks: int = 0):
+                 lost_picks: int = 0, exists_quietly: bool = False):
         self._responses: dict[str, tuple[int, str, bytes]] = {}
         redirects: dict[str, str] = {}
         for form in forms:
@@ -364,6 +366,7 @@ class FakeWorkdayServer:
         self._dropped_saves = dropped_saves
         self._box_wiring = box_wiring
         self._to_sign_in = to_sign_in
+        self._exists_quietly = exists_quietly
         # How many of the first saves hold none of the step's dropdown picks, though the page shows them
         # (ASML's Application Questions, live): the step is refused as missing them.
         self._lost_picks = lost_picks
@@ -503,6 +506,8 @@ class FakeWorkdayServer:
         if password != form["verify"]:
             return {"error": "The passwords do not match."}
         if email in tenant.accounts:
+            if self._exists_quietly:
+                return {"signIn": True}  # back to Sign In, and no word of the account it has
             return {"error": "An account with this email address already exists."}
         if self._to_sign_in and not tenant.verify_email:
             return {"signIn": True}  # back to Sign In, no account made

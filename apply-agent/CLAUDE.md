@@ -256,6 +256,10 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   midnight (WorkIt's caps count UTC days). No flush sends it before then.
 - A rehearsal writes only through `submitted_to`, when Lisul presses
   Submit himself. A rehearsal that he does not submit writes nothing.
+  His confirmed Submit also saves the rehearsal's Record again as
+  submitted, with the confirmation page as `after-submit.png`
+  (`rehearsal._keep_confirmation`). Before, the Record kept saying held
+  (KLA, 2026-11-03), though the Applications Tracker had it as applied.
 - No answer, or no live login: the Write waits in `workit-queue.json` (one
   per Application, the newest). `apply run` and `apply rehearse` send the
   waiting writes first; `apply doctor`'s "WorkIt writes" line lists them
@@ -286,7 +290,7 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
 `WorkItTracker` against `tests/fake_tracker.py`. `tests/test_rehearse.py
 -k "applications_tracker or sends_nothing_to_workit"` rehearses a form
 in Chromium: a submit by Lisul is Applied with the Sent resume, and no
-submit sends nothing.
+submit sends nothing. `-k saves_the_record_again` checks his submit's Record.
 
 ## The tailored resume is the Sent resume (KAN-547)
 
@@ -617,10 +621,18 @@ Claude stops at one (`SAYS_CAPTCHA`).
   and show no notice (Northrop's and Zillow's, live). A tenant that mails a
   link goes there by way of `/login/warning` (Zillow's), so
   `WorkdayFiller._create_account` watches the requests for that page and
-  then waits for the link. A bare Sign In view with no such page means
-  Workday made no account (Northrop's, live: a made account goes straight
-  to the application). Apply then forgets the new password in Keychain,
-  never signs in, and hands off for Lisul to make the account. A
+  then waits for the link. A bare Sign In view with no such page, or no
+  answer at all after the form was sent (`_send(unanswered=...)`), may mean
+  Workday made no account (Northrop's, live) or that one exists already
+  (ASML's, live, made with Google). Workday answers both alike: the same
+  Sign In page, and no error status on the request (the Trace shows none).
+  So a run resets the password once (`WorkdayFiller._may_exist`): the new
+  password goes to Keychain first, then one Forgot your password?, and the
+  link from Gmail; a reset that does not finish forgets the password.
+  This holds on a tenant that offers Google too (Lisul, 2026-11-03). A
+  rehearsal resets nothing: it forgets the new password and stops with
+  `workday.MAY_EXIST` (`Accounts.rehearsal`). The fake's `exists_quietly`
+  plays ASML's flow. A
   sign-in that Workday refuses because the account is not verified is a
   Needs sign-in Handoff, not a failed password. First, Apply looks once in
   Gmail for the link Workday mailed (to the tenant's own host, within a

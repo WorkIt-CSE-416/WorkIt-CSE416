@@ -750,3 +750,17 @@ def test_a_step_that_goes_on_only_by_sending_is_left_for_lisul_to_submit(monkeyp
     monkeypatch.setattr(workday.fill_engine, "call", engine)
     with pytest.raises(Handoff, match=r"would send the application.*Apply didn't click it: check the form and submit it yourself"):
         workday.next_step(None, "Questions")
+
+
+def test_a_submitted_notice_counts_when_a_hidden_copy_of_its_words_comes_first():
+    # Zillow, 2026-11-03: Lisul's own Submit went unseen, so the rehearsal kept it as held.
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content('<div hidden>Application submitted</div><h2>Thanks for applying!</h2>')
+        assert workday.confirmed(page)
+        page.set_content('<div hidden>Application submitted</div><h2>Review</h2>')
+        assert not workday.confirmed(page)
+        browser.close()
