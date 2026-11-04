@@ -443,6 +443,7 @@ class ClaudeFill:
             self._account_pages.release()
 
     def _drive(self, page: Page, system: str, prompt: str, schema: dict, files: list[Path]) -> dict:
+        refuse_plain(page)  # TODO(KAN-612): gone once S6's MCP server is in
         if self._guard is None:
             self._guard = DriveGuard(page, **self._opt_ins)
         self._guard.arm()
@@ -476,6 +477,24 @@ class ClaudeFill:
                 raise Captcha(f"Claude fill can't finish this form: {why}", page)
             raise Handoff(f"Claude fill can't finish this form: {why}")
         return drive.output
+
+
+# TODO(KAN-612, S6): Claude fill and Rescue drive a plain Worker's page through Apply's own MCP
+# server (apply.plain.tools), which S6 adds. Until S6 is merged into plain-workers, a plain page
+# that needs Claude is the usual Handoff, and says why. Once apply.plain.tools exists this check
+# lets every drive through; then delete it and its callers' lines.
+NO_CLAUDE_ON_PLAIN = ("{} doesn't run on plain Workers yet (KAN-612, worker_mode: plain or protected), "
+                      "so Apply hands this form to you. Finish it yourself, or rehearse it with worker_mode: cdp.")
+
+
+def refuse_plain(page, what: str = "Claude fill") -> None:
+    """A Handoff for a drive of a plain Worker's page while Apply has no MCP server for it (S6)."""
+    import importlib.util
+
+    from apply.plain.page import PortPage
+
+    if isinstance(page, PortPage) and importlib.util.find_spec("apply.plain.tools") is None:
+        raise Handoff(NO_CLAUDE_ON_PLAIN.format(what))
 
 
 _UNSET = object()
