@@ -8,12 +8,14 @@ import subprocess
 import tempfile
 import threading
 import time
+import urllib.request
 from pathlib import Path
 
 import pytest
 from playwright.sync_api import sync_playwright
 
 from apply.dashboard import Dashboard, jpeg_size
+from apply.plain import demo
 from apply.plain.bridge import Bridge, PortTimeoutError
 from apply.plain.launcher import FLAGS, WINDOW, PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
@@ -280,3 +282,24 @@ def test_screenshots_still_work_while_the_tile_streams(page, frames, site):
 
     assert all(s.startswith(b"\xff\xd8") for s in shots)
 
+
+def test_the_tile_demo_streams_the_saved_form_it_fills(monkeypatch):
+    monkeypatch.setenv("APPLY_PROFILES", tempfile.mkdtemp(prefix="apw-tile-demo-", dir="/tmp"))
+    seen = []
+
+    def show(url):
+        def look():
+            deadline = time.monotonic() + 60
+            while not seen and time.monotonic() < deadline:
+                try:
+                    frame = urllib.request.urlopen(f"{url}/frame/0", timeout=5).read()
+                    if frame.startswith(b"\xff\xd8"):
+                        seen.append(frame)
+                except OSError:
+                    pass
+                time.sleep(0.3)
+        threading.Thread(target=look, daemon=True).start()
+
+    lines = demo.tile("lever-immuta", seconds=2, kind="testing", show=show)
+
+    assert "Nothing was sent" in lines[0] and seen
