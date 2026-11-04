@@ -379,8 +379,8 @@ two Projects, one Leadership):
   every cycle, as `fit` does, and measures the PDF after the steps so far
   (`now`, `taken`). The editor renders and saves each cycle's cuts as an
   ordinary hide, so the first render of `fit` (of a page the editor
-  already shows) and its database read and write go. Every cycle is one
-  Undo step. `tests/test_fit_page.py` checks it cuts what `fit` cuts.
+  already shows) and its database read and write go. The whole fit, every
+  cycle, is one Undo step. `tests/test_fit_page.py` checks it cuts what `fit` cuts.
 - `built_resumes.fit_to_one_page` (`POST .../fit`, kept for an editor
   whose API sends no measure) reads the view, gets the scores
   (`fit_scores`), runs `fit_page.fit` and saves the cuts through

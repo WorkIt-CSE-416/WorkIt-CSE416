@@ -5,6 +5,7 @@ import {
   ArrowUUpLeftIcon,
   ArrowUUpRightIcon,
   ArrowUpIcon,
+  CircleNotchIcon,
   CloudSlashIcon,
   EyeIcon,
   EyeSlashIcon,
@@ -539,9 +540,12 @@ export function Editor({
   const unanswered = useRef(new Map<string, ChoicesUpdate>());
   const changeCount = useRef(0);
   // A Fit to One Page under way: a second press waits for nothing. The
-  // state keeps its buttons dim, and the bar on "Saving…", from the click to
-  // the last cycle: between two cycles nothing is saving, and the button
-  // lit up for a moment between each
+  // state keeps its buttons dim, and the bar on "Fitting to One Page…", from
+  // the click to the last cycle: between two cycles nothing is saving, and
+  // the button lit up for a moment between each. Undo, Redo and opening a
+  // line wait for it too: a later cycle joins the first cycle's step, so an
+  // Undo between two cycles left the later hides with no Undo, and planned
+  // the next cycle from a page the plan did not expect
   const fitting = useRef(false);
   const [fittingNow, setFittingNow] = useState(false);
   // The editor's renders run one at a time, so each copy holds every
@@ -1248,6 +1252,9 @@ export function Editor({
 
   const select = useCallback(
     (key: string | null) => {
+      // No line opens while a fit runs: its edit would change the page
+      // under the plan (`fitting`)
+      if (key !== null && fitting.current) return;
       const left = selectedNow.current;
       flush();
       // A line left unchanged has nothing on its way to wait for
@@ -1310,6 +1317,8 @@ export function Editor({
    */
   const travel = useCallback(
     (back: boolean) => {
+      // Cmd+Z too: not between a fit's cycles (`fitting`)
+      if (fitting.current) return;
       select(null);
       void enqueue(async () => {
         const from = back ? undos : redos;
@@ -1469,7 +1478,7 @@ export function Editor({
    * the cuts that fit by prediction; they are an edit like any other, so the
    * page closes them up at once and the render and the save go behind it.
    * While the new PDF is still over one page, the next cycle plans from it.
-   * Every cycle is one Undo step. An API a deploy behind sends no measure,
+   * The whole fit, every cycle, is one Undo step. An API a deploy behind sends no measure,
    * and then the server fits (`fitOnServer`).
    */
   async function fit() {
@@ -2116,8 +2125,8 @@ export function Editor({
     />
   );
   const history: HistoryTools = {
-    canUndo: steps.undo > 0,
-    canRedo: steps.redo > 0,
+    canUndo: steps.undo > 0 && !fittingNow,
+    canRedo: steps.redo > 0 && !fittingNow,
     onUndo: () => travel(true),
     onRedo: () => travel(false),
   };
@@ -2151,6 +2160,7 @@ export function Editor({
           box={box}
           text={start == null ? null : (drafts[selected!] ?? start)}
           saving={saving || fittingNow}
+          fitting={fittingNow}
           elapsed={elapsed}
           error={error}
           download={download}
@@ -2202,6 +2212,7 @@ export function Editor({
       header={header}
       rendered={rendered}
       saving={saving || fittingNow}
+      fitting={fittingNow}
       elapsed={elapsed}
       download={download}
       onApply={apply}
@@ -2567,6 +2578,7 @@ function Bar({
   header,
   rendered,
   saving,
+  fitting,
   elapsed,
   download,
   onApply,
@@ -2589,6 +2601,8 @@ function Bar({
   /** Null until the first render lands. */
   rendered: RenderedPdf | null;
   saving: boolean;
+  /** A Fit to One Page is under way. */
+  fitting: boolean;
   elapsed: number | null;
   download: ResumeDownload;
   onApply: (changes: ChoicesUpdate) => void;
@@ -2611,6 +2625,7 @@ function Bar({
     <SlimBar
       rendered={rendered}
       saving={saving}
+      fitting={fitting}
       elapsed={elapsed}
       download={download}
       onFit={onFit}
@@ -2888,6 +2903,7 @@ function History({ tools }: { tools?: HistoryTools }) {
 function SlimBar({
   rendered,
   saving,
+  fitting = false,
   elapsed,
   download,
   onFit,
@@ -2902,6 +2918,8 @@ function SlimBar({
 }: {
   rendered: RenderedPdf | null;
   saving: boolean;
+  /** A Fit to One Page is under way: the status and the button say so. */
+  fitting?: boolean;
   elapsed: number | null;
   download: ResumeDownload;
   onFit: () => void;
@@ -2925,7 +2943,13 @@ function SlimBar({
 }) {
   const status = (
     <span className="text-note text-ink-meta pr-1" aria-live="polite">
-      {saving ? "Saving…" : elapsed !== null ? `Saved, ${elapsed} ms` : ""}
+      {fitting
+        ? "Fitting to One Page…"
+        : saving
+          ? "Saving…"
+          : elapsed !== null
+            ? `Saved, ${elapsed} ms`
+            : ""}
     </span>
   );
   const box = docs ? DOCS_BAR : SLIM_BAR;
@@ -2937,6 +2961,7 @@ function SlimBar({
       pages={rendered.page_count}
       linesOver={rendered.lines_over}
       disabled={saving}
+      fitting={fitting}
       onFit={onFit}
     />
   );
@@ -3107,11 +3132,16 @@ function FitButton({
   pages,
   linesOver,
   disabled,
+  fitting,
   onFit,
 }: {
   pages: number;
   linesOver: number;
   disabled: boolean;
+  /** While a fit runs it reads "Fitting…" with a spinner. Not a modal: the
+   *  page stays in view, where each cycle's cuts close up as they come
+   *  (KAN-584), the progress a modal would cover. */
+  fitting: boolean;
   onFit: () => void;
 }) {
   const over =
@@ -3128,7 +3158,16 @@ function FitButton({
       disabled={disabled}
       onClick={onFit}
     >
-      <ScissorsIcon aria-hidden /> Fit to One Page
+      {fitting ? (
+        <>
+          <CircleNotchIcon aria-hidden className="animate-spin motion-reduce:animate-none" />
+          Fitting…
+        </>
+      ) : (
+        <>
+          <ScissorsIcon aria-hidden /> Fit to One Page
+        </>
+      )}
     </Button>
   );
 }

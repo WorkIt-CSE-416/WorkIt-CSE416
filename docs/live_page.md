@@ -123,7 +123,10 @@ Built so far (option A, the typed line only):
   compiled again to confirm, wrote, and read the choices back, all before
   the page changed: two compiles and about ten reads. Measured on a laptop
   (2026-11-03): the cuts left the page 0.42 s after the click, and a
-  two-cycle fit ended at about 2.2 s.
+  two-cycle fit ended at about 2.2 s. While it runs, the button reads
+  "Fitting…" and the bar "Fitting to One Page…", and Undo, Redo and
+  opening a line wait for the last cycle: the page stays in view rather
+  than under a modal, since its cuts closing up are the progress.
 - **A page setting's compile is skipped when a newer one is next in the
   queue** (each is a full replacement), so five quick clicks on a size
   compile twice, not five times. Every click still saves. A skipped step

@@ -2058,8 +2058,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   cuts closed up, since painting it showed a second render when a
   prediction ran a line short. A fit that ends on a held PDF (nothing left
   to cut, a failed plan) paints it then. **Its buttons stay dim from the click to the
-  last cycle** (`fittingNow`, with the bar on "Saving…"): `saving` alone is
-  false between two cycles, and the button lit up for a moment between each.
+  last cycle** (`fittingNow`): `saving` alone is false between two cycles,
+  and the button lit up for a moment between each. The button reads
+  "Fitting…" with a spinner (the phone's "Fit" keeps its word) and the
+  status "Fitting to One Page…". **Undo, Redo and opening a line wait for
+  it too** (`fitting` in `travel` and `select`, `canUndo`): a later cycle
+  joins the first cycle's step, so an Undo between two cycles put that
+  step on the Redo stack, left the later hides with no Undo, and planned
+  the next cycle from a page with the first cuts shown again. No modal:
+  the page stays in view, where the cuts close up as they come, the
+  progress a modal would cover.
   An API with no measure fits on the server (`fitOnServer`, `hideAgain`).
   Every hide closes up at once the same way, not only Fit's, skills too: a
   hidden skill is a cut along its line (`skillCut`, `Gap`'s `x0`/`x1`), so
