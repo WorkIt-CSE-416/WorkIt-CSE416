@@ -235,3 +235,30 @@ def test_review_is_told_which_answers_are_lisuls_own():
     assert rows == [{"question": "What is currently to the immediate left of your computer?",
                      "answer": "My water bottle and my wallet", "his_own_answer": True}]
     assert "his_own_answer" in claude.systems[0]
+
+
+def test_the_review_gives_the_right_answer_for_a_wrong_one_the_sources_answer():
+    # Arrowstreet (live, 2026-11-04): the review named the school start for a From filled with the internship's,
+    # but only as a banner. Its fix now comes back by the question, for the Worker to fill.
+    start = Question("from", "From (MM/DD/YYYY)", "text", True)
+    gpa = Question("gpa", "Overall GPA", "text", True)
+    claude = FindsSomeFine({"problems": ["'From (MM/DD/YYYY)': 05/26/2027 is the internship start date"], "fine": [],
+                            "fixes": [{"question": "'From (MM/DD/YYYY)'", "answer": "08/01/2024"},
+                                      {"question": "A question not on the form", "answer": "Yes"},
+                                      {"question": "Overall GPA", "answer": ""}]})
+
+    found = review(claude, Posting("a", "Arrowstreet Capital", "Intern", "https://arrowstreetcapital.wd5.myworkdayjobs.com/x"),
+                   [start, gpa], {"from": "05/26/2027", "gpa": "3.86"})
+
+    assert found == ["'From (MM/DD/YYYY)': 05/26/2027 is the internship start date"]
+    assert found.fixes == {"From (MM/DD/YYYY)": "08/01/2024"}
+    assert "fixes" in claude.schemas[0]["properties"] and "fixes" in claude.systems[0]
+
+
+def test_a_fix_with_no_problem_is_no_fix():
+    start = Question("from", "From (MM/DD/YYYY)", "text", True)
+    claude = FindsSomeFine({"problems": [], "fine": [], "fixes": [{"question": "From (MM/DD/YYYY)", "answer": "08/01/2024"}]})
+
+    found = review(claude, Posting("a", "Acme", "Intern", "https://boards.greenhouse.io/acme/jobs/1"), [start], {"from": "08/01/2024"})
+
+    assert found == [] and found.fixes == {}

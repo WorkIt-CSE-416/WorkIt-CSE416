@@ -266,7 +266,8 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
         if not rehearse and (stop := planned.add(questions)):
             return stop
         form_url = getattr(filler, "form_url", lambda url: url)(posting.url)  # where its form is, if not the posting
-        for attempt in range(2):
+        replanned = fixed = False  # each is tried once: a fill again after a readback mismatch, and after the review's fixes
+        for attempt in range(3):
             with site.open(form_url) as page:
                 if rehearse and attempt == 0 and (stop := planned.add(questions)):
                     return stop
@@ -301,9 +302,10 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 holds = [f"Not filled: {e}" for e in planned.unfilled] + holds
                 filled = Filled(questions, answers, readback, _screenshot(page))
                 problems = readback_problems(questions, answers, readback, planned.accepted)
-                if problems and attempt == 0:
+                if problems and not replanned and attempt < 2:
                     # Perhaps a timing glitch, or the page words it its own way: Sonnet plans
                     # those answers again, and the form is filled once more in a fresh page.
+                    replanned = True
                     if not planned.handoffs:  # a form Lisul finishes gets no Claude call
                         planned.answers = replan(claude, questions, answers, readback, planned.accepted,
                                                  posting, planned.text)
@@ -327,6 +329,12 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         if planned.written or drafted else essays.profile_block(profile)
                     found = review(as_applicant(claude, profile), posting, questions, readback, sources, planned.text,
                                    planned.own())  # its reasons say the applicant's own pronouns
+                    if not fixed and attempt < 2 and planned.fix(found.fixes, readback):
+                        # The review named the right answer for a wrong one (an internship start in a school's
+                        # From): it is filled in its place, and the form filled and reviewed again, before
+                        # Lisul sees it as ready.
+                        fixed = True
+                        continue
                     holds += [f"Pre-submit review: {p}" for p in found]
                 # For Repair requests: a field Claude filled for the Filler (apply.rescue) is its code's to fix.
                 rescued = tuple(getattr(filler, "rescued", ()))
@@ -416,6 +424,8 @@ class _Planned:
         self.blanks: dict[str, str] = {}  # fields the engine's plan leaves blank on purpose, by name: why
         self.filed: dict[str, str | None] = {}  # each bare date's Answer bank wording, by name (fill_engine.Plan.filed)
         self.sections: dict[str, str] = {}  # each bare date's section, by name (fill_engine.Plan.sections)
+        self.fixes: dict[str, object] = {}  # the Pre-submit review's fixes, by name: no plan writes over them
+        self.fixed: list[tuple[str, str]] = []  # (question, answer) of each, for Verifying to list
         self.holds: list[str] = []
         self.handoffs: list[str] = []  # what Lisul must answer himself; the rest is still filled
         self.written: list[essays.Essay] = []
@@ -437,7 +447,8 @@ class _Planned:
 
     @answers.setter
     def answers(self, answers: dict) -> None:
-        self._answers = answers | self.lisuls  # what Lisul put on the page is the answer, whatever the plan says
+        # What Lisul put on the page is the answer, whatever the plan or the review says; the review's fix wins over the plan.
+        self._answers = answers | self.fixes | self.lisuls
         self._keep_files()
 
     def keep(self, values: dict) -> None:
@@ -580,7 +591,10 @@ class _Planned:
 
     def verify(self, readback: dict, review: list[str], rescued: tuple[str, ...]) -> "verify.Verification":
         """Verify the filled form (apply.verify), with the Pre-submit review's findings and what Claude guessed."""
-        guessed = [(one_line(d.question.label), d.shown) for d in self.drafted + self.unbanked] \
+        guessed = [(one_line(d.question.label), d.shown) for d in self.drafted + self.unbanked
+                   if d.question.name not in self.fixes] \
+            + [(question, f"{answer} (the Pre-submit review's fix, filled in place of the plan's)")
+               for question, answer in self.fixed] \
             + [(str(r).split(":", 1)[0], "filled by Claude for the Filler (a Rescue)") for r in rescued]
         return verify.check(
             self.questions, self.answers, readback, self.profile, self.posting, asked=self.missing,
@@ -607,6 +621,32 @@ class _Planned:
     def wording(self, q: Question) -> str:
         """The wording the Answer bank files `q`'s answer under: a bare date's section and label, else its label."""
         return self.filed.get(q.name) or q.label
+
+    def fix(self, fixes: dict[str, str], readback: dict) -> bool:
+        """Fill the Pre-submit review's `fixes` (its right answer, by the question's label on one line) in
+        place of the plan's answers, so no plan writes over them. Never over Lisul's own answer (on the page
+        or in the Answer bank), an essay, a file or a secret, nor an answer that isn't one of the question's
+        options. A draft it fixes leaves the Answer bank: the bank never keeps an answer known wrong.
+        True if any answer changed."""
+        own, essays_asked = self.own(), {e.question.name for e in self.written}
+        changed = False
+        for q in self.questions:
+            answer = fixes.get(one_line(q.label))
+            if (answer is None or q.kind in ("file", "multi_select") or q.name in self.lisuls or q.name in own
+                    or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
+                    or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
+                continue
+            for draft in [d for d in self.drafted if d.question.name == q.name]:
+                entry = self._bank.get(self.wording(q))
+                if entry and entry.source != LISUL and not entry.reviewed:
+                    self._bank.delete(self.wording(q))
+                self.drafted.remove(draft)
+            self.fixes[q.name] = answer
+            self.fixed.append((one_line(q.label), answer))
+            changed = True
+        if changed:
+            self.answers = self._answers
+        return changed
 
     def use_bank(self) -> None:
         """Count one use of each Answer bank answer the filled form took (a

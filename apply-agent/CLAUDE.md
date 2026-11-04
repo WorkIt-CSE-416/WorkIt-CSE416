@@ -360,6 +360,16 @@ reads: it does not click, type or submit.
   sources or the posting name). Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags.
+- A review finding can name the right answer when the sources give it
+  (`presubmit.Found.fixes`: an internship start in a school's From).
+  Apply fills that answer in place of the wrong one (`_Planned.fix`). It
+  then fills the form again, in a fresh page, and reviews it again, all
+  before the window shows the form as ready. It does this once. The fix
+  never replaces Lisul's own answer, an essay, a file or a secret. A
+  Claude draft that a fix replaces leaves the Answer bank. On Workday, the
+  next fill goes Back to the step that holds the fixed answer
+  (`WorkdayFiller._back_to_changed`). A read-back replan also refills
+  this way.
 - A flag that `holds` goes in the reason as `Verify: <field>: <why>` and
   holds a live run (Needs you, kind `check`). Read-back and review flags
   hold already by their own reason. A blank optional field holds as a

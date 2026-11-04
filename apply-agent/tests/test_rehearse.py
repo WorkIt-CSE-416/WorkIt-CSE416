@@ -382,6 +382,30 @@ def test_a_bare_from_claude_drafts_is_told_its_section_and_banked_only_under_it(
     assert server.submissions == []
 
 
+def test_the_pre_submit_reviews_fix_is_filled_before_the_form_shows_as_ready(monkeypatch, tmp_path):
+    # A bare From nothing on the form places: Claude's draft is never banked, and when the review names the right
+    # answer for a wrong one, that answer is filled and the form reviewed again, never left as a banner.
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    bare = ("Application Questions 1 of 2", [WorkdayField("from", "From", "date", True, format="MM/DD/YYYY")])
+    problem = "'From (MM/DD/YYYY)': 05/24/2027 is the internship start date, not his school start"
+    bank = AnswerBank(tmp_path / "answer-bank.yaml")
+    claude = FakeClaude(drafts={"From": "05/24/2027"},  # a number the profile holds (its earliest start), so it is used
+                        reviews=[{"problems": [problem], "fixes": [{"question": "From (MM/DD/YYYY)", "answer": "08/01/2024"}]}])
+
+    world = experience_profile()
+    with FakeWorkdayServer(XCEL_FORM, steps=_steps(bare)) as server:
+        [done] = rehearse([XCEL_URL], server, world.profile, claude, answer_bank=bank)
+
+    assert done.outcome == "ready to submit", done.why
+    assert "Pre-submit review" not in done.why
+    assert server.saved("xcelenergy.wd1.myworkdayjobs.com")["from"] == "08/01/2024"
+    [drafts] = [call["prompt"] for call in claude.calls if "drafts" in call["schema"]["properties"]]
+    assert '"about": "unknown"' in drafts
+    assert sum("problems" in call["schema"]["properties"] for call in claude.calls) == 2  # reviewed again after the fix
+    assert bank.entries() == []
+    assert server.submissions == []
+
+
 def test_a_workday_rehearsal_stops_where_google_wants_more_than_an_account_pick(monkeypatch, tmp_path):
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
 

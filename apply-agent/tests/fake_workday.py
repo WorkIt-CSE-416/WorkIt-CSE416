@@ -620,6 +620,9 @@ class FakeWorkdayServer:
             + '<div data-automation-id="pageFooter"><button data-automation-id="pageFooterBackButton">Back</button>'
             f'<button type="button" data-automation-id="pageFooterNextButton">{footer}</button></div>'
             f"</div><script>{STEP_SCRIPT}</script>"
+            # Back goes to the step before, as it saved it (none before the first)
+            + (f"<script>document.querySelector('[data-automation-id=pageFooterBackButton]').addEventListener('click', "
+               f"() => {{ location.href = '/__fake__/apply/{step - 1}'; }})</script>" if step > 1 else "")
         )
 
     def _google_page(self, route: Route, parts) -> None:
