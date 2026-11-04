@@ -1065,6 +1065,50 @@ was planned and what each field showed up to there
 (`WorkdayFiller.shown_so_far`); an outcome before any form opened keeps a
 screenshot of the page it stopped on.
 
+## Plain Workers: Records, Needs you, Resume and the emailed code (KAN-611)
+
+A plain Worker is a Chrome with no CDP, driven by the worker extension
+(`docs/plain-workers/PROTOCOL.md`). On its page (`apply.plain.page.PortPage`):
+
+- **Full-page screenshot.** `page.screenshot(full_page=True)` scrolls the page
+  one viewport at a time and joins the strips (`tabs.fullScreenshot`). Fixed
+  and sticky elements show once, at the top. The image has 1 px for each CSS
+  px, and it covers at most `FULL_PAGE_MAX` (20000) CSS px of the page.
+  Each strip takes about 0.55 s (captureVisibleTab allows about 2 a second).
+  The page scrolls in its window for that time, then goes back to where it was.
+  `worker._screenshot` and `_Kept.screenshot` take the whole page for a plain
+  page. A CDP page keeps its old screenshot.
+- **Page HTML in a Record.** A plain page's Record has `page.html`
+  (`Filled.html`, from `PortPage.record_html()`). It has each field's value as
+  the page shows it, but no scripts, no Apply note and no password value. It
+  has a `<base>`, so it opens with its styles. `records.record_files` replaces
+  each secret question's answer with REDACTED. A CDP page's Record has no
+  `page.html`: `worker.page_html` gives "" for it.
+- **Fixed page functions.** On a plain page, `evaluate(code)` needs eval. A
+  page whose CSP forbids eval refuses it in Chrome for Testing, where
+  Allow User Scripts can't be turned on. So the page functions that the held
+  page runs on each turn are fixed extension code: `on_page.FIELD` (Go to
+  question and the Watch), `stuck.FIELD_ERROR` (Resume), and
+  `email_code.WORDS`, `ARM` and `DISARM`. `apply.plain.fixed` lists them.
+  `apply plain prepare` writes them into `vendor/fixed.js` from these same
+  strings. `PortPage.evaluate` and `Locator.evaluate` run the fixed copy when
+  they get one of these strings (the `fixed.call` op). Thus `on_page`,
+  `stuck` and `email_code` don't change, and one source serves both kinds of
+  Worker. To run new page code on each turn of a held plain page, add its
+  string to `apply.plain.fixed`. Do not use eval for it.
+- **Focus.** Go to question focuses the field. The Worker's window is behind
+  Lisul's apps, so `:focus` doesn't match. `document.activeElement` is set,
+  and that is what the Watch reads.
+- The window's own field-error read (`CdpFrames._read_errors`) needs CDP.
+  For a plain Worker, the window reads `stuck.field_error(page)` over the
+  port, from its own thread (S3's frames).
+
+`tests/test_plain_records.py` proves all of it on a page whose CSP forbids
+eval. It includes a held rehearsal in a plain Worker: the fill pauses, Lisul
+presses Resume, he uses Go to question, and his answer typed on the page is
+taken. The Record has a full-page `form.png` and `page.html`. Until S4
+(KAN-610) puts the submit guard on PortPage, that test turns the guard off.
+
 ## The data folder (`APPLY_HOME`)
 
 **Personal data is never in the repo.** WorkIt is a public repo. All of a
