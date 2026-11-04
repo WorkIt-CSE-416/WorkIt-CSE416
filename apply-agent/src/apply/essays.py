@@ -277,7 +277,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
                               {key: lengths[key] for key in drafted_texts if key in lengths},
                               lambda key, answers: [*_gate(checked, answers).get(key, []), *same(key, answers)])
     failed = _gate(checked, texts)
-    if over := _over_cap(checked, texts):  # one shorter rewrite; still over, the worker keeps it off the form
+    if over := _over_cap(checked, texts):  # one shorter rewrite; still over a stated cap, the worker keeps it off the form
         texts |= writing.repair(claude, {key: texts[key] for key in over}, material, over, letter_keys & set(over),
                                 {key: questions[key] for key in over}, {key: lengths[key] for key in over if key in lengths})
         failed = _gate(checked, texts)
@@ -580,16 +580,27 @@ def _gate(checked: Mapping[str, _Checked], texts: Mapping[str, str]) -> dict[str
 
 
 def _over_cap(checked: Mapping[str, _Checked], texts: Mapping[str, str]) -> dict[str, list[str]]:
-    """The essays over a cap their form states (gates.over_cap), by key, each
-    with that failure and what the rewrite must do."""
+    """The essays over a cap their form states (gates.over_cap), or over the most
+    their length allows (gates.length: the type's default, when the form states
+    none; Bedrock's, live 2026-11-04, went on the form at 132 words of 120), by
+    key, each with that failure and what the rewrite must do."""
     from apply import gates
-    return {key: [*over, SHORTER] for key, text in texts.items()
-            if text and (over := gates.over_cap(text, checked[key].question))}
+    over = {}
+    for key, text in texts.items():
+        if not text:
+            continue
+        q = checked[key].question
+        if stated := gates.over_cap(text, q):
+            over[key] = [*stated, SHORTER]
+        elif long := [f for f in gates.length(text, q, checked[key].type) if f.startswith(gates.TOO_LONG)]:
+            over[key] = [*long, CUT]
+    return over
 
 
-# What the one rewrite of an essay over its form's limit is told (_over_cap).
-SHORTER = ("rewrite it shorter, under the most the line above gives, counted over the whole text (a letter's "
-           "salutation and sign-off too): cut whole sentences, keep the facts it needs. The form refuses a longer answer.")
+# What the one rewrite of an essay over its limit is told (_over_cap); SHORTER when the form states the limit.
+CUT = ("rewrite it shorter, under the most the line above gives, counted over the whole text (a letter's "
+       "salutation and sign-off too): cut whole sentences, keep the facts it needs.")
+SHORTER = f"{CUT} The form refuses a longer answer."
 
 
 # Heads the Story bank's section of Lisul's answers to the questions essays asked them (ASK).
