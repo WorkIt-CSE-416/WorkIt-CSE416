@@ -10,6 +10,8 @@ import pytest
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 
+from apply import fill_engine
+from apply.plain import demo
 from apply.plain.bridge import Bridge, PortTimeoutError
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
@@ -209,3 +211,22 @@ def test_navigation_and_popups(page, site):
     assert popups[0].title() == "Fake form"
     popups[0].close()
     assert popups[0].is_closed()
+
+
+def test_the_engine_reads_and_fills_a_saved_form_through_the_port(page):
+    with demo.replay(demo.SAVED_FORMS / "lever-immuta") as (url, _real):
+        page.goto(url)
+        questions = fill_engine.parse_questions("lever", page.evaluate("() => document.documentElement.outerHTML"))
+        named = {q.label: q for q in questions}
+        answers = {named["Full name"].name: "Testy McTestface", named["Email"].name: "testy@example.com"}
+        readback = fill_engine.fill(page, "lever", questions, answers)
+        assert readback[named["Full name"].name] == "Testy McTestface"
+        assert page.get_by_label("Email").first.input_value() == "testy@example.com" or \
+            readback[named["Email"].name] == "testy@example.com"
+
+
+def test_the_fill_demo_fills_test_person_and_sends_nothing(monkeypatch):
+    monkeypatch.setenv("APPLY_PROFILES", tempfile.mkdtemp(prefix="apw-profiles-", dir="/tmp"))
+    lines = demo.fill("lever-immuta", "testing")
+    assert "0 read-back problems" in lines[0] and "Nothing was sent" in lines[0]
+    assert any("Resume/CV: 'Test_Person_Resume.pdf'" in line for line in lines)
