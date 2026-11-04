@@ -510,6 +510,8 @@ class Dashboard:
     what newly waits on him while the window is not in front, one a minute at most.
     `show`, when given, brings Worker k's own Chrome window to the front (False:
     it has none), for what the tile cannot do: a sign-in, a captcha, a dialog.
+    `quiet(k)`, when given, says Worker k is a plain Worker: Go to question then never
+    brings its window forward (only Lisul's own Show does), and the tile shows the field.
     `sample`: Apply runs on the Test Person sample data, and the window says so.
     `approve`, when given, approves a Hold from the Inbox (its Application ID, and
     `essay=` the Essay cell with his edit of its essays' text if he edited them), as
@@ -522,8 +524,10 @@ class Dashboard:
                  answer: Callable[[dict, str, str], str] | None = None,
                  notify: Callable[[str, str], None] | None = None, show: Callable[[int], bool] | None = None,
                  sample: bool = False, approve: Callable[[str], str] | None = None,
-                 everyday: Callable[[str], None] | None = None, accounts: "AccountsTab | None" = None):
+                 everyday: Callable[[str], None] | None = None, accounts: "AccountsTab | None" = None,
+                 quiet: Callable[[int], bool] | None = None):
         self._workers = workers
+        self._quiet = quiet or (lambda k: False)
         self.accounts = accounts  # the Accounts tab: each Employer account, its password only in Keychain
         self._sample = sample
         self._frames = frames
@@ -682,7 +686,7 @@ class Dashboard:
             held = 0 <= k < self._workers and self._captions[k].get("posting_url") == item.get("posting_url")
         if not held:
             raise Refused("Its form is closed: answer it here.", 409)
-        front = bool(self.show and self.show(k))
+        front = bool(self.show and not self._quiet(k) and self.show(k))
 
         def reply(why: str) -> None:
             said.append(why)

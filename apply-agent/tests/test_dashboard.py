@@ -1530,3 +1530,14 @@ def test_the_accounts_tab_copies_a_password_it_never_shows(window):
 def test_a_window_with_no_accounts_tab_shows_none():
     with Dashboard(0, NoFrames()) as board:
         assert "tab-accounts" not in board.page()
+
+
+@pytest.mark.parametrize("plain", [True, False])
+def test_go_to_question_never_raises_a_plain_workers_window(monkeypatch, plain):
+    shown, url = [], "https://jobs.lever.co/a/1/apply"
+    monkeypatch.setattr(dashboard, "GO_TO_WAIT", 0.2)
+    with Dashboard(1, NoFrames(), show=lambda k: shown.append(k) or True, quiet=lambda k: plain) as board:
+        board.update(0, posting_url=url, status="ready to submit")
+        with pytest.raises(dashboard.Refused):  # no held form answers here: only whether it came forward
+            board.go_to({"worker": 0, "posting_url": url}, "Email")
+    assert shown == ([] if plain else [0])  # a plain Worker's window comes forward only by Lisul's Show
