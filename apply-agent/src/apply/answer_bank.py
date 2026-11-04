@@ -98,6 +98,25 @@ class AnswerBank:
             } | ({"facts": list(facts)} if facts else {})
             return True
 
+    def redraft(self, question: Question, answer: str | list[str], company: str, day: date) -> bool:
+        """Claude's new draft to `question`, written again with context Lisul
+        added (apply.regenerate), in place of its old draft: still Claude's and
+        unreviewed, first seen as before. Lisul's own answer stays. False
+        when the bank keeps his."""
+        with self._writing() as entries:
+            found = _find(entries, question.label)
+            if isinstance(found, dict) and found.get("source") == LISUL:
+                return False
+            if not isinstance(found, dict):
+                found = entries[key(question.label)] = {"question": one_line(question.label),
+                                                        "options": [_text(o) for o in question.options],
+                                                        "first_seen": {"date": day, "company": company}}
+            found["answer"] = [_text(a) for a in answer] if isinstance(answer, list) else _text(answer)
+            found["source"], found["reviewed"] = CLAUDE, False
+            found.pop("facts", None)  # what the old draft drew on
+            found.pop("none", None)
+            return True
+
     def take_edits(self, rows: list["AnswerRow"]) -> list[str]:
         """Copy Lisul's edits from the Answers tab into the bank: an answer he
         changed from the one Apply listed becomes his (source lisul, reviewed),

@@ -17,6 +17,8 @@ from conftest import (
     ANDURIL_URL,
     ARC_FORM,
     ARC_URL,
+    HERMEUS_FORM,
+    HERMEUS_URL,
     IMMUTA_FORM,
     IMMUTA_URL,
     PURE_STORAGE_FORM,
@@ -1246,6 +1248,70 @@ def test_a_file_attached_in_the_window_is_listed_on_its_tile_kept_by_its_name_an
     readme = (rehearsal_record(tmp_path) / "README.md").read_text()
     assert "| Email | Lisul_Elvitigala_Writing_Sample.pdf | Lisul_Elvitigala_Writing_Sample.pdf |" in readme
     assert "Missing facts: none" in board.captions[0]["line"]
+
+
+def test_add_context_and_regenerate_on_the_form_writes_that_answer_again_into_its_field(monkeypatch, tmp_path):
+    # KAN-599: Lisul reads Claude's essay on the held form, presses the small button beside it, types more
+    # context and presses Regenerate. Claude writes that one answer again into the field; nothing is sent.
+    from test_regenerate import CONTEXT, EARLIER, LATER
+
+    from apply import home
+    monkeypatch.setitem(FILLERS, "lever", NeverSubmits(LeverFiller()))
+    mission = "What about our mission excites you?"
+    claude = FakeClaude(essays={mission: [EARLIER, LATER]})
+    pages, seen = [], {}
+    lift = rehearsal.lift
+    monkeypatch.setattr(rehearsal, "lift", lambda page, **more: (pages.append(page), lift(page, **more))[1])
+
+    class Board(RecordingBoard):
+        pressed = False
+
+        def answered(self, worker):  # on the held page's own thread, every half second
+            if not pages:
+                return []
+            page, [written] = pages[0], [w for w in self.captions[worker]["written"] if w["label"] == mission]
+            field = page.locator(f'[data-apply-written="{written["name"]}"]')
+            mine = page.locator(f'#apply-regenerate [data-for="{written["name"]}"]')
+            if not self.pressed:
+                field.wait_for(timeout=5_000)
+                seen["before"], seen["offered"] = field.input_value(), sorted(w["kind"] for w in self.captions[worker]["written"])
+                field.scroll_into_view_if_needed()
+                mine.get_by_role("button", name="Add context and regenerate").click()
+                mine.locator("textarea").fill(CONTEXT)
+                mine.get_by_role("button", name="Regenerate", exact=True).click()
+                self.pressed = True
+            elif not written["state"]:  # written again
+                seen["after"], seen["read_only"] = field.input_value(), field.evaluate("el => el.readOnly")
+                seen["note"] = mine.inner_text()
+                page.close()  # Lisul is done with it
+            return []
+
+        def update(self, worker, **caption):
+            if any(w.get("state") == "working" for w in caption.get("written") or []):
+                seen["working"] = pages[0].locator('[data-apply-written]').evaluate_all(
+                    "boxes => boxes.filter(el => el.readOnly).length")
+            super().update(worker, **caption)
+
+    board = Board()
+    lines = []
+    with FakeLeverServer(HERMEUS_FORM) as fake:
+        rehearsal.rehearse([HERMEUS_URL], adapters(fake, claude, board=board, records=FolderRecords(tmp_path / "rehearsals")),
+                           ApplicantProfile.load(profile_with(tmp_path)), 1, keep_open=True, out=lines.append)
+
+    assert seen["offered"] == ["draft", "draft", "essay", "essay"]  # each answer Claude wrote; no pick, no profile fact
+    assert seen["before"] == EARLIER and seen["working"] == 1  # only that field shows it is being written again
+    assert seen["after"] == LATER and seen["read_only"] is False  # the new answer, his to edit
+    assert "New answer from your context" in seen["note"]
+    [written] = [w for w in board.captions[0]["written"] if w["label"] == mission]
+    assert (written["text"], written["kind"], written["state"]) == (LATER, "essay", "")
+    assert any(f"regenerated '{mission}' with your context" in line for line in lines)
+    assert f'- For "{mission}" at Hermeus: {CONTEXT}' in home.STORY_BANK.read_text()
+    [row] = [r for r in json.loads((rehearsal_record(tmp_path) / "answers.json").read_text()) if r["question"] == mission]
+    assert row["planned"] == row["on_page"] == LATER  # the Record keeps the new answer
+    readme = (rehearsal_record(tmp_path) / "README.md").read_text()
+    assert f"Regenerated '{mission}' with your context" in readme
+    assert LATER in (rehearsal_record(tmp_path) / "essays.md").read_text()
+    assert fake.submissions == []
 
 
 def rehearsal_record(tmp_path) -> Path:

@@ -27,6 +27,7 @@ from apply import (
     eligibility,
     essays,
     gates,
+    regenerate,
     sameness,
     stuck,
     verify,
@@ -129,6 +130,8 @@ class Result:
     reused: tuple[tuple[str, str, int], ...] = ()
     bot_signals: tuple[str, ...] = ()  # what suggested the job system took the browser for a bot (apply.bot_signals)
     verification: "verify.Verification | None" = None  # how verifying the filled form went (apply.verify)
+    # each answer Claude wrote for the form, kept so Lisul can have one written again (apply.regenerate)
+    regenerable: "regenerate.Form | None" = None
 
     def drafted_note(self) -> str:
         """The drafts, as the Tracker row and the Record list them."""
@@ -220,6 +223,8 @@ def apply_to(
     result.drafted = tuple((one_line(planned.wording(d.question)), d.shown) for d in planned.drafted)
     result.reused = tuple(planned.reused)
     result.named_facts = tuple((one_line(e.question.label), e.named) for e in planned.written if e.named)
+    if rehearse and result.filled is not None:  # a page held for Lisul: each answer Claude wrote has its regenerate
+        result.regenerable = regenerate.form_of(planned)
     return result
 
 

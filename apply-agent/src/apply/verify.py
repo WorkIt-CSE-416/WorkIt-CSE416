@@ -380,6 +380,11 @@ def _names(profile: ApplicantProfile) -> list[str]:
     return list(dict.fromkeys([*first, *(f"{f} {last}" for f in first if last), *([last] if last else [])]))
 
 
+def essay(label: str, text: str, profile: ApplicantProfile, posting: Posting, allowed: str) -> list[Flag]:
+    """The flags of one essay alone: what `check` finds in it (apply.regenerate checks an answer written again)."""
+    return _essay(label, text, profile, posting, allowed)
+
+
 def _essay(label: str, text: str, profile: ApplicantProfile, posting: Posting, allowed: str) -> list[Flag]:
     """A wrong pronoun or name for the applicant, and another company's name, in one essay."""
     flags = []

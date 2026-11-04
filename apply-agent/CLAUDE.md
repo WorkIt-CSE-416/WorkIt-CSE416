@@ -490,6 +490,59 @@ Review with his answer and no submit. Also each reason a tile offers
 Resume, the `/resume` route, the field-error check on each job system's
 error shapes, and a killed `claude -p`. Run it with `-k`; it opens Chromium.
 
+## Add context and regenerate (KAN-599)
+
+`src/apply/regenerate.py`. While Lisul reviews a rehearsal's held form, each
+answer that Claude wrote for that Application has a small "Add context and
+regenerate" button. He types what Claude should know or change, and Claude
+writes that one answer again.
+
+- **Which answers.** `regenerate.form_of` (the Worker's `Result.regenerable`,
+  rehearsals only) lists each essay, Answer bank draft and company-only
+  one-off that went into a text field. A profile fact, a pick from a list, a
+  file and Lisul's own Answer bank answer get no button.
+- **On the form (the main place).** When the page is lifted for Lisul
+  (`_Kept.hold`), `regenerate.offer` draws the button over the page, above
+  the field's top right. It is on the page's body, fixed, never inside the
+  form, so the page's own code never sees a new node. A scan every 500 ms
+  finds the field again (the field that shows Claude's text, else its id or
+  name). The Live tile streams the same page, so the button works from the
+  window too. A press calls the `__applyRegenerate` binding; the hold loop
+  takes it on its next turn.
+- **In the window.** A Needs you card lists "What Claude wrote" with the
+  same button and a context box (`POST /regenerate {id, name, context}`,
+  with the window's token). `Dashboard.regenerate` refuses no context, an
+  answer Claude did not write, a form that fills again, and one already
+  being rewritten. `Board.regenerations(k)` hands each press to the hold
+  loop once.
+- **While it runs.** The field is read-only and dimmed, and the button says
+  "Claude is rewriting this answer". The tile's `written` entry has `state:
+  working`. Nothing is clicked or sent.
+- **How it writes.** His context joins the Story bank first, under "Added
+  while reviewing answers", as one line that names the question (and
+  `asking.where` for a bare label) and the company: never a bare label
+  alone. Then `essays.answer` runs with `redo={question: (old, context)}`:
+  the plan and the draft both get a `<redo>` block (`essays.REDO`,
+  `REDO_PLAN`). It is the usual path: the same sources, plan, editor, code
+  gates and caps. A form that read no Company material reads it now
+  (`company.gather`, `brief.brief`) for an essay or a company question.
+- **What stays off the form.** An answer over the form's cap
+  (`gates.over_cap`), or with a name or number no source holds
+  (`regenerate.INVENTED`), is not put on the form. The old answer stays and
+  the note says why. Other gate and verifier flags (`verify.essay`) go on
+  the note beside the field.
+- **After.** Plain code sets the field with the page's own input events and
+  reads it back (`regenerate.done`). The field is editable again. The
+  Record is saved again: `answers.json`, `essays.md` and a history line
+  ("Regenerated '<q>' with your context"). A draft in the Answer bank is
+  replaced (`AnswerBank.redraft`: still Claude's, unreviewed). Lisul's own
+  answer and a bare label are never replaced.
+
+**Tests.** `tests/test_regenerate.py` (in CI, no browser): the regenerate,
+its Story bank line, the caps and invented facts, the Answer bank, the
+window's route. `tests/test_rehearse.py -k regenerate` presses the button
+on the fake Lever form (Hermeus) in Chromium; it opens a browser.
+
 ## Prompts and gates
 
 - Every prompt names the applicant as `@NAME@` and their school as
