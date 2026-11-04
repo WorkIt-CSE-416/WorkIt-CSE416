@@ -38,6 +38,9 @@ export const ops = {
   ping: async () => ({ pong: true, userScripts: userScriptsOn(), webdriver: navigator.webdriver === true, tabs: (await chrome.tabs.query({})).length }),
   "tabs.query": async () => (await chrome.tabs.query({})).map(tabInfo),
   "tabs.create": async ({ url, active = false }) => tabInfo(await chrome.tabs.create({ url: url || "about:blank", active })),
+  // focused: false shows the window without activating Chrome, so it never takes Lisul's focus.
+  "windows.create": async ({ url, left, top, width, height }) =>
+    tabInfo((await chrome.windows.create({ url: url || "about:blank", focused: false, left, top, width, height })).tabs[0]),
   "tabs.get": async ({ tab }) => tabInfo(await chrome.tabs.get(tab)),
   "tabs.close": async ({ tab }) => {
     await chrome.tabs.remove(tab);

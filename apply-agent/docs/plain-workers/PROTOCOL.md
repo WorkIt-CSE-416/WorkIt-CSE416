@@ -316,7 +316,9 @@ connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),
 **Background launch (Lisul, 2026-11-04):** a Worker's Chrome starts through
 `/usr/bin/open -g -n -a <Chrome app> --args ...` (`launcher.start_in_background`), never by running
 the binary, which macOS brings to the front. Its PID is then read from the profile's
-`SingletonLock` (`PlainWorker.process` is a `launcher.Chrome`, stopped by that PID). Windows are
+`SingletonLock` (`PlainWorker.process` is a `launcher.Chrome`, stopped by that PID). `open -g` alone is not enough: Chrome activates itself as it shows its first
+window, so it starts with `--no-startup-window` and, after the hello, the extension's
+`windows.create` op opens the Worker's window with `focused: false`. Windows are
 900 x 640 at the top-left corner, staggered 20 px a Worker, wholly on-screen. Nothing may bring a
 Worker forward except Lisul's own Show (`PlainWorkers.show`): no `chrome.windows.update({focused:
 true})`, no AppleScript focus, no full-screen. Tests use one Worker, shared by the module, and stop it

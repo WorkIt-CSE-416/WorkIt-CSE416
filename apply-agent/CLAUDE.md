@@ -921,7 +921,8 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   `PortPage.mouse` use the same ops (`attach.py`'s upload behind a button
   works on a plain Worker).
 - **Never take Lisul's focus.** Plain Workers start with `open -g -n`
-  (`launcher.start_in_background`), small, at the screen's top-left
+  (`launcher.start_in_background`) with `--no-startup-window`, then the
+  extension opens the window unfocused (`windows.create`), small, at the screen's top-left
   corner. Only his Show brings one forward. Tests share one Worker and
   stop it when they end.
 - **Not wired into runs yet.** `cli._dashboard` still builds `CdpFrames`. S8
