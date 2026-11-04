@@ -1270,10 +1270,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   needs is read on the server and passed in (the footer wordmark's
   titles). Check after changing a layout, the header, the footer or a
   content file: on `next build` and `next start`, `/privacy` loads about
-  214 KB compressed of JavaScript up to its load event (340 KB before this
-  rule); Next then prefetches the linked pages' chunks, about 130 KB more,
-  which is expected. A jump means a client import leaked in. Measure
-  speed on a production build, never `next dev`.
+  215 KB compressed of JavaScript up to its load event (340 KB before this
+  rule; 2026-11-03); Next then prefetches the linked pages' chunks, 80 to
+  130 KB more, which is expected. A jump means a client import leaked in.
+  Measure speed on a production build, never `next dev`.
 - **The home page hydrates in pieces** (KAN-540, `hydrateNear` in
   `near.tsx`, used by `deferred-sections.tsx`). Each section below the
   hero (the bridge, the tour, hiring systems, the statement, the
@@ -1786,14 +1786,14 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   (KAN-365), and `custom-icons.tsx`'s `STROKE` matches it. A glyph
   Phosphor lacks goes in `components/custom-icons.tsx` with all its
   weights (`docs/design.md`, Brand and icons). **The bundler takes
-  `icons.tsx` whole**, all six weights of each of its 56 glyphs (about
-  170 KB, 41 KB compressed), however few a file imports, since its
-  wrappers are one module. So a client component the root layout mounts,
-  or one a marketing page draws, never imports from it: it draws
-  Phosphor's glyph itself (`ui/toast.tsx`'s close button), or the sparkle
-  from `sparkle-icon.tsx`. The toast's one `CloseIcon` loaded it on every
-  page, and the Resumes and Auto Apply animations' sparkle on their
-  feature pages.
+  `icons.tsx` whole**, all six weights of every glyph in it (65 glyphs,
+  about 150 KB, 36 KB compressed, on 2026-11-03), however few a file
+  imports, since its wrappers are one module. So a client component the
+  root layout mounts, or one a marketing page draws, never imports from
+  it: it draws Phosphor's glyph itself (`ui/toast.tsx`'s close button,
+  Scout's animation's), or the sparkle from `sparkle-icon.tsx`. The
+  toast's one `CloseIcon` loaded it on every page, and the Resumes and
+  Auto Apply animations' sparkle on their feature pages.
 - **An icon's colour says its job** (`docs/design.md`, Components): black to
   click, purple when on, grey for information. Never set a clickable icon to
   `text-ink-meta`.

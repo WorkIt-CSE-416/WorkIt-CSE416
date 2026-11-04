@@ -9,7 +9,7 @@ import { SparkleIcon as Sparkle } from "@phosphor-icons/react/ssr";
  *
  *  Its own module, which icons.tsx re-exports, so a light page can draw it
  *  without icons.tsx: the bundler takes that module whole, all its glyphs,
- *  about 41 KB compressed, and the feature pages' Resumes and Auto Apply
+ *  about 40 KB compressed, and the feature pages' Resumes and Auto Apply
  *  animations paid that for this one mark (frontend/CLAUDE.md, Icons). */
 export function SparkleIcon({ className }: { className?: string }) {
   return <Sparkle aria-hidden className={className} />;
