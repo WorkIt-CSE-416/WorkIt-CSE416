@@ -261,6 +261,15 @@ connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),
 `--load-extension=<worker-extension>`. Never `--remote-debugging-port`,
 `--enable-automation`, `--headless`. Workers are never minimized and sit on-screen.
 
+**Background launch (Lisul, 2026-11-04):** a Worker's Chrome starts through
+`/usr/bin/open -g -n -a <Chrome app> --args ...` (`launcher.start_in_background`), never by running
+the binary, which macOS brings to the front. Its PID is then read from the profile's
+`SingletonLock` (`PlainWorker.process` is a `launcher.Chrome`, stopped by that PID). Windows are
+900 x 640 at the top-left corner, staggered 20 px a Worker, wholly on-screen. Nothing may bring a
+Worker forward except Lisul's own Show (`PlainWorkers.show`): no `chrome.windows.update({focused:
+true})`, no AppleScript focus, no full-screen. Tests use one Worker, shared by the module, and stop it
+when they end.
+
 `policies.yaml: worker_mode: cdp|plain` (default `cdp`) is read by S8's routing; S1 only adds the key.
 
 ## Known limits (found in S1/S2, on Chrome for Testing 156)
