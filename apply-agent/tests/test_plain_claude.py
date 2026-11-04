@@ -258,6 +258,20 @@ def test_a_file_goes_only_to_the_chooser_a_click_opened_and_only_from_the_drives
     assert page.evaluate("() => window.picked") == "Test_Person_Resume.pdf"
 
 
+@needs_chrome
+def test_the_upload_works_with_the_tiles_chooser_hook_on_the_page_too(page, tmp_path):
+    page.worker.call("chooser.watch", tab=page.tab)  # S3's hook first: it swallows input.click()
+    (tmp_path / "Test_Person_Resume.pdf").write_bytes(b"%PDF-1.4 test")
+    with tools_on(page, tmp_path) as tools:
+        upload = ref(tools.tool("browser_snapshot")[0], 'button "Upload resume"')
+        said, _ = tools.tool("browser_click", target=upload, element="Upload resume")
+        assert "[File chooser]" in said
+        said, error = tools.tool("browser_file_upload", paths=[str(tmp_path / "Test_Person_Resume.pdf")])
+        assert not error
+    assert page.evaluate("() => window.picked") == "Test_Person_Resume.pdf"
+    assert page.evaluate("() => document.documentElement.getAttribute('data-apply-chooser')") is None
+
+
 class PlainSite:
     """The JobSite a Claude fill opens its page through: the plain Worker's tab."""
 

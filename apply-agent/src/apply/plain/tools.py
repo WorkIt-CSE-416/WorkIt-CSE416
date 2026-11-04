@@ -235,7 +235,7 @@ class Tools:
         if not files:
             return "### Result\nThe file chooser was cancelled."
         frame = self.page if frame_id == 0 else PortFrame(self.page, frame_id)
-        frame.locator(f'[data-apply-chooser="{token}"]').set_input_files(files, timeout=ACTION_TIMEOUT)
+        frame.locator(f'[data-apply-mcp-chooser="{token}"]').set_input_files(files, timeout=ACTION_TIMEOUT)
         return self._after(f"await fileChooser.setFiles({json.dumps([f.name for f in files])});")
 
     def browser_press_key(self, key: str) -> str:

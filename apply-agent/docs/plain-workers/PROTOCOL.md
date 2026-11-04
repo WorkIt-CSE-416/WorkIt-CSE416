@@ -256,8 +256,9 @@ KAN-612. In `worker-extension/ops/claude.js`, with `page/modal.js`. They serve A
 `page/modal.js` answers each native dialog at once and records it: `confirm` and `prompt` are
 dismissed unless `mcp.answer` said otherwise (as Playwright dismisses a dialog no one handles).
 A file input that would open its picker (a click on it or its label, `input.click()`, or
-`showPicker()`) is recorded as the open chooser and marked `data-apply-chooser="<token>"`;
-`dom` `files` on `[data-apply-chooser="<token>"]` then sets its files. It adds no events of its own.
+`showPicker()`, also when S3's tile hook kept it) is recorded as the open chooser and marked
+`data-apply-mcp-chooser="<token>"`; `dom` `files` on `[data-apply-mcp-chooser="<token>"]` then sets
+its files, and the tile's chooser mark is cleared. It adds no events of its own.
 
 ### Apply's MCP server
 

@@ -43,8 +43,12 @@ async function modal({ tab, clear = ["dialogs"] }) {
   const found = await inFrames(tab, (clear) => {
     const state = window.__applyModal;
     if (!state) return null;
+    if (!state.chooser) state.fromTile?.();
     const said = { dialogs: clear.includes("dialogs") ? state.dialogs.splice(0) : [...state.dialogs], chooser: state.chooser };
-    if (clear.includes("chooser")) state.chooser = null;
+    if (clear.includes("chooser")) {
+      state.chooser = null;
+      state.closeTile?.();
+    }
     return said;
   }, [clear]);
   return found.filter((f) => f.value).map((f) => ({ frame: f.frame, ...f.value }));

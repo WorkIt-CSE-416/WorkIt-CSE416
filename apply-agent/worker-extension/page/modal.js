@@ -35,7 +35,7 @@
   function chosen(input) {
     if (!(input instanceof HTMLInputElement) || input.type !== "file" || input.disabled || !input.isConnected) return;
     const token = `c${Date.now().toString(36)}${(seq++).toString(36)}`;
-    input.setAttribute("data-apply-chooser", token);
+    input.setAttribute("data-apply-mcp-chooser", token);
     state.chooser = { token, multiple: input.multiple, accept: input.accept || "", at: Date.now() };
   }
   window.addEventListener("click", (event) => {
@@ -43,11 +43,34 @@
     if (hit instanceof HTMLInputElement) chosen(hit);
     else if (hit?.closest?.("label")?.control) chosen(hit.closest("label").control);
   }, true);
-  const showPicker = HTMLInputElement.prototype.showPicker;
+  // A page's input.click() / showPicker(): recorded, then passed on (to the tile's chooser hook,
+  // S3's ops/tile.js, when it was installed first; it keeps the input and opens no picker).
+  const proto = HTMLInputElement.prototype;
+  const click = proto.click;
+  proto.click = function () {
+    if (this.type === "file") chosen(this);
+    return click.call(this);
+  };
+  const showPicker = proto.showPicker;
   if (showPicker) {
-    HTMLInputElement.prototype.showPicker = function () {
-      if (this.type === "file") return chosen(this);
+    proto.showPicker = function () {
+      if (this.type === "file") chosen(this);
       return showPicker.call(this);
     };
   }
+  // The input the tile's hook kept, when its wrapper ran before ours could see the call.
+  Object.defineProperty(state, "fromTile", {
+    value() {
+      const input = document.querySelector("[data-apply-chooser-input]") || window[Symbol.for("apply.chooser")];
+      if (input && !input.hasAttribute("data-apply-mcp-chooser")) chosen(input);
+    },
+  });
+  // Once Claude used or cancelled the chooser, the tile's mark of it goes too.
+  Object.defineProperty(state, "closeTile", {
+    value() {
+      document.documentElement.removeAttribute("data-apply-chooser");
+      document.querySelector("[data-apply-chooser-input]")?.removeAttribute("data-apply-chooser-input");
+      window[Symbol.for("apply.chooser")] = null;
+    },
+  });
 })();
