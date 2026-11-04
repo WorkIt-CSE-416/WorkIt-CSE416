@@ -198,6 +198,23 @@ FILL_SCHEMA = {
 }
 
 
+def _field_named(said: str, labels: dict[str, str]) -> str | None:
+    """The id of the field a `filled` entry names: its id, else the one
+    field of exactly that label, else the one whose label is it but for case,
+    spaces and a trailing "*". None if no field is, or two are: never a guess."""
+    if said in labels:
+        return said
+
+    def norm(label: str) -> str:
+        return re.sub(r"\s+", " ", label).strip().rstrip("*").strip().casefold()
+
+    for same in (lambda label: label == said, lambda label: norm(label) == norm(said)):
+        found = [name for name, label in labels.items() if same(label)]
+        if found:
+            return found[0] if len(found) == 1 else None
+    return None
+
+
 class ClaudeFill:
     """A Filler for one Application on a job system with no Filler of its own."""
 
@@ -316,7 +333,7 @@ class ClaudeFill:
                 prompt = f"These dropdowns are already picked: {done_already}. Leave them as they are.\n{prompt}"
             done = self._session(page, FILL, prompt, FILL_SCHEMA, files)
             for field in done["filled"]:
-                name = field["field"]
+                name = _field_named(str(field["field"]), {name: labels[name] for name in todo})
                 if name in kinds and name in todo:
                     shown = [NOTED.sub("", str(s)).strip() for s in field["shown"]]
                     if not any(shown) and self._readback.get(name):
