@@ -252,8 +252,8 @@ async function flags({ tab, set }) {
 }
 
 // A press the extension is about to make in a frame counts as a touch: the guard then shows what
-// it blocks, as it does for a trusted click. S3's tile replay calls this with by = "lisul" before
-// each press of Lisul's, and Apply hears `guard.touched` from the extension itself (his press is
+// it blocks, as it does for a trusted click. tile.input calls this before
+// each press it replays (by = "lisul" for the tile's), and Apply hears `guard.touched` from the extension itself (his press is
 // untrusted, so the page can't tell it from a script's).
 export async function touch({ tab, frame = 0, by = "lisul" }, ctx = ctxRef) {
   await inFrames(tab, "ISOLATED", { frame, args: [by], func: (by) => window.dispatchEvent(new CustomEvent("__apply_touch", { detail: by })) });

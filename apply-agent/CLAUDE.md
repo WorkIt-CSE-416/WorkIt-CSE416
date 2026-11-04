@@ -740,7 +740,7 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   back.
 - **Presses are untrusted.** The plain copy of the guard script (`port=True`) counts as a touch
   the `__apply_touch` the extension sends before each press: Apply's own (`page/dom.js`) and
-  Lisul's from the tile (S3 calls `touch()` in `ops/guard.js`, which also sends `guard.touched`
+  Lisul's from the tile (`tile.input` calls `touch()` in `ops/guard.js`, which also sends `guard.touched`
   up the port). It also reports each block as a `guard.said` event, which `PlainDriveGuard.blocked()`
   reads, since no console reaches Apply.
 - **Bindings.** `expose_binding` defines `window[name]` in each document of the tab. A call

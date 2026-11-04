@@ -215,6 +215,22 @@ def test_a_tile_press_counts_as_lisuls(page, site):
 
 
 @live
+def test_a_click_from_the_tile_counts_as_lisuls(page, site):
+    touched = []
+    page.worker.on("guard.touched", touched.append)
+    guard(page)
+    box = page.get_by_role("button", name="Submit application").bounding_box()
+    at = {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
+    for kind in ("down", "up"):  # what apply.plain.tile sends for his click on the tile
+        page.worker.call("tile.input", tab=page.tab, event={"type": kind, "button": "left", "clicks": 1, **at})
+    _settle(page, 0.5)
+    assert site.posts == []
+    assert "blocked" in _note(page)
+    assert [(t["tab"], t["by"]) for t in touched] == [(page.tab, "lisul")]  # once, for the press
+    page.worker.off("guard.touched", touched.append)
+
+
+@live
 def test_once_lifted_lisul_s_submit_goes_through_and_apply_hears_it(page, site):
     pressed, again = [], []
     guard(page)

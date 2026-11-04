@@ -16,7 +16,7 @@ posting, Lever's /apply), a page Claude opens never waits on it, and GETs always
 
 Untrusted presses: a plain Worker's every click and key is synthetic, so the guard script's copy
 here (`port=True`) also counts as a touch the `__apply_touch` the extension dispatches before
-each press it makes: Apply's own (page/dom.js) and Lisul's from the tile (S3 calls touch(), and
+each press it makes: Apply's own (page/dom.js) and Lisul's from the tile (tile.input calls touch(), and
 the extension reports `guard.touched` up the port itself). What a guard blocked reaches Apply
 as `guard.said` events, not the console.
 """

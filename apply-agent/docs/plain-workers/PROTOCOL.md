@@ -199,7 +199,7 @@ A fresh service worker starts with no content scripts, rules or user scripts.
 | `guard.lift` | `tab`, `again`, `warning`, `wrong`, `sha256` (of `lifted.js`) | `null`; `submit_guard.LIFTED` with those values in every frame now and in each document the tab (and a tab it opens) loads, until `guard.rearm` |
 | `guard.rearm` | `tab`, `sha256` (of `rearmed.js`) | `null`; stops lifting the tab and runs `submit_guard.REARMED` in its frames |
 | `guard.flags` | `tab`, `set` (`{"__applyDriveLifted"|"__applyAccountClick"|"__applyRehearsalLifted": bool}`) | `null`; in every frame (DriveGuard's `lift`, `arm`, `let_account_click`) |
-| `guard.touch` | `tab`, `frame?`, `by` (`lisul`/`apply`) | `null`; dispatches `__apply_touch` in the frame, which the guard counts as a touch; `by: "lisul"` also sends `guard.touched`. S3's tile replay calls the exported `touch()` before each press of Lisul's |
+| `guard.touch` | `tab`, `frame?`, `by` (`lisul`/`apply`) | `null`; dispatches `__apply_touch` in the frame, which the guard counts as a touch; `by: "lisul"` also sends `guard.touched`. `tile.input` calls the exported `touch()` before each press it replays (`by` its own param: `lisul` from the tile, `apply` from `PortPage.mouse`) |
 | `guard.sync` | `tab`, `timeout?` ms | `null` once every frame's earlier `guard.said` messages have reached the service worker |
 | `guard.status` | `tab?` | `{"scripts": [ids], "rules": n, "lifted": bool}` |
 | `guard.reset` | | `null`; no guard left: every content script, rule, user script, lift and binding goes (`apply.plain.guards.reset(worker)`, for a Worker reused for another Application; a fresh service worker starts so) |
