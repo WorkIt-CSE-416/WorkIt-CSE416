@@ -44,7 +44,8 @@ class Question:
     """One field of a Posting's form. `name` is the job system's own field id.
     `description` is the help text the form shows under the label ("3-4
     sentences"), as plain text; `max_length` the most characters the field
-    takes, when the form says. Neither tells two Questions apart."""
+    takes, when the form says; `section` the heading or intro the form shows
+    just before it, when the form reader finds one. None tells two Questions apart."""
 
     name: str
     label: str
@@ -53,6 +54,7 @@ class Question:
     options: tuple[str, ...] = ()
     description: str = field(default="", compare=False)
     max_length: int | None = field(default=None, compare=False)
+    section: str = field(default="", compare=False)
 
 
 # Every question one Posting's form asks, read before the form is opened.

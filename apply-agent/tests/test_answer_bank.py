@@ -274,3 +274,15 @@ def test_none_of_a_multi_selects_options_is_an_answer(tmp_path):
 
     AnswerBank(path).answer(orgs.label, ["Society of Women Engineers (SWE)"], DAY)  # he joined one
     assert AnswerBank(path).get(orgs.label).none is False
+
+
+def test_a_bare_date_is_filed_under_its_section_never_its_label_alone(tmp_path):
+    # Arrowstreet (live, 2026-11-04): "from (mm/dd/yyyy)" held the internship's start, for every From on every form.
+    bank = AnswerBank(tmp_path / "answer-bank.yaml")
+    start = Question("q", "From (MM/DD/YYYY)", "text", True)
+
+    assert bank.add(start, "06/01/2026", "Acme", date(2026, 11, 4), wording="work experience / From (MM/DD/YYYY)")
+
+    assert bank.get("From (MM/DD/YYYY)") is None
+    assert bank.get("work experience / From (MM/DD/YYYY)").answer == "06/01/2026"
+    assert "work experience / from (mm/dd/yyyy):" in (tmp_path / "answer-bank.yaml").read_text()

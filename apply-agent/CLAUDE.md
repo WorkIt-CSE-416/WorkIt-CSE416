@@ -83,6 +83,20 @@ its boxes stay unticked, a blank on purpose in the plan.
 `AnswerBank.answer(question, [])` saves one; an answer with options in it
 drops `none`. An empty answer without `none` is still no answer.
 
+A bare date (From, To, Start date, End date: a label that does not say
+what the date is for) is answered for its section (KAN-595). The engine
+finds the section from the field's panel, its help text, the heading or
+intro just before it, or the questions before it. The section is
+education, work experience or availability (`Plan.sections`). The plan
+answers a school's or the internship's dates itself. Claude drafts any
+other bare date and is told its section (`"about"` in the draft call); a
+date that nothing places goes to Lisul. The Answer bank files a bare
+date's answer under its section and label
+(`"education / From (MM/DD/YYYY)"`, `Plan.filed`). A date that no section
+places is never banked. An older entry filed under a bare label alone is
+never read again. Lisul's own answer to a bare date applies to that form
+only; Apply does not save it to the profile by its wording.
+
 `README.md` is a teammate's setup path, from a clone to a rehearsal. Its
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.
@@ -350,6 +364,18 @@ reads: it does not click, type or submit.
   sources or the posting name). Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags.
+- A review finding can name the right answer when the sources give it
+  (`presubmit.Found.fixes`: an internship start in a school's From).
+  Apply fills that answer in place of the wrong one (`_Planned.fix`). It
+  then fills the form again, in a fresh page, and reviews it again, all
+  before the window shows the form as ready. It does this once. A fix
+  replaces only Claude's guesses (its drafts, and its drafts the Answer
+  bank gave back). It never replaces an answer from the profile, Lisul's
+  own answer, an essay, a file or a secret. A
+  Claude draft that a fix replaces leaves the Answer bank. On Workday, the
+  next fill goes Back to the step that holds the fixed answer
+  (`WorkdayFiller._back_to_changed`). A read-back replan also refills
+  this way.
 - A flag that `holds` goes in the reason as `Verify: <field>: <why>` and
   holds a live run (Needs you, kind `check`). Read-back and review flags
   hold already by their own reason. A blank optional field holds as a
@@ -360,6 +386,8 @@ reads: it does not click, type or submit.
   not hold. The plan lists each field it leaves blank on purpose, with why
   (`Plan.blanks`: a duplicate "Other website", an "If other" follow-up to
   another pick, an optional fact the profile lacks); the note says why.
+  An optional catch-all box that Apply left blank on purpose
+  (`_Planned.kept_blank`, below) is a note too.
   An approved Hold is not held again by a flag; the read-back still holds
   it.
 - In the window, each flag shows with its field and why, and has its own
@@ -538,6 +566,29 @@ on the fake Lever form (Hermeus) in Chromium; it opens a browser.
   the form and holds the Application (`gates.over_cap`). This applies to
   an essay that Lisul approved too. A form refuses a longer answer
   (MongoDB's 267-word letter, cap 260).
+- An optional catch-all box ("Additional information", "Anything else
+  you'd like us to know?", "Comments", "Other information": an
+  `anything-else` question that the form does not require,
+  `essays.catch_all`) stays blank unless Apply has something new and
+  relevant to say (Lisul, 2026-11-04). New: not on the resume PDF, in the
+  form's other answers or in its cover letter. Relevant: a project close to
+  the job that the resume leaves out, a link the form didn't ask for, or an
+  availability note the form never asked. The planner may give it no slots
+  and never asks Lisul for it (`check_plan`'s `blank_ok`, its asks
+  cleared), and the writer leaves it empty or writes at most two
+  sentences. The worker then checks the draft (`_Planned._kept_blank`,
+  `gates.nothing_new`): one that is over two sentences, says it needs
+  Lisul, or mostly repeats the resume or the form (`gates.MOSTLY` of its
+  stemmed words, or `gates.SOME` with a result the resume states, such as
+  2.75) is emptied. The field is then blank on purpose: it is in
+  `_Planned.kept_blank` with why, so Verifying notes it and does not hold
+  it, Needs you never asks it, and it gets no "Claude wrote nothing" or
+  High-stakes hold. A one-line catch-all box drafted as a one-off question
+  is checked the same way and is never put in the Answer bank. A required
+  catch-all box is still always answered, and every other optional
+  question too. Voleon's Ashby form showed why: its "Additional
+  information" got a Micromouse paragraph that repeated a resume bullet.
+
 - An essay that the editor's passes leave over the most that its length
   allows (`gates.length`: a stated sentence count, or its type's default
   when the form states none) also gets one shorter rewrite (`essays.CUT`)

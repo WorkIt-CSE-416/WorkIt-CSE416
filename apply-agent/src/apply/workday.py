@@ -85,6 +85,8 @@ MAIL_SEARCH = "from:(myworkday.com OR otp.workday.com)"  # Workday mails from bo
 WORKDAY = "myworkday.com"  # Workday's own hosts, which a mailed link may go to besides the tenant's
 SIGN_IN_STEP = re.compile(r"sign in|create account", re.IGNORECASE)
 NEXT_BUTTON = "[data-automation-id=pageFooterNextButton]"  # the step's footer button; at Review, its Submit
+BACK_BUTTON = "[data-automation-id=pageFooterBackButton]"  # back a step: to fill again an answer planned anew
+MAX_BACK = 10  # steps back at most: more than any application has
 SUBMITTED = re.compile(r"application (has been |was )?(submitted|received)|congratulations|thank(s| you) for applying"
                        r"|successfully (submitted|applied)", re.IGNORECASE)
 TIMEOUT = 30.0
@@ -174,6 +176,7 @@ class WorkdayFiller:
         self._rescue = rescue
         self._url = ""
         self._readback: Readback = {}
+        self._given: Answers = {}  # the answers the last fill was given, to tell one planned anew
         self._known: QuestionSet = []  # the questions fill() was given, which the engine fills against
         self._state: dict = {}  # the engine's memory of this Application, kept between its calls
         self._his: tuple[str, set[str]] = ("", set())  # (step, fields) Lisul filled before Resume: not filled again
@@ -190,6 +193,7 @@ class WorkdayFiller:
     def fill(self, page: Page, questions: QuestionSet, answers: Answers) -> Readback:
         known = {q.name for q in questions}
         self._known = list(questions)
+        self._back_to_changed(page, questions, answers)
         refilled: set[str] = set()  # the steps Workday refused once, filled again
         # The last step is Review, or whichever step's footer button sends (a tenant may name it
         # otherwise): filling stops there, and only submit() clicks that button.
@@ -222,6 +226,25 @@ class WorkdayFiller:
                 refilled.add(shown["step"])
                 page.wait_for_timeout(REFILL_WAIT)
         return dict(self._readback)
+
+    def _back_to_changed(self, page: Page, questions: QuestionSet, answers: Answers) -> None:
+        """Back to the first step holding an answer other than the one the last fill was given there (the
+        plan's answer replanned, or the Pre-submit review's fix), from the step the draft opens on (its Review,
+        once filled), so the fill goes on from there and puts it. Workday keeps each step saved, so a fill
+        again opens past them."""
+        changed = [q for q in questions if q.name in answers and q.name in self._given and q.name in self._readback
+                   and answers[q.name] != self._given[q.name]]
+        self._given = dict(answers)
+        if not changed:
+            return
+        wanted = changed[0].name.split(" / ", 1)[0]  # a Question's name starts with its step
+        for _ in range(MAX_BACK):
+            step = self._shown(page)["step"]
+            back = page.locator(BACK_BUTTON).first
+            if step == wanted or not back.count() or not back.is_visible():
+                return
+            back.click()
+            _until(page, lambda: _on_step(page) and _step(page) != step)
 
     def resume_blocked(self, page: Page) -> str:
         """Why Resume can't go on from the page now, or "": only from an
