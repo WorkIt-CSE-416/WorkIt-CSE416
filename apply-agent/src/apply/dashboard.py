@@ -49,7 +49,7 @@ from pathlib import Path
 from typing import Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
-from apply import dock_app
+from apply import bot_signals, captcha, dock_app
 from apply.answers_tab import AnswersTab, Refused
 from apply.dashboard_page import (
     ANSWERS,
@@ -138,6 +138,8 @@ WORDS = {
               "one didn't match."),
     "captcha": ("Do the captcha", "Apply never solves a captcha. Do it on the form's page; Apply waits, and goes on "
                 "by itself once it's gone."),
+    "blocked": ("Finish it in your Chrome", "The job site refused Apply's Chrome as a bot. Open the posting in "
+                "your own Chrome: the WorkIt extension fills it there, and you press Submit."),
     "handoff": ("Finish this one yourself", "Apply got as far as it could; the rest needs a person, such as a site that blocks it."),
     "needs code": ("Type the emailed code", "After you pressed Submit, the job site asked for a code it emailed "
                    "you. Apply looks for it in Gmail and types it in; this time it couldn't, so it typed nothing."),
@@ -269,6 +271,10 @@ def verdict(caption: dict) -> dict[str, str]:
                  "then": "Nothing more was sent. Type the code from your email, then press Submit yourself"}
     elif status == "code filled":
         tone, label, kind, detail = "ready", WORDS["code filled"][0], "code filled", why
+    elif status == "handoff" and caption.get("blocked"):  # a bot block (KAN-590): his own Chrome, where the extension fills it
+        needs = {"kind": "blocked", "do": captcha.FINISH.format(company or "it"), "why": plain(why),
+                 "then": "Nothing was sent. Press Open in my Chrome: the posting opens in your everyday Chrome, the "
+                 "WorkIt extension fills it, and you do any challenge and press Submit. It waits here till then"}
     elif status == "handoff" and caption.get("captcha"):
         needs = {"kind": "captcha", "do": WORDS["captcha"][0], "why": plain(why),
                  "then": "Do it on the page (Fix here, or Open in Chrome). Apply goes on by itself once it's gone, "
@@ -285,7 +291,7 @@ def verdict(caption: dict) -> dict[str, str]:
     elif status == "paused":
         tone, label, kind = "ended", "Paused at Claude's usage limit; it goes on by itself", "skipped"
     resume = caption.get("resume") or {}
-    if needs and resume.get("ok") and needs["kind"] != "captcha":  # a rehearsal paused mid-form: Lisul fixes the page, and Resume goes on
+    if needs and resume.get("ok") and needs["kind"] not in ("captcha", "blocked"):  # a rehearsal paused mid-form: Lisul fixes the page, and Resume goes on
         needs["then"] = ("Nothing was sent. Fix it on the page (Fix here, or Open in Chrome), then press Resume: "
                          "Apply goes on from the page as you left it, and never presses Submit")
     if needs:
@@ -471,7 +477,8 @@ class Dashboard:
                  past: Callable[[], list] | None = None, tracker_url: str = "", sweep_at: str | None = None,
                  answer: Callable[[dict, str, str], str] | None = None,
                  notify: Callable[[str, str], None] | None = None, show: Callable[[int], bool] | None = None,
-                 sample: bool = False, approve: Callable[[str], str] | None = None):
+                 sample: bool = False, approve: Callable[[str], str] | None = None,
+                 everyday: Callable[[str], None] | None = None):
         self._workers = workers
         self._sample = sample
         self._frames = frames
@@ -480,7 +487,8 @@ class Dashboard:
         self._now = now
         self._past, self._read, self._reading = past, None, threading.Lock()  # the Tracker's rows, once read
         self._context = {"tracker_url": tracker_url, "sweep_at": sweep_at, "workers": workers, "answers": bool(answer),
-                         "show": bool(show), "approve": bool(approve)}
+                         "show": bool(show), "approve": bool(approve), "everyday": bool(everyday)}
+        self.everyday = everyday  # opens a bot-blocked posting in Lisul's everyday Chrome, when he presses it
         self.approve = approve
         self._approved: set[str] = set()  # the Holds Lisul approved in the window, by item id
         self.show = show
@@ -833,6 +841,7 @@ def _waiting(row) -> dict:
     why = f"Missing fact: {row.missing_fact}" if str(row.status) == "missing fact" and row.missing_fact else row.reason
     return {"company": row.company, "role": row.role, "posting_url": row.posting_url, "job_system": row.job_system,
             "application_id": row.application_id, "status": str(row.status), "why": one_line(why),
+            "blocked": bot_signals.BLOCKED in {n.strip() for n in (row.bot_signals or "").partition(":")[2].split(",")},
             "record": row.record, "from": "tracker", "id": "t:" + row.application_id,
             "essay": row.essay if str(row.status) == "held" else "",
             "choices": {row.missing_fact: offered} if (offered := cell_options(row.missing_fact_options)) else {},
@@ -890,6 +899,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._dismiss()
         if parts.path == "/resume":
             return self._resume()
+        if parts.path == "/everyday" and self.dashboard.everyday:
+            return self._everyday()
         if parts.path.startswith("/show/") and self.dashboard.show:
             return self._show(parts.path.removeprefix("/show/"))
         if parts.path.startswith("/answers/") and self.dashboard.answers:
@@ -1130,6 +1141,25 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json(refused.status, {"error": str(refused)})
         print(f"Resume pressed in the window ({key})")
         self._json(200, {"message": message})
+
+    def _everyday(self) -> None:
+        """Lisul pressed Open in my Chrome on a bot block, from the page itself: its posting opens in his everyday
+        Chrome (KAN-590). Only his press opens it, so a rehearsal never pops a window by itself."""
+        token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+        if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin not in (None, self.dashboard.url):
+            return self._json(403, {"error": "Only the Apply window may open your Chrome."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key = str(body["id"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not an item."})
+        item = next((i for i in self.dashboard.state()["items"] if str(i["id"]) == key), None)
+        if item is None or item.get("kind") != "blocked" or not item.get("posting_url"):
+            return self._json(404, {"error": "That application no longer waits on your Chrome."})
+        self.dashboard.everyday(str(item["posting_url"]))
+        print(f"Opened {item['posting_url']} in your Chrome, as you asked in the window")
+        self._json(200, {"message": f"Opened {item.get('company') or 'the posting'} in your Chrome: "
+                                    "the extension fills it there."})
 
     def _in_place(self, item: dict, key: str, question: str, answer: Path | None, message: str) -> None:
         """An answer for this form alone, not saved to his facts: a file to attach, or None for an

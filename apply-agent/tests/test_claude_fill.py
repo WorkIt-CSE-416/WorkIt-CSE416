@@ -1082,3 +1082,22 @@ def test_a_page_gone_blank_after_the_submit_is_no_confirmation(tmp_path, monkeyp
 
     assert row.status == "handoff", (row.status, row.reason)
     assert "may not have been sent" in row.reason
+
+
+def test_a_rehearsal_at_a_bot_block_waits_for_lisuls_press_to_open_his_chrome(tmp_path):
+    # KAN-590: rehearsals never pop a window by themselves; the window's Open in my Chrome does it.
+    from apply import rehearsal
+    from apply.profile import ApplicantProfile
+
+    claude = FakeClaude(driver=BambooDriver(blocked=BLOCKED_WHYS["datadome"]))
+    board, opened = RecordingBoard(), []
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [done] = rehearsal.rehearse(
+            [LUNAR_URL], Adapters(feed=SimplifyFeed(lambda: b"[]"), tracker=InMemoryTracker(), site=server, claude=claude,
+                                  mailbox=FakeMailbox(), usage=ScriptedUsage(), clock=FakeClock(datetime(2026, 11, 3, 9)),
+                                  board=board, everyday=opened.append),
+            ApplicantProfile.load(profile_with(tmp_path)), 1, keep_open=False, out=lambda line: None)
+
+    assert done.outcome == "handoff" and "Finish Lunar Outpost in your Chrome" in done.why
+    assert board.captions[0]["blocked"] is True and "resume" not in board.captions[0]
+    assert opened == []

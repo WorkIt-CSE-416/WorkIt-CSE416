@@ -38,6 +38,7 @@ from urllib.parse import urlsplit
 
 from apply import (
     ashby,
+    bot_signals,
     captcha,
     eightfold,
     embedded,
@@ -202,7 +203,7 @@ def rehearse(
 
         def turned_down(said: str) -> None:  # the job system refused Lisul's own Submit: only his own Chrome can send it
             why = TURNED_DOWN.format(captcha.blocked(done.posting.company, done.posting.url, said))
-            adapters.board.update(n, status="handoff", why=why, blocked=True)
+            adapters.board.update(n, status="handoff", why=why, blocked=True, resume=None)
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
         answers = lambda: [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]
@@ -454,7 +455,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     board.update(n, status=rehearsed.outcome, line=rehearsed.line(), why=one_line(rehearsed.why),
                  filled=rehearsed.filled, asked=rehearsed.asked, missing=list(rehearsed.missing),
                  drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices, required=result.required,
-                 history=list(history))
+                 history=list(history), blocked=bot_signals.BLOCKED in result.bot_signals)  # Open in my Chrome, on his press
     return rehearsed
 
 

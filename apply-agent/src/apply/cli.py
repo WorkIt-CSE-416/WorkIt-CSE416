@@ -387,7 +387,7 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
                                 answer=_answering(lambda: adapters.tracker, answers),
                                 approve=_approving(lambda: adapters.tracker), notify=adapters.notifier.notify,
                                 show=getattr(site, "show", None), sample=profile.get("sample_data") is True,
-                                **_window_context()) as board:
+                                everyday=adapters.everyday, **_window_context()) as board:
         adapters.board = board
         url = site.profiles / DASHBOARD_URL
         url.parent.mkdir(parents=True, exist_ok=True)
@@ -412,7 +412,8 @@ def _answers_window(profile: Path, window: Path) -> None:
     tab = AnswersTab(AnswerBank(profile.parent / ANSWER_BANK), profile, held=lambda: tracker().rows())
 
     with dashboard.Dashboard(0, dashboard.NoFrames(), tab, _applied_live, past=lambda: tracker().rows(),
-                             answer=_answering(tracker, tab), approve=_approving(tracker), **_window_context()) as board:
+                             answer=_answering(tracker, tab), approve=_approving(tracker),
+                             everyday=captcha.to_everyday_chrome, **_window_context()) as board:
         dashboard.open_window(board.url, window)
         print(f"Answers: {board.url} (no run is going; close the window or press Ctrl-C to stop)")
         try:
