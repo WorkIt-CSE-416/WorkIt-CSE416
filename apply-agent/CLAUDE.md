@@ -488,12 +488,47 @@ challenge there, as data, not in a Filler.
   guard and the drive guard do nothing in such a frame, so Lisul can do
   the captcha: DataDome's frame posts its own form, which the guards
   blocked as "a form submission".
-- `SAYS_BLOCKED` reads a page that refuses the browser (Tesla's "Access
-  Denied"). It has no challenge, so it is a Handoff, never a wait. Its
-  reason says it plainly: "Tesla blocked the browser; apply in your own
-  Chrome" (`captcha.blocked`: the company that the page names, else the
-  name in the link's host). It is not a Bot signal.
+- A captcha's challenge in a frame that shows a Bot block (next section)
+  is no captcha: `captcha.shows` is False there.
 - Apply never solves a captcha or gets around a block in code.
+
+**Bot blocks go to the student's own Chrome (KAN-590).** A Bot block
+(`GLOSSARY.md`) is a page that refuses the Worker's Chrome, with nothing
+to solve. Simplify and Jobright work on such forms only because they run in
+the user's own browser, and no tool gets past DataDome.
+
+- `captcha.BLOCKS` holds each block's words, as data: DataDome's "We
+  detected unusual activity from your device or network" (in its
+  captcha-delivery frame, LinkedIn's SmartRecruiters form), Lever's "There
+  was an error verifying your application" (hCaptcha turning the sent
+  form's token down, Simbe Robotics) and Akamai's "You don't have
+  permission to access" (Tesla's Access Denied). Add a new block there.
+  `captcha.blocks(page)` reads them in the page and each of its frames.
+  `SAYS_BLOCKED` reads the same words, and "access denied", in Claude
+  fill's why.
+- A block is one Handoff kind, `model.Blocked` (Bot signal `blocked`),
+  made by `captcha.blocked(company, url, said)`: "<Company> blocked Apply's
+  Chrome as a bot ("<words>"). Finish <Company> in your Chrome: the
+  extension fills it". Claude fill raises it, `wait_for_confirmation` raises
+  it at a submit (Lever), and the Worker turns any Handoff whose page shows
+  a block into one (`captcha.as_block`), before a captcha wait.
+- It is a Handoff at once: never a captcha wait, never a pause for Resume
+  (Resume would only try again), no second sign-in and no new code.
+- Live run: `_Run._to_everyday_chrome` opens the posting once with `open
+  -a "Google Chrome" <url>` (`captcha.to_everyday_chrome`, the
+  `Adapters.everyday` adapter; tests pass a list's `append`) and pushes
+  "Finish <Company> in your Chrome: the extension fills it" (ntfy, only
+  with `phone_push` on). Never open it over DevTools (CDP), and never in a
+  profile under `APPLY_PROFILES`: the job system must see the student's
+  own browser.
+- Rehearsal: Apply opens nothing by itself. The Needs you item (kind
+  `blocked`) has Open in my Chrome (`POST /everyday`, with the window's
+  token), and only that press opens it. A live run's block, read back from
+  the Tracker by its Bot signal, gets the same button. After Lisul's own
+  Submit on a held page, a block (`captcha.blocks`) makes the tile the same
+  item.
+- The row stays a Handoff, so WorkIt keeps it at Needs you. Only the
+  extension's submit proof marks it applied.
 
 **Lisul does the captcha, and Apply goes on.** A captcha that stops a fill
 is a `model.Captcha` (a Handoff with its page). Claude fill raises it when
@@ -528,11 +563,8 @@ Claude stops at one (`SAYS_CAPTCHA`).
   error verifying your application" (Simbe Robotics, 2026-11-03).
   hCaptcha's script probes for the DevTools connection that Playwright
   keeps on every Worker page, so `NOT_WEBDRIVER` does not hide it, and
-  Apply does not try to. `lever.refusal` reads that notice: in a live run
-  the submit is a Handoff (Bot signal `refused`), and after Lisul's own
-  Submit on a held page the tile says to send it from his own Chrome
-  (`rehearsal.REFUSALS`, `TURNED_DOWN`). A second Submit from the Worker's
-  Chrome gets the same notice.
+  Apply does not try to. It is a Bot block (above). A second Submit from
+  the Worker's Chrome gets the same notice.
 - A rehearsal keeps each captcha wait in its history ("Paused: do the
   captcha", "Resumed: the captcha is done"), on the tile and in the Record,
   and a `captcha` event in the Trace. A wait that timed out leaves only

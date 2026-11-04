@@ -113,8 +113,12 @@ An Application the system cannot finish alone, for example a site that blocks th
 _Avoid_: manual, fallback, failed
 
 **Captcha wait**:
-The time that Apply keeps a form open for Lisul to do its captcha. Apply never solves a captcha. It pushes "Do the captcha on <company>" to his phone and shows the captcha in the Apply window. When the challenge goes away, or he presses Resume, the fill continues on the same page. After `captcha_wait_minutes` (15), the Application is a Handoff. In a Rehearsal, a captcha after Lisul's own Submit gets only the push: he does it himself. A bot block, such as an "Access Denied" page, has no challenge, so it gets no Captcha wait.
+The time that Apply keeps a form open for Lisul to do its captcha. Apply never solves a captcha. It pushes "Do the captcha on <company>" to his phone and shows the captcha in the Apply window. When the challenge goes away, or he presses Resume, the fill continues on the same page. After `captcha_wait_minutes` (15), the Application is a Handoff. In a Rehearsal, a captcha after Lisul's own Submit gets only the push: he does it himself. A Bot block has no challenge, so it gets no Captcha wait.
 _Avoid_: captcha solve, captcha bypass
+
+**Bot block**:
+A page that refuses the Worker's Chrome as a bot and has nothing to solve. Examples are DataDome's "We detected unusual activity from your device or network", Lever's "There was an error verifying your application" and Tesla's "Access Denied". Apply makes it a Handoff at once. It does not retry, sign in again or ask for a new code. The Application stays at Needs you. The student finishes it in their everyday Chrome, where the extension fills the form. In a live run, Apply opens the posting there and pushes "Finish <Company> in your Chrome: the extension fills it". In a Rehearsal, Apply opens it only when Lisul presses Open in my Chrome. Apply never opens it over DevTools or in a Worker profile.
+_Avoid_: ban, captcha, stealth
 
 **Resume**:
 The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue.
@@ -125,7 +129,7 @@ One process with its own browser that carries one Application at a time: it runs
 _Avoid_: bot, agent, runner
 
 **Bot signal**:
-A sign that a job system took a Worker's browser for a bot: a captcha challenge, Greenhouse asking for the security code it emails before it takes the form, or Ashby refusing the sent form ("We couldn't submit your application"). Each Tracker row a Worker filled notes the Bot signals it met and whether the Worker's Chrome ran headless or with a window (`worker_headless` in policies.yaml), so the two can be compared before Lisul chooses one. An employer's own block message is not a Bot signal. Apply never disguises its browser to avoid them.
+A sign that a job system took a Worker's browser for a bot: a captcha challenge, Greenhouse asking for the security code it emails before it takes the form, Ashby refusing the sent form ("We couldn't submit your application"), or a Bot block. Each Tracker row a Worker filled notes the Bot signals it met and whether the Worker's Chrome ran headless or with a window (`worker_headless` in policies.yaml), so the two can be compared before Lisul chooses one. Apply never disguises its browser to avoid them.
 _Avoid_: bot score, detection, fingerprint
 
 **Orchestrator**:
