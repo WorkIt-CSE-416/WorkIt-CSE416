@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 
 from apply import (
+    asking,
     brief,
     browsers,
     captcha,
@@ -405,6 +406,7 @@ class _Planned:
         self.missing: tuple[str, ...] = ()  # left blank, in a rehearsal
         self.choices: dict[str, dict] = {}  # the options of each of those that offers some, by question
         self.required: dict[str, bool] = {}  # whether its form requires each of those, by question
+        self.found: dict[str, str] = {}  # what Apply already held for a field it would have asked, by name (asking.known)
         self.unfilled: list[str] = []  # why a rehearsal's Filler couldn't fill each answer it left out
         self._skipped: set[str] = set()
         self.left: set[str] = set()  # fields left blank on purpose: an N/A optional, a follow-up not called for
@@ -434,7 +436,8 @@ class _Planned:
 
     @answers.setter
     def answers(self, answers: dict) -> None:
-        self._answers = answers | self.lisuls  # what Lisul put on the page is the answer, whatever the plan says
+        # What Apply already held is the answer to a field it would have asked; what Lisul put on the page wins.
+        self._answers = answers | self.found | self.lisuls
         self._keep_files()
 
     def keep(self, values: dict) -> None:
@@ -630,8 +633,17 @@ class _Planned:
     def _missing(self, missing: list[Question], asks: list[str] = ()) -> Result | None:
         """A Missing fact Result for the first of `missing`, in form order,
         then of `asks` (what an essay asks Lisul for, apply.essays.ASK); a
-        rehearsal lists them all instead and goes on."""
+        rehearsal lists them all instead and goes on. A question Apply already
+        holds the answer to (apply.asking.known) never reaches him: a text
+        field gets that answer, and an ask is dropped."""
         missing, was = [q for q in self.questions if q in missing and q.name not in self.lisuls], self.missing
+        found = {q.name: asking.value(facts) for q in missing if q.kind in ("text", "textarea") and q.name not in self.found
+                 and (facts := asking.known(q.label, self.profile, self._bank))}
+        if found:
+            self.found |= found
+            self.answers = self._answers
+        missing = [q for q in missing if q.name not in self.found]
+        asks = [asked for asked in asks if not asking.known(asked, self.profile, self._bank)]
         self.missing = tuple(dict.fromkeys([*(q.label.strip() for q in missing), *asks]))
         self.choices = {q.label.strip(): offered for q in missing if (offered := choices(q))}
         # The form's own required flag; what an essay asks him is for a slot the essay needs.
