@@ -5,7 +5,8 @@ test_rehearse.py -k regenerate."""
 import json
 from datetime import date
 
-from fakes import FakeClaude
+import pytest
+from fakes import FakeClaude, RecordingBoard
 from test_run_answers import profile_with
 
 from apply import home, regenerate
@@ -13,6 +14,7 @@ from apply.answer_bank import CLAUDE, AnswerBank
 from apply.essays import Essay
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
+from apply.rehearsal import _Redo
 
 TODAY = date(2026, 11, 4)
 POSTING = Posting("p1", "Harvey", "Software Engineer Intern", "https://jobs.ashbyhq.com/harvey/1/application")
@@ -139,3 +141,12 @@ def test_only_answers_claude_wrote_into_a_text_field_can_be_regenerated():
     form = regenerate.form_of(Planned())
     assert [(w.question.name, w.kind) for w in form.written] == [("why", regenerate.ESSAY), ("club", regenerate.DRAFT)]
     assert not form.read  # no Company material yet: a regenerate of an essay reads it
+
+
+def test_a_press_with_no_form_written_does_nothing():
+    class Done:
+        form = None
+    redo = _Redo(lambda: Done(), None, None, 0, None, lambda line: pytest.fail(line))
+    assert redo.written() == []
+    redo(None, "why", CONTEXT)  # nothing to write again, and nothing said
+    assert RecordingBoard().regenerations(0) == []

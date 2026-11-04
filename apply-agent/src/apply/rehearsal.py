@@ -44,6 +44,7 @@ from apply import (
     embedded,
     greenhouse,
     lever,
+    regenerate,
     stuck,
     tailored,
     trace,
@@ -113,6 +114,7 @@ class Rehearsed:
     files: list[dict] = field(default_factory=list)  # each file the form was given, as its tile lists them
     saved: Record | None = None  # its Record as saved, to save again with what Lisul filled in later
     history: tuple[str, ...] = ()  # each pause and Resume, "HH:MM Paused: why" / "HH:MM Resumed: ...", in order
+    form: "regenerate.Form | None" = None  # each answer Claude wrote, for Lisul to have one written again
 
     def warning(self) -> str:
         """What to fix on the held page before submitting it, if anything."""
@@ -209,6 +211,8 @@ def rehearse(
 
         answers = lambda: [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]
         fill = lambda page, q, a: _fill_answer(page, q, a, adapters, profile, n, done, out)
+        # Each answer Claude wrote has its "Add context and regenerate", on the page and in the window (KAN-599).
+        redo = _Redo(lambda: done, adapters, profile, n, site, out)
 
         def paused(stopped: Rehearsed, blocked: Callable[[object], str]) -> bool:
             """The fill stopped mid-form for Lisul: hold its page, his to fix, until he presses Resume
@@ -233,7 +237,7 @@ def rehearse(
             gate.release()  # a paused form holds no Worker's turn while it waits on him
             try:
                 how = site.hold(release, done.posting.job_system, submitted, done.warning(), bool(done.problems),
-                                answers, fill, resume=wants, challenged=challenged, refused=turned_down)
+                                answers, fill, resume=wants, challenged=challenged, refused=turned_down, redo=redo)
             finally:
                 gate.acquire()
             if how == RESUME:
@@ -269,7 +273,7 @@ def rehearse(
                 hold = lambda: site.hold(release, done.posting.job_system, submitted, done.warning(),
                                          bool(done.problems), answers, fill,
                                          EmailCode(adapters.mailbox, adapters.clock, done.posting.job_system, told),
-                                         challenged=challenged, refused=turned_down)
+                                         challenged=challenged, refused=turned_down, redo=redo)
                 how = after.pop() if after else hold()
                 while how == AGAIN:  # Fill again
                     with gate:
@@ -451,6 +455,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     rehearsed = _summary(posting, result, site, claude.spent() - spent, time.monotonic() - started)
     rehearsed.files = list(files)
     rehearsed.history = tuple(history)
+    rehearsed.form = result.regenerable
     # Every outcome has its Record, one that stopped before any form was filled too: what the page showed.
     filled = result.filled or Filled((), {}, {}, site.screenshot())
     try:
@@ -465,7 +470,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     board.update(n, status=rehearsed.outcome, line=rehearsed.line(), why=one_line(rehearsed.why),
                  filled=rehearsed.filled, asked=rehearsed.asked, missing=list(rehearsed.missing),
                  drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices, required=result.required,
-                 where=result.where, history=list(history), blocked=bot_signals.BLOCKED in result.bot_signals)  # Open in my Chrome, on his press
+                 where=result.where, history=list(history), blocked=bot_signals.BLOCKED in result.bot_signals,  # Open in my Chrome, on his press
+                 written=rehearsed.form.shown() if rehearsed.form else [])
     return rehearsed
 
 
@@ -517,8 +523,9 @@ def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Ada
             pass  # the page closing: nothing to say on it
 
 
-def _record_again(done: Rehearsed, question: str, answer: "str | Path", adapters: Adapters) -> None:
-    """Save the rehearsal's Record again with Lisul's answer to `question`, filled in on the form after it was saved."""
+def _record_again(done: Rehearsed, question: str, answer: "str | Path", adapters: Adapters, **more) -> None:
+    """Save the rehearsal's Record again with Lisul's answer to `question`, filled in on the form after it was
+    saved, and any `more` of its fields."""
     if done.saved is None:
         return
     filled = done.saved.filled
@@ -526,11 +533,71 @@ def _record_again(done: Rehearsed, question: str, answer: "str | Path", adapters
     shown = answer.name if isinstance(answer, Path) else answer
     filled = replace(filled, answers=filled.answers | dict.fromkeys(names, answer),
                      readback=filled.readback | dict.fromkeys(names, shown))
-    saved = replace(done.saved, filled=filled, reason=_record_reason(done))
+    saved = replace(done.saved, filled=filled, reason=_record_reason(done), **more)
     try:
         done.record, done.saved = adapters.records.save(saved), saved
     except Exception as error:
         done.why = "; ".join(filter(None, [done.why, f"Record not saved again: {error}"]))
+
+
+class _Redo:
+    """The "Add context and regenerate" of one rehearsed link's held page
+    (apply.regenerate): which answers Claude wrote, the presses in the window,
+    and writing one again into its field."""
+
+    def __init__(self, done: Callable[[], "Rehearsed | None"], adapters: Adapters, profile: ApplicantProfile, n: int,
+                 site: "_Kept", out: Callable[[str], None]):
+        self._done, self._adapters, self._profile, self._n, self._site, self._out = done, adapters, profile, n, site, out
+
+    def written(self) -> list[dict]:
+        done = self._done()
+        return done.form.shown() if done and done.form else []
+
+    def asked(self) -> list[tuple[str, str]]:
+        """The regenerates Lisul asked for in the window since the last look, (question name, context) each."""
+        return getattr(self._adapters.board, "regenerations", lambda n: [])(self._n)
+
+    def __call__(self, page, name: str, context: str) -> None:
+        """Write the answer to `name` again with `context`, put it in its field and keep it in the Record."""
+        done, adapters, n = self._done(), self._adapters, self._n
+        written = done.form.get(name) if done and done.form else None
+        if written is None:
+            return
+        label = one_line(written.question.label)
+        company = _name(done)
+        regenerate.working(page, name)
+        written.state, written.why = "working", ""
+        adapters.board.update(n, status=done.outcome, written=done.form.shown())
+        try:
+            redone = regenerate.regenerate(adapters.claude, done.form, name, context, self._profile, adapters.answer_bank,
+                                           adapters.clock.now().date(), self._site)
+        except Exception as error:  # Claude or the research failing: the old answer stays, and he is told
+            redone = regenerate.Redone(written.question, why=f"{type(error).__name__}: {error}")
+        at = adapters.clock.now().strftime("%H:%M")
+        if redone.text:
+            note = "New answer from your context" + (f". Check: {'; '.join(redone.checks)}" if redone.checks else "") \
+                + ". Edit it if you like; nothing is sent."
+            shows = regenerate.done(page, name, redone.text, note, True)
+            written.state = ""
+            if shows is None:
+                written.why = "; ".join(filter(None, [written.why, "not on the page shown: paste it into its field"]))
+            elif shows.strip() != redone.text.strip():
+                written.why = "; ".join(filter(None, [written.why, "the field shows it otherwise: check it"]))
+            regenerate.offer(page, done.form.shown(), None)  # a page loaded from it later knows the new text
+            done.history = done.history + (f"{at} Regenerated '{label}' with your context",)
+            kind = written.kind
+            _record_again(done, written.question.label, redone.text, adapters, history=done.history,
+                          essays=done.form.essay_cell() if kind == regenerate.ESSAY else done.saved.essays if done.saved else "",
+                          drafted=tuple((q, redone.text if q == label else a) for q, a in done.saved.drafted)
+                          if done.saved else ())
+            self._out(f"{company} | regenerated '{label}' with your context"
+                      + (" (in the Answer bank too)" if redone.banked else ""))
+        else:
+            written.state, written.why = "failed", redone.why
+            regenerate.done(page, name, "", f"Not regenerated: {redone.why}", False)
+            self._out(f"{company} | couldn't regenerate '{label}': {one_line(redone.why)}")
+        adapters.board.update(n, status=done.outcome, written=done.form.shown(), history=list(done.history),
+                              line=done.line(), why=one_line(done.why))
 
 
 def _keep_submission(tracker: Tracker | None, rehearsed: Rehearsed, today) -> str:
@@ -658,6 +725,7 @@ class _Kept:
         self._page = None
         self._lifted = False  # the page was handed to Lisul: its guard is off
         self._bound = False  # the page has lift()'s bindings, which call this hold's hooks below
+        self._offered = False  # the page has the regenerate binding (apply.regenerate)
         # A dict, not methods: a binding that held this object would keep its browser from closing when it goes.
         self._hooks: dict[str, Callable] = {}
 
@@ -682,7 +750,8 @@ class _Kept:
              warning: str = "", wrong: bool = True, answers: Callable[[], list[tuple[str, str]]] = list,
              fill: Callable[[object, str, str], None] = lambda page, question, answer: None,
              code: EmailCode | None = None, resume: Callable[[object], bool] | None = None,
-             challenged: Callable[[], None] = lambda: None, refused: Callable[[str], None] = lambda why: None) -> str:
+             challenged: Callable[[], None] = lambda: None, refused: Callable[[str], None] = lambda why: None,
+             redo: "_Redo | None" = None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
         window is closed. Apply is done with it, so it is Lisul's: the submit
@@ -698,16 +767,20 @@ class _Kept:
         A captcha that shows after a press of his calls `challenged()`, once:
         he does it himself, and Apply never touches it. A bot block after a press
         of his (Lever's captcha turning the token down) calls `refused(said)`, once.
+        Each answer Claude wrote, of `redo.written()`, gets an "Add context and
+        regenerate" button beside its field; each press, there or in the window
+        (`redo.asked()`), goes to `redo(page, name, context)`.
         "" when the page closed or `release` was set."""
         if self._page is None or release.is_set():
             return ""
-        pressed, again, hooks = [], [], self._hooks
+        pressed, again, hooks, regenerates = [], [], self._hooks, []
 
         def heard(words: str) -> None:
             pressed.append(words)
             if code:
                 code.pressed(words)
-        hooks |= {"pressed": heard, "again": lambda: again.append(True)}
+        hooks |= {"pressed": heard, "again": lambda: again.append(True),
+                  "regenerate": lambda name, context: regenerates.append((name, context))}
         try:
             if code:
                 code.tick(self._page)  # the form as Apply hands it over, before any press of his
@@ -716,6 +789,13 @@ class _Kept:
         except Exception:
             return ""  # its browser was quit
         self._lifted = self._bound = True
+        if redo and (written := redo.written()):
+            try:
+                regenerate.offer(self._page, written, None if self._offered else
+                                 lambda name, context: hooks["regenerate"](name, context))
+                self._offered = True
+            except Exception:
+                pass  # the page closing: the window's button still says so
         kept, closing, told, turned_down = False, None, False, False
         while not release.is_set():
             try:
@@ -727,6 +807,10 @@ class _Kept:
                     return RESUME
                 for question, answer in answers():
                     fill(self._page, question, answer)
+                if redo:
+                    asked, regenerates[:] = regenerates + redo.asked(), []
+                    for name, context in asked:
+                        redo(self._page, name, context)
                 if code and not kept:
                     code.tick(self._page)
                 if pressed and not kept and not told and captcha.shows(self._page):
@@ -775,6 +859,7 @@ class _Kept:
 
     def close(self) -> None:
         stack, self._stack, self._page, self._lifted, self._bound = self._stack, None, None, False, False
+        self._offered = False
         self._hooks = {}
         if stack:
             try:

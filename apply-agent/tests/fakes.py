@@ -770,3 +770,6 @@ class RecordingBoard:
 
     def resumed(self, worker: int) -> bool:
         return False
+
+    def regenerations(self, worker: int) -> list[tuple[str, str]]:
+        return []
