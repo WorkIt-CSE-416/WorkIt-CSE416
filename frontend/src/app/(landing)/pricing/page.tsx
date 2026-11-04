@@ -148,7 +148,7 @@ function PlanBoard() {
         style={{ "--d": "0.22s" } as CSSProperties}
       />
       <div
-        className="price-panel bg-canvas ring-border absolute inset-0 -z-10 hidden rounded-[2rem] ring-1 ring-inset xl:col-[7/8] xl:block"
+        className="price-panel bg-well ring-border absolute inset-0 -z-10 hidden rounded-[2rem] ring-1 ring-inset xl:col-[7/8] xl:block"
         style={{ "--d": "0.3s" } as CSSProperties}
       />
       <div className="price-strip bg-landing-brand-100/80 absolute inset-x-1 inset-y-5 -z-10 hidden rounded-[1.5rem] xl:col-[3/4] xl:block" />
@@ -224,7 +224,7 @@ function PlanBoard() {
 const COLUMNS: { id: PlanId; className: string }[] = [
   { id: "plus", className: "xl:col-[3]" },
   { id: "pro", className: "xl:col-[4]" },
-  { id: "free", className: "bg-canvas ring-border xl:col-[7]" },
+  { id: "free", className: "bg-well ring-border xl:col-[7]" },
 ];
 
 /** What a plan gives for one feature. Plus's limits are solid violet pills on
@@ -365,7 +365,7 @@ function PlanHeader({
           "text-white shadow-[0_24px_48px_-20px_rgb(58_30_124/0.7)] ring-1 ring-white/25 ring-inset",
         plan.id === "pro" && "text-ink ring-landing-brand-950/10 bg-white/80 shadow-sm ring-1",
         free &&
-          "text-ink bg-canvas ring-border ring-1 xl:-mt-8 xl:rounded-t-[2rem] xl:rounded-b-none xl:bg-transparent xl:px-5 xl:pt-13 xl:pb-13 xl:ring-0",
+          "text-ink bg-well ring-border ring-1 xl:-mt-8 xl:rounded-t-[2rem] xl:rounded-b-none xl:bg-transparent xl:px-5 xl:pt-13 xl:pb-13 xl:ring-0",
         className,
       )}
       style={

@@ -19,7 +19,7 @@ export default function ShapePage() {
         {SHADOWS.map(({ token, cls, role }) => (
           <Row key={token} name={token} role={role}>
             <span
-              className={`bg-panel border-border-subtle rounded-card h-12 w-24 border ${cls}`}
+              className={`bg-panel border-border-control rounded-card h-12 w-24 border ${cls}`}
             />
           </Row>
         ))}

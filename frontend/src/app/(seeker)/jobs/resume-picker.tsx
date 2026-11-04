@@ -129,7 +129,7 @@ export function pickRowClasses(picked: boolean) {
   return cn(
     RESUME_ROW,
     "cursor-pointer transition-colors duration-150",
-    picked ? "border-brand bg-brand-tint" : "hover:border-brand/40 hover:bg-hover",
+    picked ? "border-brand bg-brand-tint" : "hover:border-ink-meta hover:bg-hover",
   );
 }
 

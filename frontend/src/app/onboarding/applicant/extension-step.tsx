@@ -138,7 +138,7 @@ export function Line({
   children: ReactNode;
 }) {
   return (
-    <li className="border-border bg-panel rounded-card flex gap-4 border p-5">
+    <li className="border-border-control bg-panel rounded-card flex gap-4 border p-5">
       <span
         aria-hidden
         className={

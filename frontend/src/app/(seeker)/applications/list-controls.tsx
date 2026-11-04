@@ -36,7 +36,7 @@ import { ColumnsIcon } from "./icons";
  * the menu is closed, as a Jobs page facet does with a pick
  * (jobs/filters.tsx).
  */
-const IN_USE = "border-brand/50 bg-brand/10 text-brand hover:bg-brand/10";
+const IN_USE = "border-brand bg-brand-tint text-brand hover:bg-brand-tint";
 
 const LABEL = Object.fromEntries(COLUMNS.map(({ id, label }) => [id, label])) as Record<
   ColumnId,

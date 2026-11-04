@@ -241,14 +241,23 @@ column's edge. The wheel and trackpad still scroll it.
 
 **The split view from `@4xl/main` is one panel, rounded at the top, that runs off
 the foot of the window** in the page's gutters, with no bottom edge (after
-Simplify's, 2026-11-02): the list and the job share its edge, one rule runs
-under the list's heading and the job's action bar, both 60px, and the job's card
+Simplify's, 2026-11-02): the list and the job share its edge, a rule runs
+under the job's action bar and stops at the list's edge, the list's heading
+beside it at the same 60px with no rule of its own (a rule under both ran as one
+line and crossed the list's edge in a "+", 2026-11-03), and the job's card
 is drawn flat inside it (`JOB_CARD_IN_PANEL`). On /jobs the job's title is an
 h2 under the bar's "Jobs" h1 (KAN-560: both were h1); on the job's own address
 the bar is a plain line and the title is the h1. The header above it has no rule: a
 full-width line under the filters read as cutting the page in two. The panel's
 pane has a 16px gutter, so the bar's one row fits at a 1280px window beside a
-355px list.
+355px list. **In the panel each job in the list is its own card** (2026-11-03):
+edged in `border-control` as the Cards view's cards are, 8px apart and 12px in
+from the panel's edge, the open one edged in brand over its tint. Rows split by
+a hairline alone read as unboxed beside the dark-edged cards and buttons. The
+panel's own edge is `border-control` too, and so are the two lines that divide
+it, the list's edge and the rule under the job's action bar: in `border-subtle`
+inside the dark-edged panel they read as a different kind of line. The rail beside a job opened from
+Cards keeps its hairline rows.
 
 /search has the same choice, as Cards or List: a list of compact cards
 (`compact` on `FeedList`), and a job opens beside the rail with Back. The split

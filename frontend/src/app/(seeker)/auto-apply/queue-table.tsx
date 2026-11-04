@@ -248,10 +248,10 @@ export function QueueTable({
             if (members.length === 0) return null;
             const open = !folded.has(id);
             return [
-              <TableRow key={id} className="bg-canvas hover:bg-canvas">
+              <TableRow key={id} className="bg-well hover:bg-well">
                 {/* The heading spans every column, so it is the button that stays at the left while the
                     table scrolls sideways: a sticky cell this wide scrolled away with the rest. */}
-                <TableCell colSpan={COLUMNS.length} className="bg-canvas px-4 py-2">
+                <TableCell colSpan={COLUMNS.length} className="bg-well px-4 py-2">
                   <button
                     type="button"
                     onClick={() => fold(id)}

@@ -163,7 +163,7 @@ export function ResumePreviewDialog({
           </DialogTitle>
           <DialogDescription className="sr-only">A preview of this resume.</DialogDescription>
         </DialogHeader>
-        <div className="bg-canvas rounded-card min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
+        <div className="bg-well rounded-card min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
           <PreviewPages source={source} label={label} enabled={open} version={version} />
         </div>
       </DialogContent>

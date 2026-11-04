@@ -107,7 +107,7 @@ export function Month({
   const legend = KIND_ORDER.filter((kind) => shownKinds.has(kind));
 
   return (
-    <div className="border-border-subtle rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
+    <div className="border-border-control rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
       <div
         aria-hidden="true"
         className="bg-surface border-border-subtle grid shrink-0 grid-cols-7 border-b"
@@ -148,7 +148,7 @@ export function Month({
           // four at most.
           if (openDay) {
             return (
-              <li key={key} className={cn("min-h-0 min-w-0", inMonth ? "bg-panel" : "bg-app")}>
+              <li key={key} className={cn("min-h-0 min-w-0", inMonth ? "bg-panel" : "bg-well")}>
                 <button
                   type="button"
                   aria-label={label}
@@ -175,7 +175,10 @@ export function Month({
           return (
             <li
               key={key}
-              className={cn("min-h-0 min-w-0 overflow-hidden p-2", inMonth ? "bg-panel" : "bg-app")}
+              className={cn(
+                "min-h-0 min-w-0 overflow-hidden p-2",
+                inMonth ? "bg-panel" : "bg-well",
+              )}
             >
               <ShallowLink
                 href={dayHref(key)}

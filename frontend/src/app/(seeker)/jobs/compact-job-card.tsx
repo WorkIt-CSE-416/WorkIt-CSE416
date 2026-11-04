@@ -25,8 +25,10 @@ function stated(...facts: unknown[]): string[] {
  * pay, type and age run under them on the card's whole width: beside the buttons
  * every line wrapped (2026-11-02). Each of those is one line, cut short with its
  * whole text in a tooltip. Ink says what a student scans for (the company and the
- * pay) and grey the rest. Rows are split by a hairline by their list, not boxed,
- * and the open job is the whole row tinted. A fact the posting does not state
+ * pay) and grey the rest. Its list draws its edge: in the split view each row is
+ * its own card edged in `border-control`, the open one in brand (jobs-rail.tsx,
+ * 2026-11-03); elsewhere rows are split by a hairline. The open job is the whole
+ * row tinted. A fact the posting does not state
  * closes up, where the large card keeps its empty slot.
  *
  * The score stays, since it is what a student scans the list for. Tailor, Auto

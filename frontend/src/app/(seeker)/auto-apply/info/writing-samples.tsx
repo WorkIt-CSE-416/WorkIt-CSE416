@@ -165,7 +165,7 @@ export function WritingSamples() {
           {samples.map((s, n) => (
             <li
               key={s.id}
-              className="bg-panel border-border rounded-card flex items-start gap-4 border p-4"
+              className="bg-panel border-border-control rounded-card flex items-start gap-4 border p-4"
             >
               <p className="text-body text-ink-muted line-clamp-3 min-w-0 flex-1 whitespace-pre-line">
                 {s.text}

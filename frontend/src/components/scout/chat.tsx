@@ -121,7 +121,7 @@ export function Composer({
     >
       {/* A grey field like the bar's search, turning white with the brand
           ring while it is being typed in. */}
-      <div className="bg-app hover:bg-hover focus-within:bg-panel focus-within:hover:bg-panel focus-within:ring-brand-ring rounded-2xl p-3 transition-[background-color,box-shadow] duration-150 focus-within:ring-2">
+      <div className="bg-well hover:bg-hover focus-within:bg-panel focus-within:hover:bg-panel focus-within:ring-brand-ring rounded-2xl p-3 transition-[background-color,box-shadow] duration-150 focus-within:ring-2">
         <textarea
           ref={input}
           aria-label={label}

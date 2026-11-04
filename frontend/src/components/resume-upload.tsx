@@ -88,7 +88,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
         }}
         onDrop={handleDrop}
         className={cn(
-          "border-border-control bg-well rounded-control hover:border-brand/50 flex cursor-pointer flex-col items-center border border-dashed px-4 py-7 transition-colors",
+          "border-border-control bg-well rounded-control hover:border-ink-meta flex cursor-pointer flex-col items-center border border-dashed px-4 py-7 transition-colors",
           dragging && "border-brand bg-brand-tint",
           busy && "cursor-progress opacity-60",
         )}
@@ -118,7 +118,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
       )}
 
       {file && (
-        <div className="border-border-subtle bg-app rounded-control mt-4 flex items-center gap-3 border p-2">
+        <div className="border-border-subtle bg-well rounded-control mt-4 flex items-center gap-3 border p-2">
           <PdfIcon className="size-5 shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="text-label text-ink truncate">{file.name}</p>

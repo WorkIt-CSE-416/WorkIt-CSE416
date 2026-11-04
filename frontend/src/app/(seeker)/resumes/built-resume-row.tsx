@@ -110,7 +110,7 @@ export function BuiltResumeRow({
           className={cn(
             "group relative",
             RESUME_ROW,
-            "hover:border-brand/40 hover:shadow-lift ease-glide transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
+            "hover:border-ink-meta hover:shadow-lift ease-glide transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
           )}
         >
           <PdfIcon className={ROW_MARK} />

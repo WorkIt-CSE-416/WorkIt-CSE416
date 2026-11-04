@@ -76,9 +76,11 @@ export function JobActionBar({
         SEEKER_BLEED,
         SEEKER_GUTTER,
         // In the split view's panel: 60px, the list heading's height, with a
-        // rule that always shows, running across the pane. A narrow window
-        // wraps it taller.
-        "in-data-split:@4xl/main:-mx-4! in-data-split:@4xl/main:mb-5 in-data-split:@4xl/main:px-4! in-data-split:@4xl/main:pt-3 in-data-split:@4xl/main:after:opacity-100",
+        // rule that always shows, running across the pane. It is the panel's
+        // dark edge (`border-control`), as the list's edge beside it is: a
+        // light rule inside the dark-edged panel read as a different line
+        // (2026-11-03). A narrow window wraps it taller.
+        "in-data-split:@4xl/main:after:bg-border-control in-data-split:@4xl/main:-mx-4! in-data-split:@4xl/main:mb-5 in-data-split:@4xl/main:px-4! in-data-split:@4xl/main:pt-3 in-data-split:@4xl/main:after:opacity-100",
       )}
     >
       {/* The split view's list is Back's list, already on screen. */}
