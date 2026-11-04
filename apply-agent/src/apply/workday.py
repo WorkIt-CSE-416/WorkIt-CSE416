@@ -464,6 +464,7 @@ class WorkdayFiller:
             page.reload()  # as Workday's error page asks: its step showed on the next load (Salesforce, live)
             shown = self._kept(fill_engine.call(page, "readQuestions", "workday", self._engine_state()))
         shown["questions"] = fill_engine.question_set(shown["questions"])
+        self.step = str(shown.get("step") or "")  # the step shown, for the tile's line (apply.stuck)
         return shown
 
     def _fill(self, page: Page, answers: Answers) -> Readback:

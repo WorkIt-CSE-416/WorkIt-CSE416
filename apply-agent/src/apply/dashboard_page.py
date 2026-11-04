@@ -148,7 +148,8 @@ setInterval(async () => {
   state.tiles.forEach((c, k) => {
     const banner = document.getElementById('banner-' + k);
     banner.className = 'banner ' + c.tone + (c.verified ? ' verified' : '');
-    banner.querySelector('.label').textContent = c.label;
+    // A filling tile says what Apply is doing, small too: "Filling · Planning answers for 'Application Questions'".
+    banner.querySelector('.label').textContent = c.tone === 'filling' && c.doing ? `${c.label} · ${c.doing}` : c.label;
     banner.querySelector('.fields').textContent = c.asked ? `${c.filled} of ${c.asked} answers` : '';
     banner.title = [c.label, c.detail].filter(Boolean).join('\\n');
     const detail = document.getElementById('detail-' + k);

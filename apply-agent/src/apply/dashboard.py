@@ -49,7 +49,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
-from apply import bot_signals, captcha, dock_app
+from apply import bot_signals, captcha, dock_app, stuck
 from apply.answers_tab import AnswersTab, Refused
 from apply.dashboard_page import (
     ACCOUNTS,
@@ -87,6 +87,7 @@ NOTIFY_EVERY = 60.0  # s: at most one macOS notification a minute of what newly 
 FOCUS_FRESH = 3.0  # s a poll's word that the window is in front holds
 FRAME_GAP = 0.04  # s between turns of /frames: at most 25 frames a second a tile
 PUMP = 30  # ms the frames thread waits each turn, letting screencast frames and input through
+ERRORS_EVERY = 2.0  # s between reads of each Worker's page for a field error it shows (apply.stuck)
 
 
 def jpeg_size(frame: bytes) -> tuple[int, int] | None:
@@ -240,9 +241,10 @@ def verdict(caption: dict) -> dict[str, str]:
     elif status == "filling" and caption.get("verifying"):
         tone, label, kind = "verifying", WORDS["verifying"][0], "verifying"
         detail = WORDS["verifying"][1]
-    elif status == "filling":  # a rehearsal held for Start says how far it got
+    elif status == "filling":  # a rehearsal held for Start says how far it got; else what Apply is doing (apply.stuck)
         stage = {"getting ready": "Getting ready", "ready": "Ready"}.get(str(caption.get("stage") or ""))
         tone, label, kind = "filling", stage or WORDS["filling"][0], "filling"
+        detail = str(caption.get("doing") or "")
     elif missing or status == "missing fact":
         needs = {"kind": "missing fact", "do": "Answer a question only you know", "why": missing or plain(why),
                  "then": "Saved to your facts, for every form that asks it, and filled in on this form" if missing
@@ -310,6 +312,8 @@ def verdict(caption: dict) -> dict[str, str]:
     shown = {"tone": tone, "label": label, "detail": detail}
     if kind:
         shown["kind"] = kind
+    if tone == "filling" and detail:
+        shown["doing"] = detail  # its banner says it, small too
     shown |= needs
     if flags and needs.get("kind") == "check":
         shown["flags"] = [{"field": f.get("field") or "", "why": f["why"]} for f in flags]
@@ -321,7 +325,7 @@ def verdict(caption: dict) -> dict[str, str]:
         shown["error"] = error  # behind Details in the enlarged tile
     if system:
         shown["system"] = system
-    if resume and needs:
+    if resume and (needs or tone == "filling"):  # paused; or filling, and stuck or waiting (apply.stuck)
         shown["resume"] = {"ok": bool(resume.get("ok")), "why": str(resume.get("why") or "")}
     if history := caption.get("history"):  # each pause and Resume, under the verdict
         shown["detail"] = "\n".join(filter(None, [shown["detail"], *history]))
@@ -366,6 +370,10 @@ class Frames(Protocol):
     def chooser(self, worker: int) -> str | None:
         """Whether Worker `worker`'s page asked for a file ("selectSingle" or
         "selectMultiple"), till it is given one; headless Chrome shows no picker."""
+        ...
+
+    def field_error(self, worker: int) -> str:
+        """The field error Worker `worker`'s page last showed (apply.stuck.FIELD_ERROR), "" for none."""
         ...
 
 
@@ -457,6 +465,9 @@ class NoFrames:
 
     def chooser(self, worker: int) -> str | None:
         return None
+
+    def field_error(self, worker: int) -> str:
+        return ""
 
 
 class Dashboard:
@@ -734,6 +745,9 @@ class Dashboard:
             run = dict(self._run)
         for k, caption in enumerate(captions):
             caption |= verify.without_dismissed(caption)  # a flag Lisul dismissed holds it no more
+            if caption.get("status") == "filling" and not caption.get("verifying") and not caption.get("stage") \
+                    and (why := stuck.why(caption, getattr(self._frames, "field_error", lambda k: "")(k), time.time())):
+                caption["resume"] = {"ok": True, "why": why}  # stuck or waiting: Resume goes on from the page
             caption |= verdict(caption)
             if chooser := self._frames.chooser(k):
                 caption["file"] = chooser
@@ -1305,6 +1319,7 @@ class CdpFrames:
         self._endpoint = endpoint
         self._frames: dict[int, tuple[bytes, int]] = {}  # worker -> (latest frame, its number)
         self._choosers: dict[int, dict] = {}  # worker -> the file chooser its page opened, till it has files
+        self._errors: dict[int, tuple[str, float]] = {}  # worker -> the field error its page shows, and when read
         self._changed = threading.Condition()
         self._requests: queue.Queue[tuple[int, dict, queue.Queue | None]] = queue.Queue()
         self._stop = threading.Event()
@@ -1341,6 +1356,9 @@ class CdpFrames:
     def chooser(self, worker: int) -> str | None:
         return self._choosers.get(worker, {}).get("mode")
 
+    def field_error(self, worker: int) -> str:
+        return self._errors.get(worker, ("", 0.0))[0]
+
     def forget_chooser(self, worker: int) -> None:
         """The file its page asked for was given another way (Claude set the input itself)."""
         self._choosers.pop(worker, None)
@@ -1374,6 +1392,7 @@ class CdpFrames:
     def _turn(self, playwright, watching: dict) -> None:
         for worker in range(self._workers):
             self._follow(playwright, watching, worker)
+            self._read_errors(watching, worker)
         self._replay(watching)
         pages = [w.page for w in watching.values() if w.page is not None and not w.page.is_closed()]
         try:
@@ -1425,6 +1444,17 @@ class CdpFrames:
             watch.session = session
         except Exception:
             watch.page = None  # it closed under us; the next turn finds what replaced it
+
+    def _read_errors(self, watching: dict, worker: int) -> None:
+        """Read the field error Worker `worker`'s page shows, every ERRORS_EVERY s: seen
+        on this thread's own connection, so also while the Worker waits (apply.stuck)."""
+        watch = watching.get(worker)
+        if watch is None or watch.page is None:
+            self._errors.pop(worker, None)
+            return
+        if time.monotonic() - self._errors.get(worker, ("", -ERRORS_EVERY))[1] < ERRORS_EVERY:
+            return
+        self._errors[worker] = (stuck.field_error(watch.page), time.monotonic())
 
     def _replay(self, watching: dict) -> None:
         while not self._requests.empty():

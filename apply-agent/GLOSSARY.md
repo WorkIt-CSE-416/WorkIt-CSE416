@@ -121,7 +121,7 @@ A page that refuses the Worker's Chrome as a bot and has nothing to solve. Examp
 _Avoid_: ban, captcha, stealth
 
 **Resume**:
-The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue.
+The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue. A filling Rehearsal also shows Resume when Apply waits on Claude, the page shows a field error, or the fill makes no progress for 45 seconds. There, Resume stops the wait and continues from the page as he left it.
 _Avoid_: retry, restart, continue
 
 **Worker**:
