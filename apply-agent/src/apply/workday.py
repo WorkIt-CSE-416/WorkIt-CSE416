@@ -568,6 +568,7 @@ def _send(page: Page, form: Locator, outcome, unanswered: str = "") -> str:
     page.on("request", on_request)
     try:
         for _ in range(SEND_CLICKS):
+            _let_account_click(page)
             form.locator("[data-automation-id=click_filter]").click()
             try:
                 return _until(page, outcome, SEND_WAIT)
@@ -578,9 +579,21 @@ def _send(page: Page, form: Locator, outcome, unanswered: str = "") -> str:
         pass
     finally:
         page.remove_listener("request", on_request)
+        _let_account_click(page, False)
     if sent and unanswered:
         return unanswered
     raise Handoff(f"Workday didn't answer its sign-in form ({page.url}): sign in and apply yourself.")
+
+
+def _let_account_click(page: Page, let: bool = True) -> None:
+    """Let Apply's clicks on the auth form's button through a rehearsal's
+    guard (apply.submit_guard), which would take Workday's "Submit" (its
+    label in the Sign in with email view, Sonos's, live) for the application's;
+    `let=False` puts the guard back."""
+    try:
+        page.evaluate(f"window.__applyAccountClick = {'true' if let else 'false'}")
+    except Exception:
+        pass  # the page navigating: its next document has no guard state to set yet
 
 
 def _by_email(page: Page) -> None:

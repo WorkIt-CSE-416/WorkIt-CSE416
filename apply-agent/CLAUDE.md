@@ -649,6 +649,11 @@ Claude stops at one (`SAYS_CAPTCHA`).
   account (Zillow's, live). It opens that link once and never asks for a
   new one. The fake Workday's `to_sign_in`, `exists_quietly` and
   `hides_errors` play these flows (`tests/test_employer_accounts.py`).
+- In its Sign in with email view, Workday names the auth button "Submit"
+  (Sonos's, live). A rehearsal's guard blocks a button that says submit,
+  so `workday._send` sets `window.__applyAccountClick` for its own click.
+  The guard then lets a click or submit in a form with a password box go
+  through. No application's final button is in such a form.
 - Apply asks a site for a verification code or link once per sign-in and
   never clicks Resend or Send New Code (`accounts.Accounts._wait`): a mail
   that hasn't come in about 2 minutes goes to Needs you ("Type the emailed
