@@ -27,6 +27,8 @@ Apply process                                   Worker k (plain Chrome)
     `injectedScriptSource`, Apache-2.0, taken from the installed Python package's driver),
     wrapped so it sets `globalThis.__applyPW = new InjectedScript(...)` in the
     extension's isolated world.
+  - `vendor/fixed.js` (S5): Apply's fixed page functions (`apply.plain.fixed`), written from
+    the very strings `on_page`, `stuck` and `email_code` evaluate; sets `globalThis.__applyFixed`.
 - **Host:** `com.workit.apply_worker`. Its manifest is written into each Worker profile's
   own `NativeMessagingHosts/` folder (never Lisul's Chrome folder) and names only the
   worker extension's origin. Its `path` is a per-profile wrapper that runs
@@ -180,6 +182,14 @@ Events (S2 sends these; later slices add their own):
 S3: `{"event": "tile.frame", "tab", "url", "data": base64 JPEG, "width", "height"}`, the tab's
 viewport at its CSS size (a Retina capture is scaled down), fitted within `maxWidth` x `maxHeight`.
 
+## Ops (S5: Records, Needs you, Resume, emailed code; KAN-611)
+
+| Op | Params | Value |
+|---|---|---|
+| `tabs.fullScreenshot` | `tab`, `format` (`png`/`jpeg`), `quality?`, `clip?` (`{x, y, width, height}` in page px, or with `viewport: true` in viewport px), `scale?` (default 1), `maxHeight?` (CSS px, default 20000) | `{"data": base64, "width", "height", "strips", "cut"}`: the whole page (or `clip`) by scroll and stitch, at `scale` px per CSS px; fixed and sticky elements hidden after the first strip; the scrollbar hidden; the page's scroll put back. A strip a viewport tall about every 0.55 s (the capture quota). `cut`: the page is taller than `maxHeight` |
+| `page.html` | `tab`, `frame?`, `snapshot` | the frame's HTML with its doctype. With `snapshot` (a Record's): each field's value as shown (value, checked, selected, a textarea's text), no `<script>`/`<noscript>`, no Apply note (`[id^=apply-]`), no password value, and a `<base href>` |
+| `fixed.call` | `tab`, `frame?`, `name`, `world` (`ISOLATED`/`MAIN`), `arg`, `selector?`, `all?` | `{"ok": value}`, `{"retry": reason}` (no element matches `selector` yet), or `{"err": {name, message}}`: runs `vendor/fixed.js`'s function `name` on `arg`, or on the first (`all`: every) element `selector` matches (Playwright's selector engine; ISOLATED only). No eval: page CSP and Allow User Scripts don't matter |
+
 ## Adding ops in later slices (S3 to S7)
 
 - **Extension:** put each slice's ops in its own file, `worker-extension/ops/<slice>.js`,
@@ -203,7 +213,8 @@ and defaults (timeouts in ms, default 30000). Covered in S2:
   `get_by_role(role, name=, exact=, checked=, ...)`, `get_by_text(text, exact=)`,
   `get_by_label(text, exact=)`, `get_by_placeholder`, `get_by_test_id`,
   `fill/click/check/press/type/select_option/set_input_files/is_visible/is_checked/inner_text/input_value(selector, ...)`,
-  `eval_on_selector_all(selector, fn, arg)`, `screenshot(path=, type=, full_page=False)`,
+  `eval_on_selector_all(selector, fn, arg)`, `screenshot(path=, type=, full_page=)` (S5: `full_page=True`
+  stitches), `content()` and `record_html()` (S5),
   `frames`, `main_frame`, `context` (a `PortContext` with `pages`, `new_page()`),
   `keyboard.press/type/insert_text` (on the focused element), `on/once/remove_listener`
   (`close`, `popup`, `framenavigated`; other events are accepted and ignored until their
@@ -216,14 +227,18 @@ and defaults (timeouts in ms, default 30000). Covered in S2:
   `is_checked`, `is_editable`, `inner_text`, `text_content`, `input_value`,
   `get_attribute`, `all_inner_texts`, `all_text_contents`, `bounding_box`,
   `wait_for(state=, timeout=)`, `evaluate(fn, arg)`, `evaluate_all(fn, arg)`,
-  `aria_snapshot()`, `page`.
+  `aria_snapshot()`, `screenshot()` (S5: the element, cut from a stitch), `page`.
+- **Fixed functions (S5):** `evaluate` / `Locator.evaluate` given one of the strings in
+  `apply.plain.fixed` run its fixed copy (`fixed.call`), not eval. Add a string there for page
+  code a held page runs on real sites.
 - **PortFrame:** `url`, `name`, the same locator, `evaluate` and action methods, run in that frame.
 - **S3 adds:** `PortPage.mouse` (`move`, `down`, `up`, `click`, `dblclick`, `wheel`, at viewport
   points) and `PortPage.expect_file_chooser(timeout=)`, whose `.value` is a FileChooser
   (`set_files`, `is_multiple`, `page`; no `element`), in `apply.plain.tile`.
 - **Not yet (a later slice adds it, in this module):** `add_init_script`, `expose_binding`,
-  `route`/`unroute` (S4); `full_page=True` stitching (S5); `add_locator_handler` (S7); frame locators across frames
-  (`frame_locator`, `content_frame`) (S5/S7). Each raises `NotImplementedError` naming the slice.
+  `route`/`unroute` (S4); `add_locator_handler` (S7); frame locators across frames
+  (`frame_locator`, `content_frame`) (S7: S5's Needs you, Resume and emailed code go through
+  `page.frames`, so they need none). Each raises `NotImplementedError` naming the slice.
 
 Auto-wait: actions poll their `dom` op every 100 ms while it answers `{"retry": ...}` or
 `NotFound`, until the timeout, then raise `PortTimeoutError` with Playwright's wording

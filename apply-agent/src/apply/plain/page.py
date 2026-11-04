@@ -34,11 +34,15 @@ from playwright._impl._locator import (
 )
 from playwright._impl._str_utils import escape_for_text_selector
 
+from apply.plain import fixed
 from apply.plain.bridge import Connection, PortError, PortTimeoutError
 from apply.plain.script import evaluate as evaluate_in
 
 DEFAULT_TIMEOUT = 30000  # ms, as Playwright's
 POLL = 0.1  # s between tries of an action whose element is missing or not actionable
+FULL_PAGE_MAX = 20000  # CSS px of a page a full-page screenshot covers, from its top
+STRIP_S = 0.6  # s a full-page screenshot takes for each viewport of the page
+VIEWPORT = "() => ({width: innerWidth, height: innerHeight})"  # page.viewport_size (a fixed function)
 NAVIGATED = re.compile(r"context was destroyed|navigat", re.IGNORECASE)
 ROLE_ARGUMENTS = ("checked", "disabled", "expanded", "include_hidden", "level", "name", "pressed", "selected", "exact",
                   "description")
@@ -177,10 +181,33 @@ class PortFrame(_Queries):
         return PortLocator(self, _filtered(selector, has_text, has_not_text, has, has_not))
 
     def frame_locator(self, selector: str):
-        later("frame_locator", "S5/S7")
+        later("frame_locator", "S7")
 
     def evaluate(self, expression: str, arg: Any = None) -> Any:
+        if found := fixed.lookup(expression):  # Apply's own page function: its fixed copy, no eval (KAN-611)
+            return self._fixed(*found, arg)
         return evaluate_in(self._page.worker, self._page.tab, expression, arg, self._frame)
+
+    def _fixed(self, name: str, world: str, arg: Any, selector: str | None = None, every: bool = False,
+               timeout: float | None = None) -> Any:
+        """Fixed function `name` in this frame, on `arg` (and the element `selector` matches, waited for,
+        or every one): its value, or its error raised as PortError."""
+        timeout = DEFAULT_TIMEOUT if timeout is None else timeout
+        deadline = time.monotonic() + timeout / 1000
+        while True:
+            answer = self._page.worker.call("fixed.call", tab=self._page.tab, frame=self._frame, name=name, world=world,
+                                            arg=arg, selector=selector, all=every)
+            if not isinstance(answer, dict):
+                raise PortError("EvalError", f"fixed.{name}: no answer")
+            if "err" in answer:
+                error = answer["err"] or {}
+                raise PortError("BadOp" if error.get("name") == "BadOp" else "EvalError",
+                                f"{error.get('name', 'Error')}: {error.get('message', '')}")
+            if "retry" not in answer:
+                return answer.get("ok")
+            if timeout and time.monotonic() > deadline:
+                raise PortTimeoutError(f"Locator.evaluate: Timeout {timeout:.0f}ms exceeded.\nCall log:\n  - {answer['retry']}")
+            time.sleep(POLL)
 
     def evaluate_handle(self, expression: str, arg: Any = None):
         later("evaluate_handle", "a later slice (no handles over the port)")
@@ -327,10 +354,10 @@ class PortLocator(_Queries):
         return self._frame._now("count", self._selector)
 
     def content_frame(self):
-        later("content_frame", "S5/S7")
+        later("content_frame", "S7")
 
     def frame_locator(self, selector: str):
-        later("frame_locator", "S5/S7")
+        later("frame_locator", "S7")
 
     # --- actions
 
@@ -495,6 +522,8 @@ class PortLocator(_Queries):
     # --- page code on elements: marked in the isolated world, found by the mark in MAIN
 
     def _on_marked(self, expression: str, arg: Any, every: bool, timeout: float | None):
+        if found := fixed.lookup(expression):  # Apply's own page function: its fixed copy, no eval (KAN-611)
+            return self._frame._fixed(*found, arg, selector=self._selector, every=every, timeout=timeout)
         token = uuid.uuid4().hex
         if every:
             self._frame._now("mark", self._selector, token)
@@ -523,8 +552,14 @@ class PortLocator(_Queries):
     def element_handle(self, **_):
         later("element_handle", "a later slice (no handles over the port)")
 
-    def screenshot(self, **_):
-        later("Locator.screenshot", "S5")
+    def screenshot(self, path: str | Path | None = None, type: str | None = None, quality: int | None = None,
+                   timeout: float | None = None, **_) -> bytes:
+        """The element, cut from the page by scroll and stitch (it may be taller than the window)."""
+        self.scroll_into_view_if_needed(timeout=timeout)
+        box = self._frame._now("read", self._selector, "box") if self._frame._frame == 0 else None
+        if not box:
+            raise PortError("NotFound", f"Locator.screenshot: {self._selector} has no box in the top frame")
+        return self.page._full(path, type, quality, timeout, clip={**box, "viewport": True})
 
 
 class Keyboard:
@@ -693,14 +728,37 @@ class PortPage(PortFrame):
 
     def screenshot(self, path: str | Path | None = None, type: str | None = None, quality: int | None = None,
                    full_page: bool = False, timeout: float | None = None, **_) -> bytes:
-        """The visible part of the tab (captureVisibleTab, about 2 a second per Worker)."""
+        """The visible part of the tab (captureVisibleTab, about 2 a second per Worker), or with
+        `full_page` the whole page, by scroll and stitch (KAN-611)."""
         if full_page:
-            later("screenshot(full_page=True)", "S5")
+            return self._full(path, type, quality, timeout)
         kind = type or ("jpeg" if path and str(path).lower().endswith((".jpg", ".jpeg")) else "png")
         data = base64.b64decode(self.worker.call("tabs.screenshot", tab=self.tab, format=kind, quality=quality)["data"])
         if path:
             Path(path).write_bytes(data)
         return data
+
+    def _full(self, path, type, quality, timeout, clip: dict | None = None) -> bytes:
+        """Scroll and stitch: a strip a viewport tall about every 0.55 s (captureVisibleTab's quota), fixed
+        and sticky elements shown once, at 1 px per CSS px, at most FULL_PAGE_MAX CSS px tall. Its time
+        grows with the page: `timeout` (Playwright's 30 s, or the caller's) is only its floor."""
+        kind = type or ("jpeg" if path and str(path).lower().endswith((".jpg", ".jpeg")) else "png")
+        wait = max((DEFAULT_TIMEOUT if timeout is None else timeout) / 1000, FULL_PAGE_MAX / 600 * STRIP_S + 10)
+        shot = self.worker.call("tabs.fullScreenshot", timeout=wait, tab=self.tab, format=kind, quality=quality, clip=clip,
+                                maxHeight=FULL_PAGE_MAX)
+        data = base64.b64decode(shot["data"])
+        if path:
+            Path(path).write_bytes(data)
+        return data
+
+    def content(self) -> str:
+        """The page's HTML, as Playwright's page.content() gives it."""
+        return self.worker.call("page.html", tab=self.tab, frame=0, snapshot=False)
+
+    def record_html(self) -> str:
+        """The page's HTML for a Record (KAN-611): each field's value as the page shows it, no scripts, no
+        Apply note, no password, and a <base> so it opens with its styles."""
+        return self.worker.call("page.html", tab=self.tab, frame=0, snapshot=True)
 
     def set_default_timeout(self, timeout: float) -> None:
         global DEFAULT_TIMEOUT
@@ -708,7 +766,7 @@ class PortPage(PortFrame):
 
     @property
     def viewport_size(self) -> dict | None:
-        return self.evaluate("() => ({width: innerWidth, height: innerHeight})")
+        return self.evaluate(VIEWPORT)
 
     # --- events: close, popup and framenavigated now; the rest when their slice wires them
 
