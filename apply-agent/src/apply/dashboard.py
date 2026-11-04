@@ -88,6 +88,7 @@ NOTIFY_EVERY = 60.0  # s: at most one macOS notification a minute of what newly 
 FOCUS_FRESH = 3.0  # s a poll's word that the window is in front holds
 FRAME_GAP = 0.04  # s between turns of /frames: at most 25 frames a second a tile
 PUMP = 30  # ms the frames thread waits each turn, letting screencast frames and input through
+GO_TO_WAIT = 8.0  # s Go to question waits for the held form's hold loop to show the field
 ERRORS_EVERY = 2.0  # s between reads of each Worker's page for a field error it shows (apply.stuck)
 
 
@@ -420,6 +421,11 @@ class Board(Protocol):
         it last asked; each press is given once."""
         ...
 
+    def wanted(self, worker: int) -> list[tuple[str, Callable[[str], None]]]:
+        """Each Go to question Lisul pressed for Worker `worker`'s held form since it last asked: the
+        question, and where to say how it went ("" when the field is shown; else why not). Each is given once."""
+        ...
+
     def typed(self, worker: int, questions: list[str], answer: str) -> str:
         """Lisul answered `questions` (a Missing fact, or each Essay fact of one essay) on Worker `worker`'s
         held form himself: save the answer as his answer in Needs you is, and ask them no more. Says how it went."""
@@ -455,6 +461,9 @@ class NoBoard:
 
     def resumed(self, worker: int) -> bool:
         return False
+
+    def wanted(self, worker: int) -> list[tuple[str, Callable[[str], None]]]:
+        return []
 
     def typed(self, worker: int, questions: list[str], answer: str) -> str:
         return ""
@@ -541,6 +550,7 @@ class Dashboard:
         self._started = threading.Event()  # Lisul pressed Start
         self._to_fill: dict[int, list[tuple[str, str]]] = {}  # answers to fill on each Worker's open form (answered)
         self._resume: set[int] = set()  # the Workers whose paused form Lisul pressed Resume on (resumed)
+        self._goto: dict[int, list[tuple[str, Callable[[str], None]]]] = {}  # Go to question presses, by Worker (wanted)
 
     def __enter__(self) -> Self:
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
@@ -648,6 +658,32 @@ class Dashboard:
             pressed = worker in self._resume
             self._resume.discard(worker)
             return pressed
+
+    def wanted(self, worker: int) -> list[tuple[str, Callable[[str], None]]]:
+        with self._lock:
+            return self._goto.pop(worker, [])
+
+    def go_to(self, item: dict, question: str) -> tuple[str, bool]:
+        """Lisul pressed Go to question on an item's question: its Worker's Chrome comes to the front (False:
+        it has no window, so the tile shows it), and the held form scrolls to the field and focuses it.
+        Raises Refused when the form doesn't answer within GO_TO_WAIT. Returns what to tell him, and the front."""
+        k, said, told = item["worker"], [], threading.Event()
+        with self._lock:
+            held = 0 <= k < self._workers and self._captions[k].get("posting_url") == item.get("posting_url")
+        if not held:
+            raise Refused("Its form is closed: answer it here.", 409)
+        front = bool(self.show and self.show(k))
+
+        def reply(why: str) -> None:
+            said.append(why)
+            told.set()
+        with self._lock:
+            self._goto.setdefault(k, []).append((question, reply))
+        if not told.wait(GO_TO_WAIT):
+            with self._lock:
+                self._goto[k] = [g for g in self._goto.get(k, []) if g[1] is not reply]
+            raise Refused("The form didn't answer: Apply may be busy with it. Try again in a moment.", 409)
+        return said[0] or "There it is: answer it on the form. Apply saves your answer once you leave the field.", front
 
     def typed(self, worker: int, questions: list[str], answer: str) -> str:
         item = next((i for i in self.state()["items"] if i.get("worker") == worker and not i.get("live")
@@ -887,6 +923,13 @@ def _fills_in_place(item: dict, question: str) -> bool:
         and isinstance(item.get("worker"), int) and item["worker"] >= 0 and not question.startswith(ASK)
 
 
+def on_form(item: dict) -> bool:
+    """Whether an item's question is on a form still open in its Worker's browser, held for Lisul: a
+    rehearsal's, ended or paused (a form still filling is Apply's to drive, and a run's Missing fact is a row)."""
+    return item.get("from") != "tracker" and str(item.get("status")) != "missing fact" and not item.get("live") \
+        and isinstance(item.get("worker"), int) and item["worker"] >= 0
+
+
 def _waits(row) -> bool:
     """Whether a Tracker row's Application waits on Lisul: a Hold he hasn't
     approved, a Missing fact he hasn't answered, or a Handoff."""
@@ -964,6 +1007,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._dismiss()
         if parts.path == "/resume":
             return self._resume()
+        if parts.path == "/goto":
+            return self._go_to()
         if parts.path == "/everyday" and self.dashboard.everyday:
             return self._everyday()
         if parts.path == "/accounts/copy" and self.dashboard.accounts:
@@ -1136,6 +1181,27 @@ class _Handler(BaseHTTPRequestHandler):
                 message += " Claude fills it in on the open form now."
         print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {answer}")
         self._json(200, {"message": message})
+
+    def _go_to(self) -> None:
+        """Go to question, pressed on a Needs you card by the page itself: the held form shows the field."""
+        token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+        if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin not in (None, self.dashboard.url):
+            return self._json(403, {"error": "Only the Apply window may move a form."})
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            key, question = str(body["id"]), str(body["question"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a question."})
+        item = next((i for i in self.dashboard.state()["items"] if str(i["id"]) == key), None)
+        if item is None or question not in item.get("questions", []):
+            return self._json(404, {"error": "That question is no longer waiting for you."})
+        if not on_form(item):
+            return self._json(409, {"error": "Its form is closed: answer it here."})
+        try:
+            message, front = self.dashboard.go_to(item, question)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        self._json(200, {"message": message, "front": front})
 
     def _approve(self) -> None:
         """Lisul approves a Hold in the Inbox, from the page itself: it is sent at the next check, with

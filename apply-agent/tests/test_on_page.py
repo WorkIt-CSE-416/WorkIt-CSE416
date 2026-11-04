@@ -1,15 +1,26 @@
-"""Needs you on the page (KAN-600): an answer Lisul types on the held form
-himself is saved as a card's answer is, and leaves Needs you."""
+"""Needs you on the page (KAN-600): Go to question shows a Missing fact's
+field on the held form, and an answer Lisul types there himself is saved as
+a card's answer is, and leaves Needs you."""
 
 import json
+import threading
+import urllib.error
+import urllib.request
 
 import pytest
 import yaml
 from conftest import ARC_FORM, ARC_URL
+from fake_workday import EXPERIENCE_STEPS, FakeWorkdayServer
 from fakes import FakeJobServer, RecordingBoard
 from playwright.sync_api import sync_playwright
 from test_dashboard import FakeFrames
-from test_rehearse import NeverSubmits, adapters
+from test_employer_accounts import XCEL_FORM, XCEL_URL
+from test_rehearse import (
+    NeverSubmits,
+    NeverSubmittingWorkday,
+    adapters,
+    experience_profile,
+)
 from test_run_answers import profile_with
 
 from apply import cli, essays, on_page, rehearsal
@@ -200,3 +211,135 @@ def test_an_essay_facts_field_is_its_essays():
     assert rehearsal._field_of(done, "Essay fact: what?") is essay
     assert rehearsal._field_of(done, "Pronouns").name == "q_1"
     assert rehearsal._field_of(done, "Essay fact: other?") is None
+
+
+# Go to question.
+
+class PressesGoTo(RecordingBoard):
+    """Lisul, in Needs you: presses Go to question for `question`, types `answer` into the field it
+    focused, and leaves it (Tab). The page closes once Apply took his answer, which ends the hold."""
+
+    def __init__(self, question: str, answer: str):
+        super().__init__()
+        self.question, self.answer, self.said, self.focused, self.typed_in = question, answer, [], [], []
+        self._turn = 0
+
+    def wanted(self, worker):
+        if not self.captions.get(worker, {}).get("missing") and not self.typed_in:
+            return []
+        self._turn += 1
+        if self._turn == 1:
+            return [(self.question, self.said.append)]
+        page = self.page
+        if self._turn == 2:
+            self.focused.append(page.evaluate("[document.activeElement.id, [...document.querySelectorAll('*')]"
+                                              ".some((e) => e.contains(document.activeElement) && e.style.outline.includes('solid'))]"))
+            page.keyboard.type(self.answer)
+            page.keyboard.press("Tab")
+        elif self.typed_in:
+            page.close()
+        return []
+
+
+def test_go_to_question_focuses_the_field_and_his_answer_typed_there_leaves_needs_you(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(on_page, "IDLE_S", 0.5)
+    profile = profile_with(tmp_path, **{"identity.email": None})
+    board = PressesGoTo("Email", "lisul@example.com")
+    went = on_page.go_to
+
+    def go_to(page, q):
+        board.page = page
+        return went(page, q)
+    monkeypatch.setattr(on_page, "go_to", go_to)
+    lines = []
+    with FakeJobServer(ARC_FORM) as fake:
+        rehearsal.rehearse([ARC_URL], adapters(fake, board=board, records=FolderRecords(tmp_path / "rehearsals")),
+                           ApplicantProfile.load(profile), 1, keep_open=True, out=lines.append)
+
+    assert board.said == [""]  # the field was shown
+    [(focused, outline)] = board.focused
+    assert focused == "email" and outline  # focused, and outlined for a moment
+    assert board.typed_in == [(0, ["Email"], "lisul@example.com")]  # saved as a card's answer is
+    assert board.captions[0]["missing"] == []  # it leaves Needs you
+    assert "Missing facts: none" in board.captions[0]["line"]
+    assert any("took your answer to 'Email' from the page" in line for line in lines)
+    [readme] = (tmp_path / "rehearsals").glob("*/*/README.md")
+    [row] = [r for r in json.loads((readme.parent / "answers.json").read_text()) if r["question"] == "Email"]
+    assert row["planned"] == row["on_page"] == "lisul@example.com"  # the Record and its plan have his answer
+    assert fake.submissions == []
+
+
+def post(board, path, body, token=None):
+    request = urllib.request.Request(board.url + path, json.dumps(body).encode(), {"X-Apply-Token": token or board.token})
+    try:
+        with urllib.request.urlopen(request) as reply:
+            return reply.status, json.loads(reply.read())
+    except urllib.error.HTTPError as error:
+        return error.code, json.loads(error.read())
+
+
+def test_go_to_question_asks_the_held_form_and_says_what_it_did(monkeypatch):
+    shown = []
+    with Dashboard(1, FakeFrames({}), answer=lambda *a: "Saved.", show=lambda k: shown.append(k) or False) as board:
+        board.update(0, company="Point72", posting_url="https://p.example/1", status=rehearsal.READY,
+                     missing=["Certifications"])
+        [item] = board.state()["items"]
+
+        def hold_loop():  # the Worker's held page, on its next turn
+            for _ in range(100):
+                if wanted := board.wanted(0):
+                    [(question, reply)] = wanted
+                    reply("" if question == "Certifications" else "no")
+                    return
+                threading.Event().wait(0.05)
+        threading.Thread(target=hold_loop).start()
+        status, said = post(board, "/goto", {"id": item["id"], "question": "Certifications"})
+        refused, _ = post(board, "/goto", {"id": item["id"], "question": "Certifications"}, token="guessed")
+        gone, _ = post(board, "/goto", {"id": item["id"], "question": "Pronouns"})
+        board.update(0, company="Next", posting_url="https://n.example/2", status="filling")  # the Worker moved on
+        closed, why = post(board, "/goto", {"id": item["id"], "question": "Certifications"})
+
+    assert (status, said["front"], shown) == (200, False, [0])  # no window of its own: the page shows its tile
+    assert said["message"].startswith("There it is")
+    assert (refused, gone, closed) == (403, 404, 409) and "closed" in why["error"]
+
+
+def test_go_to_question_on_a_paused_workday_step_shows_its_field(monkeypatch, tmp_path):
+    # The rehearsal pauses on My Experience: Snap's degree list has no Bachelor's Degree (a Missing fact).
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    said, shown = [], []
+
+    class Board(RecordingBoard):
+        def wanted(self, worker):
+            if self.captions.get(worker, {}).get("missing") and not said:
+                return [("Education 1 / Degree", said.append)]
+            if said and not shown:
+                shown.append(page_of[0].evaluate("document.activeElement.closest('[data-automation-id^=formField]')"
+                                                 " ? document.activeElement.closest('[data-automation-id^=formField]')"
+                                                 ".innerText : ''"))
+                page_of[0].close()
+            return []
+    page_of = []
+    went = on_page.go_to
+    monkeypatch.setattr(on_page, "go_to", lambda page, q: page_of.append(page) or went(page, q))
+    world = experience_profile()
+    with FakeWorkdayServer(XCEL_FORM, steps=EXPERIENCE_STEPS) as server:
+        rehearsal.rehearse([XCEL_URL], adapters(server, board=Board(), records=FolderRecords(tmp_path / "rehearsals")),
+                           ApplicantProfile.load(world.profile), 1, keep_open=True, out=lambda line: None)
+
+    assert said == [""] and "Degree" in shown[0]
+    assert server.submissions == []
+
+
+def test_only_a_question_on_a_form_held_open_has_go_to_question(page):
+    with Dashboard(2, FakeFrames({}), answer=lambda *a: "Saved.", show=lambda k: True) as board:
+        board.update(0, company="Point72", posting_url="https://p.example/1", status=rehearsal.READY,
+                     missing=["Certifications", "Essay fact: what did the robot do?"])
+        board.update(1, company="Cohere", posting_url="https://c.example/2", status="filling", missing=["Pronouns"])
+        page.goto(board.url + "/#inbox")
+        page.wait_for_selector(".item .ask", timeout=10_000)
+        cards = page.eval_on_selector_all(".item", "cs => cs.map(c => [c.innerText.includes('Point72'), "
+                                                   "c.querySelectorAll('.ask').length, c.querySelectorAll('button.goto').length])")
+
+    assert sorted(cards, reverse=True) == [[True, 2, 2], [False, 1, 0]]  # a form still filling is Apply's to drive

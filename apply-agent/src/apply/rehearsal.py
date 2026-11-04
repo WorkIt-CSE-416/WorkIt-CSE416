@@ -217,11 +217,14 @@ def rehearse(
         watching = {}  # the held page's Watch (apply.on_page), anew for each page held
 
         def tend(page) -> None:
-            """Needs you on the held page: each answer Lisul typed there himself."""
+            """Needs you on the held page: each Go to question pressed, and each answer Lisul typed there."""
             watch = watching.get(id(page))
             if watch is None:
                 watching.clear()
                 watch = watching[id(page)] = on_page.Watch(done.posting.job_system, done.posting.url)
+            for asked, reply in adapters.board.wanted(n):
+                q = _field_of(done, asked)
+                reply(on_page.go_to(page, q) if q else f"'{one_line(asked)}' waits on you no more")
             fields = {}  # each field waiting on Lisul, with the questions it answers (an essay's, each of its asks)
             for asked in done.missing:
                 if q := _field_of(done, asked):
@@ -748,7 +751,7 @@ class _Kept:
         A captcha that shows after a press of his calls `challenged()`, once:
         he does it himself, and Apply never touches it. A bot block after a press
         of his (Lever's captcha turning the token down) calls `refused(said)`, once.
-        `tend(page)` runs on each turn: Needs you on the page (answers typed there).
+        `tend(page)` runs on each turn: Needs you on the page (Go to question, and answers typed there).
         "" when the page closed or `release` was set."""
         if self._page is None or release.is_set():
             return ""
