@@ -44,6 +44,7 @@
     }
   ],
   "permissions": ["storage", "activeTab", "scripting", "cookies", "tabGroups", "webRequest"],
+  "optional_permissions": ["nativeMessaging"],
   "optional_host_permissions": ["https://*/*"],
   "host_permissions": [
     "http://localhost:8000/*",

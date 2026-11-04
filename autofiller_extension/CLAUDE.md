@@ -677,6 +677,33 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   `test/batch-sessions.extension.spec.ts` (an older tenant's login). Tests
   that reach a Workday sign-in save `WORKDAY_SIGNUP` first
   (`saveWorkdaySignup`, test/loaded-extension.ts).
+- **Apply's Employer accounts (KAN-592).** Apply (`apply-agent/`) makes a
+  Workday account per company with a generated password kept only in macOS
+  Keychain. With Use My Apply Accounts on (options page: the optional
+  `nativeMessaging` permission, so students never see a new install
+  warning), the worker asks Apply's accounts host (`com.workit.apply_accounts`,
+  installed by `uv run apply chrome-passwords`; `background/apply-accounts.js`)
+  on each Workday sign-in, before `workdayLogin`: a tenant it knows (`want:
+  "known"`, company and login, never a password) gets `apply: true`. Then
+  `workday.js` switches Create Account to Sign In, types only the email, never
+  types the student's one sign-up password there, and the panel offers Sign
+  In with Your Apply Account (`overlay.offerApplySignIn`, trusted clicks
+  only). Only that press sends `workday/apply-login`; the worker takes the
+  tenant from `sender.url`, never from the message, and answers that tab
+  alone. The content script types the password and calls
+  `navigator.credentials.store(new PasswordCredential(...))`, so Chrome asks
+  to save it in its own password manager (and Google Password Manager by
+  sync): it works from the isolated world, as the tenant's origin
+  (checked in Chromium 2026-11-03: chrome://password-manager-internals logs
+  "CM API save a credential" and the Save password? bubble shows). Chrome
+  saves a new password only on the student's Save press: no API or policy
+  saves it silently. Nothing presses Sign In: Save first, then the student
+  presses it. **The Apply password is never kept here**: not in
+  `chrome.storage`, a log, a report or an API call. The host answers only
+  this extension's ID, one tenant, and only one in Apply's Employer
+  accounts list. Test: `test/apply-accounts.extension.spec.ts`, with a fake
+  host (`test/fake-apply-host.mjs`) in the profile's `NativeMessagingHosts`
+  (`loadExtension`'s `grantPermissions`).
 - **Workday sign-in (KAN-373).** On Workday's Create Account or Sign In
   form (`[data-automation-id=signInFormo]`; Workday's step bar calls it a
   step, which `workdayStep()` ignores), `workday.js` asks

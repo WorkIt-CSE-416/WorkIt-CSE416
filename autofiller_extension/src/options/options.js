@@ -260,3 +260,19 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 listLogins();
+
+// Apply Accounts (KAN-592): the optional nativeMessaging permission that lets the worker ask Apply's
+// accounts host (background/apply-accounts.js) for a tenant's login. Chrome asks the student once.
+const applyAccounts = document.getElementById("apply-accounts");
+const applySaid = document.getElementById("apply-said");
+const NATIVE = { permissions: ["nativeMessaging"] };
+
+applyAccounts.addEventListener("change", async () => {
+  const on = applyAccounts.checked
+    ? await chrome.permissions.request(NATIVE)
+    : !(await chrome.permissions.remove(NATIVE));
+  applyAccounts.checked = on;
+  applySaid.textContent = on ? "On: a Workday Sign In that Apply made an account for offers your Apply account." : "Off.";
+});
+
+chrome.permissions.contains(NATIVE).then((on) => { applyAccounts.checked = on; });
