@@ -60,6 +60,10 @@ MY_NAME = re.compile(r"\bmy name is ([A-Z][a-z]+)")
 SIGN_OFF = re.compile(r"(?:Sincerely|Best|Regards|Best regards|Thank you|Thanks),?\s*\n\s*([A-Z][\w'-]+(?: [A-Z][\w'-]+)+)\s*$")
 GRADUATION = re.compile(r"graduat", re.IGNORECASE)
 START = re.compile(r"start date|earliest (?:date|start)|available to start|availability date|when can you start", re.IGNORECASE)
+# A start date of the applicant's history, which is past by nature: a field of a numbered entry ("Work Experience 1 /
+# Start date"), one a form caps at this month, or one about schooling or a job held (Infleqtion's Workable, live 2026-11-04).
+HISTORY = re.compile(r"^[^/]*\s\d+ / |\bup to this month\b|\b(?:education|employment|work (?:experience|history))\b",
+                     re.IGNORECASE)
 PAY_QUESTION = re.compile(r"salary|compensation|desired (?:pay|rate)|hourly rate|pay expectation|expected pay", re.IGNORECASE)
 YEAR = re.compile(r"\b(20\d\d)\b")
 MONEY = re.compile(r"\$?\s*(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k\b)?", re.IGNORECASE)
@@ -316,7 +320,8 @@ def _date_in(text: str) -> date | None:
 
 
 def _dates(questions, readback, profile, today: date) -> list[Flag]:
-    """A graduation year that isn't the profile's, and a start date already past."""
+    """A graduation year that isn't the profile's, and an availability or internship start date already past.
+    A start date of a school or job held is past by nature, so it is not checked."""
     flags = []
     graduation = str(profile.get("education.expected_graduation") or "")
     for q in questions:
@@ -327,7 +332,7 @@ def _dates(questions, readback, profile, today: date) -> list[Flag]:
             years = YEAR.findall(shown)
             if years and graduation[:4] not in years:
                 flags.append(Flag(one_line(q.label), f"shows {shown!r}; your graduation is {graduation}", DATE))
-        if START.search(q.label) and (when := _date_in(shown)) and when < today:
+        if START.search(q.label) and not HISTORY.search(q.label) and (when := _date_in(shown)) and when < today:
             flags.append(Flag(one_line(q.label), f"shows {shown!r}, a date already past", DATE))
     return flags
 
