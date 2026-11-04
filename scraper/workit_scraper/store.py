@@ -278,8 +278,9 @@ def update(
 
     `fingerprints` maps each board key to the hex CRC32 of its sorted kept
     external_ids (`__main__` computes it after `classify_job`). When a board's
-    fingerprint matches its previous read's, `unchanged_reads` increments and
-    the board rests (`fingerprint_rest`). None (the default) treats every board
+    fingerprint matches its previous read's, `unchanged_reads` increments and,
+    if it has ever had a kept posting, the board rests (`fingerprint_rest`); a
+    quiet board rests only through the stagger. None (the default) treats every board
     as changed, which is the correct fallback for test helpers and `--offline`.
     """
     before = {job.key: job for job in previous.jobs} if previous else {}
@@ -298,6 +299,11 @@ def update(
 
     boards = dict(previous.boards) if previous else {}
     fp = fingerprints or {}
+    # Only a board that has ever had a kept posting rests on its fingerprint. A
+    # quiet one already rests through `to_read`'s stagger, and resting it here too
+    # read it once a day, not every nine hours, so a company's first posting was
+    # about a day late (found in review).
+    hot = {job.board_key for job in merged}
     for key in read:
         prev = boards.get(key)
         new_fp = fp.get(key)
@@ -305,7 +311,7 @@ def update(
             unchanged = prev.unchanged_reads + 1
         else:
             unchanged = 0
-        rest = fingerprint_rest(unchanged)
+        rest = fingerprint_rest(unchanged) if key in hot else None
         until = (_at(now) + rest).isoformat() if rest else None
         boards[key] = BoardReads(
             first_read_at=prev.first_read_at if prev else now,

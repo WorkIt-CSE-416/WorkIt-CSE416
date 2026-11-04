@@ -242,11 +242,13 @@ class TestFingerprint:
         *jobs: Job,
         fp: str | None = None,
     ) -> Store:
+        """One complete read of Acme. With no postings given it keeps one, so the
+        board is hot: only a board with a kept posting rests on its fingerprint."""
         key = self.board.key
         fingerprints = {key: fp} if fp is not None else None
         return store.update(
             previous,
-            list(jobs),
+            list(jobs or (job("kept", token="acme"),)),
             [key],
             RunStats(),
             now,
@@ -346,16 +348,29 @@ class TestFingerprint:
         assert reads.unchanged_reads == 0
         assert reads.fingerprint_until is None
 
-    def test_empty_board_fingerprints_and_rests(self):
-        # A board read OK with zero kept postings hashes the empty list.
+    def test_a_quiet_board_fingerprints_but_never_rests_on_it(self):
+        # A board that has never had a kept posting hashes the empty list, but
+        # rests only through the stagger: resting it here too read it once a day,
+        # so a company's first posting was about a day late, not nine hours.
         fp = store.fingerprint([])
-        run = self.read(None, MON, fp=fp)
-        assert run.boards[self.board.key].fingerprint == fp
-        assert run.boards[self.board.key].unchanged_reads == 0
-        # Second empty read: rests 4 hours.
-        run = self.read(run, TUE, fp=fp)
-        assert run.boards[self.board.key].unchanged_reads == 1
-        assert run.boards[self.board.key].fingerprint_until == _plus(TUE, 4)
+        key = self.board.key
+        run = None
+        for at in (MON, TUE, THU):
+            run = store.update(run, [], [key], RunStats(), at, fingerprints={key: fp})
+        reads = run.boards[key]
+        assert (reads.fingerprint, reads.unchanged_reads) == (fp, 2)
+        assert reads.fingerprint_until is None
+        assert run.fingerprint_resting(_plus(THU, 1)) == set()
+
+    def test_a_hot_board_with_nothing_kept_now_still_rests(self):
+        # Hot is "ever had a kept posting": its stored postings keep it hot.
+        fp = store.fingerprint([])
+        run = self.read(None, MON, job("a", token="acme"), fp=store.fingerprint(["a"]))
+        run = self.read(run, TUE, job("a", token="acme"), fp=fp)
+        run = store.update(
+            run, [], [self.board.key], RunStats(), THU, fingerprints={self.board.key: fp}
+        )
+        assert run.boards[self.board.key].fingerprint_until == _plus(THU, 4)
 
     def test_a_missed_posting_changes_the_fingerprint_so_it_cannot_rest(self):
         # A board with postings a and b. The next read sees only a: the fingerprint
