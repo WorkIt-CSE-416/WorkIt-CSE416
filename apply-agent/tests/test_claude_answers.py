@@ -2009,6 +2009,7 @@ def test_a_question_for_facts_apply_already_holds_never_reaches_lisul():
     planned._rehearse, planned._approved, planned.written, planned.lisuls, planned.found = True, None, [], {}, {}
     planned.missing, planned._on_missing, planned._answers, planned._shown_files = (), lambda *heard: None, {}, None
     planned._on_files = lambda files: None
+    planned.fixes = {}  # the Pre-submit review's fixes (KAN-595), which `answers` reads
     planned.profile, planned._bank = ApplicantProfile.load(PROFILE, POLICIES), AnswerBank()
     planned.posting, planned._today = FIGMA, NOW.date()
     planned._bank.add(Question("x", "Why us?", "text"), "Made-up reason.", "Example Co", NOW.date())
