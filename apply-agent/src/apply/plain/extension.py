@@ -8,7 +8,9 @@ is fixed by manifest.json's `key`. `prepare` writes its generated files into ven
 - engine.json: that bundle's version and sha256, which the extension reports in its hello;
 - injected.js: Playwright's own injected script (playwright-core's injectedScriptSource,
   Apache-2.0), from the installed Python package's driver, wrapped to set
-  `globalThis.__applyPW` in the extension's isolated world.
+  `globalThis.__applyPW` in the extension's isolated world;
+- guards/*.js: the submit and drive guards' scripts (apply.plain.guards), which the extension
+  registers as content scripts and refuses when their sha256 isn't Apply's.
 """
 
 import base64
@@ -80,8 +82,10 @@ def _driver_bundle() -> Path:
 
 
 def prepare(vendor: Path = VENDOR) -> dict:
-    """Write vendor/engine.js, engine.json and injected.js, each only when it changed.
+    """Write vendor/engine.js, engine.json, injected.js and guards/, each only when it changed.
     Returns the engine's identity."""
+    from apply.plain import guards
+
     fill_engine._built()
     vendor.mkdir(parents=True, exist_ok=True)
     identity = engine_identity()
@@ -93,6 +97,7 @@ def prepare(vendor: Path = VENDOR) -> dict:
     _write(vendor / "injected.js", "// Playwright's injected script (Apache-2.0), from the installed playwright package.\n"
            "(() => {\nif (globalThis.__applyPW) return;\nconst module = {};\n" + source +
            f"\nglobalThis.__applyPW = new (module.exports.InjectedScript())(globalThis, {json.dumps(INJECTED_OPTIONS)});\n}})();\n")
+    guards.write(vendor)
     return identity
 
 
