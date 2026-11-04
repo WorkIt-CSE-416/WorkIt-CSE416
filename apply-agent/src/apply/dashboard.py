@@ -420,6 +420,12 @@ class Board(Protocol):
         it last asked; each press is given once."""
         ...
 
+    def regenerations(self, worker: int) -> list[tuple[str, str]]:
+        """The answers of Worker `worker`'s held form that Lisul asked in the
+        window to have written again since it last asked, (question name, his
+        context) each (apply.regenerate); each is given once."""
+        ...
+
     def wait_for_start(self, timeout: float | None) -> None:
         """Show the Start button and return once Lisul presses it, or after
         `timeout` seconds (None: however long he takes): a rehearsal for
@@ -450,6 +456,9 @@ class NoBoard:
 
     def resumed(self, worker: int) -> bool:
         return False
+
+    def regenerations(self, worker: int) -> list[tuple[str, str]]:
+        return []
 
 
 class NoFrames:
@@ -533,6 +542,7 @@ class Dashboard:
         self._started = threading.Event()  # Lisul pressed Start
         self._to_fill: dict[int, list[tuple[str, str]]] = {}  # answers to fill on each Worker's open form (answered)
         self._resume: set[int] = set()  # the Workers whose paused form Lisul pressed Resume on (resumed)
+        self._redo: dict[int, list[tuple[str, str]]] = {}  # answers to write again on each Worker's form (regenerations)
 
     def __enter__(self) -> Self:
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
@@ -665,6 +675,38 @@ class Dashboard:
         with self._lock:
             self._resume.add(k)
         return "Resuming: Apply reads the page as you left it and goes on. It never presses Submit."
+
+    def regenerations(self, worker: int) -> list[tuple[str, str]]:
+        with self._lock:
+            return self._redo.pop(worker, [])
+
+    def regenerate(self, key: str, name: str, context: str) -> str:
+        """Lisul pressed Regenerate on one answer Claude wrote (its question
+        `name`), on an item (its id) or a tile ("tile-<k>"), with `context`:
+        its Worker writes it again on the held form. Raises Refused, with why,
+        when it can't: no context, an answer Claude did not write, or a form
+        that is gone or filling again."""
+        if not context.strip():
+            raise Refused("Type what Claude should know or change first.", 400)
+        state = self.state()
+        if key.startswith("tile-") and key.removeprefix("tile-").isdigit():
+            k = int(key.removeprefix("tile-"))
+            shown = state["tiles"][k] if k < len(state["tiles"]) else {}
+        else:
+            item = next((i for i in state["items"] if str(i["id"]) == key), None)
+            if item is None or not isinstance(item.get("worker"), int) or item["worker"] < 0:
+                raise Refused("That form is no longer open: press Fill again on it, or rehearse it again.", 404)
+            k, shown = item["worker"], item
+        tile = state["tiles"][k] if 0 <= k < len(state["tiles"]) else {}
+        if not any(w.get("name") == name for w in shown.get("written") or []):
+            raise Refused("Claude did not write that answer on this form.", 404)
+        if tile.get("posting_url") != shown.get("posting_url") or tile.get("status") in ("filling", "submitted"):
+            raise Refused("That form is no longer open: press Fill again on it, or rehearse it again.", 409)
+        if any(w.get("name") == name and w.get("state") == "working" for w in tile.get("written") or []):
+            raise Refused("Claude is already rewriting that answer.", 409)
+        with self._lock:
+            self._redo.setdefault(k, []).append((name, context.strip()))
+        return "Claude is writing that answer again with your context. It goes in the form's field; nothing is sent."
 
     def start(self) -> None:
         """Lisul pressed Start."""
@@ -938,6 +980,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._dismiss()
         if parts.path == "/resume":
             return self._resume()
+        if parts.path == "/regenerate":
+            return self._regenerate()
         if parts.path == "/everyday" and self.dashboard.everyday:
             return self._everyday()
         if parts.path == "/accounts/copy" and self.dashboard.accounts:
@@ -1189,6 +1233,23 @@ class _Handler(BaseHTTPRequestHandler):
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
         print(f"Resume pressed in the window ({key})")
+        self._json(200, {"message": message})
+
+    def _regenerate(self) -> None:
+        """Lisul pressed Regenerate on an answer Claude wrote, from the page itself, with his context."""
+        token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+        if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin not in (None, self.dashboard.url):
+            return self._json(403, {"error": "Only the Apply window may regenerate an answer."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key, name, context = str(body["id"]), str(body["name"]), str(body["context"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a regenerate."})
+        try:
+            message = self.dashboard.regenerate(key, name, context)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Regenerate pressed in the window ({key})")
         self._json(200, {"message": message})
 
     def _everyday(self) -> None:

@@ -3,6 +3,8 @@ with context Lisul adds. No browser: the on-page button is in
 test_rehearse.py -k regenerate."""
 
 import json
+import urllib.error
+import urllib.request
 from datetime import date
 
 import pytest
@@ -11,6 +13,7 @@ from test_run_answers import profile_with
 
 from apply import home, regenerate
 from apply.answer_bank import CLAUDE, AnswerBank
+from apply.dashboard import Dashboard, NoFrames
 from apply.essays import Essay
 from apply.model import Posting, Question
 from apply.profile import ApplicantProfile
@@ -141,6 +144,33 @@ def test_only_answers_claude_wrote_into_a_text_field_can_be_regenerated():
     form = regenerate.form_of(Planned())
     assert [(w.question.name, w.kind) for w in form.written] == [("why", regenerate.ESSAY), ("club", regenerate.DRAFT)]
     assert not form.read  # no Company material yet: a regenerate of an essay reads it
+
+
+def test_the_window_queues_a_regenerate_for_the_held_form_and_refuses_the_rest():
+    written = [{"name": "why", "label": WHY.label, "text": EARLIER, "kind": "essay", "state": "", "why": ""}]
+    with Dashboard(1, NoFrames()) as board:
+        board.update(0, company="Harvey", posting_url=POSTING.url, status="ready to submit", written=written)
+        item = board.state()["items"][0]
+
+        def press(body: dict, token: str = board.token) -> tuple[int, dict]:
+            request = urllib.request.Request(board.url + "/regenerate", json.dumps(body).encode(),
+                                             {"X-Apply-Token": token, "Content-Type": "application/json"})
+            try:
+                with urllib.request.urlopen(request) as reply:
+                    return reply.status, json.loads(reply.read())
+            except urllib.error.HTTPError as error:
+                return error.code, json.loads(error.read())
+
+        assert press({"id": item["id"], "name": "why", "context": CONTEXT}, token="wrong")[0] == 403
+        assert press({"id": item["id"], "name": "why", "context": " "})[0] == 400
+        assert press({"id": item["id"], "name": "email", "context": CONTEXT})[0] == 404  # not Claude's
+        status, reply = press({"id": item["id"], "name": "why", "context": CONTEXT})
+        assert status == 200 and "nothing is sent" in reply["message"]
+        assert board.regenerations(0) == [("why", CONTEXT)] and board.regenerations(0) == []
+        board.update(0, written=[written[0] | {"state": "working"}])
+        assert press({"id": "tile-0", "name": "why", "context": CONTEXT})[0] == 409  # already rewriting
+        board.update(0, status="filling")  # Fill again: the held form is gone
+        assert press({"id": item["id"], "name": "why", "context": CONTEXT})[0] == 409
 
 
 def test_a_press_with_no_form_written_does_nothing():
