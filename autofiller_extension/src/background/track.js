@@ -15,6 +15,12 @@
 // A tab the student asked their Claude to write for (KAN-470, openForWriting)
 // is tracked too, with `writing`: its job has an application, which keeps the
 // questions for the student's Claude and the Written Answers page.
+//
+// A tab the extension filled and nobody tracked yet (KAN-589, noteFilled) is
+// kept too, with `filled`, the form's `url` and no `jobId`: its proven submit
+// finds the job (the listed job by its link, else an added job by link, as
+// Apply's record_applied does) and marks it applied. Track on WorkIt still
+// shows on it for a listed job.
 import { addJobByLink, ApiError, listedJobByLink, markJobApplied, me, queueJob, recordFill, saveJob } from "./api.js";
 import { inBatch } from "./batch.js";
 import { jobNamesOf } from "./engine.js";
@@ -50,7 +56,8 @@ export async function isTracked(tabId) {
 export async function trackState({ tabId, url }) {
   if (await inBatch(tabId)) return { state: "batch" };
   const tab = (await all())[tabId];
-  if (tab) return { state: tab.applied ? "applied" : "tracked" };
+  if (tab?.applied) return { state: "applied" };
+  if (tab?.jobId) return { state: "tracked" };
   if (!identity(url)) return { state: "unlisted" };
   try {
     const found = await listedJobByLink(url);
@@ -82,11 +89,46 @@ export async function markTracked(tabId) {
   const tab = tabs[tabId];
   if (!tab) return { tracked: false };
   if (!tab.applied) {
-    await markJobApplied(tab.jobId);
-    tabs[tabId] = { ...tab, applied: true };
+    const found = tab.jobId ? { job_id: tab.jobId } : await jobOfFilled(tab.url);
+    if (!APPLIED.includes(found.stage)) await markJobApplied(found.job_id);
+    tabs[tabId] = { ...tab, jobId: found.job_id, applied: true };
     await put(tabs);
   }
   return { tracked: true };
+}
+
+/**
+ * A form the extension filled on a tab nobody tracks (KAN-589): kept, so its
+ * submit, proven, puts the job on the student's Applications Tracker as
+ * applied (markTracked). Writes nothing at WorkIt. A tab already kept stays
+ * as it is.
+ * @param {{ tabId: number, url: string }} where
+ */
+export async function noteFilled({ tabId, url }) {
+  const tabs = await all();
+  if (tabs[tabId]) return;
+  tabs[tabId] = { url, id: identity(url), applied: false, filled: true };
+  await put(tabs);
+}
+
+/**
+ * The job of a filled tab's form at `url` (KAN-589): the listed job by its
+ * link, else the job added by link (POST /jobs/added-by-link with
+ * `track_only`, ADR 0008), its company and title as the Fill engine reads
+ * them from the job system. Answers its id and the student's stage.
+ * @param {string} url
+ */
+async function jobOfFilled(url) {
+  try {
+    return await listedJobByLink(url);
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 404)) throw error;
+  }
+  const names = await jobNamesOf(url, fetchText).catch(() => null);
+  const company = names?.company?.trim();
+  const title = names?.title?.trim();
+  if (!company || !title) throw new Error("WorkIt doesn't list this job, and the page names no company or title.");
+  return addJobByLink({ url, company, title, track_only: true });
 }
 
 const UNLISTED = "WorkIt doesn't list this job, and couldn't read its company and title from the page. Write this answer yourself.";
