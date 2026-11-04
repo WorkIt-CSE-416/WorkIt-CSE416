@@ -6,6 +6,7 @@ Pure.
 
     from_copy(copy) -> (bank, choices, identity)
     identity_copy(identity) -> IdentityCopy, for every render's answer
+    measured(measure) -> Rendered with no PDF, for Fit's plan (KAN-584)
 
 The bank comes back as plain objects with the attributes `build_view` and
 `bank.edit_entry` read (`.entries`, each `.row` and `.bullets`, and
@@ -16,8 +17,15 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from app.schemas.bank import EntryFields
-from app.schemas.built_resume import IdentityCopy, ResumeCopy
-from app.services.resume_render import HeaderIdentity
+from app.schemas.built_resume import IdentityCopy, RenderMeasure, ResumeCopy
+from app.services.resume_render import (
+    Box,
+    HeaderIdentity,
+    Point,
+    Rendered,
+    Shrink,
+    TextArea,
+)
 from app.services.resume_view import BulletChoice, Choices, EntryChoice, SkillChoice
 
 
@@ -56,4 +64,19 @@ def identity_copy(identity: HeaderIdentity) -> IdentityCopy:
     return IdentityCopy(
         name=identity.name, email=identity.email, phone=identity.phone,
         links=[tuple(link) for link in identity.links], us_citizen=identity.us_citizen,
+    )
+
+
+def measured(measure: RenderMeasure) -> Rendered:
+    """A render as the editor sent back its measure: everything Fit to One
+    Page reads (`fit_page.Page`), with no PDF."""
+    area = measure.area
+    return Rendered(
+        pdf=b"",
+        page_count=measure.page_count,
+        boxes=tuple(Box(str(b.item_id), b.kind, b.page, b.x0, b.y0, b.x1, b.y1, b.text) for b in measure.boxes),
+        points=tuple(Point(p.name, p.page, p.x, p.y) for p in measure.points),
+        area=TextArea(area.top, area.height, area.right) if area else None,
+        shrinks=tuple(Shrink(s.name, s.page, s.total, s.shrink) for s in measure.shrinks),
+        wrapped_line=measure.wrapped_line,
     )

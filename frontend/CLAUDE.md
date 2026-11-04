@@ -2128,8 +2128,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   change's plain fields (shown, position, the toggles) go into the
   choices at once (`mergeChoices`) and are merged again over each answer
   until their own lands, so a second quick move computes from the first.
-  A move of two neighbours shows at once as their strips of the page
-  trading places (`swapOf`, `swapsOn`, `Strip` in `pdf-pages.tsx`): a
+  Any reorder within one entry or one section shows at once as strips of
+  the page trading places (`swapsOf`, `swapsOn`, `Strip` in
+  `pdf-pages.tsx`): `swapsOf` splits it into neighbour swaps, each against
+  the order the ones before it leave (tested in `swaps.test.ts`). It took
+  only a swap of two neighbours until KAN-584, so a Tailor reorder's
+  revert, which moves several bullets, waited for the compile. A
   swap is kept by item, not by position, so a PDF that lands before its
   own still shows it, and one the page already shows draws nothing.
   A phone's "Saved, N ms" times the render.
@@ -2150,7 +2154,34 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Cmd+Z and Shift+Cmd+Z (Ctrl+Y) act off a field; inside one the field's
   own text undo runs. An open line is saved first, so Undo takes back
   what was just typed. **Fit to One Page is one step like any edit**:
-  Undo shows what it hid, Redo hides it again (`hideAgain`). It has no
+  Undo shows what it hid, Redo hides it again. **It plans from the page on
+  screen** (KAN-584, `fit` in the editor, `../docs/live_page.md`): the copy
+  and the PDF's measure (`measureOf`) go to `/api/resume-fit`, a route
+  handler for `planFit` (`POST .../fit/plan`, no compile), and each cycle's
+  cuts go through `apply` as a hide, so they close up on the page at once
+  (`gapsOn`, `Gap` in `pdf-pages.tsx`) while the render and the save go
+  behind. While the new PDF is over one page it asks again; a later cycle
+  joins the first's step (`apply`'s `into`), so one Undo takes it all back.
+  **Only the final PDF paints** (`apply`'s `hold`): a cycle's PDF still over
+  one page is kept for the next plan but not drawn, and the page keeps its
+  cuts closed up, since painting it showed a second render when a
+  prediction ran a line short. A fit that ends on a held PDF (nothing left
+  to cut, a failed plan) paints it then. **Its buttons stay dim from the click to the
+  last cycle** (`fittingNow`): `saving` alone is false between two cycles,
+  and the button lit up for a moment between each. The button reads
+  "Fitting…" with a spinner (the phone's "Fit" keeps its word) and the
+  status "Fitting to One Page…". **Undo, Redo and opening a line wait for
+  it too** (`fitting` in `travel` and `select`, `canUndo`): a later cycle
+  joins the first cycle's step, so an Undo between two cycles put that
+  step on the Redo stack, left the later hides with no Undo, and planned
+  the next cycle from a page with the first cuts shown again. No modal:
+  the page stays in view, where the cuts close up as they come, the
+  progress a modal would cover.
+  An API with no measure fits on the server (`fitOnServer`, `hideAgain`).
+  Every hide closes up at once the same way, not only Fit's, skills too: a
+  hidden skill is a cut along its line (`skillCut`, `Gap`'s `x0`/`x1`), so
+  every Tailor revert (a wording, an order, an added skill) shows before
+  its compile. It has no
   Undo Fit button of its own (gone 2026-11-01, a second way to do what
   Undo does); the phone's bar shows the same Undo and Redo. **Cut From
   Resume** lists what every fit in the tab cut, entries, bullets and
@@ -2265,6 +2296,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   panel dropped, so a resume set that way prints as it did. The bar mutes every
   button's words (`SLIM_BAR`, `DOCS_BAR`), so a real action there (Add Bullet,
   `FitButton`) carries `data-bar-action`, or a filled button reads grey on purple.
+  **An open bullet or entry moves from the bar** (`MoveButtons`, Move Up
+  and Move Down beside bold and italic, or an entry's size): a bullet within
+  its entry, an entry within its section, through `move` and `apply`, so it
+  trades places with its neighbour on the page at once (`swapsOf`; an entry
+  takes its bullets with it, and only when both sit on one page) while the
+  save and the render go behind it, and the line stays open on it. The
+  Sections panel reorders at once too, since it reads the same choices. It
+  sends the line's typed text first (`flush`), so the move's render prints
+  it. A section moves only in the Sections panel.
   **One bar, one height** (KAN-576): every button on it is 36px, text
   buttons `sm` and icon buttons `icon-lg` (the kit's `icon-sm` is 28px);
   `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. An upload's

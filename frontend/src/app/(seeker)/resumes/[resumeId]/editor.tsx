@@ -5,6 +5,7 @@ import {
   ArrowUUpLeftIcon,
   ArrowUUpRightIcon,
   ArrowUpIcon,
+  CircleNotchIcon,
   CloudSlashIcon,
   EyeIcon,
   EyeSlashIcon,
@@ -51,9 +52,11 @@ import {
   type ChoicesUpdate,
   type EditRendered,
   type PageSettings,
+  type planFit,
   type ResumeCopy,
   type RenderBox,
   type RenderedPdf,
+  type RenderMeasure,
 } from "@/lib/built-resume-actions";
 import type { Result } from "@/lib/applicant-call";
 import { cn } from "@/lib/cn";
@@ -81,7 +84,7 @@ import {
   move,
   shownBullets,
   withWording,
-  swapOf,
+  swapsOf,
   typed,
   type Swap,
   type Header,
@@ -92,6 +95,7 @@ import { hideAgain, push, reverseChoices, reverseLine, type Edit, type Step } fr
 import {
   afterStrips,
   boxKey,
+  type Gap,
   kindLabel,
   loadPdfjs,
   PageSkeleton,
@@ -285,6 +289,87 @@ const unsaved = (status: number | null) => status !== 422;
 /** How long a failed render waits before it is sent once more. */
 const RETRY_AFTER_MS = 500;
 
+/** Points under a hidden line that close up with it: the space to the next
+ *  line within an entry (about 2) and between entries (about 7), never a
+ *  section heading's (20 or more). */
+const GAP_SPACE = 10;
+
+/** What Fit to One Page measures a render by (KAN-584), or null from an API
+ *  a deploy behind, which sends no measure. */
+function measureOf(pdf: RenderedPdf): RenderMeasure | null {
+  const { page_count, boxes, wrapped_line, points, area, shrinks } = pdf;
+  return points && shrinks ? { page_count, boxes, wrapped_line, points, area, shrinks } : null;
+}
+
+/** Whether two page settings print alike. */
+function samePage(a: PageSettings, b: PageSettings) {
+  return (Object.keys(a) as (keyof PageSettings)[]).every(
+    (key) => JSON.stringify(a[key]) === JSON.stringify(b[key]),
+  );
+}
+
+/** The entries, bullets and skills a change hides. */
+function hiddenBy(changes: ChoicesUpdate): string[] {
+  return [
+    ...(changes.entries ?? []).filter((c) => c.shown === false).map((c) => c.entry_id),
+    ...(changes.bullets ?? []).filter((c) => c.shown === false).map((c) => c.bullet_id),
+    ...(changes.skills ?? []).filter((c) => c.shown === false).map((c) => c.skill_id),
+  ];
+}
+
+/** Where a hidden skill leaves its line (KAN-584): from its start to the
+ *  next skill's start, since each skill's box holds its comma, so the rest
+ *  of the line moves left over it. The line's last skill goes from the comma
+ *  of the kept skill before it, or that comma would end the line. A skill
+ *  broken across two lines waits for the PDF. */
+function skillCut(box: RenderBox, boxes: RenderBox[], gone: Set<string>, line: number): Gap[] {
+  if (box.y1 - box.y0 > line * 1.5) return [];
+  const row = boxes
+    .filter((b) => b.kind === "skill" && b.page === box.page && Math.abs(b.y0 - box.y0) < 1)
+    .sort((a, b) => a.x0 - b.x0);
+  const at = row.indexOf(box);
+  const band = { page: box.page, top: box.y0, bottom: box.y1 };
+  const next = row[at + 1];
+  if (next) return [{ ...band, x0: box.x0, x1: next.x0 }];
+  const kept = row.slice(0, at).findLast((b) => !gone.has(b.item_id));
+  if (!kept?.text.endsWith(",")) return [{ ...band, x0: box.x0, x1: box.x1 }];
+  const comma = ((kept.x1 - kept.x0) / kept.text.length) * 0.55;
+  return [{ ...band, x0: kept.x1 - comma, x1: box.x1 }];
+}
+
+/** Whether a change changes anything. */
+function changesAny(changes: ChoicesUpdate) {
+  return Boolean(changes.entries?.length || changes.bullets?.length || changes.skills?.length);
+}
+
+/** A step's choice changes with `more` after them: a Fit's cycles, one step. */
+function joined(edit: Edit | null, more: ChoicesUpdate): ChoicesUpdate {
+  const was = edit && "changes" in edit ? edit.changes : {};
+  return {
+    entries: [...(was.entries ?? []), ...(more.entries ?? [])],
+    bullets: [...(was.bullets ?? []), ...(more.bullets ?? [])],
+    skills: [...(was.skills ?? []), ...(more.skills ?? [])],
+  };
+}
+
+/** One cycle of Fit to One Page (`planFit`) through `/api/resume-fit`, a
+ *  route handler, for the reason `renderEdit` gives. */
+async function planFitHere(
+  resumeId: string,
+  plan: Parameters<typeof planFit>[1],
+): Promise<Awaited<ReturnType<typeof planFit>>> {
+  try {
+    const res = await fetch("/api/resume-fit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resumeId, plan }),
+    });
+    return await res.json();
+  } catch {
+    return { data: null, error: "Could not reach the server.", status: null };
+  }
+}
+
 /** How long a tab stays hidden before its return asks whether the resume
  *  changed elsewhere (`resumeChangedAt`): a quick switch reads nothing. */
 const CHECK_AFTER_MS = 5 * 60_000;
@@ -454,6 +539,15 @@ export function Editor({
   const confirmed = useRef(initialChoices);
   const unanswered = useRef(new Map<string, ChoicesUpdate>());
   const changeCount = useRef(0);
+  // A Fit to One Page under way: a second press waits for nothing. The
+  // state keeps its buttons dim, and the bar on "Fitting to One Page…", from
+  // the click to the last cycle: between two cycles nothing is saving, and
+  // the button lit up for a moment between each. Undo, Redo and opening a
+  // line wait for it too: a later cycle joins the first cycle's step, so an
+  // Undo between two cycles left the later hides with no Undo, and planned
+  // the next cycle from a page the plan did not expect
+  const fitting = useRef(false);
+  const [fittingNow, setFittingNow] = useState(false);
   // The editor's renders run one at a time, so each copy holds every
   // edit before it; a copy built while an earlier edit was on its way would
   // print that edit's old text. Saves run one at a time in their own queue
@@ -468,6 +562,9 @@ export function Editor({
   const wordings = useRef(new Map<string, { variant_id: string | null; text: string }>());
   // The moves on their way, shown on the page at once (./pdf-pages.tsx)
   const [swaps, setSwaps] = useState<(Swap & { id: string })[]>([]);
+  // The hides on their way, closed up on the page at once (KAN-584): the
+  // entries and bullets each change hides, by change id
+  const [hides, setHides] = useState<{ id: string; items: string[] }[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   // Typed text by box key (KAN-391): the selected line's, and each line
   // left before the PDF that prints it has painted. The page draws it over
@@ -747,6 +844,7 @@ export function Editor({
         }
         if (choicesRead.data) keepChoices(choicesRead.data);
         setSwaps([]);
+        setHides([]);
         const typing = selectedNow.current;
         setDrafts((d) => (typing && typing in d ? { [typing]: d[typing] } : {}));
         if (!current()) return;
@@ -918,11 +1016,19 @@ export function Editor({
       revertedTarget?: RevertTarget,
       recorded = true,
       words: Record<string, string> = {},
+      into?: Step<Held, RenderedPdf>,
+      hold?: (pdf: RenderedPdf) => boolean,
     ) => {
-      // Its reverse is read before the change shows
-      const step = recorded ? record({ changes }) : null;
-      if (step)
-        step.undo = { changes: reverseChoices(held.current.bank, held.current.choices, changes) };
+      // Its reverse is read before the change shows. `into` is a step this
+      // change joins (a Fit's later cycle), keeping the state before its first.
+      // A PDF `hold` returns true for is kept but not painted: the page stays
+      // as the change left it (a Fit's cycle still over one page)
+      const step = into ?? (recorded ? record({ changes }) : null);
+      const reverse = step && reverseChoices(held.current.bank, held.current.choices, changes);
+      if (into && reverse) {
+        into.redo = { changes: joined(into.redo, changes) };
+        into.undo = { changes: joined(into.undo, reverse) };
+      } else if (step && reverse) step.undo = { changes: reverse };
       // A wording picked from the bar or the assistant replaces what was
       // typed, so the field shows the picked wording, not the old draft
       if (changes.bullets?.some((b) => "variant_id" in b)) {
@@ -932,16 +1038,19 @@ export function Editor({
         for (const b of changes.bullets) wordings.current.delete(b.bullet_id);
       }
       // The change shows at once: its plain fields in the choices, and a
-      // move as two neighbours trading places on the page
+      // move as neighbours trading places on the page, one swap at a time
       const id = `change:${++changeCount.current}`;
-      const swap = swapOf(held.current.bank, held.current.choices, changes);
+      const moves = swapsOf(held.current.bank, held.current.choices, changes);
       unanswered.current.set(id, changes);
       keepChoices(confirmed.current);
       sent(id);
       const lines = Object.keys(words);
       lines.forEach(sent);
       setDrafts((d) => ({ ...d, ...words }));
-      if (swap) setSwaps((s) => [...s, { ...swap, id }]);
+      if (moves.length) setSwaps((s) => [...s, ...moves.map((m) => ({ ...m, id }))]);
+      // A hide closes its lines up on the page at once (KAN-584)
+      const hiding = hiddenBy(changes);
+      if (hiding.length) setHides((h) => [...h, { id, items: hiding }]);
       // A change to an item Tailor changed (a revert included) drops its mark
       // now, not after a compile; a change the render refuses puts it back
       const waiting = latestReview.current;
@@ -961,7 +1070,7 @@ export function Editor({
       return enqueue(async () => {
         const current = begin();
         started.current = performance.now();
-        if (step) {
+        if (step && !into) {
           step.before = settled();
           step.pdfBefore = lastPdf.current;
         }
@@ -976,6 +1085,7 @@ export function Editor({
         keepChoices(data?.choices ?? confirmed.current);
         if (!data) {
           setSwaps((s) => s.filter((x) => x.id !== id));
+          setHides((h) => h.filter((x) => x.id !== id));
           lines.forEach(drop);
           // The record is gone once its last change was: `waiting` still has it
           const now = latestReview.current ?? waiting;
@@ -990,11 +1100,14 @@ export function Editor({
             step.after = settled();
             step.pdfAfter = data.render;
           }
-        } else if (step) forget(step);
+        } else if (step && !into) forget(step);
         if (!current()) return;
         setSaving(false);
         if (!data) return setError(error);
-        keepRendered(data.render);
+        // A held PDF still gives the next copy the header it printed
+        if (hold?.(data.render)) {
+          if (data.render.identity) held.current.printed = printedBy(data.render);
+        } else keepRendered(data.render);
       });
     },
     [
@@ -1139,6 +1252,9 @@ export function Editor({
 
   const select = useCallback(
     (key: string | null) => {
+      // No line opens while a fit runs: its edit would change the page
+      // under the plan (`fitting`)
+      if (key !== null && fitting.current) return;
       const left = selectedNow.current;
       flush();
       // A line left unchanged has nothing on its way to wait for
@@ -1181,6 +1297,7 @@ export function Editor({
       setBank(state.bank);
       keepChoices(state.choices);
       setSwaps([]);
+      setHides([]);
       setDrafts({});
       lastPdf.current = pdf;
       keepRendered(pdf);
@@ -1200,6 +1317,8 @@ export function Editor({
    */
   const travel = useCallback(
     (back: boolean) => {
+      // Cmd+Z too: not between a fit's cycles (`fitting`)
+      if (fitting.current) return;
       select(null);
       void enqueue(async () => {
         const from = back ? undos : redos;
@@ -1353,8 +1472,76 @@ export function Editor({
     if (!lastPdf.current?.boxes.some((b) => b.item_id === data.id)) setAdding(null);
   }
 
-  function fit() {
+  /**
+   * Fit to One Page from the page on screen (KAN-584): the copy and the PDF
+   * it printed go to `POST .../fit/plan`, which compiles nothing and answers
+   * the cuts that fit by prediction; they are an edit like any other, so the
+   * page closes them up at once and the render and the save go behind it.
+   * While the new PDF is still over one page, the next cycle plans from it.
+   * The whole fit, every cycle, is one Undo step. An API a deploy behind sends no measure,
+   * and then the server fits (`fitOnServer`).
+   */
+  async function fit() {
+    if (fitting.current) return;
+    fitting.current = true;
+    setFittingNow(true);
+    try {
+      await fitHere();
+    } finally {
+      fitting.current = false;
+      setFittingNow(false);
+    }
+  }
+
+  async function fitHere() {
     select(null);
+    // The copy and the PDF it printed, once every render before has landed
+    const start = await enqueue(async () => ({ pdf: lastPdf.current, source: copy() }));
+    const first = start.pdf && measureOf(start.pdf);
+    if (!start.pdf || !start.source || !first) return fitOnServer();
+    // A page setting whose compile was skipped has no PDF of its own
+    if (!samePage(start.pdf.page_settings, start.source.page_settings)) return fitOnServer();
+    if (start.pdf.page_count <= 1) return;
+    const source = start.source;
+    let now: RenderMeasure | null = null;
+    let taken = 0;
+    let step: Step<Held, RenderedPdf> | undefined;
+    // Only the final PDF paints: a cycle's PDF still over one page is held,
+    // and the page keeps its cuts closed up while the next cycle plans from
+    // it, so a fit off by a line shows one render, not two. A fit that ends
+    // on a held PDF (nothing left to cut, a failed plan) paints it then.
+    let unpainted: RenderedPdf | null = null;
+    const over = (pdf: RenderedPdf) => pdf.page_count > 1;
+    try {
+      for (;;) {
+        const { data, error } = await planFitHere(resumeId, { source, first, now, taken });
+        if (!data) return setError(error);
+        if (!changesAny(data.hide)) return;
+        taken = data.taken;
+        const before = lastPdf.current;
+        const applied = apply(data.hide, undefined, !step, {}, step, over);
+        step ??= undos.current.at(-1);
+        await applied;
+        const after = lastPdf.current;
+        // Refused or failed: `apply` put the page back and said why
+        if (!after || after === before) return;
+        cutsNow.current = addCuts(cutsNow.current, data.undo);
+        setCuts(cutsNow.current);
+        keepFitCuts(resumeId, cutsNow.current);
+        if (!over(after)) return;
+        unpainted = after;
+        now = measureOf(after);
+        if (!now) return;
+      }
+    } finally {
+      // Not when a newer PDF has landed since (a reload, the final cycle)
+      if (unpainted && lastPdf.current === unpainted) keepRendered(unpainted);
+    }
+  }
+
+  /** Fit to One Page on the server, for an API that sends no measure: it
+   *  reads the saved resume, compiles it and cuts until a render fits. */
+  function fitOnServer() {
     return enqueue(async () => {
       // Fit reads the saved resume, so every save sent before goes first
       await saves.current;
@@ -1475,6 +1662,33 @@ export function Editor({
       placed = placed.map((x) => afterStrips(x, [strip]));
     }
     return strips;
+  };
+
+  // The hides on their way as bands of the page that close up (KAN-584): an
+  // entry is its fields' and bullets' boxes, a bullet its box, each with the
+  // space under it when the next line is close (`GAP_SPACE`), so the lines
+  // below rise to where the hidden ones began. A larger space is a section
+  // heading's, which stays. A skill leaves its line instead (`skillCut`);
+  // an item the page no longer prints draws nothing.
+  const gapsOn = (boxes: RenderBox[]): Gap[] => {
+    if (!hides.length) return [];
+    const gone = new Set(hides.flatMap((h) => h.items));
+    for (const entry of bank.entries)
+      if (gone.has(entry.id)) for (const b of entry.bullets) gone.add(b.id);
+    const line = rendered?.wrapped_line ?? DEFAULT_WRAPPED_LINE;
+    const skills = boxes
+      .filter((box) => box.kind === "skill" && gone.has(box.item_id))
+      .flatMap((box) => skillCut(box, boxes, gone, line));
+    const bands = boxes
+      .filter((box) => box.kind !== "skill" && gone.has(box.item_id))
+      .map((box) => {
+        const next = Math.min(
+          ...boxes.filter((o) => o.page === box.page && o.y0 >= box.y1 - 0.5).map((o) => o.y0),
+        );
+        const space = next - box.y1;
+        return { page: box.page, top: box.y0, bottom: box.y1 + (space <= GAP_SPACE ? space : 0) };
+      });
+    return [...bands, ...skills];
   };
 
   /** The text a typed line's field opens on: what the line prints. */
@@ -1737,6 +1951,10 @@ export function Editor({
       const kept = s.filter((x) => onTheirWay.current.has(x.id));
       return kept.length === s.length ? s : kept;
     });
+    setHides((h) => {
+      const kept = h.filter((x) => onTheirWay.current.has(x.id));
+      return kept.length === h.length ? h : kept;
+    });
     // The page prints the new bullet now, so its drawn text goes
     setAdding((now) => (now?.id && rendered?.boxes.some((b) => b.item_id === now.id) ? null : now));
     refresh();
@@ -1768,7 +1986,7 @@ export function Editor({
     <FitToast
       pages={rendered.page_count}
       linesOver={rendered.lines_over}
-      disabled={saving}
+      disabled={saving || fittingNow}
       onFit={() => {
         setToast(false);
         fit();
@@ -1907,8 +2125,8 @@ export function Editor({
     />
   );
   const history: HistoryTools = {
-    canUndo: steps.undo > 0,
-    canRedo: steps.redo > 0,
+    canUndo: steps.undo > 0 && !fittingNow,
+    canRedo: steps.redo > 0 && !fittingNow,
     onUndo: () => travel(true),
     onRedo: () => travel(false),
   };
@@ -1927,6 +2145,7 @@ export function Editor({
               onSelect={onLine}
               onDrawn={drawn}
               swaps={swapsOn}
+              gaps={gapsOn}
               placeholder={<PageSkeleton />}
               marks={marks}
               focus={focus}
@@ -1940,7 +2159,8 @@ export function Editor({
           line={line}
           box={box}
           text={start == null ? null : (drafts[selected!] ?? start)}
-          saving={saving}
+          saving={saving || fittingNow}
+          fitting={fittingNow}
           elapsed={elapsed}
           error={error}
           download={download}
@@ -1991,13 +2211,28 @@ export function Editor({
       choices={choices}
       header={header}
       rendered={rendered}
-      saving={saving}
+      saving={saving || fittingNow}
+      fitting={fittingNow}
       elapsed={elapsed}
       download={download}
       onApply={apply}
       onSaveHeader={addContact}
       composing={Boolean(adding && !adding.sent)}
       onAddBullet={() => line && startBullet(line)}
+      moves={
+        line?.kind === "bullet" || line?.kind === "entry"
+          ? {
+              up: Boolean(move(bank, choices, line, -1)),
+              down: Boolean(move(bank, choices, line, 1)),
+              onMove: (by) => {
+                // Typed text goes first, so the move's render prints it
+                flush();
+                const changes = move(held.current.bank, held.current.choices, line, by);
+                if (changes) void apply(changes);
+              },
+            }
+          : null
+      }
       onClose={() => select(null)}
       onFit={fit}
       experiences={
@@ -2108,6 +2343,7 @@ export function Editor({
               extra={newBox}
               shiftOf={shiftOf}
               swaps={swapsOn}
+              gaps={gapsOn}
               onDrawn={drawn}
               placeholder={<PageSkeleton />}
               marks={showMarks ? allMarks : undefined}
@@ -2342,12 +2578,14 @@ function Bar({
   header,
   rendered,
   saving,
+  fitting,
   elapsed,
   download,
   onApply,
   onSaveHeader,
   composing,
   onAddBullet,
+  moves,
   onClose,
   onFit,
   experiences,
@@ -2363,6 +2601,8 @@ function Bar({
   /** Null until the first render lands. */
   rendered: RenderedPdf | null;
   saving: boolean;
+  /** A Fit to One Page is under way. */
+  fitting: boolean;
   elapsed: number | null;
   download: ResumeDownload;
   onApply: (changes: ChoicesUpdate) => void;
@@ -2370,6 +2610,9 @@ function Bar({
   /** A bullet is being added: its field is the open line. */
   composing: boolean;
   onAddBullet: () => void;
+  /** The open bullet's or entry's Move Up and Move Down; null for any
+   *  other line. */
+  moves: MoveTools | null;
   onClose: () => void;
   onFit: () => void;
   experiences: ExperiencesTools | null;
@@ -2382,6 +2625,7 @@ function Bar({
     <SlimBar
       rendered={rendered}
       saving={saving}
+      fitting={fitting}
       elapsed={elapsed}
       download={download}
       onFit={onFit}
@@ -2412,6 +2656,7 @@ function Bar({
                 format={format}
               />
               {line.kind === "bullet" && <MarkTools />}
+              {moves && <MoveButtons moves={moves} />}
               {(line.kind === "bullet" || line.kind === "entry") && (
                 <Button size="sm" data-bar-action className="shrink-0" onClick={onAddBullet}>
                   <PlusIcon aria-hidden /> Add Bullet
@@ -2497,6 +2742,43 @@ function MarkTools() {
         onClick={() => press("italic")}
       >
         <TextItalicIcon aria-hidden />
+      </Button>
+    </div>
+  );
+}
+
+/** Move Up and Move Down for the open line: a bullet within its entry, an
+ *  entry within its section. */
+type MoveTools = { up: boolean; down: boolean; onMove: (by: -1 | 1) => void };
+
+/** Beside bold and italic, or an entry's size: the line trades places with
+ *  its neighbour on the page at once (`swapsOf`; an entry with its bullets),
+ *  the Sections panel reorders from the same choices, its save and render go
+ *  behind it, and the line stays open on it, so a second press moves it
+ *  again. */
+function MoveButtons({ moves }: { moves: MoveTools }) {
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Move Up"
+        title="Move Up"
+        disabled={!moves.up}
+        onClick={() => moves.onMove(-1)}
+      >
+        <ArrowUpIcon aria-hidden />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Move Down"
+        title="Move Down"
+        disabled={!moves.down}
+        onClick={() => moves.onMove(1)}
+      >
+        <ArrowDownIcon aria-hidden />
       </Button>
     </div>
   );
@@ -2621,6 +2903,7 @@ function History({ tools }: { tools?: HistoryTools }) {
 function SlimBar({
   rendered,
   saving,
+  fitting = false,
   elapsed,
   download,
   onFit,
@@ -2635,6 +2918,8 @@ function SlimBar({
 }: {
   rendered: RenderedPdf | null;
   saving: boolean;
+  /** A Fit to One Page is under way: the status and the button say so. */
+  fitting?: boolean;
   elapsed: number | null;
   download: ResumeDownload;
   onFit: () => void;
@@ -2658,22 +2943,25 @@ function SlimBar({
 }) {
   const status = (
     <span className="text-note text-ink-meta pr-1" aria-live="polite">
-      {saving ? "Saving…" : elapsed !== null ? `Saved, ${elapsed} ms` : ""}
+      {fitting
+        ? "Fitting to One Page…"
+        : saving
+          ? "Saving…"
+          : elapsed !== null
+            ? `Saved, ${elapsed} ms`
+            : ""}
     </span>
   );
   const box = docs ? DOCS_BAR : SLIM_BAR;
-  const docsZoom = docs && zoom && (
-    <>
-      {rendered ? zoom : <ZoomSkeleton />}
-      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
-    </>
-  );
+  // `Zoom` ends in its own divider; a second one here stood beside it
+  const docsZoom = docs && zoom && (rendered ? zoom : <ZoomSkeleton />);
   // Gone while a bullet is being added: a fit would read a resume without it
   const fitButton = !composing && rendered && rendered.page_count > 1 && (
     <FitButton
       pages={rendered.page_count}
       linesOver={rendered.lines_over}
       disabled={saving}
+      fitting={fitting}
       onFit={onFit}
     />
   );
@@ -2844,11 +3132,16 @@ function FitButton({
   pages,
   linesOver,
   disabled,
+  fitting,
   onFit,
 }: {
   pages: number;
   linesOver: number;
   disabled: boolean;
+  /** While a fit runs it reads "Fitting…" with a spinner. Not a modal: the
+   *  page stays in view, where each cycle's cuts close up as they come
+   *  (KAN-584), the progress a modal would cover. */
+  fitting: boolean;
   onFit: () => void;
 }) {
   const over =
@@ -2865,7 +3158,16 @@ function FitButton({
       disabled={disabled}
       onClick={onFit}
     >
-      <ScissorsIcon aria-hidden /> Fit to One Page
+      {fitting ? (
+        <>
+          <CircleNotchIcon aria-hidden className="animate-spin motion-reduce:animate-none" />
+          Fitting…
+        </>
+      ) : (
+        <>
+          <ScissorsIcon aria-hidden /> Fit to One Page
+        </>
+      )}
     </Button>
   );
 }
@@ -2886,7 +3188,7 @@ function LineActions({
   onApply: (changes: ChoicesUpdate) => void;
   onSaveHeader: (field: HeaderField, text: string) => void;
   onHide: (changes: ChoicesUpdate) => void;
-  /** A phone's way to move a line; a desktop has the Sections panel. */
+  /** A phone's way to move a line; a desktop's bar has `MoveButtons`. */
   up?: ChoicesUpdate | null;
   down?: ChoicesUpdate | null;
 }) {
