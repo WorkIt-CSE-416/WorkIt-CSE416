@@ -51,6 +51,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from apply import bot_signals, captcha, dock_app, stuck
 from apply.answers_tab import AnswersTab, Refused
+from apply.asking import IN
 from apply.dashboard_page import (
     ACCOUNTS,
     ACCOUNTS_TAB,
@@ -779,6 +780,7 @@ class Dashboard:
                                      and not (item.get("posting_url") and f"{item['posting_url']}|{q}" in answered)]
                 item["choices"] = {q: c for q, c in (item.get("choices") or {}).items() if q in item["questions"]}
                 item["required"] = {q: r for q, r in (item.get("required") or {}).items() if q in item["questions"]}
+                item["where"] = {q: w for q, w in (item.get("where") or {}).items() if q in item["questions"]}
                 if not item["questions"]:
                     item["answered"] = True  # every question answered here: it waits on Lisul no more
         return {"summary": summary(captions, items if self._workers else None), "tiles": captions, "items": items,
@@ -838,8 +840,14 @@ ANSWERS_TAB = '<button id="tab-answers" role="tab">Answers</button>'
 
 def _questions(item: dict) -> list[str]:
     """The questions only Lisul can answer that an item asks: a rehearsal's
-    Missing facts, or a run's one Missing fact."""
-    return list(item.get("missing") or []) or [str(item.get("why") or "").removeprefix("Missing fact: ")]
+    Missing facts, or a run's one Missing fact (its reason without its context line)."""
+    return list(item.get("missing") or []) or [_asked(str(item.get("why") or ""))[0]]
+
+
+def _asked(why: str) -> tuple[str, str]:
+    """(the question, its context line) of a Missing fact's reason: "Missing fact: <q>; In: <context>"."""
+    asked, _, where = why.removeprefix("Missing fact: ").partition(f"; {IN}")
+    return asked, where.split("; ")[0]
 
 
 def _fills_in_place(item: dict, question: str) -> bool:
@@ -870,6 +878,8 @@ def _waiting(row) -> dict:
             "record": row.record, "from": "tracker", "id": "t:" + row.application_id,
             "essay": row.essay if str(row.status) == "held" else "",
             "choices": {row.missing_fact: offered} if (offered := cell_options(row.missing_fact_options)) else {},
+            "where": {row.missing_fact: where} if str(row.status) == "missing fact" and row.missing_fact
+            and (where := _asked(row.reason)[1]) else {},
             "at": row.date_applied.isoformat() if row.date_applied else None}
 
 

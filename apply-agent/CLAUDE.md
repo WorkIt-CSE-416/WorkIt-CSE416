@@ -751,6 +751,34 @@ through the WorkIt extension in his own Chrome. Never through a Worker.
   and the window close. Ctrl-C does not reach Apply when it runs in the
   background, so use SIGTERM there.
 
+## Asking Lisul a question (`apply.asking`, KAN-527)
+
+Every question that reaches the Needs you tab (a Missing fact, an Essay
+fact, a one-off that Claude left for Lisul, a Handoff's questions) passes
+through `worker._Planned._missing` first.
+
+- `asking.known(asked, profile, bank)` is the never-ask-twice check. It
+  looks in the profile's `answered_questions`, the Answer bank, the Story
+  bank (an earlier Essay fact's answer) and the applicant's links. A link
+  question is known when each kind that it names (GitHub, LinkedIn, a site,
+  a repo) is among the links. A known text field gets that answer
+  (`_Planned.found`), and a known ask is dropped.
+- `asking.links(profile)` is the profile's `links`, each Story bank line
+  with a URL, and each web link on the resume PDF with the words it is on.
+  Essays get them as `<links>` (`essays.sources`). An Essay plan's slot
+  that asks for a known fact is backed by it instead (`essays._backed`).
+- `asking.where(q, questions)` is the one context line of a form question:
+  its step (a Workday name is `<step> / <label>`), the question before it
+  when its label is bare (3 words or fewer), and its pair (From with To).
+  `asking.for_essay` names an Essay fact's essay and what its answer does.
+  The engine reads no group legend for a plain field, so the line uses only
+  these. The line goes in `Result.where`, the window's card (`.where`), a
+  Handoff's "Answer 'X' too (line)", the Tracker reason
+  (`Missing fact: <q>; In: <line>`) and the phone push.
+
+**Tests.** `test_claude_answers.py -k already_holds` and
+`test_dashboard.py -k says_where_it_sits` (opens Chromium).
+
 ## The Accounts tab: Copy password and Open sign-in page (KAN-591)
 
 `src/apply/accounts_tab.py`. The tab lists each Employer account in the
