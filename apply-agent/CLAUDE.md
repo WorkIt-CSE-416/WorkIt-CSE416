@@ -485,6 +485,11 @@ error shapes, and a killed `claude -p`. Run it with `-k`; it opens Chromium.
   the form and holds the Application (`gates.over_cap`). This applies to
   an essay that Lisul approved too. A form refuses a longer answer
   (MongoDB's 267-word letter, cap 260).
+- An essay that the editor's passes leave over the most that its length
+  allows (`gates.length`: a stated sentence count, or its type's default
+  when the form states none) also gets one shorter rewrite (`essays.CUT`)
+  before the form is shown. If it is still over, it goes on the form, and
+  its failed check holds the Application (Bedrock's 132 words of 120).
 - The names gate (`gates.traced`) checks each run of capitalized words
   against the essay's sources: the drafting prompt (Story bank, Stock
   answers, Company material with the Company brief, the posting) and the
