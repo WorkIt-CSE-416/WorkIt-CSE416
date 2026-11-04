@@ -18,6 +18,7 @@ import yaml
 
 from apply import (
     bot_signals,
+    captcha,
     dashboard,
     doctor,
     employer_mail,
@@ -605,6 +606,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
         answer_bank=AnswerBank(profile.folder / ANSWER_BANK) if answer_bank is None else answer_bank,
         signed_in=site.signed_in(),  # by apply sign-in
         tailored=tailored.from_workit(),  # the student's tailored resume for each Posting (KAN-547)
+        everyday=captcha.to_everyday_chrome,  # a bot-blocked posting goes to the student's own Chrome (KAN-590)
     )
 
 

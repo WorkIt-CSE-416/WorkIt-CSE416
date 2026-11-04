@@ -149,6 +149,18 @@ class Captcha(Handoff):
         self.page = page
 
 
+class Blocked(Handoff):
+    """A page refused Apply's Chrome as a bot (apply.captcha.BLOCKS), with
+    nothing on it to solve. Apply hands it off at once, with no retry: the
+    student finishes it in their own Chrome, where the extension fills it.
+    `company` is who blocked it; `url`, the posting to open there; `said`,
+    the page's own words. A Filler that knows neither gives only `said`."""
+
+    def __init__(self, why: str, company: str = "", url: str = "", said: str = ""):
+        super().__init__(why, bot_signal="blocked")
+        self.company, self.url, self.said = company, url, said
+
+
 class Closed(Exception):
     """The Posting no longer takes applications (see GLOSSARY: Closed). The
     message says how that showed."""

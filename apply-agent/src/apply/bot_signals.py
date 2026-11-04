@@ -11,6 +11,8 @@ CAPTCHA = "captcha"
 SECURITY_CODE = "security code"
 # The job system refused the sent form, as Ashby does when reCAPTCHA scores the browser low.
 REFUSED = "refused"
+# A page that refused the browser outright, with nothing to solve (apply.captcha.BLOCKS): Tesla's, DataDome's, Lever's.
+BLOCKED = "blocked"
 
 
 def cell(headless: bool, signals: tuple[str, ...]) -> str:

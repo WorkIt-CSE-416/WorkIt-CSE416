@@ -471,7 +471,7 @@ class ClaudeFill:
         if drive.output.get("blocked") is True:
             why = str(drive.output.get("why")).strip()
             if captcha.SAYS_BLOCKED.search(why):  # no challenge to solve: Lisul applies in his own Chrome
-                raise Handoff(captcha.blocked(self.names[0], self._url or page.url))
+                raise captcha.blocked(self.names[0], self._url or page.url, captcha.blocks(page))
             if captcha.SAYS_CAPTCHA.search(why):  # Lisul does it, and the Worker drives again from this page
                 raise Captcha(f"Claude fill can't finish this form: {why}", page)
             raise Handoff(f"Claude fill can't finish this form: {why}")

@@ -299,19 +299,31 @@ def test_a_captcha_claude_fill_stops_at_is_a_bot_signal(tmp_path, why):
     assert row.bot_signals == "headless: captcha"
 
 
-def test_a_page_that_blocks_the_browser_says_so_plainly_and_is_no_captcha(tmp_path):
-    # Tesla (2026-11-03): an "Access Denied" page, a bot block with no challenge to solve.
-    profile = profile_with(tmp_path)
-    why = ('The tab shows an "Access Denied" error from the server (Reference #18.6424c317) at '
-           "https://lunaroutpost.bamboohr.com/careers/398. No job posting or application form is visible.")
-    claude = FakeClaude(driver=BambooDriver(blocked=why))
+# Claude's why at a bot block (KAN-590): Tesla's "Access Denied" (2026-11-03), DataDome's block (LinkedIn's
+# SmartRecruiters form, 2026-11-03).
+BLOCKED_WHYS = {
+    "tesla": ('The tab shows an "Access Denied" error from the server (Reference #18.6424c317) at '
+              "https://lunaroutpost.bamboohr.com/careers/398. No job posting or application form is visible."),
+    "datadome": ('The page shows "We detected unusual activity from your device or network" in an iframe, '
+                 "with no form to fill."),
+}
+
+
+@pytest.mark.parametrize("site", BLOCKED_WHYS)
+def test_a_bot_block_goes_to_lisuls_own_chrome_at_once_and_waits_on_him(tmp_path, site):
+    profile = profile_with(tmp_path, policies={"phone_push": True})
+    claude = FakeClaude(driver=BambooDriver(blocked=BLOCKED_WHYS[site]))
+    opened, phone = [], RecordingNotifier()
 
     with FakeBambooServer(LUNAR_FORM) as server:
-        [row] = run(server, profile, requests=[LUNAR_URL], claude=claude)
+        [row] = run(server, profile, requests=[LUNAR_URL], claude=claude, everyday=opened.append, phone=phone)
 
-    assert row.status == "handoff"
-    assert row.reason.startswith("Lunar Outpost blocked the browser; apply in your own Chrome")
-    assert row.bot_signals == ""
+    assert row.status == "handoff"  # Needs you, until the extension's submit proof says applied
+    assert row.reason.startswith("Lunar Outpost blocked Apply's Chrome")
+    assert "Finish Lunar Outpost in your Chrome: the extension fills it" in row.reason
+    assert row.bot_signals.endswith(": blocked")
+    assert opened == [LUNAR_URL]  # once: no retry
+    assert ("Apply: finish it in your Chrome", "Finish Lunar Outpost in your Chrome: the extension fills it") in phone.sent
     assert server.submissions == []
 
 
