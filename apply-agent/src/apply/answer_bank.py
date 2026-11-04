@@ -78,15 +78,18 @@ class AnswerBank:
     def entries(self) -> list[Entry]:
         return [entry for k in list(self._entries) if (entry := self.get(k))]
 
-    def add(self, question: Question, answer: str | list[str], company: str, day: date, facts: list[str] = ()) -> bool:
+    def add(self, question: Question, answer: str | list[str], company: str, day: date, facts: list[str] = (),
+            wording: str | None = None) -> bool:
         """Add Claude's draft answer to `question`, first asked at `company` on `day`,
-        drawn from `facts` (profile keys and Story bank lines), if Claude named any.
-        False if the bank already has an answer to it, which stays."""
+        drawn from `facts` (profile keys and Story bank lines), if Claude named any,
+        filed under `wording` (a bare date's section and label, fill_engine.Plan.filed),
+        else under the question's label. False if the bank already has an answer to it, which stays."""
+        filed = wording or question.label
         with self._writing() as entries:
-            if _find(entries, question.label) is not None:
+            if _find(entries, filed) is not None:
                 return False
-            entries[key(question.label)] = {
-                "question": one_line(question.label),
+            entries[key(filed)] = {
+                "question": one_line(filed),
                 "answer": [_text(a) for a in answer] if isinstance(answer, list) else _text(answer),
                 "options": [_text(o) for o in question.options],
                 "source": CLAUDE,

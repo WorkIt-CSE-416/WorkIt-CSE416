@@ -83,6 +83,20 @@ its boxes stay unticked, a blank on purpose in the plan.
 `AnswerBank.answer(question, [])` saves one; an answer with options in it
 drops `none`. An empty answer without `none` is still no answer.
 
+A bare date (From, To, Start date, End date: a label that does not say
+what the date is for) is answered for its section (KAN-595). The engine
+finds the section from the field's panel, its help text, the heading or
+intro just before it, or the questions before it. The section is
+education, work experience or availability (`Plan.sections`). The plan
+answers a school's or the internship's dates itself. Claude drafts any
+other bare date and is told its section (`"about"` in the draft call); a
+date that nothing places goes to Lisul. The Answer bank files a bare
+date's answer under its section and label
+(`"education / From (MM/DD/YYYY)"`, `Plan.filed`). A date that no section
+places is never banked. An older entry filed under a bare label alone is
+never read again. Lisul's own answer to a bare date applies to that form
+only; Apply does not save it to the profile by its wording.
+
 `README.md` is a teammate's setup path, from a clone to a rehearsal. Its
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.
@@ -350,6 +364,18 @@ reads: it does not click, type or submit.
   sources or the posting name). Claude makes only the judgment checks, in
   the Pre-submit review call (`presubmit.SYSTEM`: contradictions, wrong
   answers); its findings join the flags.
+- A review finding can name the right answer when the sources give it
+  (`presubmit.Found.fixes`: an internship start in a school's From).
+  Apply fills that answer in place of the wrong one (`_Planned.fix`). It
+  then fills the form again, in a fresh page, and reviews it again, all
+  before the window shows the form as ready. It does this once. A fix
+  replaces only Claude's guesses (its drafts, and its drafts the Answer
+  bank gave back). It never replaces an answer from the profile, Lisul's
+  own answer, an essay, a file or a secret. A
+  Claude draft that a fix replaces leaves the Answer bank. On Workday, the
+  next fill goes Back to the step that holds the fixed answer
+  (`WorkdayFiller._back_to_changed`). A read-back replan also refills
+  this way.
 - A flag that `holds` goes in the reason as `Verify: <field>: <why>` and
   holds a live run (Needs you, kind `check`). Read-back and review flags
   hold already by their own reason. A blank optional field holds as a
