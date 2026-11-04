@@ -131,3 +131,21 @@ def test_a_security_clearance_question_is_no_secret():
     assert not SECRET.search("Do you currently possess an active U.S. Top Secret security clearance?")
     assert not SECRET.search("Do you hold a Secret clearance?")
     assert SECRET.search("Secret question answer") and SECRET.search("Password")
+
+
+def test_a_plain_workers_page_html_is_kept_without_a_secret_answer_and_a_cdp_page_keeps_none():
+    from datetime import date
+
+    from apply.model import Posting, Status
+    from apply.records import Filled, Record, record_files
+
+    questions = (Question("first", "First Name", "text"), Question("pw", "Create a password", "text"))
+    html = '<input name="first" value="Testy"><input name="pw" value="p&amp;ss&lt;1">'
+    filled = Filled(questions, {"first": "Testy", "pw": "p&ss<1"}, {"first": "Testy", "pw": "p&ss<1"}, b"png", html=html)
+    record = Record(Posting("Acme", "Intern", "greenhouse", "https://example.com/j/1"), Status.HELD, "", filled, date(2026, 11, 4))
+    files = record_files(record)
+    kept = files["page.html"].decode()
+    assert 'value="Testy"' in kept and "p&amp;ss" not in kept and "p&ss" not in kept and "(secret, not recorded)" in kept
+    assert "[page.html](page.html)" in files["README.md"].decode()
+    no_html = Record(record.posting, Status.HELD, "", Filled(questions, {}, {}, b"png"), date(2026, 11, 4))
+    assert "page.html" not in record_files(no_html)
