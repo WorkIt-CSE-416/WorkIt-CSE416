@@ -421,9 +421,9 @@ class FakeWorkdayServer:
     def open(self, url: str, worker: int = 0):
         self.opened.append(url)
         if self.plain:
-            from plain_fakes import https_fake, plain_page
+            from plain_fakes import fake_page
 
-            with https_fake(self._handle, self._init_scripts()) as port, plain_page(url, port) as page:
+            with fake_page(self._handle, self._init_scripts(), url) as page:
                 yield page
             return
         with sync_playwright() as playwright:

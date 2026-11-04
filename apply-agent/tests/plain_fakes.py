@@ -7,9 +7,14 @@ switches, with the fake's self-signed certificate allowed). So a page keeps its 
 host, as Workday's own code and Apply's checks of `page.url` need, and nothing reaches the
 network. Playwright's init scripts go at the top of each HTML page the server sends.
 
+One server and one Worker serve the whole test run: `fake_page` points the server at a fake's
+handler and opens a new tab for it, as Playwright's fresh context would, so a test run starts
+one Chrome, not one per page.
+
 `HttpRoute` is the part of Playwright's Route a fake's handler uses.
 """
 
+import atexit
 import datetime
 import http.server
 import json
@@ -19,13 +24,13 @@ import ssl
 import sys
 import tempfile
 import threading
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from apply.plain.bridge import Bridge
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
-from apply.plain.page import PortPage
+from apply.plain.page import PortContext, PortPage
 
 _CERT: tuple[Path, Path] | None = None
 HEAD = re.compile(rb"<head[^>]*>|<!doctype[^>]*>", re.IGNORECASE)
@@ -124,9 +129,10 @@ def _with_scripts(page: bytes, scripts: list[str]) -> bytes:
 
 
 @contextmanager
-def https_fake(handle, scripts: list[str] = ()):
-    """An HTTPS server on 127.0.0.1 answering every request with `handle(route)`. Yields its port."""
-    scripts = list(scripts)
+def https_fake(handle, scripts=()):
+    """An HTTPS server on 127.0.0.1 answering every request with `handle(route)`. Yields its port.
+    `scripts`: the init scripts, or a function giving them at each request."""
+    current = scripts if callable(scripts) else (lambda: list(scripts))
 
     class Handler(http.server.BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -136,7 +142,7 @@ def https_fake(handle, scripts: list[str] = ()):
             body = self.rfile.read(length) if length else b""
             host = self.headers.get("Host", "").split(":")[0]
             request = _Request(f"https://{host}{self.path}", self.command, {k.lower(): v for k, v in self.headers.items()}, body)
-            route = HttpRoute(self, request, scripts)
+            route = HttpRoute(self, request, current())
             if self.command == "OPTIONS":  # a CORS preflight
                 return route.fulfill(status=204)
             try:
@@ -175,22 +181,59 @@ def https_fake(handle, scripts: list[str] = ()):
         server.server_close()
 
 
+class _Shared:
+    """The run's one fake server and one plain Worker, every host answered by the server."""
+
+    def __init__(self):
+        self.handle, self.scripts = None, []
+        self._stack = ExitStack()
+        port = self._stack.enter_context(https_fake(self._answer, lambda: self.scripts))
+        folder = Path(tempfile.mkdtemp(prefix="apw-fake-", dir="/tmp"))  # short: a socket path is capped at 104 bytes
+        self._stack.callback(shutil.rmtree, folder, ignore_errors=True)
+        flags = (f"--host-resolver-rules=MAP * 127.0.0.1:{port}", "--ignore-certificate-errors", "--disable-quic")
+        workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"), test_flags=flags)
+        self._stack.callback(workers.stop_all)
+        self.connection = workers.launch(0).connection
+        self.base = PortPage.first(self.connection).tab  # kept on about:blank, so the window stays
+        atexit.register(self._stack.close)
+
+    def _answer(self, route) -> None:
+        if self.handle:  # else Chrome's own requests at launch, before any fake: no answer
+            self.handle(route)
+
+    def close(self) -> None:
+        atexit.unregister(self._stack.close)
+        self._stack.close()
+
+
+_SHARED: _Shared | None = None
+
+
+def _shared() -> _Shared:
+    global _SHARED
+    if _SHARED is None or _SHARED.connection.closed.is_set():
+        if _SHARED:
+            _SHARED.close()
+        _SHARED = _Shared()
+    return _SHARED
+
+
 @contextmanager
-def plain_page(url: str, port: int):
-    """A plain Worker's page at `url`, every host answered by the fake on `port`. Its own profiles
-    folder and socket, so tests running at once don't meet; the Worker stops after."""
-    folder = Path(tempfile.mkdtemp(prefix="apw-fake-", dir="/tmp"))  # short: a socket path is capped at 104 bytes
-    flags = (f"--host-resolver-rules=MAP * 127.0.0.1:{port}", "--ignore-certificate-errors", "--disable-quic")
-    workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"), test_flags=flags)
+def fake_page(handle, scripts=(), url: str = ""):
+    """A new tab of the run's plain Worker at `url`, each request answered by `handle(route)` with
+    `scripts` at the top of each HTML page. Its tabs close after."""
+    shared = _shared()
+    shared.handle, shared.scripts = handle, list(scripts)
+    context = PortContext(shared.connection)
+    page = context.new_page()
     try:
-        running = workers.launch(0)
-        page = PortPage.first(running.connection)
         if url:
             page.goto(url)
         yield page
     finally:
-        workers.stop_all()
-        shutil.rmtree(folder, ignore_errors=True)
+        for other in context.pages:
+            if other.tab != shared.base:
+                other.close()
 
 
 def host_of(url: str) -> str:
