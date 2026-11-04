@@ -142,3 +142,50 @@ challenge) and Gallagher's home page is empty to one, so each was checked in a
 browser and by the logo Brandfetch draws for it, and its row's note says so.
 A site that refuses scripts is no reason to leave a row out: Brandfetch's own
 logo for the domain is a second check that the domain is the company's.
+
+## The board's own address, checked by the scraper
+
+After the batches, 7,089 jobs at 811 companies still had no domain, most on
+Workday (2,266), Jibe (1,305), Oracle (1,049) and SuccessFactors (1,044), whose
+boards name no website. Rows by hand did not scale, so **the scraper now runs
+the script check itself, once per board, on the domain the board's own address
+gives** (`logos.board_address`, `logos.check_addresses`, kept in
+`Store.addresses`):
+
+- **A Jibe or SuccessFactors board** lives on the company's careers site
+  (`careers.garmin.com`, `jobs.mcdonalds.com`), so its host's registered domain
+  is the company's: evidence, not a guess. It passes when the domain's name is
+  in the company's name or starts with it (`chsinc.com` for CHS), the company's
+  initials start it (`gxo.com`), or the home page's title names the company's
+  first word. A host on Jibe's own `jibeapply.com` gives none (`VENDOR_DOMAINS`).
+- **A Workday tenant** is the name the company chose for its Workday account,
+  so `{tenant}.com` is only a guess. It passes only when the home page's title
+  holds the company's whole name, of two words or more: `sbdinc.com` is
+  "Stanley Black & Decker", `cbrands.com` "Constellation Brands". A one-word
+  name is in too many titles: in the first run `denver.com` was Denver Media,
+  not the City of Denver, and `nexstar.com` a web host, not Nexstar Media.
+  `yale.com` sells locks; Yale University's tenant is `yale`.
+- **The home page is read at `www.` first.** Most bare domains redirect there,
+  their robots.txt too, and `web.get` refuses a redirect to another host, so
+  the bare domain read as robots.txt refusing us: on 2026-11-04 that failed 21
+  of 30 sampled boards (viasat.com). A redirect between hosts of the same
+  domain is followed; any other is not.
+- **A board is checked once.** A pass or a fail is kept; a site that did not
+  answer at all is asked again the next run. A person's row in
+  `checked_websites.csv` wins over either.
+
+On 2026-11-04 the check proved 133 of the 404 boards with an address to try:
+58 Jibe, 38 SuccessFactors and 37 Workday, 1,941 of the 7,089 jobs. Most fails
+are a site that refuses scripts or a Workday tenant that is not the company's
+`.com`. A few that passed are careers-only domains (`osfcareers.org`,
+`cakecareers.com`), whose Brandfetch logo can be a careers banner; a checked
+row fixes one.
+
+**Everything left is flagged each run**: `metrics.json`'s
+`boards_without_domain` (and the run's log, top ten) lists each board whose
+roles go out with no domain, most roles first, with `tried` true when its
+address failed the check. A person takes the top of that list, finds and
+checks the website as above, and adds a row to `checked_websites.csv`; never a
+change in the database, which the next import overwrites from the feed.
+Oracle, Greenhouse and iCIMS boards have no address to try, so they reach a
+logo only that way.
