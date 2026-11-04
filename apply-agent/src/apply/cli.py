@@ -24,6 +24,7 @@ from apply import (
     employer_mail,
     essays,
     home,
+    native_host,
     orchestrator,
     own_application,
     rehearsal,
@@ -135,6 +136,10 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
     clean_tracker.add_argument("--dry-run", action="store_true", help="only list what it would delete; delete nothing")
     clean_tracker.add_argument("--keep", action="append", default=[], metavar="LINK",
                                help="a job's link (or WorkIt job id) to keep on the tracker; give it again for more")
+    commands.add_parser(
+        "chrome-passwords", help="let the WorkIt extension in your own Chrome sign you in to each Workday account "
+                                 "Apply made, from Keychain, so Chrome offers to save its password: installs the "
+                                 "Apply accounts host and lists Keychain's accounts in the Tracker")
     commands.add_parser("push-test", help="send one test push to your phone (ntfy), or say how to set it up")
     scheduled = commands.add_parser(
         "schedule", help="launchd jobs for the Daily sweep (`apply run` at policies.yaml's schedule.daily_sweep_at) "
@@ -287,6 +292,8 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             print(f"{done.signature}: {done.status} ({done.branch or 'no branch'}): {done.why}")
     elif args.command == "sign-in":
         _sign_in(args.url, adapters.site if adapters else WorkerBrowsers(headless=False))
+    elif args.command == "chrome-passwords":
+        _chrome_passwords(ApplicantProfile.load(args.profile).get("identity.email"))
     elif args.command == "push-test":
         _push_test(adapters.phone if adapters else live_phone())
     elif args.command == "schedule":
@@ -398,6 +405,18 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
             yield
         finally:
             url.unlink(missing_ok=True)
+
+
+def _chrome_passwords(login: str) -> None:
+    """Install the Apply accounts host for Lisul's everyday Chrome, and list each Employer account Keychain
+    has in the Tracker, so the extension's Sign In button knows it (KAN-592). No password is read."""
+    manifest = native_host.install()
+    added = native_host.adopt(MacKeychain(), FileTracker(), login, date.today())
+    print(f"Installed the Apply accounts host: {manifest}, for the WorkIt extension only ({native_host.EXTENSION_ID}).")
+    print(f"Listed {len(added)} more Employer accounts from Keychain in the Tracker" + (f": {', '.join(added)}." if added else "."))
+    print("In Chrome, open the WorkIt extension's options page and turn on Use My Apply Accounts (Chrome asks once to "
+          "let it talk to Apply). Then, on a Workday Sign In page that Apply made an account for, press Sign In with "
+          "Your Apply Account, and press Save when Chrome asks to save the password.")
 
 
 def _answers_window(profile: Path, window: Path) -> None:

@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TextIO
 
-from apply import cover_letter, gates
+from apply import cover_letter, gates, native_host
 from apply.adapters import Mailbox, Tracker, Usage
 from apply.browsers import (
     CHROME,
@@ -91,10 +91,11 @@ class Machine:
     workit: Callable[[], WorkIt] = WorkIt  # the WorkIt client, with the login in the data folder
     waiting_writes: Callable[[], WaitingWrites] = WaitingWrites  # the writes to the Applications Tracker still waiting
     usage: Usage | None = None  # read only when asked (`--usage`): reading it costs a tiny Haiku call
+    native_hosts: Path = native_host.CHROME_HOSTS  # everyday Chrome's NativeMessagingHosts folder
 
 
 def diagnose(machine: Machine) -> list[Check]:
-    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _worker_profiles, _facts, _resume_gate, _gmail, _records, _live_runs, _workit, _writes, _tracker]
+    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _worker_profiles, _facts, _resume_gate, _gmail, _records, _live_runs, _workit, _writes, _tracker, _accounts_host]
     return [found for c in checks for found in _safely(c, machine)]
 
 
@@ -376,3 +377,20 @@ def _calibration(machine: Machine, rows) -> Check:
         return Check("Calibration run", OK, f"done: {filled} of {size} Applications held or submitted")
     return Check("Calibration run", OK, f"{filled} of {size} Applications so far; "
                                         f"the next {size - filled} are held for you to judge")
+
+
+def _accounts_host(machine: Machine) -> Check:
+    """The Apply accounts host (KAN-592): optional, so never a fail. Without it, the WorkIt extension in
+    Lisul's Chrome has no Sign In button for the Employer accounts Apply made."""
+    name, fix = "Apply accounts host", "run `uv run apply chrome-passwords`"
+    manifest = machine.native_hosts / f"{native_host.NAME}.json"
+    try:
+        written = json.loads(manifest.read_text())
+    except (OSError, ValueError):
+        return Check(name, WARN, f"not installed (no {manifest}): the extension can't fill Apply's Workday logins", fix)
+    if written.get("allowed_origins") != [native_host.EXTENSION_ORIGIN]:
+        return Check(name, WARN, f"{manifest} names other callers than the WorkIt extension", fix)
+    wrapper = Path(written.get("path", ""))
+    if not wrapper.is_file() or not os.access(wrapper, os.X_OK):
+        return Check(name, WARN, f"its wrapper {wrapper} is gone or can't run", fix)
+    return Check(name, OK, f"installed for the WorkIt extension ({native_host.EXTENSION_ID})")
