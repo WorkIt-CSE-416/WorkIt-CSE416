@@ -88,6 +88,15 @@ def test_snaps_generative_media_research_internship_asks_for_graduate_study():
     ("Basic Qualifications:\nA minimum of 9 credit hours of completed graduate-level courses in Computer Science or a"
      " related field.\nA completed bachelor's degree.",  # ICF's AI Engineer Intern (Workday)
      "A minimum of 9 credit hours of completed graduate-level courses in Computer Science or a related field."),
+    # A year of study or a plan for later that names a graduate degree as the study now.
+    ("Requirements\nMust be a final-year PhD student in Computer Science",
+     "Must be a final-year PhD student in Computer Science"),
+    ("Requirements\nCurrently a second-year student in a Master's program in Data Science",
+     "Currently a second-year student in a Master's program in Data Science"),
+    ("Requirements\nMust be enrolled in a Master's program, planning to continue on to a PhD",
+     "Must be enrolled in a Master's program, planning to continue on to a PhD"),
+    ("Minimum Qualifications\nCurrently in the final year of a Master's program in Computer Science",
+     "Currently in the final year of a Master's program in Computer Science"),
 ])
 def test_required_qualifications_that_ask_for_graduate_study_rule_lisul_out(text, needs):
     assert graduate_only(text) == needs
@@ -104,6 +113,15 @@ def test_required_qualifications_that_ask_for_graduate_study_rule_lisul_out(text
     "Basic Qualifications\nCurrently enrolled in a master's program, or in the third or fourth year of a bachelor's program.",
     "Requirements\nPursuing or obtained a Bachelor’s or Master’s degree.",  # Travelers
     "Qualifications\nCurrently pursuing or recently completed a bachelor's or graduate degree in Computer Science.",  # HP IQ
+    # An undergraduate's year of study, or graduate study only as a plan for later (Roku, 2026-11-03).
+    "Apply if\nYou are a penultimate-year student, or a final-year student planning to go on to a one-year master’s course.",
+    "Requirements\nStudents in their penultimate year of study, or final-year students continuing on to a Master's degree",
+    "Requirements\nPre-final year students or Master's students in Computer Science",
+    "Requirements\nThird-year students, or final-year students moving on to an MSc",
+    "Requirements\nYou are a second-year or third-year student, or a final-year student applying to a PhD program",
+    "Requirements\nMust be a student planning to pursue a graduate degree after graduation",
+    "Qualifications\nCurrent students who intend to go on to graduate school",
+    "Minimum Qualifications\nCurrently enrolled in a 4-year degree program or a Master's program",
     # Undergraduates are offered elsewhere among the requirements.
     "Basic Qualifications\nPursuing a Bachelor's degree in Computer Science\nMS or PhD students must have one semester remaining",
     # A graduate degree only under Preferred, Nice to have or Bonus.
@@ -190,8 +208,16 @@ def test_a_rehearsal_says_a_graduate_only_posting_is_not_eligible_without_its_fo
     assert claude.calls == []
 
 
+# Roku's "SW Engineer Intern, AI Engineering" (Greenhouse 8258241), its requirements as its API sent them on 2026-11-04.
+ROKU = ("<p><strong>Apply if</strong></p><ul><li>You are a penultimate-year student, or a final-year student planning to go"
+        " on to a one-year master’s course.</li></ul><ul><li>You hold a permanent right to work in the US.</li></ul>"
+        "<p><strong>We’re excited if you have</strong></p><ul><li>Currently enrolled in a degree program in Artificial"
+        " Intelligence, Computer Science, Engineering or a related field.</li></ul>")
+
+
 @pytest.mark.parametrize("content", [
     "<h3>Minimum Qualifications</h3><ul><li>Currently pursuing a Bachelor's, Master's or PhD in Computer Science</li></ul>",
+    ROKU,
     None,  # the Posting's text can't be read: its form decides, as before
 ])
 def test_a_posting_open_to_undergraduates_goes_on_to_its_form(tmp_path, content):
