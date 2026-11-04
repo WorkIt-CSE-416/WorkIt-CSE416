@@ -22,9 +22,32 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // The target of chrome.scripting / chrome.userScripts for a tab and frame (0 = top).
 export const target = ({ tab, frame = 0 }) => ({ tabId: tab, frameIds: [frame] });
 
+// `running` (a script running in one frame), or Navigated as soon as that frame commits another
+// document, NoTab if its tab closes: Chrome never settles a script whose document went away
+// mid-run (a Workday step's Save and Continue loads the next step while the engine waits on it).
+export function untilNavigated(params, running) {
+  const frame = params.frame ?? 0;
+  let stop = () => {};
+  const gone = new Promise((_, reject) => {
+    const committed = (d) => {
+      if (d.tabId === params.tab && d.frameId === frame) reject(named("Navigated", `Execution context was destroyed, most likely because of a navigation (to ${d.url})`));
+    };
+    const removed = (id) => {
+      if (id === params.tab) reject(named("NoTab", "Target page, context or browser has been closed"));
+    };
+    chrome.webNavigation.onCommitted.addListener(committed);
+    chrome.tabs.onRemoved.addListener(removed);
+    stop = () => {
+      chrome.webNavigation.onCommitted.removeListener(committed);
+      chrome.tabs.onRemoved.removeListener(removed);
+    };
+  });
+  return Promise.race([running, gone]).finally(stop);
+}
+
 // Runs `func(...args)` in the page's world ("MAIN" or "ISOLATED") of one frame, and returns its value.
 export async function inPage(params, world, func, args = []) {
-  const [result] = await chrome.scripting.executeScript({ target: target(params), world, func, args, injectImmediately: true });
+  const [result] = await untilNavigated(params, chrome.scripting.executeScript({ target: target(params), world, func, args, injectImmediately: true }));
   if (!result) throw named("NoFrame", `no frame ${params.frame ?? 0} in tab ${params.tab}`);
   return result.result;
 }

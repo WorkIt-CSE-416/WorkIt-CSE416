@@ -223,6 +223,25 @@ with string `detail` on the document (`__apply_said`, `__apply_call`); the exten
 | `page.html` | `tab`, `frame?`, `snapshot` | the frame's HTML with its doctype. With `snapshot` (a Record's): each field's value as shown (value, checked, selected, a textarea's text), no `<script>`/`<noscript>`, no Apply note (`[id^=apply-]`), no password value, and a `<base href>` |
 | `fixed.call` | `tab`, `frame?`, `name`, `world` (`ISOLATED`/`MAIN`), `arg`, `selector?`, `all?` | `{"ok": value}`, `{"retry": reason}` (no element matches `selector` yet), or `{"err": {name, message}}`: runs `vendor/fixed.js`'s function `name` on `arg`, or on the first (`all`: every) element `selector` matches (Playwright's selector engine; ISOLATED only). No eval: page CSP and Allow User Scripts don't matter |
 
+## Ops (S7: Workday's accounts and other account pages; KAN-613)
+
+| Op | Params | Value |
+|---|---|---|
+| `net.watch` | `tab`, `on` (default true) | `null`; while on, the tab's requests go up as `request`, `response` and `requestfailed` events (webRequest, observe only), and `page/net-main.js` (a fixed file, never eval) goes into each of its frames as it commits, to read fetch and XHR answers and see a `window.open` the pop-up blocker refused |
+| `frames.of` | `tab`, `frame?`, `selector` | `{"ok": frameId}` of the `<iframe>` the selector finds in that frame, `{"retry": reason}` while it is missing or has no document, or an error (`Strict`, not an iframe). Matched by its index in `window.frames` (content scripts have no `getFrameId` here), so it works across origins |
+
+Events (S7, from a watched tab): `{"event": "request", "tab", "frame", "url", "method", "resource"}`;
+`{"event": "response", "tab", "frame", "url", "method", "resource", "status", "body"?, "truncated"?}`
+(a fetch or XHR comes from the page, with `requested` and, for a call that isn't a GET, its `body`, up
+to 256 K characters); `{"event": "requestfailed", ..., "error"}`; `{"event": "popup.blocked", "tab",
+"url", "popup"}`: the page's `window.open(url)` was refused, so the extension opened `url` in tab
+`popup`, with the page as its opener. An event field is never named `type` (`ctx.send` puts
+`type: "event"` on each message, and a field of that name would replace it).
+
+A script call (`eval`, `dom`, `fixed.call`, any `inPage`) whose frame commits a new document before it
+answers fails as `Navigated` ("Execution context was destroyed..."), and as `NoTab` if its tab closes:
+Chrome never settles such a call by itself.
+
 ## Adding ops in later slices (S3 to S7)
 
 - **Extension:** put each slice's ops in its own file, `worker-extension/ops/<slice>.js`,
@@ -273,9 +292,13 @@ and defaults (timeouts in ms, default 30000). Covered in S2:
 - **S3 adds:** `PortPage.mouse` (`move`, `down`, `up`, `click`, `dblclick`, `wheel`, at viewport
   points) and `PortPage.expect_file_chooser(timeout=)`, whose `.value` is a FileChooser
   (`set_files`, `is_multiple`, `page`; no `element`), in `apply.plain.tile`.
-- **Not yet (a later slice adds it, in this module):** `add_locator_handler` (S7); frame locators across frames
-  (`frame_locator`, `content_frame`) (S7: S5's Needs you, Resume and emailed code go through
-  `page.frames`, so they need none). Each raises `NotImplementedError` naming the slice.
+- **S7 adds:** `frame_locator` (on a page, frame or locator) and `Locator.content_frame`, as
+  `PortFrameLocator`s whose frame is looked up again on each call (`frames.of`), on any origin;
+  `add_locator_handler(locator, handler, no_wait_after=, times=)` / `remove_locator_handler`, checked
+  before each action and each of its retries; `page.on("request" | "response" | "requestfinished" |
+  "requestfailed")` with `PortRequest` and `PortResponse` (no headers; `json()`/`text()`/`body()` only
+  for a fetch or XHR that isn't a GET, else `PortError("NoBody")`); and `page.on("popup")` for a
+  `window.open` the pop-up blocker refused.
 
 Auto-wait: actions poll their `dom` op every 100 ms while it answers `{"retry": ...}` or
 `NotFound`, until the timeout, then raise `PortTimeoutError` with Playwright's wording

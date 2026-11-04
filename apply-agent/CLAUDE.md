@@ -1110,6 +1110,35 @@ presses Resume, he uses Go to question, and his answer typed on the page is
 taken. The Record has a full-page `form.png` and `page.html`. Until S4
 (KAN-610) puts the submit guard on PortPage, that test turns the guard off.
 
+## Plain Workers: Workday's accounts (KAN-613)
+
+What Workday's Create Account, Sign In and steps need from a plain Worker's
+page (`docs/plain-workers/PROTOCOL.md`, S7):
+
+- **Frame locators.** `frame_locator` and `Locator.content_frame` work on a
+  plain page, also for a frame on another origin.
+- **Locator handlers.** `add_locator_handler` clears an overlay before each
+  action and before each retry, as Playwright's does.
+- **Requests and responses.** `page.on("request" | "response" | ...)` works.
+  A response's body is read only for a fetch or XHR call that isn't a GET.
+  That covers Workday's Create Account answer, which is how
+  `exists_quietly` and `hides_errors` refusals are read.
+- **Blocked pop-ups.** A synthetic click gives no user activation, so Chrome
+  blocks the page's `window.open`. The extension then opens that URL in a new
+  tab, with the page as its opener, and `page.on("popup")` fires.
+- **Navigation mid-call.** A page call whose document goes away (Workday's
+  Save and Continue inside `engine.call next`) fails as `Navigated` rather
+  than hanging, and `fill_engine.call` retries it.
+
+`tests/plain_fakes.py` runs a fake site's handler from an HTTPS server on
+127.0.0.1 and points every host there with test-only Chrome for Testing
+switches (`PlainWorkers(test_flags=...)`, refused for branded Chrome). Pages
+keep their real URLs. One server and one Worker serve the whole test run.
+Each fake opens a new tab. `FakeWorkdayServer(plain=True)`, the default when
+`APPLY_TEST_PLAIN` is set, runs the Workday tests on that Worker:
+`APPLY_TEST_PLAIN=1 uv run pytest tests/test_workday_filler.py -k ...`.
+`tests/test_plain_accounts.py` covers the four S7 features.
+
 ## The data folder (`APPLY_HOME`)
 
 **Personal data is never in the repo.** WorkIt is a public repo. All of a

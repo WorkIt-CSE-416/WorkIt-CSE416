@@ -91,13 +91,17 @@ class PlainWorker:
 
 class PlainWorkers:
     def __init__(self, profiles: Path | None = None, kind: str | None = None, bridge: Bridge | None = None,
-                 extension_dir: Path = extension.EXTENSION_DIR):
+                 extension_dir: Path = extension.EXTENSION_DIR, test_flags: tuple[str, ...] = ()):
         """`profiles` defaults to $APPLY_PROFILES, else APPLY_HOME/profiles. `kind` is
-        "testing" or "chrome" (default: chrome_kind())."""
+        "testing" or "chrome" (default: chrome_kind()). `test_flags`: tests' own switches for
+        Chrome for Testing only, such as pointing the fakes' hosts at 127.0.0.1 (never Workers')."""
         self.profiles = Path(profiles or os.environ.get("APPLY_PROFILES") or PROFILES)
         self.kind = kind or chrome_kind()
         self.bridge = bridge or Bridge()
         self.extension_dir = extension_dir
+        if test_flags and self.kind != "testing":
+            raise ValueError("test_flags are for Chrome for Testing in tests only")
+        self.test_flags = tuple(test_flags)
         self.running: dict[int, PlainWorker] = {}
 
     @property
@@ -122,6 +126,7 @@ class PlainWorkers:
                      f"--window-position={x},{y}", f"--window-size={WINDOW[0]},{WINDOW[1]}"]
         if self.kind == "testing":
             arguments.append(f"--load-extension={self.extension_dir}")
+            arguments += self.test_flags
         # No window at start: Chrome activates itself when it shows its first window, even under
         # `open -g`. The extension opens the Worker's window unfocused once it says hello.
         arguments.append("--no-startup-window")
