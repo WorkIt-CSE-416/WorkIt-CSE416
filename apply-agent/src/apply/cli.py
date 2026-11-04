@@ -175,6 +175,11 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
     ping.add_argument("--workers", type=int, default=1, help="how many plain Workers to start")
     ping.add_argument("--chrome", choices=("testing", "chrome"), default="testing",
                       help="Chrome for Testing with --load-extension (default), or branded Chrome from the seed profile")
+    filled = plain.add_parser("fill", help="fill a saved form (the engine's fixtures, served on 127.0.0.1) in a plain "
+                                           "Worker as Test Person, and print the read-back; never submits")
+    filled.add_argument("form", help="a saved form's name, such as lever-immuta")
+    filled.add_argument("--chrome", choices=("testing", "chrome"), default="testing",
+                        help="Chrome for Testing (default), or branded Chrome from the seed profile")
     plain.add_parser("prepare", help="write the worker extension's engine bundle and Playwright's injected script")
     plain.add_parser("seed", help="open branded Chrome on the seed profile to install the worker extension once")
     args = parser.parse_args(argv)
@@ -335,6 +340,8 @@ def _plain(args) -> None:
 
     if args.action == "ping":
         print("\n".join(demo.ping(args.workers, args.chrome)))
+    elif args.action == "fill":
+        print("\n".join(demo.fill(args.form, args.chrome)))
     elif args.action == "prepare":
         identity = PlainWorkers(kind="testing").prepare()
         print(f"Worker extension ready: Fill engine {identity['version']}.")

@@ -225,9 +225,25 @@ connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),
 
 `policies.yaml: worker_mode: cdp|plain` (default `cdp`) is read by S8's routing; S1 only adds the key.
 
+## Known limits (found in S1/S2, on Chrome for Testing 156)
+
+- **No user activation.** Synthetic events grant none. A `target=_blank` link opens its tab on a
+  synthetic click (the `popup` event fires), but `window.open` called from a synthetic click is
+  blocked by Chrome's pop-up blocker, and so is anything else that needs a gesture (file picker,
+  fullscreen, clipboard write). Such a step becomes a FillError, then Rescue, then Needs you (S6).
+- **No handles.** `evaluate_handle` and `element_handle` raise. `locator.evaluate(fn)` marks the
+  element in the isolated world (`data-apply-mark`) and finds it by the mark in MAIN.
+- **User scripts are off in Chrome for Testing** (no one can toggle them there). `eval` then works
+  only where the page's CSP allows eval. The engine, locators and actions don't use eval.
+- **A stored extension service worker survives restarts**, so the launcher deletes the profile's
+  `Default/Service Worker` folder before each start (an updated extension would run old code).
+- `--load-extension` works only in Chrome for Testing; branded Chrome needs the seed (`apply plain seed`).
+
 ## Demos
 
 - `uv run apply plain ping [--workers N]`: starts N plain Workers, prints each hello
   (extension and engine versions, `navigator.webdriver: false`, no `DevToolsActivePort`), quits them.
-- `uv run apply plain fill <url>`: opens the URL in a plain Worker, reads its questions with the
-  engine, fills made-up test answers, prints the read-back. Never submits.
+- `uv run apply plain fill <saved-form>` (e.g. `lever-immuta`): serves one of the engine's saved
+  forms on 127.0.0.1 (POSTs refused), opens it in a plain Worker, reads its questions, plans Test
+  Person's answers (the sample's made-up applicant), fills them through `fill_engine.fill` and
+  prints the read-back. Never submits. `apply.plain.demo.replay(folder)` is the same server for tests.
