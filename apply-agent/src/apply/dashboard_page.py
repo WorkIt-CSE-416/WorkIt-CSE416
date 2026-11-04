@@ -4,7 +4,7 @@
 PAGE = """<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Apply</title>
 <meta name="color-scheme" content="light dark">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400&display=swap"><style>{style}</style>
-{tabs}{inbox}{history}<div id="workers" hidden>
+{tabs}{inbox}{history}{accounts}<div id="workers" hidden>
 <div id="grid" style="grid-template-columns: repeat({columns}, minmax(0, 1fr)); grid-template-rows: repeat({rows}, minmax(0, 1fr))">{tiles}</div>
 </div>
 <script>
@@ -215,7 +215,7 @@ APPLIED = """<details class="applied"><summary>Applied somewhere yourself?</summ
 TABS = """<div id="runbar"><span class="brand">Apply</span><span id="mode" hidden></span>{sample}
 <span id="runline"></span><button id="start" class="primary" hidden>Start</button></div>
 <nav id="tabs" role="tablist">
-<button id="tab-inbox" role="tab">Needs you</button><button id="tab-workers" role="tab">Live</button><button id="tab-history" role="tab">History</button>{answers_tab}
+<button id="tab-inbox" role="tab">Needs you</button><button id="tab-workers" role="tab">Live</button><button id="tab-history" role="tab">History</button>{answers_tab}{accounts_tab}
 </nav>
 """
 
@@ -515,7 +515,7 @@ const make = (tag, props = {}, ...children) => {
   return e;
 };
 // Tabs, the address keeping the one open: the Inbox first, for what waits on Lisul.
-const PANES = ['inbox', 'workers', 'history', 'answers'];
+const PANES = ['inbox', 'workers', 'history', 'answers', 'accounts'];
 const tab = (name) => {
   if (!document.getElementById(name)) name = 'inbox';
   PANES.forEach(pane => {
@@ -525,6 +525,7 @@ const tab = (name) => {
   });
   if (name !== 'workers') control(null);
   if (name === 'answers' && window.loadAnswers) loadAnswers();
+  if (name === 'accounts' && window.loadAccounts) loadAccounts();
   history.replaceState(null, '', '#' + name);
 };
 document.querySelectorAll('#tabs [role=tab]').forEach(b => b.onclick = () => tab(b.id.slice(4)));
@@ -942,6 +943,53 @@ const drawHistory = (state) => {
 </script>
 """
 
+# The Accounts tab (KAN-591): each Employer account Apply made, to sign in to it himself. A password is never in
+# the page: Copy password asks the server, which puts it on the clipboard and replies with a message alone.
+ACCOUNTS_TAB = '<button id="tab-accounts" role="tab">Accounts</button>'
+ACCOUNTS = r"""<div id="accounts" hidden><div class="inbox-wrap">
+<h2>Your accounts on job sites</h2>
+<p class="help">Apply made these to apply for you. Each password is only in your Mac's Keychain. Copy password puts
+it on the clipboard for a minute.</p>
+<div id="accounts-list"></div><span id="accounts-status" class="status"></span>
+</div></div>
+<script>
+(() => {
+const $ = (id) => document.getElementById(id);
+const press = async (path, site, status) => {
+  status.textContent = ''; status.className = 'status';
+  try {
+    const reply = await fetch(path, {method: 'POST', body: JSON.stringify({site}),
+                                     headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+    const data = await reply.json();
+    if (!reply.ok) throw new Error(data.error || 'Not done.');
+    status.textContent = data.message; status.className = 'status ok';
+  } catch (err) {
+    status.textContent = err.message || 'Apply is not answering: is it still running?'; status.className = 'status error';
+  }
+};
+window.loadAccounts = async () => {
+  let view;
+  try {
+    const reply = await fetch('/accounts', {headers: {'X-Apply-Token': TOKEN}});
+    if (!reply.ok) throw new Error();
+    view = await reply.json();
+  } catch (e) { $('accounts-status').textContent = 'Apply is not answering: is it still running?'; return; }
+  $('accounts-list').replaceChildren(...(view.accounts.length ? view.accounts.map(a => {
+    const status = make('span', {className: 'status'});
+    return make('div', {className: 'card account'},
+      make('div', {className: 'q', textContent: a.company || a.site}),
+      make('div', {className: 'meta', textContent: `${a.site} · ${a.login} · made ${a.created}`}),
+      make('div', {className: 'actions'},
+        make('button', {className: 'primary', textContent: 'Copy password', onclick: () => press('/accounts/copy', a.site, status)}),
+        make('button', {className: 'tonal', textContent: 'Open sign-in page', title: 'In your everyday Chrome',
+                        onclick: () => press('/accounts/open', a.site, status)}),
+        status));
+  }) : [make('div', {className: 'history-empty', textContent: 'Apply has made no accounts yet.'})]));
+};
+})();
+</script>
+"""
+
 # The window's one stylesheet: WorkIt's, so Apply reads as part of it rather
 # than a product of its own. Its tokens and shapes come from WorkIt's
 # frontend (src/app/globals.css and components/ui): Plus Jakarta Sans with
@@ -1043,9 +1091,9 @@ STYLE = r"""
   #tabs button[aria-selected=true] { background: var(--chosen); color: var(--tint-ink); font-weight: 600; }
 
   /* Panes: a floating panel, as WorkIt's main one, around one readable column. */
-  #inbox, #history, #answers, #workers { border: 1px solid var(--rail-line); border-radius: 20px; background: var(--panel);
+  #inbox, #history, #answers, #accounts, #workers { border: 1px solid var(--rail-line); border-radius: 20px; background: var(--panel);
                                           box-shadow: var(--shell-lift); }
-  #inbox, #history, #answers { flex: 1; min-height: 0; overflow: auto; user-select: text; -webkit-user-select: text; }
+  #inbox, #history, #answers, #accounts { flex: 1; min-height: 0; overflow: auto; user-select: text; -webkit-user-select: text; }
   .inbox-wrap { max-width: 720px; margin: 0 auto; padding: 24px 24px 64px; }
   #answers { padding: 0 24px 64px; }
   #answers section { max-width: 720px; margin: 0 auto; }
@@ -1149,6 +1197,7 @@ STYLE = r"""
   #add-open { margin-top: 6px; }
   .card { margin: 0 0 10px; padding: 14px 18px; min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--lift); }
   .card.add { display: grid; gap: 10px; }
+  .account .actions { margin-top: 10px; }
   .bank-entry { outline: none; }
   .bank-entry .head { cursor: pointer; }
   .bank-entry:hover { background: var(--hover); }

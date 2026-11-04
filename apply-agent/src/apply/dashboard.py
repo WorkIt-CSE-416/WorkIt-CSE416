@@ -52,6 +52,8 @@ from urllib.parse import parse_qs, urlsplit
 from apply import bot_signals, captcha, dock_app
 from apply.answers_tab import AnswersTab, Refused
 from apply.dashboard_page import (
+    ACCOUNTS,
+    ACCOUNTS_TAB,
     ANSWERS,
     APPLIED,
     HISTORY,
@@ -807,7 +809,9 @@ class Dashboard:
         return PAGE.replace("{columns}", str(columns)).replace("{rows}", str(rows)) \
             .replace("{workers}", str(self._workers)).replace("{tiles}", tiles) \
             .replace("{tabs}", TABS.replace("{answers_tab}", ANSWERS_TAB if self.answers else "")
+                     .replace("{accounts_tab}", ACCOUNTS_TAB if self.accounts else "")
                      .replace("{sample}", SAMPLE if self._sample else "")) \
+            .replace("{accounts}", ACCOUNTS if self.accounts else "") \
             .replace("{inbox}", INBOX.replace("{words}", json.dumps(WORDS))).replace("{closing}", self.token) \
             .replace("{answers}", answers).replace("{history}", history).replace("{style}", STYLE)
 
