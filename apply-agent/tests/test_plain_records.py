@@ -292,10 +292,6 @@ def test_a_held_rehearsal_in_a_plain_worker_pauses_resumes_and_takes_an_answer_t
     filler = PausesOnce()
     monkeypatch.setitem(FILLERS, "greenhouse", filler)
     monkeypatch.setattr(on_page, "IDLE_S", 0.5)
-    # The submit guard on a plain Worker is S4's (KAN-610): until it is on PortPage, no guard here.
-    # The fake refuses every POST, and the Filler's submit fails the test.
-    for name in ("guard", "lift", "rearm"):
-        monkeypatch.setattr(rehearsal, name, lambda page, **_: None)
     profile = profile_with(tmp_path, **{"identity.email": None})
     lines = []
     with FakeJobServer(ARC_FORM) as fake, served({"/form": LONG}) as url:
