@@ -770,25 +770,30 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   clicks Submit on each, so no page says WorkIt submits, sends or
   applies. Scout's page is about Fill With Scout, the one way into Scout
   while Ask Scout is greyed out; bring the job questions back to it when
-  `ASK_SCOUT_LIVE` turns on. A content file
-  imports its animation, a client component (the four tour visuals carry
-  `"use client"` so a server file can import them); the template wraps it
-  in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`.
+  `ASK_SCOUT_LIVE` turns on. **A content file imports its animation from
+  `features/animations.tsx`, never the animation itself**: each there is
+  a `next/dynamic` wrapper, server-rendered as before, whose chunk only
+  the page that shows it loads. A client component a server file imports
+  joins the browser bundle of every route that imports that file, and the
+  header reads every content file for its menu lines: imported directly,
+  all four tour visuals and motion loaded on every marketing page
+  (`/privacy` loaded 340 KB compressed of JavaScript, the same as a
+  feature page), and each feature page carried the ones it does not show.
+  A new animation joins `animations.tsx` the same way. The template wraps
+  it in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`.
   **A page never ships a placeholder** (KAN-579, design audit marketing
   H1: empty icon tiles read as an unfinished site): `animation` and every
   deep dive's `visual` are required in `types.ts`. A deep dive's visual is
   a still scene in `features/visuals/<slug>.tsx`, one piece of the real
   app drawn with the tour's student and employers (`feature-data.ts`) at
   400 × 300 (`Vignette` in `visuals/parts.tsx`), which `DeepDiveStage`
-  scales to its 4:3 panel with `Fit`. Each is `aria-hidden` and draws no
+  scales to its 4:3 panel with `Fit`. The scenes are server components,
+  so they ship no script; one that needs the browser goes through
+  `animations.tsx` too. Each is `aria-hidden` and draws no
   heading, button or link. A scene is `shrink-0`: as a flex item it
   otherwise shrank to its content's width on a phone before `Fit` scaled
   it, and its text was cut off. Scout's hero (`visuals/scout-animation.tsx`)
   plays its exchange once and holds, so it needs no pause control. The hero uses
-  `SocialSignUpButton` (`social-sign-up.tsx`, shared with the home hero),
-  in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`. A
-  page with no animation (Scout, for now), or a deep dive with no
-  `visual`, shows a placeholder in the feature's colour. The hero uses
   `SocialSignUpButton` (`social-sign-up.tsx`, shared with the home hero;
   its form is `oauth-form.tsx`, disabled and "Opening Google…" while the
   action runs, so a second click cannot post again, and a failure lands on
@@ -1035,7 +1040,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on every marketing page, closes on "workit" (the logo's own outline,
   `LOGO_WORD` from `components/logo.tsx`, as a CSS mask) filled with
   HTML rows of the page's job titles, the followed one in the pale
-  brand violet a weight up, which slide in from alternate sides, in time,
+  brand violet a weight up (each row one run of text, with only that
+  title in an element of its own: a span per title made the wordmark
+  about 950 of the 1,400 elements on a legal page, all styled, laid out
+  and hydrated on every marketing page; the titles are read by
+  `footer.tsx` on the server and passed in, or the three data files they
+  come from load on every page), which slide in from alternate sides, in time,
   once 60% of the word shows (`footer-wordmark.tsx`, `useArrived` with a
   threshold: a line a third up the screen was out of reach on a tall
   window), then keep drifting slowly (`.wordmark-drift`, a track of the
@@ -1134,7 +1144,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   native and reduced motion turns Lenis off. It ticks in motion's
   `frame.setup`, before motion reads the scroll; in `frame.update`, as
   Lenis's docs show, every scroll-linked value ran a frame behind and the
-  flying card and pills trailed their ends. A script scroll goes through
+  flying card and pills trailed their ends. **It ticks only while it
+  glides** (`GlideLenis`: every glide starts in `scrollTo`, and the tick
+  stops once `isSmooth` is false). Ticked on every frame, it kept the
+  browser drawing a main-thread frame at rest on every marketing page, and
+  each of those frames updated every running CSS animation: at the footer,
+  with the wordmark's 29 drifting rows, the main thread was 96% busy at
+  rest on a 4x slower CPU, and under 1% with no frame loop. So nothing on
+  these pages runs a frame loop at rest (a `keepAlive` frame, an endless
+  `requestAnimationFrame`): a composited CSS animation is free only while
+  nothing else asks for frames. A script scroll goes through
   `scrollPageTo` (a native smooth scroll fought the glide), which
   measures the page again first, since Lenis clamps a scroll to the
   height it measured up to 250 ms before; a scroll area inside a page
@@ -1273,6 +1292,20 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   - Logos from the Google favicon host load `unoptimized`: they are
     small PNGs already, and some 60 each went through `/_next/image`.
   - Write a `data-*` mark on `<html>` only when it changes.
+- **What a shell pulls into the browser, every page under it loads**
+  (2026-11-02). The root layout's and the `(landing)` layout's client
+  components, and every client component that a server file in their
+  import graph reaches (the header reads the feature content files), go
+  into one bundle that every marketing page loads, `/privacy` included.
+  So a client component only some pages draw is lazy
+  (`features/animations.tsx`), and data a client component in the shell
+  needs is read on the server and passed in (the footer wordmark's
+  titles). Check after changing a layout, the header, the footer or a
+  content file: on `next build` and `next start`, `/privacy` loads about
+  215 KB compressed of JavaScript up to its load event (340 KB before this
+  rule; 2026-11-03); Next then prefetches the linked pages' chunks, 80 to
+  130 KB more, which is expected. A jump means a client import leaked in.
+  Measure speed on a production build, never `next dev`.
 - **The home page hydrates in pieces** (KAN-540, `hydrateNear` in
   `near.tsx`, used by `deferred-sections.tsx`). Each section below the
   hero (the bridge, the tour, hiring systems, the statement, the
@@ -1818,7 +1851,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   at `size-4`, not Phosphor's 1px: one rule in `globals.css` thickens them
   (KAN-365), and `custom-icons.tsx`'s `STROKE` matches it. A glyph
   Phosphor lacks goes in `components/custom-icons.tsx` with all its
-  weights (`docs/design.md`, Brand and icons).
+  weights (`docs/design.md`, Brand and icons). **The bundler takes
+  `icons.tsx` whole**, all six weights of every glyph in it (65 glyphs,
+  about 150 KB, 36 KB compressed, on 2026-11-03), however few a file
+  imports, since its wrappers are one module. So a client component the
+  root layout mounts, or one a marketing page draws, never imports from
+  it: it draws Phosphor's glyph itself (`ui/toast.tsx`'s close button,
+  Scout's animation's), or the sparkle from `sparkle-icon.tsx`. The
+  toast's one `CloseIcon` loaded it on every page, and the Resumes and
+  Auto Apply animations' sparkle on their feature pages.
 - **An icon's colour says its job** (`docs/design.md`, Components): black to
   click, purple when on, grey for information. Never set a clickable icon to
   `text-ink-meta`.
@@ -1847,8 +1888,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `text-meta` (11px) is for dates, counts, file facts and captions. The lint
   fails `text-meta` on a `<p>` and on an element with an `id` or
   `role="alert"`/`"status"`, so meta on its own line is a `div` or `span`.
-- **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
-  KAN-257): every Scout or AI control, and Scout's mark in the chat and
+- **One mark for Scout and AI, `SparkleIcon`**
+  (`components/sparkle-icon.tsx`, which `icons.tsx` re-exports; KAN-257):
+  every Scout or AI control, and Scout's mark in the chat and
   the panel header, draws it. An ESLint rule refuses Phosphor's sparkle
   imported anywhere else; a hand-drawn sparkle beside Lucide's had given
   the assistant two marks (`docs/design.md`, Brand and icons). Tailor My

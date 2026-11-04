@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { ArrowRightIcon, CheckIcon, MicrophoneIcon } from "@phosphor-icons/react/ssr";
 
-import { SparkleIcon } from "@/components/icons";
+import { SparkleIcon } from "@/components/sparkle-icon";
 import { cn } from "@/lib/cn";
 
 import { candidate } from "../../feature-data";

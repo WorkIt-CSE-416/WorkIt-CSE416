@@ -7,7 +7,7 @@
  * its panel; WorkIt writes no answer to a new written question; and it never
  * submits. Never say WorkIt submits, sends or applies.
  */
-import AutoApplyVisual from "../../auto-apply-visual";
+import { AutoApplyAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 import { AttachVisual, FillVisual, QueueVisual, SubmitVisual } from "../visuals/auto-apply";
 
@@ -23,7 +23,7 @@ const content: FeatureContent = {
     subtitle:
       "Queue the jobs you want. The WorkIt Chrome extension opens each application on the company’s site and fills it in from your profile, and you check every one before you submit it.",
   },
-  animation: AutoApplyVisual,
+  animation: AutoApplyAnimation,
   sections: [
     {
       eyebrow: "Queue",

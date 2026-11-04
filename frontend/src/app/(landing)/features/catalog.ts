@@ -2,7 +2,7 @@ import { FileTextIcon, KanbanIcon, TargetIcon } from "@phosphor-icons/react/ssr"
 import { LightningRoundedIcon } from "@/components/custom-icons";
 import type { ComponentType } from "react";
 
-import { SparkleIcon } from "@/components/icons";
+import { SparkleIcon } from "@/components/sparkle-icon";
 
 /**
  * The five feature pages, in the Features menu's order: each page's slug,
