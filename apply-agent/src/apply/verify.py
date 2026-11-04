@@ -31,7 +31,8 @@ from apply.profile import ApplicantProfile
 from apply.records import SECRET
 
 # The kinds of flag. Each holds a live run (goes to Needs you), except a guess and a blank the engine's plan meant
-# and says why (notes). Any other blank optional field holds too: a blank optional is a bug (Lisul, 2026-11-02).
+# and says why (notes). Any other blank optional field holds too: a blank optional is a bug (Lisul, 2026-11-02),
+# except an optional catch-all box ("Additional information") Apply had nothing new for: a note (Lisul, 2026-11-04).
 BLANK, READBACK, FILE, CHOICE, DATE, PAY, PRONOUN, NAME, COMPANY, REVIEW, GUESSED = (
     "blank", "readback", "file", "choice", "date", "pay", "pronoun", "name", "company", "review", "guessed")
 # Starts each flag's part of a held row's reason.
