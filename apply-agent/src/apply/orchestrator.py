@@ -12,6 +12,7 @@ from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import date, datetime, timedelta
 
 from apply import (
+    asking,
     bot_signals,
     captcha,
     embedded,
@@ -218,7 +219,7 @@ class _Run:
                     self._adapters.board.update(worker, status=result.status, why=one_line(result.reason),
                                                 line=": ".join(filter(None, [result.status, result.reason])),
                                                 drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices,
-                                                required=result.required, essay=result.essay)
+                                                required=result.required, where=result.where, essay=result.essay)
                     if result.status == Status.PAUSED:
                         # First in line after the reset.
                         (requests if is_request(posting.id) else queue).appendleft(posting)
@@ -428,7 +429,10 @@ class _Run:
             self._to_everyday_chrome(named_posting)
         if result.status in WAITING:
             # A Missing fact's reason starts with "Missing fact": its question says it all.
-            self.waiting.append((result.status, named_posting.company, named_posting.title, result.missing_fact or reason))
+            # Its context line (apply.asking) follows its question, as in its Tracker reason.
+            where = result.where.get(result.missing_fact, "")
+            self.waiting.append((result.status, named_posting.company, named_posting.title,
+                                 f"{result.missing_fact}; {asking.IN}{where}" if where else result.missing_fact or reason))
         if not is_request(posting.id) and result.status in (Status.SUBMITTED, Status.HELD):
             self._applied_today.add(posting.id)
         for question, answer in result.drafted:  # two Workers may draft one question at once: listed once

@@ -133,6 +133,22 @@ never submits.** Apply runs on macOS only. Before you change code here, read
    uv run apply clean-tracker
    ```
 
+9. Optional: let the WorkIt extension in your own Chrome sign you in to the
+   Workday accounts that Apply made, so Chrome saves each password in its
+   password manager (KAN-592). The extension must be loaded in that Chrome.
+
+   ```sh
+   uv run apply chrome-passwords
+   ```
+
+   It installs the Apply accounts host for Chrome, and lists each account
+   that Keychain has (service `apply-ats`) in the Tracker. Then open the
+   extension's options page and turn on Use My Apply Accounts. On a Workday
+   Sign In page of such a tenant, press Sign In with Your Apply Account in
+   the WorkIt panel, then Save when Chrome asks. `uv run apply doctor` then
+   says "Apply accounts host: installed". Run the command again after you
+   move the checkout: the host runs this checkout's Python.
+
 Run `uv run apply doctor` again. Then rehearse a Workday posting.
 
 ## The demo

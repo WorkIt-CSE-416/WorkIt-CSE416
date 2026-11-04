@@ -57,6 +57,17 @@
         </div>
         <p id="logins-said" class="muted" role="status"></p>
       </section>
+      <section class="card" aria-labelledby="apply-title">
+        <h2 id="apply-title">Apply Accounts</h2>
+        <p class="muted">
+          For Apply's users on a Mac: on a company's Workday where Apply made your account, WorkIt
+          offers Sign In with Your Apply Account. It fills the password from your Mac's Keychain, through
+          Apply (run <code>uv run apply chrome-passwords</code> once), and Chrome asks to save it. WorkIt
+          keeps no copy.
+        </p>
+        <label class="switch"><input type="checkbox" id="apply-accounts" /> Use My Apply Accounts</label>
+        <p id="apply-said" class="muted" role="status"></p>
+      </section>
       <section class="card" aria-labelledby="sites-title">
         <h2 id="sites-title">Sites You Allowed</h2>
         <p class="muted">

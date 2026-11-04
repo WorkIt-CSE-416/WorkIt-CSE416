@@ -252,6 +252,34 @@ class NeverSubmittingWorkday(WorkdayFiller):
         pytest.fail("a rehearsal called the Workday Filler's submit")
 
 
+def test_a_workday_rehearsal_whose_create_account_goes_back_to_sign_in_resets_nothing_and_says_so(monkeypatch):
+    # ASML (live, 2026-11-03): Workday showed Sign In with no error, and Lisul had an account there already.
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    world = World()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, exists_quietly=True,
+                           accounts={(CACI, "test.person@example.com"): "Made-By-Hand1!"}) as server:
+        [done] = rehearse([CACI_URL], server, world.profile, keychain=world.keychain, mailbox=world.mailbox)
+
+    assert "may already have an account for your email: reset its password once, or save it with " \
+           f"security add-generic-password -U -s apply-ats -a {CACI} -w" in done.why, done.why
+    assert server.resets == [] and world.keychain.password(CACI) is None
+
+
+def test_a_workday_rehearsal_whose_create_account_goes_to_the_bare_sign_in_view_signs_in_and_stops_unsent(monkeypatch):
+    # Visa's tenant (live, 2026-11-03): Workday made the account, then loaded its bare Sign In view.
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    world = World()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, to_sign_in=True) as server:
+        [done] = rehearse([CACI_URL], server, world.profile, keychain=world.keychain, mailbox=world.mailbox)
+
+    assert done.outcome == "ready to submit", done.why
+    [made] = server.created
+    assert world.keychain.password(CACI) == made["password"]
+    assert server.sign_ins == [(CACI, "test.person@example.com", True)] and server.submissions == []
+
+
 def test_a_workday_rehearsal_makes_an_employer_account_reads_its_link_from_gmail_and_stops_unsent(monkeypatch):
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
     world, tracker = World(), InMemoryTracker()
@@ -266,6 +294,23 @@ def test_a_workday_rehearsal_makes_an_employer_account_reads_its_link_from_gmail
     assert server.account(CACI, "test.person@example.com")["verified"]
     assert [a.site for a in tracker.employer_accounts()] == [CACI]
     assert server.submissions == []
+
+
+def test_a_live_rehearsals_new_employer_account_is_listed_in_the_kept_tracker(monkeypatch):
+    # A live rehearsal's own Tracker is a throwaway (no rows for rehearsed links), but the account it
+    # made is real: it is listed where Applications Lisul submits are kept, the Employer accounts list
+    # that `apply accounts` and the WorkIt extension's Apply sign-in read (KAN-592).
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    world, throwaway, kept = World(), InMemoryTracker(), InMemoryTracker()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, verify_email=(CACI,)) as server:
+        rehearsal.rehearse([CACI_URL], adapters(server, None, keychain=world.keychain, mailbox=world.mailbox,
+                                                 tracker=throwaway),
+                           ApplicantProfile.load(world.profile), 1, keep_open=False, out=lambda line: None,
+                           submitted_to=kept)
+
+    assert [a.site for a in kept.employer_accounts()] == [CACI]
+    assert throwaway.employer_accounts() == []
 
 
 def test_a_workday_rehearsal_whose_link_gmail_cannot_read_needs_sign_in_saying_so(monkeypatch, tmp_path):
@@ -601,6 +646,25 @@ def test_lisuls_own_submit_on_a_held_page_is_kept_in_the_tracker_as_submitted(mo
     assert (row.status, row.date_applied, row.posting_url) == ("submitted", NOW.date(), ARC_URL)
     assert row.company == "Arc Boat Company" and "You submitted it" in row.reason
     assert any(line.startswith("Arc Boat Company | ") and "you submitted it; it is in the Tracker" in line for line in lines)
+
+
+def test_lisuls_own_submit_saves_the_record_again_as_submitted_with_its_confirmation(monkeypatch, tmp_path):
+    # KLA, 2026-11-03: he submitted the held form himself, and its Record still said held.
+    from apply.records import InMemoryRecords
+
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
+    profile, records = ApplicantProfile.load(profile_with(tmp_path)), InMemoryRecords()
+
+    with FakeJobServer(ARC_FORM) as fake:
+        lines = hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=InMemoryTracker(),
+                           with_adapters={"records": records})
+
+    [link] = records.links()
+    files = records.files(link)
+    assert "- Status: submitted (You submitted it yourself from a rehearsal" in files["README.md"].decode()
+    assert files["after-submit.png"].startswith(b"\x89PNG")
+    assert any("its Record says submitted" in line for line in lines)
 
 
 def test_a_captcha_after_lisuls_own_submit_pushes_him_to_do_it(monkeypatch, tmp_path):

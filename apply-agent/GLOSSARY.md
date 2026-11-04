@@ -33,8 +33,12 @@ The facts Lisul gives once (work authorization, graduation date, demographic ans
 _Avoid_: personal info, answers file
 
 **Missing fact**:
-A required question only Lisul can answer: one asking for an Applicant profile fact the profile lacks, a one-off question Claude can't answer from his facts, or one that stays his whatever Claude knows (references or contacts, government IDs, signatures and attestations, criminal history, an "if yes, explain" his answer calls for), or a fact an Essay plan's required slot needs that no Story bank line states (asked as "Essay fact: …"). A follow-up that Apply's own answer to the question before it doesn't call for ("If yes, …" or "If a contingent worker, …" after a No, 'If "Other," …' after another pick) is not one: it is left blank, or answered N/A where it must be answered. Pay is not one: asked as a figure it gets the middle of the Posting's own pay range, or Lisul's fallback rate (policies.yaml); asked in words it gets "Open to the posted range" when the Posting names its pay, else the fallback rate ("$30/hr"); asked whether the posted or stated pay suits him, it gets Yes. Its Application pauses until Lisul answers, and the answer joins the profile (an Essay fact's joins the Story bank, and the essay is then written).
+A required question only Lisul can answer: one asking for an Applicant profile fact the profile lacks, a one-off question Claude can't answer from his facts, or one that stays his whatever Claude knows (references or contacts, government IDs, signatures and attestations, criminal history, an "if yes, explain" his answer calls for), or a fact an Essay plan's required slot needs that no Story bank line states (asked as "Essay fact: …"). A follow-up that Apply's own answer to the question before it doesn't call for ("If yes, …" or "If a contingent worker, …" after a No, 'If "Other," …' after another pick) is not one: it is left blank, or answered N/A where it must be answered. Pay is not one: asked as a figure it gets the middle of the Posting's own pay range, or Lisul's fallback rate (policies.yaml); asked in words it gets "Open to the posted range" when the Posting names its pay, else the fallback rate ("$30/hr"); asked whether the posted or stated pay suits him, it gets Yes. Its Application pauses until Lisul answers, and the answer joins the profile (an Essay fact's joins the Story bank, and the essay is then written). A question that the profile, the Answer bank, the Story bank or the resume already answers is not one: Apply answers it from there. Each one shows a context line: its form step, the question before a bare label, its pair, or the essay that it is for.
 _Avoid_: unknown question, gap
+
+**Go to question**:
+The button on a Needs you question whose form is still open in its Worker's browser. It brings that browser to the front and scrolls to the field, which it focuses and outlines. A field on another Workday step is not shown: Apply names the step and moves nothing. Lisul can then answer the question on the form. Once he leaves the field and it rests a moment, Apply saves his answer as the card saves it, and the question leaves Needs you.
+_Avoid_: jump, show field
 
 **Answer bank**:
 Every answer to a one-off question (a required question no Applicant profile fact or rule answers), kept by the question's wording so the same question gets the same answer on every form. The first time a form asks one, Claude drafts the answer from Lisul's facts and the Story bank in the Application's one Claude call, and it goes straight into the bank and the form; a draft never holds an Application by itself. Each later form a draft answers counts as a use, and every run lists the drafts Lisul hasn't reviewed that it used again, which the Answers tab also puts first. Only if Lisul opts in with the `max_unreviewed_uses` policy does an unreviewed draft used that many times hold the Application, until he reviews it. Lisul reviews, edits, deletes or adds answers in the Answers tab of the Apply window (`apply answers`), in the Tracker's Answers tab or in answer-bank.yaml, and his answer is used word for word from then on. A one-off question about the company itself ("how familiar are you with our products?") is never banked: Claude answers it from the Posting description each time, and only Lisul's own answer to one is used again.
@@ -121,7 +125,7 @@ A page that refuses the Worker's Chrome as a bot and has nothing to solve. Examp
 _Avoid_: ban, captcha, stealth
 
 **Resume**:
-The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue.
+The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue. A filling Rehearsal also shows Resume when Apply waits on Claude, the page shows a field error, or the fill makes no progress for 45 seconds. There, Resume stops the wait and continues from the page as he left it.
 _Avoid_: retry, restart, continue
 
 **Worker**:
@@ -141,7 +145,7 @@ A Worker's own browser profile that persists between runs and stays signed in to
 _Avoid_: session, browser, Chrome profile
 
 **Apply window**:
-The one window where Lisul watches every Worker live (a tile each), reads and edits his answers (the Answers tab) and pastes his Own applications (atop that tab), opened by a run or rehearsal, `apply watch` or `apply answers`. On the Mac it is its own app, Apply (~/Applications/Apply.app), in the Dock: click it to bring the window forward, Quit or close the window to end it, and keep it in the Dock to open it again.
+The one window where Lisul watches every Worker live (a tile each), reads and edits his answers (the Answers tab), signs in to his Employer accounts (the Accounts tab) and pastes his Own applications (atop that tab), opened by a run or rehearsal, `apply watch` or `apply answers`. On the Mac it is its own app, Apply (~/Applications/Apply.app), in the Dock: click it to bring the window forward, Quit or close the window to end it, and keep it in the Dock to open it again.
 _Avoid_: dashboard, Chrome window
 
 **Essay**:
@@ -225,7 +229,7 @@ The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads
 _Avoid_: validation, QA, double-check
 
 **Employer account**:
-A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google. On Workday, the system creates one even when the site offers Sign in with Google, unless Lisul's policies say `workday_sign_in: google`.
+A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google. On Workday, the system creates one even when the site offers Sign in with Google, unless Lisul's policies say `workday_sign_in: google`. Its password is only in the macOS Keychain. The Accounts tab of the Apply window lists each one. Copy password puts the password on the clipboard for 60 s, and Open sign-in page opens the site in Lisul's own Chrome. The Tracker lists the account, also one that a Rehearsal made.
 _Avoid_: ATS account, candidate account
 
 **Not eligible**:

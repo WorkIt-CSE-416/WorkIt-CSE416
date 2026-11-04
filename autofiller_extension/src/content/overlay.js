@@ -473,6 +473,28 @@ window.WIA = window.WIA || {};
    * this page.
    * @param {{ email: string, needsSignup: boolean, onAllow: () => void }} options
    */
+  /**
+   * On a Workday tenant Apply made an account at (KAN-592): one button that fills Apply's password
+   * from the Mac's Keychain (through Apply's host) and offers it to Chrome's password manager. Only
+   * the student's own press, never the page's.
+   */
+  function offerApplySignIn({ company, email, onPress }) {
+    const card = momentCard("apply-sign-in", `
+      <h2>Sign In with Your Apply Account</h2>
+      <p>Apply made your account at ${escape(company ?? "this company")} (${escape(email ?? "")}). WorkIt fills its password from your Mac's Keychain, and Chrome asks to save it, so Chrome fills it from then on.</p>
+      <div class="actions">
+        <button type="button" data-primary data-apply-sign-in>Sign In with Your Apply Account</button>
+        <button type="button" data-secondary data-dismiss>Not Now</button>
+      </div>
+    `);
+    if (!card) return;
+    card.querySelector("[data-dismiss]").addEventListener("click", window.WIA.ui.trusted(() => card.remove()));
+    card.querySelector("[data-apply-sign-in]").addEventListener("click", window.WIA.ui.trusted(async () => {
+      card.remove();
+      await onPress();
+    }));
+  }
+
   function askWorkdayAccounts({ email, needsSignup, onAllow }) {
     const fields = needsSignup ? `
       <label>Workday Email
@@ -665,5 +687,5 @@ window.WIA = window.WIA || {};
   /** Draws the rows again, for a row card whose own state changed (row-card.js). */
   const refresh = () => render(window.WIA.status.summary());
 
-  window.WIA.overlay = { live, mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, startClaude, CLAUDE_TRIGGER };
+  window.WIA.overlay = { live, mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, offerApplySignIn, momentCard, startClaude, CLAUDE_TRIGGER };
 })();

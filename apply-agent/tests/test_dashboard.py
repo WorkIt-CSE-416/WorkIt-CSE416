@@ -1154,6 +1154,43 @@ def test_each_question_says_whether_its_form_requires_it(window):
     assert flags == ["Optional", "Required", None]  # one with no flag read says neither
 
 
+def test_each_question_card_says_where_it_sits_or_which_essay_it_is_for(window):
+    from apply import essays, notify
+    from apply.answer_bank import AnswerBank
+    from apply.model import Question, Status
+
+    step = "Application Questions 1 of 2"
+    worked, start, end = (Question(f"{step} / {label}", label, kind, True) for label, kind in [
+        ("Have you worked for a made-up fund before?", "select"), ("From (MM/DD/YYYY)", "text"), ("To (MM/DD/YYYY)", "text")])
+    essay = essays.Essay(Question("e", "Tell us about a made-up robot", "textarea", True), "",
+                         plan=essays.Plan("general", asks=("Essay fact: What did the robot do?",)))
+    planned = worker._Planned.__new__(worker._Planned)
+    planned.questions, planned.written, planned.lisuls, planned.found = [worked, start, end], [essay], {}, {}
+    planned._rehearse, planned.missing, planned._on_missing = True, (), lambda *heard: None
+    planned.profile = type("Profile", (), {"get": lambda self, key: None})()  # made up: it holds nothing
+    planned._bank = AnswerBank()
+    planned._missing([start], ["Essay fact: What did the robot do?"])
+
+    assert planned.where == {
+        "From (MM/DD/YYYY)": f"{step} · after 'Have you worked for a made-up fund before?' · paired with To (MM/DD/YYYY)",
+        "Essay fact: What did the robot do?": "For the essay 'Tell us about a made-up robot': Claude writes it from "
+                                              "your answer, which joins your Story bank"}
+    with Dashboard(1, FakeFrames({}), answer=lambda *a: "Saved.") as board:
+        board.update(0, company="Made-up Fund", role="Intern", posting_url="https://m.example/1", status=rehearsal.READY,
+                     missing=list(planned.missing), required=planned.required, where=planned.where)
+        window.goto(board.url)
+        window.wait_for_selector("#inbox .ask .where", timeout=10_000)
+        shown = window.eval_on_selector_all("#inbox .ask .where", "ws => ws.map(w => w.textContent)")
+        assert "Made-up Fund · Intern" in window.inner_text("#inbox .item")
+    assert shown == list(planned.where.values())
+    planned._rehearse = False  # a run: its Tracker reason and the push carry the line too
+    stopped = planned._missing([start])
+    assert stopped.reason == f"Missing fact: From (MM/DD/YYYY); In: {planned.where['From (MM/DD/YYYY)']}"
+    _, pushed = notify.waiting([(Status.MISSING_FACT, "Made-up Fund", "Intern", stopped.reason.removeprefix("Missing fact: "))])
+    assert pushed.endswith(f"From (MM/DD/YYYY) ({step} · after 'Have you worked for a made-up fund before?' · "
+                           "paired with To (MM/DD/YYYY))")
+
+
 def test_a_refused_answer_keeps_the_draft_and_says_why(window):
     from apply.answers_tab import Refused
 
@@ -1454,3 +1491,42 @@ def test_a_live_runs_bot_block_in_the_tracker_offers_open_in_my_chrome(window):
         window.wait_for_function("() => document.body.innerText.includes('the extension fills it there')", timeout=5_000)
 
     assert opened == [BLOCKED["posting_url"]]
+
+
+# The Accounts tab (KAN-591): each Employer account, Copy password and Open sign-in page, no password in the page.
+
+def test_the_accounts_tab_copies_a_password_it_never_shows(window):
+    from datetime import date
+    from types import SimpleNamespace
+
+    from apply.accounts_tab import AccountsTab
+    from apply.keychain import InMemoryKeychain
+    from apply.tracker import EmployerAccount
+
+    password, posting = "Fake-Keychain-Pw-7x!Q", "https://asml.wd3.myworkdayjobs.com/en-US/ASMLExternal/job/X_R1"
+    account = EmployerAccount("ASML", "asml.wd3.myworkdayjobs.com", "lisul@example.com", date(2026, 11, 2))
+    clipboard, opened = SimpleNamespace(text=""), []
+    clipboard.put_secret = lambda text: setattr(clipboard, "text", text) or 1
+    clipboard.clear = lambda written: setattr(clipboard, "text", "")
+    tab = AccountsTab(lambda: [account], InMemoryKeychain({account.site: password}),
+                      rows=lambda: [SimpleNamespace(posting_url=posting)], everyday=opened.append,
+                      clipboard=clipboard, later=lambda seconds, then: None)
+    with Dashboard(0, NoFrames(), accounts=tab) as board:
+        window.goto(board.url)
+        window.get_by_role("tab", name="Accounts").click()
+        window.wait_for_selector("#accounts .account", timeout=10_000)
+        assert "asml.wd3.myworkdayjobs.com" in window.inner_text("#accounts")
+        window.get_by_role("button", name="Copy password").click()
+        window.wait_for_function("() => document.body.innerText.includes('Paste it within a minute')", timeout=5_000)
+        assert clipboard.text == password
+        window.get_by_role("button", name="Open sign-in page").click()
+        window.wait_for_function("() => document.body.innerText.includes('press Sign In there')", timeout=5_000)
+        html = window.content()
+
+    assert opened == [posting]
+    assert password not in html
+
+
+def test_a_window_with_no_accounts_tab_shows_none():
+    with Dashboard(0, NoFrames()) as board:
+        assert "tab-accounts" not in board.page()

@@ -771,3 +771,11 @@ class RecordingBoard:
 
     def resumed(self, worker: int) -> bool:
         return False
+
+    def wanted(self, worker: int) -> list[tuple[str, Callable[[str], None]]]:
+        return []
+
+    def typed(self, worker: int, questions: list[str], answer: str) -> str:
+        with self._lock:
+            self.typed_in = getattr(self, "typed_in", []) + [(worker, list(questions), answer)]
+        return ""

@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 
 from apply import (
+    asking,
     brief,
     browsers,
     captcha,
@@ -27,6 +28,7 @@ from apply import (
     essays,
     gates,
     sameness,
+    stuck,
     verify,
 )
 from apply.adapters import Claude, JobSite, UsageLimitHit
@@ -117,6 +119,7 @@ class Result:
     missing: tuple[str, ...] = ()  # every Missing fact a rehearsal left blank, in form order
     choices: dict[str, dict] = field(default_factory=dict)  # each Missing fact's options, by question (choices())
     required: dict[str, bool] = field(default_factory=dict)  # whether its form requires each Missing fact, by question
+    where: dict[str, str] = field(default_factory=dict)  # each Missing fact's context line, by question (apply.asking)
     traceback: str = ""  # where a Failed Application's error came from, for its Repair request
     problems: tuple[str, ...] = ()  # answers the Pre-submit check found wrong, or a rehearsal couldn't fill
     drafted: tuple[tuple[str, str], ...] = ()  # (question, answer) Claude drafted into the Answer bank, in form order
@@ -146,7 +149,7 @@ def apply_to(
     today: date | None = None,
     on_files: Callable[[list[dict]], None] = lambda files: None,
     before_fill: Callable[[], None] = lambda: None,
-    on_missing: Callable[[tuple[str, ...], dict[str, dict], dict[str, bool]], None] = lambda *heard: None,
+    on_missing: Callable[[tuple[str, ...], dict[str, dict], dict[str, bool], dict[str, str]], None] = lambda *heard: None,
     on_verify: Callable[["verify.Verification | None"], None] = lambda verification: None,
     on_pause: Callable[[Result, Callable[[object], str]], bool] = lambda stopped, blocked: False,
     on_captcha: Callable[[str, object, str], bool] = lambda why, page, company: False,
@@ -168,8 +171,8 @@ def apply_to(
     each kept copy, whenever they change. `before_fill` runs once, with the
     form open and its answers planned, just before the first field is filled;
     for a Filler that signs in to read its questions (Workday), before it does.
-    `on_missing` hears a rehearsal's Missing facts (each one's options, and
-    whether its form requires it)
+    `on_missing` hears a rehearsal's Missing facts (each one's options,
+    whether its form requires it, and its context line: apply.asking)
     whenever the list changes: first as the planner finds them, before Claude
     is asked to draft or write anything, so Lisul can answer them up front.
     A Posting whose own text rules Lisul out (eligibility.py) is Not eligible
@@ -239,8 +242,14 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
             before_fill()
             before_fill = lambda: None
         blocked = getattr(filler, "resume_blocked", lambda page: "")
+
+        def go_on(page) -> None:
+            """Lisul pressed Resume while Apply filled (apply.stuck): what he put on the page is his answer."""
+            planned.keep(getattr(filler, "resumed", lambda page: {})(page))
+            stuck.resumed()
         while True:
             try:
+                stuck.doing("Reading the form's questions")
                 questions = filler.question_set(posting.url, site)
                 break
             except HTTPError as error:
@@ -269,16 +278,22 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
         replanned = fixed = False  # each is tried once: a fill again after a readback mismatch, and after the review's fixes
         for attempt in range(3):
             with site.open(form_url) as page:
-                if rehearse and attempt == 0 and (stop := planned.add(questions)):
+                if rehearse and attempt == 0 and (stop := _plan(planned, questions, filler, page, go_on)):
                     return stop
                 before_fill()
                 before_fill = lambda: None
                 while True:
                     try:
-                        readback = filler.fill(page, planned.questions, planned.answers)
+                        with stuck.stoppable():
+                            if stuck.pressed():  # a Resume pressed while Apply was busy, not waiting: taken here
+                                raise stuck.Stopped("you pressed Resume")
+                            stuck.doing(f"Filling {_where(filler)}")
+                            readback = filler.fill(page, planned.questions, planned.answers)
                         break
+                    except stuck.Stopped:  # Resume, while Apply waited inside the fill
+                        go_on(page)
                     except MoreQuestions as more:  # the form's next step asks these
-                        if stop := planned.add(more.questions):
+                        if stop := _plan(planned, more.questions, filler, page, go_on):
                             return stop
                     except FillError as error:
                         # A rehearsal goes on without the field and says so; a run stops.
@@ -292,7 +307,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         # leave is read from it.
                         shown = dict(getattr(filler, "shown_so_far", {}))
                         stopped = _handed_off(handoff, missing=planned.missing, choices=planned.choices,
-                                              required=planned.required,
+                                              required=planned.required, where=planned.where,
                                               filled=Filled(planned.questions, planned.answers, shown, _screenshot(page)))
                         if isinstance(handoff, Blocked) or not (rehearse and on_pause(stopped, blocked)):
                             return stopped  # a bot block is never paused: Resume would only try again
@@ -307,8 +322,13 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     # those answers again, and the form is filled once more in a fresh page.
                     replanned = True
                     if not planned.handoffs:  # a form Lisul finishes gets no Claude call
-                        planned.answers = replan(claude, questions, answers, readback, planned.accepted,
-                                                 posting, planned.text)
+                        stuck.doing("Planning again the answers the page showed otherwise")
+                        try:
+                            with stuck.stoppable():
+                                planned.answers = replan(claude, questions, answers, readback, planned.accepted,
+                                                         posting, planned.text)
+                        except stuck.Stopped:  # Resume: the answers stay as planned, and his from the page
+                            go_on(page)
                     continue
                 problems += _unasked(filler, page, questions)
                 planned.use_bank()
@@ -347,7 +367,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 if rehearse:  # on its last page, never submitted
                     holds += filter(None, [before_submit()])
                     return Result(Status.HELD, "; ".join(holds), filled, essay=planned.essay_cell, missing=planned.missing,
-                                  choices=planned.choices, required=planned.required, problems=wrong,
+                                  choices=planned.choices, required=planned.required, where=planned.where, problems=wrong,
                                   verification=verification)
                 if holds:
                     return Result(Status.HELD, "; ".join(holds), filled, essay=planned.essay_cell, problems=wrong,
@@ -366,6 +386,25 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     return _handed_off(handoff, filled=replace(filled, after_submit=_screenshot(page)))
                 return Result(Status.SUBMITTED, filled=replace(filled, after_submit=_screenshot(page)),
                               bot_signals=tuple(met or ()), problems=rescued, verification=verification)
+
+
+def _where(filler) -> str:
+    """The step the form shows, for the tile ("'Application Questions'"), when its Filler names it; else "the form"."""
+    step = getattr(filler, "step", "")
+    return f"'{step}'" if step else "the form"
+
+
+def _plan(planned: "_Planned", questions: list[Question], filler, page, go_on: Callable[[object], None]) -> "Result | None":
+    """Plan the form's `questions`. A Resume pressed while Apply waits on Claude
+    for them stops that wait (apply.stuck): they are Lisul's, as he left them on the page."""
+    where = _where(filler)
+    stuck.doing(f"Planning answers for {where}")
+    try:
+        with stuck.stoppable():
+            return planned.add(questions, where)
+    except stuck.Stopped:
+        go_on(page)
+        return None
 
 
 PLACEHOLDER = re.compile(r"^\W*(select|choose|pick)\b.*|^\W*$")  # "Select...", or no words: not an option
@@ -403,7 +442,7 @@ class _Planned:
 
     def __init__(self, posting, site, profile, claude, answered, approved, rehearse: bool, bank: AnswerBank, today: date,
                  on_files: Callable[[list[dict]], None] = lambda files: None,
-                 on_missing: Callable[[tuple[str, ...], dict[str, dict], dict[str, bool]], None] = lambda *heard: None):
+                 on_missing: Callable[[tuple[str, ...], dict[str, dict], dict[str, bool], dict[str, str]], None] = lambda *heard: None):
         self._on_files, self._shown_files = on_files, None
         self._on_missing = on_missing
         self.posting, self._site, self.profile, self.claude = posting, site, profile, claude
@@ -414,10 +453,13 @@ class _Planned:
         self.missing: tuple[str, ...] = ()  # left blank, in a rehearsal
         self.choices: dict[str, dict] = {}  # the options of each of those that offers some, by question
         self.required: dict[str, bool] = {}  # whether its form requires each of those, by question
+        self.where: dict[str, str] = {}  # each one's context line, by question (apply.asking)
+        self.found: dict[str, str] = {}  # what Apply already held for a field it would have asked, by name (asking.known)
         self.unfilled: list[str] = []  # why a rehearsal's Filler couldn't fill each answer it left out
         self._skipped: set[str] = set()
         self.left: set[str] = set()  # fields left blank on purpose: an N/A optional, a follow-up not called for
         self.lisuls: dict[str, object] = {}  # what Lisul put on a paused form's step before Resume, by name
+        self._yours: set[Question] = set()  # questions a Resume stopped Claude from answering: Lisul's, on the page
         self.questions: list[Question] = []
         self._answers: dict = {}
         self.accepted: dict[str, tuple[str, ...]] = {}  # other wordings Lisul accepts for an answer, by Question name
@@ -447,8 +489,9 @@ class _Planned:
 
     @answers.setter
     def answers(self, answers: dict) -> None:
-        # What Lisul put on the page is the answer, whatever the plan or the review says; the review's fix wins over the plan.
-        self._answers = answers | self.fixes | self.lisuls
+        # What Apply already held is the answer to a field it would have asked; the review's fix wins over the
+        # plan; what Lisul put on the page wins over both.
+        self._answers = answers | self.found | self.fixes | self.lisuls
         self._keep_files()
 
     def keep(self, values: dict) -> None:
@@ -491,13 +534,15 @@ class _Planned:
     def essay_cell(self) -> str:
         return essays.as_cell(self.written) if self._approved is None else ""  # the Essay cell is Lisul's once held
 
-    def add(self, questions: list[Question]) -> Result | None:
+    def add(self, questions: list[Question], where: str = "the form") -> Result | None:
         """Plan the form again with `questions` added. A Result if the
         Application ends here: Not eligible or a Missing fact. A form with
         questions only Lisul may answer (an essay on a form that bans AI
         text, a video) is still filled, without Claude, and then handed off;
         so is one whose Posting description or Company material bans AI text
-        or speaks to AI agents, which then never reaches Claude."""
+        or speaks to AI agents, which then never reaches Claude. A Resume
+        pressed while Claude is asked (apply.stuck.Stopped) leaves the questions
+        Claude had not answered to Lisul, and raises Stopped again."""
         posting, profile = self.posting, self.profile
         for q in questions:
             # A bare date's answer (From, To) is one section's: it is this form's alone, never kept by its wording.
@@ -525,24 +570,35 @@ class _Planned:
             return Result(Status.NOT_ELIGIBLE, planned.not_eligible)
         if planned.handoffs:  # a form Lisul finishes gets no Claude call: its one-off questions are his too
             yours = [q for q in self.questions if q in planned.missing + planned.drafts]
-            self.handoffs = planned.handoffs + [f"Answer '{q.label.strip()}' too" for q in yours]
+            self.handoffs = planned.handoffs + [f"Answer '{q.label.strip()}' too"
+                                                + (f" ({line})" if (line := asking.where(q, self.questions)) else "")
+                                                for q in yours]
             self.answers = {n: a for n, a in planned.answers.items() if n not in self._skipped}
             return None
         if stop := self._missing(planned.missing):
             return stop
         done = {essay.question for essay in self.written}
-        new = [q for q in planned.essays if q not in done]
+        new = [q for q in planned.essays if q not in done and q not in self._yours]
         to_draft = [q for q in planned.drafts if q not in self._asked]
-        if new and self.material is None:
-            self.material = company.gather(posting, new, self._site)
-            if posting_ai_trap(self.material) or posting_bans_ai(self.material):
-                return self.add([])  # planned again, the material read with the posting: its essays are Lisul's
-            self.brief = brief.brief(posting, self._site, self.claude, self._today, self.text, self.questions)
-        ask = new if self._approved is None else []
-        given = planned.answers | {d.question.name: d.answer for d in self.drafted + self.unbanked}
-        answered = {q: given[q.name] for q in self.questions if q.name in given}  # "the area you picked above"
-        written, drafted = essays.answer(self.claude, posting, ask, to_draft, profile, self.known(), self.text,
-                                         answered=answered, sections=self.sections) if ask or to_draft else ([], [])
+        name = posting.company or "the company"
+        try:
+            if new and self.material is None:
+                stuck.doing(f"Reading {name}'s pages for an essay")
+                self.material = company.gather(posting, new, self._site)
+                if posting_ai_trap(self.material) or posting_bans_ai(self.material):
+                    return self.add([], where)  # planned again, the material read with the posting: its essays are Lisul's
+                stuck.doing(f"Researching {name} for an essay")
+                self.brief = brief.brief(posting, self._site, self.claude, self._today, self.text, self.questions)
+            ask = new if self._approved is None else []
+            given = planned.answers | {d.question.name: d.answer for d in self.drafted + self.unbanked}
+            answered = {q: given[q.name] for q in self.questions if q.name in given}  # "the area you picked above"
+            if ask or to_draft:
+                stuck.doing(f"Writing answers for {where}")
+            written, drafted = essays.answer(self.claude, posting, ask, to_draft, profile, self.known(), self.text,
+                                             answered=answered, sections=self.sections) if ask or to_draft else ([], [])
+        except stuck.Stopped:
+            self._to_lisul(planned.answers, planned.missing, new + to_draft)
+            raise
         if self._approved is not None:
             written = essays.from_cell(self._approved, new)
         self.written += written
@@ -563,7 +619,8 @@ class _Planned:
                 for is_moot, answer in [not_called_for(q, self.questions, planned.answers | given)] if is_moot}
         answered = {d.question for d in self.drafted + self.unbanked} | set(moot)
         asks = [asked for essay in self.written if essay.plan for asked in essay.plan.asks]
-        if stop := self._missing(planned.missing + [q for q in planned.drafts if q not in answered], asks):
+        if stop := self._missing(planned.missing + [q for q in planned.drafts if q not in answered] + list(self._yours),
+                                 asks):
             return stop
         for essay in written:
             self.holds += self._holds(essay, essay.question in planned.high_stakes)
@@ -588,6 +645,16 @@ class _Planned:
                 answers[q.name] = essay.text
         self.answers = {name: answer for name, answer in answers.items() if name not in self._skipped}
         return None
+
+    def _to_lisul(self, answers: dict, missing: list[Question], questions: list[Question]) -> None:
+        """A Resume stopped Claude before it answered `questions`: they are
+        Lisul's, as he fills them on the page, and listed as Missing facts till
+        he does; the plan's other answers, and Claude's from before, stay."""
+        self._yours |= set(questions)
+        self._asked |= set(questions)
+        before = {n: a for n, a in self._answers.items() if n not in answers}
+        self.answers = {n: a for n, a in (answers | before).items() if n not in self._skipped}
+        self._missing(missing + list(self._yours))
 
     def verify(self, readback: dict, review: list[str], rescued: tuple[str, ...]) -> "verify.Verification":
         """Verify the filled form (apply.verify), with the Pre-submit review's findings and what Claude guessed."""
@@ -688,19 +755,35 @@ class _Planned:
     def _missing(self, missing: list[Question], asks: list[str] = ()) -> Result | None:
         """A Missing fact Result for the first of `missing`, in form order,
         then of `asks` (what an essay asks Lisul for, apply.essays.ASK); a
-        rehearsal lists them all instead and goes on."""
+        rehearsal lists them all instead and goes on. A question Apply already
+        holds the answer to (apply.asking.known) never reaches him: a text
+        field gets that answer, and an ask is dropped. Each one asked has its
+        context line (apply.asking): its step, the question it follows and its
+        pair, or the essay it is for."""
         missing, was = [q for q in self.questions if q in missing and q.name not in self.lisuls], self.missing
+        found = {q.name: asking.value(facts) for q in missing if q.kind in ("text", "textarea") and q.name not in self.found
+                 and (facts := asking.known(q.label, self.profile, self._bank))}
+        if found:
+            self.found |= found
+            self.answers = self._answers
+        missing = [q for q in missing if q.name not in self.found]
+        asks = [asked for asked in asks if not asking.known(asked, self.profile, self._bank)]
         self.missing = tuple(dict.fromkeys([*(q.label.strip() for q in missing), *asks]))
         self.choices = {q.label.strip(): offered for q in missing if (offered := choices(q))}
         # The form's own required flag; what an essay asks him is for a slot the essay needs.
         self.required = {q.label.strip(): q.required for q in missing} | {asked: True for asked in asks}
+        essay_of = {asked: e.question for e in self.written if e.plan for asked in e.plan.asks}
+        self.where = {q.label.strip(): line for q in missing if (line := asking.where(q, self.questions))} \
+            | {asked: asking.for_essay(essay_of[asked]) for asked in asks if asked in essay_of}
         if self._rehearse and self.missing != was:
-            self._on_missing(self.missing, self.choices, self.required)
+            self._on_missing(self.missing, self.choices, self.required, self.where)
         if self.missing and not self._rehearse:
             question = self.missing[0]
-            return Result(Status.MISSING_FACT, f"Missing fact: {question}", missing_fact=question,
+            where = self.where.get(question, "")
+            return Result(Status.MISSING_FACT, f"Missing fact: {question}" + (f"; {asking.IN}{where}" if where else ""),
+                          missing_fact=question,
                           choices={question: self.choices[question]} if question in self.choices else {},
-                          required={question: self.required[question]})
+                          required={question: self.required[question]}, where={question: where} if where else {})
         return None
 
     def skip(self, error: FillError) -> bool:

@@ -139,6 +139,16 @@ window.WIA = window.WIA || {};
     box.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
+  /** Sets the sign-in form's box `id` to `value` as typing would, whatever it holds: the student pressed for it. */
+  function setBox(id, value) {
+    const box = document.querySelector(`${SIGN_IN_FORM} [data-automation-id=${id}]`);
+    if (!box) return false;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(box, value);
+    box.dispatchEvent(new Event("input", { bubbles: true }));
+    box.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+
   /** Presses `button` as a pointer would: Workday's React may wait for the pointer's events, not only the click. */
   function press(button) {
     for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) {
@@ -275,9 +285,10 @@ window.WIA = window.WIA || {};
    * Account or Sign In), with what is left for the student. `ask(details, onAllow)`:
    * shows the once-only ask to make and sign in to accounts for the student,
    * which asks for their one Workday password too when none is set
-   * (`details.needsSignup`).
+   * (`details.needsSignup`). `offerApply(details, onPress)`: shows Sign In with Your
+   * Apply Account, on a tenant Apply made an account at (KAN-592).
    */
-  function watchSignIn(onView, ask) {
+  function watchSignIn(onView, ask, offerApply = () => {}) {
     /**
      * Fills Workday's Create Account or Sign In form with the login the
      * extension keeps for this company (never a password Workday refused),
@@ -308,6 +319,34 @@ window.WIA = window.WIA || {};
     const sends = {};
     let ticked = "";
     let untickable = false;
+    let offered = false;
+
+    /**
+     * The student pressed Sign In with Your Apply Account: the tenant's login from Apply's host
+     * (Keychain, through the worker), typed into the form and handed to Chrome's own password
+     * manager, which asks the student to save it (navigator.credentials.store, from this page's
+     * origin). Nothing keeps it, and Sign In is the student's to press: Chrome's Save first.
+     */
+    async function signInWithApply() {
+      const answer = await chrome.runtime.sendMessage({ type: "workday/apply-login" }).catch((error) => ({ none: error.message }));
+      if (!answer?.password) {
+        onView(`Apply couldn't give this company's password (${answer?.none ?? answer?.error ?? "no answer"}). Sign in yourself. ${SIGNED_IN}`);
+        return;
+      }
+      setBox("email", answer.login);
+      setBox("password", answer.password);
+      let offeredToChrome = false;
+      try {
+        await navigator.credentials.store(new PasswordCredential({ id: answer.login, password: answer.password, name: answer.company || answer.login }));
+        offeredToChrome = true;
+      } catch {
+        // No Credential Management API here (a frame): Chrome may still offer to save it once Sign In is pressed.
+      }
+      onView(offeredToChrome
+        ? `WorkIt filled the password Apply made for ${answer.company}, from your Mac's Keychain. Press Save when Chrome asks to save it, so Chrome fills it next time, then press Sign In. ${SIGNED_IN}`
+        : `WorkIt filled the password Apply made for ${answer.company}, from your Mac's Keychain. Press Sign In, and Save if Chrome asks. ${SIGNED_IN}`);
+    }
+
     async function fillSignIn() {
       if (busy) return void (again = true);
       busy = true;
@@ -331,6 +370,27 @@ window.WIA = window.WIA || {};
             login = await chrome.runtime.sendMessage({ type: "workday/login", create });
             loginView = view;
             [SIGN_IN_SETTLE, 1000, 2500].forEach((ms) => setTimeout(fillSignIn, ms));
+          }
+          // A tenant Apply made an account at (KAN-592): its account exists, so Sign In, and only Apply's password, on the student's press.
+          if (login.ok && login.apply) {
+            if (create) {
+              const link = document.querySelector(SWITCH.create);
+              if (link && !switched.has(view)) {
+                switched.add(view);
+                press(link);
+              }
+              continue;
+            }
+            typeInto("email", login.email);
+            if (!offered) {
+              offered = true;
+              offerApply({ company: login.company, email: login.email }, signInWithApply);
+            }
+            if (noted !== "apply") {
+              noted = "apply";
+              onView(`Apply made your account at ${login.company}. Press Sign In with Your Apply Account in this panel: WorkIt fills its password from your Mac's Keychain, and Chrome offers to save it. ${SIGNED_IN}`);
+            }
+            continue;
           }
           if (login.ok) {
             typeInto("email", login.email);

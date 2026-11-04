@@ -356,6 +356,22 @@ def test_an_essay_over_its_word_cap_is_rewritten_once_and_if_still_over_held_off
     assert form.submitted == []
 
 
+def test_an_essay_over_its_default_length_the_editor_left_long_is_cut_once_more(monkeypatch):
+    # Bedrock's (Ashby, live 2026-11-04): a 132-word answer, where its type allows 120 and the form states no
+    # limit, went on the form after the editor's passes left it long; only a word or character cap was re-cut.
+    # This question's "2-3 sentences" was not one either.
+    form = ResearchForm("Northwood Space")
+    long = " ".join(["He wrote the firmware for the maze robot and tested it on the real maze."] * 40)
+    claude = FakeClaude(essays={PROJECT: long}, repairs={"He wrote": f"{long} He kept going."})
+
+    row = run(monkeypatch, form, claude)
+
+    recut = [c for c in claude.calls if "edited" in c["schema"]["properties"] and essays.CUT in c["prompt"]]
+    assert len(recut) == 1 and essays.SHORTER not in recut[0]["prompt"]  # no word or character cap: not refused
+    assert re.search(r"too long: \d+ sentences, the most is 3", row.reason)  # still long: held with its check
+    assert form.submitted == []
+
+
 def test_a_required_cover_letter_is_written_and_attached_as_a_file(monkeypatch):
     form = ResearchForm("Varda Space")
     letter = "I build software that has to work the first time, like the adapters I wrote at Hitachi Rail."
@@ -1030,6 +1046,7 @@ def test_a_rehearsal_lists_an_essays_question_for_lisul_and_holds_the_essay_with
     planned = worker._Planned.__new__(worker._Planned)
     planned.questions, planned._rehearse, planned._approved = [], True, None
     planned.missing, planned._on_missing = (), lambda *heard: None
+    planned.found, planned.written, planned.profile, planned._bank = {}, [], ApplicantProfile.load(PROFILE, POLICIES), None
     assert planned._missing([], [f"Essay fact: {DECISION}"]) is None
     assert planned.missing == (f"Essay fact: {DECISION}",)
     essay = essays.Essay(Question("p", PROJECT, "textarea", True), "",
@@ -1968,3 +1985,36 @@ def test_an_unsupported_number_shows_once_in_the_hold_reason(monkeypatch):
     assert row.status == "held"
     assert row.reason.count("77") == 1 and "states 77, which no source backs" in row.reason
     assert "fails its checks: too short" in row.reason
+
+
+def test_a_question_for_facts_apply_already_holds_never_reaches_lisul():
+    with home.STORY_BANK.open("a") as bank:
+        bank.write("- The maze robot's firmware is public at https://github.com/example-club/maze-bot\n")
+    ask = "What are your GitHub and LinkedIn URLs, and is there a public repo for the maze robot firmware?"
+    links = Question("l", "Links you'd like us to see", "textarea", False)
+    slots = [{"slot": "answer", "quotes": [], "ask": ask}, {"slot": "episode", "quotes": [FIX], "ask": ""}]
+    claude = FakeClaude(essays={"Links": "github.com/test-person"},
+                        plans=[{"Links": {"type": "general", "slots": slots}}] * 2)
+
+    [essay] = write_figma(claude, [links])
+
+    assert essay.plan.asks == () and essay.text  # written from the links, not asked
+    [answer] = [b.quotes for b in essay.plan.slots if b.slot == "answer"]
+    assert "GitHub: https://github.com/test-person" in answer and "LinkedIn: https://www.linkedin.com/in/test-person" in answer
+    assert any("github.com/example-club/maze-bot" in line for line in answer)  # the Story bank's repo
+    assert "https://test-person.example.com" in _block_text(plans(claude)[0]["prompt"], "links")  # the planner sees them
+    # A form's own field, a one-off left for Lisul and the bank's answer to a question asked again: answered, not asked.
+    planned = worker._Planned.__new__(worker._Planned)
+    planned.questions = [Question("g", "GitHub profile URL", "text", True), Question("w", "Why us?", "text", True)]
+    planned._rehearse, planned._approved, planned.written, planned.lisuls, planned.found = True, None, [], {}, {}
+    planned.missing, planned._on_missing, planned._answers, planned._shown_files = (), lambda *heard: None, {}, None
+    planned._on_files = lambda files: None
+    planned.profile, planned._bank = ApplicantProfile.load(PROFILE, POLICIES), AnswerBank()
+    planned.posting, planned._today = FIGMA, NOW.date()
+    planned._bank.add(Question("x", "Why us?", "text"), "Made-up reason.", "Example Co", NOW.date())
+    assert planned._missing(planned.questions, [f"Essay fact: {ask}"]) is None
+    assert planned.missing == () and planned.answers == {"g": "https://github.com/test-person", "w": "Made-up reason."}
+
+
+def _block_text(prompt: str, tag: str) -> str:
+    return re.search(rf"<{tag}>\n(.*?)\n</{tag}>", prompt, re.DOTALL)[1]

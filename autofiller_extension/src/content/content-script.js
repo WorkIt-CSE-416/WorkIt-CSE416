@@ -542,7 +542,8 @@
       note("_step", "Sign in to continue", reason);
       window.WIA.phase = "step";
       report();
-    }, (details, onAllow) => overlay.askWorkdayAccounts({ ...details, onAllow }));
+    }, (details, onAllow) => overlay.askWorkdayAccounts({ ...details, onAllow }),
+    (details, onPress) => overlay.offerApplySignIn({ ...details, onPress }));
   }
   let step = await workday.stepAfter("");
   // Each step's event names its number (fill-event.js): the page's, else the steps this tab has filled.
