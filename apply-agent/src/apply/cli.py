@@ -38,6 +38,7 @@ from apply import (
     walls,
     workit,
 )
+from apply.accounts_tab import AccountsTab
 from apply.adapters import Adapters
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
@@ -394,7 +395,9 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
                                 answer=_answering(lambda: adapters.tracker, answers),
                                 approve=_approving(lambda: adapters.tracker), notify=adapters.notifier.notify,
                                 show=getattr(site, "show", None), sample=profile.get("sample_data") is True,
-                                everyday=adapters.everyday, **_window_context()) as board:
+                                everyday=adapters.everyday, accounts=_accounts_tab(lambda: adapters.tracker,
+                                                                                   adapters.keychain, adapters.everyday),
+                                **_window_context()) as board:
         adapters.board = board
         url = site.profiles / DASHBOARD_URL
         url.parent.mkdir(parents=True, exist_ok=True)
@@ -432,7 +435,9 @@ def _answers_window(profile: Path, window: Path) -> None:
 
     with dashboard.Dashboard(0, dashboard.NoFrames(), tab, _applied_live, past=lambda: tracker().rows(),
                              answer=_answering(tracker, tab), approve=_approving(tracker),
-                             everyday=captcha.to_everyday_chrome, **_window_context()) as board:
+                             everyday=captcha.to_everyday_chrome,
+                             accounts=_accounts_tab(tracker, MacKeychain(), captcha.to_everyday_chrome),
+                             **_window_context()) as board:
         dashboard.open_window(board.url, window)
         print(f"Answers: {board.url} (no run is going; close the window or press Ctrl-C to stop)")
         try:
@@ -440,6 +445,11 @@ def _answers_window(profile: Path, window: Path) -> None:
                 time.sleep(1)
         except KeyboardInterrupt:
             pass
+
+
+def _accounts_tab(tracker: Callable[[], object], keychain, everyday: Callable[[str], None]) -> AccountsTab:
+    """The window's Accounts tab over the Tracker's Employer accounts, their passwords in Keychain (KAN-591)."""
+    return AccountsTab(lambda: tracker().employer_accounts(), keychain, rows=lambda: tracker().rows(), everyday=everyday)
 
 
 def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict, str, str], str]:

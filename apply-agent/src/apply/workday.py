@@ -25,10 +25,12 @@ Account, with a new password saved to Keychain before the form is sent, and
 the verification link from Gmail when the tenant mails one. Some tenants answer Create Account with their bare
 Sign In view (Northrop's and Zillow's, live): where the account is to be
 verified, by way of their "verify your account" page (`/login/warning`,
-Zillow's), and Apply then waits for the link. A bare Sign In view without
-that page means Workday never made the account (Northrop's, live, where a
-made account goes straight to the application): Keychain forgets the new
-password and Lisul makes the account. A sign-in to an account that an
+Zillow's), and Apply then waits for the link. Workday's code loads that
+Sign In view only when its answer made the account (Visa's, Northrop's,
+live), so Apply signs in there with the new password; refused, an account
+was there already (ASML's, live, which Workday answers as a new one): a run
+resets its password once, and a rehearsal stops (`MAY_EXIST`). No answer at
+all is handled the same way. A sign-in to an account that an
 earlier run made but never verified opens the link Workday mailed then, if
 Gmail still has it, once. Where Lisul made an account himself ("already exists"),
 a real run resets its password: the new one is saved to Keychain first and
@@ -59,7 +61,7 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import Locator, Page
 
-from apply import feed, fill_engine
+from apply import feed, fill_engine, trace
 from apply.accounts import NEEDS_SIGN_IN, Accounts
 from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
@@ -83,7 +85,8 @@ MAIL_SEARCH = "from:(myworkday.com OR otp.workday.com)"  # Workday mails from bo
 WORKDAY = "myworkday.com"  # Workday's own hosts, which a mailed link may go to besides the tenant's
 SIGN_IN_STEP = re.compile(r"sign in|create account", re.IGNORECASE)
 NEXT_BUTTON = "[data-automation-id=pageFooterNextButton]"  # the step's footer button; at Review, its Submit
-SUBMITTED = re.compile(r"application (has been )?submitted|congratulations|thank you for applying", re.IGNORECASE)
+SUBMITTED = re.compile(r"application (has been |was )?(submitted|received)|congratulations|thank(s| you) for applying"
+                       r"|successfully (submitted|applied)", re.IGNORECASE)
 TIMEOUT = 30.0
 GOOGLE_BUTTON = "[data-automation-id=GoogleSignInButton]"
 SIGN_INS = ("email", "google")  # policies.yaml: workday_sign_in
@@ -96,6 +99,9 @@ SEND_CLICKS = 3  # clicks on an auth form's button at most
 # The page Workday answers a new account with when it mails a link to verify it (Zillow's, live): its notice
 # may never show, since Workday then loads its bare Sign In view.
 VERIFY_WARNING = "/login/warning"
+# Create Account's own request (POST <site>/register, live), answered with JSON: a root (or redirect) widget
+# when the account is made, a message of type ERROR when refused (Workday's cx-jobs code, 2026.44).
+REGISTER = "/register"
 UNVERIFIED = re.compile(r"verif", re.IGNORECASE)  # Workday's refusal of a sign-in to an account not verified yet
 # How far back Gmail is read for the link of an account an earlier run made (Gmail's own search reads a day).
 VERIFY_LOOKBACK = timedelta(days=1)
@@ -147,8 +153,10 @@ def next_step(page: Page, step: str) -> None:
 
 
 def confirmed(page: Page) -> bool:
-    """Whether Workday shows its notice of a submitted application."""
-    return page.get_by_text(SUBMITTED).first.is_visible()
+    """Whether Workday shows its notice of a submitted application: any of its
+    words in sight, not only the first (a hidden live region can say them first)."""
+    found = page.get_by_text(SUBMITTED)
+    return any(found.nth(i).is_visible() for i in range(min(found.count(), 20)))
 
 
 class WorkdayFiller:
@@ -263,22 +271,32 @@ class WorkdayFiller:
         offers_google = google.is_visible()
         if offers_google and self._with_google:
             return self._google(page, google)
-        with_email = page.locator("[data-automation-id=SignInWithEmailButton]")
-        if with_email.is_visible():
-            with_email.click()
+        _by_email(page)
         password = self._accounts.password(site)
         if password:
             return self._password(page, site, password)
         self._create_account(page, site, offers_google)
 
-    def _password(self, page: Page, site: str, password: str) -> None:
+    def _password(self, page: Page, site: str, password: str, made_since: datetime | None = None) -> None:
         """Sign In with the account's password. A refusal for want of
-        verifying the account opens the link Workday mailed, if Gmail has it."""
+        verifying the account opens the link Workday mailed, if Gmail has it.
+        `made_since`: Create Account was sent then, and Workday answered with
+        its Sign In page (`_create_account`): signed in, the account is made;
+        refused as not verified, it is made and its link is waited for; any
+        other refusal means an account was there already (`_may_exist`)."""
+        _by_email(page)
         form = _auth_form(page, "signInLink", create=False)
         _type(form, {"email": self._accounts.login, "password": password})
         outcome = _send(page, form, lambda: "in" if _on_step(page) else _error(page) and "error")
+        if made_since and outcome == "in":
+            self._accounts.created(site)
         if outcome == "error":
             error = _error(page)
+            if made_since:
+                if UNVERIFIED.search(error):
+                    self._accounts.created(site)
+                    return self._verify(page, made_since)
+                return self._may_exist(page, site)
             if UNVERIFIED.search(error):  # the password is right: never a failed sign-in
                 if self._link_opened:
                     raise Handoff(f"{NEEDS_SIGN_IN}Workday at {site} still said: '{error}' after Apply opened the "
@@ -308,31 +326,58 @@ class WorkdayFiller:
         before = notices()
         warned = []  # Workday went to its "verify your account" page, whose notice may never show
         on_request = lambda r: urlsplit(r.url).path.endswith(VERIFY_WARNING) and warned.append(r.url)
+        answers: list[dict] = []  # Workday's answer to the form (`_register_answer`)
+        on_response = lambda r: r.request.method == "POST" and urlsplit(r.url).path.endswith(REGISTER) \
+            and answers.append(_register_answer(r))
+        made = lambda: any(a.get("made") for a in answers)
         page.on("request", on_request)
+        page.on("response", on_response)
         try:
             outcome = _send(page, form, lambda: "in" if _on_step(page) else _error(page) and "error"
-                            or (warned or notices() - before) and "verify" or _sign_in_view(page) and "sign in")
+                            or _refused(answers) and "error" or (warned or notices() - before or _says_verify(answers)) and "verify"
+                            or (_sign_in_view(page) or made() and _signing_in(page)) and "sign in",
+                            unanswered="unanswered")
         finally:
             page.remove_listener("request", on_request)
+            page.remove_listener("response", on_response)
+        trace.event("create_account", outcome=outcome, answers=[{k: v for k, v in a.items() if k != "info"} for a in answers])
         if outcome == "error":
-            error = _error(page)
+            error = _error(page) or _refused(answers)
             if re.search(r"already", error, re.IGNORECASE):
                 if offers_google:  # never Forgot your password?, which mails Lisul
                     self._accounts.not_made(site)
                     raise Handoff(MADE_WITH_GOOGLE.format(company=self._accounts.company or site))
                 return self._reset_password(page, site)
             raise Handoff(f"Workday at {site} refused the new account: '{error}'")
-        if outcome == "sign in":
-            # Back to Sign In with no notice and no verify page: Workday didn't make the account (Northrop's,
-            # live, whose made account went straight to the application). Signing in would fail on it.
-            self._accounts.not_made(site)
-            raise Handoff(f"Workday at {site} went back to its Sign In page without making the account, so Apply "
-                          "didn't sign in and forgot the new password. Create the account yourself and save its "
-                          f"password in Keychain (security add-generic-password -U -s apply-ats -a {site} -w), "
-                          "then apply yourself.")
+        if outcome == "sign in" or outcome == "unanswered" and made():
+            # Workday's code goes to Sign In only when its answer made the account (a root widget), and then the
+            # new password signs in, or is refused as not verified yet (Visa's, Northrop's, live). It answers an
+            # email that has an account the same way (ASML's, live): there the new password is refused.
+            return self._password(page, site, password, made_since=since)
+        if outcome == "unanswered":
+            return self._may_exist(page, site)
         self._accounts.created(site)
         if outcome == "verify":
             return self._verify(page, since)
+
+    def _may_exist(self, page: Page, site: str) -> None:
+        """Create Account was sent, and Workday answered nothing, or went to
+        Sign In and the new password was refused there: the account existed
+        already (ASML's, live: Lisul made it with Google), and Workday answers
+        that as it answers a new account (no error status, the same Sign In
+        page). So a run resets the password once, as for "already
+        exists": the reset mails nothing where no account is. A reset that does
+        not finish forgets the password, so no later run signs in with it. A
+        rehearsal stops and says so."""
+        if self._accounts.rehearsal:
+            self._accounts.not_made(site)
+            raise Handoff(MAY_EXIST.format(company=self._accounts.company or site, site=site))
+        _by_email(page)
+        try:
+            return self._reset_password(page, site)
+        except Handoff:
+            self._accounts.not_made(site)
+            raise
 
     def _verify(self, page: Page, since: datetime) -> None:
         """Open the verification link mailed since `since` (never asked for
@@ -350,16 +395,16 @@ class WorkdayFiller:
         a new one goes to Keychain first, then Forgot your password? mails a
         reset link (read from Gmail, to this tenant's host or Workday's), whose
         page takes the new password; then Apply signs in with it. Should the
-        reset not finish, that password is never tried (a sign-in failure)."""
+        reset not finish, that password is never tried (a sign-in failure). Both
+        forms go through _send, since Workday may drop a click that comes
+        straight after typing (Visa's and Northrop's, live)."""
         password = self._accounts.reset_password(site)  # in Keychain; a rehearsal or no Gmail stops here
         form = _auth_form(page, "signInLink", create=False)
         page.locator("[data-automation-id=forgotPasswordLink]").click()
         _until(page, lambda: form.locator("[data-automation-id=resetPasswordButton]").count() > 0)
         _type(form, {"email": self._accounts.login})
-        send = form.locator("[data-automation-id=click_filter]")
         since = self._accounts.clock.now()
-        send.click()
-        if _until(page, lambda: _error(page) and "error" or _alert(page) and "sent") == "error":
+        if _send(page, form, lambda: _error(page) and "error" or _alert(page) and "sent") == "error":
             raise self._accounts.sign_in_failed(site, f"Workday wouldn't reset the password: {_error(page)}")
         try:
             link = self._accounts.link(MAIL_SEARCH, since, self._link_hosts())
@@ -369,8 +414,8 @@ class WorkdayFiller:
         form = page.locator("[data-automation-id=signInFormo]")
         form.locator("[data-automation-id=verifyPassword]").wait_for(timeout=TIMEOUT * 1000)
         _type(form, {"password": password, "verifyPassword": password})
-        form.locator("[data-automation-id=click_filter]").click()
-        if _until(page, lambda: _error(page) and "error" or _alert(page) and "reset") == "error":
+        # Workday may answer a reset with its notice or by going back to Sign In (Northrop's, live).
+        if _send(page, form, lambda: _error(page) and "error" or (_alert(page) or _sign_in_view(page)) and "reset") == "error":
             raise self._accounts.sign_in_failed(site, f"Workday refused the new password: {_error(page)}")
         self._accounts.created(site)  # Apply holds its password now: list it
         page.goto(self._url)
@@ -419,6 +464,7 @@ class WorkdayFiller:
             page.reload()  # as Workday's error page asks: its step showed on the next load (Salesforce, live)
             shown = self._kept(fill_engine.call(page, "readQuestions", "workday", self._engine_state()))
         shown["questions"] = fill_engine.question_set(shown["questions"])
+        self.step = str(shown.get("step") or "")  # the step shown, for the tile's line (apply.stuck)
         return shown
 
     def _fill(self, page: Page, answers: Answers) -> Readback:
@@ -508,12 +554,13 @@ def _type(form: Locator, values: dict[str, str]) -> None:
     raise RuntimeError("Workday's sign-in form kept losing what was typed; nothing was sent")
 
 
-def _send(page: Page, form: Locator, outcome) -> str:
+def _send(page: Page, form: Locator, outcome, unanswered: str = "") -> str:
     """Click the auth form's button and wait for `outcome`. Workday may drop a
     click that comes straight after typing, sending nothing and showing
     nothing (Axiom's Create Account, live); such a click is made again. One
     that sent the form is never repeated: a second Create Account would find
-    the account made. A Handoff if Workday never answers."""
+    the account made. A Handoff if Workday never answers; `unanswered`
+    instead, when given and the form was sent."""
     host = urlsplit(page.url).hostname
     sent = []
     # The form goes to the tenant's host outside its /wday/ API (.../register, live).
@@ -522,6 +569,7 @@ def _send(page: Page, form: Locator, outcome) -> str:
     page.on("request", on_request)
     try:
         for _ in range(SEND_CLICKS):
+            _let_account_click(page)
             form.locator("[data-automation-id=click_filter]").click()
             try:
                 return _until(page, outcome, SEND_WAIT)
@@ -532,7 +580,61 @@ def _send(page: Page, form: Locator, outcome) -> str:
         pass
     finally:
         page.remove_listener("request", on_request)
+        _let_account_click(page, False)
+    if sent and unanswered:
+        return unanswered
     raise Handoff(f"Workday didn't answer its sign-in form ({page.url}): sign in and apply yourself.")
+
+
+def _let_account_click(page: Page, let: bool = True) -> None:
+    """Let Apply's clicks on the auth form's button through a rehearsal's
+    guard (apply.submit_guard), which would take Workday's "Submit" (its
+    label in the Sign in with email view, Sonos's, live) for the application's;
+    `let=False` puts the guard back."""
+    try:
+        page.evaluate(f"window.__applyAccountClick = {'true' if let else 'false'}")
+    except Exception:
+        pass  # the page navigating: its next document has no guard state to set yet
+
+
+def _by_email(page: Page) -> None:
+    """On a tenant that offers other sign-ins, open its email one (Workday's Sign in with email)."""
+    with_email = page.locator("[data-automation-id=SignInWithEmailButton]")
+    if with_email.is_visible():
+        with_email.click()
+
+
+def _register_answer(response) -> dict:
+    """What Workday's answer to Create Account says: `made` (a root or
+    redirect widget), `error` (its message of type ERROR), `info` (the
+    notice it keeps for its Sign In page), and the `status`. A redirect, or
+    a body that can't be read, says only its status."""
+    answer: dict = {"status": response.status}
+    try:
+        body = response.json() if response.status < 300 else None
+    except Exception:
+        body = None
+    if not isinstance(body, dict):
+        return answer
+    if body.get("type") == "ERROR" or ("message" in body and "widget" not in body):
+        answer["error"] = str(body.get("message") or "").strip()
+    elif body.get("widget") in ("root", "redirect"):
+        answer["made"], answer["widget"] = True, body["widget"]
+        children = (body.get("body") or {}).get("children") or [{}]
+        info = children[0].get("infoText") if isinstance(children[0], dict) else None
+        if info:
+            answer["info"] = str(info)
+    return answer
+
+
+def _says_verify(answers: list[dict]) -> bool:
+    """Whether Workday's answer to Create Account says the new account is to be verified first."""
+    return any(UNVERIFIED.search(a.get("info", "")) for a in answers)
+
+
+def _refused(answers: list[dict]) -> str:
+    """Workday's message refusing Create Account, from its answer, or ""."""
+    return next((a["error"] for a in answers if a.get("error")), "")
 
 
 def _step(page: Page) -> str:
@@ -586,6 +688,10 @@ def _google_rejected(page: Page) -> bool:
     """Whether Google refused to sign in this browser ("This browser or app may not be secure")."""
     return urlsplit(page.url).hostname == "accounts.google.com" and "/signin/rejected" in urlsplit(page.url).path
 
+
+# Create Account went back to Sign In, or unanswered, in a rehearsal: the account may exist already.
+MAY_EXIST = (f"{NEEDS_SIGN_IN}{{company}} may already have an account for your email: reset its password once, or "
+             "save it with security add-generic-password -U -s apply-ats -a {site} -w, then apply yourself.")
 
 # An account exists for Lisul's email on a tenant that offers Google, and Keychain has no password for it.
 MADE_WITH_GOOGLE = (

@@ -46,12 +46,14 @@ from collections.abc import Callable
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Protocol, Self
+from typing import TYPE_CHECKING, Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
-from apply import bot_signals, captcha, dock_app
+from apply import bot_signals, captcha, dock_app, stuck
 from apply.answers_tab import AnswersTab, Refused
 from apply.dashboard_page import (
+    ACCOUNTS,
+    ACCOUNTS_TAB,
     ANSWERS,
     APPLIED,
     HISTORY,
@@ -64,6 +66,10 @@ from apply.dashboard_page import (
 from apply.focus import KEEPER
 from apply.model import one_line
 from apply.tracker import cell_options
+
+if TYPE_CHECKING:
+    # The Accounts tab imports the adapters, which import this module.
+    from apply.accounts_tab import AccountsTab
 
 JPEG_QUALITY = 70
 MODIFIERS = ("Alt", "Control", "Meta", "Shift")
@@ -81,6 +87,7 @@ NOTIFY_EVERY = 60.0  # s: at most one macOS notification a minute of what newly 
 FOCUS_FRESH = 3.0  # s a poll's word that the window is in front holds
 FRAME_GAP = 0.04  # s between turns of /frames: at most 25 frames a second a tile
 PUMP = 30  # ms the frames thread waits each turn, letting screencast frames and input through
+ERRORS_EVERY = 2.0  # s between reads of each Worker's page for a field error it shows (apply.stuck)
 
 
 def jpeg_size(frame: bytes) -> tuple[int, int] | None:
@@ -234,9 +241,10 @@ def verdict(caption: dict) -> dict[str, str]:
     elif status == "filling" and caption.get("verifying"):
         tone, label, kind = "verifying", WORDS["verifying"][0], "verifying"
         detail = WORDS["verifying"][1]
-    elif status == "filling":  # a rehearsal held for Start says how far it got
+    elif status == "filling":  # a rehearsal held for Start says how far it got; else what Apply is doing (apply.stuck)
         stage = {"getting ready": "Getting ready", "ready": "Ready"}.get(str(caption.get("stage") or ""))
         tone, label, kind = "filling", stage or WORDS["filling"][0], "filling"
+        detail = str(caption.get("doing") or "")
     elif missing or status == "missing fact":
         needs = {"kind": "missing fact", "do": "Answer a question only you know", "why": missing or plain(why),
                  "then": "Saved to your facts, for every form that asks it, and filled in on this form" if missing
@@ -304,6 +312,8 @@ def verdict(caption: dict) -> dict[str, str]:
     shown = {"tone": tone, "label": label, "detail": detail}
     if kind:
         shown["kind"] = kind
+    if tone == "filling" and detail:
+        shown["doing"] = detail  # its banner says it, small too
     shown |= needs
     if flags and needs.get("kind") == "check":
         shown["flags"] = [{"field": f.get("field") or "", "why": f["why"]} for f in flags]
@@ -315,7 +325,7 @@ def verdict(caption: dict) -> dict[str, str]:
         shown["error"] = error  # behind Details in the enlarged tile
     if system:
         shown["system"] = system
-    if resume and needs:
+    if resume and (needs or tone == "filling"):  # paused; or filling, and stuck or waiting (apply.stuck)
         shown["resume"] = {"ok": bool(resume.get("ok")), "why": str(resume.get("why") or "")}
     if history := caption.get("history"):  # each pause and Resume, under the verdict
         shown["detail"] = "\n".join(filter(None, [shown["detail"], *history]))
@@ -360,6 +370,10 @@ class Frames(Protocol):
     def chooser(self, worker: int) -> str | None:
         """Whether Worker `worker`'s page asked for a file ("selectSingle" or
         "selectMultiple"), till it is given one; headless Chrome shows no picker."""
+        ...
+
+    def field_error(self, worker: int) -> str:
+        """The field error Worker `worker`'s page last showed (apply.stuck.FIELD_ERROR), "" for none."""
         ...
 
 
@@ -452,6 +466,9 @@ class NoFrames:
     def chooser(self, worker: int) -> str | None:
         return None
 
+    def field_error(self, worker: int) -> str:
+        return ""
+
 
 class Dashboard:
     """`answers`, when given, is what the window's Answers tab shows and edits.
@@ -478,8 +495,9 @@ class Dashboard:
                  answer: Callable[[dict, str, str], str] | None = None,
                  notify: Callable[[str, str], None] | None = None, show: Callable[[int], bool] | None = None,
                  sample: bool = False, approve: Callable[[str], str] | None = None,
-                 everyday: Callable[[str], None] | None = None):
+                 everyday: Callable[[str], None] | None = None, accounts: "AccountsTab | None" = None):
         self._workers = workers
+        self.accounts = accounts  # the Accounts tab: each Employer account, its password only in Keychain
         self._sample = sample
         self._frames = frames
         self.answers = answers
@@ -522,6 +540,8 @@ class Dashboard:
     def __exit__(self, *exc) -> None:
         self._server.shutdown()
         self._server.server_close()
+        if self.accounts:
+            self.accounts.close()  # a password copied less than a minute ago leaves the clipboard
         self._quit_window()  # its page has no server now: a window left open shows a dead run
 
     def _quit_window(self) -> None:
@@ -725,6 +745,9 @@ class Dashboard:
             run = dict(self._run)
         for k, caption in enumerate(captions):
             caption |= verify.without_dismissed(caption)  # a flag Lisul dismissed holds it no more
+            if caption.get("status") == "filling" and not caption.get("verifying") and not caption.get("stage") \
+                    and (why := stuck.why(caption, getattr(self._frames, "field_error", lambda k: "")(k), time.time())):
+                caption["resume"] = {"ok": True, "why": why}  # stuck or waiting: Resume goes on from the page
             caption |= verdict(caption)
             if chooser := self._frames.chooser(k):
                 caption["file"] = chooser
@@ -800,7 +823,9 @@ class Dashboard:
         return PAGE.replace("{columns}", str(columns)).replace("{rows}", str(rows)) \
             .replace("{workers}", str(self._workers)).replace("{tiles}", tiles) \
             .replace("{tabs}", TABS.replace("{answers_tab}", ANSWERS_TAB if self.answers else "")
+                     .replace("{accounts_tab}", ACCOUNTS_TAB if self.accounts else "")
                      .replace("{sample}", SAMPLE if self._sample else "")) \
+            .replace("{accounts}", ACCOUNTS if self.accounts else "") \
             .replace("{inbox}", INBOX.replace("{words}", json.dumps(WORDS))).replace("{closing}", self.token) \
             .replace("{answers}", answers).replace("{history}", history).replace("{style}", STYLE)
 
@@ -872,6 +897,10 @@ class _Handler(BaseHTTPRequestHandler):
             return self._all_frames()
         if path == "/answers" and self.dashboard.answers:
             return self._json(200, self.dashboard.answers.view())
+        if path == "/accounts" and self.dashboard.accounts:
+            if not self._from_window():
+                return self._json(403, {"error": "Only the Apply window may list your accounts."})
+            return self._json(200, self.dashboard.accounts.view())
         if path.startswith("/stream/"):
             return self._stream(int(path.removeprefix("/stream/")))
         if path.startswith("/file/"):
@@ -901,6 +930,10 @@ class _Handler(BaseHTTPRequestHandler):
             return self._resume()
         if parts.path == "/everyday" and self.dashboard.everyday:
             return self._everyday()
+        if parts.path == "/accounts/copy" and self.dashboard.accounts:
+            return self._account("copy a password", self.dashboard.accounts.copy)
+        if parts.path == "/accounts/open" and self.dashboard.accounts:
+            return self._account("open your Chrome", self.dashboard.accounts.open_sign_in)
         if parts.path.startswith("/show/") and self.dashboard.show:
             return self._show(parts.path.removeprefix("/show/"))
         if parts.path.startswith("/answers/") and self.dashboard.answers:
@@ -951,6 +984,12 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json(404, {"error": "That file is gone."})
         subprocess.run(["open", "-R", str(listed)], check=False)
         self._send(204, "text/plain", b"")
+
+    def _from_window(self) -> bool:
+        """Whether a request comes from the window's own page: its token, which no other site can read, and no
+        other site's Origin."""
+        token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+        return hmac.compare_digest(token.encode(), self.dashboard.token.encode()) and origin in (None, self.dashboard.url)
 
     def _own_host(self) -> bool:
         """Whether the request names this server as it is: another site's name
@@ -1161,6 +1200,23 @@ class _Handler(BaseHTTPRequestHandler):
         self._json(200, {"message": f"Opened {item.get('company') or 'the posting'} in your Chrome: "
                                     "the extension fills it there."})
 
+    def _account(self, does: str, press: Callable[[object], str]) -> None:
+        """Lisul pressed Copy password or Open sign-in page on an account in the Accounts tab (KAN-591). A password
+        goes only to the clipboard: the reply, and the line printed, never hold it."""
+        if not self._from_window():
+            return self._json(403, {"error": f"Only the Apply window may {does}."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            site = body["site"]
+        except (ValueError, KeyError, TypeError):
+            return self._json(400, {"error": "Not an account."})
+        try:
+            message = press(site)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Accounts tab, {site}: {message}")
+        self._json(200, {"message": message})
+
     def _in_place(self, item: dict, key: str, question: str, answer: Path | None, message: str) -> None:
         """An answer for this form alone, not saved to his facts: a file to attach, or None for an
         optional question he skipped; either way it waits on him no more."""
@@ -1263,6 +1319,7 @@ class CdpFrames:
         self._endpoint = endpoint
         self._frames: dict[int, tuple[bytes, int]] = {}  # worker -> (latest frame, its number)
         self._choosers: dict[int, dict] = {}  # worker -> the file chooser its page opened, till it has files
+        self._errors: dict[int, tuple[str, float]] = {}  # worker -> the field error its page shows, and when read
         self._changed = threading.Condition()
         self._requests: queue.Queue[tuple[int, dict, queue.Queue | None]] = queue.Queue()
         self._stop = threading.Event()
@@ -1299,6 +1356,9 @@ class CdpFrames:
     def chooser(self, worker: int) -> str | None:
         return self._choosers.get(worker, {}).get("mode")
 
+    def field_error(self, worker: int) -> str:
+        return self._errors.get(worker, ("", 0.0))[0]
+
     def forget_chooser(self, worker: int) -> None:
         """The file its page asked for was given another way (Claude set the input itself)."""
         self._choosers.pop(worker, None)
@@ -1332,6 +1392,7 @@ class CdpFrames:
     def _turn(self, playwright, watching: dict) -> None:
         for worker in range(self._workers):
             self._follow(playwright, watching, worker)
+            self._read_errors(watching, worker)
         self._replay(watching)
         pages = [w.page for w in watching.values() if w.page is not None and not w.page.is_closed()]
         try:
@@ -1383,6 +1444,17 @@ class CdpFrames:
             watch.session = session
         except Exception:
             watch.page = None  # it closed under us; the next turn finds what replaced it
+
+    def _read_errors(self, watching: dict, worker: int) -> None:
+        """Read the field error Worker `worker`'s page shows, every ERRORS_EVERY s: seen
+        on this thread's own connection, so also while the Worker waits (apply.stuck)."""
+        watch = watching.get(worker)
+        if watch is None or watch.page is None:
+            self._errors.pop(worker, None)
+            return
+        if time.monotonic() - self._errors.get(worker, ("", -ERRORS_EVERY))[1] < ERRORS_EVERY:
+            return
+        self._errors[worker] = (stuck.field_error(watch.page), time.monotonic())
 
     def _replay(self, watching: dict) -> None:
         while not self._requests.empty():

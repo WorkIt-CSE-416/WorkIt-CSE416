@@ -121,7 +121,7 @@ A page that refuses the Worker's Chrome as a bot and has nothing to solve. Examp
 _Avoid_: ban, captcha, stealth
 
 **Resume**:
-The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue.
+The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue. A filling Rehearsal also shows Resume when Apply waits on Claude, the page shows a field error, or the fill makes no progress for 45 seconds. There, Resume stops the wait and continues from the page as he left it.
 _Avoid_: retry, restart, continue
 
 **Worker**:
@@ -141,7 +141,7 @@ A Worker's own browser profile that persists between runs and stays signed in to
 _Avoid_: session, browser, Chrome profile
 
 **Apply window**:
-The one window where Lisul watches every Worker live (a tile each), reads and edits his answers (the Answers tab) and pastes his Own applications (atop that tab), opened by a run or rehearsal, `apply watch` or `apply answers`. On the Mac it is its own app, Apply (~/Applications/Apply.app), in the Dock: click it to bring the window forward, Quit or close the window to end it, and keep it in the Dock to open it again.
+The one window where Lisul watches every Worker live (a tile each), reads and edits his answers (the Answers tab), signs in to his Employer accounts (the Accounts tab) and pastes his Own applications (atop that tab), opened by a run or rehearsal, `apply watch` or `apply answers`. On the Mac it is its own app, Apply (~/Applications/Apply.app), in the Dock: click it to bring the window forward, Quit or close the window to end it, and keep it in the Dock to open it again.
 _Avoid_: dashboard, Chrome window
 
 **Essay**:
@@ -225,7 +225,7 @@ The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads
 _Avoid_: validation, QA, double-check
 
 **Employer account**:
-A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google. On Workday, the system creates one even when the site offers Sign in with Google, unless Lisul's policies say `workday_sign_in: google`. Its password is only in macOS Keychain. The Tracker lists the account, also one that a Rehearsal made.
+A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google. On Workday, the system creates one even when the site offers Sign in with Google, unless Lisul's policies say `workday_sign_in: google`. Its password is only in the macOS Keychain. The Accounts tab of the Apply window lists each one. Copy password puts the password on the clipboard for 60 s, and Open sign-in page opens the site in Lisul's own Chrome. The Tracker lists the account, also one that a Rehearsal made.
 _Avoid_: ATS account, candidate account
 
 **Not eligible**:

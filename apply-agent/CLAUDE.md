@@ -7,7 +7,7 @@ Loaded on top of the root `../CLAUDE.md` when you work in `apply-agent/`.
 Apply is a command-line agent that applies to job postings for one person.
 It reads a job posting, fills the application form in Chrome through the
 Fill engine, writes the answers and essays with Claude, and shows the Apply
-window (Start, Needs you, Answers). A rehearsal fills the form and never
+window (Start, Needs you, Answers, Accounts). A rehearsal fills the form and never
 submits. It runs on the person's own Mac, with their own Chrome and their
 own Claude Code login. It is a developer and power-user tool, not a student
 feature: students apply through the extension and the connector (KAN-369).
@@ -256,6 +256,10 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   midnight (WorkIt's caps count UTC days). No flush sends it before then.
 - A rehearsal writes only through `submitted_to`, when Lisul presses
   Submit himself. A rehearsal that he does not submit writes nothing.
+  His confirmed Submit also saves the rehearsal's Record again as
+  submitted, with the confirmation page as `after-submit.png`
+  (`rehearsal._keep_confirmation`). Before, the Record kept saying held
+  (KLA, 2026-11-03), though the Applications Tracker had it as applied.
 - No answer, or no live login: the Write waits in `workit-queue.json` (one
   per Application, the newest). `apply run` and `apply rehearse` send the
   waiting writes first; `apply doctor`'s "WorkIt writes" line lists them
@@ -286,7 +290,7 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
 `WorkItTracker` against `tests/fake_tracker.py`. `tests/test_rehearse.py
 -k "applications_tracker or sends_nothing_to_workit"` rehearses a form
 in Chromium: a submit by Lisul is Applied with the Sent resume, and no
-submit sends nothing.
+submit sends nothing. `-k saves_the_record_again` checks his submit's Record.
 
 ## The tailored resume is the Sent resume (KAN-547)
 
@@ -418,6 +422,45 @@ goes on from the step that the page shows.
 Degree; Lisul picks it on the page, presses Resume, and the form goes to
 Review with no submit. Also a closed tab, the `/resume` route, and the
 window's card and tile. Run it with `-k`; it opens Chromium.
+
+## Resume while a rehearsal fills (KAN-594)
+
+Lisul is never left on a form with no way to make Apply go on.
+`src/apply/stuck.py` holds the rules.
+
+- The tile says what Apply is doing while it fills (`stuck.doing`, the
+  caption's `doing`): its banner ("Filling · Planning answers for
+  'Application Questions'") and its detail line. The Worker says it at each
+  step: reading the questions, planning a step, reading the company's pages,
+  researching the company, writing answers, filling. A Filler that names its
+  step has `step` (Workday's).
+- A filling tile offers Resume (`Dashboard.state`, `stuck.why`) when:
+  Apply waits on Claude (`stuck.Waits` wraps the rehearsal's Claude: each
+  `ask` and `research`, not Claude fill's `drive`); the page shows a job
+  system's field error (`stuck.FIELD_ERROR`, as data: Workday's
+  errorHeading and errorMessage, an invalid field's message, `role=alert`,
+  a class that says error; read every 2 s by the window's own CDP
+  connection, `CdpFrames.field_error`, so it is seen while the Worker
+  waits); or no progress for `STUCK_AFTER` (45 s: past a Filler's longest
+  single wait, 30 s). A form held for Start, or verifying, offers none.
+- Resume there: a wait on Claude stops at once (`claude_cli` kills its
+  `claude -p`, and `stuck.Stopped` is raised); else the press is taken at
+  the fill loop's next turn, or at the next pause. Then `go_on` keeps what
+  Lisul put on the page (the Filler's `resumed`, `_Planned.keep`), and the
+  fill goes on from the page. Questions Claude had not answered yet are
+  his (`_Planned._to_lisul`): left as he filled them, or blank and listed
+  as Missing facts. It never submits and never asks for a new code.
+- Only a `stuck.stoppable` step stops a wait: planning a step
+  (`worker._plan`), the fill, the read-back's re-plan. Outside one, a wait
+  goes on to its end, and Resume is not offered for it.
+- Each such Resume is a line in the history ("Resumed: you pressed Resume
+  while Apply was planning answers for ..."). Live runs have no watch.
+
+**Tests.** `tests/test_stuck.py`: the fake Workday's essay step waits on
+Claude; Lisul types his answer and presses Resume, and the form goes to
+Review with his answer and no submit. Also each reason a tile offers
+Resume, the `/resume` route, the field-error check on each job system's
+error shapes, and a killed `claude -p`. Run it with `-k`; it opens Chromium.
 
 ## Prompts and gates
 
@@ -613,20 +656,43 @@ Claude stops at one (`SAYS_CAPTCHA`).
   The fake's `google="passkey"` plays it.
 - Oracle's cookie banner covers the email step's Next button.
   `oracle.sign_in` declines the optional cookies first (`_decline_cookies`).
-- Some Workday tenants answer Create Account with their bare Sign In view,
-  and show no notice (Northrop's and Zillow's, live). A tenant that mails a
-  link goes there by way of `/login/warning` (Zillow's), so
-  `WorkdayFiller._create_account` watches the requests for that page and
-  then waits for the link. A bare Sign In view with no such page means
-  Workday made no account (Northrop's, live: a made account goes straight
-  to the application). Apply then forgets the new password in Keychain,
-  never signs in, and hands off for Lisul to make the account. A
-  sign-in that Workday refuses because the account is not verified is a
-  Needs sign-in Handoff, not a failed password. First, Apply looks once in
-  Gmail for the link Workday mailed (to the tenant's own host, within a
-  day) when an earlier run made the account (Zillow's, live). It opens that
-  link once and never asks for a new one. The fake Workday's
-  `to_sign_in` plays this flow (`tests/test_employer_accounts.py`).
+- Workday's Create Account is a `POST <site>/register` that answers JSON
+  (Workday's cx-jobs code, 2026.44). A refusal is `{"type": "ERROR",
+  "message": ...}`. A made account is a root (or redirect) widget. Then
+  Workday's own code loads `<site>/login`, its bare Sign In view, when the
+  tenant verifies email or the answer says `isLoginRedirect` (Visa's,
+  Northrop's, ASML's, live, 2026-11-03: no reCAPTCHA or Arkose loaded, and
+  no error status). Its `infoText` waits in sessionStorage for that page.
+  So the bare Sign In view means the account was made, never "not made".
+  `WorkdayFiller._create_account` reads the answer (`_register_answer`)
+  and puts its shape in the Trace (`create_account`). A refusal that only
+  the answer has is handled as a shown one.
+- After that Sign In view, Apply signs in once with the new password
+  (`_password(made_since=...)`). Signed in, the account is listed. A
+  refusal because the account is not verified waits for the mailed link.
+  Any other refusal means an account was there already: Workday answers
+  that email as it answers a new account (ASML's, live). Then a run resets
+  the password once (`WorkdayFiller._may_exist`): the new password goes to
+  Keychain first, then one Forgot your password?, and the link from Gmail;
+  a reset that does not finish forgets the password. This holds on a
+  tenant that offers Google too (Lisul, 2026-11-03). A rehearsal resets
+  nothing: it forgets the new password and stops with `workday.MAY_EXIST`
+  (`Accounts.rehearsal`). No answer at all after the form was sent
+  (`_send(unanswered=...)`) goes to `_may_exist` too.
+- A tenant that mails a link goes to Sign In by way of `/login/warning`
+  (Zillow's, Sonos's), so `_create_account` watches the requests for that
+  page and then waits for the link. A sign-in that Workday refuses because
+  the account is not verified is a Needs sign-in Handoff, not a failed
+  password. First, Apply looks once in Gmail for the link Workday mailed
+  (to the tenant's own host, within a day) when an earlier run made the
+  account (Zillow's, live). It opens that link once and never asks for a
+  new one. The fake Workday's `to_sign_in`, `exists_quietly` and
+  `hides_errors` play these flows (`tests/test_employer_accounts.py`).
+- In its Sign in with email view, Workday names the auth button "Submit"
+  (Sonos's, live). A rehearsal's guard blocks a button that says submit,
+  so `workday._send` sets `window.__applyAccountClick` for its own click.
+  The guard then lets a click or submit in a form with a password box go
+  through. No application's final button is in such a form.
 - Apply asks a site for a verification code or link once per sign-in and
   never clicks Resend or Send New Code (`accounts.Accounts._wait`): a mail
   that hasn't come in about 2 minutes goes to Needs you ("Type the emailed
@@ -684,6 +750,52 @@ through the WorkIt extension in his own Chrome. Never through a Worker.
 - `kill <pid>` (SIGTERM) stops Apply as Ctrl-C does: the Worker browsers
   and the window close. Ctrl-C does not reach Apply when it runs in the
   background, so use SIGTERM there.
+
+## The Accounts tab: Copy password and Open sign-in page (KAN-591)
+
+`src/apply/accounts_tab.py`. The tab lists each Employer account in the
+Tracker (`employer_accounts()`), newest first: company, site, login and the
+date Apply made it. Lisul uses it to sign in himself later, for example to
+check an application's status. It is step 1 of the plan for Apply's
+passwords in Lisul's own Chrome (KAN-236).
+
+- **A password stays in Keychain.** It is never in the page, the window's
+  HTML, a JSON reply, a printed line, a Trace or a Record. Only the window's
+  server reads it (`AccountsTab.copy`), and only to put it on the clipboard.
+  Do not add a route, a field or a log line that carries it.
+- A password never goes in argv, which `ps` shows. `MacKeychain.save` sends
+  its command to `security -i` on stdin, then reads the item back, as
+  `security -i` exits 0 when a command fails. `password()` gets it on
+  stdout. Neither prints it or puts it in an error.
+- `GET /accounts`, `POST /accounts/copy {site}` and `POST /accounts/open
+  {site}` check the window's token and Origin (`_Handler._from_window`), as
+  the window's other routes do. Each route reads only a site in the Employer
+  accounts list, so the page cannot name any other Keychain item.
+- Copy password: `MacClipboard` writes NSPasteboard through `osascript -l
+  JavaScript` (JXA, no new dependency). The password goes on stdin, never
+  in argv, which `ps` shows. It is written as `NSPasteboardTypeString` with
+  the markers `org.nspasteboard.ConcealedType` and
+  `org.nspasteboard.TransientType` (nspasteboard.org), so clipboard managers
+  (Maccy, Paste, Raycast, Alfred, 1Password) skip it and keep no history of
+  it. After 60 s (`CLEAR_AFTER`) the tab clears the clipboard, but only if
+  its `changeCount` is still the one after its own write: anything copied
+  since stays. The tab keeps that count, not the password. When the window
+  closes (`Dashboard.__exit__`), a password still on the clipboard is
+  cleared at once. An app that reads the clipboard itself can still read it
+  in that minute.
+- Open sign-in page: the newest Posting of that site in the Tracker, opened
+  in Lisul's everyday Chrome with `open -a "Google Chrome"`
+  (`captcha.to_everyday_chrome`), never over DevTools. Workday's job page has
+  Sign In in its header. With no Posting, the site's home page.
+- With no Keychain password (an account made with Google), Copy password
+  says so (404) and the clipboard does not change.
+
+**Tests.** `tests/test_accounts_tab.py` (in CI, no browser) uses
+`InMemoryKeychain`, a fake clipboard and a fake runner for `MacClipboard`.
+Never read a real Keychain password in a test, and never write the real
+clipboard: to try the JXA, pass `MacClipboard("<a pasteboard name>")`. `tests/test_dashboard.py -k
+accounts_tab` clicks the tab in Chromium and checks that the page's HTML
+has no password.
 
 ## Rehearsal records
 

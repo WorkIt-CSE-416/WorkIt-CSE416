@@ -96,6 +96,11 @@ _TEMPLATE = r"""
   const lifted = () => @LIFTED@;
   // Plain code's click on the button Claude fill named on a sign-in or account page.
   const accountClick = () => window.__applyAccountClick === true;
+  // A sign-in or new account's form: one with a password box, which no application's final button is in.
+  const accountForm = (el) => {
+    const form = el.form || (el.closest && el.closest('form'));
+    return !!form && !!form.querySelector('input[type=password]');
+  };
   const FINAL_URLS = [
     /^https?:\/\/[^\/]*greenhouse\.io\/(?:embed\/job_app|[^\/?#]+\/jobs\/\d+\/?(?:[?#].*)?$)/i,
     /^https?:\/\/jobs\.lever\.co\/[^\/]+\/[0-9a-f-]{36}\/apply\/?(?:[?#].*)?$/i,
@@ -161,6 +166,9 @@ _TEMPLATE = r"""
       return;
     }
     if (!sends(target)) return;
+    // Plain code's own click on an account form's button: Workday names its button "Submit" in its
+    // Sign in with email view (Sonos's, live), and that click only signs in.
+    if (accountClick() && accountForm(target)) return;
     const words = wordsOf(target);
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -179,6 +187,7 @@ _TEMPLATE = r"""
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
+    if (accountClick() && form.querySelector('input[type=password]')) return;  // plain code's sign-in, as above
     const final = by ? sends(by)
       : [...form.querySelectorAll('button, input[type=submit]')].some(sends);
     if (final) event.stopImmediatePropagation();
