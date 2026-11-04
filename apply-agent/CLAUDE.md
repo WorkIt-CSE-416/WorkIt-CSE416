@@ -419,6 +419,45 @@ Degree; Lisul picks it on the page, presses Resume, and the form goes to
 Review with no submit. Also a closed tab, the `/resume` route, and the
 window's card and tile. Run it with `-k`; it opens Chromium.
 
+## Resume while a rehearsal fills (KAN-594)
+
+Lisul is never left on a form with no way to make Apply go on.
+`src/apply/stuck.py` holds the rules.
+
+- The tile says what Apply is doing while it fills (`stuck.doing`, the
+  caption's `doing`): its banner ("Filling · Planning answers for
+  'Application Questions'") and its detail line. The Worker says it at each
+  step: reading the questions, planning a step, reading the company's pages,
+  researching the company, writing answers, filling. A Filler that names its
+  step has `step` (Workday's).
+- A filling tile offers Resume (`Dashboard.state`, `stuck.why`) when:
+  Apply waits on Claude (`stuck.Waits` wraps the rehearsal's Claude: each
+  `ask` and `research`, not Claude fill's `drive`); the page shows a job
+  system's field error (`stuck.FIELD_ERROR`, as data: Workday's
+  errorHeading and errorMessage, an invalid field's message, `role=alert`,
+  a class that says error; read every 2 s by the window's own CDP
+  connection, `CdpFrames.field_error`, so it is seen while the Worker
+  waits); or no progress for `STUCK_AFTER` (45 s: past a Filler's longest
+  single wait, 30 s). A form held for Start, or verifying, offers none.
+- Resume there: a wait on Claude stops at once (`claude_cli` kills its
+  `claude -p`, and `stuck.Stopped` is raised); else the press is taken at
+  the fill loop's next turn, or at the next pause. Then `go_on` keeps what
+  Lisul put on the page (the Filler's `resumed`, `_Planned.keep`), and the
+  fill goes on from the page. Questions Claude had not answered yet are
+  his (`_Planned._to_lisul`): left as he filled them, or blank and listed
+  as Missing facts. It never submits and never asks for a new code.
+- Only a `stuck.stoppable` step stops a wait: planning a step
+  (`worker._plan`), the fill, the read-back's re-plan. Outside one, a wait
+  goes on to its end, and Resume is not offered for it.
+- Each such Resume is a line in the history ("Resumed: you pressed Resume
+  while Apply was planning answers for ..."). Live runs have no watch.
+
+**Tests.** `tests/test_stuck.py`: the fake Workday's essay step waits on
+Claude; Lisul types his answer and presses Resume, and the form goes to
+Review with his answer and no submit. Also each reason a tile offers
+Resume, the `/resume` route, the field-error check on each job system's
+error shapes, and a killed `claude -p`. Run it with `-k`; it opens Chromium.
+
 ## Prompts and gates
 
 - Every prompt names the applicant as `@NAME@` and their school as
