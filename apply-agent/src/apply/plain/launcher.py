@@ -25,6 +25,7 @@ import shutil
 import signal
 import subprocess
 import sys
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -195,6 +196,19 @@ class PlainWorkers:
         """Bring Worker `worker`'s Chrome window to the front, as Lisul asked in the Apply window."""
         running = self.running.get(worker)
         return bool(running) and KEEPER.bring(running.pid)
+
+    @contextmanager
+    def open(self, url: str, worker: int = 0):
+        """Worker `worker`'s page at `url`, as WorkerBrowsers.open gives one; the Worker stops after."""
+        from apply.plain.page import PortPage
+
+        running = self.launch(worker)
+        try:
+            page = PortPage.first(running.connection)
+            page.goto(url)
+            yield page
+        finally:
+            self.stop(worker)
 
     def seed_profile(self) -> list[str]:
         """Open branded Chrome on the seed profile at chrome://extensions for Lisul's one-time
