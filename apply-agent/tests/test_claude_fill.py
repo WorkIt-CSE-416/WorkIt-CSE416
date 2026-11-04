@@ -90,6 +90,7 @@ class BambooDriver:
         `by_label` makes it name each field it read back by its label, in
         capitals with a "*" ("FIRST NAME *"), not its id (live)."""
         self._by_label = by_label
+        self.schemas: list[dict] = []
         self._blocked = blocked
         self._notes = notes
         self._page = page
@@ -105,6 +106,7 @@ class BambooDriver:
             page.get_by_role("button", name="Apply for This Job").first.click()
             return {"blocked": False, "why": "", "questions": [q for q in LUNAR_QUESTIONS if q["label"] not in self._missed]}
         self.fills += 1
+        self.schemas.append(schema)
         fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
         asked = {f["question"] for f in fields}
         unlisted = [q for q in LUNAR_QUESTIONS if q["label"] in self._missed and q["label"] not in asked]
@@ -553,6 +555,10 @@ def test_fields_claude_reads_back_by_their_label_not_their_id_still_read_back(tm
         [row] = run(server, profile, lunar_match(), claude=FakeClaude(driver=driver))
 
     assert row.status == "submitted", row.reason
+    # And the schema holds each entry's `field` to the ids it was given.
+    [schema, *_] = driver.schemas
+    ids = schema["properties"]["filled"]["items"]["properties"]["field"]["enum"]
+    assert ids and all(re.fullmatch(r"q\d+", i) for i in ids)
 
 
 def test_a_label_two_fields_share_is_never_guessed_between():

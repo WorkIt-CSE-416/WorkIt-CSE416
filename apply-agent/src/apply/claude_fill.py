@@ -175,7 +175,7 @@ A file answer names a file in your working folder: attach that file. A select an
 Use as few tool calls as you can: one browser_fill_form call for every field it can take, then the rest one by one; take a new snapshot only when the page has changed.
 Pick every select answer yourself, even when the dropdown already seems to show it (a country listed first): choose the option, then read it back; never leave a select's `shown` empty.
 Leave every other field as it is. If the form has a plain "I'm not a robot" box, tick it; if that brings a picture or puzzle challenge, stop.
-Then read each field back: `shown` is exactly the text, option or file name the field shows now, with nothing added ("Yes" or "No" for a single checkbox).
+Then read each field back, one `filled` entry a field: `field` is its id from <fields> ("q1"), copied exactly, never its label; `shown` is exactly the text, option or file name the field shows now, with nothing added ("Yes" or "No" for a single checkbox).
 If the step asks a question <fields> doesn't hold, leave it and go on: list it in `unlisted` like a question read off the form (label exactly as shown, with the help text under it after it in parentheses; kind, required, options). Don't stop for it.
 If a question in <fields> is not on this step, leave it out of `filled` and go on.
 If this step has a button that goes on to the form's next step ("Next", "Continue"), name it exactly in `next_button` and leave `submit_button` empty.
@@ -196,6 +196,17 @@ FILL_SCHEMA = {
     },
     "required": [*REPORTED, "filled", "submit_button", "next_button", "unlisted"],
 }
+
+
+def _fill_schema(names: list[str]) -> dict:
+    """FILL_SCHEMA with each `filled` entry's `field` held to the ids asked
+    for: Haiku named some by their label ("First Name *", live)."""
+    if not names:
+        return FILL_SCHEMA
+    item = FILL_SCHEMA["properties"]["filled"]["items"]
+    field = {"type": "string", "enum": names, "description": "the field's id from <fields>, never its label"}
+    filled = {"type": "array", "items": {**item, "properties": {**item["properties"], "field": field}}}
+    return {**FILL_SCHEMA, "properties": {**FILL_SCHEMA["properties"], "filled": filled}}
 
 
 def _field_named(said: str, labels: dict[str, str]) -> str | None:
@@ -331,7 +342,7 @@ class ClaudeFill:
             if self._picked:
                 done_already = ", ".join(repr(labels[name]) for name in self._picked if name in labels)
                 prompt = f"These dropdowns are already picked: {done_already}. Leave them as they are.\n{prompt}"
-            done = self._session(page, FILL, prompt, FILL_SCHEMA, files)
+            done = self._session(page, FILL, prompt, _fill_schema(list(todo)), files)
             for field in done["filled"]:
                 name = _field_named(str(field["field"]), {name: labels[name] for name in todo})
                 if name in kinds and name in todo:
