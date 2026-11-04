@@ -1469,7 +1469,8 @@ def test_the_accounts_tab_copies_a_password_it_never_shows(window):
     password, posting = "Fake-Keychain-Pw-7x!Q", "https://asml.wd3.myworkdayjobs.com/en-US/ASMLExternal/job/X_R1"
     account = EmployerAccount("ASML", "asml.wd3.myworkdayjobs.com", "lisul@example.com", date(2026, 11, 2))
     clipboard, opened = SimpleNamespace(text=""), []
-    clipboard.write, clipboard.read = (lambda text: setattr(clipboard, "text", text)), (lambda: clipboard.text)
+    clipboard.put_secret = lambda text: setattr(clipboard, "text", text) or 1
+    clipboard.clear = lambda written: setattr(clipboard, "text", "")
     tab = AccountsTab(lambda: [account], InMemoryKeychain({account.site: password}),
                       rows=lambda: [SimpleNamespace(posting_url=posting)], everyday=opened.append,
                       clipboard=clipboard, later=lambda seconds, then: None)

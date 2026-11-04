@@ -2,11 +2,9 @@
 himself later, to check an application's status.
 
 A password lives only in Keychain. It is never in the tab's view, a reply, a log, a Trace or a Record: only
-this server reads it, and only to put it on the clipboard. The tab keeps no copy of it, only its hash, to tell
-whether the clipboard still holds it when its minute is up."""
+this server reads it, and only to put it on the clipboard. The tab keeps no copy of it, only the clipboard's change
+count after its write, to tell whether the clipboard still holds it when its minute is up."""
 
-import hashlib
-import hmac
 import subprocess
 import threading
 from collections.abc import Callable
@@ -22,30 +20,63 @@ CLEAR_AFTER = 60.0  # s a copied password stays on the clipboard
 
 
 class Clipboard(Protocol):
-    def write(self, text: str) -> None: ...
+    def put_secret(self, text: str) -> int:
+        """Put `text` on the clipboard, marked as a secret; the clipboard's change count after the write."""
 
-    def read(self) -> str: ...
+    def clear(self, written: int) -> None:
+        """Clear the clipboard, if its change count is still `written`."""
+
+
+# The clipboard managers' markers (nspasteboard.org): Concealed (a password: do not show it) and Transient (do not
+# keep it in history). Maccy, Paste, Raycast, Alfred and 1Password skip an item that carries them.
+CONCEALED, TRANSIENT = "org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType"
+# NSPasteboard through JXA, so Apply needs no new dependency. The secret comes on stdin, never in argv, which `ps`
+# shows. argv: the action, the pasteboard's name ("" is the general one), and the change count to clear at.
+PASTEBOARD = f"""ObjC.import('AppKit');
+function run(argv) {{
+  const board = argv[1] ? $.NSPasteboard.pasteboardWithName(argv[1]) : $.NSPasteboard.generalPasteboard;
+  if (argv[0] === 'put') {{
+    const data = $.NSFileHandle.fileHandleWithStandardInput.readDataToEndOfFile;
+    const text = $.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding);
+    board.clearContents;
+    board.setStringForType(text, $.NSPasteboardTypeString);
+    board.setStringForType($(''), '{CONCEALED}');
+    board.setStringForType($(''), '{TRANSIENT}');
+  }} else if (argv[0] === 'clear' && board.changeCount === Number(argv[2])) {{
+    board.clearContents;
+  }}
+  return String(board.changeCount);
+}}"""
+
+
+def _run(argv: list[str], stdin: str) -> str:
+    return subprocess.run(argv, input=stdin, capture_output=True, text=True, check=True).stdout
 
 
 class MacClipboard:
-    """The Mac's clipboard, through pbcopy and pbpaste. The text goes through stdin, never an argument, so it is
-    not in the process list."""
+    """The Mac's clipboard (NSPasteboard), written through `osascript -l JavaScript`. `pasteboard` names another
+    pasteboard than the general one (a check that must not touch Lisul's clipboard); `run(argv, stdin)` runs a
+    command and gives its stdout (tests pass their own)."""
 
-    def write(self, text: str) -> None:
-        subprocess.run(["pbcopy"], input=text, text=True, check=True)
+    def __init__(self, pasteboard: str = "", run: Callable[[list[str], str], str] = _run):
+        self._pasteboard = pasteboard
+        self._run = run
 
-    def read(self) -> str:
-        return subprocess.run(["pbpaste"], capture_output=True, text=True, check=False).stdout
+    def put_secret(self, text: str) -> int:
+        return self._call("put", stdin=text)
+
+    def clear(self, written: int) -> None:
+        self._call("clear", str(written))
+
+    def _call(self, action: str, *more: str, stdin: str = "") -> int:
+        return int(self._run(["osascript", "-l", "JavaScript", "-e", PASTEBOARD, action, self._pasteboard, *more],
+                             stdin).strip())
 
 
 def _later(seconds: float, then: Callable[[], None]) -> None:
     timer = threading.Timer(seconds, then)
     timer.daemon = True
     timer.start()
-
-
-def _digest(text: str) -> bytes:
-    return hashlib.sha256(text.encode()).digest()
 
 
 class AccountsTab:
@@ -63,8 +94,7 @@ class AccountsTab:
         self._clipboard = clipboard or MacClipboard()
         self._later = later
         self._lock = threading.Lock()
-        self._copied: bytes | None = None  # the hash of the password the tab last put on the clipboard
-        self._copies = 0
+        self._written: int | None = None  # the clipboard's change count after the tab last put a password there
 
     def view(self) -> dict:
         """Each account, newest first, with no password."""
@@ -84,10 +114,8 @@ class AccountsTab:
             raise Refused(f"Keychain has no password for {account.site}. Apply made no password for it, "
                           "or it was made with Google.", 404)
         with self._lock:
-            self._clipboard.write(password)
-            self._copied, self._copies = _digest(password), self._copies + 1
-            copy = self._copies
-        self._later(CLEAR_AFTER, lambda: self._clear(copy))
+            self._written = written = self._clipboard.put_secret(password)
+        self._later(CLEAR_AFTER, lambda: self._clear(written))
         return f"Copied the password for {account.company or account.site}. Paste it within a minute: " \
                "then Apply clears the clipboard."
 
@@ -106,15 +134,14 @@ class AccountsTab:
         """The window is closing: a password still on the clipboard goes now, as its clear would never run."""
         self._clear()
 
-    def _clear(self, copy: int | None = None) -> None:
-        """Clear the clipboard if it still holds the password copy `copy` (None: the last) put there. Anything
-        Lisul copied since stays."""
+    def _clear(self, written: int | None = None) -> None:
+        """Clear the clipboard if it still holds the password the tab wrote at change count `written` (None: the
+        last). Anything copied since, a newer password too, changed the count, and stays."""
         with self._lock:
-            if self._copied is None or copy not in (None, self._copies):
+            if self._written is None or written not in (None, self._written):
                 return
-            if hmac.compare_digest(_digest(self._clipboard.read()), self._copied):
-                self._clipboard.write("")
-            self._copied = None
+            self._clipboard.clear(self._written)
+            self._written = None
 
     def _listed(self, site: object) -> EmployerAccount:
         account = next((a for a in self._accounts() if a.site == site), None)

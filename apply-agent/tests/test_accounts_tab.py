@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from apply.accounts_tab import AccountsTab
+from apply.accounts_tab import CONCEALED, TRANSIENT, AccountsTab, MacClipboard
 from apply.dashboard import Dashboard, NoFrames
 from apply.keychain import InMemoryKeychain
 from apply.tracker import EmployerAccount
@@ -58,16 +58,21 @@ def test_only_the_window_may_list_them():
 
 
 class FakeClipboard:
-    """The Mac's clipboard, held in memory."""
+    """The Mac's clipboard, held in memory, with its change count."""
 
     def __init__(self, text: str = "what Lisul copied before"):
-        self.text = text
+        self.text, self.count = text, 0
 
-    def write(self, text: str) -> None:
-        self.text = text
+    def write(self, text: str) -> None:  # Lisul copies something
+        self.text, self.count = text, self.count + 1
 
-    def read(self) -> str:
-        return self.text
+    def put_secret(self, text: str) -> int:
+        self.write(text)
+        return self.count
+
+    def clear(self, written: int) -> None:
+        if self.count == written:
+            self.write("")
 
 
 def copying(accounts=(ASML,), passwords=None):
@@ -203,3 +208,26 @@ def test_only_the_window_may_open_a_sign_in_page_and_only_for_a_listed_account()
         assert call(board, "/accounts/open", {"site": "evil.example"})[0] == 404
 
     assert opened == []
+
+
+def test_the_mac_clipboard_gets_the_password_on_stdin_marked_for_clipboard_managers_to_skip():
+    ran = []
+
+    def run(argv, stdin):
+        ran.append((argv, stdin))
+        return "7\n"
+
+    clipboard = MacClipboard(run=run)
+    written = clipboard.put_secret(PASSWORD)
+    clipboard.clear(written)
+
+    (put, given), (clear, _) = ran
+    assert written == 7
+    assert given == PASSWORD
+    assert not any(PASSWORD in arg for argv, _ in ran for arg in argv)  # argv shows in `ps`
+    assert put[:3] == ["osascript", "-l", "JavaScript"]
+    script = put[put.index("-e") + 1]
+    for marked in ("NSPasteboardTypeString", CONCEALED, TRANSIENT):
+        assert marked in script
+    assert (CONCEALED, TRANSIENT) == ("org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType")
+    assert clear[-2:] == ["", "7"]  # clears only at the change count it wrote

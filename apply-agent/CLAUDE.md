@@ -667,12 +667,18 @@ passwords in Lisul's own Chrome (KAN-236).
   {site}` check the window's token and Origin (`_Handler._from_window`), as
   the window's other routes do. Each route reads only a site in the Employer
   accounts list, so the page cannot name any other Keychain item.
-- Copy password: `MacClipboard` writes through `pbcopy` on stdin, never as
-  an argument. After 60 s (`CLEAR_AFTER`) the tab clears the clipboard, but
-  only if it still holds that password: the tab keeps its SHA-256 hash, not
-  the password. A newer copy gets its own minute. When the window closes
-  (`Dashboard.__exit__`), a password still on the clipboard is cleared at
-  once. While it is on the clipboard, any app can read it.
+- Copy password: `MacClipboard` writes NSPasteboard through `osascript -l
+  JavaScript` (JXA, no new dependency). The password goes on stdin, never
+  in argv, which `ps` shows. It is written as `NSPasteboardTypeString` with
+  the markers `org.nspasteboard.ConcealedType` and
+  `org.nspasteboard.TransientType` (nspasteboard.org), so clipboard managers
+  (Maccy, Paste, Raycast, Alfred, 1Password) skip it and keep no history of
+  it. After 60 s (`CLEAR_AFTER`) the tab clears the clipboard, but only if
+  its `changeCount` is still the one after its own write: anything copied
+  since stays. The tab keeps that count, not the password. When the window
+  closes (`Dashboard.__exit__`), a password still on the clipboard is
+  cleared at once. An app that reads the clipboard itself can still read it
+  in that minute.
 - Open sign-in page: the newest Posting of that site in the Tracker, opened
   in Lisul's everyday Chrome with `open -a "Google Chrome"`
   (`captcha.to_everyday_chrome`), never over DevTools. Workday's job page has
@@ -681,8 +687,9 @@ passwords in Lisul's own Chrome (KAN-236).
   says so (404) and the clipboard does not change.
 
 **Tests.** `tests/test_accounts_tab.py` (in CI, no browser) uses
-`InMemoryKeychain` and a fake clipboard. Never read a real Keychain password
-in a test, and never write the real clipboard. `tests/test_dashboard.py -k
+`InMemoryKeychain`, a fake clipboard and a fake runner for `MacClipboard`.
+Never read a real Keychain password in a test, and never write the real
+clipboard: to try the JXA, pass `MacClipboard("<a pasteboard name>")`. `tests/test_dashboard.py -k
 accounts_tab` clicks the tab in Chromium and checks that the page's HTML
 has no password.
 
