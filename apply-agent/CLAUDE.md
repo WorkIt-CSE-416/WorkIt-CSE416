@@ -889,6 +889,10 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   still gets the real picker. `PortPage.expect_file_chooser` and
   `PortPage.mouse` use the same ops (`attach.py`'s upload behind a button
   works on a plain Worker).
+- **Never take Lisul's focus.** Plain Workers start with `open -g -n`
+  (`launcher.start_in_background`), small, at the screen's top-left
+  corner. Only his Show brings one forward. Tests share one Worker and
+  stop it when they end.
 - **Not wired into runs yet.** `cli._dashboard` still builds `CdpFrames`. S8
   (KAN-614) picks `PortFrames` per Worker when `worker_mode: plain`.
 - **Live check.** `uv run apply plain tile lever-immuta` fills a saved form
