@@ -519,6 +519,25 @@ def test_lisuls_own_submit_on_a_held_page_is_kept_in_the_tracker_as_submitted(mo
     assert any(line.startswith("Arc Boat Company | ") and "you submitted it; it is in the Tracker" in line for line in lines)
 
 
+def test_lisuls_own_submit_saves_the_record_again_as_submitted_with_its_confirmation(monkeypatch, tmp_path):
+    # KLA, 2026-11-03: he submitted the held form himself, and its Record still said held.
+    from apply.records import InMemoryRecords
+
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
+    profile, records = ApplicantProfile.load(profile_with(tmp_path)), InMemoryRecords()
+
+    with FakeJobServer(ARC_FORM) as fake:
+        lines = hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=InMemoryTracker(),
+                           with_adapters={"records": records})
+
+    [link] = records.links()
+    files = records.files(link)
+    assert "- Status: submitted (You submitted it yourself from a rehearsal" in files["README.md"].decode()
+    assert files["after-submit.png"].startswith(b"\x89PNG")
+    assert any("its Record says submitted" in line for line in lines)
+
+
 def test_a_captcha_after_lisuls_own_submit_pushes_him_to_do_it(monkeypatch, tmp_path):
     # Lisul (2026-11-03): in a rehearsal he presses Submit and does the captcha himself; Apply only tells him.
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))

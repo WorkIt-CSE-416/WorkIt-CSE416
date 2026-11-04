@@ -256,6 +256,10 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   midnight (WorkIt's caps count UTC days). No flush sends it before then.
 - A rehearsal writes only through `submitted_to`, when Lisul presses
   Submit himself. A rehearsal that he does not submit writes nothing.
+  His confirmed Submit also saves the rehearsal's Record again as
+  submitted, with the confirmation page as `after-submit.png`
+  (`rehearsal._keep_confirmation`). Before, the Record kept saying held
+  (KLA, 2026-11-03), though the Applications Tracker had it as applied.
 - No answer, or no live login: the Write waits in `workit-queue.json` (one
   per Application, the newest). `apply run` and `apply rehearse` send the
   waiting writes first; `apply doctor`'s "WorkIt writes" line lists them
@@ -286,7 +290,7 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
 `WorkItTracker` against `tests/fake_tracker.py`. `tests/test_rehearse.py
 -k "applications_tracker or sends_nothing_to_workit"` rehearses a form
 in Chromium: a submit by Lisul is Applied with the Sent resume, and no
-submit sends nothing.
+submit sends nothing. `-k saves_the_record_again` checks his submit's Record.
 
 ## The tailored resume is the Sent resume (KAN-547)
 

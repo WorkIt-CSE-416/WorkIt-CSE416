@@ -182,7 +182,7 @@ def rehearse(
         def submitted(page) -> None:  # Lisul sent the form from the held page
             with writing:
                 note = _keep_submission(submitted_to, done, adapters.clock.now().date())
-            note += _keep_confirmation(page, done.record)
+            note += _keep_confirmation(page, done, adapters)
             adapters.board.update(n, status="submitted", why=note)
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, note]))
 
@@ -541,16 +541,23 @@ def _keep_submission(tracker: Tracker | None, rehearsed: Rehearsed, today) -> st
     return "you submitted it; it is in the Tracker"
 
 
-def _keep_confirmation(page, record: str) -> str:
-    """Save a screenshot of the confirmation in the Record's folder before
-    its window closes. Returns what to add to the note."""
+def _keep_confirmation(page, done: Rehearsed, adapters: Adapters) -> str:
+    """Save the rehearsal's Record again as submitted by Lisul, with a
+    screenshot of the confirmation (`after-submit.png`), before its window
+    closes. Returns what to add to the note."""
     shown = ""
-    if record and Path(record).is_dir():
+    if done.saved is not None:
         try:
-            page.screenshot(path=Path(record) / "confirmation.png", full_page=True)
-            shown = f"; its confirmation is in {Path(record) / 'confirmation.png'}"
+            shot = page.screenshot(full_page=True)
         except Exception:
-            pass  # the window went first: the Tracker row is what counts
+            shot = b""  # the window went first: the Record still says submitted
+        saved = replace(done.saved, status=Status.SUBMITTED, reason=SUBMITTED_BY_LISUL,
+                        filled=replace(done.saved.filled, after_submit=shot or done.saved.filled.after_submit))
+        try:
+            done.record, done.saved = adapters.records.save(saved), saved
+            shown = "; its Record says submitted" + (f", with the confirmation, in {done.record}" if shot else "")
+        except Exception as error:
+            shown = f"; its Record was not saved again ({type(error).__name__}: {error})"
     return f"{shown}; its window closes in {CLOSE_AFTER_S:.0f} s"
 
 
