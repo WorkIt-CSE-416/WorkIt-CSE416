@@ -83,7 +83,8 @@ MAIL_SEARCH = "from:(myworkday.com OR otp.workday.com)"  # Workday mails from bo
 WORKDAY = "myworkday.com"  # Workday's own hosts, which a mailed link may go to besides the tenant's
 SIGN_IN_STEP = re.compile(r"sign in|create account", re.IGNORECASE)
 NEXT_BUTTON = "[data-automation-id=pageFooterNextButton]"  # the step's footer button; at Review, its Submit
-SUBMITTED = re.compile(r"application (has been )?submitted|congratulations|thank you for applying", re.IGNORECASE)
+SUBMITTED = re.compile(r"application (has been |was )?(submitted|received)|congratulations|thank(s| you) for applying"
+                       r"|successfully (submitted|applied)", re.IGNORECASE)
 TIMEOUT = 30.0
 GOOGLE_BUTTON = "[data-automation-id=GoogleSignInButton]"
 SIGN_INS = ("email", "google")  # policies.yaml: workday_sign_in
@@ -147,8 +148,10 @@ def next_step(page: Page, step: str) -> None:
 
 
 def confirmed(page: Page) -> bool:
-    """Whether Workday shows its notice of a submitted application."""
-    return page.get_by_text(SUBMITTED).first.is_visible()
+    """Whether Workday shows its notice of a submitted application: any of its
+    words in sight, not only the first (a hidden live region can say them first)."""
+    found = page.get_by_text(SUBMITTED)
+    return any(found.nth(i).is_visible() for i in range(min(found.count(), 20)))
 
 
 class WorkdayFiller:
