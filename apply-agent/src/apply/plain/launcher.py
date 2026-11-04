@@ -25,6 +25,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,18 +40,20 @@ from apply.browsers import (
 )
 from apply.focus import KEEPER
 from apply.plain import extension, host
-from apply.plain.bridge import Bridge, Connection
+from apply.plain.bridge import Bridge, Connection, PortError
 from apply.profile import load_policies
 
 BRANDED = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 SEED = "plain-seed"
-WINDOW = (1280, 800)
+WINDOW = (900, 640)  # small, at the screen's top-left corner, wholly on-screen (capture needs at least half)
 FLAGS = ("--no-first-run", "--no-default-browser-check", "--disable-backgrounding-occluded-windows",
          "--hide-crash-restore-bubble")
 # Never passed to a plain Worker: each would make it an automated browser.
 NEVER = ("--remote-debugging-port", "--remote-debugging-pipe", "--enable-automation", "--headless")
 HELLO_WAIT = 30.0  # s from launch to the extension's hello
 STOP_WAIT = 10.0  # s from SIGTERM to SIGKILL
+START_WAIT = 20.0  # s from `open` to the Chrome holding the profile
+OPEN = "/usr/bin/open"
 WRAPPER = "apply-worker-host"
 
 
@@ -78,7 +81,7 @@ class PlainWorker:
 
     worker: int  # 0-based, as WorkerBrowsers.open's
     profile: Path
-    process: subprocess.Popen
+    process: "Chrome"
     connection: Connection
 
     @property
@@ -88,13 +91,17 @@ class PlainWorker:
 
 class PlainWorkers:
     def __init__(self, profiles: Path | None = None, kind: str | None = None, bridge: Bridge | None = None,
-                 extension_dir: Path = extension.EXTENSION_DIR):
+                 extension_dir: Path = extension.EXTENSION_DIR, test_flags: tuple[str, ...] = ()):
         """`profiles` defaults to $APPLY_PROFILES, else APPLY_HOME/profiles. `kind` is
-        "testing" or "chrome" (default: chrome_kind())."""
+        "testing" or "chrome" (default: chrome_kind()). `test_flags`: tests' own switches for
+        Chrome for Testing only, such as pointing the fakes' hosts at 127.0.0.1 (never Workers')."""
         self.profiles = Path(profiles or os.environ.get("APPLY_PROFILES") or PROFILES)
         self.kind = kind or chrome_kind()
         self.bridge = bridge or Bridge()
         self.extension_dir = extension_dir
+        if test_flags and self.kind != "testing":
+            raise ValueError("test_flags are for Chrome for Testing in tests only")
+        self.test_flags = tuple(test_flags)
         self.running: dict[int, PlainWorker] = {}
 
     @property
@@ -107,14 +114,22 @@ class PlainWorkers:
     def binary(self) -> Path:
         return chrome_for_testing() if self.kind == "testing" else BRANDED
 
+    @staticmethod
+    def position(worker: int) -> tuple[int, int]:
+        """The top-left corner, staggered: never minimized or off-screen."""
+        return 20 * worker, 25 + 20 * worker
+
     def arguments(self, worker: int) -> list[str]:
         """Worker `worker`'s Chrome command line."""
-        x, y = 40 + 40 * worker, 40 + 30 * worker  # on-screen, staggered: never minimized or off-screen
+        x, y = self.position(worker)
         arguments = [str(self.binary()), f"--user-data-dir={self.profile(worker)}", *FLAGS,
                      f"--window-position={x},{y}", f"--window-size={WINDOW[0]},{WINDOW[1]}"]
         if self.kind == "testing":
             arguments.append(f"--load-extension={self.extension_dir}")
-        arguments.append("about:blank")
+            arguments += self.test_flags
+        # No window at start: Chrome activates itself when it shows its first window, even under
+        # `open -g`. The extension opens the Worker's window unfocused once it says hello.
+        arguments.append("--no-startup-window")
         assert not any(a.startswith(NEVER) for a in arguments)
         return arguments
 
@@ -161,14 +176,16 @@ class PlainWorkers:
             self.prepare()
         self.bridge.start()
         self.install_host(worker)
-        log = (self.profiles / f"plain-{worker + 1}.log").open("ab")
         with KEEPER.launching():
-            process = subprocess.Popen(self.arguments(worker), stdin=subprocess.DEVNULL, stdout=log,
-                                       stderr=subprocess.STDOUT, start_new_session=True)
-        log.close()
+            process = start_in_background(self.arguments(worker), profile, self.profiles / f"plain-{worker + 1}.log")
         KEEPER.watch(process.pid)
         try:
             connection = self.bridge.wait_for(worker, HELLO_WAIT)
+            x, y = self.position(worker)
+            try:
+                connection.call("windows.create", left=x, top=y, width=WINDOW[0], height=WINDOW[1])
+            except PortError:  # a seed's extension from before windows.create: a window all the same
+                connection.call("tabs.create")
         except BaseException as error:
             _stop(process)
             KEEPER.forget(process.pid)
@@ -224,12 +241,58 @@ class PlainWorkers:
                 "Quit that Chrome. Each plain Worker now starts as a copy of this profile."]
 
 
+class Chrome:
+    """A Chrome that `open` started: its own PID (read from the profile's SingletonLock), not open's."""
+
+    def __init__(self, pid: int):
+        self.pid = pid
+
+    def poll(self) -> int | None:
+        try:
+            os.kill(self.pid, 0)
+        except ProcessLookupError:
+            return 0
+        return None
+
+    def send_signal(self, number: int) -> None:
+        try:
+            os.kill(self.pid, number)
+        except ProcessLookupError:
+            pass
+
+    def kill(self) -> None:
+        self.send_signal(signal.SIGKILL)
+
+    def wait(self, timeout: float | None = None) -> int:
+        deadline = time.monotonic() + (timeout if timeout is not None else 1e9)
+        while self.poll() is None:
+            if time.monotonic() > deadline:
+                raise subprocess.TimeoutExpired(f"chrome {self.pid}", timeout)
+            time.sleep(0.1)
+        return 0
+
+
+def start_in_background(arguments: list[str], profile: Path, log: Path) -> Chrome:
+    """Start Chrome (`arguments`, the binary first) through `open -g -n`: a new instance that is
+    never activated, so it never takes Lisul's focus. Running the binary itself brings it forward."""
+    app = Path(arguments[0]).parents[2]  # …/X.app/Contents/MacOS/X
+    subprocess.run([OPEN, "-g", "-n", "-a", str(app), "--stdout", str(log), "--stderr", str(log),
+                    "--args", *arguments[1:]], check=True, stdin=subprocess.DEVNULL,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    deadline = time.monotonic() + START_WAIT
+    while (pid := chrome_pid(profile)) is None:
+        if time.monotonic() > deadline:
+            raise TimeoutError(f"no Chrome took {profile.name} within {START_WAIT:.0f} s of `open`")
+        time.sleep(0.1)
+    return Chrome(pid)
+
+
 def _copy(source: Path, profile: Path) -> None:
     shutil.rmtree(profile, ignore_errors=True)
     shutil.copytree(source, profile, symlinks=True, ignore=NOT_COPIED)
 
 
-def _stop(process: subprocess.Popen) -> None:
+def _stop(process: Chrome) -> None:
     if process.poll() is not None:
         return
     process.send_signal(signal.SIGTERM)

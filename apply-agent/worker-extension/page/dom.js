@@ -172,6 +172,29 @@
       (e) => !e.disabled && e.tabIndex >= 0 && is(e, "visible"));
   }
 
+  // The caret keys' default: move the caret (Shift: extend the selection) a character, or to
+  // the line's start or end (Home, End, Cmd+Arrow), in a field or in editable content.
+  function caret(target, k, { shiftKey, metaKey }) {
+    const back = k === "ArrowLeft" || k === "Home";
+    const whole = k === "Home" || k === "End" || metaKey;
+    if (typeof target.selectionStart === "number" && target.setSelectionRange) {
+      const length = target.value.length;
+      const [start, end] = [target.selectionStart, target.selectionEnd];
+      const backward = target.selectionDirection === "backward";
+      const moving = shiftKey ? (backward ? start : end) : back ? start : end;
+      const collapsed = start === end;
+      let to = whole ? (back ? 0 : length) : collapsed || shiftKey ? moving + (back ? -1 : 1) : moving;
+      to = Math.max(0, Math.min(length, to));
+      if (!shiftKey) target.setSelectionRange(to, to);
+      else {
+        const anchor = backward ? end : start;
+        target.setSelectionRange(Math.min(anchor, to), Math.max(anchor, to), to < anchor ? "backward" : "forward");
+      }
+      return;
+    }
+    getSelection()?.modify?.(shiftKey ? "extend" : "move", back ? "backward" : "forward", whole ? "lineboundary" : "character");
+  }
+
   // One key press on the focused element, with the default action a page relies on.
   function press(key) {
     const parts = key.split("+");
@@ -205,6 +228,8 @@
         const at = list.indexOf(target);
         const next = list[(at + (init.shiftKey ? -1 : 1) + list.length) % list.length];
         next?.focus();
+      } else if (/^(ArrowLeft|ArrowRight|Home|End)$/.test(k)) {
+        caret(target, k, init);
       } else if (k === "Backspace") {
         document.execCommand("delete");
       } else if (k === "Delete") {
@@ -316,10 +341,15 @@
     aria: (selector, options = {}) => pw.ariaSnapshot(one(selector), { mode: "expect", ...options }),
   };
 
+  const TOUCHES = new Set(["click", "type", "press", "keys", "check"]);
+
   globalThis.__applyDom = {
     run(method, args) {
       const fn = METHODS[method];
       if (!fn) return { err: { name: "BadOp", message: `no dom method ${method}` } };
+      // A press of Apply's counts as a touch for the page's guard (apply.plain.guards), as a
+      // trusted click of Playwright's does: the guard then shows what it blocked.
+      if (TOUCHES.has(method)) window.dispatchEvent(new CustomEvent("__apply_touch", { detail: "apply" }));
       try {
         const value = fn(...args);
         return { ok: value === undefined ? null : value };
