@@ -7,15 +7,19 @@ it. Nothing is ever submitted."""
 import json
 import os
 import time
+import urllib.error
+import urllib.request
 
 import pytest
 from fake_workday import STEPS, FakeWorkdayServer, Field
 from fakes import FakeClaude, RecordingBoard
+from test_dashboard import window  # noqa: F401 (a fixture)
 from test_employer_accounts import XCEL_FORM, XCEL_URL, World
 from test_rehearse import NeverSubmittingWorkday, adapters
 
 from apply import rehearsal, stuck
 from apply.claude_cli import run_claude
+from apply.dashboard import Dashboard, NoFrames
 from apply.fillers import FILLERS
 from apply.profile import ApplicantProfile
 
@@ -91,6 +95,86 @@ def test_resume_while_apply_waits_on_claude_keeps_his_answer_and_goes_on_from_th
     assert "you pressed Resume while Apply was " in line and "went on from the page as you left it" in line
     assert board.captions[0]["waiting"] is False
     assert server.submissions == []
+
+
+FILLING = {"company": "Visa", "role": "Intern", "posting_url": "https://visa.wd5.myworkdayjobs.com/x/job/1",
+           "job_system": "workday", "status": "filling"}
+
+
+class ErrorFrames(NoFrames):
+    def __init__(self, error: str):
+        self.error = error
+
+    def field_error(self, worker: int) -> str:
+        return self.error
+
+
+def tile(frames=None, **caption) -> dict:
+    with Dashboard(1, frames or NoFrames()) as board:
+        board.update(0, **FILLING)
+        board.update(0, **caption)
+        return board.state()["tiles"][0]
+
+
+def test_a_filling_tile_says_what_apply_is_doing_and_offers_no_resume_while_it_moves_on():
+    shown = tile(doing="Planning answers for 'Application Questions'", progress_at=time.time())
+
+    assert (shown["tone"], shown["label"]) == ("filling", "Filling")
+    assert shown["detail"] == shown["doing"] == "Planning answers for 'Application Questions'"
+    assert "resume" not in shown
+
+
+@pytest.mark.parametrize("caption, frames, says", [
+    ({"doing": "Researching Visa for an essay", "waiting": True, "progress_at": time.time()}, None, stuck.WAITING),
+    ({"doing": "Filling 'My Experience'", "progress_at": time.time() - stuck.STUCK_AFTER - 5}, None, "No progress for"),
+    ({"doing": "Filling 'My Experience'", "progress_at": time.time()}, ErrorFrames("Error-Degree is required"),
+     "The page shows an error: 'Error-Degree is required'"),
+])
+def test_a_filling_tile_offers_resume_when_apply_waits_is_stuck_or_the_page_shows_an_error(caption, frames, says):
+    shown = tile(frames, **caption)
+
+    assert shown["tone"] == "filling" and shown["detail"] == caption["doing"]
+    assert shown["resume"]["ok"] is True and shown["resume"]["why"].startswith(says)
+
+
+def test_resume_on_a_waiting_tile_goes_to_its_worker_once_and_a_moving_one_refuses_it():
+    with Dashboard(1, NoFrames()) as board:
+        board.update(0, **FILLING, doing="Researching Visa for an essay", waiting=True, progress_at=time.time())
+        reply = urllib.request.urlopen(urllib.request.Request(
+            board.url + "/resume", json.dumps({"id": "tile-0"}).encode(), {"X-Apply-Token": board.token}))
+        assert "Resuming" in json.loads(reply.read())["message"]
+        assert board.resumed(0) and not board.resumed(0)
+
+        board.update(0, waiting=False, progress_at=time.time())  # Apply moves on: no Resume to press
+        with pytest.raises(urllib.error.HTTPError) as moving:
+            urllib.request.urlopen(urllib.request.Request(
+                board.url + "/resume", json.dumps({"id": "tile-0"}).encode(), {"X-Apply-Token": board.token}))
+        assert moving.value.code == 404 and not board.resumed(0)
+
+
+def test_a_held_tile_offers_no_resume_however_long_it_waits_for_start():
+    shown = tile(stage="ready", progress_at=time.time() - 600)
+    assert "resume" not in shown
+
+
+@pytest.mark.parametrize("markup, said", [
+    # Workday's errorHeading, as Snap's tenant lists a refused step's errors (the engine's fake step).
+    ('<div data-automation-id="errorHeading"><ol><li><button><span>Error</span>-Degree: The field Degree is '
+     'required and must have a value.</button></li></ol></div>',
+     "Error-Degree: The field Degree is required and must have a value."),
+    ('<div data-automation-id="errorMessage" role="alert">Enter a valid phone number</div>', "Enter a valid phone number"),
+    # Greenhouse's job boards: the field's helper text turns red.
+    ('<label>First Name<input aria-invalid="true" aria-describedby="first_name-error"></label>'
+     '<p class="helper-text helper-text--error" id="first_name-error">First Name is required.</p>',
+     "First Name is required."),
+    ('<div class="application-question"><input><div class="error-message">Please enter a valid email</div></div>',
+     "Please enter a valid email"),
+    ('<div role="alert"></div><div class="error" hidden>Hidden</div><input aria-invalid="false">', ""),
+    ('<div id="apply-rehearsal-blocked" role="alert">Apply blocked a submit</div>', ""),  # Apply's own note
+])
+def test_the_field_error_check_reads_each_job_systems_error_and_nothing_else(window, markup, said):
+    window.set_content(f"<form>{markup}</form>")
+    assert stuck.field_error(window) == said
 
 
 def test_resume_kills_a_claude_call_apply_waits_on():
