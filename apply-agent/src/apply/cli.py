@@ -25,6 +25,7 @@ from apply import (
     essays,
     home,
     native_host,
+    on_page,
     orchestrator,
     own_application,
     rehearsal,
@@ -457,7 +458,9 @@ def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict
     Missing fact in its Tracker row's Answer cell, as if he typed it in the
     Sheet, so the next check fills that Application again with it; a
     rehearsal's into his Applicant profile, for every form after, or, for
-    what an essay asked him, into the Story bank, for every essay after."""
+    what an essay asked him, into the Story bank, for every essay after. A
+    bare date (From, To) is that form's alone: never saved by its label.
+    The same for his answer typed on the held form itself (Board.typed)."""
     def answer(item: dict, question: str, text: str) -> str:
         if item.get("status") == "missing fact" and item.get("application_id"):
             tracker().answer(item["application_id"], text)
@@ -465,6 +468,8 @@ def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict
         if question.startswith(essays.ASK):
             essays.remember_fact(question, text, item.get("company") or "", SystemClock().now().date())
             return "Saved to your Story bank: the essay is written with it next time."
+        if on_page.bare(question):  # a bare From or To: true of one section of this form only (KAN-595)
+            return "Kept on this form only: a bare date isn't saved to your facts without what it is for."
         tab.save_answered(question, text)
         return "Saved to your facts: every form that asks it gets this answer."
     return answer

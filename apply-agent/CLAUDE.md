@@ -509,6 +509,12 @@ error shapes, and a killed `claude -p`. Run it with `-k`; it opens Chromium.
   catch-all box is still always answered, and every other optional
   question too. Voleon's Ashby form showed why: its "Additional
   information" got a Micromouse paragraph that repeated a resume bullet.
+
+- An essay that the editor's passes leave over the most that its length
+  allows (`gates.length`: a stated sentence count, or its type's default
+  when the form states none) also gets one shorter rewrite (`essays.CUT`)
+  before the form is shown. If it is still over, it goes on the form, and
+  its failed check holds the Application (Bedrock's 132 words of 120).
 - The names gate (`gates.traced`) checks each run of capitalized words
   against the essay's sources: the drafting prompt (Story bank, Stock
   answers, Company material with the Company brief, the posting) and the
@@ -802,6 +808,53 @@ through `worker._Planned._missing` first.
 
 **Tests.** `test_claude_answers.py -k already_holds` and
 `test_dashboard.py -k says_where_it_sits` (opens Chromium).
+
+## Needs you on the page: Go to question, and answers typed there (KAN-600)
+
+`src/apply/on_page.py`. Lisul can answer a Missing fact or an Essay fact
+on the held form itself, not only in its Needs you card.
+
+- **Go to question.** Each question of a card whose form is still held open
+  in its Worker's browser (a rehearsal's, ended or paused:
+  `dashboard.on_form`) has a Go to question button. A form still filling
+  has none: Apply drives it. `POST /goto {id, question}` brings the
+  Worker's Chrome to the front (`site.show`). The window opens the form's
+  tile when the Worker has no window of its own. The request waits
+  (`GO_TO_WAIT`) for the held page's hold loop (`Board.wanted`): Playwright
+  answers only on the Worker's own thread. There `on_page.go_to` scrolls to
+  the field, focuses it and outlines it for `OUTLINE_S`.
+- The field is found in each frame of the page: by the job system's id or
+  name, else by its label (Lever's labels are divs). A Workday name is
+  `<step> / <panel> / <label>`: the nearest panel that names a part of it
+  wins. Apply's own note on the page is never a field. An Essay fact's
+  field is its essay's (`asking.for_essay` is its context line).
+- A field on another Workday step is not on the page. Apply says which step
+  holds it and moves nothing, so nothing filled is lost. Lisul goes there
+  with the form's own Back or Save and Continue.
+- **An answer typed on the page** (the bug this fixes: before, only an
+  answer from the card left Needs you; the hold loop never read the page).
+  `on_page.Watch` reads each waiting field on every turn of the hold loop
+  (`_Kept.hold(tend=...)`). What the field showed when the watch began is
+  Apply's, never his answer. A changed text field is his answer once he
+  leaves it (blur) and it rests `IDLE_S`, or rests `TYPING_S` with the
+  caret still in it. A pick (a list, a radio button, a box, a date) counts
+  once it rests `IDLE_S`. The value is the engine's read-back where the
+  engine fills that job system, else what the page shows.
+- Then `rehearsal._answered_on_page` saves it as a card's answer is saved
+  (`Board.typed`, then the window's `answer`: `cli._answering`), so it
+  joins the profile, or the Story bank for an Essay fact. All the Essay
+  facts of one essay are saved as one Story bank line. The card leaves
+  Needs you, the tile's counts and the note on the form change, and the
+  Record (its plan and read-back) is saved again (`_record_again`).
+- A bare date (From, To, Start date: `on_page.bare`, the engine's
+  `contextFree` when the pin has it) is never saved by its label, from the
+  card or the page. It stays that form's answer only (KAN-595).
+- Nothing is read off a page after Lisul pressed its Submit.
+
+**Tests.** `tests/test_on_page.py`: Go to question and a typed answer on the
+fake Greenhouse, Go to question on a paused fake Workday step, finding a
+field by its label and panel, the rest rules, and the window's `/goto` and
+`typed` (opens Chromium).
 
 ## The Accounts tab: Copy password and Open sign-in page (KAN-591)
 
