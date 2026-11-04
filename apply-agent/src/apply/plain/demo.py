@@ -132,16 +132,18 @@ def fill(target: str, kind: str | None = None) -> list[str]:
             workers.stop_all()
 
 
-def tile(target: str, seconds: float = 300, kind: str | None = None, show: Callable[[str], None] | None = None) -> list[str]:
+def tile(target: str, seconds: float = 300, kind: str | None = None, show: Callable[[str], None] | None = None,
+         workers: PlainWorkers | None = None) -> list[str]:
     """A saved form in a plain Worker, live in an Apply window tile (PortFrames) while the engine
     fills it as Test Person, then `seconds` for Lisul to click and type in it from the tile.
     `show(url)` opens the window (default: print its address). Never submits: the saved form's
-    server refuses every POST."""
+    server refuses every POST. Given `workers` (a test's), it uses their Worker 1 and leaves it running."""
     from apply.dashboard import Dashboard
     from apply.plain.tile import PortFrames
 
     folder = _saved(target)
-    workers = PlainWorkers(kind=kind)
+    own = workers is None
+    workers = workers or PlainWorkers(kind=kind)
     with replay(folder) as (url, real_url):
         try:
             running = workers.launch(0)
@@ -156,7 +158,8 @@ def tile(target: str, seconds: float = 300, kind: str | None = None, show: Calla
                 time.sleep(seconds)
                 return lines
         finally:
-            workers.stop_all()
+            if own:
+                workers.stop_all()
 
 
 def _filled(page, target: str, url: str, real_url: str) -> list[str]:

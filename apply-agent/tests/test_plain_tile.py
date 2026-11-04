@@ -4,7 +4,6 @@ test_dashboard. Fake forms only. Skips without Chrome for Testing (CI)."""
 
 import base64
 import http.server
-import subprocess
 import tempfile
 import threading
 import time
@@ -17,7 +16,7 @@ from playwright.sync_api import sync_playwright
 from apply.dashboard import Dashboard, jpeg_size
 from apply.plain import demo
 from apply.plain.bridge import Bridge, PortTimeoutError
-from apply.plain.launcher import FLAGS, WINDOW, PlainWorkers, chrome_for_testing
+from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
 from apply.plain.tile import PortFrames
 
@@ -71,11 +70,18 @@ def site():
 
 
 @pytest.fixture(scope="module")
-def worker():
+def workers():
+    """One plain Worker for every test here, started in the background (never in front), stopped after."""
     folder = Path(tempfile.mkdtemp(prefix="apw-tile-", dir="/tmp"))
     workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "t.sock"))  # its own socket
-    yield workers.launch(0)
+    workers.launch(0)
+    yield workers
     workers.stop_all()
+
+
+@pytest.fixture(scope="module")
+def worker(workers):
+    return workers.launch(0)
 
 
 @pytest.fixture
@@ -131,25 +137,18 @@ def pixel(window, jpeg: bytes, x: int, y: int) -> list[int]:
     }""", [base64.b64encode(jpeg).decode(), x, y])
 
 
-def test_a_covered_workers_tile_gets_live_frames_of_its_page(page, frames, site, tmp_path, window):
+def test_a_covered_workers_tile_gets_live_frames_of_its_page(page, frames, site, window):
+    # The Worker started with `open -g`: behind Lisul's front app, never activated, so its window is covered.
     page.goto(f"{site}/colour")
     first, seen = frames.wait(0, 0, 15)
-    # Cover the Worker's window with another Chrome's, the same size, in front (its own PID, stopped below).
-    cover = subprocess.Popen([str(chrome_for_testing()), f"--user-data-dir={tmp_path / 'cover'}", *FLAGS,
-                              "--window-position=40,40", f"--window-size={WINDOW[0] + 200},{WINDOW[1] + 200}",
-                              "data:text/html,<body style='background:black'>cover"],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-    try:
-        time.sleep(3)
-        page.evaluate("() => { document.body.style.background = 'rgb(30, 30, 220)'; document.getElementById('h').textContent = 'Step 2' }")
-        later, moved = frames.wait(0, seen, 10)
-        # Frames come only when the picture changed: nothing new on an unchanged page.
-        time.sleep(1.5)
-        _, still = frames.wait(0, moved, 0)
-    finally:
-        cover.terminate()
-        cover.wait(10)
+    behind = page.evaluate("() => [document.hasFocus(), document.visibilityState]")
+    page.evaluate("() => { document.body.style.background = 'rgb(30, 30, 220)'; document.getElementById('h').textContent = 'Step 2' }")
+    later, moved = frames.wait(0, seen, 10)
+    # Frames come only when the picture changed: nothing new on an unchanged page.
+    time.sleep(1.5)
+    _, still = frames.wait(0, moved, 0)
 
+    assert behind == [False, "visible"]  # not the front window, still painting
     assert first.startswith(b"\xff\xd8") and moved > seen and later != first
     width, height = jpeg_size(later)
     assert width <= 1280 and height <= 800 and abs(width - page.viewport_size["width"]) <= 1  # CSS size, not Retina
@@ -283,8 +282,7 @@ def test_screenshots_still_work_while_the_tile_streams(page, frames, site):
     assert all(s.startswith(b"\xff\xd8") for s in shots)
 
 
-def test_the_tile_demo_streams_the_saved_form_it_fills(monkeypatch):
-    monkeypatch.setenv("APPLY_PROFILES", tempfile.mkdtemp(prefix="apw-tile-demo-", dir="/tmp"))
+def test_the_tile_demo_streams_the_saved_form_it_fills(workers):
     seen = []
 
     def show(url):
@@ -300,6 +298,6 @@ def test_the_tile_demo_streams_the_saved_form_it_fills(monkeypatch):
                 time.sleep(0.3)
         threading.Thread(target=look, daemon=True).start()
 
-    lines = demo.tile("lever-immuta", seconds=2, kind="testing", show=show)
+    lines = demo.tile("lever-immuta", seconds=2, show=show, workers=workers)
 
     assert "Nothing was sent" in lines[0] and seen
