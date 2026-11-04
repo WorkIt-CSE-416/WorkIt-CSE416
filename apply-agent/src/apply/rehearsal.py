@@ -164,7 +164,7 @@ def rehearse(
         release.set()
     finished: queue.Queue[Rehearsed] = queue.Queue()
     calibration = _Calibration(adapters, profile)
-    accounts = _Accounts(adapters, profile)
+    accounts = _Accounts(adapters, profile, submitted_to or adapters.tracker)
 
     writing = threading.Lock()
     waiting = [len(urls)]  # links not started yet: the window's "queued"
@@ -597,11 +597,13 @@ def _summary(posting: Posting, result: Result, site: "_Kept", tokens: int, secon
 
 class _Accounts:
     """Each rehearsed link's Accounts, as a run's: Lisul's Keychain and Gmail,
-    a new Employer account listed in the Tracker, and a failed password
-    sign-in never tried again by another link."""
+    a new Employer account listed in `listed_to` (the Tracker that keeps what
+    Lisul submits: a live rehearsal's own is a throwaway, but the account is
+    real), and a failed password sign-in never tried again by another link."""
 
-    def __init__(self, adapters: Adapters, profile: ApplicantProfile):
+    def __init__(self, adapters: Adapters, profile: ApplicantProfile, listed_to: Tracker):
         self._adapters = adapters
+        self._listed_to = listed_to
         self._login = profile.get("identity.email")
         self._failed: set[str] = set()
         self._writing = threading.Lock()
@@ -613,7 +615,7 @@ class _Accounts:
 
     def _add(self, account) -> None:
         with self._writing:
-            self._adapters.tracker.add_employer_account(account)
+            self._listed_to.add_employer_account(account)
 
 
 class _Calibration:

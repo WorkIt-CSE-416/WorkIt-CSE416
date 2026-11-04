@@ -74,6 +74,15 @@ def test_a_forgotten_password_is_gone_and_forgetting_none_is_fine(keychain):
     assert keychain.password("other.wd1.myworkdayjobs.com") == "Different#9"
 
 
+def test_sites_names_each_site_with_a_password_and_never_a_password(keychain):
+    keychain.save("acme.wd5.myworkdayjobs.com", "Pa55-word!")
+    keychain.save("other.wd1.myworkdayjobs.com", "Different#9")
+    keychain.forget("other.wd1.myworkdayjobs.com")
+    keychain.save("third.wd3.myworkdayjobs.com", "Third-3!x")
+
+    assert sorted(keychain.sites()) == ["acme.wd5.myworkdayjobs.com", "third.wd3.myworkdayjobs.com"]
+
+
 class FakeSecurity:
     """The `security` CLI, recording each call: its argv and what it got on stdin."""
 

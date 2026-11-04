@@ -121,6 +121,7 @@ export async function loadExtension(
     profile: kept = undefined as string | undefined,
     args = [] as string[],
     grantHosts = [] as string[],
+    grantPermissions = [] as string[],
     closedPanel = false,
     live = false,
     welcome = false,
@@ -131,7 +132,8 @@ export async function loadExtension(
   // closed one); `closedPanel` keeps the student's closed roots, for the tests of what the page can reach.
   // `welcome`: the install opens onboarding's extension step (install.js), as for a student; off, every other test's tabs are its own.
   // `version`: the manifest's version in the copy, so a second start on a kept `profile` is an update to Chrome.
-  const copy = testCopy(grantHosts, !closedPanel, welcome, version);
+  // `grantPermissions`: optional permissions the student granted on the options page (a test can't press Chrome's prompt).
+  const copy = testCopy(grantHosts, !closedPanel, welcome, version, grantPermissions);
   const net = await startFakeNet(handlers, copy, live);
   // `profile`: a Chromium profile folder to start (again) with, which the caller keeps; else a new one, removed on close.
   const profile = kept ?? mkdtempSync(join(tmpdir(), "workit-extension-"));
@@ -193,11 +195,12 @@ function noWelcome(source: string): string {
  * which a test can't press, and with no onboarding tab on install unless
  * `welcome`. Same key, so the same extension id.
  */
-function testCopy(hosts: string[], open: boolean, welcome: boolean, version?: string): string {
+function testCopy(hosts: string[], open: boolean, welcome: boolean, version?: string, permissions: string[] = []): string {
   const dir = mkdtempSync(join(tmpdir(), "workit-extension-copy-"));
   for (const part of ["src", "icons", "fonts", "fill-engine/dist"]) cpSync(join(EXTENSION, part), join(dir, part), { recursive: true });
   const manifest = JSON.parse(readFileSync(join(EXTENSION, "manifest.json"), "utf8"));
   manifest.host_permissions.push(...hosts);
+  manifest.permissions.push(...permissions);
   if (version) manifest.version = version;
   writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest));
   if (open) for (const file of CLOSED_ROOT_FILES) writeFileSync(join(dir, file), openPanel(readFileSync(join(dir, file), "utf8"), file));

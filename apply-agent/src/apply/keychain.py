@@ -3,6 +3,7 @@ macOS login Keychain, one generic-password item per site, which he can see in
 Keychain Access. Never in the Tracker, the repo or a log."""
 
 import hmac
+import re
 import subprocess
 import threading
 from collections.abc import Callable
@@ -19,6 +20,8 @@ PHONE_PUSH = "apply-ntfy"
 PHONE_PUSH_HOST = "ntfy.sh"
 # `security find-generic-password` exits with this when there is no such item.
 NOT_FOUND = 44
+# One attribute line of `security dump-keychain` (no -d, so it prints no secret).
+ATTRIBUTE = re.compile(r'^\s*"(svce|acct)"<blob>="(.*)"$')
 
 
 def _quoted(word: str) -> str:
@@ -61,6 +64,21 @@ class MacKeychain:
         if not hmac.compare_digest((self.password(site) or "").encode(), password.encode()):
             raise RuntimeError(f"security add-generic-password did not keep the password for {site}")
 
+    def sites(self) -> list[str]:
+        """Each site with a password under this service, read from `security
+        dump-keychain` without -d: item attributes only, never a password, and
+        no Keychain prompt."""
+        dumped = self._run(["security", "dump-keychain", *self._keychain], capture_output=True, text=True, check=True)
+        found, item = [], {}
+        for line in dumped.stdout.splitlines() + ["keychain: end"]:
+            if line.startswith("keychain:"):
+                if item.get("svce") == self._service and item.get("acct"):
+                    found.append(item["acct"])
+                item = {}
+            elif attribute := ATTRIBUTE.match(line):
+                item[attribute[1]] = attribute[2]
+        return found
+
     def forget(self, site: str) -> None:
         found = self._run(
             ["security", "delete-generic-password", "-s", self._service, "-a", site, *self._keychain],
@@ -84,6 +102,10 @@ class InMemoryKeychain:
     def save(self, site: str, password: str) -> None:
         with self._lock:
             self._passwords[site] = password
+
+    def sites(self) -> list[str]:
+        with self._lock:
+            return list(self._passwords)
 
     def forget(self, site: str) -> None:
         with self._lock:

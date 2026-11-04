@@ -175,6 +175,10 @@ class Keychain(Protocol):
         """Remove the site's password, if it has one."""
         ...
 
+    def sites(self) -> list[str]:
+        """Each site with a password, never a password."""
+        ...
+
 
 @dataclass(frozen=True)
 class UsageReading:

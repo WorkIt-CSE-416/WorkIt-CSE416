@@ -6,6 +6,7 @@
 // convenience layer. There's no session to own anymore (auth.js's own
 // comment explains why) — just the cache.
 
+import { applyAccount } from "./apply-accounts.js";
 import { getSession, watchSessionCookie } from "./auth.js";
 import {
   answerBank, answerFlag, anyFormAnswerBank, dropOwnAnswer, getAutofillProfile, warmProfile, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
@@ -180,8 +181,20 @@ async function handleMessage(message, sender) {
       const job = jobOf(sender.url);
       if (job?.site !== "workday") throw new Error("Not a Workday page");
       await rememberWorkdayTab(sender.tab.id);
+      // A tenant Apply made an account at (KAN-592) comes first: its password is in Keychain, not here, so
+      // the student's sign-up password is never typed there, and Create Account is never pressed.
+      const apply = await applyAccount(job.tenant, "known");
+      if (apply.login) return { apply: true, company: apply.company, email: apply.login, password: null };
       const profile = await getAutofillProfile();
       return workdayLogin(job.tenant, profile.email, { create: Boolean(message.create) });
+    }
+
+    // The student pressed Sign In with Your Apply Account (workday.js): that tab's tenant's login from
+    // Apply's host, for that tab's content script alone. The tenant is the sender's page's, never the message's.
+    case "workday/apply-login": {
+      const job = jobOf(sender.url);
+      if (job?.site !== "workday") throw new Error("Not a Workday page");
+      return applyAccount(job.tenant, "login");
     }
 
     // The student allowed, once, the extension to make and sign in to their

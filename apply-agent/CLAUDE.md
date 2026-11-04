@@ -701,6 +701,40 @@ Claude stops at one (`SAYS_CAPTCHA`).
   phrase in quotes in the search stays escaped. Gmail can send a mail's
   INTERNALDATE before or after its body; `gmail._arrived` reads both.
 
+## Employer account passwords in Chrome (KAN-592)
+
+Lisul's Employer account passwords reach Chrome's password manager only
+through the WorkIt extension in his own Chrome. Never through a Worker.
+
+- **Why not the Worker:** Playwright starts every Worker's Chrome with
+  `--use-mock-keychain --password-store=basic --disable-sync`. With the mock
+  keychain, Chrome encrypts saved passwords with the public constant
+  `mock_password` (Chromium's `crypto/apple/fake_keychain_v2.mm`), and
+  `--disable-sync` keeps them off Google's account. Chrome also saves a new
+  password only when the user presses Save in its bubble: a typed and sent
+  form gives "Decision: ASK the user", and `navigator.credentials.store`
+  calls `PromptUserToSaveOrUpdatePassword` (`credential_manager_impl.cc`).
+  No policy saves without that press (`PasswordManagerEnabled` only allows
+  the offer). So Worker profiles keep `_no_saved_passwords`, and a copy of a
+  profile leaves `Login Data*` out. Do not change that. Never write a
+  `Login Data` database.
+- **The Apply accounts host** (`native_host.py`, `apply chrome-passwords`):
+  a native messaging host (`com.workit.apply_accounts`) in everyday
+  Chrome's `NativeMessagingHosts`. Its manifest names only the WorkIt
+  extension's ID (`EXTENSION_ID`, pinned to manifest.json's `key` by a
+  test), and the host checks the caller's origin again. One request names
+  one tenant. It answers only for a tenant in the Tracker's Employer
+  accounts list, with a Keychain password, whose sign-in has not failed.
+  `want: "known"` gives the company and login, `want: "login"` adds the
+  password. The password goes only to stdout, to Chrome. Its log
+  (`apply-accounts-host.log`) names the tenant and the time.
+- A rehearsal lists each account it makes in the kept Tracker (the one that
+  keeps what Lisul submits), not its throwaway one. `apply
+  chrome-passwords` lists the Keychain items that the Tracker lacks
+  (`native_host.adopt`, from `Keychain.sites`, which reads no password).
+- `apply doctor` warns when the host is missing or its wrapper is gone,
+  never a fail.
+
 ## The Apply window
 
 - The status line counts a link as "queued" only until a Worker starts it.

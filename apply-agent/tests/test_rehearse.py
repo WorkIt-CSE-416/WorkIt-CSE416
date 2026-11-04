@@ -294,6 +294,23 @@ def test_a_workday_rehearsal_makes_an_employer_account_reads_its_link_from_gmail
     assert server.submissions == []
 
 
+def test_a_live_rehearsals_new_employer_account_is_listed_in_the_kept_tracker(monkeypatch):
+    # A live rehearsal's own Tracker is a throwaway (no rows for rehearsed links), but the account it
+    # made is real: it is listed where Applications Lisul submits are kept, the Employer accounts list
+    # that `apply accounts` and the WorkIt extension's Apply sign-in read (KAN-592).
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    world, throwaway, kept = World(), InMemoryTracker(), InMemoryTracker()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, verify_email=(CACI,)) as server:
+        rehearsal.rehearse([CACI_URL], adapters(server, None, keychain=world.keychain, mailbox=world.mailbox,
+                                                 tracker=throwaway),
+                           ApplicantProfile.load(world.profile), 1, keep_open=False, out=lambda line: None,
+                           submitted_to=kept)
+
+    assert [a.site for a in kept.employer_accounts()] == [CACI]
+    assert throwaway.employer_accounts() == []
+
+
 def test_a_workday_rehearsal_whose_link_gmail_cannot_read_needs_sign_in_saying_so(monkeypatch, tmp_path):
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
     keychain, mailbox = InMemoryKeychain(), FakeMailbox(set_up=False)

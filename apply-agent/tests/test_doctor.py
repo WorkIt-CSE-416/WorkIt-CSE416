@@ -10,11 +10,12 @@ import plistlib
 import subprocess
 from dataclasses import replace
 from datetime import datetime
+from pathlib import Path
 
 from fake_workit import FakeWorkIt
 from fakes import FakeMailbox, ScriptedUsage
 
-from apply import doctor, workit
+from apply import doctor, native_host, workit
 from apply.adapters import UsageReading
 from apply.model import Status
 from apply.orchestrator import SUBMITTING
@@ -110,12 +111,19 @@ def bundle_and_chromium(tmp_path):
     return {"engine": tmp_path / "engine.js", "playwright": tmp_path / "ms-playwright"}
 
 
+def hosts(folder):
+    """Chrome's NativeMessagingHosts folder with the Apply accounts host installed."""
+    native_host.install(folder / "NativeMessagingHosts", "/venv/bin/python", folder / "apply")
+    return folder / "NativeMessagingHosts"
+
+
 def machine(tmp_path, **overrides) -> doctor.Machine:
     """A machine where every check passes, but for `overrides`."""
     return replace(doctor.Machine(profile=profile(tmp_path), chrome=chrome(tmp_path), claude=claude_status(),
                                    profiles=signed_in(tmp_path, "every-check-passes"),
                                    mailbox=lambda address: FakeMailbox(), tracker=InMemoryTracker,
                                    records=records(tmp_path / "every-check-passes"),
+                                   native_hosts=hosts(tmp_path / "every-check-passes"),
                                    **bundle_and_chromium(tmp_path / "every-check-passes")),
                    **overrides)
 
@@ -585,3 +593,21 @@ def test_a_new_data_folder_has_an_empty_tracker(tmp_path):
 
     found = check(machine(tmp_path, tracker=lambda: FileTracker(tmp_path / "tracker.json")), "Tracker")
     assert found == doctor.Check("Tracker", doctor.OK, "0 Applications")
+
+
+def test_the_apply_accounts_host_installed_for_the_workit_extension_is_ok(tmp_path):
+    assert check(machine(tmp_path), "Apply accounts host").level == doctor.OK
+
+
+def test_no_apply_accounts_host_only_warns_with_how_to_install_it(tmp_path):
+    found = check(machine(tmp_path, native_hosts=tmp_path / "none"), "Apply accounts host")
+
+    assert found.level == doctor.WARN and "apply chrome-passwords" in found.fix
+
+
+def test_an_apply_accounts_host_whose_wrapper_is_gone_warns(tmp_path):
+    m = machine(tmp_path)
+    wrapper = Path(json.loads((m.native_hosts / "com.workit.apply_accounts.json").read_text())["path"])
+    wrapper.unlink()
+
+    assert check(m, "Apply accounts host").level == doctor.WARN
