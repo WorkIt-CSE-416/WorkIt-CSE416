@@ -1,6 +1,6 @@
 // S1 ops: ping, the Worker's tabs, and page code (eval).
 
-import { named, target, userScriptsOn } from "./shared.js";
+import { named, target, untilNavigated, userScriptsOn } from "./shared.js";
 
 function tabInfo(tab) {
   return { tab: tab.id, url: tab.url || tab.pendingUrl || "", title: tab.title || "", status: tab.status, active: tab.active, window: tab.windowId };
@@ -12,12 +12,12 @@ function tabInfo(tab) {
 // indirect eval in MAIN, which works only where the page's CSP allows eval.
 async function evaluate(params) {
   if (userScriptsOn()) {
-    const [result] = await chrome.userScripts.execute({ target: target(params), world: "MAIN", js: [{ code: params.code }], injectImmediately: true });
+    const [result] = await untilNavigated(params, chrome.userScripts.execute({ target: target(params), world: "MAIN", js: [{ code: params.code }], injectImmediately: true }));
     if (!result) throw named("NoFrame", `no frame ${params.frame ?? 0} in tab ${params.tab}`);
     if (result.error) throw named("EvalError", result.error);
     return result.result;
   }
-  const [result] = await chrome.scripting.executeScript({
+  const [result] = await untilNavigated(params, chrome.scripting.executeScript({
     target: target(params),
     world: "MAIN",
     injectImmediately: true,
@@ -29,7 +29,7 @@ async function evaluate(params) {
       }
     },
     args: [params.code],
-  });
+  }));
   if (!result) throw named("NoFrame", `no frame ${params.frame ?? 0} in tab ${params.tab}`);
   return result.result;
 }
