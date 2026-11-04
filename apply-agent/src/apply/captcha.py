@@ -65,7 +65,7 @@ def shows(page: Page) -> bool:
 
 def blocks(page: Page) -> str:
     """The words of a bot block that the page or one of its frames shows, else ""."""
-    for frame in page.frames:
+    for frame in getattr(page, "frames", ()):  # a test's stand-in page has none
         try:
             if found := BLOCK.search(frame.locator("body").inner_text(timeout=1000)):
                 return found[0]
