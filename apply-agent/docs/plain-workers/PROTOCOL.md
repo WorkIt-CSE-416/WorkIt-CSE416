@@ -145,6 +145,39 @@ Events (S2 sends these; later slices add their own):
 `{"event": "tab.created", "tab", "opener"}`, `{"event": "tab.removed", "tab"}`,
 `{"event": "navigated", "tab", "frame", "url"}` (committed).
 
+## Ops (S4: the submit and drive guards)
+
+`worker-extension/ops/guard.js`, called by `apply.plain.guards` (which `apply.submit_guard`'s
+`guard`, `lift`, `rearm`, `renote` and `DriveGuard` hand a PortPage to) and by PortPage's
+`add_init_script`, `expose_binding` and `route`. A guard file is one of `vendor/guards/*.js`,
+written by `apply plain prepare` from `submit_guard`'s own scripts; an op that takes one refuses
+it (`Crash`, "run `uv run apply plain prepare`") unless its sha256 is the `sha256` Apply sends.
+A fresh service worker starts with no content scripts, rules or user scripts.
+
+| Op | Params | Value |
+|---|---|---|
+| `guard.script` | `id`, and `file` + `sha256` (a guard file), or `code` | `{"file"}` / `{"code": true}`; registers the file as a MAIN-world content script at `document_start` in every frame (`matchOriginAsFallback`, not persisted), or the code through `chrome.userScripts` (`UserScriptsOff` when Allow User Scripts is off). Also registers `page/relay.js` |
+| `guard.inject` | `tab`, `file`, `sha256` | `null`; runs a guard file in every frame of the tab now |
+| `guard.route` | `key`, `tab` (null: every tab), `regexes`, `caseSensitive` | `{"rules": n}`; one declarativeNetRequest session rule per regex blocking a non-GET (`excludedRequestMethods: get, head, options`) of every resource type, main_frame included, on `tabIds` = the tab, the tabs it opens later, and -1 (service and shared workers). Each regex must pass `isRegexSupported` (RE2, 2 KB compiled) |
+| `guard.unroute` | `key` | `null` |
+| `guard.bind` | `tab` (null: every tab), `name` | `null`; `window[name](...args)` in MAIN, in every frame now and in each document the tab loads, sends a `binding` event |
+| `guard.lift` | `tab`, `again`, `warning`, `wrong`, `sha256` (of `lifted.js`) | `null`; `submit_guard.LIFTED` with those values in every frame now and in each document the tab (and a tab it opens) loads, until `guard.rearm` |
+| `guard.rearm` | `tab`, `sha256` (of `rearmed.js`) | `null`; stops lifting the tab and runs `submit_guard.REARMED` in its frames |
+| `guard.flags` | `tab`, `set` (`{"__applyDriveLifted"|"__applyAccountClick"|"__applyRehearsalLifted": bool}`) | `null`; in every frame (DriveGuard's `lift`, `arm`, `let_account_click`) |
+| `guard.touch` | `tab`, `frame?`, `by` (`lisul`/`apply`) | `null`; dispatches `__apply_touch` in the frame, which the guard counts as a touch; `by: "lisul"` also sends `guard.touched`. S3's tile replay calls the exported `touch()` before each press of Lisul's |
+| `guard.sync` | `tab`, `timeout?` ms | `null` once every frame's earlier `guard.said` messages have reached the service worker |
+| `guard.status` | `tab?` | `{"scripts": [ids], "rules": n, "lifted": bool}` |
+| `guard.reset` | | `null`; no guard left: every content script, rule, user script, lift and binding goes (`apply.plain.guards.reset(worker)`, for a Worker reused for another Application; a fresh service worker starts so) |
+
+Events: `{"event": "guard.said", "tab", "frame", "text"}` (a guard's "Apply rehearsal blocked ..."
+/ "Apply drive guard blocked ...", its console line under CDP), `{"event": "binding", "tab",
+"frame", "name", "args"}`, `{"event": "guard.touched", "tab", "frame", "by"}`.
+
+Page channel: the MAIN world and `page/relay.js` (the isolated world) talk through `CustomEvent`s
+with string `detail` on the document (`__apply_said`, `__apply_call`); the extension's touch is
+`__apply_touch` on window. `page/dom.js` dispatches `__apply_touch` (`by: apply`) before each
+`click`, `type`, `press`, `keys` and `check`, as Playwright's trusted input counted as a touch.
+
 ## Adding ops in later slices (S3 to S7)
 
 - **Extension:** put each slice's ops in its own file, `worker-extension/ops/<slice>.js`,
@@ -183,8 +216,12 @@ and defaults (timeouts in ms, default 30000). Covered in S2:
   `wait_for(state=, timeout=)`, `evaluate(fn, arg)`, `evaluate_all(fn, arg)`,
   `aria_snapshot()`, `page`.
 - **PortFrame:** `url`, `name`, the same locator, `evaluate` and action methods, run in that frame.
-- **Not yet (a later slice adds it, in this module):** `add_init_script`, `expose_binding`,
-  `route`/`unroute` (S4); `full_page=True` stitching (S5); `expect_file_chooser`,
+- **S4:** `add_init_script(script=, path=)` (PortPage's and PortContext's: every page from now),
+  `expose_binding(name, callback)` / `expose_function` (PortPage's: that tab; PortContext's: every
+  tab; the callback runs on its own thread with `source = {context, page, frame}`), and
+  `route(regex, submit_guard._refuse)` / `unroute` (declarativeNetRequest: blocks non-GETs; a glob
+  or another handler raises `NotImplementedError`, since no Python handler can run).
+- **Not yet (a later slice adds it, in this module):** `full_page=True` stitching (S5); `expect_file_chooser`,
   `mouse` (S3); `add_locator_handler` (S7); frame locators across frames
   (`frame_locator`, `content_frame`) (S5/S7). Each raises `NotImplementedError` naming the slice.
 
@@ -238,6 +275,13 @@ connection), `open(url, worker)`, `stop(worker)` / `stop_all()` (by PID only),
 - **A stored extension service worker survives restarts**, so the launcher deletes the profile's
   `Default/Service Worker` folder before each start (an updated extension would run old code).
 - `--load-extension` works only in Chrome for Testing; branded Chrome needs the seed (`apply plain seed`).
+
+- **Guards (S4).** A rule can't fulfill or modify a request, only block it, so `route` takes only
+  `submit_guard._refuse`. Rules are tab-scoped; a tab a guarded tab opens joins its rules a moment
+  after `tabs.onCreated` (its page's guard script, registered for every tab, covers that moment).
+  Lever's 36-character posting id is `[0-9a-f-]+` in its rule (RE2's memory cap); only more is
+  blocked. A lifted tab's note and bindings go in at each commit, a moment after the page's first
+  script; the guard reads its lifted flag only when something is pressed.
 
 ## Demos
 
