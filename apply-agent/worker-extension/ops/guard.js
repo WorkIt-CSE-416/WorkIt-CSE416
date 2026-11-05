@@ -12,15 +12,19 @@
 // - What a guard blocked comes up as `guard.said` (its `__apply_said`), since no console reaches
 //   Apply; a press the extension makes (Apply's own, Lisul's from the tile) is a `__apply_touch`
 //   the guard counts, as it counts a trusted click.
+// - `extension.reload` (KAN-657): a reload drops the registered scripts, the session rules and this
+//   file's memory on a form's open tab. keepAcrossReload writes them down first and the code that
+//   starts next puts them back, so a guarded page stays guarded and a held Submit stays held.
 
-import { named, userScriptsOn, vendor } from "./shared.js";
+import { named, useVendor, userScriptsOn, vendor, vendorSet } from "./shared.js";
 
 const RESOURCE_TYPES = ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest",
   "ping", "csp_report", "media", "websocket", "webtransport", "webbundle", "other"];
 const RELAY = "apply-relay";
 const NO_TAB = -1; // chrome.tabs.TAB_ID_NONE: a service or shared worker's request
 
-let ctxRef = null; // the background's ctx, for events: every op passes it
+let ctxRef = null; // the background's ctx, for events
+export const useCtx = (ctx) => { ctxRef = ctx; }; // from its start: what a page blocks after a reload comes before any op
 const routes = new Map(); // key -> {tab, regexes, caseSensitive, ids, tabs: Set}
 const lifted = new Map(); // tab -> the note's {again, warning, wrong, held}
 const applied = new Map(); // tab -> the day of the "You already applied" note (KAN-621) it shows
@@ -44,7 +48,45 @@ async function reset() {
   bindings.clear();
   return null;
 }
-const ready = reset();
+const ready = reset().then(restore);
+
+// What a reload would drop, written down just before it, and put back by the code that starts next.
+const KEPT = "guardsAcrossReload";
+const KEPT_FOR_MS = 60000; // a note older than this is from another run of Chrome, not this reload
+
+export async function keepAcrossReload() {
+  await ready;
+  const kept = {
+    at: Date.now(), vendor: vendorSet(),
+    scripts: await chrome.scripting.getRegisteredContentScripts(),
+    userScripts: userScriptsOn() ? await chrome.userScripts.getScripts() : [],
+    routes: [...routes].map(([key, r]) => [key, { tab: r.tab, regexes: r.regexes, caseSensitive: r.caseSensitive, tabs: r.tabs && [...r.tabs] }]),
+    lifted: [...lifted], applied: [...applied], bindings: [...bindings].map(([where, names]) => [where, [...names]]),
+  };
+  await chrome.storage.local.set({ [KEPT]: kept });
+}
+
+async function restore() {
+  const kept = (await chrome.storage.local.get(KEPT))[KEPT];
+  if (!kept) return;
+  await chrome.storage.local.remove(KEPT);
+  if (Date.now() - kept.at > KEPT_FOR_MS) return;
+  useVendor(kept.vendor);
+  for (const [where, names] of kept.bindings) bindings.set(where, new Set(names));
+  for (const [tab, note] of kept.lifted) lifted.set(tab, note);
+  for (const [tab, day] of kept.applied) applied.set(tab, day);
+  for (const [key, r] of kept.routes) {
+    const entry = { ...r, ids: r.regexes.map(() => nextRule++), tabs: r.tabs && new Set(r.tabs) };
+    routes.set(key, entry);
+    await putRules(entry, []);
+  }
+  if (kept.scripts.length) await chrome.scripting.registerContentScripts(kept.scripts);
+  if (kept.userScripts.length && userScriptsOn()) await chrome.userScripts.register(kept.userScripts);
+  // The open documents kept their page guards, but their relay died with the old code.
+  if (kept.scripts.some((s) => s.id === RELAY)) {
+    for (const t of await chrome.tabs.query({})) await inFrames(t.id, "ISOLATED", { files: ["page/relay.js"] }).catch(() => {});
+  }
+}
 
 async function sha256(file) {
   const bytes = await (await fetch(chrome.runtime.getURL(file))).arrayBuffer();

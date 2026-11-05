@@ -1,5 +1,6 @@
 // S1 ops: ping, the Worker's tabs, and page code (eval).
 
+import { keepAcrossReload } from "./guard.js";
 import { named, target, untilNavigated, useVendor, userScriptsOn } from "./shared.js";
 
 function tabInfo(tab) {
@@ -65,8 +66,10 @@ export const ops = {
   "vendor.use": async ({ root }) => ({ root: useVendor(root) }),
   // Load this extension's files again from its folder (newer code after a checkout), as its
   // reload button does: web tabs, their pages and cookies stay; this port closes and the new
-  // code says hello again. Answers first, then reloads.
+  // code says hello again. The guards come back with it (guard.js: keepAcrossReload). Answers
+  // first, then reloads.
   "extension.reload": async () => {
+    await keepAcrossReload();
     setTimeout(() => chrome.runtime.reload(), 100);
     return null;
   },

@@ -9,6 +9,7 @@
 // The protocol is apply-agent/docs/plain-workers/PROTOCOL.md. Ops live in
 // ops/*.js, one file per slice, joined in ops/index.js.
 
+import { useCtx } from "./ops/guard.js";
 import { ops } from "./ops/index.js";
 import { useVendor, userScriptsOn } from "./ops/shared.js";
 
@@ -38,6 +39,7 @@ const ctx = {
     if (welcomed) send({ type: "event", event, ...fields });
   },
 };
+useCtx(ctx);
 
 async function hello() {
   const engine = await fetch(chrome.runtime.getURL("vendor/engine.json"))

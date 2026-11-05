@@ -1420,6 +1420,10 @@ differs from its Apply's crashed the page guard. So:
   welcome names this Apply's set (`vendor`); the extension reads every generated file from it
   (`ops/shared.js: vendor`). A set is never changed, so Workers of another Apply on the same
   folder keep theirs. Sets unused for 7 days go.
+- A reload keeps the guards (KAN-657). `extension.reload`, by `bridge.reload` or at hello, writes the
+  registered scripts, session rules, lifts, held notes and bindings to `chrome.storage.local` first, and the
+  code that starts next puts them back and a new relay in each open document. A held page's Submit stays
+  blocked. A document that loads in the moment between the two has only what Chrome keeps: none of it.
 - An older Worker on a shared folder: the bridge reloads it at hello when it can (KAN-643),
   before any engine check. If it still reads no sets and its guard files are another Apply's,
   `launch` stops it with `launcher.OutOfDate` (a SetupError: the rehearsal's line says how to fix
