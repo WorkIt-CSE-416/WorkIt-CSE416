@@ -69,6 +69,20 @@ def chrome_for_testing() -> Path:
     return found[-1]
 
 
+def developer_mode(profile: Path) -> bool:
+    """Whether a Worker profile's Chrome has Developer mode on (the seed's first step). Only then
+    does chrome.runtime.reload() bring an unpacked extension back; without it Chrome disables it
+    (`unsupportedDeveloperExtension`, Chrome for Testing 156)."""
+    for name in ("Secure Preferences", "Preferences"):
+        try:
+            prefs = json.loads((profile / "Default" / name).read_text())
+        except (OSError, ValueError):
+            continue
+        if prefs.get("extensions", {}).get("ui", {}).get("developer_mode") is True:
+            return True
+    return False
+
+
 def chrome_kind() -> str:
     """"testing" or "chrome": $APPLY_PLAIN_CHROME, else policies.yaml's plain_chrome."""
     kind = os.environ.get("APPLY_PLAIN_CHROME") or load_policies().get("plain_chrome") or "chrome"
@@ -102,6 +116,7 @@ class PlainWorkers:
         # One socket per profiles folder: a held rehearsal keeps its process up, and another
         # process on other profiles (APPLY_PROFILES) still drives its own Workers (KAN-634).
         self.bridge = bridge or Bridge(socket_path(self.profiles))
+        self.bridge.reloadable = lambda worker: developer_mode(self.profile(worker))
         self.extension_dir = extension_dir
         if test_flags and self.kind != "testing":
             raise ValueError("test_flags are for Chrome for Testing in tests only")

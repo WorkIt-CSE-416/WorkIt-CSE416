@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ import pytest
 from apply.plain import host
 from apply.plain.bridge import (
     CHUNK_OVER,
+    FEATURES,
     OUT_OF_DATE,
     Bridge,
     BridgeBusy,
@@ -218,3 +220,42 @@ def test_an_extension_older_than_apply_is_welcomed_as_stale_with_one_line(bridge
     assert connection.stale and bridge.wait_for(1, timeout=5).stale
     assert capsys.readouterr().err.count(OUT_OF_DATE) == 1
 
+
+def test_an_extension_that_can_reload_is_reloaded_once_before_its_welcome(bridge):
+    bridge.expects = FEATURES + 1
+    bridge.reloadable = lambda worker: True  # Developer mode on in its profile
+    old = fake_worker(bridge, worker=0, features=FEATURES)
+    assert read(old)["type"] == "welcome"
+    assert read(old) == {"type": "call", "id": 1, "op": "extension.reload", "params": {}}
+    with pytest.raises(TimeoutError):
+        bridge.wait_for(0, timeout=0.5)  # the reloading one is never registered
+    old.close()  # chrome.runtime.reload() closed its port; the new code says hello again
+    fresh = fake_worker(bridge, worker=0, features=FEATURES + 1)
+    assert read(fresh)["type"] == "welcome"
+    assert not bridge.wait_for(0, timeout=5).stale
+
+    fresh.close()  # still old after its reload (old files on disk): welcomed as stale, not reloaded again
+    again = fake_worker(bridge, worker=0, features=FEATURES)
+    assert read(again)["type"] == "welcome"
+    assert until_stale(bridge, 0)
+
+
+def test_an_extension_is_never_reloaded_without_developer_mode(bridge):
+    bridge.expects = FEATURES + 1  # bridge.reloadable says no: Chrome would disable the reloaded extension
+    sock = fake_worker(bridge, worker=0, features=FEATURES)
+    assert read(sock)["type"] == "welcome"
+    connection = bridge.wait_for(0, timeout=5)
+
+    assert connection.stale
+    with pytest.raises(PortError):
+        bridge.reload(0)
+
+
+def until_stale(bridge, worker, seconds=5.0) -> bool:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        connection = bridge.connection(worker)
+        if connection is not None and connection.stale:
+            return True
+        time.sleep(0.05)
+    return False
