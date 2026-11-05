@@ -33,6 +33,17 @@ HOSTS = ("captcha-delivery.com", "hcaptcha.com", "arkoselabs.com", "funcaptcha.c
          "recaptcha.net")
 # reCAPTCHA's frames are on www.google.com, by path.
 PATHS = ("/recaptcha/",)
+# A captcha on the page itself: its frame, or the box a widget draws its frame in. Nothing in one is Apply's to touch.
+ELEMENTS = ("iframe[src*='recaptcha'], iframe[src*='hcaptcha.com'], iframe[src*='challenges.cloudflare.com'], "
+            "iframe[src*='captcha-delivery.com'], iframe[src*='arkoselabs.com'], iframe[src*='funcaptcha.com'], "
+            ".g-recaptcha, .h-captcha, .cf-turnstile, [data-testid='TurnstileContainer']")
+
+
+def in_frame(url: str) -> bool:
+    """Whether `url` is a captcha's own frame (its host or, for reCAPTCHA, its path)."""
+    parts = urlsplit(url or "")
+    host = parts.hostname or ""
+    return any(host == h or host.endswith("." + h) for h in HOSTS) or any(parts.path.startswith(p) for p in PATHS)
 
 # How Claude fill's Claude says it stopped at one (claude_fill.py's prompt tells it to).
 SAYS_CAPTCHA = re.compile(r"captcha|not a robot|turnstile|cloudflare|verify (that )?you are (a )?human"

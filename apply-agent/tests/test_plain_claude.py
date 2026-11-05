@@ -47,6 +47,11 @@ TOOLS_FORM = """<!doctype html><title>Fake form</title><h1>Apply to Acme</h1>
 <iframe srcdoc="<label>Inner field <input id=inner></label>"></iframe>
 <script>document.getElementById('resume').addEventListener('change', e => window.picked = e.target.files[0].name)</script>"""
 
+# reCAPTCHA's "I'm not a robot" box, in its frame (its path is reCAPTCHA's), beside a field of the form (KAN-617).
+CAPTCHA_FORM = """<!doctype html><title>Apply</title><label>Full name <input id=name></label>
+<div class=g-recaptcha><iframe title=reCAPTCHA src="/recaptcha/api2/anchor?k=fake"></iframe></div>"""
+ANCHOR = """<!doctype html><label><input type=checkbox id=box onclick="window.ticked = this.checked"> I'm not a robot</label>"""
+
 # A job system with no Filler: the posting, whose Apply shows the form. Its submit would POST.
 POSTING = """<!doctype html><title>Ground Software Intern - Acme Robotics Careers</title>
 <h1>Ground Software Intern</h1><p>Acme Robotics builds rovers. Summer 2027, in person.</p>
@@ -83,7 +88,8 @@ def site():
 
     class Pages(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
-            body = {"/tools": TOOLS_FORM, "/posting": POSTING, "/rescue": RESCUE_FORM}.get(self.path.split("?")[0], "<p>no")
+            body = {"/tools": TOOLS_FORM, "/posting": POSTING, "/rescue": RESCUE_FORM, "/captcha": CAPTCHA_FORM,
+                    "/recaptcha/api2/anchor": ANCHOR}.get(self.path.split("?")[0], "<p>no")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -228,6 +234,28 @@ def test_snapshot_refs_drive_the_fields_in_the_page_and_its_frames(page, tmp_pat
 
     assert page.input_value("#first") == "Testy" and page.input_value("#state") == "New York" and page.is_checked("#agree")
     assert page.evaluate("() => document.querySelector('iframe').contentDocument.getElementById('inner').value") == "Deep"
+
+
+@needs_chrome
+def test_no_tool_clicks_types_or_keys_into_a_captcha_and_the_form_s_own_fields_still_take_answers(page, site, tmp_path):
+    page.goto(f"{site.url}/captcha")
+    with tools_on(page, tmp_path) as tools:
+        snapshot, _ = tools.tool("browser_snapshot")
+        box, frame = ref(snapshot, "I'm not a robot"), ref(snapshot, "iframe")
+        assert box.startswith("f")
+        for name, arguments in [
+            ("browser_click", {"target": box, "element": "checkbox"}),  # named so the hook would let it by
+            ("browser_click", {"target": frame, "element": "frame"}),
+            ("browser_fill_form", {"fields": [{"target": box, "name": "box", "type": "checkbox", "value": "true"}]}),
+            ("browser_hover", {"target": box}),
+        ]:
+            said, error = tools.tool(name, **arguments)
+            assert error and "never touches" in said, name
+        said, error = tools.tool("browser_type", target=ref(snapshot, 'textbox "Full name"'), text="Test Person")
+        assert not error
+    anchor = next(f for f in page.frames if "/recaptcha/" in f.url)
+    assert anchor.evaluate("() => document.getElementById('box').checked") is False
+    assert page.input_value("#name") == "Test Person"
 
 
 @needs_chrome

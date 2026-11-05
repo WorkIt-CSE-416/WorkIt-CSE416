@@ -22,7 +22,7 @@ from functools import cache
 def functions() -> dict[str, tuple[str, str, str]]:
     # Imported here: these modules import much of Apply, and PortPage imports this one.
     from apply import email_code, on_page, stuck
-    from apply.plain import page
+    from apply.plain import page, tools
 
     statements = lambda code: "() => { " + code + "; }"
     return {
@@ -32,6 +32,8 @@ def functions() -> dict[str, tuple[str, str, str]]:
         email_code.ARM: ("codeGuardOn", "MAIN", statements(email_code.ARM)),
         email_code.DISARM: ("codeGuardOff", "MAIN", statements(email_code.DISARM)),
         page.VIEWPORT: ("viewportSize", "ISOLATED", page.VIEWPORT),
+        tools.IN_CAPTCHA: ("inCaptcha", "ISOLATED", tools.IN_CAPTCHA),
+        tools.FOCUS_IN_CAPTCHA: ("focusInCaptcha", "ISOLATED", tools.FOCUS_IN_CAPTCHA),
     }
 
 
