@@ -223,6 +223,8 @@ with the failure it prevents.
   applications by hand. Read it before changing
   application stages, the tracker's dated events or anything that reads a
   student's email.
+- `docs/whats-new-2026-11-05.md` — what a teammate must do after the rename to
+  `workitjobs`, and the new Apply settings and commands.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
