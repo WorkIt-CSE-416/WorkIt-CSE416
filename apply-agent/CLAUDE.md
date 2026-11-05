@@ -686,6 +686,27 @@ the window.
   `tests/test_plain_claude.py`; its two real-Haiku tests run only with
   `APPLY_LIVE_CLAUDE=1`.
 
+## Page gates (KAN-637)
+
+Lisul checks each page that holds his legal or personal answers before the
+form goes on. `policies.yaml: page_gates` turns this on (default off).
+
+- Claude fill's fill session gets `claude_fill.GATES`. It reads each field
+  back against the planned answers and fixes it once. It never ticks an
+  attestation, consent or agreement box, and never types a signature or a
+  date of signature. It lists in `for_lisul` each field on the step that he
+  must check: those boxes, consent, self-ID, work authorization and the other
+  legal answers, conflicts, criminal history, and any answer Claude is not
+  sure of.
+- A step with such a field is a Handoff before its Next, or before the last
+  step is held: "Page N: check these ... then press Resume". In a rehearsal
+  it is a pause (KAN-551). His Resume approves that step (`_approved`, keyed
+  by `_step_key`: the URL and the fields it shows), and the fill goes on.
+  A live run hands off.
+- Oracle and Workday have no gates yet.
+
+**Tests.** `tests/test_claude_fill.py -k page_gates`.
+
 ## Captchas and bot blocks (KAN-527)
 
 `src/apply/captcha.py` is the one place that tells a captcha. Add a new

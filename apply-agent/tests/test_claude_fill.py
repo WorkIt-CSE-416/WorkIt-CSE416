@@ -1036,6 +1036,28 @@ def test_a_step_with_no_next_and_no_button_that_sends_is_a_handoff_never_ready_t
     assert server.submissions == []
 
 
+class GatedStepsDriver(JobviteStepsDriver):
+    """Reports the sponsorship question as one for Lisul to check, on the step that shows it."""
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        said = super().__call__(page, schema, prompt, files)
+        if "questions" not in schema["properties"] and page.get_by_text(SPONSORSHIP).first.is_visible():
+            said["for_lisul"] = [f"{SPONSORSHIP}: No"]
+        return said
+
+
+@pytest.mark.parametrize("gates, status", [(True, "handoff"), (False, "submitted")])
+def test_page_gates_stop_before_a_step_with_a_legal_answer_goes_on(tmp_path, gates, status):
+    profile = profile_with(tmp_path, policies={"page_gates": gates})
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile, tyler_match(), claude=FakeClaude(driver=GatedStepsDriver()))
+
+    assert row.status == status, row.reason
+    if gates:
+        assert row.reason.startswith(f"Page 2: check these 1 and tick any box that is yours, then press Resume: {SPONSORSHIP}: No")
+        assert server.submissions == []
+
+
 def test_claude_fills_next_is_never_a_button_beside_it_that_sends(tmp_path):
     driver = JobviteStepsDriver(next_name="Continue \u2192")
 
