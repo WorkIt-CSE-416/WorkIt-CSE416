@@ -1489,3 +1489,17 @@ def test_a_pop_up_that_could_be_the_application_is_never_sent_as_a_profile_step(
 
     assert found is None
     assert sent == 0  # the guard blocked it, flag or no flag
+
+
+def test_a_step_that_shows_a_whole_address_in_a_part_or_a_future_start_year_never_goes_on():
+    # Bank of America's TAL.net (live): the full address in City/Town and Zip, and a degree started "2027", were saved.
+    address = "1 Main Street, Springfield, NY 11111, United States"
+    assert claude_fill.cant_be_right({"Home/permanent address: City/Town": address,
+                                      "Postcode/Zipcode": address, "Address line 1": "1 Main Street"}, 2026) == [
+        "'Home/permanent address: City/Town' holds a whole address", "'Postcode/Zipcode' holds a whole address"]
+    education = {"Degree Type": "Bachelor", "Start date: Month": "August", "Start date: Year": "2027"}
+    assert claude_fill.cant_be_right(education, 2026) == ["'Start date: Year' says 2027, a start after this year"]
+    assert claude_fill.cant_be_right({**education, "Start date: Year": "2024"}, 2026) == []
+    # An internship's start next year, on a step with no school: right.
+    assert claude_fill.cant_be_right({"Start date: Year": "2027", "Earliest start": "May 2027"}, 2026) == []
+    assert claude_fill.cant_be_right({"Address line 1": address, "Home address": address}, 2026) == []
