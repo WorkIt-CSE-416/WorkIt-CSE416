@@ -89,6 +89,24 @@ ROUTED = re.compile(
     re.IGNORECASE,
 )
 
+# Whether an open pop-up is a profile step before the application (Microsoft's "Create your profile",
+# KAN-647), and nothing an application could be: titled as making or finishing a profile, with
+# nothing in it that only an application asks (a file, an essay, a box or a choice to tick, a
+# password), and no form field of the page's own behind it. Claude fill and the guards both use it.
+PROFILE_DIALOG = r"""(dialog) => {
+  const by = (dialog.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
+    .map(id => (document.getElementById(id) || {}).innerText || '').join(' ');
+  const heading = dialog.querySelector('h1, h2, h3, [role=heading]');
+  const title = (dialog.getAttribute('aria-label') || by || (heading && heading.innerText) || '').trim();
+  if (!/\b(?:create|complete|build|set\s*up|finish)\b[^.]{0,30}\bprofile\b/i.test(title)) return false;
+  if (/\b(?:appl(?:y|ying|ication)|job|position|role)\b/i.test(title)) return false;
+  if (dialog.querySelector('input[type=file], textarea, input[type=checkbox], [role=checkbox], input[type=radio], '
+    + '[role=radio], input[type=password]')) return false;
+  const shown = (n) => n.type !== 'hidden' && n.type !== 'search' && (!n.checkVisibility || n.checkVisibility());
+  return ![...document.querySelectorAll('input, select, textarea')].some((n) => !dialog.contains(n) && shown(n)
+    && !n.closest('[role=search], [role=dialog], [aria-modal=true], dialog'));
+}"""
+
 _TEMPLATE = r"""
 (() => {
   if (window.__@KEY@Guard) return;
@@ -113,14 +131,10 @@ _TEMPLATE = r"""
   // Plain code's click on the button of a profile step before the application (Microsoft's
   // "Create your profile" pop-up names its button Submit, live: KAN-647).
   const profileClick = () => window.__applyProfileClick === true;
-  const PROFILE_STEP = /\b(create|complete|build|set\s*up|finish)\b[^.]{0,30}\bprofile\b/i;
+  // Only a button that names no application, in a pop-up that is a profile step and no more.
   const profileStep = (el) => {
     const dialog = el && el.closest && el.closest('[role=dialog], [aria-modal=true], dialog[open]');
-    if (!dialog) return false;
-    const by = (dialog.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
-      .map(id => (document.getElementById(id) || {}).innerText || '').join(' ');
-    const heading = dialog.querySelector('h1, h2, h3, [role=heading]');
-    return PROFILE_STEP.test(dialog.getAttribute('aria-label') || by || (heading && heading.innerText) || '');
+    return !!dialog && !/\bappl(?:y|ying|ication)\b/i.test(wordsOf(el)) && (@PROFILE_DIALOG@)(dialog);
   };
   const FINAL_URLS = [
     /^https?:\/\/[^\/]*greenhouse\.io\/(?:embed\/job_app|[^\/?#]+\/jobs\/\d+\/?(?:[?#].*)?$)/i,
@@ -353,7 +367,7 @@ def _script(key: str, name: str, lifted: str = "false", extra: str = "", in_capt
     script = _TEMPLATE
     for placeholder, value in {"@PORT_TOUCH@": PORT_TOUCH if port else "", "@PORT_SAID@": PORT_SAID if port else "",
                                "@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@HELD@": held,
-                               "@EXTRA@": extra,
+                               "@EXTRA@": extra, "@PROFILE_DIALOG@": PROFILE_DIALOG,
                                "@CAPTCHA@": in_captcha, "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
                                "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS)}.items():
         script = script.replace(placeholder, value)

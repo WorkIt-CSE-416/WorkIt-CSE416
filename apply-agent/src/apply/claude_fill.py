@@ -76,7 +76,7 @@ from apply.model import (
     QuestionSet,
     Readback,
 )
-from apply.submit_guard import CAPTCHA_TRY, DriveGuard
+from apply.submit_guard import CAPTCHA_TRY, PROFILE_DIALOG, DriveGuard
 
 MODEL = "haiku"
 # The cap on one Application, across its sessions. policies.yaml can change it.
@@ -91,14 +91,8 @@ NOTED = re.compile(r"\s*\((selected|attached|checked|ticked)\)$", re.IGNORECASE)
 # at most, and how long a step may take to show once it's clicked.
 NEXT = re.compile(r"\b(next|continue|proceed|review)\b", re.IGNORECASE)
 MAX_STEPS = 8
-# A pop-up's title that makes it a profile step before the application, not the form (KAN-647).
-PROFILE_STEP = re.compile(r"\b(create|complete|build|set\s*up|finish)\b[^.]{0,30}\bprofile\b", re.IGNORECASE)
-DIALOG_TITLE = """el => {
-  const by = (el.getAttribute('aria-labelledby') || '').split(/\\s+/).filter(Boolean)
-    .map(id => (document.getElementById(id) || {}).innerText || '').join(' ');
-  const heading = el.querySelector('h1, h2, h3, [role=heading]');
-  return (el.getAttribute('aria-label') || by || (heading && heading.innerText) || '').trim();
-}"""
+# A button that names the application: never a profile step's, whatever pop-up it is in (KAN-647).
+APPLIES = re.compile(r"\bappl(?:y|ying|ication)\b", re.IGNORECASE)
 STEP_SHOWS_MS = 8_000
 # What a page says once it has the application, and how long it may take to say so.
 THANKS = re.compile(
@@ -651,11 +645,14 @@ def _only_its_submit(blocked: list[str], said: dict) -> bool:
 
 def _profile_step(page: Page, name: str) -> Locator | None:
     """The button named `name` in an open pop-up that is a profile step before the application
-    ("Create your profile", "Complete your profile"), or None: the button is the form's own."""
+    ("Create your profile", "Complete your profile"; see submit_guard.PROFILE_DIALOG), or None:
+    the button is the form's own."""
+    if APPLIES.search(name):
+        return None
     try:
         dialogs = page.locator("[role=dialog]:visible, [aria-modal=true]:visible, dialog[open]:visible").all()
         for dialog in dialogs:
-            if not PROFILE_STEP.search(dialog.evaluate(DIALOG_TITLE)):
+            if dialog.evaluate(PROFILE_DIALOG) is not True:
                 continue
             buttons = [b for b in dialog.get_by_role("button", name=name, exact=True).all() if b.is_visible()]
             if len(buttons) == 1:
