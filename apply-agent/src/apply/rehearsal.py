@@ -22,6 +22,10 @@ whose mail can't be read, Gmail not being set up, stops it: "needs sign-in".
 
 Each link runs on its own thread, in its own Worker profile's browser (link
 n in profiles/worker-n), so each page can stay open where it stopped.
+
+A link sent in later (`apply rehearse --into`, the window's POST /rehearse, KAN-645) runs in a
+Worker already running, in a tab of its own beside the forms open there, with a tile of its own:
+so a job site's sign-in, kept only for the browser's session, serves the next posting too.
 """
 
 import queue
@@ -39,10 +43,13 @@ from urllib.parse import urlsplit
 from apply import (
     already_applied,
     ashby,
+    ask,
     bot_signals,
     captcha,
+    description,
     eightfold,
     embedded,
+    fill_engine,
     greenhouse,
     lever,
     on_page,
@@ -50,10 +57,12 @@ from apply import (
     stuck,
     tailored,
     trace,
+    verify,
     workday,
 )
 from apply.accounts import NEEDS_SIGN_IN, Accounts
 from apply.adapters import Adapters, JobSite, SetupError, Tracker
+from apply.answers_tab import Refused
 from apply.asking import for_essay
 from apply.captcha import Waiter
 from apply.email_code import EmailCode
@@ -61,10 +70,11 @@ from apply.essays import ASK
 from apply.model import Posting, Question, Status, one_line
 from apply.orchestrator import CALIBRATION, WORKERS, by_filler, keep_repair_requests
 from apply.profile import ApplicantProfile
-from apply.records import Filled, Record
+from apply.records import SECRET, Filled, Record
 from apply.request import resolve
 from apply.rescue import Rescue
 from apply.submit_guard import (
+    DriveGuard,
     applied_dismissed,
     guard,
     lift,
@@ -74,7 +84,7 @@ from apply.submit_guard import (
 )
 from apply.tracker import Row
 from apply.verify import verifying
-from apply.worker import Result, apply_to, keep_sent, named, sent_folder
+from apply.worker import Result, apply_to, keep_sent, named, page_html, sent_folder
 
 # Claude fill's cost, which ends its reason; a rehearsal shows it as tokens.
 CLAUDE_FILL_COST = re.compile(r"(^|; )Claude fill: \d+ sessions, [^;]*tokens$")
@@ -95,6 +105,11 @@ THANKS = re.compile(r"thank you for (applying|your application|submitting)|appli
 SUBMITTED_BY_LISUL = "You submitted it yourself from a rehearsal; Apply filled it"
 # What a held page's hold() ends on, besides "" (closed): Lisul pressed Fill again, or Resume.
 AGAIN, RESUME = "again", "resume"
+# A rehearsal that ruled Lisul out (Not eligible, Closed) offers this button on its tile: the form is filled all the
+# same, as in any rehearsal, and its note says why it was ruled out.
+ANYWAY = "Fill it anyway"
+ANYWAY_WHY = f"{ANYWAY}: Apply opens the form and fills it as in any rehearsal. It never presses Submit"
+FILLED_ANYWAY = "Filled anyway: {}"
 # Why a paused rehearsal can't go on, on its Resume button.
 TAB_CLOSED = "The form's tab was closed: start it again"
 ENDED = "The rehearsal ended: start it again"
@@ -106,6 +121,9 @@ OUTCOMES = {
     Status.NOT_ELIGIBLE: "not eligible",
     Status.CLOSED: "closed",
 }
+# Outcomes that stop before the form's last page: the page held then is never one to submit from (KAN-636).
+STOPPED = (FAILED, SIGN_IN, OUTCOMES[Status.HANDOFF])
+NOT_LAST = "Apply stopped before the form's last page ({}): this page isn't ready to submit"
 
 
 @dataclass
@@ -127,13 +145,33 @@ class Rehearsed:
     saved: Record | None = None  # its Record as saved, to save again with what Lisul filled in later
     history: tuple[str, ...] = ()  # each pause and Resume, "HH:MM Paused: why" / "HH:MM Resumed: ...", in order
     form: "regenerate.Form | None" = None  # each answer Claude wrote, for Lisul to have one written again
+    asks: tuple[dict, ...] = ()  # each Ask Claude message on the held page, and how it went (apply.ask)
     questions: tuple[Question, ...] = ()  # the form's questions, as its Filler read them: where each Missing fact's field is
     where: dict[str, str] = field(default_factory=dict)  # each Missing fact's context line (apply.asking), by question
+    # The Pre-submit review's problems with a legal or eligibility answer (verify.LEGAL), as (field, why): each
+    # holds Submit on the held page until Lisul dismisses it (on the page or in the window).
+    legal: tuple[tuple[str, str], ...] = ()
+
+    def holding(self) -> str:
+        """What holds Submit on the held page now: each legal problem Lisul hasn't dismissed; "" for none."""
+        gone = verify.dismissed(self.posting.id) if self.legal else set()
+        return "; ".join(verify.Flag(f, why, verify.REVIEW).line() for f, why in self.legal if (f, why) not in gone)
+
+    def dismiss_holds(self) -> None:
+        """Lisul pressed the held note's Dismiss: no legal problem holds Submit any more, in this run or the next."""
+        for f, why in self.legal:
+            verify.dismiss(self.posting.id, f, why)
 
     def warning(self) -> str:
         """What to fix on the held page before submitting it, if anything."""
         found = list(self.problems) + [f"Left blank: {q}" for q in self.missing]
+        if self.outcome in STOPPED:  # a failure or a pause mid-form: never "done, Submit is yours"
+            found.insert(0, NOT_LAST.format(f"{self.outcome}: {self.why}" if self.why else self.outcome))
         return "; ".join(one_line(f) for f in found)
+
+    def wrong(self) -> bool:
+        """Whether the held page's note is red: an answer is wrong, or Apply stopped before the last page."""
+        return bool(self.problems) or self.outcome in STOPPED
 
     def line(self) -> str:
         p = self.posting
@@ -198,8 +236,9 @@ def rehearse(
             waiting[0] -= 1
             adapters.board.run(queued=waiting[0])
 
-    def one(n: int, url: str) -> None:
-        site = _Kept(adapters.site, n)
+    def one(n: int, url: str, worker: int | None = None) -> None:
+        """Link `url` on tile `n`, in Worker `worker` (default: Worker n, its own)."""
+        site = _Kept(adapters.site, n if worker is None else worker)
         done = None
         first = []  # the link's first summary went to `finished` (at its first pause, else at its end)
         after = []  # how the hold of a pause ended, when Lisul didn't press Resume: AGAIN, or "" (closed)
@@ -233,10 +272,26 @@ def rehearse(
             adapters.board.update(n, status="handoff", why=why, blocked=True, resume=None)
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
+        def ruled_out() -> bool:  # it may be filled anyway: its tile offers the button
+            if done.outcome not in (OUTCOMES[Status.NOT_ELIGIBLE], OUTCOMES[Status.CLOSED]):
+                return False
+            adapters.board.update(n, resume={"ok": True, "label": ANYWAY, "why": ANYWAY_WHY})
+            return True
+
+        def pressed_anyway() -> bool:
+            """Lisul pressed Fill it anyway, with no page held: wait for it while the run is open."""
+            while not release.is_set():
+                if adapters.board.resumed(n):
+                    return True
+                time.sleep(0.5)
+            return False
+
         answers = lambda: [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]
         fill = lambda page, q, a: _fill_answer(page, q, a, adapters, profile, n, done, out)
         # Each answer Claude wrote has its "Add context and regenerate", on the page and in the window (KAN-599).
         redo = _Redo(lambda: done, adapters, profile, n, site, out)
+        # Ask Claude: Lisul's own words, from the tile or `apply ask`, and Claude fixes the held form (KAN-638).
+        asker = _Ask(lambda: done, adapters, profile, n, out)
         watching = {}  # the held page's Watch (apply.on_page), anew for each page held
 
         def tend(page) -> None:
@@ -254,6 +309,11 @@ def rehearse(
                     fields.setdefault(q.name, (q, []))[1].append(asked)
             for q, value in watch.tick(page, [q for q, _ in fields.values()]):
                 _answered_on_page(page, q, fields[q.name][1], value, adapters, n, done, out)
+
+        def holds() -> dict:
+            """What holds Submit on the held page (Rehearsed.holding), with its note, for hold()."""
+            return {"held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
+                    "note": lambda: (done.warning(), done.wrong())}
 
         def paused(stopped: Rehearsed, blocked: Callable[[object], str]) -> bool:
             """The fill stopped mid-form for Lisul: hold its page, his to fix, until he presses Resume
@@ -277,9 +337,11 @@ def rehearse(
                 return True
             gate.release()  # a paused form holds no Worker's turn while it waits on him
             try:
-                how = site.hold(release, done.posting.job_system, submitted, done.warning(), bool(done.problems),
-                                answers, fill, resume=wants, challenged=challenged, refused=turned_down, redo=redo, tend=tend)
+                how = site.hold(release, done.posting.job_system, submitted, done.warning(), done.wrong(),
+                                answers, fill, resume=wants, challenged=challenged, refused=turned_down, redo=redo, tend=tend,
+                                ask=asker, **holds())
             finally:
+                asker.close()
                 gate.acquire()
             if how == RESUME:
                 site.rearm()
@@ -311,16 +373,32 @@ def rehearse(
                 out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
             try:
-                hold = lambda: site.hold(release, done.posting.job_system, submitted, done.warning(),
-                                         bool(done.problems), answers, fill,
-                                         EmailCode(adapters.mailbox, adapters.clock, done.posting.job_system, told),
-                                         challenged=challenged, refused=turned_down, redo=redo, tend=tend)
+                anyway = ""  # why it was ruled out, once Lisul pressed Fill it anyway: each Fill again after keeps it
+
+                def hold() -> str:
+                    offered = not anyway and ruled_out()
+                    how = site.hold(release, done.posting.job_system, submitted, done.warning(),
+                                    done.wrong(), answers, fill,
+                                    EmailCode(adapters.mailbox, adapters.clock, done.posting.job_system, told),
+                                    resume=(lambda page: adapters.board.resumed(n)) if offered else None,
+                                    challenged=challenged, refused=turned_down, redo=redo, tend=tend,
+                                    ask=asker, **holds())
+                    asker.close()
+                    if offered and (how == RESUME or not how and site.empty() and pressed_anyway()):
+                        return RESUME
+                    return how
+
                 # Already applied: no page to hold, but its tile stays in the window until the rehearsal ends.
                 how = after.pop() if after else _until(release) if done.outcome == ALREADY else hold()
-                while how == AGAIN:  # Fill again
+                while True:
+                    if how == RESUME:  # Fill it anyway, on a rehearsal that ruled him out
+                        anyway, how = done.why or done.outcome, AGAIN
+                        adapters.board.update(n, resume=None)
+                    if how != AGAIN:  # Fill again, or Fill it anyway
+                        break
                     with gate:
                         done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, pause=paused,
-                                         force=force)
+                                         anyway=anyway, force=force)
                     if not after:
                         out(done.line())
                     how = after.pop() if after else hold()
@@ -328,7 +406,27 @@ def rehearse(
                 site.close()
 
     threads = [threading.Thread(target=one, args=(n, url), daemon=True) for n, url in enumerate(urls)]
-    for thread in threads:
+
+    def into(url: str, worker: int) -> dict:
+        """A link sent in while the rehearsal runs: Worker `worker`'s running browser fills it in a tab of its
+        own, so its sign-in holds, with a tile of its own. Refused when that Worker's browser isn't running."""
+        if release.is_set():
+            raise Refused("This rehearsal is ending.", 409)
+        if not getattr(adapters.site, "running", lambda k: False)(worker):
+            raise Refused(f"Browser {worker + 1} isn't a running plain Worker: start one with `apply rehearse` "
+                          "(worker_mode: plain), then send links into it.", 409)
+        with writing:
+            n = adapters.board.add_tile(worker)
+            waiting[0] += 1
+            adapters.board.run(queued=waiting[0])
+            thread = threading.Thread(target=one, args=(n, url, worker), daemon=True)
+            threads.append(thread)
+        thread.start()
+        out(f"Took {url} into Browser {worker + 1}, beside its open forms: it signs in no more than they did.")
+        return {"tile": n, "worker": worker}
+    if taking := getattr(adapters.board, "taking", None):
+        taking(into)
+    for thread in list(threads):
         thread.start()
     ended: list[Rehearsed] = []
     # The waits sleep rather than block on a lock: Ctrl-C landing inside
@@ -349,11 +447,13 @@ def rehearse(
             out("Apply submitted nothing. Each browser stays open on the page it reached, yours now: check it and "
                 "press Submit yourself to send it (it goes in the Tracker), or Fill again to redo it; "
                 "close the windows, or press Ctrl-C, to end.")
-        while any(thread.is_alive() for thread in threads):
+        while any(thread.is_alive() for thread in list(threads)):
+            while not finished.empty():  # a link sent in since (--into): its summary line as it ends
+                out(finished.get_nowait().line())
             time.sleep(0.5)
     except KeyboardInterrupt:
         release.set()
-        for thread in threads:
+        for thread in list(threads):
             thread.join(30)
         out("Closed the browsers.")
     return ended
@@ -408,12 +508,16 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
               calibration: Callable[[], str], accounts: "_Accounts", n: int,
               before_fill: Callable[[], None] = lambda: None, stage: str = "",
               pause: Callable[[Rehearsed, Callable[[object], str]], bool] = lambda stopped, blocked: False,
-              force: bool = False) -> Rehearsed:
+              anyway: str = "", force: bool = False) -> Rehearsed:
     """One fill of the link. A stop mid-form for Lisul goes to `pause` with its
     summary and why Resume can't go on (apply_to's `on_pause`): True, he
     pressed Resume, and the fill goes on on the same page. Each pause and
-    Resume is kept in the summary's history, its tile and its Record."""
+    Resume is kept in the summary's history, its tile and its Record.
+    `anyway` is why an earlier fill ruled him out, when he pressed Fill it anyway:
+    the form is filled all the same, and its note says why."""
     claude, board = adapters.claude, adapters.board
+    if fill_engine.fresh():  # a merged engine fix since the last posting: planned with it, no restart (KAN-645)
+        trace.event("engine reloaded")
     started, spent = time.monotonic(), claude.spent()
     history: list[str] = []
     shown: list[Rehearsed] = []  # each pause's summary, already handed out: the fill's Record goes on them too
@@ -421,9 +525,13 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     # Before any page opens (form_behind opens one for an unknown job system): never fill a form sent already.
     applied = adapters.applied_before.of(posting, url)
     behind = greenhouse.board_behind(posting, site)
+    fetched = None  # the page as a plain fetch reads it, before form_behind opens it: never fetched twice
     if behind == posting and result is None and (force or not applied):
-        behind = embedded.form_behind(posting, site)  # a Greenhouse, Lever or Ashby form in the page
+        if posting.job_system == "other":
+            fetched = description.from_link(posting, site)
+        behind = embedded.form_behind(posting, site, fetched)  # a Greenhouse, Lever or Ashby form in the page
     if behind != posting:
+        fetched = None  # the form's own job system's text is read instead
         posting = replace(resolve(behind.url, site)[0], id=posting.id)  # named by its job system now
         applied = applied or adapters.applied_before.of(posting, url)
     if applied:
@@ -453,7 +561,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         shown.append(summary)
         # Its Record now, while the page is open to screenshot: a shutdown while the page is held never gets
         # to the save at the fill's end (HPE and Cohesity, 2026-11-03).
-        _save_record(summary, stopped, stopped.filled or Filled((), {}, {}, site.screenshot()), adapters, shown)
+        _save_record(summary, stopped, stopped.filled or Filled((), {}, {}, site.screenshot(), html=site.html()), adapters,
+                     shown)
         trace.event("pause", reason=stopped.reason)
         board.update(n, status=summary.outcome, line=summary.line(), why=one_line(summary.why), filled=summary.filled,
                      asked=summary.asked, missing=list(summary.missing), resume={"ok": True}, history=list(history))
@@ -509,7 +618,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                                                        before_fill=before_fill,
                                                        on_verify=lambda verification: board.update(
                                                            n, **verifying(verification)),
-                                                       on_pause=on_pause, on_captcha=on_captcha),
+                                                       on_pause=on_pause, on_captcha=on_captcha,
+                                                       anyway=bool(anyway), fetched=fetched),
                     signed_in=adapters.signed_in,
                 )
             except SetupError as error:  # the Mac's setup, not Apply's code: its one line says how to fix it
@@ -523,6 +633,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     posting = named(posting, result)
     keep_repair_requests(adapters, posting, result)
     rehearsed = _summary(posting, result, site, claude.spent() - spent, time.monotonic() - started)
+    if anyway:  # the page's note and the tile say why it was ruled out before
+        rehearsed.problems = (FILLED_ANYWAY.format(one_line(anyway)), *rehearsed.problems)
     rehearsed.files = list(files)
     rehearsed.history = tuple(history)
     rehearsed.form = result.regenerable
@@ -532,7 +644,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     if filled is None:
         paused = next((s.saved.filled for s in reversed(shown) if s.saved), None)
         shot = site.screenshot()
-        filled = Filled((), {}, {}, shot) if shot or paused is None else paused
+        filled = Filled((), {}, {}, shot, html=site.html()) if shot or paused is None else paused
     _save_record(rehearsed, result, filled, adapters, shown)
     board.update(n, status=rehearsed.outcome, line=rehearsed.line(), why=one_line(rehearsed.why),
                  filled=rehearsed.filled, asked=rehearsed.asked, missing=list(rehearsed.missing),
@@ -568,7 +680,7 @@ def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Ada
         adapters.board.update(n, status=done.outcome, filled=done.filled, missing=list(done.missing),
                               line=done.line(), why=one_line(done.why))
         try:
-            renote(page, done.warning(), bool(done.problems))
+            renote(page, done.warning(), done.wrong(), done.holding())
         except Exception:
             pass  # the page closing: nothing to say on it
         return
@@ -607,7 +719,7 @@ def _filled_in(page, field: str, asked: list[str], answer: "str | Path", adapter
     adapters.board.update(n, status=done.outcome, filled=done.filled, missing=list(done.missing), files=done.files,
                           line=done.line(), why=one_line(done.why))
     try:
-        renote(page, done.warning(), bool(done.problems))
+        renote(page, done.warning(), done.wrong(), done.holding())
     except Exception:
         pass  # the page closing: nothing to say on it
 
@@ -687,7 +799,7 @@ class _Redo:
         if redone.text:
             note = "New answer from your context" + (f". Check: {'; '.join(redone.checks)}" if redone.checks else "") \
                 + ". Edit it if you like; nothing is sent."
-            shows = regenerate.done(page, name, redone.text, note, True)
+            shows = regenerate.done(page, name, redone.text, note, True, written.question, done.posting.job_system)
             written.state = ""
             if shows is None:
                 written.why = "; ".join(filter(None, [written.why, "not on the page shown: paste it into its field"]))
@@ -708,6 +820,98 @@ class _Redo:
             self._out(f"{company} | couldn't regenerate '{label}': {one_line(redone.why)}")
         adapters.board.update(n, status=done.outcome, written=done.form.shown(), history=list(done.history),
                               line=done.line(), why=one_line(done.why))
+
+
+class _Ask:
+    """Ask Claude (apply.ask, KAN-638) on one rehearsed link's held page: the messages Lisul sends it, from the
+    tile or `apply ask`, each acted on by Claude under the drive guard, read back, answered in its thread, and
+    kept in the Record. A fact he stated is offered for his Answer bank; a fault of Apply's own is a Repair request."""
+
+    def __init__(self, done: Callable[[], "Rehearsed | None"], adapters: Adapters, profile: ApplicantProfile, n: int,
+                 out: Callable[[str], None]):
+        self._done, self._adapters, self._profile, self._n, self._out = done, adapters, profile, n, out
+        self._guard: tuple[int, object] | None = None  # (the page's id, its drive guard): one guard a page
+        self._open = False
+
+    def open(self, page) -> None:
+        """The page is held for Lisul: its tile takes messages."""
+        self._open = True
+        try:
+            shown = f"{page.title().strip() or 'the form'} ({urlsplit(page.url).path or '/'})"
+        except Exception:
+            shown = ""
+        self._adapters.board.update(self._n, askable=True, page=shown)
+
+    def close(self) -> None:
+        if self._open:
+            self._open = False
+            self._adapters.board.update(self._n, askable=False)
+
+    def asked(self) -> list[dict]:
+        return getattr(self._adapters.board, "asks", lambda n: [])(self._n)
+
+    def __call__(self, page, item: dict) -> None:
+        done, adapters, n = self._done(), self._adapters, self._n
+        board = adapters.board
+        replied = getattr(board, "replied", lambda *a, **k: None)
+        if done is None:
+            replied(n, item["id"], state="failed", reply="The form is gone.")
+            return
+        replied(n, item["id"], state="working")
+        policy = self._profile.policy
+        if self._guard is None or self._guard[0] != id(page):
+            self._guard = (id(page), DriveGuard(page, sms_opt_in=policy("sms_opt_in") is True,
+                                                marketing_opt_in=policy("marketing_opt_in") is True))
+        message = str(item["message"])
+        try:
+            reply = ask.ask(adapters.claude, page, message, item.get("thread") or [], self._form(done),
+                            ask.sources(self._profile, adapters.answer_bank, self._profile.get("files.resume_pdf")),
+                            ask.system_for(self._profile), guard=self._guard[1])
+        except Exception as error:  # Claude or the page failing: nothing more was done, and he is told
+            reply = ask.Reply(f"Claude couldn't work on the form: {type(error).__name__}: {one_line(str(error))[:300]}",
+                              failed=True)
+        replied(n, item["id"], **reply.as_json())
+        for request in ask.repair_requests(done.posting, message, reply):
+            adapters.repairs.add(request)
+        done.history = done.history + ask.history_lines(message, reply, adapters.clock.now())
+        done.asks = done.asks + ({"message": message, "via": item.get("via", ""), **reply.as_json()},)
+        _record_asked(done, reply.changed, adapters)
+        board.update(n, status=done.outcome, history=list(done.history))
+        self._out(f"{_name(done)} | Ask Claude: {reply.reply}"
+                  + (f" Couldn't: {'; '.join(reply.couldnt)}" if reply.couldnt else ""))
+
+    @staticmethod
+    def _form(done: "Rehearsed") -> ask.Form:
+        filled = done.saved.filled if done.saved else None
+        plan = [{"label": one_line(q.label), "kind": q.kind, "required": q.required, "options": list(q.options)[:40],
+                 "planned": _plain(q, filled.answers.get(q.name)), "on_page": _plain(q, filled.readback.get(q.name))}
+                for q in (filled.questions if filled else done.questions)] if (filled or done.questions) else []
+        return ask.Form(done.posting, plan, done.missing, done.problems, done.history, done.record,
+                        [f.get("name", "") for f in done.files])
+
+
+def _plain(q: Question, answer) -> object:
+    """An answer as Claude may see it: a file by its name, never a secret."""
+    if answer is None:
+        return None
+    if SECRET.search(q.label) or SECRET.search(q.name):
+        return "(secret)"
+    return answer.name if isinstance(answer, Path) else answer
+
+
+def _record_asked(done: Rehearsed, changed: list[dict], adapters: Adapters) -> None:
+    """Save the Record again with the Ask Claude messages so far, and each field Claude changed that the form's
+    questions name, as the page now shows it."""
+    if done.saved is None:
+        return
+    filled = done.saved.filled
+    shows = {q.name: c["shown"] for c in changed for q in filled.questions if q.label.strip() == str(c["field"]).strip()}
+    saved = replace(done.saved, filled=replace(filled, readback=filled.readback | shows), history=done.history,
+                    asks=done.asks)
+    try:
+        done.record, done.saved = adapters.records.save(saved), saved
+    except Exception as error:
+        done.why = "; ".join(filter(None, [done.why, f"Record not saved again: {error}"]))
 
 
 def _keep_submission(tracker: Tracker | None, rehearsed: Rehearsed, today) -> str:
@@ -771,6 +975,7 @@ def _summary(posting: Posting, result: Result, site: "_Kept", tokens: int, secon
         len(answered), len(filled.questions) if filled else 0, result.missing, tokens, seconds,
         problems=tuple(map(str, result.problems)), questions=tuple(filled.questions) if filled else (),
         where=dict(result.where),
+        legal=tuple((f.field, f.why) for f in result.verification.holds_submit) if result.verification else (),
     )
 
 
@@ -868,7 +1073,9 @@ class _Kept:
              code: EmailCode | None = None, resume: Callable[[object], bool] | None = None,
              challenged: Callable[[], None] = lambda: None, refused: Callable[[str], None] = lambda why: None,
              redo: "_Redo | None" = None,
-             tend: Callable[[object], None] = lambda page: None) -> str:
+             tend: Callable[[object], None] = lambda page: None, ask: "_Ask | None" = None,
+             held: Callable[[], str] = lambda: "", dismiss: Callable[[], None] = lambda: None,
+             note: "Callable[[], tuple[str, bool]] | None" = None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
         window is closed. Apply is done with it, so it is Lisul's: the submit
@@ -888,6 +1095,11 @@ class _Kept:
         regenerate" button beside its field; each press, there or in the window
         (`redo.asked()`), goes to `redo(page, name, context)`.
         `tend(page)` runs on each turn: Needs you on the page (Go to question, and answers typed there).
+        Each Ask Claude message for the page (`ask.asked()`, until he presses Submit) goes to `ask(page, message)`.
+        While `held()` names a reason (a legal answer the Pre-submit review found wrong), his Submit stays
+        blocked under a red note; its Dismiss button calls `dismiss()`, and once `held()` is "" (dismissed
+        there or in the window) the note says so and Submit is his again: `note()` is its warning and
+        wrong then, as they are now (`warning` and `wrong` as given, without it).
         "" when the page closed or `release` was set."""
         if self._page is None or release.is_set():
             return ""
@@ -900,11 +1112,13 @@ class _Kept:
         dismissed = []
         hooks |= {"pressed": heard, "again": lambda: again.append(True),
                   "regenerate": lambda name, context: regenerates.append((name, context)),
-                  "dismissed": lambda: dismissed.append(True)}
+                  "dismissed": lambda: dismissed.append(True),
+                  "dismiss": lambda: dismissing.append(True)}
+        dismissing, holding = [], held()
 
         def hand_over() -> None:  # the guard comes off: the page is Lisul's
             lift(self._page, pressed=lambda words: hooks["pressed"](words), again=lambda: hooks["again"](),
-                 warning=warning, wrong=wrong, bound=self._bound)
+                 warning=warning, wrong=wrong, bound=self._bound, held=holding, dismiss=lambda: hooks["dismiss"]())
             self._lifted = self._bound = True
         blocked = bool(self.applied) and not self._dismissed  # he applied already: Submit stays blocked
         try:
@@ -925,6 +1139,8 @@ class _Kept:
             except Exception:
                 pass  # the page closing: the window's button still says so
         kept, closing, told, turned_down = False, None, False, False
+        if ask:
+            ask.open(self._page)  # the caller closes it once hold() returns
         while not release.is_set():
             try:
                 if self._page.is_closed():
@@ -939,10 +1155,33 @@ class _Kept:
                     return RESUME
                 for question, answer in answers():
                     fill(self._page, question, answer)
+                if dismissing:  # on the page's own thread: the binding only says he pressed it
+                    dismissing.clear()
+                    dismiss()
+                if (now := held()) != holding:  # dismissed, on the page or in the window
+                    holding = now
+                    renote(self._page, *(note() if note else (warning, wrong)), holding)
                 if redo:
+                    if self._offered:  # a plain page's frames loaded since get the button too
+                        regenerate.keep(self._page, redo.written())
                     asked, regenerates[:] = regenerates + redo.asked(), []
                     for name, context in asked:
                         redo(self._page, name, context)
+                if ask:
+                    if pressed:  # his Submit: the form is his to send, and Claude acts on it no more
+                        ask.close()
+                    for item in ask.asked():
+                        # Claude drives the page again: both guards back on, in each document it loads too (going
+                        # back a step loads one, which lift()'s script would hand to Lisul). His again after.
+                        guarded = self._lifted
+                        if guarded:
+                            rearm(self._page)
+                        try:
+                            ask(self._page, item)
+                        finally:
+                            if guarded:
+                                hand_over()
+                                renote(self._page, *(note() if note else (warning, wrong)), holding)
                 if not pressed:  # once he pressed Submit, the form is his to send: nothing more is read off it
                     tend(self._page)
                 if code and not kept:
@@ -985,11 +1224,30 @@ class _Kept:
             return ""
 
     def screenshot(self) -> bytes:
-        """What the page shows now, for a Record; none once it is gone."""
+        """What the page shows now, for a Record; none once it is gone. A plain Worker's page
+        (KAN-611), the whole page: its scroll and stitch never lays the form out anew in his window."""
         try:
-            return self._page.screenshot(timeout=15_000) if self._page and not self._page.is_closed() else b""
+            if not self._page or self._page.is_closed():
+                return b""
+            if hasattr(self._page, "record_html"):
+                return self._page.screenshot(full_page=True, timeout=15_000)
+            return self._page.screenshot(timeout=15_000)
         except Exception:
             return b""
+
+    def html(self) -> str:
+        """The page's HTML for a Record, from a plain Worker's page; "" from any other, or none."""
+        try:
+            return page_html(self._page) if self._page and not self._page.is_closed() else ""
+        except Exception:
+            return ""
+
+    def empty(self) -> bool:
+        """Whether no page is open: none was, or its window closed."""
+        try:
+            return self._page is None or self._page.is_closed()
+        except Exception:
+            return True
 
     def close(self) -> None:
         stack, self._stack, self._page, self._lifted, self._bound = self._stack, None, None, False, False

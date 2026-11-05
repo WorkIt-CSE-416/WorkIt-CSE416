@@ -122,4 +122,6 @@ jobs:
           if [ -z "$SCOUT_ENDPOINTS_SMALL" ] && [ -z "$SCOUT_ENDPOINTS" ]; then
             echo "::warning::No SCOUT_ENDPOINTS_SMALL or SCOUT_ENDPOINTS secret; this run extracts no keywords."
           fi
+          # import_jobs retries its own transaction when the connection
+          # drops, and never the keyword pass after it (paid Scout calls).
           uv run python -m app.scripts.import_jobs ../scraper/feed.json ${DRY_RUN:+"$DRY_RUN"}

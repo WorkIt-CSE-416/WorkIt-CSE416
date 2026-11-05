@@ -389,3 +389,21 @@ def test_lisul_dismisses_a_flag_on_its_card_and_it_stays_gone_after_a_reload(win
 
         window.wait_for_selector(f"{card} button:has-text('Approve')", timeout=10_000)
         assert window.locator(f"{card} .flags li").count() == 0
+
+
+@pytest.mark.parametrize("problem, holds", [
+    ('The U.S. Person status question is answered "No", but the profile says he is a U.S. citizen', True),
+    ("Are you legally authorized to work in the US?: No, but the profile says authorized", True),
+    ("Will you require sponsorship?: Yes contradicts the profile", True),
+    ("ITAR/EAR status: not his status", True),
+    ("Are you at least 18 years of age?: No, but he is 20", True),
+    ("Have you ever been convicted of a felony?: Yes contradicts the profile", True),
+    ("Why Arc?: names a product neither source states", False),
+    ("Languages spoken: Sinhala is missing", False),
+])
+def test_a_review_problem_with_a_legal_answer_holds_submit_until_it_is_dismissed(person, problem, holds):
+    found = verify.check((), {}, {}, person, POSTING, review=[problem], today=TODAY)
+    assert bool(found.holds_submit) == holds
+    flag = found.flags[0]
+    gone = verify.check((), {}, {}, person, POSTING, review=[problem], today=TODAY, dismissed=[(flag.field, flag.why)])
+    assert gone.holds_submit == ()

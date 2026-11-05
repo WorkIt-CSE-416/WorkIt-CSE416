@@ -41,7 +41,7 @@ from apply.claude_fill import OnePage
 from apply.greenhouse import GreenhouseFiller
 from apply.keychain import InMemoryKeychain
 from apply.lever import LeverFiller
-from apply.submit_guard import CAPTCHA_TRY, DriveGuard, guard, lift
+from apply.submit_guard import CAPTCHA_TRY, DriveGuard, guard, lift, renote
 from apply.workday import WorkdayFiller
 
 SKYDIO_JOB = "79fdda46-4ff5-42c7-b208-55f2084cdb8c"
@@ -198,6 +198,55 @@ def test_a_held_page_with_something_to_fix_says_so_in_red(job_server):
 
     assert text.startswith("Apply rehearsal: fix this before you submit. Pre-submit review: Postgrad Discipline(s)")
     assert color == "rgb(176, 0, 32)"
+
+
+US_PERSON_WRONG = ('The U.S. Person status question is answered "No", but the profile says he is a U.S. citizen, '
+                   'so the answer should be "Yes".')
+
+
+def test_a_legal_answer_the_review_found_wrong_holds_lisuls_submit_until_he_dismisses_it(job_server, one_pager):
+    # Saronic's U.S. Person "No" (live, 2026-11-04): a note alone let him send it. Held, his Submit and the final
+    # request are blocked under a red note, until he presses its Dismiss; then Submit is his again.
+    filler = GreenhouseFiller()
+    questions = filler.question_set(ARC_URL, job_server)
+    answers = {"first_name": "Test", "last_name": "Person", "email": "test.person@example.com",
+               "phone": "+1 555 010 0199", "question_18871502008": "Yes", "question_18871503008": "No", "resume": one_pager}
+    pressed, dismissed = [], []
+
+    with job_server.open(ARC_URL) as page:
+        guard(page)
+        filler.fill(page, questions, answers)
+        lift(page, pressed=pressed.append, warning=f"Pre-submit review: {US_PERSON_WRONG}", held=US_PERSON_WRONG,
+             dismiss=lambda: dismissed.append(True))
+        note = page.locator("#apply-rehearsal-blocked")
+        page.get_by_role("button", name="Submit application").click()
+        page.wait_for_timeout(1000)
+        _post(page, FINAL_POST["greenhouse"][2])
+        held = (note.inner_text(), note.evaluate("e => getComputedStyle(e).backgroundColor"), len(job_server.submissions))
+        page.get_by_role("button", name="Dismiss").click()
+        page.wait_for_timeout(300)
+        renote(page, held="")  # what the hold's loop does once the dismissal is saved
+        page.get_by_role("button", name="Submit application").click()
+        page.wait_for_timeout(1500)
+
+    text, color, sent = held
+    assert text.startswith("Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: The U.S. Person")
+    assert color == "rgb(176, 0, 32)" and sent == 0 and pressed == ["Submit application"]
+    assert dismissed == [True]
+    assert len(job_server.submissions) == 1
+
+
+def test_a_held_submit_stays_held_on_the_pages_lisul_loads_next():
+    server, url, script = FINAL_POST["ashby"]
+    with server() as fake:
+        with fake.open(url) as page:
+            guard(page)
+            lift(page, held=US_PERSON_WRONG)
+            page.reload()
+            _post(page, script)
+            shown = page.locator("#apply-rehearsal-blocked").inner_text()
+        assert fake.submissions == []
+    assert "Submit is held" in shown
 
 
 def test_a_held_page_with_only_a_field_left_blank_says_so_in_amber(job_server):
@@ -471,3 +520,145 @@ def test_a_rehearsal_hides_levers_apply_with_linkedin_button_and_keeps_the_linke
                 document.body.appendChild(row); }""")
             assert page.locator(".awli-application-row").first.is_hidden()
             assert page.locator("input[name='urls[LinkedIn]']").count() in (0, 1)
+
+
+STEP = """<form method="post" action="/step"><input name="first" value="Test"><button>{button}</button></form>"""
+
+
+@pytest.mark.parametrize("button, goes", [("Save and Continue", True), ("Submit application", False)])
+def test_plain_codes_next_click_posts_a_step_but_never_a_form_that_sends(button, goes):
+    # TAL.net's every page posts natively (Bank of America's, live): its Next must go on, a Submit never.
+    from playwright.sync_api import sync_playwright
+
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+
+        def serve(route):
+            if route.request.method == "POST":
+                posts.append(route.request.url)
+                return route.fulfill(body="<p>Step 2</p>", content_type="text/html")
+            return route.fulfill(body=STEP.format(button=button), content_type="text/html")
+        page.route("https://form.example/**", serve)
+        page.goto("https://form.example/step")
+        guard(page)
+        drive = DriveGuard(page)
+        page.get_by_role("button", name=button).click()  # Claude's own click, say: blocked
+        page.wait_for_timeout(300)
+        assert posts == []
+        drive.let_account_click()  # plain code's click on the Next Claude named
+        page.get_by_role("button", name=button).click()
+        page.wait_for_timeout(500)
+        assert posts == (["https://form.example/step"] if goes else [])
+        browser.close()
+
+
+@pytest.mark.parametrize("html", [
+    '<form method="post" action="/step"><input type="submit" value="Submit application" aria-label="Next"></form>',
+    '<h1>Review your application</h1><form method="post" action="/step"><button>Next</button></form>',
+])
+def test_a_next_that_is_a_submit_or_on_a_review_page_is_never_clicked_or_let_through(html):
+    # Claude names a Submit button, or the review page's button, as the step's Next: plain code refuses it.
+    from playwright.sync_api import sync_playwright
+
+    from apply.claude_fill import ClaudeFill
+    from apply.model import Handoff
+
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+
+        def serve(route):
+            if route.request.method == "POST":
+                posts.append(route.request.url)
+            return route.fulfill(body=html, content_type="text/html")
+        page.route("https://form.example/**", serve)
+        page.goto("https://form.example/step")
+        guard(page)
+        filler = ClaudeFill(claude=None)
+        filler._guard = DriveGuard(page)
+        with pytest.raises(Handoff, match="may send the form"):
+            filler._next_step(page, "Next")
+        page.wait_for_timeout(300)
+        assert posts == [] and page.evaluate("window.__applyAccountClick") is not True
+        browser.close()
+
+
+# A last step that posts natively to a job system's final application URL, behind a button that says only
+# Continue. A CDP Worker has no route for these URLs (they are page URLs too), so only the in-page guard stops
+# the POST. Plain code's step click (KAN-639) and a profile pop-up's click (KAN-647) must not let it through.
+FINAL_POSTS = {
+    "step's own form": '<form method="post" action="{action}"><input name="first"><button>Continue</button></form>',
+    # A field named "action" shadows form.action: the guard reads the attribute.
+    "form with an action field": '<form method="post" action="{action}"><input name="action" value="next">'
+                                 '<button>Continue</button></form>',
+    "script's form.submit()": '<form id="app" method="post" action="{action}"><input name="first">'
+                              '<button type="button">Submit application</button></form>'
+                              '<button onclick="document.getElementById(\'app\').submit()">Continue</button>',
+}
+
+
+def _posts_to(page, posts):
+    def serve(route):
+        if route.request.method == "POST":
+            posts.append(route.request.url)
+            return route.fulfill(body="<p>Thank you for applying</p>", content_type="text/html")
+        return route.fallback()
+    page.route("**/*", serve)
+
+
+@pytest.mark.parametrize("shape", list(FINAL_POSTS))
+@pytest.mark.parametrize("action", ["https://jobs.example.com/careers/jobs/123/apply",
+                                    "https://job-boards.greenhouse.io/acme/jobs/123"])
+def test_plain_codes_next_click_never_lets_a_post_to_the_final_url_through(monkeypatch, shape, action):
+    from playwright.sync_api import sync_playwright
+
+    from apply import claude_fill
+    from apply.claude_fill import ClaudeFill
+    from apply.model import Handoff
+
+    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1_000)
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        html = FINAL_POSTS[shape].format(action=action)
+        page.route("https://jobs.example.com/careers/jobs/123/step",
+                   lambda route: route.fulfill(body=html, content_type="text/html")
+                   if route.request.method == "GET" else route.fallback())
+        _posts_to(page, posts)
+        page.goto("https://jobs.example.com/careers/jobs/123/step")
+        guard(page)
+        filler = ClaudeFill(claude=None)
+        filler._guard = DriveGuard(page)
+        with pytest.raises(Handoff, match="didn't go on"):
+            filler._next_step(page, "Continue")
+        page.wait_for_timeout(300)
+        browser.close()
+    assert posts == []
+
+
+def test_a_profile_pop_ups_click_never_lets_a_post_to_the_final_url_through():
+    from playwright.sync_api import sync_playwright
+
+    posts = []
+    html = ('<div role="dialog" aria-modal="true" aria-label="Create your profile">'
+            '<form method="post" action="https://job-boards.greenhouse.io/acme/jobs/123"><input name="first">'
+            '<button>Submit</button></form></div>')
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route("https://jobs.example.com/profile",
+                   lambda route: route.fulfill(body=html, content_type="text/html")
+                   if route.request.method == "GET" else route.fallback())
+        _posts_to(page, posts)
+        page.goto("https://jobs.example.com/profile")
+        guard(page)
+        drive = DriveGuard(page)
+        drive.let_profile_click()
+        page.get_by_role("button", name="Submit").click()
+        page.wait_for_timeout(500)
+        browser.close()
+    assert posts == []

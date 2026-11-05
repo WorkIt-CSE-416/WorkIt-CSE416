@@ -1,5 +1,5 @@
 # The API as one image, for the Cloudflare Container (ADR 0004, KAN-295).
-# Build from the REPO ROOT, because ../scout is a path dependency:
+# Build from the REPO ROOT, because ../scout and ../scraper are path dependencies:
 #     docker build --platform linux/amd64 -f backend/Dockerfile -t workit-api .
 # Every COPY names its paths, never a whole folder: `wrangler deploy` pipes
 # this file in on stdin (`-f -`), so BuildKit never finds
@@ -24,6 +24,10 @@ WORKDIR /app/backend
 # Dependencies first, so a code-only change reuses this layer
 COPY scout/pyproject.toml /app/scout/
 COPY scout/workit_scout /app/scout/workit_scout
+# The scraper package (KAN-605) and its board catalog, which
+# app/scraper/schedules.py reads at /app/scraper/boards.csv
+COPY scraper/pyproject.toml scraper/boards.csv /app/scraper/
+COPY scraper/workit_scraper /app/scraper/workit_scraper
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 

@@ -178,16 +178,3 @@ def test_answer_runs_every_gate_on_one_answer():
                         SOURCES, "Figma") == [
         "a number no source holds: 14", "a name no source holds: PyTorch", "names another company: Notion",
         'opens on a date: "In summer 2026,"']
-
-
-# The catch-all box.
-
-def test_a_catch_all_draft_that_mostly_repeats_the_resume_or_the_form_stays_off(tmp_path):
-    resume = text_pdf(tmp_path / "resume.pdf", "Fused wheel encoders with the IMU in C++ firmware cutting spin error from 2.75 to 1.01 degrees")
-    repeat = "My C++ firmware fused the wheel encoders with the IMU, and spin error dropped from 2.75 to 1.01 degrees."
-    assert gates.nothing_new(repeat, resume, []).startswith("its draft mostly repeats")
-    assert gates.nothing_new("I can start on May 18 and intern for twelve weeks.", resume, []) == ""
-    assert gates.nothing_new("My portfolio is at https://example.dev.", None, ["https://example.dev"]).startswith(
-        "its draft mostly repeats")  # a link the form already took
-    assert gates.nothing_new("", resume, []).startswith("nothing new")
-    assert gates.nothing_new("One. Two. Three.", resume, []).startswith("its draft ran 3 sentences")

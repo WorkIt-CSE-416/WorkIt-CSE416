@@ -1,7 +1,7 @@
 name: Fill engine token
 
 # Called by ci.yml, extension-nightly.yml and live-canary.yml: whether the
-# FILL_ENGINE_TOKEN secret (read access to the private WorkIt-CSE-416/fill-engine
+# FILL_ENGINE_TOKEN secret (read access to the private workitjobs/fill-engine
 # submodule) is set. A job that needs the engine runs only when it is, so
 # without it that job shows as skipped, never as passing tests, and this job's
 # summary says SKIPPED and what was.

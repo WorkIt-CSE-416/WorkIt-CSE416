@@ -160,6 +160,7 @@ jobs:
             tests/test_answer_bank.py \
             tests/test_answering.py \
             tests/test_applicant_name.py \
+            tests/test_ask.py \
             tests/test_apply_home.py \
             tests/test_approve.py \
             tests/test_bot_signals.py \
@@ -180,12 +181,14 @@ jobs:
             tests/test_gates.py \
             tests/test_gmail.py \
             tests/test_graduate_only.py \
+            tests/test_into.py \
             tests/test_keychain_contract.py \
             tests/test_mail_command.py \
             tests/test_matches.py \
             tests/test_notification.py \
             tests/test_outside_us.py \
             tests/test_phone_push.py \
+            tests/test_plain_bridge.py \
             tests/test_presubmit_check.py \
             tests/test_privacy_gate.py \
             tests/test_profile.py \

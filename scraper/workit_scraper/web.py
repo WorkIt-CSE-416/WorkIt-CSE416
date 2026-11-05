@@ -10,11 +10,12 @@ too, under the same rules.
 from __future__ import annotations
 
 import json
+import threading
 import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
 
-USER_AGENT = "workit-scraper/0.1 (CSE416 course project; +https://github.com/WorkIt-CSE-416)"
+USER_AGENT = "workit-scraper/0.1 (+https://github.com/workitjobs)"
 
 
 def origin(url: str) -> str:
@@ -33,12 +34,36 @@ class _SameOriginRedirects(urllib.request.HTTPRedirectHandler):
 
 _OPENER = urllib.request.build_opener(_SameOriginRedirects)
 
+_lock = threading.Lock()
+_requests = 0
+_received_bytes = 0
+
+
+def stats() -> dict[str, int]:
+    """Thread-safe snapshot of request and byte counters since import. `requests`
+    counts every request sent, failed ones (429, 5xx, 404, timeouts) included;
+    `received_bytes` counts the bodies of the ones that succeeded."""
+    with _lock:
+        return {"requests": _requests, "received_bytes": _received_bytes}
+
+
+def _send(request: urllib.request.Request, timeout: float) -> bytes:
+    """Open `request` and return the body, counting it before it is sent, so a
+    request that raises is still counted."""
+    global _requests, _received_bytes
+    with _lock:
+        _requests += 1
+    with _OPENER.open(request, timeout=timeout) as response:
+        body = response.read()
+    with _lock:
+        _received_bytes += len(body)
+    return body
+
 
 def get(url: str, *, timeout: float, headers: dict[str, str] | None = None) -> bytes:
     """GET `url` and return the body. HTTP errors propagate as `HTTPError`."""
     request = urllib.request.Request(url, headers={**(headers or {}), "User-Agent": USER_AGENT})
-    with _OPENER.open(request, timeout=timeout) as response:
-        return response.read()
+    return _send(request, timeout)
 
 
 def post(
@@ -58,5 +83,4 @@ def post(
             **(headers or {}),
         },
     )
-    with _OPENER.open(request, timeout=timeout) as response:
-        return response.read()
+    return _send(request, timeout)

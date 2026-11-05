@@ -28,7 +28,7 @@ The `extension-store-build` job (KAN-463) builds the Chrome Web Store package
 localhost, vercel.app or "Prototype", and runs `store-build.spec.ts` and
 `extension-id.spec.ts`. The package needs the private fill-engine submodule,
 which the default token can't read, so the build steps run only once a
-`FILL_ENGINE_TOKEN` secret (read access to WorkIt-CSE-416/fill-engine) is set;
+`FILL_ENGINE_TOKEN` secret (read access to workitjobs/fill-engine) is set;
 without it they show as skipped and the job checks the extension ID only.
 
 **Without `FILL_ENGINE_TOKEN`, the engine's tests are skipped, never green.**
@@ -188,6 +188,12 @@ API at exact times (`scraper/docs/coverage.md`, "Later").
   before every scrape, from the curated GitHub lists, so a company they name
   today is read on the next run without a commit. It only ever adds; the rules
   are in `scraper/CLAUDE.md`.
+- **The import retries its own transaction when the connection drops**
+  (`import_jobs.IMPORT_ATTEMPTS`, three tries 10 seconds apart), so a
+  `DATABASE_URL` pooler disconnect doesn't fail a good scrape. Nothing else is
+  retried: an `ImportRefused` or a bad row fails the same way again, and the
+  keyword pass after the commit makes paid Scout calls, so the workflow step
+  itself runs the import once.
 - **The scraper's memory** (`scraper/jobs.json`) lives in the Actions cache,
   restored from the newest entry and saved only after a scrape that finished. A
   missed cache is safe, just slow: that run re-reads every Greenhouse page and
@@ -366,7 +372,7 @@ not a re-run.
   **`CHROME_PUBLISHER_ID`** (Publisher > Settings in the Developer
   Dashboard — a different value from the item id, and new with the v2
   endpoints above; v1.1 never needed it) and **`FILL_ENGINE_TOKEN`** (a
-  PAT with read access to the private `WorkIt-CSE-416/fill-engine` repo
+  PAT with read access to the private `workitjobs/fill-engine` repo
   — the same secret `ci.yml`'s `extension-store-build` job uses; without
   it `publish`'s checkout can't read the submodule at all, since the
   default `GITHUB_TOKEN` has no cross-repo access, and the job fails at

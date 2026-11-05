@@ -89,6 +89,24 @@ ROUTED = re.compile(
     re.IGNORECASE,
 )
 
+# Whether an open pop-up is a profile step before the application (Microsoft's "Create your profile",
+# KAN-647), and nothing an application could be: titled as making or finishing a profile, with
+# nothing in it that only an application asks (a file, an essay, a box or a choice to tick, a
+# password), and no form field of the page's own behind it. Claude fill and the guards both use it.
+PROFILE_DIALOG = r"""(dialog) => {
+  const by = (dialog.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
+    .map(id => (document.getElementById(id) || {}).innerText || '').join(' ');
+  const heading = dialog.querySelector('h1, h2, h3, [role=heading]');
+  const title = (dialog.getAttribute('aria-label') || by || (heading && heading.innerText) || '').trim();
+  if (!/\b(?:create|complete|build|set\s*up|finish)\b[^.]{0,30}\bprofile\b/i.test(title)) return false;
+  if (/\b(?:appl(?:y|ying|ication)|job|position|role)\b/i.test(title)) return false;
+  if (dialog.querySelector('input[type=file], textarea, input[type=checkbox], [role=checkbox], input[type=radio], '
+    + '[role=radio], input[type=password]')) return false;
+  const shown = (n) => n.type !== 'hidden' && n.type !== 'search' && (!n.checkVisibility || n.checkVisibility());
+  return ![...document.querySelectorAll('input, select, textarea')].some((n) => !dialog.contains(n) && shown(n)
+    && !n.closest('[role=search], [role=dialog], [aria-modal=true], dialog'));
+}"""
+
 _TEMPLATE = r"""
 (() => {
   if (window.__@KEY@Guard) return;
@@ -99,13 +117,24 @@ _TEMPLATE = r"""
     return;
   }
   window.__@KEY@Guard = true;
-  const lifted = () => @LIFTED@;
+  // Lifted, Lisul's page lets everything through, unless Apply holds its Submit (a legal answer the review
+  // found wrong): then a button or request that sends is blocked still, and the held note says why.
+  const held = () => @HELD@;
+  const lifted = () => @LIFTED@ && !held();
   // Plain code's click on the button Claude fill named on a sign-in or account page.
   const accountClick = () => window.__applyAccountClick === true;
   // A sign-in or new account's form: one with a password box, which no application's final button is in.
   const accountForm = (el) => {
     const form = el.form || (el.closest && el.closest('form'));
     return !!form && !!form.querySelector('input[type=password]');
+  };
+  // Plain code's click on the button of a profile step before the application (Microsoft's
+  // "Create your profile" pop-up names its button Submit, live: KAN-647).
+  const profileClick = () => window.__applyProfileClick === true;
+  // Only a button that names no application, in a pop-up that is a profile step and no more.
+  const profileStep = (el) => {
+    const dialog = el && el.closest && el.closest('[role=dialog], [aria-modal=true], dialog[open]');
+    return !!dialog && !/\bappl(?:y|ying|ication)\b/i.test(wordsOf(el)) && (@PROFILE_DIALOG@)(dialog);
   };
   const FINAL_URLS = [
     /^https?:\/\/[^\/]*greenhouse\.io\/(?:embed\/job_app|[^\/?#]+\/jobs\/\d+\/?(?:[?#].*)?$)/i,
@@ -126,10 +155,15 @@ _TEMPLATE = r"""
   const APPLY = /\bapply\b/i;
   const blocked = window.__@KEY@Blocked = [];
   let touched = false;  // a real click or key on the page: Apply's or Lisul's
-  for (const kind of ['pointerdown', 'keydown']) addEventListener(kind, (event) => { if (event.isTrusted) touched = true; }, true);
+  for (const kind of ['pointerdown', 'keydown']) addEventListener(kind, (event) => { if (event.isTrusted) touched = true; }, true);@PORT_TOUCH@
   const note = (what) => {
     blocked.push(what);
-    console.warn('@NAME@ blocked ' + what);
+    if (held()) {  // Lisul's own Submit on a held page: the held note says why, with its Dismiss button
+      console.warn('@NAME@ held ' + what);
+      if (window.__applyHeldBlocked) window.__applyHeldBlocked();
+      return;
+    }
+    console.warn('@NAME@ blocked ' + what);@PORT_SAID@
     // The page's own script, with no click or key on it yet (a cookie banner, analytics): blocked, unshown.
     if (!touched) return;
     try {
@@ -175,6 +209,7 @@ _TEMPLATE = r"""
     // Plain code's own click on an account form's button: Workday names its button "Submit" in its
     // Sign in with email view (Sonos's, live), and that click only signs in.
     if (accountClick() && accountForm(target)) return;
+    if (profileClick() && profileStep(target)) return;
     const words = wordsOf(target);
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -190,18 +225,32 @@ _TEMPLATE = r"""
   // A submit that would send the application (by its Submit/Send button, or with no
   // button, as a script's requestSubmit() or a page's own Enter key does, from a form
   // that has one) reaches none of the page's handlers. A "Next" goes on.
+  // A POST to a job system's final application URL (a CDP Worker routes none of those page URLs): never let
+  // through by plain code's account, step or profile click (KAN-639, KAN-647), as a fetch to it never is.
+  // Its target by attribute (a field named "action" shadows form.action), relative to the page as isFinal reads it.
+  const postsFinal = (form, by) => posts(form, by) && isFinal('POST', (by && by.getAttribute && by.getAttribute('formaction'))
+    || HTMLFormElement.prototype.getAttribute.call(form, 'action') || location.href);
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
     if (accountClick() && form.querySelector('input[type=password]')) return;  // plain code's sign-in, as above
+    if (profileClick() && profileStep(by || form) && !postsFinal(form, by)) return;  // plain code's profile step, as above
     const final = by ? sends(by)
       : [...form.querySelectorAll('button, input[type=submit]')].some(sends);
+    if (held() && !final) return;  // a held page is Lisul's but for its Submit: a Next goes on
     if (final) event.stopImmediatePropagation();
-    if (final || (posts(form, by) && !accountClick())) { event.preventDefault(); note('a form submission'); }
+    if (final || (posts(form, by) && (!accountClick() || postsFinal(form, by)))) {
+      event.preventDefault();
+      note('a form submission');
+    }
   }, true);
   const submit = HTMLFormElement.prototype.submit;
   HTMLFormElement.prototype.submit = function () {
-    if (!lifted() && !accountClick() && posts(this)) return note('a form submission');
+    // Under plain code's click, a page script may post a step's form, but never one with a button that sends
+    // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
+    const step = accountClick() && (!!this.querySelector('input[type=password]')
+      || (![...this.querySelectorAll('button, input[type=submit]')].some(sends) && !postsFinal(this)));
+    if (!lifted() && !step && posts(this)) return note('a form submission');
     return submit.call(this);
   };
 
@@ -316,18 +365,31 @@ _IN_CAPTCHA = r"""
 """
 
 
-def _script(key: str, name: str, lifted: str = "false", extra: str = "", in_captcha: str = "") -> str:
+def _script(key: str, name: str, lifted: str = "false", extra: str = "", in_captcha: str = "", held: str = "false",
+            port: bool = False) -> str:
     """The guard's script under its own `window.__<key>Guard`, so two guards
     can share a page, naming itself `name` in the note on what it blocked:
     off while the JS `lifted` is true, and blocking `extra`'s controls too;
-    `in_captcha` runs in a captcha's own frame, which the guard leaves alone."""
+    `in_captcha` runs in a captcha's own frame, which the guard leaves alone.
+    `port`: a plain Worker's copy (apply.plain.guards), whose page events are
+    all untrusted: it also counts a press the worker extension marks
+    (Apply's own, or Lisul's from the tile) as a touch, and tells the
+    extension what it blocked, since no console reaches Apply there."""
     box = name.lower().replace(" ", "-") + "-blocked"
     script = _TEMPLATE
-    for placeholder, value in {"@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@EXTRA@": extra,
+    for placeholder, value in {"@PORT_TOUCH@": PORT_TOUCH if port else "", "@PORT_SAID@": PORT_SAID if port else "",
+                               "@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@HELD@": held,
+                               "@EXTRA@": extra, "@PROFILE_DIALOG@": PROFILE_DIALOG,
                                "@CAPTCHA@": in_captcha, "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
                                "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS)}.items():
         script = script.replace(placeholder, value)
     return script
+
+
+# A plain Worker's additions (port=True): the worker extension dispatches `__apply_touch` on the
+# page before each press it makes (Apply's own, and Lisul's from the tile), and hears `__apply_said`.
+PORT_TOUCH = "\n  addEventListener('__apply_touch', () => { touched = true; }, true);"
+PORT_SAID = "\n    document.dispatchEvent(new CustomEvent('__apply_said', {detail: '@NAME@ blocked ' + what}));"
 
 
 # Lever's Apply with LinkedIn button never loads in a Worker's Chrome and spins on
@@ -341,22 +403,28 @@ HIDE_LINKEDIN_BUTTON = r"""
 })();
 """
 
-# Lifted once the page is Lisul's (lift()).
-SCRIPT = _script("applyRehearsal", "Apply rehearsal", lifted="window.__applyRehearsalLifted === true") \
-    + HIDE_LINKEDIN_BUTTON
+
+def rehearsal_script(port: bool = False) -> str:
+    """SCRIPT, or with `port` a plain Worker's copy of it."""
+    return _script("applyRehearsal", "Apply rehearsal", lifted="window.__applyRehearsalLifted === true",
+                   held="window.__applyRehearsalLifted === true && window.__applySubmitHeld === true", port=port) \
+        + HIDE_LINKEDIN_BUTTON
 
 
-def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False) -> str:
+def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False, port: bool = False) -> str:
     """The drive guard's script, letting through ticking an opt-in to texts or
-    marketing that Lisul's policy says yes to."""
+    marketing that Lisul's policy says yes to (`port`: a plain Worker's copy)."""
     controls = _CONTROLS.replace("@SMS_OPT_IN@", _js(sms_opt_in)).replace("@MARKETING_OPT_IN@", _js(marketing_opt_in))
     return _script("applyDrive", "Apply drive guard", lifted="window.__applyDriveLifted === true", extra=controls,
-                   in_captcha=_IN_CAPTCHA.replace("@TRY@", CAPTCHA_TRY))
+                   in_captcha=_IN_CAPTCHA.replace("@TRY@", CAPTCHA_TRY), port=port)
 
 
 def _js(yes: bool) -> str:
     return "true" if yes else "false"
 
+
+# Lifted once the page is Lisul's (lift()).
+SCRIPT = rehearsal_script()
 
 DRIVE_BLOCKED = "Apply drive guard blocked "  # how the drive guard tells what it blocked, on the page's console
 # What the drive guard hears on the page's console: its own blocks, and a rehearsal guard's, which
@@ -367,7 +435,9 @@ HEARD = (DRIVE_BLOCKED, "Apply rehearsal blocked ")
 def guard(page: Page) -> None:
     """Put the guard on an open page, every page its context opens later and
     all their workers. The page is loaded again under it, so the guard runs
-    before the page's own code."""
+    before the page's own code. A plain Worker's page: apply.plain.guards."""
+    if _plain(page):
+        return _plain(page).guard(page)
     page.context.route(ROUTED, _refuse)
     page.context.add_init_script(SCRIPT)
     # Its document is enough: a page whose last tracker never loads (Scale AI's, Coinbase's, live) would time out.
@@ -384,16 +454,31 @@ LIFTED = r"""
   const again = AGAIN;
   const warning = WARNING;  // what Apply found wrong on the form, for Lisul to fix before he submits
   const wrong = WRONG;  // red when an answer is wrong; amber when only a field is left blank
+  const held = HELD;  // a legal answer the review found wrong: Submit stays blocked till it is fixed or dismissed
+  window.__applySubmitHeld = !!held;
   const show = () => {
     const box = document.getElementById('apply-rehearsal-blocked') || document.createElement('div');
     box.id = 'apply-rehearsal-blocked';
     // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
     box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;max-width:480px;'
-      + 'background:' + (!warning ? '#1b5e20' : wrong ? '#b00020' : '#8a5a00') + ';color:#fff;font:13px sans-serif;border-radius:4px;'
+      + 'background:' + (held || (warning && wrong) ? '#b00020' : warning ? '#8a5a00' : '#1b5e20') + ';color:#fff;font:13px sans-serif;border-radius:4px;'
       + 'pointer-events:none';
-    box.textContent = warning
+    box.textContent = held
+      ? 'Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: ' + held
+      : warning
       ? 'Apply rehearsal: ' + (wrong ? 'fix this before you submit. ' : 'check before you submit. ') + warning
       : 'Apply rehearsal: Apply is done with this page. Check it; Submit is yours to press.';
+    if (held) {  // his say that it is fixed, or that it holds no more: Submit goes through after it
+      const dismiss = document.createElement('button');
+      dismiss.type = 'button';
+      dismiss.textContent = 'Dismiss';
+      dismiss.style.cssText = 'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif';
+      dismiss.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (window.__applyDismissHold) window.__applyDismissHold();
+      });
+      box.appendChild(dismiss);
+    }
     if (again) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -417,14 +502,24 @@ LIFTED = r"""
     });
     box.appendChild(close);
     if (!box.parentNode) (document.body || document.documentElement).appendChild(box);
+    box.style.display = '';
   };
+  window.__applyHeldBlocked = show;  // a Submit blocked while held shows the held note again
   if (document.body) show(); else document.addEventListener('DOMContentLoaded', show);
 })();
 """
 
 
+def _lifted(again: bool, warning: str, wrong: bool, held: str) -> str:
+    """LIFTED for one note: its Fill again button, its warning (red when `wrong`), and what holds Submit."""
+    script = LIFTED.replace("AGAIN", _js(again)).replace("WRONG", _js(wrong))
+    # Last: their own words stay as they are.
+    return script.replace("HELD", json.dumps(held)).replace("WARNING", json.dumps(warning))
+
+
 def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callable[[], None] | None = None,
-         warning: str = "", wrong: bool = True, bound: bool = False) -> None:
+         warning: str = "", wrong: bool = True, bound: bool = False, held: str = "",
+         dismiss: Callable[[], None] | None = None) -> None:
     """Hand a guarded page to Lisul once Apply is done with it: no Filler or
     Claude drives it any more, so a Submit on it can only be his, and it goes
     through, on this page and every page he loads from it. `pressed` hears
@@ -433,16 +528,21 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     `warning` goes on the note, red when an answer is `wrong`, amber when
     it only names fields left blank. `bound`: the page was lifted before
     (a paused rehearsal, resumed), so its bindings are there already, and
-    its note keeps the Fill again button."""
+    its note keeps the Fill again button. A `held` reason (a legal answer the
+    Pre-submit review found wrong) keeps his Submit blocked, with a red note
+    and a Dismiss button that calls `dismiss`, until renote() says it holds no more."""
+    if _plain(page):
+        return _plain(page).lift(page, pressed, again, warning, wrong, bound, held, dismiss)
     if bound:
-        pressed = again = None
+        pressed = again = dismiss = None
     if pressed:
         page.expose_binding("__applyLisulPressed", lambda source, words: pressed(words))
     if again:
         page.expose_binding("__applyFillAgain", lambda source: again())
+    if dismiss:
+        page.expose_binding("__applyDismissHold", lambda source: dismiss())
     page.context.unroute(ROUTED, _refuse)
-    script = LIFTED.replace("AGAIN", "true" if again or bound else "false").replace("WRONG", "true" if wrong else "false")
-    script = script.replace("WARNING", json.dumps(warning))  # last: the warning's own words stay as they are
+    script = _lifted(bool(again or bound), warning, wrong, held)
     page.context.add_init_script(script)
     for frame in page.frames:
         try:
@@ -466,6 +566,8 @@ def rearm(page: Page) -> None:
     """Put the guard back on a page lift() handed to Lisul, for Resume: Apply
     drives it again. No reload, so what he typed on the page stays; a page
     loaded from it later is guarded too (after lift's script, this one runs)."""
+    if _plain(page):
+        return _plain(page).rearm(page)
     page.context.route(ROUTED, _refuse)
     page.context.add_init_script(REARMED)
     for frame in page.frames:
@@ -475,19 +577,28 @@ def rearm(page: Page) -> None:
             pass  # a frame gone or going: one loaded later gets the init script
 
 
-def renote(page: Page, warning: str = "", wrong: bool = True) -> None:
+def renote(page: Page, warning: str = "", wrong: bool = True, held: str = "") -> None:
     """Say the note of a page already lifted anew: Lisul answered in the window
-    what it said was left blank. Its Fill again button stays. A page still
-    guarded (one Lisul already applied to, KAN-621) stays guarded."""
-    script = LIFTED.replace("AGAIN", "true").replace("WRONG", "true" if wrong else "false")
-    script = script.replace("WARNING", json.dumps(warning))
-    script = f"if (window.__applyRehearsalLifted === true) {script}"
+    what it said was left blank, or dismissed what held its Submit (`held` is
+    what holds it still). Its Fill again button stays. A page still guarded
+    (one Lisul already applied to, KAN-621) stays guarded."""
+    if _plain(page):
+        return _plain(page).renote(page, warning, wrong, held)
+    script = f"if (window.__applyRehearsalLifted === true) {_lifted(True, warning, wrong, held)}"
     page.context.add_init_script(script)  # after lift's: a page loaded from it says the same
     for frame in page.frames:
         try:
             frame.evaluate(script)
         except Exception:
             pass
+
+
+def _plain(page):
+    """apply.plain.guards when `page` is a plain Worker's (a PortPage), else None."""
+    if getattr(page, "plain", False) is not True:  # a Mock's attribute is no plain page
+        return None
+    from apply.plain import guards
+    return guards
 
 
 # The note on a held page of a Posting Lisul already applied to (`apply rehearse --force`, KAN-621). The guard
@@ -535,6 +646,8 @@ def warn_applied(page: Page, day: str, dismissed: Callable[[], None] | None = No
     """Show the red "You already applied on <day>, don't submit" note on a held page, this one and every page
     loaded from it. The guard stays on: Submit is blocked. `dismissed` hears his second press of Dismiss (None:
     the page has the binding already)."""
+    if _plain(page):
+        return _plain(page).warn_applied(page, day, dismissed)
     if dismissed:
         page.expose_binding("__applyDismissApplied", lambda source: dismissed())
     script = APPLIED_NOTE.replace("DAY", json.dumps(day))
@@ -547,6 +660,8 @@ def warn_applied(page: Page, day: str, dismissed: Callable[[], None] | None = No
 
 def applied_dismissed(page: Page) -> None:
     """Lisul dismissed the note: no page loaded from now on shows it (lift() then takes the guard off)."""
+    if _plain(page):
+        return _plain(page).applied_dismissed(page)
     script = "window.__applyAppliedDismissed = true"
     page.context.add_init_script(script)
     try:
@@ -571,7 +686,14 @@ class DriveGuard:
     or gate led to stays as it is. It's lifted only for Claude fill's own
     submit click, and put back on before Claude drives again; a rehearsal's
     own guard is never lifted. Ticking an opt-in to texts or marketing goes
-    on only where Lisul's sms_opt_in or marketing_opt_in policy says yes."""
+    on only where Lisul's sms_opt_in or marketing_opt_in policy says yes.
+    On a plain Worker's page it is apply.plain.guards.PlainDriveGuard."""
+
+    def __new__(cls, page: Page, *args, **kwargs):
+        plain = _plain(page)
+        if plain and cls is DriveGuard:
+            return super().__new__(plain.PlainDriveGuard)
+        return super().__new__(cls)
 
     def __init__(self, page: Page, sms_opt_in: bool = False, marketing_opt_in: bool = False):
         self._page = page
@@ -610,8 +732,14 @@ class DriveGuard:
         that sends the form, and the application request, are blocked still."""
         self._in_frames("window.__applyAccountClick = true")
 
+    def let_profile_click(self, let: bool = True) -> None:
+        """Let plain code's next click send a profile step's pop-up, one before the application
+        (Microsoft's "Create your profile", KAN-647): its button only, never the application request."""
+        self._in_frames(f"window.__applyProfileClick = {_js(let)}")
+
     def arm(self) -> None:
-        self._in_frames("window.__applyDriveLifted = false; window.__applyAccountClick = false")
+        self._in_frames("window.__applyDriveLifted = false; window.__applyAccountClick = false; "
+                        "window.__applyProfileClick = false")
         self._set_driving(True)
 
     def _set_driving(self, driving: bool) -> None:

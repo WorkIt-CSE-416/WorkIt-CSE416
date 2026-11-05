@@ -32,6 +32,14 @@ tick_consent_when_true: true
 # engine leaves those questions blank.
 us_roles_only: true
 
+# Page gates (KAN-637): Claude fill stops before leaving a page with an
+# attestation, signature, consent, self-ID, legal or criminal-history field, or
+# an answer it isn't sure of, and waits for your Resume. It never ticks or
+# signs those boxes for you. Rehearsals pause there; a live run hands off.
+# "note" pauses nothing: each such field goes on the form's "Check before
+# Submit" list, and the form goes on to its last page.
+page_gates: false
+
 # Opt-ins to texts, WhatsApp, marketing or job alerts.
 sms_opt_in: false
 marketing_opt_in: false
@@ -96,6 +104,13 @@ not_engineering_titles: [
   customer, '\bit\b', information technology, 'help ?desk', technician, product manag,
 ]
 
+# The criminal background check, drug screen and reference check an offer
+# depends on ("Please indicate below if you can meet these hiring
+# requirements", Rocket Lab's): true answers Yes, false No. null: Apply has no
+# answer of yours, so each such question is a Missing fact for you. Set it in
+# your own policies.yaml to answer them all.
+willing_to_undergo_checks: null
+
 # Defense, military and ITAR roles are applied to, and questions about working
 # on them are answered Yes.
 defense_roles: true
@@ -145,6 +160,26 @@ max_unreviewed_uses: null
 # (2026-10-17), after all three watched headless submits were blocked.
 worker_headless: false
 
+# Which kind of Worker fills a form (KAN-606, KAN-614): cdp (Chrome driven by
+# Playwright over the DevTools protocol, as today), plain (a plain Chrome with no
+# CDP and no automation flags, driven through the private worker extension), or
+# protected (plain only for plain_worker_hosts and each host a bot block was seen
+# on, kept in plain-hosts.json in the data folder; cdp for the rest). cdp until
+# plain Workers reach parity and run side by side for a week.
+worker_mode: cdp
+
+# The protected hosts (and their subdomains) that worker_mode: protected fills in
+# plain Workers.
+plain_worker_hosts:
+  - jobs.lever.co
+  - smartrecruiters.com
+  - apply.workable.com
+
+# The Chrome a plain Worker runs: chrome (branded Google Chrome; the worker
+# extension is installed once in the seed profile, `apply plain seed`) or
+# testing (Chrome for Testing with --load-extension: dev and tests).
+plain_chrome: chrome
+
 # How Apply signs in to a Workday tenant: email (an Employer account with email
 # and password, its password in Keychain) or google (Sign in with Google where
 # the tenant offers it). Email even where Google is offered, since Google asked
@@ -162,6 +197,7 @@ workday_sign_in: email
 claude_fill:
   max_turns: 80
   max_tokens: 1200000
+  max_steps: 20  # Nexts before a Handoff, a guard against a loop (KAN-649)
 
 # Scheduled runs (`apply schedule install`, launchd): the Daily sweep, `apply
 # run`, once a day at daily_sweep_at, local time; and the Requests check,

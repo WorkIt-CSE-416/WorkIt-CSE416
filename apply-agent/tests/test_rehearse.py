@@ -61,7 +61,7 @@ from test_greenhouse_filler import board_listing_schools
 from test_run_answers import profile_with
 
 from apply import rehearsal, worker
-from apply.adapters import Adapters
+from apply.adapters import Adapters, Drive
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
 from apply.claude_fill import ClaudeFill
@@ -218,8 +218,9 @@ def test_each_filled_rehearsal_keeps_its_record_in_a_local_folder(tmp_path):
     assert "Rehearsal, not submitted. Pre-submit check: failed." in readme
     assert "Pre-submit review: Phone: the number is in the Email field" in readme
     essays_md = (folder / "essays.md").read_text()
-    assert essays_md.startswith(f"## {ESSAY}\nPlan: why-company | ") and "\n\n## Additional Comments?" in essays_md
-    essay = essays_md.split("\n\n## Additional Comments?")[0].splitlines()[-1]  # the candidate the writer picked
+    assert essays_md.startswith(f"## {ESSAY}\nPlan: why-company | ")
+    assert "## Additional Comments?" not in essays_md  # an optional catch-all box stays blank (KAN-625)
+    essay = essays_md.splitlines()[-1]  # the candidate the writer picked
     assert essay in (folder / "answers.json").read_text()
     assert (folder / "form.png").read_bytes().startswith(b"\x89PNG")
     assert server.submissions == []
@@ -455,6 +456,46 @@ def test_the_pre_submit_reviews_fix_is_filled_before_the_form_shows_as_ready(mon
     assert sum("problems" in call["schema"]["properties"] for call in claude.calls) == 2  # reviewed again after the fix
     assert bank.entries() == []
     assert server.submissions == []
+
+
+AUTHORIZED = "Are you legally authorized to work in the United States?"
+
+
+def test_the_reviews_fix_for_a_legal_answer_is_filled_over_the_profiles(monkeypatch, tmp_path):
+    # Saronic's U.S. Person "No" came from the plan's own (wrong) rule, and the review's fix was left as a banner
+    # (live, 2026-11-04). A legal or eligibility answer the review finds wrong is filled with its fix, then reviewed
+    # again, though the plan took it from the profile. Another profile answer's fix is still never taken.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    claude = FakeClaude(reviews=[{"problems": [f"{AUTHORIZED}: answered No, but the profile says he is authorized",
+                                               "First Name: not his name"],
+                                  "fixes": [{"question": AUTHORIZED, "answer": "Yes"},
+                                            {"question": "First Name", "answer": "Someone"}]}])
+    profile = profile_with(tmp_path, **{"work_authorization.authorized_to_work_us": False})
+    records = FolderRecords(tmp_path / "rehearsals")
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile, claude, records=records)
+
+    shown = {a["question"].strip(): a["on_page"] for a in json.loads((Path(done.record) / "answers.json").read_text())}
+    assert shown[AUTHORIZED] == "Yes" and shown["First Name"] != "Someone"
+    assert sum("problems" in call["schema"]["properties"] for call in claude.calls) == 2  # reviewed again after the fix
+    assert done.legal == ()
+    assert fake.submissions == []
+
+
+def test_a_legal_problem_the_review_gives_no_fix_for_holds_submit_until_lisul_dismisses_it(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    problem = 'The U.S. Person status question is answered "No", but the profile says he is a U.S. citizen'
+    claude = FakeClaude(reviews=[[problem, "Why Arc?: names no product"]])
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path), claude)
+
+    assert done.legal == (("", problem),)  # the essay's problem is a banner, not a hold
+    assert done.holding() == problem
+    done.dismiss_holds()  # the held note's Dismiss
+    assert done.holding() == ""
+    assert fake.submissions == []
 
 
 def test_a_workday_rehearsal_stops_where_google_wants_more_than_an_account_pick(monkeypatch, tmp_path):
@@ -931,6 +972,15 @@ def test_each_links_tile_on_the_dashboard_says_what_it_is_and_how_it_ended(monke
     assert board.captions[0].pop("application_id")
     assert board.captions[0].pop("verifying") is False  # verified once it was filled, before it stopped
     assert board.captions[0].pop("verification")["state"] in ("verified", "flagged")
+    # The stuck watch's last word (apply.stuck): read only while a tile is filling.
+    assert isinstance(board.captions[0].pop("doing"), str)
+    assert isinstance(board.captions[0].pop("progress_at"), float)
+    assert board.captions[0].pop("waiting") is False
+    # Nothing paused, waited, regenerated or refused it as a bot.
+    assert board.captions[0].pop("history") == []
+    assert board.captions[0].pop("written") == []
+    assert board.captions[0].pop("blocked") is False
+    assert board.captions[0].pop("where") == {}
     assert board.captions == {0: {
         "company": "Arc Boat Company", "role": "Software Engineering Intern", "job_system": "greenhouse",
         "status": "ready to submit", "stage": "", "line": done.line(), "why": done.why,
@@ -1487,3 +1537,100 @@ def test_force_rehearses_it_but_submit_stays_blocked_until_the_red_note_is_dismi
     assert (seen["sent before"], seen["sent after one press"]) == (0, 0)
     assert submissions == 1  # his, once he dismissed the note on purpose
     assert any(line.startswith("Arc Boat Company | ") and "ready to submit" in line for line in lines)
+
+
+@pytest.mark.parametrize("outcome", [rehearsal.FAILED, rehearsal.SIGN_IN, "handoff"])
+def test_a_page_apply_stopped_on_before_the_last_never_says_submit_is_yours(outcome):
+    done = rehearsal.Rehearsed(Posting("p", "JPMorgan Chase", "Intern", "https://jpmc.fa.oraclecloud.com/x"), outcome,
+                               "element is not editable")
+    assert done.warning().startswith("Apply stopped before the form's last page")
+    assert "isn't ready to submit" in done.warning() and done.wrong()
+
+
+def test_a_form_filled_to_its_last_page_keeps_its_plain_note():
+    done = rehearsal.Rehearsed(Posting("p", "Acme", "Intern", "https://acme.example/x"), rehearsal.READY)
+    assert (done.warning(), done.wrong()) == ("", False)
+
+
+class StepsSite:
+    """A job site whose form has two pages, each its own document, in a browser of its own: Ask Claude going
+    back a step loads a new one. Each POST is kept in `posts`, and none is answered."""
+
+    PAGES = {"/apply/1": '<a href="/apply/2">Back to page 2</a><p>Review your application</p>',
+             "/apply/2": '<form method="post" action="/apply/2"><label>GPA <input id="gpa" name="gpa" value="3.9">'
+                         '</label><button>Submit application</button></form>'}
+
+    def __init__(self):
+        self.posts = []
+
+    @contextmanager
+    def open(self, url: str, worker: int = 0):
+        def serve(route):
+            if route.request.method == "POST":
+                self.posts.append(route.request.url)
+                return route.fulfill(content_type="text/html", body="<p>Thank you for applying!</p>")
+            path = route.request.url.split("example.com", 1)[1]
+            route.fulfill(content_type="text/html", body=self.PAGES.get(path, "<p>Not found</p>"))
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            try:
+                page = browser.new_page()
+                page.context.route("**/*", serve)
+                page.goto(url)
+                yield page
+            finally:
+                browser.close()
+
+
+class _Claude:
+    """Ask Claude's drive, played: it goes back to page 2 (a new document), fixes the GPA and presses Enter."""
+
+    def drive(self, page, **given):
+        page.click("text=Back to page 2")
+        page.wait_for_selector("#gpa")
+        page.fill("#gpa", "3.7")
+        page.press("#gpa", "Enter")  # Enter in a field sends its form
+        page.wait_for_timeout(500)
+        return Drive({"blocked": False, "why": "", "reply": "Fixed the GPA.", "changed": [], "couldnt": [],
+                      "waiting": [], "ticked": [], "remember": [], "apply_bug": []}, 3, 1_000)
+
+
+class _Asking:
+    """The held page's Ask Claude: one message, acted on with apply.ask under the drive guard."""
+
+    def __init__(self):
+        self.items, self.done = [{"id": "ask-1", "message": "page 2's GPA is wrong, it's 3.7"}], []
+
+    def open(self, page) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+    def asked(self) -> list[dict]:
+        items, self.items = self.items, []
+        return items
+
+    def __call__(self, page, item: dict) -> None:
+        from apply import ask
+        from apply.submit_guard import DriveGuard
+
+        reply = ask.ask(_Claude(), page, item["message"], [], ask.Form(Posting("p", "Acme", "Intern", page.url)), "",
+                        guard=DriveGuard(page))
+        self.done.append(reply)
+
+
+def test_ask_claude_on_a_held_page_sends_nothing_from_a_page_it_loads():
+    # A held page is lifted for Lisul. Ask Claude drives it again, and a page it loads (going back a step) must be
+    # guarded too: Enter in a field there must not send the application (KAN-638).
+    site, release, asking = StepsSite(), threading.Event(), _Asking()
+    kept = rehearsal._Kept(site, 0)
+    timer = threading.Timer(4, release.set)
+    timer.daemon = True
+    timer.start()
+
+    with kept.open("https://jobs.example.com/apply/1"):
+        kept.hold(release, ask=asking)
+
+    assert asking.done, "the message was taken"
+    assert site.posts == []

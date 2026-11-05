@@ -6,7 +6,11 @@ touches one (the drive guard refuses it in the captcha's frame as well). The dri
 page anyway, but Claude can't see that block and spends turns on it.
 
 `claude -p` runs it as a PreToolUse hook (`python -m apply.send_click`): the
-tool call comes in on stdin, and a refusal goes out on stdout."""
+tool call comes in on stdin, and a refusal goes out on stdout.
+
+Ask Claude (apply.ask) runs it with `--ask`: then a click on a Resend or Send
+code button is refused too, and so is any act on an attestation, signature or
+consent box, unless `--may-tick` says Lisul's own message asked for a tick."""
 
 import json
 import re
@@ -24,14 +28,25 @@ CAPTCHA = re.compile(r"captcha|not a robot|i'?m not a robot|turnstile|cloudflare
 REFUSED_CAPTCHA = ("That is a captcha, and Apply never touches one: a person does it. Don't click, tick, type in "
                    "or solve it, and don't try another way. Leave it as it is and go on with the rest of the form; "
                    "if its challenge covers the form, stop: set blocked and say captcha in why.")
+# Ask Claude only: what asks for a verification code or mail again, and a box only Lisul ticks or signs.
+RESEND = re.compile(r"\bre-?send\b|\b(new|another) (code|link|email)\b|\bsend (me )?(a |the )?(new |verification )?(code|link)\b"
+                    r"|\bverify (my |your )?email\b|\bverification (code|email|link)\b", re.IGNORECASE)
+ATTEST = re.compile(r"attest|\bcertify\b|acknowledg|\bconsent|signature|\be-?sign|\bsign(ed)? (here|below)|\bi (hereby )?"
+                    r"(agree|confirm|declare|understand|accept)|terms (of|and)|privacy (policy|notice)"
+                    r"|true(,)? (and )?(complete|correct|accurate)|best of my knowledge", re.IGNORECASE)
+REFUSED_RESEND = ("That asks the site for a verification code or email again, and Apply never does: the applicant "
+                  "asks for one themselves. Leave it, and say so in couldnt.")
+REFUSED_ATTEST = ("That is an attestation, signature or consent box, and only the applicant ticks or signs it. "
+                  "Leave it as it is, and say in waiting that it is theirs to tick.")
 REFUSED = ("That button sends the application, and only Apply clicks it, after its own checks. Don't click it, "
            "and don't send the form any other way: this is the form's last step. Name that button exactly in "
            "submit_button, read every field back and give your answer now.")
 
 
-def refusal(call: dict) -> dict | None:
+def refusal(call: dict, ask: bool = False, may_tick: bool = False) -> dict | None:
     """The hook's answer to one tool call: a refusal of a click on a button
-    that sends, else None (the click goes on)."""
+    that sends, else None (the click goes on). With `ask` (Ask Claude), also of
+    a Resend click and, unless `may_tick`, of any act on an attestation box."""
     given = call.get("tool_input") or {}
     said = " ".join(str(given.get(k) or "") for k in ("element", "name"))
     named = " ".join([said, *(f"{f.get('name') or ''} {f.get('element') or ''}" for f in given.get("fields") or []
@@ -39,6 +54,10 @@ def refusal(call: dict) -> dict | None:
     tool = str(call.get("tool_name") or "")
     if re.fullmatch(ACTS, tool) and CAPTCHA.search(named):
         return _deny(REFUSED_CAPTCHA)
+    if ask and tool == TOOLS and RESEND.search(said):
+        return _deny(REFUSED_RESEND)
+    if ask and not may_tick and re.fullmatch(ACTS, tool) and ATTEST.search(named):
+        return _deny(REFUSED_ATTEST)
     if tool != TOOLS or not SENDS.search(said):
         return None
     return _deny(REFUSED)
@@ -49,12 +68,13 @@ def _deny(why: str) -> dict:
                                    "permissionDecisionReason": why}}
 
 
-def settings(python: str) -> str:
-    """The `--settings` that run this hook on every browser tool that acts on the page."""
-    return json.dumps({"hooks": {"PreToolUse": [{"matcher": ACTS, "hooks": [
-        {"type": "command", "command": f"{shlex.quote(python)} -m apply.send_click"}]}]}})
+def settings(python: str, flags: tuple[str, ...] = ()) -> str:
+    """The `--settings` that run this hook on every browser tool that acts on the page,
+    with `flags` (Ask Claude's `--ask`, `--may-tick`)."""
+    command = " ".join([shlex.quote(python), "-m", "apply.send_click", *(shlex.quote(f) for f in flags)])
+    return json.dumps({"hooks": {"PreToolUse": [{"matcher": ACTS, "hooks": [{"type": "command", "command": command}]}]}})
 
 
 if __name__ == "__main__":
-    if answer := refusal(json.load(sys.stdin)):
+    if answer := refusal(json.load(sys.stdin), ask="--ask" in sys.argv, may_tick="--may-tick" in sys.argv):
         print(json.dumps(answer))

@@ -106,6 +106,8 @@ def keep_sent(folder: Path, path: Path) -> Path:
 
 # Ends a Handoff's reason when the rest of the form was filled.
 FILLED_BUT = "Every other answer was filled in; the Record has them all"
+# Why an optional catch-all box ("Additional information") is blank: on purpose, always (KAN-625).
+CATCH_ALL_BLANK = "an optional catch-all box, which Apply always leaves blank"
 
 
 @dataclass
@@ -156,6 +158,8 @@ def apply_to(
     on_verify: Callable[["verify.Verification | None"], None] = lambda verification: None,
     on_pause: Callable[[Result, Callable[[object], str]], bool] = lambda stopped, blocked: False,
     on_captcha: Callable[[str, object, str], bool] = lambda why, page, company: False,
+    anyway: bool = False,
+    fetched: str | None = None,
 ) -> Result:
     """`before_submit` runs just before the form is submitted. It returns why
     the Orchestrator holds the Application anyway (the Calibration run), or "";
@@ -200,11 +204,17 @@ def apply_to(
     A captcha that stops the fill (model.Captcha), in a run or a rehearsal,
     goes to `on_captcha` first, with its reason, its page and the company
     that the link or the page names (captcha.Waiter): True, Lisul did it, and the fill goes on on that page.
-    False, the time ran out: it is a Handoff (or a rehearsal's pause)."""
+    False, the time ran out: it is a Handoff (or a rehearsal's pause).
+    With `anyway` (Lisul pressed Fill it anyway on a rehearsal that ruled him out), neither the Posting's
+    text nor a failed Screener ends it: the form is filled as in any rehearsal.
+    `fetched` is the Posting's page as a plain fetch read it, when the caller
+    read it already (embedded.form_behind), so it is not fetched again."""
     planned = _Planned(posting, site, profile, claude, answered or {}, approved, rehearse, bank or AnswerBank(),
                        today or date.today(), on_files, on_missing)
+    planned.anyway = anyway
     try:
-        result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify, on_pause, on_captcha)
+        result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify, on_pause, on_captcha,
+                        fetched)
     except Handoff as handoff:
         result = _handed_off(handoff)
     except Closed as closed:  # skipped before any form is filled
@@ -230,12 +240,12 @@ def apply_to(
 
 def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fill=lambda: None,
            on_verify=lambda verification: None, on_pause=lambda stopped, blocked: False,
-           on_captcha=lambda why, page, company: False) -> Result:
+           on_captcha=lambda why, page, company: False, fetched: str | None = None) -> Result:
     posting, profile, claude = planned.posting, planned.profile, planned.claude
     read = description.from_api(posting, site)
-    if why := eligibility.not_eligible(read):  # before any form opens or Claude is asked
+    if (why := eligibility.not_eligible(read)) and not planned.anyway:  # before any form opens or Claude is asked
         return Result(Status.NOT_ELIGIBLE, why)
-    fetched = read or description.from_link(posting, site)  # no browser yet
+    fetched = read or (description.from_link(posting, site) if fetched is None else fetched)  # no browser yet
     if trap := posting_ai_trap(fetched):  # else Claude fill's Claude would read it on the open page
         return Result(Status.HANDOFF, trap_handoff(trap))
     with tempfile.TemporaryDirectory(prefix="apply-") as scratch:
@@ -313,14 +323,15 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         shown = dict(getattr(filler, "shown_so_far", {}))
                         stopped = _handed_off(handoff, missing=planned.missing, choices=planned.choices,
                                               required=planned.required, where=planned.where,
-                                              filled=Filled(planned.questions, planned.answers, shown, _screenshot(page)))
+                                              filled=Filled(planned.questions, planned.answers, shown, _screenshot(page),
+                                                            html=page_html(page)))
                         if isinstance(handoff, Blocked) or not (rehearse and on_pause(stopped, blocked)):
                             return stopped  # a bot block is never paused: Resume would only try again
                         # Resume: what Lisul put on the step it stopped on stays, as his answers.
                         planned.keep(getattr(filler, "resumed", lambda page: {})(page))
                 questions, answers, holds = planned.questions, planned.answers, list(planned.holds)
                 holds = [f"Not filled: {e}" for e in planned.unfilled] + holds
-                filled = Filled(questions, answers, readback, _screenshot(page))
+                filled = Filled(questions, answers, readback, _screenshot(page), html=page_html(page))
                 problems = readback_problems(questions, answers, readback, planned.accepted)
                 if problems and not replanned and attempt < 2:
                     # Perhaps a timing glitch, or the page words it its own way: Sonnet plans
@@ -466,6 +477,7 @@ class _Planned:
         self.lisuls: dict[str, object] = {}  # what Lisul put on a paused form's step before Resume, by name
         self._yours: set[Question] = set()  # questions a Resume stopped Claude from answering: Lisul's, on the page
         self.questions: list[Question] = []
+        self.anyway = False  # Lisul pressed Fill it anyway: a failed Screener doesn't end it
         self._answers: dict = {}
         self.accepted: dict[str, tuple[str, ...]] = {}  # other wordings Lisul accepts for an answer, by Question name
         self.blanks: dict[str, str] = {}  # fields the engine's plan leaves blank on purpose, by name: why
@@ -572,7 +584,7 @@ class _Planned:
                 planned.answers[q.name] = given
                 planned.missing = [m for m in planned.missing if m.name != q.name]
                 planned.drafts = [d for d in planned.drafts if d.name != q.name]
-        if planned.not_eligible:
+        if planned.not_eligible and not self.anyway:
             return Result(Status.NOT_ELIGIBLE, planned.not_eligible)
         if planned.handoffs:  # a form Lisul finishes gets no Claude call: its one-off questions are his too
             yours = [q for q in self.questions if q in planned.missing + planned.drafts]
@@ -583,9 +595,12 @@ class _Planned:
             return None
         if stop := self._missing(planned.missing):
             return stop
+        # An optional catch-all box ("Additional information", "Anything else?") stays blank on purpose, always:
+        # Claude never drafts it and Lisul is never asked it (Lisul, 2026-11-04). A required one is answered.
+        self.kept_blank |= {q.name: CATCH_ALL_BLANK for q in planned.essays + planned.drafts if essays.catch_all(q)}
         done = {essay.question for essay in self.written}
-        new = [q for q in planned.essays if q not in done and q not in self._yours]
-        to_draft = [q for q in planned.drafts if q not in self._asked]
+        new = [q for q in planned.essays if q not in done and q not in self._yours and q.name not in self.kept_blank]
+        to_draft = [q for q in planned.drafts if q not in self._asked and q.name not in self.kept_blank]
         name = posting.company or "the company"
         try:
             if new and self.material is None:
@@ -607,14 +622,9 @@ class _Planned:
             raise
         if self._approved is not None:
             written = essays.from_cell(self._approved, new)
-        written = self._catch_alls(written, planned.answers, drafted)
         self.written += written
         self._asked |= set(to_draft)
         for draft in drafted:
-            if essays.catch_all(draft.question):  # a one-line catch-all box: for this form only, never banked
-                if not self._kept_blank(draft.question, draft.shown, draft.needs_lisul, planned.answers, written, drafted):
-                    self.unbanked.append(draft)
-                continue
             if draft.needs_lisul:
                 continue
             # True of this company only, or a bare date no section places: drafted again each time, never banked.
@@ -640,8 +650,7 @@ class _Planned:
                                  + called_for, asks):
             return stop
         for essay in written:
-            if essay.question.name not in self.kept_blank:
-                self.holds += self._holds(essay, essay.question in planned.high_stakes)
+            self.holds += self._holds(essay, essay.question in planned.high_stakes)
         answers = dict(planned.answers) | {d.question.name: d.answer for d in self.drafted + self.unbanked
                                            if not left_blank(d.question, d.answer) and d.question not in moot}
         answers |= {q.name: answer for q, answer in moot.items() if answer is not None}
@@ -663,31 +672,6 @@ class _Planned:
                 answers[q.name] = essay.text
         self.answers = {name: answer for name, answer in answers.items() if name not in self._skipped}
         return None
-
-    def _catch_alls(self, written: list["essays.Essay"], given: dict, drafted: list["essays.Draft"]) -> list["essays.Essay"]:
-        """`written` with each optional catch-all box's essay (essays.catch_all) emptied when it has
-        nothing new to say (_kept_blank); an approved Essay cell is Lisul's, and stays."""
-        if self._approved is not None:
-            return written
-        return [replace(e, text="") if essays.catch_all(e.question)
-                and self._kept_blank(e.question, e.text, e.needs_lisul, given, written, drafted) else e for e in written]
-
-    def _kept_blank(self, q: Question, text: str, needs_lisul: bool, given: dict, written: list["essays.Essay"],
-                    drafted: list["essays.Draft"]) -> bool:
-        """Whether optional catch-all box `q` stays blank (gates.nothing_new): blank on purpose, so it is
-        noted, never held nor asked (Lisul, 2026-11-04). New means off the resume PDF (its links too),
-        the form's other answers and its cover letter."""
-        others = [str(a) for name, a in given.items() if name != q.name and isinstance(a, (str, list))]
-        others += [e.text for e in self.written + written if e.question != q and e.text]
-        others += [d.shown for d in drafted + self.drafted + self.unbanked if d.question != q]
-        pdf = self.profile.get("files.resume_pdf")
-        pdf = pdf if isinstance(pdf, Path) and pdf.is_file() else None
-        if pdf:
-            others += [url for _, url in asking.resume_links(pdf, pdf.stat().st_mtime)]
-        why = "Claude found nothing new to add" if needs_lisul else gates.nothing_new(text, pdf, others)
-        if why:
-            self.kept_blank[q.name] = f"an optional catch-all box: {why}"
-        return bool(why)
 
     def _to_lisul(self, answers: dict, missing: list[Question], questions: list[Question]) -> None:
         """A Resume stopped Claude before it answered `questions`: they are
@@ -738,13 +722,17 @@ class _Planned:
         an answer the plan took from the profile (General Motors' degree, live: the review called "Bachelor
         Degree" wrong), Lisul's own answer (on the page or in the Answer bank), an essay, a file or a secret,
         nor an answer that isn't one of the question's options. So no plan writes over them, and a draft it
-        fixes leaves the Answer bank: the bank never keeps an answer known wrong. True if any answer changed."""
+        fixes leaves the Answer bank: the bank never keeps an answer known wrong. True if any answer changed.
+        A legal or eligibility question (verify.LEGAL: U.S. Person, work authorization, age...) is the one
+        exception to the profile's: the review read it against the profile and found it wrong (Saronic's U.S.
+        Person "No", live), so its fix, one of the question's options, is filled there too, and reviewed again."""
         own, essays_asked = self.own(), {e.question.name for e in self.written}
         guessed = {d.question.name for d in self.drafted + self.unbanked} | {q.name for q in self.banked if q.name not in own}
+        legal = {q.name for q in self.questions if q.options and verify.LEGAL.search(q.label) and q.name not in own}
         changed = False
         for q in self.questions:
             answer = fixes.get(one_line(q.label))
-            if (answer is None or q.name not in guessed or q.kind in ("file", "multi_select") or q.name in self.lisuls
+            if (answer is None or q.name not in guessed | legal or q.kind in ("file", "multi_select") or q.name in self.lisuls
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
                     or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
                 continue
@@ -889,6 +877,18 @@ def _screenshot(page) -> bytes:
         except Exception:
             continue
     return b""
+
+
+def page_html(page) -> str:
+    """The page's HTML for its Record, from a plain Worker's page (KAN-611); "" from any other page,
+    or one that can't be read."""
+    record_html = getattr(page, "record_html", None)
+    if record_html is None:
+        return ""
+    try:
+        return record_html()
+    except Exception:
+        return ""
 
 
 def _is_target(posting: Posting, profile: ApplicantProfile) -> bool:

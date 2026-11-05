@@ -35,6 +35,17 @@ HOSTS = ("captcha-delivery.com", "hcaptcha.com", "arkoselabs.com", "funcaptcha.c
          "recaptcha.net")
 # reCAPTCHA's frames are on www.google.com, by path.
 PATHS = ("/recaptcha/",)
+# A captcha on the page itself: its frame, or the box a widget draws its frame in. Nothing in one is Apply's to touch.
+ELEMENTS = ("iframe[src*='recaptcha'], iframe[src*='hcaptcha.com'], iframe[src*='challenges.cloudflare.com'], "
+            "iframe[src*='captcha-delivery.com'], iframe[src*='arkoselabs.com'], iframe[src*='funcaptcha.com'], "
+            ".g-recaptcha, .h-captcha, .cf-turnstile, [data-testid='TurnstileContainer']")
+
+
+def in_frame(url: str) -> bool:
+    """Whether `url` is a captcha's own frame (its host or, for reCAPTCHA, its path)."""
+    parts = urlsplit(url or "")
+    host = parts.hostname or ""
+    return any(host == h or host.endswith("." + h) for h in HOSTS) or any(parts.path.startswith(p) for p in PATHS)
 
 # A captcha's box on the form, before anyone ticks it: its frame, and the field its token goes in once it is
 # done. reCAPTCHA's invisible kind shows only a badge, which no one ticks.
@@ -130,7 +141,15 @@ def company_of(company: str, url: str) -> str:
 
 
 def blocked(company: str, url: str, said: str = "") -> Blocked:
-    """The Handoff of a page that blocks the browser, for `company`'s posting at `url`."""
+    """The Handoff of a page that blocks the browser, for `company`'s posting at `url`. Its host is
+    remembered: worker_mode `protected` fills its next forms in a plain Worker (KAN-614)."""
+    # Imported here: apply.plain imports the Worker modules, which import this one.
+    from apply.plain import site
+
+    try:
+        site.learn(url)
+    except OSError:
+        pass  # a read-only data folder: the block is still handed off
     who = company_of(company, url)
     return Blocked(BLOCKED.format(who[:1].upper() + who[1:], f' ("{said}")' if said else "") + FINISH.format(who),
                    who, url, said)

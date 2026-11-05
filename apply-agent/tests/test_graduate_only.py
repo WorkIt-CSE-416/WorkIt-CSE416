@@ -8,7 +8,7 @@ from datetime import datetime
 
 import pytest
 from conftest import ARC_URL, FIXTURES
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
+from fakes import FakeClaude, FakeClock, FakeMailbox, RecordingBoard, ScriptedUsage
 from test_run_answers import profile_with
 
 from apply import company, rehearsal
@@ -206,6 +206,28 @@ def test_a_rehearsal_says_a_graduate_only_posting_is_not_eligible_without_its_fo
     assert (done.outcome, done.why) == ("not eligible", WHY)
     assert f"| not eligible: {WHY} |" in lines[0]
     assert claude.calls == []
+
+
+class PressesFillItAnyway(RecordingBoard):
+    """Lisul presses the tile's Fill it anyway once it is offered."""
+
+    def resumed(self, worker: int) -> bool:
+        offered = (self.captions.get(worker, {}).get("resume") or {}).get("label") == rehearsal.ANYWAY
+        self.pressed = getattr(self, "pressed", 0) + offered
+        return offered and self.pressed == 1
+
+
+def test_fill_it_anyway_on_a_graduate_only_posting_opens_its_form_and_says_why_it_was_ruled_out(tmp_path):
+    claude, lines, board = FakeClaude(), [], PressesFillItAnyway()
+    run = adapters(JobBoard(GRADUATE_ONLY), claude)
+    run.board = board
+
+    rehearsal.rehearse([ARC_URL], run, ApplicantProfile.load(profile_with(tmp_path)), out=lines.append)
+
+    first, anyway = sorted(lines, key=lambda line: "not eligible" not in line)
+    assert f"| not eligible: {WHY} |" in first
+    assert "opened the form at" in anyway  # the fake's open() fails the test: the form opened all the same
+    assert board.captions[0]["resume"] is None  # pressed: the button is gone
 
 
 # Roku's "SW Engineer Intern, AI Engineering" (Greenhouse 8258241), its requirements as its API sent them on 2026-11-04.
