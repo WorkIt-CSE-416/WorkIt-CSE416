@@ -225,20 +225,32 @@ _TEMPLATE = r"""
   // A submit that would send the application (by its Submit/Send button, or with no
   // button, as a script's requestSubmit() or a page's own Enter key does, from a form
   // that has one) reaches none of the page's handlers. A "Next" goes on.
+  // A POST to a job system's final application URL (a CDP Worker routes none of those page URLs): never let
+  // through by plain code's account, step or profile click (KAN-639, KAN-647), as a fetch to it never is.
+  // Its target by attribute (a field named "action" shadows form.action), relative to the page as isFinal reads it.
+  const postsFinal = (form, by) => posts(form, by) && isFinal('POST', (by && by.getAttribute && by.getAttribute('formaction'))
+    || HTMLFormElement.prototype.getAttribute.call(form, 'action') || location.href);
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
     if (accountClick() && form.querySelector('input[type=password]')) return;  // plain code's sign-in, as above
-    if (profileClick() && profileStep(by || form)) return;  // plain code's profile step, as above
+    if (profileClick() && profileStep(by || form) && !postsFinal(form, by)) return;  // plain code's profile step, as above
     const final = by ? sends(by)
       : [...form.querySelectorAll('button, input[type=submit]')].some(sends);
     if (held() && !final) return;  // a held page is Lisul's but for its Submit: a Next goes on
     if (final) event.stopImmediatePropagation();
-    if (final || (posts(form, by) && !accountClick())) { event.preventDefault(); note('a form submission'); }
+    if (final || (posts(form, by) && (!accountClick() || postsFinal(form, by)))) {
+      event.preventDefault();
+      note('a form submission');
+    }
   }, true);
   const submit = HTMLFormElement.prototype.submit;
   HTMLFormElement.prototype.submit = function () {
-    if (!lifted() && !accountClick() && posts(this)) return note('a form submission');
+    // Under plain code's click, a page script may post a step's form, but never one with a button that sends
+    // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
+    const step = accountClick() && (!!this.querySelector('input[type=password]')
+      || (![...this.querySelectorAll('button, input[type=submit]')].some(sends) && !postsFinal(this)));
+    if (!lifted() && !step && posts(this)) return note('a form submission');
     return submit.call(this);
   };
 

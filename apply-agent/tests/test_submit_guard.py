@@ -584,3 +584,81 @@ def test_a_next_that_is_a_submit_or_on_a_review_page_is_never_clicked_or_let_thr
         page.wait_for_timeout(300)
         assert posts == [] and page.evaluate("window.__applyAccountClick") is not True
         browser.close()
+
+
+# A last step that posts natively to a job system's final application URL, behind a button that says only
+# Continue. A CDP Worker has no route for these URLs (they are page URLs too), so only the in-page guard stops
+# the POST. Plain code's step click (KAN-639) and a profile pop-up's click (KAN-647) must not let it through.
+FINAL_POSTS = {
+    "step's own form": '<form method="post" action="{action}"><input name="first"><button>Continue</button></form>',
+    # A field named "action" shadows form.action: the guard reads the attribute.
+    "form with an action field": '<form method="post" action="{action}"><input name="action" value="next">'
+                                 '<button>Continue</button></form>',
+    "script's form.submit()": '<form id="app" method="post" action="{action}"><input name="first">'
+                              '<button type="button">Submit application</button></form>'
+                              '<button onclick="document.getElementById(\'app\').submit()">Continue</button>',
+}
+
+
+def _posts_to(page, posts):
+    def serve(route):
+        if route.request.method == "POST":
+            posts.append(route.request.url)
+            return route.fulfill(body="<p>Thank you for applying</p>", content_type="text/html")
+        return route.fallback()
+    page.route("**/*", serve)
+
+
+@pytest.mark.parametrize("shape", list(FINAL_POSTS))
+@pytest.mark.parametrize("action", ["https://jobs.example.com/careers/jobs/123/apply",
+                                    "https://job-boards.greenhouse.io/acme/jobs/123"])
+def test_plain_codes_next_click_never_lets_a_post_to_the_final_url_through(monkeypatch, shape, action):
+    from playwright.sync_api import sync_playwright
+
+    from apply import claude_fill
+    from apply.claude_fill import ClaudeFill
+    from apply.model import Handoff
+
+    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1_000)
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        html = FINAL_POSTS[shape].format(action=action)
+        page.route("https://jobs.example.com/careers/jobs/123/step",
+                   lambda route: route.fulfill(body=html, content_type="text/html")
+                   if route.request.method == "GET" else route.fallback())
+        _posts_to(page, posts)
+        page.goto("https://jobs.example.com/careers/jobs/123/step")
+        guard(page)
+        filler = ClaudeFill(claude=None)
+        filler._guard = DriveGuard(page)
+        with pytest.raises(Handoff, match="didn't go on"):
+            filler._next_step(page, "Continue")
+        page.wait_for_timeout(300)
+        browser.close()
+    assert posts == []
+
+
+def test_a_profile_pop_ups_click_never_lets_a_post_to_the_final_url_through():
+    from playwright.sync_api import sync_playwright
+
+    posts = []
+    html = ('<div role="dialog" aria-modal="true" aria-label="Create your profile">'
+            '<form method="post" action="https://job-boards.greenhouse.io/acme/jobs/123"><input name="first">'
+            '<button>Submit</button></form></div>')
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route("https://jobs.example.com/profile",
+                   lambda route: route.fulfill(body=html, content_type="text/html")
+                   if route.request.method == "GET" else route.fallback())
+        _posts_to(page, posts)
+        page.goto("https://jobs.example.com/profile")
+        guard(page)
+        drive = DriveGuard(page)
+        drive.let_profile_click()
+        page.get_by_role("button", name="Submit").click()
+        page.wait_for_timeout(500)
+        browser.close()
+    assert posts == []
