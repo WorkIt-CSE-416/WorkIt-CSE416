@@ -17,6 +17,7 @@ from apply.plain import host
 from apply.plain.bridge import (
     CHUNK_OVER,
     Bridge,
+    BridgeBusy,
     PortError,
     PortTimeoutError,
     Refused,
@@ -24,7 +25,7 @@ from apply.plain.bridge import (
     socket_path,
 )
 from apply.plain.extension import EXTENSION_DIR, EXTENSION_ORIGIN
-from apply.plain.launcher import seed_steps
+from apply.plain.launcher import PlainWorkers, seed_steps
 
 ENGINE = {"version": "0.3.13+test", "sha256": "abc"}
 
@@ -84,6 +85,20 @@ def test_a_long_data_folder_puts_the_socket_under_tmp():
     path = socket_path(long)
     assert len(str(path)) < 104 and path.parent.name == f"apply-{os.getuid()}"
     assert socket_path(Path("/tmp/short")) == Path("/tmp/short/workers.sock")
+
+
+def test_each_profiles_folder_has_its_own_socket(tmp_path):
+    one = PlainWorkers(tmp_path / "one", kind="testing").bridge
+    two = PlainWorkers(tmp_path / "two", kind="testing").bridge
+    assert one.path != two.path
+    one.start()
+    try:
+        two.start()  # a second process on other profiles: not BridgeBusy (KAN-634)
+        two.stop()
+        with pytest.raises(BridgeBusy):
+            PlainWorkers(tmp_path / "one", kind="testing").bridge.start()
+    finally:
+        one.stop()
 
 
 def test_a_good_hello_is_welcomed_and_calls_answer(bridge):

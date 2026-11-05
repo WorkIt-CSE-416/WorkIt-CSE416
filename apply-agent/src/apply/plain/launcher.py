@@ -40,12 +40,14 @@ from apply.browsers import (
 )
 from apply.focus import KEEPER
 from apply.plain import extension, host
-from apply.plain.bridge import Bridge, Connection, PortError
+from apply.plain.bridge import Bridge, Connection, PortError, socket_path
 from apply.profile import load_policies
 
 BRANDED = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 SEED = "plain-seed"
-WINDOW = (900, 640)  # small, at the screen's top-left corner, wholly on-screen (capture needs at least half)
+# A normal, readable Chrome at 100% zoom, at the screen's top-left corner. The extension shrinks it
+# to the main screen's visible area (ops/core.js: onScreen), so it is wholly on-screen.
+WINDOW = (1280, 900)
 FLAGS = ("--no-first-run", "--no-default-browser-check", "--disable-backgrounding-occluded-windows",
          "--hide-crash-restore-bubble")
 # Never passed to a plain Worker: each would make it an automated browser.
@@ -97,7 +99,9 @@ class PlainWorkers:
         Chrome for Testing only, such as pointing the fakes' hosts at 127.0.0.1 (never Workers')."""
         self.profiles = Path(profiles or os.environ.get("APPLY_PROFILES") or PROFILES)
         self.kind = kind or chrome_kind()
-        self.bridge = bridge or Bridge()
+        # One socket per profiles folder: a held rehearsal keeps its process up, and another
+        # process on other profiles (APPLY_PROFILES) still drives its own Workers (KAN-634).
+        self.bridge = bridge or Bridge(socket_path(self.profiles))
         self.extension_dir = extension_dir
         if test_flags and self.kind != "testing":
             raise ValueError("test_flags are for Chrome for Testing in tests only")

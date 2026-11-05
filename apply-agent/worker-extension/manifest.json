@@ -7,6 +7,6 @@
   "minimum_chrome_version": "135",
   "background": {"service_worker": "background.js", "type": "module"},
   "permissions": ["nativeMessaging", "tabs", "scripting", "userScripts", "webNavigation", "storage",
-                  "declarativeNetRequestWithHostAccess", "webRequest"],
+                  "declarativeNetRequestWithHostAccess", "webRequest", "system.display"],
   "host_permissions": ["<all_urls>"]
 }

@@ -207,6 +207,7 @@ class PlainDriveGuard(DriveGuard):
     def __init__(self, page, sms_opt_in: bool = False, marketing_opt_in: bool = False):
         self._page = page
         self._blocked: list[str] = []
+        self._driving = False
         script = submit_guard.drive_script(sms_opt_in, marketing_opt_in)
         page.worker.on("guard.said", self._said)
         page.context.add_init_script(script)
@@ -235,6 +236,12 @@ class PlainDriveGuard(DriveGuard):
 
     def arm(self) -> None:
         self._flags(__applyDriveLifted=False, __applyAccountClick=False)
+        self._set_driving(True)
+
+    def _set_driving(self, driving: bool) -> None:
+        """Only keeps the state. A captcha's frame refuses trusted presses alone, and every press on a plain
+        Worker is synthetic: there the plain tools refuse each action on a captcha (KAN-617)."""
+        self._driving = driving
 
     def _flags(self, **flags) -> None:
         try:
