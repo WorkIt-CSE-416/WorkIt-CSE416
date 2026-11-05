@@ -218,8 +218,9 @@ def test_each_filled_rehearsal_keeps_its_record_in_a_local_folder(tmp_path):
     assert "Rehearsal, not submitted. Pre-submit check: failed." in readme
     assert "Pre-submit review: Phone: the number is in the Email field" in readme
     essays_md = (folder / "essays.md").read_text()
-    assert essays_md.startswith(f"## {ESSAY}\nPlan: why-company | ") and "\n\n## Additional Comments?" in essays_md
-    essay = essays_md.split("\n\n## Additional Comments?")[0].splitlines()[-1]  # the candidate the writer picked
+    assert essays_md.startswith(f"## {ESSAY}\nPlan: why-company | ")
+    assert "## Additional Comments?" not in essays_md  # an optional catch-all box stays blank (KAN-625)
+    essay = essays_md.splitlines()[-1]  # the candidate the writer picked
     assert essay in (folder / "answers.json").read_text()
     assert (folder / "form.png").read_bytes().startswith(b"\x89PNG")
     assert server.submissions == []
