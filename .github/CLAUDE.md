@@ -188,6 +188,9 @@ API at exact times (`scraper/docs/coverage.md`, "Later").
   before every scrape, from the curated GitHub lists, so a company they name
   today is read on the next run without a commit. It only ever adds; the rules
   are in `scraper/CLAUDE.md`.
+- **The import step retries up to two times** (three total attempts), with a
+  10-second wait, before failing the workflow. This keeps transient
+  `DATABASE_URL` pooler disconnects from failing a good scrape.
 - **The scraper's memory** (`scraper/jobs.json`) lives in the Actions cache,
   restored from the newest entry and saved only after a scrape that finished. A
   missed cache is safe, just slow: that run re-reads every Greenhouse page and
