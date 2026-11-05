@@ -735,3 +735,19 @@ def test_ask_s_section_is_off_when_ask_claude_is_not_driving_and_holds_in_a_page
         assert page.locator("#custom").get_attribute("aria-checked") == "true"
         page.locator("#pw").fill("his own")
         assert page.locator("#pw").input_value() == "his own"
+
+
+def test_the_read_back_sees_a_custom_box_ticked_and_undo_unticks_it():
+    from apply import ask
+    with _ask_page() as (page, guard):
+        guard.asking(False)
+        before = ask.state(page)
+        page.locator("#custom").click()
+        page.locator("#city").click()
+        found = ask.changes(before, ask.state(page))
+        assert [(c["label"], c["type"], c["now"]) for c in found] == [("I acknowledge the privacy notice", "checkbox", True),
+                                                                      ("Boston", "checkbox", True)]
+        assert ask._attests(found[0]) and not ask._attests(found[1])
+        assert ask.undo(page, found[0]) is True
+        assert page.locator("#custom").get_attribute("aria-checked") == "false"
+        assert ask.changes(before, ask.state(page))[0]["label"] == "Boston"
