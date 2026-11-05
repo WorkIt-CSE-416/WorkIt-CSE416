@@ -35,6 +35,8 @@ WRONG_CODE = re.compile(r"(code|pin) (is )?(incorrect|invalid|expired|wrong)|inc
 
 
 
+# The application form's own pages, once signed in (.../job/<id>/apply/section/1).
+FORM_SECTION = re.compile(r"/apply/section/\d+")
 # The site's cookie banner, which covers the email step's Next button until it is answered (American Express's, live).
 COOKIES = ".cookie-consent-modal"
 DECLINE = re.compile(r"^\s*(reject all|decline( all)?|reject|only (strictly )?necessary)\s*$", re.IGNORECASE)
@@ -55,6 +57,8 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
     Lisul's policy on privacy and terms boxes (tick_consent_when_true)."""
     email = page.locator("input[type=email]").first
     _until(page, lambda: email.is_visible() or _apply_button(page).is_visible())
+    if _signed_in(page, email):  # Lisul signed in himself on a pause, and pressed Resume (KAN-636)
+        return
     if not email.is_visible():
         _apply_button(page).click()
     email.wait_for(timeout=TIMEOUT * 1000)
@@ -116,6 +120,16 @@ def _agree(page: Page, box) -> None:
         if box.is_checked() and not agree.is_visible():
             return
     raise Handoff("Oracle's legal disclaimer wouldn't stay ticked: finish the application yourself.")
+
+
+def _signed_in(page: Page, email) -> bool:
+    """The application form is open already: a section of it, or its own email field, which can't be edited."""
+    if FORM_SECTION.search(page.url):
+        return True
+    try:
+        return email.is_visible() and not email.is_editable()
+    except Exception:
+        return False
 
 
 def _apply_button(page: Page):

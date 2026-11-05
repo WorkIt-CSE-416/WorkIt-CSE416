@@ -1017,6 +1017,25 @@ def test_a_step_whose_next_does_not_go_on_is_a_handoff_not_a_form_ready_to_submi
     assert server.submissions == []
 
 
+class NoButtonsStepsDriver(JobviteStepsDriver):
+    """Names no Next on the first step, and no button that sends, as a misread step would."""
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        said = super().__call__(page, schema, prompt, files)
+        if "questions" not in schema["properties"]:
+            said |= {"next_button": "", "submit_button": ""}
+        return said
+
+
+def test_a_step_with_no_next_and_no_button_that_sends_is_a_handoff_never_ready_to_submit(tmp_path):
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile_with(tmp_path), tyler_match(), claude=FakeClaude(driver=NoButtonsStepsDriver()))
+
+    assert row.status == "handoff"
+    assert "can't tell this is the form's last page" in row.reason
+    assert server.submissions == []
+
+
 def test_claude_fills_next_is_never_a_button_beside_it_that_sends(tmp_path):
     driver = JobviteStepsDriver(next_name="Continue \u2192")
 
