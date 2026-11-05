@@ -193,6 +193,7 @@ CALIBRATION = "Calibration run: Application 4 of 10, held so you can judge Claud
     ({"status": "not eligible", "why": "Master's only"}, "ended", "Skipped: you don't qualify (Master's only)"),
     ({"status": "closed", "why": ""}, "ended", "Skipped: no longer taking applications"),
     ({"status": "submitted", "why": ""}, "submitted", "Sent"),
+    ({"status": "submitted", "why": "", "missing": ["Pronouns"]}, "submitted", "Sent"),
     ({}, "idle", "Waiting for the next job"),
 ])
 def test_each_tile_says_at_a_glance_how_its_application_went(caption, tone, label):
@@ -1258,6 +1259,28 @@ def test_a_rehearsed_answer_goes_to_its_open_form_but_a_runs_and_an_essays_do_no
         assert reply["message"] == "Saved. Claude fills it in on the open form now."
         assert board.answered(0) == [("Certifications", "None")]
         assert board.answered(0) == board.answered(1) == []  # each given once; a run's goes on from its Tracker row
+
+
+@pytest.mark.parametrize("answer_first", [False, True])
+def test_a_form_sent_with_questions_open_shows_as_sent_and_leaves_needs_you(answer_first):
+    # Saronic, 2026-11-04: Lisul sent the held form himself, and its tile still asked its Missing and Essay facts.
+    with Dashboard(1, FakeFrames({}), answer=lambda *a: "Saved.") as board:
+        board.update(0, company="Saronic", posting_url="https://s.example/1", status=rehearsal.READY,
+                     missing=["Pronouns", "Essay fact: what did the boat do?", "Essay fact: who was it for?"],
+                     required={"Pronouns": True}, where={"Pronouns": "About you"})
+        [asking] = board.state()["items"]
+        assert asking["kind"] == "missing fact"
+        if answer_first:
+            post_answer(board, asking, "Pronouns", "he/him")
+        board.update(0, status="submitted", why="you submitted it; it is in the Tracker")
+        [tile], items = board.state()["tiles"], board.state()["items"]
+        with pytest.raises(urllib.error.HTTPError) as late:  # a question answered after the submit
+            post_answer(board, items[0], "Essay fact: who was it for?", "The Navy")
+
+    assert (tile["tone"], tile["label"], tile["detail"]) == ("submitted", "Sent", "you submitted it; it is in the Tracker")
+    assert tile["missing"] == [] and "do" not in tile
+    assert [(i["company"], i["tone"]) for i in items] == [("Saronic", "submitted")]  # no card waits on him
+    assert late.value.code == 404
 
 
 def test_an_optional_question_saved_blank_is_skipped_and_a_file_is_attached_but_neither_kept_as_a_fact():
