@@ -20,7 +20,9 @@ Each tool runs on the page through the port, as a Filler's code does:
   through DataTransfer. Only files in the drive's own folder can be attached.
 
 The tools never send the form themselves; the drive guard on the page and the submit-click
-hook stand where they stood.
+hook stand where they stood. They never touch a captcha either (KAN-617): a click, entry, pick,
+hover or key on anything in a captcha's frame, or on its frame or widget box in the page, is
+refused before it runs, with word to leave it. Lisul does the captcha himself (apply.captcha).
 """
 
 import json
@@ -33,6 +35,7 @@ import uuid
 from pathlib import Path
 from typing import Self
 
+from apply import captcha
 from apply.plain.bridge import PortError
 from apply.plain.page import PortFrame, PortPage
 
@@ -41,6 +44,13 @@ REF = re.compile(r"^(?:f(\d+))?(e\d+)$")
 REFS = re.compile(r"\[ref=(e\d+)\]")
 IN_TARGET = re.compile(r"\[?ref=((?:f\d+)?e\d+)\]?")
 WAIT_MOST = 30  # s, browser_wait_for's `time`
+CAPTCHA = ("That is a captcha, and Apply never touches one: a person does it. Don't click, tick, type in or solve "
+           "it, and don't try another way. Leave it as it is and go on with the rest of the form; if its challenge "
+           "covers the form, stop: set blocked and say captcha in why.")
+# Whether the element is a captcha's frame or widget box, or in one.
+IN_CAPTCHA = "(el, captchas) => !!(el.closest && el.closest(captchas))"
+# Whether the focused element, where a key would go, is a captcha's frame or in a widget box.
+FOCUS_IN_CAPTCHA = """(captchas) => { const el = document.activeElement; return !!(el && el.closest && el.closest(captchas)); }"""
 
 
 def socket_folder() -> Path:
@@ -141,8 +151,22 @@ class Tools:
         return frame, selector
 
     def _locator(self, target: str):
+        """The element a tool acts on; never one in a captcha."""
         frame, selector = self._resolve(target)
+        if self._in_captcha(frame, selector):
+            raise ToolError(CAPTCHA)
         return frame.locator(selector)
+
+    @staticmethod
+    def _in_captcha(frame: PortFrame, selector: str) -> bool:
+        """Whether the element is in a captcha's own frame, or is (or is in) its frame or widget box on the page.
+        An element that can't be read is taken for one: a refusal costs Claude a turn, a tick costs the rule."""
+        if captcha.in_frame(frame.url) or any(captcha.in_frame(f.url) for f in _ancestors(frame)):
+            return True
+        try:
+            return bool(frame.eval_on_selector(selector, IN_CAPTCHA, captcha.ELEMENTS))
+        except PortError:
+            return False  # gone: the action fails on its own
 
     def _after(self, code: str) -> str:
         time.sleep(0.3)  # let the page react, as Playwright MCP waits for it to settle
@@ -239,6 +263,12 @@ class Tools:
         return self._after(f"await fileChooser.setFiles({json.dumps([f.name for f in files])});")
 
     def browser_press_key(self, key: str) -> str:
+        try:
+            focused = self.page.evaluate(FOCUS_IN_CAPTCHA, captcha.ELEMENTS)
+        except PortError:
+            focused = False
+        if focused:
+            raise ToolError(CAPTCHA)
         self.page.keyboard.press(key)
         return self._after(f"// Press {key}\nawait page.keyboard.press('{key}');")
 
@@ -302,6 +332,14 @@ class Tools:
             current = " (current)" if page.tab == self.page.tab else ""
             listed.append(f"- {i}:{current} [{info['title']}]({info['url']})")
         return "### Result\n" + "\n".join(listed)
+
+
+def _ancestors(frame: PortFrame) -> list[PortFrame]:
+    """The frames that hold `frame`, nearest first."""
+    found, at = [], frame
+    while (at := at.parent_frame) is not None and len(found) < 10:
+        found.append(at)
+    return found
 
 
 def _sleep(seconds: float) -> None:
