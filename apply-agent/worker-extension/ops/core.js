@@ -61,6 +61,13 @@ export const ops = {
     return null;
   },
   eval: evaluate,
+  // Load this extension's files again from its folder (newer code after a checkout), as its
+  // reload button does: web tabs, their pages and cookies stay; this port closes and the new
+  // code says hello again. Answers first, then reloads.
+  "extension.reload": async () => {
+    setTimeout(() => chrome.runtime.reload(), 100);
+    return null;
+  },
 };
 
 export { tabInfo };

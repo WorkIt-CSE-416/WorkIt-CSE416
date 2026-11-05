@@ -111,8 +111,9 @@ def to_page(x: float, y: float, tile_width: float, tile_height: float, frame_wid
             clamp: bool = False):
     """The page point (CSS pixels) under (x, y) in a tile that shows a
     frame fitted inside it and centred; None outside the frame, or with
-    `clamp` the nearest point on it. Frames are the page's viewport at CSS
-    size, so frame and page points are one."""
+    `clamp` the nearest point on it, in the frame's own pixels. A CDP frame
+    is the page's viewport at CSS size; a plain Worker's may be 2x (filmed,
+    KAN-635), and its page scales the point by the frame's size (page/tile.js)."""
     scale = min(tile_width / frame_width, tile_height / frame_height)
     left, top = (tile_width - frame_width * scale) / 2, (tile_height - frame_height * scale) / 2
     px, py = (x - left) / scale, (y - top) / scale

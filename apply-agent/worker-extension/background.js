@@ -14,6 +14,9 @@ import { userScriptsOn } from "./ops/shared.js";
 
 const HOST = "com.workit.apply_worker";
 const PROTOCOL = 1;
+// What this code can do, in the hello (`features`): Apply compares it with what it expects
+// (bridge.FEATURES). 2: tile.shown (KAN-635) and extension.reload. Raise it with each new op or event.
+const FEATURES = 2;
 const RECONNECT_MS = 2000;
 
 let port = null;
@@ -43,6 +46,7 @@ async function hello() {
     type: "hello",
     protocol: PROTOCOL,
     extension: chrome.runtime.getManifest().version,
+    features: FEATURES,
     engine,
     userScripts: userScriptsOn(),
     webdriver: navigator.webdriver === true,

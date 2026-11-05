@@ -6,9 +6,9 @@ import time
 from urllib.parse import urlsplit
 
 import pytest
+from plain_fakes import fake_page, have_chrome_for_testing
 
 from apply.plain.page import PortError, PortPage
-from plain_fakes import fake_page, have_chrome_for_testing
 
 pytestmark = pytest.mark.skipif(not have_chrome_for_testing(), reason="needs Chrome for Testing (uv run playwright install chromium)")
 
