@@ -285,6 +285,11 @@ class ClaudeFill:
             raise NotAPosting(why or "the page is no one job posting")
         return questions
 
+    @property
+    def shown_so_far(self) -> Readback:
+        """What each field filled so far shows, on every step: a Handoff's Record keeps it."""
+        return dict(self._readback)
+
     def _questions(self, found: list[dict]) -> QuestionSet:
         """Questions read off the page, each named q1, q2, ... across both sessions.
         A captcha's box is no question: Lisul does it, never a fill."""

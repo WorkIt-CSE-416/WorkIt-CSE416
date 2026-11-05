@@ -477,6 +477,22 @@ def test_a_recaptcha_challenge_on_the_form_is_the_captcha_wait_never_a_pop_up(tm
     assert len(server.submissions) == 1
 
 
+def test_a_captcha_lisul_leaves_keeps_what_the_first_fill_read_back_in_the_record(tmp_path):
+    kept = InMemoryRecords()
+
+    with FakeBambooServer(LUNAR_FORM, recaptcha=True) as server:
+        [row] = run(server, captcha_profile(tmp_path, 0.03), lunar_match(),
+                    claude=FakeClaude(driver=TicksTheBoxDriver(challenge=True)), kept=kept)
+
+    assert row.status == "handoff"
+    assert row.reason.startswith("A captcha's challenge covers the form")
+    assert "pop-up" not in row.reason
+    answers = {a["question"]: a["on_page"] for a in json.loads(kept.files(row.record)["answers.json"])}
+    assert answers["First Name"] == "Test"
+    assert answers["Email"] == "test.person@example.com"
+    assert server.challenges == 1 and server.submissions == []
+
+
 class PostingPageDriver(BambooDriver):
     """Plays the page, not Haiku, posting a form of its own while Haiku reads
     the first time (LinkedIn's SmartRecruiters form, live 2026-11-03): the
