@@ -18,7 +18,7 @@ from apply.plain import guards
 from apply.plain.bridge import Bridge
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
-from apply.submit_guard import DriveGuard, guard, lift, rearm, renote
+from apply.submit_guard import DriveGuard, applied_dismissed, guard, lift, rearm, renote, warn_applied
 
 try:
     chrome_for_testing()
@@ -246,6 +246,61 @@ def test_once_lifted_lisul_s_submit_goes_through_and_apply_hears_it(page, site):
         time.sleep(0.1)
     assert site.posts == ["/acme/j/42/apply"]
     assert pressed == ["Submit application"] and again == [True]
+
+
+@live
+def test_a_held_submit_is_blocked_until_lisul_dismisses_it(page, site):
+    """KAN-629 on a plain page: held, Submit blocked under the red note; Dismiss; then Submit goes."""
+    dismissed, pressed = [], []
+    guard(page)
+    lift(page, pressed=pressed.append, held="'Are you a US person?' reads No, but you are",
+         dismiss=lambda: dismissed.append(True))
+    assert _note(page).startswith("Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: 'Are you")
+    page.get_by_role("button", name="Next").click()  # a held page is his but for its Submit
+    guards.touch(page)
+    page.get_by_role("button", name="Submit application").click()
+    _settle(page, 1)
+    assert site.posts == []  # held: blocked
+    assert "Submit is held" in _note(page)
+    page.get_by_role("button", name="Dismiss").click()  # his press on the note, from the tile
+    deadline = time.monotonic() + 5
+    while not dismissed and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert dismissed == [True]
+    assert renote(page, held="")  # what the hold loop does once nothing holds it
+    assert _note(page).startswith("Apply rehearsal: Apply is done with this page")
+    guards.touch(page)
+    page.get_by_role("button", name="Submit application").click()
+    deadline = time.monotonic() + 5
+    while not site.posts and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert site.posts == ["/acme/j/42/apply"]
+
+
+@live
+def test_renote_leaves_a_page_lisul_already_applied_to_guarded_till_he_dismisses_its_note(page, site):
+    """KAN-621 on a plain page: the red note, the guard still on; renote changes nothing; two presses."""
+    dismissed = []
+    guard(page)
+    warn_applied(page, "2026-11-03", lambda: dismissed.append(True))
+    applied = "() => (document.getElementById('apply-already-applied') || {}).textContent || ''"
+    assert page.evaluate(applied).startswith("You already applied on 2026-11-03")
+    assert renote(page, "Phone left blank") is False  # still guarded: no note of a lifted page
+    assert page.worker.call("guard.status", tab=page.tab)["lifted"] is False
+    guards.touch(page)
+    page.get_by_role("button", name="Submit application").click(force=True)  # the note sits over it here
+    _settle(page, 1)
+    assert site.posts == []
+    page.locator("#apply-already-applied button").click()  # the first press only asks
+    assert dismissed == [] and "unblock this page" in page.evaluate(applied)
+    page.locator("#apply-already-applied button").click()
+    deadline = time.monotonic() + 5
+    while not dismissed and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert dismissed == [True]
+    applied_dismissed(page)
+    page.reload()
+    assert page.evaluate(applied) == ""  # no page shows it again
 
 
 @live

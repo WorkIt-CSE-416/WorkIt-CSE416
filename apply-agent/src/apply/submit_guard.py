@@ -492,7 +492,7 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     Pre-submit review found wrong) keeps his Submit blocked, with a red note
     and a Dismiss button that calls `dismiss`, until renote() says it holds no more."""
     if _plain(page):
-        return _plain(page).lift(page, pressed, again, warning, wrong, bound)
+        return _plain(page).lift(page, pressed, again, warning, wrong, bound, held, dismiss)
     if bound:
         pressed = again = dismiss = None
     if pressed:
@@ -543,7 +543,7 @@ def renote(page: Page, warning: str = "", wrong: bool = True, held: str = "") ->
     what holds it still). Its Fill again button stays. A page still guarded
     (one Lisul already applied to, KAN-621) stays guarded."""
     if _plain(page):
-        return _plain(page).renote(page, warning, wrong)
+        return _plain(page).renote(page, warning, wrong, held)
     script = f"if (window.__applyRehearsalLifted === true) {_lifted(True, warning, wrong, held)}"
     page.context.add_init_script(script)  # after lift's: a page loaded from it says the same
     for frame in page.frames:
@@ -606,6 +606,8 @@ def warn_applied(page: Page, day: str, dismissed: Callable[[], None] | None = No
     """Show the red "You already applied on <day>, don't submit" note on a held page, this one and every page
     loaded from it. The guard stays on: Submit is blocked. `dismissed` hears his second press of Dismiss (None:
     the page has the binding already)."""
+    if _plain(page):
+        return _plain(page).warn_applied(page, day, dismissed)
     if dismissed:
         page.expose_binding("__applyDismissApplied", lambda source: dismissed())
     script = APPLIED_NOTE.replace("DAY", json.dumps(day))
@@ -618,6 +620,8 @@ def warn_applied(page: Page, day: str, dismissed: Callable[[], None] | None = No
 
 def applied_dismissed(page: Page) -> None:
     """Lisul dismissed the note: no page loaded from now on shows it (lift() then takes the guard off)."""
+    if _plain(page):
+        return _plain(page).applied_dismissed(page)
     script = "window.__applyAppliedDismissed = true"
     page.context.add_init_script(script)
     try:
