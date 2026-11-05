@@ -17,6 +17,7 @@ from pathlib import Path
 import yaml
 
 from apply import (
+    already_applied,
     bot_signals,
     captcha,
     dashboard,
@@ -86,6 +87,9 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
     rehearse.add_argument("--start-button", dest="together", action="store_true",
                           help="hold every form, open and planned, until all are and you press Start in the window, "
                                "then fill them all at once (for filming)")
+    rehearse.add_argument("--force", action="store_true",
+                          help="rehearse a link you already applied to anyway; its page keeps Submit blocked "
+                               "under a red note until you dismiss it")
     for command in (run, approve_pass, rehearse):
         command.add_argument("--profile", type=Path, default=DEFAULT_PROFILE, help="the Applicant profile (YAML)")
         command.add_argument("--workers", type=int, default=orchestrator.WORKERS, help="how many Workers fill at once")
@@ -214,10 +218,10 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
                 print(f"No Tracker ({type(error).__name__}: {error}): add any you submit yourself.")
             with _dashboard(adapters, len(args.urls), profile):  # a tile per link: each keeps its page open
                 rehearsal.rehearse(args.urls, adapters, profile, args.workers, on_done=lambda: repair_later(adapters.repairs, profile.policy("repair") or {}),
-                                   submitted_to=kept, together=args.together)
+                                   submitted_to=kept, together=args.together, force=args.force)
         else:
             rehearsal.rehearse(args.urls, adapters, profile, args.workers, submitted_to=adapters.tracker,
-                               together=args.together)
+                               together=args.together, force=args.force)
         if live:
             # A link still filling at Ctrl-C has a browser on a thread that won't stop: end every one now.
             sys.stdout.flush()
@@ -642,6 +646,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
         signed_in=site.signed_in(),  # by apply sign-in
         tailored=tailored.from_workit(),  # the student's tailored resume for each Posting (KAN-547)
         everyday=captcha.to_everyday_chrome,  # a bot-blocked posting goes to the student's own Chrome (KAN-590)
+        applied_before=already_applied.Check(),  # never fill a form already sent (KAN-621)
     )
 
 

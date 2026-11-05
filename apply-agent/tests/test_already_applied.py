@@ -8,6 +8,7 @@ from fake_workit import FakeWorkIt
 
 from apply import workit
 from apply.already_applied import Check
+from apply.dashboard import verdict
 from apply.model import Posting, Status
 from apply.tracker import FileTracker, Row
 from apply.workit import WorkIt
@@ -97,3 +98,10 @@ def test_a_record_with_its_after_submit_screenshot_is_already_applied(tmp_path):
     assert found and found.on == date(2026, 11, 4)
     assert seen.of(posting("https://jobs.lever.co/bolt/1", id="request-0002")) is None
 
+
+def test_the_window_says_already_applied_and_that_nothing_was_filled():
+    shown = verdict({"status": "already applied",
+                     "why": "Already applied on 2026-10-28 (your Applications Tracker on WorkIt: applied)"})
+
+    assert (shown["tone"], shown["label"]) == ("ended", "Already applied on 2026-10-28")
+    assert "Apply didn't open the form" in shown["detail"]

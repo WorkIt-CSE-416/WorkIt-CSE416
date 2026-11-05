@@ -477,15 +477,82 @@ def rearm(page: Page) -> None:
 
 def renote(page: Page, warning: str = "", wrong: bool = True) -> None:
     """Say the note of a page already lifted anew: Lisul answered in the window
-    what it said was left blank. Its Fill again button stays."""
+    what it said was left blank. Its Fill again button stays. A page still
+    guarded (one Lisul already applied to, KAN-621) stays guarded."""
     script = LIFTED.replace("AGAIN", "true").replace("WRONG", "true" if wrong else "false")
     script = script.replace("WARNING", json.dumps(warning))
+    script = f"if (window.__applyRehearsalLifted === true) {script}"
     page.context.add_init_script(script)  # after lift's: a page loaded from it says the same
     for frame in page.frames:
         try:
             frame.evaluate(script)
         except Exception:
             pass
+
+
+# The note on a held page of a Posting Lisul already applied to (`apply rehearse --force`, KAN-621). The guard
+# stays on under it, so Submit is blocked, until he dismisses it with two presses: the first asks, the second
+# calls __applyDismissApplied, and hold() then lifts the guard. A page loaded after that shows no note.
+APPLIED_NOTE = r"""
+(() => {
+  const day = DAY;
+  const show = () => {
+    if (window !== window.top || window.__applyAppliedDismissed || document.getElementById('apply-already-applied')) return;
+    const box = document.createElement('div');
+    box.id = 'apply-already-applied';
+    box.setAttribute('role', 'alert');
+    box.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:1999999999;'
+      + 'padding:10px 14px;max-width:560px;background:#b00020;color:#fff;font:bold 15px sans-serif;'
+      + 'border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+    const words = document.createElement('span');
+    words.textContent = 'You already applied on ' + day + ', don’t submit. Apply keeps Submit blocked on this page.';
+    box.appendChild(words);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Dismiss';
+    button.style.cssText = 'margin-left:10px;cursor:pointer;font:13px sans-serif';
+    let asked = false;
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (!asked) {
+        asked = true;
+        button.textContent = 'Yes, I\u2019m sure: unblock this page';  // no word the guard blocks (submit, send...)
+        return;
+      }
+      window.__applyAppliedDismissed = true;
+      box.remove();
+      if (window.__applyDismissApplied) window.__applyDismissApplied();
+    });
+    box.appendChild(button);
+    (document.body || document.documentElement).appendChild(box);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show); else show();
+})();
+"""
+
+
+def warn_applied(page: Page, day: str, dismissed: Callable[[], None] | None = None) -> None:
+    """Show the red "You already applied on <day>, don't submit" note on a held page, this one and every page
+    loaded from it. The guard stays on: Submit is blocked. `dismissed` hears his second press of Dismiss (None:
+    the page has the binding already)."""
+    if dismissed:
+        page.expose_binding("__applyDismissApplied", lambda source: dismissed())
+    script = APPLIED_NOTE.replace("DAY", json.dumps(day))
+    page.context.add_init_script(script)
+    try:
+        page.evaluate(script)  # the top frame only: the script shows nothing in a form's frame
+    except Exception:
+        pass
+
+
+def applied_dismissed(page: Page) -> None:
+    """Lisul dismissed the note: no page loaded from now on shows it (lift() then takes the guard off)."""
+    script = "window.__applyAppliedDismissed = true"
+    page.context.add_init_script(script)
+    try:
+        page.evaluate(script)
+    except Exception:
+        pass
 
 
 def _refuse(route: Route) -> None:
