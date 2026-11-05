@@ -1503,3 +1503,19 @@ def test_a_step_that_shows_a_whole_address_in_a_part_or_a_future_start_year_neve
     # An internship's start next year, on a step with no school: right.
     assert claude_fill.cant_be_right({"Start date: Year": "2027", "Earliest start": "May 2027"}, 2026) == []
     assert claude_fill.cant_be_right({"Address line 1": address, "Home address": address}, 2026) == []
+
+
+@pytest.mark.parametrize("label", [
+    # Saved forms (the Fill engine's fixtures) that ask a school's fields and the internship's start on one page.
+    "What is your earliest preferred start date if hired? (YYYY-MM-DD)",
+    "Please include your earliest start date and latest end date.",
+    "When is your desired start date?",
+    "What is your earliest available start date? (YYYY-MM-DD)",
+    "Internship start date",
+])
+def test_the_internships_start_next_year_beside_a_school_is_right(label):
+    # KAN-652's check is for a degree's start: an internship's start next year, on a page that also asks the
+    # school, is right and never stops the fill.
+    shown = {"University": "Example State University", "GPA": "3.7", label: "2027-05-24"}
+    assert claude_fill.cant_be_right(shown, 2026) == []
+    assert claude_fill.cant_be_right({"University": "Example State University", "Start date: Year": "2027"}, 2026)
