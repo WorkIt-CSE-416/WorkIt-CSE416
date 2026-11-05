@@ -423,7 +423,7 @@ class ClaudeFill:
                 raise MoreQuestions(_with_options(page, self._questions(unlisted)))
             # What this step shows, checked by plain code before Next saves it (KAN-652).
             shown = {labels[name]: self._readback.get(name) for name in todo if name in labels}
-            if wrong := cant_be_right(shown):
+            if wrong := cant_be_right(shown, sections=_sections(page, shown)):
                 raise Handoff(f"Page {self._steps + 1} shows what can't be right, so Apply didn't go on: {'; '.join(wrong)}. "
                               "Fix it on the page, then press Resume.")
             asks = [one for one in (str(a).strip() for a in done.get("for_lisul") or []) if one]
@@ -911,9 +911,54 @@ NOT_SCHOOLS = re.compile(r"earliest|desired|preferred|availab|\bif hired\b|\bwhe
                          r"co-?op|employ|\bjob\b|position|\brole\b|offer|\bwork", re.IGNORECASE)
 
 
-def cant_be_right(shown: dict[str, object], this_year: int | None = None) -> list[str]:
+# A label of just "Start date": it may be the internship's, whatever fields stand beside it (KAN-659).
+BARE_START = re.compile(r"^start date\s*[*:]*$", re.IGNORECASE)
+PLAUSIBLE_YEARS = 2  # how far ahead an internship's start can be
+# The heading over each of `labels` in the page, nearest first: a fieldset's legend or a heading before it.
+SECTIONS = r"""(labels) => {
+  const clean = (s) => String(s || '').replace(/\s+/g, ' ').replace(/[\s*:]+$/, '').trim().toLowerCase();
+  const heading = 'h1, h2, h3, h4, h5, h6, legend, [role=heading]';
+  const over = (el) => {
+    for (let at = el; at && at !== document.documentElement; at = at.parentElement) {
+      for (let before = at.previousElementSibling; before; before = before.previousElementSibling) {
+        const found = before.matches(heading) ? before : [...before.querySelectorAll(heading)].pop();
+        if (found) return found.innerText;
+      }
+    }
+    return '';
+  };
+  const out = {};
+  for (const el of document.querySelectorAll('label, legend, [aria-label], span, div, p')) {
+    const words = clean(el.getAttribute('aria-label') || (el.children.length ? '' : el.textContent));
+    const label = labels.find((l) => clean(l) === words);
+    if (label && !(label in out)) out[label] = clean(over(el));
+  }
+  return out;
+}"""
+
+
+def clearly_education(section: str) -> bool:
+    """Whether a section's heading says education, and nothing else that has a start of its own."""
+    return bool(SCHOOL_STEP.search(section)) and not NOT_SCHOOLS.search(section)
+
+
+def _sections(page: Page, shown: dict[str, object]) -> dict[str, str]:
+    """The section each bare "Start date" of a step stands in, as the page heads it ("" when it can't be read)."""
+    bare = [label for label in shown if BARE_START.match(label.strip())]
+    found: dict[str, str] = {}
+    for frame in page.frames if bare else ():
+        try:
+            found |= {k: v for k, v in frame.evaluate(SECTIONS, bare).items() if v or k not in found}
+        except Exception:
+            continue  # a frame that went away, or one that refuses scripts
+    return found
+
+
+def cant_be_right(shown: dict[str, object], this_year: int | None = None, sections: dict[str, str] | None = None) -> list[str]:
     """What a step's fields show (label: value) that can't be right, whatever the plan said (KAN-652): an address
-    part that holds a whole address, or, on an education step, a start year after this one."""
+    part that holds a whole address, or, on an education step, a start year after this one. A bare "Start date"
+    beside school fields may be the internship's: it stops the fill only in a section `sections` heads as clearly
+    education, or at a year no internship starts in (KAN-659)."""
     this_year = this_year or time.localtime().tm_year
     school = any(SCHOOL_STEP.search(label) for label in shown)
     wrong = []
@@ -923,6 +968,9 @@ def cant_be_right(shown: dict[str, object], this_year: int | None = None) -> lis
             wrong.append(f"{label!r} holds a whole address")
         years = [int(y) for y in re.findall(r"\b(19\d\d|20\d\d)\b", text)]
         if school and START_YEAR.search(label) and not NOT_SCHOOLS.search(label) and years and max(years) > this_year:
+            if (BARE_START.match(label.strip()) and max(years) <= this_year + PLAUSIBLE_YEARS
+                    and not clearly_education((sections or {}).get(label, ""))):
+                continue
             wrong.append(f"{label!r} says {max(years)}, a start after this year")
     return wrong
 
