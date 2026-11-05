@@ -96,6 +96,13 @@ not_engineering_titles: [
   customer, '\bit\b', information technology, 'help ?desk', technician, product manag,
 ]
 
+# The criminal background check, drug screen and reference check an offer
+# depends on ("Please indicate below if you can meet these hiring
+# requirements", Rocket Lab's): true answers Yes, false No. null: Apply has no
+# answer of yours, so each such question is a Missing fact for you. Set it in
+# your own policies.yaml to answer them all.
+willing_to_undergo_checks: null
+
 # Defense, military and ITAR roles are applied to, and questions about working
 # on them are answered Yes.
 defense_roles: true

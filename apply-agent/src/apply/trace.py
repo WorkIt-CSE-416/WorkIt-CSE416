@@ -17,6 +17,10 @@ its detail. The kinds:
   4xx/5xx; failed: one that never got an answer (blockedbyclient is a guard's)
 - claude: one event of a Claude fill session (Haiku's words, each browser
   tool it called and what came back, cut short), or one `ask`'s answer
+- doing: what a rehearsal's tile says Apply is doing now (apply.stuck)
+- stuck: a rehearsal's fill made no progress for STUCK_AFTER seconds, not
+  waiting on Claude: what it was doing, and where its thread was (its
+  Python stack, innermost first). Written once per stall, from a watcher thread
 
 It costs a run no time: every event is one that Playwright or the claude
 stream already delivers, appended to the file as it comes, with no extra
@@ -64,10 +68,21 @@ def tracing(application_id: str, url: str, folder: Path | None = None, today: da
 
 def event(kind: str, **fields) -> None:
     """Add one event to this thread's trace; outside `tracing`, nothing."""
+    to(here(), kind, **fields)
+
+
+def here() -> tuple | None:
+    """This thread's trace, for another thread to add to (`to`); None outside `tracing`."""
     file = getattr(_current, "file", None)
-    if file is None:
+    return None if file is None else (file, _current.started)
+
+
+def to(trace: tuple | None, kind: str, **fields) -> None:
+    """Add one event to `trace` (`here()` on its own thread); for None, nothing."""
+    if trace is None:
         return
-    line = {"t": round(time.monotonic() - _current.started, 3), "kind": kind, **{k: _cut(v) for k, v in fields.items()}}
+    file, started = trace
+    line = {"t": round(time.monotonic() - started, 3), "kind": kind, **{k: _cut(v) for k, v in fields.items()}}
     try:
         file.write(json.dumps(line, default=str) + "\n")
     except (OSError, ValueError):

@@ -24,7 +24,7 @@ from conftest import (
 from fake_accounts_site import LOGIN as ACCOUNT_LOGIN
 from fake_accounts_site import REGISTER as ACCOUNT_REGISTER
 from fake_accounts_site import FakeAccountsSite
-from fake_bamboohr import FakeBambooServer
+from fake_bamboohr import ANCHOR, FakeBambooServer, tick_the_box, ticked
 from fake_jobvite import URL as JOBVITE_URL
 from fake_jobvite import FakeJobviteServer
 from fake_lever import FakeLeverServer
@@ -41,7 +41,7 @@ from apply.claude_fill import OnePage
 from apply.greenhouse import GreenhouseFiller
 from apply.keychain import InMemoryKeychain
 from apply.lever import LeverFiller
-from apply.submit_guard import DriveGuard, guard, lift
+from apply.submit_guard import CAPTCHA_TRY, DriveGuard, guard, lift, renote
 from apply.workday import WorkdayFiller
 
 SKYDIO_JOB = "79fdda46-4ff5-42c7-b208-55f2084cdb8c"
@@ -198,6 +198,55 @@ def test_a_held_page_with_something_to_fix_says_so_in_red(job_server):
 
     assert text.startswith("Apply rehearsal: fix this before you submit. Pre-submit review: Postgrad Discipline(s)")
     assert color == "rgb(176, 0, 32)"
+
+
+US_PERSON_WRONG = ('The U.S. Person status question is answered "No", but the profile says he is a U.S. citizen, '
+                   'so the answer should be "Yes".')
+
+
+def test_a_legal_answer_the_review_found_wrong_holds_lisuls_submit_until_he_dismisses_it(job_server, one_pager):
+    # Saronic's U.S. Person "No" (live, 2026-11-04): a note alone let him send it. Held, his Submit and the final
+    # request are blocked under a red note, until he presses its Dismiss; then Submit is his again.
+    filler = GreenhouseFiller()
+    questions = filler.question_set(ARC_URL, job_server)
+    answers = {"first_name": "Test", "last_name": "Person", "email": "test.person@example.com",
+               "phone": "+1 555 010 0199", "question_18871502008": "Yes", "question_18871503008": "No", "resume": one_pager}
+    pressed, dismissed = [], []
+
+    with job_server.open(ARC_URL) as page:
+        guard(page)
+        filler.fill(page, questions, answers)
+        lift(page, pressed=pressed.append, warning=f"Pre-submit review: {US_PERSON_WRONG}", held=US_PERSON_WRONG,
+             dismiss=lambda: dismissed.append(True))
+        note = page.locator("#apply-rehearsal-blocked")
+        page.get_by_role("button", name="Submit application").click()
+        page.wait_for_timeout(1000)
+        _post(page, FINAL_POST["greenhouse"][2])
+        held = (note.inner_text(), note.evaluate("e => getComputedStyle(e).backgroundColor"), len(job_server.submissions))
+        page.get_by_role("button", name="Dismiss").click()
+        page.wait_for_timeout(300)
+        renote(page, held="")  # what the hold's loop does once the dismissal is saved
+        page.get_by_role("button", name="Submit application").click()
+        page.wait_for_timeout(1500)
+
+    text, color, sent = held
+    assert text.startswith("Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: The U.S. Person")
+    assert color == "rgb(176, 0, 32)" and sent == 0 and pressed == ["Submit application"]
+    assert dismissed == [True]
+    assert len(job_server.submissions) == 1
+
+
+def test_a_held_submit_stays_held_on_the_pages_lisul_loads_next():
+    server, url, script = FINAL_POST["ashby"]
+    with server() as fake:
+        with fake.open(url) as page:
+            guard(page)
+            lift(page, held=US_PERSON_WRONG)
+            page.reload()
+            _post(page, script)
+            shown = page.locator("#apply-rehearsal-blocked").inner_text()
+        assert fake.submissions == []
+    assert "Submit is held" in shown
 
 
 def test_a_held_page_with_only_a_field_left_blank_says_so_in_amber(job_server):
@@ -374,6 +423,23 @@ def test_a_sign_in_or_new_accounts_button_claude_clicks_does_nothing_on_a_page_i
         page.wait_for_timeout(500)
         assert server.sign_ins == []
         assert drive.blocked() == ['the "Sign In" click', "a sign-in"]
+
+
+def test_while_claude_drives_no_click_or_key_reaches_a_captchas_box_and_lisuls_do_once_it_stops():
+    with FakeBambooServer(LUNAR_FORM, recaptcha=True) as server, server.open(LUNAR_URL) as page:
+        page.get_by_role("button", name="Apply for This Job").first.click()
+        page.frame_locator(ANCHOR).locator("#recaptcha-anchor").wait_for()
+        drive = DriveGuard(page)
+        drive.arm()  # Claude drives
+        tick_the_box(page)
+        page.frame_locator(ANCHOR).locator("#recaptcha-anchor").press("Space")
+        page.wait_for_timeout(300)
+        assert not ticked(page) and server.challenges == 0
+        assert CAPTCHA_TRY in drive.blocked()
+        drive.rest()  # Claude stopped: the captcha wait, and Lisul's own click
+        tick_the_box(page)
+        page.wait_for_timeout(300)
+        assert ticked(page) and server.challenges == 1
 
 
 def test_plain_codes_account_click_goes_through_the_drive_guard_and_a_rehearsals():

@@ -242,7 +242,8 @@ with the failure it prevents.
 
 - Work happens on Jira-style branches (`KAN-13-testing`) off `main`, one
   ticket per worktree. `npm run worktree -- KAN-13-testing` creates
-  `../WorkIt-CSE416-KAN-13` from a fresh `origin/main` and copies the env files
+  `../workit-KAN-13` (the primary checkout's folder name plus the key) from a
+  fresh `origin/main` and copies the env files
   and the sample resumes (`frontend/CLAUDE.md`) from the primary checkout
   (`frontend/scripts/new-worktree.mjs`). A worktree missing them gets them
   with `npm run worktree -- --env-only`.

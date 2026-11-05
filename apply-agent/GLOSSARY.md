@@ -117,7 +117,7 @@ An Application the system cannot finish alone, for example a site that blocks th
 _Avoid_: manual, fallback, failed
 
 **Captcha wait**:
-The time that Apply keeps a form open for Lisul to do its captcha. Apply never solves a captcha. It pushes "Do the captcha on <company>" to his phone and shows the captcha in the Apply window. When the challenge goes away, or he presses Resume, the fill continues on the same page. After `captcha_wait_minutes` (15), the Application is a Handoff. In a Rehearsal, a captcha after Lisul's own Submit gets only the push: he does it himself. A Bot block has no challenge, so it gets no Captcha wait.
+The time that Apply keeps a form open for Lisul to do its captcha. Apply never solves or touches a captcha. This includes an "I'm not a robot" box: Claude and its tools cannot click in a captcha's frame. A challenge on the page starts the wait at once. A box that nobody ticked starts it when the form is filled. It pushes "Do the captcha on <company>" to his phone and shows the captcha in the Apply window. When the challenge goes away, or he presses Resume, the fill continues on the same page. After `captcha_wait_minutes` (15), the Application is a Handoff. In a Rehearsal, a captcha after Lisul's own Submit gets only the push: he does it himself. A Bot block has no challenge, so it gets no Captcha wait.
 _Avoid_: captcha solve, captcha bypass
 
 **Bot block**:
@@ -161,7 +161,9 @@ What one Essay will say, picked for the whole form before any is written: its Qu
 _Avoid_: outline, essay brief, strategy
 
 **Catch-all box**:
-An optional free-text question that asks for anything at all rather than one thing ("Additional information", "Anything else you'd like us to know?", "Comments", "Other information"), on any job system: the anything-else Question type on a question the form doesn't require. It stays blank unless Apply has something new (not on the resume, the form's other answers or the cover letter) and relevant to this employer and role (a project close to the job the resume leaves out, a link the form didn't ask for, an availability note the form never asked), said in at most two sentences. A blank one is blank on purpose: Verifying notes it, and it never reaches Needs you. The one exception to "a blank optional is a bug".
+An optional free-text question that asks for anything at all rather than one thing ("Additional information", "Anything else you'd like us to know?", "Comments", "Other information"), on any job system: the anything-else Question type on a question the form doesn't require.
+Apply always leaves it blank on purpose. Claude never drafts it, and Needs you never asks it. Verifying notes it as blank on purpose.
+A required one is answered briefly. A catch-all box is the one exception to "a blank optional is a bug".
 _Avoid_: additional info field, comments box
 
 **High-stakes essay**:
@@ -229,7 +231,7 @@ The check every filled Application must pass before it is submitted: each answer
 _Avoid_: validation, QA, review
 
 **Verifying**:
-The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads the filled form back from the page and checks it against the Applicant profile, the Posting and its own plan, then the Application is Verified, or Verified with flags. A flag names a field and why it needs Lisul (a blank field, a value the page shows otherwise, a wrong file, a date or pay that doesn't fit, a wrong name or pronoun or another company's name in an essay, answers that contradict each other); a flag holds a run's Application in Needs you, where Lisul fixes or dismisses it. A note (an answer Claude guessed, a blank optional field) holds nothing. Verifying only reads: it never presses Submit.
+The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads the filled form back from the page and checks it against the Applicant profile, the Posting and its own plan, then the Application is Verified, or Verified with flags. A flag names a field and why it needs Lisul (a blank field, a value the page shows otherwise, a wrong file, a date or pay that doesn't fit, a wrong name or pronoun or another company's name in an essay, answers that contradict each other); a flag holds a run's Application in Needs you, where Lisul fixes or dismisses it. A note (an answer Claude guessed, a blank optional field) holds nothing. A review problem with a legal or eligibility answer (work authorization, sponsorship, citizenship, U.S. Person, export control, age, criminal history) is more than a note. Apply fills the review's fix when it gives one, and reviews the form again. Without a fix, the held page blocks Submit under a red note. Submit is Lisul's again after he presses the note's Dismiss or dismisses it in the window. Verifying only reads: it never presses Submit.
 _Avoid_: validation, QA, double-check
 
 **Employer account**:
@@ -238,6 +240,8 @@ _Avoid_: ATS account, candidate account
 
 **Not eligible**:
 The end state of an Application Lisul would honestly fail, for example a Master's-only role or a graduation window he misses. A Screener on the form finds it, or, before any form opens, the Posting's own required qualifications (one that asks for current graduate study). It is never submitted.
+Only an answer that fails the Screener rules him out. A Screener that no option fits is a Missing fact for Lisul.
+In a rehearsal, its tile has a Fill it anyway button. The button fills the form as in any rehearsal, and its note says why he was ruled out. A Closed tile has the button too.
 _Avoid_: rejected, skipped, disqualified
 
 **Story bank**:

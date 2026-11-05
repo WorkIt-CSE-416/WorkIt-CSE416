@@ -18,10 +18,14 @@ rehearsal), `doing` (the tile's line), `waiting` (a Claude call) and
 `pressed` (Lisul's press, given once). Outside `watching`, each does nothing.
 """
 
+import sys
 import threading
 import time
+import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+
+from apply import trace
 
 # Seconds with no fill progress before the tile offers Resume. A Filler's
 # longest single wait is 30 s (Playwright's default timeout, Workday's
@@ -56,6 +60,8 @@ FIELD_ERROR = r"""() => {
   return '';
 }"""
 CUT = 160  # characters of the error the tile says
+LOOK_S = 5.0  # how often a stall is looked for, to note it in the trace once (KAN-626)
+FRAMES = 10  # the innermost frames of a stalled thread's stack that the trace keeps
 
 
 class Stopped(Exception):
@@ -70,6 +76,8 @@ class _Watch:
         self.board, self.worker, self.on_resume = board, worker, on_resume
         self.doing = ""
         self.stoppable = 0  # how deep in steps of the fill that can stop a wait
+        self.at = time.time()  # the fill's last progress
+        self.waiting = False  # on Claude: no stall
 
 
 def _watch() -> "_Watch | None":
@@ -80,24 +88,45 @@ def _watch() -> "_Watch | None":
 def watching(board, worker: int, on_resume: Callable[[str], None] = lambda doing: None) -> Iterator[None]:
     """This thread fills Worker `worker`'s rehearsed form, shown on `board`.
     `on_resume(doing)` hears each Resume pressed while it filled, with what Apply was doing."""
-    was, _here.watch = _watch(), _Watch(board, worker, on_resume)
+    watch = _Watch(board, worker, on_resume)
+    was, _here.watch = _watch(), watch
+    done = threading.Event()
+    noting = threading.Thread(target=_note_stalls, args=(watch, threading.get_ident(), trace.here(), done), daemon=True)
+    noting.start()
     try:
         yield
     finally:
+        done.set()
         _here.watch = was
+
+
+def _note_stalls(watch: _Watch, thread: int, traced: tuple | None, done: threading.Event) -> None:
+    """Note each stall of `watch`'s fill in its trace, once: what it was doing, and its thread's stack. A stall
+    that the tile shows as "No progress" had left nothing to read afterwards (Applied Materials, 2026-11-04)."""
+    noted = None
+    while traced and not done.wait(LOOK_S):
+        at = watch.at
+        if watch.waiting or at == noted or time.time() - at <= STUCK_AFTER:
+            continue
+        noted = at
+        frame = sys._current_frames().get(thread)
+        stack = "".join(reversed(traceback.format_stack(frame)[-FRAMES:])) if frame else ""  # innermost first: kept if cut
+        trace.to(traced, "stuck", doing=watch.doing, seconds=round(time.time() - at), stack=stack)
 
 
 def doing(what: str) -> None:
     """Say on the tile what Apply is doing now; it counts as progress."""
     if watch := _watch():
-        watch.doing = what
-        watch.board.update(watch.worker, doing=what, progress_at=time.time())
+        watch.doing, watch.at = what, time.time()
+        watch.board.update(watch.worker, doing=what, progress_at=watch.at)
+        trace.event("doing", what=what)
 
 
 def progress() -> None:
     """The fill moved on (a step, an answer), with no new words for the tile."""
     if watch := _watch():
-        watch.board.update(watch.worker, progress_at=time.time())
+        watch.at = time.time()
+        watch.board.update(watch.worker, progress_at=watch.at)
 
 
 @contextmanager
@@ -120,11 +149,13 @@ def waiting() -> Iterator[None]:
     if not watch or not watch.stoppable:
         yield
         return
-    watch.board.update(watch.worker, waiting=True, progress_at=time.time())
+    watch.waiting, watch.at = True, time.time()
+    watch.board.update(watch.worker, waiting=True, progress_at=watch.at)
     try:
         yield
     finally:
-        watch.board.update(watch.worker, waiting=False, progress_at=time.time())
+        watch.waiting, watch.at = False, time.time()
+        watch.board.update(watch.worker, waiting=False, progress_at=watch.at)
 
 
 def presses() -> Callable[[], bool] | None:

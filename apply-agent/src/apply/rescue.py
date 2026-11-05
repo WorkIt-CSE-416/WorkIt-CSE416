@@ -5,7 +5,7 @@ A Filler that drives a field and fails (a FillError, or a click Playwright
 timed out on) hands that field to a Rescue: Haiku drives the same open page
 (Playwright MCP) to put that one answer in, under a small cap and the drive
 guard (apply.submit_guard.DriveGuard), so it can't send the form, sign in
-elsewhere, pay or opt in. The guard is lifted once Claude stops, so the
+elsewhere, pay, opt in or touch a captcha. The guard is lifted once Claude stops, so the
 Filler's own clicks (Save and Continue, its submit) go through as before.
 The Filler then reads the field back as it does every field, so the
 Pre-submit check judges Claude's fill like its own. Each field rescued is
@@ -24,7 +24,7 @@ from playwright.sync_api import Page
 from apply.adapters import Claude
 from apply.claude_fill import BLOCKED, MODEL, REPORTED, RULES
 from apply.model import Handoff, one_line
-from apply.submit_guard import DriveGuard
+from apply.submit_guard import CAPTCHA_TRY, DriveGuard
 
 # The cap on one field, and how many fields one Application may hand over.
 MAX_TURNS = 15
@@ -75,7 +75,8 @@ class Rescue:
                                        max_turns=self._max_turns, max_tokens=self._max_tokens)
         finally:
             self._guard.lift()  # the Filler's own clicks go through again
-        if blocked := self._guard.blocked()[was_blocked:]:
+        # A click or key Claude tried in a captcha was refused there, untouched: no Handoff of its own.
+        if blocked := [b for b in self._guard.blocked()[was_blocked:] if b != CAPTCHA_TRY]:
             raise Handoff(f"Apply blocked {blocked[0]} while Claude filled {label!r}, so nothing it blocked was sent. "
                           "Check the form and finish it yourself.")
         if drive.capped or drive.output is None or drive.output.get("blocked") is True:

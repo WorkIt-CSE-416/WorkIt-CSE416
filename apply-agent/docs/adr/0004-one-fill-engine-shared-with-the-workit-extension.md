@@ -2,7 +2,7 @@
 
 Apply's Fillers and answer rules move out of Python into one TypeScript Fill engine, which Apply loads into the form's page through Playwright and the WorkIt extension loads as a content script, so a fix to filling lands once for both. The extension can only run JavaScript in the page, so a shared engine has to be JavaScript; the rules move too (rather than staying in Python behind the WorkIt backend) so the engine is one language and the extension needs no server round trip to fill. The extension's own fill code is dropped rather than merged: it failed on most forms, while Apply's Fillers are proven on live forms and recorded fixtures.
 
-The engine is its own private repo in the WorkIt-CSE-416 org, not a folder of the WorkIt repo, which is public: the team does not want the fill code shared.
+The engine is its own private repo in the workitjobs org, not a folder of the WorkIt repo, which is public: the team does not want the fill code shared.
 
 ## Consequences
 

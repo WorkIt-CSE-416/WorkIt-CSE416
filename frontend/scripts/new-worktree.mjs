@@ -1,8 +1,10 @@
 // `npm run worktree -- KAN-123-short-slug`: a new worktree for one ticket,
 // ready to run. Plain Node so it behaves the same on macOS and Windows.
 //
-// - The folder is named after the ticket key (../WorkIt-CSE416-KAN-123), so
-//   folder and branch always agree. One ticket per worktree; never switch a
+// - The folder is the primary checkout's folder name plus the ticket key
+//   (../workit-KAN-123 from a checkout named workit; an older checkout named
+//   WorkIt-CSE416 still gets ../WorkIt-CSE416-KAN-123), so folder and branch
+//   always agree. One ticket per worktree; never switch a
 //   worktree to another ticket's branch.
 // - The branch starts from a freshly fetched origin/main, or is checked out
 //   as-is if it already exists locally or on origin.
