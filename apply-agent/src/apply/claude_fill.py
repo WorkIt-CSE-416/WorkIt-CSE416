@@ -70,7 +70,7 @@ from apply.model import (
     QuestionSet,
     Readback,
 )
-from apply.submit_guard import DriveGuard
+from apply.submit_guard import CAPTCHA_TRY, DriveGuard
 
 MODEL = "haiku"
 # The cap on one Application, across its sessions. policies.yaml can change it.
@@ -447,14 +447,19 @@ class ClaudeFill:
             self._guard = DriveGuard(page, **self._opt_ins)
         self._guard.arm()
         before = len(self._guard.blocked())  # a block of an earlier drive was its Handoff already (Lisul resumed after)
-        drive = self._claude.drive(
-            page=page, model=MODEL, system=system, prompt=prompt, schema=schema, files=files,
-            max_turns=self._max_turns - self._turns, max_tokens=self._max_tokens - self._tokens,
-        )
+        try:
+            drive = self._claude.drive(
+                page=page, model=MODEL, system=system, prompt=prompt, schema=schema, files=files,
+                max_turns=self._max_turns - self._turns, max_tokens=self._max_tokens - self._tokens,
+            )
+        finally:
+            self._guard.rest()  # a captcha's frame takes Lisul's clicks again
         self._sessions += 1
         self._turns += drive.turns
         self._tokens += drive.tokens
-        blocked = self._guard.blocked()[before:]
+        # A click or key Claude tried in a captcha was refused there: nothing was touched, and the captcha
+        # is Lisul's still (the challenge's wait below, or its box's once the form is filled).
+        blocked = [b for b in self._guard.blocked()[before:] if b != CAPTCHA_TRY]
         if blocked and drive.output and _only_its_submit(blocked, drive.output):
             # Claude clicked the button it then named as the one that sends: the guard stopped it, so
             # the form is filled and unsent, as a Filler leaves it (Roblox's, live: a Handoff after 1.2M tokens).

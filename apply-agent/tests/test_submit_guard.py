@@ -24,7 +24,7 @@ from conftest import (
 from fake_accounts_site import LOGIN as ACCOUNT_LOGIN
 from fake_accounts_site import REGISTER as ACCOUNT_REGISTER
 from fake_accounts_site import FakeAccountsSite
-from fake_bamboohr import FakeBambooServer
+from fake_bamboohr import ANCHOR, FakeBambooServer, tick_the_box, ticked
 from fake_jobvite import URL as JOBVITE_URL
 from fake_jobvite import FakeJobviteServer
 from fake_lever import FakeLeverServer
@@ -41,7 +41,7 @@ from apply.claude_fill import OnePage
 from apply.greenhouse import GreenhouseFiller
 from apply.keychain import InMemoryKeychain
 from apply.lever import LeverFiller
-from apply.submit_guard import DriveGuard, guard, lift
+from apply.submit_guard import CAPTCHA_TRY, DriveGuard, guard, lift
 from apply.workday import WorkdayFiller
 
 SKYDIO_JOB = "79fdda46-4ff5-42c7-b208-55f2084cdb8c"
@@ -374,6 +374,23 @@ def test_a_sign_in_or_new_accounts_button_claude_clicks_does_nothing_on_a_page_i
         page.wait_for_timeout(500)
         assert server.sign_ins == []
         assert drive.blocked() == ['the "Sign In" click', "a sign-in"]
+
+
+def test_while_claude_drives_no_click_or_key_reaches_a_captchas_box_and_lisuls_do_once_it_stops():
+    with FakeBambooServer(LUNAR_FORM, recaptcha=True) as server, server.open(LUNAR_URL) as page:
+        page.get_by_role("button", name="Apply for This Job").first.click()
+        page.frame_locator(ANCHOR).locator("#recaptcha-anchor").wait_for()
+        drive = DriveGuard(page)
+        drive.arm()  # Claude drives
+        tick_the_box(page)
+        page.frame_locator(ANCHOR).locator("#recaptcha-anchor").press("Space")
+        page.wait_for_timeout(300)
+        assert not ticked(page) and server.challenges == 0
+        assert CAPTCHA_TRY in drive.blocked()
+        drive.rest()  # Claude stopped: the captcha wait, and Lisul's own click
+        tick_the_box(page)
+        page.wait_for_timeout(300)
+        assert ticked(page) and server.challenges == 1
 
 
 def test_plain_codes_account_click_goes_through_the_drive_guard_and_a_rehearsals():
