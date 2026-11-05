@@ -669,6 +669,51 @@ def test_lisuls_own_submit_saves_the_record_again_as_submitted_with_its_confirma
     assert any("its Record says submitted" in line for line in lines)
 
 
+def test_a_held_form_lisul_sends_with_a_missing_fact_open_shows_as_sent_and_leaves_needs_you(monkeypatch, tmp_path):
+    # Saronic, 2026-11-04: he sent the held form himself; the tile still asked its Missing facts, so it looked unsent.
+    from apply.dashboard import Dashboard, NoFrames
+
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    real = rehearsal.lift
+
+    def lift(page, **heard):  # he types the Missing fact on the page, not in the window, and sends it
+        real(page, **heard)
+        page.get_by_label("Last Name").first.fill("Elvitigala")
+        page.get_by_role("button", name="Submit application").click()
+    monkeypatch.setattr(rehearsal, "lift", lift)
+    rescued = []
+    monkeypatch.setattr(rehearsal.Rescue, "field", lambda self, page, label, value, error: rescued.append(label))
+    profile = ApplicantProfile.load(profile_with(tmp_path, **{"identity.legal_last_name": None}))
+    asked = []
+
+    class Board(Dashboard):
+        late = [("Last Name", "Elvitigala")]  # his answer in the window, given after the form went in
+
+        def update(self, worker, **caption):
+            super().update(worker, **caption)
+            if caption.get("status") == rehearsal.READY:
+                asked.append(list(self.state()["tiles"][0].get("missing") or []))
+
+        def answered(self, worker):
+            if self._captions[worker].get("status") == "submitted" and self.late:
+                given, self.late = self.late, []
+                return given
+            return super().answered(worker)
+
+    board = Board(1, NoFrames())
+    with FakeJobServer(ARC_FORM) as fake:
+        hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=InMemoryTracker(),
+                   with_adapters={"board": board})
+        submissions = fake.submissions
+
+    assert len(submissions) == 1 and asked and asked[0]  # held with a Missing fact open, then sent by him
+    [tile], items = board.state()["tiles"], board.state()["items"]
+    assert tile["tone"] == "submitted" and tile["label"].endswith(("Sent", "sent")) and tile["missing"] == []
+    assert "you submitted it; it is in the Tracker" in tile["detail"]
+    assert [i["tone"] for i in items] == ["submitted"]  # no card for it waits in Needs you
+    assert not board.late and rescued == []  # the late answer filled nothing on the sent form
+
+
 def test_a_captcha_after_lisuls_own_submit_pushes_him_to_do_it(monkeypatch, tmp_path):
     # Lisul (2026-11-03): in a rehearsal he presses Submit and does the captcha himself; Apply only tells him.
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))

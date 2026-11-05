@@ -191,7 +191,9 @@ def rehearse(
             with writing:
                 note = _keep_submission(submitted_to, done, adapters.clock.now().date())
             note += _keep_confirmation(page, done, adapters)
-            adapters.board.update(n, status="submitted", why=note)
+            # Sent: nothing on it waits on him now, and an answer given later neither fills it nor shows it unsent.
+            done.outcome, done.missing = str(Status.SUBMITTED), ()
+            adapters.board.update(n, status="submitted", why=note, missing=[])
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, note]))
 
         def held() -> None:  # its form is open and planned: Ready, then Filling once Start is pressed
