@@ -752,6 +752,10 @@ put back, the window's routes, `apply ask`, and the Record and Repair request.
   (`/apply/applyManually`) and Microsoft's (`/careers/job/<id>`) URLs match no final rule at all
   (`tests/test_submit_guard.py -k every_real_step`). On a plain Worker the declarativeNetRequest rule on
   `/apply` still blocks such a step (it can't read the page), so that Next hands off and nothing is sent.
+- Before each Next, plain code checks what the step shows (`cant_be_right`, KAN-652): an address part
+  holding a whole address, or a school's start year after this one. A bare "Start date" beside school
+  fields may be the internship's, so it stops the fill only in a section headed clearly as education
+  (`_sections`, `clearly_education`) or at a year past `PLAUSIBLE_YEARS` (KAN-659).
 - Dropdowns that list their choices only once opened are read and picked
   by plain code (`_with_options`, `_pick_in_comboboxes`). Each one's name is
   read off the very element Playwright clicks (`_comboboxes`), never from a
