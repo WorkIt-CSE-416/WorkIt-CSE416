@@ -126,6 +126,13 @@ export function StageMenu({
         hideLabel
         value={stage === "saved" ? "" : stage}
         placeholder={placeholder}
+        // Saved is not a pick, so a saved job's menu draws Saved's own glyph
+        // beside its placeholder, as every picked stage wears its own.
+        placeholderIcon={
+          stage === "saved" && placeholder === STAGE_LABEL.saved
+            ? { Icon: STAGE_ICON.saved, iconClassName: STAGE_COLOR.saved.onTint }
+            : undefined
+        }
         options={PICKABLE.map((value) => ({
           value,
           label: STAGE_LABEL[value],
