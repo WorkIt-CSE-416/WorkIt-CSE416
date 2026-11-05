@@ -389,7 +389,12 @@ class ClaudeFill:
                 raise MoreQuestions(_with_options(page, self._questions(unlisted)))
             next_button = str(done.get("next_button") or "").strip()
             if not next_button or SENDS.search(next_button) or not NEXT.search(next_button):
-                self._submit_button = str(done.get("submit_button") or "").strip()
+                submit_button = str(done.get("submit_button") or next_button).strip()
+                if not SENDS.search(submit_button):  # no Next and no button that sends: never "ready" mid-form (KAN-636)
+                    raise Handoff(f"Claude fill found no Next and no button that sends on this step "
+                                  f"({submit_button or 'none named'}), so it can't tell this is the form's last page. "
+                                  "Go on with the form yourself.")
+                self._submit_button = submit_button
                 # The form as its submit finds it, to tell a confirmation by.
                 self._form, self._form_text = _fields_shown(page), _page_text(page)
                 if captcha.pending(page):  # its "I'm not a robot" box, or a challenge: Lisul's to do
