@@ -1,6 +1,6 @@
 """The plain Workers' bridge: Apply's end of the socket the host relays talk to.
 
-It listens on APPLY_HOME/workers.sock (mode 0600) before any Worker starts. Each Worker's
+It listens on the Worker profiles folder's workers.sock (mode 0600) before any Worker starts. Each Worker's
 relay connects, names its Worker, and passes on the extension's hello; the bridge checks
 the origin, the protocol and the engine, answers welcome or refuse, and keeps one
 Connection per Worker. A Connection calls ops (`call`) and hands events to subscribers
@@ -64,8 +64,8 @@ class BridgeBusy(Exception):
 
 
 def socket_path(home: Path = HOME) -> Path:
-    """APPLY_HOME/workers.sock, or, when that path is too long for a socket, one under
-    /tmp/apply-<uid>/ (0700) named by a hash of the data folder."""
+    """`home`/workers.sock, or, when that path is too long for a socket, one under
+    /tmp/apply-<uid>/ (0700) named by a hash of `home`. PlainWorkers passes its profiles folder."""
     path = home / SOCKET
     if len(str(path).encode()) <= SOCKET_PATH_MOST:
         return path
