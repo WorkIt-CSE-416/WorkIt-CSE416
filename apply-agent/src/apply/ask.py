@@ -296,7 +296,7 @@ def ask(claude: Claude, page, message: str, thread: list[dict], form: Form, give
             guard.arm()  # press_step rests the guard: Claude drives on
             was_blocked = len(guard.blocked())  # what stopped Claude's own click of it: done now
             pressed += 1
-            said_before = said
+            said_before = said | {"couldnt": [], "waiting": []}  # what it couldn't reach before the press, it can now
             earlier.append({"message": message, "reply": f"Apply pressed {press}: go on from this step.",
                             "changed": said.get("changed") or []})
     finally:

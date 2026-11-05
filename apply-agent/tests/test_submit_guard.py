@@ -828,7 +828,7 @@ def test_claude_s_own_next_on_a_native_post_step_is_blocked_under_ask():
 def test_ask_goes_on_and_back_on_native_post_steps_by_plain_code_s_own_click():
     with _steps("/app/1") as (page, drive, posts):
         reply = _asked(page, drive, "page 2's GPA is 3.7, then come back", [
-            (lambda p: p.get_by_role("button", name="Next").click(), _said(press="Next")),
+            (lambda p: p.get_by_role("button", name="Next").click(), _said(press="Next", couldnt=["GPA: page 2 didn't open"])),
             (lambda p: p.locator("#gpa").fill("3.7"), _said(press="Back")),
             (lambda p: None, _said(reply="Set it and came back.")),
         ])
