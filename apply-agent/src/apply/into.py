@@ -4,10 +4,11 @@ Job sites keep their sign-in only for the browser's session, so a new Worker Chr
 A link sent in is filled in the same running plain Worker, in a tab of its own, beside the forms open
 there: Lisul signs in once per job site, not once per posting.
 
-Each Apply window lists itself in APPLY_HOME/windows/<port>.json (mode 0600): its address, the token
-its routes ask for (X-Apply-Token), and the PID of its process. `send` finds the window by its port
-(`54321`, or `54321:2` for Browser 2) or by an Application ID one of its tiles shows, and POSTs
-/rehearse there. The window's process does the rest, with the guards of any rehearsal: it never submits.
+Each Apply window notes itself in APPLY_PROFILES/windows/ (apply.ask.register, mode 0600): its
+address, the token its routes ask for (X-Apply-Token), and the PID of its process. `send` finds the
+window by its port (`54321`, or `54321:2` for Browser 2) or by an Application ID one of its tiles shows,
+and POSTs /rehearse there. The window's process does the rest, with the guards of any rehearsal: it
+never submits.
 """
 
 import json
@@ -18,9 +19,9 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from apply.home import HOME
+from apply import ask
+from apply.browsers import WorkerBrowsers
 
-WINDOWS = HOME / "windows"
 ENDED = ("", "filling", "verifying")  # a tile's tone while its form is still being filled
 
 
@@ -28,22 +29,15 @@ class NoWindow(Exception):
     """No running Apply window matches what `--into` names, or it refused the link."""
 
 
-def listed(url: str, token: str, folder: Path | None = None) -> Path:
-    """List the window at `url` with its token, for `--into`. Returns its file, to remove when it closes."""
-    folder = folder or WINDOWS
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{urlsplit(url).port}.json"
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(descriptor, "w") as file:
-        json.dump({"url": url, "token": token, "pid": os.getpid()}, file)
-    path.chmod(0o600)
-    return path
+def notes() -> Path:
+    """Where the Apply windows of this profiles folder note themselves (apply.ask.register)."""
+    return WorkerBrowsers().profiles / ask.WINDOWS
 
 
 def windows(folder: Path | None = None) -> list[dict]:
-    """Each Apply window still running, as listed; a file whose process is gone is removed."""
+    """Each Apply window still running, as noted; a note whose process is gone is removed."""
     found = []
-    for path in sorted((folder or WINDOWS).glob("*.json")):
+    for path in sorted((folder or notes()).glob("*.json")):
         try:
             window = json.loads(path.read_text())
             os.kill(int(window["pid"]), 0)
@@ -81,7 +75,7 @@ def find(target: str, folder: Path | None = None) -> tuple[dict, dict]:
     if port.isdigit():
         window = next((w for w in running if urlsplit(w["url"]).port == int(port)), None)
         if window is None:
-            raise NoWindow(f"no running Apply window on port {port} (in {folder or WINDOWS})")
+            raise NoWindow(f"no running Apply window on port {port} (in {folder or notes()})")
         if browser and not browser.isdigit():
             raise NoWindow(f"{target}: the Browser after the colon is its number, as its tile says")
         return window, {"worker": int(browser) - 1} if browser else {}

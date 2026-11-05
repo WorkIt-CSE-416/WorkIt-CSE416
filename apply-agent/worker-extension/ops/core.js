@@ -63,11 +63,12 @@ export const ops = {
   eval: evaluate,
   // The vendor set Apply's files are in from now (Apply wrote a new one: its Fill engine changed).
   "vendor.use": async ({ root }) => ({ root: useVendor(root) }),
-  // This extension's code anew from its folder: the answer goes first, then Chrome restarts the
-  // extension, which says hello again. Its tabs stay; its guards, rules and bindings go (guard.js: reset).
+  // Load this extension's files again from its folder (newer code after a checkout), as its
+  // reload button does: web tabs, their pages and cookies stay; this port closes and the new
+  // code says hello again. Answers first, then reloads.
   "extension.reload": async () => {
     setTimeout(() => chrome.runtime.reload(), 100);
-    return { reloading: true };
+    return null;
   },
 };
 

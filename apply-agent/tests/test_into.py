@@ -7,7 +7,7 @@ import urllib.request
 
 import pytest
 
-from apply import into
+from apply import ask, into
 from apply.dashboard import Dashboard, NoFrames
 
 
@@ -25,7 +25,7 @@ def window(tmp_path):
             taken.append((url, worker, tile))
             return {"tile": tile, "worker": worker}
         board.taking(take)
-        path = into.listed(board.url, board.token, tmp_path)
+        path = ask.register(tmp_path, board.url, board.token, os.getpid())
         yield board, taken, tmp_path, path
 
 
@@ -73,7 +73,7 @@ def test_only_apply_may_send_a_link(window):
 
 def test_a_window_that_takes_no_links_says_so(tmp_path):
     with Dashboard(1, NoFrames()) as board:
-        into.listed(board.url, board.token, tmp_path)
+        ask.register(tmp_path, board.url, board.token, os.getpid())
         with pytest.raises(into.NoWindow, match="takes no new links"):
             into.send(board.url.rsplit(":", 1)[1], "https://jobs.example/x", tmp_path)
 

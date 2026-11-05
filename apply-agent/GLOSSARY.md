@@ -272,6 +272,10 @@ _Avoid_: manual application, logged application, self-apply
 Lisul's request that Claude write one of its answers on a held form again, with context he types. He presses "Add context and regenerate" beside the field, on the form or in the Apply window. His context joins the Story bank with the question it was for. Claude writes the answer by the usual essay path, and the answer replaces the field's value. An answer over the form's limit, or with a fact no source holds, stays off the form. Nothing is sent.
 _Avoid_: redo, rewrite, retry
 
+**Ask Claude**:
+Claude's fix, live on a held form, of a problem Lisul tells it in his own words. He types it in the form's tile in the Apply window, or sends it with `apply ask`. Claude reads back what it changed and answers in the Application's thread. It never submits and never ticks his attestation boxes unless he says so. A fact he states goes in the Answer bank only on his click.
+_Avoid_: chat, assistant, live edit
+
 **Rescue**:
 Claude filling, live on the open form, one field a Filler's own code failed on (a FillError, or a click that timed out), so the Application goes on to the next step instead of failing. It runs under the drive guard, is read back and checked like any field, and leaves a Repair request so the Filler's code is fixed too. Workday's Filler has one.
 _Avoid_: fallback, live repair, retry

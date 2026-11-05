@@ -1017,6 +1017,56 @@ def test_a_step_whose_next_does_not_go_on_is_a_handoff_not_a_form_ready_to_submi
     assert server.submissions == []
 
 
+class GatedStepsDriver(JobviteStepsDriver):
+    """Reports the sponsorship question as one for Lisul to check, on the step that shows it."""
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        said = super().__call__(page, schema, prompt, files)
+        if "questions" not in schema["properties"] and page.get_by_text(SPONSORSHIP).first.is_visible():
+            said["for_lisul"] = [f"{SPONSORSHIP}: No"]
+        return said
+
+
+@pytest.mark.parametrize("gates, status", [(True, "handoff"), (False, "submitted")])
+def test_page_gates_stop_before_a_step_with_a_legal_answer_goes_on(tmp_path, gates, status):
+    profile = profile_with(tmp_path, policies={"page_gates": gates})
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile, tyler_match(), claude=FakeClaude(driver=GatedStepsDriver()))
+
+    assert row.status == status, row.reason
+    if gates:
+        assert row.reason.startswith(f"Page 2: check these 1 and tick any box that is yours, then press Resume: {SPONSORSHIP}: No")
+        assert server.submissions == []
+
+
+def test_page_gates_as_notes_list_the_check_and_go_on_to_the_last_page(tmp_path, capsys):
+    profile = profile_with(tmp_path, policies={"page_gates": "note"})
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile, tyler_match(), claude=FakeClaude(driver=GatedStepsDriver()))
+
+    assert row.status == "submitted", row.reason
+    assert f"Check before Submit: Page 2: {SPONSORSHIP}: No" in capsys.readouterr().err
+
+
+class NoButtonsStepsDriver(JobviteStepsDriver):
+    """Names no Next on the first step, and no button that sends, as a misread step would."""
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        said = super().__call__(page, schema, prompt, files)
+        if "questions" not in schema["properties"]:
+            said |= {"next_button": "", "submit_button": ""}
+        return said
+
+
+def test_a_step_with_no_next_and_no_button_that_sends_is_a_handoff_never_ready_to_submit(tmp_path):
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile_with(tmp_path), tyler_match(), claude=FakeClaude(driver=NoButtonsStepsDriver()))
+
+    assert row.status == "handoff"
+    assert "can't tell this is the form's last page" in row.reason
+    assert server.submissions == []
+
+
 def test_claude_fills_next_is_never_a_button_beside_it_that_sends(tmp_path):
     driver = JobviteStepsDriver(next_name="Continue \u2192")
 
@@ -1234,3 +1284,27 @@ def test_a_rehearsal_at_a_bot_block_waits_for_lisuls_press_to_open_his_chrome(tm
     assert done.outcome == "handoff" and "Finish Lunar Outpost in your Chrome" in done.why
     assert board.captions[0]["blocked"] is True and "resume" not in board.captions[0]
     assert opened == []
+
+
+HOME_AND_CAMPUS = """<h2>Home Address</h2><div><label for="h1">Address line 1 *</label><input id="h1" value="1 Home Road"></div>
+<h2>Campus Address</h2><div><label for="c1">Address line 1 *</label><input id="c1"></div>"""
+
+
+@pytest.mark.parametrize("html, named", [
+    (HOME_AND_CAMPUS, ["Campus Address: Address line 1"]),  # another section's field: a new question
+    (HOME_AND_CAMPUS.split("<h2>Campus")[0], []),  # the one field again: the question Apply knows
+])
+def test_a_label_in_another_section_is_a_new_question_never_merged(html, named):
+    # Bank of America's TAL.net (live): the campus "Address line 1" was taken for the home one and never filled.
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        known = [Question("q1", "Address line 1", "text", True, ())]
+        found = [{"label": "Address line 1", "kind": "text", "required": True, "options": []}]
+        assert [q["label"] for q in claude_fill._new_questions(page, known, found)] == named
+        browser.close()

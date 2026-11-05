@@ -130,3 +130,23 @@ def test_the_cookie_banner_over_the_email_step_is_declined_before_next():
         page.get_by_role("button", name="Next").click(timeout=2000)
         assert page.title() == "next"
         browser.close()
+
+
+def test_a_form_lisul_signed_in_to_himself_is_not_signed_in_to_again():
+    """On a pause he signed in himself; Resume finds the form's own email field, which can't be edited (KAN-636)."""
+    from playwright.sync_api import sync_playwright
+
+    from apply import oracle
+
+    class NoAccounts:
+        @property
+        def login(self):
+            raise AssertionError("no sign-in on a form already open")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content('<label>Email <input type="email" value="lisul@example.com" readonly></label>'
+                         '<button>Next</button>')
+        oracle.sign_in(page, NoAccounts(), "Elvitigala", agree_to_terms=True)
+        browser.close()

@@ -47,6 +47,7 @@ Claude fill Application on OnePage, which opens the form once.
 
 import json
 import re
+import sys
 import time
 from collections.abc import Callable
 from contextlib import ExitStack, contextmanager
@@ -156,7 +157,7 @@ REPORTED = ["blocked", "why", *ACCOUNT_FIELDS]
 
 READ = f"""You look at an internship application form, already open in the browser's current tab, and list its questions.
 Work on that tab: don't navigate away. If it shows the posting rather than the form, open the form (an "Apply" button). Type nothing but what the rules below allow on an account page.
-List every question a person sees, in order, with its label exactly as shown: kind is text, textarea, file, select (dropdowns, radio buttons, a single checkbox as Yes/No) or multi_select (checkboxes); options are the choices exactly as shown. Don't open a dropdown or pick anything to read its choices: list a dropdown whose choices don't show with no options (plain code opens it after you).
+List every question a person sees, in order, with its label exactly as shown: kind is text, textarea, file, select (dropdowns, radio buttons, a single checkbox as Yes/No) or multi_select (checkboxes); options are the choices exactly as shown. Don't open a dropdown or pick anything to read its choices: list a dropdown whose choices don't show with no options (plain code opens it after you). When a label shows more than once on the form, in different sections (a home and a campus address, current and permanent, mailing and residential), put the section's heading before it: "Campus Address: Address line 1".
 Put a field's help text under its label into the label, after it in parentheses ("Please write out the name of the club and do not use any acronyms").
 Leave out hidden fields, fields marked to be left blank and any captcha ("I'm not a robot").
 If the page is not one job posting (a careers home page, a list of jobs, a company page), or says the posting is closed or no longer accepts applications, list no questions, say which in `page` and why in `why`.
@@ -188,11 +189,16 @@ Use as few tool calls as you can: one browser_fill_form call for every field it 
 Pick every select answer yourself, even when the dropdown already seems to show it (a country listed first): choose the option, then read it back; never leave a select's `shown` empty.
 Leave every other field as it is, and any captcha ("I'm not a robot") too.
 Then read each field back, one `filled` entry a field: `field` is its id from <fields> ("q1"), copied exactly, never its label; `shown` is exactly the text, option or file name the field shows now, with nothing added ("Yes" or "No" for a single checkbox).
-If the step asks a question <fields> doesn't hold, leave it and go on: list it in `unlisted` like a question read off the form (label exactly as shown, with the help text under it after it in parentheses; kind, required, options). Don't stop for it.
+If the step asks a question <fields> doesn't hold, leave it and go on: list it in `unlisted` like a question read off the form (label exactly as shown, with the help text under it after it in parentheses; kind, required, options). Don't stop for it. When a label shows more than once on the form, in different sections (a home and a campus address, current and permanent, mailing and residential), put the section's heading before it: "Campus Address: Address line 1".
 If a question in <fields> is not on this step, leave it out of `filled` and go on.
 If this step has a button that goes on to the form's next step ("Next", "Continue"), name it exactly in `next_button` and leave `submit_button` empty.
 On the last step, name exactly the button that would send the application in `submit_button` and leave `next_button` empty. Never click that button, press Enter to send or try it again: once the fields are filled and read back, you are done. Apply sends the form itself, after its own checks.
 {RULES}"""
+# Lisul's page gates (policies: page_gates, KAN-637): he checks these on each step before the form goes on.
+GATES = """
+Never tick an attestation, certification or agreement box ("I certify", "I acknowledge", "I agree", consent to terms, to a background check or to data processing), and never type an e-signature, a typed-name signature or a date of signature, even when <fields> gives an answer for it: leave each as it is for the person, and list it in `for_lisul`.
+Before you finish, read every field on this step back and check it against <fields>: fix any that shows something else, once.
+In `for_lisul`, list every field on this step that the person must check before the form goes on, one entry each, as "<label>: <what it shows now>" (or "<label>: left for you"): attestation, certification, signature or date-of-signature fields; terms, or consent to a background check or to data processing; self-identification (gender, race or ethnicity, veteran, disability); work authorization, citizenship, U.S. person, export control or sponsorship; non-compete or prior-employer agreements; relatives at the company, prior employment with it, conflicts of interest; criminal history; and any answer you aren't sure is right. An option that only spells out the answer's abbreviation (a state's "NY" as "New York", a country's "US" as "United States") is a sure match, not one to list. Empty when the step has none."""
 FILL_SCHEMA = {
     "type": "object",
     "properties": {
@@ -208,17 +214,24 @@ FILL_SCHEMA = {
     },
     "required": [*REPORTED, "filled", "submit_button", "next_button", "unlisted"],
 }
+GATED_SCHEMA = {
+    **FILL_SCHEMA,
+    "properties": {**FILL_SCHEMA["properties"], "for_lisul": {
+        "type": "array", "items": {"type": "string"}, "description": "fields on this step the person must check"}},
+    "required": [*FILL_SCHEMA["required"], "for_lisul"],
+}
 
 
-def _fill_schema(names: list[str]) -> dict:
-    """FILL_SCHEMA with each `filled` entry's `field` held to the ids asked
+def _fill_schema(names: list[str], gated: bool = False) -> dict:
+    """FILL_SCHEMA (GATED_SCHEMA with page gates) with each `filled` entry's `field` held to the ids asked
     for: Haiku named some by their label ("First Name *", live)."""
+    base = GATED_SCHEMA if gated else FILL_SCHEMA
     if not names:
-        return FILL_SCHEMA
-    item = FILL_SCHEMA["properties"]["filled"]["items"]
+        return base
+    item = base["properties"]["filled"]["items"]
     field = {"type": "string", "enum": names, "description": "the field's id from <fields>, never its label"}
     filled = {"type": "array", "items": {**item, "properties": {**item["properties"], "field": field}}}
-    return {**FILL_SCHEMA, "properties": {**FILL_SCHEMA["properties"], "filled": filled}}
+    return {**base, "properties": {**base["properties"], "filled": filled}}
 
 
 def _field_named(said: str, labels: dict[str, str]) -> str | None:
@@ -244,7 +257,8 @@ class ClaudeFill:
     def __init__(self, claude: Claude, max_turns: int = MAX_TURNS, max_tokens: int = MAX_TOKENS,
                  sign_in: Callable[[Page], None] | None = None, resume: Path | None = None,
                  sms_opt_in: bool = False, marketing_opt_in: bool = False,
-                 accounts: Accounts | None = None, account_facts: dict | None = None):
+                 accounts: Accounts | None = None, account_facts: dict | None = None,
+                 page_gates: bool | str = False):
         """`sign_in` takes the open posting to its form by plain code first,
         on a job system whose sign-in needs no Claude (Oracle's emailed code).
         `resume` is for a pop-up that asks for it before the form can be used.
@@ -252,7 +266,11 @@ class ClaudeFill:
         guard lets Claude tick only an opt-in they say yes to. `accounts`
         signs in or makes an account on a page in the way of the form
         (apply.account_pages), where Claude may fill `account_facts`;
-        without it, such a page is a Handoff."""
+        without it, such a page is a Handoff. `page_gates` is Lisul's policy: a step with
+        an attestation, consent, self-ID, legal or criminal-history field, or an answer Claude
+        isn't sure of, pauses for his check before the form goes on, and Claude never ticks or
+        signs his boxes. "note" pauses nothing: each such field goes on `checks`, his list to
+        check before he submits, and the form goes on."""
         self._claude = claude
         self._account_pages = AccountPages(accounts, account_facts or {})
         self._url = ""  # the Posting's, to go back to once a mailed link is opened
@@ -275,6 +293,10 @@ class ClaudeFill:
         self._put: dict = {}  # the answer each field was filled with
         self._guard: DriveGuard | None = None  # on the page from Claude's first drive
         self._waited_for_box = False  # the form, filled, waited for Lisul to do its captcha's box
+        self._page_gates = page_gates
+        self.checks: list[str] = []  # "Page N: <field>: <what it shows>", for Lisul to check before he submits
+        self._gated = ""  # the step held for Lisul's check, till his Resume
+        self._approved: set[str] = set()  # the steps he checked and resumed from
         self.posting_text = ""  # the Posting's own text, as its open page showed it
         self.names: tuple[str, str] = ("", "")  # the company and role its open page named
 
@@ -340,6 +362,9 @@ class ClaudeFill:
         if self._waited_for_box and not captcha.shows(page):  # Lisul did the captcha on the filled form
             self._waited_for_box = False
             return dict(self._readback)
+        if self._gated:  # he pressed Resume on the step held for his check: it goes on as he left it
+            self._approved.add(self._gated)
+            self._gated = ""
         pass_jobvite_gate(page)
         self._clear_pop_up(page)
         if self._submit_button:  # filled to the last step once: fill again what didn't read back as meant
@@ -366,7 +391,9 @@ class ClaudeFill:
             if self._picked:
                 done_already = ", ".join(repr(labels[name]) for name in self._picked if name in labels)
                 prompt = f"These dropdowns are already picked: {done_already}. Leave them as they are.\n{prompt}"
-            done = self._session(page, FILL, prompt, _fill_schema(list(todo)), files)
+            step = _step_key(page)
+            done = self._session(page, FILL + (GATES if self._page_gates else ""), prompt,
+                                 _fill_schema(list(todo), self._page_gates), files)
             for field in done["filled"]:
                 name = _field_named(str(field["field"]), {name: labels[name] for name in todo})
                 if name in kinds and name in todo:
@@ -382,14 +409,26 @@ class ClaudeFill:
             # later step's questions show only once it's reached: the Worker plans the ones the fill
             # found, and fill() goes on with them from this step.
             # Known by its label with or without its help text, as either session may give it.
-            known = {k for q in questions for k in (_key(q.label), _key(_bare(q.label)))}
-            unlisted = [q for q in done.get("unlisted") or [] if not {_key(str(q.get("label", ""))),
-                                                                       _key(_bare(str(q.get("label", ""))))} & known]
+            unlisted = _new_questions(page, questions, done.get("unlisted") or [])
             if unlisted:
                 raise MoreQuestions(_with_options(page, self._questions(unlisted)))
+            asks = [one for one in (str(a).strip() for a in done.get("for_lisul") or []) if one]
+            if self._page_gates == "note" and asks and step not in self._approved:
+                self._approved.add(step)
+                self.checks += [f"Page {self._steps + 1}: {one}" for one in asks]
+                print(f"Check before Submit: {'; '.join(self.checks[-len(asks):])}", file=sys.stderr)
+            elif self._page_gates and asks and step not in self._approved:
+                self._gated = step
+                raise Handoff(f"Page {self._steps + 1}: check these {len(asks)} and tick any box that is yours, "
+                              "then press Resume: " + "; ".join(asks))
             next_button = str(done.get("next_button") or "").strip()
             if not next_button or SENDS.search(next_button) or not NEXT.search(next_button):
-                self._submit_button = str(done.get("submit_button") or "").strip()
+                submit_button = str(done.get("submit_button") or next_button).strip()
+                if not SENDS.search(submit_button):  # no Next and no button that sends: never "ready" mid-form (KAN-636)
+                    raise Handoff(f"Claude fill found no Next and no button that sends on this step "
+                                  f"({submit_button or 'none named'}), so it can't tell this is the form's last page. "
+                                  "Go on with the form yourself.")
+                self._submit_button = submit_button
                 # The form as its submit finds it, to tell a confirmation by.
                 self._form, self._form_text = _fields_shown(page), _page_text(page)
                 if captcha.pending(page):  # its "I'm not a robot" box, or a challenge: Lisul's to do
@@ -404,14 +443,26 @@ class ClaudeFill:
         if self._steps >= MAX_STEPS:
             raise Handoff(f"Claude fill went through {MAX_STEPS} steps without reaching the form's last. Fill it in yourself.")
         before = _fields_shown(page)
-        _the_next(page, name).click()
-        waited = 0
-        while _fields_shown(page) == before:
-            if waited >= STEP_SHOWS_MS:
-                raise Handoff(f"The form's {name!r} didn't go on to its next step: a required answer may be "
-                              "missing or wrong on the step it stayed on. Fill it in yourself.")
-            page.wait_for_timeout(250)
-            waited += 250
+        # A step that posts natively (TAL.net's "Save and Continue") goes through the guards on plain code's own
+        # click alone: a form with a button that sends, and the final application URLs, stay blocked (KAN-639).
+        button = _the_next(page, name)
+        if words := _sends_or_reviews(page, button):  # plain code's own check: never Claude's word for it
+            raise Handoff(f"Claude fill's Next ({name!r}) is {words}, which may send the form. Fill it in yourself.")
+        if self._guard:
+            self._guard.let_account_click()
+        try:
+            button.click()
+            waited = 0
+            while _fields_shown(page) == before:
+                if waited >= STEP_SHOWS_MS:
+                    raise Handoff(f"The form's {name!r} didn't go on to its next step: a required answer may be "
+                                  "missing or wrong on the step it stayed on. Fill it in yourself.")
+                page.wait_for_timeout(250)
+                waited += 250
+        finally:
+            if self._guard:
+                self._guard.arm()  # the account click's flag off again, in the step it led to
+                self._guard.rest()
 
     def _clear_pop_up(self, page: Page) -> None:
         """A pop-up over the form, cleared by plain code, or a Handoff before
@@ -580,6 +631,83 @@ def _the_next(page: Page, name: str):
     return found[0]
 
 
+# The heading of the section a field sits in: the nearest h1-h4 or legend before it in the page.
+SECTION_OF = """el => {
+  for (let node = el; node; node = node.parentElement) {
+    for (let before = node.previousElementSibling; before; before = before.previousElementSibling) {
+      const heads = before.matches('h1, h2, h3, h4, legend') ? [before] : [...before.querySelectorAll('h1, h2, h3, h4, legend')];
+      const head = heads[heads.length - 1];
+      if (head && head.innerText.trim()) return head.innerText.trim();
+    }
+  }
+  return '';
+}"""
+
+
+def _new_questions(page: Page, questions: QuestionSet, found: list[dict]) -> list[dict]:
+    """The questions Claude found on the step that Apply doesn't know yet. One is known by its label with or
+    without its help text, as either session may give it, but a label the page shows on more fields than
+    Apply knows (a campus address under a home one, Bank of America's, live) is a new question each time,
+    named with its section's heading: never merged with another section's (KAN-642)."""
+    known: dict[str, int] = {}
+    for q in questions:
+        for k in {_key(q.label), _key(_bare(q.label))}:
+            known[k] = known.get(k, 0) + 1
+    new = []
+    for q in found:
+        label = str(q.get("label", ""))
+        keys = {_key(label), _key(_bare(label))}
+        if not keys & known.keys():
+            new.append(q)
+            continue
+        have = max(known.get(k, 0) for k in keys)
+        fields = _labelled(page, _bare(label))
+        if len(fields) <= have:
+            continue  # the same question again
+        try:
+            heading = str(fields[have].evaluate(SECTION_OF)).strip()
+        except Exception:
+            heading = ""
+        named = f"{heading}: {label}" if heading and not label.startswith(heading) else f"{label} (another section)"
+        new.append({**q, "label": named})
+        for k in keys:
+            known[k] = known.get(k, 0) + 1
+    return new
+
+
+def _labelled(page: Page, label: str) -> list:
+    """The visible fields the page labels `label` (a trailing "*" aside), in page order."""
+    pattern = re.compile(rf"^\s*{re.escape(label.strip().rstrip('*').strip())}\s*\*?\s*$", re.IGNORECASE)
+    try:
+        return [f for f in page.get_by_label(pattern).all() if f.is_visible()]
+    except Exception:
+        return []
+
+
+REVIEW_PAGE = re.compile(r"\b(review (your|and submit|the) application|application (summary|review)|summary of your "
+                         r"application|review (&|and) submit)\b", re.IGNORECASE)
+BUTTON_WORDS = "b => [b.innerText, b.value, b.getAttribute('aria-label'), b.getAttribute('title')].filter(Boolean).join(' | ')"
+HEADINGS = "() => [document.title, ...[...document.querySelectorAll('h1, h2, h3, legend')].map(h => h.innerText)].join(' | ')"
+
+
+def _sends_or_reviews(page: Page, button) -> str:
+    """Why the button plain code would click as a Next may send the form ("" when it can't): its own text,
+    value, aria-label or title has a word that sends, or the page is the form's review or summary."""
+    try:
+        words = str(button.evaluate(BUTTON_WORDS))
+    except Exception:
+        return "a button Apply can't read"
+    if SENDS.search(words):
+        return f"a button that says {words.strip()[:60]!r}"
+    try:
+        headings = str(page.evaluate(HEADINGS))
+    except Exception:
+        headings = ""
+    if REVIEW_PAGE.search(headings):
+        return "on the form's review page"
+    return ""
+
+
 def _with_options(page: Page, questions: QuestionSet) -> QuestionSet:
     """The questions, each select whose dropdown lists its choices only once
     opened given the choices plain code reads when it opens it: Haiku listed
@@ -683,6 +811,11 @@ def _fields_shown(page: Page) -> str:
         except Exception:
             continue  # a frame that went away, or one that refuses scripts
     return "\n".join(shown)
+
+
+def _step_key(page: Page) -> str:
+    """The step showing, by its URL and the fields it shows (not their values)."""
+    return _path(page.url) + "\n" + "\n".join(_fields_shown(page).split("\n")[1:])
 
 
 def _page_text(page: Page) -> str:

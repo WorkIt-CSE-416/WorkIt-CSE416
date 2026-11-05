@@ -40,7 +40,7 @@ from apply.browsers import (
 )
 from apply.focus import KEEPER
 from apply.plain import extension, host
-from apply.plain.bridge import Bridge, Connection, PortError, socket_path
+from apply.plain.bridge import Bridge, Connection, PortError, Refused, socket_path
 from apply.profile import load_policies
 
 BRANDED = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
@@ -67,6 +67,20 @@ def chrome_for_testing() -> Path:
     if not found:
         raise FileNotFoundError(f"no Chrome for Testing under {root}: run `uv run playwright install chromium`")
     return found[-1]
+
+
+def developer_mode(profile: Path) -> bool:
+    """Whether a Worker profile's Chrome has Developer mode on (the seed's first step). Only then
+    does chrome.runtime.reload() bring an unpacked extension back; without it Chrome disables it
+    (`unsupportedDeveloperExtension`, Chrome for Testing 156)."""
+    for name in ("Secure Preferences", "Preferences"):
+        try:
+            prefs = json.loads((profile / "Default" / name).read_text())
+        except (OSError, ValueError):
+            continue
+        if prefs.get("extensions", {}).get("ui", {}).get("developer_mode") is True:
+            return True
+    return False
 
 
 def chrome_kind() -> str:
@@ -104,6 +118,7 @@ class PlainWorkers:
         # One socket per profiles folder: a held rehearsal keeps its process up, and another
         # process on other profiles (APPLY_PROFILES) still drives its own Workers (KAN-634).
         self.bridge = bridge or Bridge(socket_path(self.profiles))
+        self.bridge.reloadable = lambda worker: developer_mode(self.profile(worker))
         self.extension_dir = extension_dir
         if test_flags and self.kind != "testing":
             raise ValueError("test_flags are for Chrome for Testing in tests only")
@@ -155,8 +170,9 @@ class PlainWorkers:
         folder Worker `worker` loads, which the bridge names in each welcome (KAN-645)."""
         identity = extension.prepare(self.extension_dir / "vendor")
         files = extension.generated(identity)
-        folders = {self.extension_dir.resolve(), self.loaded_folder(worker).resolve()}
-        roots = {extension.vendor_set(folder, files) for folder in folders}
+        loaded = self.loaded_folder(worker).resolve()
+        roots = {extension.vendor_set(folder, files) for folder in {self.extension_dir.resolve(), loaded}}
+        self.bridge.folder = loaded
         self.bridge.vendor = roots.pop()  # one id: the same files
         self.bridge._engine = identity
         return identity
@@ -175,20 +191,11 @@ class PlainWorkers:
                 said.append("its worker extension's code changed on disk; it reloads once no other form is open in it")
             else:
                 try:
-                    running.connection.call("extension.reload", timeout=5)
-                    deadline = time.monotonic() + HELLO_WAIT
-                    while time.monotonic() < deadline:  # the old port closes, then the reloaded extension says hello
-                        connection = self.bridge.connection(worker)
-                        if connection and connection is not running.connection and not connection.closed.is_set():
-                            running.connection, running.code = connection, code
-                            said.append("reloaded its worker extension: its code changed on disk")
-                            break
-                        time.sleep(0.1)
-                    else:
-                        said.append("its worker extension didn't come back after a reload")
-                except PortError as error:  # an extension from before extension.reload
+                    running.connection, running.code = self.bridge.reload(worker), code  # extension.reload (KAN-643)
+                    said.append("reloaded its worker extension: its code changed on disk")
+                except (PortError, Refused, TimeoutError) as error:  # one that can't reload itself, or no hello
                     running.code = code
-                    said.append(f"its worker extension's code changed on disk but it can't reload itself ({error.kind})")
+                    said.append(f"its worker extension's code changed on disk but didn't reload ({error})")
                 return said
         if self.bridge.vendor != before and running.connection.vendor:
             running.connection.call("vendor.use", root=self.bridge.vendor)

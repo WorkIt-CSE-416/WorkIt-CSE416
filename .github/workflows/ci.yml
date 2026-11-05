@@ -160,6 +160,7 @@ jobs:
             tests/test_answer_bank.py \
             tests/test_answering.py \
             tests/test_applicant_name.py \
+            tests/test_ask.py \
             tests/test_apply_home.py \
             tests/test_approve.py \
             tests/test_bot_signals.py \
