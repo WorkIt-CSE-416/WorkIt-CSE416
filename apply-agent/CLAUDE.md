@@ -713,6 +713,11 @@ put back, the window's routes, `apply ask`, and the Record and Repair request.
   frames (after one click on its Apply button outside any form) and sends an
   embedded Greenhouse, Lever or Ashby form to that system's Filler. Claude
   fill is only the fallback.
+- Dropdowns that list their choices only once opened are read and picked
+  by plain code (`_with_options`, `_pick_in_comboboxes`). Each one's name is
+  read off the very element Playwright clicks (`_comboboxes`), never from a
+  page script's own list: the two counted visibility apart on Microsoft's
+  profile step, and each question opened its neighbour (KAN-646).
 - On a plain Worker (KAN-612; a PortPage, no CDP), `claude_cli.drive` gives
   `claude -p` Apply's own MCP server under the same name, `playwright`
   (`apply.plain.mcp`, a stdio relay, and `apply.plain.tools`, which runs
