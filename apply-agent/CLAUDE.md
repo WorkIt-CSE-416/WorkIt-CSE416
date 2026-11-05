@@ -611,25 +611,15 @@ on the fake Lever form (Hermeus) in Chromium; it opens a browser.
 - An optional catch-all box ("Additional information", "Anything else
   you'd like us to know?", "Comments", "Other information": an
   `anything-else` question that the form does not require,
-  `essays.catch_all`) stays blank unless Apply has something new and
-  relevant to say (Lisul, 2026-11-04). New: not on the resume PDF, in the
-  form's other answers or in its cover letter. Relevant: a project close to
-  the job that the resume leaves out, a link the form didn't ask for, or an
-  availability note the form never asked. The planner may give it no slots
-  and never asks Lisul for it (`check_plan`'s `blank_ok`, its asks
-  cleared), and the writer leaves it empty or writes at most two
-  sentences. The worker then checks the draft (`_Planned._kept_blank`,
-  `gates.nothing_new`): one that is over two sentences, says it needs
-  Lisul, or mostly repeats the resume or the form (`gates.MOSTLY` of its
-  stemmed words, or `gates.SOME` with a result the resume states, such as
-  2.75) is emptied. The field is then blank on purpose: it is in
-  `_Planned.kept_blank` with why, so Verifying notes it and does not hold
-  it, Needs you never asks it, and it gets no "Claude wrote nothing" or
-  High-stakes hold. A one-line catch-all box drafted as a one-off question
-  is checked the same way and is never put in the Answer bank. A required
-  catch-all box is still always answered, and every other optional
-  question too. Voleon's Ashby form showed why: its "Additional
-  information" got a Micromouse paragraph that repeated a resume bullet.
+  `essays.catch_all`) is always left blank on purpose (Lisul, 2026-11-04,
+  KAN-625). `_Planned.add` puts it in `_Planned.kept_blank`
+  (`worker.CATCH_ALL_BLANK`) before any Claude call: Claude never drafts
+  it, the Answer bank never answers it, and Needs you never asks it.
+  Verifying notes it as blank on purpose and does not hold it, and it gets
+  no "Claude wrote nothing" or High-stakes hold. A required catch-all box
+  is still answered, briefly, as is every other optional question. Voleon's
+  Ashby form showed why: KAN-601 let a new and relevant draft through to its
+  "Additional information" box, and Lisul wanted nothing there.
 
 - An essay that the editor's passes leave over the most that its length
   allows (`gates.length`: a stated sentence count, or its type's default
