@@ -662,3 +662,76 @@ def test_a_profile_pop_ups_click_never_lets_a_post_to_the_final_url_through():
         page.wait_for_timeout(500)
         browser.close()
     assert posts == []
+
+
+ASK_FORM = """<!doctype html><title>Step</title><form>
+  <label>GPA <input id=gpa></label><label>Password <input id=pw type=password></label>
+  <input id=otp name="otp_code" aria-label="Enter it"><label>Zip code <input id=zip></label>
+  <label><input id=native type=checkbox> I certify that my answers are true</label>
+  <label for=forlabel>I agree to the terms of use</label><input id=forlabel type=checkbox>
+  <label><input id=plain type=checkbox> New York</label>
+  <div id=custom style="width:20px;height:20px" role=checkbox aria-checked=false tabindex=0 aria-label="I acknowledge the privacy notice"></div>
+  <div id=wordy role=checkbox aria-checked=false tabindex=0>I certify the above</div>
+  <div id=city role=checkbox aria-checked=false tabindex=0>Boston</div>
+  <button type=button id=resend>Resend code</button>
+</form><script>
+for (const box of document.querySelectorAll('[role=checkbox]')) box.addEventListener('click', () =>
+  box.setAttribute('aria-checked', box.getAttribute('aria-checked') === 'true' ? 'false' : 'true'));
+document.getElementById('resend').addEventListener('click', () => { window.resent = true; });
+</script>"""
+
+
+@contextmanager
+def _ask_page(may_tick=False):
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route("https://jobs.example.com/**", lambda route: route.fulfill(body=ASK_FORM, content_type="text/html"))
+        page.goto("https://jobs.example.com/step")
+        guard = DriveGuard(page)
+        guard.arm()
+        guard.asking(True, may_tick)
+        yield page, guard
+        browser.close()
+
+
+def test_ask_s_drive_types_in_no_password_or_code_field_by_its_attributes():
+    with _ask_page() as (page, guard):
+        page.locator("#pw").fill("hunter2")
+        page.locator("#otp").press_sequentially("123456")
+        page.locator("#gpa").fill("3.7")
+        page.locator("#zip").fill("11111")
+        assert page.locator("#pw").input_value() == "" and page.locator("#otp").input_value() == ""
+        assert page.locator("#gpa").input_value() == "3.7" and page.locator("#zip").input_value() == "11111"
+        assert guard.blocked().count("typing in a password or code field") >= 2
+
+
+def test_ask_s_drive_ticks_no_attestation_box_of_any_kind_and_asks_for_no_code():
+    with _ask_page() as (page, guard):
+        page.locator("#native").click(force=True)
+        page.get_by_text("I agree to the terms of use").click()
+        page.locator("#custom").click()
+        page.locator("#wordy").click()
+        page.locator("#resend").click()
+        page.locator("#plain").click()
+        page.locator("#city").click()
+        assert not page.locator("#native").is_checked() and not page.locator("#forlabel").is_checked()
+        assert page.locator("#custom").get_attribute("aria-checked") == "false"
+        assert page.locator("#wordy").get_attribute("aria-checked") == "false"
+        assert page.evaluate("window.resent") is None
+        # The ordinary ones go on.
+        assert page.locator("#plain").is_checked() and page.locator("#city").get_attribute("aria-checked") == "true"
+        assert len(guard.blocked()) == 5
+
+
+def test_ask_s_section_is_off_when_ask_claude_is_not_driving_and_holds_in_a_page_loaded_meanwhile():
+    with _ask_page() as (page, guard):
+        page.reload()  # going back a step loads a new document: still judged
+        page.locator("#custom").click()
+        assert page.locator("#custom").get_attribute("aria-checked") == "false"
+        guard.asking(False)
+        page.locator("#custom").click()
+        assert page.locator("#custom").get_attribute("aria-checked") == "true"
+        page.locator("#pw").fill("his own")
+        assert page.locator("#pw").input_value() == "his own"
