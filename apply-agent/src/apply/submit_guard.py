@@ -228,13 +228,34 @@ _TEMPLATE = r"""
   // A POST to a job system's final application URL (a CDP Worker routes none of those page URLs): never let
   // through by plain code's account, step or profile click (KAN-639, KAN-647), as a fetch to it never is.
   // Its target by attribute (a field named "action" shadows form.action), relative to the page as isFinal reads it.
-  const postsFinal = (form, by) => posts(form, by) && isFinal('POST', (by && by.getAttribute && by.getAttribute('formaction'))
-    || HTMLFormElement.prototype.getAttribute.call(form, 'action') || location.href);
+  const postTarget = (form, by) => (by && by.getAttribute && by.getAttribute('formaction'))
+    || HTMLFormElement.prototype.getAttribute.call(form, 'action') || location.href;
+  // Any job system's final URL by its name alone (a path ending in /apply, the last of FINAL_URLS), not a known one.
+  const byNameAlone = (form, by) => {
+    let href = String(postTarget(form, by));
+    try { href = new URL(href, location.href).href; } catch (e) {}
+    return !FINAL_URLS.slice(0, -1).some(r => r.test(href));
+  };
+  // The page itself says steps remain after this one ("Step 2 of 5", a step list past the current step), and
+  // the form has no button that sends. Then a POST to a path ending in /apply is a step, not the last (KAN-656).
+  // No page saying so, or "Step 5 of 5", stays blocked: a step's Next there hands off, and nothing is sent.
+  const moreSteps = (form) => {
+    if ([...form.querySelectorAll('button, input[type=submit]')].some(sends)) return false;
+    const said = String((document.body && document.body.innerText) || '').match(/\bstep\s*(\d+)\s*(?:of|\/)\s*(\d+)\b/i);
+    if (said) return Number(said[1]) < Number(said[2]);
+    const at = document.querySelector('[aria-current=step]');
+    return !!at && !!(at.closest('li') || at).nextElementSibling;
+  };
+  const postsFinal = (form, by) => posts(form, by) && isFinal('POST', postTarget(form, by))
+    && !(byNameAlone(form, by) && moreSteps(form));
+  // A profile pop-up posting to its own page, on a URL final by its name alone: the pop-up is proven no application.
+  const profileOwnPage = (form, by) => !(by && by.getAttribute && by.getAttribute('formaction'))
+    && !HTMLFormElement.prototype.getAttribute.call(form, 'action') && byNameAlone(form, by);
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
     if (accountClick() && form.querySelector('input[type=password]')) return;  // plain code's sign-in, as above
-    if (profileClick() && profileStep(by || form) && !postsFinal(form, by)) return;  // plain code's profile step, as above
+    if (profileClick() && profileStep(by || form) && (!postsFinal(form, by) || profileOwnPage(form, by))) return;  // plain code's profile step, as above
     const final = by ? sends(by)
       : [...form.querySelectorAll('button, input[type=submit]')].some(sends);
     if (held() && !final) return;  // a held page is Lisul's but for its Submit: a Next goes on

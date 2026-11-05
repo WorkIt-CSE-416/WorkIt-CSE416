@@ -858,3 +858,122 @@ def test_ask_stops_pressing_at_its_cap(monkeypatch):
     with _steps("/app/1") as (page, drive, posts):
         _asked(page, drive, "go on", [(lambda p: None, _said(press="Next")), (lambda p: None, _said(press="Back"))])
         assert posts == ["/app/2"]
+
+
+# Every step form's URL Apply has met live or saved (KAN-656), and the Next that posts from it. None may be stopped.
+TAL = "https://bankcampuscareers.tal.net/vx/lang-en-GB/mobile-0/brand-4"
+REAL_STEPS = {
+    "TAL.net eform page": (f"{TAL}/user-1/candidate/eform/123/page/1", ""),
+    "TAL.net eform's save_page": (f"{TAL}/user-1/candidate/eform/123/page/12", f' action="{TAL}/user-1/candidate/eform/123/save_page"'),
+    "TAL.net's apply page": (f"{TAL}/candidate/so/pm/1/pl/1/opp/123-Intern/apply/en-GB", ""),
+    "Oracle section": ("https://acme.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/123/apply/section/1", ""),
+    "Oracle email": ("https://acme.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/123/apply/email", ""),
+    "iCIMS candidate": ("https://careers-acme.icims.com/jobs/1234/software-intern/candidate?in_iframe=1", ""),
+    "iCIMS questions": ("https://careers-acme.icims.com/jobs/1234/software-intern/questions?in_iframe=1", ""),
+    "Workday manual": ("https://acme.wd1.myworkdayjobs.com/en-US/External/job/Intern_R1/apply/applyManually", ""),
+    "Microsoft job": ("https://apply.careers.microsoft.com/careers/job/1970393556625703", ""),
+    # A path ending in /apply, final by its name alone: a page that says steps remain.
+    "/apply, Step 2 of 5": ("https://jobs.example.com/acme/apply", "", "<p>Step 2 of 5</p>"),
+    "/apply?pid, Step 1 of 3": ("https://acme.eightfold.ai/careers/apply?pid=1", "", "<p>STEP 1 / 3</p>"),
+    "/apply, step list": ("https://jobs.example.com/acme/apply", "",
+                          '<ol><li><a aria-current="step">You</a></li><li>Questions</li></ol>'),
+}
+REAL_SENDS = {
+    "no word of steps": ("https://jobs.example.com/acme/apply", "", ""),
+    "last step": ("https://jobs.example.com/acme/apply", "", "<p>Step 5 of 5</p>"),
+    "the step list's last": ("https://jobs.example.com/acme/apply", "", '<ol><li>You</li><li><a aria-current="step">Questions</a></li></ol>'),
+    "a Submit beside it": ("https://jobs.example.com/acme/apply", "", "<p>Step 2 of 5</p>", "<button>Submit application</button>"),
+    "action to /apply": ("https://jobs.example.com/acme/start", ' action="/acme/apply"', ""),
+    # Known final URLs: what the page says never lets them through. Lever's real form has no action.
+    "Lever's own": ("https://jobs.lever.co/acme/b9b21075-74a4-4b64-8f1b-f0be1fb0b24d/apply", "", "<p>Step 1 of 2</p>"),
+    "Greenhouse's own": ("https://job-boards.greenhouse.io/acme/jobs/123", "", "<p>Step 1 of 2</p>"),
+    "a submit in its path": ("https://jobs.example.com/acme/submitApplication", "", "<p>Step 1 of 2</p>"),
+}
+
+
+def _step_on(url, action="", before="", more=""):
+    return f'{before}<form method="post"{action}><input name="first"><button>Continue</button>{more}</form>'
+
+
+def _press_next(url, html):
+    from playwright.sync_api import sync_playwright
+
+    from apply import claude_fill
+    posts = []
+
+    def serve(route):
+        if route.request.method == "POST":
+            posts.append(route.request.url)
+            return route.fulfill(body="<input name=next>", content_type="text/html")
+        return route.fulfill(body=html, content_type="text/html")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route(lambda url: True, serve)  # every request: no real site is ever reached
+        page.goto(url)
+        guard(page)
+        drive = DriveGuard(page)
+        try:
+            claude_fill.press_step(page, drive, "Continue")
+        except claude_fill.Handoff:
+            pass
+        page.wait_for_timeout(300)
+        browser.close()
+    return posts
+
+
+@pytest.mark.parametrize("name", list(REAL_STEPS))
+def test_plain_codes_next_goes_on_from_every_real_step_form(monkeypatch, name):
+    from apply import claude_fill
+    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 2_000)
+    url, *rest = REAL_STEPS[name]
+    assert len(_press_next(url, _step_on(url, *rest))) == 1
+
+
+@pytest.mark.parametrize("name", list(REAL_SENDS))
+def test_plain_codes_next_never_posts_what_may_be_the_last_step(monkeypatch, name):
+    from apply import claude_fill
+    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 800)
+    url, *rest = REAL_SENDS[name]
+    assert _press_next(url, _step_on(url, *rest)) == []
+
+
+@pytest.mark.parametrize("name", [n for n in REAL_STEPS if "/apply" not in n])
+def test_the_plain_rules_stop_no_real_step_url(name):
+    from apply.plain import guards as plain
+    url, action, *_ = REAL_STEPS[name]
+    target = action.split('"')[1] if action else url
+    assert not plain.PATTERN.search(target), target
+
+
+PROFILE = """<div role="dialog" aria-label="Create your profile"><form method="post"{action}><input name="first">
+<button>Submit</button></form></div>"""
+
+
+@pytest.mark.parametrize(("url", "action", "goes"), [
+    ("https://acme.eightfold.ai/careers/apply?pid=1", "", True),
+    ("https://acme.eightfold.ai/careers/apply?pid=1", ' action="/careers/apply"', False),
+    ("https://jobs.lever.co/acme/b9b21075-74a4-4b64-8f1b-f0be1fb0b24d/apply", "", False),
+])
+def test_a_profile_pop_up_posts_to_its_own_page_but_never_to_a_final_url(url, action, goes):
+    from playwright.sync_api import sync_playwright
+    posts = []
+
+    def serve(route):
+        if route.request.method == "POST":
+            posts.append(route.request.url)
+        return route.fulfill(body=PROFILE.format(action=action), content_type="text/html")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route(lambda url: True, serve)  # every request: no real site is ever reached
+        page.goto(url)
+        guard(page)
+        drive = DriveGuard(page)
+        drive.let_profile_click()
+        page.get_by_role("button", name="Submit").click()
+        page.wait_for_timeout(400)
+        browser.close()
+    assert bool(posts) is goes
