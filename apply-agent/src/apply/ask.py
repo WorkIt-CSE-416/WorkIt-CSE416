@@ -30,6 +30,7 @@ to Claude as data.
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -349,3 +350,83 @@ def history_lines(message: str, reply: Reply, now: datetime) -> tuple[str, ...]:
     return (f"{at} You asked Claude: \"{one_line(message)}\"",
             f"{at} Claude: {reply.reply}" + (f" Changed: {changed}." if changed else "")
             + (f" Couldn't: {'; '.join(reply.couldnt)}." if reply.couldnt else ""))
+
+
+# From a terminal (`apply ask`): every Apply window on this Mac that runs on this data folder writes
+# WINDOWS/<pid>-<port>.json (its address and token, readable only by Lisul) while it is open.
+WINDOWS = "windows"
+WAIT_S = 15 * 60  # how long `apply ask` waits for Claude's reply
+
+
+def register(folder: Path, url: str, token: str, pid: int) -> Path:
+    """Note an open window, so `apply ask` finds it. Returns the note, to remove when the window closes."""
+    folder.mkdir(parents=True, exist_ok=True)
+    note = folder / f"{pid}-{url.rsplit(':', 1)[-1]}.json"
+    note.touch(mode=0o600)
+    note.write_text(json.dumps({"url": url, "token": token, "pid": pid}))
+    return note
+
+
+class AskRefused(Exception):
+    """The window turned the message down, with why."""
+
+
+@dataclass(frozen=True)
+class OpenForm:
+    window: dict  # {url, token, pid}
+    worker: int
+    tile: dict  # the tile's caption, as the window's /state gives it
+
+    @property
+    def id(self) -> str:
+        return str(self.tile.get("application_id") or f"{self.window['pid']}-{self.worker + 1}")
+
+    def line(self) -> str:
+        t = self.tile
+        return " | ".join([self.id, t.get("company") or "(company not named)", t.get("role") or "(role not named)",
+                           t.get("page") or "", t.get("label") or t.get("status") or "",
+                           "Ask Claude: yes" if t.get("askable") else "Ask Claude: not held for you yet"])
+
+
+def windows(folder: Path, alive: Callable[[int], bool], fetch: Callable[[dict, str], object]) -> list[OpenForm]:
+    """Every form open in a running window: each tile with a form, from each window's /state. A note of a
+    window whose process is gone is removed."""
+    forms = []
+    for note in sorted(folder.glob("*.json")) if folder.is_dir() else []:
+        try:
+            window = json.loads(note.read_text())
+        except (OSError, ValueError):
+            continue
+        if not alive(int(window.get("pid") or 0)):
+            note.unlink(missing_ok=True)
+            continue
+        try:
+            state = fetch(window, "/state")
+        except Exception:
+            continue  # a window closing
+        for k, tile in enumerate((state or {}).get("tiles") or []):
+            if tile.get("posting_url"):
+                forms.append(OpenForm(window, k, tile))
+    return forms
+
+
+def matching(forms: list[OpenForm], target: str) -> list[OpenForm]:
+    """The forms `target` names: by its Application ID, else every word of it in the company and role."""
+    exact = [f for f in forms if f.id == target.strip()]
+    if exact:
+        return exact
+    words = re.findall(r"\w+", target.casefold())
+    return [f for f in forms if words and all(w in f"{f.tile.get('company', '')} {f.tile.get('role', '')}".casefold()
+                                              for w in words)]
+
+
+def told(entry: dict) -> str:
+    """Claude's reply as the terminal prints it."""
+    lines = [f"Claude: {entry.get('reply') or ''}"]
+    lines += [f"  Changed {c['field']}{' (' + c['step'] + ')' if c.get('step') else ''} → {c['shown']} ({c['read_back']})"
+              for c in entry.get("changed") or []]
+    lines += [f"  Couldn't: {c}" for c in entry.get("couldnt") or []]
+    lines += [f"  Waiting for you: {w}" for w in entry.get("waiting") or []]
+    lines += [f"  Waiting for you: save \"{o['question']} → {o['answer']}\" to your answers? Press Save to my answers "
+              "on the form's tile in the Apply window (only your click saves it)." for o in entry.get("offers") or []]
+    return "\n".join(lines)
