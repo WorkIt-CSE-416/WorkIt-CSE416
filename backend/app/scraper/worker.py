@@ -2,7 +2,10 @@
 publish to job_postings via import_feed.
 
 Each board completes independently. At the end of the claim loop, all scraped
-jobs are published through import_feed in one transaction.
+jobs are published through import_feed in one transaction, upsert only: a
+cycle reads only the boards due, so a job missing from its listings is not
+evidence that it closed. Closing stays with the scheduled import of the full
+feed, which closes a job only after two complete reads of its board without it.
 """
 
 from __future__ import annotations
@@ -147,7 +150,7 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
     if all_listings:
         from app.scripts.import_jobs import import_feed
 
-        await import_feed(conn, all_listings)
+        await import_feed(conn, all_listings, close_missing=False)
         await conn.commit()
         logger.info("Published %d listings through import_feed", len(all_listings))
 

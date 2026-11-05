@@ -529,11 +529,15 @@ async def _close_missing(
 
 async def import_feed(
     conn: AsyncConnection, listings: list[JobListing], *, allow_mass_close: bool = False,
-    closings: dict[str, str] | None = None,
+    closings: dict[str, str] | None = None, close_missing: bool = True,
 ) -> Report:
     '''
     the whole import, on a connection whose transaction the caller owns.
     `closings` is closings.json (`read_closings`); None closes as UNKNOWN.
+    close_missing=False skips step 6, for listings that are only part of
+    the scraped inventory (the scraper worker's boards, KAN-605): a job
+    absent from them is evidence of nothing, so nothing closes and the
+    mass-close guard has nothing to refuse
     '''
     if not listings:
         raise ImportRefused("The feed is empty; nothing was written.")
@@ -568,9 +572,10 @@ async def import_feed(
     ids = await _scraped_ids(conn, list(prepared.places))
     await _sync_locations(conn, prepared.places, ids, report)
     await _sync_roles(conn, prepared.role_tags, ids, report)
-    await _close_missing(
-        conn, list(prepared.places), report, allow_mass_close=allow_mass_close, closings=closings
-    )
+    if close_missing:
+        await _close_missing(
+            conn, list(prepared.places), report, allow_mass_close=allow_mass_close, closings=closings
+        )
     return report
 
 
