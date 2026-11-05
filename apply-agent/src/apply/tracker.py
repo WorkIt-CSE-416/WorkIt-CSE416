@@ -244,6 +244,21 @@ class FileTracker(InMemoryTracker):
         os.replace(part, self.path)
 
 
+def past_applications(posting_url: str = "", path: Path | None = None) -> tuple[list[str], list[str]]:
+    """The companies the Tracker shows an Application submitted to, and those of them where Lisul's Outcome
+    is an interview or an offer, but for `posting_url`'s own row (the Application being filled). Read
+    without the lock: the file is saved whole (os.replace), and a plan may run while a write holds it."""
+    try:
+        saved = json.loads((path or TRACKER).read_text())
+    except (OSError, ValueError):
+        return [], []
+    rows = [row for row in saved.get("applications", []) if row.get("company") and row.get("posting_url") != posting_url
+            and row.get("status") == Status.SUBMITTED]
+    interviewed = (Outcome.INTERVIEW, Outcome.OFFER)
+    return (sorted({row["company"] for row in rows}),
+            sorted({row["company"] for row in rows if row.get("outcome") in interviewed}))
+
+
 def _plain(value):
     if isinstance(value, date):
         return value.isoformat()

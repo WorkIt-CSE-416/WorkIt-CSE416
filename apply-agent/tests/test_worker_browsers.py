@@ -53,6 +53,39 @@ def test_a_workers_open_form_can_be_driven_from_outside_over_cdp(tmp_path):
     assert page_file.as_uri() in [t["url"] for t in targets if t["type"] == "page"]
 
 
+@pytest.mark.parametrize("cut_short", [1, 2])
+def test_a_first_load_another_navigation_interrupts_is_tried_again(tmp_path, monkeypatch, cut_short):
+    # Chrome may navigate its first tab to about:blank as it starts (PDT Partners, 2026-11-04).
+    from playwright.sync_api import Error, Page
+
+    page_file = tmp_path / "page.html"
+    page_file.write_text("<!doctype html><title>Posting</title>")
+    real, tries = Page.goto, []
+
+    def goto(page, url, **options):
+        tries.append(url)
+        if len(tries) <= cut_short:
+            raise Error(f'Page.goto: Navigation to "{url}" is interrupted by another navigation to "about:blank"')
+        return real(page, url, **options)
+
+    monkeypatch.setattr(Page, "goto", goto)
+    with WorkerBrowsers(tmp_path / "profiles", headless=True, channel=None).open(page_file.as_uri()) as page:
+        assert page.title() == "Posting"
+    assert len(tries) == cut_short + 1
+
+
+def test_a_first_load_cut_short_three_times_fails(tmp_path, monkeypatch):
+    from playwright.sync_api import Error, Page
+
+    def goto(page, url, **options):
+        raise Error(f'Page.goto: Navigation to "{url}" is interrupted by another navigation to "about:blank"')
+
+    monkeypatch.setattr(Page, "goto", goto)
+    with pytest.raises(Error, match="interrupted by another navigation"):
+        with WorkerBrowsers(tmp_path / "profiles", headless=True, channel=None).open("about:blank"):
+            pass
+
+
 def test_apply_profiles_names_the_folder_of_worker_profiles(tmp_path, monkeypatch):
     # So any checkout can use the profiles Lisul signed in to Google.
     monkeypatch.setenv("APPLY_PROFILES", str(tmp_path / "signed-in"))

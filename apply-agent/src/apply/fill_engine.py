@@ -40,6 +40,7 @@ from playwright._impl._driver import compute_driver_executable
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
+from apply import tracker
 from apply.adapters import JobSite, SetupError
 from apply.answer_bank import LISUL, AnswerBank
 from apply.model import (
@@ -221,7 +222,8 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
                for question, entry in bank.answers().items()}
     context = {"posting": posting, "today": (today or date.today()).isoformat(), "postingText": HostCall(functools.cache(posting_text)),
                "employerText": employer_text}
-    result = call_without_page("plan", list(questions), _facts(profile), profile.policies(), entries, context, questions=questions)
+    result = call_without_page("plan", list(questions), _facts(profile, posting), profile.policies(), entries, context,
+                               questions=questions)
     answers = {name: _answer(value) for name, value in result["answers"].items()}
     accepted = {name: tuple(wordings) for name, wordings in result["accepted"].items()}
     if posting.job_system == "workday":
@@ -296,12 +298,24 @@ def trap_handoff(trap: str) -> str:
     return call_without_page("trapHandoff", trap)
 
 
-def _facts(profile: ApplicantProfile) -> dict:
-    """The profile's facts for the engine, each file resolved to its path."""
+def _facts(profile: ApplicantProfile, posting: Posting | None = None) -> dict:
+    """The profile's facts for the engine, each file resolved to its path. With `posting`, the companies the
+    Tracker shows Lisul applied to (but for this Posting) join screeners.previously_applied_to, where the
+    profile keeps a list of them, and those he interviewed at fill screeners.previously_interviewed_at."""
     facts = dict(profile.tree())
     if isinstance(facts.get("files"), dict):
         facts["files"] = {key: str(profile.get(f"files.{key}")) if isinstance(value, str) else value
                           for key, value in facts["files"].items()}
+    if posting is not None:
+        applied, interviewed = tracker.past_applications(posting.url)
+        screeners = dict(facts.get("screeners") or {})
+        own = screeners.get("previously_applied_to")
+        if isinstance(own, list) and applied:  # None: unknown, which a list from Apply alone would turn into No
+            screeners["previously_applied_to"] = own + [c for c in applied if c not in own]
+        if interviewed:
+            known = screeners.get("previously_interviewed_at") or []
+            screeners["previously_interviewed_at"] = list(known) + [c for c in interviewed if c not in known]
+        facts["screeners"] = screeners
     return facts
 
 

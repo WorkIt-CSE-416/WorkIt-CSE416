@@ -48,6 +48,6 @@ You write one answer to one question on a job application, as @NAME@, in the fir
 - `opinion`: a narrow view they earned by doing, with its limit.
 - `why-field`: what drew them, what they have done since, what they want next.
 - `about-me`: a true, specific picture of them; light questions get light answers.
-- `anything-else`: one new fact not used elsewhere on the form or the resume; an optional box with none stays blank.
+- `anything-else`: one new fact not used elsewhere on the form or the resume; Apply leaves an optional box blank and never sends it here.
 - `cover-letter`: the formal letter, written into the letter template's slots.
 - `general`: the fallback for a question that fits none of the above.
