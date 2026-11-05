@@ -1253,3 +1253,27 @@ def test_a_rehearsal_at_a_bot_block_waits_for_lisuls_press_to_open_his_chrome(tm
     assert done.outcome == "handoff" and "Finish Lunar Outpost in your Chrome" in done.why
     assert board.captions[0]["blocked"] is True and "resume" not in board.captions[0]
     assert opened == []
+
+
+HOME_AND_CAMPUS = """<h2>Home Address</h2><div><label for="h1">Address line 1 *</label><input id="h1" value="1 Home Road"></div>
+<h2>Campus Address</h2><div><label for="c1">Address line 1 *</label><input id="c1"></div>"""
+
+
+@pytest.mark.parametrize("html, named", [
+    (HOME_AND_CAMPUS, ["Campus Address: Address line 1"]),  # another section's field: a new question
+    (HOME_AND_CAMPUS.split("<h2>Campus")[0], []),  # the one field again: the question Apply knows
+])
+def test_a_label_in_another_section_is_a_new_question_never_merged(html, named):
+    # Bank of America's TAL.net (live): the campus "Address line 1" was taken for the home one and never filled.
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        known = [Question("q1", "Address line 1", "text", True, ())]
+        found = [{"label": "Address line 1", "kind": "text", "required": True, "options": []}]
+        assert [q["label"] for q in claude_fill._new_questions(page, known, found)] == named
+        browser.close()
