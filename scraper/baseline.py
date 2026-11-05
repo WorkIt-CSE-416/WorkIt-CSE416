@@ -25,6 +25,10 @@ METRICS_JSON = ROOT / "metrics.json"
 R2_PUT_PER_M = 4.50
 R2_GET_PER_M = 0.36
 R2_STORAGE_PER_GB_MONTH = 0.015
+# The R2 estimate's assumptions, printed with it (`r2_estimate`).
+IMPORTS_PER_DAY = 8  # scrape.yml's cron, every 3 hours
+VIEWS_PER_MONTH = 10_000  # a placeholder until the site's traffic is measured
+JOBS_PER_VIEW = 20
 
 
 def _load_json(path: Path) -> object:
@@ -189,40 +193,58 @@ def time_efficiency(metrics: dict) -> None:
 
 
 def r2_estimate(feed: list, store: dict) -> None:
+    """A month of R2 for the feed, from this run's files. Every figure below rests
+    on the assumptions it prints; the page views are a placeholder, not a measure."""
     if not feed:
         return
+    # feed.json rows carry their descriptions, so the feed's size is the
+    # descriptions' size too: adding jobs.json's descriptions would count them twice.
     feed_bytes = sum(_utf8_len(json.dumps(row)) for row in feed)
-    desc_sizes = []
-    for j in store.get("jobs", []):
-        page = j.get("page")
-        if page and page.get("description"):
-            desc_sizes.append(_utf8_len(page["description"]))
-    desc_total = sum(desc_sizes)
     n_feed = len(feed)
+    # Rows first seen this run must be uploaded. Rows whose text changed must be
+    # too, but one run cannot tell those apart, so this is a lower bound and
+    # re-uploading every row is the upper one.
+    scraped_at = store.get("scraped_at")
+    feed_urls = {row.get("apply_url") for row in feed}
+    new_rows = sum(
+        1
+        for j in store.get("jobs", [])
+        if scraped_at and j.get("first_seen_at") == scraped_at and j.get("apply_url") in feed_urls
+    )
 
     print("\n--- R2 cost estimate ---")
-    print("  Assumptions: one PUT per feed row per import (every 3 h, 8/day),")
-    print("               one GET per feed row per page load,")
-    print("               descriptions stored individually as objects.")
-    put_per_import = n_feed
-    puts_per_month = put_per_import * 8 * 30
-    put_cost = puts_per_month / 1_000_000 * R2_PUT_PER_M
+    print("  Assumptions:")
+    print(f"    - {IMPORTS_PER_DAY} imports a day (scrape.yml, every 3 hours), 30 days a month;")
+    print("    - one object per feed row, its description included, one PUT per upload;")
+    print("    - PUTs: at least the rows first seen this run, at most every row, each import")
+    print("      (rows edited since the last run are uploaded too; one run cannot count them);")
+    print(
+        f"    - GETs: {VIEWS_PER_MONTH:,} page views a month (a placeholder, not measured),"
+        f" {JOBS_PER_VIEW} rows each;"
+    )
+    print("    - storage: this feed's rows only, no history or old versions kept.")
+    low_puts = new_rows * IMPORTS_PER_DAY * 30
+    high_puts = n_feed * IMPORTS_PER_DAY * 30
+    low_put_cost = low_puts / 1_000_000 * R2_PUT_PER_M
+    high_put_cost = high_puts / 1_000_000 * R2_PUT_PER_M
     print(f"  Feed rows:             {n_feed:>8,}")
+    print(f"  New this run:          {new_rows:>8,}")
     print(f"  Feed size (JSON):      {feed_bytes / 1_048_576:>8.2f} MB")
-    print(f"  PUTs/month (8/day):    {puts_per_month:>8,}")
-    print(f"  PUT cost/month:        ${put_cost:>8.4f}")
+    print(f"  PUTs/month:            {low_puts:>8,} to {high_puts:,}")
+    print(f"  PUT cost/month:        ${low_put_cost:>8.4f} to ${high_put_cost:.4f}")
 
-    # GET estimate: 10k page views/month, each loads one page of ~20 jobs.
-    gets_per_month = 10_000 * 20
+    gets_per_month = VIEWS_PER_MONTH * JOBS_PER_VIEW
     get_cost = gets_per_month / 1_000_000 * R2_GET_PER_M
-    print(f"  GETs/month (10k views):{gets_per_month:>8,}")
+    print(f"  GETs/month:            {gets_per_month:>8,}")
     print(f"  GET cost/month:        ${get_cost:>8.4f}")
 
-    storage_gb = (feed_bytes + desc_total) / 1_073_741_824
+    storage_gb = feed_bytes / 1_073_741_824
     storage_cost = storage_gb * R2_STORAGE_PER_GB_MONTH
-    print(f"  Storage (feed+desc):   {storage_gb:>8.4f} GB")
+    print(f"  Storage (feed):        {storage_gb:>8.4f} GB")
     print(f"  Storage cost/month:    ${storage_cost:>8.4f}")
-    print(f"  Total estimated/month: ${put_cost + get_cost + storage_cost:>8.4f}")
+    low = low_put_cost + get_cost + storage_cost
+    high = high_put_cost + get_cost + storage_cost
+    print(f"  Total estimated/month: ${low:>8.4f} to ${high:.4f}")
 
 
 # ---------------------------------------------------------------------------
