@@ -972,6 +972,15 @@ def test_each_links_tile_on_the_dashboard_says_what_it_is_and_how_it_ended(monke
     assert board.captions[0].pop("application_id")
     assert board.captions[0].pop("verifying") is False  # verified once it was filled, before it stopped
     assert board.captions[0].pop("verification")["state"] in ("verified", "flagged")
+    # The stuck watch's last word (apply.stuck): read only while a tile is filling.
+    assert isinstance(board.captions[0].pop("doing"), str)
+    assert isinstance(board.captions[0].pop("progress_at"), float)
+    assert board.captions[0].pop("waiting") is False
+    # Nothing paused, waited, regenerated or refused it as a bot.
+    assert board.captions[0].pop("history") == []
+    assert board.captions[0].pop("written") == []
+    assert board.captions[0].pop("blocked") is False
+    assert board.captions[0].pop("where") == {}
     assert board.captions == {0: {
         "company": "Arc Boat Company", "role": "Software Engineering Intern", "job_system": "greenhouse",
         "status": "ready to submit", "stage": "", "line": done.line(), "why": done.why,
