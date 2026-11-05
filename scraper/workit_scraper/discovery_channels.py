@@ -247,6 +247,40 @@ def google(read: Read, query: str, limit: int, env: Mapping[str, str]) -> Collec
     return CollectionResult([Evidence(row["link"], "", source) for row in payload.get("items", [])])
 
 
+#: open-jobs' CC0 board list, pinned: the project stopped on 2026-10-10 and this,
+#: exported 2026-09-08, is its last (docs/adr/0007-trust-the-hiring-systems-name.md).
+OPEN_JOBS = (
+    "https://raw.githubusercontent.com/elliottdehn/open-jobs/"
+    "6f47bc050c9536c59ac771ca14aa507a25253348/slugs.json"
+)
+#: A board page per pool system, which `board_keys` reads back to its token. Only
+#: systems whose `Provider.read_name` names a pool board: BambooHR's and
+#: Recruitee's do not, and open-jobs' Workday entries name no careers site.
+POOL_PAGES = {
+    "greenhouse": "https://job-boards.greenhouse.io/{}",
+    "workable": "https://apply.workable.com/{}/",
+    "ashby": "https://jobs.ashbyhq.com/{}",
+    "lever": "https://jobs.lever.co/{}",
+}
+
+
+def open_jobs(read: Read) -> CollectionResult:
+    """Every live board open-jobs lists on a pool system, unnamed: discovery names
+    one by its hiring system, and proposes it only for an early-career posting."""
+    payload = json.loads(read(OPEN_JOBS))
+    live = payload.get("ats") if isinstance(payload, dict) else None
+    if not isinstance(live, dict):
+        raise DiscoveryError("expected open-jobs' slugs.json with an `ats` object")
+    return CollectionResult(
+        [
+            Evidence(page.format(slug), "", OPEN_JOBS)
+            for ats, page in POOL_PAGES.items()
+            for slug in live.get(ats, [])
+            if isinstance(slug, str) and slug
+        ]
+    )
+
+
 @dataclass(frozen=True)
 class Options:
     query: str
@@ -266,6 +300,7 @@ class Channel:
 CHANNELS = {
     "curated": Channel(lambda read, o: curated(read, o.sources)),
     "hn": Channel(lambda read, o: hn(read, o.months)),
+    "openjobs": Channel(lambda read, _: open_jobs(read)),
     "ddg": Channel(lambda read, o: ddg(read, o.query), True, True),
     "github": Channel(lambda read, o: github(read, o.query, o.limit, o.environ), True, True),
     "google": Channel(lambda read, o: google(read, o.query, o.limit, o.environ), True, True),
