@@ -1308,3 +1308,84 @@ def test_a_label_in_another_section_is_a_new_question_never_merged(html, named):
         found = [{"label": "Address line 1", "kind": "text", "required": True, "options": []}]
         assert [q["label"] for q in claude_fill._new_questions(page, known, found)] == named
         browser.close()
+
+
+# Microsoft's careers site once signed in (live, KAN-647): a "Create your profile" pop-up, its
+# button "Submit", comes before the application, which shows only once the profile is sent.
+PROFILE_THEN_FORM = """<!doctype html><body>
+<div id="profile" role="dialog" aria-modal="true" aria-labelledby="title">
+<h2 id="title">Create your profile</h2>
+<form id="profile-form" onsubmit="event.preventDefault(); made()">
+<label>Preferred First name <input id="first"></label>
+<button type="button">Back</button><button type="submit">Submit</button></form></div>
+<form id="application" hidden onsubmit="event.preventDefault(); window.sent = (window.sent || 0) + 1">
+<label>Why Microsoft? <textarea id="why"></textarea></label>
+<button type="submit">Submit application</button></form>
+<script>
+window.sent = 0;
+function made() { document.getElementById('profile').remove(); document.getElementById('application').hidden = false; }
+</script></body>"""
+
+
+def _profile_then_form_driver(page, schema: dict, prompt: str, files: list) -> dict:
+    """Plays Claude: fills what <fields> asks on the step showing, and names that step's Submit."""
+    fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
+    filled = []
+    for field in fields:
+        box = page.locator("#first" if field["question"] == "Preferred First name" else "#why")
+        if box.is_visible():
+            box.fill(field["answer"])
+            filled.append({"field": field["field"], "shown": [field["answer"]]})
+    profile = page.locator("#profile").count() > 0
+    unlisted = [] if profile or any(f["question"] == "Why Microsoft?" for f in fields) else [
+        {"label": "Why Microsoft?", "kind": "textarea", "required": True, "options": []}]
+    return {"blocked": False, "why": "", "filled": filled, "next_button": "",
+            "submit_button": "Submit" if profile else "Submit application", "unlisted": unlisted}
+
+
+def test_a_profile_pop_up_before_the_application_is_sent_on_and_only_the_forms_last_page_is_held(tmp_path):
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import MoreQuestions, Question
+
+    fill = ClaudeFill(FakeClaude(driver=_profile_then_form_driver))
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(PROFILE_THEN_FORM)
+        with pytest.raises(MoreQuestions) as more:  # the application's own questions, once the profile is sent
+            fill.fill(page, [Question("q1", "Preferred First name", "text", True)], {"q1": "Test"})
+        [why] = more.value.questions
+        readback = fill.fill(page, [Question("q1", "Preferred First name", "text", True), why],
+                             {"q1": "Test", why.name: "I want to build developer tools."})
+        sent, profile_left = page.evaluate("window.sent"), page.locator("#profile").count()
+        browser.close()
+
+    assert profile_left == 0  # the pop-up was sent on, by plain code
+    assert sent == 0  # the application itself never was
+    assert readback[why.name] == "I want to build developer tools."
+    assert fill._submit_button == "Submit application"  # held at the form's own last page
+
+
+def test_a_submit_outside_a_profile_pop_up_stays_blocked_while_its_click_is_let_through():
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import DriveGuard
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(PROFILE_THEN_FORM.replace('id="application" hidden', 'id="application"'))
+        drive = DriveGuard(page)
+        drive.let_profile_click()
+        page.get_by_role("button", name="Submit application").click()
+        page.wait_for_timeout(200)
+        sent = page.evaluate("window.sent")
+        page.get_by_role("button", name="Submit", exact=True).click()
+        page.wait_for_timeout(200)
+        profile_left = page.locator("#profile").count()
+        blocked = drive.blocked()
+        browser.close()
+
+    assert sent == 0 and blocked and "Submit application" in blocked[0]
+    assert profile_left == 0
