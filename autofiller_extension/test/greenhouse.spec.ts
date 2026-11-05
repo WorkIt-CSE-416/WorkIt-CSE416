@@ -304,6 +304,15 @@ test("a one-line or choice draft goes to the student's Claude", () => {
   expect(rows.yours).toEqual([{ name: "sample", label: "Work sample", required: false }]);
 });
 
+test("a follow-up the engine holds for its question's answer goes to the student's Claude with it", () => {
+  // KAN-620: Saronic's "If yes, ..." waits on "Are you related to any current Saronic employees?" (Plan.waiting).
+  const related = { name: "related", label: "Are you related to any current Saronic employees?", kind: "select", required: true, options: ["Yes", "No"] };
+  const ifYes = { name: "if_yes", label: "If yes, please provide the employee's name and your relationship", kind: "textarea", required: false, options: [] };
+  const rows = planRows({ plan: { essays: [], drafts: [related], missing: [], handoffs: [], waiting: { if_yes: "related" } }, questions: [related, ifYes] });
+  expect(rows.written.map((q) => q.name)).toEqual(["related", "if_yes"]);
+  expect(rows.written[1].required).toBe(false);
+});
+
 test("on a job system the engine doesn't cover, the overlay says so, not as an optional field", async ({ page }) => {
   // SmartRecruiters (live, 2026-10-24): the overlay read "WorkIt can't fill this job system yet (optional)".
   await page.route("https://jobs.example.com/**", (route) => route.fulfill({ contentType: "text/html", body: "<form><input name=first></form>" }));
