@@ -339,3 +339,14 @@ def test_the_drive_guard_blocks_claudes_submit_until_lifted_for_its_own_click(pa
     while not site.posts and time.monotonic() < deadline:
         time.sleep(0.1)
     assert site.posts == ["/acme/j/42/apply"]
+
+
+@live
+def test_the_drive_guard_rests_and_arms_as_claude_fill_drives(page, site):
+    drive = DriveGuard(page)
+    drive.arm()
+    drive.rest()  # Claude stopped driving (KAN-633: raised AttributeError on a plain page)
+    drive.arm()
+    page.get_by_role("button", name="Submit application").click()
+    assert drive.blocked() == ['the "Submit application" click']
+    assert site.posts == []
