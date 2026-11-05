@@ -1,11 +1,11 @@
 """Orchestrate one scrape cycle: sync catalog, create tasks, claim, scrape,
-publish to job_postings via import_feed.
+publish to job_postings via import_feed, update per-board source records and
+close jobs gone from all boards.
 
-Each board completes independently. At the end of the claim loop, all scraped
-jobs are published through import_feed in one transaction, upsert only: a
-cycle reads only the boards due, so a job missing from its listings is not
-evidence that it closed. Closing stays with the scheduled import of the full
-feed, which closes a job only after two complete reads of its board without it.
+Each board completes independently. At the end of the claim loop, one
+transaction publishes through import_feed (upsert only), records which boards
+list which jobs (job_sources), advances each board's read timestamps, detects
+jobs stale on every board (two-complete-read rule) and closes them.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from workit_scraper.providers import PROVIDERS, Board, Job
 from workit_scraper.shortlist import classify, classify_with_description
 
 from app.schemas.jobs import JobListing
+from app.scraper.closures import detect_and_close, update_sources
 from app.scraper.schedules import (
     advance_reads,
     record_failure,
@@ -158,6 +159,7 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
         "boards_missing": 0,
         "boards_failed": 0,
         "jobs_scraped": 0,
+        "jobs_closed": 0,
         "dry_run": dry_run,
     }
 
@@ -198,17 +200,26 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
             read.append(done)
             all_listings.extend(done.listings)
 
-    # 5. Publish all scraped jobs through import_feed, then checkpoint the
-    # boards read, in one transaction: if the publish fails or the process
-    # dies, no board looks read and the next cycle reads it again.
+    # 5. One transaction: publish, record sources, advance reads, detect
+    # closures and mark done.  If anything fails, no board looks read and
+    # the next cycle reads it again.
     try:
         if all_listings:
             from app.scripts.import_jobs import import_feed
 
             await import_feed(conn, all_listings, close_missing=False)
         for done in read:
+            await update_sources(
+                conn,
+                done.schedule_id,
+                [l.apply_url for l in done.listings],
+            )
             await advance_reads(conn, done.schedule_id)
-            await mark_done(conn, done.task_id, boards_s=done.boards_s, pages_s=done.pages_s)
+        summary["jobs_closed"] = await detect_and_close(conn)
+        for done in read:
+            await mark_done(
+                conn, done.task_id, boards_s=done.boards_s, pages_s=done.pages_s
+            )
         await conn.commit()
     except Exception as exc:
         await conn.rollback()
