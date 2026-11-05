@@ -906,6 +906,54 @@ def test_dropdowns_that_open_to_list_their_choices_are_picked_by_plain_code():
     assert chips == "Asian"
 
 
+# Microsoft's "Create your profile" step (live, KAN-646): a country code picker and a country of
+# residence dropdown, after one only a page script counts as visible (visibility: hidden) and
+# one in a shadow root, which only Playwright finds.
+PROFILE_DROPDOWNS = """<!doctype html><body>
+<div><input role="combobox" aria-label="Hidden search" style="visibility:hidden" onclick="openList(this, ['Nowhere'])"></div>
+<div id="host"></div>
+<div><label for="code">Country code</label>
+<input id="code" role="combobox" aria-label="Country code picker" value=""
+  onclick="openList(this, ['\U0001F1FA\U0001F1F8 (+1) United States of America', '\U0001F1E8\U0001F1E6 (+1) Canada'])"></div>
+<div><label id="country_label">Country/region of residence</label>
+<input id="input-7" role="combobox" aria-labelledby="country_label" value=""
+  onclick="openList(this, ['Canada', 'United States'])"></div>
+<div id="list" role="listbox"></div>
+<script>
+let open = null;
+function openList(box, options) {
+  open = box;
+  document.getElementById('list').innerHTML = options.map(o => '<div role="option" onclick="pick(this)">' + o + '</div>').join('');
+}
+function pick(option) { open.value = option.textContent; open.setAttribute('value', option.textContent);
+  open.parentElement.dataset.shown = option.textContent; document.getElementById('list').innerHTML = ''; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('list').innerHTML = ''; });
+const shadow = document.getElementById('host').attachShadow({mode: 'open'});
+shadow.innerHTML = '<input role="combobox" aria-label="Search jobs" onclick="openList(this, [\\'Engineering\\'])">';
+shadow.firstElementChild.onclick = function () { openList(this, ['Engineering']); };
+</script></body>"""
+
+
+def test_each_dropdown_gets_its_own_choices_and_answer_when_a_script_and_playwright_count_them_apart():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+
+    us_code = "\U0001F1FA\U0001F1F8 (+1) United States of America"
+    questions = [Question("q3", "Country code", "select", False), Question("q5", "Country/region of residence", "select", True)]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(PROFILE_DROPDOWNS)
+        found = claude_fill._with_options(page, questions)
+        claude_fill._pick_in_comboboxes(page, found, {"q3": us_code, "q5": "United States"})
+        code, country = page.input_value("#code"), page.input_value("#input-7")
+        browser.close()
+
+    assert [q.options for q in found] == [(us_code, "\U0001F1E8\U0001F1E6 (+1) Canada"), ("Canada", "United States")]
+    assert (code, country) == (us_code, "United States")
+
+
 def test_jobvites_country_of_residence_and_consent_are_passed_before_claude_reads_the_form(tmp_path):
     driver = JobviteDriver()
 

@@ -62,7 +62,7 @@ extension joins them before handling. The extension never needs to chunk.
    (`worker` is 0-based everywhere, as `WorkerBrowsers.open(worker=0)`; Worker k's profile is `plain-<k+1>`.)
 4. Extension → Apply:
    ```json
-   {"type": "hello", "protocol": 1, "extension": "0.1.0",
+   {"type": "hello", "protocol": 1, "extension": "0.2.0", "features": 2,
     "engine": {"version": "0.3.13+7a3a3fc", "sha256": "..."},
     "userScripts": true, "webdriver": false,
     "userAgent": "...", "brands": ["Google Chrome", "..."]}
@@ -72,6 +72,17 @@ extension joins them before handling. The extension never needs to chunk.
    Apply refuses: a wrong origin, another protocol, or an engine whose version or
    sha256 differs from Apply's own `fill_engine.ENGINE` (the reason names both and says
    to run `apply plain prepare`).
+   `features` (KAN-643) is what the extension's code can do: 2 is `tile.shown` and
+   `extension.reload`; none (an extension from before KAN-643) counts as 1. Raise
+   `FEATURES` in `background.js` and `bridge.FEATURES` together with each new op or event.
+   Chrome keeps running the code it loaded, so a Worker can be older than Apply. An older
+   one is never refused. When it has `extension.reload` (features 2 or more) and its profile
+   has Developer mode on (`launcher.developer_mode`), Apply welcomes it, calls
+   `extension.reload`, and waits for the hello its reloaded code sends; once per Worker.
+   Without Developer mode Chrome disables a reloaded unpacked extension
+   (`unsupportedDeveloperExtension`), so Apply never reloads one there. A Worker still
+   older is welcomed with `Connection.stale`: Apply prints one line, and its tile says
+   "Worker extension is out of date: quit Apply and start it again".
 6. On a closed port the extension reconnects every 2 s (Apply restarted). Apply treats a
    Worker whose connection closed as gone (as a quit browser today).
 
@@ -114,6 +125,7 @@ Targets: `tab` is a Chrome tab id; `frame` is a webNavigation frame id (0 = top,
 | `tabs.create` | `url?`, `active?` | that tab's info |
 | `tabs.get` | `tab` | `{"tab", "url", "title", "status"}` |
 | `tabs.close` | `tab` | `null` |
+| `extension.reload` | | `null`; then `chrome.runtime.reload()`: the extension loads its files again from its folder, this port closes, and the new code says hello. Web tabs, their pages and cookies stay; registered guards and scripts go (KAN-643: Apply calls it only before the welcome, or `Bridge.reload`). |
 | `tabs.goto` | `tab`, `url`, `waitUntil` (`load`/`domcontentloaded`/`commit`), `timeout` ms | `{"url", "title"}` |
 | `tabs.reload` | `tab`, `waitUntil`, `timeout` | `{"url", "title"}` |
 | `tabs.waitForLoad` | `tab`, `state`, `timeout` | `null` |
