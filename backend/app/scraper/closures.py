@@ -8,6 +8,7 @@ with a surge guard against mass closures.
 from __future__ import annotations
 
 import logging
+import uuid
 
 from sqlalchemy import func, text
 from sqlalchemy.dialects.postgresql import insert
@@ -23,9 +24,13 @@ _sources = Job_Source.__table__
 _MASS_CLOSE_SHARE = 0.5
 _MASS_CLOSE_FLOOR = 20
 
-# Jobs stale on every enabled board and supported by none.  Reused by the
-# count check and the close.
-_STALE_CTE = """\
+# One statement: identify stale jobs, count them against the surge guard, and
+# close in a single snapshot.  The guard CTE gates the UPDATE: when it returns
+# no rows (surge refused or nothing to close), the UPDATE touches nothing.
+#
+# NOT EXISTS instead of NOT IN: if `supported` ever returned a NULL apply_url,
+# NOT IN would evaluate to UNKNOWN and close nothing silently.
+_DETECT_AND_CLOSE_SQL = text("""\
 WITH stale AS (
     SELECT js.apply_url
     FROM job_sources js
@@ -43,20 +48,60 @@ supported AS (
       AND js.last_seen_at >= ss.prior_read_at
 ),
 to_close AS (
-    SELECT DISTINCT apply_url FROM stale
-    WHERE apply_url NOT IN (SELECT apply_url FROM supported)
-)"""
-
-_PUBLISHED_SCRAPED = (
-    "company_id IS NULL AND status = 'published' AND added_by_student = FALSE"
+    SELECT DISTINCT s.apply_url FROM stale s
+    WHERE NOT EXISTS (
+        SELECT 1 FROM supported sup WHERE sup.apply_url = s.apply_url
+    )
+),
+counts AS (
+    SELECT
+        (SELECT count(*) FROM job_postings
+         WHERE apply_url IN (SELECT apply_url FROM to_close)
+           AND company_id IS NULL
+           AND status = 'published'
+           AND added_by_student = FALSE) AS closing,
+        (SELECT count(*) FROM job_postings
+         WHERE company_id IS NULL
+           AND status = 'published'
+           AND added_by_student = FALSE) AS total
+),
+guard AS (
+    SELECT closing, total FROM counts
+    WHERE closing > 0
+      AND (total <= :floor OR closing <= :share * total)
+),
+closed AS (
+    UPDATE job_postings
+    SET status = 'closed',
+        closes_at = LEAST(COALESCE(closes_at, now()), now()),
+        closed_reason = 'gone_from_board',
+        updated_at = now()
+    WHERE apply_url IN (SELECT apply_url FROM to_close)
+      AND company_id IS NULL
+      AND status = 'published'
+      AND added_by_student = FALSE
+      AND EXISTS (SELECT 1 FROM guard)
+    RETURNING 1
 )
+SELECT
+    (SELECT closing FROM counts) AS closing,
+    (SELECT total FROM counts) AS total,
+    (SELECT count(*) FROM closed) AS closed,
+    EXISTS (SELECT 1 FROM guard) AS allowed
+""")
 
 
 async def update_sources(
-    conn: AsyncConnection, schedule_id, apply_urls: list[str]
+    conn: AsyncConnection, schedule_id: uuid.UUID, apply_urls: list[str]
 ) -> None:
     """Upsert job_sources for one board's complete read.  GREATEST prevents a
-    stale retry from pushing last_seen_at backward."""
+    stale retry from pushing last_seen_at backward.
+
+    An empty list is valid: the board returned nothing, so no source records
+    update.  advance_reads still runs after this, moving prior_read_at forward,
+    which makes every prior source for this board stale — the intended
+    semantics of "the board listed nothing."
+    """
     if not apply_urls:
         return
     rows = [{"schedule_id": schedule_id, "apply_url": url} for url in apply_urls]
@@ -74,46 +119,28 @@ async def update_sources(
 
 async def detect_and_close(conn: AsyncConnection) -> int:
     """Find jobs stale on every enabled board and close them.  Returns count
-    closed, or 0 when the surge guard refuses."""
+    closed, or 0 when the surge guard refuses.
 
-    # How many published scraped jobs would close?
-    to_close = await conn.scalar(
-        text(
-            f"{_STALE_CTE}\n"
-            f"SELECT count(*) FROM job_postings\n"
-            f"WHERE apply_url IN (SELECT apply_url FROM to_close)\n"
-            f"  AND {_PUBLISHED_SCRAPED}"
+    One statement, one snapshot: the count, the guard check and the UPDATE
+    share a single CTE chain, so no concurrent transaction can change the
+    row set between the check and the close."""
+    row = (
+        await conn.execute(
+            _DETECT_AND_CLOSE_SQL,
+            {"floor": _MASS_CLOSE_FLOOR, "share": _MASS_CLOSE_SHARE},
         )
-    )
-    if not to_close:
-        return 0
+    ).first()
 
-    # Surge guard: same thresholds as the feed import.
-    published = await conn.scalar(
-        text(f"SELECT count(*) FROM job_postings WHERE {_PUBLISHED_SCRAPED}")
-    )
-    if published > _MASS_CLOSE_FLOOR and to_close > _MASS_CLOSE_SHARE * published:
+    closing, total, closed, allowed = row.closing, row.total, row.closed, row.allowed
+
+    if closing and not allowed:
         logger.error(
             "Surge guard: refusing to close %d of %d published scraped jobs",
-            to_close,
-            published,
+            closing,
+            total,
         )
         return 0
 
-    # Close them.
-    result = await conn.execute(
-        text(
-            f"{_STALE_CTE}\n"
-            "UPDATE job_postings\n"
-            "SET status = 'closed',\n"
-            "    closes_at = LEAST(COALESCE(closes_at, now()), now()),\n"
-            "    closed_reason = 'gone_from_board',\n"
-            "    updated_at = now()\n"
-            f"WHERE apply_url IN (SELECT apply_url FROM to_close)\n"
-            f"  AND {_PUBLISHED_SCRAPED}"
-        )
-    )
-    closed = result.rowcount
     if closed:
         logger.info("Closed %d jobs gone from all boards", closed)
     return closed
