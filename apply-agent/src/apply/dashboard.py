@@ -88,7 +88,7 @@ MAX_ITEMS = 500  # ended Applications the window keeps, the newest
 ASKING = "still filling"
 NOTIFY_EVERY = 60.0  # s: at most one macOS notification a minute of what newly waits on Lisul
 FOCUS_FRESH = 3.0  # s a poll's word that the window is in front holds
-FRAME_GAP = 0.04  # s between turns of /frames: at most 25 frames a second a tile
+FRAME_GAP = 0.015  # s between turns of /frames: at most about 60 frames a second a tile (a filmed plain tile sends 30)
 PUMP = 30  # ms the frames thread waits each turn, letting screencast frames and input through
 GO_TO_WAIT = 8.0  # s Go to question waits for the held form's hold loop to show the field
 ERRORS_EVERY = 2.0  # s between reads of each Worker's page for a field error it shows (apply.stuck)
@@ -870,6 +870,8 @@ class Dashboard:
             caption |= verdict(caption)
             if chooser := self._frames.chooser(k):
                 caption["file"] = chooser
+            if notice := getattr(self._frames, "notice", lambda k: "")(k):  # a plain tile without Screen Recording
+                caption["capture"] = notice
         # A form still filling asks its Missing facts at once, before Claude has drafted the rest.
         items = [caption | {"status": ASKING, "worker": k, "id": f"live-{k}", "live": True}
                  for k, caption in enumerate(captions) if caption.get("status") == "filling" and caption.get("missing")] + items
@@ -926,6 +928,7 @@ class Dashboard:
             f'<div class="tile" data-k="{k}"><div class="banner idle" id="banner-{k}"><span class="label">{IDLE}</span>'
             f'<span class="fields"></span></div><div class="caption" id="caption-{k}">Browser {k + 1}</div>'
             f'<div class="sent" id="sent-{k}" hidden></div>'
+            f'<div class="capture" id="capture-{k}" hidden></div>'
             f'<div class="resumebar" id="resume-{k}" hidden><button class="primary">Resume</button>'
             f'<span class="why"></span></div>'
             f'<img id="frame-{k}" alt="Browser {k + 1}" tabindex="0" draggable="false">'

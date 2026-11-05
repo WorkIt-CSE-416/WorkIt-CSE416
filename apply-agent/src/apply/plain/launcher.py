@@ -45,7 +45,9 @@ from apply.profile import load_policies
 
 BRANDED = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 SEED = "plain-seed"
-WINDOW = (900, 640)  # small, at the screen's top-left corner, wholly on-screen (capture needs at least half)
+# A normal, readable Chrome at 100% zoom, at the screen's top-left corner. The extension shrinks it
+# to the main screen's visible area (ops/core.js: onScreen), so it is wholly on-screen.
+WINDOW = (1280, 900)
 FLAGS = ("--no-first-run", "--no-default-browser-check", "--disable-backgrounding-occluded-windows",
          "--hide-crash-restore-bubble")
 # Never passed to a plain Worker: each would make it an automated browser.
