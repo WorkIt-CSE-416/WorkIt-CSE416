@@ -193,6 +193,11 @@ If a question in <fields> is not on this step, leave it out of `filled` and go o
 If this step has a button that goes on to the form's next step ("Next", "Continue"), name it exactly in `next_button` and leave `submit_button` empty.
 On the last step, name exactly the button that would send the application in `submit_button` and leave `next_button` empty. Never click that button, press Enter to send or try it again: once the fields are filled and read back, you are done. Apply sends the form itself, after its own checks.
 {RULES}"""
+# Lisul's page gates (policies: page_gates, KAN-637): he checks these on each step before the form goes on.
+GATES = """
+Never tick an attestation, certification or agreement box ("I certify", "I acknowledge", "I agree", consent to terms, to a background check or to data processing), and never type an e-signature, a typed-name signature or a date of signature, even when <fields> gives an answer for it: leave each as it is for the person, and list it in `for_lisul`.
+Before you finish, read every field on this step back and check it against <fields>: fix any that shows something else, once.
+In `for_lisul`, list every field on this step that the person must check before the form goes on, one entry each, as "<label>: <what it shows now>" (or "<label>: left for you"): attestation, certification, signature or date-of-signature fields; terms, or consent to a background check or to data processing; self-identification (gender, race or ethnicity, veteran, disability); work authorization, citizenship, U.S. person, export control or sponsorship; non-compete or prior-employer agreements; relatives at the company, prior employment with it, conflicts of interest; criminal history; and any answer you aren't sure is right. Empty when the step has none."""
 FILL_SCHEMA = {
     "type": "object",
     "properties": {
@@ -208,17 +213,24 @@ FILL_SCHEMA = {
     },
     "required": [*REPORTED, "filled", "submit_button", "next_button", "unlisted"],
 }
+GATED_SCHEMA = {
+    **FILL_SCHEMA,
+    "properties": {**FILL_SCHEMA["properties"], "for_lisul": {
+        "type": "array", "items": {"type": "string"}, "description": "fields on this step the person must check"}},
+    "required": [*FILL_SCHEMA["required"], "for_lisul"],
+}
 
 
-def _fill_schema(names: list[str]) -> dict:
-    """FILL_SCHEMA with each `filled` entry's `field` held to the ids asked
+def _fill_schema(names: list[str], gated: bool = False) -> dict:
+    """FILL_SCHEMA (GATED_SCHEMA with page gates) with each `filled` entry's `field` held to the ids asked
     for: Haiku named some by their label ("First Name *", live)."""
+    base = GATED_SCHEMA if gated else FILL_SCHEMA
     if not names:
-        return FILL_SCHEMA
-    item = FILL_SCHEMA["properties"]["filled"]["items"]
+        return base
+    item = base["properties"]["filled"]["items"]
     field = {"type": "string", "enum": names, "description": "the field's id from <fields>, never its label"}
     filled = {"type": "array", "items": {**item, "properties": {**item["properties"], "field": field}}}
-    return {**FILL_SCHEMA, "properties": {**FILL_SCHEMA["properties"], "filled": filled}}
+    return {**base, "properties": {**base["properties"], "filled": filled}}
 
 
 def _field_named(said: str, labels: dict[str, str]) -> str | None:
@@ -244,7 +256,7 @@ class ClaudeFill:
     def __init__(self, claude: Claude, max_turns: int = MAX_TURNS, max_tokens: int = MAX_TOKENS,
                  sign_in: Callable[[Page], None] | None = None, resume: Path | None = None,
                  sms_opt_in: bool = False, marketing_opt_in: bool = False,
-                 accounts: Accounts | None = None, account_facts: dict | None = None):
+                 accounts: Accounts | None = None, account_facts: dict | None = None, page_gates: bool = False):
         """`sign_in` takes the open posting to its form by plain code first,
         on a job system whose sign-in needs no Claude (Oracle's emailed code).
         `resume` is for a pop-up that asks for it before the form can be used.
@@ -252,7 +264,10 @@ class ClaudeFill:
         guard lets Claude tick only an opt-in they say yes to. `accounts`
         signs in or makes an account on a page in the way of the form
         (apply.account_pages), where Claude may fill `account_facts`;
-        without it, such a page is a Handoff."""
+        without it, such a page is a Handoff. `page_gates` is Lisul's policy: a step with
+        an attestation, consent, self-ID, legal or criminal-history field, or an answer Claude
+        isn't sure of, pauses for his check before the form goes on, and Claude never ticks or
+        signs his boxes."""
         self._claude = claude
         self._account_pages = AccountPages(accounts, account_facts or {})
         self._url = ""  # the Posting's, to go back to once a mailed link is opened
@@ -275,6 +290,9 @@ class ClaudeFill:
         self._put: dict = {}  # the answer each field was filled with
         self._guard: DriveGuard | None = None  # on the page from Claude's first drive
         self._waited_for_box = False  # the form, filled, waited for Lisul to do its captcha's box
+        self._page_gates = page_gates
+        self._gated = ""  # the step held for Lisul's check, till his Resume
+        self._approved: set[str] = set()  # the steps he checked and resumed from
         self.posting_text = ""  # the Posting's own text, as its open page showed it
         self.names: tuple[str, str] = ("", "")  # the company and role its open page named
 
@@ -340,6 +358,9 @@ class ClaudeFill:
         if self._waited_for_box and not captcha.shows(page):  # Lisul did the captcha on the filled form
             self._waited_for_box = False
             return dict(self._readback)
+        if self._gated:  # he pressed Resume on the step held for his check: it goes on as he left it
+            self._approved.add(self._gated)
+            self._gated = ""
         pass_jobvite_gate(page)
         self._clear_pop_up(page)
         if self._submit_button:  # filled to the last step once: fill again what didn't read back as meant
@@ -366,7 +387,9 @@ class ClaudeFill:
             if self._picked:
                 done_already = ", ".join(repr(labels[name]) for name in self._picked if name in labels)
                 prompt = f"These dropdowns are already picked: {done_already}. Leave them as they are.\n{prompt}"
-            done = self._session(page, FILL, prompt, _fill_schema(list(todo)), files)
+            step = _step_key(page)
+            done = self._session(page, FILL + (GATES if self._page_gates else ""), prompt,
+                                 _fill_schema(list(todo), self._page_gates), files)
             for field in done["filled"]:
                 name = _field_named(str(field["field"]), {name: labels[name] for name in todo})
                 if name in kinds and name in todo:
@@ -387,6 +410,11 @@ class ClaudeFill:
                                                                        _key(_bare(str(q.get("label", ""))))} & known]
             if unlisted:
                 raise MoreQuestions(_with_options(page, self._questions(unlisted)))
+            asks = [one for one in (str(a).strip() for a in done.get("for_lisul") or []) if one]
+            if self._page_gates and asks and step not in self._approved:
+                self._gated = step
+                raise Handoff(f"Page {self._steps + 1}: check these {len(asks)} and tick any box that is yours, "
+                              "then press Resume: " + "; ".join(asks))
             next_button = str(done.get("next_button") or "").strip()
             if not next_button or SENDS.search(next_button) or not NEXT.search(next_button):
                 self._submit_button = str(done.get("submit_button") or "").strip()
@@ -683,6 +711,11 @@ def _fields_shown(page: Page) -> str:
         except Exception:
             continue  # a frame that went away, or one that refuses scripts
     return "\n".join(shown)
+
+
+def _step_key(page: Page) -> str:
+    """The step showing, by its URL and the fields it shows (not their values)."""
+    return _path(page.url) + "\n" + "\n".join(_fields_shown(page).split("\n")[1:])
 
 
 def _page_text(page: Page) -> str:
