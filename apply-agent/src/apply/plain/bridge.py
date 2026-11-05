@@ -6,6 +6,10 @@ the origin, the protocol and the engine, answers welcome or refuse, and keeps on
 Connection per Worker. A Connection calls ops (`call`) and hands events to subscribers
 (`on`). Messages over 512 KiB go as chunks, since Chrome takes at most 1 MB from a host.
 See apply-agent/docs/plain-workers/PROTOCOL.md.
+
+The hello's `features` says what the extension's code can do (KAN-643): Chrome keeps running the
+code it loaded, so a Worker can be older than Apply. An older one is welcomed as `stale`, never
+refused, and Apply says so in one line.
 """
 
 import hashlib
@@ -14,6 +18,7 @@ import json
 import os
 import socket
 import struct
+import sys
 import tempfile
 import threading
 from collections.abc import Callable
@@ -31,6 +36,14 @@ SOCKET_PATH_MOST = 100  # macOS caps a Unix socket path at 104 bytes
 CHUNK_CHARS = 200_000  # characters of JSON per chunk: at most 800 KB of UTF-8, under Chrome's 1 MB
 CHUNK_OVER = 512 * 1024  # a message longer than this goes as chunks
 CALL_TIMEOUT = 60.0  # s an op may take, beyond its own timeout
+FEATURES = 2  # the worker extension's feature level Apply expects (background.js FEATURES)
+OUT_OF_DATE = "Worker extension is out of date: quit Apply and start it again"
+
+
+def features(hello: dict) -> int:
+    """A hello's feature level: 1 for an extension from before KAN-643, which sends none."""
+    level = hello.get("features")
+    return level if isinstance(level, int) else 1
 
 
 class PortError(PlaywrightError):
@@ -107,6 +120,7 @@ class Connection:
 
     def __init__(self, worker: int, sock: socket.socket, hello: dict, relay: dict):
         self.worker, self.hello, self.relay = worker, hello, relay
+        self.stale = False  # its extension is older than Apply expects (the bridge sets it)
         self._sock = sock
         self._send_lock = threading.Lock()
         self._ids = itertools.count(1)
@@ -197,9 +211,11 @@ class Bridge:
     """Listens for the Workers' relays. `start` before launching a Worker; `wait_for(k)` then
     gives that Worker's Connection once its hello passed."""
 
-    def __init__(self, path: Path | None = None, engine: dict | None = None):
+    def __init__(self, path: Path | None = None, engine: dict | None = None, expects: int = FEATURES):
         self.path = path or socket_path()
         self._engine = engine
+        self.expects = expects  # the feature level a Worker's extension must have not to be stale
+        self._warned = False
         self._server: socket.socket | None = None
         self._workers: dict[int, Connection] = {}
         self._refused: dict[int, str] = {}
@@ -277,7 +293,13 @@ class Bridge:
                 self._refused[worker] = reason
                 self._changed.notify_all()
             return
+        level = features(hello)
         connection = Connection(worker, sock, hello, relay)
+        connection.stale = level < self.expects
+        if connection.stale and not self._warned:
+            self._warned = True
+            print(f"Plain Worker {worker + 1}'s extension has features {level}, Apply expects {self.expects}. "
+                  f"{OUT_OF_DATE}.", file=sys.stderr)
         connection.send({"type": "welcome", "worker": worker, "protocol": PROTOCOL})
         with self._changed:
             old = self._workers.get(worker)

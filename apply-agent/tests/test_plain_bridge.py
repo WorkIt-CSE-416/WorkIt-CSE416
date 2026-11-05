@@ -16,6 +16,7 @@ import pytest
 from apply.plain import host
 from apply.plain.bridge import (
     CHUNK_OVER,
+    OUT_OF_DATE,
     Bridge,
     BridgeBusy,
     PortError,
@@ -51,13 +52,13 @@ def bridge():
     bridge.stop()
 
 
-def fake_worker(bridge, worker=0, origin=EXTENSION_ORIGIN, engine=ENGINE, protocol=1) -> socket.socket:
+def fake_worker(bridge, worker=0, origin=EXTENSION_ORIGIN, engine=ENGINE, protocol=1, features=None) -> socket.socket:
     """A relay plus extension: says relay and hello, as the host and the worker extension do."""
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.connect(str(bridge.path))
     sock.sendall(frame({"type": "relay", "protocol": 1, "worker": worker, "origin": origin, "host_pid": 1}))
     sock.sendall(frame({"type": "hello", "protocol": protocol, "extension": "0.1.0", "engine": engine,
-                        "userScripts": False, "webdriver": False}))
+                        "userScripts": False, "webdriver": False, **({} if features is None else {"features": features})}))
     return sock
 
 
@@ -205,3 +206,15 @@ def test_the_seeds_steps_are_lisuls_clicks_in_order():
     assert steps[1].startswith("Click Load unpacked") and str(EXTENSION_DIR.resolve()) in steps[1]
     assert steps[2] == 'On the "Apply Worker (private)" card, click Details, and turn on Allow User Scripts.'
     assert steps[3].startswith("Quit that Chrome")
+
+
+def test_an_extension_older_than_apply_is_welcomed_as_stale_with_one_line(bridge, capsys):
+    sock = fake_worker(bridge, worker=0)  # from before KAN-643: no `features`, no extension.reload
+    assert read(sock)["type"] == "welcome"  # never refused: the run goes on
+    connection = bridge.wait_for(0, timeout=5)
+    other = fake_worker(bridge, worker=1)
+    assert read(other)["type"] == "welcome"
+
+    assert connection.stale and bridge.wait_for(1, timeout=5).stale
+    assert capsys.readouterr().err.count(OUT_OF_DATE) == 1
+

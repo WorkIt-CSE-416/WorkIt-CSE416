@@ -9,7 +9,8 @@ Without it, each Worker's extension streams its shown tab as `tile.frame` events
 how to turn the permission on (`notice`). A filmed tile never stays blank (KAN-643): with no
 filmed frame within FIRST_FRAME s of `tile.start` (an extension too old to send `tile.shown`, a
 helper never aimed), or none for STALLED s after the extension said its picture moved, Apply
-stops filming it and the extension's frames show. A tile's clicks, keys, wheel, pastes, <select> picks and files go back as `tile.input`, replayed
+stops filming it and the extension's frames show. A tile whose extension is older than Apply
+says so (bridge.OUT_OF_DATE). A tile's clicks, keys, wheel, pastes, <select> picks and files go back as `tile.input`, replayed
 in the page as synthetic DOM events. No CDP anywhere.
 
 Mouse is PortPage.mouse, and expect_file_chooser is PortPage.expect_file_chooser: a click
@@ -29,7 +30,7 @@ from typing import Self
 from apply import stuck
 from apply.dashboard import ERRORS_EVERY, jpeg_size
 from apply.plain import window_capture
-from apply.plain.bridge import Connection, PortError, PortTimeoutError
+from apply.plain.bridge import OUT_OF_DATE, Connection, PortError, PortTimeoutError
 from apply.plain.page import POLL, PortPage, file_payloads
 
 INPUT_WAIT = 5.0  # s a tile event may take on the page before the window gives up on it
@@ -228,6 +229,8 @@ class PortFrames:
         connection.on("tile.frame", lambda message, worker=worker: self._keep(worker, message))
         connection.on("tile.shown", lambda message, worker=worker: self._aim(worker, message))
         native = self._film(worker, connection)
+        if getattr(connection, "stale", False):
+            self._notes[worker] = OUT_OF_DATE  # bridge logged it; the tile still shows the frames it can
         connection.call("tile.start", timeout=5, **{**self._settings, "native": native})
         self._watched[worker] = connection
 

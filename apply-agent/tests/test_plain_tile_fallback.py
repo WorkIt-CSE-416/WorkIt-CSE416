@@ -8,6 +8,7 @@ import time
 import pytest
 
 from apply.plain import tile, window_capture
+from apply.plain.bridge import OUT_OF_DATE
 from apply.plain.tile import PortFrames
 
 JPEG = b"\xff\xd8\xff\xe0fake jpeg"
@@ -17,8 +18,8 @@ class OldExtension:
     """A Worker's Connection whose extension is from before KAN-635: tile.start streams
     `tile.frame`s whatever `native` says, and it never sends `tile.shown`."""
 
-    def __init__(self):
-        self.hello, self.relay = {"type": "hello", "protocol": 1}, {"host_pid": 1}
+    def __init__(self, stale: bool = False):
+        self.hello, self.relay, self.stale = {"type": "hello", "protocol": 1}, {"host_pid": 1}, stale
         self.closed = threading.Event()
         self.started: list[dict] = []
         self._handlers: dict[str, list] = {}
@@ -71,3 +72,11 @@ def test_a_filmed_tile_whose_extension_never_sends_tile_shown_shows_the_extensio
         assert frame.startswith(JPEG) and seen > 0
         assert frames.native == {} and extension.started[-1]["native"] is False
 
+
+def test_a_tile_whose_extension_is_older_than_apply_says_so_and_still_shows_frames(filmable):
+    extension = OldExtension(stale=True)
+    with PortFrames(1, lambda k: extension, capture="native") as frames:
+        frame = frames.wait(0, 0, tile.FIRST_FRAME + 3)[0]
+
+        assert frame.startswith(JPEG)
+        assert frames.notice(0) == OUT_OF_DATE
