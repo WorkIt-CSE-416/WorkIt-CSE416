@@ -55,7 +55,7 @@ from pathlib import Path
 from typing import Self
 from urllib.parse import urlsplit
 
-from playwright.sync_api import Page
+from playwright.sync_api import Locator, Page
 
 from apply import captcha, description
 from apply.account_pages import FIELDS as ACCOUNT_FIELDS
@@ -114,12 +114,16 @@ SENT_SCHEMA = {
     "required": ["sent", "why"],
 }
 SENT_CHARS = 6_000  # of the page's text, enough for a confirmation and any error over a form
-# Every dropdown on the page that shows its choices only once opened (Airtable's): its name.
-COMBOBOXES = """() => [...document.querySelectorAll('[role=combobox]')].filter(el => el.checkVisibility()).map(el => {
+# A dropdown that shows its choices only once opened (Airtable's): its name. Read off each
+# element Playwright finds, never by a page script's own list: the two can disagree on which
+# are visible (one behind a pop-up, or in a shadow root), and the indexes then point each
+# question at its neighbour (Microsoft's country code and residence, live: KAN-646).
+COMBOBOX_NAME = """el => {
+  const root = el.getRootNode();
   const by = (el.getAttribute('aria-labelledby') || '').split(/\\s+/).filter(Boolean)
-    .map(id => (document.getElementById(id) || {}).innerText || '').join(' ');
+    .map(id => ((root.getElementById && root.getElementById(id)) || document.getElementById(id) || {}).innerText || '').join(' ');
   return (el.getAttribute('aria-label') || by || '').trim();
-})"""
+}"""
 # The text of the widest part of the page that holds this dropdown and no other: its
 # field, with the chips a multi-select shows beside its "+" (Airtable's).
 FIELD_TEXT = """el => {
@@ -715,15 +719,21 @@ def _with_options(page: Page, questions: QuestionSet) -> QuestionSet:
     interest" for Netflix's "2"). A dropdown it can't find or open keeps the
     options Haiku gave."""
     try:
-        names = page.evaluate(COMBOBOXES)
+        boxes = _comboboxes(page)
     except Exception:
         return questions
+    names = [name for _, name in boxes]
     out = []
     for q in questions:
         index = _combobox_for(q.label, names) if q.kind in ("select", "multi_select") else -1
-        options = _options_of(page, page.locator("[role=combobox]:visible").nth(index)) if index >= 0 else ()
+        options = _options_of(page, boxes[index][0]) if index >= 0 else ()
         out.append(Question(q.name, q.label, q.kind, q.required, options) if options else q)
     return out
+
+
+def _comboboxes(page: Page) -> list[tuple[Locator, str]]:
+    """Every visible dropdown on the page, each with its name, read off that same element."""
+    return [(box, box.evaluate(COMBOBOX_NAME)) for box in page.locator("[role=combobox]:visible").all()]
 
 
 def _combobox_for(label: str, names: list[str]) -> int:
@@ -751,13 +761,13 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
         if q.kind not in ("select", "multi_select") or not q.options or not value or isinstance(value, Path):
             continue
         try:
-            names = page.evaluate(COMBOBOXES)  # again each time: a choice may show more questions (Netflix's role)
+            boxes = _comboboxes(page)  # again each time: a choice may show more questions (Netflix's role)
         except Exception:
             return picked
-        index = _combobox_for(q.label, names)
+        index = _combobox_for(q.label, [name for _, name in boxes])
         if index < 0:
             continue
-        combobox = page.locator("[role=combobox]:visible").nth(index)
+        combobox = boxes[index][0]
         wanted = value if isinstance(value, list) else [value]
         try:
             for choice in wanted:
