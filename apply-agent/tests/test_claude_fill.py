@@ -82,10 +82,15 @@ class BambooDriver:
     can't fill (a sign-in wall, a captcha). `notes` makes it read choices back
     as Haiku did live, with a note: "Yes (selected)"."""
 
-    def __init__(self, blocked: str = "", notes: bool = False, page: str = "application form", missed=()):
+    def __init__(self, blocked: str = "", notes: bool = False, page: str = "application form", missed=(),
+                 by_label: bool = False):
         """`page` is what Haiku says the page is: an application form, a
         closed posting, or not a job posting at all. `missed` are labels its
-        read leaves out (as Haiku did live), which the fill then finds."""
+        read leaves out (as Haiku did live), which the fill then finds.
+        `by_label` makes it name each field it read back by its label, in
+        capitals with a "*" ("FIRST NAME *"), not its id (live)."""
+        self._by_label = by_label
+        self.schemas: list[dict] = []
         self._blocked = blocked
         self._notes = notes
         self._page = page
@@ -101,6 +106,7 @@ class BambooDriver:
             page.get_by_role("button", name="Apply for This Job").first.click()
             return {"blocked": False, "why": "", "questions": [q for q in LUNAR_QUESTIONS if q["label"] not in self._missed]}
         self.fills += 1
+        self.schemas.append(schema)
         fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
         asked = {f["question"] for f in fields}
         unlisted = [q for q in LUNAR_QUESTIONS if q["label"] in self._missed and q["label"] not in asked]
@@ -110,7 +116,8 @@ class BambooDriver:
         return {
             "blocked": False,
             "why": "",
-            "filled": [{"field": f["field"], "shown": [self._shown(f["answer"])]} for f in fields],
+            "filled": [{"field": f"{f['question'].upper()} *" if self._by_label else f["field"],
+                        "shown": [self._shown(f["answer"])]} for f in fields],
             "submit_button": "Submit Application",
             "unlisted": unlisted,
         }
@@ -536,6 +543,31 @@ def test_notes_claude_adds_to_what_it_reads_back_do_not_fail_the_pre_submit_chec
         [row] = run(server, profile, lunar_match(), claude=FakeClaude(driver=BambooDriver(notes=True)))
 
     assert row.status == "submitted"
+
+
+def test_fields_claude_reads_back_by_their_label_not_their_id_still_read_back(tmp_path):
+    # Live, Haiku named its `filled` entries "First Name *", not q1: the read-back came back empty.
+    profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items()},
+                           **{f"answered_questions.{ESSAY}": "Lunar rovers are what I build in my spare time."})
+    driver = BambooDriver(by_label=True)
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [row] = run(server, profile, lunar_match(), claude=FakeClaude(driver=driver))
+
+    assert row.status == "submitted", row.reason
+    # And the schema holds each entry's `field` to the ids it was given.
+    [schema, *_] = driver.schemas
+    ids = schema["properties"]["filled"]["items"]["properties"]["field"]["enum"]
+    assert ids and all(re.fullmatch(r"q\d+", i) for i in ids)
+
+
+def test_a_label_two_fields_share_is_never_guessed_between():
+    labels = {"q1": "Name *", "q2": "name", "q3": "Email", "q4": "Email"}
+    assert claude_fill._field_named("q3", labels) == "q3"
+    assert claude_fill._field_named("Name *", labels) == "q1"  # exact first
+    assert claude_fill._field_named("  NAME", labels) is None  # q1 and q2 both, but for case and "*"
+    assert claude_fill._field_named("Email", labels) is None
+    assert claude_fill._field_named("Phone", labels) is None
 
 
 def test_a_question_the_read_missed_is_planned_and_filled_when_the_fill_finds_it(tmp_path):
