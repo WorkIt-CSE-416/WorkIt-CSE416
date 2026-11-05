@@ -894,6 +894,12 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   so `workday._send` sets `window.__applyAccountClick` for its own click.
   The guard then lets a click or submit in a form with a password box go
   through. No application's final button is in such a form.
+- Claude fill's account pages (`account_pages.AccountPages._click`) keep
+  the account-click flag on until the page answers the click, not only for
+  the click itself. iCIMS's email step runs an invisible hCaptcha after
+  Next and then posts its form from script (AMD's, live, KAN-640). Apply
+  never clicks a button whose own text or value says submit, send, apply,
+  finish, complete or confirm, whatever name Claude gave it.
 - Apply asks a site for a verification code or link once per sign-in and
   never clicks Resend or Send New Code (`accounts.Accounts._wait`): a mail
   that hasn't come in about 2 minutes goes to Needs you ("Type the emailed
