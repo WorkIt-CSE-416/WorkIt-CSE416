@@ -2008,7 +2008,7 @@ def test_a_question_for_facts_apply_already_holds_never_reaches_lisul():
     planned.questions = [Question("g", "GitHub profile URL", "text", True), Question("w", "Why us?", "text", True)]
     planned._rehearse, planned._approved, planned.written, planned.lisuls, planned.found = True, None, [], {}, {}
     planned.missing, planned._on_missing, planned._answers, planned._shown_files = (), lambda *heard: None, {}, None
-    planned._on_files = lambda files: None
+    planned._on_files, planned.fixes = lambda files: None, {}
     planned.profile, planned._bank = ApplicantProfile.load(PROFILE, POLICIES), AnswerBank()
     planned.posting, planned._today = FIGMA, NOW.date()
     planned._bank.add(Question("x", "Why us?", "text"), "Made-up reason.", "Example Co", NOW.date())
