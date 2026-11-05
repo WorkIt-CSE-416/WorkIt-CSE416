@@ -715,9 +715,12 @@ put back, the window's routes, `apply ask`, and the Record and Repair request.
   fill is only the fallback.
 - A profile pop-up before the application is never the form's last page
   (KAN-647). When the button Claude names as the one that sends sits in an
-  open dialog titled as a profile step (`claude_fill.PROFILE_STEP`:
-  "Create your profile", "Complete your profile"; Microsoft's names it
-  Submit), plain code presses it (`_through_profile_step`) under
+  open dialog that is a profile step and nothing more
+  (`submit_guard.PROFILE_DIALOG`: titled "Create your profile" or the like,
+  naming no application, job or role; no file, essay, box, choice or
+  password in it; and no form field of the page's own behind it), and the
+  button names no application, plain code presses it
+  (Microsoft's names it Submit; `_through_profile_step`) under
   `DriveGuard.let_profile_click()`, which lets that dialog's button through
   the drive and rehearsal guards and nothing else, waits for the dialog to
   go, and the fill goes on to the real form. The flag is
