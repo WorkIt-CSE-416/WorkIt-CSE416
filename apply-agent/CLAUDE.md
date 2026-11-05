@@ -740,6 +740,15 @@ put back, the window's routes, `apply ask`, and the Record and Repair request.
   the drive and rehearsal guards and nothing else, waits for the dialog to
   go, and the fill goes on to the real form. The flag is
   `__applyProfileClick` (in `worker-extension/ops/guard.js`'s `FLAGS` too).
+- A POST to a final application URL stays blocked under plain code's Next and profile clicks (KAN-639,
+  `postsFinal`). A path ending in `/apply` is final by its name alone, so there a Next goes on only when
+  the page says steps remain ("Step 2 of 5", or a list past its `aria-current=step` item) and the form has
+  no button that sends (KAN-656). A profile pop-up may post to its own page there. A known final URL
+  (Lever's, Greenhouse's, a segment with `submit`) never goes, whatever the page says. TAL.net's
+  (`/eform/<n>/page/<k>`, `save_page`), Oracle's (`/apply/section/<n>`, `/apply/email`), iCIMS's, Workday's
+  (`/apply/applyManually`) and Microsoft's (`/careers/job/<id>`) URLs match no final rule at all
+  (`tests/test_submit_guard.py -k every_real_step`). On a plain Worker the declarativeNetRequest rule on
+  `/apply` still blocks such a step (it can't read the page), so that Next hands off and nothing is sent.
 - Dropdowns that list their choices only once opened are read and picked
   by plain code (`_with_options`, `_pick_in_comboboxes`). Each one's name is
   read off the very element Playwright clicks (`_comboboxes`), never from a
