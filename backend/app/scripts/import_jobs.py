@@ -68,6 +68,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import asyncpg
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import (
     Text,
@@ -88,6 +89,7 @@ from sqlalchemy import (
     values,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection
 from workit_scout.llm import LLM, InvalidReply, ScoutUnavailable
 
@@ -131,6 +133,11 @@ _MASS_CLOSE_FLOOR = 20
 # first run's backlog of thousands spreads over many runs instead of
 # spending the day's quota, or the job's 30 minutes, in one.
 KEYWORDS_PER_RUN = 100
+# The import's transaction is tried this many times when the database
+# connection drops (`_disconnected`), this long apart: the scheduled run's
+# pooler drops one now and then, and a good scrape shouldn't fail on it.
+IMPORT_ATTEMPTS = 3
+RETRY_WAIT_S = 10
 # Why a scraped job closed (job_postings.closed_reason, bd730e8ab454's CHECK),
 # as the scraper's closings.json names them (scraper/workit_scraper/feed.py's
 # REASONS). A reason it gives that is not here is filed as UNKNOWN, as is a
@@ -701,6 +708,54 @@ def _print_report(report: Report, *, dry_run: bool) -> None:
         print(f"    {title!r}" + (f"  ({jobs} jobs)" if jobs > 1 else ""))
 
 
+def _disconnected(exc: BaseException) -> bool:
+    '''
+    whether the import failed because the database connection went away
+    (the pooler dropping it, or no connection at all), the one failure worth
+    trying again: anything else, ImportRefused or a bad row, fails the same
+    way every time
+    '''
+    if isinstance(exc, DBAPIError):
+        return exc.connection_invalidated or isinstance(exc.orig, ConnectionError)
+    return isinstance(exc, OSError | asyncpg.PostgresConnectionError | asyncpg.ConnectionDoesNotExistError)
+
+
+async def _import_once(
+    engine, listings: list[JobListing], *, dry_run: bool, allow_mass_close: bool,
+    closings: dict[str, str] | None,
+) -> Report:
+    '''
+    steps 1-6 in one transaction, committed, or rolled back on a dry run, and
+    retried only when the connection dropped (`_disconnected`): the transaction
+    rolled back with it, so trying again repeats nothing
+    '''
+    for attempt in range(1, IMPORT_ATTEMPTS + 1):
+        try:
+            async with engine.connect() as conn:
+                trans = await conn.begin()
+                try:
+                    report = await import_feed(
+                        conn, listings, allow_mass_close=allow_mass_close, closings=closings
+                    )
+                except BaseException:
+                    await trans.rollback()
+                    raise
+                if dry_run:
+                    await trans.rollback()
+                else:
+                    await trans.commit()
+                return report
+        except Exception as exc:
+            if attempt == IMPORT_ATTEMPTS or not _disconnected(exc):
+                raise
+            logger.warning(
+                "The database connection dropped (%s); trying the import again (%d/%d) in %ds",
+                exc, attempt + 1, IMPORT_ATTEMPTS, RETRY_WAIT_S,
+            )
+            await asyncio.sleep(RETRY_WAIT_S)
+    raise AssertionError("unreachable")
+
+
 async def _run(
     path: Path, *, dry_run: bool, allow_mass_close: bool, embed_limit: int | None = None,
     keywords_limit: int = KEYWORDS_PER_RUN, closings_path: Path | None = None,
@@ -709,29 +764,24 @@ async def _run(
     closings = read_closings(closings_path or path.with_name("closings.json"))
     engine = get_engine()
     try:
-        async with engine.connect() as conn:
-            trans = await conn.begin()
-            try:
-                report = await import_feed(
-                    conn, listings, allow_mass_close=allow_mass_close, closings=closings
-                )
-            except BaseException:
-                await trans.rollback()
-                raise
-            if dry_run:
-                await trans.rollback()
-            else:
-                await trans.commit()
-                try:
-                    report.embedded = await _embed_jobs(conn, limit=embed_limit)
-                except Exception:
-                    logger.warning("Embedding failed after import committed", exc_info=True)
-                if keywords_limit:
-                    try:
-                        report.keywords = await _extract_keywords(conn, get_small_llm(), limit=keywords_limit)
-                    except Exception:
-                        logger.warning("Keyword extraction failed after import committed", exc_info=True)
+        report = await _import_once(
+            engine, listings, dry_run=dry_run, allow_mass_close=allow_mass_close, closings=closings
+        )
+        if dry_run:
             return report
+        # After the commit, and never retried: each keyword is a paid model
+        # call through Scout, and each pass commits its own batches.
+        async with engine.connect() as conn:
+            try:
+                report.embedded = await _embed_jobs(conn, limit=embed_limit)
+            except Exception:
+                logger.warning("Embedding failed after import committed", exc_info=True)
+            if keywords_limit:
+                try:
+                    report.keywords = await _extract_keywords(conn, get_small_llm(), limit=keywords_limit)
+                except Exception:
+                    logger.warning("Keyword extraction failed after import committed", exc_info=True)
+        return report
     finally:
         await engine.dispose()
 

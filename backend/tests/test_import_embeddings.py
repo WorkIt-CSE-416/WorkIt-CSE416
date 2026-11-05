@@ -241,3 +241,76 @@ def test_embeddings_only_disposes_engine(monkeypatch, fail):
         assert asyncio.run(import_jobs._run_embeddings_only(limit=2)) == 2
     embed_jobs.assert_awaited_once_with(conn, limit=2)
     engine.dispose.assert_awaited_once()
+
+
+class _Trans:
+    def __init__(self, log):
+        self.log = log
+
+    async def commit(self):
+        self.log.append("commit")
+
+    async def rollback(self):
+        self.log.append("rollback")
+
+
+def _retry_engine(log):
+    class Conn:
+        async def begin(self):
+            return _Trans(log)
+
+    @asynccontextmanager
+    async def connect():
+        log.append("connect")
+        yield Conn()
+
+    return SimpleNamespace(connect=connect, dispose=AsyncMock())
+
+
+def _dropped():
+    import asyncpg
+    from sqlalchemy.exc import DBAPIError
+
+    return DBAPIError("SELECT 1", {}, asyncpg.ConnectionDoesNotExistError("closed"), connection_invalidated=True)
+
+
+def _run_feed(monkeypatch, tmp_path, import_feed):
+    log = []
+    monkeypatch.setattr(import_jobs, "get_engine", lambda: _retry_engine(log))
+    monkeypatch.setattr(import_jobs, "import_feed", import_feed)
+    monkeypatch.setattr(import_jobs, "RETRY_WAIT_S", 0)
+    monkeypatch.setattr(import_jobs, "_embed_jobs", AsyncMock(return_value=0))
+    keywords = AsyncMock(return_value=0)
+    monkeypatch.setattr(import_jobs, "_extract_keywords", keywords)
+    monkeypatch.setattr(import_jobs, "get_small_llm", Mock())
+    feed = tmp_path / "feed.json"
+    feed.write_text("[]", encoding="utf-8")
+    run = import_jobs._run(feed, dry_run=False, allow_mass_close=False)
+    return log, keywords, run
+
+
+def test_a_dropped_connection_retries_the_import_but_not_the_keywords(monkeypatch, tmp_path):
+    import_feed = AsyncMock(side_effect=[_dropped(), import_jobs.Report()])
+    log, keywords, run = _run_feed(monkeypatch, tmp_path, import_feed)
+    asyncio.run(run)
+    assert import_feed.await_count == 2
+    assert log == ["connect", "rollback", "connect", "commit", "connect"]
+    keywords.assert_awaited_once()
+
+
+def test_a_refused_import_is_not_retried(monkeypatch, tmp_path):
+    import_feed = AsyncMock(side_effect=import_jobs.ImportRefused("mass close"))
+    _, keywords, run = _run_feed(monkeypatch, tmp_path, import_feed)
+    with pytest.raises(import_jobs.ImportRefused):
+        asyncio.run(run)
+    assert import_feed.await_count == 1
+    keywords.assert_not_awaited()
+
+
+def test_a_connection_that_keeps_dropping_fails_after_the_last_try(monkeypatch, tmp_path):
+    import_feed = AsyncMock(side_effect=[_dropped() for _ in range(import_jobs.IMPORT_ATTEMPTS)])
+    _, keywords, run = _run_feed(monkeypatch, tmp_path, import_feed)
+    with pytest.raises(import_jobs.DBAPIError):
+        asyncio.run(run)
+    assert import_feed.await_count == import_jobs.IMPORT_ATTEMPTS
+    keywords.assert_not_awaited()
