@@ -121,12 +121,12 @@ class Claude(Protocol):
         ...
 
     def drive(self, *, page: Page, model: str, system: str, prompt: str, schema: dict, files: list[Path],
-              max_turns: int, max_tokens: int) -> Drive:
+              max_turns: int, max_tokens: int, hook: tuple[str, ...] = ()) -> Drive:
         """Claude works the open `page` step by step (Playwright MCP, its only
         tools) until it gives the structured answer. It is stopped, capped,
         once it passes `max_turns` turns or `max_tokens` tokens. `files` are
-        the only files it can attach, by name. Raises UsageLimitHit when the
-        Max limit is hit."""
+        the only files it can attach, by name. `hook` is the send_click hook's
+        flags (Ask Claude's). Raises UsageLimitHit when the Max limit is hit."""
         ...
 
     def research(self, *, model: str, system: str, prompt: str, schema: dict, max_turns: int,

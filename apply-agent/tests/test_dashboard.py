@@ -1353,6 +1353,31 @@ def test_while_a_tile_is_controlled_number_keys_go_to_the_page_not_the_tabs(wind
     assert frames.inputs == [(0, {"type": "text", "text": "3"})]
 
 
+
+def test_the_tile_s_ask_claude_box_sends_his_words_to_claude_not_to_the_page(window):
+    """Ask Claude (KAN-638): typed in the tile's box, also while the tile is controlled, his message goes to the
+    window, not as keys to the page; Claude's reply then shows in the tile's thread."""
+    frames = TickingFrames({0: jpeg(1280, 800)})
+    with Dashboard(1, frames) as board:
+        board.update(0, company="Acme", posting_url="https://jobs.example.com/acme/1", status="ready to submit",
+                     askable=True)
+        window.goto(board.url + "/#workers")
+        window.click(".tile[data-k='0'] img")
+        window.wait_for_selector(".tile.big")
+        window.fill("#ask-0 input", "page 2's GPA is wrong")
+        window.click("#ask-0 button.go")
+        window.wait_for_selector("#ask-0 .claude.working")
+        [item] = board.asks(0)
+        board.replied(0, item["id"], state="done", reply="Changed the GPA to 3.7.",
+                      changed=[{"field": "GPA", "step": "page 2", "shown": "3.7", "read_back": "Claude's read-back"}],
+                      offers=[{"question": "GPA", "answer": "3.7", "saved": False}])
+        window.wait_for_selector("#ask-0 .offer button")
+
+        assert item["message"] == "page 2's GPA is wrong"
+        assert "Changed GPA (page 2) → 3.7" in window.inner_text("#ask-0")
+    assert frames.inputs == []  # nothing he typed reached the page
+
+
 # Notifications.
 
 def test_new_asks_are_told_in_one_notification_a_minute_while_the_window_is_behind(monkeypatch):

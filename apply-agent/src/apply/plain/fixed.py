@@ -4,7 +4,7 @@ Worker runs as code its extension ships, not through eval.
 On a plain Worker, `evaluate(code)` needs eval or user scripts: a page whose CSP forbids eval
 refuses it in Chrome for Testing, where Allow User Scripts can't be turned on. So the page
 functions the held page runs on every turn (Needs you's FIELD, Resume's FIELD_ERROR, the emailed
-code's WORDS and guard switches, regenerate's button and its field lock and read-back) are written into the extension as `vendor/fixed.js` by
+code's WORDS and guard switches, regenerate's button and its field lock and read-back, Ask Claude's field read and undo) are written into the extension as `vendor/fixed.js` by
 `apply plain prepare`, from the very strings their modules hold. PortPage's `evaluate` and
 `Locator.evaluate` see one of these strings and run its fixed copy (the `fixed.call` op) instead,
 so the modules stay as they are, and one source serves both kinds of Worker.
@@ -21,7 +21,7 @@ from functools import cache
 @cache
 def functions() -> dict[str, tuple[str, str, str]]:
     # Imported here: these modules import much of Apply, and PortPage imports this one.
-    from apply import email_code, on_page, regenerate, stuck
+    from apply import ask, email_code, on_page, regenerate, stuck
     from apply.plain import page, tools
 
     statements = lambda code: "() => { " + code + "; }"
@@ -39,6 +39,9 @@ def functions() -> dict[str, tuple[str, str, str]]:
         regenerate.WORKING: ("regenWorking", "MAIN", regenerate.WORKING),
         regenerate.DONE: ("regenDone", "MAIN", regenerate.DONE),
         regenerate.SHOWN: ("regenShown", "MAIN", regenerate.SHOWN),
+        # Ask Claude (KAN-638): the page's fields read before and after Claude drives, and one put back.
+        ask.FIELDS: ("askFields", "ISOLATED", ask.FIELDS),
+        ask.UNDO: ("askUndo", "MAIN", ask.UNDO),
     }
 
 

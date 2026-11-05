@@ -520,3 +520,67 @@ def test_a_rehearsal_hides_levers_apply_with_linkedin_button_and_keeps_the_linke
                 document.body.appendChild(row); }""")
             assert page.locator(".awli-application-row").first.is_hidden()
             assert page.locator("input[name='urls[LinkedIn]']").count() in (0, 1)
+
+
+STEP = """<form method="post" action="/step"><input name="first" value="Test"><button>{button}</button></form>"""
+
+
+@pytest.mark.parametrize("button, goes", [("Save and Continue", True), ("Submit application", False)])
+def test_plain_codes_next_click_posts_a_step_but_never_a_form_that_sends(button, goes):
+    # TAL.net's every page posts natively (Bank of America's, live): its Next must go on, a Submit never.
+    from playwright.sync_api import sync_playwright
+
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+
+        def serve(route):
+            if route.request.method == "POST":
+                posts.append(route.request.url)
+                return route.fulfill(body="<p>Step 2</p>", content_type="text/html")
+            return route.fulfill(body=STEP.format(button=button), content_type="text/html")
+        page.route("https://form.example/**", serve)
+        page.goto("https://form.example/step")
+        guard(page)
+        drive = DriveGuard(page)
+        page.get_by_role("button", name=button).click()  # Claude's own click, say: blocked
+        page.wait_for_timeout(300)
+        assert posts == []
+        drive.let_account_click()  # plain code's click on the Next Claude named
+        page.get_by_role("button", name=button).click()
+        page.wait_for_timeout(500)
+        assert posts == (["https://form.example/step"] if goes else [])
+        browser.close()
+
+
+@pytest.mark.parametrize("html", [
+    '<form method="post" action="/step"><input type="submit" value="Submit application" aria-label="Next"></form>',
+    '<h1>Review your application</h1><form method="post" action="/step"><button>Next</button></form>',
+])
+def test_a_next_that_is_a_submit_or_on_a_review_page_is_never_clicked_or_let_through(html):
+    # Claude names a Submit button, or the review page's button, as the step's Next: plain code refuses it.
+    from playwright.sync_api import sync_playwright
+
+    from apply.claude_fill import ClaudeFill
+    from apply.model import Handoff
+
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+
+        def serve(route):
+            if route.request.method == "POST":
+                posts.append(route.request.url)
+            return route.fulfill(body=html, content_type="text/html")
+        page.route("https://form.example/**", serve)
+        page.goto("https://form.example/step")
+        guard(page)
+        filler = ClaudeFill(claude=None)
+        filler._guard = DriveGuard(page)
+        with pytest.raises(Handoff, match="may send the form"):
+            filler._next_step(page, "Next")
+        page.wait_for_timeout(300)
+        assert posts == [] and page.evaluate("window.__applyAccountClick") is not True
+        browser.close()

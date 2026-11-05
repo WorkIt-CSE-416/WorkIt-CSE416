@@ -443,6 +443,15 @@ class Board(Protocol):
         held form himself: save the answer as his answer in Needs you is, and ask them no more. Says how it went."""
         ...
 
+    def asks(self, worker: int) -> list[dict]:
+        """Each Ask Claude message (apply.ask) Lisul sent to Worker `worker`'s held form since it last asked,
+        from the window or `apply ask`: {id, message, thread (the replies before it)}. Each is given once."""
+        ...
+
+    def replied(self, worker: int, ask_id: str, **reply: object) -> None:
+        """How an Ask Claude message went (apply.ask.Reply.as_json), or `state="working"` while Claude works."""
+        ...
+
     def wait_for_start(self, timeout: float | None) -> None:
         """Show the Start button and return once Lisul presses it, or after
         `timeout` seconds (None: however long he takes): a rehearsal for
@@ -519,6 +528,8 @@ class Dashboard:
     `quiet(k)`, when given, says Worker k is a plain Worker: Go to question then never
     brings its window forward (only Lisul's own Show does), and the tile shows the field.
     `sample`: Apply runs on the Test Person sample data, and the window says so.
+    `remember`, when given, saves a fact Lisul stated to Ask Claude into his Answer bank (the question,
+    the answer), on his own click of the offer in the tile, and says how it went.
     `approve`, when given, approves a Hold from the Inbox (its Application ID, and
     `essay=` the Essay cell with his edit of its essays' text if he edited them), as
     editing the Essay cell and ticking Approve did in the retired Tracker Sheet (KAN-544),
@@ -531,8 +542,13 @@ class Dashboard:
                  notify: Callable[[str, str], None] | None = None, show: Callable[[int], bool] | None = None,
                  sample: bool = False, approve: Callable[[str], str] | None = None,
                  everyday: Callable[[str], None] | None = None, accounts: "AccountsTab | None" = None,
-                 quiet: Callable[[int], bool] | None = None):
+                 quiet: Callable[[int], bool] | None = None, remember: Callable[[str, str], str] | None = None):
         self._workers = workers
+        self._remember = remember
+        # Ask Claude (apply.ask): each Application's thread, by its posting URL, and the messages waiting for its Worker.
+        self._threads: dict[str, list[dict]] = {}
+        self._to_ask: dict[int, list[dict]] = {}
+        self._asked = 0
         self._quiet = quiet or (lambda k: False)
         self.accounts = accounts  # the Accounts tab: each Employer account, its password only in Keychain
         self._sample = sample
@@ -784,6 +800,63 @@ class Dashboard:
             self._redo.setdefault(k, []).append((name, context.strip()))
         return "Claude is writing that answer again with your context. It goes in the form's field; nothing is sent."
 
+    def ask(self, key: str, message: str, via: str = "window") -> dict:
+        """Lisul's Ask Claude message for a tile's form ("tile-<k>"), from the window or `apply ask` (`via`): its
+        Worker hands it to Claude on the held page. Raises Refused, with why, when it can't: no message, a form
+        not held for him, or one Claude still works on. Returns the thread entry: its `id` is polled for the reply."""
+        if not message.strip():
+            raise Refused("Type what Claude should fix first.", 400)
+        if not (key.startswith("tile-") and key.removeprefix("tile-").isdigit()):
+            raise Refused("No such form.", 404)
+        k = int(key.removeprefix("tile-"))
+        with self._lock:
+            tile = self._captions[k] if 0 <= k < self._workers else {}
+            if not tile.get("askable") or not tile.get("posting_url"):
+                raise Refused("That form isn't held for you now: Ask Claude works once Apply has filled it and "
+                              "stopped, before Submit.", 409)
+            thread = self._threads.setdefault(str(tile["posting_url"]), [])
+            if any(t.get("state") in ("waiting", "working") for t in thread):
+                raise Refused("Claude is still working on your last message for this form.", 409)
+            self._asked += 1
+            entry = {"id": f"ask-{self._asked}", "worker": k, "message": message.strip()[:4000], "via": via,
+                     "at": self._now().isoformat(timespec="seconds"), "state": "waiting",
+                     "company": tile.get("company") or "", "role": tile.get("role") or ""}
+            thread.append(entry)
+            self._to_ask.setdefault(k, []).append({"id": entry["id"], "message": entry["message"],
+                                                   "thread": [dict(t) for t in thread[:-1]]})
+        print(f"Ask Claude ({via}), for {entry['company'] or key}: {entry['message']}")
+        return dict(entry)
+
+    def asks(self, worker: int) -> list[dict]:
+        with self._lock:
+            return self._to_ask.pop(worker, [])
+
+    def replied(self, worker: int, ask_id: str, **reply: object) -> None:
+        with self._lock:
+            for entry in (t for thread in self._threads.values() for t in thread if t["id"] == ask_id):
+                entry.update(reply)
+
+    def asked(self, ask_id: str) -> dict | None:
+        """One Ask Claude entry, as its thread holds it now (`apply ask` waits on its state)."""
+        with self._lock:
+            return next((dict(t) for thread in self._threads.values() for t in thread if t["id"] == ask_id), None)
+
+    def remember(self, ask_id: str, index: int) -> str:
+        """Lisul pressed Save on a fact Claude offered from his message: it goes in his Answer bank as his own
+        answer. Raises Refused when there is no such offer, or it was saved already."""
+        with self._lock:
+            entry = next((t for thread in self._threads.values() for t in thread if t["id"] == ask_id), None)
+            offers = (entry or {}).get("offers") or []
+            if not self._remember or not 0 <= index < len(offers):
+                raise Refused("No such answer to save.", 404)
+            offer = offers[index]
+            if offer.get("saved"):
+                raise Refused("You saved that answer already.", 409)
+        said = self._remember(str(offer["question"]), str(offer["answer"]))
+        with self._lock:
+            offer["saved"] = True
+        return said or f"Saved to your answers: {offer['question']} → {offer['answer']}"
+
     def start(self) -> None:
         """Lisul pressed Start."""
         self._started.set()
@@ -868,6 +941,8 @@ class Dashboard:
                     and (why := stuck.why(caption, getattr(self._frames, "field_error", lambda k: "")(k), time.time())):
                 caption["resume"] = {"ok": True, "why": why}  # stuck or waiting: Resume goes on from the page
             caption |= verdict(caption)
+            with self._lock:  # Ask Claude's thread for the form the tile holds
+                caption["thread"] = [dict(t) for t in self._threads.get(str(caption.get("posting_url") or ""), [])]
             if chooser := self._frames.chooser(k):
                 caption["file"] = chooser
             if notice := getattr(self._frames, "notice", lambda k: "")(k):  # a plain tile without Screen Recording
@@ -931,6 +1006,8 @@ class Dashboard:
             f'<div class="capture" id="capture-{k}" hidden></div>'
             f'<div class="resumebar" id="resume-{k}" hidden><button class="primary">Resume</button>'
             f'<span class="why"></span></div>'
+            f'<div class="askclaude" id="ask-{k}" hidden><div class="thread"></div><form><input maxlength="4000" '
+            f'autocomplete="off" aria-label="Ask Claude"><button class="go tonal">Ask Claude</button></form></div>'
             f'<img id="frame-{k}" alt="Browser {k + 1}" tabindex="0" draggable="false">'
             f'<div class="hint">Open to look or type</div>'
             f'<div class="note">You\'re controlling this browser — Esc to return '
@@ -1039,6 +1116,11 @@ class _Handler(BaseHTTPRequestHandler):
             if not self._from_window():
                 return self._json(403, {"error": "Only the Apply window may list your accounts."})
             return self._json(200, self.dashboard.accounts.view())
+        if path.startswith("/ask/"):
+            if not self._from_window():
+                return self._json(403, {"error": "Only the Apply window and `apply ask` may read a thread."})
+            entry = self.dashboard.asked(path.removeprefix("/ask/"))
+            return self._json(200, entry) if entry else self._json(404, {"error": "No such message."})
         if path.startswith("/stream/"):
             return self._stream(int(path.removeprefix("/stream/")))
         if path.startswith("/file/"):
@@ -1070,6 +1152,10 @@ class _Handler(BaseHTTPRequestHandler):
             return self._regenerate()
         if parts.path == "/goto":
             return self._go_to()
+        if parts.path == "/ask":
+            return self._ask()
+        if parts.path == "/ask/remember":
+            return self._ask_remember()
         if parts.path == "/everyday" and self.dashboard.everyday:
             return self._everyday()
         if parts.path == "/accounts/copy" and self.dashboard.accounts:
@@ -1359,6 +1445,39 @@ class _Handler(BaseHTTPRequestHandler):
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
         print(f"Regenerate pressed in the window ({key})")
+        self._json(200, {"message": message})
+
+    def _ask(self) -> None:
+        """Lisul's Ask Claude message, from the tile's box or `apply ask` (which has the window's token)."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only the Apply window and `apply ask` may ask Claude."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key, message = str(body["id"]), str(body["message"])
+            via = "terminal" if body.get("via") == "terminal" else "window"
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a message."})
+        try:
+            entry = self.dashboard.ask(key, message, via)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        self._json(200, {"message": "Claude is on it. It never presses Submit.", "ask": entry})
+
+    def _ask_remember(self) -> None:
+        """Lisul pressed Save on a fact Claude offered: only from the window's own page (its token and its
+        Origin, which a browser always sends on a POST), never from a terminal."""
+        token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+        if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin != self.dashboard.url:
+            return self._json(403, {"error": "Only your click in the Apply window saves an answer."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            ask_id, index = str(body["ask"]), int(body["index"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not an answer to save."})
+        try:
+            message = self.dashboard.remember(ask_id, index)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
         self._json(200, {"message": message})
 
     def _everyday(self) -> None:
