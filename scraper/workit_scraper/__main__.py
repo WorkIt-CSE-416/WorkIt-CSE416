@@ -20,12 +20,12 @@ from datetime import UTC, datetime
 from enum import Enum, auto
 from pathlib import Path
 
-from workit_scraper import feed, logos, providers, report, store
+from workit_scraper import feed, logos, providers, report, store, web
 from workit_scraper.board_read import ReadStatus, read_board
 from workit_scraper.catalog import BOARDS_CSV, load_boards
 from workit_scraper.discovery_review import validate_catalog
 from workit_scraper.polite import Robots
-from workit_scraper.providers import Board, Job
+from workit_scraper.providers import Board, Job, fetch
 from workit_scraper.providers.systems.workday import WORKDAY_CAP
 from workit_scraper.shortlist import (
     WIDENING_STEPS,
@@ -168,6 +168,7 @@ def _lane(
 
     with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
         reads = list(pool.map(read, boards))
+        boards_s = time.monotonic() - started
         results = [(outcome, jobs) for outcome, jobs, _ in reads]
         unread = {board.key: why for board, (*_, why) in zip(boards, reads, strict=True) if why}
         # Read off the list as it came, before `carry` puts back the dates the
@@ -187,14 +188,16 @@ def _lane(
                 return job
             return with_page(job, robots)
 
+        pages_start = time.monotonic()
         paged = list(pool.map(page, listed))
+        pages_s = time.monotonic() - pages_start
     if late:
         print(f"  …  {boards[0].ats}: {len(late):,} postings' pages left for the next run")
     # `with_page` hands back the same posting when it reads nothing.
     pages = sum(1 for was, now in zip(listed, paged, strict=True) if now is not was)
     described = iter(paged)
     results = [(outcome, [next(described) for _ in jobs]) for outcome, jobs in results]
-    return results, time.monotonic() - started, pages, order, unread
+    return results, time.monotonic() - started, pages, order, unread, boards_s, pages_s
 
 
 def scrape(
@@ -243,6 +246,8 @@ def scrape(
                 "postings": sum(len(jobs) for _, jobs in lane_results),
                 "pages": pages,
                 "seconds": round(seconds, 1),
+                "boards_s": round(lb_s, 1),
+                "pages_s": round(lp_s, 1),
                 # Only a provider that pages has these (`newest_first`).
                 **(
                     {
@@ -254,11 +259,13 @@ def scrape(
                     else {}
                 ),
             }
-            for (ats, lane), (lane_results, seconds, pages, order, _) in zip(
+            for (ats, lane), (lane_results, seconds, pages, order, _, lb_s, lp_s) in zip(
                 lanes.items(), by_lane, strict=True
             )
         },
-        unread={key: why for *_, lane_unread in by_lane for key, why in lane_unread.items()},
+        unread={
+            key: why for *_, lane_unread, _bs, _ps in by_lane for key, why in lane_unread.items()
+        },
     )
     # A board we hold postings from that now says it does not exist may have
     # nothing open (`store.update` closes it on the second answer in a row). Not
@@ -355,6 +362,7 @@ def main(argv: list[str] | None = None) -> int:
         run = previous
         print(f"offline: {len(run.jobs)} postings from {JOBS_JSON.name}")
     else:
+        run_start = time.monotonic()
         now = datetime.now(UTC).isoformat()
         boards = load_boards(args.boards)
         decisions = args.boards.with_name("discovery-review.json")
@@ -395,7 +403,9 @@ def main(argv: list[str] | None = None) -> int:
         # marketing and senior roles included -- would make jobs.json tens of megabytes
         # and tell us nothing we display. `stats.postings` still counts everything
         # scanned, so the funnel on the page stays honest about how wide the net was.
+        classify_start = time.monotonic()
         fresh = [job for job in scanned if classify_with_description(job.title, job.description)]
+        classify_s = time.monotonic() - classify_start
         stats = replace(stats, kept=len(fresh))
         # Hash each board's kept posting IDs so unchanged boards can rest.
         by_board: dict[str, list[str]] = {}
@@ -425,7 +435,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nreading {len(unread)} board pages for logos")
         found, sites = logos.fetch(unread)
         run = replace(run, logos={**run.logos, **found}, websites={**run.websites, **sites})
+        save_start = time.monotonic()
         store.save(run, JOBS_JSON)
+        save_s = time.monotonic() - save_start
+        total_s = time.monotonic() - run_start
 
     roles = pick([job for job in run.jobs if run.is_listed(job)], is_new=run.is_new)
     report.write_html(roles, run.stats, PAGE_HTML, run.scraped_at, counts_new=run.counts_new)
@@ -448,6 +461,11 @@ def main(argv: list[str] | None = None) -> int:
             missed=missed,
             resting=resting,
             closings=Counter(found.values()),
+            web_stats=web.stats(),
+            retries=fetch.retry_count(),
+            classify_s=classify_s,
+            save_s=save_s,
+            total_s=total_s,
             fp_resting=fp_resting,
         )
         print_metrics(
@@ -520,6 +538,20 @@ def unread_by_provider(unread: dict[str, str]) -> dict[str, dict[str, dict[str, 
     }
 
 
+def _peak_memory_kb() -> int | None:
+    """Peak resident memory in KB, or None on platforms without resource.getrusage."""
+    try:
+        import resource  # Unix only
+
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        # macOS reports bytes, Linux reports KB.
+        if sys.platform == "darwin":
+            return usage.ru_maxrss // 1024
+        return usage.ru_maxrss
+    except (ImportError, AttributeError):
+        return None
+
+
 def write_metrics(
     stats: RunStats,
     kept: list[Job],
@@ -531,6 +563,11 @@ def write_metrics(
     missed: int | None = None,
     resting: dict[str, str] | None = None,
     closings: Counter[str] | None = None,
+    web_stats: dict[str, int] | None = None,
+    retries: int | None = None,
+    classify_s: float | None = None,
+    save_s: float | None = None,
+    total_s: float | None = None,
     fp_resting: int | None = None,
 ) -> None:
     """metrics.json: the run's totals and each provider's share, so a change to one
@@ -559,6 +596,23 @@ def write_metrics(
         payload["resting"] = unread_by_provider(resting)
     if closings is not None:
         payload["closings"] = {why: closings[why] for why in feed.REASONS}
+    if web_stats is not None:
+        payload["requests"] = web_stats["requests"]
+        payload["received_bytes"] = web_stats["received_bytes"]
+    if retries is not None:
+        payload["retries"] = retries
+    timing: dict[str, object] = {}
+    if classify_s is not None:
+        timing["classify_s"] = round(classify_s, 2)
+    if save_s is not None:
+        timing["save_s"] = round(save_s, 2)
+    if total_s is not None:
+        timing["total_s"] = round(total_s, 1)
+    mem = _peak_memory_kb()
+    if mem is not None:
+        timing["peak_memory_kb"] = mem
+    if timing:
+        payload["timing"] = timing
     if fp_resting is not None:
         payload["boards_fingerprint_resting"] = fp_resting
     path.write_text(json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8")
