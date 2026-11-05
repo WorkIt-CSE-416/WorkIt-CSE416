@@ -453,7 +453,8 @@ compare a lane's requests a second with its pace before adding any. Quiet boards
 had a kept posting is read on one run in `QUIET_EVERY`, staggered by key over
 the run's three-hour slot (`RUN_EVERY`), and always after `QUIET_LONGEST` (a
 day), so a first posting there can appear about nine hours late; `--full` reads
-every board. A board with any kept posting ever is read every run. **Stagger by
+every board. A board with any kept posting ever is read every run, unless its
+kept postings have not changed (below, KAN-502). **Stagger by
 run slot, never by day:** until 2026-10-26 it was by day, so a day's eight runs
 read one third eight times, the next two days none of it, and a first posting
 waited up to two days for the same number of requests. `RUN_EVERY` must match the
@@ -516,6 +517,21 @@ delay a close: "no such board" closes on its second answer, before the third.
 `--full` keeps the budget: it un-rests quiet boards, it does not make a Workday
 sweep fit in one run. The page's "postings scanned" counts what this run read,
 so it is lower on a run that rested quiet boards or ran out of Workday time.
+
+**A board whose kept postings have not changed rests too** (KAN-502,
+`store.fingerprint`, `store.fingerprint_rest`). After each complete read,
+`__main__` hashes the sorted `external_id` values of the postings
+`classify_job` kept, with `zlib.crc32`. When the hash matches the previous
+read's, `unchanged_reads` increments and the board rests: 4 hours after the
+first unchanged read, doubling each time to a 24-hour cap. A changed hash
+resets the count to zero. `--full` overrides fingerprint rest (reads every
+working board); health rest still blocks `--full` (broken boards stay broken).
+The fingerprint fields live on `BoardReads`; an old store without them loads
+cleanly through `_known`. **Only a board with a kept posting ever rests this
+way** (`store.update`'s `hot`): a quiet board's kept postings are always none,
+so it would hash the same empty list on every read, and on top of the stagger
+it was read once a day, not every nine hours. A company's first posting was
+then about a day late (found in review, 2026-11-04).
 
 ## `boards.csv` is a seed, not a conclusion
 
@@ -795,6 +811,9 @@ the design they serve and its next steps):
   was only a line in the log.
 - **`resting`**: the boards the next runs will not ask (`Store.resting`), in the
   same shape as `unread`, by why each last went unread.
+- **`boards_fingerprint_resting`**: how many boards the next runs will not ask
+  because their kept postings have not changed (`Store.fingerprint_resting`,
+  KAN-502). Compare it run against run to see what the rest saves.
 
 `build_boards.py` prints the unread apply links by cause, with their top hosts
 (`unread_cause`, `unread_hosts`). That table is where a new reader pays off:
