@@ -334,7 +334,8 @@ and defaults (timeouts in ms, default 30000). Covered in S2:
   `aria_snapshot()`, `screenshot()` (S5: the element, cut from a stitch), `page`.
 - **Fixed functions (S5):** `evaluate` / `Locator.evaluate` given one of the strings in
   `apply.plain.fixed` run its fixed copy (`fixed.call`), not eval. Add a string there for page
-  code a held page runs on real sites.
+  code a held page runs on real sites. S9 (KAN-615) adds regenerate's `OFFER`, `WORKING`, `DONE` and
+  `SHOWN` (MAIN world: the button calls the `__applyRegenerate` binding). No new op.
 - **PortFrame:** `url`, `name`, the same locator, `evaluate` and action methods, run in that frame.
 - **S4:** `add_init_script(script=, path=)` (PortPage's and PortContext's: every page from now),
   `expose_binding(name, callback)` / `expose_function` (PortPage's: that tab; PortContext's: every
