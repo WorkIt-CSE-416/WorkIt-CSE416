@@ -156,7 +156,7 @@ REPORTED = ["blocked", "why", *ACCOUNT_FIELDS]
 
 READ = f"""You look at an internship application form, already open in the browser's current tab, and list its questions.
 Work on that tab: don't navigate away. If it shows the posting rather than the form, open the form (an "Apply" button). Type nothing but what the rules below allow on an account page.
-List every question a person sees, in order, with its label exactly as shown: kind is text, textarea, file, select (dropdowns, radio buttons, a single checkbox as Yes/No) or multi_select (checkboxes); options are the choices exactly as shown. Don't open a dropdown or pick anything to read its choices: list a dropdown whose choices don't show with no options (plain code opens it after you).
+List every question a person sees, in order, with its label exactly as shown: kind is text, textarea, file, select (dropdowns, radio buttons, a single checkbox as Yes/No) or multi_select (checkboxes); options are the choices exactly as shown. Don't open a dropdown or pick anything to read its choices: list a dropdown whose choices don't show with no options (plain code opens it after you). When a label shows more than once on the form, in different sections (a home and a campus address, current and permanent, mailing and residential), put the section's heading before it: "Campus Address: Address line 1".
 Put a field's help text under its label into the label, after it in parentheses ("Please write out the name of the club and do not use any acronyms").
 Leave out hidden fields, fields marked to be left blank and any captcha ("I'm not a robot").
 If the page is not one job posting (a careers home page, a list of jobs, a company page), or says the posting is closed or no longer accepts applications, list no questions, say which in `page` and why in `why`.
@@ -188,7 +188,7 @@ Use as few tool calls as you can: one browser_fill_form call for every field it 
 Pick every select answer yourself, even when the dropdown already seems to show it (a country listed first): choose the option, then read it back; never leave a select's `shown` empty.
 Leave every other field as it is, and any captcha ("I'm not a robot") too.
 Then read each field back, one `filled` entry a field: `field` is its id from <fields> ("q1"), copied exactly, never its label; `shown` is exactly the text, option or file name the field shows now, with nothing added ("Yes" or "No" for a single checkbox).
-If the step asks a question <fields> doesn't hold, leave it and go on: list it in `unlisted` like a question read off the form (label exactly as shown, with the help text under it after it in parentheses; kind, required, options). Don't stop for it.
+If the step asks a question <fields> doesn't hold, leave it and go on: list it in `unlisted` like a question read off the form (label exactly as shown, with the help text under it after it in parentheses; kind, required, options). Don't stop for it. When a label shows more than once on the form, in different sections (a home and a campus address, current and permanent, mailing and residential), put the section's heading before it: "Campus Address: Address line 1".
 If a question in <fields> is not on this step, leave it out of `filled` and go on.
 If this step has a button that goes on to the form's next step ("Next", "Continue"), name it exactly in `next_button` and leave `submit_button` empty.
 On the last step, name exactly the button that would send the application in `submit_button` and leave `next_button` empty. Never click that button, press Enter to send or try it again: once the fields are filled and read back, you are done. Apply sends the form itself, after its own checks.
@@ -382,9 +382,7 @@ class ClaudeFill:
             # later step's questions show only once it's reached: the Worker plans the ones the fill
             # found, and fill() goes on with them from this step.
             # Known by its label with or without its help text, as either session may give it.
-            known = {k for q in questions for k in (_key(q.label), _key(_bare(q.label)))}
-            unlisted = [q for q in done.get("unlisted") or [] if not {_key(str(q.get("label", ""))),
-                                                                       _key(_bare(str(q.get("label", ""))))} & known]
+            unlisted = _new_questions(page, questions, done.get("unlisted") or [])
             if unlisted:
                 raise MoreQuestions(_with_options(page, self._questions(unlisted)))
             next_button = str(done.get("next_button") or "").strip()
@@ -578,6 +576,59 @@ def _the_next(page: Page, name: str):
     if len({b.aria_snapshot() for b in found}) > 1:
         raise Handoff(f"Claude fill found more than one button that could be the form's {name!r}. Fill it in yourself.")
     return found[0]
+
+
+# The heading of the section a field sits in: the nearest h1-h4 or legend before it in the page.
+SECTION_OF = """el => {
+  for (let node = el; node; node = node.parentElement) {
+    for (let before = node.previousElementSibling; before; before = before.previousElementSibling) {
+      const heads = before.matches('h1, h2, h3, h4, legend') ? [before] : [...before.querySelectorAll('h1, h2, h3, h4, legend')];
+      const head = heads[heads.length - 1];
+      if (head && head.innerText.trim()) return head.innerText.trim();
+    }
+  }
+  return '';
+}"""
+
+
+def _new_questions(page: Page, questions: QuestionSet, found: list[dict]) -> list[dict]:
+    """The questions Claude found on the step that Apply doesn't know yet. One is known by its label with or
+    without its help text, as either session may give it, but a label the page shows on more fields than
+    Apply knows (a campus address under a home one, Bank of America's, live) is a new question each time,
+    named with its section's heading: never merged with another section's (KAN-642)."""
+    known: dict[str, int] = {}
+    for q in questions:
+        for k in {_key(q.label), _key(_bare(q.label))}:
+            known[k] = known.get(k, 0) + 1
+    new = []
+    for q in found:
+        label = str(q.get("label", ""))
+        keys = {_key(label), _key(_bare(label))}
+        if not keys & known.keys():
+            new.append(q)
+            continue
+        have = max(known.get(k, 0) for k in keys)
+        fields = _labelled(page, _bare(label))
+        if len(fields) <= have:
+            continue  # the same question again
+        try:
+            heading = str(fields[have].evaluate(SECTION_OF)).strip()
+        except Exception:
+            heading = ""
+        named = f"{heading}: {label}" if heading and not label.startswith(heading) else f"{label} (another section)"
+        new.append({**q, "label": named})
+        for k in keys:
+            known[k] = known.get(k, 0) + 1
+    return new
+
+
+def _labelled(page: Page, label: str) -> list:
+    """The visible fields the page labels `label` (a trailing "*" aside), in page order."""
+    pattern = re.compile(rf"^\s*{re.escape(label.strip().rstrip('*').strip())}\s*\*?\s*$", re.IGNORECASE)
+    try:
+        return [f for f in page.get_by_label(pattern).all() if f.is_visible()]
+    except Exception:
+        return []
 
 
 def _with_options(page: Page, questions: QuestionSet) -> QuestionSet:
