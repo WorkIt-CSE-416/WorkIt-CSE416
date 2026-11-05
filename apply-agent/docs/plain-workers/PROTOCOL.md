@@ -11,7 +11,7 @@ Worker simply has none (no CDP, no automation flags, no headless).
 ```
 Apply process                                   Worker k (plain Chrome)
   apply.plain.bridge.Bridge  <── Unix socket ──  host relay  <── native messaging ──  worker extension
-  (listens on APPLY_HOME/workers.sock, 0600)     (apply/plain/host.py,                (apply-agent/worker-extension/,
+  (listens on APPLY_PROFILES/workers.sock, 0600) (apply/plain/host.py,                (apply-agent/worker-extension/,
   apply.plain.page.PortPage                       Chrome starts it)                     background.js + ops/*.js)
   apply.plain.launcher.PlainWorkers
 ```
@@ -33,8 +33,11 @@ Apply process                                   Worker k (plain Chrome)
   own `NativeMessagingHosts/` folder (never Lisul's Chrome folder) and names only the
   worker extension's origin. Its `path` is a per-profile wrapper that runs
   `python3 -I apply/plain/host.py --socket <sock> --worker <k>`. The host is stdlib only.
-- **Socket:** `APPLY_HOME/workers.sock`, mode 0600, in a folder only Lisul can read.
-  macOS caps a socket path at 104 bytes; when the data folder's path is too long
+- **Socket:** `workers.sock` in the Worker profiles folder (`APPLY_PROFILES`, default
+  `APPLY_HOME/profiles`), mode 0600, in a folder only Lisul can read. One Apply process
+  drives one profiles folder's Workers; a rehearsal held for Lisul keeps its process up, so
+  another rehearsal runs with its own `APPLY_PROFILES` (KAN-634).
+  macOS caps a socket path at 104 bytes; when the profiles folder's path is too long
   (test temp folders), the socket goes to `/tmp/apply-<uid>/<hash>.sock` (folder 0700).
   `Bridge.path` says which.
 
