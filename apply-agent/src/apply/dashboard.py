@@ -870,6 +870,8 @@ class Dashboard:
             caption |= verdict(caption)
             if chooser := self._frames.chooser(k):
                 caption["file"] = chooser
+            if notice := getattr(self._frames, "notice", lambda k: "")(k):  # a plain tile without Screen Recording
+                caption["capture"] = notice
         # A form still filling asks its Missing facts at once, before Claude has drafted the rest.
         items = [caption | {"status": ASKING, "worker": k, "id": f"live-{k}", "live": True}
                  for k, caption in enumerate(captions) if caption.get("status") == "filling" and caption.get("missing")] + items
@@ -926,6 +928,7 @@ class Dashboard:
             f'<div class="tile" data-k="{k}"><div class="banner idle" id="banner-{k}"><span class="label">{IDLE}</span>'
             f'<span class="fields"></span></div><div class="caption" id="caption-{k}">Browser {k + 1}</div>'
             f'<div class="sent" id="sent-{k}" hidden></div>'
+            f'<div class="capture" id="capture-{k}" hidden></div>'
             f'<div class="resumebar" id="resume-{k}" hidden><button class="primary">Resume</button>'
             f'<span class="why"></span></div>'
             f'<img id="frame-{k}" alt="Browser {k + 1}" tabindex="0" draggable="false">'

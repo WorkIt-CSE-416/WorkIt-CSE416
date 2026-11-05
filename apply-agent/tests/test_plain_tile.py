@@ -193,6 +193,18 @@ def test_a_filmed_tile_is_live_at_the_screens_full_scale(page, filmed, site, wor
     assert width >= viewport["width"] * 2 - 2 and abs(width / height - viewport["width"] / viewport["height"]) < 0.02  # Retina, only the page
 
 
+def test_without_screen_recording_the_tile_falls_back_and_says_where_to_turn_it_on(page, worker, site, monkeypatch):
+    monkeypatch.setattr(window_capture, "allowed", lambda: False)
+    with PortFrames(1, lambda k: worker.connection, capture="native") as frames, Dashboard(1, frames) as board:
+        page.goto(f"{site}/colour")
+        frame = frames.wait(0, 0, 15)[0]
+        line = until(lambda: board.state()["tiles"][0].get("capture", ""), frames.notice(0), 5)
+
+        assert frames.native == {} and frame.startswith(b"\xff\xd8")
+        assert jpeg_size(frame)[0] == page.viewport_size["width"]  # the extension's frame, at CSS size
+        assert window_capture.SETTINGS in line and line.startswith("Live tile off: turn on ")
+
+
 def test_a_click_and_typing_in_a_filmed_tile_land_in_the_page(page, filmed, site, window):
     with Dashboard(1, filmed) as board:
         frame = shown(window, board, filmed, page, f"{site}/fields")
