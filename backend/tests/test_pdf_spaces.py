@@ -114,6 +114,24 @@ def test_a_hairline_gap_adds_no_space():
     assert "2,000+" in _words(_text(_line("[(2,) -30 (000+)] TJ")))
 
 
+def test_a_word_split_into_pieces_never_splits_another_word():
+    # pdfTeX breaks a word into runs at its kerns: "over" came as "o" and
+    # "ver", and the gap before it made ("with", "o") a pair that turned
+    # "without" on Xiang's resume into "with out"
+    text = _text(_line("[(with) -150 (o) 20 (ver) -333 (it)] TJ"),
+                 _line("(without warning) Tj", 672))
+    assert "with over it" in _words(text)
+    assert "without warning" in _words(text)
+
+
+def test_a_gap_before_closing_punctuation_adds_no_space():
+    # Word placed a comma, and pdfTeX a closing bracket, a little apart
+    # (team resumes: "JavaScript ," and "(Protobuf )"), under the half space
+    # at which pypdf itself adds one
+    text = _text(_line("[(JavaScript) -100 (,) -333 (Python) -333 (\\() -100 (Protobuf) -100 (\\))] TJ"))
+    assert "JavaScript, Python (Protobuf)" in _words(text)
+
+
 def test_a_raised_run_adds_no_space():
     # a superscript sits off the baseline: "1st", not "1 st"
     assert "1st" in _words(_text(_line("(1) Tj 4 Ts [-100 (st)] TJ 0 Ts")))

@@ -284,17 +284,31 @@ of the router so the router stays the HTTP layer. Two extractors:
   Layout mode rounds a gap to whole spaces (under half is none), plain mode
   spaces a TJ kern only from half a space, and neither moves past a run shown
   before a font change or a new TJ array, so the gap after it is measured
-  from the wrong place. `glued_pairs` walks each page's runs itself (pypdf's
-  layout-mode text state, a private API that `tests/test_pdf_spaces.py`
-  checks) and lists each word pair a gap of `GAP_EM` (0.08 em) or more
-  separates on one baseline; `restore_spaces` adds a space wherever either
-  mode's text has that pair glued. It only adds spaces, never moves text,
-  and a walk that fails changes nothing. LaTeX (Tectonic) and Chrome PDFs
-  already kept every space and read the same; no real failing PDF was found,
-  so the cases are hand-built PDFs. **Ceilings:** text inside a Form
-  XObject is not walked, and a pair is fixed everywhere it appears glued on
-  that page. A re-upload of a resume this fixes has a new `text_hash`, so
-  the duplicate check lets it through once.
+  from the wrong place. `gapped_words` walks each page's runs itself
+  (pypdf's layout-mode text state, a private API that
+  `tests/test_pdf_spaces.py` checks) and finds the chains of **whole
+  words** a gap of `GAP_EM` (0.08 em) or more separates on one baseline;
+  `restore_spaces` splits a whitespace-separated token of either mode's
+  text only when it is exactly some of those words glued in order. It only
+  adds spaces, never moves text, and a walk that fails changes nothing.
+  - **Whole words, matched whole.** pdfTeX breaks a word into runs at its
+    kerns ("over" as "o" + "ver"). The first version kept a pair as
+    ("with", "o") and added a space wherever "with" met "o", which read
+    "without" on Xiang's resume as "with out".
+  - **No space before closing punctuation or after an opening bracket**
+    (`CLOSES`, `OPENS`), whatever the gap: Word set a comma, and pdfTeX a
+    closing bracket, a little apart ("JavaScript ,", "(Protobuf )").
+  - **Checked against the team's real resumes** (2026-11-05, read-only, the
+    five uploads on the shared test account): the pdfTeX resume KAN-303
+    names read 17 places glued ("scanning2,000+", a number against the word
+    before or after it) and now reads them spaced; another pdfTeX resume
+    gains spaces around its "|" separators; the Google Docs and Word resumes
+    read the same. Overleaf's pdfTeX is where the glue comes from: Tectonic
+    (XeTeX) and Chrome PDFs already kept every space.
+  - **Ceilings:** text inside a Form XObject is not walked, and a glued
+    token is split everywhere it appears on that page. A re-upload of a
+    resume this fixes has a new `text_hash`, so the duplicate check lets it
+    through once.
 - **`extract_docx_text`** -- python-docx, iterating paragraphs and tables in
   document order. Restores bullet markers that Word stores as numbering
   properties. Deduplicates merged table cells.
