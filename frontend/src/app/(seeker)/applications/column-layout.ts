@@ -21,7 +21,9 @@ import { APPLICATIONS_COLUMNS_KEY } from "@/lib/local-drafts";
  * key, which Sign Out clears, so the next person in this browser starts from
  * the default. Keeping it per account needs the API to store it. A layout
  * stored under old column ids (the separate Company column) loses those
- * ids on reading (`parse`), so it never breaks the table.
+ * ids on reading (`parse`), so it never breaks the table. Source and Notes /
+ * Next Step left the table on 2026-11-05 the same way: Source is on the
+ * application's page, and Notes stored nothing.
  *
  * An external store (useSyncExternalStore), because the table and the
  * Columns menu in the filter bar both read and write it. The server, and the
@@ -39,10 +41,8 @@ export const COLUMNS = [
   { id: "location", label: "Location", width: 208 },
   { id: "workModel", label: "Work Model", width: 144 },
   { id: "pay", label: "Pay Range", width: 184 },
-  { id: "source", label: "Source", width: 168 },
   { id: "resume", label: "Resume", width: 200 },
   { id: "posting", label: "Posting", width: 112 },
-  { id: "notes", label: "Notes / Next Step", width: 224 },
 ] as const;
 
 export type ColumnId = (typeof COLUMNS)[number]["id"];

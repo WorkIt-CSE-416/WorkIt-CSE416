@@ -890,8 +890,8 @@ cards, two to four a row, which the user found harder to scan. A card has
 the company tile, the role (the card's link), the company, where the job is
 and how it is worked; the stages as a line of steps (Saved, Applied,
 Interviewing, then Offer or Rejected, each with the day it was reached,
-`applications/stage-steps.tsx`); the match score, View Resume where a resume
-was sent; and the stage menu. Simplify's heart has no WorkIt counterpart.
+`applications/stage-steps.tsx`); the match score, right after the role;
+View Resume where a resume was sent; and the stage menu. Simplify's heart has no WorkIt counterpart.
 By the card's own width: one row from 1152px, with the steps and controls
 in fixed columns so the steps line up from card to card; from 576px the
 role and controls share a line with the steps under them; narrower, it
@@ -911,10 +911,12 @@ does, rather than dropping columns as the page narrows. In the order job
 trackers read: what and who (Role, with its company), where it stands (Status, Date
 Applied), how good it is (Match), the job's facts (Job Type, as the Jobs
 page names it, though the code and `?track=` keep the older name Track;
-Location; Work Model; Pay Range), where and what was sent (Source, the
-hiring system the posting is on, named from its apply link in
-`applications/tracked.ts`, "Company Site" for any other host; Resume;
-Posting), and Notes / Next Step last, the widest and least scanned.
+Location; Work Model; Pay Range), and what was sent and whether it is
+still open (Resume; Posting). Source (the hiring system the posting is on,
+named from its apply link in `applications/tracked.ts`, "Company Site" for
+any other host) and Notes / Next Step left the table on 2026-11-05 as more
+than a row needs: Source shows on the application's page ("Posted on
+Ashby", under the stage) and stays a filter; Notes stored nothing.
 **Role is one column holding the company too**: the company's logo, then
 the role (bold, the row's link, cut with the whole title on hover) over the
 company's name in meta grey. KAN-256 split them into two frozen columns,

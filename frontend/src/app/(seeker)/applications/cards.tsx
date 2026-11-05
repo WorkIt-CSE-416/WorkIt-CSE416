@@ -30,8 +30,8 @@ import { ViewResumeButton } from "./view-resume";
  * an application without opening it. A saved job's menu reads "Saved".
  *
  * Like a list row, the whole card opens the application's own page
- * (./[jobId]): the role is the link, stretched over the card. The match,
- * View Resume and the stage menu sit above that link (relative, z-10), so a
+ * (./[jobId]): the role is the link, stretched over the card. View Resume
+ * and the stage menu sit above that link (relative, z-10), so a
  * click on them, or a near miss in the gap around them, never opens it.
  *
  * THREE LAYOUTS BY THE CARD'S OWN WIDTH (`@container`): a card 1152px wide
@@ -42,7 +42,8 @@ import { ViewResumeButton } from "./view-resume";
  * 576px (`@xl`) the role and the controls share the first line and the steps
  * run the card's width under them; narrower, everything stacks. One row
  * from 768px left the role about 100px beside View Resume, the match and the
- * menu, so the role, the company and the place were cut to nothing.
+ * menu, so the role, the company and the place were cut to nothing. The
+ * match pill now sits after the role, not with the controls.
  */
 function ApplicationCard({
   item,
@@ -67,15 +68,21 @@ function ApplicationCard({
         <div className="flex min-w-0 items-start gap-3">
           <ApplicationTile application={item} size="md" />
           <div className="min-w-0">
-            <h2 className="text-subtitle text-ink truncate leading-5">
-              <Link
-                href={href}
-                title={item.role}
-                className="after:rounded-card focus-visible:after:ring-brand-ring after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
-              >
-                {item.role}
-              </Link>
-            </h2>
+            {/* The match sits right after the role, the first thing read,
+                as how good a fit the job is (2026-11-05); beside the stage
+                menu it read as part of the controls. */}
+            <div className="flex min-w-0 items-center gap-2">
+              <h2 className="text-subtitle text-ink min-w-0 truncate leading-5">
+                <Link
+                  href={href}
+                  title={item.role}
+                  className="after:rounded-card focus-visible:after:ring-brand-ring after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
+                >
+                  {item.role}
+                </Link>
+              </h2>
+              {item.match != null && <MatchBadge score={item.match} />}
+            </div>
             <p className="text-note text-ink-meta mt-1 flex items-center gap-1.5">
               <CompanyIcon className="size-3.5 shrink-0" />
               <span className="truncate">{item.company}</span>
@@ -95,7 +102,6 @@ function ApplicationCard({
         />
 
         <div className="relative z-10 flex flex-wrap items-center gap-2 @xl:col-start-2 @xl:row-start-1 @xl:justify-end @6xl:col-start-3 @6xl:flex-nowrap">
-          {item.match != null && <MatchBadge score={item.match} />}
           {/* On one row a long resume name shortens rather than wrapping the controls. */}
           {item.sentResume && <ViewResumeButton resume={item.sentResume} className="shrink" />}
           <StageMenu

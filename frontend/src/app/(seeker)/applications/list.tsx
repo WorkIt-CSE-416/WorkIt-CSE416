@@ -30,9 +30,7 @@ import {
   BriefcaseIcon,
   CalendarIcon,
   CoinIcon,
-  ExternalLinkIcon,
   FileIcon,
-  PencilIcon,
   PinIcon,
   SortIcon,
   workStyleIcon,
@@ -78,15 +76,17 @@ import { ViewResumeButton } from "./view-resume";
  * The applications as a table, one row each, in the order job trackers read
  * (KAN-256): what and who (Role, with its company under it), where it stands (Status, Date
  * Applied), how good it is (Match), the job's facts (Job Type;
- * Location; Work Model; Pay Range), where and what was sent (Source, the
- * hiring system its posting is on; Resume; Posting, open or not), and Notes /
- * Next Step last, the widest and least scanned. Role stays frozen at the
+ * Location; Work Model; Pay Range), and what was sent and whether it is still
+ * open (Resume; Posting). Role stays frozen at the
  * left while the rest scrolls. Company and Role were two frozen columns
  * (KAN-256) until they took so much width that few other columns showed;
  * stacked in one again, the company's name is still filtered and sorted on
  * as its own field.
  *
- * Notes / Next Step is a placeholder for now: nothing stores notes yet.
+ * Source and Notes / Next Step left the table (2026-11-05): the user found
+ * them more than a row needs. Source, the hiring system the posting is on,
+ * is on the application's page (./[jobId]/your-application.tsx) and stays a
+ * filter here; Notes was a placeholder, since nothing stores notes yet.
  *
  * Status is the stage menu (./[jobId]/tracker-controls.tsx's StageMenu,
  * 2026-11-05), so a stage changes from the row as from a card; its cell
@@ -250,7 +250,6 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
     />
   ),
   pay: (app) => <FactValue Icon={CoinIcon} value={app.pay} missing="Not listed" />,
-  source: (app) => <FactValue Icon={ExternalLinkIcon} value={app.source} missing="Unknown" />,
   // View Resume (KAN-267): the button names the resume, filling the cell.
   resume: (app) =>
     app.sentResume ? (
@@ -262,8 +261,6 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
   // that is over.
   posting: (app) =>
     app.open === false ? <Badge tone="inert">Closed</Badge> : <Badge tone="positive">Open</Badge>,
-  // A placeholder until notes are stored.
-  notes: () => <FactValue Icon={PencilIcon} value={null} missing="No notes yet" />,
 };
 
 const helper = createColumnHelper<typeof FEATURES, Application>();
