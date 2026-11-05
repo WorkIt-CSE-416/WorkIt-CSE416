@@ -53,8 +53,8 @@ import { INBOX_LIVE } from "./inbox/live";
  * Profile is a row rather than something behind the account in the bar:
  * a profile is somewhere a job seeker goes back to all through a hunt, not
  * somewhere they visit once, and a click of depth is the wrong price for
- * that. Its page is still "My Profile", where "My" separates it from an
- * employer's profile; the seeker's own panel needs no such word.
+ * that. It was "My Profile" until 2026-11-05; in the seeker's own shell no
+ * employer's profile is ever named, so "My" told nothing apart.
  *
  * Resumes & Experiences sits right after the Applications Tracker, beside
  * the work it feeds: every application goes out with a resume. It sat just
@@ -69,7 +69,7 @@ import { INBOX_LIVE } from "./inbox/live";
  * and on the phone's sheet alike. They were the rail's short names, beside
  * "Applications Tracker", "Resumes & Experiences" and "My Profile" on the
  * sheet, and the user found two names for one section confusing. The
- * pages' own headings keep their full names.
+ * bar's title, page titles, Back links and breadcrumbs use the same names.
  */
 const GROUPS: SidebarNavGroup[] = [
   {

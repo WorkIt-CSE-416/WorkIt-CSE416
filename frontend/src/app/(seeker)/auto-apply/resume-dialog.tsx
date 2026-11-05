@@ -102,7 +102,7 @@ export function ResumeDialog({
           <ResumeLists
             name={`resume-for-${jobId}`}
             choices={choices}
-            empty="None yet. Generate or upload one on Resumes & Experiences."
+            empty="None yet. Generate or upload one on Resumes."
             picked={picked}
             onPick={setPicked}
           />
