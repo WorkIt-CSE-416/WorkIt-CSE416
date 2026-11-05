@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { chromium, expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { startFakeNet, type FakeNet, type Handler } from "./loaded-extension";
+import { SESSION_COOKIE, sessionCookie, startFakeNet, type FakeNet, type Handler } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 let out: string;
@@ -40,13 +40,11 @@ async function loadStoreBuild(handlers: Handler[]): Promise<{ id: string; page: 
   profile = mkdtempSync(join(tmpdir(), "workit-extension-"));
   context = await chromium.launchPersistentContext(profile, { channel: "chromium", headless: true, args: net.args });
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
-  // TEMP (KAN-447 debug): surface the background worker's own console so a
-  // swallowed error shows up in CI instead of a bare 30s timeout.
-  worker.on("console", (msg) => console.log(`[sw ${msg.type()}]`, msg.text()));
-  // The deployed site's session cookie, as test/loaded-extension.ts's signIn sets the dev one.
-  const session = { access_token: "test-access-token", refresh_token: "test-refresh-token", expires_at: Math.floor(Date.now() / 1000) + 3600 };
-  const value = `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`;
-  await context.addCookies([{ name: "sb-zhdrvdrojipkluhzgsea-auth-token", value, url: "https://workitjobs.ai/" }]);
+  // The deployed site's session cookie: the same token shape FakeApi's default `token` expects
+  // (tokenFor's base64url {sub}), not an arbitrary string -- a plain placeholder here 401s every
+  // real API call (FakeApi logs a call before checking auth, so the ping test's api.calls.length
+  // check never caught it; run/open actually needs the calls to succeed).
+  await context.addCookies([{ name: SESSION_COOKIE, value: sessionCookie(), url: "https://workitjobs.ai/" }]);
   const page = await context.newPage();
   await page.goto("https://workitjobs.ai/onboarding");
   return { id: new URL(worker.url()).host, page };
@@ -70,13 +68,7 @@ test("the deployed site's Start batch opens the queued job's form in the Store b
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ANDURIL) });
   const { id, page } = await loadStoreBuild([localApp, deployed(api), site, forms.handler]);
   expect(await send(page, id, { type: "run/open" })).toMatchObject({ ok: true });
-  // TEMP (KAN-447 debug): what actually opened, and what the background asked for, when the poll fails.
-  await expect.poll(() => context.pages().some((p) => p.url() === forms.url(ANDURIL)), { timeout: 30_000 }).toBe(true).catch((e) => {
-    console.log("[debug] expected form url:", forms.url(ANDURIL));
-    console.log("[debug] open pages:", context.pages().map((p) => p.url()));
-    console.log("[debug] net.asked:", net.asked);
-    throw e;
-  });
+  await expect.poll(() => context.pages().some((p) => p.url() === forms.url(ANDURIL)), { timeout: 30_000 }).toBe(true);
   expect(forms.submissions).toEqual([]);
   expect(net.asked.filter((url) => url.includes("localhost"))).toEqual([]);
 });
