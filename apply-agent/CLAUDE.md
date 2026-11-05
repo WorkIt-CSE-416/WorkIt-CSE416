@@ -306,6 +306,39 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
 in Chromium: a submit by Lisul is Applied with the Sent resume, and no
 submit sends nothing. `-k saves_the_record_again` checks his submit's Record.
 
+## Already applied: no form is opened again (KAN-621)
+
+On 2026-11-04 a rehearsal filled Astranis, which Lisul had applied to. The
+Applications Tracker had it at applied. The held page had a live Submit,
+and he sent it a second time.
+
+`src/apply/already_applied.py` checks each link before any page opens
+(`Adapters.applied_before`; live: `already_applied.Check`). It reads
+WorkIt one time per run or rehearsal, through `WorkIt.applications`.
+
+- A link is already applied when one of these says so:
+  - WorkIt has an application at applied or later on the same job
+    (`job_key`, so another Greenhouse host matches too);
+  - Apply's Tracker (`tracker.json`) has a submitted row with the same
+    Application ID or job;
+  - a Record of the same Application has `after-submit.png`.
+- A rehearsal of such a link ends as "already applied". Its terminal line
+  and its tile say "Already applied on <date> (<source>)". No browser
+  opens. A run makes it a Handoff and opens no form.
+- `apply rehearse --force` fills it anyway. The held page keeps the submit
+  guard on, under a red "You already applied on <date>, don't submit"
+  note. Lisul presses Dismiss, then "Yes, I'm sure: unblock this page".
+  Only then does `lift` take the guard off. The second button has no word
+  that the guard blocks.
+- WorkIt that cannot be read (no login, an expired login, no answer) is
+  never a silent pass. The window's status line and the terminal say why
+  (`already_applied.UNCHECKED`). The local checks still run.
+- The check only reads WorkIt: it writes nothing there.
+
+**Tests.** `tests/test_already_applied.py` (in CI) runs the check against
+`tests/fake_tracker.py`. `tests/test_rehearse.py -k "already_applied or
+could_not_run or force_rehearses"` rehearses in Chromium.
+
 ## The tailored resume is the Sent resume (KAN-547)
 
 A student can tailor a resume to a job posting on WorkIt (Tailor,
