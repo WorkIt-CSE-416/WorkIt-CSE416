@@ -18,8 +18,13 @@ package: a library with no database or HTTP of its own, handed everything by
 **The second exception is `../scraper/`**, installed as `workit-scraper`
 (KAN-605): `app/scraper/worker.py` calls provider readers through
 `asyncio.to_thread` and publishes directly through `import_feed`. The
-scraper stays stdlib-only; the backend uses it as a library. Two tables
-(`scraper_schedules`, `scraper_tasks`) track board catalogs and task leasing.
+scraper stays stdlib-only; the backend uses it as a library. Three tables
+(`scraper_schedules`, `scraper_tasks`, `job_sources`) track board catalogs,
+task leasing and which boards list which jobs. `job_sources` drives closure
+detection (KAN-619): a job stale on every enabled board (two complete reads
+without it, `last_seen_at < prior_read_at`) and supported by no other
+enabled board is closed with reason `gone_from_board`; a surge guard
+(same thresholds as the feed import) refuses mass closures.
 
 **Not PostgREST, deliberately.** Queries go to Postgres directly over asyncpg,
 because the job search needs ltree containment and trigram ranking, which
