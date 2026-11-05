@@ -204,6 +204,9 @@ class Plan:
     # The wording the Answer bank files each bare date's answer under, by name ("education / From (MM/DD/YYYY)"):
     # None when no section is known, and its answer is then never banked.
     filed: dict[str, str | None] = field(default_factory=dict)
+    # A follow-up ("If yes, ...") whose question is still to be answered (a draft, a Missing fact), by name: that
+    # question's name. Neither asked nor written yet: the worker decides it once that answer is in (not_called_for).
+    waiting: dict[str, str] = field(default_factory=dict)
 
 
 def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, bank: AnswerBank | None = None,
@@ -241,6 +244,7 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=result["drafts"], banked=result["banked"],
         accepted=accepted, blanks=dict(result.get("blanks") or {}),
         sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
+        waiting=dict(result.get("waiting") or {}),
     )
 
 
