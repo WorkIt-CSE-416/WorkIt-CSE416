@@ -161,7 +161,9 @@ What one Essay will say, picked for the whole form before any is written: its Qu
 _Avoid_: outline, essay brief, strategy
 
 **Catch-all box**:
-An optional free-text question that asks for anything at all rather than one thing ("Additional information", "Anything else you'd like us to know?", "Comments", "Other information"), on any job system: the anything-else Question type on a question the form doesn't require. It stays blank unless Apply has something new (not on the resume, the form's other answers or the cover letter) and relevant to this employer and role (a project close to the job the resume leaves out, a link the form didn't ask for, an availability note the form never asked), said in at most two sentences. A blank one is blank on purpose: Verifying notes it, and it never reaches Needs you. The one exception to "a blank optional is a bug".
+An optional free-text question that asks for anything at all rather than one thing ("Additional information", "Anything else you'd like us to know?", "Comments", "Other information"), on any job system: the anything-else Question type on a question the form doesn't require.
+Apply always leaves it blank on purpose. Claude never drafts it, and Needs you never asks it. Verifying notes it as blank on purpose.
+A required one is answered briefly. A catch-all box is the one exception to "a blank optional is a bug".
 _Avoid_: additional info field, comments box
 
 **High-stakes essay**:
