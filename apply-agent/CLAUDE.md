@@ -580,10 +580,25 @@ writes that one answer again.
   replaced (`AnswerBank.redraft`: still Claude's, unreviewed). Lisul's own
   answer and a bare label are never replaced.
 
+- **On a plain Worker (KAN-615).** The button, its context box, the field's
+  lock and the read-back are fixed functions (`regenerate.OFFER`, `WORKING`,
+  `DONE`, `SHOWN` in `apply.plain.fixed`), run in the page's own world, where
+  the `__applyRegenerate` binding is. No eval and no init script, so page CSP
+  never stops them. A plain page has no init script for the button, so each
+  turn of the hold loop calls `regenerate.keep`, which offers it again in
+  frames loaded since. Captcha frames are skipped. The Fill engine puts the
+  new answer in, in the frame that shows the field, as it filled the form.
+  Where it can't (a job system it doesn't know, or a field it can't find),
+  the page's input events do it, as on a CDP page. The window's card works
+  the same on both kinds of Worker.
+
 **Tests.** `tests/test_regenerate.py` (in CI, no browser): the regenerate,
 its Story bank line, the caps and invented facts, the Answer bank, the
 window's route. `tests/test_rehearse.py -k regenerate` presses the button
 on the fake Lever form (Hermeus) in Chromium; it opens a browser.
+`tests/test_plain_regenerate.py` does the same on the fake Ashby form (Harvey)
+in one reused plain Worker (Chrome for Testing): once on the page, once from
+the window.
 
 ## Prompts and gates
 

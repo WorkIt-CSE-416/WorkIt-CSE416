@@ -747,7 +747,7 @@ class _Redo:
         if redone.text:
             note = "New answer from your context" + (f". Check: {'; '.join(redone.checks)}" if redone.checks else "") \
                 + ". Edit it if you like; nothing is sent."
-            shows = regenerate.done(page, name, redone.text, note, True)
+            shows = regenerate.done(page, name, redone.text, note, True, written.question, done.posting.job_system)
             written.state = ""
             if shows is None:
                 written.why = "; ".join(filter(None, [written.why, "not on the page shown: paste it into its field"]))
@@ -1015,6 +1015,8 @@ class _Kept:
                     holding = now
                     renote(self._page, *(note() if note else (warning, wrong)), holding)
                 if redo:
+                    if self._offered:  # a plain page's frames loaded since get the button too
+                        regenerate.keep(self._page, redo.written())
                     asked, regenerates[:] = regenerates + redo.asked(), []
                     for name, context in asked:
                         redo(self._page, name, context)
