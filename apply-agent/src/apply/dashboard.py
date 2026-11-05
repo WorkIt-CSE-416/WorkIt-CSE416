@@ -247,6 +247,9 @@ def verdict(caption: dict) -> dict[str, str]:
         stage = {"getting ready": "Getting ready", "ready": "Ready"}.get(str(caption.get("stage") or ""))
         tone, label, kind = "filling", stage or WORDS["filling"][0], "filling"
         detail = str(caption.get("doing") or "")
+    elif status == "submitted":  # sent: what it asked of Lisul before waits on him no more (KAN-622)
+        tone, label, kind = "submitted", f"{WORDS['verified'][0]} and sent" if verified else SENT, "submitted"
+        detail = why
     elif missing or status == "missing fact":
         needs = {"kind": "missing fact", "do": "Answer a question only you know", "why": missing or plain(why),
                  "then": "Saved to your facts, for every form that asks it, and filled in on this form" if missing
@@ -266,9 +269,6 @@ def verdict(caption: dict) -> dict[str, str]:
         detail = "\n".join(filter(None, [
             "Nothing has been sent. This page is yours now: check it, and press Submit yourself to send it "
             "(it goes in your Tracker)", why and f"In a real run this would wait for your OK: {plain(why)}"]))
-    elif status == "submitted":
-        tone, label, kind = "submitted", f"{WORDS['verified'][0]} and sent" if verified else SENT, "submitted"
-        detail = why
     elif status == "held":
         needs = {"kind": "held", "do": "Review and approve before it's sent", "why": plain(why),
                  "then": "Approve it here and it's sent at the next check, within 5 minutes"}
@@ -300,6 +300,9 @@ def verdict(caption: dict) -> dict[str, str]:
         tone, label, kind = "ended", f"Skipped: {why}", "skipped"
     elif status == "paused":
         tone, label, kind = "ended", "Paused at Claude's usage limit; it goes on by itself", "skipped"
+    elif status == "already applied":  # KAN-621: the form was never opened
+        tone, label, kind = "ended", (why or "Already applied").split(" (")[0], "skipped"
+        detail = f"{why}. Apply didn't open the form, so nothing was filled or sent"
     resume = caption.get("resume") or {}
     if needs and resume.get("ok") and needs["kind"] not in ("captcha", "blocked"):  # a rehearsal paused mid-form: Lisul fixes the page, and Resume goes on
         needs["then"] = ("Nothing was sent. Fix it on the page (Fix here, or Open in Chrome), then press Resume: "
@@ -402,7 +405,8 @@ class Board(Protocol):
         tomorrow (the Daily cap stopped it; how many wait), paused_until (an
         ISO time, at a usage limit; None once it goes on), start ("waiting":
         forms are still getting ready; "ready": the Start button is shown;
-        "started")."""
+        "started"), unchecked (why Apply couldn't check WorkIt for jobs
+        already applied to, KAN-621)."""
         ...
 
     def answered(self, worker: int) -> list[tuple[str, str]]:
@@ -610,6 +614,8 @@ class Dashboard:
             if "files" in caption:  # the plan's files, and each one Lisul picked in the tile too
                 caption["files"] = list(caption["files"] or []) + [
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
+            if caption.get("status") == "submitted":  # sent: its Missing facts and Essay facts ask him no more
+                caption = caption | {"missing": [], "choices": {}, "required": {}, "where": {}}
             tile.update(caption)
             status = str(tile.get("status") or "")
             ended = "status" in caption and status not in ("", "filling", "paused")

@@ -669,6 +669,51 @@ def test_lisuls_own_submit_saves_the_record_again_as_submitted_with_its_confirma
     assert any("its Record says submitted" in line for line in lines)
 
 
+def test_a_held_form_lisul_sends_with_a_missing_fact_open_shows_as_sent_and_leaves_needs_you(monkeypatch, tmp_path):
+    # Saronic, 2026-11-04: he sent the held form himself; the tile still asked its Missing facts, so it looked unsent.
+    from apply.dashboard import Dashboard, NoFrames
+
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    real = rehearsal.lift
+
+    def lift(page, **heard):  # he types the Missing fact on the page, not in the window, and sends it
+        real(page, **heard)
+        page.get_by_label("Last Name").first.fill("Elvitigala")
+        page.get_by_role("button", name="Submit application").click()
+    monkeypatch.setattr(rehearsal, "lift", lift)
+    rescued = []
+    monkeypatch.setattr(rehearsal.Rescue, "field", lambda self, page, label, value, error: rescued.append(label))
+    profile = ApplicantProfile.load(profile_with(tmp_path, **{"identity.legal_last_name": None}))
+    asked = []
+
+    class Board(Dashboard):
+        late = [("Last Name", "Elvitigala")]  # his answer in the window, given after the form went in
+
+        def update(self, worker, **caption):
+            super().update(worker, **caption)
+            if caption.get("status") == rehearsal.READY:
+                asked.append(list(self.state()["tiles"][0].get("missing") or []))
+
+        def answered(self, worker):
+            if self._captions[worker].get("status") == "submitted" and self.late:
+                given, self.late = self.late, []
+                return given
+            return super().answered(worker)
+
+    board = Board(1, NoFrames())
+    with FakeJobServer(ARC_FORM) as fake:
+        hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=InMemoryTracker(),
+                   with_adapters={"board": board})
+        submissions = fake.submissions
+
+    assert len(submissions) == 1 and asked and asked[0]  # held with a Missing fact open, then sent by him
+    [tile], items = board.state()["tiles"], board.state()["items"]
+    assert tile["tone"] == "submitted" and tile["label"].endswith(("Sent", "sent")) and tile["missing"] == []
+    assert "you submitted it; it is in the Tracker" in tile["detail"]
+    assert [i["tone"] for i in items] == ["submitted"]  # no card for it waits in Needs you
+    assert not board.late and rescued == []  # the late answer filled nothing on the sent form
+
+
 def test_a_captcha_after_lisuls_own_submit_pushes_him_to_do_it(monkeypatch, tmp_path):
     # Lisul (2026-11-03): in a rehearsal he presses Submit and does the captcha himself; Apply only tells him.
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
@@ -1357,3 +1402,88 @@ def test_a_setup_error_stops_its_link_on_one_line_and_leaves_no_repair_request(m
     assert "claude auth login" in line and "\n" not in line
     assert "Traceback" not in capsys.readouterr().err
     assert repairs.all() == []
+
+
+class AppliedTo:
+    """The already applied check (KAN-621), answering for every link: applied on 2026-10-28, or not; and why
+    WorkIt could not be checked."""
+
+    def __init__(self, applied: bool = True, problem: str = ""):
+        from apply.already_applied import Applied
+
+        self._found = Applied(datetime(2026, 10, 28).date(), "your Applications Tracker on WorkIt: applied") \
+            if applied else None
+        self._problem = problem
+        self.asked: list[str] = []
+
+    def of(self, posting, *links):
+        self.asked.append(posting.url)
+        return self._found
+
+    def problem(self):
+        return self._problem
+
+
+def test_a_link_already_applied_to_ends_before_its_form_opens(monkeypatch, tmp_path):
+    # Astranis, 2026-11-04: the rehearsal filled a form he had applied to, Submit live, and he sent it again.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    board, lines, check = RecordingBoard(), [], AppliedTo()
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearsal.rehearse([ARC_URL], adapters(fake, board=board, applied_before=check),
+                                    ApplicantProfile.load(profile_with(tmp_path)), keep_open=False, out=lines.append)
+        opened = list(fake.workers)
+
+    assert opened == []  # no browser, no form
+    assert check.asked == [ARC_URL]
+    assert done.outcome == "already applied"
+    assert lines == ["Arc Boat Company | Software Engineering Intern | greenhouse | Already applied on 2026-10-28 "
+                     "(your Applications Tracker on WorkIt: applied); Apply didn't open the form. "
+                     "`apply rehearse --force` rehearses it anyway, with Submit blocked"]
+    caption = board.captions[0]
+    assert (caption["status"], caption["why"]) == (
+        "already applied", "Already applied on 2026-10-28 (your Applications Tracker on WorkIt: applied)")
+
+
+def test_a_check_that_could_not_run_is_said_in_the_window_and_the_terminal(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    board, lines = RecordingBoard(), []
+    check = AppliedTo(applied=False, problem="you are not signed in to WorkIt (run `uv run apply login`)")
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearsal.rehearse([ARC_URL], adapters(fake, board=board, applied_before=check),
+                                    ApplicantProfile.load(profile_with(tmp_path)), keep_open=False, out=lines.append)
+
+    said = ("Couldn't check your Applications Tracker on WorkIt for jobs you already applied to: you are not signed "
+            "in to WorkIt (run `uv run apply login`). Apply checked only its own Tracker and Records")
+    assert {"unchecked": said} in board.runs
+    assert lines[0] == said
+    assert done.outcome == "ready to submit"  # not applied to: it fills
+
+
+def test_force_rehearses_it_but_submit_stays_blocked_until_the_red_note_is_dismissed(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])  # once the guard is off
+    real, seen = rehearsal.warn_applied, {}
+
+    def warned(page, day, dismissed=None):
+        real(page, day, dismissed)
+        seen["note"] = page.locator("#apply-already-applied").inner_text()
+        page.get_by_role("button", name="Submit application").click()  # blocked
+        page.wait_for_timeout(500)
+        seen["sent before"] = len(fake.submissions)
+        page.get_by_role("button", name="Dismiss").click()
+        seen["sent after one press"] = len(fake.submissions)
+        page.get_by_role("button", name="Yes, I’m sure: unblock this page").click()
+    monkeypatch.setattr(rehearsal, "warn_applied", warned)
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+
+    with FakeJobServer(ARC_FORM) as fake:
+        lines = hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], force=True,
+                           with_adapters={"applied_before": AppliedTo()})
+        submissions = len(fake.submissions)
+
+    assert seen["note"].startswith("You already applied on 2026-10-28, don’t submit.")
+    assert (seen["sent before"], seen["sent after one press"]) == (0, 0)
+    assert submissions == 1  # his, once he dismissed the note on purpose
+    assert any(line.startswith("Arc Boat Company | ") and "ready to submit" in line for line in lines)

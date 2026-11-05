@@ -49,7 +49,10 @@ drives, in a live run too, so Haiku can't send the form though its prompt
 fails: it also blocks a sign-in other than Google's (another site's, and a
 sign-in or create-account form's own button or submission), a payment,
 withdrawing or deleting the application, account or profile (a file's
-Delete goes on), and ticking an opt-in to texts or marketing. Unlike the
+Delete goes on), ticking an opt-in to texts or marketing, and, while Claude
+drives, every click, tap or key in a captcha's own frame (an "I'm not a
+robot" box, its picture challenge): Apply never touches a captcha, and
+Lisul's own clicks there go through once Claude stops. Unlike the
 rehearsal's, it is lifted for Claude fill's own submit click, and says what
 it blocked, so Claude fill makes a blocked attempt a Handoff (but for a
 click on the submit button Claude names on the form's last step: nothing
@@ -91,7 +94,10 @@ _TEMPLATE = r"""
   if (window.__@KEY@Guard) return;
   // A captcha's own frame is Lisul's to do (apply.captcha): nothing in it is the application.
   const host = location.hostname, path = location.pathname;
-  if (@CAPTCHA_HOSTS@.some((h) => host === h || host.endsWith('.' + h)) || @CAPTCHA_PATHS@.some((p) => path.startsWith(p))) return;
+  if (@CAPTCHA_HOSTS@.some((h) => host === h || host.endsWith('.' + h)) || @CAPTCHA_PATHS@.some((p) => path.startsWith(p))) {
+@CAPTCHA@
+    return;
+  }
   window.__@KEY@Guard = true;
   const lifted = () => @LIFTED@;
   // Plain code's click on the button Claude fill named on a sign-in or account page.
@@ -290,14 +296,35 @@ _CONTROLS = r"""
 """
 
 
-def _script(key: str, name: str, lifted: str = "false", extra: str = "") -> str:
+# The drive guard in a captcha's own frame: while Claude drives (DriveGuard.arm), every click, tap and key
+# there is refused before the captcha's own code hears it, so Claude never ticks, types in or solves one.
+# Lisul's own clicks go through once Claude stops (DriveGuard.rest), for the captcha wait.
+CAPTCHA_TRY = "a click or key in a captcha"
+_IN_CAPTCHA = r"""
+    if (window.__applyDriveCaptchaGuard) return;
+    window.__applyDriveCaptchaGuard = true;
+    const refuse = (event) => {
+      if (window.__applyDriveLifted === true || window.__applyDriving !== true || !event.isTrusted) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.type === 'pointerdown' || event.type === 'keydown') console.warn('Apply drive guard blocked @TRY@');
+    };
+    for (const kind of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'auxclick',
+                        'touchstart', 'touchend', 'keydown', 'keypress', 'keyup', 'beforeinput', 'input', 'paste']) {
+      addEventListener(kind, refuse, true);
+    }
+"""
+
+
+def _script(key: str, name: str, lifted: str = "false", extra: str = "", in_captcha: str = "") -> str:
     """The guard's script under its own `window.__<key>Guard`, so two guards
     can share a page, naming itself `name` in the note on what it blocked:
-    off while the JS `lifted` is true, and blocking `extra`'s controls too."""
+    off while the JS `lifted` is true, and blocking `extra`'s controls too;
+    `in_captcha` runs in a captcha's own frame, which the guard leaves alone."""
     box = name.lower().replace(" ", "-") + "-blocked"
     script = _TEMPLATE
     for placeholder, value in {"@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@EXTRA@": extra,
-                               "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
+                               "@CAPTCHA@": in_captcha, "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
                                "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS)}.items():
         script = script.replace(placeholder, value)
     return script
@@ -323,7 +350,8 @@ def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False) -> st
     """The drive guard's script, letting through ticking an opt-in to texts or
     marketing that Lisul's policy says yes to."""
     controls = _CONTROLS.replace("@SMS_OPT_IN@", _js(sms_opt_in)).replace("@MARKETING_OPT_IN@", _js(marketing_opt_in))
-    return _script("applyDrive", "Apply drive guard", lifted="window.__applyDriveLifted === true", extra=controls)
+    return _script("applyDrive", "Apply drive guard", lifted="window.__applyDriveLifted === true", extra=controls,
+                   in_captcha=_IN_CAPTCHA.replace("@TRY@", CAPTCHA_TRY))
 
 
 def _js(yes: bool) -> str:
@@ -449,15 +477,82 @@ def rearm(page: Page) -> None:
 
 def renote(page: Page, warning: str = "", wrong: bool = True) -> None:
     """Say the note of a page already lifted anew: Lisul answered in the window
-    what it said was left blank. Its Fill again button stays."""
+    what it said was left blank. Its Fill again button stays. A page still
+    guarded (one Lisul already applied to, KAN-621) stays guarded."""
     script = LIFTED.replace("AGAIN", "true").replace("WRONG", "true" if wrong else "false")
     script = script.replace("WARNING", json.dumps(warning))
+    script = f"if (window.__applyRehearsalLifted === true) {script}"
     page.context.add_init_script(script)  # after lift's: a page loaded from it says the same
     for frame in page.frames:
         try:
             frame.evaluate(script)
         except Exception:
             pass
+
+
+# The note on a held page of a Posting Lisul already applied to (`apply rehearse --force`, KAN-621). The guard
+# stays on under it, so Submit is blocked, until he dismisses it with two presses: the first asks, the second
+# calls __applyDismissApplied, and hold() then lifts the guard. A page loaded after that shows no note.
+APPLIED_NOTE = r"""
+(() => {
+  const day = DAY;
+  const show = () => {
+    if (window !== window.top || window.__applyAppliedDismissed || document.getElementById('apply-already-applied')) return;
+    const box = document.createElement('div');
+    box.id = 'apply-already-applied';
+    box.setAttribute('role', 'alert');
+    box.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:1999999999;'
+      + 'padding:10px 14px;max-width:560px;background:#b00020;color:#fff;font:bold 15px sans-serif;'
+      + 'border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+    const words = document.createElement('span');
+    words.textContent = 'You already applied on ' + day + ', don’t submit. Apply keeps Submit blocked on this page.';
+    box.appendChild(words);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Dismiss';
+    button.style.cssText = 'margin-left:10px;cursor:pointer;font:13px sans-serif';
+    let asked = false;
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (!asked) {
+        asked = true;
+        button.textContent = 'Yes, I\u2019m sure: unblock this page';  // no word the guard blocks (submit, send...)
+        return;
+      }
+      window.__applyAppliedDismissed = true;
+      box.remove();
+      if (window.__applyDismissApplied) window.__applyDismissApplied();
+    });
+    box.appendChild(button);
+    (document.body || document.documentElement).appendChild(box);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show); else show();
+})();
+"""
+
+
+def warn_applied(page: Page, day: str, dismissed: Callable[[], None] | None = None) -> None:
+    """Show the red "You already applied on <day>, don't submit" note on a held page, this one and every page
+    loaded from it. The guard stays on: Submit is blocked. `dismissed` hears his second press of Dismiss (None:
+    the page has the binding already)."""
+    if dismissed:
+        page.expose_binding("__applyDismissApplied", lambda source: dismissed())
+    script = APPLIED_NOTE.replace("DAY", json.dumps(day))
+    page.context.add_init_script(script)
+    try:
+        page.evaluate(script)  # the top frame only: the script shows nothing in a form's frame
+    except Exception:
+        pass
+
+
+def applied_dismissed(page: Page) -> None:
+    """Lisul dismissed the note: no page loaded from now on shows it (lift() then takes the guard off)."""
+    script = "window.__applyAppliedDismissed = true"
+    page.context.add_init_script(script)
+    try:
+        page.evaluate(script)
+    except Exception:
+        pass
 
 
 def _refuse(route: Route) -> None:
@@ -481,6 +576,7 @@ class DriveGuard:
     def __init__(self, page: Page, sms_opt_in: bool = False, marketing_opt_in: bool = False):
         self._page = page
         self._blocked: list[str] = []
+        self._driving = False
         script = drive_script(sms_opt_in, marketing_opt_in)
         page.context.on("console", self._heard)
         page.context.add_init_script(script)
@@ -501,6 +597,12 @@ class DriveGuard:
 
     def lift(self) -> None:
         self._in_frames("window.__applyDriveLifted = true")
+        self.rest()
+
+    def rest(self) -> None:
+        """Claude stopped driving: a captcha's frame takes Lisul's clicks
+        again, for the captcha wait. The rest of the guard stays on."""
+        self._set_driving(False)
 
     def let_account_click(self) -> None:
         """Let plain code's next click sign in or make an account: its button,
@@ -510,6 +612,21 @@ class DriveGuard:
 
     def arm(self) -> None:
         self._in_frames("window.__applyDriveLifted = false; window.__applyAccountClick = false")
+        self._set_driving(True)
+
+    def _set_driving(self, driving: bool) -> None:
+        """Claude drives now, or not: so a captcha's frame refuses every click
+        and key, or lets them through. A frame loaded later (a challenge
+        opening) starts the same way, by the init script."""
+        if driving == self._driving:
+            return
+        self._driving = driving
+        script = f"window.__applyDriving = {_js(driving)}"
+        try:
+            self._page.context.add_init_script(script)
+        except Exception:
+            pass  # a context closing: nothing more loads in it
+        self._in_frames(script)
 
     def _heard(self, message) -> None:
         for said in HEARD:

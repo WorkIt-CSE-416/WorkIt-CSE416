@@ -18,6 +18,15 @@ from fake_lever import FakeLeverServer
 from fakes import FakeJobServer
 
 from apply import browsers, cli, cover_letter, gates, home, profile
+
+# Never the student's own data folder: data_folder() deletes HOME before each test. Were
+# Apply imported before APPLY_HOME was set above, HOME would be ~/.config/apply (it was,
+# 2026-11-04, and the fixture wiped it): stop the whole run instead.
+TEST_HOME = Path(os.environ["APPLY_HOME"]).resolve()
+if home.HOME.resolve() != TEST_HOME or home.HOME.resolve() == Path("~/.config/apply").expanduser().resolve():
+    pytest.exit(f"Apply's data folder is {home.HOME}, not the tests' own {TEST_HOME}: refusing to run, "
+                "since each test deletes it. Run pytest from apply-agent/ so tests/conftest.py loads first.", 2)
+
 from apply.fill_engine import ENGINE_DIR
 from apply.model import Kind, Posting, Question
 
@@ -92,6 +101,8 @@ def data_folder() -> Path:
     """Each test runs on a fresh copy of the Test Person sample data in APPLY_HOME, with the
     tests' Story bank (the episodes they quote): whatever a test writes there (Traces, sent
     files, briefs, the ledger, Story bank answers) is gone by the next test."""
+    if home.HOME.resolve() != TEST_HOME:  # never anything but the folder this run made
+        pytest.exit(f"Refusing to delete {home.HOME}: it is not the tests' own data folder.", 2)
     shutil.rmtree(home.HOME, ignore_errors=True)
     shutil.copytree(home.SAMPLE, home.HOME)
     shutil.copy(FIXTURES / "story-bank.md", home.STORY_BANK)

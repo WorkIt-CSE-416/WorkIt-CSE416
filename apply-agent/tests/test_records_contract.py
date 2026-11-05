@@ -123,6 +123,18 @@ def test_saving_an_application_again_replaces_its_record(backend):
     assert b"submitted" in files["README.md"]
 
 
+def test_saving_again_with_no_screenshot_keeps_the_one_it_had(backend):
+    # Visa, Northrop and Zillow (2026-11-03): a shutdown closed the page, and the Record saved after it had no screenshot.
+    held = record(status=Status.HELD)
+    backend.records.save(held)
+    gone = Record(held.posting, Status.HANDOFF, "", Filled([], {}, {}, b""), held.day)
+    link = backend.records.save(gone)
+
+    files = backend.read(link)
+    assert files["form.png"] == PNG
+    assert b"handoff" in files["README.md"]
+
+
 # The git adapter alone: what a real clone and remote add.
 
 

@@ -123,6 +123,17 @@ def _readme(record: Record, rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _write(target: Path, files: dict[str, bytes]) -> None:
+    """Write a Record's files into its folder. An empty screenshot (the page was gone, as after a
+    shutdown) never takes the place of one already there."""
+    target.mkdir(parents=True, exist_ok=True)
+    for name, data in files.items():
+        path = target / name
+        if not data and name.endswith(".png") and path.is_file() and path.stat().st_size:
+            continue
+        path.write_bytes(data)
+
+
 class InMemoryRecords:
     """The Records fake for whole-run tests."""
 
@@ -131,7 +142,9 @@ class InMemoryRecords:
 
     def save(self, record: Record) -> str:
         link = f"memory://apply-records/{folder(record)}"
-        self._saved[link] = record_files(record)
+        kept = self._saved.get(link, {})
+        self._saved[link] = {name: data or (kept.get(name, b"") if name.endswith(".png") else data)
+                             for name, data in record_files(record).items()}
         return link
 
     def files(self, link: str) -> dict[str, bytes]:
@@ -150,9 +163,7 @@ class FolderRecords:
 
     def save(self, record: Record) -> str:
         target = self.root / folder(record)
-        target.mkdir(parents=True, exist_ok=True)
-        for name, data in record_files(record).items():
-            (target / name).write_bytes(data)
+        _write(target, record_files(record))
         return str(target)
 
 
@@ -180,10 +191,7 @@ class GitRecords:
         where = folder(record)
         with self._locked():
             self._ensure_clone()
-            target = self._clone / where
-            target.mkdir(parents=True, exist_ok=True)
-            for name, data in record_files(record).items():
-                (target / name).write_bytes(data)
+            _write(self._clone / where, record_files(record))
             self._git("add", "--", where)
             if self._git("status", "--porcelain", "--", where):
                 p = record.posting

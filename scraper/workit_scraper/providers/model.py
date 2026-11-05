@@ -215,3 +215,9 @@ class Provider:
     #: Cloudflare (KAN-169) but stays one line from coming back, so a logo from
     #: anywhere else must stay out of the feed. None reads only a website (logos.py).
     logo_pattern: re.Pattern[str] | None = None
+    #: A page where the hiring system names the board's company itself, and the
+    #: function reading that name from the page's text (`board_read.reported_name`).
+    #: Discovery names an open-jobs pool board by it, since the pool has no names
+    #: (docs/adr/0007-trust-the-hiring-systems-name.md). None: no pool board of its own.
+    name_url: str | None = None
+    read_name: Callable[[str], str | None] | None = None
