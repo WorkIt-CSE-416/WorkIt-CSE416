@@ -91,6 +91,14 @@ NOTED = re.compile(r"\s*\((selected|attached|checked|ticked)\)$", re.IGNORECASE)
 # at most, and how long a step may take to show once it's clicked.
 NEXT = re.compile(r"\b(next|continue|proceed|review)\b", re.IGNORECASE)
 MAX_STEPS = 8
+# A pop-up's title that makes it a profile step before the application, not the form (KAN-647).
+PROFILE_STEP = re.compile(r"\b(create|complete|build|set\s*up|finish)\b[^.]{0,30}\bprofile\b", re.IGNORECASE)
+DIALOG_TITLE = """el => {
+  const by = (el.getAttribute('aria-labelledby') || '').split(/\\s+/).filter(Boolean)
+    .map(id => (document.getElementById(id) || {}).innerText || '').join(' ');
+  const heading = el.querySelector('h1, h2, h3, [role=heading]');
+  return (el.getAttribute('aria-label') || by || (heading && heading.innerText) || '').trim();
+}"""
 STEP_SHOWS_MS = 8_000
 # What a page says once it has the application, and how long it may take to say so.
 THANKS = re.compile(
@@ -428,6 +436,11 @@ class ClaudeFill:
             next_button = str(done.get("next_button") or "").strip()
             if not next_button or SENDS.search(next_button) or not NEXT.search(next_button):
                 submit_button = str(done.get("submit_button") or next_button).strip()
+                if SENDS.search(submit_button) and (button := _profile_step(page, submit_button)) is not None:
+                    # A profile pop-up before the application (Microsoft's "Create your profile", its
+                    # button "Submit"): never the form's last page. Plain code sends it and goes on (KAN-647).
+                    self._through_profile_step(page, button, submit_button)
+                    continue
                 if not SENDS.search(submit_button):  # no Next and no button that sends: never "ready" mid-form (KAN-636)
                     raise Handoff(f"Claude fill found no Next and no button that sends on this step "
                                   f"({submit_button or 'none named'}), so it can't tell this is the form's last page. "
@@ -467,6 +480,28 @@ class ClaudeFill:
             if self._guard:
                 self._guard.arm()  # the account click's flag off again, in the step it led to
                 self._guard.rest()
+
+    def _through_profile_step(self, page: Page, button: Locator, name: str) -> None:
+        """Press a profile pop-up's button (one plain-code click the guards let through), and wait for
+        the application form to show behind it."""
+        self._steps += 1
+        if self._steps >= MAX_STEPS:
+            raise Handoff(f"Claude fill went through {MAX_STEPS} steps without reaching the form's last. Fill it in yourself.")
+        before = _fields_shown(page)
+        if self._guard is not None:
+            self._guard.let_profile_click()
+        try:
+            button.click()
+            waited = 0
+            while _fields_shown(page) == before or _profile_step(page, name) is not None:
+                if waited >= STEP_SHOWS_MS:
+                    raise Handoff(f"The profile step's {name!r} didn't go on to the application form: a required "
+                                  "answer may be missing or wrong on it. Fill it in yourself.")
+                page.wait_for_timeout(250)
+                waited += 250
+        finally:
+            if self._guard is not None:
+                self._guard.let_profile_click(False)
 
     def _clear_pop_up(self, page: Page) -> None:
         """A pop-up over the form, cleared by plain code, or a Handoff before
@@ -612,6 +647,22 @@ def _only_its_submit(blocked: list[str], said: dict) -> bool:
         return False
     clicks = [BLOCKED_CLICK.match(b) for b in blocked]
     return all(c and c[1].strip() and button.startswith(c[1].strip()) and SENDS.search(c[1]) for c in clicks)
+
+
+def _profile_step(page: Page, name: str) -> Locator | None:
+    """The button named `name` in an open pop-up that is a profile step before the application
+    ("Create your profile", "Complete your profile"), or None: the button is the form's own."""
+    try:
+        dialogs = page.locator("[role=dialog]:visible, [aria-modal=true]:visible, dialog[open]:visible").all()
+        for dialog in dialogs:
+            if not PROFILE_STEP.search(dialog.evaluate(DIALOG_TITLE)):
+                continue
+            buttons = [b for b in dialog.get_by_role("button", name=name, exact=True).all() if b.is_visible()]
+            if len(buttons) == 1:
+                return buttons[0]
+    except Exception:
+        return None
+    return None
 
 
 def _the_next(page: Page, name: str):

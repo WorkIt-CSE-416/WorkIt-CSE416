@@ -234,8 +234,11 @@ class PlainDriveGuard(DriveGuard):
     def let_account_click(self) -> None:
         self._flags(__applyAccountClick=True)
 
+    def let_profile_click(self, let: bool = True) -> None:
+        self._flags(__applyProfileClick=let)
+
     def arm(self) -> None:
-        self._flags(__applyDriveLifted=False, __applyAccountClick=False)
+        self._flags(__applyDriveLifted=False, __applyAccountClick=False, __applyProfileClick=False)
         self._set_driving(True)
 
     def _set_driving(self, driving: bool) -> None:

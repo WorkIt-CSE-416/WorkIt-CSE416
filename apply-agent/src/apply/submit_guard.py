@@ -110,6 +110,18 @@ _TEMPLATE = r"""
     const form = el.form || (el.closest && el.closest('form'));
     return !!form && !!form.querySelector('input[type=password]');
   };
+  // Plain code's click on the button of a profile step before the application (Microsoft's
+  // "Create your profile" pop-up names its button Submit, live: KAN-647).
+  const profileClick = () => window.__applyProfileClick === true;
+  const PROFILE_STEP = /\b(create|complete|build|set\s*up|finish)\b[^.]{0,30}\bprofile\b/i;
+  const profileStep = (el) => {
+    const dialog = el && el.closest && el.closest('[role=dialog], [aria-modal=true], dialog[open]');
+    if (!dialog) return false;
+    const by = (dialog.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
+      .map(id => (document.getElementById(id) || {}).innerText || '').join(' ');
+    const heading = dialog.querySelector('h1, h2, h3, [role=heading]');
+    return PROFILE_STEP.test(dialog.getAttribute('aria-label') || by || (heading && heading.innerText) || '');
+  };
   const FINAL_URLS = [
     /^https?:\/\/[^\/]*greenhouse\.io\/(?:embed\/job_app|[^\/?#]+\/jobs\/\d+\/?(?:[?#].*)?$)/i,
     /^https?:\/\/jobs\.lever\.co\/[^\/]+\/[0-9a-f-]{36}\/apply\/?(?:[?#].*)?$/i,
@@ -183,6 +195,7 @@ _TEMPLATE = r"""
     // Plain code's own click on an account form's button: Workday names its button "Submit" in its
     // Sign in with email view (Sonos's, live), and that click only signs in.
     if (accountClick() && accountForm(target)) return;
+    if (profileClick() && profileStep(target)) return;
     const words = wordsOf(target);
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -202,6 +215,7 @@ _TEMPLATE = r"""
     if (lifted()) return;
     const form = event.target, by = event.submitter;
     if (accountClick() && form.querySelector('input[type=password]')) return;  // plain code's sign-in, as above
+    if (profileClick() && profileStep(by || form)) return;  // plain code's profile step, as above
     const final = by ? sends(by)
       : [...form.querySelectorAll('button, input[type=submit]')].some(sends);
     if (held() && !final) return;  // a held page is Lisul's but for its Submit: a Next goes on
@@ -692,8 +706,14 @@ class DriveGuard:
         that sends the form, and the application request, are blocked still."""
         self._in_frames("window.__applyAccountClick = true")
 
+    def let_profile_click(self, let: bool = True) -> None:
+        """Let plain code's next click send a profile step's pop-up, one before the application
+        (Microsoft's "Create your profile", KAN-647): its button only, never the application request."""
+        self._in_frames(f"window.__applyProfileClick = {_js(let)}")
+
     def arm(self) -> None:
-        self._in_frames("window.__applyDriveLifted = false; window.__applyAccountClick = false")
+        self._in_frames("window.__applyDriveLifted = false; window.__applyAccountClick = false; "
+                        "window.__applyProfileClick = false")
         self._set_driving(True)
 
     def _set_driving(self, driving: bool) -> None:
