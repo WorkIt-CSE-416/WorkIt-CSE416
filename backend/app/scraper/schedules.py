@@ -59,11 +59,15 @@ async def select_due(conn: AsyncConnection) -> list:
 async def advance_reads(
     conn: AsyncConnection, schedule_id, *, now_expr=text("now()")
 ) -> None:
-    """After a complete board read: advance last_read_at, clear failures and rest."""
+    """After a complete board read: move last_read_at to prior_read_at, so the
+    last two complete reads are kept, then advance last_read_at and clear
+    failures and rest."""
     await conn.execute(
         update(_schedules)
         .where(_schedules.c.id == schedule_id)
         .values(
+            # The old value: SET reads every column as it was before the UPDATE.
+            prior_read_at=_schedules.c.last_read_at,
             last_read_at=now_expr,
             missing_at=None,
             consecutive_failures=0,
