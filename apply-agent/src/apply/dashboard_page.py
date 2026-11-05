@@ -937,8 +937,9 @@ const drawRun = (state) => {
   start.disabled = run.start !== 'ready';
   start.textContent = run.start === 'ready' ? `Start filling all ${forms}` : `Getting ${forms} forms ready…`;
   start.onclick = () => { start.disabled = true; fetch('/start', {method: 'POST', body: TOKEN}).then(refresh); };
-  line.className = run.paused_until || run.capped ? 'paused' : '';
-  line.textContent = run.paused_until ? `Paused: Claude's usage limit is reached. Picks up again at ${at(run.paused_until)}.`
+  line.className = run.paused_until || run.capped || run.unchecked ? 'paused' : '';
+  line.textContent = run.unchecked ? run.unchecked  // KAN-621: a check that couldn't run is never silent
+    : run.paused_until ? `Paused: Claude's usage limit is reached. Picks up again at ${at(run.paused_until)}.`
     : run.capped ? `Today's limit reached (${run.cap}). ${run.tomorrow} more go tomorrow.`
     : ctx.workers ? [filling(state) ? `${filling(state)} filling` : '', run.queued ? `${run.queued} queued` : '',
                      sent(state) ? `${sent(state)} sent` : 'nothing sent yet', run.cap ? `${run.today} of ${run.cap} today` : ''].filter(Boolean).join(' · ')
