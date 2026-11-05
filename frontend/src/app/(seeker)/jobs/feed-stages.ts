@@ -1,7 +1,7 @@
 /**
  * Which jobs the Jobs page shows, by their application's stage (KAN-217).
  * A saved job and an applied one (or any stage after applied) live on the
- * Applications Tracker, so the feed, /search and the rail beside a job leave
+ * Tracker, so the feed, /search and the rail beside a job leave
  * them out, as `GET /jobs` does (`JobFilters.tracked_by`). A job auto apply
  * holds (queued, needs you, skipped) stays.
  *

@@ -297,7 +297,7 @@ export function ToastSpecimen() {
         size="sm"
         onClick={() =>
           toast.show({
-            message: "Saved to your Applications Tracker.",
+            message: "Saved to your Tracker.",
             actions: [
               { label: "View", onClick: () => {} },
               { label: "Undo", onClick: () => {} },

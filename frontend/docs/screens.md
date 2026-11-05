@@ -29,12 +29,12 @@ blank panel between; do not bring it back. Load More pages whichever order drew 
 `source`).
 
 **A saved or applied job is not on the Jobs page** (KAN-217): it is on the
-Applications Tracker. The API leaves out every tracked stage (`GET /jobs`,
+Tracker. The API leaves out every tracked stage (`GET /jobs`,
 `/search`'s and Best Match's reads), and the browser drops a job the moment
 the seeker saves it, marks it applied or tailors for it (`jobs/feed-stages.ts`,
 in the feed, /search, the fallback snapshot and the rail). A job auto apply
 holds (Queued, Needs You, Skipped) stays. Save's toast, "Saved to your
-Applications Tracker.", has View (the application's page) and Undo, which
+Tracker.", has View (the application's page) and Undo, which
 puts the card back where it was; an unsave on the tracker brings the job back
 on the next visit. A card for a job the seeker tailored for carries a
 Tailored chip beside its age; since Tailor saves the job, only one auto apply
@@ -437,12 +437,12 @@ after Save until KAN-519, when the team removed it. Below md the bar scrolls awa
 The header card below holds who is hiring, the title and facts; its logo never
 shrinks. Its facts use the card's `JobFacts`: two rows of three fixed slots,
 two columns under 448px, with unstated facts leaving their slots empty.
-Ask Scout, an icon beside Save (KAN-519), asks about the role. Save (KAN-261) keeps the job posting on the Applications
+Ask Scout, an icon beside Save (KAN-519), asks about the role. Save (KAN-261) keeps the job posting on the
 Tracker as Saved and takes it off the Jobs page (KAN-217), on the card and the page alike (`jobs/save-job-button.tsx`,
 over the drawing-only `components/save-button.tsx`): the bookmark fills at
 once and empties again, with a toast, if the API refuses, and a second
 click takes it back out. A save that works says so: "Saved to your
-Applications Tracker." with View and Undo. It reads its first state from the same stage the
+Tracker." with View and Undo. It reads its first state from the same stage the
 Auto Apply button gets, so it costs no fetch of its own. A job posting
 already queued or applied stays as it is, and a toast says where it is.
 Saving never queues a job: Start Auto Apply's batches skip saved jobs, and
@@ -2541,7 +2541,7 @@ with no proposals to accept and no Done (2026-10-25).
   "Review Changes · Step 3 of 3" on one line in the middle, and
   Finish (filled) at the right, which opens **Ready to Apply**
   (`tailor/ready-to-apply.tsx`, KAN-217): "Your tailored resume is saved,
-  and <title> is on your Applications Tracker", then Auto Apply (where the
+  and <title> is on your Tracker", then Auto Apply (where the
   form can be filled; it attaches this resume), Open the Application (the
   employer's form in a new tab; the dialog turns into "Did You Apply?",
   starting on this resume) and Download PDF, the primary. Closing it, Not

@@ -63,7 +63,7 @@ step, Tailor, a view that only waited.
      `_name`): the title loses any bracketed part ("(Seattle, WA)",
      "[Remote]"), and a name over Rename's 80 characters cuts the title,
      never "Resume",
-   - saves the job posting to the student's Applications Tracker as
+   - saves the job posting to the student's Tracker as
      `saved`, in the same commit (KAN-217, 2026-11-05): a student who
      tailored for a job is preparing to apply, so it leaves the Jobs page
      and waits on the tracker. A job already queued or applied keeps its

@@ -1045,7 +1045,7 @@ the Applications Tracker's stage menu and its events
 `rejected`. GET /jobs leaves out that applicant's tracked jobs, saved and
 every stage in `dto.APPLIED_STAGES` (`JobFilters.tracked_by`, a `NOT EXISTS`
 on `stage NOT IN dto.ON_THE_JOBS_PAGE`; KAN-217: a saved job lives on the
-Applications Tracker, and an unsave brings it back to the feed); auto
+Tracker, and an unsave brings it back to the feed); auto
 apply's matches leave out every stage, `saved` too (`no_application_by`),
 so a batch never picks a saved job. A Tailor run writes `saved` too
 (`keep_saved`, in its own commit). Rules:

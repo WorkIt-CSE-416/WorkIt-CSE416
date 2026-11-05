@@ -28,7 +28,7 @@ POST /applicants/{id}/tailor        TailorRun {job_posting_id, source, skills} -
      and wordings made again (Back to Choose Keywords, 2026-10-26). A source
      that is that tailored resume answers 422 before any model call. It
      tailors only what the source shows. The run also saves the job
-     posting to the student's Applications Tracker (a `saved` application,
+     posting to the student's Tracker (a `saved` application,
      in the same commit; one already queued or applied keeps its stage),
      so it leaves the Jobs page (KAN-217).
      Free while KAN-319 lifts the limit: no Tailor use is checked or
@@ -307,7 +307,7 @@ async def _steps(
     placed = tailor.place_skills(view, picked, reading.placements)
     choices, new = await tailor.place_on(session, applicant_id, resume.id, choices, placed)
     await built_resumes.write_choices(session, resume.id, choices)
-    # The job goes on the Applications Tracker as saved, in the same commit
+    # The job goes on the Tracker as saved, in the same commit
     # (KAN-217): a student who tailored for it is preparing to apply, so it
     # leaves the Jobs page and waits on the tracker with its resume. A job
     # already queued or applied keeps its stage.

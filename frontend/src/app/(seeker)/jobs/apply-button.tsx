@@ -61,7 +61,7 @@ const NO_RESUME = "none";
  * hidden, Apply Now opens the employer's form with no resume in hand, so the
  * dialog's top row names the pick and downloads it (`useResumeFileDownload`)
  * while the form is open in the other tab. It is the second place a student
- * downloads a resume file, beside Resumes & Experiences.
+ * downloads a resume file, beside Resumes.
  *
  * EVERY APPLY NOW OPENS THIS DIALOG (KAN-290): the job posting page, the feed
  * card (/jobs, /search). WorkIt cannot see the
@@ -247,7 +247,7 @@ export function DidYouApply({
         <DialogTitle className="text-subtitle font-semibold">Did You Apply?</DialogTitle>
         <DialogDescription>
           If you sent your application for {title}, check the resume you sent and mark it applied.
-          WorkIt moves it to your Applications Tracker.
+          WorkIt moves it to your Tracker.
         </DialogDescription>
       </DialogHeader>
       {/* The pick, to attach on the employer's form (KAN-217). */}

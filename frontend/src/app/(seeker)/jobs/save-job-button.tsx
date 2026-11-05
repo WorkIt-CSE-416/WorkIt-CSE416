@@ -15,11 +15,11 @@ import { readShownList, rememberStage, subscribe } from "./shown-list";
  * A job's Save button on its card and its own page (KAN-261): <SaveButton>
  * with a click that keeps the job as saved through the API (./actions,
  * saveJob), and a second click that takes it back out (unsaveJob). A saved
- * job is on the Applications Tracker, and off the Jobs page (KAN-217): a
+ * job is on the Tracker, and off the Jobs page (KAN-217): a
  * save there takes its card off the list at once (./feed-stages).
  *
  * A SAVE SAYS WHERE THE JOB WENT (KAN-217): a toast, "Saved to your
- * Applications Tracker.", with two buttons side by side, View (the
+ * Tracker.", with two buttons side by side, View (the
  * application's own page) and Undo,
  * which takes the save back and so puts the card back on the list. The toast
  * outlives the card it came from (it lives in the root layout), so its Undo
@@ -92,7 +92,7 @@ export function SaveJobButton({
           rememberStage(jobId, result.stage);
           if (result.stage === "saved") {
             toast.show({
-              message: "Saved to your Applications Tracker.",
+              message: "Saved to your Tracker.",
               actions: [
                 {
                   label: "View",

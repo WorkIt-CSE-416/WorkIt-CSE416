@@ -35,8 +35,8 @@ export type ApplyState = {
 
 /**
  * Finish, the review's way on (KAN-217), and the Ready to Apply dialog it
- * opens: the tailored resume is saved and its job is on the Applications
- * Tracker, so the dialog takes the student to applying. Download PDF is the
+ * opens: the tailored resume is saved and its job is on the Tracker, so
+ * the dialog takes the student to applying. Download PDF is the
  * primary action (the editor's PDF, kept nowhere, with its missing-character
  * warning, `useResumeDownload`); Open the Application opens the employer's
  * form in a new tab and turns the dialog into "Did You Apply?"
@@ -97,8 +97,8 @@ export function TailorFinish({
               <DialogHeader>
                 <DialogTitle className="text-subtitle font-semibold">Ready to Apply</DialogTitle>
                 <DialogDescription>
-                  Your tailored resume is saved, and {job.title} is on your Applications Tracker.
-                  Download the PDF, then attach it on {job.company}&apos;s application.
+                  Your tailored resume is saved, and {job.title} is on your Tracker. Download the
+                  PDF, then attach it on {job.company}&apos;s application.
                   {job.auto_apply && " Or let Auto Apply fill the form with it."}
                 </DialogDescription>
               </DialogHeader>

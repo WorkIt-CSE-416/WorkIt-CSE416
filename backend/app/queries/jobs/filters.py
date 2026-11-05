@@ -23,7 +23,7 @@ with no location is by ?location=.
 
 A signed-in applicant's tracked jobs (job_applications, KAN-232) are left
 out by tracked_by: applied and after, and saved (KAN-261) too, since a saved
-job lives on the Applications Tracker (KAN-217); a job auto apply holds
+job lives on the Tracker (KAN-217); a job auto apply holds
 stays in. Auto apply's matches leave out every job the applicant has an
 application for at any stage, queued or skipped too, by no_application_by:
 a batch never picks a job the applicant saved.
@@ -176,7 +176,7 @@ class JobFilters:
     # the work_style column. Hybrid and onsite are the column alone.
     query_work_style_phrases: Sequence[str] = ()
     query_words: Sequence[str] = ()
-    # The signed-in applicant: the jobs on their Applications Tracker (saved,
+    # The signed-in applicant: the jobs on their Tracker (saved,
     # applied and after) are left out. A job they only queued for auto apply
     # stays in. None (signed out) lists them all.
     tracked_by: uuid.UUID | None = None

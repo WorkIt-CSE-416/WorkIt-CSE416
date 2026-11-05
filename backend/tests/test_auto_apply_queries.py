@@ -136,7 +136,7 @@ def test_mark_applied_turns_a_queued_job_applied_and_keeps_a_first_date():
 
 
 def test_the_feed_hides_saved_and_applied_jobs_and_keeps_auto_apply_s():
-    # Saved jobs live on the Applications Tracker (KAN-217); interviewing,
+    # Saved jobs live on the Tracker (KAN-217); interviewing,
     # offer and rejected were applied too (KAN-413). Asked as NOT IN the
     # stages that stay, so the query never names a value a database without
     # a7d3e5f1c2b4 lacks

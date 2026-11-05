@@ -687,7 +687,7 @@ async def _stage(database, applicant_id, posting: str) -> str | None:
 
 
 async def test_a_run_saves_the_job_to_the_tracker(student, database, use_model):
-    # KAN-217: a tailored job leaves the Jobs page for the Applications Tracker.
+    # KAN-217: a tailored job leaves the Jobs page for the Tracker.
     posting = await _seed_posting(database)
     use_model(reply(rewords=[("b2", "Built Python billing services")]))
 

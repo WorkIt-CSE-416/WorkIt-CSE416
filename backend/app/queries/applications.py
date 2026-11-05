@@ -133,7 +133,7 @@ async def application_stage_of(
 
 async def keep_saved(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> None:
     '''
-    puts this job on the applicant's Applications Tracker as saved, unless it
+    puts this job on the applicant's Tracker as saved, unless it
     already has an application (queued, applied...), which keeps its stage:
     saving never moves one back. Checks nothing and never commits: the
     caller has checked the job is listed and owns the transaction (the Save

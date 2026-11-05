@@ -904,7 +904,7 @@ disagree. Migration `c0467afe819c` added:
 | `applied_at` | timestamptz **null** now | Set when the student clicks **Submitted** or the Applied button; `NULL` while queued. A CHECK keeps an `applied` row dated |
 
 - **The Jobs page hides saved and applied rows** (`JobFilters.tracked_by`,
-  KAN-217: both live on the Applications Tracker). A queued, needs-you or
+  KAN-217: both live on the Tracker). A queued, needs-you or
   skipped job stays on it; matches leave out every stage, saved too
   (`JobFilters.no_application_by`).
 - **The Applied button turns a saved, queued, skipped or needs_you row

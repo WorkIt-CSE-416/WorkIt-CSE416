@@ -4,7 +4,7 @@ job_applications row each. The job posting's page reads and sets the first
 with its Applied button, and every job surface the second with its Save
 button. GET /jobs, /jobs/count and /jobs/recommended leave the applied and
 the saved jobs out for that applicant (queries/jobs/filters.py,
-JobFilters.tracked_by): both live on the Applications Tracker, and an unsave
+JobFilters.tracked_by): both live on the Tracker, and an unsave
 brings the job back.
 
 GET  /jobs/{job_id}/applied  {"applied_at": null, "sent_resume_id": null}

@@ -53,7 +53,7 @@ _kept: OrderedDict[tuple, tuple[float, HomeMatches]] = OrderedDict()
 async def home_version(db: AsyncSession, applicant_id: uuid.UUID) -> tuple:
     """What a kept result was made from, read in one query: the bank's
     updated_at, the newest job posting change, and a hash of the jobs on
-    this applicant's Applications Tracker (saved, applied and after), which
+    this applicant's Tracker (saved, applied and after), which
     Top Matches leaves out: a Save changes the key."""
     applied = (
         select(func.md5(func.coalesce(func.string_agg(

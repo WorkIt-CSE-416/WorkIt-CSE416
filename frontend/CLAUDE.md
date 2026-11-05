@@ -1714,8 +1714,8 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   on the next render. **Every button that changes a stage calls
   `rememberStage`**: Save and its Undo, Did You Apply?'s Yes, Auto Apply and
   its dequeue. One that skips it leaves the job on the rail and its other
-  buttons stale. Save says where the job went: "Saved to your Applications
-  Tracker." with View and Undo, two buttons side by side (the toast's
+  buttons stale. Save says where the job went: "Saved to your Tracker."
+  with View and Undo, two buttons side by side (the toast's
   `actions`). **A toast is the inverted surface** (`bg-inverse` and
   `text-on-inverse`, its buttons and cross the `inverse` variants) and stays
   8 seconds when it has an action, 5 without (`docs/design.md`, toasts). Home's Top Matches leaves saved jobs out on

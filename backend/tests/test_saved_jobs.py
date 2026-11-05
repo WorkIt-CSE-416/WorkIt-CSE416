@@ -92,7 +92,7 @@ async def test_save_keeps_the_job_undated_and_a_second_save_changes_nothing(stud
 
 
 async def test_a_saved_job_leaves_the_feed_and_unsave_brings_it_back(student, database):
-    # A saved job lives on the Applications Tracker (KAN-217). The feed reads
+    # A saved job lives on the Tracker (KAN-217). The feed reads
     # its viewer through its own dependency (backend/CLAUDE.md, Tests).
     client, me = student
     app.dependency_overrides[get_signed_in_applicant_id] = lambda: me

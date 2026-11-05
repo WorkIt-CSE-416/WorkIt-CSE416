@@ -58,7 +58,7 @@ import { readStageChanges, rememberList, subscribeStageChanges } from "./shown-l
  * and its Apply Now are gone.
  *
  * A SAVED JOB LEAVES THE LIST TOO (KAN-217): saved and applied jobs live on
- * the Applications Tracker, and the API leaves them out of every page
+ * the Tracker, and the API leaves them out of every page
  * (./feed-stages). The list lays the seeker's changes since `drawnAt` over
  * the stages it was drawn with, so a Save takes its card off at once, its
  * toast's Undo puts it back where it was, and a Back to a list Next kept

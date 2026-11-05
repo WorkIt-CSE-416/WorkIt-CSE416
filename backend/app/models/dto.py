@@ -208,7 +208,7 @@ BEFORE_APPLIED = (
 
 # The stages that keep a job on the Jobs page (JobFilters.tracked_by): a job
 # auto apply holds is still the student's to see there. Every other stage
-# is on the Applications Tracker instead: saved (the Save button and every
+# is on the Tracker instead: saved (the Save button and every
 # Tailor run, KAN-217) and applied and after. Asked as NOT IN these, as
 # BEFORE_APPLIED is, and for the same reason. A new stage before applied
 # joins this list too unless it belongs on the tracker.
