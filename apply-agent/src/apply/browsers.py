@@ -42,6 +42,8 @@ PROFILES = HOME / "profiles"
 _ENDPOINTS: dict[int, str] = {}
 # The open pages, by id(page), that show in a Chrome window of their own (worker_headless: false).
 _HEADED: set[int] = set()
+# How Playwright says Chrome cut a Worker's first load short as it started: it is tried again.
+_CUT_SHORT = re.compile(r"ERR_ABORTED|interrupted by another navigation")
 
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
 
@@ -219,15 +221,19 @@ class WorkerBrowsers:
             trace.watch(context)
             page = context.pages[0] if context.pages else context.new_page()
             try:
-                try:
-                    page.goto(url)
-                except Exception as error:
-                    if page.is_closed():
-                        page = context.new_page()  # Chrome replaced its first tab as it started (seen live)
-                    elif "ERR_ABORTED" not in str(error):
-                        raise
-                    # else Chrome cut the first load short as it started, restoring its last tabs (Shield AI, live)
-                    page.goto(url)
+                for tries_left in (2, 1, 0):
+                    try:
+                        page.goto(url)
+                        break
+                    except Exception as error:
+                        if not tries_left:
+                            raise
+                        if page.is_closed():
+                            page = context.new_page()  # Chrome replaced its first tab as it started (seen live)
+                        elif not _CUT_SHORT.search(str(error)):
+                            raise
+                        # else Chrome cut the first load short as it started: restoring its last tabs (Shield AI,
+                        # live), or with a navigation of its own to about:blank (PDT Partners, 2026-11-04)
                 _ENDPOINTS[id(page)] = endpoint
                 if not self._headless:
                     _HEADED.add(id(page))

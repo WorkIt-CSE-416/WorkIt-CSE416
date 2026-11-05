@@ -99,7 +99,10 @@ _TEMPLATE = r"""
     return;
   }
   window.__@KEY@Guard = true;
-  const lifted = () => @LIFTED@;
+  // Lifted, Lisul's page lets everything through, unless Apply holds its Submit (a legal answer the review
+  // found wrong): then a button or request that sends is blocked still, and the held note says why.
+  const held = () => @HELD@;
+  const lifted = () => @LIFTED@ && !held();
   // Plain code's click on the button Claude fill named on a sign-in or account page.
   const accountClick = () => window.__applyAccountClick === true;
   // A sign-in or new account's form: one with a password box, which no application's final button is in.
@@ -129,6 +132,11 @@ _TEMPLATE = r"""
   for (const kind of ['pointerdown', 'keydown']) addEventListener(kind, (event) => { if (event.isTrusted) touched = true; }, true);
   const note = (what) => {
     blocked.push(what);
+    if (held()) {  // Lisul's own Submit on a held page: the held note says why, with its Dismiss button
+      console.warn('@NAME@ held ' + what);
+      if (window.__applyHeldBlocked) window.__applyHeldBlocked();
+      return;
+    }
     console.warn('@NAME@ blocked ' + what);
     // The page's own script, with no click or key on it yet (a cookie banner, analytics): blocked, unshown.
     if (!touched) return;
@@ -196,6 +204,7 @@ _TEMPLATE = r"""
     if (accountClick() && form.querySelector('input[type=password]')) return;  // plain code's sign-in, as above
     const final = by ? sends(by)
       : [...form.querySelectorAll('button, input[type=submit]')].some(sends);
+    if (held() && !final) return;  // a held page is Lisul's but for its Submit: a Next goes on
     if (final) event.stopImmediatePropagation();
     if (final || (posts(form, by) && !accountClick())) { event.preventDefault(); note('a form submission'); }
   }, true);
@@ -316,14 +325,15 @@ _IN_CAPTCHA = r"""
 """
 
 
-def _script(key: str, name: str, lifted: str = "false", extra: str = "", in_captcha: str = "") -> str:
+def _script(key: str, name: str, lifted: str = "false", extra: str = "", in_captcha: str = "", held: str = "false") -> str:
     """The guard's script under its own `window.__<key>Guard`, so two guards
     can share a page, naming itself `name` in the note on what it blocked:
     off while the JS `lifted` is true, and blocking `extra`'s controls too;
     `in_captcha` runs in a captcha's own frame, which the guard leaves alone."""
     box = name.lower().replace(" ", "-") + "-blocked"
     script = _TEMPLATE
-    for placeholder, value in {"@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@EXTRA@": extra,
+    for placeholder, value in {"@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@HELD@": held,
+                               "@EXTRA@": extra,
                                "@CAPTCHA@": in_captcha, "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
                                "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS)}.items():
         script = script.replace(placeholder, value)
@@ -342,7 +352,8 @@ HIDE_LINKEDIN_BUTTON = r"""
 """
 
 # Lifted once the page is Lisul's (lift()).
-SCRIPT = _script("applyRehearsal", "Apply rehearsal", lifted="window.__applyRehearsalLifted === true") \
+SCRIPT = _script("applyRehearsal", "Apply rehearsal", lifted="window.__applyRehearsalLifted === true",
+                 held="window.__applyRehearsalLifted === true && window.__applySubmitHeld === true") \
     + HIDE_LINKEDIN_BUTTON
 
 
@@ -384,16 +395,31 @@ LIFTED = r"""
   const again = AGAIN;
   const warning = WARNING;  // what Apply found wrong on the form, for Lisul to fix before he submits
   const wrong = WRONG;  // red when an answer is wrong; amber when only a field is left blank
+  const held = HELD;  // a legal answer the review found wrong: Submit stays blocked till it is fixed or dismissed
+  window.__applySubmitHeld = !!held;
   const show = () => {
     const box = document.getElementById('apply-rehearsal-blocked') || document.createElement('div');
     box.id = 'apply-rehearsal-blocked';
     // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
     box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;max-width:480px;'
-      + 'background:' + (!warning ? '#1b5e20' : wrong ? '#b00020' : '#8a5a00') + ';color:#fff;font:13px sans-serif;border-radius:4px;'
+      + 'background:' + (held || (warning && wrong) ? '#b00020' : warning ? '#8a5a00' : '#1b5e20') + ';color:#fff;font:13px sans-serif;border-radius:4px;'
       + 'pointer-events:none';
-    box.textContent = warning
+    box.textContent = held
+      ? 'Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: ' + held
+      : warning
       ? 'Apply rehearsal: ' + (wrong ? 'fix this before you submit. ' : 'check before you submit. ') + warning
       : 'Apply rehearsal: Apply is done with this page. Check it; Submit is yours to press.';
+    if (held) {  // his say that it is fixed, or that it holds no more: Submit goes through after it
+      const dismiss = document.createElement('button');
+      dismiss.type = 'button';
+      dismiss.textContent = 'Dismiss';
+      dismiss.style.cssText = 'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif';
+      dismiss.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (window.__applyDismissHold) window.__applyDismissHold();
+      });
+      box.appendChild(dismiss);
+    }
     if (again) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -417,14 +443,24 @@ LIFTED = r"""
     });
     box.appendChild(close);
     if (!box.parentNode) (document.body || document.documentElement).appendChild(box);
+    box.style.display = '';
   };
+  window.__applyHeldBlocked = show;  // a Submit blocked while held shows the held note again
   if (document.body) show(); else document.addEventListener('DOMContentLoaded', show);
 })();
 """
 
 
+def _lifted(again: bool, warning: str, wrong: bool, held: str) -> str:
+    """LIFTED for one note: its Fill again button, its warning (red when `wrong`), and what holds Submit."""
+    script = LIFTED.replace("AGAIN", _js(again)).replace("WRONG", _js(wrong))
+    # Last: their own words stay as they are.
+    return script.replace("HELD", json.dumps(held)).replace("WARNING", json.dumps(warning))
+
+
 def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callable[[], None] | None = None,
-         warning: str = "", wrong: bool = True, bound: bool = False) -> None:
+         warning: str = "", wrong: bool = True, bound: bool = False, held: str = "",
+         dismiss: Callable[[], None] | None = None) -> None:
     """Hand a guarded page to Lisul once Apply is done with it: no Filler or
     Claude drives it any more, so a Submit on it can only be his, and it goes
     through, on this page and every page he loads from it. `pressed` hears
@@ -433,16 +469,19 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     `warning` goes on the note, red when an answer is `wrong`, amber when
     it only names fields left blank. `bound`: the page was lifted before
     (a paused rehearsal, resumed), so its bindings are there already, and
-    its note keeps the Fill again button."""
+    its note keeps the Fill again button. A `held` reason (a legal answer the
+    Pre-submit review found wrong) keeps his Submit blocked, with a red note
+    and a Dismiss button that calls `dismiss`, until renote() says it holds no more."""
     if bound:
-        pressed = again = None
+        pressed = again = dismiss = None
     if pressed:
         page.expose_binding("__applyLisulPressed", lambda source, words: pressed(words))
     if again:
         page.expose_binding("__applyFillAgain", lambda source: again())
+    if dismiss:
+        page.expose_binding("__applyDismissHold", lambda source: dismiss())
     page.context.unroute(ROUTED, _refuse)
-    script = LIFTED.replace("AGAIN", "true" if again or bound else "false").replace("WRONG", "true" if wrong else "false")
-    script = script.replace("WARNING", json.dumps(warning))  # last: the warning's own words stay as they are
+    script = _lifted(bool(again or bound), warning, wrong, held)
     page.context.add_init_script(script)
     for frame in page.frames:
         try:
@@ -475,13 +514,12 @@ def rearm(page: Page) -> None:
             pass  # a frame gone or going: one loaded later gets the init script
 
 
-def renote(page: Page, warning: str = "", wrong: bool = True) -> None:
+def renote(page: Page, warning: str = "", wrong: bool = True, held: str = "") -> None:
     """Say the note of a page already lifted anew: Lisul answered in the window
-    what it said was left blank. Its Fill again button stays. A page still
-    guarded (one Lisul already applied to, KAN-621) stays guarded."""
-    script = LIFTED.replace("AGAIN", "true").replace("WRONG", "true" if wrong else "false")
-    script = script.replace("WARNING", json.dumps(warning))
-    script = f"if (window.__applyRehearsalLifted === true) {script}"
+    what it said was left blank, or dismissed what held its Submit (`held` is
+    what holds it still). Its Fill again button stays. A page still guarded
+    (one Lisul already applied to, KAN-621) stays guarded."""
+    script = f"if (window.__applyRehearsalLifted === true) {_lifted(True, warning, wrong, held)}"
     page.context.add_init_script(script)  # after lift's: a page loaded from it says the same
     for frame in page.frames:
         try:

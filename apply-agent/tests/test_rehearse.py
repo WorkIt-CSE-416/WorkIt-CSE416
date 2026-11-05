@@ -457,6 +457,46 @@ def test_the_pre_submit_reviews_fix_is_filled_before_the_form_shows_as_ready(mon
     assert server.submissions == []
 
 
+AUTHORIZED = "Are you legally authorized to work in the United States?"
+
+
+def test_the_reviews_fix_for_a_legal_answer_is_filled_over_the_profiles(monkeypatch, tmp_path):
+    # Saronic's U.S. Person "No" came from the plan's own (wrong) rule, and the review's fix was left as a banner
+    # (live, 2026-11-04). A legal or eligibility answer the review finds wrong is filled with its fix, then reviewed
+    # again, though the plan took it from the profile. Another profile answer's fix is still never taken.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    claude = FakeClaude(reviews=[{"problems": [f"{AUTHORIZED}: answered No, but the profile says he is authorized",
+                                               "First Name: not his name"],
+                                  "fixes": [{"question": AUTHORIZED, "answer": "Yes"},
+                                            {"question": "First Name", "answer": "Someone"}]}])
+    profile = profile_with(tmp_path, **{"work_authorization.authorized_to_work_us": False})
+    records = FolderRecords(tmp_path / "rehearsals")
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile, claude, records=records)
+
+    shown = {a["question"].strip(): a["on_page"] for a in json.loads((Path(done.record) / "answers.json").read_text())}
+    assert shown[AUTHORIZED] == "Yes" and shown["First Name"] != "Someone"
+    assert sum("problems" in call["schema"]["properties"] for call in claude.calls) == 2  # reviewed again after the fix
+    assert done.legal == ()
+    assert fake.submissions == []
+
+
+def test_a_legal_problem_the_review_gives_no_fix_for_holds_submit_until_lisul_dismisses_it(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    problem = 'The U.S. Person status question is answered "No", but the profile says he is a U.S. citizen'
+    claude = FakeClaude(reviews=[[problem, "Why Arc?: names no product"]])
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path), claude)
+
+    assert done.legal == (("", problem),)  # the essay's problem is a banner, not a hold
+    assert done.holding() == problem
+    done.dismiss_holds()  # the held note's Dismiss
+    assert done.holding() == ""
+    assert fake.submissions == []
+
+
 def test_a_workday_rehearsal_stops_where_google_wants_more_than_an_account_pick(monkeypatch, tmp_path):
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
 
