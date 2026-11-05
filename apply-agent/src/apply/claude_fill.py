@@ -47,6 +47,7 @@ Claude fill Application on OnePage, which opens the form once.
 
 import json
 import re
+import sys
 import time
 from collections.abc import Callable
 from contextlib import ExitStack, contextmanager
@@ -256,7 +257,8 @@ class ClaudeFill:
     def __init__(self, claude: Claude, max_turns: int = MAX_TURNS, max_tokens: int = MAX_TOKENS,
                  sign_in: Callable[[Page], None] | None = None, resume: Path | None = None,
                  sms_opt_in: bool = False, marketing_opt_in: bool = False,
-                 accounts: Accounts | None = None, account_facts: dict | None = None, page_gates: bool = False):
+                 accounts: Accounts | None = None, account_facts: dict | None = None,
+                 page_gates: bool | str = False):
         """`sign_in` takes the open posting to its form by plain code first,
         on a job system whose sign-in needs no Claude (Oracle's emailed code).
         `resume` is for a pop-up that asks for it before the form can be used.
@@ -267,7 +269,8 @@ class ClaudeFill:
         without it, such a page is a Handoff. `page_gates` is Lisul's policy: a step with
         an attestation, consent, self-ID, legal or criminal-history field, or an answer Claude
         isn't sure of, pauses for his check before the form goes on, and Claude never ticks or
-        signs his boxes."""
+        signs his boxes. "note" pauses nothing: each such field goes on `checks`, his list to
+        check before he submits, and the form goes on."""
         self._claude = claude
         self._account_pages = AccountPages(accounts, account_facts or {})
         self._url = ""  # the Posting's, to go back to once a mailed link is opened
@@ -291,6 +294,7 @@ class ClaudeFill:
         self._guard: DriveGuard | None = None  # on the page from Claude's first drive
         self._waited_for_box = False  # the form, filled, waited for Lisul to do its captcha's box
         self._page_gates = page_gates
+        self.checks: list[str] = []  # "Page N: <field>: <what it shows>", for Lisul to check before he submits
         self._gated = ""  # the step held for Lisul's check, till his Resume
         self._approved: set[str] = set()  # the steps he checked and resumed from
         self.posting_text = ""  # the Posting's own text, as its open page showed it
@@ -411,7 +415,11 @@ class ClaudeFill:
             if unlisted:
                 raise MoreQuestions(_with_options(page, self._questions(unlisted)))
             asks = [one for one in (str(a).strip() for a in done.get("for_lisul") or []) if one]
-            if self._page_gates and asks and step not in self._approved:
+            if self._page_gates == "note" and asks and step not in self._approved:
+                self._approved.add(step)
+                self.checks += [f"Page {self._steps + 1}: {one}" for one in asks]
+                print(f"Check before Submit: {'; '.join(self.checks[-len(asks):])}", file=sys.stderr)
+            elif self._page_gates and asks and step not in self._approved:
                 self._gated = step
                 raise Handoff(f"Page {self._steps + 1}: check these {len(asks)} and tick any box that is yours, "
                               "then press Resume: " + "; ".join(asks))

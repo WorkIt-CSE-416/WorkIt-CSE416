@@ -36,6 +36,8 @@ us_roles_only: true
 # attestation, signature, consent, self-ID, legal or criminal-history field, or
 # an answer it isn't sure of, and waits for your Resume. It never ticks or
 # signs those boxes for you. Rehearsals pause there; a live run hands off.
+# "note" pauses nothing: each such field goes on the form's "Check before
+# Submit" list, and the form goes on to its last page.
 page_gates: false
 
 # Opt-ins to texts, WhatsApp, marketing or job alerts.

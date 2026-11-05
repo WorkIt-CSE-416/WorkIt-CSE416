@@ -1058,6 +1058,15 @@ def test_page_gates_stop_before_a_step_with_a_legal_answer_goes_on(tmp_path, gat
         assert server.submissions == []
 
 
+def test_page_gates_as_notes_list_the_check_and_go_on_to_the_last_page(tmp_path, capsys):
+    profile = profile_with(tmp_path, policies={"page_gates": "note"})
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile, tyler_match(), claude=FakeClaude(driver=GatedStepsDriver()))
+
+    assert row.status == "submitted", row.reason
+    assert f"Check before Submit: Page 2: {SPONSORSHIP}: No" in capsys.readouterr().err
+
+
 def test_claude_fills_next_is_never_a_button_beside_it_that_sends(tmp_path):
     driver = JobviteStepsDriver(next_name="Continue \u2192")
 
