@@ -106,6 +106,8 @@ def keep_sent(folder: Path, path: Path) -> Path:
 
 # Ends a Handoff's reason when the rest of the form was filled.
 FILLED_BUT = "Every other answer was filled in; the Record has them all"
+# Why an optional catch-all box ("Additional information") is blank: on purpose, always (KAN-625).
+CATCH_ALL_BLANK = "an optional catch-all box, which Apply always leaves blank"
 
 
 @dataclass
@@ -583,9 +585,12 @@ class _Planned:
             return None
         if stop := self._missing(planned.missing):
             return stop
+        # An optional catch-all box ("Additional information", "Anything else?") stays blank on purpose, always:
+        # Claude never drafts it and Lisul is never asked it (Lisul, 2026-11-04). A required one is answered.
+        self.kept_blank |= {q.name: CATCH_ALL_BLANK for q in planned.essays + planned.drafts if essays.catch_all(q)}
         done = {essay.question for essay in self.written}
-        new = [q for q in planned.essays if q not in done and q not in self._yours]
-        to_draft = [q for q in planned.drafts if q not in self._asked]
+        new = [q for q in planned.essays if q not in done and q not in self._yours and q.name not in self.kept_blank]
+        to_draft = [q for q in planned.drafts if q not in self._asked and q.name not in self.kept_blank]
         name = posting.company or "the company"
         try:
             if new and self.material is None:
@@ -607,14 +612,9 @@ class _Planned:
             raise
         if self._approved is not None:
             written = essays.from_cell(self._approved, new)
-        written = self._catch_alls(written, planned.answers, drafted)
         self.written += written
         self._asked |= set(to_draft)
         for draft in drafted:
-            if essays.catch_all(draft.question):  # a one-line catch-all box: for this form only, never banked
-                if not self._kept_blank(draft.question, draft.shown, draft.needs_lisul, planned.answers, written, drafted):
-                    self.unbanked.append(draft)
-                continue
             if draft.needs_lisul:
                 continue
             # True of this company only, or a bare date no section places: drafted again each time, never banked.
@@ -635,8 +635,7 @@ class _Planned:
                                  asks):
             return stop
         for essay in written:
-            if essay.question.name not in self.kept_blank:
-                self.holds += self._holds(essay, essay.question in planned.high_stakes)
+            self.holds += self._holds(essay, essay.question in planned.high_stakes)
         answers = dict(planned.answers) | {d.question.name: d.answer for d in self.drafted + self.unbanked
                                            if not left_blank(d.question, d.answer) and d.question not in moot}
         answers |= {q.name: answer for q, answer in moot.items() if answer is not None}
@@ -658,31 +657,6 @@ class _Planned:
                 answers[q.name] = essay.text
         self.answers = {name: answer for name, answer in answers.items() if name not in self._skipped}
         return None
-
-    def _catch_alls(self, written: list["essays.Essay"], given: dict, drafted: list["essays.Draft"]) -> list["essays.Essay"]:
-        """`written` with each optional catch-all box's essay (essays.catch_all) emptied when it has
-        nothing new to say (_kept_blank); an approved Essay cell is Lisul's, and stays."""
-        if self._approved is not None:
-            return written
-        return [replace(e, text="") if essays.catch_all(e.question)
-                and self._kept_blank(e.question, e.text, e.needs_lisul, given, written, drafted) else e for e in written]
-
-    def _kept_blank(self, q: Question, text: str, needs_lisul: bool, given: dict, written: list["essays.Essay"],
-                    drafted: list["essays.Draft"]) -> bool:
-        """Whether optional catch-all box `q` stays blank (gates.nothing_new): blank on purpose, so it is
-        noted, never held nor asked (Lisul, 2026-11-04). New means off the resume PDF (its links too),
-        the form's other answers and its cover letter."""
-        others = [str(a) for name, a in given.items() if name != q.name and isinstance(a, (str, list))]
-        others += [e.text for e in self.written + written if e.question != q and e.text]
-        others += [d.shown for d in drafted + self.drafted + self.unbanked if d.question != q]
-        pdf = self.profile.get("files.resume_pdf")
-        pdf = pdf if isinstance(pdf, Path) and pdf.is_file() else None
-        if pdf:
-            others += [url for _, url in asking.resume_links(pdf, pdf.stat().st_mtime)]
-        why = "Claude found nothing new to add" if needs_lisul else gates.nothing_new(text, pdf, others)
-        if why:
-            self.kept_blank[q.name] = f"an optional catch-all box: {why}"
-        return bool(why)
 
     def _to_lisul(self, answers: dict, missing: list[Question], questions: list[Question]) -> None:
         """A Resume stopped Claude before it answered `questions`: they are
