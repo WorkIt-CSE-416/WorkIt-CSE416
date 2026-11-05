@@ -738,13 +738,17 @@ class _Planned:
         an answer the plan took from the profile (General Motors' degree, live: the review called "Bachelor
         Degree" wrong), Lisul's own answer (on the page or in the Answer bank), an essay, a file or a secret,
         nor an answer that isn't one of the question's options. So no plan writes over them, and a draft it
-        fixes leaves the Answer bank: the bank never keeps an answer known wrong. True if any answer changed."""
+        fixes leaves the Answer bank: the bank never keeps an answer known wrong. True if any answer changed.
+        A legal or eligibility question (verify.LEGAL: U.S. Person, work authorization, age...) is the one
+        exception to the profile's: the review read it against the profile and found it wrong (Saronic's U.S.
+        Person "No", live), so its fix, one of the question's options, is filled there too, and reviewed again."""
         own, essays_asked = self.own(), {e.question.name for e in self.written}
         guessed = {d.question.name for d in self.drafted + self.unbanked} | {q.name for q in self.banked if q.name not in own}
+        legal = {q.name for q in self.questions if q.options and verify.LEGAL.search(q.label) and q.name not in own}
         changed = False
         for q in self.questions:
             answer = fixes.get(one_line(q.label))
-            if (answer is None or q.name not in guessed or q.kind in ("file", "multi_select") or q.name in self.lisuls
+            if (answer is None or q.name not in guessed | legal or q.kind in ("file", "multi_select") or q.name in self.lisuls
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
                     or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
                 continue
