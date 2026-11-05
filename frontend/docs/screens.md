@@ -875,7 +875,8 @@ hide everything (Clear Filters). The mock cards and their stand-in company
 glyphs were removed with the fixture.
 
 **The list is the primary view and the board is archived** (KAN-256).
-A bare `/applications` shows the list, the switcher offers List then Grid,
+A bare `/applications` shows the table, the switcher offers Table View then
+Card View (their URL values stay `list` and `grid`),
 and an old `?view=board` link opens the list. `applications/board.tsx`
 stays, unused. To bring the board back: add `"board"` to `VIEWS` in
 `applications/query.ts`, its option in `view-switcher.tsx`, its pane in
@@ -883,9 +884,27 @@ stays, unused. To bring the board back: add `"board"` to `VIEWS` in
 `view-panes.tsx`. In the list, Match outlasts Applied as the page narrows,
 since the score is what a seeker scans for.
 
-**A card shows four facts and nothing else** (KAN-256): the role, the
-company, the day it was saved or sent, and its match score. The grid adds
-the stage pill, which its ungrouped cards would otherwise lose.
+**Card View is a list of wide cards, one a row** (2026-11-05, after
+Simplify's tracker; `applications/cards.tsx`). It replaced a grid of small
+cards, two to four a row, which the user found harder to scan. A card has
+the company tile, the role (the card's link), the company, where the job is
+and how it is worked; the stages as a line of steps (Saved, Applied,
+Interviewing, then Offer or Rejected, each with the day it was reached,
+`applications/stage-steps.tsx`); the match score, View Resume where a resume
+was sent; and the stage menu. Simplify's heart has no WorkIt counterpart.
+By the card's own width: one row from 1152px, with the steps and controls
+in fixed columns so the steps line up from card to card; from 576px the
+role and controls share a line with the steps under them; narrower, it
+stacks.
+
+**The stage changes from the Tracker itself**: Status in the table and the
+card's menu are the application page's stage menu (`StageMenu`), which
+reads "Saved" for a saved job, writes at once with an Undo toast, and asks
+first for a saved job. A click in the table's Status cell, or a pick in its
+popup, never opens the application.
+
+**Table View draws a table** (a table glyph, not bullets; 2026-11-05): the
+user found "List View" with a bulleted glyph wrong for a table of columns.
 
 **The list is a table that scrolls sideways** (KAN-256), as a Notion table
 does, rather than dropping columns as the page narrows. In the order job
@@ -961,7 +980,7 @@ filtered.
   Company 592, Job Type 744, Work Model 896, Source 1048); at
   the right end, Clear Filters as an outlined cross (shown while anything
   is picked or searched; it hands focus to All Filters), All Filters, and
-  Columns in the list view. A phone's row is All Filters and Columns.
+  Columns in Table View. A phone's row is All Filters and Columns.
   Status was a row of stage chips with counts (KAN-256), and an earlier
   draft had one Filter button with every field in its menu; both became
   dropdowns after the Jobs page on the user's ask (2026-10-19). The
@@ -991,7 +1010,7 @@ filtered.
   KAN-577); drag a heading's right edge to resize it (a 24px handle with a
   2px line), double-click the edge to reset it, or focus the edge and use
   the arrow keys; hide and show columns from the same menu, at the filter
-  row's right end, which shows only in the list view and also has Reset
+  row's right end, which shows only in Table View and also has Reset
   Columns. A sort heading's button is 24px high. Role cannot move or hide. Each column has a fixed width
   (a fixed table layout) and cuts what does not fit, with the whole value
   on hover; an empty last column takes the card's spare width, so a resize

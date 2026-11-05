@@ -54,7 +54,8 @@ import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
 import { cn } from "@/lib/cn";
 
-import { STAGE_COLOR, STAGE_LABEL, STAGE_ORDER } from "../stage-colors";
+import { STAGE_ORDER } from "../stage-colors";
+import { StageMenu } from "./[jobId]/tracker-controls";
 import { LocalDate } from "../local-time";
 import { sortKey, type Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
@@ -85,8 +86,11 @@ import { ViewResumeButton } from "./view-resume";
  * stacked in one again, the company's name is still filtered and sorted on
  * as its own field.
  *
- * Notes / Next Step is a placeholder for now: nothing stores notes yet, and
- * Status can only be Saved or Applied until the API keeps later stages.
+ * Notes / Next Step is a placeholder for now: nothing stores notes yet.
+ *
+ * Status is the stage menu (./[jobId]/tracker-controls.tsx's StageMenu,
+ * 2026-11-05), so a stage changes from the row as from a card; its cell
+ * keeps a click, or a pick in its popup, from opening the application.
  *
  * Its frame follows the company Home's Recent Applicants
  * (company/applicants-preview.tsx): one white card, 12px grey headings,
@@ -211,7 +215,11 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
       </div>
     </div>
   ),
-  status: (app) => <Badge tone={STAGE_COLOR[app.stage].tone}>{STAGE_LABEL[app.stage]}</Badge>,
+  // The stage menu, as on a card and the application's page: a stage
+  // changes from the row, without opening the application.
+  status: (app) => (
+    <StageMenu jobId={app.id} stage={app.stage} placeholder="Saved" className="w-full" />
+  ),
   applied: (app) => (
     <FactValue
       Icon={CalendarIcon}
@@ -390,8 +398,10 @@ export function ApplicationsList({ applications }: { applications: Application[]
                       // A click in the resume cell around View Resume is a
                       // near miss, not a wish to open the application:
                       // ClickableRow leaves a prevented click alone.
+                      // The stage menu's cell too: its options open in a
+                      // popup, whose clicks still reach the row in React.
                       onClick={
-                        id === "resume" && row.original.sentResume
+                        id === "status" || (id === "resume" && row.original.sentResume)
                           ? (event) => event.preventDefault()
                           : undefined
                       }

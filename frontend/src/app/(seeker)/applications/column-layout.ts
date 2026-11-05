@@ -32,7 +32,7 @@ import { APPLICATIONS_COLUMNS_KEY } from "@/lib/local-drafts";
  */
 export const COLUMNS = [
   { id: "role", label: "Role", width: 320 },
-  { id: "status", label: "Status", width: 128 },
+  { id: "status", label: "Status", width: 184 },
   { id: "applied", label: "Date Applied", width: 152 },
   { id: "match", label: "Match", width: 128 },
   { id: "track", label: "Job Type", width: 152 },
