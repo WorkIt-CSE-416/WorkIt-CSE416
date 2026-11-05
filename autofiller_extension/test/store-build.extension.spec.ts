@@ -40,6 +40,9 @@ async function loadStoreBuild(handlers: Handler[]): Promise<{ id: string; page: 
   profile = mkdtempSync(join(tmpdir(), "workit-extension-"));
   context = await chromium.launchPersistentContext(profile, { channel: "chromium", headless: true, args: net.args });
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
+  // TEMP (KAN-447 debug): surface the background worker's own console so a
+  // swallowed error shows up in CI instead of a bare 30s timeout.
+  worker.on("console", (msg) => console.log(`[sw ${msg.type()}]`, msg.text()));
   // The deployed site's session cookie, as test/loaded-extension.ts's signIn sets the dev one.
   const session = { access_token: "test-access-token", refresh_token: "test-refresh-token", expires_at: Math.floor(Date.now() / 1000) + 3600 };
   const value = `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`;
@@ -67,7 +70,13 @@ test("the deployed site's Start batch opens the queued job's form in the Store b
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ANDURIL) });
   const { id, page } = await loadStoreBuild([localApp, deployed(api), site, forms.handler]);
   expect(await send(page, id, { type: "run/open" })).toMatchObject({ ok: true });
-  await expect.poll(() => context.pages().some((p) => p.url() === forms.url(ANDURIL)), { timeout: 30_000 }).toBe(true);
+  // TEMP (KAN-447 debug): what actually opened, and what the background asked for, when the poll fails.
+  await expect.poll(() => context.pages().some((p) => p.url() === forms.url(ANDURIL)), { timeout: 30_000 }).toBe(true).catch((e) => {
+    console.log("[debug] expected form url:", forms.url(ANDURIL));
+    console.log("[debug] open pages:", context.pages().map((p) => p.url()));
+    console.log("[debug] net.asked:", net.asked);
+    throw e;
+  });
   expect(forms.submissions).toEqual([]);
   expect(net.asked.filter((url) => url.includes("localhost"))).toEqual([]);
 });
