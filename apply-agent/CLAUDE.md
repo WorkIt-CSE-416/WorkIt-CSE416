@@ -639,7 +639,10 @@ fixes it live on that form.
   The prompt says the same rules: never Submit, no captcha, no password, account or code.
 - **Guards while it drives.** The held page is lifted for Lisul, so `_Kept.hold` puts both guards back on
   (`rearm`) for the drive and lifts the page again after it. Without that, a page the drive loads (going
-  back a step) ran `lift()`'s script, and Enter there sent the application (KAN-638).
+  back a step) ran `lift()`'s script, and Enter there sent the application (KAN-638). So Claude's own click
+  on a step's Next or Back that posts natively is blocked too. Claude names that button in `press` and
+  stops; plain code presses it (`claude_fill.press_step`, the rules of Claude fill's Next: KAN-639, with the
+  final-URL block) and a fresh drive goes on from there, up to `MAX_PRESSES` for one message (KAN-655).
 - **Read-back.** Plain code reads `FIELDS` again after the drive and compares (`ask.changes`), custom
   `[role=checkbox]` and `[role=switch]` boxes too (`aria-checked`, and `UNDO` clicks one back). Each change
   is marked "Apply read it back" or "Claude's read-back". An attestation box that changed without his ask

@@ -751,3 +751,110 @@ def test_the_read_back_sees_a_custom_box_ticked_and_undo_unticks_it():
         assert ask.undo(page, found[0]) is True
         assert page.locator("#custom").get_attribute("aria-checked") == "false"
         assert ask.changes(before, ask.state(page))[0]["label"] == "Boston"
+
+
+# A form whose steps post natively, as TAL.net's do: each step's button posts to the next document. The guards
+# stop Claude's own click on it (KAN-638), so plain code presses it for Ask Claude (KAN-655).
+STEPS = {
+    "/app/1": '<title>One</title><form method="post" action="/app/2"><label>City <input id=city name=city></label>'
+              '<button>Next</button></form>',
+    "/app/2": '<title>Two</title><form method="post" action="/app/1"><label>GPA <input id=gpa name=gpa></label>'
+              '<button>Back</button></form><form method="post" action="/app/3"><button>Continue</button></form>',
+    "/app/3": '<title>Three</title><form method="post" action="/app/apply"><label>Why <input id=why name=why></label>'
+              '<button>Continue</button></form>',
+    "/app/4": '<title>Four</title><form method="post" action="/app/thanks"><button>Continue</button>'
+              '<button>Submit application</button></form>',
+}
+
+
+@contextmanager
+def _steps(start):
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import rearm
+    posts = []
+
+    def serve(route):
+        path = route.request.url.split("example.com")[1]
+        if route.request.method == "POST":
+            posts.append(path)
+        return route.fulfill(body=STEPS.get(path, "<p>Thank you for applying</p>"), content_type="text/html")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route("https://jobs.example.com/**", serve)
+        page.goto(f"https://jobs.example.com{start}")
+        guard(page)
+        drive = DriveGuard(page)
+        lift(page)  # held for Lisul
+        rearm(page)  # the Ask message: hold() puts both guards back on
+        yield page, drive, posts
+        browser.close()
+
+
+def _asked(page, drive, message, turns):
+    """ask.ask with a fake Claude that acts on the real page and says what each turn gives."""
+    from types import SimpleNamespace
+
+    from apply import ask
+    from apply.adapters import Drive
+    from apply.model import Posting
+
+    turns = iter(turns)
+
+    def act(**given):
+        step, answer = next(turns)
+        step(given["page"])
+        return Drive(answer, 2, 100)
+
+    return ask.ask(SimpleNamespace(drive=act), page, message, [], ask.Form(Posting(id="1", company="A", title="B", url="https://jobs.example.com")),
+                   "", guard=drive)
+
+
+def _said(**over):
+    return {"blocked": False, "why": "", "press": "", "reply": "Done.", "changed": [], "couldnt": [], "waiting": [],
+            "ticked": [], "remember": [], "apply_bug": []} | over
+
+
+def test_claude_s_own_next_on_a_native_post_step_is_blocked_under_ask():
+    with _steps("/app/1") as (page, drive, posts):
+        drive.arm()
+        page.get_by_role("button", name="Next").click()
+        page.wait_for_timeout(300)
+        assert posts == [] and page.title() == "One" and any("form submission" in b for b in drive.blocked())
+
+
+def test_ask_goes_on_and_back_on_native_post_steps_by_plain_code_s_own_click():
+    with _steps("/app/1") as (page, drive, posts):
+        reply = _asked(page, drive, "page 2's GPA is 3.7, then come back", [
+            (lambda p: p.get_by_role("button", name="Next").click(), _said(press="Next", couldnt=["GPA: page 2 didn't open"])),
+            (lambda p: p.locator("#gpa").fill("3.7"), _said(press="Back")),
+            (lambda p: None, _said(reply="Set it and came back.")),
+        ])
+        assert posts == ["/app/2", "/app/1"] and page.title() == "One"
+        assert reply.reply == "Set it and came back." and reply.couldnt == []  # Claude's blocked click isn't his to read
+        assert page.evaluate("window.__applyAccountClick") is not True  # the flag is gone in the step it led to
+
+
+def test_ask_s_press_never_lets_a_post_to_the_final_url_through(monkeypatch):
+    from apply import claude_fill
+    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 500)
+    with _steps("/app/3") as (page, drive, posts):
+        reply = _asked(page, drive, "go on", [(lambda p: None, _said(press="Continue"))])
+        assert posts == [] and "didn't press 'Continue'" in reply.couldnt[0]
+
+
+@pytest.mark.parametrize("named", ["Submit application", "Continue & Submit", "Finish"])
+def test_ask_s_press_never_presses_what_names_a_send(named):
+    with _steps("/app/4") as (page, drive, posts):
+        reply = _asked(page, drive, "go on", [(lambda p: None, _said(press=named))])
+        assert posts == [] and "didn't press" in reply.couldnt[0]
+
+
+def test_ask_stops_pressing_at_its_cap(monkeypatch):
+    from apply import ask
+    monkeypatch.setattr(ask, "MAX_PRESSES", 1)
+    with _steps("/app/1") as (page, drive, posts):
+        _asked(page, drive, "go on", [(lambda p: None, _said(press="Next")), (lambda p: None, _said(press="Back"))])
+        assert posts == ["/app/2"]
