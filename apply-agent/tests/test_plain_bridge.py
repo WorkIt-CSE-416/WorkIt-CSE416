@@ -275,7 +275,7 @@ def test_workers_load_their_profiles_folders_own_copy_which_changes_only_while_n
     assert first_set.is_dir() and len(list((copy / "vendor/sets").iterdir())) == 2  # the old set stays
     assert not [p for p in copy.parent.iterdir() if p.name.startswith(".")]
     workers = PlainWorkers(tmp_path / "profiles", kind="testing")
-    assert workers.copy == copy and f"--load-extension={copy}" in workers.arguments(0)
+    assert workers.copy == copy and workers.loaded_folder(0) == copy  # what --load-extension names (no Chrome in CI)
     assert PlainWorkers(tmp_path / "p2", kind="chrome").loaded_folder(0) == tmp_path / "p2" / extension.COPY
 
 
