@@ -629,6 +629,9 @@ fixes it live on that form.
   Resend or Send new code click, and any act on an attestation, signature or consent box
   (`send_click.ATTEST`), unless his message asks for a tick (`ask.may_tick`, which passes `--may-tick`).
   The prompt says the same rules: never Submit, no captcha, no password, account or code.
+- **Guards while it drives.** The held page is lifted for Lisul, so `_Kept.hold` puts both guards back on
+  (`rearm`) for the drive and lifts the page again after it. Without that, a page the drive loads (going
+  back a step) ran `lift()`'s script, and Enter there sent the application (KAN-638).
 - **Read-back.** Plain code reads `FIELDS` again after the drive and compares (`ask.changes`). Each change
   is marked "Apply read it back" or "Claude's read-back". An attestation box that changed without his ask
   is put back (`ask.UNDO`) and named under Couldn't. `FIELDS` and `UNDO` are fixed functions on a plain page.

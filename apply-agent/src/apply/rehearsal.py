@@ -1171,7 +1171,17 @@ class _Kept:
                     if pressed:  # his Submit: the form is his to send, and Claude acts on it no more
                         ask.close()
                     for item in ask.asked():
-                        ask(self._page, item)
+                        # Claude drives the page again: both guards back on, in each document it loads too (going
+                        # back a step loads one, which lift()'s script would hand to Lisul). His again after.
+                        guarded = self._lifted
+                        if guarded:
+                            rearm(self._page)
+                        try:
+                            ask(self._page, item)
+                        finally:
+                            if guarded:
+                                hand_over()
+                                renote(self._page, *(note() if note else (warning, wrong)), holding)
                 if not pressed:  # once he pressed Submit, the form is his to send: nothing more is read off it
                     tend(self._page)
                 if code and not kept:
