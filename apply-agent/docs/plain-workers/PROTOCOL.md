@@ -18,8 +18,11 @@ Apply process                                   Worker k (plain Chrome)
 
 - **Extension:** `apply-agent/worker-extension/` in WorkIt. Private, never on the
   Store. Its ID is fixed by `manifest.json`'s `key`: `apply.plain.extension.EXTENSION_ID`.
-  Generated files go in `worker-extension/vendor/` (gitignored), written by
-  `apply plain prepare` (the launcher runs it before every launch):
+  Workers load a copy of it, `APPLY_PROFILES/worker-extension/` (KAN-645), which Apply replaces
+  only while none of that folder's Workers runs. Its generated files are in `vendor/` and, for
+  code at features 3, in a write-once set `vendor/sets/<id>/` that the welcome names (the
+  extension then reads each `vendor/<file>` from the set: `ops/shared.js: vendor`). The launcher
+  writes them before every launch (`apply plain prepare` writes the checkout's `vendor/`):
   - `vendor/engine.js`: the Fill engine bundle, copied from the extension submodule's
     `fill-engine/dist/engine.js` (the same build the WorkIt extension uses).
   - `vendor/engine.json`: `{"version": "0.3.13+7a3a3fc", "sha256": "..."}`.
@@ -67,13 +70,17 @@ extension joins them before handling. The extension never needs to chunk.
     "userScripts": true, "webdriver": false,
     "userAgent": "...", "brands": ["Google Chrome", "..."]}
    ```
-5. Apply → extension: `{"type": "welcome", "worker": k, "protocol": 1}`, or
+5. Apply → extension: `{"type": "welcome", "worker": k, "protocol": 1, "vendor": "vendor/sets/<id>"}`
+   (`vendor` only for features 3 or more), or
    `{"type": "refuse", "reason": "..."}` and Apply closes the connection.
    Apply refuses: a wrong origin, another protocol, or an engine whose version or
    sha256 differs from Apply's own `fill_engine.ENGINE` (the reason names both and says
    to run `apply plain prepare`).
+   An extension at features 3 or more that gets a `vendor` set is never refused for its engine:
+   the set holds Apply's own.
    `features` (KAN-643) is what the extension's code can do: 2 is `tile.shown` and
-   `extension.reload`; none (an extension from before KAN-643) counts as 1. Raise
+   `extension.reload`; 3 is the welcome's vendor set and `vendor.use` (KAN-645); none (an
+   extension from before KAN-643) counts as 1. Raise
    `FEATURES` in `background.js` and `bridge.FEATURES` together with each new op or event.
    Chrome keeps running the code it loaded, so a Worker can be older than Apply. An older
    one is never refused. When it has `extension.reload` (features 2 or more) and its profile
@@ -133,6 +140,7 @@ Targets: `tab` is a Chrome tab id; `frame` is a webNavigation frame id (0 = top,
 | `tabs.screenshot` | `tab`, `format` (`png`/`jpeg`), `quality?` | `{"data": base64}`; activates the tab; waits out the ~2/s quota |
 | `frames` | `tab` | `[{"frame", "parent", "url"}]` |
 | `eval` | `tab`, `frame?`, `code` | the value of `code` (an expression; promises are awaited), run in the page's MAIN world through `chrome.userScripts.execute`. With user scripts off: `chrome.scripting.executeScript` in MAIN calling indirect `eval` (works where page CSP allows eval: the fakes; real sites need the seed's Allow User Scripts). The value must be JSON-serializable. |
+| `vendor.use` | `root` | `{root}`: read Apply's generated files from that vendor set from now (a new engine) |
 | `engine.load` | `tab`, `frame?` | `true`; injects `vendor/engine.js` into MAIN as a file (no CSP issue), unless `FillEngine` is there |
 | `engine.call` | `tab`, `frame?`, `name`, `args` | `FillEngine.call(name, args)`'s answer (`{value}` or `{error}`), run by a fixed function in MAIN through `chrome.scripting` (no eval, no user scripts needed); loads the engine first if the page lacks it |
 | `dom` | `tab`, `frame?`, `method`, `args` | `{"ok": value}` or `{"retry": reason}`; runs `page/dom.js`'s `method` in the extension's isolated world with Playwright's injected script (`__applyPW`); see below |

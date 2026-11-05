@@ -10,7 +10,7 @@
 //   very strings. A file goes in as code the extension ships, so no eval runs and page CSP and
 //   the Allow User Scripts toggle don't matter.
 
-import { inPage, named, sleep } from "./shared.js";
+import { inPage, named, sleep, vendor } from "./shared.js";
 import { ops as tabs } from "./tabs.js";
 
 const STRIP_GAP_MS = 520; // captureVisibleTab's quota is about 2 calls a second
@@ -163,7 +163,7 @@ async function callFixed(params) {
   const args = [params.name, params.arg ?? null, params.selector ?? null, !!params.all];
   let answer = await inPage(params, world, runFixed, args);
   if (answer?.missing) {
-    const files = world === "ISOLATED" && params.selector != null ? ["vendor/injected.js", "vendor/fixed.js"] : ["vendor/fixed.js"];
+    const files = world === "ISOLATED" && params.selector != null ? [vendor("vendor/injected.js"), vendor("vendor/fixed.js")] : [vendor("vendor/fixed.js")];
     await chrome.scripting.executeScript({ target: { tabId: params.tab, frameIds: [params.frame ?? 0] }, world, files, injectImmediately: true });
     answer = await inPage(params, world, runFixed, args);
   }

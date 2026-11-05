@@ -550,10 +550,15 @@ class Dashboard:
         self._threads: dict[str, list[dict]] = {}
         self._to_ask: dict[int, list[dict]] = {}
         self._asked = 0
-        self._quiet = quiet or (lambda k: False)
+        # Tile k shows Worker _shown[k]: one tile per Worker at first, and one more for each link sent into a
+        # Worker already running (`apply rehearse --into`, KAN-645), which shows that Worker's window.
+        self._shown = list(range(workers))
+        self._into: Callable[[str, int], dict] | None = None  # takes a new link into a Worker (taking)
+        quiet = quiet or (lambda k: False)
+        self._quiet = lambda k: quiet(self.worker_of(k))
         self.accounts = accounts  # the Accounts tab: each Employer account, its password only in Keychain
         self._sample = sample
-        self._frames = frames
+        self._frames = _Shown(frames, self)
         self.answers = answers
         self.applied = applied
         self._now = now
@@ -563,7 +568,7 @@ class Dashboard:
         self.everyday = everyday  # opens a bot-blocked posting in Lisul's everyday Chrome, when he presses it
         self.approve = approve
         self._approved: set[str] = set()  # the Holds Lisul approved in the window, by item id
-        self.show = show
+        self.show = (lambda k: show(self.worker_of(k))) if show else None
         self.answer = answer
         self._answered: dict[str, str] = {}  # each item's questions Lisul answered in the window, by "id|question"
         self._notify, self._told, self._told_at, self._telling = notify, set(), -NOTIFY_EVERY, None
@@ -592,6 +597,41 @@ class Dashboard:
     def __enter__(self) -> Self:
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
         return self
+
+    def worker_of(self, tile: int) -> int:
+        """The Worker whose window tile `tile` shows."""
+        return self._shown[tile] if 0 <= tile < len(self._shown) else tile
+
+    def taking(self, into: Callable[[str, int], dict]) -> None:
+        """`into(url, worker)` starts a new link in Worker `worker`'s running browser, with a tile of its own
+        (add_tile), and says which: `apply rehearse --into` sends it through POST /rehearse."""
+        self._into = into
+
+    def add_tile(self, worker: int) -> int:
+        """One more tile, showing Worker `worker`'s window. Returns its number; the window reloads to show it."""
+        with self._lock:
+            self._captions.append({})
+            self._picked.append([])
+            self._shown.append(worker)
+            self._workers += 1
+            self._context["workers"] = self._workers
+            return self._workers - 1
+
+    def into(self, url: str, worker: int | None = None, application: str = "") -> dict:
+        """A new link into the Worker that `application` (an Application ID on a tile) fills, else Worker
+        `worker` (default the first). Raises Refused when this window takes no links, or names no such Worker."""
+        if self._into is None:
+            raise Refused("This window takes no new links: only a rehearsal's does.", 409)
+        if application:
+            with self._lock:
+                tile = next((k for k, c in enumerate(self._captions) if c.get("application_id") == application), None)
+            if tile is None:
+                raise Refused(f"No tile in this window has the Application {application}.", 404)
+            worker = self.worker_of(tile)
+        worker = 0 if worker is None else worker
+        if worker not in self._shown:
+            raise Refused(f"This window has no Worker {worker + 1}.", 404)
+        return self._into(url, worker)
 
     def __exit__(self, *exc) -> None:
         self._server.shutdown()
@@ -1002,14 +1042,14 @@ class Dashboard:
         columns, rows = grid(self._workers)
         tiles = "".join(
             f'<div class="tile" data-k="{k}"><div class="banner idle" id="banner-{k}"><span class="label">{IDLE}</span>'
-            f'<span class="fields"></span></div><div class="caption" id="caption-{k}">Browser {k + 1}</div>'
+            f'<span class="fields"></span></div><div class="caption" id="caption-{k}">Browser {self.worker_of(k) + 1}</div>'
             f'<div class="sent" id="sent-{k}" hidden></div>'
             f'<div class="capture" id="capture-{k}" hidden></div>'
             f'<div class="resumebar" id="resume-{k}" hidden><button class="primary">Resume</button>'
             f'<span class="why"></span></div>'
             f'<div class="askclaude" id="ask-{k}" hidden><div class="thread"></div><form><input maxlength="4000" '
             f'autocomplete="off" aria-label="Ask Claude"><button class="go tonal">Ask Claude</button></form></div>'
-            f'<img id="frame-{k}" alt="Browser {k + 1}" tabindex="0" draggable="false">'
+            f'<img id="frame-{k}" alt="Browser {self.worker_of(k) + 1}" tabindex="0" draggable="false">'
             f'<div class="hint">Open to look or type</div>'
             f'<div class="note">You\'re controlling this browser — Esc to return '
             f'<button onclick="control(null)">Back to all tiles</button>'
@@ -1153,6 +1193,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._regenerate()
         if parts.path == "/goto":
             return self._go_to()
+        if parts.path == "/rehearse":
+            return self._rehearse()
         if parts.path == "/ask":
             return self._ask()
         if parts.path == "/ask/remember":
@@ -1431,6 +1473,25 @@ class _Handler(BaseHTTPRequestHandler):
         print(f"Resume pressed in the window ({key})")
         self._json(200, {"message": message})
 
+    def _rehearse(self) -> None:
+        """A new link for a running Worker (`apply rehearse --into`): from a process that read the window's
+        token from its 0600 file, or from the page itself. Body {url, worker?, application?}."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only Apply may send a link into this window."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            url, worker = str(body["url"]), body.get("worker")
+            if worker is not None and not isinstance(worker, int):
+                raise TypeError
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a link to rehearse."})
+        try:
+            taken = self.dashboard.into(url, worker, str(body.get("application") or ""))
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Took {url} into Browser {taken['worker'] + 1} (tile {taken['tile'] + 1})")
+        self._json(200, taken)
+
     def _regenerate(self) -> None:
         """Lisul pressed Regenerate on an answer Claude wrote, from the page itself, with his context."""
         token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
@@ -1576,11 +1637,12 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/octet-stream")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        seen = [0] * self.dashboard._workers
+        seen: dict[int, int] = {}
         try:
             while True:
                 sent = False
-                for worker in range(len(seen)):
+                for worker in range(self.dashboard._workers):  # a tile added since (--into) streams too
+                    seen.setdefault(worker, 0)
                     frame, number = self.dashboard._frames.wait(worker, seen[worker], 0)
                     if frame is not None and number != seen[worker]:
                         seen[worker] = number
@@ -1605,6 +1667,29 @@ class _Handler(BaseHTTPRequestHandler):
 
     def log_message(self, *args):
         pass
+
+
+class _Shown:
+    """The window's frame source by tile: tile k is Worker worker_of(k)'s frames and input."""
+
+    def __init__(self, frames: Frames, dashboard: Dashboard):
+        self._frames, self._dashboard = frames, dashboard
+
+    def frame(self, tile: int) -> bytes | None:
+        return self._frames.frame(self._dashboard.worker_of(tile))
+
+    def wait(self, tile: int, after: int, timeout: float) -> tuple[bytes | None, int]:
+        return self._frames.wait(self._dashboard.worker_of(tile), after, timeout)
+
+    def input(self, tile: int, event: dict) -> dict | None:
+        return self._frames.input(self._dashboard.worker_of(tile), event)
+
+    def chooser(self, tile: int) -> str | None:
+        return self._frames.chooser(self._dashboard.worker_of(tile))
+
+    def __getattr__(self, name: str):  # field_error, notice, forget_chooser: by tile too, where the source has them
+        found = getattr(self._frames, name)
+        return (lambda tile, *rest: found(self._dashboard.worker_of(tile), *rest)) if callable(found) else found
 
 
 class CdpFrames:

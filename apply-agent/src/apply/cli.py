@@ -26,6 +26,7 @@ from apply import (
     employer_mail,
     essays,
     home,
+    into,
     native_host,
     on_page,
     orchestrator,
@@ -89,6 +90,10 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
     rehearse.add_argument("--start-button", dest="together", action="store_true",
                           help="hold every form, open and planned, until all are and you press Start in the window, "
                                "then fill them all at once (for filming)")
+    rehearse.add_argument("--into", metavar="WINDOW",
+                          help="send the links into a running Apply window instead: its port (54321, or 54321:2 for "
+                               "Browser 2) or an Application ID on one of its tiles. Each fills in that Worker's "
+                               "running Chrome, in a tab of its own, so the job site's sign-in holds")
     rehearse.add_argument("--force", action="store_true",
                           help="rehearse a link you already applied to anyway; its page keeps Submit blocked "
                                "under a red note until you dismiss it")
@@ -224,6 +229,8 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             finally:
                 _close_workers(adapters.site)
             repair_later(adapters.repairs, profile.policy("repair") or {})
+    elif args.command == "rehearse" and args.into:
+        sys.exit(_send_into(args.into, args.urls))
     elif args.command == "rehearse":
         profile = ApplicantProfile.load(args.profile)
         live = adapters is None
@@ -537,6 +544,31 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
         finally:
             url.unlink(missing_ok=True)
             noted.unlink(missing_ok=True)
+
+
+def _send_into(target: str, urls: list[str]) -> int:
+    """`apply rehearse --into`: send each link into the window `target` names, then wait for each one's
+    form to stop being filled and print how it stopped. The window's process fills it; this one opens nothing."""
+    sent = []
+    for url in urls:
+        try:
+            window, taken = into.send(target, url)
+        except into.NoWindow as error:
+            print(f"apply rehearse --into {target}: {error}", file=sys.stderr)
+            return 1
+        print(f"Sent {url} into Browser {taken['worker'] + 1} of {window['url']} (tile {taken['tile'] + 1}). "
+              "Its sign-in holds; Apply submits nothing.")
+        sent.append((window, taken["tile"], url))
+    try:
+        for window, tile, url in sent:
+            caption = into.outcome(window, tile)
+            print(" | ".join(str(caption.get(k) or "") for k in ("company", "role", "status", "why")) or url)
+    except into.NoWindow as error:
+        print(f"The window went away: {error}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("Stopped waiting; the window goes on filling.")
+    return 0
 
 
 def _remembering(bank: AnswerBank) -> Callable[[str, str], str]:

@@ -9,7 +9,7 @@
 // changed. tile.input replays one of Lisul's tile events on the page (page/tile.js), and
 // the chooser ops stand in for the file picker an untrusted click can't open.
 
-import { capture, inPage, named, sleep } from "./shared.js";
+import { capture, inPage, named, sleep, vendor } from "./shared.js";
 import { touch } from "./guard.js";
 
 const SHOWN = { interval: 500, quality: 88, maxWidth: 1280, maxHeight: 900, native: false };
@@ -185,7 +185,7 @@ async function replay(tab, frame, event) {
   let answer = await go();
   if (answer?.missing) {
     await chrome.scripting.executeScript({ target: { tabId: tab, frameIds: [frame] }, world: "ISOLATED",
-                                           files: ["vendor/injected.js", "page/dom.js", "page/tile.js"], injectImmediately: true });
+                                           files: [vendor("vendor/injected.js"), "page/dom.js", "page/tile.js"], injectImmediately: true });
     answer = await go();
   }
   if (answer?.err) throw named(answer.err.name, answer.err.message);

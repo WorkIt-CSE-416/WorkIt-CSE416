@@ -906,6 +906,54 @@ def test_dropdowns_that_open_to_list_their_choices_are_picked_by_plain_code():
     assert chips == "Asian"
 
 
+# Microsoft's "Create your profile" step (live, KAN-646): a country code picker and a country of
+# residence dropdown, after one only a page script counts as visible (visibility: hidden) and
+# one in a shadow root, which only Playwright finds.
+PROFILE_DROPDOWNS = """<!doctype html><body>
+<div><input role="combobox" aria-label="Hidden search" style="visibility:hidden" onclick="openList(this, ['Nowhere'])"></div>
+<div id="host"></div>
+<div><label for="code">Country code</label>
+<input id="code" role="combobox" aria-label="Country code picker" value=""
+  onclick="openList(this, ['\U0001F1FA\U0001F1F8 (+1) United States of America', '\U0001F1E8\U0001F1E6 (+1) Canada'])"></div>
+<div><label id="country_label">Country/region of residence</label>
+<input id="input-7" role="combobox" aria-labelledby="country_label" value=""
+  onclick="openList(this, ['Canada', 'United States'])"></div>
+<div id="list" role="listbox"></div>
+<script>
+let open = null;
+function openList(box, options) {
+  open = box;
+  document.getElementById('list').innerHTML = options.map(o => '<div role="option" onclick="pick(this)">' + o + '</div>').join('');
+}
+function pick(option) { open.value = option.textContent; open.setAttribute('value', option.textContent);
+  open.parentElement.dataset.shown = option.textContent; document.getElementById('list').innerHTML = ''; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('list').innerHTML = ''; });
+const shadow = document.getElementById('host').attachShadow({mode: 'open'});
+shadow.innerHTML = '<input role="combobox" aria-label="Search jobs" onclick="openList(this, [\\'Engineering\\'])">';
+shadow.firstElementChild.onclick = function () { openList(this, ['Engineering']); };
+</script></body>"""
+
+
+def test_each_dropdown_gets_its_own_choices_and_answer_when_a_script_and_playwright_count_them_apart():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+
+    us_code = "\U0001F1FA\U0001F1F8 (+1) United States of America"
+    questions = [Question("q3", "Country code", "select", False), Question("q5", "Country/region of residence", "select", True)]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(PROFILE_DROPDOWNS)
+        found = claude_fill._with_options(page, questions)
+        claude_fill._pick_in_comboboxes(page, found, {"q3": us_code, "q5": "United States"})
+        code, country = page.input_value("#code"), page.input_value("#input-7")
+        browser.close()
+
+    assert [q.options for q in found] == [(us_code, "\U0001F1E8\U0001F1E6 (+1) Canada"), ("Canada", "United States")]
+    assert (code, country) == (us_code, "United States")
+
+
 def test_jobvites_country_of_residence_and_consent_are_passed_before_claude_reads_the_form(tmp_path):
     driver = JobviteDriver()
 
@@ -1319,3 +1367,125 @@ def test_the_step_limit_comes_from_the_policy(tmp_path):
     assert row.status == "handoff"
     assert "went through 1 steps" in row.reason
     assert server.submissions == []
+
+
+# Microsoft's careers site once signed in (live, KAN-647): a "Create your profile" pop-up, its
+# button "Submit", comes before the application, which shows only once the profile is sent.
+PROFILE_THEN_FORM = """<!doctype html><body>
+<div id="profile" role="dialog" aria-modal="true" aria-labelledby="title">
+<h2 id="title">Create your profile</h2>
+<form id="profile-form" onsubmit="event.preventDefault(); made()">
+<label>Preferred First name <input id="first"></label>
+<button type="button">Back</button><button type="submit">Submit</button></form></div>
+<form id="application" hidden onsubmit="event.preventDefault(); window.sent = (window.sent || 0) + 1">
+<label>Why Microsoft? <textarea id="why"></textarea></label>
+<button type="submit">Submit application</button></form>
+<script>
+window.sent = 0;
+function made() { document.getElementById('profile').remove(); document.getElementById('application').hidden = false; }
+</script></body>"""
+
+
+def _profile_then_form_driver(page, schema: dict, prompt: str, files: list) -> dict:
+    """Plays Claude: fills what <fields> asks on the step showing, and names that step's Submit."""
+    fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
+    filled = []
+    for field in fields:
+        box = page.locator("#first" if field["question"] == "Preferred First name" else "#why")
+        if box.is_visible():
+            box.fill(field["answer"])
+            filled.append({"field": field["field"], "shown": [field["answer"]]})
+    profile = page.locator("#profile").count() > 0
+    unlisted = [] if profile or any(f["question"] == "Why Microsoft?" for f in fields) else [
+        {"label": "Why Microsoft?", "kind": "textarea", "required": True, "options": []}]
+    return {"blocked": False, "why": "", "filled": filled, "next_button": "",
+            "submit_button": "Submit" if profile else "Submit application", "unlisted": unlisted}
+
+
+def test_a_profile_pop_up_before_the_application_is_sent_on_and_only_the_forms_last_page_is_held(tmp_path):
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import MoreQuestions, Question
+
+    fill = ClaudeFill(FakeClaude(driver=_profile_then_form_driver))
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(PROFILE_THEN_FORM)
+        with pytest.raises(MoreQuestions) as more:  # the application's own questions, once the profile is sent
+            fill.fill(page, [Question("q1", "Preferred First name", "text", True)], {"q1": "Test"})
+        [why] = more.value.questions
+        readback = fill.fill(page, [Question("q1", "Preferred First name", "text", True), why],
+                             {"q1": "Test", why.name: "I want to build developer tools."})
+        sent, profile_left = page.evaluate("window.sent"), page.locator("#profile").count()
+        browser.close()
+
+    assert profile_left == 0  # the pop-up was sent on, by plain code
+    assert sent == 0  # the application itself never was
+    assert readback[why.name] == "I want to build developer tools."
+    assert fill._submit_button == "Submit application"  # held at the form's own last page
+
+
+def test_a_submit_outside_a_profile_pop_up_stays_blocked_while_its_click_is_let_through():
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import DriveGuard
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(PROFILE_THEN_FORM.replace('<form id="application" hidden', '<form id="application" style="display:none"'))
+        drive = DriveGuard(page)
+        drive.let_profile_click()
+        page.evaluate("document.getElementById('application').style.display = ''")  # shown, outside the pop-up
+        page.get_by_role("button", name="Submit application").click()
+        page.wait_for_timeout(200)
+        sent = page.evaluate("window.sent")
+        page.evaluate("document.getElementById('application').style.display = 'none'")
+        page.get_by_role("button", name="Submit", exact=True).click()
+        page.wait_for_timeout(200)
+        profile_left = page.locator("#profile").count()
+        blocked = drive.blocked()
+        browser.close()
+
+    assert sent == 0 and blocked and "Submit application" in blocked[0]
+    assert profile_left == 0  # the profile step's own Submit went through
+
+
+# Pop-ups that may be the application itself, which no profile-step click may ever send.
+NOT_PROFILE_STEPS = {
+    "it asks for a file": ("Complete your profile", '<label>Resume <input type="file"></label>', "Submit"),
+    "it has a box to tick": ("Complete your profile", '<label><input type="checkbox"> I certify this is true</label>', "Submit"),
+    "it has an essay": ("Create your profile", '<label>Why us? <textarea></textarea></label>', "Submit"),
+    "its title names the application": ("Complete your profile to apply", "", "Submit"),
+    "its button names the application": ("Create your profile", "", "Submit application"),
+    "the page behind has a form": ("Create your profile", "", "Submit"),
+}
+
+
+@pytest.mark.parametrize("why", NOT_PROFILE_STEPS)
+def test_a_pop_up_that_could_be_the_application_is_never_sent_as_a_profile_step(why):
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import DriveGuard
+
+    title, more, button = NOT_PROFILE_STEPS[why]
+    behind = '<label>Email <input id="email"></label>' if why == "the page behind has a form" else ""
+    html = (f'<!doctype html><body>{behind}<div id="pop" role="dialog" aria-modal="true" aria-labelledby="t">'
+            f'<h2 id="t">{title}</h2><form onsubmit="event.preventDefault(); window.sent = 1">'
+            f'<label>Preferred First name <input id="first"></label>{more}<button type="submit">{button}</button>'
+            '</form></div><script>window.sent = 0;</script></body>')
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        found = claude_fill._profile_step(page, button)
+        drive = DriveGuard(page)
+        drive.let_profile_click()
+        page.get_by_role("button", name=button, exact=True).click()
+        page.wait_for_timeout(200)
+        sent = page.evaluate("window.sent")
+        browser.close()
+
+    assert found is None
+    assert sent == 0  # the guard blocked it, flag or no flag

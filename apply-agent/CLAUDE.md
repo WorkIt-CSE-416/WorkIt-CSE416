@@ -713,6 +713,23 @@ put back, the window's routes, `apply ask`, and the Record and Repair request.
   frames (after one click on its Apply button outside any form) and sends an
   embedded Greenhouse, Lever or Ashby form to that system's Filler. Claude
   fill is only the fallback.
+- A profile pop-up before the application is never the form's last page
+  (KAN-647). When the button Claude names as the one that sends sits in an
+  open dialog that is a profile step and nothing more
+  (`submit_guard.PROFILE_DIALOG`: titled "Create your profile" or the like,
+  naming no application, job or role; no file, essay, box, choice or
+  password in it; and no form field of the page's own behind it), and the
+  button names no application, plain code presses it
+  (Microsoft's names it Submit; `_through_profile_step`) under
+  `DriveGuard.let_profile_click()`, which lets that dialog's button through
+  the drive and rehearsal guards and nothing else, waits for the dialog to
+  go, and the fill goes on to the real form. The flag is
+  `__applyProfileClick` (in `worker-extension/ops/guard.js`'s `FLAGS` too).
+- Dropdowns that list their choices only once opened are read and picked
+  by plain code (`_with_options`, `_pick_in_comboboxes`). Each one's name is
+  read off the very element Playwright clicks (`_comboboxes`), never from a
+  page script's own list: the two counted visibility apart on Microsoft's
+  profile step, and each question opened its neighbour (KAN-646).
 - On a plain Worker (KAN-612; a PortPage, no CDP), `claude_cli.drive` gives
   `claude -p` Apply's own MCP server under the same name, `playwright`
   (`apply.plain.mcp`, a stdio relay, and `apply.plain.tools`, which runs
@@ -1321,8 +1338,9 @@ What changes on a plain Worker:
   Apply's own MCP server (S6, KAN-612) when the page is a PortPage, so a run or rehearsal in `plain`
   or `protected` mode needs no other wiring.
 - **The production seed.** `uv run apply plain seed` opens branded Chrome on `APPLY_PROFILES/plain-seed`
-  and prints Lisul's four steps: Developer mode, Load unpacked with the worker extension's folder,
-  Details, Allow User Scripts, then quit (`launcher.seed_steps`). `plain_chrome: chrome` (the
+  and prints Lisul's steps: Developer mode, Remove an old card, Load unpacked with the profiles
+  folder's own copy of the extension (`APPLY_PROFILES/worker-extension`, next section), Details,
+  Allow User Scripts, then quit (`launcher.seed_steps`). `plain_chrome: chrome` (the
   default) then copies that seed to each Worker. `plain_chrome: testing` (Chrome for Testing) needs no
   seed, but Allow User Scripts can't be turned on there.
 - **Held Submit and the already-applied note** (KAN-629, KAN-621) work on plain pages:
@@ -1331,6 +1349,60 @@ What changes on a plain Worker:
   `renote` of a page still guarded leaves it guarded.
 - Tests: `tests/test_plain_routing.py`. Its live test rehearses the fake Greenhouse form twice in
   one reused plain Worker. `tests/test_plain_guards.py -k "held_submit or already_applied"`.
+
+## One sign-in per job site: `apply rehearse --into` (KAN-645)
+
+Job sites keep their sign-in only for the browser's session. A new Worker Chrome signs in again,
+and a restart signs Lisul out. So **agents send each next posting into the running Worker that is
+signed in to its site, never into a new rehearsal**:
+
+```
+uv run apply rehearse <first link>               # starts the window and its plain Worker
+uv run apply rehearse --into 54321 <next link>   # the window's port: Browser 1
+uv run apply rehearse --into 54321:2 <link>      # Browser 2 of that window
+uv run apply rehearse --into <application id> <link>  # the Worker that fills that Application
+```
+
+- `apply.into` finds the window by the notes in `APPLY_PROFILES/windows/` (`ask.register`, 0600)
+  and POSTs `/rehearse {url, worker?, application?}` with its `X-Apply-Token`. It then waits for
+  the new tile to stop filling and prints how it stopped. Ctrl-C stops the wait, not the fill.
+- The rehearsal (`rehearsal.rehearse`'s `into`, via `Dashboard.taking`) fills it in that Worker's
+  running Chrome, in a tab of its own, with its own tile (`Dashboard.add_tile`: the tile shows
+  that Worker's window), its own Record and the same guards. It never submits. A run's window
+  takes it as a Request for that Worker, once that Worker is free.
+- A form still open in the Worker (held, paused or filling) keeps its tab: no guard reset, no
+  reload, no close (`PlainSite.open`). Only blank tabs go. Only a plain Worker that is running
+  takes a link (409 otherwise): CDP Workers start a new browser per form.
+- Before each posting, `fill_engine.fresh()` restarts the long-lived Node if the bundle on disk
+  changed, and `PlainWorkers.refresh` writes a new vendor set (`vendor.use`) and reloads the
+  Worker's extension when its code changed and no other form is open in it. So a merged engine
+  fix needs no Chrome restart.
+- Tests: `tests/test_into.py` (in CI). The live check is in the PR: one rehearsal, a second
+  posting sent in, one Chrome PID, the job site's session cookie on the second form's requests.
+
+## The worker extension's copy and vendor sets (KAN-645)
+
+Chrome restarts an MV3 service worker from disk. A Worker that loads a shared checkout (the
+old seed loaded `wt/sync`) runs whatever that folder holds after a pull, and a guard file that
+differs from its Apply's crashed the page guard. So:
+
+- **Each profiles folder has its own copy**, `APPLY_PROFILES/worker-extension/`
+  (`extension.install`, with `.apply-code`, the code's hash). Chrome for Testing's
+  `--load-extension` and the seed's Load unpacked name it. Apply replaces it only while none of
+  that folder's Workers runs (`PlainWorkers.idle`; one Apply process drives a profiles folder,
+  KAN-634), whole, by a rename. A `git pull` in any checkout never reaches a running Worker.
+- **Generated files are write-once sets**: `vendor/sets/<id>/` (`extension.vendor_set`; the
+  engine bundle, injected script, fixed functions and guards, `<id>` a hash of their bytes). The
+  welcome names this Apply's set (`vendor`); the extension reads every generated file from it
+  (`ops/shared.js: vendor`). A set is never changed, so Workers of another Apply on the same
+  folder keep theirs. Sets unused for 7 days go.
+- An older Worker on a shared folder: the bridge reloads it at hello when it can (KAN-643),
+  before any engine check. If it still reads no sets and its guard files are another Apply's,
+  `launch` stops it with `launcher.OutOfDate` (a SetupError: the rehearsal's line says how to fix
+  it), never a crash. Its refusal for another engine names the folder to update.
+- Rolling it out: no running Worker is touched. When no plain Worker runs, `uv run apply plain
+  seed` once, and Load unpacked the copy it names. New Worker profiles copy that seed; an
+  existing idle `plain-<k>` profile keeps its old registration until it is deleted.
 
 ## The data folder (`APPLY_HOME`)
 

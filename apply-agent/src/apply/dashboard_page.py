@@ -145,6 +145,7 @@ document.addEventListener('paste', e => {
 setInterval(async () => {
   let state;
   try { state = await (await fetch('/state?front=' + (document.hasFocus() ? 1 : 0))).json(); } catch (e) { return; }
+  if (state.tiles.length > workers) { location.reload(); return; }  // a link sent in (--into): its tile too
   renderInbox(state);
   state.tiles.forEach((c, k) => {
     const banner = document.getElementById('banner-' + k);
