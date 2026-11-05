@@ -104,6 +104,12 @@ class Job_Source(Base):
     prior_read_at was missing from the last two complete reads of that board.
     When every enabled board that ever listed a job reports it stale, and no
     other enabled board still supports it, the job closes.
+
+    CASCADE on schedule_id: deleting a schedule drops its source rows, so
+    detect_and_close can no longer see that the board ever listed those jobs.
+    Accepted: a deleted schedule is a disabled board removed from the catalog,
+    and its votes should stop counting.  If a board must stop voting without
+    losing history, disable it (enabled=False) instead of deleting it.
     """
 
     __tablename__ = "job_sources"

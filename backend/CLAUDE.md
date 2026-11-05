@@ -36,8 +36,9 @@ snapshot, so no concurrent transaction can change the row set between the
 check and the close. `job_sources` drives closure detection (KAN-619): a job
 stale on every enabled board (two complete reads without it,
 `last_seen_at < prior_read_at`) and supported by no other enabled board is
-closed with reason `gone_from_board`; a surge guard (same thresholds as the
-feed import) refuses mass closures.
+closed with reason `gone_from_board`; a surge guard (the feed import's
+`_MASS_CLOSE_SHARE` and `_MASS_CLOSE_FLOOR`, imported, not copied) refuses
+mass closures. Tests: `tests/test_closures.py`.
 
 **Not PostgREST, deliberately.** Queries go to Postgres directly over asyncpg,
 because the job search needs ltree containment and trigram ranking, which

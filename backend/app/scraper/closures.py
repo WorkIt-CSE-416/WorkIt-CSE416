@@ -15,14 +15,11 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.models.scraper import Job_Source
+from app.scripts.import_jobs import _MASS_CLOSE_FLOOR, _MASS_CLOSE_SHARE
 
 logger = logging.getLogger(__name__)
 
 _sources = Job_Source.__table__
-
-# Same thresholds as app.scripts.import_jobs.
-_MASS_CLOSE_SHARE = 0.5
-_MASS_CLOSE_FLOOR = 20
 
 # One statement: identify stale jobs, count them against the surge guard, and
 # close in a single snapshot.  The guard CTE gates the UPDATE: when it returns
