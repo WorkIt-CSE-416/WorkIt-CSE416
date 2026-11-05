@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import socket
 import stat
 import struct
@@ -154,7 +155,7 @@ def test_the_loaded_folder_is_the_one_the_profile_registered(tmp_path):
     assert extension.loaded_folder(profile) == folder
     workers = PlainWorkers(tmp_path, kind="chrome")
     assert workers.loaded_folder(0) == folder  # no Worker profile yet: the seed's
-    assert PlainWorkers(tmp_path, kind="testing").loaded_folder(0) == EXTENSION_DIR
+    assert PlainWorkers(tmp_path, kind="testing").loaded_folder(0) == tmp_path / extension.COPY
 
 
 def test_the_code_hash_changes_with_the_code_not_the_vendor_files(tmp_path):
@@ -250,11 +251,43 @@ def test_a_second_apply_on_the_same_socket_is_told_so(bridge):
 
 def test_the_seeds_steps_are_lisuls_clicks_in_order():
     steps = seed_steps(EXTENSION_DIR)
-    assert len(steps) == 4
+    assert len(steps) == 5
     assert steps[0].startswith("Turn on Developer mode")
-    assert steps[1].startswith("Click Load unpacked") and str(EXTENSION_DIR.resolve()) in steps[1]
-    assert steps[2] == 'On the "Apply Worker (private)" card, click Details, and turn on Allow User Scripts.'
-    assert steps[3].startswith("Quit that Chrome")
+    assert steps[1].startswith('If a "Apply Worker (private)" card is there already') and "Remove" in steps[1]
+    assert steps[2].startswith("Click Load unpacked") and str(EXTENSION_DIR.resolve()) in steps[2]
+    assert steps[3] == 'On the "Apply Worker (private)" card, click Details, and turn on Allow User Scripts.'
+    assert steps[4].startswith("Quit that Chrome")
+
+
+def test_workers_load_their_profiles_folders_own_copy_which_changes_only_while_none_runs(tmp_path):
+    source = tmp_path / "checkout" / "worker-extension"
+    shutil.copytree(EXTENSION_DIR, source, ignore=shutil.ignore_patterns("vendor"))
+    files = {"engine.js": b"engine one", "guards/lifted.js": b"x"}
+    copy = tmp_path / "profiles" / extension.COPY
+    assert extension.install(copy, files, replace=False, source=source)  # none yet: made
+    assert (copy / "background.js").read_text() == (source / "background.js").read_text()
+    first_set = next((copy / "vendor/sets").iterdir())
+    (source / "ops" / "core.js").write_text((source / "ops" / "core.js").read_text() + "\n// newer\n")  # git pull
+    assert not extension.install(copy, files, replace=False, source=source)  # a Worker runs: unchanged
+    assert "// newer" not in (copy / "ops" / "core.js").read_text()
+    assert extension.install(copy, {**files, "engine.js": b"engine two"}, replace=True, source=source)
+    assert "// newer" in (copy / "ops" / "core.js").read_text()
+    assert first_set.is_dir() and len(list((copy / "vendor/sets").iterdir())) == 2  # the old set stays
+    assert not [p for p in copy.parent.iterdir() if p.name.startswith(".")]
+    workers = PlainWorkers(tmp_path / "profiles", kind="testing")
+    assert workers.copy == copy and f"--load-extension={copy}" in workers.arguments(0)
+    assert PlainWorkers(tmp_path / "p2", kind="chrome").loaded_folder(0) == tmp_path / "p2" / extension.COPY
+
+
+def test_guards_match_reads_the_plain_guard_files(tmp_path):
+    from apply.plain import guards
+    assert not extension.guards_match(tmp_path)
+    for name, text in guards.FILES.items():
+        (tmp_path / "vendor/guards" / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / "vendor/guards" / name).write_text(text)
+    assert extension.guards_match(tmp_path)
+    (tmp_path / "vendor/guards/lifted.js").write_text("another Apply's")
+    assert not extension.guards_match(tmp_path)
 
 
 def test_an_extension_older_than_apply_is_welcomed_as_stale_with_one_line(bridge, capsys):

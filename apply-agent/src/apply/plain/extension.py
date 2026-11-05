@@ -21,6 +21,13 @@ another checkout's), and names it in the welcome; the extension then reads every
 from there (ops/shared.js: vendor). A set is never changed or replaced, so an Apply process on
 another engine, with Workers of its own on the same folder, keeps its own set, and no Worker is
 refused for an engine another checkout prepared.
+
+Workers load no checkout at all: each profiles folder has its own copy of the extension,
+APPLY_PROFILES/worker-extension/ (`install`), which the seed's Load unpacked registers and Chrome
+for Testing's --load-extension names. Apply replaces that copy only while none of that folder's
+Workers runs (one Apply process drives a profiles folder, KAN-634), so a `git pull` in any checkout,
+or an Apply on newer code, never changes the code of a Worker that is running: Chrome restarts an
+MV3 service worker from disk, so a shared folder would (KAN-645).
 """
 
 import base64
@@ -43,6 +50,8 @@ from apply.plain import fixed
 EXTENSION_DIR = CODE / "worker-extension"
 VENDOR = EXTENSION_DIR / "vendor"
 HOST_NAME = "com.workit.apply_worker"
+COPY = "worker-extension"  # APPLY_PROFILES/worker-extension/: the profiles folder's own copy (install)
+STAMP = ".apply-code"  # in a copy: the code_hash of the code it holds
 SETS = "sets"  # vendor/sets/<id>/: one write-once set of the generated files per Apply build
 SET_DAYS = 7  # a set unused this long is removed when a new one is written
 # The extension's own code: what `code_hash` reads to tell an extension running old code.
@@ -186,3 +195,47 @@ def code_hash(folder: Path = EXTENSION_DIR) -> str:
         for path in sorted([root] if root.is_file() else root.rglob("*.js") if root.is_dir() else []):
             digest.update(str(path.relative_to(folder)).encode() + b"\0" + path.read_bytes())
     return digest.hexdigest()[:16]
+
+
+def install(dest: Path, files: dict[str, bytes], replace: bool, source: Path = EXTENSION_DIR) -> bool:
+    """Make `dest` a copy of the extension in `source` (its code, the generated files and their vendor
+    set), unless it holds that code already. A copy that holds other code is replaced only when
+    `replace` (no Worker loads it now): whole, by a rename, its vendor sets kept. True when `dest`
+    holds `source`'s code after."""
+    code = code_hash(source)
+    stamp = dest / STAMP
+    held = stamp.read_text().strip() if stamp.is_file() else ""
+    if held != code and (replace or not dest.exists()):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        building = Path(tempfile.mkdtemp(prefix=f".{dest.name}-", dir=dest.parent))
+        for part in CODE_FILES:
+            if (source / part).is_dir():
+                shutil.copytree(source / part, building / part)
+            elif (source / part).is_file():
+                shutil.copy2(source / part, building / part)
+        for name, data in files.items():  # the plain vendor/ files, for code that reads no set
+            (building / "vendor" / name).parent.mkdir(parents=True, exist_ok=True)
+            (building / "vendor" / name).write_bytes(data)
+        if (dest / "vendor" / SETS).is_dir():
+            shutil.copytree(dest / "vendor" / SETS, building / "vendor" / SETS)
+        (building / STAMP).write_text(code + "\n")
+        old = dest.with_name(f".{dest.name}-old-{os.getpid()}")
+        if dest.exists():
+            dest.rename(old)
+        building.rename(dest)
+        shutil.rmtree(old, ignore_errors=True)
+        held = code
+    if dest.exists():
+        vendor_set(dest, files)
+    return held == code
+
+
+def guards_match(folder: Path) -> bool:
+    """Whether `folder`'s plain vendor/guards/ files are this Apply's: code that reads no vendor set guards
+    pages with those, and refuses any that differ."""
+    from apply.plain import guards
+
+    try:
+        return all((folder / "vendor" / guards.FOLDER / name).read_text() == text for name, text in guards.FILES.items())
+    except OSError:
+        return False

@@ -133,6 +133,9 @@ class PlainSite:
         with self._tabs:
             others = set(self._open.get(worker, ()))
         running = self.workers.running.get(worker)
+        if running and running.connection.closed.is_set() and (again := self.workers.bridge.connection(worker)) \
+                and not again.closed.is_set():  # its extension restarted and said hello again: same Chrome
+            running.connection = again
         if running and running.connection.closed.is_set():  # it quit or its port closed: a new one
             self.workers.stop(worker)
             running = None
