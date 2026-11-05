@@ -631,13 +631,18 @@ class _Planned:
                 self.drafted.append(draft)
         given = {d.question.name: d.answer for d in self.drafted + self.unbanked}
         # A follow-up to a question Claude just answered ("If yes, ...", answered No) that the answer doesn't call for.
-        moot = {q: answer for q in planned.drafts
+        # One the engine held for that answer (Plan.waiting) is decided the same way: blank when not called for,
+        # asked of Lisul with the form's own label when it is, and still waiting while its question is unanswered.
+        waiting = [q for q in self.questions if q.name in planned.waiting]
+        moot = {q: answer for q in planned.drafts + waiting
                 for is_moot, answer in [not_called_for(q, self.questions, planned.answers | given)] if is_moot}
+        called_for = [q for q in waiting if q not in moot and planned.waiting[q.name] in planned.answers | given]
+        self.left |= {q.name for q in waiting if q not in moot and q not in called_for}
         answered = {d.question for d in self.drafted + self.unbanked} | set(moot) \
             | {q for q in planned.drafts if q.name in self.kept_blank}
         asks = [asked for essay in self.written if essay.plan for asked in essay.plan.asks]
-        if stop := self._missing(planned.missing + [q for q in planned.drafts if q not in answered] + list(self._yours),
-                                 asks):
+        if stop := self._missing(planned.missing + [q for q in planned.drafts if q not in answered] + list(self._yours)
+                                 + called_for, asks):
             return stop
         for essay in written:
             if essay.question.name not in self.kept_blank:
@@ -738,13 +743,17 @@ class _Planned:
         an answer the plan took from the profile (General Motors' degree, live: the review called "Bachelor
         Degree" wrong), Lisul's own answer (on the page or in the Answer bank), an essay, a file or a secret,
         nor an answer that isn't one of the question's options. So no plan writes over them, and a draft it
-        fixes leaves the Answer bank: the bank never keeps an answer known wrong. True if any answer changed."""
+        fixes leaves the Answer bank: the bank never keeps an answer known wrong. True if any answer changed.
+        A legal or eligibility question (verify.LEGAL: U.S. Person, work authorization, age...) is the one
+        exception to the profile's: the review read it against the profile and found it wrong (Saronic's U.S.
+        Person "No", live), so its fix, one of the question's options, is filled there too, and reviewed again."""
         own, essays_asked = self.own(), {e.question.name for e in self.written}
         guessed = {d.question.name for d in self.drafted + self.unbanked} | {q.name for q in self.banked if q.name not in own}
+        legal = {q.name for q in self.questions if q.options and verify.LEGAL.search(q.label) and q.name not in own}
         changed = False
         for q in self.questions:
             answer = fixes.get(one_line(q.label))
-            if (answer is None or q.name not in guessed or q.kind in ("file", "multi_select") or q.name in self.lisuls
+            if (answer is None or q.name not in guessed | legal or q.kind in ("file", "multi_select") or q.name in self.lisuls
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
                     or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
                 continue
@@ -813,9 +822,11 @@ class _Planned:
         asks = [asked for asked in asks if not asking.known(asked, self.profile, self._bank)]
         self.missing = tuple(dict.fromkeys([*(q.label.strip() for q in missing), *asks]))
         self.choices = {q.label.strip(): offered for q in missing if (offered := choices(q))}
-        # The form's own required flag; what an essay asks him is for a slot the essay needs.
-        self.required = {q.label.strip(): q.required for q in missing} | {asked: True for asked in asks}
+        # The form's own required flag, for what an essay asks him too: its essay's (Saronic's optional
+        # follow-up showed Required, live 2026-11-04).
         essay_of = {asked: e.question for e in self.written if e.plan for asked in e.plan.asks}
+        self.required = {q.label.strip(): q.required for q in missing} \
+            | {asked: essay_of[asked].required if asked in essay_of else True for asked in asks}
         self.where = {q.label.strip(): line for q in missing if (line := asking.where(q, self.questions))} \
             | {asked: asking.for_essay(essay_of[asked]) for asked in asks if asked in essay_of}
         if self._rehearse and self.missing != was:
