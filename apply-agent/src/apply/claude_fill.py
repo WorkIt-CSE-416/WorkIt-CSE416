@@ -884,6 +884,9 @@ ADDRESS_PART = re.compile(r"(?:^|:\s*)(address( line)? ?[2-9]|city( ?/ ?town)?|t
 WHOLE_ADDRESS = re.compile(r"\d.*,.*,")  # a street number and two commas: a whole address, not a part
 SCHOOL_STEP = re.compile(r"degree|universit|college|school|major|gpa|education", re.IGNORECASE)
 START_YEAR = re.compile(r"\bstart(ed|ing)?\b.*\byear\b|\bstart date\b", re.IGNORECASE)
+# A start that is the internship's or the job's, not the degree's: next year is right for it.
+NOT_SCHOOLS = re.compile(r"earliest|desired|preferred|availab|\bif hired\b|\bwhen (can|could|would)\b|intern|"
+                         r"co-?op|employ|\bjob\b|position|\brole\b|offer|\bwork", re.IGNORECASE)
 
 
 def cant_be_right(shown: dict[str, object], this_year: int | None = None) -> list[str]:
@@ -897,7 +900,7 @@ def cant_be_right(shown: dict[str, object], this_year: int | None = None) -> lis
         if ADDRESS_PART.search(label.strip()) and WHOLE_ADDRESS.search(text):
             wrong.append(f"{label!r} holds a whole address")
         years = [int(y) for y in re.findall(r"\b(19\d\d|20\d\d)\b", text)]
-        if school and START_YEAR.search(label) and years and max(years) > this_year:
+        if school and START_YEAR.search(label) and not NOT_SCHOOLS.search(label) and years and max(years) > this_year:
             wrong.append(f"{label!r} says {max(years)}, a start after this year")
     return wrong
 
