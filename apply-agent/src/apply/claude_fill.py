@@ -470,8 +470,9 @@ class ClaudeFill:
         """Press a profile pop-up's button (one plain-code click the guards let through), and wait for
         the application form to show behind it."""
         self._steps += 1
-        if self._steps >= MAX_STEPS:
-            raise Handoff(f"Claude fill went through {MAX_STEPS} steps without reaching the form's last. Fill it in yourself.")
+        if self._steps >= self._max_steps:
+            raise Handoff(f"Claude fill went through {self._max_steps} steps without reaching the form's last. "
+                          "Fill it in yourself.")
         before = _fields_shown(page)
         if self._guard is not None:
             self._guard.let_profile_click()
