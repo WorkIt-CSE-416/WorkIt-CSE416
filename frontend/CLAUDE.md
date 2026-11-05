@@ -1715,7 +1715,10 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   `rememberStage`**: Save and its Undo, Did You Apply?'s Yes, Auto Apply and
   its dequeue. One that skips it leaves the job on the rail and its other
   buttons stale. Save says where the job went: "Saved to your Applications
-  Tracker." with View and Undo. Home's Top Matches leaves saved jobs out on
+  Tracker." with View and Undo, two buttons side by side (the toast's
+  `actions`). **A toast is the inverted surface** (`bg-inverse` and
+  `text-on-inverse`, its buttons and cross the `inverse` variants) and stays
+  8 seconds when it has an action, 5 without (`docs/design.md`, toasts). Home's Top Matches leaves saved jobs out on
   its next read, but a row saved there stays until then.
 - **A seeker page's title is in the top bar, and it has no description**
   (2026-11-02, `(seeker)/bar-title.tsx`). The bar reads the title from the

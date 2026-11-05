@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 import { SaveButton } from "@/components/save-button";
@@ -19,7 +19,8 @@ import { readShownList, rememberStage, subscribe } from "./shown-list";
  * save there takes its card off the list at once (./feed-stages).
  *
  * A SAVE SAYS WHERE THE JOB WENT (KAN-217): a toast, "Saved to your
- * Applications Tracker.", with View (the application's own page) and Undo,
+ * Applications Tracker.", with two buttons side by side, View (the
+ * application's own page) and Undo,
  * which takes the save back and so puts the card back on the list. The toast
  * outlives the card it came from (it lives in the root layout), so its Undo
  * works from the shown list, never this button's state alone.
@@ -50,6 +51,7 @@ export function SaveJobButton({
   quiet?: boolean;
 }) {
   const toast = useToast();
+  const router = useRouter();
   const [saved, setSaved] = useState(stage === "saved");
   const [pending, start] = useTransition();
   const kept = useSyncExternalStore(
@@ -90,18 +92,14 @@ export function SaveJobButton({
           rememberStage(jobId, result.stage);
           if (result.stage === "saved") {
             toast.show({
-              message: (
-                <>
-                  Saved to your Applications Tracker.{" "}
-                  <Link
-                    href={`/applications/${encodeURIComponent(jobId)}`}
-                    className="text-brand font-medium underline underline-offset-2"
-                  >
-                    View
-                  </Link>
-                </>
-              ),
-              action: { label: "Undo", onClick: () => undo() },
+              message: "Saved to your Applications Tracker.",
+              actions: [
+                {
+                  label: "View",
+                  onClick: () => router.push(`/applications/${encodeURIComponent(jobId)}`),
+                },
+                { label: "Undo", onClick: () => undo() },
+              ],
             });
           } else {
             setSaved(false);

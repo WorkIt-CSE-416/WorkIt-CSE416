@@ -240,7 +240,7 @@ export function ListingsSkeleton() {
               <div className="flex flex-col @xl:flex-row">
                 <div className="@container min-w-0 flex-1 p-4">
                   <div className="flex items-start gap-3">
-                    <Skeleton className="rounded-card w-14 shrink-0 self-stretch @md:w-20" />
+                    <Skeleton className="rounded-card size-14 shrink-0 self-start @md:size-20" />
                     <div className="flex-1 space-y-2">
                       <Skeleton className="h-6 w-32 rounded-full" />
                       <Skeleton className="h-6 w-2/3" />

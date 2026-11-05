@@ -843,7 +843,7 @@ under WCAG 1.4.11, since its words say what it is; it takes one so that a
 toolbar reads as one set. The Jobs page's search pill sat in a dark edge
 over a row of filter buttons in `border-subtle`, and the user saw the two
 as a mismatch. Cards then took the same edge (above), so an outer edge on
-the page is dark and a rule, a nested box or a toast is light. A choice Chip's hover darkens
+the page is dark and a rule or a nested box is light. A choice Chip's hover darkens
 its edge to `ink-meta`, as the search pill's does; a Button's hover keeps
 its `hover` fill.
 
@@ -973,13 +973,20 @@ pointer is over what it scrolls. Style it there, never per element.
 `components/save-button.tsx` is the one Save control on every job surface.
 
 **Every short "this happened" message is a toast** (`components/ui/toast.tsx`):
-`useToast().show({ message, action? })` from any page, since one
-`<ToastProvider>` sits in the root layout beside the tooltips'. A toast is a
-white card (`bg-panel`, the subtle border, `--shadow-lift`, the card radius)
-in the window's bottom right corner, body text, an optional action as a
-secondary button (Undo), and a cross. It stays 5 seconds, paused while the
-pointer or focus is on it, so an Undo is never lost mid-reach; at most three
-show, newest nearest the corner. The provider holds them, so a toast
+`useToast().show({ message, action? })` from any page, or `actions` for two
+side by side (Save's View and Undo), since one
+`<ToastProvider>` sits in the root layout beside the tooltips'. A toast is the
+inverted surface (`bg-inverse`, `text-on-inverse`, `--shadow-lift`, the card
+radius, KAN-217) in the window's bottom right corner: dark on the light app,
+so it stands out from every white card. It was a white card until the user
+missed one. Body text, its actions as `inverse` buttons (light, with a
+light edge), and an `inverse` cross. Read the two tokens, never ink and
+panel, so a dark theme turns it light by setting them. It stays 5 seconds,
+8 with an action (`TOAST_ACTION_DURATION`: at 5 the user missed Save's
+Undo), paused while the pointer or focus is on it, so an Undo is never lost
+mid-reach; at most three show, newest nearest the corner. An action that
+goes somewhere (View) is a button beside the others, never a link in the
+message: a link beside a button read as two kinds of thing. The provider holds them, so a toast
 outlives the part that raised it (a row that a refresh removes). Use one for
 a result the page does not show by itself, never for an error a form can
 show beside its field. **A write the student can't take back offers Undo in

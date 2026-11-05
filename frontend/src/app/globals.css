@@ -77,6 +77,12 @@
   --color-ink: #121a28; /* headings, secondary-button labels */
   --color-ink-muted: #3b3e46; /* body copy, field labels, divider label */
   --color-ink-subtle: #94969d; /* de-emphasised glyphs; placeholders are ink-meta */
+  /* The inverted surface: a toast (ui/toast.tsx), dark on the light page so
+   * it stands out from every card (KAN-217). A pair, never ink and panel by
+   * name, so a dark theme turns it light by setting these two; on it, words
+   * and controls take on-inverse (17.4:1 on inverse). */
+  --color-inverse: #121a28; /* the inverted surface's fill */
+  --color-on-inverse: #ffffff; /* words, glyphs and edges on the inverted surface */
 
   /* Brand --------------------------------------------------------------- */
   --color-brand: #6d3fd8; /* primary fill and links — white on it is 6.26:1 */

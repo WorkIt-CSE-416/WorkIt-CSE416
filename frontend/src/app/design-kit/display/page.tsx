@@ -228,11 +228,11 @@ export default function DisplayPage() {
 
       <Group
         title="Toasts"
-        note="A short message in the window's bottom right corner. It rises in, stays 5 seconds (paused while the pointer or focus is on it), and drops away; its cross closes it at once."
+        note="A short message on the inverted surface (dark on the light app) in the window's bottom right corner. It rises in, stays 5 seconds, 8 with an action (paused while the pointer or focus is on it), and drops away; its cross closes it at once."
       >
         <Row
           name="useToast().show()"
-          role="components/ui/toast.tsx: a message, and an optional action such as Undo"
+          role="components/ui/toast.tsx: a message, and an optional action such as Undo, or two side by side (actions)"
         >
           <ToastSpecimen />
         </Row>
