@@ -238,6 +238,8 @@ _Avoid_: ATS account, candidate account
 
 **Not eligible**:
 The end state of an Application Lisul would honestly fail, for example a Master's-only role or a graduation window he misses. A Screener on the form finds it, or, before any form opens, the Posting's own required qualifications (one that asks for current graduate study). It is never submitted.
+Only an answer that fails the Screener rules him out. A Screener that no option fits is a Missing fact for Lisul.
+In a rehearsal, its tile has a Fill it anyway button. The button fills the form as in any rehearsal, and its note says why he was ruled out. A Closed tile has the button too.
 _Avoid_: rejected, skipped, disqualified
 
 **Story bank**:
