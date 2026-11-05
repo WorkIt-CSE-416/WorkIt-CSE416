@@ -1214,8 +1214,12 @@ What changes on a plain Worker:
   Details, Allow User Scripts, then quit (`launcher.seed_steps`). `plain_chrome: chrome` (the
   default) then copies that seed to each Worker. `plain_chrome: testing` (Chrome for Testing) needs no
   seed, but Allow User Scripts can't be turned on there.
+- **Held Submit and the already-applied note** (KAN-629, KAN-621) work on plain pages:
+  `submit_guard.lift(held=, dismiss=)`, `renote(held=)`, `warn_applied` and `applied_dismissed`
+  hand over to `apply.plain.guards` (`guard.lift`'s `held` and `onlyLifted`, `guard.applied`). A
+  `renote` of a page still guarded leaves it guarded.
 - Tests: `tests/test_plain_routing.py`. Its live test rehearses the fake Greenhouse form twice in
-  one reused plain Worker.
+  one reused plain Worker. `tests/test_plain_guards.py -k "held_submit or already_applied"`.
 
 ## The data folder (`APPLY_HOME`)
 
