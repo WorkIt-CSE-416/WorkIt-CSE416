@@ -1,6 +1,6 @@
 // S1 ops: ping, the Worker's tabs, and page code (eval).
 
-import { named, target, untilNavigated, userScriptsOn } from "./shared.js";
+import { named, target, untilNavigated, useVendor, userScriptsOn } from "./shared.js";
 
 function tabInfo(tab) {
   return { tab: tab.id, url: tab.url || tab.pendingUrl || "", title: tab.title || "", status: tab.status, active: tab.active, window: tab.windowId };
@@ -61,6 +61,14 @@ export const ops = {
     return null;
   },
   eval: evaluate,
+  // The vendor set Apply's files are in from now (Apply wrote a new one: its Fill engine changed).
+  "vendor.use": async ({ root }) => ({ root: useVendor(root) }),
+  // This extension's code anew from its folder: the answer goes first, then Chrome restarts the
+  // extension, which says hello again. Its tabs stay; its guards, rules and bindings go (guard.js: reset).
+  "extension.reload": async () => {
+    setTimeout(() => chrome.runtime.reload(), 100);
+    return { reloading: true };
+  },
 };
 
 export { tabInfo };

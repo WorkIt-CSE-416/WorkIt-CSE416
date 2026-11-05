@@ -10,7 +10,7 @@
 // ops/*.js, one file per slice, joined in ops/index.js.
 
 import { ops } from "./ops/index.js";
-import { userScriptsOn } from "./ops/shared.js";
+import { useVendor, userScriptsOn } from "./ops/shared.js";
 
 const HOST = "com.workit.apply_worker";
 const PROTOCOL = 1;
@@ -44,6 +44,7 @@ async function hello() {
     protocol: PROTOCOL,
     extension: chrome.runtime.getManifest().version,
     engine,
+    vendorSets: 1, // takes the welcome's `vendor`: Apply's files from a set of its own (shared.js: vendor)
     userScripts: userScriptsOn(),
     webdriver: navigator.webdriver === true,
     userAgent: navigator.userAgent,
@@ -88,6 +89,11 @@ function handle(message) {
   }
   if (message.type === "welcome") {
     welcomed = true;
+    try {
+      if (message.vendor) useVendor(message.vendor);
+    } catch (error) {
+      console.warn("Apply worker: bad vendor set", error);
+    }
     chrome.action?.setBadgeText?.({ text: "" });
     return;
   }

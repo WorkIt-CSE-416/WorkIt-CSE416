@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from apply.plain import host
+from apply.plain import extension, host
 from apply.plain.bridge import (
     CHUNK_OVER,
     Bridge,
@@ -51,13 +51,13 @@ def bridge():
     bridge.stop()
 
 
-def fake_worker(bridge, worker=0, origin=EXTENSION_ORIGIN, engine=ENGINE, protocol=1) -> socket.socket:
+def fake_worker(bridge, worker=0, origin=EXTENSION_ORIGIN, engine=ENGINE, protocol=1, **more) -> socket.socket:
     """A relay plus extension: says relay and hello, as the host and the worker extension do."""
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.connect(str(bridge.path))
     sock.sendall(frame({"type": "relay", "protocol": 1, "worker": worker, "origin": origin, "host_pid": 1}))
     sock.sendall(frame({"type": "hello", "protocol": protocol, "extension": "0.1.0", "engine": engine,
-                        "userScripts": False, "webdriver": False}))
+                        "userScripts": False, "webdriver": False, **more}))
     return sock
 
 
@@ -118,6 +118,53 @@ def test_another_engine_is_refused_with_how_to_fix_it(bridge):
     assert "apply plain prepare" in refused["reason"]
     with pytest.raises(Refused):
         bridge.wait_for(0, timeout=5)
+
+
+def test_an_extension_with_vendor_sets_gets_apply_s_own_set_whatever_its_folder_holds(bridge):
+    # The seed loads another checkout's folder, prepared for another engine (KAN-645): the Worker reads
+    # this Apply's own set from it instead, so it is welcomed and told which set.
+    bridge.vendor = "vendor/sets/0123456789abcdef"
+    sock = fake_worker(bridge, engine={"version": "0.3.12+old", "sha256": "zzz"}, vendorSets=1)
+    assert read(sock) == {"type": "welcome", "worker": 0, "protocol": 1, "vendor": "vendor/sets/0123456789abcdef"}
+    assert bridge.wait_for(0, timeout=5).vendor == "vendor/sets/0123456789abcdef"
+
+
+def test_a_vendor_set_is_written_once_and_never_changed(tmp_path):
+    one = extension.vendor_set(tmp_path, {"engine.js": b"one", "guards/lifted.js": b"x"})
+    files = tmp_path / one
+    assert (files / "engine.js").read_bytes() == b"one" and (files / "guards/lifted.js").read_bytes() == b"x"
+    two = extension.vendor_set(tmp_path, {"engine.js": b"two", "guards/lifted.js": b"x"})  # a newer engine
+    assert two != one and (tmp_path / one / "engine.js").read_bytes() == b"one"  # the running Workers' set stays
+    assert extension.vendor_set(tmp_path, {"engine.js": b"one", "guards/lifted.js": b"x"}) == one
+    assert not [p for p in (tmp_path / "vendor/sets").iterdir() if p.name.startswith(".")]
+
+
+def test_the_loaded_folder_is_the_one_the_profile_registered(tmp_path):
+    folder = tmp_path / "elsewhere" / "worker-extension"
+    folder.mkdir(parents=True)
+    (folder / "manifest.json").write_text("{}")
+    profile = tmp_path / "plain-seed"
+    (profile / "Default").mkdir(parents=True)
+    assert extension.loaded_folder(profile) is None
+    (profile / "Default" / "Secure Preferences").write_text(json.dumps(
+        {"extensions": {"settings": {extension.EXTENSION_ID: {"path": str(folder), "location": 4}}}}))
+    assert extension.loaded_folder(profile) == folder
+    workers = PlainWorkers(tmp_path, kind="chrome")
+    assert workers.loaded_folder(0) == folder  # no Worker profile yet: the seed's
+    assert PlainWorkers(tmp_path, kind="testing").loaded_folder(0) == EXTENSION_DIR
+
+
+def test_the_code_hash_changes_with_the_code_not_the_vendor_files(tmp_path):
+    folder = tmp_path / "worker-extension"
+    (folder / "ops").mkdir(parents=True)
+    (folder / "manifest.json").write_text("{}")
+    (folder / "ops" / "core.js").write_text("one")
+    before = extension.code_hash(folder)
+    (folder / "vendor").mkdir()
+    (folder / "vendor" / "engine.js").write_text("new engine")
+    assert extension.code_hash(folder) == before
+    (folder / "ops" / "core.js").write_text("two")
+    assert extension.code_hash(folder) != before
 
 
 def test_another_extension_is_refused(bridge):

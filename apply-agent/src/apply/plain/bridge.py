@@ -113,6 +113,7 @@ class Connection:
         self._pending: dict[int, _Slot] = {}
         self._handlers: dict[str, list[Callable[[dict], None]]] = {}
         self.closed = threading.Event()
+        self.vendor: str | None = None  # the vendor set its welcome named, if its extension takes one
 
     def send(self, message: dict) -> None:
         text = json.dumps(message, ensure_ascii=False)
@@ -200,6 +201,9 @@ class Bridge:
     def __init__(self, path: Path | None = None, engine: dict | None = None):
         self.path = path or socket_path()
         self._engine = engine
+        # The vendor set this Apply wrote into the Workers' extension folder ("vendor/sets/<id>"), named
+        # in each welcome: a Worker whose extension takes it is never refused for another checkout's engine.
+        self.vendor: str | None = None
         self._server: socket.socket | None = None
         self._workers: dict[int, Connection] = {}
         self._refused: dict[int, str] = {}
@@ -278,7 +282,11 @@ class Bridge:
                 self._changed.notify_all()
             return
         connection = Connection(worker, sock, hello, relay)
-        connection.send({"type": "welcome", "worker": worker, "protocol": PROTOCOL})
+        welcome = {"type": "welcome", "worker": worker, "protocol": PROTOCOL}
+        if self.vendor and hello.get("vendorSets"):
+            welcome["vendor"] = self.vendor
+        connection.vendor = welcome.get("vendor")
+        connection.send(welcome)
         with self._changed:
             old = self._workers.get(worker)
             self._workers[worker] = connection
@@ -298,6 +306,8 @@ class Bridge:
             return f"only the worker extension ({EXTENSION_ORIGIN}) may connect, not {relay.get('origin')!r}"
         if hello.get("type") != "hello" or hello.get("protocol") != PROTOCOL:
             return f"protocol {hello.get('protocol')!r}, Apply speaks {PROTOCOL}"
+        if self.vendor and hello.get("vendorSets"):
+            return ""  # it reads Apply's own set, which holds this Apply's engine
         engine = hello.get("engine") or {}
         if engine.get("sha256") != self.engine["sha256"]:
             return (f"the worker extension has Fill engine {engine.get('version') or 'none'}, Apply has "

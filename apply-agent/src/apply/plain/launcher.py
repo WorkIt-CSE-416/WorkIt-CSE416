@@ -85,6 +85,8 @@ class PlainWorker:
     profile: Path
     process: "Chrome"
     connection: Connection
+    folder: Path | None = None  # the folder its extension is loaded from
+    code: str = ""  # extension.code_hash(folder) when its extension last started
 
     @property
     def pid(self) -> int:
@@ -137,9 +139,62 @@ class PlainWorkers:
         assert not any(a.startswith(NEVER) for a in arguments)
         return arguments
 
-    def prepare(self) -> dict:
-        """Write the worker extension's generated files (the engine bundle, Playwright's injected script)."""
-        return extension.prepare(self.extension_dir / "vendor")
+    def loaded_folder(self, worker: int | None = None) -> Path:
+        """The folder Worker `worker`'s Chrome loads the worker extension from: --load-extension's for
+        Chrome for Testing, else the one Load unpacked registered in its profile (a copy of the seed's)."""
+        if self.kind == "testing":
+            return self.extension_dir
+        for profile in ([self.profile(worker)] if worker is not None else []) + [self.seed]:
+            if folder := extension.loaded_folder(profile):
+                return folder
+        return self.extension_dir
+
+    def prepare(self, worker: int | None = None) -> dict:
+        """Write the worker extension's generated files (the engine bundle, Playwright's injected script)
+        into this checkout's extension folder, and the same files as a write-once vendor set into the
+        folder Worker `worker` loads, which the bridge names in each welcome (KAN-645)."""
+        identity = extension.prepare(self.extension_dir / "vendor")
+        files = extension.generated(identity)
+        folders = {self.extension_dir.resolve(), self.loaded_folder(worker).resolve()}
+        roots = {extension.vendor_set(folder, files) for folder in folders}
+        self.bridge.vendor = roots.pop()  # one id: the same files
+        self.bridge._engine = identity
+        return identity
+
+    def refresh(self, worker: int, others: bool = False) -> list[str]:
+        """Before a new posting on running Worker `worker`: a new vendor set if the Fill engine on disk
+        changed (vendor.use), and a reload of its extension if its code on disk changed since it started,
+        unless `others` (another posting is open in it: a reload would drop its guards). Says what it did."""
+        running = self.running.get(worker)
+        if not running or running.connection.closed.is_set():
+            return []
+        said, before = [], self.bridge.vendor
+        self.prepare(worker)
+        if (folder := running.folder) and (code := extension.code_hash(folder)) != running.code:
+            if others:
+                said.append("its worker extension's code changed on disk; it reloads once no other form is open in it")
+            else:
+                try:
+                    running.connection.call("extension.reload", timeout=5)
+                    deadline = time.monotonic() + HELLO_WAIT
+                    while time.monotonic() < deadline:  # the old port closes, then the reloaded extension says hello
+                        connection = self.bridge.connection(worker)
+                        if connection and connection is not running.connection and not connection.closed.is_set():
+                            running.connection, running.code = connection, code
+                            said.append("reloaded its worker extension: its code changed on disk")
+                            break
+                        time.sleep(0.1)
+                    else:
+                        said.append("its worker extension didn't come back after a reload")
+                except PortError as error:  # an extension from before extension.reload
+                    running.code = code
+                    said.append(f"its worker extension's code changed on disk but it can't reload itself ({error.kind})")
+                return said
+        if self.bridge.vendor != before and running.connection.vendor:
+            running.connection.call("vendor.use", root=self.bridge.vendor)
+            running.connection.vendor = self.bridge.vendor
+            said.append(f"the Fill engine changed on disk: its pages load {self.bridge.engine['version']} now")
+        return said
 
     def install_host(self, worker: int) -> Path:
         """Write the host's wrapper and manifest into Worker `worker`'s profile. Returns the manifest."""
@@ -176,7 +231,7 @@ class PlainWorkers:
         # Chrome keeps an extension's service worker script across restarts, so an updated worker
         # extension would run its old code: drop the stored service workers (sites' re-register).
         shutil.rmtree(profile / "Default" / "Service Worker", ignore_errors=True)
-        self.prepare()  # the seed's unpacked extension reads these files too: an updated engine is in at once
+        self.prepare(worker)  # into the folder its extension loads from too: its own vendor set
         self.bridge.start()
         self.install_host(worker)
         with KEEPER.launching():
@@ -196,7 +251,8 @@ class PlainWorkers:
                 raise TimeoutError(f"{error}: is the worker extension installed in {self.seed}? "
                                    "(`uv run apply plain seed`)") from None
             raise
-        self.running[worker] = PlainWorker(worker, profile, process, connection)
+        folder = self.loaded_folder(worker)
+        self.running[worker] = PlainWorker(worker, profile, process, connection, folder, extension.code_hash(folder))
         return self.running[worker]
 
     def stop(self, worker: int) -> None:
