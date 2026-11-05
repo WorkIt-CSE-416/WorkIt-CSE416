@@ -1358,6 +1358,17 @@ def test_a_label_in_another_section_is_a_new_question_never_merged(html, named):
         browser.close()
 
 
+def test_the_step_limit_comes_from_the_policy(tmp_path):
+    # Bank of America's TAL.net form has more than 8 steps (KAN-649): a limit of 1 hands off at the first Next.
+    profile = profile_with(tmp_path, policies={"claude_fill": {"max_turns": 80, "max_tokens": 1200000, "max_steps": 1}})
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile, tyler_match(), claude=FakeClaude(driver=JobviteStepsDriver()))
+
+    assert row.status == "handoff"
+    assert "went through 1 steps" in row.reason
+    assert server.submissions == []
+
+
 # Microsoft's careers site once signed in (live, KAN-647): a "Create your profile" pop-up, its
 # button "Submit", comes before the application, which shows only once the profile is sent.
 PROFILE_THEN_FORM = """<!doctype html><body>

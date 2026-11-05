@@ -90,7 +90,7 @@ NOTED = re.compile(r"\s*\((selected|attached|checked|ticked)\)$", re.IGNORECASE)
 # A form in steps: the button that goes on (never one that sends), how many steps
 # at most, and how long a step may take to show once it's clicked.
 NEXT = re.compile(r"\b(next|continue|proceed|review)\b", re.IGNORECASE)
-MAX_STEPS = 8
+MAX_STEPS = 20  # a guard against a loop: Bank of America's TAL.net form has more than 8 (KAN-649)
 # A button that names the application: never a profile step's, whatever pop-up it is in (KAN-647).
 APPLIES = re.compile(r"\bappl(?:y|ying|ication)\b", re.IGNORECASE)
 STEP_SHOWS_MS = 8_000
@@ -260,7 +260,7 @@ def _field_named(said: str, labels: dict[str, str]) -> str | None:
 class ClaudeFill:
     """A Filler for one Application on a job system with no Filler of its own."""
 
-    def __init__(self, claude: Claude, max_turns: int = MAX_TURNS, max_tokens: int = MAX_TOKENS,
+    def __init__(self, claude: Claude, max_turns: int = MAX_TURNS, max_tokens: int = MAX_TOKENS, max_steps: int = MAX_STEPS,
                  sign_in: Callable[[Page], None] | None = None, resume: Path | None = None,
                  sms_opt_in: bool = False, marketing_opt_in: bool = False,
                  accounts: Accounts | None = None, account_facts: dict | None = None,
@@ -284,6 +284,7 @@ class ClaudeFill:
         self._sign_in = sign_in
         self._opt_ins = {"sms_opt_in": sms_opt_in, "marketing_opt_in": marketing_opt_in}
         self._max_turns = max_turns
+        self._max_steps = max_steps
         self._max_tokens = max_tokens
         self._turns = 0
         self._tokens = 0
@@ -451,8 +452,9 @@ class ClaudeFill:
     def _next_step(self, page: Page, name: str) -> None:
         """Click the step's Next, and wait for the next step to show."""
         self._steps += 1
-        if self._steps >= MAX_STEPS:
-            raise Handoff(f"Claude fill went through {MAX_STEPS} steps without reaching the form's last. Fill it in yourself.")
+        if self._steps >= self._max_steps:
+            raise Handoff(f"Claude fill went through {self._max_steps} steps without reaching the form's last. "
+                          "Fill it in yourself.")
         before = _fields_shown(page)
         # A step that posts natively (TAL.net's "Save and Continue") goes through the guards on plain code's own
         # click alone: a form with a button that sends, and the final application URLs, stay blocked (KAN-639).
