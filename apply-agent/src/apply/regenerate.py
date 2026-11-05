@@ -26,7 +26,9 @@ Claude writes that one answer again:
 
 Plain code puts the answer in the field it found (the field showing Claude's
 text, else the one with the question's id or name), with the page's own
-input events, and reads it back. Apply never clicks or submits anything for
+input events, and reads it back. On a plain Worker's page (KAN-615) the
+button, the lock and the read-back are fixed functions (apply.plain.fixed),
+never eval, and the Fill engine puts the answer in, as it filled the form. Apply never clicks or submits anything for
 it: the page stays Lisul's, and he can edit the new answer."""
 
 import json
@@ -34,13 +36,14 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import date
+from typing import get_args
 
-from apply import asking, brief, company, essays, gates, verify
+from apply import asking, brief, captcha, company, essays, fill_engine, gates, verify
 from apply import home as data_folder
 from apply.adapters import Claude, JobSite
 from apply.answer_bank import AnswerBank
 from apply.fill_engine import company_specific
-from apply.model import Posting, Question, one_line
+from apply.model import Posting, Question, Site, one_line
 from apply.profile import ApplicantProfile
 
 ESSAY, DRAFT, ONE_OFF = "essay", "draft", "one-off"  # an essay; a one-off in the Answer bank; one about this company only
@@ -198,9 +201,12 @@ def _bank(bank: AnswerBank, q: Question, text: str, company_name: str, today: da
 # On a page held for Lisul: a small button beside each field that shows an answer Claude wrote. It is drawn over
 # the page (fixed, on the page's body), never inside the form, so the page's own code never sees a new node in its
 # form. Each scan finds the fields again: a step loaded later, or a field that moved, gets its button too.
-SCRIPT = r"""
-(() => {
-  window.__applyWritten = WRITTEN;
+# OFFER is a function of the answers ({name, text} each): a CDP page runs it as an init script (`script`), and a
+# plain Worker's page as a fixed function (apply.plain.fixed: no eval, so page CSP never stops it), in the page's
+# own world, where the __applyRegenerate binding is.
+OFFER = r"""
+(written) => {
+  window.__applyWritten = written;
   if (window.__applyRegenOn) return;
   window.__applyRegenOn = true;
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
@@ -310,52 +316,101 @@ SCRIPT = r"""
     c.said.style.color = ok ? '#1b5e20' : '#b00020';
     c.said.textContent = note;
     if (!ok || !el) return el ? el.value : null;
+    c.box.value = '';
+    if (text === null) return el.value;  // unlocked only: the Fill engine puts the answer in (a plain Worker's page)
     setValue(el, text);
     w.text = text;
-    c.box.value = '';
     return el.value;
+  };
+  window.__applyRegenShown = (name) => {
+    const w = (window.__applyWritten || []).find((x) => x.name === name), el = w && fieldFor(w);
+    return el ? el.value : null;
   };
   setInterval(place, 500);
   addEventListener('scroll', place, true);
   addEventListener('resize', place);
   if (document.body) place(); else document.addEventListener('DOMContentLoaded', place);
-})();
+}
 """
+# The page functions offer's controls answer to, run in each frame: the same strings on both kinds of Worker.
+WORKING = "(name) => window.__applyRegenWorking ? window.__applyRegenWorking(name) : false"
+DONE = "([name, text, note, ok]) => window.__applyRegenDone ? window.__applyRegenDone(name, text, note, ok) : null"
+SHOWN = "(name) => window.__applyRegenShown ? window.__applyRegenShown(name) : null"
+
+
+def _shown(written: list[dict]) -> list[dict]:
+    return [{"name": w["name"], "text": w["text"]} for w in written]
 
 
 def script(written: list[dict]) -> str:
-    return SCRIPT.replace("WRITTEN", json.dumps([{"name": w["name"], "text": w["text"]} for w in written]))
+    """OFFER on `written`, as an init script."""
+    return f"({OFFER.strip()})({json.dumps(_shown(written))});"
 
 
 def offer(page, written: list[dict], asked: Callable[[str, str], None] | None) -> None:
     """Put the button beside each of `written` on `page` and every page it loads
     later; `asked(name, context)` hears each press. Bind once per page: pass
-    None for `asked` on a page bound before."""
+    None for `asked` on a page bound before. A plain Worker's page has no init
+    script for it: the hold loop calls `keep` on each turn instead."""
     if asked:
         page.expose_binding("__applyRegenerate", lambda source, name, context: asked(str(name), str(context)))
+    if _plain(page):
+        _in_frames(page, OFFER, _shown(written))
+        return
     text = script(written)
     page.context.add_init_script(text)
     _in_frames(page, text)
 
 
+def keep(page, written: list[dict]) -> None:
+    """On each turn of a held page: a plain Worker's frames loaded since (a step, a reload) get the button
+    too, with the answers as they are now. A CDP page's init script does this by itself."""
+    if _plain(page):
+        _in_frames(page, OFFER, _shown(written))
+
+
 def working(page, name: str) -> bool:
-    """Show the field `name` as being written again. False when no frame shows it."""
-    return any(_in_frames(page, "(name) => window.__applyRegenWorking ? window.__applyRegenWorking(name) : false", name))
+    """Show the field `name` as being written again: read-only and dimmed. False when no frame shows it."""
+    return any(_in_frames(page, WORKING, name))
 
 
-def done(page, name: str, text: str, note: str, ok: bool) -> str | None:
-    """Put `text` in the field `name` (when `ok`), say `note` beside it, and return what the field shows
-    now; None when no frame shows the field."""
-    shown = _in_frames(page, "([name, text, note, ok]) => window.__applyRegenDone ? window.__applyRegenDone(name, text, note, ok) : null",
-                       [name, text, note, ok])
-    return next((s for s in shown if s is not None), None)
+def done(page, name: str, text: str, note: str, ok: bool, question: Question | None = None, site: str = "") -> str | None:
+    """Put `text` in the field `name` (when `ok`), say `note` beside it, make it editable again, and return
+    what the field shows now (its read-back); None when no frame shows the field.
+
+    On a plain Worker's page, with the field's `question` and the form's job `site` (one the engine knows), the
+    Fill engine puts the answer in, in the frame that shows the field, as it filled the form; where it can't (the field
+    moved to a step it doesn't know), the page's own input events do, as on a CDP page."""
+    if not (ok and _plain(page) and question is not None and site in get_args(Site)):
+        shown = _in_frames(page, DONE, [name, text, note, ok])
+        return next((s for s in shown if s is not None), None)
+    frame = next((f for f, s in _each_frame(page, DONE, [name, None, note, True]) if s is not None), None)
+    if frame is None:
+        return None
+    try:
+        fill_engine.fill(frame, site, [question], {question.name: text})
+    except Exception:
+        frame.evaluate(DONE, [name, text, note, True])
+    return frame.evaluate(SHOWN, name)
+
+
+def _plain(page) -> bool:
+    return getattr(page, "plain", False) is True  # a plain Worker's page (apply.plain.page); a Mock's attribute is not
 
 
 def _in_frames(page, script: str, arg=None) -> list:
+    return [shown for _, shown in _each_frame(page, script, arg)]
+
+
+def _each_frame(page, script: str, arg=None) -> list:
+    """(frame, what `script` gave) for each frame that ran it. A plain page skips captcha frames: Apply never
+    puts its code in them."""
     shown = []
     for frame in page.frames:
+        if _plain(page) and frame is not page and captcha.in_frame(frame.url):
+            continue
         try:
-            shown.append(frame.evaluate(script, arg) if arg is not None else frame.evaluate(script))
+            shown.append((frame, frame.evaluate(script, arg) if arg is not None else frame.evaluate(script)))
         except Exception:
             continue  # a frame gone or going: one loaded later gets the init script
     return shown

@@ -152,6 +152,26 @@ max_unreviewed_uses: null
 # (2026-10-17), after all three watched headless submits were blocked.
 worker_headless: false
 
+# Which kind of Worker fills a form (KAN-606, KAN-614): cdp (Chrome driven by
+# Playwright over the DevTools protocol, as today), plain (a plain Chrome with no
+# CDP and no automation flags, driven through the private worker extension), or
+# protected (plain only for plain_worker_hosts and each host a bot block was seen
+# on, kept in plain-hosts.json in the data folder; cdp for the rest). cdp until
+# plain Workers reach parity and run side by side for a week.
+worker_mode: cdp
+
+# The protected hosts (and their subdomains) that worker_mode: protected fills in
+# plain Workers.
+plain_worker_hosts:
+  - jobs.lever.co
+  - smartrecruiters.com
+  - apply.workable.com
+
+# The Chrome a plain Worker runs: chrome (branded Google Chrome; the worker
+# extension is installed once in the seed profile, `apply plain seed`) or
+# testing (Chrome for Testing with --load-extension: dev and tests).
+plain_chrome: chrome
+
 # How Apply signs in to a Workday tenant: email (an Employer account with email
 # and password, its password in Keychain) or google (Sign in with Google where
 # the tenant offers it). Email even where Google is offered, since Google asked

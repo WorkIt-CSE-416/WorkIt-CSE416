@@ -10,6 +10,7 @@ import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
+from html import escape
 from pathlib import Path
 
 from apply.home import HOME
@@ -26,6 +27,7 @@ class Filled:
     readback: Readback  # on the page
     screenshot: bytes  # PNG of the whole filled form
     after_submit: bytes = b""  # PNG of the page the submit click left; none if it never ran
+    html: str = ""  # the filled form's HTML, with its values (a plain Worker's page.record_html); none from a CDP Worker
 
 
 @dataclass(frozen=True)
@@ -59,8 +61,9 @@ REDACTED = "(secret, not recorded)"
 def record_files(record: Record) -> dict[str, bytes]:
     """The Record's files by name: answers.json, form.png, a README.md that
     GitHub shows when the Record's link is opened, after-submit.png once the
-    form was submitted, essays.md when Claude wrote any, and verification.json
-    once the form was verified."""
+    form was submitted, essays.md when Claude wrote any, verification.json
+    once the form was verified, and page.html when the page's HTML was kept
+    (a plain Worker's), with every secret answer cut out."""
     rows = [
         {"question": q.label.strip(), "field": q.name, "planned": _shown(q, record.filled.answers.get(q.name)), "on_page": _shown(q, record.filled.readback.get(q.name))}
         for q in record.filled.questions
@@ -72,11 +75,26 @@ def record_files(record: Record) -> dict[str, bytes]:
     }
     if record.filled.after_submit:
         files["after-submit.png"] = record.filled.after_submit
+    if record.filled.html:
+        files["page.html"] = _without_secrets(record).encode()
     if record.essays:
         files["essays.md"] = record.essays.encode()
     if record.verification is not None:
         files["verification.json"] = (json.dumps(record.verification, indent=2, ensure_ascii=False) + "\n").encode()
     return files
+
+
+def _without_secrets(record: Record) -> str:
+    """The page's HTML with each secret question's answer, planned or on the page, put as REDACTED."""
+    html = record.filled.html
+    for q in record.filled.questions:
+        if SECRET.search(q.label) or SECRET.search(q.name):
+            for value in (record.filled.answers.get(q.name), record.filled.readback.get(q.name)):
+                for text in value if isinstance(value, (list, tuple)) else [value]:
+                    if isinstance(text, str) and text.strip():
+                        for written in {text, escape(text), escape(text, quote=False)}:
+                            html = html.replace(written, REDACTED)
+    return html
 
 
 def _shown(question: Question, answer: str | Path | None) -> str | None:
@@ -118,6 +136,7 @@ def _readme(record: Record, rows: list[dict]) -> str:
             *(f"- {question} → {fact}" for question, fact in record.named_facts), ""] if record.named_facts else []),
         "![The filled form](form.png)",
         "",
+        *(["The page itself, as it was filled: [page.html](page.html)", ""] if record.filled.html else []),
         *(["![The page after the submit](after-submit.png)", ""] if record.filled.after_submit else []),
     ]
     return "\n".join(lines)

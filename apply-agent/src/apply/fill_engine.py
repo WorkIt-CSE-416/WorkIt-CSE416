@@ -422,8 +422,11 @@ def call(page: Page, name: str, *args):
     NoForm, Handoff and FillError raise Apply's own."""
     for attempt in range(CALLS):
         try:
-            load(page)
-            answer = page.evaluate(CALL, {"name": name, "args": list(args)})
+            if hasattr(page, "engine_call"):  # a plain Worker's page (apply.plain.page): the extension's own engine.call
+                answer = page.engine_call(name, list(args))
+            else:
+                load(page)
+                answer = page.evaluate(CALL, {"name": name, "args": list(args)})
             break
         except PlaywrightError as error:
             if attempt + 1 == CALLS or not NAVIGATED.search(str(error)):
@@ -449,6 +452,9 @@ def _returned(answer: dict, name: str) -> Any:
 
 def load(page: Page) -> None:
     """Put the engine in the page, unless it is there already."""
+    if hasattr(page, "load_engine"):  # a plain Worker's page: the extension loads the same bundle as a file
+        page.load_engine()
+        return
     if not page.evaluate("() => typeof FillEngine !== 'undefined'"):
         _built()
         page.evaluate(ENGINE.read_text())

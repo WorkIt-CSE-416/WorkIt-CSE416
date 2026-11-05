@@ -53,6 +53,7 @@ from apply.home import HOME
 from apply.keychain import MacKeychain
 from apply.match_queue import match_queue
 from apply.notify import SET_UP, TEST_PUSH, MacNotifier, RecordingNotifier, live_phone
+from apply.plain.site import live_site
 from apply.profile import OVERRIDE, ApplicantProfile, load_policies
 from apply.records import FolderRecords, GitRecords
 from apply.repair import FOLDER as REPAIRS
@@ -172,11 +173,31 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
                                                             "gone); no model call")
     mapped.add_argument("--gaps", action="store_true", help="print the follow-ups the bank can't answer as "
                                                            "bank/questions.md lines; no model call")
+    plain = commands.add_parser(
+        "plain", help="plain Workers (KAN-606): Chromes with no CDP, driven through the worker extension",
+    ).add_subparsers(dest="action", required=True)
+    ping = plain.add_parser("ping", help="start plain Workers, print each one's hello and checks, then quit them")
+    ping.add_argument("--workers", type=int, default=1, help="how many plain Workers to start")
+    ping.add_argument("--chrome", choices=("testing", "chrome"), default="testing",
+                      help="Chrome for Testing with --load-extension (default), or branded Chrome from the seed profile")
+    filled = plain.add_parser("fill", help="fill a saved form (the engine's fixtures, served on 127.0.0.1) in a plain "
+                                           "Worker as Test Person, and print the read-back; never submits")
+    filled.add_argument("form", help="a saved form's name, such as lever-immuta")
+    filled.add_argument("--chrome", choices=("testing", "chrome"), default="testing",
+                        help="Chrome for Testing (default), or branded Chrome from the seed profile")
+    tiled = plain.add_parser("tile", help="fill a saved form in a plain Worker shown live in an Apply window tile, then "
+                                          "leave it there to click and type in from the tile; never submits")
+    tiled.add_argument("form", help="a saved form's name, such as lever-immuta")
+    tiled.add_argument("--seconds", type=float, default=300, help="how long the tile stays up after the fill")
+    tiled.add_argument("--chrome", choices=("testing", "chrome"), default="testing",
+                       help="Chrome for Testing (default), or branded Chrome from the seed profile")
+    plain.add_parser("prepare", help="write the worker extension's engine bundle and Playwright's injected script")
+    plain.add_parser("seed", help="open branded Chrome on the seed profile to install the worker extension once")
     args = parser.parse_args(argv)
     if adapters is None and threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, _stop)  # `kill <pid>` closes the browsers and the window, as Ctrl-C does
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
-    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker") and home.fill_from_sample():
+    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "plain") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
 
@@ -191,8 +212,11 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             _send_waiting_writes()
             adapters = live_adapters(profile, answer_bank=AnswerBank(args.profile.parent / ANSWER_BANK))
             WorkerBrowsers().seed(args.workers)
-            with _dashboard(adapters, args.workers, profile):
-                orchestrator.run(adapters, profile, args.workers, **kinds)
+            try:
+                with _dashboard(adapters, args.workers, profile):
+                    orchestrator.run(adapters, profile, args.workers, **kinds)
+            finally:
+                _close_workers(adapters.site)
             repair_later(adapters.repairs, profile.policy("repair") or {})
     elif args.command == "rehearse":
         profile = ApplicantProfile.load(args.profile)
@@ -216,9 +240,12 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             except Exception as error:
                 kept = None
                 print(f"No Tracker ({type(error).__name__}: {error}): add any you submit yourself.")
-            with _dashboard(adapters, len(args.urls), profile):  # a tile per link: each keeps its page open
-                rehearsal.rehearse(args.urls, adapters, profile, args.workers, on_done=lambda: repair_later(adapters.repairs, profile.policy("repair") or {}),
-                                   submitted_to=kept, together=args.together, force=args.force)
+            try:
+                with _dashboard(adapters, len(args.urls), profile):  # a tile per link: each keeps its page open
+                    rehearsal.rehearse(args.urls, adapters, profile, args.workers, on_done=lambda: repair_later(adapters.repairs, profile.policy("repair") or {}),
+                                       submitted_to=kept, together=args.together, force=args.force)
+            finally:
+                _close_workers(adapters.site)  # before os._exit below: plain Workers' Chromes outlive this process
         else:
             rehearsal.rehearse(args.urls, adapters, profile, args.workers, submitted_to=adapters.tracker,
                                together=args.together, force=args.force)
@@ -320,6 +347,28 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             print(add(url))
     elif args.command == "story-map":
         _story_map(args, adapters.claude if adapters else None)
+    elif args.command == "plain":
+        _plain(args)
+
+
+def _plain(args) -> None:
+    from apply.plain import demo
+    from apply.plain.launcher import PlainWorkers
+
+    if args.action == "ping":
+        print("\n".join(demo.ping(args.workers, args.chrome)))
+    elif args.action == "fill":
+        print("\n".join(demo.fill(args.form, args.chrome)))
+    elif args.action == "tile":
+        demo.tile(args.form, args.seconds, args.chrome)
+    elif args.action == "prepare":
+        identity = PlainWorkers(kind="testing").prepare()
+        print(f"Worker extension ready: Fill engine {identity['version']}.")
+    elif args.action == "seed":
+        workers = PlainWorkers(kind="chrome")
+        workers.prepare()
+        print(f"Opened Google Chrome on {workers.seed}. Once, by hand:")
+        print("\n".join(f"  {n}. {step}" for n, step in enumerate(workers.seed_profile(), 1)))
 
 
 def _push_test(phone) -> None:
@@ -395,14 +444,14 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
     the run's own Answer bank and profile) while a run goes, and open it in its own window."""
     site = adapters.site
     answers = AnswersTab(adapters.answer_bank, profile, held=adapters.tracker.rows)
-    with dashboard.CdpFrames(tiles, site.endpoint) as frames, \
+    with _frames(site, tiles) as frames, \
             dashboard.Dashboard(tiles, frames, answers, _applied(adapters), past=adapters.tracker.rows,
                                 answer=_answering(lambda: adapters.tracker, answers),
                                 approve=_approving(lambda: adapters.tracker), notify=adapters.notifier.notify,
                                 show=getattr(site, "show", None), sample=profile.get("sample_data") is True,
                                 everyday=adapters.everyday, accounts=_accounts_tab(lambda: adapters.tracker,
                                                                                    adapters.keychain, adapters.everyday),
-                                **_window_context()) as board:
+                                quiet=getattr(site, "plain", None), **_window_context()) as board:
         adapters.board = board
         url = site.profiles / DASHBOARD_URL
         url.parent.mkdir(parents=True, exist_ok=True)
@@ -413,6 +462,29 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
             yield
         finally:
             url.unlink(missing_ok=True)
+
+
+def _frames(site, tiles: int):
+    """The window's frame source for `site`'s Workers (worker_mode): CDP Workers' screencast,
+    plain Workers' port (S3), or in `protected` mode whichever Worker k runs now."""
+    from apply.plain.site import PlainSite, RoutedSite
+    from apply.plain.tile import EitherFrames, PortFrames
+
+    if isinstance(site, PlainSite):
+        return PortFrames(tiles, site.workers.bridge.connection)
+    if isinstance(site, RoutedSite):
+        return EitherFrames(dashboard.CdpFrames(tiles, site.endpoint), PortFrames(tiles, site.connection), site.plain)
+    return dashboard.CdpFrames(tiles, site.endpoint)
+
+
+def _close_workers(site) -> None:
+    """Stop the plain Workers' Chromes the run started (by PID). A CDP Worker's closes with its page."""
+    close = getattr(site, "close", None)
+    if close:
+        try:
+            close()
+        except Exception as error:
+            print(f"Couldn't stop every plain Worker ({type(error).__name__}: {error}).", file=sys.stderr)
 
 
 def _chrome_passwords(login: str) -> None:
@@ -628,7 +700,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
     email (unless a Mailbox is given), and so is the ntfy topic (unless a
     phone Notifier is given)."""
     claude = ClaudeCLI()  # also reads usage, off every call's rate-limit events
-    site = WorkerBrowsers(headless=profile.policy("worker_headless") is not False)
+    site = live_site(profile.policies())  # policies.yaml: worker_mode (cdp, plain or protected)
     return Adapters(
         feed=live_feed(),
         tracker=live_tracker() if tracker is None else tracker,

@@ -186,6 +186,7 @@ jobs:
             tests/test_notification.py \
             tests/test_outside_us.py \
             tests/test_phone_push.py \
+            tests/test_plain_bridge.py \
             tests/test_presubmit_check.py \
             tests/test_privacy_gate.py \
             tests/test_profile.py \
