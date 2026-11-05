@@ -85,6 +85,10 @@ class PlainSite:
         self._launching = threading.Lock()  # one Chrome starts at a time (its bridge, its focus watch)
         self._open: dict[int, set[int]] = {}  # each Worker's tabs a form holds now (open() not yet left)
         self._tabs = threading.Lock()
+        # One open() per Worker at a time until its tab is counted in _open: else two links sent in at once
+        # (`apply rehearse --into <window> <a> <b>`) both see no other form, and the second resets the
+        # Worker's guards (and may reload its extension) under the first one's open form (KAN-645).
+        self._opening: dict[int, threading.Lock] = {}
 
     def live(self, worker: int) -> bool:
         """Whether a form is open in Worker `worker` now."""
@@ -131,37 +135,40 @@ class PlainSite:
         from apply.plain.page import PortContext
 
         with self._tabs:
-            others = set(self._open.get(worker, ()))
-        running = self.workers.running.get(worker)
-        if running and running.connection.closed.is_set() and (again := self.workers.bridge.connection(worker)) \
-                and not again.closed.is_set():  # its extension restarted and said hello again: same Chrome
-            running.connection = again
-        if running and running.connection.closed.is_set():  # it quit or its port closed: a new one
-            self.workers.stop(worker)
-            running = None
-        if running:
-            for said in self.workers.refresh(worker, others=bool(others)):  # a merged engine fix, without a restart
-                print(f"Browser {worker + 1}: {said}", file=sys.stderr)
-            running = self.workers.running[worker]
-            if not others:
-                guards.reset(running.connection)  # the last Application's guards, lifts and bindings go
-        else:
-            with self._launching:
-                running = self.workers.launch(worker)
-        connection = running.connection
-        context = PortContext(connection)
-        tabs = connection.call("tabs.query")
-        # With another form open, only blank tabs go: that form's own pop-ups and Lisul's tabs stay.
-        before = [t["tab"] for t in tabs if t["tab"] not in others and (not others or t.get("url") in BLANKS)]
-        if tabs:
-            page = context.new_page()
-        else:  # Lisul closed its window: a new one, unfocused, where Workers sit
-            x, y = self.workers.position(worker)
-            page = context.page(connection.call("windows.create", left=x, top=y, width=WINDOW[0], height=WINDOW[1])["tab"])
-        with self._tabs:
-            self._open.setdefault(worker, set()).add(page.tab)
-        for tab in before:  # the last form's tabs, done with: never a tab another form holds
-            context.page(tab).close()
+            opening = self._opening.setdefault(worker, threading.Lock())
+        with opening:
+            with self._tabs:
+                others = set(self._open.get(worker, ()))
+            running = self.workers.running.get(worker)
+            if running and running.connection.closed.is_set() and (again := self.workers.bridge.connection(worker)) \
+                    and not again.closed.is_set():  # its extension restarted and said hello again: same Chrome
+                running.connection = again
+            if running and running.connection.closed.is_set():  # it quit or its port closed: a new one
+                self.workers.stop(worker)
+                running = None
+            if running:
+                for said in self.workers.refresh(worker, others=bool(others)):  # a merged engine fix, without a restart
+                    print(f"Browser {worker + 1}: {said}", file=sys.stderr)
+                running = self.workers.running[worker]
+                if not others:
+                    guards.reset(running.connection)  # the last Application's guards, lifts and bindings go
+            else:
+                with self._launching:
+                    running = self.workers.launch(worker)
+            connection = running.connection
+            context = PortContext(connection)
+            tabs = connection.call("tabs.query")
+            # With another form open, only blank tabs go: that form's own pop-ups and Lisul's tabs stay.
+            before = [t["tab"] for t in tabs if t["tab"] not in others and (not others or t.get("url") in BLANKS)]
+            if tabs:
+                page = context.new_page()
+            else:  # Lisul closed its window: a new one, unfocused, where Workers sit
+                x, y = self.workers.position(worker)
+                page = context.page(connection.call("windows.create", left=x, top=y, width=WINDOW[0], height=WINDOW[1])["tab"])
+            with self._tabs:
+                self._open.setdefault(worker, set()).add(page.tab)
+            for tab in before:  # the last form's tabs, done with: never a tab another form holds
+                context.page(tab).close()
         try:
             page.goto(url)
             yield page
