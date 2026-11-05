@@ -65,6 +65,11 @@ SCRIPTED = """<!doctype html><title>Scripted</title>
 </script>"""
 
 
+# A step whose Next posts natively (TAL.net's), then a step with a Continue bound for a final URL.
+NATIVE_STEP = """<!doctype html><title>One</title><form method="post" action="/step/two"><input name="first"><button>Next</button></form>"""
+NATIVE_LAST = """<!doctype html><title>Two</title><form method="post" action="/acme/j/42/apply"><input name="why"><button>Continue</button></form>"""
+
+
 class Site:
     def __init__(self):
         self.posts: list[str] = []
@@ -75,7 +80,8 @@ class Site:
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
-                page = SCRIPTED if self.path.startswith("/scripted") else FORM if self.path.startswith("/form") else "<p>other"
+                page = (SCRIPTED if self.path.startswith("/scripted") else FORM if self.path.startswith("/form")
+                        else NATIVE_STEP if self.path.startswith("/native") else "<p>other")
                 self.wfile.write(page.encode())
 
             def do_POST(self):
@@ -84,7 +90,7 @@ class Site:
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
-                self.wfile.write(b"<title>Thanks</title><p>Application received")
+                self.wfile.write(NATIVE_LAST.encode() if self.path == "/step/two" else b"<title>Thanks</title><p>Application received")
 
             def log_message(self, *_):
                 pass
@@ -358,3 +364,29 @@ def test_the_drive_guard_rests_and_arms_as_claude_fill_drives(page, site):
     page.get_by_role("button", name="Submit application").click()
     assert drive.blocked() == ['the "Submit application" click']
     assert site.posts == []
+
+
+@live
+def test_ask_s_press_on_a_plain_worker_goes_through_a_native_post_step_but_never_to_a_final_url(page, site, monkeypatch):
+    from types import SimpleNamespace
+
+    from apply import ask, claude_fill
+    from apply.adapters import Drive
+    from apply.model import Posting
+
+    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1_000)
+    page.goto(f"{site.url}/native")
+    drive = DriveGuard(page)
+    guard(page)
+    lift(page)  # held for Lisul
+    rearm(page)  # hold(): both guards back on for the drive
+    empty = {"blocked": False, "why": "", "reply": "Done.", "changed": [], "couldnt": [], "waiting": [], "ticked": [],
+             "remember": [], "apply_bug": []}
+    page.get_by_role("button", name="Next").click()  # Claude's own click: blocked
+    _settle(page, 0.5)
+    assert site.posts == []
+    turns = iter([{**empty, "press": "Next"}, {**empty, "press": "Continue"}])
+    reply = ask.ask(SimpleNamespace(drive=lambda **given: Drive(next(turns), 2, 100)), page, "go on", [],
+                    ask.Form(Posting(id="1", company="A", title="B", url=page.url)), "", guard=drive)
+    assert site.posts == ["/step/two"] and page.title() == "Two"
+    assert "didn't press 'Continue'" in reply.couldnt[0]

@@ -190,7 +190,7 @@ class Claude:
 
 
 def said(**over) -> dict:
-    return {"blocked": False, "why": "", "reply": "Picked New York and Jersey City.", "changed": [], "couldnt": [],
+    return {"blocked": False, "why": "", "press": "", "reply": "Picked New York and Jersey City.", "changed": [], "couldnt": [],
             "waiting": [], "ticked": [], "remember": [], "apply_bug": []} | over
 
 
