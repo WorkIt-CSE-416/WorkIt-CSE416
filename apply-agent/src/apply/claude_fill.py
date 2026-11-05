@@ -404,14 +404,23 @@ class ClaudeFill:
         if self._steps >= MAX_STEPS:
             raise Handoff(f"Claude fill went through {MAX_STEPS} steps without reaching the form's last. Fill it in yourself.")
         before = _fields_shown(page)
-        _the_next(page, name).click()
-        waited = 0
-        while _fields_shown(page) == before:
-            if waited >= STEP_SHOWS_MS:
-                raise Handoff(f"The form's {name!r} didn't go on to its next step: a required answer may be "
-                              "missing or wrong on the step it stayed on. Fill it in yourself.")
-            page.wait_for_timeout(250)
-            waited += 250
+        # A step that posts natively (TAL.net's "Save and Continue") goes through the guards on plain code's own
+        # click alone: a form with a button that sends, and the final application URLs, stay blocked (KAN-639).
+        if self._guard:
+            self._guard.let_account_click()
+        try:
+            _the_next(page, name).click()
+            waited = 0
+            while _fields_shown(page) == before:
+                if waited >= STEP_SHOWS_MS:
+                    raise Handoff(f"The form's {name!r} didn't go on to its next step: a required answer may be "
+                                  "missing or wrong on the step it stayed on. Fill it in yourself.")
+                page.wait_for_timeout(250)
+                waited += 250
+        finally:
+            if self._guard:
+                self._guard.arm()  # the account click's flag off again, in the step it led to
+                self._guard.rest()
 
     def _clear_pop_up(self, page: Page) -> None:
         """A pop-up over the form, cleared by plain code, or a Handoff before
