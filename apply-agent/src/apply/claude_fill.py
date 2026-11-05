@@ -409,14 +409,26 @@ class ClaudeFill:
         if self._steps >= MAX_STEPS:
             raise Handoff(f"Claude fill went through {MAX_STEPS} steps without reaching the form's last. Fill it in yourself.")
         before = _fields_shown(page)
-        _the_next(page, name).click()
-        waited = 0
-        while _fields_shown(page) == before:
-            if waited >= STEP_SHOWS_MS:
-                raise Handoff(f"The form's {name!r} didn't go on to its next step: a required answer may be "
-                              "missing or wrong on the step it stayed on. Fill it in yourself.")
-            page.wait_for_timeout(250)
-            waited += 250
+        # A step that posts natively (TAL.net's "Save and Continue") goes through the guards on plain code's own
+        # click alone: a form with a button that sends, and the final application URLs, stay blocked (KAN-639).
+        button = _the_next(page, name)
+        if words := _sends_or_reviews(page, button):  # plain code's own check: never Claude's word for it
+            raise Handoff(f"Claude fill's Next ({name!r}) is {words}, which may send the form. Fill it in yourself.")
+        if self._guard:
+            self._guard.let_account_click()
+        try:
+            button.click()
+            waited = 0
+            while _fields_shown(page) == before:
+                if waited >= STEP_SHOWS_MS:
+                    raise Handoff(f"The form's {name!r} didn't go on to its next step: a required answer may be "
+                                  "missing or wrong on the step it stayed on. Fill it in yourself.")
+                page.wait_for_timeout(250)
+                waited += 250
+        finally:
+            if self._guard:
+                self._guard.arm()  # the account click's flag off again, in the step it led to
+                self._guard.rest()
 
     def _clear_pop_up(self, page: Page) -> None:
         """A pop-up over the form, cleared by plain code, or a Handoff before
@@ -583,6 +595,30 @@ def _the_next(page: Page, name: str):
     if len({b.aria_snapshot() for b in found}) > 1:
         raise Handoff(f"Claude fill found more than one button that could be the form's {name!r}. Fill it in yourself.")
     return found[0]
+
+
+REVIEW_PAGE = re.compile(r"\b(review (your|and submit|the) application|application (summary|review)|summary of your "
+                         r"application|review (&|and) submit)\b", re.IGNORECASE)
+BUTTON_WORDS = "b => [b.innerText, b.value, b.getAttribute('aria-label'), b.getAttribute('title')].filter(Boolean).join(' | ')"
+HEADINGS = "() => [document.title, ...[...document.querySelectorAll('h1, h2, h3, legend')].map(h => h.innerText)].join(' | ')"
+
+
+def _sends_or_reviews(page: Page, button) -> str:
+    """Why the button plain code would click as a Next may send the form ("" when it can't): its own text,
+    value, aria-label or title has a word that sends, or the page is the form's review or summary."""
+    try:
+        words = str(button.evaluate(BUTTON_WORDS))
+    except Exception:
+        return "a button Apply can't read"
+    if SENDS.search(words):
+        return f"a button that says {words.strip()[:60]!r}"
+    try:
+        headings = str(page.evaluate(HEADINGS))
+    except Exception:
+        headings = ""
+    if REVIEW_PAGE.search(headings):
+        return "on the form's review page"
+    return ""
 
 
 def _with_options(page: Page, questions: QuestionSet) -> QuestionSet:
