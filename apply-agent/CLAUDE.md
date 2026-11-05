@@ -110,6 +110,9 @@ only; Apply does not save it to the profile by its wording.
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.
 
+`docs/research/` holds the research behind plain Workers and Employer account
+sign-in. Each note's Status line says what was built.
+
 ## The WorkIt client and `apply login` (KAN-541)
 
 `src/apply/workit.py` is the only module in Apply that calls WorkIt. Do not
