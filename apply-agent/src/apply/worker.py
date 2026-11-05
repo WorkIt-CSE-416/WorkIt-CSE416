@@ -808,9 +808,11 @@ class _Planned:
         asks = [asked for asked in asks if not asking.known(asked, self.profile, self._bank)]
         self.missing = tuple(dict.fromkeys([*(q.label.strip() for q in missing), *asks]))
         self.choices = {q.label.strip(): offered for q in missing if (offered := choices(q))}
-        # The form's own required flag; what an essay asks him is for a slot the essay needs.
-        self.required = {q.label.strip(): q.required for q in missing} | {asked: True for asked in asks}
+        # The form's own required flag, for what an essay asks him too: its essay's (Saronic's optional
+        # follow-up showed Required, live 2026-11-04).
         essay_of = {asked: e.question for e in self.written if e.plan for asked in e.plan.asks}
+        self.required = {q.label.strip(): q.required for q in missing} \
+            | {asked: essay_of[asked].required if asked in essay_of else True for asked in asks}
         self.where = {q.label.strip(): line for q in missing if (line := asking.where(q, self.questions))} \
             | {asked: asking.for_essay(essay_of[asked]) for asked in asks if asked in essay_of}
         if self._rehearse and self.missing != was:

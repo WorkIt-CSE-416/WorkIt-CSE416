@@ -298,6 +298,23 @@ def test_a_follow_up_to_a_question_claude_answered_no_is_not_a_missing_fact(tmp_
     assert planned.answers == {"w": "No", **({"a": expected} if expected else {})}
 
 
+@pytest.mark.parametrize("required", [False, True])
+def test_what_an_essay_asks_is_required_only_when_its_form_requires_the_essay(required):
+    # Saronic (live, 2026-11-04): an optional field's Essay fact showed Required in Needs you.
+    from apply import essays
+    ask = "Essay fact: What did the robot do?"
+    essay = essays.Essay(Question("e", "Tell us about a made-up robot", "textarea", required), "",
+                         plan=essays.Plan("general", asks=(ask,)))
+    planned = worker._Planned.__new__(worker._Planned)
+    planned.questions, planned.written, planned.lisuls, planned.found = [essay.question], [essay], {}, {}
+    planned._rehearse, planned.missing, planned._on_missing = True, (), lambda *heard: None
+    planned.profile = type("Profile", (), {"get": lambda self, key: None})()  # made up: it holds nothing
+    planned._bank = AnswerBank()
+    planned._missing([], [ask])
+
+    assert planned.required == {ask: required}
+
+
 CATCH_ALL = Question("extra", "Additional information", "textarea", False)
 WHY = Question("why", "Why do you want to work at Amplify?", "textarea", True)
 
