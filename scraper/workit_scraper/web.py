@@ -40,21 +40,30 @@ _received_bytes = 0
 
 
 def stats() -> dict[str, int]:
-    """Thread-safe snapshot of request and byte counters since import."""
+    """Thread-safe snapshot of request and byte counters since import. `requests`
+    counts every request sent, failed ones (429, 5xx, 404, timeouts) included;
+    `received_bytes` counts the bodies of the ones that succeeded."""
     with _lock:
         return {"requests": _requests, "received_bytes": _received_bytes}
 
 
-def get(url: str, *, timeout: float, headers: dict[str, str] | None = None) -> bytes:
-    """GET `url` and return the body. HTTP errors propagate as `HTTPError`."""
+def _send(request: urllib.request.Request, timeout: float) -> bytes:
+    """Open `request` and return the body, counting it before it is sent, so a
+    request that raises is still counted."""
     global _requests, _received_bytes
-    request = urllib.request.Request(url, headers={**(headers or {}), "User-Agent": USER_AGENT})
+    with _lock:
+        _requests += 1
     with _OPENER.open(request, timeout=timeout) as response:
         body = response.read()
     with _lock:
-        _requests += 1
         _received_bytes += len(body)
     return body
+
+
+def get(url: str, *, timeout: float, headers: dict[str, str] | None = None) -> bytes:
+    """GET `url` and return the body. HTTP errors propagate as `HTTPError`."""
+    request = urllib.request.Request(url, headers={**(headers or {}), "User-Agent": USER_AGENT})
+    return _send(request, timeout)
 
 
 def post(
@@ -63,7 +72,6 @@ def post(
     """POST `payload` as JSON to `url` and return the body. HTTP errors propagate
     as `HTTPError`. Same User-Agent and same-origin rule as `get`; `headers` adds
     any a provider's search needs (TikTok's `website-path`)."""
-    global _requests, _received_bytes
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode(),
@@ -75,9 +83,4 @@ def post(
             **(headers or {}),
         },
     )
-    with _OPENER.open(request, timeout=timeout) as response:
-        body = response.read()
-    with _lock:
-        _requests += 1
-        _received_bytes += len(body)
-    return body
+    return _send(request, timeout)
