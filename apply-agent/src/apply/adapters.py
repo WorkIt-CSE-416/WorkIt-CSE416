@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from playwright.sync_api import Page
 
+from apply import already_applied
 from apply.answer_bank import AnswerBank
 from apply.dashboard import Board, NoBoard
 from apply.keychain import InMemoryKeychain
@@ -261,3 +262,5 @@ class Adapters:
     tailored: Callable[[Posting], bytes | None] = lambda posting: None
     # Opens a bot-blocked posting in the student's everyday Chrome (KAN-590); live: captcha.to_everyday_chrome.
     everyday: Callable[[str], None] = lambda url: None
+    # Whether the student already applied to a Posting (KAN-621); live: already_applied.Check, over WorkIt.
+    applied_before: "already_applied.Check | already_applied.NoCheck" = field(default_factory=lambda: already_applied.NoCheck())

@@ -626,13 +626,18 @@ class _Planned:
                 self.drafted.append(draft)
         given = {d.question.name: d.answer for d in self.drafted + self.unbanked}
         # A follow-up to a question Claude just answered ("If yes, ...", answered No) that the answer doesn't call for.
-        moot = {q: answer for q in planned.drafts
+        # One the engine held for that answer (Plan.waiting) is decided the same way: blank when not called for,
+        # asked of Lisul with the form's own label when it is, and still waiting while its question is unanswered.
+        waiting = [q for q in self.questions if q.name in planned.waiting]
+        moot = {q: answer for q in planned.drafts + waiting
                 for is_moot, answer in [not_called_for(q, self.questions, planned.answers | given)] if is_moot}
+        called_for = [q for q in waiting if q not in moot and planned.waiting[q.name] in planned.answers | given]
+        self.left |= {q.name for q in waiting if q not in moot and q not in called_for}
         answered = {d.question for d in self.drafted + self.unbanked} | set(moot) \
             | {q for q in planned.drafts if q.name in self.kept_blank}
         asks = [asked for essay in self.written if essay.plan for asked in essay.plan.asks]
-        if stop := self._missing(planned.missing + [q for q in planned.drafts if q not in answered] + list(self._yours),
-                                 asks):
+        if stop := self._missing(planned.missing + [q for q in planned.drafts if q not in answered] + list(self._yours)
+                                 + called_for, asks):
             return stop
         for essay in written:
             if essay.question.name not in self.kept_blank:
@@ -812,9 +817,11 @@ class _Planned:
         asks = [asked for asked in asks if not asking.known(asked, self.profile, self._bank)]
         self.missing = tuple(dict.fromkeys([*(q.label.strip() for q in missing), *asks]))
         self.choices = {q.label.strip(): offered for q in missing if (offered := choices(q))}
-        # The form's own required flag; what an essay asks him is for a slot the essay needs.
-        self.required = {q.label.strip(): q.required for q in missing} | {asked: True for asked in asks}
+        # The form's own required flag, for what an essay asks him too: its essay's (Saronic's optional
+        # follow-up showed Required, live 2026-11-04).
         essay_of = {asked: e.question for e in self.written if e.plan for asked in e.plan.asks}
+        self.required = {q.label.strip(): q.required for q in missing} \
+            | {asked: essay_of[asked].required if asked in essay_of else True for asked in asks}
         self.where = {q.label.strip(): line for q in missing if (line := asking.where(q, self.questions))} \
             | {asked: asking.for_essay(essay_of[asked]) for asked in asks if asked in essay_of}
         if self._rehearse and self.missing != was:
