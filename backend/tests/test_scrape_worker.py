@@ -46,3 +46,39 @@ async def test_a_dry_run_writes_nothing(database, boards_csv, monkeypatch):
     async with get_engine().connect() as conn:
         for table in ("scraper_schedules", "scraper_tasks"):
             assert await conn.scalar(text(f"SELECT count(*) FROM {table}")) == 0
+
+
+def _job(title: str, number: int):
+    from workit_scraper.providers import Job
+
+    return Job("ashby", "acme", "Acme", str(number), title, f"https://jobs.ashbyhq.com/acme/{number}")
+
+
+def test_a_board_read_goes_through_read_board_and_the_shortlist(monkeypatch):
+    from workit_scraper.board_read import BoardRead, ReadStatus
+    from workit_scraper.providers import Board
+
+    jobs = [_job("Software Engineering Intern", 1), _job("Senior Account Executive", 2)]
+    calls = []
+
+    def read_board(board, robots):
+        calls.append(board)
+        return BoardRead(ReadStatus.OK, jobs=jobs)
+
+    monkeypatch.setattr(worker, "read_board", read_board)
+    result, kept, *_ = worker.read_board_shortlist(Board("ashby", "acme", "Acme"))
+    assert calls == [Board("ashby", "acme", "Acme")]
+    assert result.jobs == jobs
+    assert [job.title for job in kept] == ["Software Engineering Intern"]
+
+
+def test_a_board_robots_txt_forbids_yields_nothing(monkeypatch):
+    from workit_scraper.board_read import BoardRead, ReadStatus
+    from workit_scraper.providers import Board
+
+    monkeypatch.setattr(
+        worker, "read_board", lambda board, robots: BoardRead(ReadStatus.SKIPPED, reason="robots.txt")
+    )
+    result, kept, *_ = worker.read_board_shortlist(Board("ashby", "acme", "Acme"))
+    assert result.status is ReadStatus.SKIPPED
+    assert kept == []

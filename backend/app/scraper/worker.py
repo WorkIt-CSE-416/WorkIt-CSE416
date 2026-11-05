@@ -17,7 +17,11 @@ import uuid
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
-from workit_scraper.providers import PROVIDERS, BoardNotFound
+from workit_scraper import providers
+from workit_scraper.board_read import BoardRead, ReadStatus, read_board
+from workit_scraper.polite import Robots
+from workit_scraper.providers import PROVIDERS, Board, Job
+from workit_scraper.shortlist import classify, classify_with_description
 
 from app.schemas.jobs import JobListing
 from app.scraper.schedules import (
@@ -40,6 +44,49 @@ logger = logging.getLogger(__name__)
 
 # Same work_style mapping as feed.py.
 _WORK_STYLE = {"Remote": "remote", "Hybrid": "hybrid", "On site": "onsite"}
+
+
+def read_board_shortlist(board: Board) -> tuple[BoardRead, list[Job], float, float]:
+    """One board read as the scheduled scrape reads it (workit_scraper.__main__):
+    `read_board`'s robots.txt check and pacing, then each kept posting's own
+    page (`with_page`), then the shortlist (`classify_with_description`), so
+    only the postings the feed would carry are published, with their
+    descriptions and facts. Blocking: run it in a thread. Also returns how long
+    the board and the pages took.
+
+    No store is carried in, so every kept posting's page is read, each run."""
+    robots = Robots()
+    t0 = time.monotonic()
+    result = read_board(board, robots)
+    boards_s = time.monotonic() - t0
+    if result.status is not ReadStatus.OK:
+        return result, [], boards_s, 0.0
+    t1 = time.monotonic()
+    paged = [_with_page(job, robots) for job in result.jobs]
+    pages_s = time.monotonic() - t1
+    kept = [job for job in paged if classify_with_description(job.title, job.description)]
+    return result, kept, boards_s, pages_s
+
+
+def _with_page(job: Job, robots: Robots) -> Job:
+    """workit_scraper.__main__'s `with_page`, which can't be imported here:
+    importing that module reads scraper/checked_websites.csv, which the
+    installed package doesn't carry. The posting with its own page read when
+    its provider's list leaves the page out and its title is shortlisted;
+    a page robots.txt forbids, or that fails, leaves it without one."""
+    provider = PROVIDERS.get(job.ats)
+    current = job.page is not None and job.page.version == providers.PAGE_VERSION
+    if not (provider and provider.job_url and not current and classify(job.title)):
+        return job
+    url = providers.job_url(job.ats, job.token, job.external_id)
+    if not robots.allows(url):
+        return job
+    robots.pace(url)
+    try:
+        return providers.describe(job)
+    except Exception:  # A missing description is not a failed board.
+        logger.warning("%s: no description", job.key, exc_info=True)
+        return job
 
 
 def job_to_listing(job, company: str) -> JobListing:
@@ -183,45 +230,43 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> list[JobL
     await mark_started(conn, task.id)
     await conn.commit()
 
-    t0 = time.monotonic()
-    try:
-        jobs = await asyncio.to_thread(provider.read, schedule.token, schedule.company)
-    except BoardNotFound:
-        boards_s = time.monotonic() - t0
+    board = Board(schedule.ats, schedule.token, schedule.company)
+    result, jobs, boards_s, pages_s = await asyncio.to_thread(read_board_shortlist, board)
+    if result.status is ReadStatus.MISSING:
         logger.info("Board %s/%s: not found", schedule.ats, schedule.token)
         await record_missing(conn, task.schedule_id)
         await mark_done(conn, task.id, boards_s=boards_s)
         await conn.commit()
         summary["boards_missing"] += 1
         return []
-    except Exception as exc:
-        boards_s = time.monotonic() - t0
-        logger.warning(
-            "Board %s/%s failed: %s", schedule.ats, schedule.token, exc, exc_info=True
-        )
+    if result.status is not ReadStatus.OK:
+        # FAILED, or SKIPPED (robots.txt, too large): no complete read, which
+        # is evidence of nothing, and the board rests after enough of them.
+        error = f"{result.reason}: {result.error}" if result.error else result.reason
+        logger.warning("Board %s/%s unread: %s", schedule.ats, schedule.token, error)
         await record_failure(conn, task.schedule_id)
-        await mark_failed(conn, task.id, error=str(exc))
+        await mark_failed(conn, task.id, error=error)
         await conn.commit()
         summary["boards_failed"] += 1
         return []
-
-    boards_s = time.monotonic() - t0
 
     # Convert provider Jobs to JobListing objects.
     listings = [job_to_listing(job, schedule.company) for job in jobs]
 
     # Advance reads on the schedule and mark task done.
     await advance_reads(conn, task.schedule_id)
-    await mark_done(conn, task.id, boards_s=boards_s)
+    await mark_done(conn, task.id, boards_s=boards_s, pages_s=pages_s)
     await conn.commit()
     summary["boards_ok"] += 1
 
     logger.info(
-        "Board %s/%s: %d jobs, %.1fs",
+        "Board %s/%s: %d of %d postings kept, %.1fs + %.1fs pages",
         schedule.ats,
         schedule.token,
         len(jobs),
+        len(result.jobs),
         boards_s,
+        pages_s,
     )
 
     return listings
