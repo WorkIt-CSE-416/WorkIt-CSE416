@@ -11,6 +11,20 @@ export function userScriptsOn() {
   }
 }
 
+// Where Apply's generated files are: a write-once set, vendor/sets/<id>/, that the Apply process
+// driving this Worker wrote and named in its welcome (or with vendor.use), so two Apply processes
+// on different engines never change each other's files. Plain "vendor" until then.
+let vendorRoot = "vendor";
+
+export function useVendor(root) {
+  if (!/^vendor(\/sets\/[0-9a-f]{16,64})?$/.test(root || "")) throw named("BadOp", `not a vendor set: ${root}`);
+  vendorRoot = root;
+  return vendorRoot;
+}
+
+// `vendor/<path>` in the vendor set in use.
+export const vendor = (path) => (path.startsWith("vendor/") ? `${vendorRoot}/${path.slice("vendor/".length)}` : path);
+
 export function named(name, message) {
   const error = new Error(message);
   error.name = name;

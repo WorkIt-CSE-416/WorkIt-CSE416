@@ -10,9 +10,15 @@
 A plain Worker's Chrome stays up across the Applications it carries: PlainSite.open reuses it,
 with every guard of the last one taken off (guards.reset) and the last one's tabs closed, and
 close() stops each Chrome by its PID when the run or rehearsal ends.
+
+A Worker can carry more than one form at once (`apply rehearse --into`, KAN-645): each open() gets
+a tab of its own, and the tabs of a form still open (held, paused or filling) are never closed,
+reset or reloaded for another. Only when no other form is open in the Worker are the last one's
+guards reset and its extension reloaded if its code changed (PlainWorkers.refresh).
 """
 
 import json
+import sys
 import threading
 from contextlib import contextmanager
 from pathlib import Path
@@ -27,6 +33,7 @@ from apply.profile import load_policies
 MODES = ("cdp", "plain", "protected")
 LEARNED = HOME / "plain-hosts.json"  # each host a bot block was seen on, for `protected`
 BLANK = "about:blank"
+BLANKS = (BLANK, "", "chrome://newtab/")
 
 
 def mode(policies: dict | None = None) -> str:
@@ -76,6 +83,18 @@ class PlainSite:
         self._fetcher = fetcher or WorkerBrowsers(headless=True)
         self.profiles = self.workers.profiles
         self._launching = threading.Lock()  # one Chrome starts at a time (its bridge, its focus watch)
+        self._open: dict[int, set[int]] = {}  # each Worker's tabs a form holds now (open() not yet left)
+        self._tabs = threading.Lock()
+
+    def live(self, worker: int) -> bool:
+        """Whether a form is open in Worker `worker` now."""
+        with self._tabs:
+            return bool(self._open.get(worker))
+
+    def running(self, worker: int) -> bool:
+        """Whether Worker `worker`'s Chrome is up, with its port open."""
+        running = self.workers.running.get(worker)
+        return bool(running) and not running.connection.closed.is_set()
 
     def fetch(self, url: str, body: bytes | None = None) -> bytes:
         return self._fetcher.fetch(url, body)
@@ -111,48 +130,68 @@ class PlainSite:
         The page's tabs close after, leaving one blank tab so its window stays."""
         from apply.plain.page import PortContext
 
+        with self._tabs:
+            others = set(self._open.get(worker, ()))
         running = self.workers.running.get(worker)
+        if running and running.connection.closed.is_set() and (again := self.workers.bridge.connection(worker)) \
+                and not again.closed.is_set():  # its extension restarted and said hello again: same Chrome
+            running.connection = again
         if running and running.connection.closed.is_set():  # it quit or its port closed: a new one
             self.workers.stop(worker)
             running = None
         if running:
-            guards.reset(running.connection)  # the last Application's guards, lifts and bindings go
+            for said in self.workers.refresh(worker, others=bool(others)):  # a merged engine fix, without a restart
+                print(f"Browser {worker + 1}: {said}", file=sys.stderr)
+            running = self.workers.running[worker]
+            if not others:
+                guards.reset(running.connection)  # the last Application's guards, lifts and bindings go
         else:
             with self._launching:
                 running = self.workers.launch(worker)
         connection = running.connection
         context = PortContext(connection)
-        before = [t["tab"] for t in connection.call("tabs.query")]
-        if before:
+        tabs = connection.call("tabs.query")
+        # With another form open, only blank tabs go: that form's own pop-ups and Lisul's tabs stay.
+        before = [t["tab"] for t in tabs if t["tab"] not in others and (not others or t.get("url") in BLANKS)]
+        if tabs:
             page = context.new_page()
         else:  # Lisul closed its window: a new one, unfocused, where Workers sit
             x, y = self.workers.position(worker)
             page = context.page(connection.call("windows.create", left=x, top=y, width=WINDOW[0], height=WINDOW[1])["tab"])
-        for tab in before:
+        with self._tabs:
+            self._open.setdefault(worker, set()).add(page.tab)
+        for tab in before:  # the last form's tabs, done with: never a tab another form holds
             context.page(tab).close()
         try:
             page.goto(url)
             yield page
         finally:
-            _leave_blank(context)
+            with self._tabs:
+                self._open.get(worker, set()).discard(page.tab)
+                keep = set(self._open.get(worker, ()))
+            _leave_blank(context, page.tab, keep)
 
     def close(self) -> None:
         """Stop every plain Worker's Chrome this site started, by its PID."""
         self.workers.stop_all()
 
 
-def _leave_blank(context) -> None:
-    """Close the Application's tabs, keeping one blank tab so the Worker's window stays."""
+def _leave_blank(context, own: int | None = None, keep: set[int] = frozenset()) -> None:
+    """Close the Application's tabs, keeping one blank tab so the Worker's window stays. While another
+    form is open in it (`keep`), only the Application's own tab `own` closes."""
     if context.worker.closed.is_set():
         return
     try:
         tabs = [t["tab"] for t in context.worker.call("tabs.query")]
+        if keep:
+            tabs = [tab for tab in tabs if tab == own]
         if not tabs:
             return
-        blank = context.worker.call("tabs.create", url=BLANK, active=True)["tab"]
+        blank = None if keep else context.worker.call("tabs.create", url=BLANK, active=True)["tab"]
         for tab in tabs:
             context.page(tab).close()
-        context.page(blank)
+        if blank is not None:
+            context.page(blank)
     except Exception:
         pass  # its Chrome quit meanwhile: the next open starts a new one
 
@@ -183,6 +222,10 @@ class RoutedSite:
     def plain(self, worker: int) -> bool:
         return self._plain.get(worker, False)
 
+    def running(self, worker: int) -> bool:
+        """Whether Worker `worker` runs a plain Worker's Chrome now (only those take a link sent in)."""
+        return self.plain(worker) and self.plain_site.running(worker)
+
     def connection(self, worker: int):
         return self.plain_site.connection(worker) if self.plain(worker) else None
 
@@ -195,7 +238,7 @@ class RoutedSite:
     @contextmanager
     def open(self, url: str, worker: int = 0):
         plain = protected(url, self._policies)
-        if not plain:
+        if not plain and not self.plain_site.live(worker):  # never under a form still open in it
             self.plain_site.workers.stop(worker)  # its plain Chrome, if the last form had one, makes way
         self._plain[worker] = plain
         with (self.plain_site if plain else self.cdp).open(url, worker=worker) as page:

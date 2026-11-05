@@ -13,7 +13,7 @@
 //   Apply; a press the extension makes (Apply's own, Lisul's from the tile) is a `__apply_touch`
 //   the guard counts, as it counts a trusted click.
 
-import { named, userScriptsOn } from "./shared.js";
+import { named, userScriptsOn, vendor } from "./shared.js";
 
 const RESOURCE_TYPES = ["main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object", "xmlhttprequest",
   "ping", "csp_report", "media", "websocket", "webtransport", "webbundle", "other"];
@@ -52,9 +52,10 @@ async function sha256(file) {
 }
 
 // A vendor/guards file, refused unless it is the very script Apply has (a stale `prepare` would
-// guard with old code).
-async function checked(file, sha) {
-  if (!/^vendor\/guards\/[\w.-]+\.js$/.test(file || "")) throw named("BadOp", `not a guard file: ${file}`);
+// guard with old code). Returns the file in the vendor set Apply named (shared.js: vendor).
+async function checked(name, sha) {
+  if (!/^vendor\/guards\/[\w.-]+\.js$/.test(name || "")) throw named("BadOp", `not a guard file: ${name}`);
+  const file = vendor(name);
   let got;
   try {
     got = await sha256(file);
@@ -198,7 +199,7 @@ const LIFTED = "vendor/guards/lifted.js";
 const REARMED = "vendor/guards/rearmed.js";
 
 function liftIn(tab, frame, note) {
-  return inFrames(tab, "MAIN", { frame, files: [LIFTED], func: (note) => window.__applyLift && window.__applyLift(note), args: [note] });
+  return inFrames(tab, "MAIN", { frame, files: [vendor(LIFTED)], func: (note) => window.__applyLift && window.__applyLift(note), args: [note] });
 }
 
 async function lift({ tab, again = false, warning = "", wrong = true, held = "", sha256: sha, onlyLifted = false }) {
@@ -215,7 +216,7 @@ async function lift({ tab, again = false, warning = "", wrong = true, held = "",
 const APPLIED = "vendor/guards/applied.js";
 
 function appliedIn(tab, frame, day) {
-  return inFrames(tab, "MAIN", { frame, files: [APPLIED], func: (day) => window.__applyAppliedNote && window.__applyAppliedNote(day), args: [day] });
+  return inFrames(tab, "MAIN", { frame, files: [vendor(APPLIED)], func: (day) => window.__applyAppliedNote && window.__applyAppliedNote(day), args: [day] });
 }
 
 async function appliedNote({ tab, day = null, sha256: sha }) {

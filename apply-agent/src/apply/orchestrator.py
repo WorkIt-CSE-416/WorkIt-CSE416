@@ -2,6 +2,7 @@
 writer of the Tracker."""
 
 import hashlib
+import queue as queues
 import re
 import sys
 import threading
@@ -18,6 +19,7 @@ from apply import (
     captcha,
     description,
     embedded,
+    fill_engine,
     greenhouse,
     oracle,
     tailored,
@@ -177,8 +179,32 @@ class _Run:
             self._adapters.board.run(unchecked=already_applied.UNCHECKED.format(unchecked))
         free = list(range(workers))  # Worker numbers; each Worker has its own Worker profile
         running: dict[Future, tuple[Posting, int]] = {}
+        sent_in: queues.SimpleQueue[tuple[str, int]] = queues.SimpleQueue()  # `apply rehearse --into`'s links
+        wanted: dict[str, int] = {}  # a link sent in, by Application ID: the Worker it was sent into
+
+        def into(url: str, worker: int) -> dict:
+            """A link sent into a run's window (KAN-645): a Request ahead of all, in that Worker's running
+            plain Chrome as soon as it is free, so its sign-in serves it."""
+            from apply.answers_tab import (
+                Refused,  # imported here: answers_tab imports the adapters
+            )
+            if not getattr(self._adapters.site, "running", lambda k: False)(worker):
+                raise Refused(f"Browser {worker + 1} isn't a running plain Worker.", 409)
+            sent_in.put((url, worker))
+            return {"tile": worker, "worker": worker}
+        if taking := getattr(self._adapters.board, "taking", None):
+            taking(into)
         with ThreadPoolExecutor(workers) as pool:
             while True:
+                while not sent_in.empty():
+                    url, worker = sent_in.get_nowait()
+                    posting, result = resolve(url, self._adapters.site)
+                    if result:
+                        self._write(posting, result.status, result.reason)
+                        continue
+                    self._write(posting, Status.QUEUED)
+                    requests.appendleft(posting)
+                    wanted[posting.id] = worker
                 # The Requests tab is read again whenever a Worker is free, zero
                 # tokens, so a Request Lisul pastes mid-run goes ahead of every Match left.
                 if with_requests:
@@ -192,6 +218,7 @@ class _Run:
                 if not (requests or queue or running):
                     break
                 resume_at = None
+                later: list[Posting] = []  # links sent into a busy Worker, first in line again after
                 while (requests or queue) and free:
                     resume_at = self._resume_at(self._adapters.usage.reading())
                     if resume_at:
@@ -203,19 +230,26 @@ class _Run:
                         self._adapters.board.note(posting.company, posting.title, "you already applied to this job",
                                                   posting.url)
                         continue
-                    worker = free.pop(0)
+                    if posting.id in wanted and wanted[posting.id] not in free:
+                        later.append(posting)  # sent into a Worker still busy: it waits for that one
+                        continue
+                    worker = wanted.pop(posting.id) if posting.id in wanted else free[0]
+                    free.remove(worker)
                     self._adapters.board.update(worker, company=posting.company, role=posting.title,
                                                 job_system=posting.job_system, posting_url=posting.url,
                                                 application_id=posting.id, status="filling", line="", why="", files=[])
                     self._write(posting, Status.FILLING)
                     running[pool.submit(self._apply, posting, worker)] = (posting, worker)
+                requests.extendleft(reversed(later))
                 if not running:
                     if resume_at:  # else every Match left was a Request's already
                         self._adapters.board.run(paused_until=resume_at.isoformat(timespec="minutes"))
                         self._adapters.clock.sleep_until(resume_at)
                         self._adapters.board.run(paused_until=None)
                     continue
-                done, _ = wait(running, return_when=FIRST_COMPLETED)
+                done = set()
+                while not done and sent_in.empty():  # a link sent in meanwhile is taken at once
+                    done, _ = wait(running, timeout=1, return_when=FIRST_COMPLETED)
                 for future in done:
                     posting, worker = running.pop(future)
                     free.append(worker)
@@ -335,6 +369,7 @@ class _Run:
         return result
 
     def _traced(self, posting: Posting, worker: int) -> Result:
+        fill_engine.fresh()  # a merged engine fix since the last Application: planned with it, no restart (KAN-645)
         try:
             on_worker = _OnWorker(self._adapters.site, worker)
             # KAN-621: never open or fill a form sent already, here or on the form behind it.

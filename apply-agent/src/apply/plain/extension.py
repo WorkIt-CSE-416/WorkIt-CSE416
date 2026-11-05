@@ -13,13 +13,31 @@ is fixed by manifest.json's `key`. `prepare` writes its generated files into ven
   registers as content scripts and refuses when their sha256 isn't Apply's;
 - fixed.js: Apply's fixed page functions (apply.plain.fixed: Needs you's field, Resume's field
   error, the emailed code's boxes), which `fixed.call` runs with no eval (KAN-611).
+
+The same files also go, write-once, into a set of their own: vendor/sets/<id>/, <id> a hash of
+their bytes (`vendor_set`, KAN-645). The launcher writes the set into the folder the Worker
+really loads the extension from (`loaded_folder`: the seed's Load unpacked folder, which may be
+another checkout's), and names it in the welcome; the extension then reads every generated file
+from there (ops/shared.js: vendor). A set is never changed or replaced, so an Apply process on
+another engine, with Workers of its own on the same folder, keeps its own set, and no Worker is
+refused for an engine another checkout prepared.
+
+Workers load no checkout at all: each profiles folder has its own copy of the extension,
+APPLY_PROFILES/worker-extension/ (`install`), which the seed's Load unpacked registers and Chrome
+for Testing's --load-extension names. Apply replaces that copy only while none of that folder's
+Workers runs (one Apply process drives a profiles folder, KAN-634), so a `git pull` in any checkout,
+or an Apply on newer code, never changes the code of a Worker that is running: Chrome restarts an
+MV3 service worker from disk, so a shared folder would (KAN-645).
 """
 
 import base64
 import hashlib
 import json
+import os
 import shutil
 import subprocess
+import tempfile
+import time
 from functools import cache
 from pathlib import Path
 
@@ -32,6 +50,12 @@ from apply.plain import fixed
 EXTENSION_DIR = CODE / "worker-extension"
 VENDOR = EXTENSION_DIR / "vendor"
 HOST_NAME = "com.workit.apply_worker"
+COPY = "worker-extension"  # APPLY_PROFILES/worker-extension/: the profiles folder's own copy (install)
+STAMP = ".apply-code"  # in a copy: the code_hash of the code it holds
+SETS = "sets"  # vendor/sets/<id>/: one write-once set of the generated files per Apply build
+SET_DAYS = 7  # a set unused this long is removed when a new one is written
+# The extension's own code: what `code_hash` reads to tell an extension running old code.
+CODE_FILES = ("manifest.json", "background.js", "ops", "page")
 
 # The injected script's options, as Playwright gives them for its utility world on Chromium.
 INJECTED_OPTIONS = {"isUnderTest": False, "sdkLanguage": "python", "frameSeq": 0, "testIdAttributeName": "data-testid",
@@ -84,27 +108,134 @@ def _driver_bundle() -> Path:
     return Path(compute_driver_executable()[1]).parent / "lib" / "coreBundle.js"
 
 
-def prepare(vendor: Path = VENDOR) -> dict:
-    """Write vendor/engine.js, engine.json, injected.js, fixed.js and guards/, each only when it changed.
-    Returns the engine's identity."""
+def generated(identity: dict | None = None) -> dict[str, bytes]:
+    """Each generated file's path under vendor/ and its bytes."""
     from apply.plain import guards
 
     fill_engine._built()
-    vendor.mkdir(parents=True, exist_ok=True)
-    identity = engine_identity()
-    if not (vendor / "engine.js").exists() or _sha256(vendor / "engine.js") != identity["sha256"]:
-        shutil.copyfile(fill_engine.ENGINE, vendor / "engine.js")
-    _write(vendor / "engine.json", json.dumps(identity, indent=1) + "\n")
+    identity = identity or engine_identity()
     bundle = _driver_bundle()
     source = subprocess.run([_node(), "-e", EXTRACT, str(bundle)], capture_output=True, text=True, check=True).stdout
-    _write(vendor / "injected.js", "// Playwright's injected script (Apache-2.0), from the installed playwright package.\n"
-           "(() => {\nif (globalThis.__applyPW) return;\nconst module = {};\n" + source +
-           f"\nglobalThis.__applyPW = new (module.exports.InjectedScript())(globalThis, {json.dumps(INJECTED_OPTIONS)});\n}})();\n")
-    _write(vendor / "fixed.js", fixed.script())
-    guards.write(vendor)
+    injected = ("// Playwright's injected script (Apache-2.0), from the installed playwright package.\n"
+                "(() => {\nif (globalThis.__applyPW) return;\nconst module = {};\n" + source +
+                f"\nglobalThis.__applyPW = new (module.exports.InjectedScript())(globalThis, {json.dumps(INJECTED_OPTIONS)});\n}})();\n")
+    files = {"engine.js": fill_engine.ENGINE.read_bytes(), "engine.json": (json.dumps(identity, indent=1) + "\n").encode(),
+             "injected.js": injected.encode(), "fixed.js": fixed.script().encode()}
+    files |= {f"{guards.FOLDER}/{name}": text.encode() for name, text in guards.FILES.items()}
+    return files
+
+
+def prepare(vendor: Path = VENDOR) -> dict:
+    """Write vendor/engine.js, engine.json, injected.js, fixed.js and guards/, each only when it changed.
+    Returns the engine's identity."""
+    identity = engine_identity()
+    vendor.mkdir(parents=True, exist_ok=True)
+    for name, data in generated(identity).items():
+        path = vendor / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists() or path.read_bytes() != data:
+            path.write_bytes(data)
     return identity
 
 
-def _write(path: Path, text: str) -> None:
-    if not path.exists() or path.read_text() != text:
-        path.write_text(text)
+def set_id(files: dict[str, bytes]) -> str:
+    digest = hashlib.sha256()
+    for name in sorted(files):
+        digest.update(name.encode() + b"\0" + hashlib.sha256(files[name]).digest())
+    return digest.hexdigest()[:16]
+
+
+def vendor_set(folder: Path, files: dict[str, bytes]) -> str:
+    """`files` as the set vendor/sets/<id>/ of the extension folder `folder`, written once: a set that is
+    there already is left as it is, and none is ever changed. Returns the set's root as the extension
+    names it ("vendor/sets/<id>"). Sets unused for SET_DAYS go."""
+    sets = folder / "vendor" / SETS
+    sets.mkdir(parents=True, exist_ok=True)
+    ident = set_id(files)
+    done = sets / ident
+    if not done.is_dir():
+        building = Path(tempfile.mkdtemp(prefix=f".{ident}-", dir=sets))
+        for name, data in files.items():
+            (building / name).parent.mkdir(parents=True, exist_ok=True)
+            (building / name).write_bytes(data)
+        try:
+            building.rename(done)  # whole or not at all: a Worker never reads half a set
+        except OSError:  # another Apply wrote the same set first
+            shutil.rmtree(building, ignore_errors=True)
+    os.utime(done)  # in use: not old
+    old = time.time() - SET_DAYS * 86400
+    for other in sets.iterdir():
+        try:
+            if other != done and other.stat().st_mtime < old:
+                shutil.rmtree(other, ignore_errors=True)
+        except OSError:
+            pass
+    return f"vendor/{SETS}/{ident}"
+
+
+def loaded_folder(profile: Path) -> Path | None:
+    """The folder the worker extension is loaded from in Chrome profile `profile`: the path Load unpacked
+    (or --load-extension) registered in its preferences. None when the profile has no such record."""
+    for prefs in ("Secure Preferences", "Preferences"):
+        try:
+            settings = json.loads((profile / "Default" / prefs).read_text())["extensions"]["settings"]
+            path = Path(settings[EXTENSION_ID]["path"])
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if path.is_absolute() and (path / "manifest.json").is_file():
+            return path
+    return None
+
+
+def code_hash(folder: Path = EXTENSION_DIR) -> str:
+    """A hash of the extension's own code in `folder` (not vendor/): it changes when the code on disk does."""
+    digest = hashlib.sha256()
+    for part in CODE_FILES:
+        root = folder / part
+        for path in sorted([root] if root.is_file() else root.rglob("*.js") if root.is_dir() else []):
+            digest.update(str(path.relative_to(folder)).encode() + b"\0" + path.read_bytes())
+    return digest.hexdigest()[:16]
+
+
+def install(dest: Path, files: dict[str, bytes], replace: bool, source: Path = EXTENSION_DIR) -> bool:
+    """Make `dest` a copy of the extension in `source` (its code, the generated files and their vendor
+    set), unless it holds that code already. A copy that holds other code is replaced only when
+    `replace` (no Worker loads it now): whole, by a rename, its vendor sets kept. True when `dest`
+    holds `source`'s code after."""
+    code = code_hash(source)
+    stamp = dest / STAMP
+    held = stamp.read_text().strip() if stamp.is_file() else ""
+    if held != code and (replace or not dest.exists()):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        building = Path(tempfile.mkdtemp(prefix=f".{dest.name}-", dir=dest.parent))
+        for part in CODE_FILES:
+            if (source / part).is_dir():
+                shutil.copytree(source / part, building / part)
+            elif (source / part).is_file():
+                shutil.copy2(source / part, building / part)
+        for name, data in files.items():  # the plain vendor/ files, for code that reads no set
+            (building / "vendor" / name).parent.mkdir(parents=True, exist_ok=True)
+            (building / "vendor" / name).write_bytes(data)
+        if (dest / "vendor" / SETS).is_dir():
+            shutil.copytree(dest / "vendor" / SETS, building / "vendor" / SETS)
+        (building / STAMP).write_text(code + "\n")
+        old = dest.with_name(f".{dest.name}-old-{os.getpid()}")
+        if dest.exists():
+            dest.rename(old)
+        building.rename(dest)
+        shutil.rmtree(old, ignore_errors=True)
+        held = code
+    if dest.exists():
+        vendor_set(dest, files)
+    return held == code
+
+
+def guards_match(folder: Path) -> bool:
+    """Whether `folder`'s plain vendor/guards/ files are this Apply's: code that reads no vendor set guards
+    pages with those, and refuses any that differ."""
+    from apply.plain import guards
+
+    try:
+        return all((folder / "vendor" / guards.FOLDER / name).read_text() == text for name, text in guards.FILES.items())
+    except OSError:
+        return False
