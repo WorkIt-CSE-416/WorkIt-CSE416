@@ -159,6 +159,7 @@ def apply_to(
     on_pause: Callable[[Result, Callable[[object], str]], bool] = lambda stopped, blocked: False,
     on_captcha: Callable[[str, object, str], bool] = lambda why, page, company: False,
     anyway: bool = False,
+    fetched: str | None = None,
 ) -> Result:
     """`before_submit` runs just before the form is submitted. It returns why
     the Orchestrator holds the Application anyway (the Calibration run), or "";
@@ -205,12 +206,15 @@ def apply_to(
     that the link or the page names (captcha.Waiter): True, Lisul did it, and the fill goes on on that page.
     False, the time ran out: it is a Handoff (or a rehearsal's pause).
     With `anyway` (Lisul pressed Fill it anyway on a rehearsal that ruled him out), neither the Posting's
-    text nor a failed Screener ends it: the form is filled as in any rehearsal."""
+    text nor a failed Screener ends it: the form is filled as in any rehearsal.
+    `fetched` is the Posting's page as a plain fetch read it, when the caller
+    read it already (embedded.form_behind), so it is not fetched again."""
     planned = _Planned(posting, site, profile, claude, answered or {}, approved, rehearse, bank or AnswerBank(),
                        today or date.today(), on_files, on_missing)
     planned.anyway = anyway
     try:
-        result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify, on_pause, on_captcha)
+        result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify, on_pause, on_captcha,
+                        fetched)
     except Handoff as handoff:
         result = _handed_off(handoff)
     except Closed as closed:  # skipped before any form is filled
@@ -236,12 +240,12 @@ def apply_to(
 
 def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fill=lambda: None,
            on_verify=lambda verification: None, on_pause=lambda stopped, blocked: False,
-           on_captcha=lambda why, page, company: False) -> Result:
+           on_captcha=lambda why, page, company: False, fetched: str | None = None) -> Result:
     posting, profile, claude = planned.posting, planned.profile, planned.claude
     read = description.from_api(posting, site)
     if (why := eligibility.not_eligible(read)) and not planned.anyway:  # before any form opens or Claude is asked
         return Result(Status.NOT_ELIGIBLE, why)
-    fetched = read or description.from_link(posting, site)  # no browser yet
+    fetched = read or (description.from_link(posting, site) if fetched is None else fetched)  # no browser yet
     if trap := posting_ai_trap(fetched):  # else Claude fill's Claude would read it on the open page
         return Result(Status.HANDOFF, trap_handoff(trap))
     with tempfile.TemporaryDirectory(prefix="apply-") as scratch:

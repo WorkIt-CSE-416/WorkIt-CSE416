@@ -41,6 +41,7 @@ from apply import (
     ashby,
     bot_signals,
     captcha,
+    description,
     eightfold,
     embedded,
     greenhouse,
@@ -477,9 +478,13 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     # Before any page opens (form_behind opens one for an unknown job system): never fill a form sent already.
     applied = adapters.applied_before.of(posting, url)
     behind = greenhouse.board_behind(posting, site)
+    fetched = None  # the page as a plain fetch reads it, before form_behind opens it: never fetched twice
     if behind == posting and result is None and (force or not applied):
-        behind = embedded.form_behind(posting, site)  # a Greenhouse, Lever or Ashby form in the page
+        if posting.job_system == "other":
+            fetched = description.from_link(posting, site)
+        behind = embedded.form_behind(posting, site, fetched)  # a Greenhouse, Lever or Ashby form in the page
     if behind != posting:
+        fetched = None  # the form's own job system's text is read instead
         posting = replace(resolve(behind.url, site)[0], id=posting.id)  # named by its job system now
         applied = applied or adapters.applied_before.of(posting, url)
     if applied:
@@ -566,7 +571,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                                                        on_verify=lambda verification: board.update(
                                                            n, **verifying(verification)),
                                                        on_pause=on_pause, on_captcha=on_captcha,
-                                                       anyway=bool(anyway)),
+                                                       anyway=bool(anyway), fetched=fetched),
                     signed_in=adapters.signed_in,
                 )
             except SetupError as error:  # the Mac's setup, not Apply's code: its one line says how to fix it

@@ -16,6 +16,7 @@ from apply import (
     asking,
     bot_signals,
     captcha,
+    description,
     embedded,
     greenhouse,
     oracle,
@@ -339,16 +340,21 @@ class _Run:
             # KAN-621: never open or fill a form sent already, here or on the form behind it.
             if applied := self._adapters.applied_before.of(posting):
                 return Result(Status.HANDOFF, f"{applied.said()}; Apply didn't open the form")
+            fetched = None  # the page as a plain fetch reads it, before form_behind opens it: never fetched twice
             if (behind := greenhouse.board_behind(posting, self._adapters.site)) == posting:
-                behind = embedded.form_behind(posting, on_worker)  # a Greenhouse, Lever or Ashby form in the page
+                if posting.job_system == "other":
+                    fetched = description.from_link(posting, on_worker)
+                behind = embedded.form_behind(posting, on_worker, fetched)  # a Greenhouse, Lever or Ashby form in the page
             if behind != posting and (applied := self._adapters.applied_before.of(behind, posting.url)):
                 return Result(Status.HANDOFF, f"{applied.said()}; Apply didn't open the form")
+            if behind != posting:
+                fetched = None  # the form's own job system's text is read instead
             posting = behind
             profile = tailored.resume_for(posting, self._profile, self._adapters.tailored)
             return by_filler(
                 posting, on_worker, profile, self._adapters.claude,
                 lambda: self._accounts(posting),
-                lambda filler, site: self._apply_with(posting, filler, site, worker, profile),
+                lambda filler, site: self._apply_with(posting, filler, site, worker, profile, fetched),
                 signed_in=self._adapters.signed_in,
             )
         except Exception as error:
@@ -371,8 +377,10 @@ class _Run:
         with self._writing:
             self._adapters.tracker.add_employer_account(account)
 
-    def _apply_with(self, posting: Posting, filler, site, worker: int, profile: ApplicantProfile) -> Result:
-        """`profile` is the run's, with the Posting's tailored resume in place of its resume when it has one."""
+    def _apply_with(self, posting: Posting, filler, site, worker: int, profile: ApplicantProfile,
+                    fetched: str | None = None) -> Result:
+        """`profile` is the run's, with the Posting's tailored resume in place of its resume when it has one.
+        `fetched`: the Posting's page as a plain fetch already read it (apply_to)."""
         board = self._adapters.board
         caption = lambda: {"company": posting.company, "role": posting.title, "job_system": posting.job_system,
                            "posting_url": posting.url, "application_id": posting.id}
@@ -382,7 +390,7 @@ class _Run:
             bank=self._adapters.answer_bank, today=self._adapters.clock.now().date(),
             on_files=lambda files: board.update(worker, files=files),
             on_verify=lambda verification: board.update(worker, **verifying(verification)),
-            on_captcha=Waiter(board, worker, self._adapters.phone, profile, caption),
+            on_captcha=Waiter(board, worker, self._adapters.phone, profile, caption), fetched=fetched,
         )
 
     def _before_submit(self, posting: Posting) -> str:

@@ -17,7 +17,9 @@ from urllib.parse import parse_qs, urlsplit
 
 from playwright.sync_api import Page
 
+from apply import description
 from apply.adapters import JobSite
+from apply.fill_engine import posting_ai_trap
 from apply.model import Posting
 
 SETTLES_MS = 5_000  # how long the page may load before its frames are read
@@ -35,11 +37,15 @@ SOURCES = """() => [...document.querySelectorAll('iframe[src]')].map(f => f.src)
   .filter(a => /\\bapply\\b/i.test(a.innerText || a.getAttribute('aria-label') || '')).map(a => a.href))"""
 
 
-def form_behind(posting: Posting, site: JobSite) -> Posting:
+def form_behind(posting: Posting, site: JobSite, text: str | None = None) -> Posting:
     """`posting` with its link turned into the link of the Greenhouse, Lever or
     Ashby form its page embeds; as it is when the page embeds none, or when
-    it can't be opened. Only a Posting of no known job system is opened."""
+    it can't be opened. Only a Posting of no known job system is opened, and
+    never one whose page, read with a plain fetch (`text`, when the caller
+    read it already), speaks to AI agents: the Worker hands it off unopened."""
     if posting.job_system != "other":
+        return posting
+    if posting_ai_trap(description.from_link(posting, site) if text is None else text):
         return posting
     try:
         with site.open(posting.url) as page:
