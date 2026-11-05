@@ -22,6 +22,10 @@ whose mail can't be read, Gmail not being set up, stops it: "needs sign-in".
 
 Each link runs on its own thread, in its own Worker profile's browser (link
 n in profiles/worker-n), so each page can stay open where it stopped.
+
+A link sent in later (`apply rehearse --into`, the window's POST /rehearse, KAN-645) runs in a
+Worker already running, in a tab of its own beside the forms open there, with a tile of its own:
+so a job site's sign-in, kept only for the browser's session, serves the next posting too.
 """
 
 import queue
@@ -44,6 +48,7 @@ from apply import (
     description,
     eightfold,
     embedded,
+    fill_engine,
     greenhouse,
     lever,
     on_page,
@@ -56,6 +61,7 @@ from apply import (
 )
 from apply.accounts import NEEDS_SIGN_IN, Accounts
 from apply.adapters import Adapters, JobSite, SetupError, Tracker
+from apply.answers_tab import Refused
 from apply.asking import for_essay
 from apply.captcha import Waiter
 from apply.email_code import EmailCode
@@ -218,8 +224,9 @@ def rehearse(
             waiting[0] -= 1
             adapters.board.run(queued=waiting[0])
 
-    def one(n: int, url: str) -> None:
-        site = _Kept(adapters.site, n)
+    def one(n: int, url: str, worker: int | None = None) -> None:
+        """Link `url` on tile `n`, in Worker `worker` (default: Worker n, its own)."""
+        site = _Kept(adapters.site, n if worker is None else worker)
         done = None
         first = []  # the link's first summary went to `finished` (at its first pause, else at its end)
         after = []  # how the hold of a pause ended, when Lisul didn't press Resume: AGAIN, or "" (closed)
@@ -383,7 +390,27 @@ def rehearse(
                 site.close()
 
     threads = [threading.Thread(target=one, args=(n, url), daemon=True) for n, url in enumerate(urls)]
-    for thread in threads:
+
+    def into(url: str, worker: int) -> dict:
+        """A link sent in while the rehearsal runs: Worker `worker`'s running browser fills it in a tab of its
+        own, so its sign-in holds, with a tile of its own. Refused when that Worker's browser isn't running."""
+        if release.is_set():
+            raise Refused("This rehearsal is ending.", 409)
+        if not getattr(adapters.site, "running", lambda k: False)(worker):
+            raise Refused(f"Browser {worker + 1} isn't a running plain Worker: start one with `apply rehearse` "
+                          "(worker_mode: plain), then send links into it.", 409)
+        with writing:
+            n = adapters.board.add_tile(worker)
+            waiting[0] += 1
+            adapters.board.run(queued=waiting[0])
+            thread = threading.Thread(target=one, args=(n, url, worker), daemon=True)
+            threads.append(thread)
+        thread.start()
+        out(f"Took {url} into Browser {worker + 1}, beside its open forms: it signs in no more than they did.")
+        return {"tile": n, "worker": worker}
+    if taking := getattr(adapters.board, "taking", None):
+        taking(into)
+    for thread in list(threads):
         thread.start()
     ended: list[Rehearsed] = []
     # The waits sleep rather than block on a lock: Ctrl-C landing inside
@@ -404,11 +431,13 @@ def rehearse(
             out("Apply submitted nothing. Each browser stays open on the page it reached, yours now: check it and "
                 "press Submit yourself to send it (it goes in the Tracker), or Fill again to redo it; "
                 "close the windows, or press Ctrl-C, to end.")
-        while any(thread.is_alive() for thread in threads):
+        while any(thread.is_alive() for thread in list(threads)):
+            while not finished.empty():  # a link sent in since (--into): its summary line as it ends
+                out(finished.get_nowait().line())
             time.sleep(0.5)
     except KeyboardInterrupt:
         release.set()
-        for thread in threads:
+        for thread in list(threads):
             thread.join(30)
         out("Closed the browsers.")
     return ended
@@ -471,6 +500,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     `anyway` is why an earlier fill ruled him out, when he pressed Fill it anyway:
     the form is filled all the same, and its note says why."""
     claude, board = adapters.claude, adapters.board
+    if fill_engine.fresh():  # a merged engine fix since the last posting: planned with it, no restart (KAN-645)
+        trace.event("engine reloaded")
     started, spent = time.monotonic(), claude.spent()
     history: list[str] = []
     shown: list[Rehearsed] = []  # each pause's summary, already handed out: the fill's Record goes on them too
