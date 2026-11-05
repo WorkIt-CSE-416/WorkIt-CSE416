@@ -14,6 +14,7 @@ import asyncio
 import logging
 import time
 import uuid
+from dataclasses import dataclass
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -181,8 +182,10 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
         return summary
     await conn.commit()
 
-    # 4. Claim and process tasks, accumulating listings.
+    # 4. Claim and process tasks, accumulating listings. A board read whole is
+    # not checkpointed yet: its task stays claimed until its jobs publish.
     all_listings: list[JobListing] = []
+    read: list[_Read] = []
 
     while True:
         task = await claim_task(conn, worker_id)
@@ -190,23 +193,52 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
         if task is None:
             break
 
-        listings = await _process_task(conn, task, summary)
-        all_listings.extend(listings)
+        done = await _process_task(conn, task, summary)
+        if done is not None:
+            read.append(done)
+            all_listings.extend(done.listings)
 
-    # 5. Publish all scraped jobs through import_feed.
-    if all_listings:
-        from app.scripts.import_jobs import import_feed
+    # 5. Publish all scraped jobs through import_feed, then checkpoint the
+    # boards read, in one transaction: if the publish fails or the process
+    # dies, no board looks read and the next cycle reads it again.
+    try:
+        if all_listings:
+            from app.scripts.import_jobs import import_feed
 
-        await import_feed(conn, all_listings, close_missing=False)
+            await import_feed(conn, all_listings, close_missing=False)
+        for done in read:
+            await advance_reads(conn, done.schedule_id)
+            await mark_done(conn, done.task_id, boards_s=done.boards_s, pages_s=done.pages_s)
         await conn.commit()
+    except Exception as exc:
+        await conn.rollback()
+        for done in read:
+            await mark_failed(conn, done.task_id, error=f"publish failed: {exc}")
+        await conn.commit()
+        raise
+    if all_listings:
         logger.info("Published %d listings through import_feed", len(all_listings))
 
     summary["jobs_scraped"] = len(all_listings)
     return summary
 
 
-async def _process_task(conn: AsyncConnection, task, summary: dict) -> list[JobListing]:
-    """Scrape one board, advance schedule reads. Returns JobListing objects."""
+@dataclass(frozen=True)
+class _Read:
+    """A board read whole, waiting for its jobs to publish before its task is
+    marked done and its schedule advanced."""
+
+    task_id: object
+    schedule_id: object
+    listings: list[JobListing]
+    boards_s: float
+    pages_s: float
+
+
+async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | None:
+    """Scrape one board. A board read whole comes back as a `_Read` for
+    `run_cycle` to publish and checkpoint; any other outcome is recorded here
+    and comes back as None."""
     schedule = (
         await conn.execute(
             text("SELECT * FROM scraper_schedules WHERE id = :sid"),
@@ -217,7 +249,7 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> list[JobL
     if schedule is None:
         await mark_failed(conn, task.id, error="schedule not found")
         await conn.commit()
-        return []
+        return None
 
     provider = PROVIDERS.get(schedule.ats)
     if provider is None:
@@ -225,7 +257,7 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> list[JobL
         await record_failure(conn, task.schedule_id)
         await conn.commit()
         summary["boards_failed"] += 1
-        return []
+        return None
 
     await mark_started(conn, task.id)
     await conn.commit()
@@ -238,7 +270,7 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> list[JobL
         await mark_done(conn, task.id, boards_s=boards_s)
         await conn.commit()
         summary["boards_missing"] += 1
-        return []
+        return None
     if result.status is not ReadStatus.OK:
         # FAILED, or SKIPPED (robots.txt, too large): no complete read, which
         # is evidence of nothing, and the board rests after enough of them.
@@ -248,15 +280,11 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> list[JobL
         await mark_failed(conn, task.id, error=error)
         await conn.commit()
         summary["boards_failed"] += 1
-        return []
+        return None
 
     # Convert provider Jobs to JobListing objects.
     listings = [job_to_listing(job, schedule.company) for job in jobs]
 
-    # Advance reads on the schedule and mark task done.
-    await advance_reads(conn, task.schedule_id)
-    await mark_done(conn, task.id, boards_s=boards_s, pages_s=pages_s)
-    await conn.commit()
     summary["boards_ok"] += 1
 
     logger.info(
@@ -269,4 +297,4 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> list[JobL
         pages_s,
     )
 
-    return listings
+    return _Read(task.id, task.schedule_id, listings, boards_s, pages_s)

@@ -82,3 +82,53 @@ def test_a_board_robots_txt_forbids_yields_nothing(monkeypatch):
     result, kept, *_ = worker.read_board_shortlist(Board("ashby", "acme", "Acme"))
     assert result.status is ReadStatus.SKIPPED
     assert kept == []
+
+
+def _read_one_intern(monkeypatch, boards_csv):
+    from workit_scraper.board_read import BoardRead, ReadStatus
+
+    job = _job("Software Engineering Intern", 1)
+    monkeypatch.setattr(worker, "sync_catalog", lambda conn: schedules.sync_catalog(conn, boards_csv))
+    monkeypatch.setattr(
+        worker, "read_board_shortlist",
+        lambda board: (BoardRead(ReadStatus.OK, jobs=[job]), [job], 1.0, 0.5),
+    )
+    return job
+
+
+async def _checkpoint() -> tuple:
+    async with get_engine().connect() as conn:
+        task = (await conn.execute(text("SELECT status, error FROM scraper_tasks"))).one()
+        read_at = await conn.scalar(text("SELECT last_read_at FROM scraper_schedules"))
+        jobs = await conn.scalar(text("SELECT count(*) FROM job_postings"))
+    return task, read_at, jobs
+
+
+async def test_a_board_is_checkpointed_with_its_published_jobs(database, boards_csv, monkeypatch):
+    _read_one_intern(monkeypatch, boards_csv)
+    async with get_engine().connect() as conn:
+        summary = await worker.run_cycle(conn)
+    task, read_at, jobs = await _checkpoint()
+    assert summary["jobs_scraped"] == 1
+    assert task.status == "done"
+    assert read_at is not None
+    assert jobs == 1
+
+
+async def test_a_failed_publish_leaves_the_board_unread(database, boards_csv, monkeypatch):
+    from app.scripts import import_jobs
+
+    _read_one_intern(monkeypatch, boards_csv)
+
+    async def refuse(*args, **kwargs):
+        raise import_jobs.ImportRefused("no")
+
+    monkeypatch.setattr(import_jobs, "import_feed", refuse)
+    async with get_engine().connect() as conn:
+        with pytest.raises(import_jobs.ImportRefused):
+            await worker.run_cycle(conn)
+    task, read_at, jobs = await _checkpoint()
+    assert task.status == "failed"
+    assert task.error.startswith("publish failed")
+    assert read_at is None
+    assert jobs == 0
