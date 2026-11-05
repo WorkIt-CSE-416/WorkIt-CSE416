@@ -1423,12 +1423,14 @@ def test_a_submit_outside_a_profile_pop_up_stays_blocked_while_its_click_is_let_
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         page = browser.new_page()
-        page.set_content(PROFILE_THEN_FORM.replace('id="application" hidden', 'id="application"'))
+        page.set_content(PROFILE_THEN_FORM.replace('<form id="application" hidden', '<form id="application" style="display:none"'))
         drive = DriveGuard(page)
         drive.let_profile_click()
+        page.evaluate("document.getElementById('application').style.display = ''")  # shown, outside the pop-up
         page.get_by_role("button", name="Submit application").click()
         page.wait_for_timeout(200)
         sent = page.evaluate("window.sent")
+        page.evaluate("document.getElementById('application').style.display = 'none'")
         page.get_by_role("button", name="Submit", exact=True).click()
         page.wait_for_timeout(200)
         profile_left = page.locator("#profile").count()
@@ -1436,4 +1438,43 @@ def test_a_submit_outside_a_profile_pop_up_stays_blocked_while_its_click_is_let_
         browser.close()
 
     assert sent == 0 and blocked and "Submit application" in blocked[0]
-    assert profile_left == 0
+    assert profile_left == 0  # the profile step's own Submit went through
+
+
+# Pop-ups that may be the application itself, which no profile-step click may ever send.
+NOT_PROFILE_STEPS = {
+    "it asks for a file": ("Complete your profile", '<label>Resume <input type="file"></label>', "Submit"),
+    "it has a box to tick": ("Complete your profile", '<label><input type="checkbox"> I certify this is true</label>', "Submit"),
+    "it has an essay": ("Create your profile", '<label>Why us? <textarea></textarea></label>', "Submit"),
+    "its title names the application": ("Complete your profile to apply", "", "Submit"),
+    "its button names the application": ("Create your profile", "", "Submit application"),
+    "the page behind has a form": ("Create your profile", "", "Submit"),
+}
+
+
+@pytest.mark.parametrize("why", NOT_PROFILE_STEPS)
+def test_a_pop_up_that_could_be_the_application_is_never_sent_as_a_profile_step(why):
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import DriveGuard
+
+    title, more, button = NOT_PROFILE_STEPS[why]
+    behind = '<label>Email <input id="email"></label>' if why == "the page behind has a form" else ""
+    html = (f'<!doctype html><body>{behind}<div id="pop" role="dialog" aria-modal="true" aria-labelledby="t">'
+            f'<h2 id="t">{title}</h2><form onsubmit="event.preventDefault(); window.sent = 1">'
+            f'<label>Preferred First name <input id="first"></label>{more}<button type="submit">{button}</button>'
+            '</form></div><script>window.sent = 0;</script></body>')
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        found = claude_fill._profile_step(page, button)
+        drive = DriveGuard(page)
+        drive.let_profile_click()
+        page.get_by_role("button", name=button, exact=True).click()
+        page.wait_for_timeout(200)
+        sent = page.evaluate("window.sent")
+        browser.close()
+
+    assert found is None
+    assert sent == 0  # the guard blocked it, flag or no flag
