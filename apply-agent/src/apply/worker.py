@@ -156,6 +156,7 @@ def apply_to(
     on_verify: Callable[["verify.Verification | None"], None] = lambda verification: None,
     on_pause: Callable[[Result, Callable[[object], str]], bool] = lambda stopped, blocked: False,
     on_captcha: Callable[[str, object, str], bool] = lambda why, page, company: False,
+    anyway: bool = False,
 ) -> Result:
     """`before_submit` runs just before the form is submitted. It returns why
     the Orchestrator holds the Application anyway (the Calibration run), or "";
@@ -200,9 +201,12 @@ def apply_to(
     A captcha that stops the fill (model.Captcha), in a run or a rehearsal,
     goes to `on_captcha` first, with its reason, its page and the company
     that the link or the page names (captcha.Waiter): True, Lisul did it, and the fill goes on on that page.
-    False, the time ran out: it is a Handoff (or a rehearsal's pause)."""
+    False, the time ran out: it is a Handoff (or a rehearsal's pause).
+    With `anyway` (Lisul pressed Fill it anyway on a rehearsal that ruled him out), neither the Posting's
+    text nor a failed Screener ends it: the form is filled as in any rehearsal."""
     planned = _Planned(posting, site, profile, claude, answered or {}, approved, rehearse, bank or AnswerBank(),
                        today or date.today(), on_files, on_missing)
+    planned.anyway = anyway
     try:
         result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify, on_pause, on_captcha)
     except Handoff as handoff:
@@ -233,7 +237,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
            on_captcha=lambda why, page, company: False) -> Result:
     posting, profile, claude = planned.posting, planned.profile, planned.claude
     read = description.from_api(posting, site)
-    if why := eligibility.not_eligible(read):  # before any form opens or Claude is asked
+    if (why := eligibility.not_eligible(read)) and not planned.anyway:  # before any form opens or Claude is asked
         return Result(Status.NOT_ELIGIBLE, why)
     fetched = read or description.from_link(posting, site)  # no browser yet
     if trap := posting_ai_trap(fetched):  # else Claude fill's Claude would read it on the open page
@@ -466,6 +470,7 @@ class _Planned:
         self.lisuls: dict[str, object] = {}  # what Lisul put on a paused form's step before Resume, by name
         self._yours: set[Question] = set()  # questions a Resume stopped Claude from answering: Lisul's, on the page
         self.questions: list[Question] = []
+        self.anyway = False  # Lisul pressed Fill it anyway: a failed Screener doesn't end it
         self._answers: dict = {}
         self.accepted: dict[str, tuple[str, ...]] = {}  # other wordings Lisul accepts for an answer, by Question name
         self.blanks: dict[str, str] = {}  # fields the engine's plan leaves blank on purpose, by name: why
@@ -572,7 +577,7 @@ class _Planned:
                 planned.answers[q.name] = given
                 planned.missing = [m for m in planned.missing if m.name != q.name]
                 planned.drafts = [d for d in planned.drafts if d.name != q.name]
-        if planned.not_eligible:
+        if planned.not_eligible and not self.anyway:
             return Result(Status.NOT_ELIGIBLE, planned.not_eligible)
         if planned.handoffs:  # a form Lisul finishes gets no Claude call: its one-off questions are his too
             yours = [q for q in self.questions if q in planned.missing + planned.drafts]

@@ -188,3 +188,22 @@ def test_resume_kills_a_claude_call_apply_waits_on():
     assert time.monotonic() - started < 5
     with stuck.watching(Pressed(), 0):  # outside a step that goes on from the page, nothing stops it
         assert run_claude(["/bin/sh", "-c", "echo done"], "", dict(os.environ)) == "done\n"
+
+
+@pytest.mark.parametrize("status", ["not eligible", "closed"])
+def test_a_tile_that_ruled_lisul_out_offers_fill_it_anyway_and_the_press_goes_to_its_worker(status):
+    # Booz Allen (2026-11-04): "why is there no resume button for that".
+    with Dashboard(1, NoFrames()) as board:
+        board.update(0, **FILLING)
+        board.update(0, status=status, why="Screener: Will you graduate in May 2028?",
+                     resume={"ok": True, "label": rehearsal.ANYWAY, "why": rehearsal.ANYWAY_WHY})
+        shown = board.state()["tiles"][0]
+        assert shown["resume"] == {"ok": True, "label": "Fill it anyway", "why": rehearsal.ANYWAY_WHY}
+        reply = urllib.request.urlopen(urllib.request.Request(
+            board.url + "/resume", json.dumps({"id": "tile-0"}).encode(), {"X-Apply-Token": board.token}))
+        assert json.loads(reply.read())["message"].startswith("Filling it anyway")
+        assert board.resumed(0)
+
+
+def test_a_tile_that_ruled_lisul_out_without_the_offer_has_no_button():
+    assert "resume" not in tile(status="not eligible", why="Posting requires graduate study: a PhD")
