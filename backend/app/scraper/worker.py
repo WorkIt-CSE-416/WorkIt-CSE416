@@ -110,25 +110,26 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
         "dry_run": dry_run,
     }
 
+    # 1-3 in one transaction, which a dry run rolls back: it reports what the
+    # cycle would sync and queue, and writes nothing.
     # 1. Sync boards.csv into scraper_schedules.
     summary["synced"] = await sync_catalog(conn)
-    await conn.commit()
 
     # 2. Expire any stale leases from prior crashes.
     expired = await expire_leases(conn)
     if expired:
         logger.info("Expired %d stale task leases", expired)
-    await conn.commit()
 
     # 3. Select due schedules and create tasks.
     due = await select_due(conn)
     schedule_ids = [row.id for row in due]
     summary["tasks_created"] = await create_tasks(conn, schedule_ids)
-    await conn.commit()
 
     if dry_run:
-        logger.info("Dry run: would process %d boards", len(due))
+        await conn.rollback()
+        logger.info("Dry run: would process %d boards; nothing was written", len(due))
         return summary
+    await conn.commit()
 
     # 4. Claim and process tasks, accumulating listings.
     all_listings: list[JobListing] = []

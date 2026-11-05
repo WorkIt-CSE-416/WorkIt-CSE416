@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import text
 
 from app.db import get_engine
-from app.scraper import schedules
+from app.scraper import schedules, worker
 
 pytestmark = pytest.mark.anyio
 
@@ -35,3 +35,14 @@ async def test_a_complete_read_keeps_the_one_before(database, boards_csv):
         row = await _schedule(conn)
     assert row.prior_read_at == datetime.datetime(2026, 11, 1, tzinfo=datetime.UTC)
     assert row.last_read_at == datetime.datetime(2026, 11, 2, tzinfo=datetime.UTC)
+
+
+async def test_a_dry_run_writes_nothing(database, boards_csv, monkeypatch):
+    monkeypatch.setattr(worker, "sync_catalog", lambda conn: schedules.sync_catalog(conn, boards_csv))
+    async with get_engine().connect() as conn:
+        summary = await worker.run_cycle(conn, dry_run=True)
+    assert summary["synced"] == 1
+    assert summary["tasks_created"] == 1
+    async with get_engine().connect() as conn:
+        for table in ("scraper_schedules", "scraper_tasks"):
+            assert await conn.scalar(text(f"SELECT count(*) FROM {table}")) == 0
