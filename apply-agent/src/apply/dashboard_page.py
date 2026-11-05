@@ -186,6 +186,7 @@ setInterval(async () => {
     paused.hidden = !resume;
     if (resume) {
       paused.querySelector('button').disabled = !resume.ok;
+      paused.querySelector('button').textContent = resume.label || 'Resume';
       paused.querySelector('.why').textContent = resume.why || 'Fixed it on the page? Resume goes on from there.';
     }
     const bar = document.getElementById('file-' + k);
@@ -580,7 +581,7 @@ const resume = async (id, button) => {
     toast(data.message); refresh();
   } catch (err) { toast(err.message || 'Apply is not answering: is it still running?'); button.disabled = false; }
 };
-const resumeButton = (item) => make('button', {className: 'primary', textContent: 'Resume', disabled: !item.resume.ok,
+const resumeButton = (item) => make('button', {className: 'primary', textContent: item.resume.label || 'Resume', disabled: !item.resume.ok,
   title: item.resume.ok ? 'Apply goes on from the page as you left it; it never presses Submit' : item.resume.why,
   onclick: (e) => resume(item.id, e.target)});
 // A tile's own Resume (Live tab), by its Worker's number; the click doesn't enlarge the tile.

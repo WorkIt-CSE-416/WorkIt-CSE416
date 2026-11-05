@@ -86,6 +86,11 @@ THANKS = re.compile(r"thank you for (applying|your application|submitting)|appli
 SUBMITTED_BY_LISUL = "You submitted it yourself from a rehearsal; Apply filled it"
 # What a held page's hold() ends on, besides "" (closed): Lisul pressed Fill again, or Resume.
 AGAIN, RESUME = "again", "resume"
+# A rehearsal that ruled Lisul out (Not eligible, Closed) offers this button on its tile: the form is filled all the
+# same, as in any rehearsal, and its note says why it was ruled out.
+ANYWAY = "Fill it anyway"
+ANYWAY_WHY = f"{ANYWAY}: Apply opens the form and fills it as in any rehearsal. It never presses Submit"
+FILLED_ANYWAY = "Filled anyway: {}"
 # Why a paused rehearsal can't go on, on its Resume button.
 TAB_CLOSED = "The form's tab was closed: start it again"
 ENDED = "The rehearsal ended: start it again"
@@ -216,6 +221,20 @@ def rehearse(
             adapters.board.update(n, status="handoff", why=why, blocked=True, resume=None)
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
+        def ruled_out() -> bool:  # it may be filled anyway: its tile offers the button
+            if done.outcome not in (OUTCOMES[Status.NOT_ELIGIBLE], OUTCOMES[Status.CLOSED]):
+                return False
+            adapters.board.update(n, resume={"ok": True, "label": ANYWAY, "why": ANYWAY_WHY})
+            return True
+
+        def pressed_anyway() -> bool:
+            """Lisul pressed Fill it anyway, with no page held: wait for it while the run is open."""
+            while not release.is_set():
+                if adapters.board.resumed(n):
+                    return True
+                time.sleep(0.5)
+            return False
+
         answers = lambda: [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]
         fill = lambda page, q, a: _fill_answer(page, q, a, adapters, profile, n, done, out)
         # Each answer Claude wrote has its "Add context and regenerate", on the page and in the window (KAN-599).
@@ -294,14 +313,29 @@ def rehearse(
                 out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
             try:
-                hold = lambda: site.hold(release, done.posting.job_system, submitted, done.warning(),
-                                         bool(done.problems), answers, fill,
-                                         EmailCode(adapters.mailbox, adapters.clock, done.posting.job_system, told),
-                                         challenged=challenged, refused=turned_down, redo=redo, tend=tend)
+                anyway = ""  # why it was ruled out, once Lisul pressed Fill it anyway: each Fill again after keeps it
+
+                def hold() -> str:
+                    offered = not anyway and ruled_out()
+                    how = site.hold(release, done.posting.job_system, submitted, done.warning(),
+                                    bool(done.problems), answers, fill,
+                                    EmailCode(adapters.mailbox, adapters.clock, done.posting.job_system, told),
+                                    resume=(lambda page: adapters.board.resumed(n)) if offered else None,
+                                    challenged=challenged, refused=turned_down, redo=redo, tend=tend)
+                    if offered and (how == RESUME or not how and site.empty() and pressed_anyway()):
+                        return RESUME
+                    return how
+
                 how = after.pop() if after else hold()
-                while how == AGAIN:  # Fill again
+                while True:
+                    if how == RESUME:  # Fill it anyway, on a rehearsal that ruled him out
+                        anyway, how = done.why or done.outcome, AGAIN
+                        adapters.board.update(n, resume=None)
+                    if how != AGAIN:  # Fill again, or Fill it anyway
+                        break
                     with gate:
-                        done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, pause=paused)
+                        done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, pause=paused,
+                                         anyway=anyway)
                     if not after:
                         out(done.line())
                     how = after.pop() if after else hold()
@@ -378,11 +412,14 @@ def _name(rehearsed: Rehearsed) -> str:
 def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantProfile,
               calibration: Callable[[], str], accounts: "_Accounts", n: int,
               before_fill: Callable[[], None] = lambda: None, stage: str = "",
-              pause: Callable[[Rehearsed, Callable[[object], str]], bool] = lambda stopped, blocked: False) -> Rehearsed:
+              pause: Callable[[Rehearsed, Callable[[object], str]], bool] = lambda stopped, blocked: False,
+              anyway: str = "") -> Rehearsed:
     """One fill of the link. A stop mid-form for Lisul goes to `pause` with its
     summary and why Resume can't go on (apply_to's `on_pause`): True, he
     pressed Resume, and the fill goes on on the same page. Each pause and
-    Resume is kept in the summary's history, its tile and its Record."""
+    Resume is kept in the summary's history, its tile and its Record.
+    `anyway` is why an earlier fill ruled him out, when he pressed Fill it anyway:
+    the form is filled all the same, and its note says why."""
     claude, board = adapters.claude, adapters.board
     started, spent = time.monotonic(), claude.spent()
     history: list[str] = []
@@ -466,7 +503,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                                                        before_fill=before_fill,
                                                        on_verify=lambda verification: board.update(
                                                            n, **verifying(verification)),
-                                                       on_pause=on_pause, on_captcha=on_captcha),
+                                                       on_pause=on_pause, on_captcha=on_captcha,
+                                                       anyway=bool(anyway)),
                     signed_in=adapters.signed_in,
                 )
             except SetupError as error:  # the Mac's setup, not Apply's code: its one line says how to fix it
@@ -480,6 +518,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     posting = named(posting, result)
     keep_repair_requests(adapters, posting, result)
     rehearsed = _summary(posting, result, site, claude.spent() - spent, time.monotonic() - started)
+    if anyway:  # the page's note and the tile say why it was ruled out before
+        rehearsed.problems = (FILLED_ANYWAY.format(one_line(anyway)), *rehearsed.problems)
     rehearsed.files = list(files)
     rehearsed.history = tuple(history)
     rehearsed.form = result.regenerable
@@ -928,6 +968,13 @@ class _Kept:
             return self._page.screenshot(timeout=15_000) if self._page and not self._page.is_closed() else b""
         except Exception:
             return b""
+
+    def empty(self) -> bool:
+        """Whether no page is open: none was, or its window closed."""
+        try:
+            return self._page is None or self._page.is_closed()
+        except Exception:
+            return True
 
     def close(self) -> None:
         stack, self._stack, self._page, self._lifted, self._bound = self._stack, None, None, False, False
