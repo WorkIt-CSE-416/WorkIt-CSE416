@@ -1519,3 +1519,28 @@ def test_the_internships_start_next_year_beside_a_school_is_right(label):
     shown = {"University": "Example State University", "GPA": "3.7", label: "2027-05-24"}
     assert claude_fill.cant_be_right(shown, 2026) == []
     assert claude_fill.cant_be_right({"University": "Example State University", "Start date: Year": "2027"}, 2026)
+
+
+@pytest.mark.parametrize(("limit", "stops"), [(claude_fill.MAX_STEPS + 5, False), (2, True)])
+def test_a_profile_step_counts_against_the_policy_s_step_limit_not_the_modules(limit, stops):
+    filler = ClaudeFill(claude=None, max_steps=limit)
+    filler._steps = limit - 1 if stops else claude_fill.MAX_STEPS
+
+    class Stop(Exception):
+        """The check passed: the click was next."""
+
+    class Button:
+        def click(self):
+            raise Stop
+
+    if stops:
+        with pytest.raises(Handoff, match=f"went through {limit} steps"):
+            filler._through_profile_step(_NoFields(), Button(), "Submit")
+    else:
+        with pytest.raises(Stop):
+            filler._through_profile_step(_NoFields(), Button(), "Submit")
+
+
+class _NoFields:
+    url = "https://jobs.example.com/form"
+    frames = ()
