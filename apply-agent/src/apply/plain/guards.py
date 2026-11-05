@@ -57,10 +57,17 @@ def _lifted_file() -> str:
     return "window.__applyLift = (note) => {\n" + body.strip().removesuffix(";") + ";\n};\n"
 
 
+def _applied_file() -> str:
+    """APPLIED_NOTE as window.__applyAppliedNote(day), run in the top frame of a tab that shows it (KAN-621)."""
+    body = submit_guard.APPLIED_NOTE.replace("const day = DAY;", "const day = String(noteDay);")
+    assert "DAY" not in body
+    return "window.__applyAppliedNote = (noteDay) => {\n" + body.strip().removesuffix(";") + ";\n};\n"
+
+
 def files() -> dict[str, str]:
     """Each guard file's name in vendor/guards/ and its text."""
     out = {"rehearsal.js": submit_guard.rehearsal_script(port=True),
-           "lifted.js": _lifted_file(), "rearmed.js": submit_guard.REARMED}
+           "lifted.js": _lifted_file(), "rearmed.js": submit_guard.REARMED, "applied.js": _applied_file()}
     for sms in (False, True):
         for marketing in (False, True):
             out[f"drive-{int(sms)}{int(marketing)}.js"] = submit_guard.drive_script(sms, marketing, port=True)
@@ -133,25 +140,45 @@ def guard(page) -> None:
     page.reload(wait_until="domcontentloaded")
 
 
-def lift(page, pressed=None, again=None, warning: str = "", wrong: bool = True, bound: bool = False) -> None:
-    """submit_guard.lift: the page and every page Lisul loads in its tab are his."""
+def lift(page, pressed=None, again=None, warning: str = "", wrong: bool = True, bound: bool = False,
+         held: str = "", dismiss=None) -> None:
+    """submit_guard.lift: the page and every page Lisul loads in its tab are his, but for a `held`
+    Submit (KAN-629): the guard script still blocks the button that sends, and the red note's Dismiss
+    calls `dismiss`. The rules come off either way: the in-page guard alone holds a held Submit."""
     if bound:
-        pressed = again = None
+        pressed = again = dismiss = None
     if pressed:
         page.expose_binding("__applyLisulPressed", lambda source, words: pressed(words))
     if again:
         page.expose_binding("__applyFillAgain", lambda source: again())
+    if dismiss:
+        page.expose_binding("__applyDismissHold", lambda source: dismiss())
     page.unroute(PATTERN, submit_guard._refuse)
-    _note(page, bool(again or bound), warning, wrong)
+    _note(page, bool(again or bound), warning, wrong, held)
 
 
-def renote(page, warning: str = "", wrong: bool = True) -> None:
-    _note(page, True, warning, wrong)
+def renote(page, warning: str = "", wrong: bool = True, held: str = "") -> bool:
+    """submit_guard.renote: the lifted page's note anew (`held`: what holds Submit still). A page
+    still guarded (one Lisul already applied to, KAN-621) stays guarded: False."""
+    return _note(page, True, warning, wrong, held, only_lifted=True) is not False
 
 
-def _note(page, again: bool, warning: str, wrong: bool) -> None:
-    page.worker.call("guard.lift", tab=page.tab, again=again, warning=warning, wrong=wrong,
-                     sha256=_sha(FILES["lifted.js"]))
+def _note(page, again: bool, warning: str, wrong: bool, held: str = "", only_lifted: bool = False):
+    return page.worker.call("guard.lift", tab=page.tab, again=again, warning=warning, wrong=wrong, held=held,
+                            onlyLifted=only_lifted, sha256=_sha(FILES["lifted.js"]))
+
+
+def warn_applied(page, day: str, dismissed=None) -> None:
+    """submit_guard.warn_applied: the red "You already applied on <day>" note on this page and each one
+    its tab loads; the guard stays on. `dismissed` hears his second press of Dismiss."""
+    if dismissed:
+        page.expose_binding("__applyDismissApplied", lambda source: dismissed())
+    page.worker.call("guard.applied", tab=page.tab, day=day, sha256=_sha(FILES["applied.js"]))
+
+
+def applied_dismissed(page) -> None:
+    """submit_guard.applied_dismissed: no page of the tab shows the note again."""
+    page.worker.call("guard.applied", tab=page.tab, day=None, sha256=_sha(FILES["applied.js"]))
 
 
 def rearm(page) -> None:

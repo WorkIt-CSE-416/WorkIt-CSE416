@@ -154,6 +154,44 @@ class PortFrames:
         self._errors[worker] = (stuck.field_error(page), time.monotonic())
 
 
+class EitherFrames:
+    """worker_mode `protected` (S8): Worker k's tile from `port` (PortFrames) while its form is on a
+    plain Worker (`plain(k)`), else from `cdp` (CdpFrames). Implements dashboard.Frames."""
+
+    def __init__(self, cdp, port: PortFrames, plain: Callable[[int], bool]):
+        self._cdp, self._port, self._plain = cdp, port, plain
+
+    def __enter__(self) -> Self:
+        self._cdp.__enter__()
+        self._port.__enter__()
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._port.__exit__(*exc)
+        self._cdp.__exit__(*exc)
+
+    def _of(self, worker: int):
+        return self._port if self._plain(worker) else self._cdp
+
+    def frame(self, worker: int) -> bytes | None:
+        return self._of(worker).frame(worker)
+
+    def wait(self, worker: int, after: int, timeout: float) -> tuple[bytes | None, int]:
+        return self._of(worker).wait(worker, after, timeout)
+
+    def input(self, worker: int, event: dict) -> dict | None:
+        return self._of(worker).input(worker, event)
+
+    def chooser(self, worker: int) -> str | None:
+        return self._of(worker).chooser(worker)
+
+    def forget_chooser(self, worker: int) -> None:
+        self._of(worker).forget_chooser(worker)
+
+    def field_error(self, worker: int) -> str:
+        return self._of(worker).field_error(worker)
+
+
 class Mouse:
     """page.mouse on a plain Worker: synthetic pointer and mouse events at a point of the
     tab's viewport (CSS pixels), replayed as the tile's are (tile.input)."""

@@ -198,7 +198,8 @@ A fresh service worker starts with no content scripts, rules or user scripts.
 | `guard.route` | `key`, `tab` (null: every tab), `regexes`, `caseSensitive` | `{"rules": n}`; one declarativeNetRequest session rule per regex blocking a non-GET (`excludedRequestMethods: get, head, options`) of every resource type, main_frame included, on `tabIds` = the tab, the tabs it opens later, and -1 (service and shared workers). Each regex must pass `isRegexSupported` (RE2, 2 KB compiled) |
 | `guard.unroute` | `key` | `null` |
 | `guard.bind` | `tab` (null: every tab), `name` | `null`; `window[name](...args)` in MAIN, in every frame now and in each document the tab loads, sends a `binding` event |
-| `guard.lift` | `tab`, `again`, `warning`, `wrong`, `sha256` (of `lifted.js`) | `null`; `submit_guard.LIFTED` with those values in every frame now and in each document the tab (and a tab it opens) loads, until `guard.rearm` |
+| `guard.lift` | `tab`, `again`, `warning`, `wrong`, `held` (KAN-629: what holds Submit, `""` for nothing), `onlyLifted?`, `sha256` (of `lifted.js`) | `null`; `submit_guard.LIFTED` with those values in every frame now and in each document the tab (and a tab it opens) loads, until `guard.rearm`. A `held` page keeps its Submit blocked by the guard script under a red note whose Dismiss calls the `__applyDismissHold` binding. With `onlyLifted` (renote), a tab not lifted is left as it is: `false` |
+| `guard.applied` | `tab`, `day` (null: dismissed), `sha256` (of `applied.js`) | `null`; KAN-621's "You already applied on <day>" note (`submit_guard.APPLIED_NOTE`) in the top frame now and in each document the tab loads, the guard still on; its second Dismiss press calls `__applyDismissApplied`. `day: null` stops it and marks every frame dismissed |
 | `guard.rearm` | `tab`, `sha256` (of `rearmed.js`) | `null`; stops lifting the tab and runs `submit_guard.REARMED` in its frames |
 | `guard.flags` | `tab`, `set` (`{"__applyDriveLifted"|"__applyAccountClick"|"__applyRehearsalLifted": bool}`) | `null`; in every frame (DriveGuard's `lift`, `arm`, `let_account_click`) |
 | `guard.touch` | `tab`, `frame?`, `by` (`lisul`/`apply`) | `null`; dispatches `__apply_touch` in the frame, which the guard counts as a touch; `by: "lisul"` also sends `guard.touched`. `tile.input` calls the exported `touch()` before each press it replays (`by` its own param: `lisul` from the tile, `apply` from `PortPage.mouse`) |
@@ -398,7 +399,13 @@ Worker forward except Lisul's own Show (`PlainWorkers.show`): no `chrome.windows
 true})`, no AppleScript focus, no full-screen. Tests use one Worker, shared by the module, and stop it
 when they end.
 
-`policies.yaml: worker_mode: cdp|plain` (default `cdp`) is read by S8's routing; S1 only adds the key.
+`policies.yaml: worker_mode: cdp|plain|protected` (default `cdp`) picks the Worker for each form (S8,
+`apply.plain.site`): `plain` puts every form on a plain Worker (`PlainSite`), `protected` only those on
+`plain_worker_hosts` (Lever, SmartRecruiters, Workable) and on each host a bot block was seen on
+(`APPLY_HOME/plain-hosts.json`, written by `captcha.blocked`), the rest on CDP Workers (`RoutedSite`).
+`PlainSite.open` keeps a Worker's Chrome up across the Applications it carries: on reuse it calls
+`guards.reset(worker)` and closes the last one's tabs; after each it leaves one blank tab, so the window
+stays. `close()` stops every Chrome it started, by PID, when the run or rehearsal ends.
 
 ## Known limits (found in S1/S2, on Chrome for Testing 156)
 

@@ -22,7 +22,8 @@ const NO_TAB = -1; // chrome.tabs.TAB_ID_NONE: a service or shared worker's requ
 
 let ctxRef = null; // the background's ctx, for events: every op passes it
 const routes = new Map(); // key -> {tab, regexes, caseSensitive, ids, tabs: Set}
-const lifted = new Map(); // tab -> the note's {again, warning, wrong}
+const lifted = new Map(); // tab -> the note's {again, warning, wrong, held}
+const applied = new Map(); // tab -> the day of the "You already applied" note (KAN-621) it shows
 const bindings = new Map(); // tab (or "*", every tab) -> Set of names
 const syncs = new Map(); // token -> resolve
 let nextRule = 1000;
@@ -39,6 +40,7 @@ async function reset() {
   try { if (userScriptsOn()) await chrome.userScripts.unregister(); } catch {}
   routes.clear();
   lifted.clear();
+  applied.clear();
   bindings.clear();
   return null;
 }
@@ -199,11 +201,32 @@ function liftIn(tab, frame, note) {
   return inFrames(tab, "MAIN", { frame, files: [LIFTED], func: (note) => window.__applyLift && window.__applyLift(note), args: [note] });
 }
 
-async function lift({ tab, again = false, warning = "", wrong = true, sha256: sha }) {
+async function lift({ tab, again = false, warning = "", wrong = true, held = "", sha256: sha, onlyLifted = false }) {
   await checked(LIFTED, sha);
-  const note = { again, warning, wrong };
+  if (onlyLifted && !lifted.has(tab)) return false; // renote: a page still guarded stays guarded
+  const note = { again, warning, wrong, held };
   lifted.set(tab, note);
   await liftIn(tab, undefined, note);
+  return null;
+}
+
+// The "You already applied on <day>" note (KAN-621) on a page still guarded, in its top frame now and in
+// each document the tab loads, until `day` is null (Lisul dismissed it: no page shows it again).
+const APPLIED = "vendor/guards/applied.js";
+
+function appliedIn(tab, frame, day) {
+  return inFrames(tab, "MAIN", { frame, files: [APPLIED], func: (day) => window.__applyAppliedNote && window.__applyAppliedNote(day), args: [day] });
+}
+
+async function appliedNote({ tab, day = null, sha256: sha }) {
+  await checked(APPLIED, sha);
+  if (day === null) {
+    applied.delete(tab);
+    await inFrames(tab, "MAIN", { func: () => { window.__applyAppliedDismissed = true; } });
+    return null;
+  }
+  applied.set(tab, day);
+  await appliedIn(tab, 0, day);
   return null;
 }
 
@@ -217,6 +240,7 @@ async function rearm({ tab, sha256: sha }) {
 function onDocument(d) {
   const note = lifted.get(d.tabId);
   if (note) liftIn(d.tabId, d.frameId, note).catch(() => {});
+  if (applied.has(d.tabId) && d.frameId === 0) appliedIn(d.tabId, 0, applied.get(d.tabId)).catch(() => {});
   const names = namesFor(d.tabId);
   if (names.length) bindIn(d.tabId, d.frameId, names).catch(() => {});
 }
@@ -238,6 +262,7 @@ chrome.tabs.onCreated.addListener((tab) => {
 });
 chrome.tabs.onRemoved.addListener((tab) => {
   lifted.delete(tab);
+  applied.delete(tab);
   bindings.delete(tab);
 });
 
@@ -323,6 +348,7 @@ export const ops = {
   "guard.bind": withCtx(bind),
   "guard.lift": withCtx(lift),
   "guard.rearm": withCtx(rearm),
+  "guard.applied": withCtx(appliedNote),
   "guard.flags": withCtx(flags),
   "guard.touch": withCtx(touch),
   "guard.sync": withCtx(sync),

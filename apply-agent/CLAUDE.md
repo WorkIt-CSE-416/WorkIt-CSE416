@@ -971,8 +971,8 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   extension opens the window unfocused (`windows.create`), small, at the screen's top-left
   corner. Only his Show brings one forward. Tests share one Worker and
   stop it when they end.
-- **Not wired into runs yet.** `cli._dashboard` still builds `CdpFrames`. S8
-  (KAN-614) picks `PortFrames` per Worker when `worker_mode: plain`.
+- **Wired into runs (S8, KAN-614).** `cli._dashboard` builds `PortFrames` when
+  `worker_mode: plain`, and `EitherFrames` (each Worker's current kind) when `protected`.
 - **Live check.** `uv run apply plain tile lever-immuta` fills a saved form
   in a plain Worker and prints the window's address. Click the tile and type.
   The tests are in `tests/test_plain_tile.py`: they need Chrome for Testing,
@@ -1184,6 +1184,42 @@ Each fake opens a new tab. `FakeWorkdayServer(plain=True)`, the default when
 `APPLY_TEST_PLAIN` is set, runs the Workday tests on that Worker:
 `APPLY_TEST_PLAIN=1 uv run pytest tests/test_workday_filler.py -k ...`.
 `tests/test_plain_accounts.py` covers the four S7 features.
+
+## Plain Workers in runs and rehearsals: `worker_mode` (KAN-614)
+
+`policies.yaml: worker_mode` picks the Worker each form opens in (`apply.plain.site.live_site`):
+
+- `cdp` (the default): CDP Workers, as before.
+- `plain`: every form on a plain Worker (`PlainSite`). `apply rehearse` and `apply run` use it.
+- `protected`: plain only for `plain_worker_hosts` (jobs.lever.co, smartrecruiters.com,
+  apply.workable.com, and their subdomains) and each host a bot block was seen on. `captcha.blocked`
+  adds that host to `APPLY_HOME/plain-hosts.json`, so the posting's next form goes plain. The block
+  itself is still handed off, as before. The other forms use CDP Workers (`RoutedSite`).
+
+What changes on a plain Worker:
+
+- **One Chrome per Worker, reused.** It starts on its Worker's first form and stays up for the next.
+  Each reuse calls `guards.reset(worker)` and closes the last form's tabs. After each form, one blank
+  tab stays, so the window stays. The run or rehearsal stops each Chrome by its PID as it ends
+  (`cli._close_workers`, before the rehearsal's `os._exit`).
+- **The tile** uses `PortFrames`, which reads the field error for the stuck detector over the port
+  (`stuck.field_error(page)`) on the window's own thread.
+- **Go to question never raises a plain Worker** (`Dashboard(quiet=site.plain)`). It scrolls and
+  focuses the field, and the tile shows it. Only Lisul's own Show brings the window forward.
+- **Claude fill and Rescue** run on a plain Worker as on a CDP one: `claude_cli.drive` gives Claude
+  Apply's own MCP server (S6, KAN-612) when the page is a PortPage, so a run or rehearsal in `plain`
+  or `protected` mode needs no other wiring.
+- **The production seed.** `uv run apply plain seed` opens branded Chrome on `APPLY_PROFILES/plain-seed`
+  and prints Lisul's four steps: Developer mode, Load unpacked with the worker extension's folder,
+  Details, Allow User Scripts, then quit (`launcher.seed_steps`). `plain_chrome: chrome` (the
+  default) then copies that seed to each Worker. `plain_chrome: testing` (Chrome for Testing) needs no
+  seed, but Allow User Scripts can't be turned on there.
+- **Held Submit and the already-applied note** (KAN-629, KAN-621) work on plain pages:
+  `submit_guard.lift(held=, dismiss=)`, `renote(held=)`, `warn_applied` and `applied_dismissed`
+  hand over to `apply.plain.guards` (`guard.lift`'s `held` and `onlyLifted`, `guard.applied`). A
+  `renote` of a page still guarded leaves it guarded.
+- Tests: `tests/test_plain_routing.py`. Its live test rehearses the fake Greenhouse form twice in
+  one reused plain Worker. `tests/test_plain_guards.py -k "held_submit or already_applied"`.
 
 ## The data folder (`APPLY_HOME`)
 

@@ -141,7 +141,15 @@ def company_of(company: str, url: str) -> str:
 
 
 def blocked(company: str, url: str, said: str = "") -> Blocked:
-    """The Handoff of a page that blocks the browser, for `company`'s posting at `url`."""
+    """The Handoff of a page that blocks the browser, for `company`'s posting at `url`. Its host is
+    remembered: worker_mode `protected` fills its next forms in a plain Worker (KAN-614)."""
+    # Imported here: apply.plain imports the Worker modules, which import this one.
+    from apply.plain import site
+
+    try:
+        site.learn(url)
+    except OSError:
+        pass  # a read-only data folder: the block is still handed off
     who = company_of(company, url)
     return Blocked(BLOCKED.format(who[:1].upper() + who[1:], f' ("{said}")' if said else "") + FINISH.format(who),
                    who, url, said)

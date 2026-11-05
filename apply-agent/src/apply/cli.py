@@ -53,6 +53,7 @@ from apply.home import HOME
 from apply.keychain import MacKeychain
 from apply.match_queue import match_queue
 from apply.notify import SET_UP, TEST_PUSH, MacNotifier, RecordingNotifier, live_phone
+from apply.plain.site import live_site
 from apply.profile import OVERRIDE, ApplicantProfile, load_policies
 from apply.records import FolderRecords, GitRecords
 from apply.repair import FOLDER as REPAIRS
@@ -211,8 +212,11 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             _send_waiting_writes()
             adapters = live_adapters(profile, answer_bank=AnswerBank(args.profile.parent / ANSWER_BANK))
             WorkerBrowsers().seed(args.workers)
-            with _dashboard(adapters, args.workers, profile):
-                orchestrator.run(adapters, profile, args.workers, **kinds)
+            try:
+                with _dashboard(adapters, args.workers, profile):
+                    orchestrator.run(adapters, profile, args.workers, **kinds)
+            finally:
+                _close_workers(adapters.site)
             repair_later(adapters.repairs, profile.policy("repair") or {})
     elif args.command == "rehearse":
         profile = ApplicantProfile.load(args.profile)
@@ -236,9 +240,12 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             except Exception as error:
                 kept = None
                 print(f"No Tracker ({type(error).__name__}: {error}): add any you submit yourself.")
-            with _dashboard(adapters, len(args.urls), profile):  # a tile per link: each keeps its page open
-                rehearsal.rehearse(args.urls, adapters, profile, args.workers, on_done=lambda: repair_later(adapters.repairs, profile.policy("repair") or {}),
-                                   submitted_to=kept, together=args.together, force=args.force)
+            try:
+                with _dashboard(adapters, len(args.urls), profile):  # a tile per link: each keeps its page open
+                    rehearsal.rehearse(args.urls, adapters, profile, args.workers, on_done=lambda: repair_later(adapters.repairs, profile.policy("repair") or {}),
+                                       submitted_to=kept, together=args.together, force=args.force)
+            finally:
+                _close_workers(adapters.site)  # before os._exit below: plain Workers' Chromes outlive this process
         else:
             rehearsal.rehearse(args.urls, adapters, profile, args.workers, submitted_to=adapters.tracker,
                                together=args.together, force=args.force)
@@ -437,14 +444,14 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
     the run's own Answer bank and profile) while a run goes, and open it in its own window."""
     site = adapters.site
     answers = AnswersTab(adapters.answer_bank, profile, held=adapters.tracker.rows)
-    with dashboard.CdpFrames(tiles, site.endpoint) as frames, \
+    with _frames(site, tiles) as frames, \
             dashboard.Dashboard(tiles, frames, answers, _applied(adapters), past=adapters.tracker.rows,
                                 answer=_answering(lambda: adapters.tracker, answers),
                                 approve=_approving(lambda: adapters.tracker), notify=adapters.notifier.notify,
                                 show=getattr(site, "show", None), sample=profile.get("sample_data") is True,
                                 everyday=adapters.everyday, accounts=_accounts_tab(lambda: adapters.tracker,
                                                                                    adapters.keychain, adapters.everyday),
-                                **_window_context()) as board:
+                                quiet=getattr(site, "plain", None), **_window_context()) as board:
         adapters.board = board
         url = site.profiles / DASHBOARD_URL
         url.parent.mkdir(parents=True, exist_ok=True)
@@ -455,6 +462,29 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
             yield
         finally:
             url.unlink(missing_ok=True)
+
+
+def _frames(site, tiles: int):
+    """The window's frame source for `site`'s Workers (worker_mode): CDP Workers' screencast,
+    plain Workers' port (S3), or in `protected` mode whichever Worker k runs now."""
+    from apply.plain.site import PlainSite, RoutedSite
+    from apply.plain.tile import EitherFrames, PortFrames
+
+    if isinstance(site, PlainSite):
+        return PortFrames(tiles, site.workers.bridge.connection)
+    if isinstance(site, RoutedSite):
+        return EitherFrames(dashboard.CdpFrames(tiles, site.endpoint), PortFrames(tiles, site.connection), site.plain)
+    return dashboard.CdpFrames(tiles, site.endpoint)
+
+
+def _close_workers(site) -> None:
+    """Stop the plain Workers' Chromes the run started (by PID). A CDP Worker's closes with its page."""
+    close = getattr(site, "close", None)
+    if close:
+        try:
+            close()
+        except Exception as error:
+            print(f"Couldn't stop every plain Worker ({type(error).__name__}: {error}).", file=sys.stderr)
 
 
 def _chrome_passwords(login: str) -> None:
@@ -670,7 +700,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
     email (unless a Mailbox is given), and so is the ntfy topic (unless a
     phone Notifier is given)."""
     claude = ClaudeCLI()  # also reads usage, off every call's rate-limit events
-    site = WorkerBrowsers(headless=profile.policy("worker_headless") is not False)
+    site = live_site(profile.policies())  # policies.yaml: worker_mode (cdp, plain or protected)
     return Adapters(
         feed=live_feed(),
         tracker=live_tracker() if tracker is None else tracker,

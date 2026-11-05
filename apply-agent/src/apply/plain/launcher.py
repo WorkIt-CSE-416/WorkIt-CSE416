@@ -172,8 +172,7 @@ class PlainWorkers:
         # Chrome keeps an extension's service worker script across restarts, so an updated worker
         # extension would run its old code: drop the stored service workers (sites' re-register).
         shutil.rmtree(profile / "Default" / "Service Worker", ignore_errors=True)
-        if self.kind == "testing":
-            self.prepare()
+        self.prepare()  # the seed's unpacked extension reads these files too: an updated engine is in at once
         self.bridge.start()
         self.install_host(worker)
         with KEEPER.launching():
@@ -235,10 +234,18 @@ class PlainWorkers:
         subprocess.Popen([str(BRANDED), f"--user-data-dir={self.seed}", *FLAGS, "chrome://extensions"],
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          start_new_session=True)
-        return ["Turn on Developer mode (top right).",
-                f"Load unpacked: choose {self.extension_dir}.",
-                "Open the Apply Worker's Details and turn on Allow User Scripts.",
-                "Quit that Chrome. Each plain Worker now starts as a copy of this profile."]
+        return seed_steps(self.extension_dir)
+
+
+def seed_steps(folder: Path) -> list[str]:
+    """Lisul's one-time steps in the seed profile's chrome://extensions, in order."""
+    name = json.loads((folder / "manifest.json").read_text())["name"]
+    return ["Turn on Developer mode: the switch at the top right of the Extensions page.",
+            f"Click Load unpacked, and choose this folder: {folder.resolve()} "
+            "(in the picker, press Cmd+Shift+G, paste that path, press Return, then click Select). "
+            "Keep the folder where it is: every plain Worker loads the extension from it.",
+            f'On the "{name}" card, click Details, and turn on Allow User Scripts.',
+            "Quit that Chrome with Cmd+Q. Each plain Worker now starts as a copy of this profile."]
 
 
 class Chrome:
