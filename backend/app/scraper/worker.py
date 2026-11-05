@@ -1,8 +1,8 @@
 """Orchestrate one scrape cycle: sync catalog, create tasks, claim, scrape,
-checkpoint observations, publish to job_postings.
+publish to job_postings via import_feed.
 
-Each board completes independently. A crash after upsert_observations but
-before publish leaves observations in place; recovery re-publishes them.
+Each board completes independently. At the end of the claim loop, all scraped
+jobs are published through import_feed in one transaction.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 from workit_scraper.providers import PROVIDERS, BoardNotFound
 
-from app.scraper.observations import upsert_observations
+from app.schemas.jobs import JobListing
 from app.scraper.schedules import (
     advance_reads,
     record_failure,
@@ -35,6 +35,66 @@ from app.scraper.tasks import (
 
 logger = logging.getLogger(__name__)
 
+# Same work_style mapping as feed.py.
+_WORK_STYLE = {"Remote": "remote", "Hybrid": "hybrid", "On site": "onsite"}
+
+
+def job_to_listing(job, company: str) -> JobListing:
+    """Convert a provider's Job object into a JobListing for import_feed."""
+    facts = job.page.facts if job.page else None
+    pay = facts.pay if facts else None
+
+    return JobListing(
+        id=job.apply_url,
+        title=job.title,
+        company=company,
+        apply_url=job.apply_url,
+        experience_level=_experience_level(facts),
+        work_style=_work_style(job, facts),
+        location=job.location,
+        location_label=None,
+        posted_at=job.posted_at,
+        logo_url=None,
+        company_domain=None,
+        description=job.page.description if job.page else None,
+        job_type=_job_type(facts),
+        salary=None,
+        salary_min=pay.low if pay else None,
+        salary_max=pay.high if pay else None,
+        salary_currency=pay.currency if pay else None,
+        salary_period=pay.period if pay else None,
+        min_years_experience=facts.min_years if facts else None,
+        start_term=facts.start_term if facts else None,
+        sponsorship=facts.sponsorship if facts else None,
+    )
+
+
+def _experience_level(facts) -> str | None:
+    if facts is None:
+        return None
+    jt = facts.job_type
+    if jt is None:
+        return None
+    if jt == "internship":
+        return "student"
+    return "new_grad"
+
+
+def _job_type(facts) -> str | None:
+    if facts is None:
+        return None
+    return facts.job_type
+
+
+def _work_style(job, facts) -> str | None:
+    # The job-level work_style (from the listing, e.g. Rippling) takes priority.
+    ws = job.work_style
+    if ws:
+        return _WORK_STYLE.get(ws)
+    if facts and facts.work_style:
+        return _WORK_STYLE.get(facts.work_style)
+    return None
+
 
 async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
     """One full worker cycle. Returns a summary dict."""
@@ -46,7 +106,7 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
         "boards_ok": 0,
         "boards_missing": 0,
         "boards_failed": 0,
-        "observations_new": 0,
+        "jobs_scraped": 0,
         "dry_run": dry_run,
     }
 
@@ -70,20 +130,32 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
         logger.info("Dry run: would process %d boards", len(due))
         return summary
 
-    # 4. Claim and process tasks.
+    # 4. Claim and process tasks, accumulating listings.
+    all_listings: list[JobListing] = []
+
     while True:
         task = await claim_task(conn, worker_id)
         await conn.commit()
         if task is None:
             break
 
-        await _process_task(conn, task, summary)
+        listings = await _process_task(conn, task, summary)
+        all_listings.extend(listings)
 
+    # 5. Publish all scraped jobs through import_feed.
+    if all_listings:
+        from app.scripts.import_jobs import import_feed
+
+        await import_feed(conn, all_listings)
+        await conn.commit()
+        logger.info("Published %d listings through import_feed", len(all_listings))
+
+    summary["jobs_scraped"] = len(all_listings)
     return summary
 
 
-async def _process_task(conn: AsyncConnection, task, summary: dict) -> None:
-    """Scrape one board, upsert observations, advance schedule reads."""
+async def _process_task(conn: AsyncConnection, task, summary: dict) -> list[JobListing]:
+    """Scrape one board, advance schedule reads. Returns JobListing objects."""
     schedule = (
         await conn.execute(
             text("SELECT * FROM scraper_schedules WHERE id = :sid"),
@@ -94,7 +166,7 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> None:
     if schedule is None:
         await mark_failed(conn, task.id, error="schedule not found")
         await conn.commit()
-        return
+        return []
 
     provider = PROVIDERS.get(schedule.ats)
     if provider is None:
@@ -102,7 +174,7 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> None:
         await record_failure(conn, task.schedule_id)
         await conn.commit()
         summary["boards_failed"] += 1
-        return
+        return []
 
     await mark_started(conn, task.id)
     await conn.commit()
@@ -117,7 +189,7 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> None:
         await mark_done(conn, task.id, boards_s=boards_s)
         await conn.commit()
         summary["boards_missing"] += 1
-        return
+        return []
     except Exception as exc:
         boards_s = time.monotonic() - t0
         logger.warning(
@@ -127,29 +199,25 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> None:
         await mark_failed(conn, task.id, error=str(exc))
         await conn.commit()
         summary["boards_failed"] += 1
-        return
+        return []
 
     boards_s = time.monotonic() - t0
 
-    # Upsert observations.
-    new = await upsert_observations(conn, task.schedule_id, task.id, jobs)
-    summary["observations_new"] += new
+    # Convert provider Jobs to JobListing objects.
+    listings = [job_to_listing(job, schedule.company) for job in jobs]
 
-    # Advance reads on the schedule.
+    # Advance reads on the schedule and mark task done.
     await advance_reads(conn, task.schedule_id)
-
-    # TODO(KAN-605): publish observations to job_postings via publish.py's
-    # build_listings / build_closings → import_jobs._upsert / _close_missing.
-
     await mark_done(conn, task.id, boards_s=boards_s)
     await conn.commit()
     summary["boards_ok"] += 1
 
     logger.info(
-        "Board %s/%s: %d jobs (%d new), %.1fs",
+        "Board %s/%s: %d jobs, %.1fs",
         schedule.ats,
         schedule.token,
         len(jobs),
-        new,
         boards_s,
     )
+
+    return listings

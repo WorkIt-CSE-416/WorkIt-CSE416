@@ -17,10 +17,9 @@ package: a library with no database or HTTP of its own, handed everything by
 
 **The second exception is `../scraper/`**, installed as `workit-scraper`
 (KAN-605): `app/scraper/worker.py` calls provider readers through
-`asyncio.to_thread` to scrape boards into Postgres-backed observations. The
-scraper stays stdlib-only; the backend uses it as a library. Three tables
-(`scraper_schedules`, `scraper_tasks`, `scraper_observations`) track board
-catalogs, task leasing and per-posting versioned state.
+`asyncio.to_thread` and publishes directly through `import_feed`. The
+scraper stays stdlib-only; the backend uses it as a library. Two tables
+(`scraper_schedules`, `scraper_tasks`) track board catalogs and task leasing.
 
 **Not PostgREST, deliberately.** Queries go to Postgres directly over asyncpg,
 because the job search needs ltree containment and trigram ranking, which
