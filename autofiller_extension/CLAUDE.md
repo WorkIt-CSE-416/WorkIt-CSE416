@@ -40,7 +40,7 @@ the extension loads depends on it.
 The form is filled by the **Fill engine**, the TypeScript engine Apply
 (Lisul's autopilot) fills with too: one copy of every job system's filler
 and of the answer rules, so a fix lands in both. It lives in the private
-repo `WorkIt-CSE-416/fill-engine` and sits here as the submodule
+repo `workitjobs/fill-engine` and sits here as the submodule
 `fill-engine/`, **pinned to a tag**. A person moves the pin (`git -C
 autofiller_extension/fill-engine checkout vX.Y.Z`, commit the gitlink), so
 a change to the engine reaches students only when someone here chooses it.
