@@ -7,7 +7,7 @@ still open.
 ## Load it
 
 0. Fetch the Fill engine once: `git submodule update --init` (from the repo
-   root). It is the private `WorkIt-CSE-416/fill-engine` repo, pinned to a
+   root). It is the private `workitjobs/fill-engine` repo, pinned to a
    tag; without it Chrome can't load `fill-engine/dist/engine.js`.
 1. Have the backend running (`uv run uvicorn app.main:app --reload`, from
    `backend/` — see the root `CLAUDE.md`). The extension tries

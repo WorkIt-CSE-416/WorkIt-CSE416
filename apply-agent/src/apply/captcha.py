@@ -1,7 +1,9 @@
 """Captchas and bot blocks: how Apply tells them, in one place.
 
-A captcha is a challenge a person solves: a picture puzzle, a slider. Apply
-never solves one. A bot block is a page that refuses the browser outright
+A captcha is a challenge a person solves: an "I'm not a robot" box, a picture
+puzzle, a slider. Apply never solves or touches one: Lisul does it in the
+Worker's Chrome while Apply waits (Waiter), and the drive guard refuses any
+click or key of Claude's in a captcha's frame (apply.submit_guard). A bot block is a page that refuses the browser outright
 (Tesla's "Access Denied"): there is nothing to solve, so it is a Handoff."""
 
 import re
@@ -45,6 +47,27 @@ def in_frame(url: str) -> bool:
     host = parts.hostname or ""
     return any(host == h or host.endswith("." + h) for h in HOSTS) or any(parts.path.startswith(p) for p in PATHS)
 
+# A captcha's box on the form, before anyone ticks it: its frame, and the field its token goes in once it is
+# done. reCAPTCHA's invisible kind shows only a badge, which no one ticks.
+WIDGETS = (
+    ("iframe[src*='recaptcha/api2/anchor']:not([src*='size=invisible'])", "g-recaptcha-response"),
+    ("iframe[src*='recaptcha/enterprise/anchor']:not([src*='size=invisible'])", "g-recaptcha-response"),
+    ("iframe[src*='hcaptcha.com'][src*='frame=checkbox']", "h-captcha-response"),
+    ("iframe[src*='challenges.cloudflare.com']", "cf-turnstile-response"),
+)
+# Whether a frame shows one not done yet: its box on view, and no token in its field.
+UNSOLVED = """(widgets) => {
+  for (const [selector, field] of widgets) {
+    for (const frame of document.querySelectorAll(selector)) {
+      const box = frame.getBoundingClientRect();
+      if (!frame.checkVisibility() || box.width < 10 || box.height < 10) continue;
+      const scope = frame.closest('form') || document;
+      if (![...scope.querySelectorAll(`[name="${field}"]`)].some((el) => el.value)) return true;
+    }
+  }
+  return false;
+}"""
+
 # How Claude fill's Claude says it stopped at one (claude_fill.py's prompt tells it to).
 SAYS_CAPTCHA = re.compile(r"captcha|not a robot|turnstile|cloudflare|verify (that )?you are (a )?human"
                           r"|verification required|slide (right|to)", re.IGNORECASE)
@@ -72,6 +95,23 @@ def shows(page: Page) -> bool:
         return any(challenge.nth(i).is_visible() for i in range(challenge.count())) and not blocks(page)
     except Exception:
         return False
+
+
+def unsolved(page: Page) -> bool:
+    """Whether the form shows a captcha's box ("I'm not a robot") that no one
+    has done yet, in any of its frames. A page that is gone shows none."""
+    for frame in getattr(page, "frames", ()):
+        try:
+            if frame.evaluate(UNSOLVED, [list(w) for w in WIDGETS]):
+                return True
+        except Exception:
+            continue  # a frame loading, gone, or a captcha's own
+    return False
+
+
+def pending(page: Page) -> bool:
+    """Whether the page has a captcha for Lisul to do: its challenge, or its box not ticked yet."""
+    return shows(page) or unsolved(page)
 
 
 def blocks(page: Page) -> str:
@@ -158,15 +198,15 @@ PUSH = "Do the captcha on {}. Apply goes on by itself once it's done."
 
 def wait(page: Page, pressed: Callable[[], bool], minutes: float, poll_ms: int = POLL_MS) -> bool:
     """Wait on `page` for Lisul to do its captcha. True once the challenge
-    that showed is gone, or he pressed Resume (`pressed()`); False after
+    that showed is gone and its box is done, or he pressed Resume (`pressed()`); False after
     `minutes`, or once the page is closed. It never touches the page."""
-    seen = shows(page)  # a challenge only Claude saw, perhaps in a frame no selector names: Resume alone ends it
+    seen = pending(page)  # a challenge only Claude saw, perhaps in a frame no selector names: Resume alone ends it
     deadline = time.monotonic() + minutes * 60
     while time.monotonic() < deadline:
         try:
             if page.is_closed():
                 return False
-            if pressed() or (seen and not shows(page)):
+            if pressed() or (seen and not pending(page)):
                 try:
                     page.wait_for_load_state(timeout=15_000)  # a solved DataDome slider loads the page again
                 except Exception:

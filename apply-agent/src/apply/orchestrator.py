@@ -12,6 +12,7 @@ from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import date, datetime, timedelta
 
 from apply import (
+    already_applied,
     asking,
     bot_signals,
     captcha,
@@ -170,6 +171,9 @@ class _Run:
 
     def go(self, workers: int, matches: bool, with_requests: bool) -> None:
         requests, queue = self._to_apply(matches, with_requests)
+        if unchecked := self._adapters.applied_before.problem():  # KAN-621: never a silent pass
+            print(already_applied.UNCHECKED.format(unchecked), file=sys.stderr)
+            self._adapters.board.run(unchecked=already_applied.UNCHECKED.format(unchecked))
         free = list(range(workers))  # Worker numbers; each Worker has its own Worker profile
         running: dict[Future, tuple[Posting, int]] = {}
         with ThreadPoolExecutor(workers) as pool:
@@ -332,8 +336,13 @@ class _Run:
     def _traced(self, posting: Posting, worker: int) -> Result:
         try:
             on_worker = _OnWorker(self._adapters.site, worker)
+            # KAN-621: never open or fill a form sent already, here or on the form behind it.
+            if applied := self._adapters.applied_before.of(posting):
+                return Result(Status.HANDOFF, f"{applied.said()}; Apply didn't open the form")
             if (behind := greenhouse.board_behind(posting, self._adapters.site)) == posting:
                 behind = embedded.form_behind(posting, on_worker)  # a Greenhouse, Lever or Ashby form in the page
+            if behind != posting and (applied := self._adapters.applied_before.of(behind, posting.url)):
+                return Result(Status.HANDOFF, f"{applied.said()}; Apply didn't open the form")
             posting = behind
             profile = tailored.resume_for(posting, self._profile, self._adapters.tailored)
             return by_filler(

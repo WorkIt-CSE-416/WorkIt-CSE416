@@ -205,6 +205,7 @@ jobs:
             tests/test_story_map.py \
             tests/test_tailored_resume.py \
             tests/test_tracker_cleanup.py \
+            tests/test_already_applied.py \
             tests/test_tracker_contract.py \
             tests/test_tracker_record.py \
             tests/test_worker_date.py \

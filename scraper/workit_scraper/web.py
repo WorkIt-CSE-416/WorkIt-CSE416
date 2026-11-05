@@ -14,7 +14,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
 
-USER_AGENT = "workit-scraper/0.1 (CSE416 course project; +https://github.com/WorkIt-CSE-416)"
+USER_AGENT = "workit-scraper/0.1 (+https://github.com/workitjobs)"
 
 
 def origin(url: str) -> str:

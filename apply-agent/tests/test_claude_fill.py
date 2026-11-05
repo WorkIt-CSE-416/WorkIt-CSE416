@@ -12,7 +12,7 @@ from datetime import datetime
 
 import pytest
 from conftest import FIXTURES, FORMS
-from fake_bamboohr import FakeBambooServer
+from fake_bamboohr import BFRAME, FakeBambooServer, tick_the_box, ticked
 from fake_jobvite import URL as JOBVITE_URL
 from fake_jobvite import FakeJobviteServer
 from fake_paylocity import HOW_HEARD, FakePaylocityServer
@@ -82,10 +82,15 @@ class BambooDriver:
     can't fill (a sign-in wall, a captcha). `notes` makes it read choices back
     as Haiku did live, with a note: "Yes (selected)"."""
 
-    def __init__(self, blocked: str = "", notes: bool = False, page: str = "application form", missed=()):
+    def __init__(self, blocked: str = "", notes: bool = False, page: str = "application form", missed=(),
+                 by_label: bool = False):
         """`page` is what Haiku says the page is: an application form, a
         closed posting, or not a job posting at all. `missed` are labels its
-        read leaves out (as Haiku did live), which the fill then finds."""
+        read leaves out (as Haiku did live), which the fill then finds.
+        `by_label` makes it name each field it read back by its label, in
+        capitals with a "*" ("FIRST NAME *"), not its id (live)."""
+        self._by_label = by_label
+        self.schemas: list[dict] = []
         self._blocked = blocked
         self._notes = notes
         self._page = page
@@ -101,6 +106,7 @@ class BambooDriver:
             page.get_by_role("button", name="Apply for This Job").first.click()
             return {"blocked": False, "why": "", "questions": [q for q in LUNAR_QUESTIONS if q["label"] not in self._missed]}
         self.fills += 1
+        self.schemas.append(schema)
         fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
         asked = {f["question"] for f in fields}
         unlisted = [q for q in LUNAR_QUESTIONS if q["label"] in self._missed and q["label"] not in asked]
@@ -110,7 +116,8 @@ class BambooDriver:
         return {
             "blocked": False,
             "why": "",
-            "filled": [{"field": f["field"], "shown": [self._shown(f["answer"])]} for f in fields],
+            "filled": [{"field": f"{f['question'].upper()} *" if self._by_label else f["field"],
+                        "shown": [self._shown(f["answer"])]} for f in fields],
             "submit_button": "Submit Application",
             "unlisted": unlisted,
         }
@@ -392,6 +399,107 @@ def test_a_captcha_lisul_does_not_do_in_time_is_the_usual_handoff(tmp_path):
     assert server.submissions == []
 
 
+# reCAPTCHA's checkbox on Lunar Outpost's form (2026-11-04): FILL's prompt said to tick it, Haiku did, its picture
+# challenge opened, and the next fill took the challenge for a pop-up and handed off without the first fill's read-back.
+class TicksTheBoxDriver(BambooDriver):
+    """Plays Haiku as it was live: on its first fill it ticks the "I'm not a
+    robot" box. `challenge` opens the box's picture challenge anyway, as if
+    the tick had gone through, before the step's last field is read back,
+    and the read misses the last question so a second fill comes."""
+
+    def __init__(self, challenge: bool = False):
+        super().__init__(missed=["Veteran Status"] if challenge else ())
+        self._challenge = challenge
+        self.tried = 0
+        self.ticked = None  # whether its click ticked the box
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        said = super().__call__(page, schema, prompt, files)
+        if "filled" in schema["properties"] and not self.tried:
+            self.tried += 1
+            tick_the_box(page)  # a real click in the box's frame, as Playwright MCP makes it
+            self.ticked = ticked(page)
+            if self._challenge:
+                page.evaluate("postMessage('recaptcha-ticked', '*')")
+        return said
+
+
+class LisulDoesTheCaptcha(RecordingNotifier):
+    """Lisul's phone: at the captcha's push he ticks the box himself in the
+    Worker's Chrome (a real click), and does its pictures a second later."""
+
+    def __init__(self, driver_page: list, tick: bool = True):
+        super().__init__()
+        self._page, self._tick = driver_page, tick
+
+    def notify(self, title: str, message: str) -> None:
+        super().notify(title, message)
+        if title != "Apply: do the captcha":
+            return
+        [page] = self._page
+        if self._tick:
+            tick_the_box(page)
+        page.frame_locator(BFRAME).locator("#recaptcha-verify-button").wait_for(timeout=3_000)
+        page.frame_locator(BFRAME).locator("#recaptcha-verify-button").evaluate(
+            "button => setTimeout(() => button.click(), 1000)")
+
+
+class _KeepsPage:
+    """A driver that hands its page to the test's Lisul."""
+
+    def __init__(self, driver):
+        self.driver, self.page = driver, []
+
+    def __call__(self, page, schema, prompt, files):
+        self.page[:] = [page]
+        return self.driver(page, schema, prompt, files)
+
+
+def test_claude_fill_never_ticks_recaptchas_box_and_waits_for_lisul_to_do_it(tmp_path):
+    driver = _KeepsPage(TicksTheBoxDriver())
+    claude, phone = FakeClaude(driver=driver), LisulDoesTheCaptcha(driver.page)
+
+    with FakeBambooServer(LUNAR_FORM, recaptcha=True) as server:
+        [row] = run(server, captcha_profile(tmp_path, 1), lunar_match(), claude=claude, phone=phone)
+
+    assert (driver.driver.tried, driver.driver.ticked) == (1, False)  # Haiku clicked the box, and it stayed unticked
+    assert server.challenges == 1  # only Lisul's own tick opened the challenge
+    assert phone.sent[0] == ("Apply: do the captcha", "Do the captcha on Lunar Outpost. Apply goes on by itself once it's done.")
+    assert "tick it" not in FILL  # the old rule: "If the form has a plain \"I'm not a robot\" box, tick it"
+    assert row.status == "submitted"
+    [sent] = server.submissions
+    assert "fake-recaptcha-token" in sent.application.values()
+
+
+def test_a_recaptcha_challenge_on_the_form_is_the_captcha_wait_never_a_pop_up(tmp_path):
+    driver = _KeepsPage(TicksTheBoxDriver(challenge=True))
+    phone = LisulDoesTheCaptcha(driver.page, tick=False)
+
+    with FakeBambooServer(LUNAR_FORM, recaptcha=True) as server:
+        [row] = run(server, captcha_profile(tmp_path, 1), lunar_match(), claude=FakeClaude(driver=driver), phone=phone)
+
+    assert [t for t, _ in phone.sent].count("Apply: do the captcha") == 1
+    assert "pop-up" not in row.reason
+    assert row.status == "submitted"
+    assert len(server.submissions) == 1
+
+
+def test_a_captcha_lisul_leaves_keeps_what_the_first_fill_read_back_in_the_record(tmp_path):
+    kept = InMemoryRecords()
+
+    with FakeBambooServer(LUNAR_FORM, recaptcha=True) as server:
+        [row] = run(server, captcha_profile(tmp_path, 0.03), lunar_match(),
+                    claude=FakeClaude(driver=TicksTheBoxDriver(challenge=True)), kept=kept)
+
+    assert row.status == "handoff"
+    assert row.reason.startswith("A captcha's challenge covers the form")
+    assert "pop-up" not in row.reason
+    answers = {a["question"]: a["on_page"] for a in json.loads(kept.files(row.record)["answers.json"])}
+    assert answers["First Name"] == "Test"
+    assert answers["Email"] == "test.person@example.com"
+    assert server.challenges == 1 and server.submissions == []
+
+
 class PostingPageDriver(BambooDriver):
     """Plays the page, not Haiku, posting a form of its own while Haiku reads
     the first time (LinkedIn's SmartRecruiters form, live 2026-11-03): the
@@ -536,6 +644,31 @@ def test_notes_claude_adds_to_what_it_reads_back_do_not_fail_the_pre_submit_chec
         [row] = run(server, profile, lunar_match(), claude=FakeClaude(driver=BambooDriver(notes=True)))
 
     assert row.status == "submitted"
+
+
+def test_fields_claude_reads_back_by_their_label_not_their_id_still_read_back(tmp_path):
+    # Live, Haiku named its `filled` entries "First Name *", not q1: the read-back came back empty.
+    profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items()},
+                           **{f"answered_questions.{ESSAY}": "Lunar rovers are what I build in my spare time."})
+    driver = BambooDriver(by_label=True)
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [row] = run(server, profile, lunar_match(), claude=FakeClaude(driver=driver))
+
+    assert row.status == "submitted", row.reason
+    # And the schema holds each entry's `field` to the ids it was given.
+    [schema, *_] = driver.schemas
+    ids = schema["properties"]["filled"]["items"]["properties"]["field"]["enum"]
+    assert ids and all(re.fullmatch(r"q\d+", i) for i in ids)
+
+
+def test_a_label_two_fields_share_is_never_guessed_between():
+    labels = {"q1": "Name *", "q2": "name", "q3": "Email", "q4": "Email"}
+    assert claude_fill._field_named("q3", labels) == "q3"
+    assert claude_fill._field_named("Name *", labels) == "q1"  # exact first
+    assert claude_fill._field_named("  NAME", labels) is None  # q1 and q2 both, but for case and "*"
+    assert claude_fill._field_named("Email", labels) is None
+    assert claude_fill._field_named("Phone", labels) is None
 
 
 def test_a_question_the_read_missed_is_planned_and_filled_when_the_fill_finds_it(tmp_path):

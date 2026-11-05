@@ -298,27 +298,83 @@ def test_a_follow_up_to_a_question_claude_answered_no_is_not_a_missing_fact(tmp_
     assert planned.answers == {"w": "No", **({"a": expected} if expected else {})}
 
 
+SARONIC_URL = "https://jobs.ashbyhq.com/saronic/60afb634-5515-4347-824a-3816735541c2/application"
+# Saronic's Ashby (live, 2026-11-04): the follow-up was written as an essay and asked as a Required Essay fact.
+# The question it follows is one no rule answers, so Claude drafts it.
+KNOWS = Question("knows", "Do you have a friend who works at Saronic?", "select", True, ("Yes", "No"))
+IF_YES = Question("if_yes", "If yes, please provide the employee\u2019s name and your relationship", "textarea", False)
+
+
+@pytest.mark.parametrize("rehearse", [False, True])
+def test_an_if_yes_follow_up_to_a_no_claude_drafted_is_left_blank_never_asked_nor_written(tmp_path, rehearse):
+    posting = Posting("saronic", "Saronic Technologies", "Software Engineer Intern (Summer 2027)", SARONIC_URL)
+    claude = FakeClaude(drafts={"Do you have a friend": "No"})
+    planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, rehearse,
+                              AnswerBank(), date(2026, 11, 4))
+
+    assert planned.add([KNOWS, IF_YES]) is None  # no Missing fact
+    assert planned.answers == {"knows": "No"} and planned.missing == ()
+    assert planned.written == [] and "if_yes" in planned.left  # never an essay: blank on purpose
+    assert "your relationship" not in json.dumps(claude.calls)  # nor sent to Claude to draft
+
+
+def test_an_if_yes_follow_up_to_a_yes_is_asked_with_the_forms_own_label_and_required_flag(tmp_path):
+    posting = Posting("saronic", "Saronic Technologies", "Software Engineer Intern (Summer 2027)", SARONIC_URL)
+    claude = FakeClaude(drafts={"Do you have a friend": "Yes"})
+    planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, False,
+                              AnswerBank(), date(2026, 11, 4))
+
+    result = planned.add([KNOWS, IF_YES])
+    label = IF_YES.label.strip()
+    assert (result.missing_fact, result.required) == (label, {label: False})  # a Missing fact, never an Essay fact
+    assert planned.written == []
+
+
+@pytest.mark.parametrize("required", [False, True])
+def test_what_an_essay_asks_is_required_only_when_its_form_requires_the_essay(required):
+    # Saronic (live, 2026-11-04): an optional field's Essay fact showed Required in Needs you.
+    from apply import essays
+    ask = "Essay fact: What did the robot do?"
+    essay = essays.Essay(Question("e", "Tell us about a made-up robot", "textarea", required), "",
+                         plan=essays.Plan("general", asks=(ask,)))
+    planned = worker._Planned.__new__(worker._Planned)
+    planned.questions, planned.written, planned.lisuls, planned.found = [essay.question], [essay], {}, {}
+    planned._rehearse, planned.missing, planned._on_missing = True, (), lambda *heard: None
+    planned.profile = type("Profile", (), {"get": lambda self, key: None})()  # made up: it holds nothing
+    planned._bank = AnswerBank()
+    planned._missing([], [ask])
+
+    assert planned.required == {ask: required}
+
+
 CATCH_ALL = Question("extra", "Additional information", "textarea", False)
 WHY = Question("why", "Why do you want to work at Amplify?", "textarea", True)
 
 
-@pytest.mark.parametrize("given, needs, kept", [
-    ("", (), True),  # nothing new: Claude leaves it empty
-    ("I can start on May 18 and intern for twelve weeks.", (), False),  # a new availability note goes on
-    ("I can start on May 18 and intern for twelve weeks.", ("Additional information",), True),
-    ("I can start on May 18. I intern for twelve weeks. I like the team. I also like the work.", (), True),  # over two sentences
-])
-def test_an_optional_catch_all_box_stays_blank_unless_it_says_something_new(tmp_path, given, needs, kept):
-    # Voleon (seen live, 2026-11-04): "Additional information" got a paragraph repeating a resume bullet.
+@pytest.mark.parametrize("given", ["", "I can start on May 18 and intern for twelve weeks."])
+def test_an_optional_catch_all_box_is_always_left_blank_and_never_drafted_nor_asked(tmp_path, given):
+    # Voleon (seen live, 2026-11-04): "Additional information" got two new, relevant sentences, and Lisul
+    # said "it still putting stuff here": he wants nothing there.
     posting = Posting("amplify", "Amplify", "Software Engineering Intern", AMPLIFY_URL)
-    claude = FakeClaude(essays={"Additional information": given}, needs_lisul=needs)
+    claude = FakeClaude(essays={"Additional information": given})
     planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, False,
                               AnswerBank(), date(2026, 11, 4))
 
     assert planned.add([WHY, CATCH_ALL]) is None  # never a Missing fact
-    assert ("extra" in planned.kept_blank) is kept and ("extra" in planned.answers) is not kept
-    if kept:
-        assert not [h for h in planned.holds if "Additional information" in h]  # no "Claude wrote nothing" hold
-        verification = planned.verify({"why": planned.answers["why"], "extra": ""}, [], ())
-        [note] = [f for f in verification.flags if f.field == "Additional information"]
-        assert not note.holds and note.why.startswith("left blank on purpose: an optional catch-all box")
+    assert planned.kept_blank == {"extra": worker.CATCH_ALL_BLANK} and "extra" not in planned.answers
+    assert not any("Additional information" in prompt for prompt in claude.prompts)  # Claude never sees it
+    assert not [h for h in planned.holds if "Additional information" in h]  # no "Claude wrote nothing" hold
+    verification = planned.verify({"why": planned.answers["why"], "extra": ""}, [], ())
+    [note] = [f for f in verification.flags if f.field == "Additional information"]
+    assert not note.holds and note.why == f"left blank on purpose: {worker.CATCH_ALL_BLANK}"
+
+
+def test_a_required_catch_all_box_is_still_answered(tmp_path):
+    posting = Posting("amplify", "Amplify", "Software Engineering Intern", AMPLIFY_URL)
+    required = Question("extra", "Additional information", "textarea", True)
+    claude = FakeClaude(essays={"Additional information": "I can start on May 18 and intern for twelve weeks."})
+    planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, False,
+                              AnswerBank(), date(2026, 11, 4))
+
+    assert planned.add([WHY, required]) is None
+    assert planned.kept_blank == {} and planned.answers["extra"] == "I can start on May 18 and intern for twelve weeks."

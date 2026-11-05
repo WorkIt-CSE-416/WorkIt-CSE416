@@ -51,9 +51,9 @@ def _sha(text: str) -> str:
 
 
 def _lifted_file() -> str:
-    """LIFTED as window.__applyLift({again, warning, wrong}), run in each frame of a lifted tab."""
+    """LIFTED as window.__applyLift({again, warning, wrong, held}), run in each frame of a lifted tab."""
     body = submit_guard.LIFTED.replace("AGAIN", "note.again === true").replace("WRONG", "note.wrong !== false")
-    body = body.replace("WARNING", "String(note.warning || '')")
+    body = body.replace("HELD", "String(note.held || '')").replace("WARNING", "String(note.warning || '')")
     return "window.__applyLift = (note) => {\n" + body.strip().removesuffix(";") + ";\n};\n"
 
 
