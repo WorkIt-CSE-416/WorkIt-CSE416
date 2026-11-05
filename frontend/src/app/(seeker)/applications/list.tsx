@@ -53,9 +53,9 @@ import { cn } from "@/lib/cn";
 
 import { STAGE_ORDER } from "../stage-colors";
 import { StageMenu } from "./[jobId]/tracker-controls";
-import { ClosedSavedControl, isClosedSaved } from "./closed-saved";
+import { ClosedSavedControl } from "./closed-saved";
 import { LocalDate } from "../local-time";
-import { sortKey, type Application } from "../tracker";
+import { isClosedSaved, sortKey, type Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
 import {
   COLUMNS,
@@ -256,7 +256,7 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
   // View Resume (KAN-267): the button names the resume, filling the cell.
   resume: (app) =>
     app.sentResume ? (
-      <ViewResumeButton resume={app.sentResume} className="w-full" />
+      <ViewResumeButton resume={app.sentResume} />
     ) : (
       <FactValue Icon={FileIcon} value={null} missing="Not sent" />
     ),

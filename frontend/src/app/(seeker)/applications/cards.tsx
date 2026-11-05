@@ -5,10 +5,10 @@ import { CompanyIcon, PinIcon } from "@/components/icons";
 import { Reflow } from "@/components/reflow";
 import { Card } from "@/components/ui/card";
 
-import type { Application } from "../tracker";
+import { isClosedSaved, type Application } from "../tracker";
 import { StageMenu } from "./[jobId]/tracker-controls";
 import { ApplicationTile } from "./application-tile";
-import { ClosedSavedControl, isClosedSaved } from "./closed-saved";
+import { ClosedSavedControl } from "./closed-saved";
 import { applicationHref } from "./query";
 import { StageSteps } from "./stage-steps";
 import { ViewResumeButton } from "./view-resume";
@@ -106,8 +106,7 @@ function ApplicationCard({
         />
 
         <div className="relative z-10 flex flex-wrap items-center gap-2 @xl:col-start-2 @xl:row-start-1 @xl:justify-end @6xl:col-start-3 @6xl:flex-nowrap">
-          {/* On one row a long resume name shortens rather than wrapping the controls. */}
-          {item.sentResume && <ViewResumeButton resume={item.sentResume} className="shrink" />}
+          {item.sentResume && <ViewResumeButton resume={item.sentResume} />}
           {closed ? (
             <ClosedSavedControl app={item} className="w-40 shrink-0" />
           ) : (

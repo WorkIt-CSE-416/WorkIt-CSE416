@@ -21,16 +21,9 @@ import { cn } from "@/lib/cn";
 import type { Application } from "../tracker";
 import { unsaveJob } from "../jobs/actions";
 
-/** A saved job whose posting has closed: it can no longer be applied to, so
- *  its row and card stop offering a stage and offer Remove instead. Only a
- *  saved job: a posting closing after the student applied changes nothing
- *  for them, so an applied job's row never says so (2026-11-05). */
-export function isClosedSaved(app: Pick<Application, "stage" | "open">) {
-  return app.stage === "saved" && app.open === false;
-}
-
 /**
- * In place of the stage menu on a closed saved job (2026-11-05): a muted
+ * In place of the stage menu on a closed saved job (`isClosedSaved` in
+ * ../tracker.ts, 2026-11-05): a muted
  * "Posting closed", which says why the row's logo is grey, and a trash
  * button that takes the job out of the Tracker.
  *
