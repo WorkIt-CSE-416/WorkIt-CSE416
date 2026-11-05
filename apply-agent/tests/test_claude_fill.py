@@ -1544,3 +1544,41 @@ def test_a_profile_step_counts_against_the_policy_s_step_limit_not_the_modules(l
 class _NoFields:
     url = "https://jobs.example.com/form"
     frames = ()
+
+
+@pytest.mark.parametrize(("label", "value", "sections", "stops"), [
+    ("Start date", "2027-05-24", {}, False),  # no heading to go by: it may be the internship's
+    ("Start date", "May 2027", {"Start date": "internship details"}, False),
+    ("Start date *", "2027", {"Start date *": "availability"}, False),
+    ("Start date:", "2028-01-01", {"Start date:": "application questions"}, False),
+    ("Start date", "2027-08-01", {"Start date": "education"}, True),  # a section that is clearly education
+    ("Start date", "2027-08-01", {"Start date": "your university degree"}, True),
+    ("Start date", "2029-05-24", {}, True),  # no internship starts this far ahead
+    ("Start date", "2031", {"Start date": "internship details"}, True),
+    ("Start date", "2026-05-24", {}, False),  # this year: nothing wrong with it
+    ("Start date", "2027-08-01", {"Start date": "education and availability"}, False),  # not clearly education
+    # Not bare: as before, a school's own start.
+    ("Start date: Year", "2027", {}, True),
+    ("Degree start date", "2027-08-01", {}, True),
+])
+def test_a_bare_start_date_beside_school_fields_stops_only_when_it_is_clearly_the_degree_s(label, value, sections, stops):
+    shown = {"University": "Example State University", "GPA": "3.7", label: value}
+    assert bool(claude_fill.cant_be_right(shown, 2026, sections)) is stops
+
+
+BARE_START_PAGE = """<h2>{heading}</h2><div><label for=s>Start date</label><input id=s></div>
+<fieldset><legend>{legend}</legend><label for=t>Other</label><input id=t></fieldset>"""
+
+
+@pytest.mark.parametrize(("heading", "stops"), [("Internship details", False), ("Education", True)])
+def test_the_section_of_a_bare_start_date_is_read_from_the_page(heading, stops):
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(BARE_START_PAGE.format(heading=heading, legend="More"))
+        shown = {"University": "Example State University", "Start date": "2027-05-24"}
+        sections = claude_fill._sections(page, shown)
+        browser.close()
+    assert sections == {"Start date": heading.lower()}
+    assert bool(claude_fill.cant_be_right(shown, 2026, sections)) is stops
