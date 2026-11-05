@@ -81,3 +81,73 @@ def test_a_window_that_takes_no_links_says_so(tmp_path):
 def test_a_window_whose_process_is_gone_is_forgotten(tmp_path):
     (tmp_path / "1.json").write_text(json.dumps({"url": "http://127.0.0.1:1", "token": "t", "pid": 2 ** 22 + 7}))
     assert into.windows(tmp_path) == [] and not (tmp_path / "1.json").exists()
+
+
+class _Connection:
+    """A plain Worker's port, played: tabs, and each guard.reset with the forms' tabs open then."""
+
+    def __init__(self, site):
+        import threading
+
+        self.closed, self.site, self.tabs, self.resets, self.worker = threading.Event(), site, [1], [], 0
+
+    def on(self, event: str, handler) -> None:
+        pass
+
+    def call(self, name: str, **given):
+        if name == "tabs.query":
+            return [{"tab": t, "url": "about:blank"} for t in self.tabs]
+        if name == "tabs.create":
+            self.tabs.append(max(self.tabs, default=0) + 1)
+            return {"tab": self.tabs[-1]}
+        if name == "tabs.get":
+            return {"url": "about:blank", "title": ""}
+        if name == "tabs.close":
+            self.tabs = [t for t in self.tabs if t != given["tab"]]
+        if name == "guard.reset":
+            self.resets.append(set(self.site._open.get(0, ())))
+        return None
+
+
+class _Workers:
+    """One running plain Worker whose refresh takes a while (it writes a vendor set)."""
+
+    def __init__(self):
+        from types import SimpleNamespace
+
+        self.profiles, self.running, self.bridge = None, {}, SimpleNamespace(connection=lambda k: None)
+        self.SimpleNamespace = SimpleNamespace
+
+    def refresh(self, worker: int, others: bool = False) -> list[str]:
+        import time
+
+        time.sleep(0.3)
+        return []
+
+
+def test_two_links_sent_into_one_worker_at_once_never_reset_the_others_guards():
+    # `apply rehearse --into 54321 <a> <b>` sends both at once: two opens on the idle Worker 0. Only the first may
+    # reset its guards; the second must see the first's tab and leave its guards (KAN-645).
+    import threading
+
+    from apply.plain.site import PlainSite
+
+    workers = _Workers()
+    site = PlainSite(workers, fetcher=object())
+    connection = _Connection(site)
+    workers.running[0] = workers.SimpleNamespace(connection=connection)
+    opened, done = threading.Barrier(3, timeout=10), threading.Event()
+
+    def one():
+        with site.open("https://jobs.example.com/a", worker=0):
+            opened.wait()
+            done.wait(5)
+    threads = [threading.Thread(target=one, daemon=True) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    opened.wait()  # both forms are open now
+    done.set()
+    for thread in threads:
+        thread.join(10)
+
+    assert connection.resets == [set()]  # one reset, with no other form open
