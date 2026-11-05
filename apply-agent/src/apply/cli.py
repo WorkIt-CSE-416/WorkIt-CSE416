@@ -18,6 +18,7 @@ import yaml
 
 from apply import (
     already_applied,
+    ask,
     bot_signals,
     captcha,
     dashboard,
@@ -193,11 +194,16 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
                        help="Chrome for Testing (default), or branded Chrome from the seed profile")
     plain.add_parser("prepare", help="write the worker extension's engine bundle and Playwright's injected script")
     plain.add_parser("seed", help="open branded Chrome on the seed profile to install the worker extension once")
+    asked = commands.add_parser("ask", help="Ask Claude to fix an open form in a running Apply window, in your own "
+                                            "words; prints what Claude changed. It never submits")
+    asked.add_argument("target", nargs="?", help="the form: its Application ID, or words of its company and role")
+    asked.add_argument("message", nargs="?", help="what is wrong, e.g. \"page 2's GPA is wrong\"")
+    asked.add_argument("--list", action="store_true", help="list every open form: its ID, company, role, page and state")
     args = parser.parse_args(argv)
     if adapters is None and threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, _stop)  # `kill <pid>` closes the browsers and the window, as Ctrl-C does
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
-    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "plain") and home.fill_from_sample():
+    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "plain", "ask") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
 
@@ -347,6 +353,8 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             print(add(url))
     elif args.command == "story-map":
         _story_map(args, adapters.claude if adapters else None)
+    elif args.command == "ask":
+        sys.exit(_ask(args.target, args.message, args.list))
     elif args.command == "plain":
         _plain(args)
 
@@ -369,6 +377,70 @@ def _plain(args) -> None:
         workers.prepare()
         print(f"Opened Google Chrome on {workers.seed}. Once, by hand:")
         print("\n".join(f"  {n}. {step}" for n, step in enumerate(workers.seed_profile(), 1)))
+
+
+def _ask(target: str | None, message: str | None, listed: bool, out: Callable[[str], None] = print,
+         sleep: Callable[[float], None] = time.sleep) -> int:
+    """`apply ask`: send Lisul's message to the one open form `target` names, in any running Apply window,
+    and print Claude's reply once it comes; or list the open forms. Returns the exit code."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    def fetch(window: dict, path: str, body: dict | None = None):
+        request = urllib.request.Request(window["url"] + path, data=json.dumps(body).encode() if body else None,
+                                         headers={"X-Apply-Token": window["token"], "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(request, timeout=10) as answer:
+                return json.loads(answer.read() or b"{}")
+        except urllib.error.HTTPError as error:
+            raise ask.AskRefused(json.loads(error.read() or b"{}").get("error") or str(error)) from None
+
+    def alive(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+            return True
+        except (ProcessLookupError, ValueError):
+            return False
+        except PermissionError:
+            return True
+
+    forms = ask.windows(WorkerBrowsers().profiles / ask.WINDOWS, alive, fetch)
+    if listed or not target:
+        out("\n".join(f.line() for f in forms) or "No form is open in an Apply window.")
+        return 0
+    found = ask.matching(forms, target)
+    if not found:
+        out(f"No open form matches {target!r}. Open forms:\n" + ("\n".join(f.line() for f in forms) or "none"))
+        return 1
+    if len(found) > 1:
+        out(f"{len(found)} open forms match {target!r}: say which, by its ID.\n" + "\n".join(f.line() for f in found))
+        return 2
+    if not (message or "").strip():
+        out("Say what Claude should fix, after the form: apply ask <form> \"<message>\"")
+        return 1
+    form = found[0]
+    try:
+        sent = fetch(form.window, "/ask", {"id": f"tile-{form.worker}", "message": message, "via": "terminal"})
+    except ask.AskRefused as refused:
+        out(f"Not sent: {refused}")
+        return 1
+    entry_id = sent["ask"]["id"]
+    out(f"Sent to {form.tile.get('company') or form.id}. Claude is working on the form (it never presses Submit)…")
+    waited = 0.0
+    while waited < ask.WAIT_S:
+        sleep(2)
+        waited += 2
+        try:
+            entry = fetch(form.window, f"/ask/{entry_id}")
+        except Exception:
+            out("The Apply window closed before Claude replied.")
+            return 1
+        if entry.get("state") in ("done", "failed"):
+            out(ask.told(entry))
+            return 0 if entry["state"] == "done" else 1
+    out(f"No reply after {ask.WAIT_S // 60} minutes: Claude may still be working. The form's tile shows its reply.")
+    return 1
 
 
 def _push_test(phone) -> None:
@@ -451,17 +523,28 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
                                 show=getattr(site, "show", None), sample=profile.get("sample_data") is True,
                                 everyday=adapters.everyday, accounts=_accounts_tab(lambda: adapters.tracker,
                                                                                    adapters.keychain, adapters.everyday),
-                                quiet=getattr(site, "plain", None), **_window_context()) as board:
+                                quiet=getattr(site, "plain", None), remember=_remembering(adapters.answer_bank),
+                                **_window_context()) as board:
         adapters.board = board
         url = site.profiles / DASHBOARD_URL
         url.parent.mkdir(parents=True, exist_ok=True)
         url.write_text(board.url)
+        noted = ask.register(site.profiles / ask.WINDOWS, board.url, board.token, os.getpid())  # for `apply ask`
         dashboard.open_window(board.url, site.profiles / "dashboard", front=False)  # never pulls Lisul from his work
         print(f"Dashboard: {board.url} (open it from Apply in the Dock, or with: apply watch)")
         try:
             yield
         finally:
             url.unlink(missing_ok=True)
+            noted.unlink(missing_ok=True)
+
+
+def _remembering(bank: AnswerBank) -> Callable[[str, str], str]:
+    """Ask Claude's offer, saved on Lisul's click: his own answer in the Answer bank, for later forms."""
+    def remember(question: str, answer: str) -> str:
+        bank.answer(question, answer, date.today())
+        return f"Saved to your answers: {question} → {answer}. Later forms that ask it get it."
+    return remember
 
 
 def _frames(site, tiles: int):
