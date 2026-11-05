@@ -8,8 +8,9 @@ from conftest import APPLY, FIXTURES, FORMS
 
 from apply import fill_engine
 from apply.answer_bank import AnswerBank
-from apply.model import FillError, Posting, Question
+from apply.model import FillError, Outcome, Posting, Question, Status
 from apply.profile import ApplicantProfile
+from apply.tracker import FileTracker, Row
 
 PROFILE = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
 POSTING = Posting("p", "Acme", "Software Engineer Intern", "https://job-boards.greenhouse.io/acme/jobs/1")
@@ -154,3 +155,23 @@ def test_apply_fill_engine_points_apply_at_another_engine_checkout(tmp_path):
 
 def test_apply_fill_engine_may_start_at_the_home_folder(tmp_path):
     assert engine_bundle(APPLY_FILL_ENGINE="~/fill-engine", HOME=str(tmp_path)) == str(tmp_path / "fill-engine" / "dist" / "engine.js")
+
+
+def test_past_applications_and_interviews_at_the_company_come_from_the_tracker_too():
+    # Rocket Lab's "Have you previously interviewed at Rocket Lab?" (live, 2026-11-04) went to Lisul.
+    rocket_lab = Posting("r", "Rocket Lab", "Software Engineering Intern", "https://job-boards.greenhouse.io/rocketlab/jobs/2")
+    asks = [Question("q1", "Have you previously applied to Rocket Lab?", "select", True, ("Yes", "No")),
+            Question("q2", "Have you previously interviewed at Rocket Lab?", "select", True, ("Yes", "No"))]
+    plan = lambda: fill_engine.plan(asks, rocket_lab, PROFILE).answers
+    assert plan() == {"q1": "No", "q2": "No"}
+    rows = FileTracker()
+    # This Posting's own row is not a past application.
+    rows.add(Row("a1", "Rocket Lab", "Intern", rocket_lab.url, "greenhouse", Status.SUBMITTED))
+    rows.add(Row("a2", "Rocket Lab", "Intern", "https://job-boards.greenhouse.io/rocketlab/jobs/1", "greenhouse", Status.HELD))
+    assert plan() == {"q1": "No", "q2": "No"}
+    # An earlier one sent: applied, and an interview there is Lisul's to say...
+    rows.update("a2", status=Status.SUBMITTED)
+    assert plan() == {"q1": "Yes"}
+    # ...till his Outcome records one.
+    rows.edit_as_lisul("a2", outcome=Outcome.INTERVIEW)
+    assert plan() == {"q1": "Yes", "q2": "Yes"}
