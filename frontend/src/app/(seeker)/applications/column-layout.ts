@@ -23,7 +23,9 @@ import { APPLICATIONS_COLUMNS_KEY } from "@/lib/local-drafts";
  * stored under old column ids (the separate Company column) loses those
  * ids on reading (`parse`), so it never breaks the table. Source and Notes /
  * Next Step left the table on 2026-11-05 the same way: Source is on the
- * application's page, and Notes stored nothing.
+ * application's page, and Notes stored nothing. So did Posting (Open or
+ * Closed): a closed saved job says "Posting closed" in its Status cell, and
+ * an applied one's posting closing changes nothing for the student.
  *
  * An external store (useSyncExternalStore), because the table and the
  * Columns menu in the filter bar both read and write it. The server, and the
@@ -42,7 +44,6 @@ export const COLUMNS = [
   { id: "workModel", label: "Work Model", width: 144 },
   { id: "pay", label: "Pay Range", width: 184 },
   { id: "resume", label: "Resume", width: 200 },
-  { id: "posting", label: "Posting", width: 112 },
 ] as const;
 
 export type ColumnId = (typeof COLUMNS)[number]["id"];

@@ -911,12 +911,24 @@ does, rather than dropping columns as the page narrows. In the order job
 trackers read: what and who (Role, with its company), where it stands (Status, Date
 Applied), how good it is (Match), the job's facts (Job Type, as the Jobs
 page names it, though the code and `?track=` keep the older name Track;
-Location; Work Model; Pay Range), and what was sent and whether it is
-still open (Resume; Posting). Source (the hiring system the posting is on,
+Location; Work Model; Pay Range), and what was sent (Resume). Source (the hiring system the posting is on,
 named from its apply link in `applications/tracked.ts`, "Company Site" for
 any other host) and Notes / Next Step left the table on 2026-11-05 as more
 than a row needs: Source shows on the application's page ("Posted on
 Ashby", under the stage) and stays a filter; Notes stored nothing.
+Posting (Open or Closed) went too, for space and because "Closed" beside
+a job already applied to read as the application being closed.
+
+**A saved job whose posting closed is the only row that says so**
+(`applications/closed-saved.tsx`, 2026-11-05): its logo turns grey and its
+stage menu becomes a muted "Posting closed" and a trash button, in the
+table's Status cell and on its card. The role and company keep their full
+contrast (only the logo greys, WCAG 1.4.3), and the words, not the grey,
+carry the meaning: the button's name is "Remove <role> at <company>,
+posting closed". Remove asks first, since a closed job can't be saved
+again, so there is no Undo. An applied job's row never mentions its posting
+closing: nothing changes for the student, and the application's page says
+it in its status cards.
 **Role is one column holding the company too**: the company's logo, then
 the role (bold, the row's link, cut with the whole title on hover) over the
 company's name in meta grey. KAN-256 split them into two frozen columns,

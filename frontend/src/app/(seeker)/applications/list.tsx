@@ -47,13 +47,13 @@ import { ClickableRow } from "@/components/clickable-row";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import { useShallowPush } from "@/components/shallow-routing";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
 import { cn } from "@/lib/cn";
 
 import { STAGE_ORDER } from "../stage-colors";
 import { StageMenu } from "./[jobId]/tracker-controls";
+import { ClosedSavedControl, isClosedSaved } from "./closed-saved";
 import { LocalDate } from "../local-time";
 import { sortKey, type Application } from "../tracker";
 import { ApplicationTile } from "./application-tile";
@@ -200,7 +200,7 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
   // keyboard reaches.
   role: (app) => (
     <div className="flex min-w-0 items-center gap-3">
-      <ApplicationTile application={app} size="sm" />
+      <ApplicationTile application={app} size="sm" muted={isClosedSaved(app)} />
       <div className="min-w-0">
         <Link
           href={applicationHref(app.id)}
@@ -217,9 +217,12 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
   ),
   // The stage menu, as on a card and the application's page: a stage
   // changes from the row, without opening the application.
-  status: (app) => (
-    <StageMenu jobId={app.id} stage={app.stage} placeholder="Saved" className="w-full" />
-  ),
+  status: (app) =>
+    isClosedSaved(app) ? (
+      <ClosedSavedControl app={app} />
+    ) : (
+      <StageMenu jobId={app.id} stage={app.stage} placeholder="Saved" className="w-full" />
+    ),
   applied: (app) => (
     <FactValue
       Icon={CalendarIcon}
@@ -257,10 +260,6 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
     ) : (
       <FactValue Icon={FileIcon} value={null} missing="Not sent" />
     ),
-  // A pill: positive is the badge's tone for a live posting, inert for one
-  // that is over.
-  posting: (app) =>
-    app.open === false ? <Badge tone="inert">Closed</Badge> : <Badge tone="positive">Open</Badge>,
 };
 
 const helper = createColumnHelper<typeof FEATURES, Application>();

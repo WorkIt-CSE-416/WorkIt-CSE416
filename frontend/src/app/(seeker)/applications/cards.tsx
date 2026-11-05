@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import type { Application } from "../tracker";
 import { StageMenu } from "./[jobId]/tracker-controls";
 import { ApplicationTile } from "./application-tile";
+import { ClosedSavedControl, isClosedSaved } from "./closed-saved";
 import { applicationHref } from "./query";
 import { StageSteps } from "./stage-steps";
 import { ViewResumeButton } from "./view-resume";
@@ -55,6 +56,9 @@ function ApplicationCard({
   delay: number;
 }) {
   const where = [item.location, item.workModel].filter(Boolean).join(" · ");
+  // A saved job whose posting closed: a grey logo and Remove in place of the
+  // stage menu (./closed-saved.tsx). An applied one looks as any other.
+  const closed = isClosedSaved(item);
 
   return (
     <Card
@@ -66,7 +70,7 @@ function ApplicationCard({
     >
       <div className="grid grid-cols-1 gap-4 p-4 @xl:grid-cols-[minmax(0,1fr)_auto] @xl:items-center @6xl:grid-cols-[minmax(0,1fr)_24rem_24rem] @6xl:gap-6">
         <div className="flex min-w-0 items-start gap-3">
-          <ApplicationTile application={item} size="md" />
+          <ApplicationTile application={item} size="md" muted={closed} />
           <div className="min-w-0">
             {/* The match sits right after the role, the first thing read,
                 as how good a fit the job is (2026-11-05); beside the stage
@@ -104,12 +108,16 @@ function ApplicationCard({
         <div className="relative z-10 flex flex-wrap items-center gap-2 @xl:col-start-2 @xl:row-start-1 @xl:justify-end @6xl:col-start-3 @6xl:flex-nowrap">
           {/* On one row a long resume name shortens rather than wrapping the controls. */}
           {item.sentResume && <ViewResumeButton resume={item.sentResume} className="shrink" />}
-          <StageMenu
-            jobId={item.id}
-            stage={item.stage}
-            placeholder="Saved"
-            className="w-40 shrink-0"
-          />
+          {closed ? (
+            <ClosedSavedControl app={item} className="w-40 shrink-0" />
+          ) : (
+            <StageMenu
+              jobId={item.id}
+              stage={item.stage}
+              placeholder="Saved"
+              className="w-40 shrink-0"
+            />
+          )}
         </div>
       </div>
     </Card>
