@@ -18,7 +18,15 @@ from apply.plain import guards
 from apply.plain.bridge import Bridge
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
-from apply.submit_guard import DriveGuard, applied_dismissed, guard, lift, rearm, renote, warn_applied
+from apply.submit_guard import (
+    DriveGuard,
+    applied_dismissed,
+    guard,
+    lift,
+    rearm,
+    renote,
+    warn_applied,
+)
 
 try:
     chrome_for_testing()

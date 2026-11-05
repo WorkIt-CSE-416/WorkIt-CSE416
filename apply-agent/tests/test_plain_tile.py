@@ -38,6 +38,11 @@ PAGES = {
     # A dropzone: its button's script clicks a hidden file input, as react-dropzone does.
     "/dropzone": ("<!doctype html><input id=f type=file hidden multiple><button id=b style='width: 100%; height: 50vh'>Upload</button>"
                   "<script>b.onclick = () => f.click(); f.onchange = () => document.title = [...f.files].map(x => x.name).join(',')</script>"),
+    # Four buttons, one per quarter of the viewport: a click says which one it reached.
+    "/quarters": ("<!doctype html><title>none</title><style>body { margin: 0 } button { position: fixed; width: 50vw; height: 50vh; border: 0 }"
+                  "</style><button id=tl style='left: 0; top: 0'>tl</button><button id=tr style='left: 50vw; top: 0'>tr</button>"
+                  "<button id=bl style='left: 0; top: 50vh'>bl</button><button id=br style='left: 50vw; top: 50vh'>br</button>"
+                  "<script>for (const b of document.querySelectorAll('button')) b.onclick = () => document.title = b.id</script>"),
     "/colour": "<!doctype html><title>Colour</title><body style='margin: 0; background: rgb(220, 30, 30)'><h1 id=h>Step 1</h1>",
     "/tall": ("<!doctype html><div id=box style='height: 200px; overflow: auto'><div style='height: 2000px'>inner</div></div>"
               "<div style='height: 4000px'>page</div>"),
@@ -203,6 +208,55 @@ def test_without_screen_recording_the_tile_falls_back_and_says_where_to_turn_it_
         assert frames.native == {} and frame.startswith(b"\xff\xd8")
         assert jpeg_size(frame)[0] == page.viewport_size["width"]  # the extension's frame, at CSS size
         assert window_capture.SETTINGS in line and line.startswith("Live tile off: turn on ")
+
+
+class Retina:
+    """The ScreenCaptureKit helper, faked: a frame at twice the viewport's CSS size, as a 2x
+    screen films it (2560 x 1626 for 1280 x 813), whatever it is aimed at."""
+
+    frame = b""
+
+    def __init__(self, pid, on_frame, **_):
+        self.status, self.alive, self._on_frame = {}, True, on_frame
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self):
+        while self.alive:
+            self._on_frame(Retina.frame)
+            time.sleep(0.1)
+
+    def aim(self, window, viewport):
+        self.status = {"window": 1, "width": viewport["width"] * 2, "height": viewport["height"] * 2, "scale": 2.0}
+
+    def close(self):
+        self.alive = False
+
+
+@pytest.mark.parametrize("retina", [True, False], ids=["2x-filmed", "extension"])
+def test_a_click_in_the_tile_reaches_the_element_under_it_at_any_frame_scale(page, worker, site, window, monkeypatch, retina):
+    page.goto(f"{site}/quarters")
+    css = page.evaluate("() => [innerWidth, innerHeight]")
+    if retina:
+        Retina.frame = base64.b64decode(window.evaluate("""async ([w, h]) => {
+          const canvas = new OffscreenCanvas(w, h);
+          canvas.getContext('2d').fillRect(0, 0, w, h);
+          const bytes = new Uint8Array(await (await canvas.convertToBlob({type: 'image/jpeg'})).arrayBuffer());
+          return btoa(String.fromCharCode(...bytes));
+        }""", [css[0] * 2, css[1] * 2]))
+        monkeypatch.setattr(window_capture, "allowed", lambda: True)
+        monkeypatch.setattr(window_capture, "WindowStream", Retina)
+    with PortFrames(1, lambda k: worker.connection, capture="native" if retina else "extension") as frames, \
+            Dashboard(1, frames) as board:
+        frame = shown(window, board, frames, page, f"{site}/quarters")
+        size = jpeg_size(frames.frame(0))
+        clicked = []
+        for name, (x, y) in {"br": (0.8, 0.8), "tl": (0.2, 0.3), "bl": (0.3, 0.7), "tr": (0.9, 0.1)}.items():
+            window.mouse.click(frame["x"] + frame["width"] * x, frame["y"] + frame["height"] * y)
+            clicked.append(until(lambda: page.title(), name, 5))
+
+        assert size == ((css[0] * 2, css[1] * 2) if retina else tuple(css))
+        assert frames.native == ({0: True} if retina else {})
+        assert clicked == ["br", "tl", "bl", "tr"]
 
 
 def test_a_click_and_typing_in_a_filmed_tile_land_in_the_page(page, filmed, site, window):

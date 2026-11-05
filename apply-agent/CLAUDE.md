@@ -1044,6 +1044,21 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   turns it on himself. `APPLY_TILE_CAPTURE=extension` forces this path. Tile
   frames and `page.screenshot` share one gate (`ops/shared.js: capture`), so
   neither hits the quota error.
+- **Never blank (KAN-643).** A filmed tile with no frame within 3 s of
+  `tile.start` (`FIRST_FRAME`: an extension too old to send `tile.shown`, or a
+  helper that never aimed, as when ScreenCaptureKit waits on a macOS prompt),
+  or with none for 20 s after a `tile.shown` (`STALLED`), stops being filmed:
+  `tile.start` again with `native: false`, and the extension's frames show.
+  Apply prints one line saying why. Clicks map by the frame's own size
+  (`page/tile.js` scales by `width` x `height`), so a 2x filmed frame and a 1x
+  extension frame both land on the element under the pointer.
+- **Out-of-date extensions (KAN-643).** The hello's `features` says what the
+  loaded extension's code can do (`bridge.FEATURES`, 2). An older one with
+  `extension.reload`, in a profile with Developer mode on, is reloaded in place
+  before its welcome (`chrome.runtime.reload()`: tabs, pages and sign-ins stay).
+  Still older, it is welcomed as `stale`: Apply prints one line and the tile says
+  "Worker extension is out of date: quit Apply and start it again". The run goes
+  on. Never reload from chrome://extensions or raise a Worker's window.
 - **Covered windows still stream** because of
   `--disable-backgrounding-occluded-windows`. A minimized window doesn't:
   never minimize a plain Worker.
