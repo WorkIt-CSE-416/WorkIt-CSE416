@@ -241,6 +241,9 @@ class PlainDriveGuard(DriveGuard):
         self._flags(__applyDriveLifted=False, __applyAccountClick=False, __applyProfileClick=False)
         self._set_driving(True)
 
+    def asking(self, on: bool, may_tick: bool = False) -> None:
+        """Nothing on the page: every press here comes through plain.tools, which judges it on the real element."""
+
     def _set_driving(self, driving: bool) -> None:
         """Only keeps the state. A captcha's frame refuses trusted presses alone, and every press on a plain
         Worker is synthetic: there the plain tools refuse each action on a captcha (KAN-617)."""
