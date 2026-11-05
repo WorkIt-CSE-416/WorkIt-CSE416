@@ -188,3 +188,36 @@ def test_resume_kills_a_claude_call_apply_waits_on():
     assert time.monotonic() - started < 5
     with stuck.watching(Pressed(), 0):  # outside a step that goes on from the page, nothing stops it
         assert run_claude(["/bin/sh", "-c", "echo done"], "", dict(os.environ)) == "done\n"
+
+
+def test_a_stalled_fill_notes_what_it_was_doing_and_where_its_thread_was_in_its_trace(tmp_path, monkeypatch):
+    # Applied Materials (2026-11-04): "No progress for 420 s" on Application Questions, and nothing in the trace.
+    from apply import trace
+    monkeypatch.setattr(stuck, "STUCK_AFTER", 0.2)
+    monkeypatch.setattr(stuck, "LOOK_S", 0.05)
+
+    def hangs_here() -> None:
+        time.sleep(0.6)
+
+    with trace.tracing("request-1", "https://x.wd1.myworkdayjobs.com/job/1", folder=tmp_path) as path:
+        with stuck.watching(RecordingBoard(), 0):
+            stuck.doing("Filling 'Application Questions'")
+            hangs_here()
+    events = [json.loads(line) for line in path.read_text().splitlines()]
+
+    [doing] = [e for e in events if e["kind"] == "doing"]
+    [stalled] = [e for e in events if e["kind"] == "stuck"]  # once per stall, not on every look
+    assert doing["what"] == stalled["doing"] == "Filling 'Application Questions'"
+    assert "hangs_here" in stalled["stack"]
+
+
+def test_a_wait_on_claude_is_no_stall(tmp_path, monkeypatch):
+    from apply import trace
+    monkeypatch.setattr(stuck, "STUCK_AFTER", 0.1)
+    monkeypatch.setattr(stuck, "LOOK_S", 0.05)
+
+    with trace.tracing("request-2", "https://x.example/1", folder=tmp_path) as path:
+        with stuck.watching(RecordingBoard(), 0), stuck.stoppable(), stuck.waiting():
+            time.sleep(0.4)
+
+    assert '"kind": "stuck"' not in path.read_text()
