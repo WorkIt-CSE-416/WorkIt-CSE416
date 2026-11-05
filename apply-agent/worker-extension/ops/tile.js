@@ -9,7 +9,7 @@
 import { capture, inPage, named, sleep } from "./shared.js";
 import { touch } from "./guard.js";
 
-const SHOWN = { interval: 500, quality: 70, maxWidth: 1280, maxHeight: 900 };
+const SHOWN = { interval: 500, quality: 88, maxWidth: 1280, maxHeight: 900 };
 let stream = null; // {settings, generation}
 let generation = 0;
 let shownWindow = null; // the window whose active tab the tile shows: the one last switched to
