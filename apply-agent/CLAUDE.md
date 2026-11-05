@@ -83,6 +83,15 @@ its boxes stay unticked, a blank on purpose in the plan.
 `AnswerBank.answer(question, [])` saves one; an answer with options in it
 drops `none`. An empty answer without `none` is still no answer.
 
+Apply adds the Tracker to the facts that it gives the engine's plan
+(`fill_engine._facts`). Each company with a submitted Application, except
+the Posting being filled, joins `screeners.previously_applied_to` when the
+profile keeps that list. A company where Lisul's Outcome is an interview
+or an offer goes in `screeners.previously_interviewed_at`. So "Have you
+previously interviewed at <company>?" is No when no record shows an
+interview there. If he applied there but no interview is recorded, he
+answers it himself.
+
 A bare date (From, To, Start date, End date: a label that does not say
 what the date is for) is answered for its section (KAN-595). The engine
 finds the section from the field's panel, its help text, the heading or
