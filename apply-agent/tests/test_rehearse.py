@@ -478,6 +478,22 @@ def test_the_reviews_fix_for_a_legal_answer_is_filled_over_the_profiles(monkeypa
     shown = {a["question"].strip(): a["on_page"] for a in json.loads((Path(done.record) / "answers.json").read_text())}
     assert shown[AUTHORIZED] == "Yes" and shown["First Name"] != "Someone"
     assert sum("problems" in call["schema"]["properties"] for call in claude.calls) == 2  # reviewed again after the fix
+    assert done.legal == ()
+    assert fake.submissions == []
+
+
+def test_a_legal_problem_the_review_gives_no_fix_for_holds_submit_until_lisul_dismisses_it(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    problem = 'The U.S. Person status question is answered "No", but the profile says he is a U.S. citizen'
+    claude = FakeClaude(reviews=[[problem, "Why Arc?: names no product"]])
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path), claude)
+
+    assert done.legal == (("", problem),)  # the essay's problem is a banner, not a hold
+    assert done.holding() == problem
+    done.dismiss_holds()  # the held note's Dismiss
+    assert done.holding() == ""
     assert fake.submissions == []
 
 
