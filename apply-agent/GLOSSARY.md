@@ -117,7 +117,7 @@ An Application the system cannot finish alone, for example a site that blocks th
 _Avoid_: manual, fallback, failed
 
 **Captcha wait**:
-The time that Apply keeps a form open for Lisul to do its captcha. Apply never solves a captcha. It pushes "Do the captcha on <company>" to his phone and shows the captcha in the Apply window. When the challenge goes away, or he presses Resume, the fill continues on the same page. After `captcha_wait_minutes` (15), the Application is a Handoff. In a Rehearsal, a captcha after Lisul's own Submit gets only the push: he does it himself. A Bot block has no challenge, so it gets no Captcha wait.
+The time that Apply keeps a form open for Lisul to do its captcha. Apply never solves or touches a captcha. This includes an "I'm not a robot" box: Claude and its tools cannot click in a captcha's frame. A challenge on the page starts the wait at once. A box that nobody ticked starts it when the form is filled. It pushes "Do the captcha on <company>" to his phone and shows the captcha in the Apply window. When the challenge goes away, or he presses Resume, the fill continues on the same page. After `captcha_wait_minutes` (15), the Application is a Handoff. In a Rehearsal, a captcha after Lisul's own Submit gets only the push: he does it himself. A Bot block has no challenge, so it gets no Captcha wait.
 _Avoid_: captcha solve, captcha bypass
 
 **Bot block**:

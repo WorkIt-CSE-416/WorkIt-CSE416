@@ -26,6 +26,61 @@ window.grecaptcha = {
 (function ready() { if (window[%(onload)s]) window[%(onload)s](); else setTimeout(ready, 10); })();
 """
 
+# A fake of reCAPTCHA v2's real checkbox (Lunar Outpost's form, 2026-11-04), for FakeBambooServer(recaptcha=True):
+# its "I'm not a robot" box in its own frame on google.com, and its token in a hidden field beside it. Ticking the
+# box opens its picture challenge in a second frame, over a backdrop that covers the whole page, as Google's
+# does; the challenge's Verify closes it and gives the form the token.
+RECAPTCHA_CHECKBOX = """
+window.grecaptcha = {
+  render: function (el, opts) {
+    const frame = document.createElement('iframe');
+    frame.src = 'https://www.google.com/recaptcha/api2/anchor?k=fake&size=normal';
+    frame.title = 'reCAPTCHA';
+    frame.style.cssText = 'width:304px;height:78px;border:0';
+    const answer = document.createElement('textarea');
+    answer.name = 'g-recaptcha-response';
+    answer.style.display = 'none';
+    el.append(frame, answer);
+    addEventListener('message', function (event) {
+      if (event.data === 'recaptcha-ticked') {
+        const challenge = document.createElement('div');
+        challenge.id = 'fake-recaptcha-challenge';
+        challenge.innerHTML = '<div style="position:fixed;top:0;left:0;width:100%%;height:100%%;z-index:2000000000;'
+          + 'background:#fff;opacity:0.05"></div><iframe title="recaptcha challenge expires in two minutes" '
+          + 'src="https://www.google.com/recaptcha/api2/bframe?k=fake" style="position:absolute;top:10px;left:10px;'
+          + 'width:400px;height:580px;z-index:2000000001;border:0;background:#fff"></iframe>';
+        document.body.appendChild(challenge);
+      }
+      if (event.data === 'recaptcha-solved') {
+        document.getElementById('fake-recaptcha-challenge').remove();
+        answer.value = 'fake-recaptcha-token';
+        opts.callback('fake-recaptcha-token');
+      }
+    });
+    return 0;
+  },
+  reset: function () {},
+  getResponse: function () { return document.querySelector('[name=g-recaptcha-response]').value; },
+};
+(function ready() { if (window[%(onload)s]) window[%(onload)s](); else setTimeout(ready, 10); })();
+"""
+ANCHOR_PAGE = """<!doctype html><html><body>
+<div id="recaptcha-anchor" role="checkbox" aria-checked="false" tabindex="0" style="padding:20px;border:1px solid #ccc">
+I'm not a robot</div>
+<script>
+const box = document.getElementById('recaptcha-anchor');
+box.addEventListener('click', () => {
+  if (box.getAttribute('aria-checked') === 'true') return;
+  box.setAttribute('aria-checked', 'true');
+  parent.postMessage('recaptcha-ticked', '*');
+});
+</script></body></html>"""
+# The picture challenge: Lisul picks the pictures, then Verify.
+BFRAME_PAGE = """<!doctype html><html><body>
+<p>Select all images with traffic lights</p>
+<button id="recaptcha-verify-button" onclick="parent.postMessage('recaptcha-solved', '*')">Verify</button>
+</body></html>"""
+
 # The page uploads the résumé to its own /ajax/files/attachTemporary.php as soon
 # as it is chosen. Playwright can't see file bytes in an intercepted multipart
 # request, so the fake's store is a real server on 127.0.0.1 and the page is
@@ -37,6 +92,17 @@ XMLHttpRequest.prototype.open = function (method, url, ...rest) {
   return open.call(this, method, url === %s ? %s : url, ...rest);
 };
 """
+# The fake reCAPTCHA's frames, and a real click on its box, as Playwright MCP or Lisul makes one.
+ANCHOR = "iframe[src*='recaptcha/api2/anchor']"
+BFRAME = "iframe[src*='recaptcha/api2/bframe']"
+
+
+def tick_the_box(page) -> None:
+    page.frame_locator(ANCHOR).locator("#recaptcha-anchor").click(timeout=3_000)
+
+
+def ticked(page) -> bool:
+    return page.frame_locator(ANCHOR).locator("#recaptcha-anchor").get_attribute("aria-checked") == "true"
 
 
 class _Store(http.server.ThreadingHTTPServer):
@@ -73,7 +139,11 @@ class FakeBambooServer:
     """Serves saved BambooHR careers pages (each folder holds a page.har from
     tests/save_page.py). Every request it has no answer for is refused."""
 
-    def __init__(self, *forms: Path):
+    def __init__(self, *forms: Path, recaptcha: bool = False):
+        """`recaptcha`: the form shows reCAPTCHA's real checkbox (RECAPTCHA_CHECKBOX),
+        not one ticked at once; `challenges` counts each picture challenge it opened."""
+        self._recaptcha = recaptcha
+        self.challenges = 0
         self._responses: dict[str, tuple[int, str, bytes]] = {}
         for form in forms:
             self._responses.update(_load_responses(form))
@@ -119,7 +189,13 @@ class FakeBambooServer:
             return route.continue_()
         if url.startswith("https://www.google.com/recaptcha/api.js"):
             onload = parse_qs(urlsplit(url).query)["onload"][0]
-            return route.fulfill(content_type="text/javascript", body=RECAPTCHA_STUB % {"onload": json.dumps(onload)})
+            stub = RECAPTCHA_CHECKBOX if self._recaptcha else RECAPTCHA_STUB
+            return route.fulfill(content_type="text/javascript", body=stub % {"onload": json.dumps(onload)})
+        if url.startswith("https://www.google.com/recaptcha/api2/anchor"):
+            return route.fulfill(content_type="text/html", body=ANCHOR_PAGE)
+        if url.startswith("https://www.google.com/recaptcha/api2/bframe"):
+            self.challenges += 1
+            return route.fulfill(content_type="text/html", body=BFRAME_PAGE)
         if request.method == "GET" and url in self._responses:
             status, mime, body = self._responses[url]
             return route.fulfill(status=status, content_type=mime, body=body)

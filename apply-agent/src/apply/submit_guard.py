@@ -49,7 +49,10 @@ drives, in a live run too, so Haiku can't send the form though its prompt
 fails: it also blocks a sign-in other than Google's (another site's, and a
 sign-in or create-account form's own button or submission), a payment,
 withdrawing or deleting the application, account or profile (a file's
-Delete goes on), and ticking an opt-in to texts or marketing. Unlike the
+Delete goes on), ticking an opt-in to texts or marketing, and, while Claude
+drives, every click, tap or key in a captcha's own frame (an "I'm not a
+robot" box, its picture challenge): Apply never touches a captcha, and
+Lisul's own clicks there go through once Claude stops. Unlike the
 rehearsal's, it is lifted for Claude fill's own submit click, and says what
 it blocked, so Claude fill makes a blocked attempt a Handoff (but for a
 click on the submit button Claude names on the form's last step: nothing
@@ -91,7 +94,10 @@ _TEMPLATE = r"""
   if (window.__@KEY@Guard) return;
   // A captcha's own frame is Lisul's to do (apply.captcha): nothing in it is the application.
   const host = location.hostname, path = location.pathname;
-  if (@CAPTCHA_HOSTS@.some((h) => host === h || host.endsWith('.' + h)) || @CAPTCHA_PATHS@.some((p) => path.startsWith(p))) return;
+  if (@CAPTCHA_HOSTS@.some((h) => host === h || host.endsWith('.' + h)) || @CAPTCHA_PATHS@.some((p) => path.startsWith(p))) {
+@CAPTCHA@
+    return;
+  }
   window.__@KEY@Guard = true;
   const lifted = () => @LIFTED@;
   // Plain code's click on the button Claude fill named on a sign-in or account page.
@@ -290,14 +296,35 @@ _CONTROLS = r"""
 """
 
 
-def _script(key: str, name: str, lifted: str = "false", extra: str = "") -> str:
+# The drive guard in a captcha's own frame: while Claude drives (DriveGuard.arm), every click, tap and key
+# there is refused before the captcha's own code hears it, so Claude never ticks, types in or solves one.
+# Lisul's own clicks go through once Claude stops (DriveGuard.rest), for the captcha wait.
+CAPTCHA_TRY = "a click or key in a captcha"
+_IN_CAPTCHA = r"""
+    if (window.__applyDriveCaptchaGuard) return;
+    window.__applyDriveCaptchaGuard = true;
+    const refuse = (event) => {
+      if (window.__applyDriveLifted === true || window.__applyDriving !== true || !event.isTrusted) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.type === 'pointerdown' || event.type === 'keydown') console.warn('Apply drive guard blocked @TRY@');
+    };
+    for (const kind of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'auxclick',
+                        'touchstart', 'touchend', 'keydown', 'keypress', 'keyup', 'beforeinput', 'input', 'paste']) {
+      addEventListener(kind, refuse, true);
+    }
+"""
+
+
+def _script(key: str, name: str, lifted: str = "false", extra: str = "", in_captcha: str = "") -> str:
     """The guard's script under its own `window.__<key>Guard`, so two guards
     can share a page, naming itself `name` in the note on what it blocked:
-    off while the JS `lifted` is true, and blocking `extra`'s controls too."""
+    off while the JS `lifted` is true, and blocking `extra`'s controls too;
+    `in_captcha` runs in a captcha's own frame, which the guard leaves alone."""
     box = name.lower().replace(" ", "-") + "-blocked"
     script = _TEMPLATE
     for placeholder, value in {"@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@EXTRA@": extra,
-                               "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
+                               "@CAPTCHA@": in_captcha, "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
                                "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS)}.items():
         script = script.replace(placeholder, value)
     return script
@@ -323,7 +350,8 @@ def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False) -> st
     """The drive guard's script, letting through ticking an opt-in to texts or
     marketing that Lisul's policy says yes to."""
     controls = _CONTROLS.replace("@SMS_OPT_IN@", _js(sms_opt_in)).replace("@MARKETING_OPT_IN@", _js(marketing_opt_in))
-    return _script("applyDrive", "Apply drive guard", lifted="window.__applyDriveLifted === true", extra=controls)
+    return _script("applyDrive", "Apply drive guard", lifted="window.__applyDriveLifted === true", extra=controls,
+                   in_captcha=_IN_CAPTCHA.replace("@TRY@", CAPTCHA_TRY))
 
 
 def _js(yes: bool) -> str:
@@ -481,6 +509,7 @@ class DriveGuard:
     def __init__(self, page: Page, sms_opt_in: bool = False, marketing_opt_in: bool = False):
         self._page = page
         self._blocked: list[str] = []
+        self._driving = False
         script = drive_script(sms_opt_in, marketing_opt_in)
         page.context.on("console", self._heard)
         page.context.add_init_script(script)
@@ -501,6 +530,12 @@ class DriveGuard:
 
     def lift(self) -> None:
         self._in_frames("window.__applyDriveLifted = true")
+        self.rest()
+
+    def rest(self) -> None:
+        """Claude stopped driving: a captcha's frame takes Lisul's clicks
+        again, for the captcha wait. The rest of the guard stays on."""
+        self._set_driving(False)
 
     def let_account_click(self) -> None:
         """Let plain code's next click sign in or make an account: its button,
@@ -510,6 +545,21 @@ class DriveGuard:
 
     def arm(self) -> None:
         self._in_frames("window.__applyDriveLifted = false; window.__applyAccountClick = false")
+        self._set_driving(True)
+
+    def _set_driving(self, driving: bool) -> None:
+        """Claude drives now, or not: so a captcha's frame refuses every click
+        and key, or lets them through. A frame loaded later (a challenge
+        opening) starts the same way, by the init script."""
+        if driving == self._driving:
+            return
+        self._driving = driving
+        script = f"window.__applyDriving = {_js(driving)}"
+        try:
+            self._page.context.add_init_script(script)
+        except Exception:
+            pass  # a context closing: nothing more loads in it
+        self._in_frames(script)
 
     def _heard(self, message) -> None:
         for said in HEARD:
