@@ -1,9 +1,12 @@
 """The live tile and Fix from the window on plain Workers (S3, KAN-609).
 
 PortFrames is the Apply window's frame source (dashboard.Frames) for plain Workers, as
-CdpFrames is for CDP ones: each Worker's extension streams its shown tab as `tile.frame`
-events (captureVisibleTab, about 2 frames a second, only when the picture changed), and a
-tile's clicks, keys, wheel, pastes, <select> picks and files go back as `tile.input`, replayed
+CdpFrames is for CDP ones. With Screen Recording permission, Apply films each Worker's own
+window with ScreenCaptureKit (apply.plain.window_capture, KAN-635): 30 frames a second at the
+screen's pixel scale, the extension only saying which window and tab are shown (`tile.shown`).
+Without it, each Worker's extension streams its shown tab as `tile.frame` events
+(captureVisibleTab, about 2 frames a second, only when the picture changed), and the tile says
+how to turn the permission on (`notice`). A tile's clicks, keys, wheel, pastes, <select> picks and files go back as `tile.input`, replayed
 in the page as synthetic DOM events. No CDP anywhere.
 
 Mouse is PortPage.mouse, and expect_file_chooser is PortPage.expect_file_chooser: a click
@@ -21,6 +24,7 @@ from typing import Self
 
 from apply import stuck
 from apply.dashboard import ERRORS_EVERY, jpeg_size
+from apply.plain import window_capture
 from apply.plain.bridge import Connection, PortError, PortTimeoutError
 from apply.plain.page import POLL, PortPage, file_payloads
 
@@ -33,9 +37,16 @@ class PortFrames:
     `connection(k)` is Worker k's bridge Connection, None while it has none (launcher:
     `lambda k: workers.bridge.connection(k)`). Implements dashboard.Frames."""
 
-    def __init__(self, workers: int, connection: Callable[[int], Connection | None], **settings):
+    def __init__(self, workers: int, connection: Callable[[int], Connection | None], capture: str | None = None,
+                 **settings):
+        """`capture`: "native" (ScreenCaptureKit when allowed, else the extension's frames) or
+        "extension" (default: window_capture.mode(), $APPLY_TILE_CAPTURE)."""
         self._workers = workers
         self._connection = connection
+        self._capture = capture or window_capture.mode()
+        self._allowed: bool | None = None  # Screen Recording permission, looked at once
+        self._streams: dict[int, window_capture.WindowStream] = {}  # worker -> its window, filmed
+        self._notes: dict[int, str] = {}  # worker -> the tile's line about its capture
         self._settings = settings  # tile.start's: interval ms, quality, maxWidth, maxHeight
         self._frames: dict[int, tuple[bytes, int]] = {}  # worker -> (latest frame, its number)
         self._tabs: dict[int, int] = {}  # worker -> the tab its latest frame shows
@@ -59,6 +70,17 @@ class PortFrames:
                 connection.call("tile.stop", timeout=2)
             except PortError:
                 pass
+        for stream in list(self._streams.values()):
+            stream.close()
+
+    @property
+    def native(self) -> dict[int, bool]:
+        """Which Workers' tiles are filmed by ScreenCaptureKit right now."""
+        return {worker: stream.alive for worker, stream in self._streams.items()}
+
+    def notice(self, worker: int) -> str:
+        """The tile's one line about how it is filmed: how to turn on Screen Recording, or ""."""
+        return self._notes.get(worker, "")
 
     # --- dashboard.Frames
 
@@ -107,14 +129,44 @@ class PortFrames:
                             files=file_payloads([Path(p) for p in paths]))
 
     def _keep(self, worker: int, message: dict) -> None:
-        frame = base64.b64decode(message.get("data") or "")
+        if worker not in self._streams:  # a filmed tile's frames come from its window, not the extension
+            self._store(worker, base64.b64decode(message.get("data") or ""), message.get("tab"))
+
+    def _store(self, worker: int, frame: bytes, tab: int | None = None) -> None:
         if not frame.startswith(b"\xff\xd8"):
             return
         with self._changed:
             self._frames[worker] = (frame, self._frames.get(worker, (None, 0))[1] + 1)
-            if message.get("tab") is not None:
-                self._tabs[worker] = message["tab"]
+            if tab is not None:
+                self._tabs[worker] = tab
             self._changed.notify_all()
+
+    def _aim(self, worker: int, message: dict) -> None:
+        """The extension's `tile.shown`: film that window, cropped to that tab's viewport."""
+        self._tabs[worker] = message.get("tab", self._tabs.get(worker))
+        stream, window = self._streams.get(worker), message.get("window") or {}
+        if stream and window.get("state") != "minimized" and message.get("viewport", {}).get("width"):
+            stream.aim(window, message["viewport"])
+
+    def _film(self, worker: int, connection: Connection) -> bool:
+        """Start filming Worker `worker`'s window natively; False when it can't be (then the extension's frames)."""
+        if self._capture != "native":
+            return False
+        if self._allowed is None:
+            self._allowed = window_capture.allowed()
+        if not self._allowed:
+            self._notes[worker] = window_capture.permission_note()
+            return False
+        pid = window_capture.chrome_of(connection.relay.get("host_pid"))
+        if pid is None:
+            return False
+        self._streams[worker] = window_capture.WindowStream(pid, lambda frame, worker=worker: self._store(worker, frame))
+        self._notes.pop(worker, None)
+        return True
+
+    def _unfilm(self, worker: int) -> None:
+        if stream := self._streams.pop(worker, None):
+            stream.close()
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -132,14 +184,19 @@ class PortFrames:
         if connection is not None and connection.closed.is_set():
             connection = None
         if connection is self._watched.get(worker):
+            if connection is not None and (stream := self._streams.get(worker)) and not stream.alive:
+                self._unfilm(worker)  # the helper ended: the extension's frames from now on
+                connection.call("tile.start", timeout=5, **{**self._settings, "native": False})
             return
+        self._unfilm(worker)
         self._watched.pop(worker, None)
         self._choosers.pop(worker, None)
         self._pages = {key: page for key, page in self._pages.items() if key[0] != worker}
         if connection is None:
             return
         connection.on("tile.frame", lambda message, worker=worker: self._keep(worker, message))
-        connection.call("tile.start", timeout=5, **self._settings)
+        connection.on("tile.shown", lambda message, worker=worker: self._aim(worker, message))
+        connection.call("tile.start", timeout=5, **{**self._settings, "native": self._film(worker, connection)})
         self._watched[worker] = connection
 
     def _read_errors(self, worker: int) -> None:
@@ -190,6 +247,9 @@ class EitherFrames:
 
     def field_error(self, worker: int) -> str:
         return self._of(worker).field_error(worker)
+
+    def notice(self, worker: int) -> str:
+        return self._port.notice(worker) if self._plain(worker) else ""
 
 
 class Mouse:

@@ -11,7 +11,7 @@ Worker simply has none (no CDP, no automation flags, no headless).
 ```
 Apply process                                   Worker k (plain Chrome)
   apply.plain.bridge.Bridge  <── Unix socket ──  host relay  <── native messaging ──  worker extension
-  (listens on APPLY_HOME/workers.sock, 0600)     (apply/plain/host.py,                (apply-agent/worker-extension/,
+  (listens on APPLY_PROFILES/workers.sock, 0600) (apply/plain/host.py,                (apply-agent/worker-extension/,
   apply.plain.page.PortPage                       Chrome starts it)                     background.js + ops/*.js)
   apply.plain.launcher.PlainWorkers
 ```
@@ -33,8 +33,11 @@ Apply process                                   Worker k (plain Chrome)
   own `NativeMessagingHosts/` folder (never Lisul's Chrome folder) and names only the
   worker extension's origin. Its `path` is a per-profile wrapper that runs
   `python3 -I apply/plain/host.py --socket <sock> --worker <k>`. The host is stdlib only.
-- **Socket:** `APPLY_HOME/workers.sock`, mode 0600, in a folder only Lisul can read.
-  macOS caps a socket path at 104 bytes; when the data folder's path is too long
+- **Socket:** `workers.sock` in the Worker profiles folder (`APPLY_PROFILES`, default
+  `APPLY_HOME/profiles`), mode 0600, in a folder only Lisul can read. One Apply process
+  drives one profiles folder's Workers; a rehearsal held for Lisul keeps its process up, so
+  another rehearsal runs with its own `APPLY_PROFILES` (KAN-634).
+  macOS caps a socket path at 104 bytes; when the profiles folder's path is too long
   (test temp folders), the socket goes to `/tmp/apply-<uid>/<hash>.sock` (folder 0700).
   `Bridge.path` says which.
 
@@ -149,7 +152,7 @@ In `worker-extension/ops/tile.js` and `page/tile.js`; Apply's side is `apply.pla
 
 | Op | Params | Value |
 |---|---|---|
-| `tile.start` | `interval?` ms (500), `quality?` (70), `maxWidth?` (1280), `maxHeight?` (800) | `null`; from now on the Worker sends `tile.frame` events of its shown tab (the active tab of the window last switched to), at most one per `interval`, only when the picture changed. Calling it again restarts it with the new settings. |
+| `tile.start` | `interval?` ms (500), `quality?` (88), `maxWidth?` (1280), `maxHeight?` (900), `native?` (false) | `null`; from now on the Worker sends `tile.frame` events of its shown tab (the active tab of the window last switched to), at most one per `interval`, only when the picture changed. With `native`, Apply films the window itself, and the Worker sends only `tile.shown` events, each time the shown window or tab changes. Calling it again restarts it with the new settings. |
 | `tile.stop` | | `null` |
 | `tile.input` | `tab?` (default: the shown tab), `event`, `width?`, `height?` | replays one tile event (below) as synthetic DOM events; `null`, `{"menu": {options: [{label, disabled}], selected}}` (a press on a `<select>`), `{"chooser": "selectSingle"\|"selectMultiple", tab, frame}` (a click asked for a file), or `{"text"}` (a copy) |
 | `chooser.watch` | `tab` | `null`; clears any file request and hooks every frame of the tab (below) |
@@ -181,6 +184,8 @@ Events (S2 sends these; later slices add their own):
 `{"event": "navigated", "tab", "frame", "url"}` (committed).
 S3: `{"event": "tile.frame", "tab", "url", "data": base64 JPEG, "width", "height"}`, the tab's
 viewport at its CSS size (a Retina capture is scaled down), fitted within `maxWidth` x `maxHeight`.
+KAN-635: `{"event": "tile.shown", "tab", "url", "window": {left, top, width, height, state}, "viewport": {width, height}}`
+(points), with `native`: the window `apply.plain.window_capture` films, and the part of it to crop to.
 
 ## Ops (S4: the submit and drive guards)
 
@@ -395,7 +400,8 @@ the binary, which macOS brings to the front. Its PID is then read from the profi
 `SingletonLock` (`PlainWorker.process` is a `launcher.Chrome`, stopped by that PID). `open -g` alone is not enough: Chrome activates itself as it shows its first
 window, so it starts with `--no-startup-window` and, after the hello, the extension's
 `windows.create` op opens the Worker's window with `focused: false`. Windows are
-900 x 640 at the top-left corner, staggered 20 px a Worker, wholly on-screen. Nothing may bring a
+1280 x 900 at the top-left corner (KAN-635), shrunk to the main screen's visible area
+(`system.display` work area, `ops/core.js: onScreen`), staggered 20 px a Worker, wholly on-screen. Nothing may bring a
 Worker forward except Lisul's own Show (`PlainWorkers.show`): no `chrome.windows.update({focused:
 true})`, no AppleScript focus, no full-screen. Tests use one Worker, shared by the module, and stop it
 when they end.
@@ -442,7 +448,9 @@ stays. `close()` stops every Chrome it started, by PID, when the run or rehearsa
 Worker's connection as it appears (again after a reconnect), keeps the newest `tile.frame` per Worker,
 replays the window's input with `tile.input` (the window sends events one at a time, in order),
 answers a file the tile picked with `chooser.set`, and reads the field error (`apply.stuck`) every 2 s
-over `eval`. Every capture, the tile's and `tabs.screenshot`'s, goes through one gate in the
+over `eval`. With Screen Recording permission (KAN-635) it films each Worker's window instead
+(`apply.plain.window_capture`: ScreenCaptureKit, by the window's ID, 30 fps at the screen's pixel scale), and
+the extension sends only `tile.shown`. Without it, every capture, the tile's and `tabs.screenshot`'s, goes through one gate in the
 extension (`shared.capture`), spaced 520 ms apart: Chrome allows about two a second per browser, so a
 screenshot waits at most one tile frame. With `--disable-backgrounding-occluded-windows` a Worker
 covered by other windows still sends fresh frames (`test_plain_tile`). A minimized window's capture

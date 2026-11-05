@@ -14,7 +14,7 @@ import pytest
 from playwright.sync_api import sync_playwright
 
 from apply.dashboard import Dashboard, jpeg_size
-from apply.plain import demo
+from apply.plain import demo, window_capture
 from apply.plain.bridge import Bridge, PortTimeoutError
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
@@ -43,7 +43,13 @@ PAGES = {
               "<div style='height: 4000px'>page</div>"),
     "/framed": "<!doctype html><h1 style='height: 100px; margin: 0'>Outer</h1><iframe id=i style='width: 600px; height: 300px; border: 0'></iframe>",
     "/inner": "<!doctype html><input id=x style='width: 400px; height: 100px; font-size: 30px'>",
+    # A page that changes every frame, to count the tile's frames a second.
+    "/ticking": ("<!doctype html><h1 id=n style='font-size: 80px'>0</h1>"
+                 "<script>let n = 0; const h = document.getElementById('n');"
+                 "(function tick() { h.textContent = ++n; requestAnimationFrame(tick) })()</script>"),
 }
+
+FILMED = window_capture.mode() == "native" and window_capture.allowed()
 
 
 def serve():
@@ -91,7 +97,17 @@ def page(worker) -> PortPage:
 
 @pytest.fixture
 def frames(worker):
-    with PortFrames(1, lambda k: worker.connection) as frames:
+    """The tile from the extension's frames (captureVisibleTab), as without Screen Recording."""
+    with PortFrames(1, lambda k: worker.connection, capture="extension") as frames:
+        yield frames
+
+
+@pytest.fixture
+def filmed(worker):
+    """The tile filmed by ScreenCaptureKit (KAN-635): needs Screen Recording for the app pytest runs in."""
+    if not FILMED:
+        pytest.skip(f"no Screen Recording permission ({window_capture.SETTINGS})")
+    with PortFrames(1, lambda k: worker.connection, capture="native") as frames:
         yield frames
 
 
@@ -151,10 +167,52 @@ def test_a_covered_workers_tile_gets_live_frames_of_its_page(page, frames, site,
     assert behind == [False, "visible"]  # not the front window, still painting
     assert first.startswith(b"\xff\xd8") and moved > seen and later != first
     width, height = jpeg_size(later)
-    assert width <= 1280 and height <= 800 and abs(width - page.viewport_size["width"]) <= 1  # CSS size, not Retina
+    assert width <= 1280 and height <= 900 and abs(width - page.viewport_size["width"]) <= 1  # CSS size, not Retina
     assert still == moved
     red, blue = pixel(window, first, width // 2, height - 5), pixel(window, later, width // 2, height - 5)
     assert red[0] > 150 and red[2] < 100 and blue[2] > 150 and blue[0] < 100  # the new blue, not a stale red
+
+
+def frames_a_second(frames, seconds: float = 3.0) -> float:
+    start = frames.wait(0, 0, 0)[1]
+    began = time.monotonic()
+    while time.monotonic() - began < seconds:
+        frames.wait(0, frames.wait(0, 0, 0)[1], 1)
+    return (frames.wait(0, 0, 0)[1] - start) / (time.monotonic() - began)
+
+
+def test_a_filmed_tile_is_live_at_the_screens_full_scale(page, filmed, site, worker):
+    page.goto(f"{site}/ticking")
+    filmed.wait(0, 0, 15)
+    rate = frames_a_second(filmed)
+    width, height = jpeg_size(filmed.frame(0))
+    viewport = page.viewport_size
+
+    assert filmed.native == {0: True} and filmed.notice(0) == ""
+    assert rate >= 25, f"{rate:.1f} frames a second"
+    assert width >= viewport["width"] * 2 - 2 and abs(width / height - viewport["width"] / viewport["height"]) < 0.02  # Retina, only the page
+
+
+def test_without_screen_recording_the_tile_falls_back_and_says_where_to_turn_it_on(page, worker, site, monkeypatch):
+    monkeypatch.setattr(window_capture, "allowed", lambda: False)
+    with PortFrames(1, lambda k: worker.connection, capture="native") as frames, Dashboard(1, frames) as board:
+        page.goto(f"{site}/colour")
+        frame = frames.wait(0, 0, 15)[0]
+        line = until(lambda: board.state()["tiles"][0].get("capture", ""), frames.notice(0), 5)
+
+        assert frames.native == {} and frame.startswith(b"\xff\xd8")
+        assert jpeg_size(frame)[0] == page.viewport_size["width"]  # the extension's frame, at CSS size
+        assert window_capture.SETTINGS in line and line.startswith("Live tile off: turn on ")
+
+
+def test_a_click_and_typing_in_a_filmed_tile_land_in_the_page(page, filmed, site, window):
+    with Dashboard(1, filmed) as board:
+        frame = shown(window, board, filmed, page, f"{site}/fields")
+        window.mouse.click(frame["x"] + frame["width"] / 2, frame["y"] + frame["height"] * 0.7)  # field b
+        window.keyboard.type("Typed in the tile")
+
+        assert until(lambda: page.input_value("#b"), "Typed in the tile") == "Typed in the tile"
+        assert page.input_value("#a") == ""
 
 
 def test_a_click_and_typing_from_the_tile_land_in_the_page(page, frames, site, window):

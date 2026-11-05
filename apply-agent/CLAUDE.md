@@ -1001,12 +1001,28 @@ Plain Workers (KAN-606, `apply/plain/`, protocol in
 them. `apply.plain.tile.PortFrames` is their frame source for the same
 `Dashboard`: `Dashboard(n, PortFrames(n, workers.bridge.connection))`.
 
-- **Frames.** The worker extension captures the shown tab with
-  `captureVisibleTab`, at most every 500 ms (Chrome's quota is about two a
-  second per browser), scaled to the tab's CSS size, and sends a frame only
-  when the picture changed. The tile is about 2 fps, not the screencast's
-  rate. Tile frames and `page.screenshot` share one gate
-  (`ops/shared.js: capture`), so neither hits the quota error.
+- **Frames: filmed (KAN-635).** With Screen Recording permission, Apply films
+  each Worker's own window with ScreenCaptureKit (`apply.plain.window_capture`):
+  `window_capture.swift`, built once by swiftc into `~/Library/Caches/apply/`,
+  finds the window of the Worker Chrome's PID (the native host's parent) nearest
+  the bounds the extension sends (`tile.shown`), crops it to the tab's viewport,
+  and streams 30 fps JPEGs (quality 0.85) at the screen's pixel scale (2560 x
+  1626 for a 1280 x 813 viewport). By window ID: nothing is focused, raised or
+  moved, and a covered window still streams. Measured live: 29.6 fps through the
+  window's `/frames` (`FRAME_GAP` now allows about 60).
+- **Frames: without the permission.** The worker extension captures the shown
+  tab with `captureVisibleTab`, at most every 500 ms (Chrome's quota is about
+  two a second per browser, and only the debugger API, never used here, gets
+  past it), JPEG quality 88, at the tab's CSS size, sent only when the picture
+  changed: about 2 fps. The tile shows one line (`PortFrames.notice`, the
+  caption's `capture`): "Live tile off: turn on <app> in System Settings >
+  Privacy & Security > Screen & System Audio Recording, then quit and reopen
+  <app>". macOS gives the permission to the app at the top of Apply's process
+  chain (Terminal, iTerm, Paradev, Apply.app). Apply only looks
+  (`CGPreflightScreenCaptureAccess`); it never asks for or changes it: Lisul
+  turns it on himself. `APPLY_TILE_CAPTURE=extension` forces this path. Tile
+  frames and `page.screenshot` share one gate (`ops/shared.js: capture`), so
+  neither hits the quota error.
 - **Covered windows still stream** because of
   `--disable-backgrounding-occluded-windows`. A minimized window doesn't:
   never minimize a plain Worker.
@@ -1025,15 +1041,17 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   works on a plain Worker).
 - **Never take Lisul's focus.** Plain Workers start with `open -g -n`
   (`launcher.start_in_background`) with `--no-startup-window`, then the
-  extension opens the window unfocused (`windows.create`), small, at the screen's top-left
-  corner. Only his Show brings one forward. Tests share one Worker and
+  extension opens the window unfocused (`windows.create`), 1280 x 900 (readable at 100%),
+  shrunk to the main screen's visible area, at its top-left corner. Only his Show brings one forward. Tests share one Worker and
   stop it when they end.
 - **Wired into runs (S8, KAN-614).** `cli._dashboard` builds `PortFrames` when
   `worker_mode: plain`, and `EitherFrames` (each Worker's current kind) when `protected`.
 - **Live check.** `uv run apply plain tile lever-immuta` fills a saved form
   in a plain Worker and prints the window's address. Click the tile and type.
   The tests are in `tests/test_plain_tile.py`: they need Chrome for Testing,
-  each run takes about 30 s, and they use their own socket.
+  each run takes about 30 s, and they use their own socket. The `frames`
+  fixture is the extension's path; `filmed` (`-k filmed`) needs Screen
+  Recording for the app pytest runs in, else it skips.
 
 ## Asking Lisul a question (`apply.asking`, KAN-527)
 
