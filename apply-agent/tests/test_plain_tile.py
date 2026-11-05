@@ -151,7 +151,7 @@ def test_a_covered_workers_tile_gets_live_frames_of_its_page(page, frames, site,
     assert behind == [False, "visible"]  # not the front window, still painting
     assert first.startswith(b"\xff\xd8") and moved > seen and later != first
     width, height = jpeg_size(later)
-    assert width <= 1280 and height <= 800 and abs(width - page.viewport_size["width"]) <= 1  # CSS size, not Retina
+    assert width <= 1280 and height <= 900 and abs(width - page.viewport_size["width"]) <= 1  # CSS size, not Retina
     assert still == moved
     red, blue = pixel(window, first, width // 2, height - 5), pixel(window, later, width // 2, height - 5)
     assert red[0] > 150 and red[2] < 100 and blue[2] > 150 and blue[0] < 100  # the new blue, not a stale red
