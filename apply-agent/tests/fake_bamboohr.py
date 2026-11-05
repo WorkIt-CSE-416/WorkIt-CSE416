@@ -64,7 +64,7 @@ window.grecaptcha = {
 };
 (function ready() { if (window[%(onload)s]) window[%(onload)s](); else setTimeout(ready, 10); })();
 """
-ANCHOR = """<!doctype html><html><body>
+ANCHOR_PAGE = """<!doctype html><html><body>
 <div id="recaptcha-anchor" role="checkbox" aria-checked="false" tabindex="0" style="padding:20px;border:1px solid #ccc">
 I'm not a robot</div>
 <script>
@@ -76,7 +76,7 @@ box.addEventListener('click', () => {
 });
 </script></body></html>"""
 # The picture challenge: Lisul picks the pictures, then Verify.
-BFRAME = """<!doctype html><html><body>
+BFRAME_PAGE = """<!doctype html><html><body>
 <p>Select all images with traffic lights</p>
 <button id="recaptcha-verify-button" onclick="parent.postMessage('recaptcha-solved', '*')">Verify</button>
 </body></html>"""
@@ -192,10 +192,10 @@ class FakeBambooServer:
             stub = RECAPTCHA_CHECKBOX if self._recaptcha else RECAPTCHA_STUB
             return route.fulfill(content_type="text/javascript", body=stub % {"onload": json.dumps(onload)})
         if url.startswith("https://www.google.com/recaptcha/api2/anchor"):
-            return route.fulfill(content_type="text/html", body=ANCHOR)
+            return route.fulfill(content_type="text/html", body=ANCHOR_PAGE)
         if url.startswith("https://www.google.com/recaptcha/api2/bframe"):
             self.challenges += 1
-            return route.fulfill(content_type="text/html", body=BFRAME)
+            return route.fulfill(content_type="text/html", body=BFRAME_PAGE)
         if request.method == "GET" and url in self._responses:
             status, mime, body = self._responses[url]
             return route.fulfill(status=status, content_type=mime, body=body)
