@@ -236,7 +236,9 @@ const drawAsk = (k, c) => {
   const drawn = JSON.stringify(thread);
   if (bar.dataset.thread !== drawn) {
     bar.dataset.thread = drawn;
-    bar.querySelector('.thread').replaceChildren(...thread.map(askLine));
+    const list = bar.querySelector('.thread');
+    list.replaceChildren(...thread.map(askLine));
+    list.scrollTop = list.scrollHeight;  // the latest reply in view
   }
 };
 document.addEventListener('submit', async (e) => {
@@ -1407,7 +1409,7 @@ STYLE = r"""
   .resumebar button { height: 30px; }
   .askclaude { flex: none; padding: 0 14px 8px; font-size: 12px; cursor: default; user-select: text; -webkit-user-select: text; }
   .askclaude .thread { max-height: 9em; overflow: auto; }
-  .tile.big .askclaude .thread { max-height: 30vh; }
+  .tile.big .askclaude .thread { max-height: 22vh; }
   .tile:not(.big) .askclaude .turn:not(:last-child) { display: none; }  /* a small tile shows the latest only */
   .askclaude .turn { padding: 4px 0; border-top: 1px solid var(--line); }
   .askclaude .you { color: var(--muted); }

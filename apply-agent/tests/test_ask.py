@@ -327,3 +327,17 @@ def test_the_held_page_s_glue_keeps_his_message_and_the_fix_in_the_record_and_fi
     [request] = repairs.all()
     assert "Lisul said" in request.problems[0]
     assert lines == ["Acme Robotics | Ask Claude: Changed the GPA to 3.7."]
+
+
+def test_a_group_of_boxes_on_another_step_is_read_back_as_one_change():
+    group = "Preferred locations"
+    page = Page([{"i": n, "type": "checkbox", "label": city, "group": group, "checked": city == "Jersey City", "hidden": True}
+                 for n, city in enumerate(["New York", "Jersey City", "Boston"])])
+
+    def act(p):
+        p.fields[1]["checked"], p.fields[2]["checked"] = False, True
+
+    reply = ask.ask(Claude(act, said(changed=[{"field": group, "step": "Step 1", "shown": "New York; Boston"}])),
+                    page, "no, not Jersey City, I meant Boston", [], ask.Form(POSTING), "", guard=Guard())
+    assert reply.changed == [{"field": group, "step": "Step 1", "shown": "New York; Boston",
+                              "read_back": "Apply read it back"}]

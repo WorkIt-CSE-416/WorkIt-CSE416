@@ -77,8 +77,9 @@ FIELDS = """() => {
       ? el.tagName.toLowerCase() : el.getAttribute('role') === 'combobox' ? 'combobox' : 'editable';
     if (['hidden', 'submit', 'button', 'image', 'reset'].includes(type)) return;
     const box = type === 'checkbox' || type === 'radio';
-    if (!shown(el) && !(box && el.labels && [...el.labels].some(shown))) return;
     const f = {i, type, label: labelOf(el)};
+    // Not on view: another step of a form that keeps every step in the page, so its fields are read back too.
+    if (!shown(el) && !(box && el.labels && [...el.labels].some(shown))) f.hidden = true;
     if (el.required || el.getAttribute('aria-required') === 'true') f.required = true;
     const group = el.closest('fieldset, [role=group], [role=radiogroup]');
     const legend = group && text(group.querySelector('legend, [role=heading], label, p'));
@@ -117,6 +118,7 @@ Take every fact from <message> or <sources>. Never make up a name, number, date,
 Never: click the button that sends the application (Submit, Send, Finish, Complete) or press Enter to send it; click, tick, type in or solve a captcha or bot check ("I'm not a robot", reCAPTCHA, hCaptcha, Turnstile, a puzzle or slider); type a password or a code; sign in, sign out or create an account; ask the site for a verification code or email again (Resend, Send new code); pay, withdraw or delete anything.
 Never tick, untick or type in an attestation, certification, signature, consent, terms or privacy box ("I certify", "I acknowledge", "I agree", "electronic signature"): those are the applicant's own. Only if <message> says plainly to tick that very box, tick it alone and name it in `ticked`. Otherwise list it in `waiting` if it is still to do.
 When you are done, the form should show the step it showed when you started: if you went back, come forward again, but never past the step that sends.
+In <page>, a field with `hidden` is not on view now (another step, kept in the page).
 Then read back each field you changed: `shown` is exactly what it shows now, with nothing added; `step` names the step it is on ("" for the one shown at the start).
 `reply` is one to three short, plain sentences to the applicant: what you changed, and what you couldn't do. `couldnt` lists what you were asked and couldn't do, each with why. `waiting` lists what is the applicant's own to do now (a box to tick, a file to give).
 `remember`: a fact the applicant stated in <message> that later forms should get right too, as the question a form asks and the answer ("I prefer NYC and Jersey City" gives "Preferred locations" and "New York; Jersey City"). Only what they said themselves, never what you worked out; [] if none. Apply asks them before it saves one.
@@ -310,7 +312,16 @@ def _read_back(said: list[dict], changed: list[dict]) -> list[dict]:
     rows, seen = [], set()
     for c in said:
         name, shown = str(c.get("field") or ""), str(c.get("shown") or "")
-        mine = next((x for x in changed if id(x) not in seen and _same(name, x["label"] or x["group"])), None)
+        # A group of boxes (Preferred locations: New York, Boston): each box Apply read changed in it must agree.
+        boxes = [x for x in changed if id(x) not in seen and x["type"] in ("checkbox", "radio") and x["group"]
+                 and _same(name, x["group"]) and not _same(name, x["label"])]
+        if boxes:
+            seen.update(id(x) for x in boxes)
+            agrees = all((x["now"] is True) == _same(x["label"], shown) for x in boxes)
+            rows.append({"field": name, "step": str(c.get("step") or ""), "shown": shown,
+                         "read_back": "Apply read it back" if agrees else "the page shows it otherwise: check it"})
+            continue
+        mine = next((x for x in changed if id(x) not in seen and _same(name, x["label"])), None)
         if mine is not None:
             seen.add(id(mine))
             now = mine["now"]
@@ -321,7 +332,8 @@ def _read_back(said: list[dict], changed: list[dict]) -> list[dict]:
                          "read_back": "Claude's read-back" + (f" (on {c['step']})" if c.get("step") else "")})
     for x in changed:
         if id(x) not in seen:
-            rows.append({"field": x["label"] or x["group"], "step": "", "shown": _text(x["now"]),
+            label = f"{x['group']}: {x['label']}" if x["group"] and x["type"] in ("checkbox", "radio") else x["label"]
+            rows.append({"field": label or x["group"], "step": "", "shown": _text(x["now"]),
                          "read_back": "Apply read it back"})
     return rows
 
