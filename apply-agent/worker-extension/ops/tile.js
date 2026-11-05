@@ -1,7 +1,10 @@
 // S3 ops (KAN-609): the live tile and Fix from the window.
 //
-// tile.start streams the Worker's shown tab to Apply as `tile.frame` events: a
-// captureVisibleTab JPEG about twice a second (Chrome's quota per browser, shared with
+// tile.start streams the Worker's shown tab to Apply. With `native` (KAN-635), Apply films the
+// window itself (ScreenCaptureKit, apply.plain.window_capture): the extension only says which
+// window and tab the tile shows, as `tile.shown` events (the window's bounds and the tab's
+// viewport), whenever that changes. Without it (no Screen Recording permission), `tile.frame`
+// events: a captureVisibleTab JPEG about twice a second (Chrome's quota per browser, shared with
 // screenshots through shared.capture), scaled to the tab's CSS size, sent only when it
 // changed. tile.input replays one of Lisul's tile events on the page (page/tile.js), and
 // the chooser ops stand in for the file picker an untrusted click can't open.
@@ -9,7 +12,8 @@
 import { capture, inPage, named, sleep } from "./shared.js";
 import { touch } from "./guard.js";
 
-const SHOWN = { interval: 500, quality: 88, maxWidth: 1280, maxHeight: 900 };
+const SHOWN = { interval: 500, quality: 88, maxWidth: 1280, maxHeight: 900, native: false };
+const AIM_EVERY = 200; // ms between looks at the shown window and tab, with `native`
 let stream = null; // {settings, generation}
 let generation = 0;
 let shownWindow = null; // the window whose active tab the tile shows: the one last switched to
@@ -52,6 +56,28 @@ async function frameOf(tab, { quality, maxWidth, maxHeight }) {
   bitmap.close();
   const blob = await canvas.convertToBlob({ type: "image/jpeg", quality: quality / 100 });
   return { data: base64(new Uint8Array(await blob.arrayBuffer())), width, height };
+}
+
+// With `native`: the shown window's bounds and its tab's viewport, sent when they change.
+async function aimLoop(ctx, mine) {
+  while (stream && stream.generation === mine) {
+    try {
+      const tab = await shownTab();
+      if (tab) {
+        const { left, top, width, height, state } = await chrome.windows.get(tab.windowId);
+        const shown = { tab: tab.id, url: tab.url || "", window: { left, top, width, height, state },
+                        viewport: { width: tab.width, height: tab.height } };
+        const text = JSON.stringify(shown);
+        if (text !== lastSent && stream?.generation === mine) {
+          lastSent = text;
+          ctx.send("tile.shown", shown);
+        }
+      }
+    } catch (error) {
+      // A window closing under it: the next turn looks again.
+    }
+    await sleep(AIM_EVERY);
+  }
 }
 
 async function streamLoop(ctx, mine) {
@@ -218,7 +244,7 @@ export const ops = {
   "tile.start": async (params, ctx) => {
     stream = { settings: { ...SHOWN, ...params }, generation: ++generation };
     lastSent = "";
-    streamLoop(ctx, stream.generation);
+    (stream.settings.native ? aimLoop : streamLoop)(ctx, stream.generation);
     return null;
   },
   "tile.stop": async () => {
