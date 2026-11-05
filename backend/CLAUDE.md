@@ -1188,6 +1188,11 @@ Find files with a directory listing; these are the rules for where code goes.
   request's may close once streaming starts, and runs to the first line
   before it answers, so every refusal before the model call stays an
   HTTP status. Rules, each with a test in `tests/test_tailor.py`:
+  - **A run saves its job to the Applications Tracker** (KAN-217): the
+    same commit upserts a `saved` application
+    (`queries/applications.keep_saved`, the Save button's insert, `ON
+    CONFLICT DO NOTHING`), so the job leaves the Jobs page; a job already
+    queued or applied keeps its stage, and a failed run saves no job.
   - **One tailored resume per posting; a second run replaces it in place**
     (2026-10-26). The run keeps the resume's row (its id, the student's
     name for it, its star), and once the model has answered clears what

@@ -679,6 +679,39 @@ async def test_a_run_saves_the_tailored_resume_and_leaves_the_source(student, da
     assert bank["entries"][0]["bullets"][1]["text"] == "Wrote billing services in python"
 
 
+async def _stage(database, applicant_id, posting: str) -> str | None:
+    async with database() as session:
+        return await session.scalar(
+            text("SELECT stage::text FROM job_applications WHERE applicant_id = :a AND job_id = :j"),
+            {"a": applicant_id, "j": posting})
+
+
+async def test_a_run_saves_the_job_to_the_tracker(student, database, use_model):
+    # KAN-217: a tailored job leaves the Jobs page for the Applications Tracker.
+    posting = await _seed_posting(database)
+    use_model(reply(rewords=[("b2", "Built Python billing services")]))
+
+    assert (await student.tailor(posting)).status_code == 200
+    assert await _stage(database, student.id, posting) == "saved"
+
+
+async def test_a_run_keeps_a_later_stage(student, database, use_model):
+    posting = await _seed_posting(database)
+    assert (await student.client.post(f"/jobs/{posting}/applied")).status_code == 200
+    use_model(reply(rewords=[("b2", "Built Python billing services")]))
+
+    assert (await student.tailor(posting)).status_code == 200
+    assert await _stage(database, student.id, posting) == "applied"
+
+
+async def test_a_failed_run_saves_no_job(student, database, use_model):
+    posting = await _seed_posting(database)
+    use_model(rate_limited())
+
+    assert (await student.tailor(posting)).status_code == 503
+    assert await _stage(database, student.id, posting) is None
+
+
 async def test_a_new_tailored_resume_takes_the_sources_page_settings(student, database, use_model):
     posting = await _seed_posting(database)
     use_model(reply(rewords=[("b2", "Built Python billing services")]))

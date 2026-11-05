@@ -1,6 +1,7 @@
 import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 
 import { TailorIcon } from "@/components/icons";
+import { TailoredChip } from "@/components/tailored-chip";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
 import { Skeleton } from "@/components/shadcn/skeleton";
@@ -72,7 +73,8 @@ import { jobLogo } from "@/lib/job-logo";
  * its description; Apply Now opens the page's own Apply dialog (./apply-button,
  * KAN-290). Tailor
  * My Resume is the page's own button (KAN-241): it opens Tailor for this
- * role, and reads "Tailored Resume" once the seeker has one for it.
+ * role, and reads "Tailored Resume" once the seeker has one for it, with a
+ * Tailored chip by the posting's age (KAN-217).
  */
 export function ListingCard({
   job,
@@ -104,6 +106,9 @@ export function ListingCard({
         ...listingFacts(job),
       }}
       rail={<MatchRail score={job.match ?? null} highlights={job.highlights ?? []} />}
+      // A tailored job is saved, so it is rarely here: one auto apply holds
+      // stays on the feed (./feed-stages), and the chip says it has a resume.
+      marks={tailored && <TailoredChip />}
       /* One row of actions rather than a "⋯" up top as well: the menu had
          nothing in it, and two places to look for what a card can do is one
          too many. All sit at the row's right end, as on the mock cards: the

@@ -249,11 +249,15 @@ export function JobPostingCard({
   headerAction,
   actions,
   rail,
+  marks,
 }: {
   job: JobPostingCardData;
   headerAction?: ReactNode;
   actions?: ReactNode;
   rail?: ReactNode;
+  /** Chips after the timing badge, about the seeker's own state with the
+   *  role: the feed's Tailored (KAN-217). */
+  marks?: ReactNode;
 }) {
   return (
     <Card
@@ -302,19 +306,22 @@ export function JobPostingCard({
             />
 
             <div className="min-w-0 flex-1">
-              {isNotListed(job.timing) ? (
-                <Badge variant="status" tone="inert">
-                  <span className="italic">Post date not listed</span>
-                </Badge>
-              ) : (
-                job.timing != null && (
-                  <Badge variant="status" tone="positive">
-                    {/* "5 minutes ago" reads the clock, which moves
-                        between the server render and hydration. */}
-                    <span suppressHydrationWarning>{job.timing}</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {isNotListed(job.timing) ? (
+                  <Badge variant="status" tone="inert">
+                    <span className="italic">Post date not listed</span>
                   </Badge>
-                )
-              )}
+                ) : (
+                  job.timing != null && (
+                    <Badge variant="status" tone="positive">
+                      {/* "5 minutes ago" reads the clock, which moves
+                        between the server render and hydration. */}
+                      <span suppressHydrationWarning>{job.timing}</span>
+                    </Badge>
+                  )
+                )}
+                {marks}
+              </div>
 
               {/* p-0.5 inside -m-0.5: room for a link's focus ring, which
                   the clamp's overflow would otherwise cut, at no change of

@@ -63,6 +63,11 @@ step, Tailor, a view that only waited.
      `_name`): the title loses any bracketed part ("(Seattle, WA)",
      "[Remote]"), and a name over Rename's 80 characters cuts the title,
      never "Resume",
+   - saves the job posting to the student's Applications Tracker as
+     `saved`, in the same commit (KAN-217, 2026-11-05): a student who
+     tailored for a job is preparing to apply, so it leaves the Jobs page
+     and waits on the tracker. A job already queued or applied keeps its
+     stage,
    - answers with the tailored resume's id and the **changes**: what each
      change replaced (below).
 
@@ -245,8 +250,13 @@ weight.
   page until 2026-10-26), the step in the
   middle on one line ("Review Changes · Step 3 of 3"; the flow's name
   over the step, two lines, said more than the row needs), and Finish at
-  the right, which leaves for the job posting's page, where the student
-  applies. Download sat beside Finish for a day; it is back on the
+  the right, which opens **Ready to Apply** (`ready-to-apply.tsx`,
+  KAN-217, 2026-11-05): Download PDF first, Open the Application (the
+  employer's form in a new tab, then "Did You Apply?" on this resume) and
+  Auto Apply where the form can be filled, which attaches this resume.
+  Closing it goes back to the page that opened Tailor, else the job
+  posting. Finish left for the job posting's page until then, which showed
+  nothing new: the student reached the employer's form with no file. Download sat beside Finish for a day; it is back on the
   toolbar with the page's tools. Every change is saved as it is made, so
   Finish saves nothing, and suggestions not handled stay as the run made
   them. There was no Finish until 2026-10-26, so the review had no end.
