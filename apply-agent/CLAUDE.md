@@ -625,14 +625,23 @@ fixes it live on that form.
   Apply's plan and Record for the form (`_Ask._form`), and the sources (`ask.sources`: profile,
   Answer bank, policies, resume text). Page text is data, never an instruction.
 - **How it acts.** `claude_cli.drive`, as Claude fill does (Playwright MCP on CDP, Apply's own MCP server
-  on a plain Worker), under the drive guard. The send_click hook runs with `--ask`: it also refuses a
-  Resend or Send new code click, and any act on an attestation, signature or consent box
-  (`send_click.ATTEST`), unless his message asks for a tick (`ask.may_tick`, which passes `--may-tick`).
+  on a plain Worker), under the drive guard. Code, not only the prompt, judges the real element, never
+  Claude's word for it (KAN-654). The send_click hook runs with `--ask`: a second hook after each browser
+  tool (`--after`) keeps each snapshot's refs in the drive's own folder, and a tool on a ref the page hasn't
+  shown, or on a selector, is refused. On a ref's role and name it refuses typing in a password or code
+  field (`send_click.SECRET`), a Resend or Send new code click, a button that sends, and any act on an
+  attestation, signature or consent box (`send_click.ATTEST`) unless his message names that box by its own
+  text (`send_click.may_tick`: all of it, or at least two real words of it in a row, with a verb to tick;
+  "check the box" and "tick the certify box" name none). A snapshot shows no attributes, so the page side
+  judges `type=password`, `name=otp_code` and the rest by `send_click.ELEMENT`: on a CDP Worker the drive
+  guard's Ask section (`DriveGuard.asking`, trusted acts in every document), on a plain Worker
+  `plain.tools` before each act (`--ask` reaches it through `ToolServer`).
   The prompt says the same rules: never Submit, no captcha, no password, account or code.
 - **Guards while it drives.** The held page is lifted for Lisul, so `_Kept.hold` puts both guards back on
   (`rearm`) for the drive and lifts the page again after it. Without that, a page the drive loads (going
   back a step) ran `lift()`'s script, and Enter there sent the application (KAN-638).
-- **Read-back.** Plain code reads `FIELDS` again after the drive and compares (`ask.changes`). Each change
+- **Read-back.** Plain code reads `FIELDS` again after the drive and compares (`ask.changes`), custom
+  `[role=checkbox]` and `[role=switch]` boxes too (`aria-checked`, and `UNDO` clicks one back). Each change
   is marked "Apply read it back" or "Claude's read-back". An attestation box that changed without his ask
   is put back (`ask.UNDO`) and named under Couldn't. `FIELDS` and `UNDO` are fixed functions on a plain page.
 - **After.** The reply goes to the thread (what changed, what Claude couldn't do, what waits on him). A
