@@ -419,6 +419,11 @@ class ClaudeFill:
             unlisted = _new_questions(page, questions, done.get("unlisted") or [])
             if unlisted:
                 raise MoreQuestions(_with_options(page, self._questions(unlisted)))
+            # What this step shows, checked by plain code before Next saves it (KAN-652).
+            shown = {labels[name]: self._readback.get(name) for name in todo if name in labels}
+            if wrong := cant_be_right(shown):
+                raise Handoff(f"Page {self._steps + 1} shows what can't be right, so Apply didn't go on: {'; '.join(wrong)}. "
+                              "Fix it on the page, then press Resume.")
             asks = [one for one in (str(a).strip() for a in done.get("for_lisul") or []) if one]
             if self._page_gates == "note" and asks and step not in self._approved:
                 self._approved.add(step)
@@ -871,6 +876,30 @@ def _fields_shown(page: Page) -> str:
         except Exception:
             continue  # a frame that went away, or one that refuses scripts
     return "\n".join(shown)
+
+
+# A part of an address, as a label names it, after any section's heading ("Home/permanent address: City/Town").
+ADDRESS_PART = re.compile(r"(?:^|:\s*)(address( line)? ?[2-9]|city( ?/ ?town)?|town|(county ?/ ?)?state( ?/ ?province)?|county|"
+                          r"province|(zip|postal|postcode)\S*( ?/ ?\S+)?( code)?)\s*\*?$", re.IGNORECASE)
+WHOLE_ADDRESS = re.compile(r"\d.*,.*,")  # a street number and two commas: a whole address, not a part
+SCHOOL_STEP = re.compile(r"degree|universit|college|school|major|gpa|education", re.IGNORECASE)
+START_YEAR = re.compile(r"\bstart(ed|ing)?\b.*\byear\b|\bstart date\b", re.IGNORECASE)
+
+
+def cant_be_right(shown: dict[str, object], this_year: int | None = None) -> list[str]:
+    """What a step's fields show (label: value) that can't be right, whatever the plan said (KAN-652): an address
+    part that holds a whole address, or, on an education step, a start year after this one."""
+    this_year = this_year or time.localtime().tm_year
+    school = any(SCHOOL_STEP.search(label) for label in shown)
+    wrong = []
+    for label, value in shown.items():
+        text = " ".join(value) if isinstance(value, list) else str(value or "")
+        if ADDRESS_PART.search(label.strip()) and WHOLE_ADDRESS.search(text):
+            wrong.append(f"{label!r} holds a whole address")
+        years = [int(y) for y in re.findall(r"\b(19\d\d|20\d\d)\b", text)]
+        if school and START_YEAR.search(label) and years and max(years) > this_year:
+            wrong.append(f"{label!r} says {max(years)}, a start after this year")
+    return wrong
 
 
 def _step_key(page: Page) -> str:
