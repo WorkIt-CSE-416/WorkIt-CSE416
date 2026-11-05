@@ -231,7 +231,7 @@ The check every filled Application must pass before it is submitted: each answer
 _Avoid_: validation, QA, review
 
 **Verifying**:
-The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads the filled form back from the page and checks it against the Applicant profile, the Posting and its own plan, then the Application is Verified, or Verified with flags. A flag names a field and why it needs Lisul (a blank field, a value the page shows otherwise, a wrong file, a date or pay that doesn't fit, a wrong name or pronoun or another company's name in an essay, answers that contradict each other); a flag holds a run's Application in Needs you, where Lisul fixes or dismisses it. A note (an answer Claude guessed, a blank optional field) holds nothing. Verifying only reads: it never presses Submit.
+The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads the filled form back from the page and checks it against the Applicant profile, the Posting and its own plan, then the Application is Verified, or Verified with flags. A flag names a field and why it needs Lisul (a blank field, a value the page shows otherwise, a wrong file, a date or pay that doesn't fit, a wrong name or pronoun or another company's name in an essay, answers that contradict each other); a flag holds a run's Application in Needs you, where Lisul fixes or dismisses it. A note (an answer Claude guessed, a blank optional field) holds nothing. A review problem with a legal or eligibility answer (work authorization, sponsorship, citizenship, U.S. Person, export control, age, criminal history) is more than a note. Apply fills the review's fix when it gives one, and reviews the form again. Without a fix, the held page blocks Submit under a red note. Submit is Lisul's again after he presses the note's Dismiss or dismisses it in the window. Verifying only reads: it never presses Submit.
 _Avoid_: validation, QA, double-check
 
 **Employer account**:
@@ -240,6 +240,8 @@ _Avoid_: ATS account, candidate account
 
 **Not eligible**:
 The end state of an Application Lisul would honestly fail, for example a Master's-only role or a graduation window he misses. A Screener on the form finds it, or, before any form opens, the Posting's own required qualifications (one that asks for current graduate study). It is never submitted.
+Only an answer that fails the Screener rules him out. A Screener that no option fits is a Missing fact for Lisul.
+In a rehearsal, its tile has a Fill it anyway button. The button fills the form as in any rehearsal, and its note says why he was ruled out. A Closed tile has the button too.
 _Avoid_: rejected, skipped, disqualified
 
 **Story bank**:

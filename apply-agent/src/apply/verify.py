@@ -77,6 +77,15 @@ DATES = [
     (re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? (\d{1,2}, )?(20\d\d)\b", re.IGNORECASE),
      lambda m: (int(m[3]), MONTHS[m[1].lower()], int(m[2].rstrip(", ")) if m[2] else 28)),
 ]
+# A legal or eligibility answer: work authorization, sponsorship, citizenship, U.S. Person and export control, age,
+# criminal history. A review problem with one that contradicts the profile holds Submit itself on a held page, not
+# only a note (Saronic's U.S. Person question was sent "No" for a U.S. citizen, 2026-11-04).
+LEGAL = re.compile(
+    r"authori[sz](?:ed|ation) to work|work authori[sz]|eligib\w* to work|right to work|sponsor|\bvisa\b|citizen"
+    r"|\bu\.?s\.? persons?\b|\bitar\b|\bear\b|export[- ]control|green card|permanent resident|refugee|asylee"
+    r"|\b(?:18|eighteen|21|legal working age) (?:years|or older)\b|years of age|\bage of\b|how old"
+    r"|criminal|felon|convict|misdemeanor|background check",
+    re.IGNORECASE)
 RESUME_FIELD = re.compile(r"r[eé]sum[eé]|\bcv\b", re.IGNORECASE)
 COVER_FIELD = re.compile(r"cover letter", re.IGNORECASE)
 TRANSCRIPT_FIELD = re.compile(r"transcript", re.IGNORECASE)
@@ -110,6 +119,12 @@ class Verification:
         return tuple(f for f in self.flags if f.holds)
 
     @property
+    def holds_submit(self) -> tuple[Flag, ...]:
+        """The Pre-submit review's problems with a legal or eligibility answer (LEGAL) that Lisul hasn't
+        dismissed: they hold Submit on a held page until he fixes the answer or dismisses them."""
+        return tuple(f for f in self.needs if legal(f))
+
+    @property
     def verified(self) -> bool:
         return not self.needs
 
@@ -132,6 +147,11 @@ class Verification:
     def shown(self) -> list[dict]:
         """The flags as the Apply window lists them: {field, why, kind, holds}."""
         return [asdict(f) for f in self.flags]
+
+
+def legal(flag: Flag) -> bool:
+    """Whether a flag is the Pre-submit review's, about a legal or eligibility answer."""
+    return flag.kind == REVIEW and bool(LEGAL.search(f"{flag.field} {flag.why}"))
 
 
 def verifying(verification: "Verification | None") -> dict:

@@ -83,6 +83,15 @@ its boxes stay unticked, a blank on purpose in the plan.
 `AnswerBank.answer(question, [])` saves one; an answer with options in it
 drops `none`. An empty answer without `none` is still no answer.
 
+Apply adds the Tracker to the facts that it gives the engine's plan
+(`fill_engine._facts`). Each company with a submitted Application, except
+the Posting being filled, joins `screeners.previously_applied_to` when the
+profile keeps that list. A company where Lisul's Outcome is an interview
+or an offer goes in `screeners.previously_interviewed_at`. So "Have you
+previously interviewed at <company>?" is No when no record shows an
+interview there. If he applied there but no interview is recorded, he
+answers it himself.
+
 A bare date (From, To, Start date, End date: a label that does not say
 what the date is for) is answered for its section (KAN-595). The engine
 finds the section from the field's panel, its help text, the heading or
@@ -305,6 +314,39 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
 -k "applications_tracker or sends_nothing_to_workit"` rehearses a form
 in Chromium: a submit by Lisul is Applied with the Sent resume, and no
 submit sends nothing. `-k saves_the_record_again` checks his submit's Record.
+
+## Already applied: no form is opened again (KAN-621)
+
+On 2026-11-04 a rehearsal filled Astranis, which Lisul had applied to. The
+Applications Tracker had it at applied. The held page had a live Submit,
+and he sent it a second time.
+
+`src/apply/already_applied.py` checks each link before any page opens
+(`Adapters.applied_before`; live: `already_applied.Check`). It reads
+WorkIt one time per run or rehearsal, through `WorkIt.applications`.
+
+- A link is already applied when one of these says so:
+  - WorkIt has an application at applied or later on the same job
+    (`job_key`, so another Greenhouse host matches too);
+  - Apply's Tracker (`tracker.json`) has a submitted row with the same
+    Application ID or job;
+  - a Record of the same Application has `after-submit.png`.
+- A rehearsal of such a link ends as "already applied". Its terminal line
+  and its tile say "Already applied on <date> (<source>)". No browser
+  opens. A run makes it a Handoff and opens no form.
+- `apply rehearse --force` fills it anyway. The held page keeps the submit
+  guard on, under a red "You already applied on <date>, don't submit"
+  note. Lisul presses Dismiss, then "Yes, I'm sure: unblock this page".
+  Only then does `lift` take the guard off. The second button has no word
+  that the guard blocks.
+- WorkIt that cannot be read (no login, an expired login, no answer) is
+  never a silent pass. The window's status line and the terminal say why
+  (`already_applied.UNCHECKED`). The local checks still run.
+- The check only reads WorkIt: it writes nothing there.
+
+**Tests.** `tests/test_already_applied.py` (in CI) runs the check against
+`tests/fake_tracker.py`. `tests/test_rehearse.py -k "already_applied or
+could_not_run or force_rehearses"` rehearses in Chromium.
 
 ## The tailored resume is the Sent resume (KAN-547)
 

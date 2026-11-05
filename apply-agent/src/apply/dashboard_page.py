@@ -186,6 +186,7 @@ setInterval(async () => {
     paused.hidden = !resume;
     if (resume) {
       paused.querySelector('button').disabled = !resume.ok;
+      paused.querySelector('button').textContent = resume.label || 'Resume';
       paused.querySelector('.why').textContent = resume.why || 'Fixed it on the page? Resume goes on from there.';
     }
     const bar = document.getElementById('file-' + k);
@@ -580,7 +581,7 @@ const resume = async (id, button) => {
     toast(data.message); refresh();
   } catch (err) { toast(err.message || 'Apply is not answering: is it still running?'); button.disabled = false; }
 };
-const resumeButton = (item) => make('button', {className: 'primary', textContent: 'Resume', disabled: !item.resume.ok,
+const resumeButton = (item) => make('button', {className: 'primary', textContent: item.resume.label || 'Resume', disabled: !item.resume.ok,
   title: item.resume.ok ? 'Apply goes on from the page as you left it; it never presses Submit' : item.resume.why,
   onclick: (e) => resume(item.id, e.target)});
 // A tile's own Resume (Live tab), by its Worker's number; the click doesn't enlarge the tile.
@@ -937,8 +938,9 @@ const drawRun = (state) => {
   start.disabled = run.start !== 'ready';
   start.textContent = run.start === 'ready' ? `Start filling all ${forms}` : `Getting ${forms} forms ready…`;
   start.onclick = () => { start.disabled = true; fetch('/start', {method: 'POST', body: TOKEN}).then(refresh); };
-  line.className = run.paused_until || run.capped ? 'paused' : '';
-  line.textContent = run.paused_until ? `Paused: Claude's usage limit is reached. Picks up again at ${at(run.paused_until)}.`
+  line.className = run.paused_until || run.capped || run.unchecked ? 'paused' : '';
+  line.textContent = run.unchecked ? run.unchecked  // KAN-621: a check that couldn't run is never silent
+    : run.paused_until ? `Paused: Claude's usage limit is reached. Picks up again at ${at(run.paused_until)}.`
     : run.capped ? `Today's limit reached (${run.cap}). ${run.tomorrow} more go tomorrow.`
     : ctx.workers ? [filling(state) ? `${filling(state)} filling` : '', run.queued ? `${run.queued} queued` : '',
                      sent(state) ? `${sent(state)} sent` : 'nothing sent yet', run.cap ? `${run.today} of ${run.cap} today` : ''].filter(Boolean).join(' · ')

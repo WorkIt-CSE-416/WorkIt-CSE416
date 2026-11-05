@@ -158,6 +158,7 @@ def apply_to(
     on_verify: Callable[["verify.Verification | None"], None] = lambda verification: None,
     on_pause: Callable[[Result, Callable[[object], str]], bool] = lambda stopped, blocked: False,
     on_captcha: Callable[[str, object, str], bool] = lambda why, page, company: False,
+    anyway: bool = False,
 ) -> Result:
     """`before_submit` runs just before the form is submitted. It returns why
     the Orchestrator holds the Application anyway (the Calibration run), or "";
@@ -202,9 +203,12 @@ def apply_to(
     A captcha that stops the fill (model.Captcha), in a run or a rehearsal,
     goes to `on_captcha` first, with its reason, its page and the company
     that the link or the page names (captcha.Waiter): True, Lisul did it, and the fill goes on on that page.
-    False, the time ran out: it is a Handoff (or a rehearsal's pause)."""
+    False, the time ran out: it is a Handoff (or a rehearsal's pause).
+    With `anyway` (Lisul pressed Fill it anyway on a rehearsal that ruled him out), neither the Posting's
+    text nor a failed Screener ends it: the form is filled as in any rehearsal."""
     planned = _Planned(posting, site, profile, claude, answered or {}, approved, rehearse, bank or AnswerBank(),
                        today or date.today(), on_files, on_missing)
+    planned.anyway = anyway
     try:
         result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify, on_pause, on_captcha)
     except Handoff as handoff:
@@ -235,7 +239,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
            on_captcha=lambda why, page, company: False) -> Result:
     posting, profile, claude = planned.posting, planned.profile, planned.claude
     read = description.from_api(posting, site)
-    if why := eligibility.not_eligible(read):  # before any form opens or Claude is asked
+    if (why := eligibility.not_eligible(read)) and not planned.anyway:  # before any form opens or Claude is asked
         return Result(Status.NOT_ELIGIBLE, why)
     fetched = read or description.from_link(posting, site)  # no browser yet
     if trap := posting_ai_trap(fetched):  # else Claude fill's Claude would read it on the open page
@@ -468,6 +472,7 @@ class _Planned:
         self.lisuls: dict[str, object] = {}  # what Lisul put on a paused form's step before Resume, by name
         self._yours: set[Question] = set()  # questions a Resume stopped Claude from answering: Lisul's, on the page
         self.questions: list[Question] = []
+        self.anyway = False  # Lisul pressed Fill it anyway: a failed Screener doesn't end it
         self._answers: dict = {}
         self.accepted: dict[str, tuple[str, ...]] = {}  # other wordings Lisul accepts for an answer, by Question name
         self.blanks: dict[str, str] = {}  # fields the engine's plan leaves blank on purpose, by name: why
@@ -574,7 +579,7 @@ class _Planned:
                 planned.answers[q.name] = given
                 planned.missing = [m for m in planned.missing if m.name != q.name]
                 planned.drafts = [d for d in planned.drafts if d.name != q.name]
-        if planned.not_eligible:
+        if planned.not_eligible and not self.anyway:
             return Result(Status.NOT_ELIGIBLE, planned.not_eligible)
         if planned.handoffs:  # a form Lisul finishes gets no Claude call: its one-off questions are his too
             yours = [q for q in self.questions if q in planned.missing + planned.drafts]
@@ -626,13 +631,18 @@ class _Planned:
                 self.drafted.append(draft)
         given = {d.question.name: d.answer for d in self.drafted + self.unbanked}
         # A follow-up to a question Claude just answered ("If yes, ...", answered No) that the answer doesn't call for.
-        moot = {q: answer for q in planned.drafts
+        # One the engine held for that answer (Plan.waiting) is decided the same way: blank when not called for,
+        # asked of Lisul with the form's own label when it is, and still waiting while its question is unanswered.
+        waiting = [q for q in self.questions if q.name in planned.waiting]
+        moot = {q: answer for q in planned.drafts + waiting
                 for is_moot, answer in [not_called_for(q, self.questions, planned.answers | given)] if is_moot}
+        called_for = [q for q in waiting if q not in moot and planned.waiting[q.name] in planned.answers | given]
+        self.left |= {q.name for q in waiting if q not in moot and q not in called_for}
         answered = {d.question for d in self.drafted + self.unbanked} | set(moot) \
             | {q for q in planned.drafts if q.name in self.kept_blank}
         asks = [asked for essay in self.written if essay.plan for asked in essay.plan.asks]
-        if stop := self._missing(planned.missing + [q for q in planned.drafts if q not in answered] + list(self._yours),
-                                 asks):
+        if stop := self._missing(planned.missing + [q for q in planned.drafts if q not in answered] + list(self._yours)
+                                 + called_for, asks):
             return stop
         for essay in written:
             self.holds += self._holds(essay, essay.question in planned.high_stakes)
@@ -707,13 +717,17 @@ class _Planned:
         an answer the plan took from the profile (General Motors' degree, live: the review called "Bachelor
         Degree" wrong), Lisul's own answer (on the page or in the Answer bank), an essay, a file or a secret,
         nor an answer that isn't one of the question's options. So no plan writes over them, and a draft it
-        fixes leaves the Answer bank: the bank never keeps an answer known wrong. True if any answer changed."""
+        fixes leaves the Answer bank: the bank never keeps an answer known wrong. True if any answer changed.
+        A legal or eligibility question (verify.LEGAL: U.S. Person, work authorization, age...) is the one
+        exception to the profile's: the review read it against the profile and found it wrong (Saronic's U.S.
+        Person "No", live), so its fix, one of the question's options, is filled there too, and reviewed again."""
         own, essays_asked = self.own(), {e.question.name for e in self.written}
         guessed = {d.question.name for d in self.drafted + self.unbanked} | {q.name for q in self.banked if q.name not in own}
+        legal = {q.name for q in self.questions if q.options and verify.LEGAL.search(q.label) and q.name not in own}
         changed = False
         for q in self.questions:
             answer = fixes.get(one_line(q.label))
-            if (answer is None or q.name not in guessed or q.kind in ("file", "multi_select") or q.name in self.lisuls
+            if (answer is None or q.name not in guessed | legal or q.kind in ("file", "multi_select") or q.name in self.lisuls
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
                     or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
                 continue
@@ -782,9 +796,11 @@ class _Planned:
         asks = [asked for asked in asks if not asking.known(asked, self.profile, self._bank)]
         self.missing = tuple(dict.fromkeys([*(q.label.strip() for q in missing), *asks]))
         self.choices = {q.label.strip(): offered for q in missing if (offered := choices(q))}
-        # The form's own required flag; what an essay asks him is for a slot the essay needs.
-        self.required = {q.label.strip(): q.required for q in missing} | {asked: True for asked in asks}
+        # The form's own required flag, for what an essay asks him too: its essay's (Saronic's optional
+        # follow-up showed Required, live 2026-11-04).
         essay_of = {asked: e.question for e in self.written if e.plan for asked in e.plan.asks}
+        self.required = {q.label.strip(): q.required for q in missing} \
+            | {asked: essay_of[asked].required if asked in essay_of else True for asked in asks}
         self.where = {q.label.strip(): line for q in missing if (line := asking.where(q, self.questions))} \
             | {asked: asking.for_essay(essay_of[asked]) for asked in asks if asked in essay_of}
         if self._rehearse and self.missing != was:

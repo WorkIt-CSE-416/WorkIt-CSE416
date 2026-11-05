@@ -41,7 +41,7 @@ from apply.claude_fill import OnePage
 from apply.greenhouse import GreenhouseFiller
 from apply.keychain import InMemoryKeychain
 from apply.lever import LeverFiller
-from apply.submit_guard import CAPTCHA_TRY, DriveGuard, guard, lift
+from apply.submit_guard import CAPTCHA_TRY, DriveGuard, guard, lift, renote
 from apply.workday import WorkdayFiller
 
 SKYDIO_JOB = "79fdda46-4ff5-42c7-b208-55f2084cdb8c"
@@ -198,6 +198,55 @@ def test_a_held_page_with_something_to_fix_says_so_in_red(job_server):
 
     assert text.startswith("Apply rehearsal: fix this before you submit. Pre-submit review: Postgrad Discipline(s)")
     assert color == "rgb(176, 0, 32)"
+
+
+US_PERSON_WRONG = ('The U.S. Person status question is answered "No", but the profile says he is a U.S. citizen, '
+                   'so the answer should be "Yes".')
+
+
+def test_a_legal_answer_the_review_found_wrong_holds_lisuls_submit_until_he_dismisses_it(job_server, one_pager):
+    # Saronic's U.S. Person "No" (live, 2026-11-04): a note alone let him send it. Held, his Submit and the final
+    # request are blocked under a red note, until he presses its Dismiss; then Submit is his again.
+    filler = GreenhouseFiller()
+    questions = filler.question_set(ARC_URL, job_server)
+    answers = {"first_name": "Test", "last_name": "Person", "email": "test.person@example.com",
+               "phone": "+1 555 010 0199", "question_18871502008": "Yes", "question_18871503008": "No", "resume": one_pager}
+    pressed, dismissed = [], []
+
+    with job_server.open(ARC_URL) as page:
+        guard(page)
+        filler.fill(page, questions, answers)
+        lift(page, pressed=pressed.append, warning=f"Pre-submit review: {US_PERSON_WRONG}", held=US_PERSON_WRONG,
+             dismiss=lambda: dismissed.append(True))
+        note = page.locator("#apply-rehearsal-blocked")
+        page.get_by_role("button", name="Submit application").click()
+        page.wait_for_timeout(1000)
+        _post(page, FINAL_POST["greenhouse"][2])
+        held = (note.inner_text(), note.evaluate("e => getComputedStyle(e).backgroundColor"), len(job_server.submissions))
+        page.get_by_role("button", name="Dismiss").click()
+        page.wait_for_timeout(300)
+        renote(page, held="")  # what the hold's loop does once the dismissal is saved
+        page.get_by_role("button", name="Submit application").click()
+        page.wait_for_timeout(1500)
+
+    text, color, sent = held
+    assert text.startswith("Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: The U.S. Person")
+    assert color == "rgb(176, 0, 32)" and sent == 0 and pressed == ["Submit application"]
+    assert dismissed == [True]
+    assert len(job_server.submissions) == 1
+
+
+def test_a_held_submit_stays_held_on_the_pages_lisul_loads_next():
+    server, url, script = FINAL_POST["ashby"]
+    with server() as fake:
+        with fake.open(url) as page:
+            guard(page)
+            lift(page, held=US_PERSON_WRONG)
+            page.reload()
+            _post(page, script)
+            shown = page.locator("#apply-rehearsal-blocked").inner_text()
+        assert fake.submissions == []
+    assert "Submit is held" in shown
 
 
 def test_a_held_page_with_only_a_field_left_blank_says_so_in_amber(job_server):

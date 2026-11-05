@@ -457,6 +457,46 @@ def test_the_pre_submit_reviews_fix_is_filled_before_the_form_shows_as_ready(mon
     assert server.submissions == []
 
 
+AUTHORIZED = "Are you legally authorized to work in the United States?"
+
+
+def test_the_reviews_fix_for_a_legal_answer_is_filled_over_the_profiles(monkeypatch, tmp_path):
+    # Saronic's U.S. Person "No" came from the plan's own (wrong) rule, and the review's fix was left as a banner
+    # (live, 2026-11-04). A legal or eligibility answer the review finds wrong is filled with its fix, then reviewed
+    # again, though the plan took it from the profile. Another profile answer's fix is still never taken.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    claude = FakeClaude(reviews=[{"problems": [f"{AUTHORIZED}: answered No, but the profile says he is authorized",
+                                               "First Name: not his name"],
+                                  "fixes": [{"question": AUTHORIZED, "answer": "Yes"},
+                                            {"question": "First Name", "answer": "Someone"}]}])
+    profile = profile_with(tmp_path, **{"work_authorization.authorized_to_work_us": False})
+    records = FolderRecords(tmp_path / "rehearsals")
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile, claude, records=records)
+
+    shown = {a["question"].strip(): a["on_page"] for a in json.loads((Path(done.record) / "answers.json").read_text())}
+    assert shown[AUTHORIZED] == "Yes" and shown["First Name"] != "Someone"
+    assert sum("problems" in call["schema"]["properties"] for call in claude.calls) == 2  # reviewed again after the fix
+    assert done.legal == ()
+    assert fake.submissions == []
+
+
+def test_a_legal_problem_the_review_gives_no_fix_for_holds_submit_until_lisul_dismisses_it(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    problem = 'The U.S. Person status question is answered "No", but the profile says he is a U.S. citizen'
+    claude = FakeClaude(reviews=[[problem, "Why Arc?: names no product"]])
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path), claude)
+
+    assert done.legal == (("", problem),)  # the essay's problem is a banner, not a hold
+    assert done.holding() == problem
+    done.dismiss_holds()  # the held note's Dismiss
+    assert done.holding() == ""
+    assert fake.submissions == []
+
+
 def test_a_workday_rehearsal_stops_where_google_wants_more_than_an_account_pick(monkeypatch, tmp_path):
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
 
@@ -1402,3 +1442,88 @@ def test_a_setup_error_stops_its_link_on_one_line_and_leaves_no_repair_request(m
     assert "claude auth login" in line and "\n" not in line
     assert "Traceback" not in capsys.readouterr().err
     assert repairs.all() == []
+
+
+class AppliedTo:
+    """The already applied check (KAN-621), answering for every link: applied on 2026-10-28, or not; and why
+    WorkIt could not be checked."""
+
+    def __init__(self, applied: bool = True, problem: str = ""):
+        from apply.already_applied import Applied
+
+        self._found = Applied(datetime(2026, 10, 28).date(), "your Applications Tracker on WorkIt: applied") \
+            if applied else None
+        self._problem = problem
+        self.asked: list[str] = []
+
+    def of(self, posting, *links):
+        self.asked.append(posting.url)
+        return self._found
+
+    def problem(self):
+        return self._problem
+
+
+def test_a_link_already_applied_to_ends_before_its_form_opens(monkeypatch, tmp_path):
+    # Astranis, 2026-11-04: the rehearsal filled a form he had applied to, Submit live, and he sent it again.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    board, lines, check = RecordingBoard(), [], AppliedTo()
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearsal.rehearse([ARC_URL], adapters(fake, board=board, applied_before=check),
+                                    ApplicantProfile.load(profile_with(tmp_path)), keep_open=False, out=lines.append)
+        opened = list(fake.workers)
+
+    assert opened == []  # no browser, no form
+    assert check.asked == [ARC_URL]
+    assert done.outcome == "already applied"
+    assert lines == ["Arc Boat Company | Software Engineering Intern | greenhouse | Already applied on 2026-10-28 "
+                     "(your Applications Tracker on WorkIt: applied); Apply didn't open the form. "
+                     "`apply rehearse --force` rehearses it anyway, with Submit blocked"]
+    caption = board.captions[0]
+    assert (caption["status"], caption["why"]) == (
+        "already applied", "Already applied on 2026-10-28 (your Applications Tracker on WorkIt: applied)")
+
+
+def test_a_check_that_could_not_run_is_said_in_the_window_and_the_terminal(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    board, lines = RecordingBoard(), []
+    check = AppliedTo(applied=False, problem="you are not signed in to WorkIt (run `uv run apply login`)")
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearsal.rehearse([ARC_URL], adapters(fake, board=board, applied_before=check),
+                                    ApplicantProfile.load(profile_with(tmp_path)), keep_open=False, out=lines.append)
+
+    said = ("Couldn't check your Applications Tracker on WorkIt for jobs you already applied to: you are not signed "
+            "in to WorkIt (run `uv run apply login`). Apply checked only its own Tracker and Records")
+    assert {"unchecked": said} in board.runs
+    assert lines[0] == said
+    assert done.outcome == "ready to submit"  # not applied to: it fills
+
+
+def test_force_rehearses_it_but_submit_stays_blocked_until_the_red_note_is_dismissed(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])  # once the guard is off
+    real, seen = rehearsal.warn_applied, {}
+
+    def warned(page, day, dismissed=None):
+        real(page, day, dismissed)
+        seen["note"] = page.locator("#apply-already-applied").inner_text()
+        page.get_by_role("button", name="Submit application").click()  # blocked
+        page.wait_for_timeout(500)
+        seen["sent before"] = len(fake.submissions)
+        page.get_by_role("button", name="Dismiss").click()
+        seen["sent after one press"] = len(fake.submissions)
+        page.get_by_role("button", name="Yes, I’m sure: unblock this page").click()
+    monkeypatch.setattr(rehearsal, "warn_applied", warned)
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+
+    with FakeJobServer(ARC_FORM) as fake:
+        lines = hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], force=True,
+                           with_adapters={"applied_before": AppliedTo()})
+        submissions = len(fake.submissions)
+
+    assert seen["note"].startswith("You already applied on 2026-10-28, don’t submit.")
+    assert (seen["sent before"], seen["sent after one press"]) == (0, 0)
+    assert submissions == 1  # his, once he dismissed the note on purpose
+    assert any(line.startswith("Arc Boat Company | ") and "ready to submit" in line for line in lines)

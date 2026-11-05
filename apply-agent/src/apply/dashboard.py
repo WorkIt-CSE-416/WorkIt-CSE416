@@ -300,6 +300,9 @@ def verdict(caption: dict) -> dict[str, str]:
         tone, label, kind = "ended", f"Skipped: {why}", "skipped"
     elif status == "paused":
         tone, label, kind = "ended", "Paused at Claude's usage limit; it goes on by itself", "skipped"
+    elif status == "already applied":  # KAN-621: the form was never opened
+        tone, label, kind = "ended", (why or "Already applied").split(" (")[0], "skipped"
+        detail = f"{why}. Apply didn't open the form, so nothing was filled or sent"
     resume = caption.get("resume") or {}
     if needs and resume.get("ok") and needs["kind"] not in ("captcha", "blocked"):  # a rehearsal paused mid-form: Lisul fixes the page, and Resume goes on
         needs["then"] = ("Nothing was sent. Fix it on the page (Fix here, or Open in Chrome), then press Resume: "
@@ -327,8 +330,10 @@ def verdict(caption: dict) -> dict[str, str]:
         shown["error"] = error  # behind Details in the enlarged tile
     if system:
         shown["system"] = system
-    if resume and (needs or tone == "filling"):  # paused; or filling, and stuck or waiting (apply.stuck)
-        shown["resume"] = {"ok": bool(resume.get("ok")), "why": str(resume.get("why") or "")}
+    # Paused; or filling, and stuck or waiting (apply.stuck); or ruled out, and his to fill anyway (its label says so).
+    if resume and (needs or tone == "filling" or status in ("not eligible", "closed")):
+        shown["resume"] = {"ok": bool(resume.get("ok")), "why": str(resume.get("why") or "")} \
+            | ({"label": str(resume["label"])} if resume.get("label") else {})
     if history := caption.get("history"):  # each pause and Resume, under the verdict
         shown["detail"] = "\n".join(filter(None, [shown["detail"], *history]))
     return shown
@@ -402,7 +407,8 @@ class Board(Protocol):
         tomorrow (the Daily cap stopped it; how many wait), paused_until (an
         ISO time, at a usage limit; None once it goes on), start ("waiting":
         forms are still getting ready; "ready": the Start button is shown;
-        "started")."""
+        "started"), unchecked (why Apply couldn't check WorkIt for jobs
+        already applied to, KAN-621)."""
         ...
 
     def answered(self, worker: int) -> list[tuple[str, str]]:
@@ -736,6 +742,8 @@ class Dashboard:
             raise Refused(TAB_CLOSED, 409)  # its Worker moved on, and the form's tab with it
         with self._lock:
             self._resume.add(k)
+        if resume.get("label"):  # Fill it anyway, on a rehearsal that ruled him out
+            return "Filling it anyway: Apply opens the form and fills it. It never presses Submit."
         return "Resuming: Apply reads the page as you left it and goes on. It never presses Submit."
 
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
