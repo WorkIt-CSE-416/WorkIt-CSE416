@@ -90,6 +90,8 @@ NOTED = re.compile(r"\s*\((selected|attached|checked|ticked)\)$", re.IGNORECASE)
 # A form in steps: the button that goes on (never one that sends), how many steps
 # at most, and how long a step may take to show once it's clicked.
 NEXT = re.compile(r"\b(next|continue|proceed|review)\b", re.IGNORECASE)
+BACK = re.compile(r"\b(back|previous|prev)\b", re.IGNORECASE)
+REVIEW_WORDS = "on the form's review page"
 MAX_STEPS = 20  # a guard against a loop: Bank of America's TAL.net form has more than 8 (KAN-649)
 # A button that names the application: never a profile step's, whatever pop-up it is in (KAN-647).
 APPLIES = re.compile(r"\bappl(?:y|ying|ication)\b", re.IGNORECASE)
@@ -460,27 +462,9 @@ class ClaudeFill:
         if self._steps >= self._max_steps:
             raise Handoff(f"Claude fill went through {self._max_steps} steps without reaching the form's last. "
                           "Fill it in yourself.")
-        before = _fields_shown(page)
         # A step that posts natively (TAL.net's "Save and Continue") goes through the guards on plain code's own
-        # click alone: a form with a button that sends, and the final application URLs, stay blocked (KAN-639).
-        button = _the_next(page, name)
-        if words := _sends_or_reviews(page, button):  # plain code's own check: never Claude's word for it
-            raise Handoff(f"Claude fill's Next ({name!r}) is {words}, which may send the form. Fill it in yourself.")
-        if self._guard:
-            self._guard.let_account_click()
-        try:
-            button.click()
-            waited = 0
-            while _fields_shown(page) == before:
-                if waited >= STEP_SHOWS_MS:
-                    raise Handoff(f"The form's {name!r} didn't go on to its next step: a required answer may be "
-                                  "missing or wrong on the step it stayed on. Fill it in yourself.")
-                page.wait_for_timeout(250)
-                waited += 250
-        finally:
-            if self._guard:
-                self._guard.arm()  # the account click's flag off again, in the step it led to
-                self._guard.rest()
+        # click alone (press_step, KAN-639).
+        press_step(page, self._guard, name)
 
     def _through_profile_step(self, page: Page, button: Locator, name: str) -> None:
         """Press a profile pop-up's button (one plain-code click the guards let through), and wait for
@@ -669,6 +653,43 @@ def _profile_step(page: Page, name: str) -> Locator | None:
     return None
 
 
+def press_step(page: Page, guard, name: str, back: bool = False) -> None:
+    """Plain code's own click on a step's Next (or `back`: its Back), which goes through the guards where it posts
+    natively: a button that sends, a form that has one and the final application URLs stay blocked (KAN-639).
+    Waits for the step it leads to; a Handoff says why it didn't."""
+    before = _fields_shown(page)
+    button = _the_back(page, name) if back else _the_next(page, name)
+    # Plain code's own check: never Claude's word for it. A Back leaves the review page, so only its words count.
+    words = _sends_or_reviews(page, button)
+    if words and not (back and words == REVIEW_WORDS):
+        raise Handoff(f"Claude fill's Next ({name!r}) is {words}, which may send the form. Fill it in yourself.")
+    if guard:
+        guard.let_account_click()
+    try:
+        button.click()
+        waited = 0
+        while _fields_shown(page) == before:
+            if waited >= STEP_SHOWS_MS:
+                raise Handoff(f"The form's {name!r} didn't go on to its next step: a required answer may be "
+                              "missing or wrong on the step it stayed on. Fill it in yourself.")
+            page.wait_for_timeout(250)
+            waited += 250
+    finally:
+        if guard:
+            guard.arm()  # the account click's flag off again, in the step it led to
+            guard.rest()
+
+
+def _the_back(page: Page, name: str):
+    """The one button of exactly the name Claude gave a step's Back, which says nothing that sends. None, or two, is a Handoff."""
+    if SENDS.search(name) or not BACK.search(name):
+        raise Handoff(f"Claude named {name!r} as the form's Back, which may send it. Fill it in yourself.")
+    found = [b for b in page.get_by_role("button", name=name, exact=True).all() if b.is_visible()]
+    if len(found) != 1:
+        raise Handoff(f"The form shows {len(found)} buttons named {name!r}, so Apply didn't press one. Do it yourself.")
+    return found[0]
+
+
 def _the_next(page: Page, name: str):
     """The one button that is the step's Next Claude named: the button of
     exactly that name, else the one whose whole name is a Next's ("Continue"
@@ -763,7 +784,7 @@ def _sends_or_reviews(page: Page, button) -> str:
     except Exception:
         headings = ""
     if REVIEW_PAGE.search(headings):
-        return "on the form's review page"
+        return REVIEW_WORDS
     return ""
 
 
