@@ -113,6 +113,9 @@ OUTCOMES = {
     Status.NOT_ELIGIBLE: "not eligible",
     Status.CLOSED: "closed",
 }
+# Outcomes that stop before the form's last page: the page held then is never one to submit from (KAN-636).
+STOPPED = (FAILED, SIGN_IN, OUTCOMES[Status.HANDOFF])
+NOT_LAST = "Apply stopped before the form's last page ({}): this page isn't ready to submit"
 
 
 @dataclass
@@ -153,7 +156,13 @@ class Rehearsed:
     def warning(self) -> str:
         """What to fix on the held page before submitting it, if anything."""
         found = list(self.problems) + [f"Left blank: {q}" for q in self.missing]
+        if self.outcome in STOPPED:  # a failure or a pause mid-form: never "done, Submit is yours"
+            found.insert(0, NOT_LAST.format(f"{self.outcome}: {self.why}" if self.why else self.outcome))
         return "; ".join(one_line(f) for f in found)
+
+    def wrong(self) -> bool:
+        """Whether the held page's note is red: an answer is wrong, or Apply stopped before the last page."""
+        return bool(self.problems) or self.outcome in STOPPED
 
     def line(self) -> str:
         p = self.posting
@@ -292,7 +301,7 @@ def rehearse(
         def holds() -> dict:
             """What holds Submit on the held page (Rehearsed.holding), with its note, for hold()."""
             return {"held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
-                    "note": lambda: (done.warning(), bool(done.problems))}
+                    "note": lambda: (done.warning(), done.wrong())}
 
         def paused(stopped: Rehearsed, blocked: Callable[[object], str]) -> bool:
             """The fill stopped mid-form for Lisul: hold its page, his to fix, until he presses Resume
@@ -316,7 +325,7 @@ def rehearse(
                 return True
             gate.release()  # a paused form holds no Worker's turn while it waits on him
             try:
-                how = site.hold(release, done.posting.job_system, submitted, done.warning(), bool(done.problems),
+                how = site.hold(release, done.posting.job_system, submitted, done.warning(), done.wrong(),
                                 answers, fill, resume=wants, challenged=challenged, refused=turned_down, redo=redo, tend=tend,
                                 **holds())
             finally:
@@ -356,7 +365,7 @@ def rehearse(
                 def hold() -> str:
                     offered = not anyway and ruled_out()
                     how = site.hold(release, done.posting.job_system, submitted, done.warning(),
-                                    bool(done.problems), answers, fill,
+                                    done.wrong(), answers, fill,
                                     EmailCode(adapters.mailbox, adapters.clock, done.posting.job_system, told),
                                     resume=(lambda page: adapters.board.resumed(n)) if offered else None,
                                     challenged=challenged, refused=turned_down, redo=redo, tend=tend,
@@ -633,7 +642,7 @@ def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Ada
         adapters.board.update(n, status=done.outcome, filled=done.filled, missing=list(done.missing),
                               line=done.line(), why=one_line(done.why))
         try:
-            renote(page, done.warning(), bool(done.problems), done.holding())
+            renote(page, done.warning(), done.wrong(), done.holding())
         except Exception:
             pass  # the page closing: nothing to say on it
         return
@@ -672,7 +681,7 @@ def _filled_in(page, field: str, asked: list[str], answer: "str | Path", adapter
     adapters.board.update(n, status=done.outcome, filled=done.filled, missing=list(done.missing), files=done.files,
                           line=done.line(), why=one_line(done.why))
     try:
-        renote(page, done.warning(), bool(done.problems), done.holding())
+        renote(page, done.warning(), done.wrong(), done.holding())
     except Exception:
         pass  # the page closing: nothing to say on it
 

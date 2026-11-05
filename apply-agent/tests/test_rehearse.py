@@ -1537,3 +1537,16 @@ def test_force_rehearses_it_but_submit_stays_blocked_until_the_red_note_is_dismi
     assert (seen["sent before"], seen["sent after one press"]) == (0, 0)
     assert submissions == 1  # his, once he dismissed the note on purpose
     assert any(line.startswith("Arc Boat Company | ") and "ready to submit" in line for line in lines)
+
+
+@pytest.mark.parametrize("outcome", [rehearsal.FAILED, rehearsal.SIGN_IN, "handoff"])
+def test_a_page_apply_stopped_on_before_the_last_never_says_submit_is_yours(outcome):
+    done = rehearsal.Rehearsed(Posting("p", "JPMorgan Chase", "Intern", "https://jpmc.fa.oraclecloud.com/x"), outcome,
+                               "element is not editable")
+    assert done.warning().startswith("Apply stopped before the form's last page")
+    assert "isn't ready to submit" in done.warning() and done.wrong()
+
+
+def test_a_form_filled_to_its_last_page_keeps_its_plain_note():
+    done = rehearsal.Rehearsed(Posting("p", "Acme", "Intern", "https://acme.example/x"), rehearsal.READY)
+    assert (done.warning(), done.wrong()) == ("", False)
