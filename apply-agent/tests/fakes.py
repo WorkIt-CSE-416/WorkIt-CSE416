@@ -40,6 +40,15 @@ RECAPTCHA_CHALLENGE_STUB = (
     "f.style.cssText='width:400px;height:580px';document.body.appendChild(f);return new Promise(function(){})},"
     "render:function(){return 0},reset:function(){}}};"
 )
+# The same challenge, solved 1.5 s after it shows (as when Lisul does it): then reCAPTCHA gives its token.
+RECAPTCHA_SOLVED_STUB = (
+    "window.grecaptcha={enterprise:{ready:function(cb){cb()},"
+    "execute:function(){var f=document.createElement('iframe');"
+    "f.src='https://www.google.com/recaptcha/enterprise/bframe?k=fake';"
+    "f.style.cssText='width:400px;height:580px';document.body.appendChild(f);"
+    "return new Promise(function(done){setTimeout(function(){f.remove();done('fake-recaptcha-token')},1500)})},"
+    "render:function(){return 0},reset:function(){}}};"
+)
 CONFIRMATION = "<!doctype html><title>Thank you</title><h1>Thank you for applying.</h1>"
 
 # Drops the last character typed into one field, the way a flaky widget
@@ -203,7 +212,7 @@ class FakeJobServer:
         question_api_down: bool = False,
         together: int = 1,
         kill: str | None = None,
-        challenge: bool = False,
+        challenge: bool | str = False,
         upload_delay: float = 0,
         failed_file_saves: int = 0,
         dropped_file_saves: int = 0,
@@ -220,7 +229,8 @@ class FakeJobServer:
         once (it fails after 30 s), which proves Workers fill in parallel.
         `kill` kills the run once: "open" right after a form opens, "submit"
         right after the form is submitted, before Apply can record it.
-        `challenge` makes reCAPTCHA show its picture challenge at submit.
+        `challenge` makes reCAPTCHA show its picture challenge at submit;
+        "solved": one that goes away 1.5 s later, as when Lisul does it.
         `upload_delay` slows every upload by that many seconds, as a busy network does.
         `failed_file_saves`: Ashby answers that many file saves with an error, and
         the page drops the file (as seen live once on Skydio).
@@ -324,7 +334,8 @@ class FakeJobServer:
             # Ashby names a callback to run once reCAPTCHA has loaded.
             onload = re.search(r"[?&]onload=(\w+)", url)
             call = f"window.{onload[1]}&&window.{onload[1]}();" if onload else ""
-            stub = RECAPTCHA_CHALLENGE_STUB if self._challenge else RECAPTCHA_STUB
+            stub = (RECAPTCHA_SOLVED_STUB if self._challenge == "solved" else
+                    RECAPTCHA_CHALLENGE_STUB if self._challenge else RECAPTCHA_STUB)
             return route.fulfill(content_type="text/javascript", body=stub + call)
         if any(self._handle_ashby(route, form) for form in self._ashby_forms):
             return
@@ -450,8 +461,8 @@ class FakeClaude:
     questions the same call drafts for the Answer bank; any other gets its
     first option, or a short plain answer. `needs_lisul` holds the starts of
     essay and one-off questions Claude says its sources can't answer. `reviews` are the
-    problems each review finds, in order; once they run out, every review
-    passes. `replans` maps the start of a question whose answer the page
+    problems each review finds, in order (or a review's whole answer, a dict with its
+    `problems` and `fixes`); once they run out, every review passes. `replans` maps the start of a question whose answer the page
     showed otherwise to the answer to fill instead, when Sonnet plans it
     again; any other is left as planned. Keeps every call it was sent.
 
@@ -582,8 +593,9 @@ class FakeClaude:
                                for key, text in drafts.items()}}
         if "unsupported" in wanted:  # the claim check (apply.writing): finds nothing
             return {"unsupported": {key: [] for key in wanted["unsupported"]["properties"]}}
-        if "problems" in wanted:
-            return {"problems": self._reviews.pop(0) if self._reviews else []}
+        if "problems" in wanted:  # a review: its problems, or a dict of them with the fixes it gives
+            found = self._reviews.pop(0) if self._reviews else []
+            return found if isinstance(found, dict) else {"problems": found}
         if "sent" in wanted:
             if isinstance(self._sent, Exception):
                 raise self._sent
@@ -759,3 +771,13 @@ class RecordingBoard:
 
     def resumed(self, worker: int) -> bool:
         return False
+
+    def regenerations(self, worker: int) -> list[tuple[str, str]]:
+        return []
+    def wanted(self, worker: int) -> list[tuple[str, Callable[[str], None]]]:
+        return []
+
+    def typed(self, worker: int, questions: list[str], answer: str) -> str:
+        with self._lock:
+            self.typed_in = getattr(self, "typed_in", []) + [(worker, list(questions), answer)]
+        return ""

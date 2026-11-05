@@ -8,7 +8,8 @@ A live run reads the board page -- the listing API carries no logo -- of every b
 with a job on the page that `Store.logos` has not seen (plus, for a Greenhouse board
 with no logo, its job descriptions), and keeps the answer: a URL, or
 `null` for a page with no logo. Logos almost never change, so nothing re-reads a
-logo found; delete `logos` from `jobs.json` to read them all again. A page that failed
+logo found, except once for an upload stored with no website (below, "The
+company domain"); delete `logos` from `jobs.json` to read them all again. A page that failed
 to load records nothing, so the next run retries it; a 404 is a page with no logo,
 which still goes on to the descriptions below.
 
@@ -92,14 +93,26 @@ worker reaches it, not up front, as in the scrape itself.
 
 **The card draws its logo from Brandfetch by the company's own domain**
 (KAN-442): the feed row's `company_domain`, written by `logos.company_domain`
-when the feed is written, so it needs no page read and no `VERSION` bump. It is
-the checked website when the board has one, else the website the board's
+when the feed is written. It is the checked website when the board has one, else
+the website the board named (`Store.websites`), else the website the board's
 favicon came from, cut to the registered domain (`logos.registered_domain`:
 `careers.gevernova.com` becomes `gevernova.com`). A hiring vendor's site gives
 none (`VENDOR_DOMAINS`): Micron's home page is `micron.eightfold.ai`, and
-Brandfetch drew Eightfold's logo for it. An uploaded logo gives none either,
-since the reader did not keep that board's website; the card keeps the upload.
-The value must pass the backend's CHECK (`DOMAIN`, migration `d9b579e66623`).
+Brandfetch drew Eightfold's logo for it. The value must pass the backend's
+CHECK (`DOMAIN`, migration `d9b579e66623`).
+
+**The reader keeps a board's website beside an uploaded logo too**
+(`Store.websites`, `logos.website`). Until 2026-11-03 it kept only the image, so
+an upload gave no domain and its card kept the upload: on that day 4,238 jobs at
+865 companies, mostly Lever, Ashby and Greenhouse. For a board with an upload it
+now also looks where it looks for a board with none: the website the page names,
+then (Greenhouse, Lever) the logo link and descriptions, or where the board
+redirects. **A board read for an upload before websites were kept is read once
+more** (`logos.needs_read`: an upload and no `websites` entry), with no `VERSION`
+bump; that re-read also picks up a logo the employer uploaded again. Beside an
+upload, a 404 for the descriptions records no website, so the board is not read
+on every run; a failed read leaves it for the next run. On 15 real boards with
+an upload, 12 gave a domain: every Ashby and Lever board, 2 of 5 on Greenhouse.
 
 In a test on 2026-10-29, Brandfetch drew 98 of 100 of our companies at 180 to
 400px (the favicons were 16 to 128px). Its misses were careers-site domains
@@ -121,4 +134,11 @@ Never a website guessed from a name with no check: in the first batch, the
 guess for "Global Infrastructure" was an investment firm, and its jobs were a
 Canadian design firm's. The first batch was the 100 companies with the most
 jobs showing initials: 95 passed, 5 went to a person (renamed firms, a typo in
-our data, a board host that names another company).
+our data, a board host that names another company). The second batch
+(2026-11-04) was the 20 employers with the most jobs and no `company_domain`
+(10,498 of 17,577 such jobs, H&R Block alone 5,789), plus Garmin: 17 passed.
+H&R Block, Keysight and Nestle refuse scripts (403, or a Cloudflare
+challenge) and Gallagher's home page is empty to one, so each was checked in a
+browser and by the logo Brandfetch draws for it, and its row's note says so.
+A site that refuses scripts is no reason to leave a row out: Brandfetch's own
+logo for the domain is a second check that the domain is the company's.

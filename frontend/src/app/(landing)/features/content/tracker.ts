@@ -7,7 +7,7 @@
  * no email (the Inbox is archived, docs/email_tracker.md), so no line says
  * an employer's reply moves an application.
  */
-import UpdatesVisual from "../../updates-visual";
+import { UpdatesAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 import { SentResumeVisual } from "../visuals/resumes";
 import { AskedVisual, ListVisual, StageVisual } from "../visuals/tracker";
@@ -25,7 +25,7 @@ const content: FeatureContent = {
       "Save a job or apply to it and it lands on your tracker. Move it to Interviewing or Offer as you hear back, with the resume you sent one click away.",
   },
   // The home tour's Updates stop.
-  animation: UpdatesVisual,
+  animation: UpdatesAnimation,
   sections: [
     {
       eyebrow: "One list",

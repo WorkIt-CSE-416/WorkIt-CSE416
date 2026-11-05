@@ -18,11 +18,14 @@ import yaml
 
 from apply import (
     bot_signals,
+    captcha,
     dashboard,
     doctor,
     employer_mail,
     essays,
     home,
+    native_host,
+    on_page,
     orchestrator,
     own_application,
     rehearsal,
@@ -36,6 +39,7 @@ from apply import (
     walls,
     workit,
 )
+from apply.accounts_tab import AccountsTab
 from apply.adapters import Adapters
 from apply.answer_bank import AnswerBank
 from apply.answers_tab import AnswersTab
@@ -134,6 +138,10 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
     clean_tracker.add_argument("--dry-run", action="store_true", help="only list what it would delete; delete nothing")
     clean_tracker.add_argument("--keep", action="append", default=[], metavar="LINK",
                                help="a job's link (or WorkIt job id) to keep on the tracker; give it again for more")
+    commands.add_parser(
+        "chrome-passwords", help="let the WorkIt extension in your own Chrome sign you in to each Workday account "
+                                 "Apply made, from Keychain, so Chrome offers to save its password: installs the "
+                                 "Apply accounts host and lists Keychain's accounts in the Tracker")
     commands.add_parser("push-test", help="send one test push to your phone (ntfy), or say how to set it up")
     scheduled = commands.add_parser(
         "schedule", help="launchd jobs for the Daily sweep (`apply run` at policies.yaml's schedule.daily_sweep_at) "
@@ -286,6 +294,8 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             print(f"{done.signature}: {done.status} ({done.branch or 'no branch'}): {done.why}")
     elif args.command == "sign-in":
         _sign_in(args.url, adapters.site if adapters else WorkerBrowsers(headless=False))
+    elif args.command == "chrome-passwords":
+        _chrome_passwords(ApplicantProfile.load(args.profile).get("identity.email"))
     elif args.command == "push-test":
         _push_test(adapters.phone if adapters else live_phone())
     elif args.command == "schedule":
@@ -386,6 +396,8 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
                                 answer=_answering(lambda: adapters.tracker, answers),
                                 approve=_approving(lambda: adapters.tracker), notify=adapters.notifier.notify,
                                 show=getattr(site, "show", None), sample=profile.get("sample_data") is True,
+                                everyday=adapters.everyday, accounts=_accounts_tab(lambda: adapters.tracker,
+                                                                                   adapters.keychain, adapters.everyday),
                                 **_window_context()) as board:
         adapters.board = board
         url = site.profiles / DASHBOARD_URL
@@ -397,6 +409,18 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
             yield
         finally:
             url.unlink(missing_ok=True)
+
+
+def _chrome_passwords(login: str) -> None:
+    """Install the Apply accounts host for Lisul's everyday Chrome, and list each Employer account Keychain
+    has in the Tracker, so the extension's Sign In button knows it (KAN-592). No password is read."""
+    manifest = native_host.install()
+    added = native_host.adopt(MacKeychain(), FileTracker(), login, date.today())
+    print(f"Installed the Apply accounts host: {manifest}, for the WorkIt extension only ({native_host.EXTENSION_ID}).")
+    print(f"Listed {len(added)} more Employer accounts from Keychain in the Tracker" + (f": {', '.join(added)}." if added else "."))
+    print("In Chrome, open the WorkIt extension's options page and turn on Use My Apply Accounts (Chrome asks once to "
+          "let it talk to Apply). Then, on a Workday Sign In page that Apply made an account for, press Sign In with "
+          "Your Apply Account, and press Save when Chrome asks to save the password.")
 
 
 def _answers_window(profile: Path, window: Path) -> None:
@@ -411,7 +435,10 @@ def _answers_window(profile: Path, window: Path) -> None:
     tab = AnswersTab(AnswerBank(profile.parent / ANSWER_BANK), profile, held=lambda: tracker().rows())
 
     with dashboard.Dashboard(0, dashboard.NoFrames(), tab, _applied_live, past=lambda: tracker().rows(),
-                             answer=_answering(tracker, tab), approve=_approving(tracker), **_window_context()) as board:
+                             answer=_answering(tracker, tab), approve=_approving(tracker),
+                             everyday=captcha.to_everyday_chrome,
+                             accounts=_accounts_tab(tracker, MacKeychain(), captcha.to_everyday_chrome),
+                             **_window_context()) as board:
         dashboard.open_window(board.url, window)
         print(f"Answers: {board.url} (no run is going; close the window or press Ctrl-C to stop)")
         try:
@@ -421,12 +448,19 @@ def _answers_window(profile: Path, window: Path) -> None:
             pass
 
 
+def _accounts_tab(tracker: Callable[[], object], keychain, everyday: Callable[[str], None]) -> AccountsTab:
+    """The window's Accounts tab over the Tracker's Employer accounts, their passwords in Keychain (KAN-591)."""
+    return AccountsTab(lambda: tracker().employer_accounts(), keychain, rows=lambda: tracker().rows(), everyday=everyday)
+
+
 def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict, str, str], str]:
     """Save Lisul's answer typed in the Inbox where Apply reads it: a run's
     Missing fact in its Tracker row's Answer cell, as if he typed it in the
     Sheet, so the next check fills that Application again with it; a
     rehearsal's into his Applicant profile, for every form after, or, for
-    what an essay asked him, into the Story bank, for every essay after."""
+    what an essay asked him, into the Story bank, for every essay after. A
+    bare date (From, To) is that form's alone: never saved by its label.
+    The same for his answer typed on the held form itself (Board.typed)."""
     def answer(item: dict, question: str, text: str) -> str:
         if item.get("status") == "missing fact" and item.get("application_id"):
             tracker().answer(item["application_id"], text)
@@ -434,6 +468,8 @@ def _answering(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict
         if question.startswith(essays.ASK):
             essays.remember_fact(question, text, item.get("company") or "", SystemClock().now().date())
             return "Saved to your Story bank: the essay is written with it next time."
+        if on_page.bare(question):  # a bare From or To: true of one section of this form only (KAN-595)
+            return "Kept on this form only: a bare date isn't saved to your facts without what it is for."
         tab.save_answered(question, text)
         return "Saved to your facts: every form that asks it gets this answer."
     return answer
@@ -605,6 +641,7 @@ def live_adapters(profile: ApplicantProfile, tracker=None, records=None, notifie
         answer_bank=AnswerBank(profile.folder / ANSWER_BANK) if answer_bank is None else answer_bank,
         signed_in=site.signed_in(),  # by apply sign-in
         tailored=tailored.from_workit(),  # the student's tailored resume for each Posting (KAN-547)
+        everyday=captcha.to_everyday_chrome,  # a bot-blocked posting goes to the student's own Chrome (KAN-590)
     )
 
 

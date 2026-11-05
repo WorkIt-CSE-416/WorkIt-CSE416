@@ -118,7 +118,20 @@ export type RenderedPdf = {
   /** The distance between a wrapped bullet's baselines on this page, in
    *  points, which reads a box's height as lines. */
   wrapped_line: number;
+  /** What Fit to One Page measures the page by, sent back by the editor's
+   *  fit with the boxes (`RenderMeasure`, KAN-584). Missing from an API a
+   *  deploy behind, which then fits on the server. */
+  points?: { name: string; page: number; x: number; y: number }[];
+  area?: { top: number; height: number; right: number } | null;
+  shrinks?: { name: string; page: number; total: number; shrink: number }[];
 };
+
+/** A render as Fit to One Page measures it, with no PDF (schemas
+ *  `RenderMeasure`). */
+export type RenderMeasure = Pick<
+  RenderedPdf,
+  "page_count" | "boxes" | "wrapped_line" | "points" | "area" | "shrinks"
+>;
 
 /** The editor's copy of what its PDF is built from (schemas `ResumeCopy`,
  *  KAN-391): with it, an edit's PDF compiles with no database read at all,
@@ -325,6 +338,19 @@ export async function saveLine(
     method: "PUT",
     body: JSON.stringify({ ...line, source }),
   });
+}
+
+/** One cycle of Fit to One Page with no compile (KAN-584, `POST .../fit/plan`):
+ *  `source` is the editor's copy when the fit began and `first` the measure
+ *  of the PDF it printed; a later cycle sends the measure after the steps so
+ *  far (`now`, `taken`). The answer is this cycle's `hide` body, which the
+ *  editor renders and saves as any edit, its `undo`, and the steps made. An
+ *  empty `hide` means the page fits, or nothing is left to cut. */
+export async function planFit(
+  resumeId: string,
+  body: { source: ResumeCopy; first: RenderMeasure; now: RenderMeasure | null; taken: number },
+): Promise<Result<{ hide: ChoicesUpdate; undo: ChoicesUpdate; taken: number }>> {
+  return call(`/${id(resumeId)}/fit/plan`, { method: "POST", body: JSON.stringify(body) });
 }
 
 /** Fit to One Page: the bullets it hid, `undo` (the PATCH body that shows

@@ -7,6 +7,7 @@ import urllib.request
 from collections import Counter
 from collections.abc import Callable
 
+from apply.asking import IN
 from apply.keychain import PHONE_PUSH, PHONE_PUSH_HOST, MacKeychain
 from apply.model import Status, one_line
 
@@ -38,24 +39,28 @@ def summary(statuses: Counter, new_accounts: int, drafted: list[tuple[str, str]]
 WAITING = (Status.HELD, Status.HANDOFF, Status.MISSING_FACT)
 # A reason in a push is cut to this many characters; the Tracker has it whole.
 SHORT_REASON = 100
+SHORT_CONTEXT = 160  # characters of a Missing fact's context line in a push
 # A push lists at most this many Applications, so it stays one short message.
 MOST_LISTED = 20
 
 
 def waiting(applications: list[tuple[Status, str, str, str]]) -> tuple[str, str]:
     """The phone push's title and message for the Applications that wait on
-    Lisul, as (status, company, role, reason): one line each, by status."""
+    Lisul, as (status, company, role, reason): one line each, by status. A
+    Missing fact's context line (after "; In: ", apply.asking) is kept apart
+    from its question, so cutting a long question never cuts it."""
     ordered = sorted(applications, key=lambda a: WAITING.index(a[0]))
-    lines = [f"{status.capitalize()}: {company}, {role}: {_short(reason)}" for status, company, role, reason in ordered]
+    lines = [f"{status.capitalize()}: {company}, {role}: {_short(asked)}" + (f" ({_short(where, SHORT_CONTEXT)})" if where else "")
+             for status, company, role, reason in ordered for asked, _, where in [reason.partition(f"; {IN}")]]
     if len(lines) > MOST_LISTED:
         lines[MOST_LISTED:] = [f"and {len(lines) - MOST_LISTED} more in the Tracker"]
     noun = "Application needs" if len(applications) == 1 else "Applications need"
     return f"Apply: {len(applications)} {noun} you", "\n".join(lines)
 
 
-def _short(reason: str) -> str:
+def _short(reason: str, most: int = SHORT_REASON) -> str:
     reason = one_line(reason)
-    return reason if len(reason) <= SHORT_REASON else reason[:SHORT_REASON - 1].rstrip() + "…"
+    return reason if len(reason) <= most else reason[:most - 1].rstrip() + "…"
 
 
 def used_again(reused: list[tuple[str, str, int]]) -> str:

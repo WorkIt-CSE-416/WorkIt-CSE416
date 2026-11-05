@@ -62,18 +62,21 @@ class Accounts:
         company: str = "",
         on_created: Callable[[EmployerAccount], None] = lambda account: None,
         failed: set[str] | None = None,
+        rehearsal: bool = False,
     ):
         """`login` is the email Lisul applies with. `on_created` lists a new
         account in the Tracker. `failed` holds the sites whose password
         sign-in has failed, shared by every Application of a run or
-        Rehearsal."""
+        Rehearsal. `rehearsal`: a Rehearsal's, which never resets a password
+        that only may exist (workday.MAY_EXIST)."""
         self._keychain = keychain
         self._mailbox = mailbox
         self.clock = clock
         self.login = login
-        self._company = company
+        self.company = company
         self._on_created = on_created
         self._failed = failed if failed is not None else set()
+        self.rehearsal = rehearsal
 
     def password(self, site: str) -> str | None:
         """The site's password, if Apply made an account there. A Handoff if a
@@ -98,9 +101,14 @@ class Accounts:
             raise Handoff(NO_RESET.format(site=site, login=self.login, why=why.rstrip(".")))
         return self.new_password(site)
 
+    def not_made(self, site: str) -> None:
+        """The site never made the account its new password was saved for:
+        Keychain forgets it, so no later run signs in with it."""
+        self._keychain.forget(site)
+
     def created(self, site: str) -> None:
         """The site accepted the new account: list it in the Employer accounts tab."""
-        self._on_created(EmployerAccount(self._company, site, self.login, self.clock.now().date()))
+        self._on_created(EmployerAccount(self.company, site, self.login, self.clock.now().date()))
 
     def sign_in_failed(self, site: str, why: str) -> Handoff:
         """The Handoff for a refused password, which no Application tries again."""
@@ -121,6 +129,13 @@ class Accounts:
         to one of `hosts` (the site's own, or its job system's)."""
         return self._wait("verification email", search, since,
                           lambda **look: self._mailbox.find_link(**look, hosts=hosts))
+
+    def mailed_link(self, search: str, since: datetime, hosts: tuple[str, ...]) -> str | None:
+        """A verification link already mailed since `since`, in one look, or
+        None: for an account made in an earlier run. Never waits, never asks."""
+        if self._mailbox.unavailable():
+            return None
+        return self._mailbox.find_link(search=search, since=since, hosts=hosts)
 
     def _wait(self, what, search, since, find) -> str:
         """Gmail looked at until the mail comes or MAIL_WAIT passes. Never a

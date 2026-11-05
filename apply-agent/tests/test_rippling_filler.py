@@ -161,7 +161,7 @@ def test_a_turnstile_challenge_at_submit_is_a_handoff_and_sends_nothing(one_page
         questions = filler.question_set(RIPPLING_URL, server)
         with server.open(RIPPLING_URL) as page:
             filler.fill(page, questions, {"first_name": "Test"})
-            with pytest.raises(Handoff, match="human") as handoff:
+            with pytest.raises(Handoff, match="captcha") as handoff:
                 filler.submit(page)
 
     assert handoff.value.bot_signal == "captcha"

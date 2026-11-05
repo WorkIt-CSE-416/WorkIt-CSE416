@@ -267,7 +267,7 @@ export function JobPostingCard({
         // filters stick over the list (feed-header.tsx), and a card just
         // under them lifted into them and was cut off.
         job.titleHref &&
-          "group/card hover:border-brand/40 hover:shadow-lift ease-glide relative transition-[box-shadow,border-color] duration-200",
+          "group/card hover:border-ink-meta hover:shadow-lift ease-glide relative transition-[box-shadow,border-color] duration-200",
       )}
     >
       {/* THE WHOLE CARD OPENS THE ROLE, not only its title. This layer is

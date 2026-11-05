@@ -17,15 +17,17 @@ from fake_jobvite import URL as JOBVITE_URL
 from fake_jobvite import FakeJobviteServer
 from fake_paylocity import HOW_HEARD, FakePaylocityServer
 from fake_paylocity import URL as PAYLOCITY_URL
-from fakes import FakeClaude, FakeClock, FakeMailbox, ScriptedUsage
+from fakes import FakeClaude, FakeClock, FakeMailbox, RecordingBoard, ScriptedUsage
 from test_matches import feed_record
 from test_run_answers import profile_with
 
 from apply import claude_fill
 from apply.adapters import Adapters, UsageLimitHit
-from apply.claude_fill import FILL
+from apply.claude_fill import FILL, ClaudeFill
 from apply.cli import main
 from apply.feed import SimplifyFeed
+from apply.model import Handoff
+from apply.notify import RecordingNotifier
 from apply.records import InMemoryRecords
 from apply.tracker import InMemoryTracker, Row
 
@@ -133,7 +135,7 @@ def _fill(page, question: str, answer: str, files: dict) -> None:
 
 
 def run(server, profile, *records: dict, requests=(), claude: FakeClaude, tracker: InMemoryTracker | None = None,
-        kept: InMemoryRecords | None = None) -> list[Row]:
+        kept: InMemoryRecords | None = None, **more) -> list[Row]:
     tracker = tracker or InMemoryTracker()
     for url in requests:
         tracker.paste_request(url)
@@ -148,6 +150,7 @@ def run(server, profile, *records: dict, requests=(), claude: FakeClaude, tracke
             usage=ScriptedUsage(),
             clock=FakeClock(datetime(2026, 10, 15, 9, 30)),
             records=kept or InMemoryRecords(),
+            **more,
         ),
     )
     return tracker.rows()
@@ -294,6 +297,133 @@ def test_a_captcha_claude_fill_stops_at_is_a_bot_signal(tmp_path, why):
 
     assert row.status == "handoff"
     assert row.bot_signals == "headless: captcha"
+
+
+# Claude's why at a bot block (KAN-590): Tesla's "Access Denied" (2026-11-03), DataDome's block (LinkedIn's
+# SmartRecruiters form, 2026-11-03).
+BLOCKED_WHYS = {
+    "tesla": ('The tab shows an "Access Denied" error from the server (Reference #18.6424c317) at '
+              "https://lunaroutpost.bamboohr.com/careers/398. No job posting or application form is visible."),
+    "datadome": ('The page shows "We detected unusual activity from your device or network" in an iframe, '
+                 "with no form to fill."),
+}
+
+
+@pytest.mark.parametrize("site", BLOCKED_WHYS)
+def test_a_bot_block_goes_to_lisuls_own_chrome_at_once_and_waits_on_him(tmp_path, site):
+    profile = profile_with(tmp_path, policies={"phone_push": True})
+    claude = FakeClaude(driver=BambooDriver(blocked=BLOCKED_WHYS[site]))
+    opened, phone = [], RecordingNotifier()
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [row] = run(server, profile, requests=[LUNAR_URL], claude=claude, everyday=opened.append, phone=phone)
+
+    assert row.status == "handoff"  # Needs you, until the extension's submit proof says applied
+    assert row.reason.startswith("Lunar Outpost blocked Apply's Chrome")
+    assert "Finish Lunar Outpost in your Chrome: the extension fills it" in row.reason
+    assert row.bot_signals.endswith(": blocked")
+    assert opened == [LUNAR_URL]  # once: no retry
+    assert ("Apply: finish it in your Chrome", "Finish Lunar Outpost in your Chrome: the extension fills it") in phone.sent
+    assert server.submissions == []
+
+
+# DataDome's "Verification Required" slider, as SmartRecruiters showed it (LinkedIn, 2026-11-03), in its own frame.
+# It goes away `solved_ms` after it shows, as when Lisul slides it; never, for None.
+DATADOME = """(solved) => {
+  const frame = document.createElement('iframe');
+  frame.src = 'https://geo.captcha-delivery.com/captcha/?initialCid=fake';
+  frame.style.cssText = 'width:400px;height:400px';
+  document.body.appendChild(frame);
+  if (solved !== null) setTimeout(() => frame.remove(), solved);
+}"""
+SLIDER = ('a "Verification Required" slider challenge ("Slide right to secure your access") in an iframe. '
+          "That is a captcha-style challenge, which I must not solve, so I stopped.")
+
+
+class CaptchaDriver(BambooDriver):
+    """Plays Haiku meeting a captcha on its first read of the form: the
+    challenge shows, Haiku stops and says so; once it is gone, it reads as before."""
+
+    def __init__(self, solved_ms: int | None):
+        super().__init__()
+        self._solved_ms = solved_ms
+        self.stopped = 0
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        if "questions" in schema["properties"] and not self.stopped:
+            self.stopped += 1
+            page.evaluate(DATADOME, self._solved_ms)
+            return {"blocked": True, "why": SLIDER, "questions": [], "filled": [], "submit_button": ""}
+        return super().__call__(page, schema, prompt, files)
+
+
+def captcha_profile(tmp_path, minutes: float):
+    profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items()},
+                           **{f"answered_questions.{ESSAY}": "Lunar rovers are what I build in my spare time."})
+    with (tmp_path / "policies.yaml").open("a") as policies:
+        policies.write(f"phone_push: true\ncaptcha_wait_minutes: {minutes}\n")
+    return profile
+
+
+def test_a_captcha_mid_fill_waits_for_lisul_then_the_fill_goes_on(tmp_path):
+    # LinkedIn (2026-11-03): SmartRecruiters' slider stopped Claude fill's read. Lisul does it; Apply goes on.
+    phone, board = RecordingNotifier(), RecordingBoard()
+    claude = FakeClaude(driver=CaptchaDriver(solved_ms=1500))
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [row] = run(server, captcha_profile(tmp_path, 1), lunar_match(), claude=claude, phone=phone, board=board)
+
+    assert phone.sent[0] == ("Apply: do the captcha", "Do the captcha on Lunar Outpost. Apply goes on by itself once it's done.")
+    assert row.status == "submitted"
+    assert len(server.submissions) == 1
+
+
+def test_a_captcha_lisul_does_not_do_in_time_is_the_usual_handoff(tmp_path):
+    phone = RecordingNotifier()
+    claude = FakeClaude(driver=CaptchaDriver(solved_ms=None))
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [row] = run(server, captcha_profile(tmp_path, 0.03), lunar_match(), claude=claude, phone=phone)
+
+    assert row.status == "handoff"
+    assert "must not solve" in row.reason
+    assert row.bot_signals == "headless: captcha"
+    assert [title for title, _ in phone.sent].count("Apply: do the captcha") == 1
+    assert server.submissions == []
+
+
+class PostingPageDriver(BambooDriver):
+    """Plays the page, not Haiku, posting a form of its own while Haiku reads
+    the first time (LinkedIn's SmartRecruiters form, live 2026-11-03): the
+    drive guard blocks it, and the read is a Handoff."""
+
+    def __init__(self):
+        super().__init__()
+        self.reads = 0
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        if "questions" in schema["properties"]:
+            self.reads += 1
+            if self.reads == 1:
+                page.evaluate("""() => { const f = document.createElement('form'); f.method = 'post';
+                                 f.action = '/session'; document.body.appendChild(f); f.submit(); }""")
+            else:  # the form is open already
+                return {"blocked": False, "why": "", "questions": LUNAR_QUESTIONS}
+        return super().__call__(page, schema, prompt, files)
+
+
+def test_a_block_lisul_resumed_after_does_not_stop_the_next_read(tmp_path):
+    # LinkedIn (2026-11-03): Resume read the form again, and the block of the read before stopped it again.
+    driver = PostingPageDriver()
+    filler = ClaudeFill(FakeClaude(driver=driver))
+
+    with FakeBambooServer(LUNAR_FORM) as server, claude_fill.OnePage(server) as site:
+        with pytest.raises(Handoff, match="blocked a form submission"):
+            filler.question_set(LUNAR_URL, site)
+        questions = filler.question_set(LUNAR_URL, site)  # his Resume: the same page, read again
+
+    assert [q.label for q in questions][:3] == ["First Name", "Last Name", "Email"]
+    assert server.submissions == []
 
 
 class SendingDriver(BambooDriver):
@@ -952,3 +1082,22 @@ def test_a_page_gone_blank_after_the_submit_is_no_confirmation(tmp_path, monkeyp
 
     assert row.status == "handoff", (row.status, row.reason)
     assert "may not have been sent" in row.reason
+
+
+def test_a_rehearsal_at_a_bot_block_waits_for_lisuls_press_to_open_his_chrome(tmp_path):
+    # KAN-590: rehearsals never pop a window by themselves; the window's Open in my Chrome does it.
+    from apply import rehearsal
+    from apply.profile import ApplicantProfile
+
+    claude = FakeClaude(driver=BambooDriver(blocked=BLOCKED_WHYS["datadome"]))
+    board, opened = RecordingBoard(), []
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [done] = rehearsal.rehearse(
+            [LUNAR_URL], Adapters(feed=SimplifyFeed(lambda: b"[]"), tracker=InMemoryTracker(), site=server, claude=claude,
+                                  mailbox=FakeMailbox(), usage=ScriptedUsage(), clock=FakeClock(datetime(2026, 11, 3, 9)),
+                                  board=board, everyday=opened.append),
+            ApplicantProfile.load(profile_with(tmp_path)), 1, keep_open=False, out=lambda line: None)
+
+    assert done.outcome == "handoff" and "Finish Lunar Outpost in your Chrome" in done.why
+    assert board.captions[0]["blocked"] is True and "resume" not in board.captions[0]
+    assert opened == []

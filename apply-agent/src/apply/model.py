@@ -44,7 +44,8 @@ class Question:
     """One field of a Posting's form. `name` is the job system's own field id.
     `description` is the help text the form shows under the label ("3-4
     sentences"), as plain text; `max_length` the most characters the field
-    takes, when the form says. Neither tells two Questions apart."""
+    takes, when the form says; `section` the heading or intro the form shows
+    just before it, when the form reader finds one. None tells two Questions apart."""
 
     name: str
     label: str
@@ -53,6 +54,7 @@ class Question:
     options: tuple[str, ...] = ()
     description: str = field(default="", compare=False)
     max_length: int | None = field(default=None, compare=False)
+    section: str = field(default="", compare=False)
 
 
 # Every question one Posting's form asks, read before the form is opened.
@@ -138,6 +140,27 @@ class Handoff(Exception):
     def __init__(self, why: str = "", bot_signal: str = ""):
         super().__init__(why)
         self.bot_signal = bot_signal
+
+
+class Captcha(Handoff):
+    """A captcha's challenge stopped the fill on `page` (apply.captcha). Apply
+    never solves it: it waits for Lisul to, then goes on from that page."""
+
+    def __init__(self, why: str, page):
+        super().__init__(why, bot_signal="captcha")
+        self.page = page
+
+
+class Blocked(Handoff):
+    """A page refused Apply's Chrome as a bot (apply.captcha.BLOCKS), with
+    nothing on it to solve. Apply hands it off at once, with no retry: the
+    student finishes it in their own Chrome, where the extension fills it.
+    `company` is who blocked it; `url`, the posting to open there; `said`,
+    the page's own words. A Filler that knows neither gives only `said`."""
+
+    def __init__(self, why: str, company: str = "", url: str = "", said: str = ""):
+        super().__init__(why, bot_signal="blocked")
+        self.company, self.url, self.said = company, url, said
 
 
 class Closed(Exception):

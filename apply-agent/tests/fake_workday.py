@@ -73,6 +73,7 @@ class Field:
     format: str = "MM/YYYY"  # a date's sections: MM/YYYY, YYYY or MM/DD/YYYY
     group: str = ""  # the titled group it sits in, whose title says what a vague label doesn't
     shown_if: tuple[str, str] = ()  # (key, answer): shown, and asked, only once that field has that answer
+    intro: str = ""  # the step's own text just before it, outside every field (a heading or an intro)
 
 
 @dataclass(frozen=True)
@@ -203,14 +204,14 @@ AUTH_SCRIPT = r"""
         .then(r => r.json()).then(r => show(r.error || r.notice, r.error ? 'error' : 'alert'));
       return;
     }
-    fetch('/__fake__/' + (creating ? 'create-account' : 'sign-in'), {
+    fetch('/__fake__/' + (creating ? 'register' : 'sign-in'), {
       method: 'POST',
       body: JSON.stringify({email: value('email'), password: value('password'), verify: value('verifyPassword'),
                             accepted: box ? box.checked : null, page: location.href}),
     }).then(r => r.json()).then(r => {
       if (r.next) location.href = r.next;
       else if (r.signIn) document.querySelector('[data-automation-id=signInLink]').click();  // a bare Sign In view
-      else show(r.error || r.notice, r.error ? 'error' : 'verify');
+      else if (!(creating && r.error && window.__fakeHidesErrors)) show(r.error || r.notice, r.error ? 'error' : 'verify');
     });
   }, true);
 })();
@@ -316,10 +317,16 @@ class FakeWorkdayServer:
     `review_delay`: seconds the Review step shows only a placeholder, and its
     Submit button, before its answers (NVIDIA's, live).
     `box_wiring`: seconds after a step shows before its checkboxes take a click.
-    `to_sign_in`: Create Account goes to a bare Sign In view, with no notice,
-    and the candidate signs in with the new account (Northrop's and Zillow's,
-    live). A tenant that verifies email answers it by way of its
-    `/login/warning` page (Zillow's, live), which the Sign In view never shows."""
+    `to_sign_in`: Create Account makes the account and goes to a bare Sign
+    In view, with no notice, as Workday's own code does on a success that
+    says isLoginRedirect (Visa's, Northrop's, live). A tenant that verifies
+    email goes there by way of its `/login/warning` page (Zillow's, Sonos's,
+    live), which the Sign In view never shows. Create Account is answered in
+    Workday's shape: `{"widget": "root"}` for an account made, `{"type":
+    "ERROR", "message": ...}` for a refusal.
+    `exists_quietly`: Create Account for an email that has an account goes
+    to the bare Sign In view, with no error (ASML's, live). `hides_errors`:
+    Create Account's refusal is in Workday's answer only, never on the page."""
 
     def __init__(self, *forms: Path, keychain=None, mailbox: FakeMailbox | None = None,
                  verify_email: tuple[str, ...] = (), links_lost: bool = False,
@@ -329,7 +336,7 @@ class FakeWorkdayServer:
                  ignored_clicks: int = 0, went_wrong: int = 0, review_delay: float = 0,
                  drops_untouched: bool = False, flashes_error: bool = False,
                  dropped_saves: int = 0, box_wiring: float = 0, to_sign_in: bool = False,
-                 lost_picks: int = 0):
+                 lost_picks: int = 0, exists_quietly: bool = False, hides_errors: bool = False):
         self._responses: dict[str, tuple[int, str, bytes]] = {}
         redirects: dict[str, str] = {}
         for form in forms:
@@ -364,6 +371,8 @@ class FakeWorkdayServer:
         self._dropped_saves = dropped_saves
         self._box_wiring = box_wiring
         self._to_sign_in = to_sign_in
+        self._exists_quietly = exists_quietly
+        self._hides_errors = hides_errors
         # How many of the first saves hold none of the step's dropdown picks, though the page shows them
         # (ASML's Application Questions, live): the step is refused as missing them.
         self._lost_picks = lost_picks
@@ -403,6 +412,7 @@ class FakeWorkdayServer:
             context.add_init_script(f"window.__fakeFlashesError = {str(self._flashes_error).lower()}")
             context.add_init_script(f"window.__fakeDroppedSaves = {self._dropped_saves}")
             context.add_init_script(f"window.__fakeBoxWiring = {self._box_wiring}")
+            context.add_init_script(f"window.__fakeHidesErrors = {str(self._hides_errors).lower()}")
             context.add_init_script(AUTH_SCRIPT)
             if self._in_progress:
                 context.add_init_script(CONTINUE_SCRIPT)
@@ -452,11 +462,13 @@ class FakeWorkdayServer:
     def _fake(self, route: Route, host: str, path: str, query: dict) -> None:
         tenant = self._tenant(host)
         body = route.request.post_data_json if route.request.method == "POST" else None
-        if path == "create-account":
+        if path == "register":
             made = self._create_account(host, tenant, body)
             if self._to_sign_in and "notice" in made:
                 return route.fulfill(status=302, headers={"Location": f"https://{host}/__fake__/login/warning"})
-            return route.fulfill(json={"signIn": True} if self._to_sign_in and "next" in made else made)
+            # Workday's shape: a refusal is a message of type ERROR; anything else is a root widget.
+            shape = {"type": "ERROR", "message": made["error"]} if "error" in made else {"widget": "root"}
+            return route.fulfill(json=made | shape)
         if path == "sign-in":
             return route.fulfill(json=self._sign_in(host, tenant, body))
         if path == "login/warning":
@@ -503,6 +515,8 @@ class FakeWorkdayServer:
         if password != form["verify"]:
             return {"error": "The passwords do not match."}
         if email in tenant.accounts:
+            if self._exists_quietly:
+                return {"signIn": True}  # back to Sign In, and no word of the account it has
             return {"error": "An account with this email address already exists."}
         kept = self._keychain.password(host) if self._keychain else None
         self.created.append({"host": host, "email": email, "password": password, "keychain": kept})
@@ -511,8 +525,9 @@ class FakeWorkdayServer:
             if not self._links_lost:
                 self._send_link(host, email)
             return {"notice": f"A verification email was sent to {email}. Click the link in it to verify your account."}
-        if not self._to_sign_in:
-            tenant.signed_in, tenant.posting = email, _posting(form["page"])
+        if self._to_sign_in:
+            return {"signIn": True}  # made, and back to Sign In to sign in with it
+        tenant.signed_in, tenant.posting = email, _posting(form["page"])
         return {"next": "/__fake__/apply/1"}
 
     def _sign_in(self, host: str, tenant: Tenant, form: dict) -> dict:
@@ -618,6 +633,9 @@ class FakeWorkdayServer:
             + '<div data-automation-id="pageFooter"><button data-automation-id="pageFooterBackButton">Back</button>'
             f'<button type="button" data-automation-id="pageFooterNextButton">{footer}</button></div>'
             f"</div><script>{STEP_SCRIPT}</script>"
+            # Back goes to the step before, as it saved it (none before the first)
+            + (f"<script>document.querySelector('[data-automation-id=pageFooterBackButton]').addEventListener('click', "
+               f"() => {{ location.href = '/__fake__/apply/{step - 1}'; }})</script>" if step > 1 else "")
         )
 
     def _google_page(self, route: Route, parts) -> None:
@@ -702,6 +720,9 @@ def _section_html(s: Section, panels: list[dict] | None) -> str:
 def _field_html(f: "Field | Section", value, prefix: str = "") -> str:
     if isinstance(f, Section):
         return _section_html(f, value)
+    if f.intro:
+        return (f'<div data-automation-id="richText"><p>{html.escape(f.intro)}</p></div>'
+                + _field_html(replace(f, intro=""), value, prefix))
     if f.group:
         heading = f"{prefix}{f.key}-group"
         return (f'<div role="group" aria-labelledby="{heading}"><h4 id="{heading}">{html.escape(f.group)}</h4>'

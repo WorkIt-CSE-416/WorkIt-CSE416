@@ -198,6 +198,12 @@ class Plan:
     # The questions the engine leaves blank on purpose, by name, each with why (a duplicate "Other website",
     # an "If other" follow-up to another pick, an optional fact the profile lacks): Verifying notes these.
     blanks: dict[str, str] = field(default_factory=dict)
+    # Each bare date's section (From, To, Start date: a label that says nothing of what it is for), by name:
+    # "education", "work experience", "availability", or "" when nothing on the form says.
+    sections: dict[str, str] = field(default_factory=dict)
+    # The wording the Answer bank files each bare date's answer under, by name ("education / From (MM/DD/YYYY)"):
+    # None when no section is known, and its answer is then never banked.
+    filed: dict[str, str | None] = field(default_factory=dict)
 
 
 def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, bank: AnswerBank | None = None,
@@ -234,6 +240,7 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         essays=result["essays"], missing=result["missing"], not_eligible=result["not_eligible"],
         high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=result["drafts"], banked=result["banked"],
         accepted=accepted, blanks=dict(result.get("blanks") or {}),
+        sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
     )
 
 
@@ -245,6 +252,12 @@ def remember(profile: ApplicantProfile, posting: Posting, question: Question, an
         profile.set(change["fact"], change["value"])
     else:
         profile.set_answered(change["question"], change["answer"])
+
+
+def context_free(label: str) -> bool:
+    """Whether a label says nothing of what it asks without its section: a bare date (From, To, Start date).
+    Its answer is never kept by its wording alone (the engine's contextFree)."""
+    return call_without_page("contextFree", label)
 
 
 def not_called_for(q: Question, questions: QuestionSet, answers: Answers) -> tuple[bool, Any]:
@@ -443,10 +456,11 @@ def answers_arg(answers: Answers) -> dict:
 
 
 def question_set(questions: list[dict]) -> QuestionSet:
-    """Questions as the engine gives them, with the form's help text and character
-    limit when the engine reads them."""
+    """Questions as the engine gives them, with the form's help text, character
+    limit and section heading when the engine reads them."""
     return [Question(q["name"], q["label"], q["kind"], q["required"], tuple(q["options"]),
-                     q.get("description") or "", q.get("maxLength") or q.get("max_length")) for q in questions]
+                     q.get("description") or "", q.get("maxLength") or q.get("max_length"), q.get("section") or "")
+            for q in questions]
 
 
 def _file(path: Path) -> dict:

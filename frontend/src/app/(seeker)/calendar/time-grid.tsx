@@ -142,7 +142,7 @@ export function TimeGrid({
   }, [opensAt, keys[0]]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="border-border-subtle rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
+    <div className="border-border-control rounded-card mt-4 flex min-h-0 flex-1 flex-col overflow-hidden border">
       {/* The days, and under them the all-day row. */}
       <div className="bg-surface border-border-subtle grid shrink-0 border-b" style={columns}>
         <span aria-hidden="true" />

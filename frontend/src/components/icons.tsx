@@ -50,7 +50,6 @@ import {
   SealCheckIcon as SealCheck,
   ShieldCheckIcon as ShieldCheck,
   SignOutIcon as SignOut,
-  SparkleIcon as Sparkle,
   StarIcon as Star,
   TargetIcon as Target,
   TranslateIcon as Translate,
@@ -101,15 +100,9 @@ type IconProps = { className?: string };
 
 /* Chrome ------------------------------------------------------------------ */
 
-/** Scout and every AI action, the one mark for both (KAN-257): the top bar's
- *  launcher, the panel's header, Scout's mark in the chat, Ask Scout, Tailor's
- *  own run and Read It Again with AI. It was a filled sparkle drawn by hand
- *  in the bar and the panel, beside an outlined one in the chat and on every
- *  AI button, so the assistant wore two marks. Use this, never Phosphor's
- *  `SparkleIcon` directly. */
-export function SparkleIcon({ className }: IconProps) {
-  return <Sparkle aria-hidden className={className} />;
-}
+/** Scout and every AI action, the one mark for both (KAN-257); drawn in its
+ *  own module so a light page can import it without this one. */
+export { SparkleIcon } from "./sparkle-icon";
 
 /** Tailor My Resume, on a job's card and its page: a page being rewritten. It
  *  drew SparkleIcon until KAN-518, beside Ask Scout's, so the two buttons read

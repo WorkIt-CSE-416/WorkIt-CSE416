@@ -1,6 +1,6 @@
 "use client";
 
-import { ScissorsIcon, WarningIcon, XIcon } from "@phosphor-icons/react/ssr";
+import { CircleNotchIcon, ScissorsIcon, WarningIcon, XIcon } from "@phosphor-icons/react/ssr";
 
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -22,11 +22,14 @@ export function FitNotice({
   fitLabel = "Fit to One Page",
   onFit,
   disabled,
+  fitting = false,
 }: {
   label: string;
   fitLabel?: string;
   onFit: () => void;
   disabled: boolean;
+  /** A fit is under way: a spinner, and "Fitting…" for the full label. */
+  fitting?: boolean;
 }) {
   return (
     <div className="bg-warning-tint text-warning rounded-control inline-flex items-center">
@@ -43,7 +46,17 @@ export function FitNotice({
         aria-label={fitLabel === "Fit to One Page" ? undefined : "Fit to One Page"}
         className="text-warning hover:text-warning hover:bg-warning/10"
       >
-        <ScissorsIcon aria-hidden /> {fitLabel}
+        {fitting ? (
+          <>
+            <CircleNotchIcon aria-hidden className="animate-spin motion-reduce:animate-none" />
+            {/* The phone's short "Fit" keeps its width: the spinner says it */}
+            {fitLabel === "Fit to One Page" ? "Fitting…" : fitLabel}
+          </>
+        ) : (
+          <>
+            <ScissorsIcon aria-hidden /> {fitLabel}
+          </>
+        )}
       </Button>
     </div>
   );

@@ -11,7 +11,17 @@ from collections.abc import Callable, Collection, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import date, datetime, timedelta
 
-from apply import bot_signals, embedded, greenhouse, oracle, tailored, trace, walls
+from apply import (
+    asking,
+    bot_signals,
+    captcha,
+    embedded,
+    greenhouse,
+    oracle,
+    tailored,
+    trace,
+    walls,
+)
 from apply.accounts import Accounts, failed_sites
 from apply.adapters import (
     Adapters,
@@ -23,6 +33,7 @@ from apply.adapters import (
 )
 from apply.answer_bank import Entry
 from apply.answer_bank import key as bank_key
+from apply.captcha import Waiter
 from apply.claude_fill import ClaudeFill, OnePage
 from apply.feed import repost_keys
 from apply.fillers import FILLERS
@@ -208,7 +219,7 @@ class _Run:
                     self._adapters.board.update(worker, status=result.status, why=one_line(result.reason),
                                                 line=": ".join(filter(None, [result.status, result.reason])),
                                                 drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices,
-                                                required=result.required, essay=result.essay)
+                                                required=result.required, where=result.where, essay=result.essay)
                     if result.status == Status.PAUSED:
                         # First in line after the reset.
                         (requests if is_request(posting.id) else queue).appendleft(posting)
@@ -353,12 +364,16 @@ class _Run:
 
     def _apply_with(self, posting: Posting, filler, site, worker: int, profile: ApplicantProfile) -> Result:
         """`profile` is the run's, with the Posting's tailored resume in place of its resume when it has one."""
+        board = self._adapters.board
+        caption = lambda: {"company": posting.company, "role": posting.title, "job_system": posting.job_system,
+                           "posting_url": posting.url, "application_id": posting.id}
         return apply_to(
             posting, filler, site, profile, self._adapters.claude,
             lambda: self._before_submit(posting), self._answers.get(posting.id), self._approved.get(posting.id),
             bank=self._adapters.answer_bank, today=self._adapters.clock.now().date(),
-            on_files=lambda files: self._adapters.board.update(worker, files=files),
-            on_verify=lambda verification: self._adapters.board.update(worker, **verifying(verification)),
+            on_files=lambda files: board.update(worker, files=files),
+            on_verify=lambda verification: board.update(worker, **verifying(verification)),
+            on_captcha=Waiter(board, worker, self._adapters.phone, profile, caption),
         )
 
     def _before_submit(self, posting: Posting) -> str:
@@ -410,9 +425,14 @@ class _Run:
         self._write(posting, result.status, reason, today if submitted else None, record, result.missing_fact, result.essay,
                     signals, options_cell(result.choices.get(result.missing_fact)))
         self.statuses[result.status] += 1
+        if bot_signals.BLOCKED in result.bot_signals:
+            self._to_everyday_chrome(named_posting)
         if result.status in WAITING:
             # A Missing fact's reason starts with "Missing fact": its question says it all.
-            self.waiting.append((result.status, named_posting.company, named_posting.title, result.missing_fact or reason))
+            # Its context line (apply.asking) follows its question, as in its Tracker reason.
+            where = result.where.get(result.missing_fact, "")
+            self.waiting.append((result.status, named_posting.company, named_posting.title,
+                                 f"{result.missing_fact}; {asking.IN}{where}" if where else result.missing_fact or reason))
         if not is_request(posting.id) and result.status in (Status.SUBMITTED, Status.HELD):
             self._applied_today.add(posting.id)
         for question, answer in result.drafted:  # two Workers may draft one question at once: listed once
@@ -423,6 +443,21 @@ class _Run:
             was = self.reused.get(bank_key(question))
             if not was or was[2] < uses:
                 self.reused[bank_key(question)] = (question, answer, uses)
+
+    def _to_everyday_chrome(self, posting: Posting) -> None:
+        """A bot block's Handoff (KAN-590): open the posting in Lisul's everyday Chrome, where the extension fills
+        it, and push him to finish it there. Once, with no retry; the row stays at Needs you meanwhile."""
+        adapters, company = self._adapters, captcha.company_of(posting.company, posting.url)
+        try:
+            adapters.everyday(posting.url)
+        except Exception as failed:
+            print(f"Couldn't open {posting.url} in your Chrome ({failed}); open it yourself.", file=sys.stderr)
+        if self._profile.policy("phone_push") is not True or adapters.phone is None:
+            return
+        try:
+            adapters.phone.notify(captcha.FINISH_TITLE, captcha.FINISH.format(company))
+        except Exception as failed:
+            print(f"Couldn't push {company}'s block to your phone ({failed}); the Tracker lists it.", file=sys.stderr)
 
     def _over_limits(self, request: Posting, today: date) -> str:
         """The note for a Request applied to over an employer's own limit,
@@ -516,8 +551,10 @@ def by_filler(
     if isinstance(filler, type):  # with a Rescue: Claude fills a field its own code fails on
         rescue = Rescue(claude, sms_opt_in=profile.policy("sms_opt_in") is True,
                         marketing_opt_in=profile.policy("marketing_opt_in") is True)
+        # policies.yaml: workday_sign_in, email (the default) or google.
+        options = {"sign_in": profile.policy("workday_sign_in") or "email"} if posting.job_system == "workday" else {}
         with OnePage(site) as page_site:
-            return apply(filler(accounts(), rescue), page_site)
+            return apply(filler(accounts(), rescue, **options), page_site)
     if filler:
         if hasattr(filler, "with_accounts"):  # it reads the Application's mail, yet opens its form afresh each time
             filler = filler.with_accounts(accounts())

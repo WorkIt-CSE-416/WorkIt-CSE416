@@ -27,7 +27,7 @@ from collections.abc import Callable, Iterator
 from datetime import datetime
 from pathlib import Path
 
-from apply import send_click, trace
+from apply import send_click, stuck, trace
 from apply.adapters import Drive, SetupError, UsageLimitHit, UsageReading
 from apply.browsers import cdp_endpoint
 
@@ -92,15 +92,49 @@ NOT_FOUND_RETRY_WAITS = (5, 10, 20, 40, 45)  # seconds: about two minutes in all
 def run_claude(argv: list[str], stdin: str, env: dict, sleep: Callable[[float], None] = time.sleep) -> str:
     NEUTRAL.mkdir(exist_ok=True)
     try:
-        done = subprocess.run(argv, input=stdin, env=env, cwd=NEUTRAL, capture_output=True, text=True)
+        done = _run_once(argv, stdin, env)
         for wait in NOT_FOUND_RETRY_WAITS:
             if done.returncode != NOT_FOUND and NOT_INSTALLED not in done.stderr:
                 break
             sleep(wait)
-            done = subprocess.run(argv, input=stdin, env=env, cwd=NEUTRAL, capture_output=True, text=True)
+            done = _run_once(argv, stdin, env)
     except FileNotFoundError:
         raise SetupError(INSTALL) from None
     return done.stdout or done.stderr
+
+
+def _run_once(argv: list[str], stdin: str, env: dict) -> subprocess.CompletedProcess:
+    """One run of claude, to its end; Lisul's Resume on the wait (apply.stuck) kills it and raises Stopped."""
+    process = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
+                               cwd=NEUTRAL, text=True)
+    killed = _stopped_by_resume(process, process.kill)
+    try:
+        stdout, stderr = process.communicate(stdin)
+    except BaseException:
+        process.kill()
+        process.wait()
+        raise
+    if killed():
+        raise stuck.Stopped("you pressed Resume while Apply waited on Claude")
+    return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
+
+
+def _stopped_by_resume(process: subprocess.Popen, kill: Callable[[], None]) -> Callable[[], bool]:
+    """Kill `process` with `kill` once Lisul presses Resume on this wait (apply.stuck,
+    read on the calling thread); returns whether it was killed so."""
+    press, killed = stuck.presses(), threading.Event()
+    if press is None:
+        return killed.is_set
+
+    def watch() -> None:
+        while process.poll() is None:
+            if press():
+                killed.set()
+                kill()
+                return
+            time.sleep(0.25)
+    threading.Thread(target=watch, daemon=True, name="claude-resume").start()
+    return killed.is_set
 
 
 def stream_claude(argv: list[str], stdin: str, env: dict, cwd: Path) -> Iterator[str]:
@@ -109,18 +143,23 @@ def stream_claude(argv: list[str], stdin: str, env: dict, cwd: Path) -> Iterator
                                    env=env, cwd=cwd, text=True, start_new_session=True)
     except FileNotFoundError:
         raise SetupError(INSTALL) from None
+    def kill() -> None:
+        try:
+            os.killpg(process.pid, 9)  # the cap: claude and its Playwright MCP server stop here
+        except (PermissionError, ProcessLookupError):
+            # macOS refuses a group whose leader is already exiting; that error
+            # must not hide how the call went.
+            process.kill()
+    killed = _stopped_by_resume(process, kill)
     try:
         process.stdin.write(stdin)
         process.stdin.close()
         yield from process.stdout
+        if killed():
+            raise stuck.Stopped("you pressed Resume while Apply waited on Claude")
     finally:
         if process.poll() is None:
-            try:
-                os.killpg(process.pid, 9)  # the cap: claude and its Playwright MCP server stop here
-            except (PermissionError, ProcessLookupError):
-                # macOS refuses a group whose leader is already exiting; that error
-                # must not hide how the call went.
-                process.kill()
+            kill()
         process.wait()
 
 

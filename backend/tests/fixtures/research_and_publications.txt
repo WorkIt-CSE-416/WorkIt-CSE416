@@ -1,0 +1,24 @@
+Education
+Hillcrest State University  Expected May 2027
+B.S. in Computer Science
+•GPA: 3.71
+Experience
+Northwind Analytics  Jun 2025 - Aug 2025
+Data Science Intern  Boston, MA
+•Built a churn model in Python that flagged 1,200 at-risk accounts
+Research Experience
+Computational Systems Lab  Jan 2025 - Present
+Undergraduate Researcher  Hillcrest, NY
+•Wrote a cache simulator in C++ that runs 4x faster than the lab's old one
+•Ran 300 experiments on the university cluster
+Vision and Learning Group  Sep 2024 - Dec 2024
+Research Assistant  Hillcrest, NY
+•Labeled 5,000 images for a small-object detection benchmark
+Publications
+•Lee, R., Ortiz, M. (2025). Faster Cache Simulation with Sampled Traces. Proceedings
+of the Workshop on Systems Research.
+•Ortiz, M., Lee, R. (2024). A Benchmark for Small-Object Detection. arXiv preprint,
+https://arxiv.org/abs/2409.01234
+Skills
+•Languages: Python, C++, SQL
+•Tools: Git, PyTorch

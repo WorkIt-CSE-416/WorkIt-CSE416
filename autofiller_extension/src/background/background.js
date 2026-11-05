@@ -6,6 +6,7 @@
 // convenience layer. There's no session to own anymore (auth.js's own
 // comment explains why) — just the cache.
 
+import { applyAccount } from "./apply-accounts.js";
 import { getSession, watchSessionCookie } from "./auth.js";
 import {
   answerBank, answerFlag, anyFormAnswerBank, dropOwnAnswer, getAutofillProfile, warmProfile, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
@@ -32,7 +33,7 @@ import { forgetShownWorkableDraft } from "./tab-load.js";
 import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, removeLogin, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
 import { popupHome, showNextJob } from "./popup-home.js";
-import { followTrackedTab, forgetTracked, isTracked, markTracked, openForWriting, track, trackState, writingJob } from "./track.js";
+import { followTrackedTab, forgetTracked, isTracked, markTracked, noteFilled, openForWriting, track, trackState, writingJob } from "./track.js";
 import { allowTabSite, allowedSites, pageJobUrl, pageSystem, removeSite, syncSites } from "./site-access.js";
 import { fetchText, planReads } from "./plan-reads.js";
 import { treeStore } from "./stored-data.js";
@@ -50,7 +51,8 @@ import { PANEL_SITES_KEY } from "../shared/panel-keys.js";
 /**
  * A submit proven in tab `tabId` (submit-proof.js): a batch tab's marks its
  * application (batch.js markSubmitted), a tracked tab's its job (track.js
- * markTracked, KAN-424); any other tab's marks nothing.
+ * markTracked, KAN-424; a tab the extension filled, KAN-589); any other tab's
+ * marks nothing.
  */
 async function markAnySubmitted(tabId) {
   return (await inBatch(tabId)) ? markSubmitted(tabId) : markTracked(tabId);
@@ -81,9 +83,6 @@ async function requiredApplicationJob(tabId) {
 async function senderJobUrl(sender) {
   return (await pageJobUrl(sender.tab?.id, sender.frameId ?? 0, sender.url ?? "")) ?? sender.url ?? "";
 }
-
-// The submit watches a page's fill asked for while its tab wasn't tracked (batch/watch): started by Track on WorkIt.
-const unwatched = new Map();
 
 function engineIn(sender) {
   const target = { tabId: sender.tab.id, frameIds: [sender.frameId ?? 0] };
@@ -182,8 +181,20 @@ async function handleMessage(message, sender) {
       const job = jobOf(sender.url);
       if (job?.site !== "workday") throw new Error("Not a Workday page");
       await rememberWorkdayTab(sender.tab.id);
+      // A tenant Apply made an account at (KAN-592) comes first: its password is in Keychain, not here, so
+      // the student's sign-up password is never typed there, and Create Account is never pressed.
+      const apply = await applyAccount(job.tenant, "known");
+      if (apply.login) return { apply: true, company: apply.company, email: apply.login, password: null };
       const profile = await getAutofillProfile();
       return workdayLogin(job.tenant, profile.email, { create: Boolean(message.create) });
+    }
+
+    // The student pressed Sign In with Your Apply Account (workday.js): that tab's tenant's login from
+    // Apply's host, for that tab's content script alone. The tenant is the sender's page's, never the message's.
+    case "workday/apply-login": {
+      const job = jobOf(sender.url);
+      if (job?.site !== "workday") throw new Error("Not a Workday page");
+      return applyAccount(job.tenant, "login");
     }
 
     // The student allowed, once, the extension to make and sign in to their
@@ -233,16 +244,11 @@ async function handleMessage(message, sender) {
 
     // A form the student opened themselves (KAN-470): they asked their Claude to write its
     // questions, which then go the batch tab's way (batch/questions below). Its job gets an
-    // application (track.js openForWriting); a fill on the page that asked to watch its
-    // submit (batch/watch) starts watching, as after Track on WorkIt.
+    // application (track.js openForWriting); the page's fill already watches
+    // its submit (batch/watch).
     case "written/open": {
       if (await jobInTab(sender.tab.id)) return {};
       await openForWriting({ tabId: sender.tab.id, url: await senderJobUrl(sender) });
-      const waiting = unwatched.get(sender.tab.id);
-      if (waiting) {
-        unwatched.delete(sender.tab.id);
-        await engineIn({ tab: sender.tab, frameId: waiting.frameId })("watchSubmit", waiting.site, waiting.key).catch(() => {});
-      }
       return {};
     }
 
@@ -348,19 +354,16 @@ async function handleMessage(message, sender) {
     // request too (submit-proof.js), or, on a job system whose submit
     // request isn't known (Workday, Eightfold, Rippling), from the hint
     // alone. The extension never submits.
-    // A tab the student tracks on WorkIt (KAN-424, track.js) is watched the same way: every fill asks, and a tab
-    // not tracked yet keeps its key here until Track on WorkIt starts its watch.
+    // Any other tab the extension fills is watched the same way (KAN-589): kept as filled (track.js
+    // noteFilled), so its proven submit puts the job on the student's tracker as applied, listed or not.
     case "batch/watch": {
       const job = jobOf(sender.url);
       // A practice form's submit is its thanks page's (submitPractice below), never an application's.
       const site = job && !job.practice ? job.site : null;
       if (!site) return { watching: false };
-      if ((await inBatch(sender.tab.id)) || (await isTracked(sender.tab.id))) {
-        await engineIn(sender)("watchSubmit", site, message.key);
-        return { watching: true };
-      }
-      unwatched.set(sender.tab.id, { site, key: message.key, frameId: sender.frameId ?? 0 });
-      return { watching: false };
+      if (!(await inBatch(sender.tab.id))) await noteFilled({ tabId: sender.tab.id, url: await senderJobUrl(sender) });
+      await engineIn(sender)("watchSubmit", site, message.key);
+      return { watching: true };
     }
 
     case "batch/submitted": {
@@ -373,16 +376,8 @@ async function handleMessage(message, sender) {
     // Track on WorkIt (KAN-424, track.js): what the panel offers on this tab, and the student's press.
     case "track/state":
       return trackState({ tabId: sender.tab.id, url: await senderJobUrl(sender) });
-    case "track/start": {
-      const tracked = await track({ tabId: sender.tab.id, url: await senderJobUrl(sender) });
-      // A fill on this page asked to watch before the tab was tracked: its watch starts now.
-      const waiting = unwatched.get(sender.tab.id);
-      if (waiting && tracked.state === "tracked") {
-        unwatched.delete(sender.tab.id);
-        await engineIn({ tab: sender.tab, frameId: waiting.frameId })("watchSubmit", waiting.site, waiting.key).catch(() => {});
-      }
-      return tracked;
-    }
+    case "track/start":
+      return track({ tabId: sender.tab.id, url: await senderJobUrl(sender) });
 
     // The panel's "I submitted this" (the student's own click): a submit the job system's answer
     // didn't show (detection missed it), marked applied on the student's word.
@@ -647,7 +642,6 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
 
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   forgetSubmits(tabId);
-  unwatched.delete(tabId);
   await forgetTracked(tabId);
   await forgetTab(tabId, removeInfo);
   const tabs = await workdayTabs();

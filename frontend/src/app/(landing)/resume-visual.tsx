@@ -23,7 +23,7 @@ import {
 } from "@phosphor-icons/react/ssr";
 import { FolderGitBranchIcon } from "@/components/custom-icons";
 
-import { SparkleIcon } from "@/components/icons";
+import { SparkleIcon } from "@/components/sparkle-icon";
 import { cn } from "@/lib/cn";
 
 import { candidate, resumeFeature, type BankEntry, type ResumeSuggestion } from "./feature-data";

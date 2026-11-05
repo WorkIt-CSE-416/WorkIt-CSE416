@@ -395,23 +395,27 @@ def main(argv: list[str] | None = None) -> int:
         stats = replace(stats, kept=len(fresh))
         run = store.update(previous, fresh, read, stats, now, missing=missing)
         # Only boards with a job on the page need a logo, and each is read once --
-        # except that a newer reader reads the ones that had none again, once.
+        # except that a newer reader reads the ones that had none again, once, and
+        # one with an upload is read once more for its website (`logos.needs_read`).
         # Recruitee has none we read (`Provider.logo_page`).
         run = store.reread_missing_logos(run, logos.VERSION)
         unread = sorted(
             {
                 (j.ats, j.token, j.company)
                 for j in run.jobs
-                if run.is_listed(j) and j.board_key not in run.logos and logos.reads_logo(j.ats)
+                if run.is_listed(j)
+                and logos.needs_read(j.board_key, run.logos, run.websites)
+                and logos.reads_logo(j.ats)
             }
         )
         print(f"\nreading {len(unread)} board pages for logos")
-        run = replace(run, logos={**run.logos, **logos.fetch(unread)})
+        found, sites = logos.fetch(unread)
+        run = replace(run, logos={**run.logos, **found}, websites={**run.websites, **sites})
         store.save(run, JOBS_JSON)
 
     roles = pick([job for job in run.jobs if run.is_listed(job)], is_new=run.is_new)
     report.write_html(roles, run.stats, PAGE_HTML, run.scraped_at, counts_new=run.counts_new)
-    feed.write(roles, run.logos, FEED_JSON)
+    feed.write(roles, run.logos, FEED_JSON, run.websites)
     found = feed.closings(run, roles)
     feed.write_closings(found, CLOSINGS_JSON)
     if not args.offline:

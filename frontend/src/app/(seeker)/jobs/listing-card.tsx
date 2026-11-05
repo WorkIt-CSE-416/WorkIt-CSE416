@@ -257,7 +257,7 @@ export function ListingsSkeleton() {
                   </div>
                 </div>
                 {/* The match rail's box: the ring, the tier line, three rows. */}
-                <div className="bg-well border-border-subtle flex shrink-0 flex-col items-center gap-2 border-t p-4 @xl:w-52 @xl:border-t-0 @xl:border-l">
+                <div className="bg-panel border-border-subtle flex shrink-0 flex-col items-center gap-2 border-t p-4 @xl:w-52 @xl:border-t-0 @xl:border-l">
                   <Skeleton className="size-16 rounded-full" />
                   <Skeleton className="h-3 w-24" />
                   <div className="border-border-subtle mt-1 flex w-full flex-col gap-1.5 border-t pt-3">

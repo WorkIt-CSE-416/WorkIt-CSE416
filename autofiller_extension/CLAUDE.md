@@ -677,6 +677,33 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   `test/batch-sessions.extension.spec.ts` (an older tenant's login). Tests
   that reach a Workday sign-in save `WORKDAY_SIGNUP` first
   (`saveWorkdaySignup`, test/loaded-extension.ts).
+- **Apply's Employer accounts (KAN-592).** Apply (`apply-agent/`) makes a
+  Workday account per company with a generated password kept only in macOS
+  Keychain. With Use My Apply Accounts on (options page: the optional
+  `nativeMessaging` permission, so students never see a new install
+  warning), the worker asks Apply's accounts host (`com.workit.apply_accounts`,
+  installed by `uv run apply chrome-passwords`; `background/apply-accounts.js`)
+  on each Workday sign-in, before `workdayLogin`: a tenant it knows (`want:
+  "known"`, company and login, never a password) gets `apply: true`. Then
+  `workday.js` switches Create Account to Sign In, types only the email, never
+  types the student's one sign-up password there, and the panel offers Sign
+  In with Your Apply Account (`overlay.offerApplySignIn`, trusted clicks
+  only). Only that press sends `workday/apply-login`; the worker takes the
+  tenant from `sender.url`, never from the message, and answers that tab
+  alone. The content script types the password and calls
+  `navigator.credentials.store(new PasswordCredential(...))`, so Chrome asks
+  to save it in its own password manager (and Google Password Manager by
+  sync): it works from the isolated world, as the tenant's origin
+  (checked in Chromium 2026-11-03: chrome://password-manager-internals logs
+  "CM API save a credential" and the Save password? bubble shows). Chrome
+  saves a new password only on the student's Save press: no API or policy
+  saves it silently. Nothing presses Sign In: Save first, then the student
+  presses it. **The Apply password is never kept here**: not in
+  `chrome.storage`, a log, a report or an API call. The host answers only
+  this extension's ID, one tenant, and only one in Apply's Employer
+  accounts list. Test: `test/apply-accounts.extension.spec.ts`, with a fake
+  host (`test/fake-apply-host.mjs`) in the profile's `NativeMessagingHosts`
+  (`loadExtension`'s `grantPermissions`).
 - **Workday sign-in (KAN-373).** On Workday's Create Account or Sign In
   form (`[data-automation-id=signInFormo]`; Workday's step bar calls it a
   step, which `workdayStep()` ignores), `workday.js` asks
@@ -1336,13 +1363,25 @@ already on the form, and a queued job would open again in the next batch.
 - **The same proof as a batch tab's submit** (submit-proof.js): the
   background's `markAnySubmitted` marks a batch tab's application
   (`markSubmitted`) or a tracked tab's job (`markTracked`), and nothing for
-  any other tab, so the job system's answer to a submit in a tab nobody
-  tracks marks nothing. Greenhouse's answer proves it alone; elsewhere the
+  any other tab. Greenhouse's answer proves it alone; elsewhere the
   page's hint is needed too, as in a batch. **Every fill asks to watch**
-  (`batch/watch`); the background watches a batch tab or a tracked one at
-  once and keeps any other tab's key (`unwatched`) until Track on WorkIt
-  starts its watch, so a press after the fill is caught. `batch/submitted`
-  answers `untracked` for a tab nobody tracks, and the page says nothing.
+  (`batch/watch`), and the background watches it at once.
+- **A filled tab is tracked too** (KAN-589): a fill on a tab that is not
+  a batch's keeps it as `filled` (`noteFilled`: the form's link, no job,
+  nothing written at WorkIt), so the student's proven submit there puts
+  the job on their Applications Tracker as applied, listed or not.
+  `markTracked` finds its job first (`jobOfFilled`): the listed job by
+  link, else `POST /jobs/added-by-link` with `track_only` and the company
+  and title the Fill engine reads (an added job, ADR 0008, as Apply's
+  `record_applied`), then `POST /jobs/{id}/applied`, unless the stage is
+  already applied or later. Before, a tab nobody tracked marked nothing,
+  and Track on WorkIt shows only for a listed job, so a submit on a job
+  WorkIt doesn't list (Simbe Robotics' Lever form, 2026-11-03) never
+  reached the tracker. A filled tab still offers Track on WorkIt for a
+  listed job (`trackState` reads only a tab with a job as tracked). A tab
+  the extension never filled is never marked: `batch/submitted` answers
+  `untracked`, and the page says nothing. A page that names no company or
+  title can't be added: the mark fails with a warning in the worker's log.
 - **A tracked tab is one job**: kept in chrome.storage.session
   (`tracked_tabs`) with the job's identity (the engine's jobOf, as the job
   card matches a page to a posting); a tab that moves to another job's page
@@ -1356,8 +1395,10 @@ already on the form, and a queued job would open again in the next batch.
   on the website's Applications page).
 
 Tests: `test/track.extension.spec.ts` (Ashby's Cohere form: Track, then the
-student's submit marks it applied; an untracked form's submit marks
-nothing; a job WorkIt doesn't list offers nothing).
+student's submit marks it applied; a filled form's submit marks it applied
+untracked; Lever's Rhombus form, a job WorkIt doesn't list: the submit adds
+it by link and marks it applied; a form never filled marks nothing; a job
+WorkIt doesn't list offers no Track).
 
 ## The practice batch (KAN-378): onboarding's batch on WorkIt's own forms
 

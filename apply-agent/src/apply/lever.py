@@ -25,9 +25,12 @@ class LeverFiller:
 
     def submit(self, page: Page) -> None:
         page.get_by_role("button", name="Submit application").click()
+        # Lever's "There was an error verifying your application", when its invisible hCaptcha turns the sent form
+        # down, is a bot block (apply.captcha.BLOCKS): wait_for_confirmation raises it.
         wait_for_confirmation(page, lambda: confirmed(page))
 
 
 def confirmed(page: Page) -> bool:
     """Whether Lever shows its page for a submitted application."""
     return page.url.split("?")[0].endswith("/thanks")
+

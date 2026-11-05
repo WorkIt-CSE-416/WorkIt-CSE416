@@ -267,7 +267,8 @@ export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
  * DOCKED is the company shell's: the full-bleed lavender panel under a
  * full-width bar, offset by the bar's height. See "WHY IT IS OFFSET".
  */
-const RAIL = "group-data-[side=left]:border-border-subtle [&>[data-slot=sidebar-inner]]:bg-panel";
+// The rail's edge is the control edge, as the top bar's rule is (2026-11-03).
+const RAIL = "group-data-[side=left]:border-border-control [&>[data-slot=sidebar-inner]]:bg-panel";
 const RAIL_GROUP = "px-2 py-2";
 const RAIL_BUTTON =
   "h-16 flex-col justify-center gap-1 px-1 text-center text-note leading-tight font-medium [&_svg]:size-6 " +
@@ -388,14 +389,16 @@ export function AppSidebar({
 }
 
 /**
- * The rail's logo: WorkIt's mark alone, centred in a 64px header with a
- * bottom rule, the top bar's height, so the header's rule and the bar's run
- * on as one line across the window. The wordmark does not fit 88px. It goes
+ * The rail's logo: WorkIt's mark alone, centred in a 64px header, the top
+ * bar's height, with no rule under it: the rail's edge runs the window's full
+ * height and the bar's rule stops at it. A rule here ran on as one line with
+ * the bar's and crossed the rail's edge in a "+" by the logo (2026-11-03).
+ * The wordmark does not fit 88px. It goes
  * home, and presses in on the click like every control.
  */
 function RailBrand({ href }: { href: string }) {
   return (
-    <SidebarHeader className="border-border-subtle h-16 shrink-0 flex-row items-center justify-center border-b p-0">
+    <SidebarHeader className="h-16 shrink-0 flex-row items-center justify-center p-0">
       <Link
         href={href}
         aria-label="WorkIt Home"

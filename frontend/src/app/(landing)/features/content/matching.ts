@@ -6,7 +6,7 @@
  * scraper reads (scraper/, data.ts) and the roles it keeps (Intern and New
  * Grad, in every field).
  */
-import MatchingVisual from "../../matching-visual";
+import { MatchingAnimation } from "../animations";
 import type { FeatureContent } from "../types";
 import { BestMatchVisual, ScoreVisual, SourcesVisual } from "../visuals/matching";
 
@@ -22,7 +22,7 @@ const content: FeatureContent = {
     subtitle:
       "WorkIt scores every internship and new-grad job posting against your experience bank, then puts the best fits at the top of your Jobs page.",
   },
-  animation: MatchingVisual,
+  animation: MatchingAnimation,
   sections: [
     {
       eyebrow: "Your score",

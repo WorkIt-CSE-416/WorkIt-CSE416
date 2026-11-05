@@ -20,7 +20,9 @@ export type FeatureContent = {
   hero: { title: string; subtitle: string };
   /** The animation shown large under the hero: a client component, drawn
    *  inside the home tour's `MotionConfig` and `Fit` at up to 520px wide.
-   *  Required: a page never ships a placeholder panel (KAN-579). */
+   *  Import it from `../animations`, never the visual itself, or it loads
+   *  on every marketing page. Required: a page never ships a placeholder
+   *  panel (KAN-579). */
   animation: ComponentType;
   /** Three or four deep dives, text beside a visual, sides alternating. */
   sections: FeatureSection[];
@@ -40,6 +42,7 @@ export type FeatureSection = {
   points?: string[];
   /** Fills the visual slot: a still scene from `visuals/`, drawn at
    *  `VIGNETTE_W` × `VIGNETTE_H` and scaled to its panel. Required, as the
-   *  animation is: no deep dive ships an empty tile. */
+   *  animation is: no deep dive ships an empty tile. A server component;
+   *  a client one would come from `../animations`, as `animation` does. */
   visual: ComponentType;
 };

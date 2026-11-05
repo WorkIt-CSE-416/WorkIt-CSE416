@@ -4,7 +4,7 @@
 PAGE = """<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Apply</title>
 <meta name="color-scheme" content="light dark">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400&display=swap"><style>{style}</style>
-{tabs}{inbox}{history}<div id="workers" hidden>
+{tabs}{inbox}{history}{accounts}<div id="workers" hidden>
 <div id="grid" style="grid-template-columns: repeat({columns}, minmax(0, 1fr)); grid-template-rows: repeat({rows}, minmax(0, 1fr))">{tiles}</div>
 </div>
 <script>
@@ -148,7 +148,8 @@ setInterval(async () => {
   state.tiles.forEach((c, k) => {
     const banner = document.getElementById('banner-' + k);
     banner.className = 'banner ' + c.tone + (c.verified ? ' verified' : '');
-    banner.querySelector('.label').textContent = c.label;
+    // A filling tile says what Apply is doing, small too: "Filling · Planning answers for 'Application Questions'".
+    banner.querySelector('.label').textContent = c.tone === 'filling' && c.doing ? `${c.label} · ${c.doing}` : c.label;
     banner.querySelector('.fields').textContent = c.asked ? `${c.filled} of ${c.asked} answers` : '';
     banner.title = [c.label, c.detail].filter(Boolean).join('\\n');
     const detail = document.getElementById('detail-' + k);
@@ -215,7 +216,7 @@ APPLIED = """<details class="applied"><summary>Applied somewhere yourself?</summ
 TABS = """<div id="runbar"><span class="brand">Apply</span><span id="mode" hidden></span>{sample}
 <span id="runline"></span><button id="start" class="primary" hidden>Start</button></div>
 <nav id="tabs" role="tablist">
-<button id="tab-inbox" role="tab">Needs you</button><button id="tab-workers" role="tab">Live</button><button id="tab-history" role="tab">History</button>{answers_tab}
+<button id="tab-inbox" role="tab">Needs you</button><button id="tab-workers" role="tab">Live</button><button id="tab-history" role="tab">History</button>{answers_tab}{accounts_tab}
 </nav>
 """
 
@@ -515,7 +516,7 @@ const make = (tag, props = {}, ...children) => {
   return e;
 };
 // Tabs, the address keeping the one open: the Inbox first, for what waits on Lisul.
-const PANES = ['inbox', 'workers', 'history', 'answers'];
+const PANES = ['inbox', 'workers', 'history', 'answers', 'accounts'];
 const tab = (name) => {
   if (!document.getElementById(name)) name = 'inbox';
   PANES.forEach(pane => {
@@ -525,6 +526,7 @@ const tab = (name) => {
   });
   if (name !== 'workers') control(null);
   if (name === 'answers' && window.loadAnswers) loadAnswers();
+  if (name === 'accounts' && window.loadAccounts) loadAccounts();
   history.replaceState(null, '', '#' + name);
 };
 document.querySelectorAll('#tabs [role=tab]').forEach(b => b.onclick = () => tab(b.id.slice(4)));
@@ -596,6 +598,19 @@ const action = (item) => {
             item.resume.why ? make('span', {className: 'then', textContent: item.resume.why}) : null];
   }
   const k = liveTile(item), ctx = last.context || {};
+  if (item.kind === 'blocked' && ctx.everyday && item.posting_url) return make('button', {className: 'primary',
+    textContent: 'Open in my Chrome', title: 'Your everyday Chrome, where the WorkIt extension fills it',
+    onclick: async (e) => {  // only his press opens it: a rehearsal never pops a window by itself (KAN-590)
+      e.target.disabled = true;
+      try {
+        const reply = await fetch('/everyday', {method: 'POST', body: JSON.stringify({id: item.id}),
+                                                headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+        const data = await reply.json();
+        if (!reply.ok) throw new Error(data.error || 'Not opened.');
+        toast(data.message);
+      } catch (err) { toast(err.message || 'Apply is not answering: is it still running?'); }
+      e.target.disabled = false;
+    }});
   if (item.kind === 'missing fact' && ctx.answers) return null;
   if (item.kind === 'held' && ctx.approve && item.application_id) return make('button', {className: 'primary', textContent: 'Approve',
     title: 'It is sent at the next check', onclick: async (e) => {  // approving resolves it
@@ -735,9 +750,33 @@ const answerBox = (item, question) => {
   }});
   box.addEventListener('keydown', e => { if (e.key === 'Enter') save.click(); });
   // An optional one still gets an answer, but may be saved blank to skip it.
-  return make('div', {className: 'ask'}, make('label', {textContent: question}, needFlag(need)), options,
-              make('div', {className: 'answer-row'}, box, save), status);
+  return make('div', {className: 'ask'}, make('label', {textContent: question}, needFlag(need)), whereLine(item, question),
+              options, make('div', {className: 'answer-row'}, box, save, goToButton(item, question)), status);
 };
+// Go to question: the held form's own browser comes forward (or its tile, when it has no window), scrolled to
+// the field, which is focused and outlined. Answered there, it leaves Needs you once he leaves the field.
+// Only for a form still held open in its Worker's browser (dashboard.on_form).
+const heldOpen = (item) => item.from !== 'tracker' && item.status !== 'missing fact' && !item.live
+  && Number.isInteger(item.worker) && item.worker >= 0 && liveTile(item) >= 0;
+const goToButton = (item, question) => heldOpen(item) ? make('button', {className: 'goto', textContent: 'Go to question',
+  title: 'Shows this question on the form, to answer it there', onclick: async (e) => {
+    e.target.disabled = true;
+    try {
+      let reply, data;
+      try {
+        reply = await fetch('/goto', {method: 'POST', body: JSON.stringify({id: item.id, question}),
+          headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+        data = await reply.json();
+      } catch (err) { throw new Error('Apply is not answering: is it still running?'); }
+      if (!reply.ok) throw new Error(data.error || "Couldn't go to it.");
+      if (!data.front) { tab('workers'); control(item.worker); }  // no window of its own: its tile is the browser
+      toast(data.message);
+    } catch (err) { toast(err.message); }
+    e.target.disabled = false;
+  }}) : null;
+// The question's one context line (apply.asking): its step, the question it follows and its pair, or its essay.
+const whereLine = (item, question) => (item.where || {})[question]
+  ? make('div', {className: 'where', textContent: item.where[question]}) : null;
 // Whether the form requires it, as its own flag says.
 const needFlag = (need) => need === undefined ? null : make('span', {className: 'need ' + (need ? 'required' : 'optional'),
                                                                      textContent: need ? 'Required' : 'Optional'});
@@ -775,10 +814,44 @@ const fileBox = (item, question, need) => {
     make('button', {className: 'primary', textContent: 'Attach from this Mac', onclick: () => pick.click()}),
     make('button', {textContent: 'Dropbox', onclick: onForm('Dropbox')}),
     make('button', {textContent: 'Google Drive', onclick: onForm('Google Drive')}),
-    need === false ? make('button', {textContent: 'Skip', onclick: () => send(null)}) : null, pick);
-  return make('div', {className: 'ask'}, make('label', {textContent: question}, needFlag(need)), buttons,
+    need === false ? make('button', {textContent: 'Skip', onclick: () => send(null)}) : null, goToButton(item, question), pick);
+  return make('div', {className: 'ask'}, make('label', {textContent: question}, needFlag(need)), whereLine(item, question), buttons,
               make('div', {className: 'file-types', textContent: 'PDF, Word, text or RTF'}), status);
 };
+// Each answer Claude wrote on a held form, with its "Add context and regenerate" (KAN-599): Lisul types what Claude
+// should know or change, and Claude writes that one answer again into the form's field. The form's own page has the
+// same button beside the field.
+const writtenList = (item) => make('details', {}, make('summary', {textContent: `What Claude wrote (${item.written.length})`}),
+  item.written.map(w => {
+    const key = `regen|${item.posting_url}|${w.name}`, status = make('span', {className: 'status'});
+    const working = w.state === 'working';
+    const box = make('textarea', {className: 'answer', rows: 2, maxLength: 2000, value: typed.get(key) || '', hidden: !typed.has(key),
+      placeholder: 'What should Claude know or change? e.g. Lead with the club project; I led a team of 5 there.',
+      oninput: () => typed.set(key, box.value)});
+    box.dataset.key = key;
+    const go = make('button', {className: 'primary', textContent: 'Regenerate', hidden: !typed.has(key), onclick: async () => {
+      go.disabled = true; status.textContent = 'Asking Claude…'; status.className = 'status';
+      try {
+        let reply, data;
+        try {
+          reply = await fetch('/regenerate', {method: 'POST', body: JSON.stringify({id: item.id, name: w.name, context: box.value}),
+            headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+          data = await reply.json();
+        } catch (e) { throw new Error('Apply is not answering: is it still running?'); }
+        if (!reply.ok) throw new Error(data.error || 'Not regenerated.');
+        typed.delete(key);
+        toast(data.message);
+        refresh();
+      } catch (e) { status.textContent = e.message; status.className = 'status error'; go.disabled = false; }
+    }});
+    const open = make('button', {className: 'tonal', textContent: working ? 'Claude is rewriting this answer…' : '↻ Add context and regenerate',
+      disabled: working, title: 'Tell Claude more, and it writes this answer again on the form. Nothing is sent.',
+      onclick: () => { typed.set(key, typed.get(key) || ''); box.hidden = go.hidden = false; box.focus(); }});
+    return make('div', {className: 'ask written'}, make('label', {textContent: w.label}),
+      make('div', {className: 'written-text', textContent: w.text}),
+      w.why ? make('div', {className: 'why' + (w.state === 'failed' ? ' error' : ''), textContent: w.why}) : null,
+      make('div', {className: 'answer-row'}, open), box, make('div', {className: 'actions'}, go, status));
+  }));
 const row = (item) => {
   const ctx = last.context || {}, asks = item.kind === 'missing fact' && ctx.answers ? item.questions || [] : [];
   const failed = item.tone === 'failed', main = failed ? null : action(item);
@@ -795,7 +868,8 @@ const row = (item) => {
       make('div', {textContent: item.notes.join('\n')})) : null,
     asks.map(question => answerBox(item, question)),
     item.kind === 'held' && ctx.approve && item.application_id && item.essays && item.essays.length ? essayBox(item) : null,
-    item.drafted && item.drafted.length ? make('details', {}, make('summary', {textContent: `What Claude wrote (${item.drafted.length})`}),
+    item.written && item.written.length ? writtenList(item)
+      : item.drafted && item.drafted.length ? make('details', {}, make('summary', {textContent: `What Claude wrote (${item.drafted.length})`}),
       make('div', {textContent: item.drafted.join('\n')})) : null,
     item.error ? make('details', {}, make('summary', {textContent: 'Details'}), make('div', {textContent: item.error})) : null,
     main || item.kind === 'held' ? make('div', {className: 'actions'}, main,
@@ -876,7 +950,8 @@ window.renderInbox = (state) => {
   drawRun(state);
   drawHistory(state);
   document.querySelectorAll('.note .chrome').forEach(b => b.hidden = !(state.context || {}).show);
-  const shown = JSON.stringify([state.items.map(i => [i.id, i.status, i.tone, i.kind, i.flags, i.questions, i.answered]), (state.tiles || []).map(t => [t.posting_url, t.status]),
+  const shown = JSON.stringify([state.items.map(i => [i.id, i.status, i.tone, i.kind, i.flags, i.questions, i.answered,
+                                                    (i.written || []).map(w => [w.text, w.state, w.why])]), (state.tiles || []).map(t => [t.posting_url, t.status]),
                                 state.context, state.summary, [...dismissed], Math.floor(Date.now() / 60000)]);
   if (shown === drawn) return;
   drawn = shown;
@@ -926,6 +1001,53 @@ const drawHistory = (state) => {
   }) : [make('div', {className: 'history-empty', textContent:
     'Nothing has ended yet. Each application shows here once Apply sends it, stops for you or skips it.'})]));
 };
+</script>
+"""
+
+# The Accounts tab (KAN-591): each Employer account Apply made, to sign in to it himself. A password is never in
+# the page: Copy password asks the server, which puts it on the clipboard and replies with a message alone.
+ACCOUNTS_TAB = '<button id="tab-accounts" role="tab">Accounts</button>'
+ACCOUNTS = r"""<div id="accounts" hidden><div class="inbox-wrap">
+<h2>Your accounts on job sites</h2>
+<p class="help">Apply made these to apply for you. Each password is only in your Mac's Keychain. Copy password puts
+it on the clipboard for a minute.</p>
+<div id="accounts-list"></div><span id="accounts-status" class="status"></span>
+</div></div>
+<script>
+(() => {
+const $ = (id) => document.getElementById(id);
+const press = async (path, site, status) => {
+  status.textContent = ''; status.className = 'status';
+  try {
+    const reply = await fetch(path, {method: 'POST', body: JSON.stringify({site}),
+                                     headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+    const data = await reply.json();
+    if (!reply.ok) throw new Error(data.error || 'Not done.');
+    status.textContent = data.message; status.className = 'status ok';
+  } catch (err) {
+    status.textContent = err.message || 'Apply is not answering: is it still running?'; status.className = 'status error';
+  }
+};
+window.loadAccounts = async () => {
+  let view;
+  try {
+    const reply = await fetch('/accounts', {headers: {'X-Apply-Token': TOKEN}});
+    if (!reply.ok) throw new Error();
+    view = await reply.json();
+  } catch (e) { $('accounts-status').textContent = 'Apply is not answering: is it still running?'; return; }
+  $('accounts-list').replaceChildren(...(view.accounts.length ? view.accounts.map(a => {
+    const status = make('span', {className: 'status'});
+    return make('div', {className: 'card account'},
+      make('div', {className: 'q', textContent: a.company || a.site}),
+      make('div', {className: 'meta', textContent: `${a.site} · ${a.login} · made ${a.created}`}),
+      make('div', {className: 'actions'},
+        make('button', {className: 'primary', textContent: 'Copy password', onclick: () => press('/accounts/copy', a.site, status)}),
+        make('button', {className: 'tonal', textContent: 'Open sign-in page', title: 'In your everyday Chrome',
+                        onclick: () => press('/accounts/open', a.site, status)}),
+        status));
+  }) : [make('div', {className: 'history-empty', textContent: 'Apply has made no accounts yet.'})]));
+};
+})();
 </script>
 """
 
@@ -1030,9 +1152,9 @@ STYLE = r"""
   #tabs button[aria-selected=true] { background: var(--chosen); color: var(--tint-ink); font-weight: 600; }
 
   /* Panes: a floating panel, as WorkIt's main one, around one readable column. */
-  #inbox, #history, #answers, #workers { border: 1px solid var(--rail-line); border-radius: 20px; background: var(--panel);
+  #inbox, #history, #answers, #accounts, #workers { border: 1px solid var(--rail-line); border-radius: 20px; background: var(--panel);
                                           box-shadow: var(--shell-lift); }
-  #inbox, #history, #answers { flex: 1; min-height: 0; overflow: auto; user-select: text; -webkit-user-select: text; }
+  #inbox, #history, #answers, #accounts { flex: 1; min-height: 0; overflow: auto; user-select: text; -webkit-user-select: text; }
   .inbox-wrap { max-width: 720px; margin: 0 auto; padding: 24px 24px 64px; }
   #answers { padding: 0 24px 64px; }
   #answers section { max-width: 720px; margin: 0 auto; }
@@ -1065,6 +1187,7 @@ STYLE = r"""
   .ask { margin-top: 14px; }
   .ask > label { display: block; margin-bottom: 8px; color: var(--body); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
   .ask .options, .ask select { margin-bottom: 8px; }
+  .ask > .where { margin: -4px 0 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
   .ask > label.question { margin: 10px 0 4px; color: var(--ink); font-weight: 600; }
   .ask .need { margin-left: 8px; padding: 1px 6px; border: 1px solid var(--rail-line); border-radius: 999px;
                font-size: 11px; font-weight: 500; color: var(--muted); white-space: nowrap; }
@@ -1072,6 +1195,7 @@ STYLE = r"""
   .answer-row { display: flex; gap: 8px; align-items: center; }
   .essay-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; min-height: 28px; margin-top: 4px; }
   .answer-row input { flex: 1; min-width: 0; }
+  .answer-row .goto { white-space: nowrap; }
   .file-options { display: flex; flex-wrap: wrap; gap: 8px; }
   .file-types { margin-top: 6px; font-size: 12px; color: var(--muted); }
   .failures { margin-top: 28px; font-size: 13px; }
@@ -1136,6 +1260,7 @@ STYLE = r"""
   #add-open { margin-top: 6px; }
   .card { margin: 0 0 10px; padding: 14px 18px; min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--lift); }
   .card.add { display: grid; gap: 10px; }
+  .account .actions { margin-top: 10px; }
   .bank-entry { outline: none; }
   .bank-entry .head { cursor: pointer; }
   .bank-entry:hover { background: var(--hover); }
@@ -1214,6 +1339,8 @@ STYLE = r"""
   .menu div:hover { background: var(--hover); }
   .menu div.chosen { background: var(--chosen); color: var(--tint-ink); }
   .menu div.disabled { color: var(--faint); pointer-events: none; }
+  .written-text { white-space: pre-wrap; font-size: 13px; margin: 4px 0 6px; color: var(--text, inherit); }
+  .written .why.error { color: var(--error, #b00020); }
   .resumebar { display: flex; align-items: center; gap: 12px; padding: 0 14px 8px; font-size: 12px; color: var(--muted); }
   .resumebar button { height: 30px; }
   .filebar { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 3; display: flex; align-items: center; gap: 8px;

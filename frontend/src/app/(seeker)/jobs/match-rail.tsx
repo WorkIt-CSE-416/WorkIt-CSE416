@@ -11,9 +11,11 @@ import type { Highlight } from "./data";
  * is what makes the score the loudest thing on the row. WorkIt has no dark
  * surface role — `deep` exists only as a tint under a company glyph — so a
  * 200px black block would be the only dark thing in the signed-in app and would
- * read as an advert pinned to every card. The rail uses `--color-well`, the
- * recessed surface the profile dropzone already established, and earns its
- * prominence from the ring instead.
+ * read as an advert pinned to every card. The rail is white (`--color-panel`),
+ * the card's own fill, set off from the facts by a hairline, and earns its
+ * prominence from the ring instead. It was `--color-well` (#f7f7f7), and on
+ * the seeker pages' grey ground (#f5f5f5) a grey rail at the card's edge read
+ * as the ground showing through, so the card looked cut short (2026-11-03).
  *
  * The arc colours by band, red, yellow or green, from `matchColor` in
  * @/lib/match, rather than one brand colour at every score: the brand is the
@@ -23,7 +25,7 @@ import type { Highlight } from "./data";
  * a replacement for either.
  *
  * The label's words are ink-muted, not the band colour: the yellow step is
- * 3.03:1 on the well, drawn for strokes, short of the 4.5:1 a label needs.
+ * about 3:1 on white, drawn for strokes, short of the 4.5:1 a label needs.
  * Nothing sits before the words. A dot in the band's colour did until KAN-518,
  * and beside the ring it only said the colour twice.
  *
@@ -125,15 +127,14 @@ export function MatchRail({
    *  card's edge. Default false keeps the recommendation feed's flush rail
    *  unchanged. */
   standalone?: boolean;
-  /** Placement or a different fill: the application page's tinted card
-   *  sets it on white (KAN-256), so it doesn't sit grey on violet. */
+  /** Placement, or a different fill where a page needs one. */
   className?: string;
 }) {
   return (
     <aside
       aria-label="Why This Matches"
       className={cn(
-        "bg-well border-border-subtle flex shrink-0 flex-col items-center gap-2 p-4 @xl:w-52",
+        "bg-panel border-border-subtle flex shrink-0 flex-col items-center gap-2 p-4 @xl:w-52",
         standalone ? "rounded-card border" : "border-t @xl:border-t-0 @xl:border-l",
         className,
       )}

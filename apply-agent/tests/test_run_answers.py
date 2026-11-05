@@ -35,9 +35,9 @@ from apply.workable import WorkableFiller
 DATACOR_FORM = FORMS / "greenhouse-datacor"
 
 
-def profile_with(folder: Path, **facts) -> Path:
+def profile_with(folder: Path, policies: dict | None = None, **facts) -> Path:
     """The test Applicant profile plus `facts` (dotted keys), saved in `folder`
-    with the test policies beside it."""
+    with the test policies beside it, plus `policies`."""
     profile = yaml.safe_load((FIXTURES / "profile.yaml").read_text())
     profile["files"]["resume_pdf"] = str(FIXTURES / "one-pager.pdf")
     for key, value in facts.items():
@@ -48,7 +48,8 @@ def profile_with(folder: Path, **facts) -> Path:
         node[last] = value
     path = folder / "profile.yaml"
     path.write_text(yaml.safe_dump(profile, sort_keys=False))
-    (folder / "policies.yaml").write_text((FIXTURES / "policies.yaml").read_text())
+    (folder / "policies.yaml").write_text((FIXTURES / "policies.yaml").read_text()
+                                          + (yaml.safe_dump(policies) if policies else ""))
     return path
 
 
@@ -295,3 +296,29 @@ def test_a_follow_up_to_a_question_claude_answered_no_is_not_a_missing_fact(tmp_
 
     assert planned.add([working, agency]) is None  # no Missing fact
     assert planned.answers == {"w": "No", **({"a": expected} if expected else {})}
+
+
+CATCH_ALL = Question("extra", "Additional information", "textarea", False)
+WHY = Question("why", "Why do you want to work at Amplify?", "textarea", True)
+
+
+@pytest.mark.parametrize("given, needs, kept", [
+    ("", (), True),  # nothing new: Claude leaves it empty
+    ("I can start on May 18 and intern for twelve weeks.", (), False),  # a new availability note goes on
+    ("I can start on May 18 and intern for twelve weeks.", ("Additional information",), True),
+    ("I can start on May 18. I intern for twelve weeks. I like the team. I also like the work.", (), True),  # over two sentences
+])
+def test_an_optional_catch_all_box_stays_blank_unless_it_says_something_new(tmp_path, given, needs, kept):
+    # Voleon (seen live, 2026-11-04): "Additional information" got a paragraph repeating a resume bullet.
+    posting = Posting("amplify", "Amplify", "Software Engineering Intern", AMPLIFY_URL)
+    claude = FakeClaude(essays={"Additional information": given}, needs_lisul=needs)
+    planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, False,
+                              AnswerBank(), date(2026, 11, 4))
+
+    assert planned.add([WHY, CATCH_ALL]) is None  # never a Missing fact
+    assert ("extra" in planned.kept_blank) is kept and ("extra" in planned.answers) is not kept
+    if kept:
+        assert not [h for h in planned.holds if "Additional information" in h]  # no "Claude wrote nothing" hold
+        verification = planned.verify({"why": planned.answers["why"], "extra": ""}, [], ())
+        [note] = [f for f in verification.flags if f.field == "Additional information"]
+        assert not note.holds and note.why.startswith("left blank on purpose: an optional catch-all box")

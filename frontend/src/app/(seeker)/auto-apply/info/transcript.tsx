@@ -172,7 +172,7 @@ export function Transcript() {
       )}
 
       {transcript && (
-        <div className="bg-panel border-border rounded-card mt-5 flex items-center gap-4 border p-4">
+        <div className="bg-panel border-border-control rounded-card mt-5 flex items-center gap-4 border p-4">
           <FileIcon className="text-ink-meta size-5 shrink-0" />
           <p className="text-body text-ink min-w-0 flex-1 truncate">
             {transcript.original_filename}

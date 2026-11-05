@@ -74,6 +74,8 @@ from collections.abc import Callable
 
 from playwright.sync_api import Page, Route
 
+from apply import captcha
+
 # The final requests the route stops, from the page or a worker: a path segment that names a
 # submit (Jobvite's .../submitApplication among them), Ashby's ApiSubmit, BambooHR's and Workable's.
 ROUTED = re.compile(
@@ -87,10 +89,18 @@ ROUTED = re.compile(
 _TEMPLATE = r"""
 (() => {
   if (window.__@KEY@Guard) return;
+  // A captcha's own frame is Lisul's to do (apply.captcha): nothing in it is the application.
+  const host = location.hostname, path = location.pathname;
+  if (@CAPTCHA_HOSTS@.some((h) => host === h || host.endsWith('.' + h)) || @CAPTCHA_PATHS@.some((p) => path.startsWith(p))) return;
   window.__@KEY@Guard = true;
   const lifted = () => @LIFTED@;
   // Plain code's click on the button Claude fill named on a sign-in or account page.
   const accountClick = () => window.__applyAccountClick === true;
+  // A sign-in or new account's form: one with a password box, which no application's final button is in.
+  const accountForm = (el) => {
+    const form = el.form || (el.closest && el.closest('form'));
+    return !!form && !!form.querySelector('input[type=password]');
+  };
   const FINAL_URLS = [
     /^https?:\/\/[^\/]*greenhouse\.io\/(?:embed\/job_app|[^\/?#]+\/jobs\/\d+\/?(?:[?#].*)?$)/i,
     /^https?:\/\/jobs\.lever\.co\/[^\/]+\/[0-9a-f-]{36}\/apply\/?(?:[?#].*)?$/i,
@@ -156,6 +166,9 @@ _TEMPLATE = r"""
       return;
     }
     if (!sends(target)) return;
+    // Plain code's own click on an account form's button: Workday names its button "Submit" in its
+    // Sign in with email view (Sonos's, live), and that click only signs in.
+    if (accountClick() && accountForm(target)) return;
     const words = wordsOf(target);
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -174,6 +187,7 @@ _TEMPLATE = r"""
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
+    if (accountClick() && form.querySelector('input[type=password]')) return;  // plain code's sign-in, as above
     const final = by ? sends(by)
       : [...form.querySelectorAll('button, input[type=submit]')].some(sends);
     if (final) event.stopImmediatePropagation();
@@ -282,7 +296,9 @@ def _script(key: str, name: str, lifted: str = "false", extra: str = "") -> str:
     off while the JS `lifted` is true, and blocking `extra`'s controls too."""
     box = name.lower().replace(" ", "-") + "-blocked"
     script = _TEMPLATE
-    for placeholder, value in {"@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@EXTRA@": extra}.items():
+    for placeholder, value in {"@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@EXTRA@": extra,
+                               "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
+                               "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS)}.items():
         script = script.replace(placeholder, value)
     return script
 

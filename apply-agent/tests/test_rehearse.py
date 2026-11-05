@@ -17,6 +17,8 @@ from conftest import (
     ANDURIL_URL,
     ARC_FORM,
     ARC_URL,
+    HERMEUS_FORM,
+    HERMEUS_URL,
     IMMUTA_FORM,
     IMMUTA_URL,
     PURE_STORAGE_FORM,
@@ -30,7 +32,8 @@ from fake_jobvite import FakeJobviteServer
 from fake_lever import FakeLeverServer
 from fake_paylocity import URL as PAYLOCITY_URL
 from fake_paylocity import FakePaylocityServer
-from fake_workday import EXPERIENCE_STEPS, FakeWorkdayServer
+from fake_workday import EXPERIENCE_STEPS, STEPS, FakeWorkdayServer
+from fake_workday import Field as WorkdayField
 from fakes import (
     FakeClaude,
     FakeClock,
@@ -47,9 +50,11 @@ from test_claude_fill import (
     LUNAR_URL,
     WHY_LUNAR,
     BambooDriver,
+    CaptchaDriver,
     JobviteDriver,
     PaylocityDriver,
     SendingDriver,
+    captcha_profile,
 )
 from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_URL, World
 from test_greenhouse_filler import board_listing_schools
@@ -57,6 +62,7 @@ from test_run_answers import profile_with
 
 from apply import rehearsal, worker
 from apply.adapters import Adapters
+from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
 from apply.claude_fill import ClaudeFill
 from apply.feed import SimplifyFeed
@@ -65,6 +71,7 @@ from apply.greenhouse import GreenhouseFiller
 from apply.keychain import InMemoryKeychain
 from apply.lever import LeverFiller
 from apply.model import Posting
+from apply.notify import RecordingNotifier
 from apply.profile import ApplicantProfile
 from apply.records import FolderRecords
 from apply.repair import RepairRequests
@@ -239,9 +246,40 @@ def test_a_claude_fill_record_is_headed_with_the_company_and_role_its_page_names
     assert (Path(done.record) / "README.md").read_text().splitlines()[0] == heading
 
 
+GOOGLE = {"workday_sign_in": "google"}  # policies.yaml: Sign in with Google where the tenant offers it
+
+
 class NeverSubmittingWorkday(WorkdayFiller):
     def submit(self, page):
         pytest.fail("a rehearsal called the Workday Filler's submit")
+
+
+def test_a_workday_rehearsal_whose_create_account_goes_back_to_sign_in_resets_nothing_and_says_so(monkeypatch):
+    # ASML (live, 2026-11-03): Workday showed Sign In with no error, and Lisul had an account there already.
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    world = World()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, exists_quietly=True,
+                           accounts={(CACI, "test.person@example.com"): "Made-By-Hand1!"}) as server:
+        [done] = rehearse([CACI_URL], server, world.profile, keychain=world.keychain, mailbox=world.mailbox)
+
+    assert "may already have an account for your email: reset its password once, or save it with " \
+           f"security add-generic-password -U -s apply-ats -a {CACI} -w" in done.why, done.why
+    assert server.resets == [] and world.keychain.password(CACI) is None
+
+
+def test_a_workday_rehearsal_whose_create_account_goes_to_the_bare_sign_in_view_signs_in_and_stops_unsent(monkeypatch):
+    # Visa's tenant (live, 2026-11-03): Workday made the account, then loaded its bare Sign In view.
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    world = World()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, to_sign_in=True) as server:
+        [done] = rehearse([CACI_URL], server, world.profile, keychain=world.keychain, mailbox=world.mailbox)
+
+    assert done.outcome == "ready to submit", done.why
+    [made] = server.created
+    assert world.keychain.password(CACI) == made["password"]
+    assert server.sign_ins == [(CACI, "test.person@example.com", True)] and server.submissions == []
 
 
 def test_a_workday_rehearsal_makes_an_employer_account_reads_its_link_from_gmail_and_stops_unsent(monkeypatch):
@@ -258,6 +296,23 @@ def test_a_workday_rehearsal_makes_an_employer_account_reads_its_link_from_gmail
     assert server.account(CACI, "test.person@example.com")["verified"]
     assert [a.site for a in tracker.employer_accounts()] == [CACI]
     assert server.submissions == []
+
+
+def test_a_live_rehearsals_new_employer_account_is_listed_in_the_kept_tracker(monkeypatch):
+    # A live rehearsal's own Tracker is a throwaway (no rows for rehearsed links), but the account it
+    # made is real: it is listed where Applications Lisul submits are kept, the Employer accounts list
+    # that `apply accounts` and the WorkIt extension's Apply sign-in read (KAN-592).
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    world, throwaway, kept = World(), InMemoryTracker(), InMemoryTracker()
+
+    with FakeWorkdayServer(CACI_FORM, keychain=world.keychain, mailbox=world.mailbox, verify_email=(CACI,)) as server:
+        rehearsal.rehearse([CACI_URL], adapters(server, None, keychain=world.keychain, mailbox=world.mailbox,
+                                                 tracker=throwaway),
+                           ApplicantProfile.load(world.profile), 1, keep_open=False, out=lambda line: None,
+                           submitted_to=kept)
+
+    assert [a.site for a in kept.employer_accounts()] == [CACI]
+    assert throwaway.employer_accounts() == []
 
 
 def test_a_workday_rehearsal_whose_link_gmail_cannot_read_needs_sign_in_saying_so(monkeypatch, tmp_path):
@@ -320,11 +375,93 @@ def test_a_workday_rehearsal_fills_my_experience_an_entry_per_job_and_school_to_
     assert server.submissions == []
 
 
+# Arrowstreet Capital's Application Questions 1 of 2 (rehearsed 2026-11-04): an intro, the current school's questions, a
+# bare From and the graduation, whose help text asks the first of the month. Claude answered From with the internship's
+# start, and the Answer bank kept it as "from (mm/dd/yyyy)" for every form.
+SCHOOL_INTRO = "When entering your education information below, please enter your current university information."
+SCHOOL_QUESTIONS = ("Application Questions 1 of 2", [
+    WorkdayField("school", "Current School/University", "text", True, intro=SCHOOL_INTRO),
+    WorkdayField("degree", "Degree", "dropdown", True, ("Bachelors", "Masters")),
+    WorkdayField("gpa", "Overall GPA", "text", True),
+    WorkdayField("from", "From", "date", True, format="MM/DD/YYYY"),
+    WorkdayField("graduation", "Please enter the first of the month and year that you are planning to graduate. "
+                 "Anticipated Graduation", "date", True, format="MM/DD/YYYY"),
+])
+
+
+def _steps(step) -> list:
+    return [*STEPS[:2], step, *STEPS[2:]]
+
+
+def test_a_workday_rehearsal_answers_a_bare_from_for_its_school_and_banks_nothing_by_its_label(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    world = experience_profile(graduation_day=21)
+    bank, claude = AnswerBank(tmp_path / "answer-bank.yaml"), FakeClaude(drafts={"From": "05/26/2027"})
+
+    with FakeWorkdayServer(XCEL_FORM, steps=_steps(SCHOOL_QUESTIONS)) as server:
+        [done] = rehearse([XCEL_URL], server, world.profile, claude, answer_bank=bank)
+
+    assert done.outcome == "ready to submit", done.why
+    saved = server.saved("xcelenergy.wd1.myworkdayjobs.com")
+    # The school's start, not the internship's; the graduation on the first of its month, as its help text asks.
+    assert (saved["from"], saved["graduation"]) == ("08/01/2024", "05/01/2028")
+    assert not any("drafts" in call["schema"]["properties"] for call in claude.calls)  # the plan answered it
+    assert all("from" not in question.casefold() for question in bank.answers())
+    assert server.submissions == []
+
+
+def test_a_bare_from_claude_drafts_is_told_its_section_and_banked_only_under_it(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    job = ("Application Questions 1 of 2", [WorkdayField("title", "Job Title", "text", True),
+                                            WorkdayField("from", "From", "date", True, format="MM/DD/YYYY")])
+    bank, claude = AnswerBank(tmp_path / "answer-bank.yaml"), FakeClaude(drafts={"Job Title": "Intern", "From": "05/24/2027"})
+
+    world = experience_profile()  # kept: its folder holds the profile
+    with FakeWorkdayServer(XCEL_FORM, steps=_steps(job)) as server:
+        [done] = rehearse([XCEL_URL], server, world.profile, claude, answer_bank=bank)
+
+    assert done.outcome == "ready to submit", done.why
+    [drafts] = [json.loads(call["prompt"].split("<short_questions>\n")[1].split("\n</short_questions>")[0])
+                for call in claude.calls if "drafts" in call["schema"]["properties"]]
+    asked = {d["question"]: d for d in drafts.values()}
+    assert asked["From (MM/DD/YYYY)"]["about"] == "work experience" and "about" not in asked["Job Title"]
+    assert [entry.question for entry in bank.entries()] == ["Job Title", "work experience / From (MM/DD/YYYY)"]
+    assert server.submissions == []
+
+
+def test_the_pre_submit_reviews_fix_is_filled_before_the_form_shows_as_ready(monkeypatch, tmp_path):
+    # A bare From nothing on the form places: Claude's draft is never banked, and when the review names the right
+    # answer for a wrong one, that answer is filled and the form reviewed again, never left as a banner.
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    bare = ("Application Questions 1 of 2", [WorkdayField("from", "From", "date", True, format="MM/DD/YYYY")])
+    problem = "'From (MM/DD/YYYY)': 05/24/2027 is the internship start date, not his school start"
+    bank = AnswerBank(tmp_path / "answer-bank.yaml")
+    claude = FakeClaude(drafts={"From": "05/24/2027"},  # a number the profile holds (its earliest start), so it is used
+                        # A fix for an answer from the profile is never taken (General Motors' degree, live).
+                        reviews=[{"problems": [problem, "First Name: not his name"],
+                                  "fixes": [{"question": "From (MM/DD/YYYY)", "answer": "08/01/2024"},
+                                            {"question": "First Name", "answer": "Someone"}]}])
+
+    world = experience_profile()
+    with FakeWorkdayServer(XCEL_FORM, steps=_steps(bare)) as server:
+        [done] = rehearse([XCEL_URL], server, world.profile, claude, answer_bank=bank)
+
+    assert done.outcome == "ready to submit", done.why
+    assert "Pre-submit review" not in done.why
+    saved = server.saved("xcelenergy.wd1.myworkdayjobs.com")
+    assert saved["from"] == "08/01/2024" and saved["legalName--firstName"] != "Someone"
+    [drafts] = [call["prompt"] for call in claude.calls if "drafts" in call["schema"]["properties"]]
+    assert '"about": "unknown"' in drafts
+    assert sum("problems" in call["schema"]["properties"] for call in claude.calls) == 2  # reviewed again after the fix
+    assert bank.entries() == []
+    assert server.submissions == []
+
+
 def test_a_workday_rehearsal_stops_where_google_wants_more_than_an_account_pick(monkeypatch, tmp_path):
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
 
     with FakeWorkdayServer(XCEL_FORM, google="password") as server:
-        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path), records=FolderRecords(tmp_path / "rehearsals"))
+        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path, GOOGLE), records=FolderRecords(tmp_path / "rehearsals"))
 
     assert done.outcome == "handoff" and "Google asked for more than an account pick" in done.why
     assert "Rehearsal, not submitted: handoff: Google asked" in (Path(done.record) / "README.md").read_text()  # its Record too
@@ -335,7 +472,7 @@ def test_a_workday_rehearsal_stops_as_needs_sign_in_when_google_refuses_the_brow
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
 
     with FakeWorkdayServer(XCEL_FORM, google="rejected") as server:
-        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path), records=FolderRecords(tmp_path / "rehearsals"))
+        [done] = rehearse([XCEL_URL], server, profile_with(tmp_path, GOOGLE), records=FolderRecords(tmp_path / "rehearsals"))
 
     assert done.outcome == "needs sign-in" and done.why.startswith("Google refused Sign in with Google")
     assert server.submissions == []
@@ -387,6 +524,22 @@ def test_each_page_stays_open_where_it_stopped_until_ctrl_c(monkeypatch, tmp_pat
     assert seen == [2]  # both forms open after the run, on their last page
     assert site.open_now == 0  # Ctrl-C closed them
     assert lines[-1] == "Closed the browsers."
+
+
+def test_a_captcha_mid_fill_in_a_rehearsal_waits_for_lisul_then_fills_to_the_last_page(monkeypatch, tmp_path):
+    # LinkedIn (2026-11-03): the slider stopped the read; Lisul does it, and the rehearsal goes on by itself.
+    monkeypatch.setattr(ClaudeFill, "submit", lambda self, page: pytest.fail("a rehearsal clicked Claude fill's submit"))
+    phone = RecordingNotifier()
+    claude = FakeClaude(driver=CaptchaDriver(solved_ms=1500), essays={"Tell us why": WHY_LUNAR})
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [done] = rehearse([LUNAR_URL], server, captcha_profile(tmp_path, 1), claude, phone=phone)
+
+    assert done.outcome == "ready to submit", done.why
+    assert phone.sent == [("Apply: do the captcha", "Do the captcha on Lunar Outpost. Apply goes on by itself once it's done.")]
+    assert [line.split(" ", 1)[1] for line in done.history] == [
+        "Paused: do the captcha", "Resumed: the captcha is done; Apply went on from the page"]
+    assert server.submissions == []
 
 
 def test_each_page_held_open_for_lisul_is_his_to_submit_once_its_link_has_ended(monkeypatch, tmp_path):
@@ -460,8 +613,9 @@ def lisul_on_the_held_page(monkeypatch, clicks):
     monkeypatch.setattr(rehearsal, "lift", lift)
 
 
-def hold_until(site, profile, done: Callable[[list[str]], bool], with_adapters: dict | None = None, **more) -> list[str]:
-    """Rehearse Arc's link with its page held open, then press Ctrl-C once
+def hold_until(site, profile, done: Callable[[list[str]], bool], with_adapters: dict | None = None, url: str = ARC_URL,
+               **more) -> list[str]:
+    """Rehearse Arc's link (or `url`) with its page held open, then press Ctrl-C once
     `done(lines printed)`; or after two minutes, so a test never hangs.
     `with_adapters` replaces adapters of the test's."""
     lines, ctrl_c = [], threading.Timer(1.0, _thread.interrupt_main)
@@ -473,7 +627,7 @@ def hold_until(site, profile, done: Callable[[list[str]], bool], with_adapters: 
     watchdog = threading.Timer(120, _thread.interrupt_main)
     watchdog.start()
     try:
-        rehearsal.rehearse([ARC_URL], adapters(site, **(with_adapters or {})), profile, out=out, **more)
+        rehearsal.rehearse([url], adapters(site, **(with_adapters or {})), profile, out=out, **more)
     finally:
         watchdog.cancel()
         ctrl_c.cancel()
@@ -494,6 +648,62 @@ def test_lisuls_own_submit_on_a_held_page_is_kept_in_the_tracker_as_submitted(mo
     assert (row.status, row.date_applied, row.posting_url) == ("submitted", NOW.date(), ARC_URL)
     assert row.company == "Arc Boat Company" and "You submitted it" in row.reason
     assert any(line.startswith("Arc Boat Company | ") and "you submitted it; it is in the Tracker" in line for line in lines)
+
+
+def test_lisuls_own_submit_saves_the_record_again_as_submitted_with_its_confirmation(monkeypatch, tmp_path):
+    # KLA, 2026-11-03: he submitted the held form himself, and its Record still said held.
+    from apply.records import InMemoryRecords
+
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
+    profile, records = ApplicantProfile.load(profile_with(tmp_path)), InMemoryRecords()
+
+    with FakeJobServer(ARC_FORM) as fake:
+        lines = hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=InMemoryTracker(),
+                           with_adapters={"records": records})
+
+    [link] = records.links()
+    files = records.files(link)
+    assert "- Status: submitted (You submitted it yourself from a rehearsal" in files["README.md"].decode()
+    assert files["after-submit.png"].startswith(b"\x89PNG")
+    assert any("its Record says submitted" in line for line in lines)
+
+
+def test_a_captcha_after_lisuls_own_submit_pushes_him_to_do_it(monkeypatch, tmp_path):
+    # Lisul (2026-11-03): in a rehearsal he presses Submit and does the captcha himself; Apply only tells him.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
+    profile, phone, board = ApplicantProfile.load(captcha_profile(tmp_path, 1)), RecordingNotifier(), RecordingBoard()
+
+    with FakeJobServer(ARC_FORM, challenge=True) as fake:
+        lines = hold_until(fake, profile, lambda lines: "do the captcha" in lines[-1],
+                           with_adapters={"phone": phone, "board": board})
+        submissions = fake.submissions
+
+    assert phone.sent == [("Apply: do the captcha", "Do the captcha on Arc Boat Company. "
+                                                    "Apply goes on by itself once it's done.")]
+    assert any(line.startswith("Arc Boat Company | ") and "do the captcha yourself" in line for line in lines)
+    assert (board.captions[0]["status"], board.captions[0]["captcha"]) == ("handoff", True)
+    assert submissions == []  # nothing goes until the captcha is done
+
+
+def test_lever_turning_down_lisuls_own_submit_is_a_bot_block_for_his_own_chrome(monkeypatch, tmp_path):
+    # Simbe Robotics, 2026-11-03: Lever's hCaptcha turned the token of the Worker's Chrome down at his Submit.
+    monkeypatch.setitem(FILLERS, "lever", NeverSubmits(LeverFiller()))
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
+    profile, board, tracker = ApplicantProfile.load(profile_with(tmp_path)), RecordingBoard(), InMemoryTracker()
+
+    with FakeLeverServer(IMMUTA_FORM, parse_delay=0.2, refuse=True) as fake:
+        lines = hold_until(fake, profile, lambda lines: "in your Chrome" in lines[-1], url=IMMUTA_URL,
+                           with_adapters={"board": board}, submitted_to=tracker)
+        submissions = fake.submissions
+
+    caption = board.captions[0]
+    assert caption["status"] == "handoff" and caption["blocked"] is True
+    assert "Immuta blocked Apply's Chrome as a bot (\"There was an error verifying your application\")" in caption["why"]
+    assert any(line.startswith("Immuta | ") and "Finish Immuta in your Chrome: the extension fills it" in line
+               for line in lines)
+    assert submissions == [] and tracker.rows() == []  # nothing went in, so nothing is kept as submitted
 
 
 def test_lisuls_own_submit_from_a_rehearsal_is_applied_in_his_applications_tracker(monkeypatch, tmp_path):
@@ -1038,6 +1248,70 @@ def test_a_file_attached_in_the_window_is_listed_on_its_tile_kept_by_its_name_an
     readme = (rehearsal_record(tmp_path) / "README.md").read_text()
     assert "| Email | Lisul_Elvitigala_Writing_Sample.pdf | Lisul_Elvitigala_Writing_Sample.pdf |" in readme
     assert "Missing facts: none" in board.captions[0]["line"]
+
+
+def test_add_context_and_regenerate_on_the_form_writes_that_answer_again_into_its_field(monkeypatch, tmp_path):
+    # KAN-599: Lisul reads Claude's essay on the held form, presses the small button beside it, types more
+    # context and presses Regenerate. Claude writes that one answer again into the field; nothing is sent.
+    from test_regenerate import CONTEXT, EARLIER, LATER
+
+    from apply import home
+    monkeypatch.setitem(FILLERS, "lever", NeverSubmits(LeverFiller()))
+    mission = "What about our mission excites you?"
+    claude = FakeClaude(essays={mission: [EARLIER, LATER]})
+    pages, seen = [], {}
+    lift = rehearsal.lift
+    monkeypatch.setattr(rehearsal, "lift", lambda page, **more: (pages.append(page), lift(page, **more))[1])
+
+    class Board(RecordingBoard):
+        pressed = False
+
+        def answered(self, worker):  # on the held page's own thread, every half second
+            if not pages:
+                return []
+            page, [written] = pages[0], [w for w in self.captions[worker]["written"] if w["label"] == mission]
+            field = page.locator(f'[data-apply-written="{written["name"]}"]')
+            mine = page.locator(f'#apply-regenerate [data-for="{written["name"]}"]')
+            if not self.pressed:
+                field.wait_for(timeout=5_000)
+                seen["before"], seen["offered"] = field.input_value(), sorted(w["kind"] for w in self.captions[worker]["written"])
+                field.scroll_into_view_if_needed()
+                mine.get_by_role("button", name="Add context and regenerate").click()
+                mine.locator("textarea").fill(CONTEXT)
+                mine.get_by_role("button", name="Regenerate", exact=True).click()
+                self.pressed = True
+            elif not written["state"]:  # written again
+                seen["after"], seen["read_only"] = field.input_value(), field.evaluate("el => el.readOnly")
+                seen["note"] = mine.inner_text()
+                page.close()  # Lisul is done with it
+            return []
+
+        def update(self, worker, **caption):
+            if any(w.get("state") == "working" for w in caption.get("written") or []):
+                seen["working"] = pages[0].locator('[data-apply-written]').evaluate_all(
+                    "boxes => boxes.filter(el => el.readOnly).length")
+            super().update(worker, **caption)
+
+    board = Board()
+    lines = []
+    with FakeLeverServer(HERMEUS_FORM) as fake:
+        rehearsal.rehearse([HERMEUS_URL], adapters(fake, claude, board=board, records=FolderRecords(tmp_path / "rehearsals")),
+                           ApplicantProfile.load(profile_with(tmp_path)), 1, keep_open=True, out=lines.append)
+
+    assert seen["offered"] == ["draft", "draft", "essay", "essay"]  # each answer Claude wrote; no pick, no profile fact
+    assert seen["before"] == EARLIER and seen["working"] == 1  # only that field shows it is being written again
+    assert seen["after"] == LATER and seen["read_only"] is False  # the new answer, his to edit
+    assert "New answer from your context" in seen["note"]
+    [written] = [w for w in board.captions[0]["written"] if w["label"] == mission]
+    assert (written["text"], written["kind"], written["state"]) == (LATER, "essay", "")
+    assert any(f"regenerated '{mission}' with your context" in line for line in lines)
+    assert f'- For "{mission}" at Hermeus: {CONTEXT}' in home.STORY_BANK.read_text()
+    [row] = [r for r in json.loads((rehearsal_record(tmp_path) / "answers.json").read_text()) if r["question"] == mission]
+    assert row["planned"] == row["on_page"] == LATER  # the Record keeps the new answer
+    readme = (rehearsal_record(tmp_path) / "README.md").read_text()
+    assert f"Regenerated '{mission}' with your context" in readme
+    assert LATER in (rehearsal_record(tmp_path) / "essays.md").read_text()
+    assert fake.submissions == []
 
 
 def rehearsal_record(tmp_path) -> Path:

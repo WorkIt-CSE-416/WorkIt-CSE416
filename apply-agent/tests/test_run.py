@@ -30,6 +30,7 @@ from apply import orchestrator
 from apply.adapters import Adapters
 from apply.cli import main
 from apply.feed import SimplifyFeed
+from apply.notify import RecordingNotifier
 from apply.repair import RepairRequests
 from apply.tracker import InMemoryTracker
 
@@ -55,13 +56,18 @@ def run(job_server, feed: str = "feed.json", board=None, profile=FIXTURES / "pro
     return tracker
 
 
-def a_headed_profile(folder):
-    """The test Applicant profile with a policies.yaml beside it that runs the Workers headed."""
+def a_profile(folder, policies: str):
+    """The test Applicant profile with a policies.yaml beside it that adds `policies`."""
     folder.mkdir()
     for name in ("profile.yaml", "one-pager.pdf"):
         shutil.copy(FIXTURES / name, folder / name)
-    (folder / "policies.yaml").write_text((FIXTURES / "policies.yaml").read_text() + "worker_headless: false\n")
+    (folder / "policies.yaml").write_text((FIXTURES / "policies.yaml").read_text() + policies)
     return folder / "profile.yaml"
+
+
+def a_headed_profile(folder):
+    """The test Applicant profile with a policies.yaml beside it that runs the Workers headed."""
+    return a_profile(folder, "worker_headless: false\n")
 
 
 def test_run_submits_a_greenhouse_match_and_tracks_it(job_server, one_pager):
@@ -130,6 +136,19 @@ def test_a_captcha_challenge_after_the_submit_click_is_a_handoff():
     assert "captcha" in row.reason
     assert row.bot_signals == "headless: captcha"  # how the browser ran, and what suggests it was taken for a bot
     assert job_server.submissions == []
+
+
+def test_a_captcha_after_the_submit_click_waits_for_lisul_then_is_submitted(tmp_path):
+    # Lisul (2026-11-03): "for the submission i'll do the captcha too just notify me".
+    profile = a_profile(tmp_path / "mine", "phone_push: true\ncaptcha_wait_minutes: 1\n")
+    phone = RecordingNotifier()
+    with FakeJobServer(ARC_FORM, challenge="solved") as job_server:
+        tracker = run(job_server, profile=profile, phone=phone)
+
+    [row] = tracker.rows()
+    assert row.status == "submitted", row.reason
+    assert phone.sent[0] == ("Apply: do the captcha", "Do the captcha on Arc. Apply goes on by itself once it's done.")
+    assert len(job_server.submissions) == 1
 
 
 def test_a_row_notes_a_headed_workers_bot_signals_as_headed(tmp_path):

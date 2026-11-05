@@ -11,7 +11,12 @@ import {
   type ReactNode,
 } from "react";
 
-import { CloseIcon } from "@/components/icons";
+// Phosphor's glyph itself, not icons.tsx's CloseIcon: the root layout
+// mounts this provider on every page, and the bundler takes icons.tsx
+// whole, so all its glyphs (about 40 KB compressed) loaded on every page,
+// the marketing pages included (frontend/CLAUDE.md, Icons).
+import { XIcon } from "@phosphor-icons/react/ssr";
+
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
@@ -226,7 +231,7 @@ function ToastCard({
         className="size-7 shrink-0"
         onClick={() => dismiss(id)}
       >
-        <CloseIcon className="size-3.5" />
+        <XIcon aria-hidden className="size-3.5" />
       </IconButton>
     </div>
   );

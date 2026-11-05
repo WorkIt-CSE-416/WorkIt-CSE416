@@ -160,12 +160,14 @@ jobs:
         run: |
           uv run pytest -q \
             tests/test_accounts.py \
+            tests/test_accounts_tab.py \
             tests/test_answer_bank.py \
             tests/test_answering.py \
             tests/test_applicant_name.py \
             tests/test_apply_home.py \
             tests/test_approve.py \
             tests/test_bot_signals.py \
+            tests/test_captcha.py \
             tests/test_claude_answers.py \
             tests/test_claude_cli.py \
             tests/test_clock.py \
@@ -193,6 +195,7 @@ jobs:
             tests/test_profile.py \
             tests/test_rankings.py \
             tests/test_records_contract.py \
+            tests/test_regenerate.py \
             tests/test_repair_requests.py \
             tests/test_requests.py \
             tests/test_sameness.py \

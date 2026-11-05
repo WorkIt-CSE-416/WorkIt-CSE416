@@ -129,7 +129,7 @@ export function JobsRailFrame({
           className={cn(
             "flex min-h-0 flex-1 flex-col @4xl/main:flex-row",
             split &&
-              "@4xl/main:bg-panel @4xl/main:border-border @4xl/main:rounded-t-card @4xl/main:mx-6 @4xl/main:overflow-hidden @4xl/main:border @4xl/main:border-b-0 lg:@4xl/main:mx-8",
+              "@4xl/main:bg-panel @4xl/main:border-border-control @4xl/main:rounded-t-card @4xl/main:mx-6 @4xl/main:overflow-hidden @4xl/main:border @4xl/main:border-b-0 lg:@4xl/main:mx-8",
           )}
         >
           <JobsRail
@@ -286,7 +286,10 @@ function JobsRail({
     <aside
       aria-label="Jobs"
       className={cn(
-        "border-border-subtle shrink-0 flex-col @4xl/main:w-[clamp(20rem,30cqw,26rem)] @4xl/main:border-r",
+        "shrink-0 flex-col @4xl/main:w-[clamp(20rem,30cqw,26rem)] @4xl/main:border-r",
+        // In the split view's panel, the list's edge is the panel's dark edge,
+        // as the job's action-bar rule it meets is (2026-11-03).
+        split ? "border-border-control" : "border-border-subtle",
         // Beside a job with no panel, off the sidebar by SEEKER_GUTTER less the
         // rows' own 16px, so the logos start on the page's line.
         split
@@ -295,12 +298,15 @@ function JobsRail({
         split && onList ? "flex" : "hidden @4xl/main:flex",
       )}
     >
-      {/* In the panel, the job's action bar's height, so one rule runs across. */}
+      {/* In the panel, the job's action bar's height, so the heading lines up
+          with the bar beside it. No rule under it: the cards below have their
+          own edges, and a rule here ran on with the bar's and crossed the
+          list's edge in a "+" (2026-11-03). The bar's rule stops at that edge. */}
       <div
         className={cn(
           "px-4 pt-4 pb-3",
           split &&
-            "@4xl/main:border-border-subtle @4xl/main:flex @4xl/main:h-15 @4xl/main:shrink-0 @4xl/main:flex-col @4xl/main:justify-center @4xl/main:border-b @4xl/main:py-0",
+            "@4xl/main:flex @4xl/main:h-15 @4xl/main:shrink-0 @4xl/main:flex-col @4xl/main:justify-center @4xl/main:py-0",
         )}
       >
         {showable || error ? (
@@ -342,16 +348,27 @@ function JobsRail({
             {/* Below @4xl/main, where the split view is the list alone, the
                 list is a white card as /search's is (./feed-list.tsx, KAN-558);
                 its edge lines up with the title above it. From @4xl/main the
-                card steps aside (`contents`) and the rows sit in the panel. */}
+                card steps aside (`contents`), and in the split view each row
+                is its own card in the panel, edged in `border-control` as the
+                Cards view's are, 8px apart; the open one is edged in brand
+                (2026-11-03). Rows split by a hairline alone read as unboxed
+                beside the dark-edged cards and buttons. */}
             <Card padding="none" className="mx-4 overflow-hidden @4xl/main:contents">
               <ul
                 className={cn(
                   !split && "divide-border-subtle border-border-subtle divide-y border-y",
-                  split && "max-@4xl/main:divide-border-subtle max-@4xl/main:divide-y",
+                  split && [
+                    "max-@4xl/main:divide-border-subtle max-@4xl/main:divide-y",
+                    SPLIT_LIST,
+                  ],
                 )}
               >
                 {showable.jobs.map((job) => (
-                  <li key={job.id} data-open={job.id === openId || undefined}>
+                  <li
+                    key={job.id}
+                    data-open={job.id === openId || undefined}
+                    className={cn(split && SPLIT_ROW)}
+                  >
                     <CompactJobCard
                       job={job}
                       stage={showable.stages?.[job.id] ?? null}
@@ -376,7 +393,7 @@ function JobsRail({
             )}
           </>
         ) : error ? null : (
-          <RailSkeleton />
+          <RailSkeleton split={split} />
         )}
         {error && (
           <p role="alert" className="text-body text-danger mt-3 px-4">
@@ -388,17 +405,33 @@ function JobsRail({
   );
 }
 
+/** The split view's list from @4xl/main: a stack of cards 8px apart in the
+ *  panel, 12px in from its edges. */
+const SPLIT_LIST =
+  "@4xl/main:flex @4xl/main:flex-col @4xl/main:gap-2 @4xl/main:px-3 @4xl/main:pt-3";
+
+/** One row in it: a card edged as the Cards view's are, the open job in brand. */
+const SPLIT_ROW =
+  "@4xl/main:bg-panel @4xl/main:rounded-card @4xl/main:border-border-control @4xl/main:data-open:border-brand @4xl/main:overflow-hidden @4xl/main:border";
+
 /** What the list was: Best Match, a search's results, or the newest roles. */
 function listTitle({ source, query }: ShownList): string {
   if (source === "recommended") return "Best Matches";
   return new URLSearchParams(query).get("q") ? "Search Results" : "Newest Jobs";
 }
 
-function RailSkeleton() {
+function RailSkeleton({ split }: { split: boolean }) {
   return (
-    <ul aria-hidden="true" className="divide-border-subtle border-border-subtle divide-y border-y">
+    <ul
+      aria-hidden="true"
+      className={cn(
+        split
+          ? ["max-@4xl/main:divide-border-subtle max-@4xl/main:divide-y", SPLIT_LIST]
+          : "divide-border-subtle border-border-subtle divide-y border-y",
+      )}
+    >
       {Array.from({ length: 6 }, (_, i) => (
-        <li key={i} className="flex gap-3 px-3.5 py-4">
+        <li key={i} className={cn("flex gap-3 px-3.5 py-4", split && SPLIT_ROW)}>
           <Skeleton className="rounded-control size-10 shrink-0" />
           <span className="flex flex-1 flex-col gap-2 pt-0.5">
             <Skeleton className="h-3 w-2/5" />

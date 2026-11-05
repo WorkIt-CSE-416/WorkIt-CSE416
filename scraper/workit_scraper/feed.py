@@ -26,8 +26,13 @@ from workit_scraper.store import Store
 WORK_STYLE = {"Remote": "remote", "Hybrid": "hybrid", "On site": "onsite"}
 
 
-def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
+def row(
+    role: Role,
+    logos: dict[str, str | None],
+    websites: dict[str, str | None] | None = None,
+) -> dict[str, object]:
     logo = logos.get(role.board_key)
+    site = (websites or {}).get(role.board_key)
     return {
         # pick() keys roles on their apply URL, so it is unique per feed.
         "id": role.apply_url,
@@ -43,7 +48,7 @@ def row(role: Role, logos: dict[str, str | None]) -> dict[str, object]:
         "logo_url": logo,
         # The employer's own website, which the Jobs page draws the logo from
         # (KAN-442); `logo_url` stays as the page's fallback.
-        "company_domain": company_domain(role.board_key, logo),
+        "company_domain": company_domain(role.board_key, logo, site),
         "description": role.description,
         "job_type": "internship" if Tag.INTERN in role.tags else role.facts.job_type,
         **salary(role),
@@ -72,9 +77,14 @@ def salary(role: Role) -> dict[str, object]:
     }
 
 
-def write(roles: list[Role], logos: dict[str, str | None], path: Path) -> None:
+def write(
+    roles: list[Role],
+    logos: dict[str, str | None],
+    path: Path,
+    websites: dict[str, str | None] | None = None,
+) -> None:
     """Newest first, in `pick()`'s order: the API serves a prefix of this list."""
-    rows = [row(role, logos) for role in roles]
+    rows = [row(role, logos, websites) for role in roles]
     path.write_text(json.dumps(rows, indent=1) + "\n", encoding="utf-8")
 
 

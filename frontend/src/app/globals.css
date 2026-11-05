@@ -25,9 +25,23 @@
  * has to stay deep enough to carry a white label at AA.
  * ------------------------------------------------------------------------- */
 
+/* The middle dot (U+00B7) alone, from Georgia, before Plus Jakarta Sans in
+ * --font-sans. Jakarta draws "·" as a square, the same as its full stop, and
+ * the user found the square dots between a job's facts odd (2026-11-03).
+ * Georgia's is round and sits at Jakarta's height (centre 217 against 219 of
+ * 300 units, measured), and ships with macOS and Windows; Helvetica Neue's,
+ * round too, covers iOS. Where neither is installed, Jakarta's square shows.
+ * One rule rounds every "·" in the app, strings included, with no markup. */
+@font-face {
+  font-family: "Round Dot";
+  src: local("Georgia"), local("Helvetica Neue");
+  unicode-range: U+00B7;
+}
+
 @theme static {
-  /* Fonts — the faces themselves are loaded by next/font in app/layout.tsx. */
-  --font-sans: var(--font-jakarta-sans);
+  /* Fonts — the faces themselves are loaded by next/font in app/layout.tsx,
+   * except "Round Dot", the middle dot alone (above). */
+  --font-sans: "Round Dot", var(--font-jakarta-sans);
   --font-mono: var(--font-geist-mono);
   /* Regular is 450, not 400 (KAN-365). Plus Jakarta Sans's 400 is light, and
    * small grey text at it (a job card's facts, dates, helper lines) read
@@ -50,14 +64,14 @@
    * the lightness it was measured at. The page moves further, down to the
    * app's own ground: once the hue is gone the two were within a point of
    * each other, and one page grey is simpler than two nobody can tell apart. */
-  --color-canvas: #f5f5f5; /* body ground; the auth screens paint a sky over it */
+  --color-canvas: #fcfcfc; /* body ground; the auth screens paint a sky over it */
   --color-surface: #f8f8f8; /* card / raised panel — note: not pure white */
   --color-surface-tint: #f1f7fa; /* logo tile, subtle tinted fills */
 
   /* Borders ------------------------------------------------------------- */
-  --color-border: #cfd5df; /* card outline */
-  --color-border-subtle: #d6dbe4; /* secondary buttons, rules */
-  --color-border-control: #878c97; /* the edge of a control or a state: 3.37:1 on panel, 3.09:1 on the app ground, 3.15:1 on well (WCAG 1.4.11; #8a8f9a was 2.97:1 on the ground) */
+  --color-border: #e8e8e8; /* a hairline: Simplify's neutral grey (2026-11-03); a card's outline is --color-border-control */
+  --color-border-subtle: #e8e8e8; /* rules and boxes inside a card; never a control's or a card's outer edge (those are --color-border-control) */
+  --color-border-control: #878c97; /* the edge of a control or a state: 3.37:1 on panel, 3.29:1 on the app ground, 3.09:1 on well (WCAG 1.4.11; #8a8f9a was 2.97:1 on the old #f5f5f5 ground) */
 
   /* Ink ----------------------------------------------------------------- */
   --color-ink: #121a28; /* headings, secondary-button labels */
@@ -146,13 +160,16 @@
    * whole page, and the well carried the same cast at #f7f9fc.
    *
    * They are now pure greys, R = G = B, so the only colour in the shell is
-   * colour something means: brand on an action, positive on an offer. The
-   * lightness order the mockups drew is kept — card lightest, then well, then
-   * page — with the page a shade deeper than it was (96% against the old 97.5%)
-   * so a white card has an edge to sit on now that the hue difference is gone. */
-  --color-app: #f5f5f5; /* seeker page ground, behind the cards; uploaded-file row */
+   * colour something means: brand on an action, positive on an offer.
+   *
+   * The page is near white (#fcfcfc), as Simplify's is (2026-11-03). It was
+   * #f5f5f5 so a white card had an edge to sit on, and the whole signed-in
+   * app read as muted: white cards and light edges blended into the grey. A
+   * card now stands on its --color-border-control edge (ui/card.tsx), and the
+   * well is the old page grey, kept for fills inside a white surface. */
+  --color-app: #fcfcfc; /* page ground behind the cards, near white as Simplify's (2026-11-03); never a fill inside a white surface (that is --color-well) */
   --color-panel: #ffffff; /* top bar, cards and secondary buttons */
-  --color-well: #f7f7f7; /* recessed area — the resume dropzone, match rail */
+  --color-well: #f5f5f5; /* a grey fill inside a white surface: the dropzone, an uploaded-file row, a calendar day outside the month, a bar button's hover */
 
   /* App interaction states -----------------------------------------------
    * The fill a control takes when it is under the pointer, or is the one you
@@ -239,7 +256,7 @@
   --shadow-lift: 0 2px 4px rgb(18 26 40 / 0.04), 0 10px 24px rgb(18 26 40 / 0.08);
   /* A list row under the pointer, as Gmail marks one (KAN-427): hairlines
    * at its sides and a short drop below, raised over its neighbours. A
-   * shadow, not a fill, because a read row is already grey (--color-app)
+   * shadow, not a fill, because a read row is already grey (--color-well)
    * and --color-hover on it is a step too small to see. */
   --shadow-row:
     inset 1px 0 0 rgb(18 26 40 / 0.1), inset -1px 0 0 rgb(18 26 40 / 0.1),
@@ -407,20 +424,20 @@
    * Dashboard bar's track). --color-positive itself misses it, at 2.8:1, so
    * Strong takes #139564, positive at 33% lightness. --chart-3 shares it.
    *
-   * WEAK IS NEUTRAL INK FOR NOW (KAN-569). The cut-offs in @/lib/match are
-   * placeholders, and every card on the Jobs page scored under 65, so all 50
-   * drew a red ring and the eye had nothing to rank by. Weak goes back to
-   * --color-danger (5.77 on white, 5.39 on the well) once real cut-offs exist.
+   * WEAK IS RED (KAN-518, back on 2026-11-03). KAN-569 drew it in neutral ink
+   * while the cut-offs in @/lib/match are placeholders, since nearly every
+   * job scored Weak and every card drew a red ring. The user wanted the bands
+   * back: a black ring read as a fault, not as a score.
    *
    *                white   well
    *   excellent    5.35    4.99
    *   strong       3.81    3.56
    *   good         3.24    3.03
-   *   weak        10.70    9.98 */
+   *   weak         5.77    5.39 */
   --color-match-excellent: var(--color-positive-ink);
   --color-match-strong: #139564;
   --color-match-good: #b98600;
-  --color-match-weak: var(--color-ink-muted);
+  --color-match-weak: var(--color-danger);
 
   /* Updates --------------------------------------------------------------
    * The marketing pages' pink: the tour's Updates stop and the Tracker
@@ -955,7 +972,7 @@ body {
  * both shells. So it cannot inherit the page colour a shell sets on itself, and
  * this rule is the only way it learns which shell it is holding.
  *
- * The design kit grounds on --color-app, the same #f5f5f5 as the canvas, so
+ * The design kit grounds on --color-app, the same #fcfcfc as the canvas, so
  * the default above is already right for it. The auth screens paint a sky
  * over the canvas (components/skyline.tsx) and say so with data-skyline; the
  * rule after these two gives them its white top. The two

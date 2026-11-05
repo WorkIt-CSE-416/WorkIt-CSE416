@@ -33,8 +33,12 @@ The facts Lisul gives once (work authorization, graduation date, demographic ans
 _Avoid_: personal info, answers file
 
 **Missing fact**:
-A required question only Lisul can answer: one asking for an Applicant profile fact the profile lacks, a one-off question Claude can't answer from his facts, or one that stays his whatever Claude knows (references or contacts, government IDs, signatures and attestations, criminal history, an "if yes, explain" his answer calls for), or a fact an Essay plan's required slot needs that no Story bank line states (asked as "Essay fact: …"). A follow-up that Apply's own answer to the question before it doesn't call for ("If yes, …" or "If a contingent worker, …" after a No, 'If "Other," …' after another pick) is not one: it is left blank, or answered N/A where it must be answered. Pay is not one: asked as a figure it gets the middle of the Posting's own pay range, or Lisul's fallback rate (policies.yaml); asked in words it gets "Open to the posted range" when the Posting names its pay, else the fallback rate ("$30/hr"); asked whether the posted or stated pay suits him, it gets Yes. Its Application pauses until Lisul answers, and the answer joins the profile (an Essay fact's joins the Story bank, and the essay is then written).
+A required question only Lisul can answer: one asking for an Applicant profile fact the profile lacks, a one-off question Claude can't answer from his facts, or one that stays his whatever Claude knows (references or contacts, government IDs, signatures and attestations, criminal history, an "if yes, explain" his answer calls for), or a fact an Essay plan's required slot needs that no Story bank line states (asked as "Essay fact: …"). A follow-up that Apply's own answer to the question before it doesn't call for ("If yes, …" or "If a contingent worker, …" after a No, 'If "Other," …' after another pick) is not one: it is left blank, or answered N/A where it must be answered. Pay is not one: asked as a figure it gets the middle of the Posting's own pay range, or Lisul's fallback rate (policies.yaml); asked in words it gets "Open to the posted range" when the Posting names its pay, else the fallback rate ("$30/hr"); asked whether the posted or stated pay suits him, it gets Yes. Its Application pauses until Lisul answers, and the answer joins the profile (an Essay fact's joins the Story bank, and the essay is then written). A question that the profile, the Answer bank, the Story bank or the resume already answers is not one: Apply answers it from there. Each one shows a context line: its form step, the question before a bare label, its pair, or the essay that it is for.
 _Avoid_: unknown question, gap
+
+**Go to question**:
+The button on a Needs you question whose form is still open in its Worker's browser. It brings that browser to the front and scrolls to the field, which it focuses and outlines. A field on another Workday step is not shown: Apply names the step and moves nothing. Lisul can then answer the question on the form. Once he leaves the field and it rests a moment, Apply saves his answer as the card saves it, and the question leaves Needs you.
+_Avoid_: jump, show field
 
 **Answer bank**:
 Every answer to a one-off question (a required question no Applicant profile fact or rule answers), kept by the question's wording so the same question gets the same answer on every form. The first time a form asks one, Claude drafts the answer from Lisul's facts and the Story bank in the Application's one Claude call, and it goes straight into the bank and the form; a draft never holds an Application by itself. Each later form a draft answers counts as a use, and every run lists the drafts Lisul hasn't reviewed that it used again, which the Answers tab also puts first. Only if Lisul opts in with the `max_unreviewed_uses` policy does an unreviewed draft used that many times hold the Application, until he reviews it. Lisul reviews, edits, deletes or adds answers in the Answers tab of the Apply window (`apply answers`), in the Tracker's Answers tab or in answer-bank.yaml, and his answer is used word for word from then on. A one-off question about the company itself ("how familiar are you with our products?") is never banked: Claude answers it from the Posting description each time, and only Lisul's own answer to one is used again.
@@ -109,11 +113,19 @@ What the latest Employer mail about a submitted Application says came of it (rej
 _Avoid_: auto outcome, detected outcome, status
 
 **Handoff**:
-An Application the system cannot finish alone, for example because of a captcha, or a Posting description that speaks to AI agents (handed off before its form opens, quoting the sentence). Lisul finishes it from the Tracker row.
+An Application the system cannot finish alone, for example a site that blocks the browser, or a Posting description that speaks to AI agents (handed off before its form opens, quoting the sentence). A captcha that Lisul did not do within the Captcha wait is also a Handoff. Lisul finishes it from the Tracker row.
 _Avoid_: manual, fallback, failed
 
+**Captcha wait**:
+The time that Apply keeps a form open for Lisul to do its captcha. Apply never solves a captcha. It pushes "Do the captcha on <company>" to his phone and shows the captcha in the Apply window. When the challenge goes away, or he presses Resume, the fill continues on the same page. After `captcha_wait_minutes` (15), the Application is a Handoff. In a Rehearsal, a captcha after Lisul's own Submit gets only the push: he does it himself. A Bot block has no challenge, so it gets no Captcha wait.
+_Avoid_: captcha solve, captcha bypass
+
+**Bot block**:
+A page that refuses the Worker's Chrome as a bot and has nothing to solve. Examples are DataDome's "We detected unusual activity from your device or network", Lever's "There was an error verifying your application" and Tesla's "Access Denied". Apply makes it a Handoff at once. It does not retry, sign in again or ask for a new code. The Application stays at Needs you. The student finishes it in their everyday Chrome, where the extension fills the form. In a live run, Apply opens the posting there and pushes "Finish <Company> in your Chrome: the extension fills it". In a Rehearsal, Apply opens it only when Lisul presses Open in my Chrome. Apply never opens it over DevTools or in a Worker profile.
+_Avoid_: ban, captcha, stealth
+
 **Resume**:
-The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue.
+The action that continues a paused Rehearsal on its open page. A Rehearsal pauses when its fill stops mid-form for Lisul, for example on a step that does not go on. He fixes the page, then presses Resume on its card or Needs you item. Apply reads the page as it is, keeps his fixes and fills the remaining steps. It never starts over, never submits and never asks for a new code. When the tab is closed, the button says why it cannot continue. A filling Rehearsal also shows Resume when Apply waits on Claude, the page shows a field error, or the fill makes no progress for 45 seconds. There, Resume stops the wait and continues from the page as he left it.
 _Avoid_: retry, restart, continue
 
 **Worker**:
@@ -121,7 +133,7 @@ One process with its own browser that carries one Application at a time: it runs
 _Avoid_: bot, agent, runner
 
 **Bot signal**:
-A sign that a job system took a Worker's browser for a bot: a captcha challenge, Greenhouse asking for the security code it emails before it takes the form, or Ashby refusing the sent form ("We couldn't submit your application"). Each Tracker row a Worker filled notes the Bot signals it met and whether the Worker's Chrome ran headless or with a window (`worker_headless` in policies.yaml), so the two can be compared before Lisul chooses one. An employer's own block message is not a Bot signal. Apply never disguises its browser to avoid them.
+A sign that a job system took a Worker's browser for a bot: a captcha challenge, Greenhouse asking for the security code it emails before it takes the form, Ashby refusing the sent form ("We couldn't submit your application"), or a Bot block. Each Tracker row a Worker filled notes the Bot signals it met and whether the Worker's Chrome ran headless or with a window (`worker_headless` in policies.yaml), so the two can be compared before Lisul chooses one. Apply never disguises its browser to avoid them.
 _Avoid_: bot score, detection, fingerprint
 
 **Orchestrator**:
@@ -133,7 +145,7 @@ A Worker's own browser profile that persists between runs and stays signed in to
 _Avoid_: session, browser, Chrome profile
 
 **Apply window**:
-The one window where Lisul watches every Worker live (a tile each), reads and edits his answers (the Answers tab) and pastes his Own applications (atop that tab), opened by a run or rehearsal, `apply watch` or `apply answers`. On the Mac it is its own app, Apply (~/Applications/Apply.app), in the Dock: click it to bring the window forward, Quit or close the window to end it, and keep it in the Dock to open it again.
+The one window where Lisul watches every Worker live (a tile each), reads and edits his answers (the Answers tab), signs in to his Employer accounts (the Accounts tab) and pastes his Own applications (atop that tab), opened by a run or rehearsal, `apply watch` or `apply answers`. On the Mac it is its own app, Apply (~/Applications/Apply.app), in the Dock: click it to bring the window forward, Quit or close the window to end it, and keep it in the Dock to open it again.
 _Avoid_: dashboard, Chrome window
 
 **Essay**:
@@ -147,6 +159,10 @@ _Avoid_: question category, prompt kind, essay kind
 **Essay plan**:
 What one Essay will say, picked for the whole form before any is written: its Question type, the Story bank story it leads with, the Company brief fact it ties to him (if any), its angle (a point away from the typical applicant's answer), and its slots: the parts a great answer of that type holds (a claim, a decision and its reason, a result), each with the Story bank or Company brief lines that back it, quoted. An Essay says only what its slots' quotes back: a required slot with no backing becomes a Missing fact for Lisul, and an optional one (a lesson, a feeling, why he cared) is left out. Code checks every quote is word for word in the sources. No two essays on a form lead with the same story. A held row shows each essay's plan above its text.
 _Avoid_: outline, essay brief, strategy
+
+**Catch-all box**:
+An optional free-text question that asks for anything at all rather than one thing ("Additional information", "Anything else you'd like us to know?", "Comments", "Other information"), on any job system: the anything-else Question type on a question the form doesn't require. It stays blank unless Apply has something new (not on the resume, the form's other answers or the cover letter) and relevant to this employer and role (a project close to the job the resume leaves out, a link the form didn't ask for, an availability note the form never asked), said in at most two sentences. A blank one is blank on purpose: Verifying notes it, and it never reaches Needs you. The one exception to "a blank optional is a bug".
+_Avoid_: additional info field, comments box
 
 **High-stakes essay**:
 A required free-text answer that asks about this company specifically, asks for something beyond the resume, sits on a form that bans AI-written text (or whose Posting description or Company material does, if only by saying "Do not use AI."), or sits on an Ashby form (held in case Ashby flags AI-written text). Answers about projects, experience or courses drawn from the master resume are not high-stakes.
@@ -217,7 +233,7 @@ The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads
 _Avoid_: validation, QA, double-check
 
 **Employer account**:
-A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google.
+A login the system creates for Lisul on one employer's careers site when that site requires one and offers no Sign in with Google. On Workday, the system creates one even when the site offers Sign in with Google, unless Lisul's policies say `workday_sign_in: google`. Its password is only in the macOS Keychain. The Accounts tab of the Apply window lists each one. Copy password puts the password on the clipboard for 60 s, and Open sign-in page opens the site in Lisul's own Chrome. The Tracker lists the account, also one that a Rehearsal made.
 _Avoid_: ATS account, candidate account
 
 **Not eligible**:
@@ -247,6 +263,10 @@ _Avoid_: manual application, custom link, add
 **Own application**:
 An Application Lisul submitted himself, outside Apply, that he adds to the Tracker by pasting a link to its Posting or to the page the employer showed after he submitted (`apply applied <link>`, or the box atop the Apply window's Answers tab). One Haiku call reads the company and role off the link and its page, and the row starts as submitted, dated that day, so the Repost check keeps Apply from applying to that Posting again.
 _Avoid_: manual application, logged application, self-apply
+
+**Regenerate**:
+Lisul's request that Claude write one of its answers on a held form again, with context he types. He presses "Add context and regenerate" beside the field, on the form or in the Apply window. His context joins the Story bank with the question it was for. Claude writes the answer by the usual essay path, and the answer replaces the field's value. An answer over the form's limit, or with a fact no source holds, stays off the form. Nothing is sent.
+_Avoid_: redo, rewrite, retry
 
 **Rescue**:
 Claude filling, live on the open form, one field a Filler's own code failed on (a FillError, or a click that timed out), so the Application goes on to the next step instead of failing. It runs under the drive guard, is read back and checked like any field, and leaves a Repair request so the Filler's code is fixed too. Workday's Filler has one.

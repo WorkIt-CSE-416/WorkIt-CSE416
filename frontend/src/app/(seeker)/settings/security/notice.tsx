@@ -11,8 +11,22 @@ const NOTICES: Record<string, string> = {
   linked: "Your sign-in method is connected.",
 };
 
+/** The same, for a link that failed: Google's own callback
+ *  (app/auth/google/callback) comes back here either way. */
+const FAILURES: Record<string, string> = {
+  "link-failed": "Couldn't connect Google. It may already sign in to another WorkIt account.",
+};
+
 export function SecurityNotice() {
   const notice = useSearchParams().get("notice");
+  const failure = notice ? FAILURES[notice] : undefined;
+  if (failure) {
+    return (
+      <p role="alert" className="bg-danger-tint text-ink rounded-control text-body px-4 py-3">
+        {failure}
+      </p>
+    );
+  }
   const message = notice ? NOTICES[notice] : undefined;
   if (!message) return null;
   return (

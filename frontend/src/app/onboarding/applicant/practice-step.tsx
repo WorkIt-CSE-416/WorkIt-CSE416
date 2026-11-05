@@ -103,7 +103,7 @@ export function PracticeStep({ states }: { states: Record<string, PracticeState>
           return (
             <li
               key={job.id}
-              className="border-border bg-panel rounded-card flex items-center gap-4 border p-4"
+              className="border-border-control bg-panel rounded-card flex items-center gap-4 border p-4"
             >
               <div className="min-w-0 flex-1">
                 <p className="text-subtitle text-ink truncate">{job.title}</p>

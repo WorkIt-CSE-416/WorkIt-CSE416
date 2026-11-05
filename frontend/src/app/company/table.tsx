@@ -377,7 +377,7 @@ export function DataTable<T extends RowData>({
     /* overflow-hidden, not overflow-x-auto: shadcn's <Table> already wraps
      * itself in a scroller, and a second one here would nest two scrollbars.
      * This wrapper only needs to clip the rounded corners. */
-    <div className="border-border-subtle bg-panel rounded-card overflow-hidden border">
+    <div className="border-border-control bg-panel rounded-card overflow-hidden border">
       {/* AUTO LAYOUT, WIDTHS FROM CONTENT, TITLES CAPPED.
 
           Three ways to size these columns, two of them wrong.
