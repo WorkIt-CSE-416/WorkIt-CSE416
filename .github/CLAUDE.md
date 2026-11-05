@@ -28,7 +28,7 @@ The `extension-store-build` job (KAN-463) builds the Chrome Web Store package
 localhost, vercel.app or "Prototype", and runs `store-build.spec.ts` and
 `extension-id.spec.ts`. The package needs the private fill-engine submodule,
 which the default token can't read, so the build steps run only once a
-`FILL_ENGINE_TOKEN` secret (read access to WorkIt-CSE-416/fill-engine) is set;
+`FILL_ENGINE_TOKEN` secret (read access to workitjobs/fill-engine) is set;
 without it they show as skipped and the job checks the extension ID only.
 
 **Without `FILL_ENGINE_TOKEN`, the engine's tests are skipped, never green.**
@@ -366,7 +366,7 @@ not a re-run.
   **`CHROME_PUBLISHER_ID`** (Publisher > Settings in the Developer
   Dashboard — a different value from the item id, and new with the v2
   endpoints above; v1.1 never needed it) and **`FILL_ENGINE_TOKEN`** (a
-  PAT with read access to the private `WorkIt-CSE-416/fill-engine` repo
+  PAT with read access to the private `workitjobs/fill-engine` repo
   — the same secret `ci.yml`'s `extension-store-build` job uses; without
   it `publish`'s checkout can't read the submodule at all, since the
   default `GITHUB_TOKEN` has no cross-repo access, and the job fails at
