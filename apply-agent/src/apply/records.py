@@ -42,6 +42,7 @@ class Record:
     named_facts: tuple[tuple[str, str], ...] = ()  # (question, Named fact) of each essay that names one
     verification: dict | None = None  # how verifying the filled form went (apply.verify, Verification.as_json)
     history: tuple[str, ...] = ()  # a rehearsal's pauses and Resumes, "HH:MM Paused: why", in order
+    asks: tuple[dict, ...] = ()  # each Ask Claude message on the held form and how it went (apply.ask), in order
 
 
 def folder(record: Record) -> str:
@@ -63,7 +64,7 @@ def record_files(record: Record) -> dict[str, bytes]:
     GitHub shows when the Record's link is opened, after-submit.png once the
     form was submitted, essays.md when Claude wrote any, verification.json
     once the form was verified, and page.html when the page's HTML was kept
-    (a plain Worker's), with every secret answer cut out."""
+    (a plain Worker's), and asks.json when Lisul asked Claude to fix the form, with every secret answer cut out."""
     rows = [
         {"question": q.label.strip(), "field": q.name, "planned": _shown(q, record.filled.answers.get(q.name)), "on_page": _shown(q, record.filled.readback.get(q.name))}
         for q in record.filled.questions
@@ -79,6 +80,8 @@ def record_files(record: Record) -> dict[str, bytes]:
         files["page.html"] = _without_secrets(record).encode()
     if record.essays:
         files["essays.md"] = record.essays.encode()
+    if record.asks:
+        files["asks.json"] = (json.dumps(list(record.asks), indent=2, ensure_ascii=False) + "\n").encode()
     if record.verification is not None:
         files["verification.json"] = (json.dumps(record.verification, indent=2, ensure_ascii=False) + "\n").encode()
     return files
@@ -130,6 +133,12 @@ def _readme(record: Record, rows: list[dict]) -> str:
               for f in record.verification["flags"]), ""] if record.verification and record.verification["flags"] else []),
         *(["## Pauses", "", "Where the fill stopped for you, and where you pressed Resume:", "",
             *(f"- {line}" for line in record.history), ""] if record.history else []),
+        *(["## Ask Claude", "", "What you asked Claude to fix on the held form, and what it did:", "",
+            *(line for a in record.asks for line in (
+                f"- You: {a.get('message', '')}", f"  - Claude: {a.get('reply', '')}",
+                *(f"  - Changed {c.get('field', '')} → {c.get('shown', '')} ({c.get('read_back', '')})"
+                  for c in a.get("changed") or []),
+                *(f"  - Couldn't: {c}" for c in a.get("couldnt") or []))), ""] if record.asks else []),
         *(["## Claude drafted", "", "Answers to one-off questions, now in the Answer bank for you to review:", "",
             *(f"- {question} → {answer}" for question, answer in record.drafted), ""] if record.drafted else []),
         *(["## Named facts", "", "What the essays name about the company: read up on each before an interview.", "",
