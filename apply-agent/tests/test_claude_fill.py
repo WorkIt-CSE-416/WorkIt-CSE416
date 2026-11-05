@@ -1017,6 +1017,37 @@ def test_a_step_whose_next_does_not_go_on_is_a_handoff_not_a_form_ready_to_submi
     assert server.submissions == []
 
 
+class GatedStepsDriver(JobviteStepsDriver):
+    """Reports the sponsorship question as one for Lisul to check, on the step that shows it."""
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        said = super().__call__(page, schema, prompt, files)
+        if "questions" not in schema["properties"] and page.get_by_text(SPONSORSHIP).first.is_visible():
+            said["for_lisul"] = [f"{SPONSORSHIP}: No"]
+        return said
+
+
+@pytest.mark.parametrize("gates, status", [(True, "handoff"), (False, "submitted")])
+def test_page_gates_stop_before_a_step_with_a_legal_answer_goes_on(tmp_path, gates, status):
+    profile = profile_with(tmp_path, policies={"page_gates": gates})
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile, tyler_match(), claude=FakeClaude(driver=GatedStepsDriver()))
+
+    assert row.status == status, row.reason
+    if gates:
+        assert row.reason.startswith(f"Page 2: check these 1 and tick any box that is yours, then press Resume: {SPONSORSHIP}: No")
+        assert server.submissions == []
+
+
+def test_page_gates_as_notes_list_the_check_and_go_on_to_the_last_page(tmp_path, capsys):
+    profile = profile_with(tmp_path, policies={"page_gates": "note"})
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile, tyler_match(), claude=FakeClaude(driver=GatedStepsDriver()))
+
+    assert row.status == "submitted", row.reason
+    assert f"Check before Submit: Page 2: {SPONSORSHIP}: No" in capsys.readouterr().err
+
+
 class NoButtonsStepsDriver(JobviteStepsDriver):
     """Names no Next on the first step, and no button that sends, as a misread step would."""
 

@@ -595,7 +595,8 @@ def by_filler(
     filler = ClaudeFill(claude, **cap, sign_in=sign_in, resume=profile.get("files.resume_pdf"),
                         sms_opt_in=profile.policy("sms_opt_in") is True,
                         marketing_opt_in=profile.policy("marketing_opt_in") is True,
-                        accounts=signing_in, account_facts=account_facts(profile, agree))
+                        accounts=signing_in, account_facts=account_facts(profile, agree),
+                        page_gates=_page_gates(profile.policy("page_gates")))
     with OnePage(site) as page_site:
         result = apply(filler, page_site)
     result.reason = "; ".join(filter(None, [result.reason, filler.usage()]))
@@ -647,3 +648,8 @@ class _OnWorker:
 
     def open(self, url: str):
         return self._site.open(url, worker=self._worker)
+
+
+def _page_gates(policy) -> bool | str:
+    """policies' page_gates: true pauses for Lisul, "note" lists his checks and goes on, else off."""
+    return "note" if policy == "note" else policy is True
