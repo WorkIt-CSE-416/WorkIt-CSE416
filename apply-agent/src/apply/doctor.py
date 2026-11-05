@@ -20,6 +20,7 @@ from apply import cover_letter, gates, native_host
 from apply.adapters import Mailbox, Tracker, Usage
 from apply.browsers import (
     CHROME,
+    WORKER_PROFILES,
     WorkerBrowsers,
     google_account,
     in_use,
@@ -180,7 +181,7 @@ SIGN_IN = ("sign in to Google by hand, in a Chrome started with --user-data-dir=
 def _worker_profiles(machine: Machine) -> list[Check]:
     """Read from each profile's files on disk; Chrome is never opened. A
     profile a browser has open (a run or a rehearsal) is skipped."""
-    workers = sorted(p for p in machine.profiles.glob("worker-*") if p.is_dir())
+    workers = sorted(p for p in machine.profiles.glob(WORKER_PROFILES) if p.is_dir())
     if not workers:
         return [Check("Worker profiles", FAIL, f"none in {machine.profiles}", SIGN_IN.format(machine.profiles / "worker-1"))]
     busy = [p for p in workers if in_use(p)]

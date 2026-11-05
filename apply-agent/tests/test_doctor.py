@@ -235,6 +235,14 @@ def test_no_worker_profiles_at_all_fails(tmp_path):
     assert found.level == doctor.FAIL
 
 
+def test_the_worker_extensions_folder_is_not_a_worker_profile(tmp_path):
+    profiles = tmp_path / "profiles"
+    (profiles / "worker-extension").mkdir(parents=True)
+    found = {c.name: c.level for c in doctor.diagnose(machine(tmp_path, profiles=profiles))}
+    assert found["Worker profiles"] == doctor.FAIL
+    assert "worker-extension" not in found
+
+
 def test_gmail_set_up_is_ok(tmp_path):
     asked = []
     found = check(machine(tmp_path, mailbox=lambda address: asked.append(address) or FakeMailbox()), "Gmail")
