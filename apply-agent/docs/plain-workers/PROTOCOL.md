@@ -3,8 +3,9 @@
 S1 (KAN-607) and S2 (KAN-608) own this; S3 to S7 build on it (S3, KAN-609: the tile ops). Spec: KAN-606. This file
 is the source; change it in the PR that changes the protocol.
 
-Hard rule: never evade bot detection. Nothing here hides automation; a plain
-Worker simply has none (no CDP, no automation flags, no headless).
+Hard rule: never evade bot detection and never touch a captcha; hand those to
+the user. A plain Worker is a Chrome with no CDP, no automation flags and no
+headless mode.
 
 ## Pieces
 
@@ -428,8 +429,8 @@ when they end.
 
 `policies.yaml: worker_mode: cdp|plain|protected` (default `cdp`) picks the Worker for each form (S8,
 `apply.plain.site`): `plain` puts every form on a plain Worker (`PlainSite`), `protected` only those on
-`plain_worker_hosts` (Lever, SmartRecruiters, Workable) and on each host a bot block was seen on
-(`APPLY_HOME/plain-hosts.json`, written by `captcha.blocked`), the rest on CDP Workers (`RoutedSite`).
+`plain_worker_hosts` (Lever, SmartRecruiters, Workable) and in `APPLY_HOME/plain-hosts.json` (written
+by `captcha.blocked`), the rest on CDP Workers (`RoutedSite`).
 `PlainSite.open` keeps a Worker's Chrome up across the Applications it carries: on reuse it calls
 `guards.reset(worker)` and closes the last one's tabs; after each it leaves one blank tab, so the window
 stays. `close()` stops every Chrome it started, by PID, when the run or rehearsal ends.
