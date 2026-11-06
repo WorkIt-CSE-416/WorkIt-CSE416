@@ -152,7 +152,7 @@ def test_a_lifted_page_tells_apply_when_lisul_clicks_a_button_that_sends(job_ser
     pressed, again = [], []
     with job_server.open(ARC_URL) as page:
         guard(page)
-        lift(page, pressed=pressed.append, again=lambda: again.append(True))
+        lift(page, pressed=lambda words, account=False: pressed.append(words), again=lambda: again.append(True))
         page.evaluate("""() => { const next = document.createElement('button');
             next.type = 'button'; next.textContent = 'Next'; document.body.appendChild(next); }""")
         page.get_by_role("button", name="Next").click()
@@ -218,7 +218,7 @@ def test_a_legal_answer_the_review_found_wrong_holds_lisuls_submit_until_he_dism
     with job_server.open(ARC_URL) as page:
         guard(page)
         filler.fill(page, questions, answers)
-        lift(page, pressed=pressed.append, warning=f"Pre-submit review: {US_PERSON_WRONG}", held=US_PERSON_WRONG,
+        lift(page, pressed=lambda words, account=False: pressed.append(words), warning=f"Pre-submit review: {US_PERSON_WRONG}", held=US_PERSON_WRONG,
              dismiss=lambda: dismissed.append(True))
         note = page.locator("#apply-rehearsal-blocked")
         page.get_by_role("button", name="Submit application").click()

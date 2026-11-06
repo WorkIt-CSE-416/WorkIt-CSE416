@@ -249,7 +249,7 @@ def test_a_click_from_the_tile_counts_as_lisuls(page, site):
 def test_once_lifted_lisul_s_submit_goes_through_and_apply_hears_it(page, site):
     pressed, again = [], []
     guard(page)
-    lift(page, pressed=pressed.append, again=lambda: again.append(True), warning="Phone left blank", wrong=False)
+    lift(page, pressed=lambda words, account=False: pressed.append(words), again=lambda: again.append(True), warning="Phone left blank", wrong=False)
     assert page.worker.call("guard.status", tab=page.tab)["rules"] == 0
     assert _note(page).startswith("Apply rehearsal: check before you submit. Phone left blank")
     page.get_by_role("button", name="Fill again").click()
@@ -268,7 +268,7 @@ def test_a_held_submit_is_blocked_until_lisul_dismisses_it(page, site):
     """KAN-629 on a plain page: held, Submit blocked under the red note; Dismiss; then Submit goes."""
     dismissed, pressed = [], []
     guard(page)
-    lift(page, pressed=pressed.append, held="'Are you a US person?' reads No, but you are",
+    lift(page, pressed=lambda words, account=False: pressed.append(words), held="'Are you a US person?' reads No, but you are",
          dismiss=lambda: dismissed.append(True))
     assert _note(page).startswith("Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: 'Are you")
     page.get_by_role("button", name="Next").click()  # a held page is his but for its Submit
