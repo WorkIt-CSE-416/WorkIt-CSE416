@@ -5,7 +5,7 @@ Oracle has no passwords: the candidate gives an email address (ticking the
 site's legal disclaimer, never its honeypot box), a returning candidate
 confirms their last name, and Oracle may mail a one-time code, read here from
 Gmail. A code sent by text message is a Handoff, and so is a code that
-doesn't come within about 2 minutes (Apply never clicks Send New Code: it
+doesn't come within about 10 minutes (Apply never clicks Send New Code: it
 goes to Needs you, and Lisul retries himself), a code Oracle
 refuses (it allows 4 tries, then locks for 30 minutes), or an identity
 question other than the last name.
