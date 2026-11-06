@@ -205,6 +205,14 @@ PAGES = {
     "submit=1 added by the formdata event": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}">
         <input name=first value=Test><button id=b>Next</button></form><script>document.getElementById('app')
         .addEventListener('formdata', (e) => e.formData.append('submit', '1'));</script>"""},
+    # Where a form posts, as the browser makes it: relative to its <base>, and an empty formaction is the page's URL.
+    "a base that makes a query the final URL": {START: f"""<title>Apply</title><base href="{HOST}{FINAL}">
+        <form method=post action="?a=1"><input name=first value=Test><button id=b>Next</button></form>"""},
+    "a base that makes a path Greenhouse's": {START: f"""<title>Apply</title><base href="{GREENHOUSE}/x">
+        <form method=post action="../5442881008"><input name=first value=Test><button id=b>Next</button></form>"""},
+    "an empty formaction on a page at the final URL": {START: f"""<title>Apply</title><script>history.replaceState(null,
+        '', '{FINAL}');</script><form method=post action="/acme/jobs/123/step2"><input name=first value=Test>
+        <button id=b formaction="">Next</button></form>"""},
 }
 BUTTON = {"a Submit in another language beside a Submit": "Envoyer ma candidature",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",

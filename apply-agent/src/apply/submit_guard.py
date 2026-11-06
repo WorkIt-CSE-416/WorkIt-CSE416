@@ -202,6 +202,10 @@ _TEMPLATE = r"""
   const resolve = (url, base) => { try { return hrefGet(new URL_(url, base)); } catch (e) { return null; } };
   const originOf = (url) => { try { return originGet(new URL_(url)); } catch (e) { return null; } };
   const pageURL = () => location.href, pageOrigin = () => location.origin;
+  // What a relative URL is relative to, as the browser reads it (KAN-710): the document's base (a <base href>, or
+  // the creator's for a new frame's about:blank), never the page's own address.
+  const docURL = get(DP, 'URL'), baseOf = get(NP, 'baseURI'), ownerDoc = get(NP, 'ownerDocument');
+  const base = () => text(baseOf(D)) || pageURL();
 
   // The guard's own state (KAN-710): in this closure, never on window, so no page script reads or sets it. Apply
   // changes it only by @CONTROL@, an event named with a token of this run that only Apply's own scripts know: sent
@@ -379,7 +383,7 @@ _TEMPLATE = r"""
   const isFinal = (method, url, body) => {
     if (lifted()) return false;
     if (test(READS, text(method) || 'GET')) return false;
-    const href = resolve(text(url), pageURL()) || text(url);
+    const href = resolve(text(url), base()) || text(url);
     if (any(NOT_FINAL, (r) => test(r, href))) return false;
     return any(FINAL_URLS, (r) => test(r, href)) || any(FINAL_BODIES, (r) => test(r, body));
   };
@@ -478,11 +482,17 @@ _TEMPLATE = r"""
   // that has one) reaches none of the page's handlers. A "Next" goes on.
   // A POST to a job system's final application URL (a CDP Worker routes none of those page URLs): never let
   // through by plain code's account, step or profile click (KAN-639, KAN-647), as a fetch to it never is.
-  // Its target by attribute (a field named "action" shadows form.action), relative to the page as isFinal reads it.
-  const postTarget = (form, by) => (isEl(by) && text(attr(by, 'formaction'))) || text(attr(form, 'action')) || pageURL();
+  // Its target as the browser makes it (KAN-710), read by attribute (a field named "action" shadows form.action): a
+  // submit button's formaction, else the form's action, relative to the form's base; an empty one (formaction="" too)
+  // is the form's own document's URL.
+  const submitButton = (el) => isEl(el) && (tag(el) === 'BUTTON' ? typeOf(el) === 'submit' : test(/^(submit|image)$/i, typeOf(el)));
+  const postTarget = (form, by) => {
+    const action = submitButton(by) && hasAttr(by, 'formaction') ? text(attr(by, 'formaction')) : text(attr(form, 'action'));
+    return action === '' ? text(docURL(ownerDoc(form))) : resolve(action, text(baseOf(form))) || action;
+  };
   // Any job system's final URL by its name alone (a path ending in /apply, the last of FINAL_URLS), not a known one.
   const byNameAlone = (form, by, at) => {
-    const href = at || resolve(postTarget(form, by), pageURL()) || '';
+    const href = at || postTarget(form, by);
     return !any(KNOWN_FINAL, (r) => test(r, href));
   };
   // The page itself says steps remain after this one ("Step 2 of 5", a step list past the current step), and
@@ -501,7 +511,8 @@ _TEMPLATE = r"""
   const postsFinal = (form, by, href) => posts(form, by) && isFinal('POST', href || postTarget(form, by))
     && !(byNameAlone(form, by, href) && isEl(by) && !!press && contains(by, press.target) && moreSteps(form));
   // A profile pop-up posting to its own page, on a URL final by its name alone: the pop-up is proven no application.
-  const profileOwnPage = (form, by, href) => !(isEl(by) && attr(by, 'formaction')) && !attr(form, 'action') && byNameAlone(form, by, href);
+  const profileOwnPage = (form, by, href) => !(submitButton(by) && attr(by, 'formaction')) && !attr(form, 'action')
+    && byNameAlone(form, by, href);
   // A sign-in relay's own post (an SSO, OIDC or SAML hand-off: Amazon's idp.federate "Signing you in...", live):
   // the page's script posts it before any click or key on the page, its fields are all hidden (a token, a
   // state), no button of it sends, and it is bound for no final URL. Nothing of an application is in it.
@@ -522,7 +533,7 @@ _TEMPLATE = r"""
   const frameLoad = (form, by, href) => {
     const target = (isEl(by) && text(attr(by, 'formtarget'))) || text(attr(form, 'target'));
     if (!target || startsWith(target, '_') || !posts(form, by) || postsFinal(form, by, href) || !hiddenOnly(form)) return false;
-    const away = originOf(href || resolve(postTarget(form, by), pageURL())) !== pageOrigin();
+    const away = originOf(href || postTarget(form, by)) !== pageOrigin();
     return away && any(nodes(byName(D, target)), (n) => test(/^I?FRAME$/, tag(n)));
   };
   // Plain code's résumé attach (apply.attach): the page's own script posting the file it was just given, as iCIMS
@@ -576,7 +587,6 @@ _TEMPLATE = r"""
   const NavP = W.NavigateEvent && NavigateEvent.prototype;
   const navData = NavP && getter(NavigateEvent, 'formData'), navTo = NavP && getter(NavigateEvent, 'destination');
   const navFrom = NavP && getter(NavigateEvent, 'sourceElement'), destURL = W.NavigationDestination && getter(NavigationDestination, 'url');
-  const ownerDoc = get(NP, 'ownerDocument');
   const FD = FormData, fdEntries = fn(FD.prototype, 'entries');
   const fdNext = (() => { try { const it = fdEntries(new FD()); return fn(Object.getPrototypeOf(it), 'next'); } catch (e) { return null; } })();
   const fileName = get(File.prototype, 'name');
