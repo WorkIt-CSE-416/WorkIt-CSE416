@@ -1255,3 +1255,97 @@ def test_a_widget_loading_into_its_own_frame_goes_through_the_drive_guard(action
         browser.close()
     assert posts == ([action] if through else [])
     assert ('the "Submit application" click' in blocked) and (("a form submission" in blocked) is not through)
+
+
+# TAL.net's posting page (Bank of America's campus careers, live 2026-11-06, KAN-725): its Apply button is a submit
+# input in a POST form of its token alone, bound for .../opp/<id>/apply/<lang>, which opens the application. The
+# guard took it for a form's Apply that sends, and the rehearsal handed off with no field filled.
+TAL_POSTING = """<form><button id="cookies" type="button">Accept all cookies</button></form>
+<h1>Software Engineer Summer Analyst</h1><p>About the role.</p>{page}
+<form action="{action}" method="post"><input type="hidden" name="__vxXSRF_Token" value="t">{fields}
+<input type="submit" id="go" value="{words}"></form>"""
+TAL_URL = "https://bankcampuscareers.tal.net/vx/candidate/so/pm/1/pl/1/opp/14418-Software-Engineer/en-GB"
+TAL_APPLY = "https://bankcampuscareers.tal.net/vx/candidate/so/pm/1/pl/1/opp/14418/apply/en-GB"
+
+
+SPA = """<a id="spa" href="#">Apply now</a><button id="chip" type="button">Yes</button>
+<script>document.getElementById('spa').addEventListener('click', (e) => { e.preventDefault();
+  history.pushState({}, '', location.pathname + '/form'); });</script>"""
+SHADOW_CHOICE = """<div id="host"></div><script>document.getElementById('host').attachShadow({mode: 'open'}).innerHTML =
+  '<div id="choice" role="radio" aria-checked="false">No</div>';</script>"""
+ADDS_ANSWER = """<script>addEventListener('load', () => document.getElementById('go').addEventListener('click', () =>
+  document.getElementById('go').form.insertAdjacentHTML('beforeend', '<input type="hidden" name="first" value="Test">')));
+</script>"""
+FETCHES = """<script>addEventListener('load', () => document.getElementById('go').addEventListener('click', (e) => {
+  e.preventDefault(); fetch(location.href + '/save', {method: 'POST', body: 'first=Test'}).catch(() => {}); }));</script>"""
+
+
+def _press_tal_apply(action=TAL_APPLY, words="Apply", fields="", page="", start=True, before=None):
+    """The posts the TAL.net-like posting sent, and what the drive guard blocked, after a press of its button."""
+    from playwright.sync_api import sync_playwright
+
+    posts, bodies = [], []
+    _press_tal_apply.bodies = bodies
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        tab = browser.new_page()
+        tab.route(TAL_URL, lambda route: route.fulfill(body=TAL_POSTING.format(
+            action=action, words=words, fields=fields, page=page), content_type="text/html"))
+        tab.on("request", lambda r: r.method == "POST" and bodies.append(r.post_data))
+        _posts_to(tab, posts)
+        drive = DriveGuard(tab)
+        tab.goto(TAL_URL)
+        drive.arm()  # Claude drives
+        if start:
+            drive.let_start_click()  # Claude fill's first drive, on the Posting's own page
+        tab.click("#cookies")  # a cookie banner's button answers nothing
+        if before:
+            before(tab)
+        tab.click("#go")
+        tab.wait_for_timeout(500)
+        blocked = drive.blocked()
+        browser.close()
+    return posts, blocked
+
+
+def test_a_postings_apply_button_that_opens_the_form_goes_through_the_drive_guard():
+    assert _press_tal_apply() == ([TAL_APPLY], [])
+    assert _press_tal_apply.bodies == ["__vxXSRF_Token=t"]
+
+
+def test_the_postings_apply_sends_its_token_alone_whatever_the_pages_submit_handler_adds():
+    adds = """<script>addEventListener('load', () => document.getElementById('go').form.addEventListener('submit', (e) =>
+      e.target.insertAdjacentHTML('beforeend', '<input type="hidden" name="first" value="Test">')));</script>"""
+    assert _press_tal_apply(page=adds) == ([TAL_APPLY], [])
+    assert _press_tal_apply.bodies == ["__vxXSRF_Token=t"]
+
+
+@pytest.mark.parametrize("given", [
+    {"start": False},  # not the Posting's page as the first drive began: a review page's Apply, a reopened form
+    {"words": "Submit application"},
+    {"fields": '<input name="first" value="Test">'},  # an application's own Apply
+    {"fields": '<input type="hidden" name="first" value="Test">'},  # its answers, hidden beside the token
+    {"page": '<input name="first" value="Test">'},  # an answer on the page
+    {"page": '<input type="search" value="Test">'},
+    {"page": '<div contenteditable="true">Test</div>'},
+    {"action": "https://bankcampuscareers.tal.net/jobs/14418/apply"},  # a final URL
+    {"action": "https://bankcampuscareers.tal.net/jobs/14418/submit"},
+    {"page": '<input id="first" name="first">', "before": lambda tab: (tab.fill("#first", "Test"), tab.fill("#first", ""))},
+    {"page": '<div id="yes" role="radio" aria-checked="false">Yes</div>', "before": lambda tab: tab.click("#yes")},
+    # The adversarial review's pages: a one-page app's Apply link that turns the page into the form, whose answers are
+    # buttons; a custom choice in a shadow root; a draft the site kept, shown at the Posting's URL; and a handler on the
+    # Apply itself that posts the answers by script instead.
+    {"page": SPA, "before": lambda tab: (tab.click("#spa"), tab.click("#chip"))},
+    {"page": SHADOW_CHOICE, "before": lambda tab: tab.click("#choice")},
+    {"page": "<h2>Review your application</h2><p>First name: Test</p>"},
+    {"page": "<h1>Review</h1><p>First: Test</p>"}, {"page": "<h1>Your application</h1><p>First: Test</p>"},
+    {"page": FETCHES},
+    {"page": FETCHES.replace("location.href + '/save'", "'https://api.tal.net/v1/candidates/me/applications'")},
+    {"page": ADDS_ANSWER},  # the page's own click handler adds an answer to the form after the guard's check
+    {"page": "<p>Signed in as Test. Apply with your profile.</p>"},  # the site's saved profile: the press applies
+    {"page": '<iframe srcdoc="<input id=first>"></iframe>',
+     "before": lambda tab: tab.frame_locator("iframe").locator("#first").fill("Test")},  # an answer in a frame
+])
+def test_any_other_forms_apply_stays_blocked(given):
+    posts, blocked = _press_tal_apply(**given)
+    assert posts == [] and blocked

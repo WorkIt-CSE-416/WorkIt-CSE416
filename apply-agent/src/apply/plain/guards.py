@@ -242,9 +242,12 @@ class PlainDriveGuard(DriveGuard):
     def let_upload_post(self, let: bool = True) -> None:
         self._flags(__applyUploadPost=let)
 
+    def let_start_click(self) -> None:
+        self._flags(__applyStartClick=True)
+
     def arm(self) -> None:
         self._flags(__applyDriveLifted=False, __applyAccountClick=False, __applyProfileClick=False,
-                    __applyUploadPost=False)
+                    __applyUploadPost=False, __applyStartClick=False)
         self._set_driving(True)
 
     def asking(self, on: bool, may_tick: bool = False) -> None:

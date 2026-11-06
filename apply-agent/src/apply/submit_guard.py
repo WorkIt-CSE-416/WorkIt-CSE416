@@ -10,7 +10,9 @@ a page Claude drives. In each frame, before the page's own code, it blocks:
 - a click on a button whose words send: submit, send, finish or complete
   anywhere in them ("Review and Submit", "Continue & Submit", "Complete
   application"), or apply on a form's button ("Apply"; a job page's Apply
-  link that opens the form is no form's). Workday's Review Submit has no
+  link that opens the form is no form's, nor is a posting's Apply button
+  whose form holds only a hidden token, once, on the Posting's own page
+  before anything is answered on it: TAL.net's opens the form). Workday's Review Submit has no
   known endpoint, so this is its guard; every Filler's submit is such a
   click;
 - a POST form's native submission (`form.submit()`, or a submit event's
@@ -187,21 +189,102 @@ _TEMPLATE = r"""
       box.textContent = '@NAME@: blocked ' + what + '. Nothing was sent.';
     } catch (e) {}
   };
+  const site = (host) => host.split('.').slice(-2).join('.');  // a host's site, near enough (more blocked, never less)
   const isFinal = (method, url, body) => {
     if (lifted()) return false;
     if (/^(GET|HEAD|OPTIONS)$/i.test(method || 'GET')) return false;
     let href = String(url);
     try { href = new URL(href, location.href).href; } catch (e) {}
+    // The Posting's Apply went through: nothing else is posted to its own site from the page (KAN-725), its
+    // other hosts included (an API on another subdomain).
+    if (starting) try { if (site(new URL(href).hostname) === site(location.hostname)) return true; } catch (e) { return true; }
     if (NOT_FINAL.some(r => r.test(href))) return false;
     return FINAL_URLS.some(r => r.test(href)) || (typeof body === 'string' && FINAL_BODIES.some(r => r.test(body)));
   };
 
   const wordsOf = (el) => [el.innerText, el.value, el.getAttribute('aria-label')]
     .filter(w => typeof w === 'string' && w.trim())[0] || '';
-  // A button that sends: its words say so, or say apply on a form's button (a job page's Apply link is no form's).
+  // A button that sends: its words say so, or say apply on a form's button (a job page's Apply link is no form's;
+  // a posting's Apply button that only opens the application goes through by opens, below).
   const sends = (el) => {
     const words = wordsOf(el);
     return SENDS.test(words) || (APPLY.test(words) && !!(el.form || (el.closest && el.closest('form'))));
+  };
+  // A field holding an answer, as an application's would: shown, and typed in, ticked, chosen or given a file.
+  const filled = (n) => {
+    if (/^(hidden|submit|button|reset|image)$/.test(n.type) || (n.checkVisibility && !n.checkVisibility())) return false;
+    if (n.type === 'checkbox' || n.type === 'radio') return n.checked;
+    if (n.type === 'file') return !!(n.files && n.files.length);
+    if (n.tagName === 'SELECT') return n.selectedIndex > 0;
+    return String(n.value || '').trim() !== '';
+  };
+  // Plain code's word that this document is the Posting's own page, open as Claude fill's first drive began
+  // (DriveGuard.let_start_click, KAN-725). Anything done on it since takes the word back: a key, an input or
+  // change, a click on anything but that Apply or a cookie banner's button, or the page changing its URL by
+  // script (a one-page app turning into the form).
+  const startClick = () => window.__applyStartClick === true;
+  // In this frame and the page's top one: an answer typed in a frame of the page's own site takes it back too.
+  const unvouch = () => {
+    window.__applyStartClick = false;
+    try { if (window.top !== window) window.top.__applyStartClick = false; } catch (e) {}
+  };
+  const COOKIES = /\b(accept|reject|decline|allow|deny|cookies?|consent|close|dismiss|got it|ok(ay)?)\b/i;
+  const cookieButton = (el) => {
+    if (!el || !COOKIES.test(wordsOf(el))) return false;
+    for (let up = el.parentElement, i = 0; up && i < 5; up = up.parentElement, i++) {
+      const text = String(up.innerText || '');
+      if (text.length > 3000) return false;
+      if (/\bcookies?\b/i.test(text)) return true;
+    }
+    return false;
+  };
+  for (const kind of ['keydown', 'input', 'change', 'click']) addEventListener(kind, (event) => {
+    if (!startClick()) return;
+    if (kind === 'click') {
+      const at = (event.composedPath && event.composedPath()[0]) || event.target;
+      const control = at && at.closest && at.closest('button, input, a, [role=button]');
+      if (control && (cookieButton(control) || opens(control))) return;
+    }
+    unvouch();
+  }, true);
+  for (const name of ['pushState', 'replaceState']) {
+    const was = history[name];
+    history[name] = function (...args) { unvouch(); return was.apply(this, args); };
+  }
+  for (const kind of ['popstate', 'hashchange']) addEventListener(kind, unvouch, true);
+  // The Apply that went through, once: its form's submission opens the application, and until the next page
+  // nothing else of this one is posted to its site (the page's own handler on that click sends nothing by script).
+  let starting = null, started = false;
+  // A job posting's Apply button that only opens the application: TAL.net's posting posts a form of its token
+  // alone to .../opp/<id>/apply/<lang>, which answers with the application's first page (candidate/eform/...).
+  // Only on the Posting's own page under plain code's word above, and once: its words say apply and nothing that
+  // sends, its form holds a hidden token and buttons only, bound for no final URL, and no field on the page holds
+  // an answer. Any other form's Apply still sends.
+  const TOKEN = /token|csrf|xsrf|nonce|authenticity|viewstate|eventvalidation/i;  // a form's anti-forgery token
+  // A page that shows an application of the applicant's already (a draft the site kept, its review), or one that applies
+  // with a profile the site holds: its Apply may send.
+  const DRAFT = /\b(review (and|&) (submit|apply)|review (your|my) (application|answers)|application (summary|preview)|your answers|(continue|resume|finish) (your|my) application|(saved|your|my) draft|draft application|declaration|signed in as|(apply|applying) with (your|my|a|the|saved) (saved )?(profile|resume|cv|details)|quick apply|one[- ]click apply|easy apply)\b/i;
+  // The form, as it is now: a hidden token and buttons only, bound for the page's own site and no final URL.
+  const tokenOnly = (form, by) => {
+    const own = [...Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get.call(form)];
+    if (!own.every((n) => (n.type === 'hidden' && TOKEN.test(n.name)) || n.tagName === 'FIELDSET'
+      || /^(submit|button|reset)$/.test(n.type))) return false;
+    try {
+      const href = new URL(String(postTarget(form, by)), location.href);
+      return href.origin === location.origin && !FINAL_URLS.some(r => r.test(href.href));
+    } catch (e) { return false; }
+  };
+  // A heading that names an application, its review, summary or draft: no posting's (TAL.net's names the job).
+  const HEADED = /\b(review|summary|draft|confirm\w*|(your|my) application|application (form|details))\b/i;
+  const opens = (el) => {
+    const form = el.form || (el.closest && el.closest('form'));
+    const words = wordsOf(el);
+    if (!startClick() || window.top !== window || !form || SENDS.test(words) || !APPLY.test(words)) return false;
+    if (!tokenOnly(form, el) || DRAFT.test(String((document.body && document.body.innerText) || ''))) return false;
+    const heads = [...document.querySelectorAll('h1, h2, h3, h4, [role=heading], legend')].map((h) => h.innerText).join(' ');
+    if (HEADED.test(document.title + ' ' + heads)) return false;
+    return ![...document.querySelectorAll('input, select, textarea')].some(filled)
+      && ![...document.querySelectorAll('[contenteditable]:not([contenteditable=false])')].some((n) => n.innerText.trim());
   };
 
   // Clicks on a submit button, before any of the page's handlers.
@@ -214,6 +297,11 @@ _TEMPLATE = r"""
       // Submit): that press sends no application, so Resume still goes on after it.
       if (sends(target) && window.__applyLisulPressed) window.__applyLisulPressed(wordsOf(target).trim().slice(0, 80),
         accountForm(target) || codeForm(target));
+      return;
+    }
+    if (opens(target)) {  // the Posting's Apply, once (KAN-725)
+      unvouch();
+      starting = target;
       return;
     }
     if (!sends(target)) return;
@@ -291,6 +379,28 @@ _TEMPLATE = r"""
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
+    // Only the Posting's Apply's own form, once, and only as it was when let through (no field or target added since).
+    // Sent as Apply's own copy of it, its token and the button's name alone, so no handler of the page's can add
+    // to it after this check.
+    if (starting && by === starting && !started && form === (by.form || by.closest('form')) && tokenOnly(form, by)) {
+      started = true;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const copy = document.createElement('form');
+      copy.method = 'post';
+      copy.action = new URL(String(postTarget(form, by)), location.href).href;
+      const put = (name, value) => {
+        const input = document.createElement('input');
+        input.type = 'hidden'; input.name = name; input.value = value;
+        copy.appendChild(input);
+      };
+      for (const n of fields(form)) if (n.type === 'hidden' && n.name) put(n.name, n.value);
+      if (by.name) put(by.name, by.value);
+      copy.style.display = 'none';
+      (document.body || document.documentElement).appendChild(copy);
+      submit.call(copy);
+      return;
+    }
     if (relay(form, by) || frameLoad(form, by) || uploadPost(form, by)) return;
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
@@ -900,9 +1010,16 @@ class DriveGuard:
         a form holding a chosen file, by no button that sends, never to a final URL, until let off again."""
         self._in_frames(f"window.__applyUploadPost = {_js(let)}")
 
+    def let_start_click(self) -> None:
+        """The open page is the Posting's own, as Claude fill's first drive begins (KAN-725): its Apply button,
+        in a form of a hidden token alone (TAL.net's), may open the application once, until anything is
+        answered on it. Gone with the page's document, and at the next arm()."""
+        self._in_frames("window.__applyStartClick = true")
+
     def arm(self) -> None:
         self._in_frames("window.__applyDriveLifted = false; window.__applyAccountClick = false; "
-                        "window.__applyProfileClick = false; window.__applyUploadPost = false")
+                        "window.__applyProfileClick = false; window.__applyUploadPost = false; "
+                        "window.__applyStartClick = false")
         self._set_driving(True)
 
     def asking(self, on: bool, may_tick: bool = False) -> None:

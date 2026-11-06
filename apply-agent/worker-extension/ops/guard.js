@@ -311,7 +311,7 @@ chrome.tabs.onRemoved.addListener((tab) => {
 
 // --- flags, touches and what the page said
 
-const FLAGS = new Set(["__applyRehearsalLifted", "__applyDriveLifted", "__applyAccountClick", "__applyProfileClick", "__applyUploadPost"]);
+const FLAGS = new Set(["__applyRehearsalLifted", "__applyDriveLifted", "__applyAccountClick", "__applyProfileClick", "__applyUploadPost", "__applyStartClick"]);
 
 async function flags({ tab, set }) {
   const pairs = Object.entries(set || {}).filter(([name, value]) => FLAGS.has(name) && typeof value === "boolean");
