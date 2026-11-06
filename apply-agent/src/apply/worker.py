@@ -529,12 +529,12 @@ class _Planned:
         # plan; what Lisul put on the page wins over both.
         # An attestation is never Apply's to answer, from any of them: only what Lisul ticked himself (KAN-676).
         self._answers = {n: a for n, a in (answers | self.found | self.fixes).items() if n not in self.attestations} | self.lisuls
+        self._keep_files()
 
     @property
     def to_tick(self) -> list[str]:
         """The Check before Submit lines for the attestations Lisul has not ticked on a paused step: "Yours to tick: ..."."""
         return [to_tick(wording) for name, wording in self.attestations.items() if name not in self.lisuls]
-        self._keep_files()
 
     def keep(self, values: dict) -> None:
         """Keep what Lisul put on a paused form before Resume (the Filler's
