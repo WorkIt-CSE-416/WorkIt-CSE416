@@ -414,7 +414,7 @@ def test_the_held_page_s_glue_keeps_his_message_and_the_fix_in_the_record_and_fi
     assert "## Ask Claude" in (record / "README.md").read_text()
     [request] = repairs.all()
     assert "Lisul said" in request.problems[0]
-    assert lines == ["Acme Robotics | Ask Claude replied: <reply, 25 chars>"]
+    assert lines == ["Acme Robotics | Ask Claude replied: <reply, 23 chars>"]
 
 
 def test_a_group_of_boxes_on_another_step_is_read_back_as_one_change():
