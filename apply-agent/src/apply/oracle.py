@@ -24,9 +24,11 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from apply.accounts import Accounts
 from apply.model import Handoff
 
-# Gmail search for Oracle's code mail. The sender is the employer's own
-# address, so the subject is searched; only mail since the request counts.
-MAIL_SEARCH = 'subject:(code OR verification OR verify OR "confirm your identity")'
+# Gmail search for Oracle's code mail: Oracle's own senders (JPMorgan's came from
+# workflow.mail.us2.cloud.oracle.com) or the employer's own address with Oracle's
+# subject (American Express's). Not any code mail: an Amazon or Greenhouse code
+# that came meanwhile is not this one. Only mail since the request counts.
+MAIL_SEARCH = '(from:(oracle.com OR oraclecloud.com) OR subject:"confirm your identity")'
 TIMEOUT = 30.0
 TERMS_WAIT = 3.0
 SMS = re.compile(r"text message|\bsms\b|sent .{0,40}to your (mobile|phone)", re.IGNORECASE)
