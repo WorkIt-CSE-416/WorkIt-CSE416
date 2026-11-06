@@ -757,6 +757,13 @@ class RecordingBoard:
         with self._lock:
             self.runs.append(fields)
 
+    def add_tile(self, worker: int) -> int:
+        """One more tile, for a link sent into Worker `worker` (Dashboard.add_tile); its number."""
+        with self._lock:
+            self.captions.setdefault(len(self.captions), {})
+            self.shown = getattr(self, "shown", {}) | {len(self.captions) - 1: worker}
+            return len(self.captions) - 1
+
     def wait_for_start(self, timeout: float) -> None:
         self.run(start="pressed")  # Lisul presses Start at once
 

@@ -20,6 +20,7 @@ import yaml
 from apply import (
     already_applied,
     ask,
+    batch,
     bot_signals,
     captcha,
     dashboard,
@@ -111,7 +112,11 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     rehearse.add_argument("--force", action="store_true",
                           help="rehearse a link you already applied to anyway; its page keeps Submit blocked "
                                "under a red note until you dismiss it")
-    for command in (run, approve_pass, rehearse):
+    reopen = commands.add_parser(
+        "reopen", help="after a restart: reopen every form on the open-forms list in the Worker that held it, keeping "
+                       "what it held; at a sign-in it waits for you and goes on once you are in. It never submits")
+    reopen.add_argument("--list", action="store_true", help="print what it would reopen, and open nothing")
+    for command in (run, approve_pass, rehearse, reopen):
         command.add_argument("--profile", type=Path, default=DEFAULT_PROFILE, help="the Applicant profile (YAML)")
         command.add_argument("--workers", type=int, default=orchestrator.WORKERS, help="how many Workers fill at once")
     run.add_argument("--requests-only", action="store_true",
@@ -269,7 +274,12 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         _preflight(args.urls, args.workers, adapters)
     elif args.command == "rehearse" and args.into:
         sys.exit(_send_into(args.into, args.urls))
-    elif args.command == "rehearse":
+    elif args.command in ("rehearse", "reopen"):
+        reopening = None
+        if args.command == "reopen":
+            reopening = _reopening(args, adapters)
+            if reopening is None:
+                return
         profile = ApplicantProfile.load(args.profile)
         live = adapters is None
         if live:
@@ -296,12 +306,13 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
             try:
                 with _dashboard(adapters, len(args.urls), profile):  # a tile per link: each keeps its page open
                     rehearsal.rehearse(args.urls, adapters, profile, args.workers, on_done=lambda: repair_later(adapters.repairs, profile.policy("repair") or {}),
-                                       submitted_to=kept, together=args.together, force=args.force)
+                                       submitted_to=kept, together=args.together, force=args.force,
+                                       reopening=reopening)
             finally:
                 _close_workers(adapters.site)  # before os._exit below: plain Workers' Chromes outlive this process
         else:
             rehearsal.rehearse(args.urls, adapters, profile, args.workers, submitted_to=adapters.tracker,
-                               together=args.together, force=args.force)
+                               together=args.together, force=args.force, reopening=reopening)
         if live:
             # A link still filling at Ctrl-C has a browser on a thread that won't stop: end every one now.
             sys.stdout.flush()
@@ -651,6 +662,21 @@ def _preflight(urls: list[str], workers: int, adapters: Adapters | None) -> None
                             policies.get("plain_worker_hosts") or ())
     print(preflight.report(sites, workers, _gmail_set_up(), policies.get("worker_mode") or "cdp",
                            policies.get("workday_sign_in") == "google"))
+
+
+def _reopening(args, adapters: Adapters | None) -> "rehearsal.Reopening | None":
+    """`apply reopen`: the open-forms list's plan for this profiles folder (KAN-720), printed; with `--list`, or
+    with nothing to reopen, None. Else the rehearsal's links, Workers and drafts are set from it."""
+    kept = batch.forms()
+    planned = batch.plan(kept, adapters.site.profiles if adapters else WorkerBrowsers().profiles)
+    print("\n".join(batch.lines(planned)))
+    if args.list or not planned.firsts:
+        return None
+    by_link = {form["link"]: form for form in kept}
+    links = planned.firsts + [link for later in planned.later.values() for link in later]
+    args.urls, args.workers, args.together, args.force = planned.firsts, len(planned.firsts), False, False
+    return rehearsal.Reopening(planned.workers, planned.later, {link: batch.draft(by_link[link]) for link in links},
+                               {link: str(by_link[link].get("opened") or "") for link in links})
 
 
 def _send_into(target: str, urls: list[str]) -> int:
