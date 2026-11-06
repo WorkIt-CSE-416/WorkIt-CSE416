@@ -10,9 +10,11 @@ import { getChoices, listBuiltResumes, renderResumePdf } from "@/lib/built-resum
 import { cn } from "@/lib/cn";
 import { getProfile } from "@/lib/profile-actions";
 
+import { getApplicationStage } from "../../../auto-apply/applications";
+
 import { SEEKER_GUTTER } from "../../../gutter";
 import { ListingsError } from "../../listing-card";
-import { getJobListing } from "../../listings";
+import { getApplied, getJobListing } from "../../listings";
 import { BackToJobs } from "../page-actions";
 import { TailorReviewBar } from "./tailor-header";
 import { TailorReview } from "./tailor-suggestions";
@@ -66,11 +68,19 @@ export default async function TailorPage({
 
   if (resume) {
     const rendered = renderResumePdf(resume.id);
-    const [bank, choices, { profile, error: profileError }] = await Promise.all([
+    const [bank, choices, { profile, error: profileError }, stage, applied] = await Promise.all([
       getBank(resume.id),
       getChoices(resume.id),
       getProfile(),
+      // For Finish's Your Resume Is Ready (./ready-to-apply.tsx, KAN-217).
+      getApplicationStage(job.id),
+      getApplied(job.id),
     ]);
+    const apply = {
+      stage,
+      canMarkApplied: applied != null,
+      applied: applied?.appliedAt != null,
+    };
     const editorError = bank.error ?? choices.error ?? profileError;
 
     return (
@@ -82,11 +92,12 @@ export default async function TailorPage({
       // Home's cap and the seekers' gutter left about 50px each side here
       <div className="flex-1 px-4 pt-3 pb-4">
         <div className="w-full">
-          <TailorReviewBar job={job} resumeId={resume.id} />
+          <TailorReviewBar job={job} resumeId={resume.id} apply={apply} />
           {bank.data && choices.data && profile ? (
             <TailorReview
               name={resume.name}
               job={job}
+              apply={apply}
               resumeId={resume.id}
               initial={rendered}
               initialBank={bank.data}

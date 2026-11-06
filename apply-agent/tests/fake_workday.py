@@ -32,6 +32,7 @@ those pages can't be saved without an account:
 import base64
 import html
 import json
+import os
 import re
 import threading
 from contextlib import contextmanager
@@ -326,7 +327,10 @@ class FakeWorkdayServer:
     "ERROR", "message": ...}` for a refusal.
     `exists_quietly`: Create Account for an email that has an account goes
     to the bare Sign In view, with no error (ASML's, live). `hides_errors`:
-    Create Account's refusal is in Workday's answer only, never on the page."""
+    Create Account's refusal is in Workday's answer only, never on the page.
+    `plain`: open each page in a plain Worker (Chrome for Testing driven by the worker
+    extension, no CDP: tests/plain_fakes.py) in place of Playwright's Chromium; by default
+    when $APPLY_TEST_PLAIN is set, so the same tests run on either."""
 
     def __init__(self, *forms: Path, keychain=None, mailbox: FakeMailbox | None = None,
                  verify_email: tuple[str, ...] = (), links_lost: bool = False,
@@ -336,7 +340,9 @@ class FakeWorkdayServer:
                  ignored_clicks: int = 0, went_wrong: int = 0, review_delay: float = 0,
                  drops_untouched: bool = False, flashes_error: bool = False,
                  dropped_saves: int = 0, box_wiring: float = 0, to_sign_in: bool = False,
-                 lost_picks: int = 0, exists_quietly: bool = False, hides_errors: bool = False):
+                 lost_picks: int = 0, exists_quietly: bool = False, hides_errors: bool = False,
+                 plain: bool | None = None):
+        self.plain = bool(os.environ.get("APPLY_TEST_PLAIN")) if plain is None else plain
         self._responses: dict[str, tuple[int, str, bytes]] = {}
         redirects: dict[str, str] = {}
         for form in forms:
@@ -401,21 +407,30 @@ class FakeWorkdayServer:
             return self._responses[url][2]
         raise LookupError(f"fake Workday has nothing saved at {url}")
 
+    def _init_scripts(self) -> list[str]:
+        """What every page runs first: the fake's settings and its stand-in for Workday's server."""
+        return [f"window.__fakeIgnoredClicks = {self._ignored_clicks}",
+                f"window.__fakeDropsUntouched = {str(self._drops_untouched).lower()}",
+                f"window.__fakeFlashesError = {str(self._flashes_error).lower()}",
+                f"window.__fakeDroppedSaves = {self._dropped_saves}",
+                f"window.__fakeBoxWiring = {self._box_wiring}",
+                f"window.__fakeHidesErrors = {str(self._hides_errors).lower()}",
+                AUTH_SCRIPT, *([CONTINUE_SCRIPT] if self._in_progress else [])]
+
     @contextmanager
     def open(self, url: str, worker: int = 0):
         self.opened.append(url)
+        if self.plain:
+            from plain_fakes import fake_page
+
+            with fake_page(self._handle, self._init_scripts(), url) as page:
+                yield page
+            return
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
             context = browser.new_context(service_workers="block")
-            context.add_init_script(f"window.__fakeIgnoredClicks = {self._ignored_clicks}")
-            context.add_init_script(f"window.__fakeDropsUntouched = {str(self._drops_untouched).lower()}")
-            context.add_init_script(f"window.__fakeFlashesError = {str(self._flashes_error).lower()}")
-            context.add_init_script(f"window.__fakeDroppedSaves = {self._dropped_saves}")
-            context.add_init_script(f"window.__fakeBoxWiring = {self._box_wiring}")
-            context.add_init_script(f"window.__fakeHidesErrors = {str(self._hides_errors).lower()}")
-            context.add_init_script(AUTH_SCRIPT)
-            if self._in_progress:
-                context.add_init_script(CONTINUE_SCRIPT)
+            for script in self._init_scripts():
+                context.add_init_script(script)
             context.route("**/*", self._handle)
             try:
                 page = context.new_page()

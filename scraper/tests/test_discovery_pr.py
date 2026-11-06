@@ -39,6 +39,8 @@ class Repository:
         self.exit_code = 0
         self.on_discover = None
         self.excluded = None
+        self.resolution = None
+        self.resolution_offset = None
         self.real_command = publishing.command
         monkeypatch.setattr(publishing, "command", self.command)
         monkeypatch.setattr(publishing, "pull_requests", lambda *_: deepcopy(self.prs))
@@ -68,6 +70,10 @@ class Repository:
 
     def discover(self, args):
         assert "--apply" not in args
+        assert "--resolve" in args
+        assert args[args.index("--channel", args.index("hn") + 1) + 1] == "openjobs"
+        assert args[args.index("--pool-days") + 1] == str(publishing.POOL_DAYS)
+        self.resolution_offset = int(args[args.index("--resolve-offset") + 1])
         self.calls += 1
         self.excluded = json.loads(Path(args[args.index("--exclude") + 1]).read_text())
         Path(args[args.index("--report") + 1]).write_text(
@@ -76,6 +82,7 @@ class Repository:
                     "generated_at": "2026-10-28T12:00:00+00:00",
                     "candidates": self.rows,
                     "channel_failures": [] if not self.exit_code else [{"error": "TimeoutError"}],
+                    "resolution": self.resolution,
                 }
             )
         )
@@ -94,8 +101,8 @@ class Repository:
             if pr["state"] == "open":
                 pr["head"]["sha"] = self.git("ls-remote", "origin", pr["head"]["ref"]).split()[0]
 
-    def show(self, filename, *, main=False):
-        branch = "main" if main else self.prs[-1]["head"]["ref"]
+    def show(self, filename, *, main=False, branch=None):
+        branch = branch or ("main" if main else self.prs[-1]["head"]["ref"])
         self.git("fetch", "origin", branch)
         return self.git("show", f"FETCH_HEAD:{filename}")
 
@@ -253,6 +260,43 @@ def test_no_candidates_creates_no_pr(repository):
     assert repository.run() == 0
     assert repository.creates == 0
     assert repository.git("ls-remote", "--heads", "origin").count("refs/heads/") == 1
+
+
+def test_resolution_cursor_advances_on_the_proposal_branch_without_a_pr(repository):
+    # Nothing to review, but careers-page resolution moved on: the cursor is kept
+    # on the proposal branch (no PR, main untouched), or every run would resolve
+    # the same pages again.
+    repo = repository
+    before = repo.show(publishing.CATALOG, main=True)
+    branch = publishing.PREFIX + "after-0"
+    repo.resolution = {"next_offset": 100}
+    assert repo.run() == 0
+    assert repo.resolution_offset == 0
+    assert repo.creates == 0
+    state = repo.show(publishing.RESOLUTION_STATE, branch=branch)
+    assert json.loads(state) == {"next_offset": 100}
+    repo.resolution = {"next_offset": 103, "timed_out": True}
+    assert repo.run() == 0
+    assert repo.resolution_offset == 100
+    assert repo.creates == 0
+    state = repo.show(publishing.RESOLUTION_STATE, branch=branch)
+    assert json.loads(state) == {"next_offset": 103}
+    assert repo.show(publishing.CATALOG, main=True) == before
+
+
+def test_first_proposal_opens_the_pr_on_the_branch_holding_the_cursor(repository):
+    repo = repository
+    repo.resolution = {"next_offset": 100}
+    repo.run()
+    repo.rows = [candidate("acme")]
+    repo.resolution = {"next_offset": 2, "timed_out": True}
+    assert repo.run() == 0
+    assert repo.creates == 1
+    assert repo.prs[0]["head"]["ref"] == publishing.PREFIX + "after-0"
+    assert repo.resolution_offset == 100
+    assert "lever,acme,Acme" in repo.show(publishing.CATALOG)
+    assert json.loads(repo.show(publishing.RESOLUTION_STATE)) == {"next_offset": 2}
+    assert "lever,acme" not in repo.show(publishing.CATALOG, main=True)
 
 
 def test_failed_pr_creation_recovers_same_branch_and_evidence(repository):

@@ -10,6 +10,7 @@ import { ApplicationTile } from "./application-tile";
 import { MatchBadge } from "@/components/match-badge";
 import { applicationHref } from "./query";
 import { Reflow } from "@/components/reflow";
+import { TailoredChip } from "@/components/tailored-chip";
 import { ViewResumeButton } from "./view-resume";
 
 /**
@@ -73,6 +74,12 @@ function GridCard({ item, href, delay }: { item: Application; href: string; dela
             </Link>
           </h2>
           <p className="text-note text-ink-meta mt-1 truncate">{item.company}</p>
+          {/* A resume made for this job, ready to send (KAN-217). */}
+          {item.tailored && (
+            <div className="mt-1.5">
+              <TailoredChip />
+            </div>
+          )}
         </div>
       </div>
 

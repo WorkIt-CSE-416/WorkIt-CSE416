@@ -104,3 +104,12 @@ def test_read_closings(tmp_path):
     assert read_closings(path) is None
     path.write_text("{not json", encoding="utf-8")
     assert read_closings(path) is None
+
+
+async def test_a_partial_feed_closes_nothing(database):
+    # The scraper worker's listings are only the boards it read (KAN-605).
+    await _import([STAYS, GONE])
+    async with get_engine().begin() as conn:
+        report = await import_feed(conn, [_listing(STAYS)], close_missing=False)
+    assert await _rows() == {STAYS: ("published", None), GONE: ("published", None)}
+    assert report.closed == 0

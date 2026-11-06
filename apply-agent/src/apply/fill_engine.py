@@ -24,6 +24,7 @@ FillEngine.call, which returns the value or the error by name.
 
 import base64
 import functools
+import hashlib
 import json
 import mimetypes
 import os
@@ -40,6 +41,7 @@ from playwright._impl._driver import compute_driver_executable
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
+from apply import tracker
 from apply.adapters import JobSite, SetupError
 from apply.answer_bank import LISUL, AnswerBank
 from apply.model import (
@@ -118,6 +120,31 @@ const run = vm.runInContext(`(input, askHost) => {
 _nodes: dict[int, subprocess.Popen] = {}
 _node_locks: dict[int, threading.Lock] = {}  # Workers share each Node, a call at a time
 _depth = threading.local()
+_loaded: dict[str, object] = {}  # the bundle the Nodes run: its "stat" (mtime, size) and "sha256"
+
+
+def fresh() -> bool:
+    """Before a new posting is planned: if the bundle on disk is not the one the long-lived Nodes run
+    (a merged engine fix, `git submodule update`), stop them, so the next call starts a Node on the new
+    one. Waits for each Node's call in progress. True when it reloaded (KAN-645)."""
+    try:
+        stat = ENGINE.stat()
+    except OSError:
+        return False
+    seen = (stat.st_mtime_ns, stat.st_size)
+    if _loaded.get("stat") == seen:
+        return False
+    digest = hashlib.sha256(ENGINE.read_bytes()).hexdigest()
+    changed = "sha256" in _loaded and _loaded["sha256"] != digest
+    _loaded.update(stat=seen, sha256=digest)
+    if changed:
+        for depth in sorted(_nodes):  # in the order calls take the locks: never a deadlock
+            with _node_locks.setdefault(depth, threading.Lock()):
+                node = _nodes.pop(depth, None)
+                if node and node.poll() is None:
+                    node.kill()
+                    node.wait()
+    return changed
 
 
 @dataclass(frozen=True)
@@ -157,6 +184,8 @@ def call_without_page(name: str, *args: Any, questions: QuestionSet = ()) -> Any
         node = _nodes.get(depth)
         if node is None or node.poll() is not None:
             _built()
+            if not _loaded:
+                fresh()  # what the first Node runs
             node = _nodes[depth] = subprocess.Popen([compute_driver_executable()[0], "-e", NODE_SERVER, str(ENGINE)], stdin=subprocess.PIPE,
                                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8")
         node.stdin.write(payload + "\n")
@@ -204,6 +233,9 @@ class Plan:
     # The wording the Answer bank files each bare date's answer under, by name ("education / From (MM/DD/YYYY)"):
     # None when no section is known, and its answer is then never banked.
     filed: dict[str, str | None] = field(default_factory=dict)
+    # A follow-up ("If yes, ...") whose question is still to be answered (a draft, a Missing fact), by name: that
+    # question's name. Neither asked nor written yet: the worker decides it once that answer is in (not_called_for).
+    waiting: dict[str, str] = field(default_factory=dict)
 
 
 def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, bank: AnswerBank | None = None,
@@ -218,7 +250,8 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
                for question, entry in bank.answers().items()}
     context = {"posting": posting, "today": (today or date.today()).isoformat(), "postingText": HostCall(functools.cache(posting_text)),
                "employerText": employer_text}
-    result = call_without_page("plan", list(questions), _facts(profile), profile.policies(), entries, context, questions=questions)
+    result = call_without_page("plan", list(questions), _facts(profile, posting), profile.policies(), entries, context,
+                               questions=questions)
     answers = {name: _answer(value) for name, value in result["answers"].items()}
     accepted = {name: tuple(wordings) for name, wordings in result["accepted"].items()}
     if posting.job_system == "workday":
@@ -241,6 +274,7 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=result["drafts"], banked=result["banked"],
         accepted=accepted, blanks=dict(result.get("blanks") or {}),
         sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
+        waiting=dict(result.get("waiting") or {}),
     )
 
 
@@ -292,12 +326,24 @@ def trap_handoff(trap: str) -> str:
     return call_without_page("trapHandoff", trap)
 
 
-def _facts(profile: ApplicantProfile) -> dict:
-    """The profile's facts for the engine, each file resolved to its path."""
+def _facts(profile: ApplicantProfile, posting: Posting | None = None) -> dict:
+    """The profile's facts for the engine, each file resolved to its path. With `posting`, the companies the
+    Tracker shows Lisul applied to (but for this Posting) join screeners.previously_applied_to, where the
+    profile keeps a list of them, and those he interviewed at fill screeners.previously_interviewed_at."""
     facts = dict(profile.tree())
     if isinstance(facts.get("files"), dict):
         facts["files"] = {key: str(profile.get(f"files.{key}")) if isinstance(value, str) else value
                           for key, value in facts["files"].items()}
+    if posting is not None:
+        applied, interviewed = tracker.past_applications(posting.url)
+        screeners = dict(facts.get("screeners") or {})
+        own = screeners.get("previously_applied_to")
+        if isinstance(own, list) and applied:  # None: unknown, which a list from Apply alone would turn into No
+            screeners["previously_applied_to"] = own + [c for c in applied if c not in own]
+        if interviewed:
+            known = screeners.get("previously_interviewed_at") or []
+            screeners["previously_interviewed_at"] = list(known) + [c for c in interviewed if c not in known]
+        facts["screeners"] = screeners
     return facts
 
 
@@ -404,8 +450,11 @@ def call(page: Page, name: str, *args):
     NoForm, Handoff and FillError raise Apply's own."""
     for attempt in range(CALLS):
         try:
-            load(page)
-            answer = page.evaluate(CALL, {"name": name, "args": list(args)})
+            if hasattr(page, "engine_call"):  # a plain Worker's page (apply.plain.page): the extension's own engine.call
+                answer = page.engine_call(name, list(args))
+            else:
+                load(page)
+                answer = page.evaluate(CALL, {"name": name, "args": list(args)})
             break
         except PlaywrightError as error:
             if attempt + 1 == CALLS or not NAVIGATED.search(str(error)):
@@ -431,6 +480,9 @@ def _returned(answer: dict, name: str) -> Any:
 
 def load(page: Page) -> None:
     """Put the engine in the page, unless it is there already."""
+    if hasattr(page, "load_engine"):  # a plain Worker's page: the extension loads the same bundle as a file
+        page.load_engine()
+        return
     if not page.evaluate("() => typeof FillEngine !== 'undefined'"):
         _built()
         page.evaluate(ENGINE.read_text())

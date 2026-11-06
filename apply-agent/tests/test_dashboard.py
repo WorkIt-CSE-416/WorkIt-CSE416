@@ -193,6 +193,7 @@ CALIBRATION = "Calibration run: Application 4 of 10, held so you can judge Claud
     ({"status": "not eligible", "why": "Master's only"}, "ended", "Skipped: you don't qualify (Master's only)"),
     ({"status": "closed", "why": ""}, "ended", "Skipped: no longer taking applications"),
     ({"status": "submitted", "why": ""}, "submitted", "Sent"),
+    ({"status": "submitted", "why": "", "missing": ["Pronouns"]}, "submitted", "Sent"),
     ({}, "idle", "Waiting for the next job"),
 ])
 def test_each_tile_says_at_a_glance_how_its_application_went(caption, tone, label):
@@ -1260,6 +1261,28 @@ def test_a_rehearsed_answer_goes_to_its_open_form_but_a_runs_and_an_essays_do_no
         assert board.answered(0) == board.answered(1) == []  # each given once; a run's goes on from its Tracker row
 
 
+@pytest.mark.parametrize("answer_first", [False, True])
+def test_a_form_sent_with_questions_open_shows_as_sent_and_leaves_needs_you(answer_first):
+    # Saronic, 2026-11-04: Lisul sent the held form himself, and its tile still asked its Missing and Essay facts.
+    with Dashboard(1, FakeFrames({}), answer=lambda *a: "Saved.") as board:
+        board.update(0, company="Saronic", posting_url="https://s.example/1", status=rehearsal.READY,
+                     missing=["Pronouns", "Essay fact: what did the boat do?", "Essay fact: who was it for?"],
+                     required={"Pronouns": True}, where={"Pronouns": "About you"})
+        [asking] = board.state()["items"]
+        assert asking["kind"] == "missing fact"
+        if answer_first:
+            post_answer(board, asking, "Pronouns", "he/him")
+        board.update(0, status="submitted", why="you submitted it; it is in the Tracker")
+        [tile], items = board.state()["tiles"], board.state()["items"]
+        with pytest.raises(urllib.error.HTTPError) as late:  # a question answered after the submit
+            post_answer(board, items[0], "Essay fact: who was it for?", "The Navy")
+
+    assert (tile["tone"], tile["label"], tile["detail"]) == ("submitted", "Sent", "you submitted it; it is in the Tracker")
+    assert tile["missing"] == [] and "do" not in tile
+    assert [(i["company"], i["tone"]) for i in items] == [("Saronic", "submitted")]  # no card waits on him
+    assert late.value.code == 404
+
+
 def test_an_optional_question_saved_blank_is_skipped_and_a_file_is_attached_but_neither_kept_as_a_fact():
     saved = []
     with Dashboard(1, FakeFrames({}), answer=lambda item, q, a: saved.append(q) or "Saved.") as board:
@@ -1328,6 +1351,31 @@ def test_while_a_tile_is_controlled_number_keys_go_to_the_page_not_the_tabs(wind
 
         assert window.is_visible("#workers")
     assert frames.inputs == [(0, {"type": "text", "text": "3"})]
+
+
+
+def test_the_tile_s_ask_claude_box_sends_his_words_to_claude_not_to_the_page(window):
+    """Ask Claude (KAN-638): typed in the tile's box, also while the tile is controlled, his message goes to the
+    window, not as keys to the page; Claude's reply then shows in the tile's thread."""
+    frames = TickingFrames({0: jpeg(1280, 800)})
+    with Dashboard(1, frames) as board:
+        board.update(0, company="Acme", posting_url="https://jobs.example.com/acme/1", status="ready to submit",
+                     askable=True)
+        window.goto(board.url + "/#workers")
+        window.click(".tile[data-k='0'] img")
+        window.wait_for_selector(".tile.big")
+        window.fill("#ask-0 input", "page 2's GPA is wrong")
+        window.click("#ask-0 button.go")
+        window.wait_for_selector("#ask-0 .claude.working")
+        [item] = board.asks(0)
+        board.replied(0, item["id"], state="done", reply="Changed the GPA to 3.7.",
+                      changed=[{"field": "GPA", "step": "page 2", "shown": "3.7", "read_back": "Claude's read-back"}],
+                      offers=[{"question": "GPA", "answer": "3.7", "saved": False}])
+        window.wait_for_selector("#ask-0 .offer button")
+
+        assert item["message"] == "page 2's GPA is wrong"
+        assert "Changed GPA (page 2) → 3.7" in window.inner_text("#ask-0")
+    assert frames.inputs == []  # nothing he typed reached the page
 
 
 # Notifications.
@@ -1530,3 +1578,14 @@ def test_the_accounts_tab_copies_a_password_it_never_shows(window):
 def test_a_window_with_no_accounts_tab_shows_none():
     with Dashboard(0, NoFrames()) as board:
         assert "tab-accounts" not in board.page()
+
+
+@pytest.mark.parametrize("plain", [True, False])
+def test_go_to_question_never_raises_a_plain_workers_window(monkeypatch, plain):
+    shown, url = [], "https://jobs.lever.co/a/1/apply"
+    monkeypatch.setattr(dashboard, "GO_TO_WAIT", 0.2)
+    with Dashboard(1, NoFrames(), show=lambda k: shown.append(k) or True, quiet=lambda k: plain) as board:
+        board.update(0, posting_url=url, status="ready to submit")
+        with pytest.raises(dashboard.Refused):  # no held form answers here: only whether it came forward
+            board.go_to({"worker": 0, "posting_url": url}, "Email")
+    assert shown == ([] if plain else [0])  # a plain Worker's window comes forward only by Lisul's Show

@@ -1,8 +1,10 @@
 // `npm run worktree -- KAN-123-short-slug`: a new worktree for one ticket,
 // ready to run. Plain Node so it behaves the same on macOS and Windows.
 //
-// - The folder is named after the ticket key (../WorkIt-CSE416-KAN-123), so
-//   folder and branch always agree. One ticket per worktree; never switch a
+// - The folder is the primary checkout's folder name plus the ticket key
+//   (../workit-KAN-123 from a checkout named workit; an older checkout named
+//   WorkIt-CSE416 still gets ../WorkIt-CSE416-KAN-123), so folder and branch
+//   always agree. One ticket per worktree; never switch a
 //   worktree to another ticket's branch.
 // - The branch starts from a freshly fetched origin/main, or is checked out
 //   as-is if it already exists locally or on origin.
@@ -12,6 +14,11 @@
 // - The sample resumes in frontend/public/resumes/ (git-ignored: real
 //   people's resumes) are copied the same way, so an agent testing an upload
 //   in any worktree finds one there.
+// - Tectonic and its warm cache (backend/vendor/tectonic, git-ignored, about
+//   100 MB) are copied the same way, so resume PDFs work in the new worktree
+//   at once; without them every resume showed "This Resume Isn't Loading
+//   Right Now". A primary checkout without it gets a warning to run
+//   backend/scripts/fetch_tectonic.py, which downloads it on any system.
 // - A new worktree also loads the Fill engine submodule and, when the branch
 //   has Apply (apply-agent/pyproject.toml), runs uv sync there. A failure
 //   only warns: the engine repo is private.
@@ -21,6 +28,7 @@ import { basename, dirname, join, resolve } from "node:path";
 
 const ENV_FILES = [".env", join("frontend", ".env.local")];
 const SAMPLE_RESUMES = join("frontend", "public", "resumes");
+const TECTONIC = join("backend", "vendor", "tectonic");
 
 const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 
@@ -68,6 +76,18 @@ const resumes = join(primary, SAMPLE_RESUMES);
 if (existsSync(resumes) && resolve(resumes) !== resolve(join(target, SAMPLE_RESUMES))) {
   cpSync(resumes, join(target, SAMPLE_RESUMES), { recursive: true });
   console.log(`copied ${SAMPLE_RESUMES}`);
+}
+
+const tectonic = join(primary, TECTONIC);
+if (resolve(tectonic) !== resolve(join(target, TECTONIC))) {
+  if (existsSync(tectonic)) {
+    cpSync(tectonic, join(target, TECTONIC), { recursive: true });
+    console.log(`copied ${TECTONIC}`);
+  } else {
+    console.warn(
+      `warning: no ${TECTONIC} in the primary checkout; resume PDFs need it: run python3 scripts/fetch_tectonic.py in backend/`,
+    );
+  }
 }
 
 // Runs a setup step in the new worktree; a failure warns but does not stop.

@@ -36,7 +36,8 @@ none.
 - `autofiller_extension/` — the ATS autofiller (KAN-164): a Manifest V3
   Chrome extension, no build step, no dependency manifest. It fills through
   the Fill engine, the git submodule `autofiller_extension/fill-engine`
-  pinned to a tag (`git submodule update --init` once per checkout). Batch
+  pinned to a commit on its `main` (`git submodule update --init` once per
+  checkout). Batch
   apply (KAN-369) fills up to five tabs at once and gave it routes of its
   own in `backend/app/routers/auto_apply.py` (a tab's state, its written
   questions and answers, the answer bank, finish), plus the connector its
@@ -149,8 +150,8 @@ The team works on macOS and Windows.
 
 ## Documentation
 
-**Every code change updates the nearest `CLAUDE.md` in the same change**: a
-new command, a changed convention or invariant, a decision made or reversed, a
+**Every code change updates the nearest `CLAUDE.md`, or the doc it points to
+for that area, in the same change**: a new command, a changed convention or invariant, a decision made or reversed, a
 "still open" item closed. Record the rule a folder follows, never a list of its
 files: a directory listing already shows them, and per-file lists conflict on
 every parallel PR. A change that leaves
@@ -162,8 +163,8 @@ with the failure it prevents.
   invariants, rationale, what must not change and why, what is still open.
 - `README.md` — deliberately short. Explanatory prose goes in a `CLAUDE.md`
   or the docs folders below, and stays out of any README once trimmed.
-- `frontend/docs/`, `scraper/docs/` — each half's prose too long for its
-  `CLAUDE.md`, reached through a pointer in it.
+- `frontend/docs/`, `scraper/docs/`, `apply-agent/docs/` — each part's prose
+  too long for its `CLAUDE.md`, reached through a pointer in it.
 - `docs/job_posting.md`, `resume.md`, `avatar.md`, `auth.md` — design
   rationale: the schema notes and the auth flow. Alembic stays the source of
   truth for what the schema is.
@@ -223,6 +224,8 @@ with the failure it prevents.
   applications by hand. Read it before changing
   application stages, the tracker's dated events or anything that reads a
   student's email.
+- `docs/whats-new-2026-11-05.md` — what a teammate must do after the rename to
+  `workitjobs`, and the new Apply settings and commands.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
@@ -242,17 +245,21 @@ with the failure it prevents.
 
 - Work happens on Jira-style branches (`KAN-13-testing`) off `main`, one
   ticket per worktree. `npm run worktree -- KAN-13-testing` creates
-  `../WorkIt-CSE416-KAN-13` from a fresh `origin/main` and copies the env files
-  and the sample resumes (`frontend/CLAUDE.md`) from the primary checkout
-  (`frontend/scripts/new-worktree.mjs`). A worktree missing them gets them
-  with `npm run worktree -- --env-only`.
+  `../workit-KAN-13` (the primary checkout's folder name plus the key) from a
+  fresh `origin/main` and copies the env files, the sample resumes
+  (`frontend/CLAUDE.md`) and Tectonic with its warm cache
+  (`backend/vendor/tectonic`, so resume PDFs work at once) from the primary
+  checkout (`frontend/scripts/new-worktree.mjs`). A worktree missing them
+  gets them with `npm run worktree -- --env-only`.
 - Superset workspaces run `.superset/setup.sh` on creation: that same
   `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`,
   then `git submodule update --init` and, once the branch has Apply,
   `uv sync` in `apply-agent/` (`npm run worktree` does these two as well),
   then `backend/scripts/fetch_tectonic.py` where the branch has it: without
   that once-per-checkout step every resume showed "This Resume Isn't Loading
-  Right Now". It only warns on failure (a Mac needs `brew install tectonic`).
+  Right Now". It downloads Tectonic's own pinned build on Windows, macOS
+  and Linux alike (2026-11-05; Windows had no way before, and a Mac needed
+  `brew install tectonic`), and only warns on failure.
   It warns when the copied `.env` has no `SCOUT_API_KEY`: the API would then
   run Scout on a local Ollama instead of Groq without saying so. The key lives
   only in the primary checkout's `.env`, never in a committed script.

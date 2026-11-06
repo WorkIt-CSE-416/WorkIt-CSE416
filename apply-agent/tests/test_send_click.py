@@ -36,5 +36,22 @@ def test_claude_runs_it_as_a_hook_from_any_folder(tmp_path):
     out = subprocess.run(hook["hooks"][0]["command"], shell=True, cwd=tmp_path, input=json.dumps(call),
                          capture_output=True, text=True, check=True).stdout
 
-    assert hook["matcher"] == CLICK
+    assert hook["matcher"] == send_click.ACTS
     assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+@pytest.mark.parametrize("call", [
+    {"tool_name": CLICK, "tool_input": {"target": "f2e4", "element": "I'm not a robot checkbox"}},
+    {"tool_name": CLICK, "tool_input": {"target": "f3e9", "element": "reCAPTCHA Verify button"}},
+    {"tool_name": CLICK, "tool_input": {"target": "f1e2", "element": "hCaptcha checkbox"}},
+    {"tool_name": CLICK, "tool_input": {"target": "f1e2", "element": "Verify you are human"}},
+    {"tool_name": "mcp__playwright__browser_press_key", "tool_input": {"element": "captcha", "key": "Space"}},
+    {"tool_name": "mcp__playwright__browser_type", "tool_input": {"element": "Captcha answer", "text": "x7Kd"}},
+    {"tool_name": "mcp__playwright__browser_fill_form", "tool_input": {"fields": [
+        {"name": "First Name", "ref": "e3", "value": "Test"}, {"name": "I'm not a robot", "ref": "f1e2", "value": "true"}]}},
+])
+def test_a_call_claude_names_as_on_a_captcha_is_refused_with_word_to_leave_it(call):
+    said = send_click.refusal(call)
+
+    assert said["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "never touches" in said["hookSpecificOutput"]["permissionDecisionReason"]

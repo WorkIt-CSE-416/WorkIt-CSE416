@@ -12,12 +12,27 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # The data folder every test runs on: Apply sets its data paths when it is imported, so
 # APPLY_HOME points here before that, never at ~/.config/apply. data_folder() fills it.
 os.environ["APPLY_HOME"] = tempfile.mkdtemp(prefix="apply-test-home-")
+os.environ["APPLY_TEST_TEMP_OK"] = "1"  # that folder is temp on purpose (home.temp_state, KAN-665)
 atexit.register(shutil.rmtree, os.environ["APPLY_HOME"], True)
+
+# Before anything else can open a connection: no test reaches past loopback (KAN-662).
+import network_block
+
+network_block.install()
 
 from fake_lever import FakeLeverServer
 from fakes import FakeJobServer
 
 from apply import browsers, cli, cover_letter, gates, home, profile
+
+# Never the student's own data folder: data_folder() deletes HOME before each test. Were
+# Apply imported before APPLY_HOME was set above, HOME would be ~/.config/apply (it was,
+# 2026-11-04, and the fixture wiped it): stop the whole run instead.
+TEST_HOME = Path(os.environ["APPLY_HOME"]).resolve()
+if home.HOME.resolve() != TEST_HOME or home.HOME.resolve() == Path("~/.config/apply").expanduser().resolve():
+    pytest.exit(f"Apply's data folder is {home.HOME}, not the tests' own {TEST_HOME}: refusing to run, "
+                "since each test deletes it. Run pytest from apply-agent/ so tests/conftest.py loads first.", 2)
+
 from apply.fill_engine import ENGINE_DIR
 from apply.model import Kind, Posting, Question
 
@@ -88,10 +103,26 @@ BELVEDERE_URL = "https://jobs.lever.co/belvederetrading/10746b3d-1760-4573-9b63-
 
 
 @pytest.fixture(autouse=True)
+def no_network(request):
+    """Fails a test that tried to reach past loopback, even if it swallowed the error, or a server's thread did.
+    A test that goes live on purpose names its hosts: @pytest.mark.live_network("example.com")."""
+    marked = request.node.get_closest_marker("live_network")
+    if marked and not marked.args:
+        pytest.fail("live_network needs the hosts this test may reach, by name.")
+    network_block.begin(marked.args if marked else ())
+    yield
+    tried = network_block.end()
+    if tried:
+        pytest.fail("Reached past loopback:\n" + "\n".join(tried), pytrace=False)
+
+
+@pytest.fixture(autouse=True)
 def data_folder() -> Path:
     """Each test runs on a fresh copy of the Test Person sample data in APPLY_HOME, with the
     tests' Story bank (the episodes they quote): whatever a test writes there (Traces, sent
     files, briefs, the ledger, Story bank answers) is gone by the next test."""
+    if home.HOME.resolve() != TEST_HOME:  # never anything but the folder this run made
+        pytest.exit(f"Refusing to delete {home.HOME}: it is not the tests' own data folder.", 2)
     shutil.rmtree(home.HOME, ignore_errors=True)
     shutil.copytree(home.SAMPLE, home.HOME)
     shutil.copy(FIXTURES / "story-bank.md", home.STORY_BANK)

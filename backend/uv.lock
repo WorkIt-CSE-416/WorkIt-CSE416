@@ -1380,6 +1380,7 @@ dependencies = [
     { name = "supabase" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "workit-scout" },
+    { name = "workit-scraper" },
 ]
 
 [package.dev-dependencies]
@@ -1412,6 +1413,7 @@ requires-dist = [
     { name = "supabase", specifier = ">=2.31.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.53.0" },
     { name = "workit-scout", directory = "../scout" },
+    { name = "workit-scraper", directory = "../scraper" },
 ]
 
 [package.metadata.requires-dev]
@@ -1437,6 +1439,19 @@ requires-dist = [
     { name = "openai", specifier = ">=3.24.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pydantic-settings", specifier = ">=2.0" },
+]
+
+[[package]]
+name = "workit-scraper"
+version = "0.1.0"
+source = { directory = "../scraper" }
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.16.8" },
 ]
 
 [[package]]

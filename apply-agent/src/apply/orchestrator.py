@@ -2,6 +2,7 @@
 writer of the Tracker."""
 
 import hashlib
+import queue as queues
 import re
 import sys
 import threading
@@ -12,10 +13,13 @@ from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import date, datetime, timedelta
 
 from apply import (
+    already_applied,
     asking,
     bot_signals,
     captcha,
+    description,
     embedded,
+    fill_engine,
     greenhouse,
     oracle,
     tailored,
@@ -170,10 +174,37 @@ class _Run:
 
     def go(self, workers: int, matches: bool, with_requests: bool) -> None:
         requests, queue = self._to_apply(matches, with_requests)
+        if unchecked := self._adapters.applied_before.problem():  # KAN-621: never a silent pass
+            print(already_applied.UNCHECKED.format(unchecked), file=sys.stderr)
+            self._adapters.board.run(unchecked=already_applied.UNCHECKED.format(unchecked))
         free = list(range(workers))  # Worker numbers; each Worker has its own Worker profile
         running: dict[Future, tuple[Posting, int]] = {}
+        sent_in: queues.SimpleQueue[tuple[str, int]] = queues.SimpleQueue()  # `apply rehearse --into`'s links
+        wanted: dict[str, int] = {}  # a link sent in, by Application ID: the Worker it was sent into
+
+        def into(url: str, worker: int) -> dict:
+            """A link sent into a run's window (KAN-645): a Request ahead of all, in that Worker's running
+            plain Chrome as soon as it is free, so its sign-in serves it."""
+            from apply.answers_tab import (
+                Refused,  # imported here: answers_tab imports the adapters
+            )
+            if not getattr(self._adapters.site, "running", lambda k: False)(worker):
+                raise Refused(f"Browser {worker + 1} isn't a running plain Worker.", 409)
+            sent_in.put((url, worker))
+            return {"tile": worker, "worker": worker}
+        if taking := getattr(self._adapters.board, "taking", None):
+            taking(into)
         with ThreadPoolExecutor(workers) as pool:
             while True:
+                while not sent_in.empty():
+                    url, worker = sent_in.get_nowait()
+                    posting, result = resolve(url, self._adapters.site)
+                    if result:
+                        self._write(posting, result.status, result.reason)
+                        continue
+                    self._write(posting, Status.QUEUED)
+                    requests.appendleft(posting)
+                    wanted[posting.id] = worker
                 # The Requests tab is read again whenever a Worker is free, zero
                 # tokens, so a Request Lisul pastes mid-run goes ahead of every Match left.
                 if with_requests:
@@ -187,6 +218,7 @@ class _Run:
                 if not (requests or queue or running):
                     break
                 resume_at = None
+                later: list[Posting] = []  # links sent into a busy Worker, first in line again after
                 while (requests or queue) and free:
                     resume_at = self._resume_at(self._adapters.usage.reading())
                     if resume_at:
@@ -198,19 +230,26 @@ class _Run:
                         self._adapters.board.note(posting.company, posting.title, "you already applied to this job",
                                                   posting.url)
                         continue
-                    worker = free.pop(0)
+                    if posting.id in wanted and wanted[posting.id] not in free:
+                        later.append(posting)  # sent into a Worker still busy: it waits for that one
+                        continue
+                    worker = wanted.pop(posting.id) if posting.id in wanted else free[0]
+                    free.remove(worker)
                     self._adapters.board.update(worker, company=posting.company, role=posting.title,
                                                 job_system=posting.job_system, posting_url=posting.url,
                                                 application_id=posting.id, status="filling", line="", why="", files=[])
                     self._write(posting, Status.FILLING)
                     running[pool.submit(self._apply, posting, worker)] = (posting, worker)
+                requests.extendleft(reversed(later))
                 if not running:
                     if resume_at:  # else every Match left was a Request's already
                         self._adapters.board.run(paused_until=resume_at.isoformat(timespec="minutes"))
                         self._adapters.clock.sleep_until(resume_at)
                         self._adapters.board.run(paused_until=None)
                     continue
-                done, _ = wait(running, return_when=FIRST_COMPLETED)
+                done = set()
+                while not done and sent_in.empty():  # a link sent in meanwhile is taken at once
+                    done, _ = wait(running, timeout=1, return_when=FIRST_COMPLETED)
                 for future in done:
                     posting, worker = running.pop(future)
                     free.append(worker)
@@ -330,16 +369,27 @@ class _Run:
         return result
 
     def _traced(self, posting: Posting, worker: int) -> Result:
+        fill_engine.fresh()  # a merged engine fix since the last Application: planned with it, no restart (KAN-645)
         try:
             on_worker = _OnWorker(self._adapters.site, worker)
+            # KAN-621: never open or fill a form sent already, here or on the form behind it.
+            if applied := self._adapters.applied_before.of(posting):
+                return Result(Status.HANDOFF, f"{applied.said()}; Apply didn't open the form")
+            fetched = None  # the page as a plain fetch reads it, before form_behind opens it: never fetched twice
             if (behind := greenhouse.board_behind(posting, self._adapters.site)) == posting:
-                behind = embedded.form_behind(posting, on_worker)  # a Greenhouse, Lever or Ashby form in the page
+                if posting.job_system == "other":
+                    fetched = description.from_link(posting, on_worker)
+                behind = embedded.form_behind(posting, on_worker, fetched)  # a Greenhouse, Lever or Ashby form in the page
+            if behind != posting and (applied := self._adapters.applied_before.of(behind, posting.url)):
+                return Result(Status.HANDOFF, f"{applied.said()}; Apply didn't open the form")
+            if behind != posting:
+                fetched = None  # the form's own job system's text is read instead
             posting = behind
             profile = tailored.resume_for(posting, self._profile, self._adapters.tailored)
             return by_filler(
                 posting, on_worker, profile, self._adapters.claude,
                 lambda: self._accounts(posting),
-                lambda filler, site: self._apply_with(posting, filler, site, worker, profile),
+                lambda filler, site: self._apply_with(posting, filler, site, worker, profile, fetched),
                 signed_in=self._adapters.signed_in,
             )
         except Exception as error:
@@ -362,8 +412,10 @@ class _Run:
         with self._writing:
             self._adapters.tracker.add_employer_account(account)
 
-    def _apply_with(self, posting: Posting, filler, site, worker: int, profile: ApplicantProfile) -> Result:
-        """`profile` is the run's, with the Posting's tailored resume in place of its resume when it has one."""
+    def _apply_with(self, posting: Posting, filler, site, worker: int, profile: ApplicantProfile,
+                    fetched: str | None = None) -> Result:
+        """`profile` is the run's, with the Posting's tailored resume in place of its resume when it has one.
+        `fetched`: the Posting's page as a plain fetch already read it (apply_to)."""
         board = self._adapters.board
         caption = lambda: {"company": posting.company, "role": posting.title, "job_system": posting.job_system,
                            "posting_url": posting.url, "application_id": posting.id}
@@ -373,7 +425,7 @@ class _Run:
             bank=self._adapters.answer_bank, today=self._adapters.clock.now().date(),
             on_files=lambda files: board.update(worker, files=files),
             on_verify=lambda verification: board.update(worker, **verifying(verification)),
-            on_captcha=Waiter(board, worker, self._adapters.phone, profile, caption),
+            on_captcha=Waiter(board, worker, self._adapters.phone, profile, caption), fetched=fetched,
         )
 
     def _before_submit(self, posting: Posting) -> str:
@@ -578,7 +630,9 @@ def by_filler(
     filler = ClaudeFill(claude, **cap, sign_in=sign_in, resume=profile.get("files.resume_pdf"),
                         sms_opt_in=profile.policy("sms_opt_in") is True,
                         marketing_opt_in=profile.policy("marketing_opt_in") is True,
-                        accounts=signing_in, account_facts=account_facts(profile, agree))
+                        accounts=signing_in, account_facts=account_facts(profile, agree),
+                        page_gates=_page_gates(profile.policy("page_gates")),
+                        signed_in=oracle.signed_in if oracle_sign_in else None)
     with OnePage(site) as page_site:
         result = apply(filler, page_site)
     result.reason = "; ".join(filter(None, [result.reason, filler.usage()]))
@@ -630,3 +684,8 @@ class _OnWorker:
 
     def open(self, url: str):
         return self._site.open(url, worker=self._worker)
+
+
+def _page_gates(policy) -> bool | str:
+    """policies' page_gates: true pauses for Lisul, "note" lists his checks and goes on, else off."""
+    return "note" if policy == "note" else policy is True

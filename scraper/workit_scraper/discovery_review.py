@@ -6,6 +6,8 @@ proposal catalog and ledger are the durable record of edits made during review.
 
 from __future__ import annotations
 
+import hashlib
+import math
 from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import dataclass
@@ -161,6 +163,36 @@ def _link(value: object) -> str:
     return f'<a href="{text}">{text}</a>'
 
 
+#: Of each batch of pool boards (one run's, one `validated_at`), the share a
+#: person checks, and the fewest (docs/adr/0007-trust-the-hiring-systems-name.md).
+SAMPLE_SHARE = 0.1
+SAMPLE_FEWEST = 5
+
+
+def sampled(ledger: dict[str, dict], keys: Iterable[str]) -> set[str]:
+    """The pool boards among `keys` a person checks: per batch, a random-looking
+    but fixed choice, so every rendering of the review marks the same boards."""
+    batches: dict[str, list[str]] = {}
+    for key in keys:
+        record = ledger.get(key, {})
+        if record.get("kept"):
+            batches.setdefault(str(record.get("validated_at")), []).append(key)
+    chosen = set()
+    for at, batch in batches.items():
+        size = max(SAMPLE_FEWEST, math.ceil(len(batch) * SAMPLE_SHARE))
+        batch.sort(key=lambda key: hashlib.sha256(f"{at} {key}".encode()).hexdigest())
+        chosen.update(batch[:size])
+    return chosen
+
+
+def _ownership(record: dict, sample: bool) -> str:
+    if not record.get("kept"):
+        return "Unconfirmed; developer review required"
+    if sample:
+        return "<strong>Sample: check this name on the company's own website</strong>"
+    return "Named by the hiring system; trusted if its batch's sample holds"
+
+
 def render_review(update: ReviewUpdate, base_boards: Iterable[Board]) -> str:
     """Render review evidence as escaped HTML inside a Markdown document.
 
@@ -185,6 +217,11 @@ def render_review(update: ReviewUpdate, base_boards: Iterable[Board]) -> str:
         "",
         "New discovery runs may add rows; review the latest commit before merging.",
         "",
+        "**Boards from the open-jobs pool are the exception** (ADR 0007). Each lists an",
+        "early-career posting and carries the name its own hiring system gives it. Check",
+        "only the boards marked Sample. If any sampled name is wrong, check every board",
+        "validated at the same time as it, and remove the wrong ones.",
+        "",
         f"{len(pending)} proposed board(s). "
         f"{sum(row['decision'] == 'rejected' for row in update.ledger.values())} "
         "recorded rejection(s).",
@@ -194,8 +231,15 @@ def render_review(update: ReviewUpdate, base_boards: Iterable[Board]) -> str:
         "<th>Links and provenance</th><th>Ownership</th></tr></thead>",
         "<tbody>",
     ]
+    sample = sampled(update.ledger, (board.key for board in pending))
     for board in pending:
         record = update.ledger.get(board.key, {})
+        kept = record.get("kept")
+        kept_cell = (
+            "<br>Early career: " + ", ".join(_code(title) for title in kept)
+            if isinstance(kept, list) and kept
+            else ""
+        )
         evidence = record.get("evidence", [])
         links = []
         for item in evidence if isinstance(evidence, list) else []:
@@ -218,9 +262,12 @@ def render_review(update: ReviewUpdate, base_boards: Iterable[Board]) -> str:
             + _code(record.get("postings", "not recorded"))
             + "<br>Validated: "
             + _code(record.get("validated_at", "not recorded"))
+            + kept_cell
             + "</td><td>"
             + "<hr>".join(links)
-            + "</td><td>Unconfirmed; developer review required</td></tr>"
+            + "</td><td>"
+            + _ownership(record, board.key in sample)
+            + "</td></tr>"
         )
     lines.extend(["</tbody>", "</table>", ""])
     return "\n".join(lines)

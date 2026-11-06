@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from playwright.sync_api import Page
 
+from apply import already_applied
 from apply.answer_bank import AnswerBank
 from apply.dashboard import Board, NoBoard
 from apply.keychain import InMemoryKeychain
@@ -120,12 +121,12 @@ class Claude(Protocol):
         ...
 
     def drive(self, *, page: Page, model: str, system: str, prompt: str, schema: dict, files: list[Path],
-              max_turns: int, max_tokens: int) -> Drive:
+              max_turns: int, max_tokens: int, hook: tuple[str, ...] = ()) -> Drive:
         """Claude works the open `page` step by step (Playwright MCP, its only
         tools) until it gives the structured answer. It is stopped, capped,
         once it passes `max_turns` turns or `max_tokens` tokens. `files` are
-        the only files it can attach, by name. Raises UsageLimitHit when the
-        Max limit is hit."""
+        the only files it can attach, by name. `hook` is the send_click hook's
+        flags (Ask Claude's). Raises UsageLimitHit when the Max limit is hit."""
         ...
 
     def research(self, *, model: str, system: str, prompt: str, schema: dict, max_turns: int,
@@ -261,3 +262,5 @@ class Adapters:
     tailored: Callable[[Posting], bytes | None] = lambda posting: None
     # Opens a bot-blocked posting in the student's everyday Chrome (KAN-590); live: captcha.to_everyday_chrome.
     everyday: Callable[[str], None] = lambda url: None
+    # Whether the student already applied to a Posting (KAN-621); live: already_applied.Check, over WorkIt.
+    applied_before: "already_applied.Check | already_applied.NoCheck" = field(default_factory=lambda: already_applied.NoCheck())

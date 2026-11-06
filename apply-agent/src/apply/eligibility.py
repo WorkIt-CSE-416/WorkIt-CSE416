@@ -6,7 +6,9 @@ for current graduate study (a Master's, a PhD, a graduate program) is Not
 eligible. Only the required qualifications count: a graduate degree that is
 preferred, a bonus or one option among others ("a BS, MS or PhD") rules no
 one out. A sentence under no qualifications heading counts only when it
-plainly demands it ("Must be enrolled in a PhD program")."""
+plainly demands it ("Must be enrolled in a PhD program"). An undergraduate's
+year of study ("a penultimate-year student") lets him in, and so does graduate
+study only planned for later ("planning to go on to a master's")."""
 
 import re
 
@@ -47,7 +49,21 @@ STUDYING = re.compile(
 UNDERGRADUATE = re.compile(
     r"bachelor|baccalaureate|undergrad|associate['’]?s degree"
     r"|\b(freshman|sophomore|junior|senior)s?\b(?=\s*(,|/|\)|or\b|and\b|year|standing|status|student|$))"  # not "senior leaders"
-    r"|(?-i:\bB\.?S\.?(c\b|\b)|\bB\.?A\b|\bB\.?Eng\b)",
+    r"|(?-i:\bB\.?S\.?(c\b|\b)|\bB\.?A\b|\bB\.?Eng\b)"
+    # A year of study (Roku's "a penultimate-year student, or a final-year student planning to go on to a master's"),
+    # but not of a graduate degree ("a second-year student in a Master's program").
+    r"|\b(penultimate|pre-?final|second[\s-]to[\s-]last|final|last|first|second|third|fourth|1st|2nd|3rd|4th)[\s-]+year"
+    r"\s+(students?|undergrad)\b(?![^.;,]{0,30}\b(in|of)\s+((a|an|the|their|your)\s+)?(master|ms\b|m\.s|ph\.?\s?d|doctor"
+    r"|graduate|mba))"
+    r"|\b(penultimate|pre-?final)[\s-]+year\b|\b(four|4)[\s-]year\s+(degree|program|university|college)",
+    re.IGNORECASE,
+)
+# Graduate study as a plan for later ("planning to go on to a master's", "intend to pursue a PhD"):
+# an undergraduate's way in, not a requirement of graduate study now.
+LATER = re.compile(
+    r"\b(plan(s|ned|ning)?|intend(s|ed|ing)?|go(es|ing)? on|mov(e|es|ing) on|continu(e|es|ing) on|progress(es|ing)?"
+    r"|hop(e|es|ing)|aim(s|ing)?|wish(es|ing)?|apply(ing)?|interested in|before (starting|beginning))\b[^.;,]{0,40}?"
+    r"(?:" + GRADUATE.pattern + r")",
     re.IGNORECASE,
 )
 # A bachelor's already earned, asked for on top of graduate study: no way in for an undergraduate,
@@ -148,6 +164,7 @@ def _lets_undergraduates_in(sentence: str) -> bool:
 
 def _asks_for_graduate_study(sentence: str) -> bool:
     plain = re.sub(r"\([^)]*\)", "", sentence)  # "(PhD preferred)" doesn't soften the rest
+    sentence = LATER.sub(" ", sentence)  # "planning to go on to a master's" asks for no graduate study now
     return bool(
         GRADUATE.search(sentence) and STUDYING.search(GRADUATE.sub(" ", sentence))  # "our Graduate Program" is no study
         and not SOFT.search(plain) and not ASIDE.search(sentence)

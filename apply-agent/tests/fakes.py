@@ -608,8 +608,9 @@ class FakeClaude:
         raise AssertionError(f"FakeClaude doesn't know this call: {sorted(wanted)}")
 
     def drive(self, *, page, model: str, system: str, prompt: str, schema: dict, files: list[Path],
-              max_turns: int, max_tokens: int) -> Drive:
-        self.calls.append({"model": model, "system": system, "prompt": prompt, "schema": schema, "files": files})
+              max_turns: int, max_tokens: int, hook: tuple[str, ...] = ()) -> Drive:
+        self.calls.append({"model": model, "system": system, "prompt": prompt, "schema": schema, "files": files,
+                           **({"hook": hook} if hook else {})})
         if self._driver is None:
             raise AssertionError("FakeClaude was given no driver for a drive")
         tokens = self._drive_tokens.pop(0) if self._drive_tokens else 10_000

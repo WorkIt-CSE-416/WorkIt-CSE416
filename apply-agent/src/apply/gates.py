@@ -9,8 +9,6 @@ Hold; an empty list passes. answer() runs the gates on one answer:
   (d) the swap test's code half, on company-facing types;
   (f) no 6-word run of the resume (the profile's resume PDF) in a not-on-resume answer;
   (g) the opener: no date, no restated question.
-nothing_new() is the catch-all box's own check (an optional anything-else
-question): a draft that mostly repeats the resume or the form stays off it.
 form() runs those across one form's answers: (e) the same project with
 different numbers, and (h) two answers opening the same way.
 
@@ -36,9 +34,6 @@ SINGLE_LINE = 255  # characters a single-line field takes (Greenhouse input_text
 SHORT_FIELD = 300  # a character cap at or under this is a short field: no lower bound
 NO_FLOOR = {"anything-else", "cover-letter"}  # types with no lower bound (a letter keeps its template's shape)
 RESUME_RUN = 6  # words in a row shared with the resume that count as copying it
-MOSTLY = 0.6  # share of a catch-all draft's words already on the resume or the form that counts as repeating them
-SOME = 0.4  # that share, when the draft also gives a result the resume states (a number such as 2.75 or 40%)
-CATCH_ALL_SENTENCES = 2  # the most a catch-all box's draft may say (Lisul, 2026-11-04)
 RESTATED = 0.6  # share of the first sentence's words taken from the question that counts as restating it
 
 COUNTS = {"one": 1, "a single": 1, "two": 2, "a couple of": 2, "three": 3, "four": 4, "five": 5, "a few": 3}
@@ -272,41 +267,6 @@ def _words(text: str) -> list[str]:
 
 def _runs(words: list[str]) -> set[str]:
     return {" ".join(words[i:i + RESUME_RUN]) for i in range(len(words) - RESUME_RUN + 1)}
-
-
-# The catch-all box: blank unless it says something new (Lisul, 2026-11-04).
-
-def nothing_new(text: str, resume: Path | None, others: list[str]) -> str:
-    """Why a draft for an optional catch-all box ("Additional information",
-    "Anything else?") stays off the form, or "" when it may go on. It stays
-    off when empty, over CATCH_ALL_SENTENCES, or when it mostly repeats what
-    the employer already has: MOSTLY of its words on the resume PDF or in
-    `others` (the form's other answers and its cover letter), or SOME of them
-    with a result the resume states (a decimal, a percentage, a number of
-    three or more digits). Paraphrase keeps the words, so the share counts
-    words, each stemmed, not runs."""
-    if not text.strip():
-        return "nothing new to add beyond the resume and the form's other answers"
-    if (n := len(_sentences(text))) > CATCH_ALL_SENTENCES:
-        return f"its draft ran {n} sentences, and a catch-all box takes at most {CATCH_ALL_SENTENCES}"
-    resume_seq = list(resume_words(resume))
-    seen = {_stem(w) for w in resume_seq + _words("\n".join(others))}
-    own = [_stem(w) for w in _words(text) if len(w) > 2 and w not in STOP]
-    share = sum(w in seen for w in own) / len(own) if own else 1.0
-    on_resume = f" {' '.join(resume_seq)} "
-    result = any(f" {' '.join(_words(n))} " in on_resume for n in re.findall(r"\d+\.\d+%?|\d+%|\b\d{3,}\b", text)
-                 if not re.fullmatch(r"(?:19|20)\d\d", n))
-    if share >= MOSTLY or result and share >= SOME:
-        return f"its draft mostly repeats the resume or the form ({share:.0%} of its words)"
-    return ""
-
-
-def _stem(word: str) -> str:
-    """`word` without a plural or tense ending, so "turns" and "turn" count as one."""
-    for end in ("ing", "ed", "es", "s"):
-        if len(word) > 4 and word.endswith(end):
-            return word[:-len(end)]
-    return word
 
 
 # (g) The opener.
