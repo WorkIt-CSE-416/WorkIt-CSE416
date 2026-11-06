@@ -46,7 +46,12 @@ step, Tailor, a view that only waited.
    the student does not pick is never written into the resume. A picked
    skill goes on the tailored resume only, never into the experience bank
    ("A picked skill belongs to the tailored resume", below). The missing
-   keywords show Required, then Preferred. A note says a picked skill may
+   keywords show In Your Experiences first (KAN-587: those the student's
+   whole bank already shows in an entry, a bullet or a skill, though this
+   resume leaves them out, so a pick there claims nothing new; the match
+   answers them as `in_experiences`), then Required, then Preferred. KAN-587
+   asked for Add All back; the user chose this grouping instead, so no pick
+   is made in bulk. A note says a picked skill may
    be named in the bullets and that an interviewer can ask about it. A pick
    never moves the score, and each keyword takes its own click: a score that
    rose with each pick, and Select All, paid the student to claim skills
