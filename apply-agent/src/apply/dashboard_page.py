@@ -14,7 +14,7 @@ const TOKEN = '{closing}';
 document.addEventListener('mousedown', e => { if (e.target.closest('.sent, .askclaude')) e.stopPropagation(); }, true);
 // One event at a time, in order: sent at once, a burst of keys could reach the page shuffled.
 let chain = Promise.resolve();
-const send = (k, event) => (chain = chain.then(() => fetch(`/input/${k}`, {method: 'POST', body: JSON.stringify(event)}))
+const send = (k, event) => (chain = chain.then(() => fetch(`/input/${k}`, {method: 'POST', headers: {'X-Apply-Token': TOKEN}, body: JSON.stringify(event)}))
   .then(r => r.status === 200 ? r.json() : null).catch(() => null));
 // A trackpad sends dozens of wheel events a second: they go as one every 50 ms.
 let wheel = null;

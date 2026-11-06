@@ -251,7 +251,8 @@ def rehearse(
 
     def one(n: int, url: str, worker: int | None = None) -> None:
         """Link `url` on tile `n`, in Worker `worker` (default: Worker n, its own)."""
-        site = _Kept(adapters.site, n if worker is None else worker)
+        site = _Kept(adapters.site, n if worker is None else worker,
+                     shown=lambda tab: getattr(adapters.board, "showing", lambda tile, tab: None)(n, tab))
         done = None
         first = []  # the link's first summary went to `finished` (at its first pause, else at its end)
         after = []  # how the hold of a pause ended, when Lisul didn't press Resume: AGAIN, or "" (closed)
@@ -1136,9 +1137,11 @@ class _Kept:
     link's own Worker profile, under the submit guard, and the last one
     stays open after the Application ends, until close()."""
 
-    def __init__(self, site: JobSite, worker: int):
+    def __init__(self, site: JobSite, worker: int, shown: Callable[[int | None], None] = lambda tab: None):
+        """`shown(tab)` hears the tab of its plain Worker each page opens on (None: a CDP page): the tile shows it."""
         self._site = site
         self._worker = worker
+        self._shown = shown
         self._stack: ExitStack | None = None
         self._page = None
         self._lifted = False  # the page was handed to Lisul: its guard is off
@@ -1170,8 +1173,13 @@ class _Kept:
         self.close()  # a fresh, guarded page for Fill again: the browser of one Worker profile at a time
         stack = ExitStack()
         self._stack = stack
-        with submit_guard.guarding_on_open():  # guarded before its first load, where the site can (KAN-682)
+        from apply.plain.site import telling
+
+        # Guarded before its first load, where the site can (KAN-682); its tab told to the tile before that load too.
+        with submit_guard.guarding_on_open(), telling(self._shown):
             self._page = stack.enter_context(self._site.open(url, worker=self._worker))
+        tab = getattr(self._page, "tab", None)
+        self._shown(tab if isinstance(tab, int) else None)
         guard(self._page)
         yield self._page
 
