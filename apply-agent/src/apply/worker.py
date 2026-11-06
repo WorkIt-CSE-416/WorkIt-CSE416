@@ -46,6 +46,8 @@ from apply.fill_engine import (
     readback_problems,
     remember,
     shows,
+    ticked,
+    to_tick,
     trap_handoff,
 )
 from apply.fillers import Filler, Handoff, MoreQuestions
@@ -347,11 +349,11 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         if isinstance(handoff, Blocked) or not (rehearse and on_pause(stopped, blocked)):
                             return stopped  # a bot block is never paused: Resume would only try again
                         # Resume: what Lisul put on the step it stopped on stays, as his answers.
-                        planned.keep(getattr(filler, "resumed", lambda page: {})(page))
+                        planned.keep(getattr(filler, "resumed", lambda page: {})(page), getattr(filler, "paused", None))
                 questions, answers, holds = planned.questions, planned.answers, list(planned.holds)
                 behind = _left_behind(filler)
                 holds = ([f"Not filled: {e}" for e in planned.unfilled] + holds
-                         + [f"Not filled: {label} ({LEFT_BEHIND})" for label, _ in behind])
+                         + [f"Not filled: {label} ({LEFT_BEHIND})" for label, _ in behind] + planned.to_tick)
                 filled = Filled(questions, answers, readback, _screenshot(page), html=page_html(page))
                 problems = readback_problems(questions, answers, readback, planned.accepted)
                 if problems and not replanned and attempt < 2:
@@ -371,7 +373,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 planned.use_bank()
                 if planned.handoffs:  # filled but for what only Lisul may answer; no Claude call
                     checked = ["Pre-submit check failed. " + "; ".join(problems)] if problems else []
-                    return Result(Status.HANDOFF, "; ".join(planned.handoffs + checked + [FILLED_BUT]), filled)
+                    return Result(Status.HANDOFF, "; ".join(planned.handoffs + checked + planned.to_tick + [FILLED_BUT]), filled)
                 holds += planned.overused()
                 on_verify(None)  # Verifying: the window shows it while the form is read back and checked
                 found = []
@@ -511,6 +513,7 @@ class _Planned:
         self._answers: dict = {}
         self.accepted: dict[str, tuple[str, ...]] = {}  # other wordings Lisul accepts for an answer, by Question name
         self.blanks: dict[str, str] = {}  # fields the engine's plan leaves blank on purpose, by name: why
+        self.attestations: dict[str, str] = {}  # attestations and signatures, by name: their wording, Lisul's to tick
         self.filed: dict[str, str | None] = {}  # each bare date's Answer bank wording, by name (fill_engine.Plan.filed)
         self.sections: dict[str, str] = {}  # each bare date's section, by name (fill_engine.Plan.sections)
         self.fixes: dict[str, object] = {}  # the Pre-submit review's fixes, by name: no plan writes over them
@@ -539,15 +542,27 @@ class _Planned:
     def answers(self, answers: dict) -> None:
         # What Apply already held is the answer to a field it would have asked; the review's fix wins over the
         # plan; what Lisul put on the page wins over both.
-        self._answers = answers | self.found | self.fixes | self.lisuls
+        # An attestation is never Apply's to answer, from any of them: only what Lisul ticked himself (KAN-676).
+        self._answers = {n: a for n, a in (answers | self.found | self.fixes).items() if n not in self.attestations} | self.lisuls
         self._keep_files()
 
-    def keep(self, values: dict) -> None:
+    @property
+    def to_tick(self) -> list[str]:
+        """The Check before Submit lines for the attestations Lisul has not ticked on a paused step: "Yours to tick: ..."."""
+        return [to_tick(wording) for name, wording in self.attestations.items() if name not in self.lisuls]
+
+    def keep(self, values: dict, paused: dict | None = None) -> None:
         """Keep what Lisul put on a paused form before Resume (the Filler's
         `resumed`) as his answers: no plan, Claude or Filler writes over them,
-        and a Missing fact he answered there waits on him no more."""
+        and a Missing fact he answered there waits on him no more. An
+        attestation is his only once he ticked it himself: a tick other than
+        what the page showed at the pause (`paused`, the Filler's read of it).
+        Unread at the pause, or untouched, it stays on his list (KAN-676)."""
+        by_name = {q.name: q for q in self.questions}
         values = {name: value for name, value in values.items()  # what Apply had put there itself stays Apply's
-                  if name not in self._answers or not shows(value, self._answers[name], self.accepted.get(name, ()))}
+                  if (name not in self._answers or not shows(value, self._answers[name], self.accepted.get(name, ())))
+                  and (name not in self.attestations or (paused is not None and name in paused and value != paused[name]
+                                                         and ticked(value, by_name.get(name))))}
         if not values:
             return
         self.lisuls |= values
@@ -608,6 +623,7 @@ class _Planned:
         self.banked = planned.banked
         self.accepted = planned.accepted
         self.blanks = planned.blanks
+        self.attestations = planned.attestations
         self.filed, self.sections = planned.filed, planned.sections
         for q in self.questions:  # Lisul's answer to a bare date on this form, as he gave it
             if q.name in planned.filed and (given := self._answered.get(q.label.strip())) is not None:
@@ -763,6 +779,7 @@ class _Planned:
         for q in self.questions:
             answer = fixes.get(one_line(q.label))
             if (answer is None or q.name not in guessed | legal or q.kind in ("file", "multi_select") or q.name in self.lisuls
+                    or q.name in self.attestations
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
                     or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
                 continue

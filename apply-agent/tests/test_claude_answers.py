@@ -2009,12 +2009,29 @@ def test_a_question_for_facts_apply_already_holds_never_reaches_lisul():
     planned._rehearse, planned._approved, planned.written, planned.lisuls, planned.found = True, None, [], {}, {}
     planned.fixes = {}  # no Pre-submit review has run (KAN-595)
     planned.missing, planned._on_missing, planned._answers, planned._shown_files = (), lambda *heard: None, {}, None
+    planned.attestations = {}
     planned._on_files = lambda files: None
     planned.profile, planned._bank = ApplicantProfile.load(PROFILE, POLICIES), AnswerBank()
     planned.posting, planned._today = FIGMA, NOW.date()
     planned._bank.add(Question("x", "Why us?", "text"), "Made-up reason.", "Example Co", NOW.date())
     assert planned._missing(planned.questions, [f"Essay fact: {ask}"]) is None
     assert planned.missing == () and planned.answers == {"g": "https://github.com/test-person", "w": "Made-up reason."}
+
+
+def test_setting_the_answers_keeps_the_forms_files_and_no_attestation(tmp_path):
+    """The form's files reach the Application's folder and the window, and an attestation is never an answer (KAN-676)."""
+    resume = tmp_path / "resume.pdf"
+    resume.write_bytes(b"%PDF")
+    planned = worker._Planned.__new__(worker._Planned)
+    planned.questions = [Question("r", "Resume", "file", True), Question("a", "I certify this is true", "checkbox", True)]
+    planned.found, planned.fixes, planned.lisuls = {}, {}, {}
+    planned.attestations = {"a": "I certify this is true"}
+    planned.posting, planned._today, planned._shown_files = FIGMA, NOW.date(), None
+    shown = []
+    planned._on_files = shown.append
+    planned.answers = {"r": resume, "a": "Yes"}
+    assert planned.answers == {"r": resume}
+    assert [f["name"] for f in shown[0]] == ["resume.pdf"]
 
 
 def _block_text(prompt: str, tag: str) -> str:

@@ -182,6 +182,10 @@ class WorkdayFiller:
         self._known: QuestionSet = []  # the questions fill() was given, which the engine fills against
         self._state: dict = {}  # the engine's memory of this Application, kept between its calls
         self._his: tuple[str, set[str]] = ("", set())  # (step, fields) Lisul filled before Resume: not filled again
+        # The step a fill stopped on for Lisul, and what its fields showed then: on Resume, only a value he changed
+        # from it is his (KAN-676). An untouched box (read "No") or one the page pre-ticked stays the page's.
+        self._paused_step = ""
+        self.paused: dict | None = None
         self._link_opened = False  # a verification link was opened: one that didn't verify is never opened again
 
     # --- The Filler ------------------------------------------------------------------
@@ -193,10 +197,30 @@ class WorkdayFiller:
             return self._shown(page)["questions"]
 
     def fill(self, page: Page, questions: QuestionSet, answers: Answers) -> Readback:
+        try:
+            return self._fill_steps(page, questions, answers)
+        except Handoff:
+            self._read_pause(page)  # what the step shows as it stops for Lisul, to tell what he changes before Resume
+            raise
+
+    def _read_pause(self, page: Page) -> None:
+        try:
+            shown = self._shown(page)
+            self._paused_step, self.paused = shown["step"], self._values(page, shown)
+        except Exception:
+            self._paused_step, self.paused = "", None  # unread: on Resume no attestation counts as his
+
+    def _values(self, page: Page, shown: dict) -> dict:
+        """What each field of the step shown holds, by Question name (no file, no section)."""
+        names = [q.name for q in shown["questions"] if q.kind != "file" and q.name not in shown["sections"]]
+        return fill_engine.call(page, "readback", "workday", [], names, self._engine_state()) if names else {}
+
+    def _fill_steps(self, page: Page, questions: QuestionSet, answers: Answers) -> Readback:
         known = {q.name for q in questions}
         self._known = list(questions)
         self._back_to_changed(page, questions, answers)
         refilled: set[str] = set()  # the steps Workday refused once, filled again
+        attests = {name for name in fill_engine.attestations(questions) if name not in answers}  # Lisul's to tick
         # The last step is Review, or whichever step's footer button sends (a tenant may name it
         # otherwise): filling stops there, and only submit() clicks that button.
         while not (shown := self._shown(page))["review"] and not (shown["sends"] and not shown["questions"]):
@@ -217,6 +241,10 @@ class WorkdayFiller:
                 continue  # an answer brought up a follow-up question (Snap's H-4 one, live)
             if shown["sends"]:
                 break
+            # A required attestation or signature on this step is Lisul's (KAN-676): Save and Continue would refuse
+            # it blank, so the form stops here for him to tick it. Resume goes on with what he put on the step.
+            if unticked := [q.label for q in fields if q.required and q.name in attests and q.name not in kept]:
+                raise Handoff(fill_engine.tick_ask(unticked))
             try:
                 next_step(page, shown["step"])
             except Handoff as refused:
@@ -265,13 +293,19 @@ class WorkdayFiller:
         return _on_step(page)
 
     def resumed(self, page: Page) -> dict:
-        """The values on the step shown, as Lisul left it before pressing
-        Resume, by Question name: fill() leaves those fields as they are."""
+        """The values on the step shown that Lisul changed before pressing Resume, by Question name: fill() leaves
+        those fields as they are. Only a value other than the one the step showed when the fill stopped is his: an
+        untouched box reads "No", and a box the page ticked reads "Yes", and neither is his (KAN-676). With no read of
+        the pause on this step, every value counts but an attestation's, which stays his to tick."""
         shown = self._shown(page)
-        names = [q.name for q in shown["questions"] if q.kind != "file" and q.name not in shown["sections"]]
-        values = fill_engine.call(page, "readback", "workday", [], names, self._engine_state()) if names else {}
-        kept = {name: value for name, value in values.items() if value not in (None, "", [])}
+        values = self._values(page, shown)
+        at_pause = self.paused if self.paused is not None and self._paused_step == shown["step"] else None
+        attests = fill_engine.attestations(shown["questions"]) if at_pause is None else set()
+        kept = {name: value for name, value in values.items() if value not in (None, "", [])
+                and (value != at_pause.get(name) if at_pause is not None else name not in attests)}
         self._his = (shown["step"], set(kept))
+        if at_pause is None:
+            self.paused = None
         return kept
 
     def submit(self, page: Page) -> None:

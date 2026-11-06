@@ -175,7 +175,8 @@ SENT = WORDS["submitted"][0]
 IDLE = "Waiting for the next job"
 # Parts of a rehearsal's ready-to-submit reason that Lisul must look at; the
 # rest (Calibration run, Target company...) only say a run would hold it.
-TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ")
+TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ", "Yours to tick")
+TICK_YOURS = "Tick or sign what is yours before it's sent"  # an attestation Apply left for Lisul, his alone
 # Each part of a Hold's reason in plain words.
 HOLD_WORDS = [
     (re.compile(r"^Target company: (.+)$"), r"\1 is on your check-first list"),
@@ -264,7 +265,9 @@ def verdict(caption: dict) -> dict[str, str]:
                  + (", then press Submit yourself if you want it sent" if status == "ready to submit"
                     else "; once every one is dismissed, approve it to send it")}
     elif checks:
-        needs = {"kind": "check", "do": "Fix an answer before it's sent", "why": plain("; ".join(checks)),
+        # Only attestations to tick (KAN-676): Lisul ticks or signs each himself; nothing of Apply's is wrong.
+        do = TICK_YOURS if all(part.startswith("Yours to tick") for part in checks) else "Fix an answer before it's sent"
+        needs = {"kind": "check", "do": do, "why": plain("; ".join(checks)),
                  "then": "Nothing has been sent. Fix it on the page, then press Submit yourself if you want it sent"
                  if status == "ready to submit" else "Apply checks every answer again before it sends"}
     elif status == "ready to submit":

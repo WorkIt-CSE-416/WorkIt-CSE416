@@ -44,6 +44,52 @@ wording) wins in the engine's plan on every form that offers it. The
 company's-own-site order applies only when none is recorded (Lisul,
 2026-11-02).
 
+An attestation, certification or signature ("I certify" in any form, "the
+undersigned", "I attest", "I declare", "I verify", "I represent and
+warrant", "I acknowledge" or "I affirm" except to a privacy or data
+notice, "under penalty", an electronic or typed-name signature, its date
+(a bare "Date" beside one, Workday's `dateSignedOn`), any statement that
+the application is true, accurate or complete, even beside privacy words
+or an "I agree") is Lisul's alone (Lisul, 2026-11-05, KAN-676). The
+engine reads it in the label, the help text and the options, with
+zero-width characters and lookalike letters made plain. The engine's plan
+never answers one, whatever a rule, `tick_consent_when_true`, the Answer
+bank or `answered_questions` holds, and names each in `Plan.attestations`
+with its exact wording. Apply keeps it out of every answer
+(`_Planned.answers`), the review's fixes, Claude fill and the essays. It
+stays blank and unticked, and the form holds with a "Yours to tick:
+<wording>" line on its Check before Submit list (`_Planned.to_tick`,
+dashboard `TO_CHECK`). The pattern is the engine's (`asksAttestation`,
+`src/holds.ts`): keep no copy in Apply. A privacy or data consent ("I
+agree to the privacy policy") still follows `tick_consent_when_true`, and
+a background-check consent `willing_to_undergo_checks`, unless it attests
+that the application is true.
+
+A required one stops a stepped form on its page with one ask
+(`fill_engine.tick_ask`), and Apply fails closed there:
+
+- `fill_engine.ticked` is an allowlist of real ticks and picks ("Yes",
+  "Checked", "I agree", one of the question's own options that is no
+  refusal or placeholder, a typed name). Anything else ("Select...", "☐",
+  "No.", the box's own label) reads as not ticked.
+- Claude fill reads each attestation with plain code before and after the
+  step's session (`_box_state`), and not by Claude's word alone. A box
+  ticked during the session is Apply's: plain code unticks it, or the form
+  stops with a clear line. A required one on the step stops the form,
+  even when Claude never reported it. It goes on only once Lisul pressed
+  Resume on that stop (`ClaudeFill.resumed`, never Fill again) and it does
+  not read unticked. A page gate's approval of the step never skips it.
+- A box whose words attest that Claude did not list ("I certify that I am
+  not a robot and ...") is listed by plain code
+  (`_unlisted_attestations`), so the plan names it.
+- Claude fill's prompt names each attestation by its id. Its labels are
+  page text, so they go in an `<attestations>` data block that Claude is
+  told never to obey.
+- Workday stops before Save and Continue. On Resume, only a value that
+  Lisul changed from what the step showed at the pause
+  (`WorkdayFiller.paused`) is his. An untouched box (read "No") or one
+  the page pre-ticked stays on his list (`_Planned.keep`) and stops again.
+
 An Answer bank entry with `answer: []` and `none: true` answers a
 multi-select with none of its options (Roblox's partner organizations):
 its boxes stay unticked, a blank on purpose in the plan.

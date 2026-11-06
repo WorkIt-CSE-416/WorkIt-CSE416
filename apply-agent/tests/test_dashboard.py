@@ -181,6 +181,8 @@ CALIBRATION = "Calibration run: Application 4 of 10, held so you can judge Claud
      "needs", "Fix an answer before it's sent"),
     ({"status": rehearsal.READY, "why": "Pre-submit check failed. phone reads 555"},
      "needs", "Fix an answer before it's sent"),
+    ({"status": rehearsal.READY, "why": f"Yours to tick: I certify that all of the above information is true; {CALIBRATION}"},
+     "needs", "Tick or sign what is yours before it's sent"),
     ({"status": rehearsal.SIGN_IN, "why": "jobs.example.com wants a password", "company": "Zipline",
       "job_system": "workday"}, "needs", "Sign in to Zipline's Workday site once"),
     ({"status": "handoff", "why": "Claude fill can't finish this form: a captcha"}, "needs", "Finish this one yourself"),

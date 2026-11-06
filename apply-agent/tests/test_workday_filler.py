@@ -380,6 +380,26 @@ def test_a_step_workday_wont_leave_is_a_handoff_naming_what_it_wants():
             filler.fill(page, questions, {questions[0].name: "Test"})
 
 
+# Field AI's attestation (the engine's research forms), on a Workday step (KAN-676).
+CERTIFY = "I certify that the information provided in this application is true, complete, and accurate to the best of my knowledge."
+
+
+def test_a_required_attestation_stops_the_form_on_its_step_with_one_ask_and_is_never_ticked():
+    steps = [("Voluntary Disclosures", [Field("legalName--firstName", "First Name", "text", True),
+                                        Field("certify", CERTIFY, "checkbox", True)])]
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps) as server, OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            with pytest.raises(Handoff) as stopped:
+                filler.fill(page, questions, {questions[0].name: "Test"})
+            assert not page.get_by_label(CERTIFY).is_checked()
+
+    assert str(stopped.value) == f"Tick '{CERTIFY}' yourself on this page, then press Resume: Apply never attests or signs for you."
+
+
 def test_fills_a_follow_up_question_workday_shows_once_its_question_is_answered():
     spouse = "Is your current U.S. work authorization based on your status as a spouse of an H-1B, L-1, or E-1/E-2/E-3 visa holder?"
     steps = [("Application Questions", [

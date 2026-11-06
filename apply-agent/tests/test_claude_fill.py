@@ -1217,6 +1217,60 @@ def test_a_step_whose_next_does_not_go_on_is_a_handoff_not_a_form_ready_to_submi
     assert server.submissions == []
 
 
+# AnaVation's last attestation (the engine's research forms), on a Jobvite step (KAN-676).
+CERTIFY = "I certify that all of the above information is true and complete"
+
+
+def _optional_radios(question: str, name: str) -> str:
+    return (f'<fieldset role="radiogroup" aria-label="{question}"><legend>{question}</legend>'
+            + "".join(f'<label><input type="radio" name="{name}" value="{o}">{o}</label>' for o in YES_NO) + "</fieldset>")
+
+
+class AttestingStepsDriver(JobviteStepsDriver):
+    """Lists the certification on the step that shows it, and, once Apply names it as the person's own, reads it
+    back as it shows: never ticked. `ticked` records any field Apply asked it to fill with the certification's label."""
+
+    def __init__(self, required: bool):
+        super().__init__()
+        self._required = required
+        self.asked_to_fill: list[str] = []
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        said = super().__call__(page, schema, prompt, files)
+        if "questions" in schema["properties"] or not page.get_by_text(CERTIFY).first.is_visible():
+            return said
+        fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
+        self.asked_to_fill += [f["question"] for f in fields if f["question"] == CERTIFY]
+        named = re.search(r"never yours: (q\d+) ", prompt)
+        if named:
+            said["filled"].append({"field": named[1], "shown": [""]})
+        else:
+            said["unlisted"].append({"label": CERTIFY, "kind": "select", "required": self._required, "options": YES_NO})
+        return said
+
+
+def test_a_required_attestation_stops_claude_fill_on_its_step_with_one_ask_and_is_never_ticked(tmp_path):
+    driver = AttestingStepsDriver(required=True)
+    steps = (_radios(SPONSORSHIP, "sponsorship") + _radios(CERTIFY, "certify"), _radios(AUTHORIZED, "authorized"))
+    with FakeJobviteServer(steps=steps) as server:
+        [row] = run(server, profile_with(tmp_path), tyler_match(), claude=FakeClaude(driver=driver))
+
+    assert row.status == "handoff", row.reason
+    assert row.reason.split("; ")[0] == f"Page 2: Tick '{CERTIFY}' yourself on this page, then press Resume: Apply never attests or signs for you."
+    assert driver.asked_to_fill == [] and server.submissions == []
+
+
+def test_an_optional_attestation_is_left_unticked_and_holds_the_form_as_yours_to_tick(tmp_path):
+    driver = AttestingStepsDriver(required=False)
+    steps = (_radios(SPONSORSHIP, "sponsorship"), _radios(AUTHORIZED, "authorized") + _optional_radios(CERTIFY, "certify"))
+    with FakeJobviteServer(steps=steps) as server:
+        [row] = run(server, profile_with(tmp_path), tyler_match(), claude=FakeClaude(driver=driver))
+
+    assert row.status == "held", row.reason
+    assert f"Yours to tick: {CERTIFY}" in row.reason.split("; ")
+    assert driver.asked_to_fill == [] and server.submissions == []
+
+
 class GatedStepsDriver(JobviteStepsDriver):
     """Reports the sponsorship question as one for Lisul to check, on the step that shows it."""
 
