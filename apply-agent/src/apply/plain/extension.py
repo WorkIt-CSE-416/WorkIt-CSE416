@@ -173,6 +173,19 @@ def vendor_set(folder: Path, files: dict[str, bytes]) -> str:
     return f"vendor/{SETS}/{ident}"
 
 
+def registration(profile: Path) -> dict | None:
+    """The worker extension's entry in Chrome profile `profile`'s preference files, read only. None when
+    neither file has one. Its `path` may name a folder that is gone."""
+    for prefs in ("Secure Preferences", "Preferences"):
+        try:
+            settings = json.loads((profile / "Default" / prefs).read_text())["extensions"]["settings"]
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if isinstance(settings, dict) and isinstance(entry := settings.get(EXTENSION_ID), dict):
+            return entry
+    return None
+
+
 def loaded_folder(profile: Path) -> Path | None:
     """The folder the worker extension is loaded from in Chrome profile `profile`: the path Load unpacked
     (or --load-extension) registered in its preferences. None when the profile has no such record."""

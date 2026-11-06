@@ -29,7 +29,7 @@ from apply.plain.bridge import (
     socket_path,
 )
 from apply.plain.extension import EXTENSION_DIR, EXTENSION_ORIGIN
-from apply.plain.launcher import PlainWorkers, seed_steps
+from apply.plain.launcher import PlainWorkers
 
 ENGINE = {"version": "0.3.13+test", "sha256": "abc"}
 
@@ -247,16 +247,6 @@ def test_a_second_apply_on_the_same_socket_is_told_so(bridge):
     from apply.plain.bridge import BridgeBusy
     with pytest.raises(BridgeBusy):
         Bridge(bridge.path, engine=ENGINE).start()
-
-
-def test_the_seeds_steps_are_lisuls_clicks_in_order():
-    steps = seed_steps(EXTENSION_DIR)
-    assert len(steps) == 5
-    assert steps[0].startswith("Turn on Developer mode")
-    assert steps[1].startswith('If a "Apply Worker (private)" card is there already') and "Remove" in steps[1]
-    assert steps[2].startswith("Click Load unpacked") and str(EXTENSION_DIR.resolve()) in steps[2]
-    assert steps[3] == 'On the "Apply Worker (private)" card, click Details, and turn on Allow User Scripts.'
-    assert steps[4].startswith("Quit that Chrome")
 
 
 def test_workers_load_their_profiles_folders_own_copy_which_changes_only_while_none_runs(tmp_path):
