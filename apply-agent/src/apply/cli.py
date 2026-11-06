@@ -32,6 +32,7 @@ from apply import (
     orchestrator,
     own_application,
     rehearsal,
+    resume_check,
     schedule,
     sheet,
     sheet_import,
@@ -223,6 +224,7 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
         else:
             _refuse_unless_live_runs_on(profile, args.command)
             _refuse_busy_worker_profiles(args.command)
+            _refuse_stale_resume(profile, args.command)
             _send_waiting_writes()
             adapters = live_adapters(profile, answer_bank=AnswerBank(args.profile.parent / ANSWER_BANK))
             WorkerBrowsers().seed(args.workers)
@@ -241,6 +243,7 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
         live = adapters is None
         if live:
             _refuse_busy_worker_profiles(args.command)
+            _refuse_stale_resume(profile, args.command)
             # No Records repo, no notifications: a rehearsal leaves no trace but its local Records,
             # a Tracker row for each Application Lisul submits himself from a held page, and the
             # Employer accounts it makes (their passwords in Keychain).
@@ -511,6 +514,16 @@ def _refuse_busy_worker_profiles(command: str) -> None:
         WorkerBrowsers().refuse_in_use()
     except ProfileInUse as busy:
         sys.exit(f"apply {command}: {busy}")
+
+
+def _refuse_stale_resume(profile: ApplicantProfile, command: str) -> None:
+    """Stop before any form gets a resume other than the accepted one (policies.yaml's resume_source).
+    A check that couldn't be made only warns: `gh` being offline never stops a run."""
+    verdict = resume_check.compare(profile.policy("resume_source"), profile.get("files.resume_pdf"))
+    if verdict and verdict.state == resume_check.STALE:
+        sys.exit(f"apply {command}: {verdict.line}")
+    if verdict and verdict.state == resume_check.UNKNOWN:
+        print(f"apply {command}: warning: {verdict.line}", file=sys.stderr)
 
 
 # Beside the Worker profiles: the address of the dashboard of the run going, for `apply watch`.
