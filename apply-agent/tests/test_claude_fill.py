@@ -1055,6 +1055,57 @@ def test_each_dropdown_gets_its_own_choices_and_answer_when_a_script_and_playwri
     assert (code, country) == (us_code, "United States")
 
 
+# Microsoft Careers' application (live 2026-11-06): the location picker shows its one choice as an option all
+# along, and a list closed earlier stays in the page, hidden. Each dropdown lists its own a moment after it opens,
+# one in the listbox it names (aria-controls), the others in a shared one. Read page-wide, every dropdown had
+# offered the location's choice alone, so no Yes/No answer fit and they were left Missing facts.
+MICROSOFT_DROPDOWNS = """<!doctype html><body>
+<div><span id="l0">Where would you like to apply for Software Engineer: Internship Opportunities</span>
+<div role="listbox" aria-labelledby="l0"><div role="option" aria-selected="true">United States, California, Aliso Viejo</div></div></div>
+<div role="listbox" style="display:none"><div role="option">I am currently serving (or have served)</div><div role="option">I have not served</div></div>
+<div><span id="l5">Is your legal name the same as your preferred name?</span>
+<div id="same" role="combobox" tabindex="0" style="height:20px" aria-labelledby="l5" onclick="openOwn(this)"><span></span></div>
+<div id="same-list" role="listbox"></div></div>
+<div><span id="l22">Are you currently or have you ever been a member of the military, a civilian employee, or an official of any government, whether national, state, local, or foreign?</span>
+<div role="combobox" tabindex="0" style="height:20px" aria-labelledby="l22" onclick="openList(this, ['Yes', 'No'])"><span></span></div></div>
+<div><span id="l18">Ethnicity/Race</span>
+<div role="combobox" tabindex="0" style="height:20px" aria-labelledby="l18" onclick="openList(this, ['Asian', 'White', 'I prefer not to answer'])"><span></span></div></div>
+<div id="list" role="listbox"></div>
+<script>
+let open = null;
+const later = (f) => setTimeout(f, 200);
+function options(list, names) { list.innerHTML = names.map(o => '<div role="option" onclick="pick(this)">' + o + '</div>').join(''); }
+function openOwn(box) { open = box; box.setAttribute('aria-controls', 'same-list'); later(() => options(document.getElementById('same-list'), ['Yes', 'No'])); }
+function openList(box, names) { open = box; later(() => options(document.getElementById('list'), names)); }
+function close() { document.getElementById('list').innerHTML = ''; document.getElementById('same-list').innerHTML = ''; }
+function pick(option) { open.firstElementChild.textContent = option.textContent; close(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+</script></body>"""
+
+
+def test_each_dropdown_reads_its_own_choices_never_another_lists_options_left_on_the_page():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+
+    questions = [
+        Question("q5", "Is your legal name the same as your preferred name?", "select", True),
+        Question("q22", "Are you currently or have you ever been a member of the military, a civilian employee, or an "
+                        "official of any government, whether national, state, local, or foreign?", "select", True),
+        Question("q18", "Ethnicity/Race", "select", False),
+    ]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(MICROSOFT_DROPDOWNS)
+        found = claude_fill._with_options(page, questions)
+        picked = claude_fill._pick_in_comboboxes(page, found, {"q5": "Yes", "q22": "No"})
+        browser.close()
+
+    assert [q.options for q in found] == [("Yes", "No"), ("Yes", "No"), ("Asian", "White", "I prefer not to answer")]
+    assert picked == {"q5": "Yes", "q22": "No"}
+
+
 def test_jobvites_country_of_residence_and_consent_are_passed_before_claude_reads_the_form(tmp_path):
     driver = JobviteDriver()
 
@@ -1761,6 +1812,59 @@ def test_the_fill_prompt_says_how_to_pick_from_a_type_to_search_dropdown():
     # pressed Escape. Ask Claude then typed "New", waited and clicked New York.
     assert "Type to Search" in FILL and "first word" in FILL and "browser_wait_for" in FILL
     assert "Don't press Escape" in FILL
+
+# TAL.net's way (live 2026-11-05, KAN-687): Save and Continue goes on with a required box blank. Step one asks
+# the native language, which Lisul had yet to answer; step two is the Declaration, the last step.
+TAL_STEPS = """<!doctype html><body>
+<div id=s1><h2>Languages</h2><label for=n>Your name</label><input id=n>
+<label for=l>What is your native language?</label><select id=l><option>Choose one...</option><option>English</option></select>
+<button onclick="s1.hidden = true; s2.hidden = false">Save and Continue</button></div>
+<div id=s2 hidden><h2>Declaration</h2><p>I certify the above.</p><button>Submit</button></div>
+</body>"""
+NATIVE = "What is your native language?"
+
+
+class TalStepsDriver:
+    """Plays Claude on TAL_STEPS: fills what <fields> asks on the step showing, lists the native language as
+    unlisted on step one, and names Save and Continue, then Submit on the Declaration. Keeps each step's fields."""
+
+    def __init__(self):
+        self.fields: list[list[str]] = []
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
+        self.fields.append([f["question"] for f in fields])
+        first = page.locator("#s1").is_visible()
+        filled = [{"field": f["field"], "shown": [f["answer"]]} for f in fields if first and f["question"] == "Your name"]
+        if first:
+            page.fill("#n", "Test Person")
+        asked = {f["question"] for f in fields}
+        return {"blocked": False, "why": "", "filled": filled, "submit_button": "" if first else "Submit",
+                "next_button": "Save and Continue" if first else "",
+                "unlisted": [{"label": NATIVE, "kind": "select", "required": True, "options": ["English"]}]
+                if first and NATIVE not in asked else []}
+
+
+def test_an_answer_that_comes_after_its_step_went_by_is_left_behind_not_looked_for_on_later_steps():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import MoreQuestions, Question
+    name = Question("read1", "Your name", "text", True)  # as the read pass names it, apart from the fill's own
+    driver = TalStepsDriver()
+    filler = ClaudeFill(FakeClaude(driver=driver))
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(TAL_STEPS)
+        with pytest.raises(MoreQuestions) as more:  # step one: the native language, found there
+            filler.fill(page, [name], {"read1": "Test Person"})
+        [native] = more.value.questions
+        filler.fill(page, [name, native], {"read1": "Test Person"})  # no answer yet: on to the Declaration
+        # Lisul's answer comes now, while the form is on its last step: it is not looked for there.
+        filler.fill(page, [name, native], {"read1": "Test Person", native.name: "English"})
+        browser.close()
+    assert all(NATIVE not in asked for asked in driver.fields)
+    assert filler.left_behind == [(NATIVE, "English")]
 
 
 # Amazon's Job-specific questions (live, KAN-714): a month box whose only word on its format is its placeholder.
