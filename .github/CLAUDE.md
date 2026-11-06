@@ -75,6 +75,13 @@ asks `accounts.google.com` on its own (which `practice.extension.spec.ts`'s
 request list catches) and a field a panel row scrolls to doesn't come into
 view (`panel-reopen`, `workday-show`), found in the Playwright image
 2026-10-31. On CI each spec gets two retries; a broken one fails all three.
+
+**`timeout-minutes` on this job was never validated against a real run
+until 2026-11-03** (KAN-447): every PR before that one shows the job as
+skipped (no `FILL_ENGINE_TOKEN` yet), so the original 30-minute figure
+was a guess, never measured. The first real run reached 329 of 388 tests
+at the 30-minute mark and was cancelled; now 45. Raise it again if a
+future run gets close, rather than guessing a second time.
 The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
 

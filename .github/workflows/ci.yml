@@ -106,7 +106,11 @@ jobs:
     # accounts.google.com on its own and scrolls and focuses differently, so
     # a few specs fail there only. Free on a public repo.
     runs-on: macos-latest
-    timeout-minutes: 30
+    # 388 tests, two Playwright projects, one worker: the real run (KAN-447,
+    # 2026-11-03, the first time FILL_ENGINE_TOKEN let this job run at all
+    # rather than skip) reached 329 of 388 at the 30-minute mark. 45 leaves
+    # room for a flaky spec's retries without flirting with the ceiling.
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: autofiller_extension/test
