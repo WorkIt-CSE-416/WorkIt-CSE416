@@ -4,7 +4,8 @@ A plain Worker's Chrome runs on its own profile, APPLY_PROFILES/plain-<k>, with 
 `--remote-debugging-port`, no `--enable-automation` and no `--headless`. Its only switches
 beyond the profile are first-run, default-browser, crash-bubble, window placement, and
 `--disable-backgrounding-occluded-windows` (Lisul, 2026-11-04), so a Worker covered by
-Lisul's apps keeps painting. Workers sit on-screen, never minimized.
+Lisul's apps keeps painting, and `--restore-last-session` (KAN-718), so a quit keeps the job
+sites' session cookies: their sign-ins. Workers sit on-screen, never minimized.
 
 Two Chromes (policies.yaml `plain_chrome`):
 - "chrome": branded Google Chrome. It ignores `--load-extension`, so the worker extension is
@@ -58,8 +59,12 @@ SEED = "plain-seed"
 # A normal, readable Chrome at 100% zoom, at the screen's top-left corner. The extension shrinks it
 # to the main screen's visible area (ops/core.js: onScreen), so it is wholly on-screen.
 WINDOW = (1280, 900)
+# `--restore-last-session` (KAN-718): Chrome drops session cookies on a clean quit (Apply's SIGTERM, Cmd-Q, a macOS
+# restart) unless it restores the last session, and a job site's sign-in is a session cookie. With
+# `--no-startup-window` no tab of the last session opens again: only the cookies come back
+# (docs/restart-recovery.md).
 FLAGS = ("--no-first-run", "--no-default-browser-check", "--disable-backgrounding-occluded-windows",
-         "--hide-crash-restore-bubble")
+         "--hide-crash-restore-bubble", "--restore-last-session")
 # Never passed to a plain Worker: each would make it an automated browser.
 NEVER = ("--remote-debugging-port", "--remote-debugging-pipe", "--enable-automation", "--headless")
 HELLO_WAIT = 30.0  # s from launch to the extension's hello
