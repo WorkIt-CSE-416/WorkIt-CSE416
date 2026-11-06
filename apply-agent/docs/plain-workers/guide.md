@@ -72,17 +72,29 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   extension frame both land on the element under the pointer.
 - **Only its own window and tab (KAN-717).** A tile shows its own Worker's
   window only. A Connection whose Chrome (the host's parent) isn't the one that
-  has Worker k's profile open (`chrome_pid`) shows nothing on tile k and takes
-  none of its input. The helper films a window of that PID only while macOS
-  lists it with the shown tab's title (`tile.shown`'s `title`;
-  `window_capture.title_matches`, which allows macOS's middle "…"). With no such
-  window it says `mismatch`, sends nothing, and the tile takes the extension's
+  has Worker k's profile open (`chrome_pid`), or whose Chrome PID can't be told,
+  shows nothing on tile k and takes none of its input; it is looked at again each
+  turn. The helper films a window of that PID only while macOS lists exactly one
+  of its windows with the shown tab's title (`tile.shown`'s `title`;
+  `window_capture.title_matches`). A page sets its own title, so the rule is
+  strict: Chrome's " - Google Chrome" suffix only at the end, and a title cut
+  with a middle "…" must keep 8 characters of each end. With no such window, or
+  two, it says `mismatch`, sends nothing, and the tile takes the extension's
   frames. Each tile also shows its own form's tab: `--into` tiles share one
-  Worker, so `Dashboard.showing(tile, tab)` (from the rehearsal's `_Kept.open`)
-  makes `PortFrames` give that tile only the frames that showed its tab, and
-  send its clicks and keys there. A tile whose tab isn't the window's active one
-  keeps its last frame of that tab. Filmed frames within `SETTLE` (0.25 s) of a
-  tab switch go to neither tab.
+  Worker, so `Dashboard.showing(tile, tab)` makes `PortFrames` give that tile only
+  the frames that showed its tab, and send its clicks, keys and files there.
+  `PlainSite.open` tells the tab as soon as it exists, before its first load
+  (`site.telling`, from the rehearsal's `_Kept.open`). Until then, a tile that
+  shares its Worker shows nothing and takes no input (`Dashboard.blind`). A file
+  request is kept by the tab that asked, so a file picked on one tile never
+  reaches another form. A form's own pop-ups and the tabs its page opens (their
+  `tab.created` opener, or `popup.blocked`) show on its tile too: it shows and
+  presses whichever of them showed last, and goes back when one closes. A tile
+  whose tab isn't the window's active one keeps its last frame of that tab.
+  Filmed frames within `SETTLE` (0.25 s) of a tab switch go to neither tab.
+  Tests: `tests/test_plain_tile_identity.py` (two fake Workers) and
+  `tests/test_review_kan717_hostile.py` (forged presses, loading tiles, files,
+  titles, unknown PIDs, pop-ups).
 - **Out-of-date extensions (KAN-643).** The hello's `features` says what the
   loaded extension's code can do (`bridge.FEATURES`, 2). An older one with
   `extension.reload`, in a profile with Developer mode on, is reloaded in place
