@@ -916,10 +916,13 @@ TAL_FORM = "https://bankcampuscareers.tal.net/vx/lang-en-GB/mobile-0/brand-4/use
 TAL_STEPS = ["Languages", "How did you hear about us?", "Inclusion", "Declaration"]
 
 
-def _tal_page(n):
+def _tal_page(n, headed=False):
+    # `headed`: the live tracker's markup (2026-11-06, KAN-729), each link named by its aria-label, a heading first.
     tracker = "".join(f'<li><a href="#" onclick="document.getElementById(\'goto\').value={i};'
-                      f'document.getElementById(\'eform\').submit();return false">{name}'
-                      f'<span class="sr-only"> Item {"completed" if i < n else "not completed"}</span></a></li>'
+                      f'document.getElementById(\'eform\').submit();return false"'
+                      + (f' aria-label="Section Header: {name}  Item {"completed" if i < n else "incomplete"}">{name}</a></li>'
+                         if headed else
+                         f'>{name}<span class="sr-only"> Item {"completed" if i < n else "not completed"}</span></a></li>')
                       for i, name in enumerate(TAL_STEPS, 1))
     last = n == len(TAL_STEPS)
     return (f'<title>{TAL_STEPS[n - 1]}</title><nav aria-label="Progress Tracker"><ul>{tracker}</ul></nav>'
@@ -930,7 +933,7 @@ def _tal_page(n):
 
 
 @contextmanager
-def _tal(start):
+def _tal(start, headed=False):
     from urllib.parse import parse_qs
 
     from playwright.sync_api import sync_playwright
@@ -946,8 +949,8 @@ def _tal(start):
                 return route.fulfill(body="<p>Thank you for applying</p>", content_type="text/html")
             at = int(form["page"][0])
             n = int((form.get("goto") or [at + 1])[0])
-            return route.fulfill(body=_tal_page(n), content_type="text/html")
-        return route.fulfill(body=_tal_page(int(route.request.url.rsplit("/", 1)[1])), content_type="text/html")
+            return route.fulfill(body=_tal_page(n, headed), content_type="text/html")
+        return route.fulfill(body=_tal_page(int(route.request.url.rsplit("/", 1)[1]), headed), content_type="text/html")
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -974,6 +977,18 @@ def test_ask_moves_between_tal_net_pages_by_the_progress_tracker():
         ])
         assert [(f["page"], f["goto"]) for f in posts] == [(["3"], ["2"]), (["2"], ["4"])]
         assert page.title() == "Declaration" and reply.couldnt == []
+
+
+def test_ask_presses_a_tracker_link_named_by_its_heading():
+    # Bank of America (2026-11-06): the live links are named "Section Header: Additional Information  Item
+    # incomplete", so Apply found no step named 'Additional Information' and couldn't press it (KAN-729).
+    with _tal(1, headed=True) as (page, drive, posts):
+        reply = _asked(page, drive, "open Inclusion", [
+            (lambda p: None, _said(press="Inclusion")),
+            (lambda p: None, _said(reply="Inclusion is open.")),
+        ])
+        assert [(f["page"], f["goto"]) for f in posts] == [(["1"], ["3"])]
+        assert page.title() == "Inclusion" and reply.couldnt == []
 
 
 def test_ask_s_progress_tracker_press_never_posts_the_declaration():
