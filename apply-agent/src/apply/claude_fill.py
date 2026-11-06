@@ -696,7 +696,7 @@ def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = 
     if words and not (back and words == REVIEW_WORDS):
         raise Handoff(f"Claude fill's Next ({name!r}) is {words}, which may send the form. Fill it in yourself.")
     if guard:
-        guard.let_account_click()
+        guard.let_account_click(button)
     try:
         button.click()
         waited = 0

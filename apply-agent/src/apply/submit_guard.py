@@ -38,6 +38,10 @@ until the thread is back, unsent, then is aborted (a GET goes on then). A
 page URL (Greenhouse's posting, Lever's and Jobvite's `/apply`) is never
 routed, so a page Claude opens doesn't wait.
 
+A link's ping (hyperlink auditing, a POST no script sees) never leaves a
+guarded page: the guard takes it off as the link is clicked, and no script
+can set one back while the page is guarded.
+
 Everything else goes through: résumé uploads, Ashby's per-answer saves,
 Lever's résumé parse, Workday's Save and Continue, a Next that saves its
 step, and another site's widget posting hidden fields into its own iframe
@@ -60,7 +64,9 @@ click on the submit button Claude names on the form's last step: nothing
 went, and the form is left filled). Plain code's
 click on a sign-in or account page's button (apply.account_pages) goes
 through it, and that button's POST form through a rehearsal's guard too; a
-button that sends and the application request stay blocked. On a rehearsal's page it hears what
+button that sends, a form that has one, and the application request stay
+blocked. Only that press counts (KAN-710): on the element plain code armed,
+in its frame, never a frame inside it or another form a script posts. On a rehearsal's page it hears what
 the rehearsal's guard blocked too, so a click Claude makes there that would
 send the form is the same Handoff, and still sends nothing.
 
@@ -124,8 +130,34 @@ _TEMPLATE = r"""
   // found wrong): then a button or request that sends is blocked still, and the held note says why.
   const held = () => @HELD@;
   const lifted = () => @LIFTED@ && !held();
-  // Plain code's click on the button Claude fill named on a sign-in or account page.
-  const accountClick = () => window.__applyAccountClick === true;
+  // Plain code's own press (KAN-710): it arms window.__applyAccountClick (true, or on a CDP Worker the element it
+  // presses, in that element's frame alone), then presses. Only a press that lands in this frame on that element
+  // counts: a trusted click, or on a plain Worker an untrusted one right after the worker extension marks its press.
+  // A frame inside the pressed element, a page's own click, or a click before the arming never counts.
+  const armed = () => {
+    const by = window.__applyAccountClick;
+    return by === true || (by instanceof Element) ? by : null;
+  };
+  let press = null;  // {event, target, by, form}: the last press of Apply's (or, on a held page, Lisul's)
+  let pressNext = 0;  // a plain Worker's press mark (PORT_TOUCH): the click right after it is a press, till this time
+  addEventListener('click', (event) => {
+    const user = event.isTrusted || performance.now() < pressNext;
+    pressNext = 0;
+    const by = armed();
+    if (!user) return;
+    const target = event.target instanceof Element ? event.target : null;
+    press = target && (!by || by === true || by.contains(target))
+      ? {event, target, by, form: (target.closest('button, input') || {}).form || target.closest('form')} : null;
+  }, true);
+  // Plain code's press is on: armed, and the press came under this same arming.
+  const accountClick = () => !!press && !!press.by && press.by === armed();
+  // A form's submission is the press's own: the pressed button sends it (by), or the page's own handlers of the
+  // press do while it is still being dispatched (a Next that calls form.submit() or requestSubmit()), or the
+  // pressed element's own form goes on later (a Next that checks its step by fetch first). Never another form
+  // a script posts meanwhile, nor a form in a frame inside the pressed element.
+  const pressed = (form, by) => !!press && ((!!by && by.contains(press.target))
+    || press.event.eventPhase !== 0 || (!!form && form === press.form));
+  const fromPress = (form, by) => accountClick() && pressed(form, by);
   // A sign-in or new account's form: one with a password box, which no application's final button is in.
   const accountForm = (el) => {
     const form = el.form || (el.closest && el.closest('form'));
@@ -228,7 +260,47 @@ _TEMPLATE = r"""
   }, true);
 @EXTRA@
 
+  // A link's ping (hyperlink auditing): the browser POSTs to each of its URLs as it follows the link, and no
+  // script sees it. Nothing Apply does needs one, so a guarded page sends none (KAN-710): each link's ping is
+  // taken off as it is clicked, before the page's handlers, and no script can put one back while it is guarded.
+  const unping = (el) => {
+    const link = el && el.closest && el.closest('a, area');
+    if (!link || lifted() || !link.hasAttribute('ping')) return;
+    const urls = String(link.getAttribute('ping')).trim().split(/\s+/);
+    link.removeAttribute('ping');
+    if (urls.some((u) => isFinal('POST', u))) note(named('POST', urls.find((u) => isFinal('POST', u))) + ' of a link');
+  };
+  window.addEventListener('click', (event) => unping(event.target), true);
+  window.addEventListener('auxclick', (event) => unping(event.target), true);
+  const pings = (el, name) => !lifted() && String(name).toLowerCase() === 'ping' && el instanceof Element && el.matches('a, area');
+  for (const [proto, method, at] of [[Element.prototype, 'setAttribute', 0], [Element.prototype, 'setAttributeNS', 1],
+                                      [Element.prototype, 'toggleAttribute', 0]]) {
+    const was = proto[method];
+    proto[method] = function (...args) {
+      if (pings(this, String(args[at]).split(':').pop())) return method === 'toggleAttribute' ? false : undefined;
+      return was.apply(this, args);
+    };
+  }
+  for (const method of ['setAttributeNode', 'setAttributeNodeNS']) {
+    const was = Element.prototype[method];
+    Element.prototype[method] = function (attr) { return attr && pings(this, attr.name) ? null : was.call(this, attr); };
+  }
+  for (const method of ['setNamedItem', 'setNamedItemNS']) {
+    const was = NamedNodeMap.prototype[method];
+    NamedNodeMap.prototype[method] = function (attr) {
+      return attr && String(attr.name).toLowerCase() === 'ping' && !lifted() ? null : was.call(this, attr);
+    };
+  }
+  for (const proto of [HTMLAnchorElement.prototype, HTMLAreaElement.prototype]) {
+    const was = Object.getOwnPropertyDescriptor(proto, 'ping');
+    if (was && was.set) Object.defineProperty(proto, 'ping', {...was, set(value) { if (!lifted()) return; was.set.call(this, value); }});
+  }
+
   // Native submission of a POST form.
+  const fields = (form) => Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get.call(form);
+  // The form has a button that sends: any of its buttons, a hidden one or one outside it (form=) too (KAN-710).
+  const formSends = (form) => [...form.querySelectorAll('button, input[type=submit], input[type=image]'), ...fields(form)]
+    .some((n) => (n.tagName === 'BUTTON' || /^(submit|image)$/i.test(n.type || '')) && sends(n));
   const posts = (form, submitter) => {
     const method = (submitter && submitter.getAttribute && submitter.getAttribute('formmethod')) || form.getAttribute('method') || 'get';
     return method.toLowerCase() === 'post';
@@ -251,25 +323,29 @@ _TEMPLATE = r"""
   // the form has no button that sends. Then a POST to a path ending in /apply is a step, not the last (KAN-656).
   // No page saying so, or "Step 5 of 5", stays blocked: a step's Next there hands off, and nothing is sent.
   const moreSteps = (form) => {
-    if ([...form.querySelectorAll('button, input[type=submit]')].some(sends)) return false;
+    if (formSends(form)) return false;
     const said = String((document.body && document.body.innerText) || '').match(/\bstep\s*(\d+)\s*(?:of|\/)\s*(\d+)\b/i);
     if (said) return Number(said[1]) < Number(said[2]);
     const at = document.querySelector('[aria-current=step]');
     return !!at && !!(at.closest('li') || at).nextElementSibling;
   };
+  // A step's Next only (KAN-710): the button plain code pressed, never a script's post or a step list's link.
   const postsFinal = (form, by) => posts(form, by) && isFinal('POST', postTarget(form, by))
-    && !(byNameAlone(form, by) && moreSteps(form));
+    && !(byNameAlone(form, by) && !!by && !!press && by.contains(press.target) && moreSteps(form));
   // A profile pop-up posting to its own page, on a URL final by its name alone: the pop-up is proven no application.
   const profileOwnPage = (form, by) => !(by && by.getAttribute && by.getAttribute('formaction'))
     && !HTMLFormElement.prototype.getAttribute.call(form, 'action') && byNameAlone(form, by);
   // A sign-in relay's own post (an SSO, OIDC or SAML hand-off: Amazon's idp.federate "Signing you in...", live):
   // the page's script posts it before any click or key on the page, its fields are all hidden (a token, a
   // state), no button of it sends, and it is bound for no final URL. Nothing of an application is in it.
-  const fields = (form) => Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get.call(form);
   const hiddenOnly = (form) => [...fields(form)].some((n) => n.type === 'hidden')
     && [...fields(form)].every((n) => n.type === 'hidden' || n.tagName === 'FIELDSET'
       || (/^(submit|button|reset)$/.test(n.type) && !sends(n)));
-  const relay = (form, by) => !touched && posts(form, by) && !postsFinal(form, by) && hiddenOnly(form);
+  // A relay page is only that post (KAN-710): a page that shows a field of its own is a form, whose script may
+  // post the application's hidden copy (TAL.net's submit=1) before any click.
+  const fieldShown = () => [...document.querySelectorAll('input, select, textarea')].some((n) =>
+    !/^(hidden|submit|button|reset|image)$/i.test(n.type || '') && (!n.checkVisibility || n.checkVisibility()));
+  const relay = (form, by) => !touched && posts(form, by) && !postsFinal(form, by) && hiddenOnly(form) && !fieldShown();
   // Another site's widget loading itself into its own frame on the page, click or no click: LinkedIn's Apply
   // with LinkedIn on Microsoft's form (live, KAN-711) posts a form of hidden fields (its key, the job's code)
   // to linkedin.com into the iframe it just made, as the form loads. Bound for another site and no final URL,
@@ -294,13 +370,18 @@ _TEMPLATE = r"""
     if (relay(form, by) || frameLoad(form, by) || uploadPost(form, by)) return;
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
-    if (accountClick() && form.querySelector('input[type=password]') && !postsFinal(form, by)) return;
+    const apply = fromPress(form, by);
+    if (apply && form.querySelector('input[type=password]') && !postsFinal(form, by)) return;
     if (profileClick() && profileStep(by || form) && (!postsFinal(form, by) || profileOwnPage(form, by))) return;  // plain code's profile step, as above
-    const final = by ? sends(by)
-      : [...form.querySelectorAll('button, input[type=submit]')].some(sends);
-    if (held() && !final) return;  // a held page is Lisul's but for its Submit: a Next goes on
+    const final = by ? sends(by) : formSends(form);
+    // A held page is Lisul's but for its Submit: a Next goes on. A button that says nothing that sends, in a form
+    // that has a Submit, goes on only by his own press of it, never by a script's requestSubmit() (KAN-710).
+    if (held() && !final && (!by || !formSends(form) || (!!press && by.contains(press.target)))) return;
     if (final) event.stopImmediatePropagation();
-    if (final || (posts(form, by) && (!accountClick() || postsFinal(form, by)))) {
+    // Plain code's press posts a step: never a form that has a button that sends, whatever its submitter says
+    // (another language, Done, a hidden one), nor one bound for the final URL (KAN-710).
+    const step = apply && !postsFinal(form, by) && !formSends(form);
+    if (final || (posts(form, by) && !step)) {
       event.preventDefault();
       note('a form submission');
     }
@@ -309,8 +390,8 @@ _TEMPLATE = r"""
   HTMLFormElement.prototype.submit = function () {
     // Under plain code's click, a page script may post a step's form, but never one with a button that sends
     // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
-    const step = accountClick() && !postsFinal(this) && (!!this.querySelector('input[type=password]')
-      || ![...this.querySelectorAll('button, input[type=submit]')].some(sends));
+    const step = fromPress(this, null) && !postsFinal(this) && (!!this.querySelector('input[type=password]')
+      || !formSends(this));
     if (!lifted() && !step && !relay(this, null) && !frameLoad(this, null) && !uploadPost(this) && posts(this)) return note('a form submission');
     return submit.call(this);
   };
@@ -508,7 +589,7 @@ def _script(key: str, name: str, lifted: str = "false", extra: str = "", in_capt
 
 # A plain Worker's additions (port=True): the worker extension dispatches `__apply_touch` on the
 # page before each press it makes (Apply's own, and Lisul's from the tile), and hears `__apply_said`.
-PORT_TOUCH = "\n  addEventListener('__apply_touch', () => { touched = true; }, true);"
+PORT_TOUCH = "\n  addEventListener('__apply_touch', () => { touched = true; pressNext = performance.now() + 1000; }, true);"
 PORT_SAID = "\n    document.dispatchEvent(new CustomEvent('__apply_said', {detail: '@NAME@ blocked ' + what}));"
 
 
@@ -884,11 +965,20 @@ class DriveGuard:
         again, for the captcha wait. The rest of the guard stays on."""
         self._set_driving(False)
 
-    def let_account_click(self) -> None:
+    def let_account_click(self, element=None) -> None:
         """Let plain code's next click sign in or make an account: its button,
         and its POST form, go through this guard and a rehearsal's. A button
-        that sends the form, and the application request, are blocked still."""
-        self._in_frames("window.__applyAccountClick = true")
+        that sends the form, a form that has one, and the application request
+        are blocked still. Given the `element` it presses, only in that
+        element's frame and only for a press on it (KAN-710): a frame inside
+        it, or another form a script posts meanwhile, is blocked still."""
+        if element is None:
+            self._in_frames("window.__applyAccountClick = true")
+            return
+        try:
+            element.evaluate("el => { window.__applyAccountClick = el; }")
+        except Exception:
+            pass  # not armed: the press is blocked as any other, and the step hands off
 
     def let_profile_click(self, let: bool = True) -> None:
         """Let plain code's next click send a profile step's pop-up, one before the application

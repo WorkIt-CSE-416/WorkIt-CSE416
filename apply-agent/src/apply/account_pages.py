@@ -218,7 +218,7 @@ class AccountPages:
                           "shows. Sign in and fill the form in yourself.")
         before = _shown(page)
         if guard:
-            guard.let_account_click()
+            guard.let_account_click(found[0])
         try:
             found[0].click()
         finally:
