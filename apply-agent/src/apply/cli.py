@@ -204,11 +204,14 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
     asked.add_argument("target", nargs="?", help="the form: its Application ID, or words of its company and role")
     asked.add_argument("message", nargs="?", help="what is wrong, e.g. \"page 2's GPA is wrong\"")
     asked.add_argument("--list", action="store_true", help="list every open form: its ID, company, role, page and state")
+    again = commands.add_parser("fill-again", help="fill a held form anew in its running Apply window, as its page's "
+                                                   "Fill again button does; it never submits")
+    again.add_argument("target", help="the window's port, when it holds one form, or the form's Application ID")
     args = parser.parse_args(argv)
     if adapters is None and threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, _stop)  # `kill <pid>` closes the browsers and the window, as Ctrl-C does
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
-    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "plain", "ask") and home.fill_from_sample():
+    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "plain", "ask", "fill-again") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
 
@@ -229,6 +232,8 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             finally:
                 _close_workers(adapters.site)
             repair_later(adapters.repairs, profile.policy("repair") or {})
+    elif args.command == "fill-again":
+        sys.exit(_fill_again(args.target))
     elif args.command == "rehearse" and args.into:
         sys.exit(_send_into(args.into, args.urls))
     elif args.command == "rehearse":
@@ -544,6 +549,22 @@ def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
         finally:
             url.unlink(missing_ok=True)
             noted.unlink(missing_ok=True)
+
+
+def _fill_again(target: str) -> int:
+    """`apply fill-again`: ask the window to fill the form anew, then wait for that fill to stop and print how."""
+    try:
+        window, tile, answer = into.fill_again(target)
+        print(answer.get("message") or "Filling it again.")
+        caption = into.outcome(window, tile)
+    except into.NoWindow as error:
+        print(f"apply fill-again {target}: {error}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("Stopped waiting; the window goes on filling.")
+        return 0
+    print(" | ".join(str(caption.get(k) or "") for k in ("company", "role", "status", "why")))
+    return 0
 
 
 def _send_into(target: str, urls: list[str]) -> int:
