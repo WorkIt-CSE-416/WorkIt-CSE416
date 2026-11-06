@@ -656,14 +656,30 @@ def _boxes(positions: str) -> tuple[Box, ...]:
     return tuple(boxes)
 
 
+#: On Windows a program cannot open a network connection without
+#: SYSTEMROOT, and warming the cache downloads packages: without it
+#: Tectonic's first compile failed "couldn't get it from the internet"
+#: (2026-11-05). They name system folders, never a secret.
+_WINDOWS_ENV = ("SYSTEMROOT", "WINDIR", "TEMP", "TMP")
+
+
 def _env(cache: Path, work: str) -> dict[str, str]:
     # Never the API's own environment: the compile must not see the database
     # URL or the service-role key
-    return {"PATH": os.environ.get("PATH", ""), "HOME": work, "TECTONIC_CACHE_DIR": str(cache)}
+    env = {"PATH": os.environ.get("PATH", ""), "HOME": work, "TECTONIC_CACHE_DIR": str(cache)}
+    if os.name == "nt":
+        env.update({name: os.environ[name] for name in _WINDOWS_ENV if name in os.environ})
+    return env
+
+
+def binary_name() -> str:
+    """The vendored binary's file name: `tectonic.exe` on Windows, where the
+    release ships it so (scripts/fetch_tectonic.py), else `tectonic`."""
+    return "tectonic.exe" if os.name == "nt" else "tectonic"
 
 
 def _binary() -> Path:
-    vendored = VENDOR / "tectonic"
+    vendored = VENDOR / binary_name()
     if vendored.exists():
         if os.access(vendored, os.X_OK):
             return vendored

@@ -178,7 +178,10 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   network. `offline=False` exists only for the build script's warm-up.
 - **A compile never sees the API's environment.** `_env()` passes `PATH`,
   `HOME` and the cache location only, never the database URL or the
-  service-role key.
+  service-role key, plus, on Windows, `SYSTEMROOT`, `WINDIR`, `TEMP` and
+  `TMP` (`_WINDOWS_ENV`, system folders, no secret): a Windows program
+  cannot open a network connection without `SYSTEMROOT`, so warming the
+  cache failed "couldn't get it from the internet" (2026-11-05).
 - **An empty itemize is a LaTeX error**, so a bullet list opens only around
   bullets.
 - **Every `\resumeItem` argument ends in `\ignorespaces`** (KAN-391). Jake's
@@ -220,24 +223,31 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 
 ## Tectonic: build and runtime
 
-- **Pinned:** `scripts/fetch_tectonic.py` holds the version (0.17.0) and the
-  static Linux build's SHA-256, and refuses a download that does not match.
+- **Pinned:** `scripts/fetch_tectonic.py` holds the version (0.17.0) and,
+  in `BUILDS`, each system's official release asset and its SHA-256 (Linux
+  x86_64 and ARM, macOS Intel and Apple Silicon, Windows x86_64), and
+  refuses a download that does not match. Raising the version means new
+  assets and digests, read from the GitHub release's own digests.
   The container image runs it in `backend/Dockerfile`, after `uv sync`. It is
   stdlib only because the retired Vercel build ran it as its build command
   (`backend/vercel.json`) before anything was installed; keep it so until
   KAN-296 deletes that file.
-- **What it builds:** `backend/vendor/tectonic/` (gitignored): the binary on
-  Linux x86_64, and a package cache warmed by compiling `sample.py` (Jake's
-  sample content as a view, through the real `jakes.py`) once online
-  (~44 MB). On a Mac it uses `brew install tectonic` from PATH and
-  warms the same cache. Run `python3 scripts/fetch_tectonic.py` from
+- **What it builds:** `backend/vendor/tectonic/` (gitignored): the binary
+  (`tectonic`, or `tectonic.exe` on Windows: `binary_name()`), and a package
+  cache warmed by compiling `sample.py` (Jake's sample content as a view,
+  through the real `jakes.py`) once online (~44 MB). A system with no pinned
+  build falls back to a `tectonic` on PATH. Until 2026-11-05 only Linux
+  downloaded: a Mac needed `brew install tectonic`, and on Windows every new
+  worktree's resumes failed. Run `python3 scripts/fetch_tectonic.py` from
   `backend/` once; `--check` compiles offline from the cache.
+  `npm run worktree` copies the primary checkout's folder into a new
+  worktree, so it is fetched once per computer, not once per worktree.
 - **Warming gets 10 minutes, a render 60 s** (`WARM_TIMEOUT_SECONDS`,
   `COMPILE_TIMEOUT_SECONDS`). The online compile downloads every package,
   and under the render's 60 s it failed CI on a cold cache; a build that
   starts cold (each image build) could fail a deploy the same way.
-- **Runtime:** `compile_pdf` uses `vendor/tectonic/tectonic`, else
-  `tectonic` on PATH. A read-only cache (a Vercel Function, now retired,
+- **Runtime:** `compile_pdf` uses `vendor/tectonic/tectonic` (`.exe` on
+  Windows), else `tectonic` on PATH. A read-only cache (a Vercel Function, now retired,
   wrote only under `/tmp`) is copied to `/tmp` once per process, and a binary that lost its
   execute bit runs from a copy there. Each copy is made under a staging name
   and renamed into place only when finished (`_copy_once`): a Function

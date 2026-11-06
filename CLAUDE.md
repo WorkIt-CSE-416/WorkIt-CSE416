@@ -245,17 +245,20 @@ with the failure it prevents.
 - Work happens on Jira-style branches (`KAN-13-testing`) off `main`, one
   ticket per worktree. `npm run worktree -- KAN-13-testing` creates
   `../workit-KAN-13` (the primary checkout's folder name plus the key) from a
-  fresh `origin/main` and copies the env files
-  and the sample resumes (`frontend/CLAUDE.md`) from the primary checkout
-  (`frontend/scripts/new-worktree.mjs`). A worktree missing them gets them
-  with `npm run worktree -- --env-only`.
+  fresh `origin/main` and copies the env files, the sample resumes
+  (`frontend/CLAUDE.md`) and Tectonic with its warm cache
+  (`backend/vendor/tectonic`, so resume PDFs work at once) from the primary
+  checkout (`frontend/scripts/new-worktree.mjs`). A worktree missing them
+  gets them with `npm run worktree -- --env-only`.
 - Superset workspaces run `.superset/setup.sh` on creation: that same
   `--env-only` copy, then `npm ci` in `frontend/` and `uv sync` in `backend/`,
   then `git submodule update --init` and, once the branch has Apply,
   `uv sync` in `apply-agent/` (`npm run worktree` does these two as well),
   then `backend/scripts/fetch_tectonic.py` where the branch has it: without
   that once-per-checkout step every resume showed "This Resume Isn't Loading
-  Right Now". It only warns on failure (a Mac needs `brew install tectonic`).
+  Right Now". It downloads Tectonic's own pinned build on Windows, macOS
+  and Linux alike (2026-11-05; Windows had no way before, and a Mac needed
+  `brew install tectonic`), and only warns on failure.
   It warns when the copied `.env` has no `SCOUT_API_KEY`: the API would then
   run Scout on a local Ollama instead of Groq without saying so. The key lives
   only in the primary checkout's `.env`, never in a committed script.
