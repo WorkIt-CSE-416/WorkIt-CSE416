@@ -92,12 +92,14 @@ def test_the_notification_lists_each_answer_claude_drafted_for_lisul_to_review(m
 
     notifier = run(monkeypatch, [a, b], more=[HOUSING, FLEX])  # both Applications ask; the second reuses the bank
 
-    assert notifier.sent == [(
-        "Apply run finished",
+    # The two Workers race: whether the second finds the first's drafts in the bank decides only the "used again" tail.
+    [(title, body)] = notifier.sent
+    assert title == "Apply run finished"
+    assert body.startswith(
         "2 submitted, 0 held, 0 handoff, 0 missing fact, 0 new Employer accounts. "
         "Review 2 answers Claude drafted: Do you have housing within 30 miles of our office? → Yes; "
-        "Are you able to work 10 consecutive weeks? → Yes",
-    )]
+        "Are you able to work 10 consecutive weeks? → Yes"
+    )
 
 
 @pytest.mark.skipif(not os.environ.get("APPLY_TEST_NOTIFY"), reason="set APPLY_TEST_NOTIFY=1 to show a real macOS notification")
