@@ -13,6 +13,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -31,6 +32,7 @@ from apply import (
     on_page,
     orchestrator,
     own_application,
+    preflight,
     rehearsal,
     resume_check,
     schedule,
@@ -53,7 +55,7 @@ from apply.clock import SystemClock
 from apply.feed import live_feed
 from apply.gmail import live_mailbox
 from apply.home import HOME
-from apply.keychain import MacKeychain
+from apply.keychain import GMAIL, MacKeychain
 from apply.match_queue import match_queue
 from apply.notify import SET_UP, TEST_PUSH, MacNotifier, RecordingNotifier, live_phone
 from apply.plain.site import live_site
@@ -208,11 +210,17 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
     again = commands.add_parser("fill-again", help="fill a held form anew in its running Apply window, as its page's "
                                                    "Fill again button does; it never submits")
     again.add_argument("target", help="the window's port, when it holds one form, or the form's Application ID")
+    checked = commands.add_parser(
+        "preflight", help="before a batch: group the links by job system and site, say which sign-ins to do first, "
+                          "and print the order and pacing plan. It opens no page and reads no job site")
+    checked.add_argument("urls", nargs="+", metavar="url")
+    checked.add_argument("--workers", type=int, default=orchestrator.WORKERS, help="how many Workers fill at once")
     args = parser.parse_args(argv)
     if adapters is None and threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, _stop)  # `kill <pid>` closes the browsers and the window, as Ctrl-C does
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
-    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "plain", "ask", "fill-again") and home.fill_from_sample():
+    if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "plain", "ask", "fill-again",
+                            "preflight") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
 
@@ -236,6 +244,8 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             repair_later(adapters.repairs, profile.policy("repair") or {})
     elif args.command == "fill-again":
         sys.exit(_fill_again(args.target))
+    elif args.command == "preflight":
+        _preflight(args.urls, args.workers, adapters)
     elif args.command == "rehearse" and args.into:
         sys.exit(_send_into(args.into, args.urls))
     elif args.command == "rehearse":
@@ -578,6 +588,32 @@ def _fill_again(target: str) -> int:
         return 0
     print(" | ".join(str(caption.get(k) or "") for k in ("company", "role", "status", "why")))
     return 0
+def _gmail_set_up() -> bool:
+    """Whether Keychain lists a Gmail app password: attributes only, never the password."""
+    try:
+        return bool(MacKeychain(GMAIL).sites())
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def _preflight(urls: list[str], workers: int, adapters: Adapters | None) -> None:
+    """`apply preflight`: the sign-ins and the plan for `urls`, from the links, Keychain's attributes and the
+    Worker profiles' notes. Nothing here opens a page or reads a job site."""
+    if wrong := [url for url in urls if not urlsplit(url).hostname or url.split() != [url]]:
+        print(f"apply preflight: not a link: {wrong[0]}", file=sys.stderr)
+        raise SystemExit(2)
+    keychain = adapters.keychain if adapters else MacKeychain()
+    try:
+        items = keychain.sites()
+    except (OSError, subprocess.SubprocessError):
+        items = None  # no Keychain here, or it would not list: the report says so
+    browsers = None if adapters else WorkerBrowsers()
+    signed_in = adapters.site.signed_in() if adapters else browsers.signed_in()
+    policies = load_policies()
+    sites = preflight.group(urls, items, signed_in, bool(adapters) or bool(browsers.profiles_made()),
+                            policies.get("plain_worker_hosts") or ())
+    print(preflight.report(sites, workers, _gmail_set_up(), policies.get("worker_mode") or "cdp",
+                           policies.get("workday_sign_in") == "google"))
 
 
 def _send_into(target: str, urls: list[str]) -> int:
