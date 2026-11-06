@@ -17,6 +17,32 @@
   }
   const fail = (name, message) => Object.assign(new Error(message), { name });
 
+  // A window without focus (a plain Worker's, behind Lisul's apps) fires no focus events at all:
+  // focus() and blur() move document.activeElement, but the page hears no blur or focusout. A page
+  // that takes a typed answer only as its box is left then never takes it: Workday's text boxes
+  // store their value in React's onBlur (a focusout), so NVIDIA's First Name showed but saved
+  // empty (KAN-709). `move` changes the focus; if what had it went unheard, it is told by hand,
+  // at that moment, as a person's leaving is, before the rest of the click or key.
+  function leaving(move) {
+    const from = document.activeElement;
+    let heard = false;
+    const hear = (event) => {
+      if (event.target === from) heard = true;
+    };
+    addEventListener("focusout", hear, true);
+    try {
+      return move();
+    } finally {
+      removeEventListener("focusout", hear, true);
+      const to = document.activeElement;
+      if (!heard && from && from !== to && from !== document.body && from !== document.documentElement && from.isConnected) {
+        const relatedTarget = to && to !== document.body ? to : null;
+        from.dispatchEvent(new FocusEvent("blur", { composed: true, relatedTarget }));
+        from.dispatchEvent(new FocusEvent("focusout", { bubbles: true, composed: true, relatedTarget }));
+      }
+    }
+  }
+
   const parsed = new Map();
   function all(selector) {
     let p = parsed.get(selector);
@@ -96,7 +122,9 @@
       mouse(target, "pointerdown", at, { ...keys, buttons: 1, detail: n });
       if (mouse(target, "mousedown", at, { ...keys, buttons: 1, detail: n })) {
         const focusable = target.closest?.("input, select, textarea, button, a[href], [tabindex], [contenteditable]");
-        if (focusable && document.activeElement !== focusable) focusable.focus();
+        if (focusable && document.activeElement !== focusable) leaving(() => focusable.focus());
+        // A press on nothing focusable takes the focus away, as a real one does.
+        else if (!focusable && document.activeElement && document.activeElement !== document.body) leaving(() => document.activeElement.blur());
       }
       mouse(target, "pointerup", at, { ...keys, detail: n });
       mouse(target, "mouseup", at, { ...keys, detail: n });
@@ -140,7 +168,7 @@
   function fill(selector, value, { force = false } = {}) {
     const element = one(selector);
     actionable(element, { force, editable: true });
-    const answer = pw.fill(element, value);
+    const answer = leaving(() => pw.fill(element, value));
     if (answer === "error:notconnected") throw new Retry("element is not attached to the DOM");
     if (answer === "needsinput") {
       const target = pw.retarget(element, "follow-label");
@@ -227,7 +255,7 @@
         const list = tabbables();
         const at = list.indexOf(target);
         const next = list[(at + (init.shiftKey ? -1 : 1) + list.length) % list.length];
-        next?.focus();
+        leaving(() => next?.focus());
       } else if (/^(ArrowLeft|ArrowRight|Home|End)$/.test(k)) {
         caret(target, k, init);
       } else if (k === "Backspace") {
@@ -242,7 +270,7 @@
 
   function focusOn(selector) {
     const element = one(selector);
-    const answer = pw.focusNode(element, true);
+    const answer = leaving(() => pw.focusNode(element, true));
     if (answer === "error:notconnected") throw new Retry("element is not attached to the DOM");
   }
 
@@ -320,7 +348,8 @@
     select,
     focus: (selector) => (focusOn(selector), null),
     blur(selector) {
-      pw.blurNode(one(selector));
+      const element = one(selector);
+      leaving(() => pw.blurNode(element));
       return null;
     },
     hover,
@@ -344,6 +373,7 @@
   const TOUCHES = new Set(["click", "type", "press", "keys", "check"]);
 
   globalThis.__applyDom = {
+    leaving, // for page/tile.js's presses
     run(method, args) {
       const fn = METHODS[method];
       if (!fn) return { err: { name: "BadOp", message: `no dom method ${method}` } };

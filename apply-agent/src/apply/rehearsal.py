@@ -118,6 +118,8 @@ SIGNED_IN = "signed in"
 CAPTCHA_SHOWED = "A captcha showed: do it, then press Resume. Apply won't go on by itself now"
 # Why a paused rehearsal can't go on, on its Resume button.
 TAB_CLOSED = "The form's tab was closed: start it again"
+# A press of his that sends the application itself, not one that goes on to it (Apply now, Complete a profile).
+FINAL = re.compile(r"\b(submit|send)\b", re.IGNORECASE)
 SENT = "You pressed Submit on the form: it is yours to send, and Apply fills it no more"
 ENDED = "The rehearsal ended: start it again"
 # How long a confirmed page stays open before its window closes, in case a pop-up follows.
@@ -436,6 +438,7 @@ def rehearse(
                     if how != AGAIN:  # Fill again, or Fill it anyway
                         break
                     adapters.board.resumed(n)  # a Resume pressed for the fill before: the new fill never takes it
+                    adapters.board.update(n, resume=None)  # nor its offer: each pause offers its own
                     with gate:
                         done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, pause=paused,
                                          anyway=anyway, force=force)
@@ -709,6 +712,14 @@ def _save_record(rehearsed: Rehearsed, result: Result, filled: Filled, adapters:
         rehearsed.why = "; ".join(filter(None, [rehearsed.why, f"Record not saved: {error}"]))
 
 
+def _step_named(page) -> str:
+    """The step a page shows, as its title names it ("Declaration - Bank of America"), else its link."""
+    try:
+        return page.title() or page.url
+    except Exception:
+        return ""  # a page that went away
+
+
 def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Adapters, profile: ApplicantProfile, n: int,
                  done: Rehearsed, out: Callable[[str], None]) -> None:
     """Lisul's answer in the window to a Missing fact the rehearsed form left
@@ -728,14 +739,19 @@ def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Ada
     if isinstance(answer, Path):  # attached as Lisul named it, from its copy kept with the Application's other files
         day = done.saved.day if done.saved else adapters.clock.now().date()
         answer = keep_sent(sent_folder(done.posting.company, done.posting.id, day), answer)
+    held = _step_named(page)
     try:
-        filled = Rescue(adapters.claude, sms_opt_in=profile.policy("sms_opt_in") is True,
-                        marketing_opt_in=profile.policy("marketing_opt_in") is True).field(
-            page, question, answer, RuntimeError("left blank: the applicant answered it in the Apply window after the form was filled"))
+        rescue = Rescue(adapters.claude, sms_opt_in=profile.policy("sms_opt_in") is True,
+                        marketing_opt_in=profile.policy("marketing_opt_in") is True)
+        blank = RuntimeError("left blank: the applicant answered it in the Apply window after the form was filled")
+        # Not on the step showing: it may be on an earlier one, which a form in steps saved without it (KAN-686).
+        filled = rescue.field(page, question, answer, blank) or rescue.field(page, question, answer, blank, elsewhere=held)
     except Exception as error:
         filled, why = False, f"{type(error).__name__}: {error}"
     else:
-        why = "Claude couldn't find the field or it wouldn't take the answer"
+        why = "Claude couldn't find the field on this step or an earlier one, or it wouldn't take the answer"
+    if held and (now := _step_named(page)) != held:  # Claude went back for it and didn't come all the way again
+        out(f"{name} | the form now shows '{one_line(now)}', not the step it was held on ('{one_line(held)}'): go back to it")
     if filled:
         if isinstance(answer, Path):
             adapters.board.file_given(n)  # Claude's click on the form's Attach asked the window for a file too
@@ -1135,8 +1151,9 @@ class _Kept:
         from outside the page (`POST /fill-again`) before his Submit: fill the form anew.
         A paused rehearsal passes `resume(page)`, whether Lisul pressed Resume and
         it can go on: then RESUME, with the page still his until rearm(). Once he presses the form's own Submit
-        (not a sign-in, account or code form's button), Resume goes on no more, and `sent()` runs, once, so the
-        window stops offering it.
+        (a Submit or Send button not on a sign-in, account or code form), or the job system confirms a press of
+        his sent it, Resume goes on no more, and `sent()` runs, once, so the window stops offering it. His
+        other presses (Apply now, a profile pop-up's Complete) leave Resume his to press.
         A captcha that shows after a press of his calls `challenged()`, once:
         he does it himself, and Apply never touches it. A bot block after a press
         of his (Lever's captcha turning the token down) calls `refused(said)`, once.
@@ -1152,11 +1169,13 @@ class _Kept:
         "" when the page closed or `release` was set."""
         if self._page is None or release.is_set():
             return ""
-        pressed, again, hooks, regenerates = [], [], self._hooks, []
+        pressed, final, again, hooks, regenerates = [], [], [], self._hooks, []
 
         def heard(words: str, account: bool = False) -> None:
             if not account:  # a sign-in, account or code form's press sends no application: Resume still goes on
                 pressed.append(words)
+                if FINAL.search(words):  # the form's own Submit: the form is his to send (KAN-690)
+                    final.append(words)
             if code:
                 code.pressed(words)
         dismissed = []
@@ -1201,10 +1220,13 @@ class _Kept:
                     hand_over()
                 if again or (fill_again() and not pressed):
                     return AGAIN
-                if resume and pressed and not said_sent:
+                # Only his Submit, or a press the job system confirms sent the form, makes the page his to send, never
+                # Apply's to drive. His other presses (Apply now, a profile pop-up's Complete) leave Resume his to press.
+                gone = bool(final) or kept or bool(pressed) and _confirmed(self._page, job_system)
+                if resume and gone and not said_sent:
                     said_sent = True
                     sent()
-                if resume and not pressed and resume(self._page):
+                if resume and not gone and resume(self._page):
                     return RESUME
                 for question, answer in answers():
                     fill(self._page, question, answer)

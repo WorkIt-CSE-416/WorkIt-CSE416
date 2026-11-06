@@ -329,6 +329,21 @@ through `worker._Planned._missing` first.
 **Tests.** `test_claude_answers.py -k already_holds` and
 `test_dashboard.py -k says_where_it_sits` (opens Chromium).
 
+## An answer from the window, on a held form (`rehearsal._fill_answer`, KAN-686)
+
+Lisul's answer to a held form's question is filled by a Rescue: Claude
+puts that one answer in its field, under the drive guard. It tries the
+step showing first. A form in steps may have saved an earlier step
+without it (TAL.net goes on past a required blank), so on a miss the
+Rescue tries once more with `elsewhere`, the step the form is held on
+(its title). Claude then goes back with the form's own Back button or
+step list, fills the field, saves that step with the form's own Save
+or Next, and comes back to the held step (`SYSTEM_ELSEWHERE`). The drive
+guard still blocks a button that sends the application. When the form
+ends on another step, the run says which one, so Lisul goes back to it.
+
+**Tests.** `tests/test_rescue_elsewhere.py` (in CI).
+
 ## Needs you on the page: Go to question, and answers typed there (KAN-600)
 
 `src/apply/on_page.py`. Lisul can answer a Missing fact or an Essay fact
