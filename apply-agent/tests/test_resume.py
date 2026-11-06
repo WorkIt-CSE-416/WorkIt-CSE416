@@ -143,6 +143,8 @@ def test_resume_on_a_sign_in_page_waits_for_lisul_to_sign_in_and_signs_in_no_mor
 # button Submit), or one on no account form, as an application's own Submit is.
 SIGN_IN_SUBMIT = """() => { const f = document.createElement('form'); f.onsubmit = (e) => e.preventDefault();
     f.innerHTML = '<input type=password><button type=button id=his-press>Submit</button>'; document.body.prepend(f); }"""
+APPLICATION_SUBMIT = """() => { const b = document.createElement('button'); b.type = 'button'; b.id = 'his-press';
+    b.textContent = 'Submit'; document.body.prepend(b); }"""
 
 
 def signing_in_himself(monkeypatch, captcha: bool = False, press: str = ""):
@@ -220,6 +222,26 @@ def test_a_sign_in_forms_submit_pressed_on_the_held_page_still_lets_apply_go_on(
     history = board.captions[0]["history"]
     assert [h.split(" ", 1)[1].split(":")[0] for h in history][:2] == ["Paused", "Went on by itself"], history
     assert server.created == [] and server.submissions == []
+
+
+def test_his_own_submit_on_the_held_page_ends_resume_and_the_window_says_so(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    board, _ = signing_in_himself(monkeypatch, press=APPLICATION_SUBMIT)
+    with FakeWorkdayServer(XCEL_FORM, google="password") as server:
+        rehearsal.rehearse([XCEL_URL], adapters(server, board=board), ApplicantProfile.load(
+            profile_with(tmp_path, GOOGLE)), 1, keep_open=True, out=[].append)
+
+    assert board.resume == {"ok": False, "why": rehearsal.SENT}  # the window refuses Resume, saying why
+    assert not any("Went on by itself" in h for h in board.captions[0]["history"])  # the form is his to send
+
+
+def test_the_window_refuses_resume_once_he_pressed_submit():
+    with Dashboard(1, NoFrames()) as board:
+        board.update(0, **PAUSED, resume={"ok": False, "why": rehearsal.SENT})
+        with pytest.raises(urllib.error.HTTPError) as sent:
+            post_resume(board, "tile-0")
+    assert sent.value.code == 409 and json.loads(sent.value.read())["error"] == rehearsal.SENT
+    assert not board.resumed(0)
 
 
 def test_a_captcha_on_the_sign_in_page_stops_apply_going_on_by_itself(monkeypatch, tmp_path):

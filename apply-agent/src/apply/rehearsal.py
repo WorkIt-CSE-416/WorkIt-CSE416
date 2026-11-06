@@ -118,6 +118,7 @@ SIGNED_IN = "signed in"
 CAPTCHA_SHOWED = "A captcha showed: do it, then press Resume. Apply won't go on by itself now"
 # Why a paused rehearsal can't go on, on its Resume button.
 TAB_CLOSED = "The form's tab was closed: start it again"
+SENT = "You pressed Submit on the form: it is yours to send, and Apply fills it no more"
 ENDED = "The rehearsal ended: start it again"
 # How long a confirmed page stays open before its window closes, in case a pop-up follows.
 CLOSE_AFTER_S = 10
@@ -278,6 +279,10 @@ def rehearse(
             adapters.board.update(n, status="handoff", why=why, blocked=True, resume=None)
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
 
+        def sent() -> None:  # Lisul pressed the held form's Submit: its Resume goes on no more, so the window says so
+            adapters.board.resumed(n)  # a Resume pressed before it waits no more
+            adapters.board.update(n, resume={"ok": False, "why": SENT})
+
         def ruled_out() -> bool:  # it may be filled anyway: its tile offers the button
             if done.outcome not in (OUTCOMES[Status.NOT_ELIGIBLE], OUTCOMES[Status.CLOSED]):
                 return False
@@ -371,7 +376,7 @@ def rehearse(
             gate.release()  # a paused form holds no Worker's turn while it waits on him
             try:
                 how = site.hold(release, done.posting.job_system, submitted, done.warning(), done.wrong(),
-                                answers, fill, resume=wants, challenged=challenged, refused=turned_down, redo=redo, tend=tend,
+                                answers, fill, resume=wants, sent=sent, challenged=challenged, refused=turned_down, redo=redo, tend=tend,
                                 ask=asker, **holds())
             finally:
                 asker.close()
@@ -429,6 +434,7 @@ def rehearse(
                         adapters.board.update(n, resume=None)
                     if how != AGAIN:  # Fill again, or Fill it anyway
                         break
+                    adapters.board.resumed(n)  # a Resume pressed for the fill before: the new fill never takes it
                     with gate:
                         done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, pause=paused,
                                          anyway=anyway, force=force)
@@ -1111,7 +1117,7 @@ class _Kept:
              redo: "_Redo | None" = None,
              tend: Callable[[object], None] = lambda page: None, ask: "_Ask | None" = None,
              fill_again: Callable[[], bool] = lambda: False, held: Callable[[], str] = lambda: "", dismiss: Callable[[], None] = lambda: None,
-             note: "Callable[[], tuple[str, bool]] | None" = None) -> str:
+             note: "Callable[[], tuple[str, bool]] | None" = None, sent: Callable[[], None] = lambda: None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
         window is closed. Apply is done with it, so it is Lisul's: the submit
@@ -1124,7 +1130,9 @@ class _Kept:
         in and presses nothing. AGAIN when he presses Fill again, or `fill_again()` says it was asked
         from outside the page (`POST /fill-again`) before his Submit: fill the form anew.
         A paused rehearsal passes `resume(page)`, whether Lisul pressed Resume and
-        it can go on: then RESUME, with the page still his until rearm().
+        it can go on: then RESUME, with the page still his until rearm(). Once he presses the form's own Submit
+        (not a sign-in, account or code form's button), Resume goes on no more, and `sent()` runs, once, so the
+        window stops offering it.
         A captcha that shows after a press of his calls `challenged()`, once:
         he does it himself, and Apply never touches it. A bot block after a press
         of his (Lever's captcha turning the token down) calls `refused(said)`, once.
@@ -1176,7 +1184,7 @@ class _Kept:
                 self._offered = True
             except Exception:
                 pass  # the page closing: the window's button still says so
-        kept, closing, told, turned_down = False, None, False, False
+        kept, closing, told, turned_down, said_sent = False, None, False, False, False
         if ask:
             ask.open(self._page)  # the caller closes it once hold() returns
         while not release.is_set():
@@ -1189,6 +1197,9 @@ class _Kept:
                     hand_over()
                 if again or (fill_again() and not pressed):
                     return AGAIN
+                if resume and pressed and not said_sent:
+                    said_sent = True
+                    sent()
                 if resume and not pressed and resume(self._page):
                     return RESUME
                 for question, answer in answers():
