@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TextIO
 
-from apply import cover_letter, gates, native_host
+from apply import cover_letter, gates, native_host, resume_check
 from apply.adapters import Mailbox, Tracker, Usage
 from apply.browsers import (
     CHROME,
@@ -93,10 +93,11 @@ class Machine:
     waiting_writes: Callable[[], WaitingWrites] = WaitingWrites  # the writes to the Applications Tracker still waiting
     usage: Usage | None = None  # read only when asked (`--usage`): reading it costs a tiny Haiku call
     native_hosts: Path = native_host.CHROME_HOSTS  # everyday Chrome's NativeMessagingHosts folder
+    resume_check: Callable = resume_check.compare  # the resume against policies.yaml's resume_source
 
 
 def diagnose(machine: Machine) -> list[Check]:
-    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _worker_profiles, _facts, _resume_gate, _gmail, _records, _live_runs, _workit, _writes, _tracker, _accounts_host]
+    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _worker_profiles, _facts, _resume_gate, _resume_source, _gmail, _records, _live_runs, _workit, _writes, _tracker, _accounts_host]
     return [found for c in checks for found in _safely(c, machine)]
 
 
@@ -248,6 +249,19 @@ def _resume_gate(machine: Machine) -> Check:
     if not words:
         return Check(name, WARN, f"off: no text reads from {resume}", "export the resume as a PDF with real text, not an image")
     return Check(name, OK, f"on: {len(words)} words read from {resume}")
+
+
+def _resume_source(machine: Machine) -> list[Check]:
+    """The profile's resume against policies.yaml's resume_source. Unset, there is no such check and no line."""
+    source = _policy(machine, "resume_source")
+    if not source:
+        return []
+    name = "Resume"
+    if isinstance(machine.profile, NoProfile):
+        return [Check(name, WARN, "unchecked: no Applicant profile to read the resume from")]
+    verdict = machine.resume_check(source, machine.profile.get("files.resume_pdf"))
+    level = {resume_check.SAME: OK, resume_check.UNKNOWN: WARN, resume_check.STALE: FAIL}[verdict.state]
+    return [Check(name, level, verdict.line)]
 
 
 def _gmail(machine: Machine) -> Check:

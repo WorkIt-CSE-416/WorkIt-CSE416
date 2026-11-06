@@ -214,6 +214,13 @@ schedule:
 # on GitHub. Unset, Records stay in the data folder's records/ and doctor says so.
 records_remote: null
 
+# Resume check: if your accepted resume lives in a GitHub repo, name it in your own
+# policies.yaml, and `apply doctor` and each start of `apply rehearse` and `apply
+# run` compare files.resume_pdf with it (`gh api`). A different file stops the
+# run; `gh` being offline only warns. Unset: no check. For example:
+# resume_source: {repo: you/resume, path: final/resume.pdf, branch: main}
+resume_source: null
+
 # Repairs (GLOSSARY: Repair): after each run or rehearsal, Claude fixes
 # Apply's own code for what went wrong, in a worktree of its own, and the fix
 # is merged only if it passes the gate (docs/adr/0002). At most max_per_day
