@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 import { keep, keepSnapshot, readKept, readSnapshot, subscribe } from "./feed-pages";
+import { leavesFeed, onFeed, stagesNow } from "./feed-stages";
 import { PAGE_SIZE } from "./filter-query";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { CompactJobCard } from "./compact-job-card";
 import { ListingCard } from "./listing-card";
 import { nextPage, type ListSource } from "./list-pages";
 import type { JobListing } from "./listings";
-import { rememberList } from "./shown-list";
+import { readStageChanges, rememberList, subscribeStageChanges } from "./shown-list";
 
 /**
  * The feed's cards on /jobs and /search, and its Load More (KAN-171). The
@@ -56,6 +57,15 @@ import { rememberList } from "./shown-list";
  * with no page loaded yet. Focus moves to the next role's title, as the card
  * and its Apply Now are gone.
  *
+ * A SAVED JOB LEAVES THE LIST TOO (KAN-217): saved and applied jobs live on
+ * the Tracker, and the API leaves them out of every page
+ * (./feed-stages). The list lays the seeker's changes since `drawnAt` over
+ * the stages it was drawn with, so a Save takes its card off at once, its
+ * toast's Undo puts it back where it was, and a Back to a list Next kept
+ * shows a job saved since as gone. Load More asks from the offset less every
+ * job that has left: more than the API moved up at worst, and a role it
+ * sends twice is dropped by id.
+ *
  * `compact` draws the compact cards in a plain list (/search's List view,
  * KAN-519) rather than the large cards.
  */
@@ -68,6 +78,7 @@ export function FeedList({
   canMarkApplied,
   source = "feed",
   compact = false,
+  drawnAt,
 }: {
   initial: JobListing[];
   more: boolean;
@@ -81,6 +92,8 @@ export function FeedList({
   canMarkApplied: boolean;
   source?: ListSource;
   compact?: boolean;
+  /** When the server drew the first page and `stages` (ms since the epoch). */
+  drawnAt: number;
 }) {
   // The server renders the first page alone; the browser adds the kept
   // pages, if this list has any, as it hydrates.
@@ -89,9 +102,14 @@ export function FeedList({
   // First-page roles marked applied here, gone until the server's next draw
   // leaves them out itself.
   const [applied, setApplied] = useState<ReadonlySet<string>>(new Set());
-  const first = initial.filter((job) => !applied.has(job.id));
+  // Each job's stage as of now: the server's, with the seeker's changes since.
+  const changes = useSyncExternalStore(subscribeStageChanges, readStageChanges, () => null);
+  const now = stagesNow(stages, changes, drawnAt);
+  const handedFirst = initial.filter((job) => !applied.has(job.id));
+  const first = onFeed(handedFirst, now);
   const firstPage = new Set(initial.map((job) => job.id));
-  const loaded = (mine?.jobs ?? []).filter((job) => !firstPage.has(job.id));
+  const handedLoaded = (mine?.jobs ?? []).filter((job) => !firstPage.has(job.id));
+  const loaded = onFeed(handedLoaded, now);
   // How many roles the API has handed over, the next page's offset. Counted
   // before dropping repeats, so a repeat doesn't shift the next page back.
   const offset = mine?.offset ?? initial.length;
@@ -109,7 +127,7 @@ export function FeedList({
 
   const firstIds = first.map((job) => job.id).join();
   useEffect(() => {
-    keepSnapshot({ query, jobs: first, stages, tailored, canMarkApplied, source });
+    keepSnapshot({ query, jobs: first, stages: now, tailored, canMarkApplied, source });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- when the first page shown changes
   }, [firstIds, query]);
 
@@ -117,7 +135,7 @@ export function FeedList({
   // Keyed by their ids: `first` and `loaded` are new arrays every render.
   const shownIds = [...first, ...loaded].map((job) => job.id).join();
   useEffect(() => {
-    rememberList({ query, source, jobs: [...first, ...loaded], offset, more, stages });
+    rememberList({ query, source, jobs: [...first, ...loaded], offset, more, stages: now });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- when the roles shown change
   }, [shownIds, query, source, offset, more]);
 
@@ -149,14 +167,28 @@ export function FeedList({
     // for a job posting by the time it answers (review, 2026-10-10).
     const path = window.location.pathname;
     start(async () => {
-      const page = await nextPage({ query, source, jobs: [...initial, ...loaded], offset });
+      // Every job that left since the API handed it over moved the rest up
+      // one; asking from further back only sends repeats, dropped by id.
+      const gone = [...handedFirst, ...handedLoaded].filter((job) => leavesFeed(now[job.id]));
+      const page = await nextPage({
+        query,
+        source,
+        jobs: [...initial, ...handedLoaded],
+        offset: Math.max(0, offset - gone.length),
+      });
       if (page.error != null) {
         setError("Couldn't load more roles. Try again in a moment.");
         return;
       }
       const { fresh } = page;
       setError(null);
-      keep({ path, query, jobs: [...loaded, ...fresh], offset: page.offset, more: page.more });
+      keep({
+        path,
+        query,
+        jobs: [...handedLoaded, ...fresh],
+        offset: page.offset + gone.length,
+        more: page.more,
+      });
       setSaid(
         fresh.length === 0
           ? "No more roles."
@@ -168,11 +200,11 @@ export function FeedList({
 
   const card = (job: JobListing) =>
     compact ? (
-      <CompactJobCard job={job} stage={stages[job.id] ?? null} />
+      <CompactJobCard job={job} stage={now[job.id] ?? null} />
     ) : (
       <ListingCard
         job={job}
-        stage={stages[job.id] ?? null}
+        stage={now[job.id] ?? null}
         tailored={tailoredIds.has(job.id)}
         canMarkApplied={canMarkApplied}
         onApplied={() => markedApplied(job)}

@@ -28,6 +28,18 @@ the truth, so Clear All clears rather than bringing the saved ones back. A
 blank panel between; do not bring it back. Load More pages whichever order drew the list (`FeedList`'s
 `source`).
 
+**A saved or applied job is not on the Jobs page** (KAN-217): it is on the
+Tracker. The API leaves out every tracked stage (`GET /jobs`,
+`/search`'s and Best Match's reads), and the browser drops a job the moment
+the seeker saves it, marks it applied or tailors for it (`jobs/feed-stages.ts`,
+in the feed, /search, the fallback snapshot and the rail). A job auto apply
+holds (Queued, Needs You, Skipped) stays. Save's toast, "Saved to your
+Tracker.", has View (the application's page) and Undo, which
+puts the card back where it was; an unsave on the tracker brings the job back
+on the next visit. A card for a job the seeker tailored for carries a
+Tailored chip beside its age; since Tailor saves the job, only one auto apply
+holds shows it.
+
 **Job Type and Experience Level never overlap (KAN-284).** Job Type says
 what kind of job it is (Internship, Full-Time, Part-Time, Contract);
 Experience Level how much experience it asks for (Entry Level / New Grad,
@@ -425,11 +437,12 @@ after Save until KAN-519, when the team removed it. Below md the bar scrolls awa
 The header card below holds who is hiring, the title and facts; its logo never
 shrinks. Its facts use the card's `JobFacts`: two rows of three fixed slots,
 two columns under 448px, with unstated facts leaving their slots empty.
-Ask Scout, an icon beside Save (KAN-519), asks about the role. Save (KAN-261) keeps the job posting in the Saved column on My
-Applications, on the card and the page alike (`jobs/save-job-button.tsx`,
+Ask Scout, an icon beside Save (KAN-519), asks about the role. Save (KAN-261) keeps the job posting on the
+Tracker as Saved and takes it off the Jobs page (KAN-217), on the card and the page alike (`jobs/save-job-button.tsx`,
 over the drawing-only `components/save-button.tsx`): the bookmark fills at
 once and empties again, with a toast, if the API refuses, and a second
-click takes it back out. It reads its first state from the same stage the
+click takes it back out. A save that works says so: "Saved to your
+Tracker." with View and Undo. It reads its first state from the same stage the
 Auto Apply button gets, so it costs no fetch of its own. A job posting
 already queued or applied stays as it is, and a toast says where it is.
 Saving never queues a job: Start Auto Apply's batches skip saved jobs, and
@@ -497,7 +510,11 @@ would change a moment after the page loads.
 **Marking a job applied** (KAN-232) is a question, not a button (KAN-242).
 When a signed-in applicant leaves for the employer's posting from Apply Now's
 dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
-behind the new tab and asks "Did You Apply?". **It shows the resume they
+behind the new tab and asks "Did You Apply?". **Its top row names the pick
+and downloads it** (KAN-217): "Attach <resume> on the employer's form." with
+Download (a built resume as its PDF, an upload as its file;
+`jobs/resume-download.ts`), since Apply Now opens the form with no resume
+step while Pick a Resume is hidden. It follows the pick. **It shows the resume they
 applied with** (KAN-267): the resume list (below), whose row holds
 **Upload Resume** (above), then a full-width **No Resume** button, not
 a section: pressed (the brand fill, `aria-pressed`), it is the pick and
@@ -863,7 +880,8 @@ section says what else was cut).
 **The tracker is live, with no fixture** (KAN-261). `applications/tracked.ts`
 reads the seeker's applications from the API (`GET
 /applicants/{id}/applications?stage=saved&stage=applied&stage=interviewing&stage=offer&stage=rejected&scored=true`,
-the list Live Activity reads too), written by a job's Save button and its Applied button
+the list Live Activity reads too), written by a job's Save button, a Tailor run (saved,
+KAN-217), its Applied button
 or auto apply, and the events on them (`GET /applicants/{id}/events`,
 KAN-413), joined by job id; `getTracker` in `data.ts` caches it per
 request. A stage past applied comes from the stage menu or an event on the
@@ -873,7 +891,10 @@ without one), and its panel links to the posting while it is open ("Posting
 Closed" after). The page has three empty
 states: the API failed, nothing tracked yet (Find Jobs), and filters that
 hide everything (Clear Filters). The mock cards and their stand-in company
-glyphs were removed with the fixture.
+glyphs were removed with the fixture. A job the student has a tailored resume
+for wears a Tailored chip (`components/tailored-chip.tsx`, KAN-217) beside its
+company in the list and under it on the grid card, from the built resumes read
+beside the applications (`getTailoredJobIds`; Home's unscored read skips it).
 
 **The list is the primary view and the board is archived** (KAN-256).
 A bare `/applications` shows the list, the switcher offers List then Grid,
@@ -2519,7 +2540,24 @@ with no proposals to accept and no Done (2026-10-25).
   2026-10-26), so the resume starts near the top: Back (`TailorBack`, to
   Choose Keywords on the run's source, `?step=keywords&source=`),
   "Review Changes · Step 3 of 3" on one line in the middle, and
-  Finish (filled, to the job posting's page) at the right. The page's h1, "Tailor for
+  Finish (filled) at the right, which opens **Your Resume Is Ready**
+  (`tailor/ready-to-apply.tsx`, KAN-217) over the strong backdrop: a
+  check disc and the title, then the status line "Saved to your Tracker."
+  with View. Apply Yourself (an h3) is an ordered list of two steps, each
+  with a number disc: 1, Download PDF; 2, Open <Company>'s Application
+  (the employer's form in a new tab; the dialog turns into "Did You
+  Apply?", starting on this resume). The primary is the next step: Download
+  PDF has it and focus first; once the file is saved, Download turns
+  secondary with a "Downloaded" check, and Open turns primary and takes
+  focus. Or Let Auto Apply Do It (an h3, under a rule) holds one line,
+  "Fills <Company>'s form with this resume.", and a secondary Auto Apply,
+  only where the form can be filled. The first version, "Ready to Apply",
+  put Auto Apply, Open and Download in one row of equals under a paragraph
+  that mixed the status with the steps; the user found it hard to read.
+  Closing it, Not Yet or Yes goes to the page that opened Tailor, else the
+  job posting.
+  Finish went to the job posting's page until then, which showed nothing
+  new and left the student with no file. The page's h1, "Tailor for
   <title> at <company>", is for screen readers only. Under it the
   resume's name leads, renamed in place (`ResumeTitle`, below). The step
   had the pick steps' Back, the resume's name as a big title, a line, the

@@ -63,6 +63,21 @@ export default function ButtonsPage() {
       </Group>
 
       <Group
+        title="On the Inverted Surface"
+        note="A toast's buttons and cross (KAN-217): light on bg-inverse, never on a light page."
+      >
+        <Row name='variant="inverse"' role="A toast's action: View, Undo">
+          <div className="bg-inverse rounded-card flex items-center gap-2 p-3">
+            <Button variant="inverse">View</Button>
+            <Button variant="inverse">Undo</Button>
+            <IconButton label="Close" variant="inverse" className="size-7">
+              <BellIcon className="size-4" />
+            </IconButton>
+          </div>
+        </Row>
+      </Group>
+
+      <Group
         title="Button States"
         note="Hover and Focus are forced from the app's own stylesheet, so each is what the pointer or the Tab key draws. A disabled filled button (default, positive, destructive) turns grey with ink-subtle text; the bordered and text-only ones fade to half. Busy is disabled with a label that says what is happening (Saving…), and there is no spinner."
       >

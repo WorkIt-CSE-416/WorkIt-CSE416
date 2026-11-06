@@ -1,7 +1,8 @@
 /**
  * Handing a file to the browser's download, from a click handler, on
- * Resumes & Experiences, the one place a student downloads resume files
- * (KAN-267). Two ways a file reaches the page: a Storage link (an uploaded
+ * Resumes (KAN-267), and since KAN-217 from Apply Now's "Did
+ * You Apply?" and Tailor's Your Resume Is Ready, which hand over the resume to
+ * attach while the employer's form is open. Two ways a file reaches the page: a Storage link (an uploaded
  * resume) or the file itself in base64 (a resume rendered for this
  * download).
  */

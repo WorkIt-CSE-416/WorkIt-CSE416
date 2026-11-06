@@ -191,7 +191,7 @@ async def read_filters(
         query_start_phrases=search.season_phrases,
         query_work_style_phrases=search.remote_phrases,
         query_words=search.words,
-        applied_by=applicant_id,
+        tracked_by=applicant_id,
     )
 
 

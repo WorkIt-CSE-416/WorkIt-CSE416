@@ -16,6 +16,7 @@ import { JOB_POSTINGS } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
 import { MatchBadge } from "@/components/match-badge";
+import { TailoredChip } from "@/components/tailored-chip";
 import { SaveButton } from "@/components/save-button";
 import { Skyline, SKYLINE_SKY } from "@/components/skyline";
 import { StatTile } from "@/components/stat-tile";
@@ -227,11 +228,11 @@ export default function DisplayPage() {
 
       <Group
         title="Toasts"
-        note="A short message in the window's bottom right corner. It rises in, stays 5 seconds (paused while the pointer or focus is on it), and drops away; its cross closes it at once."
+        note="A short message on the inverted surface (dark on the light app) in the window's bottom right corner. It rises in, stays 5 seconds, 8 with an action (paused while the pointer or focus is on it), and drops away; its cross closes it at once."
       >
         <Row
           name="useToast().show()"
-          role="components/ui/toast.tsx: a message, and an optional action such as Undo"
+          role="components/ui/toast.tsx: a message, and an optional action such as Undo, or two side by side (actions)"
         >
           <ToastSpecimen />
         </Row>
@@ -284,6 +285,12 @@ export default function DisplayPage() {
           <MatchBadge score={84} />
           <MatchBadge score={70} />
           <MatchBadge score={42} />
+        </Row>
+        <Row
+          name="<TailoredChip>"
+          role="The student has a resume tailored to this job: a feed card, a tracker row (KAN-217)"
+        >
+          <TailoredChip />
         </Row>
         <Row
           name="<IconButton>"

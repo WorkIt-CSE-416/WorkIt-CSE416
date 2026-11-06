@@ -10,7 +10,7 @@ import { getApplicantSession } from "@/lib/session";
 import type { AfterApplied } from "../auto-apply/actions";
 import { getApplications, type Application as Stored } from "../auto-apply/applications";
 import { formatJobType, formatPlaces, formatSalary, formatWorkStyle } from "../jobs/format";
-import type { JobListing, ListingSalaryPeriod } from "../jobs/listings";
+import { getTailoredJobIds, type JobListing, type ListingSalaryPeriod } from "../jobs/listings";
 import type { Application, ApplicationEvent } from "../tracker";
 import { jobLogo } from "@/lib/job-logo";
 
@@ -38,22 +38,29 @@ type Tracked = "saved" | "applied" | AfterApplied;
  * (`sent_resume`, KAN-267): "Did You Apply?" and auto apply name it, so it
  * is the one the student said they sent, not just the last sent to the
  * posting. Null when none was sent or it was deleted since.
+ *
+ * `tailored` marks a job the student has a tailored resume for (KAN-217,
+ * the list's and grid's Tailored chip), read from the built resumes beside
+ * the applications; an unscored read (Home) shows no chip, so it skips it.
  */
 export async function getTracked({ scored = true }: { scored?: boolean } = {}): Promise<
   { applications: Application[]; error: null } | { applications: null; error: string }
 > {
-  const [{ applications, error }, events] = await Promise.all([
+  const [{ applications, error }, events, tailoredIds] = await Promise.all([
     getApplications(TRACKED, { scored }),
     getEvents(),
+    scored ? getTailoredJobIds() : Promise.resolve([]),
   ]);
+  const tailored = new Set(tailoredIds);
   if (applications == null) return { applications: null, error };
   // Never the applications without their events: an interview missing from
   // the page would read as no interview.
   if (events.error != null) return { applications: null, error: events.error };
   return {
-    applications: applications.map((stored) =>
-      toApplication(stored, stored.sent_resume ?? null, events.byJob.get(stored.job.id) ?? []),
-    ),
+    applications: applications.map((stored) => ({
+      ...toApplication(stored, stored.sent_resume ?? null, events.byJob.get(stored.job.id) ?? []),
+      tailored: tailored.has(stored.job.id),
+    })),
     error: null,
   };
 }

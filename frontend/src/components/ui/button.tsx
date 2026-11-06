@@ -169,6 +169,12 @@ export const buttonVariants = cva(
          *  weight whether it acts here or goes somewhere. WorkIt-only. */
         section:
           "text-ink-muted hover:text-ink focus-visible:ring-brand-ring rounded-xs border-transparent focus-visible:ring-2",
+        /** Bordered, light on the inverted surface: a toast's actions
+         *  (ui/toast.tsx, KAN-217). The edge is on-inverse at 50%, about 5:1 on
+         *  inverse; the hover a 12% wash of it. Never on a light page,
+         *  where it is white on white. */
+        inverse:
+          "border-on-inverse/50 text-on-inverse hover:bg-on-inverse/12 focus-visible:ring-on-inverse rounded-control border bg-transparent focus-visible:ring-2",
         /** UNMEASURED: no mockup draws a destructive action. --destructive
          *  aliases --color-danger, the Rejected chip's red (see globals.css),
          *  so the app has one red. Shaped and ringed like the other fills. */
@@ -240,6 +246,7 @@ const DEFAULT_SIZE: Record<ButtonVariant, ButtonSize> = {
   positive: "sm",
   decline: "sm",
   outline: "sm",
+  inverse: "sm",
   ghost: "inline",
   section: "section",
   link: "inline",
