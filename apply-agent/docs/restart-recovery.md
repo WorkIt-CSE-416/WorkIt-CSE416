@@ -45,3 +45,31 @@ What it covers, and what it doesn't:
   with the flag were dropped already.
 
 **Tests.** `tests/test_restart.py` (in CI): the flag is on every plain Worker's command line.
+
+## The open-forms list: `APPLY_HOME/open-forms.json` (KAN-719)
+
+`src/apply/batch.py`. Each form a rehearsal opens is kept on this list as it goes, so a restart loses
+none. One entry per link the rehearsal was given (its key, `link`), with:
+
+- `application_id`, `posting_url`, `job_system`, `company`, `role`;
+- `profiles` (the profiles folder, resolved) and `worker` (0-based), so the Worker profile that
+  holds its sign-in; `plain`, whether that Worker is a plain one;
+- `status`: the tile's (`filling`, `needs sign-in`, `handoff`, `ready to submit`, `failed`, ...),
+  or `sent` once Lisul pressed the held form's Submit;
+- `left`: the Missing facts by question, and how many problems to check; `record`: its Record's folder;
+- `opened` and `updated`.
+
+It holds links and Apply's statuses, never an answer. `rehearsal._noted` writes it as the tile
+changes: as the form starts filling, at each pause, as it goes on, and as each fill ends.
+
+- **A form leaves it** when the job system confirms that Lisul's own Submit went in
+  (`rehearsal`'s `submitted`), and when the already-applied check finds he applied before (KAN-621).
+  A Submit press with no confirmation yet is `sent`: it stays, his.
+- **A form stays** when Lisul closes its tab, when Apply stops (Ctrl-C, SIGTERM, a crash) and when
+  the Mac restarts. `apply reopen` brings it back (KAN-720).
+- **One lock** (`open-forms.lock`, `fcntl`) for every process on the data folder, and each write
+  replaces the file whole (`os.replace`, mode 0600). A broken file reads as an empty list.
+
+**Tests.** `tests/test_restart.py` (in CI): an entry kept and removed, 20 writers at once, a broken
+file. `tests/test_rehearse.py -k open_forms_list` (Chromium): a held fake Greenhouse form is on the
+list with its Record, and leaves it once Lisul's Submit went in.
