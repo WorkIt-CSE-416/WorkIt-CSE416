@@ -2316,6 +2316,20 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   buttons `sm` and icon buttons `icon-lg` (the kit's `icon-sm` is 28px);
   `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. An upload's
   page draws the same box (`SLIM_BAR`, `[resumeId]/slim-bar.ts`).
+  **One row, never two** (`[resumeId]/bar-fold.tsx`): the idle bar is a
+  container (`@container/bar`), so it folds by its own width, which the
+  side panel and Tailor's columns change, never by the window's. Words go
+  first, least needed first (Format Options, Sections, the save status, Add
+  Experiences, Fit to One Page, Download), each button keeping its glyph,
+  its `aria-label` and a tooltip (`FoldButton`); then zoom, the panels and
+  Add Experiences leave the row for More (⋯) at its end, which lists only
+  what the bar hides (each piece in a `data-fold` box, read on open). Undo,
+  Redo, Fit and Download never leave. The steps are measured widths in
+  `FOLD`: a control added to the row, or a longer word, means measuring
+  them again (sweep the bar's width by script and look for a button past
+  its edge). The phone editor's row folds its words the same way
+  (`PHONE_FOLD`). The bar wrapped to a ragged second row at about 800px
+  until then. **Still open:** the bar with a line open still wraps.
 - **A bullet's one wording button is Original** (`LineActions`), shown
   only while the bullet shows another wording (Tailor's, or one typed on
   this resume): it puts the bank's text back, and Undo takes that back.
