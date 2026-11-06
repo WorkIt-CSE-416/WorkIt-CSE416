@@ -1462,6 +1462,29 @@ When `APPLY_HOME` has no profile, Apply copies the Test Person sample data
 into it and the window shows "Sample data".
 
 - Never commit a data file. `.gitignore` here lists each data file name.
+- **Agents: never read this folder raw.** Run `uv run apply data keys [FILE]`
+  and `uv run apply data show-key KEY [--file FILE]`. They list the keys and
+  the shape of each value (`<email>`, `<text, 12 chars>`), never a value. A URL
+  keeps only its scheme and the end of its host.
+- Apply's own stdout and stderr go through `apply.masked` (KAN-664): the
+  profile's and Answer bank's values, addresses, phone numbers, and the ids
+  and tokens in a URL are masked. A print that carries a typed answer or a
+  message gives only its size (`masked.sized`). Add new prints the same way.
+  Traces and Records are files on this Mac and keep the real values; `apply
+  trace` prints through the same mask, which can't catch a value that no data
+  file holds.
+- To stop raw reads in Claude Code, install
+  `tools/block-apply-home-reads.sh` as a PreToolUse hook. Nothing installs it
+  for you. In `~/.claude/settings.json`, with the path to your checkout:
+
+  ```json
+  {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command",
+    "command": "/path/to/apply-agent/tools/block-apply-home-reads.sh"}]}]}}
+  ```
+
+  It refuses `cat`, `grep`, `sed`, Python and other readers on
+  `~/.config/apply` or `$APPLY_HOME`. It can't see a path that is built at run
+  time.
 - For a test run, set `APPLY_HOME` and `APPLY_PROFILES` to a scratch folder,
   so the run does not write into your real data folder.
 
