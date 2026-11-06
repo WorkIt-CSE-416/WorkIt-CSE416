@@ -72,10 +72,3 @@ date's answer under its section and label
 places is never banked. An older entry filed under a bare label alone is
 never read again. Lisul's own answer to a bare date applies to that form
 only; Apply does not save it to the profile by its wording.
-
-`README.md` is a teammate's setup path, from a clone to a rehearsal. Its
-steps and doctor's fix lines say the same thing. When you change one,
-change the other.
-
-`docs/research/` holds the research behind plain Workers and Employer account
-sign-in. Each note's Status line says what was built.

@@ -26,28 +26,50 @@ glossary entry in ASD-STE100 wording: sentences of 25 words or fewer.
 - `apply-agent/` is a Python program (uv, Playwright) that runs its own
   Chrome workers. Claude writes its answers. Its state is files in the data
   folder, not the WorkIt database. It calls the WorkIt API only through
-  the WorkIt client (next sections), as the signed-in student.
+  the WorkIt client (`docs/workit.md`), as the signed-in student.
 
-Both Apply and the extension fill forms with the same Fill engine (next
-section). A fix to how a field is read, planned from the profile, filled
+Both Apply and the extension fill forms with the same Fill engine
+(`docs/fill-engine.md`). A fix to how a field is read, planned from the profile, filled
 or read back goes into the engine, not into Apply. Apply's own plan rules
-(next section) are Apply-side checks, not fill fixes: they decide what
+are Apply-side checks, not fill fixes: they decide what
 Claude may draft and what Apply's own read-back accepts, and the extension
 has neither.
 
+## Rules for every run
+
+- **Lisul reports a problem with an open application in a Claude Code chat:**
+  send it to the form with `uv run apply ask "<company, role or application
+  ID>" "<his words>"` (from `apply-agent/`). Do not open or drive the form
+  yourself. `uv run apply ask --list` lists every open form. Print the reply
+  to him. Never press the offer's Save for him: only his click in the window
+  saves to his sources.
+- **A next posting on a job site a running Worker is signed in to:** send it
+  into that Worker with `uv run apply rehearse --into`, never into a new
+  rehearsal (`docs/plain-workers/guide.md`).
+- **Bot detection and captchas:** Apply never evades bot detection and never
+  touches a captcha. It hands them to the user.
+- **The Fill engine:** run `git submodule update --init` once per checkout.
+  Without it, Apply cannot fill a form, and `uv run apply doctor` says so.
+- **`README.md`** is a teammate's setup path, from a clone to a rehearsal. Its
+  steps and doctor's fix lines say the same thing. When you change one,
+  change the other.
+
 ## Reference by area
 
-These files hold the detail of each area. Read the one that matches your change.
+Read the file that matches your change. Update it in the same PR: it counts as
+this folder's `CLAUDE.md` for its area.
 
-- **Fill engine:** read before you change Apply's plan rules, `fill_engine.py`, or what the plan answers from the Tracker, the Answer bank or a bare date. `docs/fill-engine.md`
-- **WorkIt:** read before you change a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, a Tracker write, the already-applied check or the tailored resume. `docs/workit.md`
-- **Held forms:** read before you change verifying, a flag, Resume, Regenerate, Ask Claude, page gates, or how a question reaches Needs you. `docs/held-forms.md`
-- **Prompts and gates:** read before you change a prompt, a length, cap or names gate, or the catch-all box rule. `docs/prompts-and-gates.md`
-- **Claude fill:** read before you change Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`. `docs/claude-fill.md`
-- **Captchas and bot blocks:** read before you change a captcha wait, a block's handoff, or `captcha.py`. `docs/captchas-and-bot-blocks.md`
-- **Sign-in:** read before you change a sign-in page, an Employer account or its password, or the Accounts tab. `docs/sign-in.md`
-- **Apply window:** read before you change the window's lifetime, its Dock keeper, or what a Record keeps. `docs/apply-window.md`
-- **Plain Workers:** read before you change `apply/plain/`, `worker_mode`, `--into` or the worker extension. Message formats are in `docs/plain-workers/PROTOCOL.md`. `docs/plain-workers/guide.md`
+- `docs/fill-engine.md`: Apply's plan rules, `fill_engine.py`, `APPLY_FILL_ENGINE`, or what the plan answers from the Tracker, the Answer bank or a bare date.
+- `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, a Tracker write, the already-applied check, or the tailored resume.
+- `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, page gates, or how a question reaches Needs you.
+- `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
+- `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
+- `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
+- `docs/sign-in.md`: a sign-in page, an Employer account or its password, or the Accounts tab.
+- `docs/apply-window.md`: the window's lifetime, its Dock keeper, or what a Record keeps.
+- `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension.
+- `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
+- `docs/research/`: the research behind plain Workers and Employer account sign-in. Each note's Status line says what was built.
 
 ## The data folder (`APPLY_HOME`)
 

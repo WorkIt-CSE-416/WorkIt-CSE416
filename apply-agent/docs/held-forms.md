@@ -221,11 +221,6 @@ the window.
 
 ## Ask Claude (KAN-638)
 
-**When Lisul reports a problem with an open application in a Claude Code chat, send it to the form with
-`uv run apply ask "<company, role or application ID>" "<his words>"` (from `apply-agent/`).** Do not
-open or drive the form yourself. `uv run apply ask --list` lists every open form. Print the reply to him.
-Never press the offer's Save for him: only his click in the window saves to his sources.
-
 `src/apply/ask.py`. Lisul tells Claude, in his own words, what is wrong on a held form ("you left
 preferred locations blank, pick New York and Jersey City", "page 2's GPA is wrong"). Claude (Opus)
 fixes it live on that form.
