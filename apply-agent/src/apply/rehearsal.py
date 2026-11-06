@@ -55,6 +55,7 @@ from apply import (
     on_page,
     regenerate,
     stuck,
+    submit_guard,
     tailored,
     trace,
     verify,
@@ -1064,7 +1065,8 @@ class _Kept:
         self.close()  # a fresh, guarded page for Fill again: the browser of one Worker profile at a time
         stack = ExitStack()
         self._stack = stack
-        self._page = stack.enter_context(self._site.open(url, worker=self._worker))
+        with submit_guard.guarding_on_open():  # guarded before its first load, where the site can (KAN-682)
+            self._page = stack.enter_context(self._site.open(url, worker=self._worker))
         guard(self._page)
         yield self._page
 

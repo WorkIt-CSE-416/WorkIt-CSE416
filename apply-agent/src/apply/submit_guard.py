@@ -73,7 +73,9 @@ rearm(), without a reload, so his fixes stay, before Apply drives it again."""
 
 import json
 import re
+import threading
 from collections.abc import Callable
+from contextlib import contextmanager
 
 from playwright.sync_api import Page, Route
 
@@ -482,10 +484,44 @@ DRIVE_BLOCKED = "Apply drive guard blocked "  # how the drive guard tells what i
 HEARD = (DRIVE_BLOCKED, "Apply rehearsal blocked ")
 
 
+_opening = threading.local()
+GUARDED = "_apply_guarded_at_open"  # set on a page (and a CDP page's context) that on_open guarded
+
+
+@contextmanager
+def guarding_on_open():
+    """Each page a JobSite opens on this thread, inside this, is guarded before its first load (on_open): a page
+    whose own script sends as it loads, or soon after, sends nothing. Without it, guard() came only after that
+    load, and Fill again's fresh page was unguarded for it (KAN-682)."""
+    _opening.on = True
+    try:
+        yield
+    finally:
+        _opening.on = False
+
+
+def on_open(page: Page) -> None:
+    """A JobSite calls this between making a page and its first navigation. Inside guarding_on_open, the guard
+    goes on then; guard() later sees it and needs no reload. Outside it (a live run's page), it does nothing."""
+    if not getattr(_opening, "on", False):
+        return
+    if _plain(page):
+        _plain(page).guard(page, reload=False)
+    else:
+        if not getattr(page.context, GUARDED, False):
+            page.context.route(ROUTED, _refuse)
+            page.context.add_init_script(SCRIPT)
+            setattr(page.context, GUARDED, True)
+    setattr(page, GUARDED, True)
+
+
 def guard(page: Page) -> None:
     """Put the guard on an open page, every page its context opens later and
     all their workers. The page is loaded again under it, so the guard runs
-    before the page's own code. A plain Worker's page: apply.plain.guards."""
+    before the page's own code. A page on_open guarded already needs nothing
+    more. A plain Worker's page: apply.plain.guards."""
+    if getattr(page, GUARDED, False) or (not _plain(page) and getattr(page.context, GUARDED, False)):
+        return
     if _plain(page):
         return _plain(page).guard(page)
     page.context.route(ROUTED, _refuse)

@@ -133,11 +133,13 @@ def alternatives(pattern: str) -> list[str]:
 
 # --- submit_guard on a plain page
 
-def guard(page) -> None:
-    """submit_guard.guard: the rules on this tab, the guard on every page from now, then a reload."""
+def guard(page, reload: bool = True) -> None:
+    """submit_guard.guard: the rules on this tab, the guard on every page from now, then a reload
+    (none from submit_guard.on_open, before the tab's first load)."""
     page.route(PATTERN, submit_guard._refuse)
     page.context.add_init_script(submit_guard.SCRIPT)
-    page.reload(wait_until="domcontentloaded")
+    if reload:
+        page.reload(wait_until="domcontentloaded")
 
 
 def lift(page, pressed=None, again=None, warning: str = "", wrong: bool = True, bound: bool = False,
