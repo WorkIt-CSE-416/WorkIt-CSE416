@@ -339,7 +339,8 @@ _TEMPLATE = r"""
 """
 
 
-# What else the drive guard blocks, while Claude drives: a sign-in other than Google's, a payment,
+# What else the drive guard blocks, while Claude drives: an account step's button on a page that carries a
+# captcha (apply.captcha.CARRIED), a sign-in other than Google's, a payment,
 # a withdraw or delete of the application, account or profile, and ticking an opt-in to texts or
 # marketing while Lisul's sms_opt_in or marketing_opt_in policy says no (the planner's questions
 # of those policies; unticking one goes on).
@@ -364,6 +365,11 @@ _CONTROLS = r"""
     const el = event.target && event.target.closest
       && event.target.closest(BOX + ', button, input[type=submit], input[type=button], [role=button], a');
     if (!el || lifted()) return;
+    if (!accountClick() && !el.matches(BOX) && !el.matches('a:not([role=button])') && carriesCaptcha() && accountStep(el)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return note('the "' + wordsOf(el).trim().slice(0, 40) + '" click ' + SIGN_IN_CLICK);
+    }
     const box = el.matches(BOX);
     const words = box ? boxWords(el) : wordsOf(el);
     // A checkbox's click has ticked it already; a role=checkbox's has yet to.
@@ -373,13 +379,40 @@ _CONTROLS = r"""
     event.stopImmediatePropagation();
     note('the "' + words.trim().slice(0, 40) + '" click');
   }, true);
+  // A page that carries a captcha, its invisible kind too (apply.captcha.CARRIED), in this frame or a same-origin
+  // one around it: an account step's button there runs the captcha, so it is Lisul's to press, never Claude's, and
+  // plain code's account click never comes (apply.account_pages hands off first). AMD's iCIMS email step, KAN-703.
+  const CAPTCHA_CARRIED = @CAPTCHA_CARRIED@, SIGN_IN_CLICK = @SIGN_IN_CLICK@;
+  const carriesCaptcha = () => {
+    for (let w = window; ; w = w.parent) {
+      try { if (w.document.querySelector(CAPTCHA_CARRIED)) return true; } catch (e) { return false; }
+      if (w === w.parent) return false;
+    }
+  };
+  // An account step: a form with a password box, or one with an email or username box and few fields else (an
+  // email step's Next): at most one more, or three on a page whose path signs in or makes an account.
+  const ACCOUNT_PATH = /(?:^|[\/_.-])(?:log-?in|sign-?in|sign-?up|log-?on|register|registration|account)(?:$|[\/_.-])/i;
+  const accountStep = (el) => {
+    const scope = el.form || (el.closest && el.closest('form')) || document;
+    if (scope.querySelector('input[type=password]')) return true;
+    const shown = [...scope.querySelectorAll('input, select, textarea')].filter((n) => !/^(hidden|submit|button|reset|image|checkbox|radio)$/.test(n.type)
+      && (!n.checkVisibility || n.checkVisibility()));
+    return shown.length <= (ACCOUNT_PATH.test(location.pathname) ? 4 : 2)
+      && shown.some((n) => n.type === 'email' || /e-?mail|user|login/i.test([n.name, n.id, n.autocomplete].join(' ')));
+  };
   // A sign-in or new account's own button, or its form sent another way (Enter): plain code's alone.
   const signsIn = (el) => {
     const form = el.form || (el.closest && el.closest('form'));
     return !!form && !el.matches('a') && !!form.querySelector('input[type=password]');
   };
   window.addEventListener('submit', (event) => {
-    if (lifted() || accountClick() || !event.target.querySelector('input[type=password]')) return;
+    if (lifted() || accountClick()) return;
+    if (carriesCaptcha() && accountStep(event.submitter || event.target)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return note('a sign-in ' + SIGN_IN_CLICK);
+    }
+    if (!event.target.querySelector('input[type=password]')) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     note('a sign-in');
@@ -483,7 +516,7 @@ def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False, port:
     """The drive guard's script, letting through ticking an opt-in to texts or
     marketing that Lisul's policy says yes to (`port`: a plain Worker's copy)."""
     controls = _CONTROLS.replace("@SMS_OPT_IN@", _js(sms_opt_in)).replace("@MARKETING_OPT_IN@", _js(marketing_opt_in))
-    for name, value in {"@ASK_ELEMENT@": send_click.ELEMENT, "@ASK_SECRET@": json.dumps(send_click.SECRET.pattern),
+    for name, value in {"@CAPTCHA_CARRIED@": json.dumps(captcha.CARRIED), "@SIGN_IN_CLICK@": json.dumps(captcha.SIGN_IN_CLICK),"@ASK_ELEMENT@": send_click.ELEMENT, "@ASK_SECRET@": json.dumps(send_click.SECRET.pattern),
                         "@ASK_ATTEST@": json.dumps(send_click.ATTEST.pattern), "@ASK_RESEND@": json.dumps(send_click.RESEND.pattern)}.items():
         controls = controls.replace(name, value)
     return _script("applyDrive", "Apply drive guard", lifted="window.__applyDriveLifted === true", extra=controls,

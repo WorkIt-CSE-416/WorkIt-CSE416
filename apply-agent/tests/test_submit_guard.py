@@ -21,6 +21,7 @@ from conftest import (
     SKYDIO_FORM,
     SKYDIO_URL,
 )
+from fake_accounts_site import EMAIL_STEP as ACCOUNT_EMAIL_STEP
 from fake_accounts_site import LOGIN as ACCOUNT_LOGIN
 from fake_accounts_site import REGISTER as ACCOUNT_REGISTER
 from fake_accounts_site import FakeAccountsSite
@@ -35,6 +36,7 @@ from playwright.sync_api import Error as PlaywrightError
 from test_claude_fill import LUNAR_FORM, LUNAR_URL
 from test_workday_filler import CACI_FORM, CACI_URL, NOW, ONE_PAGER, fill_all
 
+from apply import captcha
 from apply.accounts import Accounts
 from apply.ashby import AshbyFiller
 from apply.claude_fill import OnePage
@@ -423,6 +425,27 @@ def test_a_sign_in_or_new_accounts_button_claude_clicks_does_nothing_on_a_page_i
         page.wait_for_timeout(500)
         assert server.sign_ins == []
         assert drive.blocked() == ['the "Sign In" click', "a sign-in"]
+
+
+@pytest.mark.parametrize("invisible_captcha", [True, False])
+def test_claudes_next_on_an_email_step_with_an_invisible_captcha_is_never_pressed(invisible_captcha):
+    # AMD's iCIMS login (KAN-703): an email box and Next, which runs an invisible hCaptcha. Claude pressed it
+    # itself and a picture challenge opened. Without a captcha, the same Next goes through.
+    server = FakeAccountsSite(FakeMailbox(), invisible_captcha=invisible_captcha)
+    with server.open(ACCOUNT_EMAIL_STEP) as page:
+        drive = DriveGuard(page)
+        drive.arm()  # Claude drives
+        page.get_by_label("Email").fill("test.person@example.com")
+        page.get_by_role("button", name="Next").click()
+        page.get_by_label("Email").press("Enter")
+        page.wait_for_timeout(500)
+        if invisible_captcha:
+            assert server.email_steps == []
+            assert drive.blocked() and all(b.endswith(captcha.SIGN_IN_CLICK) for b in drive.blocked())
+            assert drive.blocked()[0] == 'the "Next" click on a sign-in page with a captcha'
+        else:
+            assert server.email_steps == ["test.person@example.com"] * 2
+            assert drive.blocked() == []
 
 
 def test_while_claude_drives_no_click_or_key_reaches_a_captchas_box_and_lisuls_do_once_it_stops():
