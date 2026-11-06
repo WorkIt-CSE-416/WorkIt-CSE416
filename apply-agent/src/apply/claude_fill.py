@@ -732,7 +732,7 @@ class ClaudeFill:
         if self._guard is None:
             self._guard = DriveGuard(page, **self._opt_ins)
         self._guard.arm()
-        if not self._sessions and self._url and _unhashed(page.url) == _unhashed(self._url):
+        if not self._sessions and self._url and _unhashed(page.url) == _unhashed(self._url) and _opens_only(self._url):
             self._guard.let_start_click()  # the Posting's own page, untouched yet: its Apply may open the form (KAN-725)
         before = len(self._guard.blocked())  # a block of an earlier drive was its Handoff already (Lisul resumed after)
         try:
@@ -881,12 +881,16 @@ STEP_ENTRY = """el => {
 
 def _the_listed(page: Page, name: str):
     """The one entry in the form's list of steps that Claude named: of exactly that name, else the one whose name
-    starts with it (a tracker's "Declaration Item not completed"). A name that sends (Claude's, or the entry's own
-    as the page names it), none, or two that differ is a Handoff: no click."""
+    starts with it (a tracker's "Declaration Item not completed"), else the one that has it just after a heading's
+    colon ("Section Header: Declaration"). A name that sends (Claude's, or the entry's own as the page names it),
+    none, or two that differ is a Handoff: no click."""
     if not name.strip() or SENDS.search(name):
         raise Handoff(f"Claude named {name!r} as a step of the form, which may send it. Fill it in yourself.")
     starts = re.compile(rf"^\s*{re.escape(name.strip())}(?!\w)", re.IGNORECASE)
-    for match in ({"name": name, "exact": True}, {"name": starts}):
+    # TAL.net's live links are named by an aria-label with a heading first: "Section Header: Additional Information
+    # Item incomplete" (KAN-729). The step's name right after that heading's colon counts as its start.
+    headed = re.compile(rf"^[^:]{{0,40}}:\s*{re.escape(name.strip())}(?!\w)", re.IGNORECASE)
+    for match in ({"name": name, "exact": True}, {"name": starts}, {"name": headed}):
         found = [el for role in ("link", "button", "tab") for el in page.get_by_role(role, **match).all()
                  if el.is_visible() and el.evaluate(STEP_ENTRY) is True]
         if found:
@@ -1459,6 +1463,17 @@ def _page_text(page: Page) -> str:
         except Exception:
             continue  # a frame that went away, or one that refuses scripts
     return "\n".join(said)
+
+
+# The job systems whose posting's Apply button is known to open the form and send nothing (KAN-725): TAL.net's
+# posts its token alone and answers with the form's first page. Anywhere else a posting's Apply may be a one-click
+# apply from a profile the site holds, so it stays blocked. A host joins only once its posting is proven so.
+OPENS_ONLY = ("tal.net",)
+
+
+def _opens_only(url: str) -> bool:
+    host = (urlsplit(url).hostname or "").lower()
+    return any(host == h or host.endswith("." + h) for h in OPENS_ONLY)
 
 
 def _unhashed(url: str) -> str:
