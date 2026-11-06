@@ -828,6 +828,107 @@ def test_a_resume_behind_an_uploader_dialog_is_sent_on_to_the_form():
         browser.close()
 
 
+# iCIMS's Candidate Profile (AMD's, live), in its frame as on careers.amd.com: the résumé's input sits in the
+# profile's own form, beside its "Submit Profile". Its change handler shows "Parsing resume, please wait..." and
+# posts the form natively into a hidden frame; the parse's answer shows the file's name.
+ICIMS_OUTER = '<!doctype html><body><iframe id="icims_content_iframe" src="/candidate" width="900" height="600"></iframe>'
+ICIMS_FORM = """<!doctype html><body>
+<form id="profile" method="post" action="/candidate?parse=1" enctype="multipart/form-data" target="parser">
+  <h2>Resume/CV</h2><p>Provide your resume/CV below to pre-fill your profile.</p>
+  <label for="resume">Please upload your resume (max size: 5 MB)</label>
+  <input type="file" id="resume" name="resume">
+  <div id="status"></div>
+  <label>Legal First Name <input name="first"></label>
+  <button type="submit">Submit Profile</button>
+</form>
+<iframe name="parser" hidden></iframe>
+<script>
+document.getElementById('resume').addEventListener('change', () => {
+  document.getElementById('status').textContent = 'Parsing resume, please wait...';
+  document.getElementById('profile').submit();
+});
+window.parsed = (name) => { document.getElementById('status').textContent = name; };
+</script></body>"""
+
+
+def _icims(page, posts: list) -> None:
+    def serve(route):
+        request = route.request
+        if request.method == "POST":
+            posts.append(request.url)
+            name = "one-pager.pdf" if b"one-pager.pdf" in (request.post_data_buffer or b"") else "?"
+            return route.fulfill(body=f"<script>parent.parsed({json.dumps(name)})</script>", content_type="text/html")
+        body = ICIMS_FORM if request.url.endswith("/candidate") else ICIMS_OUTER
+        return route.fulfill(body=body, content_type="text/html")
+    page.route("https://icims.example/**", serve)
+    page.goto("https://icims.example/jobs/90947/candidate-page")
+
+
+def test_icims_posts_the_attached_resume_to_be_parsed_through_the_guards():
+    # Live on AMD: the guards blocked the parse's native POST, so it showed "Parsing resume" for good (KAN-691).
+    from playwright.sync_api import sync_playwright
+
+    from apply.attach import attach_resume
+    from apply.submit_guard import DriveGuard, guard
+
+    posts = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        _icims(page, posts)
+        guard(page)  # a rehearsal's guard, and Claude fill's
+        drive = DriveGuard(page)
+        assert attach_resume(page, FIXTURES / "one-pager.pdf", drive)
+        assert posts == ["https://icims.example/candidate?parse=1"]
+        form = page.frame_locator("#icims_content_iframe")
+        assert form.locator("#status").inner_text() == "one-pager.pdf"
+        # Its Submit Profile, after the attach, is blocked as ever: nothing more is sent.
+        form.get_by_role("button", name="Submit Profile").click()
+        page.wait_for_timeout(500)
+        assert posts == ["https://icims.example/candidate?parse=1"]
+        browser.close()
+
+
+def test_without_the_attach_s_window_the_guards_block_icims_s_parse_post():
+    from playwright.sync_api import sync_playwright
+
+    from apply.attach import attach_resume
+    from apply.submit_guard import DriveGuard, guard
+
+    posts = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        _icims(page, posts)
+        guard(page)
+        DriveGuard(page)
+        attach_resume(page, FIXTURES / "one-pager.pdf")  # no guard given: as before KAN-691
+        assert posts == []  # the input shows its file, but iCIMS never had it
+        assert page.frame_locator("#icims_content_iframe").locator("#status").inner_text() == "Parsing resume, please wait..."
+        browser.close()
+
+
+def test_the_attach_s_window_lets_no_button_that_sends_post_the_form():
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import DriveGuard, guard
+
+    posts = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        _icims(page, posts)
+        guard(page)
+        drive = DriveGuard(page)
+        frame = page.frame_locator("#icims_content_iframe")
+        frame.locator("#resume").set_input_files(FIXTURES / "one-pager.pdf")  # blocked: no window yet
+        drive.let_upload_post()
+        frame.get_by_role("button", name="Submit Profile").click()
+        page.wait_for_timeout(500)
+        assert posts == []
+        browser.close()
+
+
 # Airtable's dropdowns, as they went live: a combobox named by its label lists its choices
 # (and a blank "None") only once it is clicked open.
 AIRTABLE_DROPDOWNS = """<!doctype html><body>

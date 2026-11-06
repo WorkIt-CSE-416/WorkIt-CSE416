@@ -524,13 +524,15 @@ class ClaudeFill:
         if said := clear_pop_up(page, self._resume):
             raise Handoff(f'A pop-up covers the form ("{said}") and Apply could not close it. Fill it in yourself.')
 
-    @staticmethod
-    def _attach_resume(page: Page, labels: dict[str, str], answers: Answers) -> dict[str, str]:
+    def _attach_resume(self, page: Page, labels: dict[str, str], answers: Answers) -> dict[str, str]:
         """The résumé, attached by plain code (see apply.attach), as {field: the
-        file name the page shows}; empty if it's left to Claude."""
+        file name the page shows}; empty if it's left to Claude. The guards let
+        the page post the file meanwhile (iCIMS's parse, KAN-691)."""
         for name, value in answers.items():
             if isinstance(value, Path) and re.search(RESUME, labels[name], re.IGNORECASE):
-                return {name: value.name} if attach_resume(page, value) else {}
+                if self._guard is None:
+                    self._guard = DriveGuard(page, **self._opt_ins)
+                return {name: value.name} if attach_resume(page, value, self._guard) else {}
         return {}
 
     def submit(self, page: Page) -> None:

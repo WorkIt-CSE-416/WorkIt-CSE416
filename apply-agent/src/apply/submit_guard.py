@@ -282,10 +282,16 @@ _TEMPLATE = r"""
     try { away = new URL(postTarget(form, by), location.href).origin !== location.origin; } catch (e) {}
     return away && [...document.getElementsByName(target)].some((n) => /^I?FRAME$/.test(n.tagName));
   };
+  // Plain code's résumé attach (apply.attach): the page's own script posting the file it was just given, as iCIMS
+  // posts its résumé to be parsed by a native submission (KAN-691). Only a form that holds a chosen file, sent by no
+  // button that sends, and never to a final URL; outside the attach's window it is blocked as ever.
+  const uploadPost = (form, by) => window.__applyUploadPost === true && !(by && sends(by))
+    && [...form.querySelectorAll('input[type=file]')].some((input) => input.files && input.files.length > 0)
+    && !postsFinal(form, by);
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
-    if (relay(form, by) || frameLoad(form, by)) return;
+    if (relay(form, by) || frameLoad(form, by) || uploadPost(form, by)) return;
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
     if (accountClick() && form.querySelector('input[type=password]') && !postsFinal(form, by)) return;
@@ -305,7 +311,7 @@ _TEMPLATE = r"""
     // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
     const step = accountClick() && !postsFinal(this) && (!!this.querySelector('input[type=password]')
       || ![...this.querySelectorAll('button, input[type=submit]')].some(sends));
-    if (!lifted() && !step && !relay(this, null) && !frameLoad(this, null) && posts(this)) return note('a form submission');
+    if (!lifted() && !step && !relay(this, null) && !frameLoad(this, null) && !uploadPost(this) && posts(this)) return note('a form submission');
     return submit.call(this);
   };
 
@@ -889,9 +895,14 @@ class DriveGuard:
         (Microsoft's "Create your profile", KAN-647): its button only, never the application request."""
         self._in_frames(f"window.__applyProfileClick = {_js(let)}")
 
+    def let_upload_post(self, let: bool = True) -> None:
+        """Let the page's own script post the file plain code just attached (iCIMS's résumé parse, KAN-691):
+        a form holding a chosen file, by no button that sends, never to a final URL, until let off again."""
+        self._in_frames(f"window.__applyUploadPost = {_js(let)}")
+
     def arm(self) -> None:
         self._in_frames("window.__applyDriveLifted = false; window.__applyAccountClick = false; "
-                        "window.__applyProfileClick = false")
+                        "window.__applyProfileClick = false; window.__applyUploadPost = false")
         self._set_driving(True)
 
     def asking(self, on: bool, may_tick: bool = False) -> None:
