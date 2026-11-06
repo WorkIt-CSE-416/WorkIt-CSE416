@@ -9,11 +9,16 @@
 // The protocol is apply-agent/docs/plain-workers/PROTOCOL.md. Ops live in
 // ops/*.js, one file per slice, joined in ops/index.js.
 
+import { useCtx } from "./ops/guard.js";
 import { ops } from "./ops/index.js";
-import { userScriptsOn } from "./ops/shared.js";
+import { useVendor, userScriptsOn } from "./ops/shared.js";
 
 const HOST = "com.workit.apply_worker";
 const PROTOCOL = 1;
+// What this code can do, in the hello (`features`): Apply compares it with what it expects
+// (bridge.FEATURES). 2: tile.shown (KAN-635) and extension.reload. 3: the welcome's vendor set and
+// vendor.use (KAN-645). Raise it with each new op or event.
+const FEATURES = 3;
 const RECONNECT_MS = 2000;
 
 let port = null;
@@ -34,6 +39,7 @@ const ctx = {
     if (welcomed) send({ type: "event", event, ...fields });
   },
 };
+useCtx(ctx);
 
 async function hello() {
   const engine = await fetch(chrome.runtime.getURL("vendor/engine.json"))
@@ -43,6 +49,7 @@ async function hello() {
     type: "hello",
     protocol: PROTOCOL,
     extension: chrome.runtime.getManifest().version,
+    features: FEATURES,
     engine,
     userScripts: userScriptsOn(),
     webdriver: navigator.webdriver === true,
@@ -88,6 +95,11 @@ function handle(message) {
   }
   if (message.type === "welcome") {
     welcomed = true;
+    try {
+      if (message.vendor) useVendor(message.vendor);
+    } catch (error) {
+      console.warn("Apply worker: bad vendor set", error);
+    }
     chrome.action?.setBadgeText?.({ text: "" });
     return;
   }

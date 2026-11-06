@@ -3,8 +3,9 @@
 S1 (KAN-607) and S2 (KAN-608) own this; S3 to S7 build on it (S3, KAN-609: the tile ops). Spec: KAN-606. This file
 is the source; change it in the PR that changes the protocol.
 
-Hard rule: never evade bot detection. Nothing here hides automation; a plain
-Worker simply has none (no CDP, no automation flags, no headless).
+Hard rule: never evade bot detection and never touch a captcha; hand those to
+the user. A plain Worker is a Chrome with no CDP, no automation flags and no
+headless mode.
 
 ## Pieces
 
@@ -18,8 +19,11 @@ Apply process                                   Worker k (plain Chrome)
 
 - **Extension:** `apply-agent/worker-extension/` in WorkIt. Private, never on the
   Store. Its ID is fixed by `manifest.json`'s `key`: `apply.plain.extension.EXTENSION_ID`.
-  Generated files go in `worker-extension/vendor/` (gitignored), written by
-  `apply plain prepare` (the launcher runs it before every launch):
+  Workers load a copy of it, `APPLY_PROFILES/worker-extension/` (KAN-645), which Apply replaces
+  only while none of that folder's Workers runs. Its generated files are in `vendor/` and, for
+  code at features 3, in a write-once set `vendor/sets/<id>/` that the welcome names (the
+  extension then reads each `vendor/<file>` from the set: `ops/shared.js: vendor`). The launcher
+  writes them before every launch (`apply plain prepare` writes the checkout's `vendor/`):
   - `vendor/engine.js`: the Fill engine bundle, copied from the extension submodule's
     `fill-engine/dist/engine.js` (the same build the WorkIt extension uses).
   - `vendor/engine.json`: `{"version": "0.3.13+7a3a3fc", "sha256": "..."}`.
@@ -62,16 +66,31 @@ extension joins them before handling. The extension never needs to chunk.
    (`worker` is 0-based everywhere, as `WorkerBrowsers.open(worker=0)`; Worker k's profile is `plain-<k+1>`.)
 4. Extension → Apply:
    ```json
-   {"type": "hello", "protocol": 1, "extension": "0.1.0",
+   {"type": "hello", "protocol": 1, "extension": "0.2.0", "features": 2,
     "engine": {"version": "0.3.13+7a3a3fc", "sha256": "..."},
     "userScripts": true, "webdriver": false,
     "userAgent": "...", "brands": ["Google Chrome", "..."]}
    ```
-5. Apply → extension: `{"type": "welcome", "worker": k, "protocol": 1}`, or
+5. Apply → extension: `{"type": "welcome", "worker": k, "protocol": 1, "vendor": "vendor/sets/<id>"}`
+   (`vendor` only for features 3 or more), or
    `{"type": "refuse", "reason": "..."}` and Apply closes the connection.
    Apply refuses: a wrong origin, another protocol, or an engine whose version or
    sha256 differs from Apply's own `fill_engine.ENGINE` (the reason names both and says
    to run `apply plain prepare`).
+   An extension at features 3 or more that gets a `vendor` set is never refused for its engine:
+   the set holds Apply's own.
+   `features` (KAN-643) is what the extension's code can do: 2 is `tile.shown` and
+   `extension.reload`; 3 is the welcome's vendor set and `vendor.use` (KAN-645); none (an
+   extension from before KAN-643) counts as 1. Raise
+   `FEATURES` in `background.js` and `bridge.FEATURES` together with each new op or event.
+   Chrome keeps running the code it loaded, so a Worker can be older than Apply. An older
+   one is never refused. When it has `extension.reload` (features 2 or more) and its profile
+   has Developer mode on (`launcher.developer_mode`), Apply welcomes it, calls
+   `extension.reload`, and waits for the hello its reloaded code sends; once per Worker.
+   Without Developer mode Chrome disables a reloaded unpacked extension
+   (`unsupportedDeveloperExtension`), so Apply never reloads one there. A Worker still
+   older is welcomed with `Connection.stale`: Apply prints one line, and its tile says
+   "Worker extension is out of date: quit Apply and start it again".
 6. On a closed port the extension reconnects every 2 s (Apply restarted). Apply treats a
    Worker whose connection closed as gone (as a quit browser today).
 
@@ -114,6 +133,7 @@ Targets: `tab` is a Chrome tab id; `frame` is a webNavigation frame id (0 = top,
 | `tabs.create` | `url?`, `active?` | that tab's info |
 | `tabs.get` | `tab` | `{"tab", "url", "title", "status"}` |
 | `tabs.close` | `tab` | `null` |
+| `extension.reload` | | `null`; then `chrome.runtime.reload()`: the extension loads its files again from its folder, this port closes, and the new code says hello. Its guards come back first: registered scripts, session rules, lifts, held notes and bindings (`keepAcrossReload`, KAN-657). Web tabs, their pages and cookies stay; registered guards and scripts go (KAN-643: Apply calls it only before the welcome, or `Bridge.reload`). |
 | `tabs.goto` | `tab`, `url`, `waitUntil` (`load`/`domcontentloaded`/`commit`), `timeout` ms | `{"url", "title"}` |
 | `tabs.reload` | `tab`, `waitUntil`, `timeout` | `{"url", "title"}` |
 | `tabs.waitForLoad` | `tab`, `state`, `timeout` | `null` |
@@ -121,6 +141,7 @@ Targets: `tab` is a Chrome tab id; `frame` is a webNavigation frame id (0 = top,
 | `tabs.screenshot` | `tab`, `format` (`png`/`jpeg`), `quality?` | `{"data": base64}`; activates the tab; waits out the ~2/s quota |
 | `frames` | `tab` | `[{"frame", "parent", "url"}]` |
 | `eval` | `tab`, `frame?`, `code` | the value of `code` (an expression; promises are awaited), run in the page's MAIN world through `chrome.userScripts.execute`. With user scripts off: `chrome.scripting.executeScript` in MAIN calling indirect `eval` (works where page CSP allows eval: the fakes; real sites need the seed's Allow User Scripts). The value must be JSON-serializable. |
+| `vendor.use` | `root` | `{root}`: read Apply's generated files from that vendor set from now (a new engine) |
 | `engine.load` | `tab`, `frame?` | `true`; injects `vendor/engine.js` into MAIN as a file (no CSP issue), unless `FillEngine` is there |
 | `engine.call` | `tab`, `frame?`, `name`, `args` | `FillEngine.call(name, args)`'s answer (`{value}` or `{error}`), run by a fixed function in MAIN through `chrome.scripting` (no eval, no user scripts needed); loads the engine first if the page lacks it |
 | `dom` | `tab`, `frame?`, `method`, `args` | `{"ok": value}` or `{"retry": reason}`; runs `page/dom.js`'s `method` in the extension's isolated world with Playwright's injected script (`__applyPW`); see below |
@@ -408,8 +429,8 @@ when they end.
 
 `policies.yaml: worker_mode: cdp|plain|protected` (default `cdp`) picks the Worker for each form (S8,
 `apply.plain.site`): `plain` puts every form on a plain Worker (`PlainSite`), `protected` only those on
-`plain_worker_hosts` (Lever, SmartRecruiters, Workable) and on each host a bot block was seen on
-(`APPLY_HOME/plain-hosts.json`, written by `captcha.blocked`), the rest on CDP Workers (`RoutedSite`).
+`plain_worker_hosts` (Lever, SmartRecruiters, Workable) and in `APPLY_HOME/plain-hosts.json` (written
+by `captcha.blocked`), the rest on CDP Workers (`RoutedSite`).
 `PlainSite.open` keeps a Worker's Chrome up across the Applications it carries: on reuse it calls
 `guards.reset(worker)` and closes the last one's tabs; after each it leaves one blank tab, so the window
 stays. `close()` stops every Chrome it started, by PID, when the run or rehearsal ends.

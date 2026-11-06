@@ -70,6 +70,7 @@ jobs:
     outputs:
       extension: ${{ steps.filter.outputs.extension }}
       apply: ${{ steps.filter.outputs.apply }}
+      backend: ${{ steps.filter.outputs.backend }}
     steps:
       # A PR's files come from the API; any other event diffs the checkout.
       - uses: actions/checkout@v4
@@ -77,6 +78,13 @@ jobs:
         id: filter
         with:
           filters: |
+            # The backend's tests read only backend/ and the two packages it
+            # installs, scout/ and scraper/; no other folder can break them
+            backend:
+              - backend/**
+              - scout/**
+              - scraper/**
+              - .github/workflows/ci.yml
             extension:
               - autofiller_extension/**
               - .github/workflows/ci.yml
@@ -135,7 +143,7 @@ jobs:
     needs: [changes, engine]
     if: needs.changes.outputs.apply == 'true' && needs.engine.outputs.set == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: apply-agent
@@ -160,6 +168,7 @@ jobs:
             tests/test_answer_bank.py \
             tests/test_answering.py \
             tests/test_applicant_name.py \
+            tests/test_ask.py \
             tests/test_apply_home.py \
             tests/test_approve.py \
             tests/test_bot_signals.py \
@@ -180,9 +189,13 @@ jobs:
             tests/test_gates.py \
             tests/test_gmail.py \
             tests/test_graduate_only.py \
+            tests/test_into.py \
+            tests/test_preflight.py \
             tests/test_keychain_contract.py \
             tests/test_mail_command.py \
+            tests/test_masked.py \
             tests/test_matches.py \
+            tests/test_network_block.py \
             tests/test_notification.py \
             tests/test_outside_us.py \
             tests/test_phone_push.py \
@@ -195,6 +208,7 @@ jobs:
             tests/test_regenerate.py \
             tests/test_repair_requests.py \
             tests/test_requests.py \
+            tests/test_resume_check.py \
             tests/test_sameness.py \
             tests/test_schedule.py \
             tests/test_send_click.py \
@@ -204,12 +218,18 @@ jobs:
             tests/test_stock.py \
             tests/test_story_map.py \
             tests/test_tailored_resume.py \
+            tests/test_temp_state.py \
             tests/test_tracker_cleanup.py \
             tests/test_already_applied.py \
             tests/test_tracker_contract.py \
             tests/test_tracker_record.py \
             tests/test_worker_date.py \
             tests/test_workit_login.py
+      # The submit guard's hostile pages (KAN-666): their no-browser and CDP cases, on Playwright's
+      # Chromium. The plain Worker cases skip here (no Chrome for Testing on Linux).
+      - run: uv run playwright install --with-deps chromium
+      - name: Submit guard hostile pages
+        run: uv run pytest -q tests/test_submit_guard_hostile.py
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.
@@ -226,7 +246,12 @@ jobs:
       - run: npm ci
       - run: npm run check
 
+  # Skipped on a PR that touches none of backend/, scout/ and scraper/ (the
+  # changes job): 37 of the 40 PRs merged before 2026-11-04 touched neither, and each
+  # waited about 7 minutes for it. A skipped job passes a required check.
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -261,7 +286,10 @@ jobs:
           path: backend/vendor
           key: tectonic-${{ hashFiles('backend/scripts/fetch_tectonic.py', 'backend/app/services/resume_render/*.py', 'backend/app/services/resume_render/*.tex') }}
       - run: python3 scripts/fetch_tectonic.py
-      - run: uv run pytest
+      # One pytest worker per core (pytest-xdist): each worker makes and
+      # migrates its own test database (tests/conftest.py), so they share no
+      # table. Run one at a time, the suite took about 6.5 minutes.
+      - run: uv run pytest -n auto
       # Scout's package (../scout) is installed here, so it is linted and tested here.
       - run: uv run ruff check ../scout
       - run: uv run pytest ../scout/tests

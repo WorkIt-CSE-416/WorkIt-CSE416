@@ -124,6 +124,9 @@ export type Application = {
   events: ApplicationEvent[];
   /** A filled button, for the one card whose action cannot wait. */
   cta?: string;
+  /** The student has a resume tailored to its job posting (KAN-217): the
+   *  list's and grid's Tailored chip. */
+  tailored?: boolean;
 };
 
 /** One dated thing with whose it is: a calendar entry, an Up Next row, a
@@ -284,6 +287,17 @@ const UTC_DAY = new Intl.DateTimeFormat("en-US", {
  *  a date has no zone, so it is read in UTC, where it was written. */
 export function shortDay(day: string) {
   return UTC_DAY.format(new Date(`${day}T00:00:00Z`));
+}
+
+/** A saved job whose posting has closed: it can no longer be applied to, so
+ *  its Tracker row and card offer Remove in place of a stage
+ *  (./applications/closed-saved.tsx). Only a saved job: a posting closing
+ *  after the student applied changes nothing for them, so an applied job's
+ *  row never says so (2026-11-05). Here, not beside the control: the cards
+ *  are drawn on the server, which cannot call a "use client" file's
+ *  function, and calling it from closed-saved.tsx broke Card View. */
+export function isClosedSaved(app: Pick<Application, "stage" | "open">) {
+  return app.stage === "saved" && app.open === false;
 }
 
 /** A card's one backward-looking fact: when it went in, or, for a job not

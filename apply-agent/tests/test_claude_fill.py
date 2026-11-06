@@ -906,6 +906,54 @@ def test_dropdowns_that_open_to_list_their_choices_are_picked_by_plain_code():
     assert chips == "Asian"
 
 
+# Microsoft's "Create your profile" step (live, KAN-646): a country code picker and a country of
+# residence dropdown, after one only a page script counts as visible (visibility: hidden) and
+# one in a shadow root, which only Playwright finds.
+PROFILE_DROPDOWNS = """<!doctype html><body>
+<div><input role="combobox" aria-label="Hidden search" style="visibility:hidden" onclick="openList(this, ['Nowhere'])"></div>
+<div id="host"></div>
+<div><label for="code">Country code</label>
+<input id="code" role="combobox" aria-label="Country code picker" value=""
+  onclick="openList(this, ['\U0001F1FA\U0001F1F8 (+1) United States of America', '\U0001F1E8\U0001F1E6 (+1) Canada'])"></div>
+<div><label id="country_label">Country/region of residence</label>
+<input id="input-7" role="combobox" aria-labelledby="country_label" value=""
+  onclick="openList(this, ['Canada', 'United States'])"></div>
+<div id="list" role="listbox"></div>
+<script>
+let open = null;
+function openList(box, options) {
+  open = box;
+  document.getElementById('list').innerHTML = options.map(o => '<div role="option" onclick="pick(this)">' + o + '</div>').join('');
+}
+function pick(option) { open.value = option.textContent; open.setAttribute('value', option.textContent);
+  open.parentElement.dataset.shown = option.textContent; document.getElementById('list').innerHTML = ''; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('list').innerHTML = ''; });
+const shadow = document.getElementById('host').attachShadow({mode: 'open'});
+shadow.innerHTML = '<input role="combobox" aria-label="Search jobs" onclick="openList(this, [\\'Engineering\\'])">';
+shadow.firstElementChild.onclick = function () { openList(this, ['Engineering']); };
+</script></body>"""
+
+
+def test_each_dropdown_gets_its_own_choices_and_answer_when_a_script_and_playwright_count_them_apart():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+
+    us_code = "\U0001F1FA\U0001F1F8 (+1) United States of America"
+    questions = [Question("q3", "Country code", "select", False), Question("q5", "Country/region of residence", "select", True)]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(PROFILE_DROPDOWNS)
+        found = claude_fill._with_options(page, questions)
+        claude_fill._pick_in_comboboxes(page, found, {"q3": us_code, "q5": "United States"})
+        code, country = page.input_value("#code"), page.input_value("#input-7")
+        browser.close()
+
+    assert [q.options for q in found] == [(us_code, "\U0001F1E8\U0001F1E6 (+1) Canada"), ("Canada", "United States")]
+    assert (code, country) == (us_code, "United States")
+
+
 def test_jobvites_country_of_residence_and_consent_are_passed_before_claude_reads_the_form(tmp_path):
     driver = JobviteDriver()
 
@@ -1014,6 +1062,56 @@ def test_a_step_whose_next_does_not_go_on_is_a_handoff_not_a_form_ready_to_submi
 
     assert row.status == "handoff"
     assert "didn't go on to its next step" in row.reason
+    assert server.submissions == []
+
+
+class GatedStepsDriver(JobviteStepsDriver):
+    """Reports the sponsorship question as one for Lisul to check, on the step that shows it."""
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        said = super().__call__(page, schema, prompt, files)
+        if "questions" not in schema["properties"] and page.get_by_text(SPONSORSHIP).first.is_visible():
+            said["for_lisul"] = [f"{SPONSORSHIP}: No"]
+        return said
+
+
+@pytest.mark.parametrize("gates, status", [(True, "handoff"), (False, "submitted")])
+def test_page_gates_stop_before_a_step_with_a_legal_answer_goes_on(tmp_path, gates, status):
+    profile = profile_with(tmp_path, policies={"page_gates": gates})
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile, tyler_match(), claude=FakeClaude(driver=GatedStepsDriver()))
+
+    assert row.status == status, row.reason
+    if gates:
+        assert row.reason.startswith(f"Page 2: check these 1 and tick any box that is yours, then press Resume: {SPONSORSHIP}: No")
+        assert server.submissions == []
+
+
+def test_page_gates_as_notes_list_the_check_and_go_on_to_the_last_page(tmp_path, capsys):
+    profile = profile_with(tmp_path, policies={"page_gates": "note"})
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile, tyler_match(), claude=FakeClaude(driver=GatedStepsDriver()))
+
+    assert row.status == "submitted", row.reason
+    assert f"Check before Submit: Page 2: {SPONSORSHIP}: No" in capsys.readouterr().err
+
+
+class NoButtonsStepsDriver(JobviteStepsDriver):
+    """Names no Next on the first step, and no button that sends, as a misread step would."""
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        said = super().__call__(page, schema, prompt, files)
+        if "questions" not in schema["properties"]:
+            said |= {"next_button": "", "submit_button": ""}
+        return said
+
+
+def test_a_step_with_no_next_and_no_button_that_sends_is_a_handoff_never_ready_to_submit(tmp_path):
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile_with(tmp_path), tyler_match(), claude=FakeClaude(driver=NoButtonsStepsDriver()))
+
+    assert row.status == "handoff"
+    assert "can't tell this is the form's last page" in row.reason
     assert server.submissions == []
 
 
@@ -1234,3 +1332,304 @@ def test_a_rehearsal_at_a_bot_block_waits_for_lisuls_press_to_open_his_chrome(tm
     assert done.outcome == "handoff" and "Finish Lunar Outpost in your Chrome" in done.why
     assert board.captions[0]["blocked"] is True and "resume" not in board.captions[0]
     assert opened == []
+
+
+HOME_AND_CAMPUS = """<h2>Home Address</h2><div><label for="h1">Address line 1 *</label><input id="h1" value="1 Home Road"></div>
+<h2>Campus Address</h2><div><label for="c1">Address line 1 *</label><input id="c1"></div>"""
+
+
+@pytest.mark.parametrize("html, named", [
+    (HOME_AND_CAMPUS, ["Campus Address: Address line 1"]),  # another section's field: a new question
+    (HOME_AND_CAMPUS.split("<h2>Campus")[0], []),  # the one field again: the question Apply knows
+])
+def test_a_label_in_another_section_is_a_new_question_never_merged(html, named):
+    # Bank of America's TAL.net (live): the campus "Address line 1" was taken for the home one and never filled.
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        known = [Question("q1", "Address line 1", "text", True, ())]
+        found = [{"label": "Address line 1", "kind": "text", "required": True, "options": []}]
+        assert [q["label"] for q in claude_fill._new_questions(page, known, found)] == named
+        browser.close()
+
+
+def test_the_step_limit_comes_from_the_policy(tmp_path):
+    # Bank of America's TAL.net form has more than 8 steps (KAN-649): a limit of 1 hands off at the first Next.
+    profile = profile_with(tmp_path, policies={"claude_fill": {"max_turns": 80, "max_tokens": 1200000, "max_steps": 1}})
+    with FakeJobviteServer(steps=JOBVITE_STEPS) as server:
+        [row] = run(server, profile, tyler_match(), claude=FakeClaude(driver=JobviteStepsDriver()))
+
+    assert row.status == "handoff"
+    assert "went through 1 steps" in row.reason
+    assert server.submissions == []
+
+
+# Microsoft's careers site once signed in (live, KAN-647): a "Create your profile" pop-up, its
+# button "Submit", comes before the application, which shows only once the profile is sent.
+PROFILE_THEN_FORM = """<!doctype html><body>
+<div id="profile" role="dialog" aria-modal="true" aria-labelledby="title">
+<h2 id="title">Create your profile</h2>
+<form id="profile-form" onsubmit="event.preventDefault(); made()">
+<label>Preferred First name <input id="first"></label>
+<button type="button">Back</button><button type="submit">Submit</button></form></div>
+<form id="application" hidden onsubmit="event.preventDefault(); window.sent = (window.sent || 0) + 1">
+<label>Why Microsoft? <textarea id="why"></textarea></label>
+<button type="submit">Submit application</button></form>
+<script>
+window.sent = 0;
+function made() { document.getElementById('profile').remove(); document.getElementById('application').hidden = false; }
+</script></body>"""
+
+
+def _profile_then_form_driver(page, schema: dict, prompt: str, files: list) -> dict:
+    """Plays Claude: fills what <fields> asks on the step showing, and names that step's Submit."""
+    fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
+    filled = []
+    for field in fields:
+        box = page.locator("#first" if field["question"] == "Preferred First name" else "#why")
+        if box.is_visible():
+            box.fill(field["answer"])
+            filled.append({"field": field["field"], "shown": [field["answer"]]})
+    profile = page.locator("#profile").count() > 0
+    unlisted = [] if profile or any(f["question"] == "Why Microsoft?" for f in fields) else [
+        {"label": "Why Microsoft?", "kind": "textarea", "required": True, "options": []}]
+    return {"blocked": False, "why": "", "filled": filled, "next_button": "",
+            "submit_button": "Submit" if profile else "Submit application", "unlisted": unlisted}
+
+
+def test_a_profile_pop_up_before_the_application_is_sent_on_and_only_the_forms_last_page_is_held(tmp_path):
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import MoreQuestions, Question
+
+    fill = ClaudeFill(FakeClaude(driver=_profile_then_form_driver))
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(PROFILE_THEN_FORM)
+        with pytest.raises(MoreQuestions) as more:  # the application's own questions, once the profile is sent
+            fill.fill(page, [Question("q1", "Preferred First name", "text", True)], {"q1": "Test"})
+        [why] = more.value.questions
+        readback = fill.fill(page, [Question("q1", "Preferred First name", "text", True), why],
+                             {"q1": "Test", why.name: "I want to build developer tools."})
+        sent, profile_left = page.evaluate("window.sent"), page.locator("#profile").count()
+        browser.close()
+
+    assert profile_left == 0  # the pop-up was sent on, by plain code
+    assert sent == 0  # the application itself never was
+    assert readback[why.name] == "I want to build developer tools."
+    assert fill._submit_button == "Submit application"  # held at the form's own last page
+
+
+def test_a_submit_outside_a_profile_pop_up_stays_blocked_while_its_click_is_let_through():
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import DriveGuard
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(PROFILE_THEN_FORM.replace('<form id="application" hidden', '<form id="application" style="display:none"'))
+        drive = DriveGuard(page)
+        drive.let_profile_click()
+        page.evaluate("document.getElementById('application').style.display = ''")  # shown, outside the pop-up
+        page.get_by_role("button", name="Submit application").click()
+        page.wait_for_timeout(200)
+        sent = page.evaluate("window.sent")
+        page.evaluate("document.getElementById('application').style.display = 'none'")
+        page.get_by_role("button", name="Submit", exact=True).click()
+        page.wait_for_timeout(200)
+        profile_left = page.locator("#profile").count()
+        blocked = drive.blocked()
+        browser.close()
+
+    assert sent == 0 and blocked and "Submit application" in blocked[0]
+    assert profile_left == 0  # the profile step's own Submit went through
+
+
+# Pop-ups that may be the application itself, which no profile-step click may ever send.
+NOT_PROFILE_STEPS = {
+    "it asks for a file": ("Complete your profile", '<label>Resume <input type="file"></label>', "Submit"),
+    "it has a box to tick": ("Complete your profile", '<label><input type="checkbox"> I certify this is true</label>', "Submit"),
+    "it has an essay": ("Create your profile", '<label>Why us? <textarea></textarea></label>', "Submit"),
+    "its title names the application": ("Complete your profile to apply", "", "Submit"),
+    "its button names the application": ("Create your profile", "", "Submit application"),
+    "the page behind has a form": ("Create your profile", "", "Submit"),
+}
+
+
+@pytest.mark.parametrize("why", NOT_PROFILE_STEPS)
+def test_a_pop_up_that_could_be_the_application_is_never_sent_as_a_profile_step(why):
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import DriveGuard
+
+    title, more, button = NOT_PROFILE_STEPS[why]
+    behind = '<label>Email <input id="email"></label>' if why == "the page behind has a form" else ""
+    html = (f'<!doctype html><body>{behind}<div id="pop" role="dialog" aria-modal="true" aria-labelledby="t">'
+            f'<h2 id="t">{title}</h2><form onsubmit="event.preventDefault(); window.sent = 1">'
+            f'<label>Preferred First name <input id="first"></label>{more}<button type="submit">{button}</button>'
+            '</form></div><script>window.sent = 0;</script></body>')
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        found = claude_fill._profile_step(page, button)
+        drive = DriveGuard(page)
+        drive.let_profile_click()
+        page.get_by_role("button", name=button, exact=True).click()
+        page.wait_for_timeout(200)
+        sent = page.evaluate("window.sent")
+        browser.close()
+
+    assert found is None
+    assert sent == 0  # the guard blocked it, flag or no flag
+
+
+def test_a_step_that_shows_a_whole_address_in_a_part_or_a_future_start_year_never_goes_on():
+    # Bank of America's TAL.net (live): the full address in City/Town and Zip, and a degree started "2027", were saved.
+    address = "1 Main Street, Springfield, NY 11111, United States"
+    assert claude_fill.cant_be_right({"Home/permanent address: City/Town": address,
+                                      "Postcode/Zipcode": address, "Address line 1": "1 Main Street"}, 2026) == [
+        "'Home/permanent address: City/Town' holds a whole address", "'Postcode/Zipcode' holds a whole address"]
+    education = {"Degree Type": "Bachelor", "Start date: Month": "August", "Start date: Year": "2027"}
+    assert claude_fill.cant_be_right(education, 2026) == ["'Start date: Year' says 2027, a start after this year"]
+    assert claude_fill.cant_be_right({**education, "Start date: Year": "2024"}, 2026) == []
+    # An internship's start next year, on a step with no school: right.
+    assert claude_fill.cant_be_right({"Start date: Year": "2027", "Earliest start": "May 2027"}, 2026) == []
+    assert claude_fill.cant_be_right({"Address line 1": address, "Home address": address}, 2026) == []
+
+
+def test_line_one_with_a_whole_address_is_wrong_only_on_a_step_that_asks_the_parts():
+    # TAL.net (KAN-684): the whole address in Address line 1, beside its own City/Town and Postcode boxes.
+    address = "1 Main Street, Springfield, NY 11111, United States"
+    assert claude_fill.cant_be_right({"Home/permanent address: Address line 1": address, "City/Town": "Springfield",
+                                      "Postcode/Zipcode": "11111"}, 2026) == [
+        "'Home/permanent address: Address line 1' holds a whole address, though the step asks its parts"]
+    assert claude_fill.cant_be_right({"Address line 1": "1 Main Street", "City/Town": "Springfield"}, 2026) == []
+    assert claude_fill.cant_be_right({"Street address": address}, 2026) == []  # one box for it all: right
+
+
+# TAL.net's Personal Details, as it showed live (KAN-684): a home and a campus address, line 1's help text under
+# its label, and line 2 holding the whole address an earlier run saved there, which this fill planned nothing for.
+TWO_ADDRESSES = """<!doctype html><body>
+<h3>Home/permanent address</h3>
+<label for=h1>Address line 1<br><span>Please include floor, apartment/flat number if applicable</span> *</label>
+<input id=h1 value="1 Main Street">
+<label for=h2>Address line 2</label><input id=h2 value="1 Main Street, Springfield, NY 11111, United States">
+<label for=h3>City/Town *</label><input id=h3 value="Springfield">
+<label for=h4>Postcode/Zipcode *</label><input id=h4 value="11111">
+<h3>Campus Address</h3>
+<label for=c1>Address line 1 *</label><input id=c1 value="Dorm Hall, 5 College Road">
+<label for=c2>Address line 2</label><input id=c2 value="Room 4">
+<label for=c3>City/Town *</label><input id=c3 value="College Town">
+<label for=c4>County / State / Province</label><select id=c4><option>Choose one...</option><option selected>New York</option></select>
+<input type=hidden id=x value="1 Main Street, Springfield, NY 11111, United States">
+</body>"""
+
+
+def test_a_box_the_fill_left_alone_is_checked_too():
+    # KAN-684: KAN-652's check read only the boxes Apply filled, so line 2's stale whole address was saved.
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(TWO_ADDRESSES)
+        planned = {"Home/permanent address: Address line 1": "1 Main Street"}
+        seen = claude_fill._on_step(page, planned)
+        browser.close()
+    assert seen["Home/permanent address: Address line 1"] == "1 Main Street"  # its own read-back, not read twice
+    assert seen["#2: Address line 2"].startswith("1 Main Street, Springfield")
+    assert seen["County / State / Province"] == "New York" and "x" not in seen
+    assert claude_fill.cant_be_right(seen, 2026) == ["'#2: Address line 2' holds a whole address"]
+
+
+@pytest.mark.parametrize("label", [
+    # Saved forms (the Fill engine's fixtures) that ask a school's fields and the internship's start on one page.
+    "What is your earliest preferred start date if hired? (YYYY-MM-DD)",
+    "Please include your earliest start date and latest end date.",
+    "When is your desired start date?",
+    "What is your earliest available start date? (YYYY-MM-DD)",
+    "Internship start date",
+])
+def test_the_internships_start_next_year_beside_a_school_is_right(label):
+    # KAN-652's check is for a degree's start: an internship's start next year, on a page that also asks the
+    # school, is right and never stops the fill.
+    shown = {"University": "Example State University", "GPA": "3.7", label: "2027-05-24"}
+    assert claude_fill.cant_be_right(shown, 2026) == []
+    assert claude_fill.cant_be_right({"University": "Example State University", "Start date: Year": "2027"}, 2026)
+
+
+@pytest.mark.parametrize(("limit", "stops"), [(claude_fill.MAX_STEPS + 5, False), (2, True)])
+def test_a_profile_step_counts_against_the_policy_s_step_limit_not_the_modules(limit, stops):
+    filler = ClaudeFill(claude=None, max_steps=limit)
+    filler._steps = limit - 1 if stops else claude_fill.MAX_STEPS
+
+    class Stop(Exception):
+        """The check passed: the click was next."""
+
+    class Button:
+        def click(self):
+            raise Stop
+
+    if stops:
+        with pytest.raises(Handoff, match=f"went through {limit} steps"):
+            filler._through_profile_step(_NoFields(), Button(), "Submit")
+    else:
+        with pytest.raises(Stop):
+            filler._through_profile_step(_NoFields(), Button(), "Submit")
+
+
+class _NoFields:
+    url = "https://jobs.example.com/form"
+    frames = ()
+
+
+@pytest.mark.parametrize(("label", "value", "sections", "stops"), [
+    ("Start date", "2027-05-24", {}, False),  # no heading to go by: it may be the internship's
+    ("Start date", "May 2027", {"Start date": "internship details"}, False),
+    ("Start date *", "2027", {"Start date *": "availability"}, False),
+    ("Start date:", "2028-01-01", {"Start date:": "application questions"}, False),
+    ("Start date", "2027-08-01", {"Start date": "education"}, True),  # a section that is clearly education
+    ("Start date", "2027-08-01", {"Start date": "your university degree"}, True),
+    ("Start date", "2029-05-24", {}, True),  # no internship starts this far ahead
+    ("Start date", "2031", {"Start date": "internship details"}, True),
+    ("Start date", "2026-05-24", {}, False),  # this year: nothing wrong with it
+    ("Start date", "2027-08-01", {"Start date": "education and availability"}, False),  # not clearly education
+    # Not bare: as before, a school's own start.
+    ("Start date: Year", "2027", {}, True),
+    ("Degree start date", "2027-08-01", {}, True),
+])
+def test_a_bare_start_date_beside_school_fields_stops_only_when_it_is_clearly_the_degree_s(label, value, sections, stops):
+    shown = {"University": "Example State University", "GPA": "3.7", label: value}
+    assert bool(claude_fill.cant_be_right(shown, 2026, sections)) is stops
+
+
+BARE_START_PAGE = """<h2>{heading}</h2><div><label for=s>Start date</label><input id=s></div>
+<fieldset><legend>{legend}</legend><label for=t>Other</label><input id=t></fieldset>"""
+
+
+@pytest.mark.parametrize(("heading", "stops"), [("Internship details", False), ("Education", True)])
+def test_the_section_of_a_bare_start_date_is_read_from_the_page(heading, stops):
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(BARE_START_PAGE.format(heading=heading, legend="More"))
+        shown = {"University": "Example State University", "Start date": "2027-05-24"}
+        sections = claude_fill._sections(page, shown)
+        browser.close()
+    assert sections == {"Start date": heading.lower()}
+    assert bool(claude_fill.cant_be_right(shown, 2026, sections)) is stops
+
+
+def test_the_fill_prompt_says_how_to_pick_from_a_type_to_search_dropdown():
+    # AMD's iCIMS (live, KAN-699): Claude typed the whole state, read the list at once, got No Results and
+    # pressed Escape. Ask Claude then typed "New", waited and clicked New York.
+    assert "Type to Search" in FILL and "first word" in FILL and "browser_wait_for" in FILL
+    assert "Don't press Escape" in FILL

@@ -1042,10 +1042,14 @@ Its downgrade puts the columns back empty; the old import refills them.
 (KAN-261); auto apply (`app/auto_apply/`) writes it `queued` and moves it on;
 the Applications Tracker's stage menu and its events
 (`routers/tracker.py`, KAN-413) move it to `interviewing`, `offer` or
-`rejected`. GET /jobs leaves out that applicant's applied jobs, every stage
-in `dto.APPLIED_STAGES` (`JobFilters.applied_by`, a `NOT EXISTS`); auto
+`rejected`. GET /jobs leaves out that applicant's tracked jobs, saved and
+every stage in `dto.APPLIED_STAGES` (`JobFilters.tracked_by`, a `NOT EXISTS`
+on `stage NOT IN dto.ON_THE_JOBS_PAGE`; KAN-217: a saved job lives on the
+Tracker, and an unsave brings it back to the feed); auto
 apply's matches leave out every stage, `saved` too (`no_application_by`),
-so a batch never picks a saved job. Rules:
+so a batch never picks a saved job. A Tailor run writes `saved` too
+(`keep_saved`, in its own commit), and the data migration `b6d2e8f4a1c7`
+wrote it once for the jobs tailored before that (KAN-217). Rules:
 
 - **A join table, never an array of applicant ids on `job_postings`.**
   Postgres can't foreign-key an array's elements, so deleted applicants

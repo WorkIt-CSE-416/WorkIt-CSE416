@@ -257,6 +257,11 @@ class WorkdayFiller:
             return "The form isn't on an application step yet: sign in on the page, then press Resume"
         return ""
 
+    def signed_in(self, page: Page) -> bool:
+        """Whether the page is past sign-in, on an application step: `_start`'s own check, so a fill from
+        there signs in no more."""
+        return _on_step(page)
+
     def resumed(self, page: Page) -> dict:
         """The values on the step shown, as Lisul left it before pressing
         Resume, by Question name: fill() leaves those fields as they are."""

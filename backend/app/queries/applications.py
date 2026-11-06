@@ -131,17 +131,14 @@ async def application_stage_of(
     ))
 
 
-async def save_job(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
-) -> application_stage | None:
+async def keep_saved(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> None:
     '''
-    keeps this job as saved and answers its stage, or None for a job that
-    isn't in the feed. A job that already has an application (queued,
-    applied...) keeps it and answers that stage: saving never moves one back
+    puts this job on the applicant's Tracker as saved, unless it
+    already has an application (queued, applied...), which keeps its stage:
+    saving never moves one back. Checks nothing and never commits: the
+    caller has checked the job is listed and owns the transaction (the Save
+    button, a Tailor run, KAN-217)
     '''
-    listed = await db.scalar(select(Job_Post.id).where(Job_Post.id == job_id, LISTED))
-    if listed is None:
-        return None
     # applied_at NULL in place of the column's now() default, as a queued
     # insert writes it: nobody applied to a saved job
     await db.execute(
@@ -154,6 +151,20 @@ async def save_job(
         )
         .on_conflict_do_nothing(index_elements=["applicant_id", "job_id"])
     )
+
+
+async def save_job(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
+) -> application_stage | None:
+    '''
+    keeps this job as saved and answers its stage, or None for a job that
+    isn't in the feed. A job that already has an application (queued,
+    applied...) keeps it and answers that stage: saving never moves one back
+    '''
+    listed = await db.scalar(select(Job_Post.id).where(Job_Post.id == job_id, LISTED))
+    if listed is None:
+        return None
+    await keep_saved(db, applicant_id, job_id)
     await db.commit()
     return await db.scalar(
         select(Job_Application.stage).where(

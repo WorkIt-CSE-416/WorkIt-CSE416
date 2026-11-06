@@ -197,13 +197,14 @@ class ClaudeCLI:
         self._spent.tokens = self.spent() + tokens
 
     def drive(self, *, page, model: str, system: str, prompt: str, schema: dict, files: list[Path],
-              max_turns: int, max_tokens: int) -> Drive:
+              max_turns: int, max_tokens: int, hook: tuple[str, ...] = ()) -> Drive:
         """Claude works the Worker's page with Playwright MCP as its only tools,
         attached to the Worker's own browser. It runs in an empty folder holding
         only `files`, which bounds what it can attach. Every turn's tokens
         (cache reads included) count toward `max_tokens`; past either cap,
         claude and its MCP server are stopped. A click Claude names as the
-        button that sends is refused before it runs (apply.send_click).
+        button that sends is refused before it runs (apply.send_click), run
+        with `hook`'s flags (Ask Claude's).
 
         On a plain Worker's page (a PortPage: no CDP), the `playwright` server
         is Apply's own (apply.plain.mcp), with Playwright MCP's tool names
@@ -214,7 +215,7 @@ class ClaudeCLI:
             for file in files:
                 shutil.copy(file, Path(folder) / file.name)
             if isinstance(page, PortPage):
-                server = stack.enter_context(ToolServer(page, Path(folder), sys.executable)).mcp_server()
+                server = stack.enter_context(ToolServer(page, Path(folder), sys.executable, hook)).mcp_server()
             else:
                 server = {"command": shutil.which("npx") or "npx", "args": [
                     "-y", PLAYWRIGHT_MCP, "--cdp-endpoint", self._endpoint(page), "--image-responses", "omit"]}
@@ -222,7 +223,7 @@ class ClaudeCLI:
                 "--mcp-config", json.dumps({"mcpServers": {"playwright": server}}),
                 "--allowedTools", ",".join(f"mcp__playwright__{t}" for t in BROWSER_TOOLS),
                 "--disallowedTools", ",".join(f"mcp__playwright__{t}" for t in NO_BROWSER_TOOLS),
-                "--settings", send_click.settings(sys.executable),  # a click on the button that sends is refused
+                "--settings", send_click.settings(sys.executable, hook),  # a click on the button that sends is refused
             ])
             return self._session(argv, prompt, _env(), Path(folder), max_turns, max_tokens)
 

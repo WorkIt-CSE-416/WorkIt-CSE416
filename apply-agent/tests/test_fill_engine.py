@@ -175,3 +175,20 @@ def test_past_applications_and_interviews_at_the_company_come_from_the_tracker_t
     # ...till his Outcome records one.
     rows.edit_as_lisul("a2", outcome=Outcome.INTERVIEW)
     assert plan() == {"q1": "Yes", "q2": "Yes"}
+
+
+def test_a_changed_bundle_on_disk_is_reloaded_before_the_next_posting(tmp_path, monkeypatch):
+    # The long-lived Node read the bundle once; a merged engine fix must not need a restart (KAN-645).
+    bundle = tmp_path / "engine.js"
+    bundle.write_bytes(fill_engine.ENGINE.read_bytes())
+    monkeypatch.setattr(fill_engine, "ENGINE", bundle)
+    monkeypatch.setattr(fill_engine, "_nodes", {})
+    monkeypatch.setattr(fill_engine, "_loaded", {})
+    assert fill_engine.text_of("<p>one</p>") == "one"
+    node = fill_engine._nodes[0]
+    assert not fill_engine.fresh()  # nothing changed: the same Node
+    bundle.write_bytes(bundle.read_bytes() + b"\nFillEngine.reloadedForTest = true;\n")
+    assert fill_engine.fresh()
+    assert node.poll() is not None and 0 not in fill_engine._nodes
+    assert fill_engine.call_without_page("textOf", "<p>two</p>") == "two"
+    assert fill_engine._nodes[0] is not node

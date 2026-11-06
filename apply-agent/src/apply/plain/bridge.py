@@ -6,6 +6,13 @@ the origin, the protocol and the engine, answers welcome or refuse, and keeps on
 Connection per Worker. A Connection calls ops (`call`) and hands events to subscribers
 (`on`). Messages over 512 KiB go as chunks, since Chrome takes at most 1 MB from a host.
 See apply-agent/docs/plain-workers/PROTOCOL.md.
+
+The hello's `features` says what the extension's code can do (KAN-643): Chrome keeps running the
+code it loaded, so a Worker can be older than Apply. One that knows `extension.reload`, in a
+profile with Developer mode on (`reloadable`: without it Chrome disables a reloaded unpacked
+extension), is told to load its files again (`chrome.runtime.reload()`: tabs, pages and sign-ins
+stay) before it is welcomed, once; one still older is welcomed as `stale`, and Apply says so in
+one line.
 """
 
 import hashlib
@@ -14,6 +21,7 @@ import json
 import os
 import socket
 import struct
+import sys
 import tempfile
 import threading
 from collections.abc import Callable
@@ -31,6 +39,17 @@ SOCKET_PATH_MOST = 100  # macOS caps a Unix socket path at 104 bytes
 CHUNK_CHARS = 200_000  # characters of JSON per chunk: at most 800 KB of UTF-8, under Chrome's 1 MB
 CHUNK_OVER = 512 * 1024  # a message longer than this goes as chunks
 CALL_TIMEOUT = 60.0  # s an op may take, beyond its own timeout
+FEATURES = 3  # the worker extension's feature level Apply expects (background.js FEATURES)
+RELOADS_FROM = 2  # the first level with the extension.reload op
+SETS_FROM = 3  # the first level that reads Apply's files from the vendor set its welcome names (KAN-645)
+RELOAD_WAIT = 10.0  # s a reloading extension may take to close its port
+OUT_OF_DATE = "Worker extension is out of date: quit Apply and start it again"
+
+
+def features(hello: dict) -> int:
+    """A hello's feature level: 1 for an extension from before KAN-643, which sends none."""
+    level = hello.get("features")
+    return level if isinstance(level, int) else 1
 
 
 class PortError(PlaywrightError):
@@ -107,12 +126,14 @@ class Connection:
 
     def __init__(self, worker: int, sock: socket.socket, hello: dict, relay: dict):
         self.worker, self.hello, self.relay = worker, hello, relay
+        self.stale = False  # its extension is older than Apply expects (the bridge sets it)
         self._sock = sock
         self._send_lock = threading.Lock()
         self._ids = itertools.count(1)
         self._pending: dict[int, _Slot] = {}
         self._handlers: dict[str, list[Callable[[dict], None]]] = {}
         self.closed = threading.Event()
+        self.vendor: str | None = None  # the vendor set its welcome named, if its extension takes one
 
     def send(self, message: dict) -> None:
         text = json.dumps(message, ensure_ascii=False)
@@ -197,9 +218,17 @@ class Bridge:
     """Listens for the Workers' relays. `start` before launching a Worker; `wait_for(k)` then
     gives that Worker's Connection once its hello passed."""
 
-    def __init__(self, path: Path | None = None, engine: dict | None = None):
+    def __init__(self, path: Path | None = None, engine: dict | None = None, expects: int = FEATURES):
         self.path = path or socket_path()
         self._engine = engine
+        # The vendor set this Apply wrote into the Workers' extension folder ("vendor/sets/<id>"), named
+        # in each welcome: a Worker whose extension takes it is never refused for another checkout's engine.
+        self.vendor: str | None = None
+        self.folder: Path | None = None  # the folder the Workers load the extension from (PlainWorkers.prepare)
+        self.expects = expects  # the feature level a Worker's extension must have not to be stale
+        self._reloaded: set[int] = set()  # Workers told to reload once already
+        self.reloadable: Callable[[int], bool] = lambda worker: False  # PlainWorkers: its profile's Developer mode
+        self._warned = False
         self._server: socket.socket | None = None
         self._workers: dict[int, Connection] = {}
         self._refused: dict[int, str] = {}
@@ -266,7 +295,13 @@ class Bridge:
             sock.close()
             return
         worker = int(relay.get("worker", 0))
-        reason = self.refusal(relay, hello)
+        level = features(hello)
+        reason = self.refusal(relay, hello, engine=False)
+        if not reason and RELOADS_FROM <= level < self.expects and worker not in self._reloaded and self.reloadable(worker):
+            self._reloaded.add(worker)
+            self._reload(worker, sock)  # it says hello again, with the code on disk: maybe one that takes a set
+            return
+        reason = reason or self.refusal(relay, hello)
         if reason:
             try:
                 sock.sendall(_frame({"type": "refuse", "reason": reason}))
@@ -278,7 +313,16 @@ class Bridge:
                 self._changed.notify_all()
             return
         connection = Connection(worker, sock, hello, relay)
-        connection.send({"type": "welcome", "worker": worker, "protocol": PROTOCOL})
+        connection.stale = level < self.expects
+        if connection.stale and not self._warned:
+            self._warned = True
+            print(f"Plain Worker {worker + 1}'s extension has features {level}, Apply expects {self.expects}. "
+                  f"{OUT_OF_DATE}.", file=sys.stderr)
+        welcome = {"type": "welcome", "worker": worker, "protocol": PROTOCOL}
+        if self.vendor and features(hello) >= SETS_FROM:
+            welcome["vendor"] = self.vendor
+        connection.vendor = welcome.get("vendor")
+        connection.send(welcome)
         with self._changed:
             old = self._workers.get(worker)
             self._workers[worker] = connection
@@ -292,16 +336,56 @@ class Bridge:
                 del self._workers[worker]
             self._changed.notify_all()
 
-    def refusal(self, relay: dict, hello: dict) -> str:
-        """Why a Worker's hello is refused, or "" to welcome it."""
+    def _reload(self, worker: int, sock: socket.socket) -> None:
+        """Tell Worker `worker`'s extension to reload (it answers, then its port closes), never
+        registering this connection: wait_for gets the one after."""
+        try:
+            sock.sendall(_frame({"type": "welcome", "worker": worker, "protocol": PROTOCOL}))
+            sock.sendall(_frame({"type": "call", "id": 1, "op": "extension.reload", "params": {}}))
+            sock.settimeout(RELOAD_WAIT)
+            while _read_frame(sock) is not None:
+                pass
+        except (OSError, ValueError):
+            pass
+        finally:
+            sock.close()
+
+    def reload(self, worker: int, timeout: float = 30.0) -> Connection:
+        """Reload Worker `worker`'s extension from its folder now; its next Connection, once its
+        hello passed. Its tabs, pages, sign-ins and guards stay (ops/guard.js: keepAcrossReload, KAN-657).
+        A PortPage holds the old Connection: make a new one on the same tab."""
+        old = self._workers.get(worker)
+        if old is None:
+            raise WorkerGone(f"plain Worker {worker + 1} is gone")
+        if features(old.hello) < RELOADS_FROM or not self.reloadable(worker):
+            raise PortError("NoReload", f"plain Worker {worker + 1}'s extension can't be reloaded in place")
+        try:
+            old.call("extension.reload", timeout=5)
+        except WorkerGone:
+            pass
+        with self._changed:
+            done = self._changed.wait_for(lambda: self._workers.get(worker) not in (None, old) or worker in self._refused,
+                                          timeout)
+            if worker in self._refused:
+                raise Refused(self._refused.pop(worker))
+            if not done:
+                raise TimeoutError(f"no hello from plain Worker {worker + 1} in {timeout:.0f} s after its reload")
+            return self._workers[worker]
+
+    def refusal(self, relay: dict, hello: dict, engine: bool = True) -> str:
+        """Why a Worker's hello is refused, or "" to welcome it (`engine`: also for its Fill engine)."""
         if relay.get("origin") != EXTENSION_ORIGIN:
             return f"only the worker extension ({EXTENSION_ORIGIN}) may connect, not {relay.get('origin')!r}"
         if hello.get("type") != "hello" or hello.get("protocol") != PROTOCOL:
             return f"protocol {hello.get('protocol')!r}, Apply speaks {PROTOCOL}"
-        engine = hello.get("engine") or {}
-        if engine.get("sha256") != self.engine["sha256"]:
-            return (f"the worker extension has Fill engine {engine.get('version') or 'none'}, Apply has "
-                    f"{self.engine['version']}: run `uv run apply plain prepare`, then restart the Worker")
+        if not engine or (self.vendor and features(hello) >= SETS_FROM):
+            return ""  # it reads Apply's own set, which holds this Apply's engine
+        has = hello.get("engine") or {}
+        if has.get("sha256") != self.engine["sha256"]:
+            where = f" in {self.folder}" if self.folder else ""
+            return (f"the worker extension has Fill engine {has.get('version') or 'none'}, Apply has "
+                    f"{self.engine['version']}: its code{where} is from before vendor sets (KAN-645). Update that "
+                    "checkout (`git pull`) and restart the Worker; until then, `uv run apply plain prepare` there")
         return ""
 
     def wait_for(self, worker: int, timeout: float = 30.0) -> Connection:

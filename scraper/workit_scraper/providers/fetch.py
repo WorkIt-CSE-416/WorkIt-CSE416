@@ -26,6 +26,15 @@ HOLD_LONGEST = 60.0
 _holds: dict[str, tuple[float, float]] = {}
 _holding = threading.Lock()
 
+_retries = 0
+_retries_lock = threading.Lock()
+
+
+def retry_count() -> int:
+    """Total retries (429 + 5xx) since import."""
+    with _retries_lock:
+        return _retries
+
 
 def _get_json(url: str) -> object:
     """GET and parse JSON, with one retry on a 5xx, a 429 or an explicit Retry-After.
@@ -57,8 +66,12 @@ def _json(url: str, fetch: Callable[[], bytes]) -> object:
 
 
 def _fetched(url: str, fetch: Callable[[], bytes]) -> bytes:
+    global _retries
     host = _host(url)
     for attempt in (1, 2):
+        if attempt == 2:
+            with _retries_lock:
+                _retries += 1
         _wait_out(host)
         try:
             body = fetch()

@@ -292,6 +292,21 @@ export function ToastSpecimen() {
       >
         Show One With Undo
       </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() =>
+          toast.show({
+            message: "Saved to your Tracker.",
+            actions: [
+              { label: "View", onClick: () => {} },
+              { label: "Undo", onClick: () => {} },
+            ],
+          })
+        }
+      >
+        Show One With Two Actions
+      </Button>
     </>
   );
 }

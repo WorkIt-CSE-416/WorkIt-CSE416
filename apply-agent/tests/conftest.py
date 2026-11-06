@@ -12,7 +12,13 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # The data folder every test runs on: Apply sets its data paths when it is imported, so
 # APPLY_HOME points here before that, never at ~/.config/apply. data_folder() fills it.
 os.environ["APPLY_HOME"] = tempfile.mkdtemp(prefix="apply-test-home-")
+os.environ["APPLY_TEST_TEMP_OK"] = "1"  # that folder is temp on purpose (home.temp_state, KAN-665)
 atexit.register(shutil.rmtree, os.environ["APPLY_HOME"], True)
+
+# Before anything else can open a connection: no test reaches past loopback (KAN-662).
+import network_block
+
+network_block.install()
 
 from fake_lever import FakeLeverServer
 from fakes import FakeJobServer
@@ -94,6 +100,20 @@ HERMEUS_FORM = FORMS / "lever-hermeus"
 HERMEUS_URL = "https://jobs.lever.co/hermeus/5b08e2df-c9db-4831-aece-67d89e744796/apply"
 BELVEDERE_FORM = FORMS / "lever-belvedere"
 BELVEDERE_URL = "https://jobs.lever.co/belvederetrading/10746b3d-1760-4573-9b63-b93f5a5e4fc0/apply"
+
+
+@pytest.fixture(autouse=True)
+def no_network(request):
+    """Fails a test that tried to reach past loopback, even if it swallowed the error, or a server's thread did.
+    A test that goes live on purpose names its hosts: @pytest.mark.live_network("example.com")."""
+    marked = request.node.get_closest_marker("live_network")
+    if marked and not marked.args:
+        pytest.fail("live_network needs the hosts this test may reach, by name.")
+    network_block.begin(marked.args if marked else ())
+    yield
+    tried = network_block.end()
+    if tried:
+        pytest.fail("Reached past loopback:\n" + "\n".join(tried), pytrace=False)
 
 
 @pytest.fixture(autouse=True)

@@ -32,7 +32,7 @@ export default function ApplicationLoading() {
       <JobActionBar
         back={
           <BackLink
-            parent={{ href: "/applications", name: "Applications Tracker" }}
+            parent={{ href: "/applications", name: "Tracker" }}
             named
             className="group/back"
           />

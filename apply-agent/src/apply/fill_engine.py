@@ -24,6 +24,7 @@ FillEngine.call, which returns the value or the error by name.
 
 import base64
 import functools
+import hashlib
 import json
 import mimetypes
 import os
@@ -119,6 +120,31 @@ const run = vm.runInContext(`(input, askHost) => {
 _nodes: dict[int, subprocess.Popen] = {}
 _node_locks: dict[int, threading.Lock] = {}  # Workers share each Node, a call at a time
 _depth = threading.local()
+_loaded: dict[str, object] = {}  # the bundle the Nodes run: its "stat" (mtime, size) and "sha256"
+
+
+def fresh() -> bool:
+    """Before a new posting is planned: if the bundle on disk is not the one the long-lived Nodes run
+    (a merged engine fix, `git submodule update`), stop them, so the next call starts a Node on the new
+    one. Waits for each Node's call in progress. True when it reloaded (KAN-645)."""
+    try:
+        stat = ENGINE.stat()
+    except OSError:
+        return False
+    seen = (stat.st_mtime_ns, stat.st_size)
+    if _loaded.get("stat") == seen:
+        return False
+    digest = hashlib.sha256(ENGINE.read_bytes()).hexdigest()
+    changed = "sha256" in _loaded and _loaded["sha256"] != digest
+    _loaded.update(stat=seen, sha256=digest)
+    if changed:
+        for depth in sorted(_nodes):  # in the order calls take the locks: never a deadlock
+            with _node_locks.setdefault(depth, threading.Lock()):
+                node = _nodes.pop(depth, None)
+                if node and node.poll() is None:
+                    node.kill()
+                    node.wait()
+    return changed
 
 
 @dataclass(frozen=True)
@@ -158,6 +184,8 @@ def call_without_page(name: str, *args: Any, questions: QuestionSet = ()) -> Any
         node = _nodes.get(depth)
         if node is None or node.poll() is not None:
             _built()
+            if not _loaded:
+                fresh()  # what the first Node runs
             node = _nodes[depth] = subprocess.Popen([compute_driver_executable()[0], "-e", NODE_SERVER, str(ENGINE)], stdin=subprocess.PIPE,
                                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8")
         node.stdin.write(payload + "\n")

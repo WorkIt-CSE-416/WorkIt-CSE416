@@ -23,9 +23,15 @@ import { cn } from "@/lib/cn";
 
 /**
  * Toasts: a short message in the window's bottom right corner that rises in
- * from below the page (`animate-toast-in`), stays 5 seconds, and drops away
- * (`animate-toast-out`). Its cross closes it at once. An optional action
- * (Undo) runs, then closes it.
+ * from below the page (`animate-toast-in`), stays 5 seconds (8 with an
+ * action, `TOAST_ACTION_DURATION`), and drops away (`animate-toast-out`).
+ * Its cross closes it at once. An optional action (Undo), or two side by
+ * side (`actions`: Save's View and Undo), runs, then closes it.
+ *
+ * It is the inverted surface (`bg-inverse`, KAN-217): dark on the light
+ * app, so it stands out from every white card; the user missed the white
+ * one. Its buttons and cross are the `inverse` variants, light on it. Read
+ * the tokens, never ink and panel, so a dark theme turns it light.
  *
  * One `<ToastProvider>` in the root layout, beside the tooltips', so every
  * page, both shells and the design kit, can call `useToast().show(...)`. It
@@ -58,7 +64,11 @@ export type ToastAction = {
 export type ToastInput = {
   message: ReactNode;
   action?: ToastAction;
-  /** How long it stays, in ms. */
+  /** Two actions side by side, in place of `action` (Save's View and Undo,
+   *  KAN-217); any one of them closes the toast. */
+  actions?: ToastAction[];
+  /** How long it stays, in ms: TOAST_DURATION, or TOAST_ACTION_DURATION
+   *  when it has an action. */
   duration?: number;
   /** Runs once the toast is gone, unless its action ran. */
   onClose?: () => void;
@@ -73,6 +83,9 @@ type ToastApi = {
 };
 
 export const TOAST_DURATION = 5000;
+/** A toast with an action stays longer: at 5 s the user missed Save's Undo
+ *  (KAN-217). */
+export const TOAST_ACTION_DURATION = 8000;
 const MAX_TOASTS = 3;
 /** `--animate-toast-out`'s length. The toast is removed this long after it
  *  starts to leave even if no animationend comes (a hidden tab skips it). */
@@ -175,7 +188,10 @@ function ToastCard({
   const { id } = toast;
   const [paused, setPaused] = useState(false);
   const [acting, setActing] = useState(false);
-  const remaining = useRef(toast.duration ?? TOAST_DURATION);
+  const actions = toast.actions ?? (toast.action ? [toast.action] : []);
+  const remaining = useRef(
+    toast.duration ?? (actions.length ? TOAST_ACTION_DURATION : TOAST_DURATION),
+  );
 
   useEffect(() => {
     if (paused || acting || toast.leaving) return;
@@ -209,24 +225,26 @@ function ToastCard({
         if (toast.leaving && e.target === e.currentTarget) remove(id);
       }}
       className={cn(
-        "bg-panel border-border-subtle rounded-card shadow-lift pointer-events-auto flex items-center gap-3 border py-2.5 pr-2 pl-4",
+        "bg-inverse text-on-inverse rounded-card shadow-lift pointer-events-auto flex items-center gap-3 py-2.5 pr-2 pl-4",
         toast.leaving ? "animate-toast-out" : "animate-toast-in",
       )}
     >
-      <p className="text-body text-ink min-w-0 flex-1">{toast.message}</p>
-      {toast.action && (
+      <p className="text-body min-w-0 flex-1">{toast.message}</p>
+      {actions.map((action) => (
         <Button
-          variant="secondary"
+          key={action.label}
+          variant="inverse"
           size="sm"
           className="shrink-0"
           disabled={acting}
-          onClick={() => act(toast.action!)}
+          onClick={() => act(action)}
         >
-          {toast.action.label}
+          {action.label}
         </Button>
-      )}
+      ))}
       <IconButton
         label="Close"
+        variant="inverse"
         tooltip="Close"
         className="size-7 shrink-0"
         onClick={() => dismiss(id)}

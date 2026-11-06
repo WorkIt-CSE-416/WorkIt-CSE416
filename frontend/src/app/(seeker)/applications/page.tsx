@@ -12,19 +12,20 @@ import { SEEKER_GUTTER } from "../gutter";
 import { INBOX_LIVE } from "../inbox/live";
 import { getTracker, getUpdatesOnce } from "./data";
 import { ClearFiltersLink, FilterBar } from "./filter-bar";
-import { ApplicationsGrid } from "./grid";
+import { ApplicationsCards } from "./cards";
 import { ApplicationsList } from "./list";
 import { applicationHref, filterApplications, parseQuery } from "./query";
 import { ViewPanes } from "./view-panes";
 
 export const metadata: Metadata = {
-  title: "Applications Tracker",
+  title: "Tracker",
   description: "Track and manage your career progress.",
 };
 
 /**
- * /applications — every application the seeker is tracking, as a list (the
- * default) or a grid (./data.ts): their saved and applied jobs, live
+ * /applications — every application the seeker is tracking, as a table (the
+ * default) or a list of wide cards (./cards.tsx; its URL value is still
+ * `grid`, so old links keep working): their saved and applied jobs, live
  * (KAN-261). Interviewing and Offer stay empty until the API stores those
  * stages. The board is archived (KAN-256).
  *
@@ -108,7 +109,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
           shown.length === 0
             ? null
             : {
-                grid: <ApplicationsGrid applications={shown} />,
+                grid: <ApplicationsCards applications={shown} />,
                 list: <ApplicationsList applications={shown} />,
               }
         }

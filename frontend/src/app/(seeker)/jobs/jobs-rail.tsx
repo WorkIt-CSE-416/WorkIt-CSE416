@@ -34,6 +34,7 @@ import { JobFilters } from "./filters";
 import { JobsTopRow } from "./jobs-top-row";
 import { nextPage } from "./list-pages";
 import type { JobFacets, JobLocationOption } from "./listings";
+import { leavesFeed, onFeed } from "./feed-stages";
 import { isFresh, readShownList, rememberList, subscribe, type ShownList } from "./shown-list";
 
 /** A job posting's own page, /jobs/<id>; not its Tailor page under it. */
@@ -206,6 +207,9 @@ function JobsRail({
       ? list
       : null;
   const openId = currentId ?? showable?.jobs[0]?.id;
+  // A job saved or applied to leaves the list as it leaves the feed
+  // (KAN-217, ./feed-stages), but the job open beside it stays marked.
+  const jobs = showable ? onFeed(showable.jobs, showable.stages, openId) : [];
 
   // No list, or a stale one: ask for its first page again (the newest
   // roles when there is none). Checked on every job opened and whenever the
@@ -257,7 +261,10 @@ function JobsRail({
 
   function loadMore(from: ShownList) {
     start(async () => {
-      const page = await nextPage(from);
+      // As the feed's Load More (./feed-list): every job that left since it
+      // was handed over moved the rest up one, and a repeat is dropped by id.
+      const gone = from.jobs.filter((job) => leavesFeed(from.stages?.[job.id])).length;
+      const page = await nextPage({ ...from, offset: Math.max(0, from.offset - gone) });
       if (page.error != null) {
         setError("Couldn't load more roles. Try again in a moment.");
         return;
@@ -268,7 +275,7 @@ function JobsRail({
         query: from.query,
         source: from.source,
         jobs,
-        offset: page.offset,
+        offset: page.offset + gone,
         more: page.more,
         stages: from.stages,
       });
@@ -276,7 +283,7 @@ function JobsRail({
         path: new URLSearchParams(from.query).has("q") ? "/search" : "/jobs",
         query: from.query,
         jobs,
-        offset: page.offset,
+        offset: page.offset + gone,
         more: page.more,
       });
     });
@@ -326,7 +333,7 @@ function JobsRail({
         )}
         {showable && (
           <div className="text-meta text-ink-meta mt-0.5">
-            {showable.jobs.length} {showable.jobs.length === 1 ? "role" : "roles"}
+            {jobs.length} {jobs.length === 1 ? "role" : "roles"}
             {showable.more ? " loaded" : ""}
           </div>
         )}
@@ -363,7 +370,7 @@ function JobsRail({
                   ],
                 )}
               >
-                {showable.jobs.map((job) => (
+                {jobs.map((job) => (
                   <li
                     key={job.id}
                     data-open={job.id === openId || undefined}

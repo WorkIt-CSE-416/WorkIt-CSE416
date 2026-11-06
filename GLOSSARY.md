@@ -116,7 +116,7 @@ A fact a written answer's essay plan needs for a required slot that nothing in t
 _Avoid_: missing info, follow-up question, gap
 
 **Application answers**:
-The facts screening questions ask, kept in the student's answer bank: on-site and full-time availability, the start window, relocation and where they would work, street address, languages, and the screener facts (relatives, referrals, government work, a non-compete, pending offers). A screener fact is always the student's own answer, never a default. My Profile shows them in a section of that name, with the class year WorkIt works out from education.
+The facts screening questions ask, kept in the student's answer bank: on-site and full-time availability, the start window, relocation and where they would work, street address, languages, and the screener facts (relatives, referrals, government work, a non-compete, pending offers). A screener fact is always the student's own answer, never a default. Profile shows them in a section of that name, with the class year WorkIt works out from education.
 _Avoid_: screening questions (for the answers), extra questions, eligibility
 
 **Batch apply**:
@@ -172,20 +172,20 @@ _Avoid_: origin, provenance (in copy), confidence
 
 ## Tracking
 
-**Applications Tracker**:
-The page that holds every job posting a student is following, from saved to offer.
-_Avoid_: Applications (alone, for the page), Tracker (alone, except as its sidebar tile, where the full name does not fit), My Applications, board
+**Tracker**:
+The page that holds every job posting a student is following, from saved to offer. One name everywhere: the panel, the page's title and every link to it (2026-11-05).
+_Avoid_: Applications Tracker (its name until 2026-11-05), Applications (alone, for the page), My Applications, board
 
 **Stage**:
-Where one application stands in the Applications Tracker: Saved, Applied, Interviewing, Offer or Rejected. Interviewing, Offer and Rejected still count as applied.
-_Avoid_: column, step (the Applications Tracker's Status filter picks stages)
+Where one application stands in the Tracker: Saved, Applied, Interviewing, Offer or Rejected. Interviewing, Offer and Rejected still count as applied.
+_Avoid_: column, step (the Tracker's Status filter picks stages)
 
 **Application**:
-One job posting a student is following in the Applications Tracker, at one stage.
+One job posting a student is following in the Tracker, at one stage.
 _Avoid_: Applications (as the page's name)
 
 **Added job**:
-A job posting that a student added by its link, because WorkIt does not list it: from its form with Write with Claude, or to the Applications Tracker with Apply. Job search and Scout never show it; a student who adds the same link gets the same job posting. Each student sees the company and title that they gave. When WorkIt later lists the same job, it becomes a listed job posting and the student's application stays on it.
+A job posting that a student added by its link, because WorkIt does not list it: from its form with Write with Claude, or to the Tracker with Apply. Job search and Scout never show it; a student who adds the same link gets the same job posting. Each student sees the company and title that they gave. When WorkIt later lists the same job, it becomes a listed job posting and the student's application stays on it.
 _Avoid_: unlisted job posting, external job, custom job, manual job
 
 **Match score**:
@@ -223,7 +223,7 @@ _Avoid_: Dashboard (the seeker's page was renamed; the company side keeps its Da
 ## Jobs
 
 **Job Type**:
-What kind of job a job posting is: Full-Time, Part-Time, Contract or Internship. The Jobs page and the Applications Tracker both filter on it under this name.
+What kind of job a job posting is: Full-Time, Part-Time, Contract or Internship. The Jobs page and the Tracker both filter on it under this name.
 _Avoid_: Track, employment type, position type
 
 **Job board**:

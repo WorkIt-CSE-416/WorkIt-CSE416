@@ -34,7 +34,7 @@ from apply import account_pages, greenhouse, workday
 from apply.adapters import Clock, Mailbox
 from apply.gmail import MailedCode
 
-WAIT = timedelta(minutes=3)
+WAIT = timedelta(minutes=10)
 POLL = timedelta(seconds=5)
 # A mail stamped a little before the press still counts: Gmail dates it to the second.
 SLACK = timedelta(seconds=5)

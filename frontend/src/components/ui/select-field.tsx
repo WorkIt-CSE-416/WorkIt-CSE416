@@ -33,6 +33,10 @@ type SelectFieldProps = {
   name?: string;
   /** Shown when nothing is selected. Omit for a field that opens on a value. */
   placeholder?: string;
+  /** A glyph for the placeholder, in a field whose options have glyphs: the
+   *  Tracker's stage menu reads "Saved" with Saved's bookmark, though Saved
+   *  is not a pick. */
+  placeholderIcon?: Pick<FacetOption, "Icon" | "iconClassName">;
   /** Keep the label for assistive tech but take it off the screen — for a
    *  picker whose column or neighbours already say what it sets. It is never
    *  dropped outright: an unnamed combobox is announced as its current value
@@ -76,6 +80,7 @@ export function SelectField({
   onValueChange,
   options,
   placeholder,
+  placeholderIcon,
   hideLabel = false,
   name,
   required,
@@ -148,8 +153,11 @@ export function SelectField({
             <SelectValue>
               {(picked: string | null) => {
                 const item = items.find((option) => option.value === picked);
-                return item ? (
-                  <OptionLabel option={item} />
+                if (item) return <OptionLabel option={item} />;
+                return placeholderIcon ? (
+                  <OptionLabel
+                    option={{ value: "", label: placeholder ?? "", ...placeholderIcon }}
+                  />
                 ) : (
                   <span className="text-ink-meta">{placeholder}</span>
                 );

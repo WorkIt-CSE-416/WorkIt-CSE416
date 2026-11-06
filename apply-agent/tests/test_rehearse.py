@@ -6,6 +6,7 @@ job system records a Submission."""
 import _thread
 import json
 import threading
+import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import datetime
@@ -61,7 +62,7 @@ from test_greenhouse_filler import board_listing_schools
 from test_run_answers import profile_with
 
 from apply import rehearsal, worker
-from apply.adapters import Adapters
+from apply.adapters import Adapters, Drive
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
 from apply.claude_fill import ClaudeFill
@@ -940,6 +941,30 @@ def test_fill_again_on_a_held_page_fills_its_form_once_more_in_the_same_browser(
     assert submissions == []
 
 
+def test_fill_again_from_the_window_fills_its_form_once_more_with_no_click_on_the_page(monkeypatch, tmp_path):
+    from apply.dashboard import Dashboard, NoFrames, Refused
+
+    filler = Counted(GreenhouseFiller())
+    monkeypatch.setitem(FILLERS, "greenhouse", filler)
+    lisul_on_the_held_page(monkeypatch, lambda n: [])  # he clicks nothing there
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+
+    with FakeJobServer(ARC_FORM) as fake, Dashboard(1, NoFrames()) as board:
+        def press() -> None:  # as `apply fill-again` does, from outside the Worker's page
+            while True:
+                try:
+                    board.fill_again("tile-0")
+                    return
+                except Refused:
+                    time.sleep(0.2)  # not held yet
+        threading.Thread(target=press, daemon=True).start()
+        hold_until(fake, profile, lambda lines: sum("ready to submit" in line for line in lines) == 2,
+                   with_adapters={"board": board})
+        submissions = fake.submissions
+
+    assert filler.fills == 2 and submissions == []
+
+
 def test_a_field_the_filler_cannot_fill_is_reported_and_the_rest_still_filled(tmp_path):
     profile = profile_with(tmp_path, **{"education.school": "Example State University"})
     # A board whose school search names two Example States: the Filler won't guess between them.
@@ -1537,3 +1562,100 @@ def test_force_rehearses_it_but_submit_stays_blocked_until_the_red_note_is_dismi
     assert (seen["sent before"], seen["sent after one press"]) == (0, 0)
     assert submissions == 1  # his, once he dismissed the note on purpose
     assert any(line.startswith("Arc Boat Company | ") and "ready to submit" in line for line in lines)
+
+
+@pytest.mark.parametrize("outcome", [rehearsal.FAILED, rehearsal.SIGN_IN, "handoff"])
+def test_a_page_apply_stopped_on_before_the_last_never_says_submit_is_yours(outcome):
+    done = rehearsal.Rehearsed(Posting("p", "JPMorgan Chase", "Intern", "https://jpmc.fa.oraclecloud.com/x"), outcome,
+                               "element is not editable")
+    assert done.warning().startswith("Apply stopped before the form's last page")
+    assert "isn't ready to submit" in done.warning() and done.wrong()
+
+
+def test_a_form_filled_to_its_last_page_keeps_its_plain_note():
+    done = rehearsal.Rehearsed(Posting("p", "Acme", "Intern", "https://acme.example/x"), rehearsal.READY)
+    assert (done.warning(), done.wrong()) == ("", False)
+
+
+class StepsSite:
+    """A job site whose form has two pages, each its own document, in a browser of its own: Ask Claude going
+    back a step loads a new one. Each POST is kept in `posts`, and none is answered."""
+
+    PAGES = {"/apply/1": '<a href="/apply/2">Back to page 2</a><p>Review your application</p>',
+             "/apply/2": '<form method="post" action="/apply/2"><label>GPA <input id="gpa" name="gpa" value="3.9">'
+                         '</label><button>Submit application</button></form>'}
+
+    def __init__(self):
+        self.posts = []
+
+    @contextmanager
+    def open(self, url: str, worker: int = 0):
+        def serve(route):
+            if route.request.method == "POST":
+                self.posts.append(route.request.url)
+                return route.fulfill(content_type="text/html", body="<p>Thank you for applying!</p>")
+            path = route.request.url.split("example.com", 1)[1]
+            route.fulfill(content_type="text/html", body=self.PAGES.get(path, "<p>Not found</p>"))
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            try:
+                page = browser.new_page()
+                page.context.route("**/*", serve)
+                page.goto(url)
+                yield page
+            finally:
+                browser.close()
+
+
+class _Claude:
+    """Ask Claude's drive, played: it goes back to page 2 (a new document), fixes the GPA and presses Enter."""
+
+    def drive(self, page, **given):
+        page.click("text=Back to page 2")
+        page.wait_for_selector("#gpa")
+        page.fill("#gpa", "3.7")
+        page.press("#gpa", "Enter")  # Enter in a field sends its form
+        page.wait_for_timeout(500)
+        return Drive({"blocked": False, "why": "", "reply": "Fixed the GPA.", "changed": [], "couldnt": [],
+                      "waiting": [], "ticked": [], "remember": [], "apply_bug": []}, 3, 1_000)
+
+
+class _Asking:
+    """The held page's Ask Claude: one message, acted on with apply.ask under the drive guard."""
+
+    def __init__(self):
+        self.items, self.done = [{"id": "ask-1", "message": "page 2's GPA is wrong, it's 3.7"}], []
+
+    def open(self, page) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+    def asked(self) -> list[dict]:
+        items, self.items = self.items, []
+        return items
+
+    def __call__(self, page, item: dict) -> None:
+        from apply import ask
+        from apply.submit_guard import DriveGuard
+
+        reply = ask.ask(_Claude(), page, item["message"], [], ask.Form(Posting("p", "Acme", "Intern", page.url)), "",
+                        guard=DriveGuard(page))
+        self.done.append(reply)
+
+
+def test_ask_claude_on_a_held_page_sends_nothing_from_a_page_it_loads():
+    # A held page is lifted for Lisul. Ask Claude drives it again, and a page it loads (going back a step) must be
+    # guarded too: Enter in a field there must not send the application (KAN-638).
+    site, release, asking = StepsSite(), threading.Event(), _Asking()
+    kept = rehearsal._Kept(site, 0)
+    timer = threading.Timer(4, release.set)
+    timer.daemon = True
+    timer.start()
+
+    with kept.open("https://jobs.example.com/apply/1"):
+        kept.hold(release, ask=asking)
+
+    assert asking.done, "the message was taken"
+    assert site.posts == []

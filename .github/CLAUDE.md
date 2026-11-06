@@ -18,6 +18,24 @@ the same image and port as the local test container, and sets
 there, a test database that cannot be reached fails the job instead of
 skipping the tests.
 
+**The backend job runs only on a PR that touches `backend/`, `scout/`,
+`scraper/` or `ci.yml`** (the `changes` job's `backend` filter). The API
+installs both packages (`workit-scout` and `workit-scraper`, path
+dependencies in `backend/pyproject.toml`), and its tests read no other
+folder: the root `.env` is absent in CI, and the Fill engine test skips
+without the submodule. A new path dependency joins the filter too. Only 3 of the 40 PRs merged before
+2026-11-04 touched either folder; the rest waited about 7 minutes for a
+job their change could not fail. A skipped job passes a required check. A
+new backend test that reads a file outside those folders adds that folder
+to the filter, or a PR that changes the file merges untested.
+
+The backend job runs pytest with one worker per core (`-n auto`,
+pytest-xdist). One at a time, its 2,368 tests took 6.5 of the job's 7.3
+minutes (2026-11-04): about 40% resume tests that each compile a real PDF
+(about 1 s), the rest database tests that each empty every table after
+them. Each worker imports `tests/conftest.py` on its own, so each makes and
+migrates its own randomly named database and the workers share no table.
+
 The backend job installs real Tectonic with `backend/scripts/fetch_tectonic.py`
 (kept in the Actions cache) before pytest. Because `CI` is set, the resume
 template text test fails, never skips, when Tectonic is missing
@@ -188,6 +206,12 @@ API at exact times (`scraper/docs/coverage.md`, "Later").
   before every scrape, from the curated GitHub lists, so a company they name
   today is read on the next run without a commit. It only ever adds; the rules
   are in `scraper/CLAUDE.md`.
+- **The import retries its own transaction when the connection drops**
+  (`import_jobs.IMPORT_ATTEMPTS`, three tries 10 seconds apart), so a
+  `DATABASE_URL` pooler disconnect doesn't fail a good scrape. Nothing else is
+  retried: an `ImportRefused` or a bad row fails the same way again, and the
+  keyword pass after the commit makes paid Scout calls, so the workflow step
+  itself runs the import once.
 - **The scraper's memory** (`scraper/jobs.json`) lives in the Actions cache,
   restored from the newest entry and saved only after a scrape that finished. A
   missed cache is safe, just slow: that run re-reads every Greenhouse page and
@@ -328,7 +352,8 @@ Chrome Web Store API's **v2** endpoints (`chromewebstore.googleapis.com`)
 never the item id alone, and upload/publish each return a `state`-style
 enum (`uploadState`, `state`) rather than v1.1's `status` array. Two jobs:
 
-- **`check-version-bump`**, every PR touching the extension: fails unless
+- **`check-version-bump`**, every PR touching the extension's own files
+  (`manifest.json`, `icons/`, `fonts/`, `src/`, `store/`; KAN-669): fails unless
   `autofiller_extension/store/store.json`'s `version` is strictly greater
   than `main`'s (`dpkg --compare-versions`) — the Store package's own
   version (`store/build.mjs`, KAN-463, writes it over whatever
@@ -340,14 +365,21 @@ enum (`uploadState`, `state`) rather than v1.1's `status` array. Two jobs:
   one-line, by-hand part of the PR**, on purpose — not something this
   workflow writes and commits itself, which would need write-back
   permissions and risks a loop for little gained.
-- **`publish`**, on push to `main` (or by hand — **main only**: a push
-  trigger is already branch-filtered, but `workflow_dispatch` has no such
+- **`publish`**, on a push to `main` that touches those same files (or by
+  hand — **main only**: a push trigger is already branch-filtered, but `workflow_dispatch` has no such
   filter on GitHub's side, so the job itself checks `github.ref ==
   'refs/heads/main'` or a dispatch from any other branch would submit
   unreviewed code for real Store review). Runs `store/build.mjs` (the
   same Store package `extension-store-build` already builds and checks
   in CI, above — never a second, ad-hoc zip step here) and pushes the
   result through the Chrome Web Store API, then submits it for review.
+
+An engine pointer move alone needs no bump and starts no publish, so Store
+users get that engine with the next bump. To ship an engine fix sooner, bump
+`store.json` in the pointer's PR: that PR then publishes the new pointer too.
+These path filters skip the whole workflow, so GitHub reports no check for a
+skipped PR. Do not make `check-version-bump` a required check, or those PRs
+wait for it forever.
 
 **This does not make an update live by itself.** The extension asks for
 sensitive permissions (`cookies`, several hosts), so Google reviews every

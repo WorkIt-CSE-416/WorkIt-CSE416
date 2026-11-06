@@ -183,3 +183,16 @@ def match(view: ResumeView, keywords: list[Keyword]) -> tuple[list[Keyword], lis
     matched = [k for k in ordered if _shows(text, k.keyword)]
     missing = [k for k in ordered if not _shows(text, k.keyword)]
     return matched, missing
+
+
+def in_experiences(everything: ResumeView, missing: list[Keyword]) -> list[str]:
+    """The missing keywords the student's whole bank already shows: in an
+    entry, a bullet or a skill of their Experiences, though not on the resume
+    being tailored (KAN-587). `everything` is the bank with every item shown
+    (`resume_view.all_chosen`), read by the same whole-word rule as `match`.
+
+    Tailor's keyword step groups these first, as skills the student has
+    shown, so picking one claims nothing new. Nothing picks them in bulk: a
+    pick is still the student's own click (frontend/docs/screens.md)."""
+    text = _shown_text(everything)
+    return [k.keyword for k in missing if _shows(text, k.keyword)]

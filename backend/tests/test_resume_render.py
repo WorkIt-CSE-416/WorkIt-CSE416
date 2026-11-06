@@ -349,8 +349,9 @@ def read_only_vendor(tmp_path, monkeypatch):
     (vendor / "cache" / "fonts").mkdir(parents=True)
     for i in range(50):
         (vendor / "cache" / "fonts" / f"{i}.otf").write_bytes(os.urandom(4096))
-    (vendor / "tectonic").write_bytes(b"#!/bin/sh\n")
-    (vendor / "tectonic").chmod(0o644)
+    binary = vendor / resume_render.binary_name()  # tectonic.exe on Windows
+    binary.write_bytes(b"#!/bin/sh\n")
+    binary.chmod(0o644)
     tmp = tmp_path / "tmp"
     tmp.mkdir()
     monkeypatch.setattr(resume_render, "VENDOR", vendor)

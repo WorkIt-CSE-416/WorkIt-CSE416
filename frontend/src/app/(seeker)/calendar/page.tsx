@@ -92,7 +92,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
               href={applicationHref(open.id)}
               className={buttonClasses({ variant: "secondary", size: "sm" })}
             >
-              Open in Applications Tracker
+              Open in Tracker
               <ArrowRightIcon className="size-3.5" />
             </Link>
           }
