@@ -18,10 +18,12 @@ the same image and port as the local test container, and sets
 there, a test database that cannot be reached fails the job instead of
 skipping the tests.
 
-**The backend job runs only on a PR that touches `backend/`, `scout/` or
-`ci.yml`** (the `changes` job's `backend` filter). Its tests read no other
-folder: the API reads the scraper's feed as data from `backend/data/`, and
-the root `.env` is absent in CI. Only 3 of the 40 PRs merged before
+**The backend job runs only on a PR that touches `backend/`, `scout/`,
+`scraper/` or `ci.yml`** (the `changes` job's `backend` filter). The API
+installs both packages (`workit-scout` and `workit-scraper`, path
+dependencies in `backend/pyproject.toml`), and its tests read no other
+folder: the root `.env` is absent in CI, and the Fill engine test skips
+without the submodule. A new path dependency joins the filter too. Only 3 of the 40 PRs merged before
 2026-11-04 touched either folder; the rest waited about 7 minutes for a
 job their change could not fail. A skipped job passes a required check. A
 new backend test that reads a file outside those folders adds that folder

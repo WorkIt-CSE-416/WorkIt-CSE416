@@ -78,11 +78,12 @@ jobs:
         id: filter
         with:
           filters: |
-            # The backend's tests read only backend/ and scout/ (the package
-            # it installs); no other folder can break them
+            # The backend's tests read only backend/ and the two packages it
+            # installs, scout/ and scraper/; no other folder can break them
             backend:
               - backend/**
               - scout/**
+              - scraper/**
               - .github/workflows/ci.yml
             extension:
               - autofiller_extension/**
@@ -240,8 +241,8 @@ jobs:
       - run: npm ci
       - run: npm run check
 
-  # Skipped on a PR that touches neither backend/ nor scout/ (the changes
-  # job): 37 of the 40 PRs merged before 2026-11-04 touched neither, and each
+  # Skipped on a PR that touches none of backend/, scout/ and scraper/ (the
+  # changes job): 37 of the 40 PRs merged before 2026-11-04 touched neither, and each
   # waited about 7 minutes for it. A skipped job passes a required check.
   backend:
     needs: changes
