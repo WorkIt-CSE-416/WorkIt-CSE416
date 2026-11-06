@@ -46,6 +46,7 @@ These files hold the detail of each area. Read the one that matches your change.
 - **Claude fill:** read before you change Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`. `docs/claude-fill.md`
 - **Captchas and bot blocks:** read before you change a captcha wait, a block's handoff, or `captcha.py`. `docs/captchas-and-bot-blocks.md`
 - **Sign-in:** read before you change a sign-in page, an Employer account or its password, or the Accounts tab. `docs/sign-in.md`
+- **Apply window:** read before you change the window's lifetime, its Dock keeper, or what a Record keeps. `docs/apply-window.md`
 
 ## Plain Workers: the submit and drive guards (KAN-610)
 
@@ -77,22 +78,6 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   records every POST. A page that sends by script (fetch from a fresh realm, a worker, a beacon,
   requestSubmit, a native POST) sends nothing once guarded, and the rules alone stop it too.
   A tile press shows the blocked note, and a lifted page's Submit goes through and is heard.
-
-## The Apply window
-
-- The status line counts a link as "queued" only until a Worker starts it.
-  A rehearsal sends `board.run(queued=...)` each time a link starts.
-- When a run or rehearsal ends, its window closes (`Dashboard.__exit__`).
-  A window with no server shows a run that is gone.
-- A click on Apply in the Dock goes to the window's Chrome, which counts no
-  app window as a browser window and opens a New Tab window, every click.
-  The window's keeper (`dock_app.keep`) closes it at once and brings the
-  window forward. The bundle's launcher starts the keeper beside the
-  window's Chrome, so it lives as long as that Chrome. Never move it back
-  into the process that opens the window: `apply watch` exits right after.
-- `kill <pid>` (SIGTERM) stops Apply as Ctrl-C does: the Worker browsers
-  and the window close. Ctrl-C does not reach Apply when it runs in the
-  background, so use SIGTERM there.
 
 ## Plain Workers' tiles and Fix from the window (KAN-609)
 
@@ -167,19 +152,6 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   each run takes about 30 s, and they use their own socket. The `frames`
   fixture is the extension's path; `filmed` (`-k filmed`) needs Screen
   Recording for the app pytest runs in, else it skips.
-
-## Rehearsal records
-
-A Workday link is named from the Feed; one the Feed lacks is named by
-Workday's job API, its legal entity trimmed to the company
-(`workday.company_of`: "ASML US, LP. (US30)" is ASML). Unnamed, ASML's
-Record was headed "# : " in a folder named `company-...`.
-
-Every rehearsal outcome writes its Record (`rehearsals/<date>/`), a Handoff or
-a failure too, not only a filled form. A step Workday won't leave keeps what
-was planned and what each field showed up to there
-(`WorkdayFiller.shown_so_far`); an outcome before any form opened keeps a
-screenshot of the page it stopped on.
 
 ## Plain Workers: Records, Needs you, Resume and the emailed code (KAN-611)
 
