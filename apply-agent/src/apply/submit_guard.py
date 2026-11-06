@@ -130,6 +130,11 @@ _TEMPLATE = r"""
     const form = el.form || (el.closest && el.closest('form'));
     return !!form && !!form.querySelector('input[type=password]');
   };
+  // A verification code's form: one with a one-time-code box, which no application's final button is in either.
+  const codeForm = (el) => {
+    const form = el.form || (el.closest && el.closest('form'));
+    return !!form && !!form.querySelector('input[autocomplete=one-time-code]');
+  };
   // Plain code's click on the button of a profile step before the application (Microsoft's
   // "Create your profile" pop-up names its button Submit, live: KAN-647).
   const profileClick = () => window.__applyProfileClick === true;
@@ -204,7 +209,10 @@ _TEMPLATE = r"""
       && event.target.closest('button, input[type=submit], input[type=button], [role=button], a');
     if (!target) return;
     if (lifted()) {  // Lisul's page: his click goes through, and Apply hears of one that sends
-      if (sends(target) && window.__applyLisulPressed) window.__applyLisulPressed(wordsOf(target).trim().slice(0, 80));
+      // Saying whether it was a sign-in, account or code form's (Workday's Sign in with email names its button
+      // Submit): that press sends no application, so Resume still goes on after it.
+      if (sends(target) && window.__applyLisulPressed) window.__applyLisulPressed(wordsOf(target).trim().slice(0, 80),
+        accountForm(target) || codeForm(target));
       return;
     }
     if (!sends(target)) return;
@@ -253,9 +261,18 @@ _TEMPLATE = r"""
   // A profile pop-up posting to its own page, on a URL final by its name alone: the pop-up is proven no application.
   const profileOwnPage = (form, by) => !(by && by.getAttribute && by.getAttribute('formaction'))
     && !HTMLFormElement.prototype.getAttribute.call(form, 'action') && byNameAlone(form, by);
+  // A sign-in relay's own post (an SSO, OIDC or SAML hand-off: Amazon's idp.federate "Signing you in...", live):
+  // the page's script posts it before any click or key on the page, its fields are all hidden (a token, a
+  // state), no button of it sends, and it is bound for no final URL. Nothing of an application is in it.
+  const fields = (form) => Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get.call(form);
+  const relay = (form, by) => !touched && posts(form, by) && !postsFinal(form, by)
+    && [...fields(form)].some((n) => n.type === 'hidden')
+    && [...fields(form)].every((n) => n.type === 'hidden' || n.tagName === 'FIELDSET'
+      || (/^(submit|button|reset)$/.test(n.type) && !sends(n)));
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
+    if (relay(form, by)) return;
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
     if (accountClick() && form.querySelector('input[type=password]') && !postsFinal(form, by)) return;
@@ -275,7 +292,7 @@ _TEMPLATE = r"""
     // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
     const step = accountClick() && !postsFinal(this) && (!!this.querySelector('input[type=password]')
       || ![...this.querySelectorAll('button, input[type=submit]')].some(sends));
-    if (!lifted() && !step && posts(this)) return note('a form submission');
+    if (!lifted() && !step && !relay(this, null) && posts(this)) return note('a form submission');
     return submit.call(this);
   };
 
@@ -611,7 +628,8 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     """Hand a guarded page to Lisul once Apply is done with it: no Filler or
     Claude drives it any more, so a Submit on it can only be his, and it goes
     through, on this page and every page he loads from it. `pressed` hears
-    the words of each button he clicks that sends; `again`, when he presses
+    the words of each button he clicks that sends, with `account=True` when it is a sign-in, account
+    or verification code form's (it sends no application); `again`, when he presses
     the note's Fill again. Both are called on the page's own thread. A
     `warning` goes on the note, red when an answer is `wrong`, amber when
     it only names fields left blank. `bound`: the page was lifted before
@@ -624,7 +642,7 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     if bound:
         pressed = again = dismiss = None
     if pressed:
-        page.expose_binding("__applyLisulPressed", lambda source, words: pressed(words))
+        page.expose_binding("__applyLisulPressed", lambda source, words, account=False: pressed(words, account=account))
     if again:
         page.expose_binding("__applyFillAgain", lambda source: again())
     if dismiss:

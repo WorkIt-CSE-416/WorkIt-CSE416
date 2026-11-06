@@ -1040,3 +1040,37 @@ def test_a_sign_in_with_a_password_box_still_posts_under_the_account_click():
         page.wait_for_timeout(500)
         browser.close()
     assert posts == ["https://jobs.example.com/session"]
+
+
+# A sign-in relay that posts itself as it loads (Amazon's idp.federate "Signing you in...", live 2026-11-06):
+# hidden fields only, a Continue for a page whose script didn't run, bound for no final URL.
+SIGN_IN_RELAY = """<p>Signing you in...</p><form method="post" action="{action}">{fields}
+<input type="hidden" name="id_token" value="t"><input type="hidden" name="state" value="s">
+<button>{button}</button></form><script>{post}</script>"""
+
+
+@pytest.mark.parametrize("post", ["document.forms[0].submit()", "document.forms[0].requestSubmit()"])
+@pytest.mark.parametrize("action, fields, button, through", [
+    ("https://jobs.example.com/auth/callback", "", "Continue", True),
+    ("https://jobs.example.com/careers/jobs/123/apply", "", "Continue", False),  # bound for a final URL
+    ("https://jobs.example.com/auth/callback", '<input name="email">', "Continue", False),  # a field to fill
+    ("https://jobs.example.com/auth/callback", "", "Submit", False),  # a button that sends
+])
+def test_a_sign_in_relay_posts_itself_through_the_drive_guard(post, action, fields, button, through):
+    from playwright.sync_api import sync_playwright
+
+    relay = "https://idp.example.com/api/v1/intermediate?id_token=t&state=s"
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route(relay, lambda route: route.fulfill(
+            body=SIGN_IN_RELAY.format(action=action, fields=fields, button=button, post=post), content_type="text/html"))
+        _posts_to(page, posts)
+        drive = DriveGuard(page)
+        page.goto(relay)
+        page.wait_for_timeout(500)
+        blocked = drive.blocked()
+        browser.close()
+    assert posts == ([action] if through else [])
+    assert bool(blocked) is not through

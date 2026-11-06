@@ -118,6 +118,9 @@ SIGNED_IN = "signed in"
 CAPTCHA_SHOWED = "A captcha showed: do it, then press Resume. Apply won't go on by itself now"
 # Why a paused rehearsal can't go on, on its Resume button.
 TAB_CLOSED = "The form's tab was closed: start it again"
+# A press of his that sends the application itself, not one that goes on to it (Apply now, Complete a profile).
+FINAL = re.compile(r"\b(submit|send)\b", re.IGNORECASE)
+SENT = "You pressed Submit on the form: it is yours to send, and Apply fills it no more"
 ENDED = "The rehearsal ended: start it again"
 # How long a confirmed page stays open before its window closes, in case a pop-up follows.
 CLOSE_AFTER_S = 10
@@ -255,7 +258,7 @@ def rehearse(
             note += _keep_confirmation(page, done, adapters)
             # Sent: nothing on it waits on him now, and an answer given later neither fills it nor shows it unsent.
             done.outcome, done.missing = str(Status.SUBMITTED), ()
-            adapters.board.update(n, status="submitted", why=note, missing=[], resume=None)  # sent: Resume is gone
+            adapters.board.update(n, status="submitted", why=note, missing=[])
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, note]))
 
         def held() -> None:  # its form is open and planned: Ready, then Filling once Start is pressed
@@ -277,6 +280,10 @@ def rehearse(
             why = TURNED_DOWN.format(captcha.blocked(done.posting.company, done.posting.url, said))
             adapters.board.update(n, status="handoff", why=why, blocked=True, resume=None)
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, why]))
+
+        def sent() -> None:  # Lisul pressed the held form's Submit: its Resume goes on no more, so the window says so
+            adapters.board.resumed(n)  # a Resume pressed before it waits no more
+            adapters.board.update(n, resume={"ok": False, "why": SENT})
 
         def ruled_out() -> bool:  # it may be filled anyway: its tile offers the button
             if done.outcome not in (OUTCOMES[Status.NOT_ELIGIBLE], OUTCOMES[Status.CLOSED]):
@@ -371,7 +378,7 @@ def rehearse(
             gate.release()  # a paused form holds no Worker's turn while it waits on him
             try:
                 how = site.hold(release, done.posting.job_system, submitted, done.warning(), done.wrong(),
-                                answers, fill, resume=wants, challenged=challenged, refused=turned_down, redo=redo, tend=tend,
+                                answers, fill, resume=wants, sent=sent, challenged=challenged, refused=turned_down, redo=redo, tend=tend,
                                 ask=asker, **holds())
             finally:
                 asker.close()
@@ -429,9 +436,8 @@ def rehearse(
                         adapters.board.update(n, resume=None)
                     if how != AGAIN:  # Fill again, or Fill it anyway
                         break
-                    # A Resume pressed for the hold that ended goes with it: never the next pause's (each pause offers its own).
-                    adapters.board.resumed(n)
-                    adapters.board.update(n, resume=None)
+                    adapters.board.resumed(n)  # a Resume pressed for the fill before: the new fill never takes it
+                    adapters.board.update(n, resume=None)  # nor its offer: each pause offers its own
                     with gate:
                         done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, pause=paused,
                                          anyway=anyway, force=force)
@@ -1114,7 +1120,7 @@ class _Kept:
              redo: "_Redo | None" = None,
              tend: Callable[[object], None] = lambda page: None, ask: "_Ask | None" = None,
              fill_again: Callable[[], bool] = lambda: False, held: Callable[[], str] = lambda: "", dismiss: Callable[[], None] = lambda: None,
-             note: "Callable[[], tuple[str, bool]] | None" = None) -> str:
+             note: "Callable[[], tuple[str, bool]] | None" = None, sent: Callable[[], None] = lambda: None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
         window is closed. Apply is done with it, so it is Lisul's: the submit
@@ -1127,8 +1133,10 @@ class _Kept:
         in and presses nothing. AGAIN when he presses Fill again, or `fill_again()` says it was asked
         from outside the page (`POST /fill-again`) before his Submit: fill the form anew.
         A paused rehearsal passes `resume(page)`, whether Lisul pressed Resume and
-        it can go on: then RESUME, with the page still his until rearm(). His own presses
-        before it (a sign-in, Apply now) don't stop it; one the job system confirms sent the form does.
+        it can go on: then RESUME, with the page still his until rearm(). Once he presses the form's own Submit
+        (a Submit or Send button not on a sign-in, account or code form), or the job system confirms a press of
+        his sent it, Resume goes on no more, and `sent()` runs, once, so the window stops offering it. His
+        other presses (Apply now, a profile pop-up's Complete) leave Resume his to press.
         A captcha that shows after a press of his calls `challenged()`, once:
         he does it himself, and Apply never touches it. A bot block after a press
         of his (Lever's captcha turning the token down) calls `refused(said)`, once.
@@ -1144,10 +1152,13 @@ class _Kept:
         "" when the page closed or `release` was set."""
         if self._page is None or release.is_set():
             return ""
-        pressed, again, hooks, regenerates = [], [], self._hooks, []
+        pressed, final, again, hooks, regenerates = [], [], [], self._hooks, []
 
-        def heard(words: str) -> None:
-            pressed.append(words)
+        def heard(words: str, account: bool = False) -> None:
+            if not account:  # a sign-in, account or code form's press sends no application: Resume still goes on
+                pressed.append(words)
+                if FINAL.search(words):  # the form's own Submit: the form is his to send (KAN-690)
+                    final.append(words)
             if code:
                 code.pressed(words)
         dismissed = []
@@ -1158,7 +1169,7 @@ class _Kept:
         dismissing, holding = [], held()
 
         def hand_over() -> None:  # the guard comes off: the page is Lisul's
-            lift(self._page, pressed=lambda words: hooks["pressed"](words), again=lambda: hooks["again"](),
+            lift(self._page, pressed=lambda words, account=False: hooks["pressed"](words, account), again=lambda: hooks["again"](),
                  warning=warning, wrong=wrong, bound=self._bound, held=holding, dismiss=lambda: hooks["dismiss"]())
             self._lifted = self._bound = True
         blocked = bool(self.applied) and not self._dismissed  # he applied already: Submit stays blocked
@@ -1179,7 +1190,7 @@ class _Kept:
                 self._offered = True
             except Exception:
                 pass  # the page closing: the window's button still says so
-        kept, closing, told, turned_down = False, None, False, False
+        kept, closing, told, turned_down, said_sent = False, None, False, False, False
         if ask:
             ask.open(self._page)  # the caller closes it once hold() returns
         while not release.is_set():
@@ -1192,9 +1203,13 @@ class _Kept:
                     hand_over()
                 if again or (fill_again() and not pressed):
                     return AGAIN
-                # His own presses (sign-in, Apply now, a profile pop-up) leave Resume his to press; only a press that
-                # sent the application (the job system confirms it) makes the page his to send, never Apply's to drive.
-                if resume and not kept and not (pressed and _confirmed(self._page, job_system)) and resume(self._page):
+                # Only his Submit, or a press the job system confirms sent the form, makes the page his to send, never
+                # Apply's to drive. His other presses (Apply now, a profile pop-up's Complete) leave Resume his to press.
+                gone = bool(final) or kept or bool(pressed) and _confirmed(self._page, job_system)
+                if resume and gone and not said_sent:
+                    said_sent = True
+                    sent()
+                if resume and not gone and resume(self._page):
                     return RESUME
                 for question, answer in answers():
                     fill(self._page, question, answer)
