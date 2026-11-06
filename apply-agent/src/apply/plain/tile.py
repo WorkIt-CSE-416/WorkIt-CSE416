@@ -33,6 +33,7 @@ from apply.plain import window_capture
 from apply.plain.bridge import OUT_OF_DATE, Connection, PortError, PortTimeoutError
 from apply.plain.page import POLL, PortPage, file_payloads
 
+FOREIGN = "This tile's browser connection came from another Worker's Chrome, so the tile shows nothing from it."
 INPUT_WAIT = 5.0  # s a tile event may take on the page before the window gives up on it
 WATCH_EVERY = 0.5  # s between looks for Workers that connected or went away
 FIRST_FRAME = 3.0  # s a filmed tile may wait for its first frame before the extension's frames show
@@ -45,11 +46,15 @@ class PortFrames:
     `lambda k: workers.bridge.connection(k)`). Implements dashboard.Frames."""
 
     def __init__(self, workers: int, connection: Callable[[int], Connection | None], capture: str | None = None,
-                 **settings):
+                 chrome: Callable[[int], int | None] | None = None, **settings):
         """`capture`: "native" (ScreenCaptureKit when allowed, else the extension's frames) or
-        "extension" (default: window_capture.mode(), $APPLY_TILE_CAPTURE)."""
+        "extension" (default: window_capture.mode(), $APPLY_TILE_CAPTURE). `chrome(k)` is the PID of the
+        Chrome that has Worker k's profile open (launcher: browsers.chrome_pid): a Connection from any
+        other Chrome shows nothing on Worker k's tile and takes none of its input (KAN-717)."""
         self._workers = workers
         self._connection = connection
+        self._chrome = chrome or (lambda worker: None)
+        self._foreign: set[int] = set()  # Workers whose Connection is another Chrome's
         self._capture = capture or window_capture.mode()
         self._allowed: bool | None = None  # Screen Recording permission, looked at once
         self._streams: dict[int, window_capture.WindowStream] = {}  # worker -> its window, filmed
@@ -102,7 +107,7 @@ class PortFrames:
 
     def input(self, worker: int, event: dict) -> dict | None:
         connection = self._watched.get(worker)
-        if connection is None or connection.closed.is_set():
+        if connection is None or connection.closed.is_set() or worker in self._foreign:
             return None
         try:
             if event["type"] == "files":
@@ -150,13 +155,13 @@ class PortFrames:
             self._changed.notify_all()
 
     def _aim(self, worker: int, message: dict) -> None:
-        """The extension's `tile.shown`: film that window, cropped to that tab's viewport."""
+        """The extension's `tile.shown`: film that window, cropped to that tab's viewport, if its title is the tab's."""
         self._tabs[worker] = message.get("tab", self._tabs.get(worker))
         if worker in self._filmed:
             self._filmed[worker]["shown"] = time.monotonic()
         stream, window = self._streams.get(worker), message.get("window") or {}
         if stream and window.get("state") != "minimized" and message.get("viewport", {}).get("width"):
-            stream.aim(window, message["viewport"])
+            stream.aim(window, message["viewport"], message.get("title") or "")
 
     def _film(self, worker: int, connection: Connection) -> bool:
         """Start filming Worker `worker`'s window natively; False when it can't be (then the extension's frames)."""
@@ -168,7 +173,7 @@ class PortFrames:
             self._notes[worker] = window_capture.permission_note()
             return False
         pid = window_capture.chrome_of(connection.relay.get("host_pid"))
-        if pid is None:
+        if pid is None or pid != (self._chrome(worker) or pid):
             return False
         self._filmed[worker] = {"began": time.monotonic(), "frame": 0.0, "shown": 0.0}
         self._streams[worker] = window_capture.WindowStream(pid, lambda frame, worker=worker: self._filmed_frame(worker, frame))
@@ -184,6 +189,8 @@ class PortFrames:
         """Why Worker `worker`'s filmed tile shows nothing and should take the extension's frames, or ""."""
         if not stream.alive:
             return "the helper ended"
+        if "mismatch" in stream.status:  # no window of its Chrome shows its tab: never film another (KAN-717)
+            return f"helper: {stream.status['mismatch']}"
         times, now = self._filmed.get(worker) or {}, time.monotonic()
         if not times.get("frame") and now - times.get("began", now) > FIRST_FRAME:
             return (f"no frame in {FIRST_FRAME:.0f} s (" + ("no tile.shown from the extension" if not times.get("shown")
@@ -223,8 +230,15 @@ class PortFrames:
         self._notes.pop(worker, None)
         self._watched.pop(worker, None)
         self._choosers.pop(worker, None)
+        self._foreign.discard(worker)
         self._pages = {key: page for key, page in self._pages.items() if key[0] != worker}
         if connection is None:
+            return
+        if self._foreign_to(worker, connection):
+            self._foreign.add(worker)
+            self._notes[worker] = FOREIGN
+            print(f"Plain Worker {worker + 1}'s tile: {FOREIGN}", file=sys.stderr)
+            self._watched[worker] = connection  # not looked at again: its tile shows none of its frames
             return
         connection.on("tile.frame", lambda message, worker=worker: self._keep(worker, message))
         connection.on("tile.shown", lambda message, worker=worker: self._aim(worker, message))
@@ -234,10 +248,16 @@ class PortFrames:
         connection.call("tile.start", timeout=5, **{**self._settings, "native": native})
         self._watched[worker] = connection
 
+    def _foreign_to(self, worker: int, connection: Connection) -> bool:
+        """Whether `connection` comes from a Chrome that isn't Worker `worker`'s (both PIDs known, and not the same)."""
+        expected = self._chrome(worker)
+        found = window_capture.chrome_of(connection.relay.get("host_pid")) if expected else None
+        return bool(expected and found and found != expected)
+
     def _read_errors(self, worker: int) -> None:
         """The field error Worker `worker`'s shown page shows, every ERRORS_EVERY s (apply.stuck)."""
         connection, tab = self._watched.get(worker), self._tabs.get(worker)
-        if connection is None or tab is None:
+        if connection is None or tab is None or worker in self._foreign:
             self._errors.pop(worker, None)
             return
         if time.monotonic() - self._errors.get(worker, ("", -ERRORS_EVERY))[1] < ERRORS_EVERY:

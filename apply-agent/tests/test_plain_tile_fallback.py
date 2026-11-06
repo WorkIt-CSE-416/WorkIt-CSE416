@@ -47,7 +47,7 @@ class NeverAimed:
     def __init__(self, pid, on_frame, **_):
         self.status, self.alive = {}, True
 
-    def aim(self, window, viewport):
+    def aim(self, window, viewport, title=""):
         raise AssertionError("aimed without a tile.shown")
 
     def close(self):

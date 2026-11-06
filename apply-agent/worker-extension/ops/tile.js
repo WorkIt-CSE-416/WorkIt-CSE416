@@ -65,7 +65,8 @@ async function aimLoop(ctx, mine) {
       const tab = await shownTab();
       if (tab) {
         const { left, top, width, height, state } = await chrome.windows.get(tab.windowId);
-        const shown = { tab: tab.id, url: tab.url || "", window: { left, top, width, height, state },
+        // The title lets Apply film this window only if macOS lists it with the tab's title (KAN-717).
+        const shown = { tab: tab.id, url: tab.url || "", title: tab.title || "", window: { left, top, width, height, state },
                         viewport: { width: tab.width, height: tab.height } };
         const text = JSON.stringify(shown);
         if (text !== lastSent && stream?.generation === mine) {
