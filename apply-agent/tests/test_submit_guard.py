@@ -1349,3 +1349,26 @@ def test_the_postings_apply_sends_its_token_alone_whatever_the_pages_submit_hand
 def test_any_other_forms_apply_stays_blocked(given):
     posts, blocked = _press_tal_apply(**given)
     assert posts == [] and blocked
+
+
+@pytest.mark.parametrize("opened, sessions, start", [
+    (TAL_URL, 0, True), (TAL_URL + "#top", 0, True),
+    (TAL_URL, 1, False),  # a later drive: the form, or a page after a sign-in
+    (TAL_URL.replace("/opp/14418-Software-Engineer/en-GB", "/eform/1/page/2"), 0, False),  # not the Posting's page
+])
+def test_claude_fill_vouches_only_for_the_postings_page_at_its_first_drive(opened, sessions, start):
+    from apply.claude_fill import ClaudeFill
+
+    said = []
+
+    class Guard:
+        def arm(self): said.append("arm")
+        def let_start_click(self): said.append("start")
+        def blocked(self): return []
+        def rest(self): pass
+
+    claude = type("Claude", (), {"drive": lambda self, **_: __import__("apply.adapters").adapters.Drive({}, 1, 10)})()
+    filler = ClaudeFill(claude=claude)
+    filler._guard, filler._url, filler._sessions = Guard(), TAL_URL, sessions
+    filler._drive(type("Page", (), {"url": opened})(), "system", "prompt", {}, [])
+    assert said == (["arm", "start"] if start else ["arm"])
