@@ -185,6 +185,7 @@ jobs:
             tests/test_preflight.py \
             tests/test_keychain_contract.py \
             tests/test_mail_command.py \
+            tests/test_masked.py \
             tests/test_matches.py \
             tests/test_network_block.py \
             tests/test_notification.py \

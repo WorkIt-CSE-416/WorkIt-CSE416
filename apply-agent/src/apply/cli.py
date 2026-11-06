@@ -23,11 +23,13 @@ from apply import (
     bot_signals,
     captcha,
     dashboard,
+    data_command,
     doctor,
     employer_mail,
     essays,
     home,
     into,
+    masked,
     native_host,
     on_page,
     orchestrator,
@@ -82,6 +84,15 @@ RECORDS = HOME / "records"
 
 
 def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> None:
+    """From the shell, every line goes out scrubbed of personal values (apply.masked, KAN-664). A test's fake
+    adapters print only what it made."""
+    if adapters is not None:
+        return _main(argv, adapters)
+    with masked.output():
+        return _main(argv, adapters)
+
+
+def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     parser = argparse.ArgumentParser(prog="apply")
     commands = parser.add_subparsers(dest="command", required=True)
     run = commands.add_parser("run", help="submit approved Holds, then apply to every Request and Match")
@@ -215,12 +226,21 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
                           "and print the order and pacing plan. It opens no page and reads no job site")
     checked.add_argument("urls", nargs="+", metavar="url")
     checked.add_argument("--workers", type=int, default=orchestrator.WORKERS, help="how many Workers fill at once")
+    data = commands.add_parser("data", help="what the data folder holds, masked: keys and shapes, never a value")
+    data_commands = data.add_subparsers(dest="data_command", required=True)
+    data_keys = data_commands.add_parser("keys", help="list the data files, or one file's keys, with each one's shape")
+    data_keys.add_argument("file", nargs="?", help="a file in the data folder, such as answer-bank.yaml")
+    data_key = data_commands.add_parser("show-key", help="one key, masked, by its dotted name")
+    data_key.add_argument("key", help="such as identity.email")
+    data_key.add_argument("--file", help=f"a file in the data folder (default: {data_command.DEFAULT_FILE})")
     args = parser.parse_args(argv)
+    if adapters is None:
+        masked.KNOWN.learn(getattr(args, "profile", None) or DEFAULT_PROFILE)
     if adapters is None and threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, _stop)  # `kill <pid>` closes the browsers and the window, as Ctrl-C does
     # doctor only reads: it says the profile is missing. login and import-sheet need no profile.
     if args.command not in ("doctor", "login", "import-sheet", "clean-tracker", "plain", "ask", "fill-again",
-                            "preflight") and home.fill_from_sample():
+                            "preflight", "data") and home.fill_from_sample():
         print(f"No Applicant profile yet: copied the Test Person sample data into {HOME}. Apply runs as Test Person "
               "(the window says Sample data) until you put your own files there.", file=sys.stderr)
 
@@ -380,6 +400,12 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             print(add(url))
     elif args.command == "story-map":
         _story_map(args, adapters.claude if adapters else None)
+    elif args.command == "data":
+        try:
+            shown = data_command.keys(args.file) if args.data_command == "keys" else data_command.show_key(args.key, args.file)
+        except data_command.Refused as refused:
+            sys.exit(f"apply data: {refused}")
+        print("\n".join(shown))
     elif args.command == "ask":
         sys.exit(_ask(args.target, args.message, args.list))
     elif args.command == "plain":
