@@ -702,7 +702,7 @@ class ClaudeFill:
         if self._guard is None:
             self._guard = DriveGuard(page, **self._opt_ins)
         self._guard.arm()
-        if not self._sessions and self._url and _unhashed(page.url) == _unhashed(self._url):
+        if not self._sessions and self._url and _unhashed(page.url) == _unhashed(self._url) and _opens_only(self._url):
             self._guard.let_start_click()  # the Posting's own page, untouched yet: its Apply may open the form (KAN-725)
         before = len(self._guard.blocked())  # a block of an earlier drive was its Handoff already (Lisul resumed after)
         try:
@@ -1409,6 +1409,17 @@ def _page_text(page: Page) -> str:
         except Exception:
             continue  # a frame that went away, or one that refuses scripts
     return "\n".join(said)
+
+
+# The job systems whose posting's Apply button is known to open the form and send nothing (KAN-725): TAL.net's
+# posts its token alone and answers with the form's first page. Anywhere else a posting's Apply may be a one-click
+# apply from a profile the site holds, so it stays blocked. A host joins only once its posting is proven so.
+OPENS_ONLY = ("tal.net",)
+
+
+def _opens_only(url: str) -> bool:
+    host = (urlsplit(url).hostname or "").lower()
+    return any(host == h or host.endswith("." + h) for h in OPENS_ONLY)
 
 
 def _unhashed(url: str) -> str:
