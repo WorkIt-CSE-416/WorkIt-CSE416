@@ -261,6 +261,18 @@ PAGES = {
             <script>document.getElementById('b').addEventListener('click', () => {{ const d = document.createElement('div');
             d.innerHTML = '<a href="/acme/jobs/123/step2" ping="{FINAL}">x</a>'; d.firstChild.click(); }});</script>""",
         "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    # Requests the guard read twice, or from where it wasn't: the beacon from Navigator's prototype, an XHR whose
+    # note the page rewrote, a URL whose words change on a second read, a new frame's fetch, a fetch through <base>.
+    "requests sent around the guard": {START: f"""<title>Apply</title><base href="{HOST}{FINAL}"><input name=first
+        value=Test><button id=b type=button>Next</button><script>document.getElementById('b').addEventListener('click',
+        () => {{
+          try {{ Navigator.prototype.sendBeacon.call(navigator, '{FINAL}', 'first=Test'); }} catch (e) {{}}
+          try {{ const x = new XMLHttpRequest(); x.open('POST', '{FINAL}'); x.__applyRequest = ['GET', '/']; x.send('a'); }} catch (e) {{}}
+          let n = 0; fetch({{toString() {{ return n++ ? '{FINAL}' : '/ok'; }}}}, {{method: 'POST', body: 'x'}}).catch(() => {{}});
+          const i = document.createElement('iframe'); document.body.append(i);
+          i.contentWindow.fetch('{FINAL}', {{method: 'POST', body: 'x'}}).catch(() => {{}});
+          fetch('?a=1', {{method: 'POST', body: 'x'}}).catch(() => {{}});
+        }});</script>"""},
 }
 BUTTON = {"a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",

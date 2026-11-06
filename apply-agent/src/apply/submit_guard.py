@@ -764,39 +764,55 @@ _TEMPLATE = r"""
   const paramsText = fn(URLSearchParams.prototype, 'toString');
   const paramsOf = (x) => { try { return paramsText(x); } catch (e) { return null; } };
   const refused = (method, url) => (note(named(method, url)), reject(new TypeErr('Blocked by the @NAME@')));
+  // Read once (KAN-710): the request is made here, as fetch would make it, and that one request is judged and sent, so
+  // a URL whose words change on a second read, or an init whose method does, sends what was judged.
+  const Req = Request;
   W.fetch = function (input, init) {
-    const request = isRequest(input) ? input : null;
-    const url = request ? reqUrl(request) : Str(input);
-    const method = text((init && init.method) || (request ? reqMethod(request) : 'GET'));
-    const body = init && init.body !== undefined && init.body !== null ? init.body : null;
-    if (isFinal(method, url, typeof body === 'string' ? body : paramsOf(body))) return refused(method, url);
-    // A body that isn't text yet (a Request's, a Blob) is read first: Ashby's submit is named only there.
-    if (!test(READS, method) && (body ? isBlob(body) : request)) {
-      const args = arguments, self = this;
-      return then(then(body ? blobText(body) : reqText(reqClone(request)), undefined, () => ''),
-        (said) => isFinal(method, url, said) ? refused(method, url) : apply(fetch, self, args));
+    let request;
+    try {
+      request = arguments.length > 1 ? new Req(input, init) : new Req(input);
+    } catch (e) {
+      return reject(e);
     }
-    return apply(fetch, this, arguments);
+    const url = reqUrl(request), method = reqMethod(request);
+    const body = init && typeof init === 'object' && has(init, 'body') ? init.body : null;
+    if (isFinal(method, url, typeof body === 'string' ? body : paramsOf(body))) return refused(method, url);
+    // A body is read first (a Request's, a Blob's, any): Ashby's submit is named only there.
+    if (!test(READS, method)) {
+      const self = this;
+      return then(then(reqText(reqClone(request)), undefined, () => ''),
+        (said) => isFinal(method, url, said) ? refused(method, url) : apply(fetch, self, [request]));
+    }
+    return apply(fetch, this, [request]);
   };
+  // What each XHR opened, kept where its page can't change it.
+  const opened = new WeakMap(), wmGet = fn(WeakMap.prototype, 'get'), wmSet = fn(WeakMap.prototype, 'set');
   const open = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function (method, url) {
-    this.__applyRequest = [method, url];
-    return apply(open, this, arguments);
+    const m = Str(method), u = Str(url);  // read once, and opened as read
+    const args = [m, u];
+    for (let i = 2; i < arguments.length; i++) args[i] = arguments[i];
+    wmSet(opened, this, [m, resolve(u, base()) || u]);
+    return apply(open, this, args);
   };
   const send = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.send = function (body) {
-    const sent = this.__applyRequest || [];
-    const method = text(Str(sent[0])), url = Str(sent[1]);
+    const sent = wmGet(opened, this) || ['', ''];
+    const method = sent[0], url = sent[1];
     if (isFinal(method, url, typeof body === 'string' ? body : paramsOf(body))) {
       note(named(method, url));
       throw new DOMExc('Blocked by the @NAME@', 'NetworkError');
     }
     return apply(send, this, arguments);
   };
-  if (navigator.sendBeacon) {
-    const beacon = navigator.sendBeacon, nav = navigator;
-    navigator.sendBeacon = (url, data) => isFinal('POST', Str(url), typeof data === 'string' ? data : paramsOf(data))
-      ? (note(named('POST', Str(url))), false) : apply(beacon, nav, [url, data]);
+  // The beacon on Navigator's prototype, where a page's call of it from there comes too.
+  const beacon = Navigator.prototype.sendBeacon;
+  if (beacon) {
+    Navigator.prototype.sendBeacon = function (url, data) {
+      const u = Str(url);
+      if (isFinal('POST', u, typeof data === 'string' ? data : paramsOf(data))) { note(named('POST', u)); return false; }
+      return apply(beacon, this, [u, data]);
+    };
   }
 })();
 """
