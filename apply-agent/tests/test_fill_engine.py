@@ -216,3 +216,25 @@ def test_amds_icims_profile_dates_title_phone_type_and_graduation_are_planned_fr
     assert [planned.answers.get(n) for n in ("q6", "q21", "q28", "q29", "q30", "q31")] == [
         "Mobile", "In Progress", "Software Engineer Intern", "Jun", None, "2026"]
     assert "q30" in planned.blanks
+
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+          "November", "December")
+
+
+def _tal_education(section: str) -> list[Question]:
+    # Bank of America's TAL.net (live 2026-11-05, KAN-685): the step's Start date, read as two selects, came to
+    # the Question set after the previous step's role ranking, so the questions before it were a job's words.
+    return [Question("q1", "Role preference: Software Engineer", "select", True, ("1st choice", "2nd choice")),
+            Question("q2", "Role preference: Mainframe Analyst", "select", True, ("1st choice", "2nd choice")),
+            Question("q3", "Start date: Month", "select", True, MONTHS, section=section),
+            Question("q4", "Start date: Year", "select", True, tuple(str(y) for y in range(1925, 2037)), section=section)]
+
+
+def test_a_bare_start_date_under_the_steps_education_heading_is_the_degrees_start(tmp_path):
+    started = ApplicantProfile({**PROFILE._facts, "education": {**PROFILE._facts["education"], "start_date": "2024-08"}},
+                               tmp_path, PROFILE._policies)
+    under = fill_engine.plan(_tal_education("current / most recent university education"), POSTING, started)
+    assert (under.answers.get("q3"), under.answers.get("q4")) == ("August", "2024")
+    # Without its heading the questions before it decide, and "Role preference" reads as a job's: left to ask.
+    bare = fill_engine.plan(_tal_education(""), POSTING, started)
+    assert (bare.answers.get("q3"), bare.answers.get("q4")) == (None, None)

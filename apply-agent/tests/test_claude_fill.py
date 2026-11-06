@@ -1650,6 +1650,33 @@ def test_a_box_the_fill_left_alone_is_checked_too():
     assert claude_fill.cant_be_right(seen, 2026) == ["'#2: Address line 2' holds a whole address"]
 
 
+# TAL.net's education step after a save that found a blank (KAN-685): the form's error notice is a heading too.
+TAL_EDUCATION = """<!doctype html><body>
+<h2>Current / Most Recent University Education</h2>
+<div class="errors"><h2>There is a problem</h2><p>Start date - This field is required</p></div>
+<div><label for=u>Current University / School *</label><input id=u value="Example State University"></div>
+<div><label>Start date *</label><select id=m><option>mm</option><option>August</option></select>
+<select id=y><option>yyyy</option><option>2024</option></select></div>
+</body>"""
+
+
+def test_a_bare_date_takes_the_heading_it_sits_under_never_the_forms_error_notice():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+    asked = [Question("q1", "Current University / School", "text", True),
+             Question("q2", "Start date: Month", "select", True, ("August",)),
+             Question("q3", "Start date: Year", "select", True, ("2024",))]
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(TAL_EDUCATION)
+        found = claude_fill._with_sections(page, asked)
+        browser.close()
+    assert [q.section for q in found] == ["", "current / most recent university education",
+                                          "current / most recent university education"]
+
+
 @pytest.mark.parametrize("label", [
     # Saved forms (the Fill engine's fixtures) that ask a school's fields and the internship's start on one page.
     "What is your earliest preferred start date if hired? (YYYY-MM-DD)",
