@@ -58,6 +58,8 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
     """From the open posting to its application form. `agree_to_terms` is
     Lisul's policy on privacy and terms boxes (tick_consent_when_true)."""
     email = page.locator("input[type=email]").first
+    if FORM_SECTION.search(page.url):  # a form section has no email box or Apply button to wait for (KAN-680)
+        return
     _until(page, lambda: email.is_visible() or _apply_button(page).is_visible())
     if _signed_in(page, email):  # Lisul signed in himself on a pause, and pressed Resume (KAN-636)
         return
