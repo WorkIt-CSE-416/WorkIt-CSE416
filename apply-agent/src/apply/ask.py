@@ -41,7 +41,7 @@ import yaml
 from apply import captcha
 from apply.adapters import Claude
 from apply.applicant import named, pronouns_note
-from apply.claude_fill import BACK, press_step
+from apply.claude_fill import BACK, NEXT, press_step
 from apply.model import Handoff, Posting, one_line
 from apply.repair import WRONG, RepairRequest, _shape, _signature
 from apply.send_click import ATTEST, asks_a_tick, may_tick
@@ -121,7 +121,7 @@ You may: fill or change a field, pick an option, tick or untick an ordinary choi
 Take every fact from <message> or <sources>. Never make up a name, number, date, school, grade or other fact. If the fix needs a fact you don't have, change nothing for it and say so in `couldnt`.
 Never: click the button that sends the application (Submit, Send, Finish, Complete) or press Enter to send it; click, tick, type in or solve a captcha or bot check ("I'm not a robot", reCAPTCHA, hCaptcha, Turnstile, a puzzle or slider); type a password or a code; sign in, sign out or create an account; ask the site for a verification code or email again (Resend, Send new code); pay, withdraw or delete anything.
 Never tick, untick or type in an attestation, certification, signature, consent, terms or privacy box ("I certify", "I acknowledge", "I agree", "electronic signature"): those are the applicant's own. Only if <message> names that very box by its own words (Apply checks this and refuses anything less, so "check the box" is not enough), tick it alone and name it in `ticked`. Otherwise list it in `waiting` if it is still to do.
-A step's Next, Continue or Back that does nothing when you click it (a step that posts the page, which the guard blocks for you): don't click it again or try another way. Put its exact name in `press`, change nothing more and give your answer now: Apply presses it itself, checks it, and asks you to go on from the next step.
+A step's Next, Continue or Back, or a step's link in the form's list of steps (a Progress Tracker), that does nothing when you click it (a step that posts the page, which the guard blocks for you): don't click it again or try another way. Put its exact name in `press` (a list's link by the step's name as the list shows it), change nothing more and give your answer now: Apply presses it itself, checks it, and asks you to go on from the next step.
 When you are done, the form should show the step it showed when you started: if you went back, come forward again, but never past the step that sends.
 In <page>, a field with `hidden` is not on view now (another step, kept in the page).
 Then read back each field you changed: `shown` is exactly what it shows now, with nothing added; `step` names the step it is on ("" for the one shown at the start).
@@ -134,7 +134,7 @@ SCHEMA = {
     "properties": {
         "blocked": {"type": "boolean", "description": "true only if you couldn't work on the form at all"},
         "why": {"type": "string", "description": "why you stopped; empty if not blocked"},
-        "press": {"type": "string", "description": "the exact name of a step's Next or Back for Apply to press; else empty"},
+        "press": {"type": "string", "description": "the exact name of a step's Next or Back, or of a step in the form's list of steps, for Apply to press; else empty"},
         "reply": {"type": "string"},
         "changed": {"type": "array", "items": {"type": "object", "properties": {
             "field": {"type": "string"}, "step": {"type": "string"}, "shown": {"type": "string"}},
@@ -289,7 +289,9 @@ def ask(claude: Claude, page, message: str, thread: list[dict], form: Form, give
                 break
             # A step that posts natively: plain code's own click, under the rules of Claude fill's Next (KAN-639).
             try:
-                press_step(page, guard, press, back=bool(BACK.search(press)))
+                back = bool(BACK.search(press))
+                # Neither a Next nor a Back: a step in the form's list of steps (TAL.net's Progress Tracker).
+                press_step(page, guard, press, back=back, listed=not back and not NEXT.search(press))
             except Handoff as refused:
                 couldnt_press.append(f"Apply didn't press '{one_line(press)}': {refused}")
                 break

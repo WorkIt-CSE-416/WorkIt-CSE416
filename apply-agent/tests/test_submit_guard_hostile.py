@@ -103,6 +103,11 @@ PAGES = {
             try {{ document.getElementById('f').submit(); }} catch (e) {{}}
           }}, ms);
         }});</script>"""},
+    # A step list's link (TAL.net's Progress Tracker posts the page, KAN-692) whose script posts the application.
+    "a step list's link that sends": {START: f"""<title>Apply</title><nav><ul><li><a id=b role=button href="#">Next</a></li>
+        </ul></nav><form id=f method=post action="{FINAL}"><input name=first value=Test></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', (e) => {{ e.preventDefault(); sendAll();
+          document.getElementById('f').submit(); }});</script>"""},
 }
 BUTTON = {"a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
@@ -163,8 +168,13 @@ def ask_press(page, drive, name):
             "", guard=drive)
 
 
+def ask_press_listed(page, drive, name):
+    """Ask Claude's press of a step in the form's list of steps (KAN-692): the name Claude gives, as ask.ask presses it."""
+    press_step(page, drive, name, listed=True)
+
+
 PATHS = {"plain code's Next": plain_next, "the profile click": profile_click, "the account click": account_click,
-         "Ask Claude's press": ask_press}
+         "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed}
 
 
 def _settle(page, ms=3000) -> None:
@@ -383,7 +393,8 @@ def plain(pages: dict[str, str]):
         yield page, DriveGuard(page), site
 
 
-@pytest.mark.parametrize("path", ["plain code's Next", "the profile click", "the account click"])
+@pytest.mark.parametrize("path", ["plain code's Next", "the profile click", "the account click",
+                                  "Ask Claude's press of a listed step"])
 @pytest.mark.parametrize("page_name", list(PAGES))
 def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
     with plain(PAGES[page_name]) as (page, drive, site):
