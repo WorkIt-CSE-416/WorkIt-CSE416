@@ -177,6 +177,42 @@ def test_a_field_is_found_by_its_label_in_its_own_section_never_in_apply_s_note(
     assert read(Question("term", "Term", "select"))["value"] == "Summer 2027"
 
 
+SECTIONS = """<form>
+  <fieldset><legend>Contact</legend>
+    <label for="first">First name</label><input id="first" value="Ann">
+    <label for="mail">Email</label><input id="mail" value="ann@example.com">
+    <label for="alt">Alternate Phone Number</label><input id="alt">
+  </fieldset>
+  <fieldset><legend>Eligibility</legend>
+    <div>Are you legally authorized to work here?</div>
+    <label><input type="radio" name="auth" value="y" checked> Yes</label><label><input type="radio" name="auth" value="n"> No</label>
+    <div>Will you require sponsorship?</div>
+    <label><input type="radio" name="visa" value="y"> Yes</label><label><input type="radio" name="visa" value="n" checked> No</label>
+  </fieldset>
+  <div class="section">
+    <div><label>School</label><select id="school"><option>Pick</option><option selected>Stony Brook University</option></select></div>
+    <div><label>If your school is not listed, enter it here</label><input id="other-school" style="display:none"></div>
+    <div><label>Degree</label><input id="degree" value="BS"></div>
+  </div>
+</form>"""
+
+
+def test_a_field_in_a_section_reads_only_its_own_value_never_the_section_s(page):
+    # Live (KAN-693): a field whose box was its whole section read every field in it, joined with "; ", and
+    # that string was saved to the Applicant profile as the answer to the one field Lisul had left blank.
+    page.set_content(SECTIONS)
+    read = lambda q: on_page._in_frames(page, q, "read")
+
+    assert read(Question("alt", "Alternate Phone Number", "text"))["value"] == ""
+    assert read(Question("mail", "Email", "text"))["value"] == "ann@example.com"
+    assert read(Question("auth", "Are you legally authorized to work here?", "radio"))["value"] == "Yes"
+    assert read(Question("visa", "Will you require sponsorship?", "radio"))["value"] == "No"
+    # Its own box is hidden: the School list next to it is another field's, never this one's.
+    assert read(Question("other", "If your school is not listed, enter it here", "text")).get("value", "") == ""
+    page.fill("#alt", "555-0100")
+    assert read(Question("alt", "Alternate Phone Number", "text"))["value"] == "555-0100"
+
+
 def test_a_field_on_another_workday_step_is_named_and_nothing_moves(page):
     page.set_content(FORM)
     said = on_page.go_to(page, Question("Application Questions / Visa status", "Visa status", "text"))
