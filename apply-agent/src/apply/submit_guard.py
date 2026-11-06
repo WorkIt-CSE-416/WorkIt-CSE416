@@ -38,6 +38,10 @@ until the thread is back, unsent, then is aborted (a GET goes on then). A
 page URL (Greenhouse's posting, Lever's and Jobvite's `/apply`) is never
 routed, so a page Claude opens doesn't wait.
 
+A link's ping (hyperlink auditing, a POST no script sees) never leaves a
+guarded page: the guard takes it off as the link is clicked, and no script
+can set one back while the page is guarded.
+
 Everything else goes through: résumé uploads, Ashby's per-answer saves,
 Lever's résumé parse, Workday's Save and Continue, a Next that saves its
 step, and another site's widget posting hidden fields into its own iframe
@@ -255,6 +259,42 @@ _TEMPLATE = r"""
     note('the "' + words.trim().slice(0, 40) + '" click');
   }, true);
 @EXTRA@
+
+  // A link's ping (hyperlink auditing): the browser POSTs to each of its URLs as it follows the link, and no
+  // script sees it. Nothing Apply does needs one, so a guarded page sends none (KAN-710): each link's ping is
+  // taken off as it is clicked, before the page's handlers, and no script can put one back while it is guarded.
+  const unping = (el) => {
+    const link = el && el.closest && el.closest('a, area');
+    if (!link || lifted() || !link.hasAttribute('ping')) return;
+    const urls = String(link.getAttribute('ping')).trim().split(/\s+/);
+    link.removeAttribute('ping');
+    if (urls.some((u) => isFinal('POST', u))) note(named('POST', urls.find((u) => isFinal('POST', u))) + ' of a link');
+  };
+  window.addEventListener('click', (event) => unping(event.target), true);
+  window.addEventListener('auxclick', (event) => unping(event.target), true);
+  const pings = (el, name) => !lifted() && String(name).toLowerCase() === 'ping' && el instanceof Element && el.matches('a, area');
+  for (const [proto, method, at] of [[Element.prototype, 'setAttribute', 0], [Element.prototype, 'setAttributeNS', 1],
+                                      [Element.prototype, 'toggleAttribute', 0]]) {
+    const was = proto[method];
+    proto[method] = function (...args) {
+      if (pings(this, String(args[at]).split(':').pop())) return method === 'toggleAttribute' ? false : undefined;
+      return was.apply(this, args);
+    };
+  }
+  for (const method of ['setAttributeNode', 'setAttributeNodeNS']) {
+    const was = Element.prototype[method];
+    Element.prototype[method] = function (attr) { return attr && pings(this, attr.name) ? null : was.call(this, attr); };
+  }
+  for (const method of ['setNamedItem', 'setNamedItemNS']) {
+    const was = NamedNodeMap.prototype[method];
+    NamedNodeMap.prototype[method] = function (attr) {
+      return attr && String(attr.name).toLowerCase() === 'ping' && !lifted() ? null : was.call(this, attr);
+    };
+  }
+  for (const proto of [HTMLAnchorElement.prototype, HTMLAreaElement.prototype]) {
+    const was = Object.getOwnPropertyDescriptor(proto, 'ping');
+    if (was && was.set) Object.defineProperty(proto, 'ping', {...was, set(value) { if (!lifted()) return; was.set.call(this, value); }});
+  }
 
   // Native submission of a POST form.
   const fields = (form) => Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get.call(form);

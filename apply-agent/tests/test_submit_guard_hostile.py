@@ -122,6 +122,11 @@ PAGES = {
         <button id=b type=button>Next</button>
         <script>document.getElementById('b').addEventListener('click', () =>
           document.getElementById('f').requestSubmit(document.getElementById('h')));</script>"""},
+    # A link whose ping is the application request: the browser POSTs it as it follows the link.
+    "a link that pings the final URL": {
+        START: f"""<title>Apply</title><ul><li><a id=b role=button href="/acme/jobs/123/step2" ping="{FINAL}">Next</a></li>
+            <li><a href="#">Help</a></li></ul><input name=first value=Test>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
     # A frame inside the Next: the press lands in the frame, whose own form posts the application to the top page.
     "a frame inside the Next": {
         START: f"""<title>Apply</title><form method=post action="/acme/jobs/123/step2"><input name=first value=Test>
