@@ -142,6 +142,14 @@ into it and the window shows "Sample data".
   them, add it to that list. CI never runs the Filler tests
   (`test_*_filler.py`, `test_claude_fill.py` and the other files that open
   Chromium). Run the ones that your change touches on your Mac, with `-k`.
+- **The submit guard's hostile pages** (`tests/test_submit_guard_hostile.py`,
+  KAN-666) run every click path that presses through the guards (plain
+  code's Next, the profile click, the account click, Ask Claude's press,
+  Fill again) against pages built to trick them. Every pair must send no
+  application request. A new click path joins `PATHS`, and a new trick joins
+  `PAGES`, in the same PR. Its no-browser and CDP cases run in CI. Its plain
+  Worker cases run where Chrome for Testing is installed. A guard PR gets an
+  adversarial review first (root `CLAUDE.md`).
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own
