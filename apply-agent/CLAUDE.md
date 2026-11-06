@@ -351,6 +351,17 @@ WorkIt one time per run or rehearsal, through `WorkIt.applications`.
 `tests/fake_tracker.py`. `tests/test_rehearse.py -k "already_applied or
 could_not_run or force_rehearses"` rehearses in Chromium.
 
+## The resume check (KAN-663)
+
+`src/apply/resume_check.py` compares `files.resume_pdf` with policies.yaml's
+`resume_source` (`repo`, `path`, `branch`, default `main`) by git blob sha.
+The default is unset, and then nothing runs and doctor prints no line. A
+different file stops `apply rehearse`, `apply run` and `approve-pass` at
+their start, with one line that names both shas. In doctor, it is a fail. If
+`gh` can't answer, it is a warning and the run goes on. The repo's sha is
+kept for 10 minutes in `resume-source.json` in the data folder. A link sent
+with `--into` joins a run that was checked at its start.
+
 ## The tailored resume is the Sent resume (KAN-547)
 
 A student can tailor a resume to a job posting on WorkIt (Tailor,
@@ -1505,6 +1516,13 @@ into it and the window shows "Sample data".
   them, add it to that list. CI never runs the Filler tests
   (`test_*_filler.py`, `test_claude_fill.py` and the other files that open
   Chromium). Run the ones that your change touches on your Mac, with `-k`.
+- **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
+  socket or name lookup to another host raises `NetworkBlocked`, Chrome
+  started by a test resolves other hosts to nothing, and Playwright's own
+  requests are refused. The test then fails, even if it swallowed the error.
+  A test that goes live on purpose names its hosts:
+  `@pytest.mark.live_network("example.com")`. A program that a test starts
+  other than Chrome (`curl`, `gh`) is not covered, so fake those.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live
