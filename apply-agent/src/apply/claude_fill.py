@@ -743,6 +743,15 @@ STEP_ENTRY = """el => {
 }"""
 
 
+def _step_entry(el) -> bool:
+    """Whether `el` is an entry of the form's list of steps (STEP_ENTRY); an element Apply can't read there (a plain
+    Worker's in a shadow root) is none, so it is never pressed."""
+    try:
+        return el.evaluate(STEP_ENTRY) is True
+    except Exception:
+        return False
+
+
 def _the_listed(page: Page, name: str):
     """The one entry in the form's list of steps that Claude named: of exactly that name, else the one whose name
     starts with it (a tracker's "Declaration Item not completed"). A name that sends (Claude's, or the entry's own
@@ -752,7 +761,7 @@ def _the_listed(page: Page, name: str):
     starts = re.compile(rf"^\s*{re.escape(name.strip())}(?!\w)", re.IGNORECASE)
     for match in ({"name": name, "exact": True}, {"name": starts}):
         found = [el for role in ("link", "button", "tab") for el in page.get_by_role(role, **match).all()
-                 if el.is_visible() and el.evaluate(STEP_ENTRY) is True]
+                 if el.is_visible() and _step_entry(el)]
         if found:
             break
     if not found:

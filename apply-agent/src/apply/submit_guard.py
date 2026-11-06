@@ -446,8 +446,19 @@ _TEMPLATE = r"""
     const final = find(urls, (u) => isFinal('POST', u));
     if (final !== undefined) note(named('POST', final) + ' of a link');
   };
-  on('click', judged((event) => unping(targetGet(event))));
-  on('auxclick', judged((event) => unping(targetGet(event))));
+  // The element really clicked: one in a shadow root too, which the window hears as its host (KAN-710).
+  const composedPath = fn(EvP, 'composedPath');
+  const struck = (event) => { const path = composedPath(event); return path.length ? path[0] : targetGet(event); };
+  on('click', judged((event) => unping(struck(event))));
+  on('auxclick', judged((event) => unping(struck(event))));
+  // A link a script clicks where no window hears it (one in no document, or in a shadow root): its ping comes off too.
+  const clickOf = HP.click;
+  HP.click = function () { if (!lifted()) { try { unping(this); } catch (e) { return; } } return apply(clickOf, this, []); };
+  const dispatchOf = EventTarget.prototype.dispatchEvent, eventType = get(EvP, 'type');
+  EventTarget.prototype.dispatchEvent = function (event) {
+    if (!lifted() && isEl(this)) { try { const t = eventType(event); if (t === 'click' || t === 'auxclick') unping(this); } catch (e) {} }
+    return apply(dispatchOf, this, [event]);
+  };
   const PING = (name) => { const n = Str(name); return lower(slice(n, lastIndexOf(n, ':') + 1)) === 'ping'; };
   const pings = (el, name) => !lifted() && PING(name) && isEl(el) && matches(el, 'a, area');
   for (const [proto, method, at] of [[EP, 'setAttribute', 0], [EP, 'setAttributeNS', 1], [EP, 'toggleAttribute', 0]]) {
@@ -599,7 +610,7 @@ _TEMPLATE = r"""
   // The form the guard last let post, and whether by plain code's press: the navigation it makes comes a task later
   // (a script's form.submit()), when the press's dispatch is over, and may name another element its source.
   let posting = null;
-  on('submit', judged((event) => {
+  const judgeSubmit = judged((event) => {
     if (lifted()) return;
     const form = targetGet(event), by = submitterGet(event);
     if (!isForm(form)) return;
@@ -613,7 +624,7 @@ _TEMPLATE = r"""
       });
       return;
     }
-    if (relay(form, by) || frameLoad(form, by) || uploadPost(form, by)) return;
+    if (!inShadow(form) && (relay(form, by) || frameLoad(form, by) || uploadPost(form, by))) return;
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
     const apply_ = fromPress(form, by);
@@ -626,12 +637,27 @@ _TEMPLATE = r"""
     if (final) stopNow(event);
     // Plain code's press posts a step: never a form that has a button that sends, whatever its submitter says
     // (another language, Done, a hidden one), nor one bound for the final URL (KAN-710).
-    const step = apply_ && !postsFinal(form, by) && !hadSends(form);
+    const step = apply_ && !postsFinal(form, by) && !hadSends(form) && !inShadow(form);
     if (final || (posts(form, by) && !step)) {
       prevent(event);
       note('a form submission');
     }
-  }));
+  });
+  on('submit', judgeSubmit);
+  // A form in a shadow root: its submit event stays in the root (it isn't composed), so the guard hears it at each
+  // root a script makes, and at each one a press passes through (one the page wrote, KAN-710). Such a form is never a
+  // step's, a relay or an upload's: the guard can't be sure what of it the window misses. Its post is judged as it
+  // leaves (the navigate check) all the same.
+  const heardRoots = new WeakSet(), wsHas = fn(WeakSet.prototype, 'has'), wsAdd = fn(WeakSet.prototype, 'add');
+  const hearRoot = (root) => { if (!wsHas(heardRoots, root)) { wsAdd(heardRoots, root); listen(root, 'submit', judgeSubmit, true); } };
+  const attachShadowOf = EP.attachShadow;
+  EP.attachShadow = function (...args) { const root = apply(attachShadowOf, this, args); try { hearRoot(root); } catch (e) {} return root; };
+  const isRoot = (x) => { try { return x !== D && nodeTypeOf(x) === 11 && !!hostOf(x); } catch (e) { return false; } };
+  const hostOf = get(ShadowRoot.prototype, 'host'), rootOf = fn(NP, 'getRootNode');
+  for (const kind of ['pointerdown', 'mousedown', 'keydown', 'click']) on(kind, (event) => {
+    try { const path = composedPath(event); for (let i = 0; i < path.length; i++) if (isRoot(path[i])) hearRoot(path[i]); } catch (e) {}
+  });
+  const inShadow = (form) => { try { return rootOf(form) !== ownerDoc(form); } catch (e) { return true; } };
   const submit = HTMLFormElement.prototype.submit;
   HTMLFormElement.prototype.submit = function () {
     if (!isForm(this)) return apply(submit, this, []);
@@ -639,8 +665,9 @@ _TEMPLATE = r"""
     try {
       // Under plain code's click, a page script may post a step's form, but never one with a button that sends
       // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
-      const step = fromPress(this, null) && !postsFinal(this, null) && (password(this) || !hadSends(this));
-      go = lifted() || step || relay(this, null) || frameLoad(this, null) || uploadPost(this, null) || !posts(this, null);
+      const step = !inShadow(this) && fromPress(this, null) && !postsFinal(this, null) && (password(this) || !hadSends(this));
+      go = lifted() || step || !posts(this, null)
+        || (!inShadow(this) && (relay(this, null) || frameLoad(this, null) || uploadPost(this, null)));
     } catch (e) {}  // a form the guard can't read is not posted
     if (!go && readyOf(D) === 'loading' && relayLike(this, null)) {  // judged once the rest of the page is there
       const form = this;
@@ -693,6 +720,7 @@ _TEMPLATE = r"""
   };
   const leaves = (form, by, href, data) => {  // the form post of this page, as it leaves: may it go?
     if (!sameEntries(form, by, data)) return false;
+    if (inShadow(form)) return false;
     if (relay(form, by, href) || frameLoad(form, by, href) || uploadPost(form, by, href)) return true;
     const apply_ = fromPress(form, by) || (!!posting && posting.form === form && posting.press && accountClick());
     if (apply_ && password(form) && !postsFinal(form, by, href)) return true;

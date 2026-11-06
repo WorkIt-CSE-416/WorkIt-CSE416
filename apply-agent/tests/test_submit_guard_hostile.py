@@ -245,8 +245,24 @@ PAGES = {
         <input name=first value=Test><input type=hidden name=submit value=1><div role=button>Submit application</div>
         </form><button id=b type=button>Next</button><script>document.getElementById('b').addEventListener('click', () =>
         HTMLFormElement.prototype.submit.call(document.getElementById('app')));</script>"""},
+    # In a shadow root: a form's submit event stays there, and a link's ping is clicked where the window can't see it.
+    "a form in a shadow root": {START: f"""<title>Apply</title><div><template shadowrootmode=open><form method=post
+        action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form></template></div>"""},
+    "a Submit in a shadow root": {START: f"""<title>Apply</title><div><template shadowrootmode=open><form method=post
+        action="{SAVE}"><input name=first value=Test><button name=submit value=1>Submit application</button></form>
+        </template></div>"""},
+    "a ping in a shadow root": {
+        START: f"""<title>Apply</title><input name=first value=Test><div><template shadowrootmode=open><ul><li><a
+            role=button href="/acme/jobs/123/step2" ping="{FINAL}">Next</a></li><li><a href="#">Help</a></li></ul>
+            </template></div>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    "a ping on a link in no document": {
+        START: f"""<title>Apply</title><input name=first value=Test><button id=b type=button>Next</button>
+            <script>document.getElementById('b').addEventListener('click', () => {{ const d = document.createElement('div');
+            d.innerHTML = '<a href="/acme/jobs/123/step2" ping="{FINAL}">x</a>'; d.firstChild.click(); }});</script>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
 }
-BUTTON = {"a Submit in another language beside a Submit": "Envoyer ma candidature",
+BUTTON = {"a Submit in another language beside a Submit": "Envoyer ma candidature", "a Submit in a shadow root": "Submit application",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue"}
