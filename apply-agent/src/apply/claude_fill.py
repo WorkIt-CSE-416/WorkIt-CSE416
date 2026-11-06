@@ -362,7 +362,7 @@ class ClaudeFill:
             self._read_posting_text(page)  # the posting, before Claude clicks its Apply button
             found = self._session(page, READ, "List the questions of the form open in the current tab.", READ_SCHEMA, [])
             self._read_posting_text(page)  # else what the form's own page says about the job
-            questions = _with_sections(page, _with_options(page, self._questions(found["questions"])))
+            questions = _with_formats(page, _with_sections(page, _with_options(page, self._questions(found["questions"]))))
         why = str(found.get("why") or "").strip()
         if found.get("page") == "closed posting":
             raise Closed(f"the page says {why}" if why else "the page says the Posting no longer takes applications")
@@ -446,7 +446,7 @@ class ClaudeFill:
             # Known by its label with or without its help text, as either session may give it.
             unlisted = _new_questions(page, questions, done.get("unlisted") or [])
             if unlisted:
-                raise MoreQuestions(_with_sections(page, _with_options(page, self._questions(unlisted))))
+                raise MoreQuestions(_with_formats(page, _with_sections(page, _with_options(page, self._questions(unlisted)))))
             # What this step shows, checked by plain code before Next saves it (KAN-652).
             shown = {labels[name]: self._readback.get(name) for name in todo if name in labels}
             if wrong := cant_be_right(_on_step(page, shown), sections=_sections(page, shown)):
@@ -871,6 +871,38 @@ def _with_options(page: Page, questions: QuestionSet) -> QuestionSet:
         index = _combobox_for(q.label, names) if q.kind in ("select", "multi_select") else -1
         options = _options_of(page, boxes[index][0]) if index >= 0 else ()
         out.append(Question(q.name, q.label, q.kind, q.required, options) if options else q)
+    return out
+
+
+# A box's date format, as its placeholder says it ("YYYY-MM", "MM/DD/YYYY").
+DATE_FORMAT = re.compile(r"^(yyyy|yy|mm|dd)([-/.](yyyy|yy|mm|dd)){1,2}$", re.IGNORECASE)
+# A text box's name, as COMBOBOX_NAME reads it, else the <label> it has or sits in.
+BOX_NAME = """el => {
+  const root = el.getRootNode();
+  const by = (el.getAttribute('aria-labelledby') || '').split(/\\s+/).filter(Boolean)
+    .map(id => ((root.getElementById && root.getElementById(id)) || document.getElementById(id) || {}).innerText || '').join(' ');
+  const label = (el.labels && el.labels[0]) || el.closest('label');
+  return (el.getAttribute('aria-label') || by || (label ? label.innerText : '') || '').trim();
+}"""
+
+
+def _with_formats(page: Page, questions: QuestionSet) -> QuestionSet:
+    """The questions, each text box whose placeholder is a date format given that format after its label,
+    "(YYYY-MM)", as the planner reads a format: Amazon's graduation month box takes YYYY-MM, but only its
+    placeholder says so (its name says "Date: Year-Month-Day"), and it refused "May 2028" (live, KAN-714)."""
+    try:
+        boxes = [(box.evaluate(BOX_NAME), box.get_attribute("placeholder") or "")
+                 for box in page.locator("input[placeholder]:visible").all()]
+    except Exception:
+        return questions
+    boxes = [(name, hint.strip()) for name, hint in boxes if DATE_FORMAT.match(hint.strip())]
+    names = [name for name, _ in boxes]
+    out = []
+    for q in questions:
+        index = _combobox_for(q.label, names) if q.kind == "text" else -1
+        hint = boxes[index][1].upper() if index >= 0 else ""
+        out.append(Question(q.name, f"{q.label} ({hint})", q.kind, q.required, q.options, q.description, q.max_length, q.section)
+                   if hint and hint not in q.label.upper() else q)
     return out
 
 
