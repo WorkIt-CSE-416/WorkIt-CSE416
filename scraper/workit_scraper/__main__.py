@@ -435,6 +435,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nreading {len(unread)} board pages for logos")
         found, sites = logos.fetch(unread)
         run = replace(run, logos={**run.logos, **found}, websites={**run.websites, **sites})
+        # A board with still no domain is checked once by its own address: a Jibe or
+        # SuccessFactors host, a Workday tenant (`logos.board_address`), proved on
+        # the home page. What fails is flagged for checked_websites.csv below.
+        unchecked = sorted(
+            {
+                (j.ats, j.token, j.company)
+                for j in run.jobs
+                if run.is_listed(j)
+                and j.board_key not in run.addresses
+                and logos.board_address(j.ats, j.token)
+                and not feed.domain(j.board_key, run.logos, run.websites)
+            }
+        )
+        print(f"checking {len(unchecked)} company websites from board addresses")
+        run = replace(run, addresses={**run.addresses, **logos.check_addresses(unchecked)})
         save_start = time.monotonic()
         store.save(run, JOBS_JSON)
         save_s = time.monotonic() - save_start
@@ -442,7 +457,8 @@ def main(argv: list[str] | None = None) -> int:
 
     roles = pick([job for job in run.jobs if run.is_listed(job)], is_new=run.is_new)
     report.write_html(roles, run.stats, PAGE_HTML, run.scraped_at, counts_new=run.counts_new)
-    feed.write(roles, run.logos, FEED_JSON, run.websites)
+    feed.write(roles, run.logos, FEED_JSON, run.websites, run.addresses)
+    no_domain = feed.without_domain(roles, run.logos, run.websites, run.addresses)
     found = feed.closings(run, roles)
     feed.write_closings(found, CLOSINGS_JSON)
     if not args.offline:
@@ -461,6 +477,7 @@ def main(argv: list[str] | None = None) -> int:
             missed=missed,
             resting=resting,
             closings=Counter(found.values()),
+            no_domain=no_domain,
             web_stats=web.stats(),
             retries=fetch.retry_count(),
             classify_s=classify_s,
@@ -478,6 +495,13 @@ def main(argv: list[str] | None = None) -> int:
             fp_resting=fp_resting,
         )
         print(f"\n{len(found):,} stored postings not in the feed: {_reasons(found)}")
+    shown = sum(int(board["roles"]) for board in no_domain)
+    print(
+        f"\n{len(no_domain):,} boards ({shown:,} roles) have no company domain, so no"
+        " logo; add each to checked_websites.csv after its checks (docs/logos.md):"
+    )
+    for board in no_domain[:10]:
+        print(f"  {board['roles']:>5,}  {board['board']}  ({board['company']})")
 
     print(
         f"\n{run.stats.postings:,} postings -> {len(roles)} distinct roles"
@@ -563,6 +587,7 @@ def write_metrics(
     missed: int | None = None,
     resting: dict[str, str] | None = None,
     closings: Counter[str] | None = None,
+    no_domain: list[dict[str, object]] | None = None,
     web_stats: dict[str, int] | None = None,
     retries: int | None = None,
     classify_s: float | None = None,
@@ -578,7 +603,9 @@ def write_metrics(
     the next runs will not ask (`Store.resting`), by why they last went unread;
     with `closings`, the stored postings not in the feed by reason
     (`feed.closings`). Those are totals: this run's closes, by reason, are in the
-    import's report."""
+    import's report. With `no_domain`, the boards whose roles have no
+    `company_domain` (`feed.without_domain`): the list a person works through
+    into checked_websites.csv."""
     totals = {
         key: value for key, value in asdict(stats).items() if key not in ("by_provider", "unread")
     }
@@ -596,6 +623,8 @@ def write_metrics(
         payload["resting"] = unread_by_provider(resting)
     if closings is not None:
         payload["closings"] = {why: closings[why] for why in feed.REASONS}
+    if no_domain is not None:
+        payload["boards_without_domain"] = no_domain
     if web_stats is not None:
         payload["requests"] = web_stats["requests"]
         payload["received_bytes"] = web_stats["received_bytes"]
