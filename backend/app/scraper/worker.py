@@ -1,11 +1,11 @@
 """Orchestrate one scrape cycle: sync catalog, create tasks, claim, scrape,
-publish to job_postings via import_feed.
+publish to job_postings via import_feed, update per-board source records and
+close jobs gone from all boards.
 
-Each board completes independently. At the end of the claim loop, all scraped
-jobs are published through import_feed in one transaction, upsert only: a
-cycle reads only the boards due, so a job missing from its listings is not
-evidence that it closed. Closing stays with the scheduled import of the full
-feed, which closes a job only after two complete reads of its board without it.
+Each board publishes independently right after it is scraped, so fast boards
+checkpoint without waiting for slow ones and only one board's payload is in
+memory at a time. After every board is done, one final transaction detects
+jobs stale on every board (two-complete-read rule) and closes them.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from workit_scraper.providers import PROVIDERS, Board, Job
 from workit_scraper.shortlist import classify, classify_with_description
 
 from app.schemas.jobs import JobListing
+from app.scraper.closures import detect_and_close, update_sources
 from app.scraper.schedules import (
     advance_reads,
     record_failure,
@@ -45,6 +46,9 @@ logger = logging.getLogger(__name__)
 
 # Same work_style mapping as feed.py.
 _WORK_STYLE = {"Remote": "remote", "Hybrid": "hybrid", "On site": "onsite"}
+
+# A board returning more listings than this is treated as failed.
+MAX_BOARD_LISTINGS = 5000
 
 
 def read_board_shortlist(board: Board) -> tuple[BoardRead, list[Job], float, float]:
@@ -158,6 +162,7 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
         "boards_missing": 0,
         "boards_failed": 0,
         "jobs_scraped": 0,
+        "jobs_closed": 0,
         "dry_run": dry_run,
     }
 
@@ -182,11 +187,7 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
         return summary
     await conn.commit()
 
-    # 4. Claim and process tasks, accumulating listings. A board read whole is
-    # not checkpointed yet: its task stays claimed until its jobs publish.
-    all_listings: list[JobListing] = []
-    read: list[_Read] = []
-
+    # 4. Claim, process and checkpoint each board independently.
     while True:
         task = await claim_task(conn, worker_id)
         await conn.commit()
@@ -195,31 +196,12 @@ async def run_cycle(conn: AsyncConnection, *, dry_run: bool = False) -> dict:
 
         done = await _process_task(conn, task, summary)
         if done is not None:
-            read.append(done)
-            all_listings.extend(done.listings)
+            await _checkpoint_board(conn, done, summary)
 
-    # 5. Publish all scraped jobs through import_feed, then checkpoint the
-    # boards read, in one transaction: if the publish fails or the process
-    # dies, no board looks read and the next cycle reads it again.
-    try:
-        if all_listings:
-            from app.scripts.import_jobs import import_feed
+    # 5. All boards committed; detect closures globally.
+    summary["jobs_closed"] = await detect_and_close(conn)
+    await conn.commit()
 
-            await import_feed(conn, all_listings, close_missing=False)
-        for done in read:
-            await advance_reads(conn, done.schedule_id)
-            await mark_done(conn, done.task_id, boards_s=done.boards_s, pages_s=done.pages_s)
-        await conn.commit()
-    except Exception as exc:
-        await conn.rollback()
-        for done in read:
-            await mark_failed(conn, done.task_id, error=f"publish failed: {exc}")
-        await conn.commit()
-        raise
-    if all_listings:
-        logger.info("Published %d listings through import_feed", len(all_listings))
-
-    summary["jobs_scraped"] = len(all_listings)
     return summary
 
 
@@ -231,8 +213,33 @@ class _Read:
     task_id: object
     schedule_id: object
     listings: list[JobListing]
+    all_urls: list[str]  # every URL the board listed, not just shortlisted
     boards_s: float
     pages_s: float
+
+
+async def _checkpoint_board(
+    conn: AsyncConnection, done: _Read, summary: dict
+) -> None:
+    """Publish one board's listings and advance its schedule, in one commit.
+    On failure, roll back this board alone and mark it failed."""
+    try:
+        if done.listings:
+            from app.scripts.import_jobs import import_feed
+
+            await import_feed(conn, done.listings, close_missing=False)
+            logger.info("Published %d listings for schedule %s", len(done.listings), done.schedule_id)
+        await update_sources(conn, done.schedule_id, done.all_urls)
+        await advance_reads(conn, done.schedule_id)
+        await mark_done(conn, done.task_id, boards_s=done.boards_s, pages_s=done.pages_s)
+        await conn.commit()
+        summary["jobs_scraped"] += len(done.listings)
+    except Exception as exc:
+        await conn.rollback()
+        await mark_failed(conn, done.task_id, error=f"publish failed: {exc}")
+        await conn.commit()
+        logger.exception("Board %s checkpoint failed; continuing", done.schedule_id)
+        summary["boards_failed"] += 1
 
 
 async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | None:
@@ -285,6 +292,15 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | N
     # Convert provider Jobs to JobListing objects.
     listings = [job_to_listing(job, schedule.company) for job in jobs]
 
+    if len(listings) > MAX_BOARD_LISTINGS:
+        error = f"oversized: {len(listings)} listings (max {MAX_BOARD_LISTINGS})"
+        logger.warning("Board %s/%s: %s", schedule.ats, schedule.token, error)
+        await record_failure(conn, task.schedule_id)
+        await mark_failed(conn, task.id, error=error)
+        await conn.commit()
+        summary["boards_failed"] += 1
+        return None
+
     summary["boards_ok"] += 1
 
     logger.info(
@@ -297,4 +313,5 @@ async def _process_task(conn: AsyncConnection, task, summary: dict) -> _Read | N
         pages_s,
     )
 
-    return _Read(task.id, task.schedule_id, listings, boards_s, pages_s)
+    all_urls = [job.apply_url for job in result.jobs]
+    return _Read(task.id, task.schedule_id, listings, all_urls, boards_s, pages_s)

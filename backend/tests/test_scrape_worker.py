@@ -125,8 +125,8 @@ async def test_a_failed_publish_leaves_the_board_unread(database, boards_csv, mo
 
     monkeypatch.setattr(import_jobs, "import_feed", refuse)
     async with get_engine().connect() as conn:
-        with pytest.raises(import_jobs.ImportRefused):
-            await worker.run_cycle(conn)
+        summary = await worker.run_cycle(conn)
+    assert summary["boards_failed"] == 1
     task, read_at, jobs = await _checkpoint()
     assert task.status == "failed"
     assert task.error.startswith("publish failed")

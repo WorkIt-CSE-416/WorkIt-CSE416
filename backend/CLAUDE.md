@@ -18,8 +18,27 @@ package: a library with no database or HTTP of its own, handed everything by
 **The second exception is `../scraper/`**, installed as `workit-scraper`
 (KAN-605): `app/scraper/worker.py` calls provider readers through
 `asyncio.to_thread` and publishes directly through `import_feed`. The
-scraper stays stdlib-only; the backend uses it as a library. Two tables
-(`scraper_schedules`, `scraper_tasks`) track board catalogs and task leasing.
+scraper stays stdlib-only; the backend uses it as a library. Three tables
+(`scraper_schedules`, `scraper_tasks`, `job_sources`) track board catalogs,
+task leasing and which boards list which jobs. Each board publishes
+independently right after it is scraped (`_checkpoint_board`): import_feed,
+update sources, advance reads and mark done in one commit per board, so fast
+boards checkpoint without waiting for slow ones and only one board's payload
+is in memory at a time. A failed checkpoint logs and continues: one board's
+failure never stops the rest or skips closure detection. Source tracking
+(`update_sources`) records every URL the board listed, not just the
+shortlisted ones that were published: the shortlist decides what to publish,
+the full listing decides what the board says exists. A board returning more
+than `MAX_BOARD_LISTINGS` (5,000) listings is treated as failed. After all
+boards, one statement runs `detect_and_close` globally: a single CTE
+identifies stale jobs, counts them against the surge guard and closes in one
+snapshot, so no concurrent transaction can change the row set between the
+check and the close. `job_sources` drives closure detection (KAN-619): a job
+stale on every enabled board (two complete reads without it,
+`last_seen_at < prior_read_at`) and supported by no other enabled board is
+closed with reason `gone_from_board`; a surge guard (the feed import's
+`_MASS_CLOSE_SHARE` and `_MASS_CLOSE_FLOOR`, imported, not copied) refuses
+mass closures. Tests: `tests/test_closures.py`.
 
 **Not PostgREST, deliberately.** Queries go to Postgres directly over asyncpg,
 because the job search needs ltree containment and trigram ranking, which

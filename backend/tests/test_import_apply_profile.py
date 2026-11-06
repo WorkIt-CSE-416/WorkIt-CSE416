@@ -506,6 +506,7 @@ async def test_with_no_apply_home_the_import_reads_the_config_folder(
 ):
     monkeypatch.delenv("APPLY_HOME", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
     _test_person(tmp_path / "home" / ".config" / "apply")
 
     report = await _import(database, applicant, None)
@@ -521,6 +522,7 @@ async def test_absolute_and_home_file_paths_attach_their_files(
     (elsewhere / "Absolute_Resume.pdf").write_bytes(PDF)
     (elsewhere / "home-transcript.pdf").write_bytes(TRANSCRIPT)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "home"))
     (apply_home / "applicant-profile.yaml").write_text(
         TEST_PERSON.replace("Test_Person_Resume.pdf", str(elsewhere / "Absolute_Resume.pdf"))
         .replace("records/transcript.pdf", "~/Documents/home-transcript.pdf"))

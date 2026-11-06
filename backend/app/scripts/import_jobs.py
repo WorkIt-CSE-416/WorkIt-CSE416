@@ -101,6 +101,7 @@ from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
 from app.queries.applications import bare_link, greenhouse_job
 from app.schemas.jobs import JobListing
+from app.scraper.constants import MASS_CLOSE_FLOOR, MASS_CLOSE_SHARE
 from app.services import keywords
 from app.services.location_resolver import LocationResolver, Place, Resolution
 from app.services.matching.embeddings import BATCH_SIZE, embed, job_text
@@ -124,11 +125,6 @@ _FEED_COLUMNS = (
 )
 # asyncpg allows 32,767 parameters a statement; a row here binds 21.
 _CHUNK = 1000
-# Closing more than this share of the published scraped jobs in one run is
-# refused without --allow-mass-close.
-_MASS_CLOSE_SHARE = 0.5
-# ...unless there are this few, as on a first import or a test database.
-_MASS_CLOSE_FLOOR = 20
 # Keyword extractions a run makes by default: one model call each, so a
 # first run's backlog of thousands spreads over many runs instead of
 # spending the day's quota, or the job's 30 minutes, in one.
@@ -492,8 +488,8 @@ async def _close_missing(
     to_close = await conn.scalar(select(func.count()).where(missing))
     if (
         not allow_mass_close
-        and published > _MASS_CLOSE_FLOOR
-        and to_close > _MASS_CLOSE_SHARE * published
+        and published > MASS_CLOSE_FLOOR
+        and to_close > MASS_CLOSE_SHARE * published
     ):
         raise ImportRefused(
             f"This feed would close {to_close} of {published} published scraped jobs. "
