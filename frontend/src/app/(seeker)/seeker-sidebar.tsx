@@ -50,11 +50,11 @@ import { INBOX_LIVE } from "./inbox/live";
  * the Interviewing stage's glyph (../stage-colors.ts), and a nav row wearing
  * it would read as a stage.
  *
- * My Profile is a row rather than something behind the account in the bar:
+ * Profile is a row rather than something behind the account in the bar:
  * a profile is somewhere a job seeker goes back to all through a hunt, not
  * somewhere they visit once, and a click of depth is the wrong price for
- * that. "My" is what separates it from an employer's profile, which the
- * company shell also has to name.
+ * that. It was "My Profile" until 2026-11-05; in the seeker's own shell no
+ * employer's profile is ever named, so "My" told nothing apart.
  *
  * Resumes & Experiences sits right after the Applications Tracker, beside
  * the work it feeds: every application goes out with a resume. It sat just
@@ -65,9 +65,11 @@ import { INBOX_LIVE } from "./inbox/live";
  * KAN-249 merged them behind one switcher. Its glyph is FileText, the one
  * on Generate Resume.
  *
- * On the rail a name sits under its icon in a 72px tile, so three names
- * take a `short` there: Tracker, Resumes and Profile. Each page's heading
- * and the phone's sheet keep the full name.
+ * One set of names (2026-11-05): Tracker, Resumes and Profile on the rail
+ * and on the phone's sheet alike. They were the rail's short names, beside
+ * "Applications Tracker", "Resumes & Experiences" and "My Profile" on the
+ * sheet, and the user found two names for one section confusing. The
+ * bar's title, page titles, Back links and breadcrumbs use the same names.
  */
 const GROUPS: SidebarNavGroup[] = [
   {
@@ -76,19 +78,8 @@ const GROUPS: SidebarNavGroup[] = [
       { href: "/home", label: "Home", Icon: HouseIcon },
       { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
       { href: "/auto-apply", label: "Auto Apply", Icon: LightningRoundedIcon },
-      {
-        href: "/applications",
-        label: "Applications Tracker",
-        short: "Tracker",
-        Icon: ListChecksIcon,
-      },
-      {
-        href: "/resumes",
-        also: ["/experiences"],
-        label: "Resumes & Experiences",
-        short: "Resumes",
-        Icon: FileTextIcon,
-      },
+      { href: "/applications", label: "Tracker", Icon: ListChecksIcon },
+      { href: "/resumes", also: ["/experiences"], label: "Resumes", Icon: FileTextIcon },
       // KAN-413: replies to applications, after the tools that send them.
       // No count badge: one was built and taken out as out of place.
       // Archived with the Inbox until WorkIt has a source of emails
@@ -97,7 +88,7 @@ const GROUPS: SidebarNavGroup[] = [
       // Back since KAN-413: interviews, assessments and offers are stored.
       // Greyed out (2026-11-02) while it does not work.
       { href: "/calendar", label: "Calendar", Icon: CalendarDotsIcon, disabled: true },
-      { href: "/profile", label: "My Profile", short: "Profile", Icon: UserCircleIcon },
+      { href: "/profile", label: "Profile", Icon: UserCircleIcon },
     ],
   },
 ];

@@ -3,9 +3,10 @@ verification codes and links. A script, so it spends no tokens, and an app
 password has no OAuth token to expire (see the sign-in research).
 
 Each look is one IMAP session: sign in, search the inbox read-only with
-Gmail's own search syntax (X-GM-RAW), read the newest matching mails that
-arrived after the request, skip any that Gmail says failed DMARC, and return
-only the code or link. Waiting is the caller's (accounts.Accounts), which
+Gmail's own search syntax (X-GM-RAW), then archived mail, Spam and Trash when
+the inbox has none (Apply asks for a code once, so a filed mail is still its
+only one), read the newest matching mails that arrived after the request, skip
+any that Gmail says failed DMARC, and return only the code or link. Waiting is the caller's (accounts.Accounts), which
 never asks for a code again. `read_mail` reads recent mail whole for `apply mail`, as
 read-only: it fetches with BODY.PEEK, so nothing is marked read, and it never
 sends, moves or deletes."""
@@ -29,6 +30,8 @@ from apply.model import Handoff
 HOST = "imap.gmail.com"
 # Mail older than this is never searched, whatever `since` says.
 WINDOW = "newer_than:1d"
+# Where a code or link can land. Each is opened read-only.
+MAILBOXES = ("INBOX", '"[Gmail]/All Mail"', '"[Gmail]/Spam"', '"[Gmail]/Trash"')
 # A one-time code: 4 to 8 digits, perhaps split by a space or hyphen ("730 118"),
 # or a security code of 8 letters and digits (SECURITY_CODE).
 CODE = re.compile(r"(?<![\d-])(\d{3,4})[ -]?(\d{3,4})(?![\d-])|(?<![\d-])(\d{4,8})(?![\d-])")
@@ -129,17 +132,19 @@ class GmailMailbox:
             raise Handoff(why)
         with self._connect(HOST) as imap:
             imap.login(self._address, self._password)
-            imap.select("INBOX", readonly=True)
-            _, found = imap.search(None, "X-GM-RAW", _quoted(f"{search} {WINDOW}"))
-            for number in reversed(found[0].split()):
-                _, data = imap.fetch(number, "(INTERNALDATE RFC822)")
-                _head, raw = data[0]
-                arrived = _arrived(data)
-                if arrived < since:
-                    return None  # newest first: every mail left is older still
-                message = email.message_from_bytes(raw)
-                if _authentic(message) and (value := read(message)):
-                    return value
+            for mailbox in MAILBOXES:
+                if imap.select(mailbox, readonly=True)[0] != "OK":
+                    continue  # a mailbox this account names otherwise
+                _, found = imap.search(None, "X-GM-RAW", _quoted(f"{search} {WINDOW}"))
+                for number in reversed(found[0].split()):
+                    _, data = imap.fetch(number, "(INTERNALDATE RFC822)")
+                    _head, raw = data[0]
+                    arrived = _arrived(data)
+                    if arrived < since:
+                        break  # newest first: every mail left here is older still
+                    message = email.message_from_bytes(raw)
+                    if _authentic(message) and (value := read(message)):
+                        return value
         return None
 
 

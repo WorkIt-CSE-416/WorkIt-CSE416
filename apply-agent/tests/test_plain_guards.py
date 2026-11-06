@@ -12,10 +12,11 @@ import time
 from pathlib import Path
 
 import pytest
+from test_plain_reload import turn_on_developer_mode
 
 from apply import submit_guard
 from apply.plain import guards
-from apply.plain.bridge import Bridge
+from apply.plain.bridge import FEATURES, Bridge
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
 from apply.submit_guard import (
@@ -65,6 +66,11 @@ SCRIPTED = """<!doctype html><title>Scripted</title>
 </script>"""
 
 
+# A step whose Next posts natively (TAL.net's), then a step with a Continue bound for a final URL.
+NATIVE_STEP = """<!doctype html><title>One</title><form method="post" action="/step/two"><input name="first"><button>Next</button></form>"""
+NATIVE_LAST = """<!doctype html><title>Two</title><form method="post" action="/acme/j/42/apply"><input name="why"><button>Continue</button></form>"""
+
+
 class Site:
     def __init__(self):
         self.posts: list[str] = []
@@ -75,7 +81,8 @@ class Site:
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
-                page = SCRIPTED if self.path.startswith("/scripted") else FORM if self.path.startswith("/form") else "<p>other"
+                page = (SCRIPTED if self.path.startswith("/scripted") else FORM if self.path.startswith("/form")
+                        else NATIVE_STEP if self.path.startswith("/native") else "<p>other")
                 self.wfile.write(page.encode())
 
             def do_POST(self):
@@ -84,7 +91,7 @@ class Site:
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
-                self.wfile.write(b"<title>Thanks</title><p>Application received")
+                self.wfile.write(NATIVE_LAST.encode() if self.path == "/step/two" else b"<title>Thanks</title><p>Application received")
 
             def log_message(self, *_):
                 pass
@@ -358,3 +365,221 @@ def test_the_drive_guard_rests_and_arms_as_claude_fill_drives(page, site):
     page.get_by_role("button", name="Submit application").click()
     assert drive.blocked() == ['the "Submit application" click']
     assert site.posts == []
+
+
+
+
+# --- a reload of the worker extension (KAN-657): chrome.runtime.reload() drops its registered scripts, its session
+# rules and its memory, on a form's open tab. `extension.reload` must bring all of them back.
+
+
+@pytest.fixture
+def reloading():
+    """A plain Worker of its own, with Developer mode on (Chrome disables a reloaded unpacked extension without it)."""
+    if not HAVE_CHROME:
+        pytest.skip("needs Chrome for Testing")
+    folder = Path(tempfile.mkdtemp(prefix="apw-reload-", dir="/tmp"))
+    bridge = Bridge(folder / "w.sock")
+    workers = PlainWorkers(folder, kind="testing", bridge=bridge)
+    turn_on_developer_mode(workers.profile(0))
+    try:
+        yield workers, bridge
+    finally:
+        workers.stop_all()
+
+
+def _open_form(workers, site) -> PortPage:
+    connection = workers.launch(0).connection
+    page = PortPage(connection, connection.call("tabs.create", url="about:blank", active=False)["tab"])
+    page.goto(f"{site.url}/form")
+    return page
+
+
+def _after_reload(page, connection) -> PortPage:
+    """The same tab through the Worker's new port, and its document loaded again under what the reload left."""
+    again = PortPage(connection, page.tab)
+    again.reload()
+    return again
+
+
+def _blocks_every_way(page, site) -> None:
+    """Submit's click, the form's native POST, and a POST from the page's script: nothing reaches the job system."""
+    page.get_by_role("button", name="Submit application").click()
+    page.evaluate("() => { document.getElementById('form').requestSubmit(); }")
+    page.evaluate("() => fetch('/acme/job/9/submitApplication', {method: 'POST'}).catch(() => null)")
+    _settle(page, 1)
+    assert site.posts == []
+
+
+@pytest.mark.parametrize("from_hello", [False, True], ids=["extension.reload", "the reload at hello"])
+def test_the_guards_survive_a_reload_of_the_extension(reloading, site, from_hello):
+    workers, bridge = reloading
+    page = _open_form(workers, site)
+    guard(page)
+    assert page.worker.call("guard.status", tab=page.tab)["rules"]
+    if from_hello:
+        bridge.expects = FEATURES + 1  # the hello after it is older than Apply: reloaded again, before its welcome
+    connection = bridge.reload(0)
+    page = _after_reload(page, connection)
+    status = connection.call("guard.status", tab=page.tab)
+    assert status["rules"] and "apply-init-rehearsal" in status["scripts"] and "apply-relay" in status["scripts"]
+    _blocks_every_way(page, site)
+
+
+def test_the_rules_alone_survive_a_reload(reloading, site):
+    workers, bridge = reloading
+    page = _open_form(workers, site)
+    guard(page)
+    connection = bridge.reload(0)
+    page = _after_reload(page, connection)
+    connection.call("guard.flags", tab=page.tab, set={"__applyRehearsalLifted": True})  # the in-page guard off: the rule stops it
+    page.evaluate("() => fetch('/acme/job/9/submitApplication', {method: 'POST'}).catch(() => null)")
+    _settle(page, 1)
+    assert site.posts == []
+
+
+def test_a_held_pages_submit_stays_blocked_after_a_reload(reloading, site):
+    workers, bridge = reloading
+    page = _open_form(workers, site)
+    guard(page)
+    lift(page, held="the pronouns answer")
+    page.get_by_role("button", name="Submit application").click()
+    assert site.posts == []
+    connection = bridge.reload(0)
+    page = _after_reload(page, connection)
+    _settle(page, 0.5)
+    assert connection.call("guard.status", tab=page.tab)["lifted"] is True
+    page.get_by_role("button", name="Submit application").click()
+    _settle(page, 1)
+    assert site.posts == []
+    assert "Submit is held" in _note(page)
+
+
+def test_a_page_already_lifted_stays_lisuls_after_a_reload(reloading, site):
+    workers, bridge = reloading
+    page = _open_form(workers, site)
+    guard(page)
+    lift(page)
+    connection = bridge.reload(0)
+    page = _after_reload(page, connection)
+    _settle(page, 0.5)
+    page.get_by_role("button", name="Submit application").click()
+    deadline = time.monotonic() + 5
+    while not site.posts and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert site.posts == ["/acme/j/42/apply"]
+
+
+def test_what_the_guard_blocks_after_a_reload_reaches_apply(reloading, site):
+    workers, bridge = reloading
+    page = _open_form(workers, site)
+    guard(page)
+    connection = bridge.reload(0)
+    page = PortPage(connection, page.tab)  # the document from before the reload, not loaded again
+    said = []
+    connection.on("guard.said", said.append)
+    page.get_by_role("button", name="Submit application").click()
+    connection.call("guard.sync", tab=page.tab)
+    time.sleep(0.2)
+    assert site.posts == [] and [m["text"] for m in said] == ['Apply rehearsal blocked the "Submit application" click']
+
+
+def test_guard_reset_still_clears_everything_and_a_later_reload_brings_nothing_back(reloading, site):
+    workers, bridge = reloading
+    page = _open_form(workers, site)
+    guard(page)
+    guards.reset(page.worker)
+    connection = bridge.reload(0)
+    status = connection.call("guard.status", tab=page.tab)
+    assert status["rules"] == 0 and status["scripts"] == [] and status["lifted"] is False
+
+
+# --- Ask Claude on a plain Worker (KAN-638, the CDP path is test_rehearse -k ask_claude_on_a_held_page)
+
+def _plain_ask(page, drive, act, tmp_path):
+    """ask.ask on a plain page: the fake Claude acts through the plain tools, as `claude -p` does."""
+    from types import SimpleNamespace
+
+    from apply import ask
+    from apply.adapters import Drive
+    from apply.model import Posting
+    from apply.plain.tools import Tools
+
+    def go(**given):
+        act(Tools(given["page"], tmp_path, given["hook"]))
+        return Drive({"blocked": False, "why": "", "press": "", "reply": "Done.", "changed": [], "couldnt": [],
+                      "waiting": [], "ticked": [], "remember": [], "apply_bug": []}, 2, 100)
+
+    return ask.ask(SimpleNamespace(drive=go), page, "go back a step and press Enter", [],
+                   ask.Form(Posting(id="1", company="A", title="B", url=page.url)), "", guard=drive)
+
+
+@live
+def test_ask_claude_on_a_plain_held_page_sends_nothing_and_his_submit_goes_after(page, site, tmp_path):
+    from apply.plain.tools import ToolError
+
+    drive = DriveGuard(page)
+    guard(page)
+    lift(page)  # held for Lisul
+    rearm(page)  # hold(): both guards back on for the drive
+
+    def act(tools):
+        shot = tools.browser_snapshot()
+        submit = re.search(r'button "Submit application" \[ref=(\w+)\]', shot)[1]
+        field = re.search(r'textbox "First name[^"]*" \[ref=(\w+)\]', shot)[1]
+        assert "Error" not in tools.browser_type(field, "Lisul", element="First name")
+        with pytest.raises(ToolError, match="sends the application"):  # what it really is, not Claude's word
+            tools.browser_click(submit, element="Next")
+        tools.page.evaluate("() => document.getElementById('form').requestSubmit()")  # Enter's implicit submit
+        tools.page.goto(f"{site.url}/form")  # a step that loads a new document
+        tools.page.evaluate("() => document.getElementById('form').requestSubmit()")
+        tools.page.evaluate("() => fetch('/acme/j/42/apply', {method: 'POST'}).catch(() => null)")
+        _settle(tools.page, 1)
+
+    _plain_ask(page, drive, act, tmp_path)
+    assert site.posts == []
+    assert page.worker.call("guard.status", tab=page.tab)["rules"]  # the rules are on through the drive
+    lift(page, bound=True)  # hold(): his again after it
+    page.get_by_role("button", name="Submit application").click()
+    deadline = time.monotonic() + 5
+    while not site.posts and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert site.posts == ["/acme/j/42/apply"]
+
+
+@live
+def test_ask_s_drive_on_a_plain_page_refuses_the_real_submit_whatever_claude_calls_it(page, site, tmp_path):
+    from apply.plain.tools import ToolError, Tools
+
+    guard(page)
+    tools = Tools(page, tmp_path, ("--ask",))
+    shot = tools.browser_snapshot()
+    with pytest.raises(ToolError, match="sends the application"):
+        tools.browser_click(re.search(r'button "Submit application" \[ref=(\w+)\]', shot)[1], element="Next")
+    assert site.posts == []
+
+
+@live
+def test_ask_s_press_on_a_plain_worker_goes_through_a_native_post_step_but_never_to_a_final_url(page, site, monkeypatch):
+    from types import SimpleNamespace
+
+    from apply import ask, claude_fill
+    from apply.adapters import Drive
+    from apply.model import Posting
+
+    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 1_000)
+    page.goto(f"{site.url}/native")
+    drive = DriveGuard(page)
+    guard(page)
+    lift(page)  # held for Lisul
+    rearm(page)  # hold(): both guards back on for the drive
+    empty = {"blocked": False, "why": "", "reply": "Done.", "changed": [], "couldnt": [], "waiting": [], "ticked": [],
+             "remember": [], "apply_bug": []}
+    page.get_by_role("button", name="Next").click()  # Claude's own click: blocked
+    _settle(page, 0.5)
+    assert site.posts == []
+    turns = iter([{**empty, "press": "Next"}, {**empty, "press": "Continue"}])
+    reply = ask.ask(SimpleNamespace(drive=lambda **given: Drive(next(turns), 2, 100)), page, "go on", [],
+                    ask.Form(Posting(id="1", company="A", title="B", url=page.url)), "", guard=drive)
+    assert site.posts == ["/step/two"] and page.title() == "Two"
+    assert "didn't press 'Continue'" in reply.couldnt[0]

@@ -6,6 +6,7 @@ job system records a Submission."""
 import _thread
 import json
 import threading
+import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import datetime
@@ -914,6 +915,44 @@ def test_a_confirmed_page_closes_its_window_after_a_wait_unless_a_pop_up_came(mo
     assert release.is_set() != closes  # closed on its own, or left for Lisul
 
 
+def resume_pressed_later(turns: int = 4):
+    """Lisul presses Resume in the window a few turns after the page was handed to him: by then his own presses on
+    it have been heard. Returns the hold's `resume(page)`, and each turn it was asked on."""
+    asked = []
+
+    def resume(page) -> bool:
+        asked.append(True)
+        return len(asked) >= turns
+    return resume, asked
+
+
+def test_resume_goes_on_after_lisul_pressed_apply_now_himself_on_the_held_page(monkeypatch):
+    # KAN-690: at a paused sign-in he signed in and pressed the site's own "Apply now" and "Complete" on the held
+    # page; Resume, pressed after, must still go on with the page, not be dead for the rest of the hold.
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Apply now", "Complete"])
+    page = "<form onsubmit='return false'><button>Apply now</button></form><button>Complete</button>"
+    site, release = rehearsal._Kept(OnePage(page), 0), threading.Event()
+    resume, asked = resume_pressed_later()
+    threading.Timer(8, release.set).start()  # else: Ctrl-C, so a test never hangs
+
+    with site.open("https://jobs.example.com/apply"):
+        assert site.hold(release, resume=resume) == rehearsal.RESUME
+
+    assert len(asked) == 4 and not release.is_set()
+
+
+def test_resume_never_drives_a_page_lisul_sent_himself(monkeypatch):
+    lisul_on_the_held_page(monkeypatch, lambda n: ["Submit"])
+    site, release, kept = rehearsal._Kept(OnePage(SENT.format("")), 0), threading.Event(), []
+    resume, _ = resume_pressed_later()
+    threading.Timer(4, release.set).start()
+
+    with site.open("https://jobs.example.com/apply"):
+        assert site.hold(release, submitted=kept.append, resume=resume) == ""
+
+    assert len(kept) == 1  # sent and kept: Resume, pressed after, went on with nothing
+
+
 def test_a_held_page_lisul_does_not_submit_leaves_the_tracker_alone(monkeypatch, tmp_path):
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
     lisul_on_the_held_page(monkeypatch, lambda n: [])
@@ -938,6 +977,30 @@ def test_fill_again_on_a_held_page_fills_its_form_once_more_in_the_same_browser(
     assert filler.fills == 2
     assert sum("ready to submit" in line for line in lines) == 2  # a summary line for each fill
     assert submissions == []
+
+
+def test_fill_again_from_the_window_fills_its_form_once_more_with_no_click_on_the_page(monkeypatch, tmp_path):
+    from apply.dashboard import Dashboard, NoFrames, Refused
+
+    filler = Counted(GreenhouseFiller())
+    monkeypatch.setitem(FILLERS, "greenhouse", filler)
+    lisul_on_the_held_page(monkeypatch, lambda n: [])  # he clicks nothing there
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+
+    with FakeJobServer(ARC_FORM) as fake, Dashboard(1, NoFrames()) as board:
+        def press() -> None:  # as `apply fill-again` does, from outside the Worker's page
+            while True:
+                try:
+                    board.fill_again("tile-0")
+                    return
+                except Refused:
+                    time.sleep(0.2)  # not held yet
+        threading.Thread(target=press, daemon=True).start()
+        hold_until(fake, profile, lambda lines: sum("ready to submit" in line for line in lines) == 2,
+                   with_adapters={"board": board})
+        submissions = fake.submissions
+
+    assert filler.fills == 2 and submissions == []
 
 
 def test_a_field_the_filler_cannot_fill_is_reported_and_the_rest_still_filled(tmp_path):
@@ -1634,3 +1697,23 @@ def test_ask_claude_on_a_held_page_sends_nothing_from_a_page_it_loads():
 
     assert asking.done, "the message was taken"
     assert site.posts == []
+
+
+def test_a_held_form_is_on_the_open_forms_list_until_lisul_sends_it(monkeypatch, tmp_path):
+    # KAN-719: a restart of the Mac lost every held form (2026-11-04 and 05). The list keeps each one as it goes.
+    from apply import batch
+
+    path = tmp_path / "open-forms.json"
+    monkeypatch.setattr(batch, "PATH", path)
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path))
+        [kept] = batch.forms(path)
+        assert (kept["link"], kept["status"], kept["job_system"], kept["worker"]) == (ARC_URL, "ready to submit",
+                                                                                     "greenhouse", 0)
+        assert kept["application_id"] == done.posting.id and kept["record"] == done.record
+
+        lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
+        hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=InMemoryTracker())
+    assert batch.forms(path) == []  # it went in: nothing to bring back

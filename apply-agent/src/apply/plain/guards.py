@@ -133,11 +133,13 @@ def alternatives(pattern: str) -> list[str]:
 
 # --- submit_guard on a plain page
 
-def guard(page) -> None:
-    """submit_guard.guard: the rules on this tab, the guard on every page from now, then a reload."""
+def guard(page, reload: bool = True) -> None:
+    """submit_guard.guard: the rules on this tab, the guard on every page from now, then a reload
+    (none from submit_guard.on_open, before the tab's first load)."""
     page.route(PATTERN, submit_guard._refuse)
     page.context.add_init_script(submit_guard.SCRIPT)
-    page.reload(wait_until="domcontentloaded")
+    if reload:
+        page.reload(wait_until="domcontentloaded")
 
 
 def lift(page, pressed=None, again=None, warning: str = "", wrong: bool = True, bound: bool = False,
@@ -148,7 +150,7 @@ def lift(page, pressed=None, again=None, warning: str = "", wrong: bool = True, 
     if bound:
         pressed = again = dismiss = None
     if pressed:
-        page.expose_binding("__applyLisulPressed", lambda source, words: pressed(words))
+        page.expose_binding("__applyLisulPressed", lambda source, words, account=False: pressed(words, account=account))
     if again:
         page.expose_binding("__applyFillAgain", lambda source: again())
     if dismiss:
@@ -237,9 +239,16 @@ class PlainDriveGuard(DriveGuard):
     def let_profile_click(self, let: bool = True) -> None:
         self._flags(__applyProfileClick=let)
 
+    def let_upload_post(self, let: bool = True) -> None:
+        self._flags(__applyUploadPost=let)
+
     def arm(self) -> None:
-        self._flags(__applyDriveLifted=False, __applyAccountClick=False, __applyProfileClick=False)
+        self._flags(__applyDriveLifted=False, __applyAccountClick=False, __applyProfileClick=False,
+                    __applyUploadPost=False)
         self._set_driving(True)
+
+    def asking(self, on: bool, may_tick: bool = False) -> None:
+        """Nothing on the page: every press here comes through plain.tools, which judges it on the real element."""
 
     def _set_driving(self, driving: bool) -> None:
         """Only keeps the state. A captcha's frame refuses trusted presses alone, and every press on a plain

@@ -352,7 +352,8 @@ class Bridge:
 
     def reload(self, worker: int, timeout: float = 30.0) -> Connection:
         """Reload Worker `worker`'s extension from its folder now; its next Connection, once its
-        hello passed. Its tabs, pages and sign-ins stay; armed guards and registered scripts don't."""
+        hello passed. Its tabs, pages, sign-ins and guards stay (ops/guard.js: keepAcrossReload, KAN-657).
+        A PortPage holds the old Connection: make a new one on the same tab."""
         old = self._workers.get(worker)
         if old is None:
             raise WorkerGone(f"plain Worker {worker + 1} is gone")

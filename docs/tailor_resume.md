@@ -46,7 +46,12 @@ step, Tailor, a view that only waited.
    the student does not pick is never written into the resume. A picked
    skill goes on the tailored resume only, never into the experience bank
    ("A picked skill belongs to the tailored resume", below). The missing
-   keywords show Required, then Preferred. A note says a picked skill may
+   keywords show In Your Experiences first (KAN-587: those the student's
+   whole bank already shows in an entry, a bullet or a skill, though this
+   resume leaves them out, so a pick there claims nothing new; the match
+   answers them as `in_experiences`), then Required, then Preferred. KAN-587
+   asked for Add All back; the user chose this grouping instead, so no pick
+   is made in bulk. A note says a picked skill may
    be named in the bullets and that an interviewer can ask about it. A pick
    never moves the score, and each keyword takes its own click: a score that
    rose with each pick, and Select All, paid the student to claim skills
@@ -63,6 +68,13 @@ step, Tailor, a view that only waited.
      `_name`): the title loses any bracketed part ("(Seattle, WA)",
      "[Remote]"), and a name over Rename's 80 characters cuts the title,
      never "Resume",
+   - saves the job posting to the student's Tracker as
+     `saved`, in the same commit (KAN-217, 2026-11-05): a student who
+     tailored for a job is preparing to apply, so it leaves the Jobs page
+     and waits on the tracker. A job already queued or applied keeps its
+     stage. Jobs tailored before this were saved once by the data
+     migration `b6d2e8f4a1c7` (the listed ones, dated when they were
+     tailored),
    - answers with the tailored resume's id and the **changes**: what each
      change replaced (below).
 
@@ -245,8 +257,19 @@ weight.
   page until 2026-10-26), the step in the
   middle on one line ("Review Changes · Step 3 of 3"; the flow's name
   over the step, two lines, said more than the row needs), and Finish at
-  the right, which leaves for the job posting's page, where the student
-  applies. Download sat beside Finish for a day; it is back on the
+  the right, which opens **Your Resume Is Ready** (`ready-to-apply.tsx`,
+  KAN-217, 2026-11-05): a status line, "Saved to your Tracker." with View,
+  then Apply Yourself, two numbered steps, Download PDF and Open
+  <Company>'s Application (the employer's form in a new tab, then "Did You
+  Apply?" on this resume). The primary button is always the next step:
+  Download PDF until the file is saved, then Open, which also takes focus.
+  Or Let Auto Apply Do It is a block of its own, only where the form can be
+  filled; its Auto Apply attaches this resume. The first version, "Ready to
+  Apply", put the three buttons in one row of equals under a paragraph that
+  mixed the status with the instructions, which the user found hard to
+  read. Closing it goes back to the page that opened Tailor, else the job
+  posting. Finish left for the job posting's page until then, which showed
+  nothing new: the student reached the employer's form with no file. Download sat beside Finish for a day; it is back on the
   toolbar with the page's tools. Every change is saved as it is made, so
   Finish saves nothing, and suggestions not handled stay as the run made
   them. There was no Finish until 2026-10-26, so the review had no end.

@@ -32,12 +32,14 @@ from pathlib import Path
 
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
-from apply import trace
+from apply import submit_guard, trace
 from apply.focus import KEEPER
 from apply.home import HOME
 from apply.profile import load_policies
 
 PROFILES = HOME / "profiles"
+# A Worker's profile folder: worker-1 and on. APPLY_PROFILES/worker-extension is the plain Workers' extension, not a profile.
+WORKER_PROFILES = "worker-[0-9]*"
 # Each open page's CDP endpoint, by id(page), while it is open.
 _ENDPOINTS: dict[int, str] = {}
 # The open pages, by id(page), that show in a Chrome window of their own (worker_headless: false).
@@ -133,7 +135,7 @@ class WorkerBrowsers:
         in by hand: each profile without his account (a rehearsal of more links
         than Workers needs more) becomes a copy of a signed-in one. Only profiles
         no browser has open are copied or replaced. Returns those seeded."""
-        source = next((p for p in sorted(self._profiles.glob("worker-*")) if google_account(p) and not in_use(p)), None)
+        source = next((p for p in sorted(self._profiles.glob(WORKER_PROFILES)) if google_account(p) and not in_use(p)), None)
         if source is None:
             return []
         seeded = []
@@ -187,7 +189,11 @@ class WorkerBrowsers:
             return frozenset()
 
     def _workers(self) -> list[Path]:
-        return sorted(p for p in self._profiles.glob("worker-*") if p.is_dir())
+        return sorted(p for p in self._profiles.glob(WORKER_PROFILES) if p.is_dir())
+
+    def profiles_made(self) -> list[Path]:
+        """The Worker profiles on disk. Nothing opens them."""
+        return self._workers()
 
     def refuse_in_use(self) -> None:
         """A persistent profile can be open in only one browser at a time."""
@@ -223,6 +229,7 @@ class WorkerBrowsers:
             try:
                 for tries_left in (2, 1, 0):
                     try:
+                        submit_guard.on_open(page)  # a rehearsal's page: guarded before its first load
                         page.goto(url)
                         break
                     except Exception as error:

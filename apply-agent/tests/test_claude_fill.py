@@ -828,6 +828,107 @@ def test_a_resume_behind_an_uploader_dialog_is_sent_on_to_the_form():
         browser.close()
 
 
+# iCIMS's Candidate Profile (AMD's, live), in its frame as on careers.amd.com: the résumé's input sits in the
+# profile's own form, beside its "Submit Profile". Its change handler shows "Parsing resume, please wait..." and
+# posts the form natively into a hidden frame; the parse's answer shows the file's name.
+ICIMS_OUTER = '<!doctype html><body><iframe id="icims_content_iframe" src="/candidate" width="900" height="600"></iframe>'
+ICIMS_FORM = """<!doctype html><body>
+<form id="profile" method="post" action="/candidate?parse=1" enctype="multipart/form-data" target="parser">
+  <h2>Resume/CV</h2><p>Provide your resume/CV below to pre-fill your profile.</p>
+  <label for="resume">Please upload your resume (max size: 5 MB)</label>
+  <input type="file" id="resume" name="resume">
+  <div id="status"></div>
+  <label>Legal First Name <input name="first"></label>
+  <button type="submit">Submit Profile</button>
+</form>
+<iframe name="parser" hidden></iframe>
+<script>
+document.getElementById('resume').addEventListener('change', () => {
+  document.getElementById('status').textContent = 'Parsing resume, please wait...';
+  document.getElementById('profile').submit();
+});
+window.parsed = (name) => { document.getElementById('status').textContent = name; };
+</script></body>"""
+
+
+def _icims(page, posts: list) -> None:
+    def serve(route):
+        request = route.request
+        if request.method == "POST":
+            posts.append(request.url)
+            name = "one-pager.pdf" if b"one-pager.pdf" in (request.post_data_buffer or b"") else "?"
+            return route.fulfill(body=f"<script>parent.parsed({json.dumps(name)})</script>", content_type="text/html")
+        body = ICIMS_FORM if request.url.endswith("/candidate") else ICIMS_OUTER
+        return route.fulfill(body=body, content_type="text/html")
+    page.route("https://icims.example/**", serve)
+    page.goto("https://icims.example/jobs/90947/candidate-page")
+
+
+def test_icims_posts_the_attached_resume_to_be_parsed_through_the_guards():
+    # Live on AMD: the guards blocked the parse's native POST, so it showed "Parsing resume" for good (KAN-691).
+    from playwright.sync_api import sync_playwright
+
+    from apply.attach import attach_resume
+    from apply.submit_guard import DriveGuard, guard
+
+    posts = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        _icims(page, posts)
+        guard(page)  # a rehearsal's guard, and Claude fill's
+        drive = DriveGuard(page)
+        assert attach_resume(page, FIXTURES / "one-pager.pdf", drive)
+        assert posts == ["https://icims.example/candidate?parse=1"]
+        form = page.frame_locator("#icims_content_iframe")
+        assert form.locator("#status").inner_text() == "one-pager.pdf"
+        # Its Submit Profile, after the attach, is blocked as ever: nothing more is sent.
+        form.get_by_role("button", name="Submit Profile").click()
+        page.wait_for_timeout(500)
+        assert posts == ["https://icims.example/candidate?parse=1"]
+        browser.close()
+
+
+def test_without_the_attach_s_window_the_guards_block_icims_s_parse_post():
+    from playwright.sync_api import sync_playwright
+
+    from apply.attach import attach_resume
+    from apply.submit_guard import DriveGuard, guard
+
+    posts = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        _icims(page, posts)
+        guard(page)
+        DriveGuard(page)
+        attach_resume(page, FIXTURES / "one-pager.pdf")  # no guard given: as before KAN-691
+        assert posts == []  # the input shows its file, but iCIMS never had it
+        assert page.frame_locator("#icims_content_iframe").locator("#status").inner_text() == "Parsing resume, please wait..."
+        browser.close()
+
+
+def test_the_attach_s_window_lets_no_button_that_sends_post_the_form():
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import DriveGuard, guard
+
+    posts = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        _icims(page, posts)
+        guard(page)
+        drive = DriveGuard(page)
+        frame = page.frame_locator("#icims_content_iframe")
+        frame.locator("#resume").set_input_files(FIXTURES / "one-pager.pdf")  # blocked: no window yet
+        drive.let_upload_post()
+        frame.get_by_role("button", name="Submit Profile").click()
+        page.wait_for_timeout(500)
+        assert posts == []
+        browser.close()
+
+
 # Airtable's dropdowns, as they went live: a combobox named by its label lists its choices
 # (and a blank "None") only once it is clicked open.
 AIRTABLE_DROPDOWNS = """<!doctype html><body>
@@ -954,6 +1055,57 @@ def test_each_dropdown_gets_its_own_choices_and_answer_when_a_script_and_playwri
     assert (code, country) == (us_code, "United States")
 
 
+# Microsoft Careers' application (live 2026-11-06): the location picker shows its one choice as an option all
+# along, and a list closed earlier stays in the page, hidden. Each dropdown lists its own a moment after it opens,
+# one in the listbox it names (aria-controls), the others in a shared one. Read page-wide, every dropdown had
+# offered the location's choice alone, so no Yes/No answer fit and they were left Missing facts.
+MICROSOFT_DROPDOWNS = """<!doctype html><body>
+<div><span id="l0">Where would you like to apply for Software Engineer: Internship Opportunities</span>
+<div role="listbox" aria-labelledby="l0"><div role="option" aria-selected="true">United States, California, Aliso Viejo</div></div></div>
+<div role="listbox" style="display:none"><div role="option">I am currently serving (or have served)</div><div role="option">I have not served</div></div>
+<div><span id="l5">Is your legal name the same as your preferred name?</span>
+<div id="same" role="combobox" tabindex="0" style="height:20px" aria-labelledby="l5" onclick="openOwn(this)"><span></span></div>
+<div id="same-list" role="listbox"></div></div>
+<div><span id="l22">Are you currently or have you ever been a member of the military, a civilian employee, or an official of any government, whether national, state, local, or foreign?</span>
+<div role="combobox" tabindex="0" style="height:20px" aria-labelledby="l22" onclick="openList(this, ['Yes', 'No'])"><span></span></div></div>
+<div><span id="l18">Ethnicity/Race</span>
+<div role="combobox" tabindex="0" style="height:20px" aria-labelledby="l18" onclick="openList(this, ['Asian', 'White', 'I prefer not to answer'])"><span></span></div></div>
+<div id="list" role="listbox"></div>
+<script>
+let open = null;
+const later = (f) => setTimeout(f, 200);
+function options(list, names) { list.innerHTML = names.map(o => '<div role="option" onclick="pick(this)">' + o + '</div>').join(''); }
+function openOwn(box) { open = box; box.setAttribute('aria-controls', 'same-list'); later(() => options(document.getElementById('same-list'), ['Yes', 'No'])); }
+function openList(box, names) { open = box; later(() => options(document.getElementById('list'), names)); }
+function close() { document.getElementById('list').innerHTML = ''; document.getElementById('same-list').innerHTML = ''; }
+function pick(option) { open.firstElementChild.textContent = option.textContent; close(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+</script></body>"""
+
+
+def test_each_dropdown_reads_its_own_choices_never_another_lists_options_left_on_the_page():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+
+    questions = [
+        Question("q5", "Is your legal name the same as your preferred name?", "select", True),
+        Question("q22", "Are you currently or have you ever been a member of the military, a civilian employee, or an "
+                        "official of any government, whether national, state, local, or foreign?", "select", True),
+        Question("q18", "Ethnicity/Race", "select", False),
+    ]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(MICROSOFT_DROPDOWNS)
+        found = claude_fill._with_options(page, questions)
+        picked = claude_fill._pick_in_comboboxes(page, found, {"q5": "Yes", "q22": "No"})
+        browser.close()
+
+    assert [q.options for q in found] == [("Yes", "No"), ("Yes", "No"), ("Asian", "White", "I prefer not to answer")]
+    assert picked == {"q5": "Yes", "q22": "No"}
+
+
 def test_jobvites_country_of_residence_and_consent_are_passed_before_claude_reads_the_form(tmp_path):
     driver = JobviteDriver()
 
@@ -1063,6 +1215,60 @@ def test_a_step_whose_next_does_not_go_on_is_a_handoff_not_a_form_ready_to_submi
     assert row.status == "handoff"
     assert "didn't go on to its next step" in row.reason
     assert server.submissions == []
+
+
+# AnaVation's last attestation (the engine's research forms), on a Jobvite step (KAN-676).
+CERTIFY = "I certify that all of the above information is true and complete"
+
+
+def _optional_radios(question: str, name: str) -> str:
+    return (f'<fieldset role="radiogroup" aria-label="{question}"><legend>{question}</legend>'
+            + "".join(f'<label><input type="radio" name="{name}" value="{o}">{o}</label>' for o in YES_NO) + "</fieldset>")
+
+
+class AttestingStepsDriver(JobviteStepsDriver):
+    """Lists the certification on the step that shows it, and, once Apply names it as the person's own, reads it
+    back as it shows: never ticked. `ticked` records any field Apply asked it to fill with the certification's label."""
+
+    def __init__(self, required: bool):
+        super().__init__()
+        self._required = required
+        self.asked_to_fill: list[str] = []
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        said = super().__call__(page, schema, prompt, files)
+        if "questions" in schema["properties"] or not page.get_by_text(CERTIFY).first.is_visible():
+            return said
+        fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
+        self.asked_to_fill += [f["question"] for f in fields if f["question"] == CERTIFY]
+        named = re.search(r"never yours: (q\d+) ", prompt)
+        if named:
+            said["filled"].append({"field": named[1], "shown": [""]})
+        else:
+            said["unlisted"].append({"label": CERTIFY, "kind": "select", "required": self._required, "options": YES_NO})
+        return said
+
+
+def test_a_required_attestation_stops_claude_fill_on_its_step_with_one_ask_and_is_never_ticked(tmp_path):
+    driver = AttestingStepsDriver(required=True)
+    steps = (_radios(SPONSORSHIP, "sponsorship") + _radios(CERTIFY, "certify"), _radios(AUTHORIZED, "authorized"))
+    with FakeJobviteServer(steps=steps) as server:
+        [row] = run(server, profile_with(tmp_path), tyler_match(), claude=FakeClaude(driver=driver))
+
+    assert row.status == "handoff", row.reason
+    assert row.reason.split("; ")[0] == f"Page 2: Tick '{CERTIFY}' yourself on this page, then press Resume: Apply never attests or signs for you."
+    assert driver.asked_to_fill == [] and server.submissions == []
+
+
+def test_an_optional_attestation_is_left_unticked_and_holds_the_form_as_yours_to_tick(tmp_path):
+    driver = AttestingStepsDriver(required=False)
+    steps = (_radios(SPONSORSHIP, "sponsorship"), _radios(AUTHORIZED, "authorized") + _optional_radios(CERTIFY, "certify"))
+    with FakeJobviteServer(steps=steps) as server:
+        [row] = run(server, profile_with(tmp_path), tyler_match(), claude=FakeClaude(driver=driver))
+
+    assert row.status == "held", row.reason
+    assert f"Yours to tick: {CERTIFY}" in row.reason.split("; ")
+    assert driver.asked_to_fill == [] and server.submissions == []
 
 
 class GatedStepsDriver(JobviteStepsDriver):
@@ -1505,6 +1711,77 @@ def test_a_step_that_shows_a_whole_address_in_a_part_or_a_future_start_year_neve
     assert claude_fill.cant_be_right({"Address line 1": address, "Home address": address}, 2026) == []
 
 
+def test_line_one_with_a_whole_address_is_wrong_only_on_a_step_that_asks_the_parts():
+    # TAL.net (KAN-684): the whole address in Address line 1, beside its own City/Town and Postcode boxes.
+    address = "1 Main Street, Springfield, NY 11111, United States"
+    assert claude_fill.cant_be_right({"Home/permanent address: Address line 1": address, "City/Town": "Springfield",
+                                      "Postcode/Zipcode": "11111"}, 2026) == [
+        "'Home/permanent address: Address line 1' holds a whole address, though the step asks its parts"]
+    assert claude_fill.cant_be_right({"Address line 1": "1 Main Street", "City/Town": "Springfield"}, 2026) == []
+    assert claude_fill.cant_be_right({"Street address": address}, 2026) == []  # one box for it all: right
+
+
+# TAL.net's Personal Details, as it showed live (KAN-684): a home and a campus address, line 1's help text under
+# its label, and line 2 holding the whole address an earlier run saved there, which this fill planned nothing for.
+TWO_ADDRESSES = """<!doctype html><body>
+<h3>Home/permanent address</h3>
+<label for=h1>Address line 1<br><span>Please include floor, apartment/flat number if applicable</span> *</label>
+<input id=h1 value="1 Main Street">
+<label for=h2>Address line 2</label><input id=h2 value="1 Main Street, Springfield, NY 11111, United States">
+<label for=h3>City/Town *</label><input id=h3 value="Springfield">
+<label for=h4>Postcode/Zipcode *</label><input id=h4 value="11111">
+<h3>Campus Address</h3>
+<label for=c1>Address line 1 *</label><input id=c1 value="Dorm Hall, 5 College Road">
+<label for=c2>Address line 2</label><input id=c2 value="Room 4">
+<label for=c3>City/Town *</label><input id=c3 value="College Town">
+<label for=c4>County / State / Province</label><select id=c4><option>Choose one...</option><option selected>New York</option></select>
+<input type=hidden id=x value="1 Main Street, Springfield, NY 11111, United States">
+</body>"""
+
+
+def test_a_box_the_fill_left_alone_is_checked_too():
+    # KAN-684: KAN-652's check read only the boxes Apply filled, so line 2's stale whole address was saved.
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(TWO_ADDRESSES)
+        planned = {"Home/permanent address: Address line 1": "1 Main Street"}
+        seen = claude_fill._on_step(page, planned)
+        browser.close()
+    assert seen["Home/permanent address: Address line 1"] == "1 Main Street"  # its own read-back, not read twice
+    assert seen["#2: Address line 2"].startswith("1 Main Street, Springfield")
+    assert seen["County / State / Province"] == "New York" and "x" not in seen
+    assert claude_fill.cant_be_right(seen, 2026) == ["'#2: Address line 2' holds a whole address"]
+
+
+# TAL.net's education step after a save that found a blank (KAN-685): the form's error notice is a heading too.
+TAL_EDUCATION = """<!doctype html><body>
+<h2>Current / Most Recent University Education</h2>
+<div class="errors"><h2>There is a problem</h2><p>Start date - This field is required</p></div>
+<div><label for=u>Current University / School *</label><input id=u value="Example State University"></div>
+<div><label>Start date *</label><select id=m><option>mm</option><option>August</option></select>
+<select id=y><option>yyyy</option><option>2024</option></select></div>
+</body>"""
+
+
+def test_a_bare_date_takes_the_heading_it_sits_under_never_the_forms_error_notice():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+    asked = [Question("q1", "Current University / School", "text", True),
+             Question("q2", "Start date: Month", "select", True, ("August",)),
+             Question("q3", "Start date: Year", "select", True, ("2024",))]
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(TAL_EDUCATION)
+        found = claude_fill._with_sections(page, asked)
+        browser.close()
+    assert [q.section for q in found] == ["", "current / most recent university education",
+                                          "current / most recent university education"]
+
+
 @pytest.mark.parametrize("label", [
     # Saved forms (the Fill engine's fixtures) that ask a school's fields and the internship's start on one page.
     "What is your earliest preferred start date if hired? (YYYY-MM-DD)",
@@ -1519,3 +1796,156 @@ def test_the_internships_start_next_year_beside_a_school_is_right(label):
     shown = {"University": "Example State University", "GPA": "3.7", label: "2027-05-24"}
     assert claude_fill.cant_be_right(shown, 2026) == []
     assert claude_fill.cant_be_right({"University": "Example State University", "Start date: Year": "2027"}, 2026)
+
+
+@pytest.mark.parametrize(("limit", "stops"), [(claude_fill.MAX_STEPS + 5, False), (2, True)])
+def test_a_profile_step_counts_against_the_policy_s_step_limit_not_the_modules(limit, stops):
+    filler = ClaudeFill(claude=None, max_steps=limit)
+    filler._steps = limit - 1 if stops else claude_fill.MAX_STEPS
+
+    class Stop(Exception):
+        """The check passed: the click was next."""
+
+    class Button:
+        def click(self):
+            raise Stop
+
+    if stops:
+        with pytest.raises(Handoff, match=f"went through {limit} steps"):
+            filler._through_profile_step(_NoFields(), Button(), "Submit")
+    else:
+        with pytest.raises(Stop):
+            filler._through_profile_step(_NoFields(), Button(), "Submit")
+
+
+class _NoFields:
+    url = "https://jobs.example.com/form"
+    frames = ()
+
+
+@pytest.mark.parametrize(("label", "value", "sections", "stops"), [
+    ("Start date", "2027-05-24", {}, False),  # no heading to go by: it may be the internship's
+    ("Start date", "May 2027", {"Start date": "internship details"}, False),
+    ("Start date *", "2027", {"Start date *": "availability"}, False),
+    ("Start date:", "2028-01-01", {"Start date:": "application questions"}, False),
+    ("Start date", "2027-08-01", {"Start date": "education"}, True),  # a section that is clearly education
+    ("Start date", "2027-08-01", {"Start date": "your university degree"}, True),
+    ("Start date", "2029-05-24", {}, True),  # no internship starts this far ahead
+    ("Start date", "2031", {"Start date": "internship details"}, True),
+    ("Start date", "2026-05-24", {}, False),  # this year: nothing wrong with it
+    ("Start date", "2027-08-01", {"Start date": "education and availability"}, False),  # not clearly education
+    # Not bare: as before, a school's own start.
+    ("Start date: Year", "2027", {}, True),
+    ("Degree start date", "2027-08-01", {}, True),
+])
+def test_a_bare_start_date_beside_school_fields_stops_only_when_it_is_clearly_the_degree_s(label, value, sections, stops):
+    shown = {"University": "Example State University", "GPA": "3.7", label: value}
+    assert bool(claude_fill.cant_be_right(shown, 2026, sections)) is stops
+
+
+BARE_START_PAGE = """<h2>{heading}</h2><div><label for=s>Start date</label><input id=s></div>
+<fieldset><legend>{legend}</legend><label for=t>Other</label><input id=t></fieldset>"""
+
+
+@pytest.mark.parametrize(("heading", "stops"), [("Internship details", False), ("Education", True)])
+def test_the_section_of_a_bare_start_date_is_read_from_the_page(heading, stops):
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(BARE_START_PAGE.format(heading=heading, legend="More"))
+        shown = {"University": "Example State University", "Start date": "2027-05-24"}
+        sections = claude_fill._sections(page, shown)
+        browser.close()
+    assert sections == {"Start date": heading.lower()}
+    assert bool(claude_fill.cant_be_right(shown, 2026, sections)) is stops
+
+
+def test_the_fill_prompt_says_how_to_pick_from_a_type_to_search_dropdown():
+    # AMD's iCIMS (live, KAN-699): Claude typed the whole state, read the list at once, got No Results and
+    # pressed Escape. Ask Claude then typed "New", waited and clicked New York.
+    assert "Type to Search" in FILL and "first word" in FILL and "browser_wait_for" in FILL
+    assert "Don't press Escape" in FILL
+
+# TAL.net's way (live 2026-11-05, KAN-687): Save and Continue goes on with a required box blank. Step one asks
+# the native language, which Lisul had yet to answer; step two is the Declaration, the last step.
+TAL_STEPS = """<!doctype html><body>
+<div id=s1><h2>Languages</h2><label for=n>Your name</label><input id=n>
+<label for=l>What is your native language?</label><select id=l><option>Choose one...</option><option>English</option></select>
+<button onclick="s1.hidden = true; s2.hidden = false">Save and Continue</button></div>
+<div id=s2 hidden><h2>Declaration</h2><p>I certify the above.</p><button>Submit</button></div>
+</body>"""
+NATIVE = "What is your native language?"
+
+
+class TalStepsDriver:
+    """Plays Claude on TAL_STEPS: fills what <fields> asks on the step showing, lists the native language as
+    unlisted on step one, and names Save and Continue, then Submit on the Declaration. Keeps each step's fields."""
+
+    def __init__(self):
+        self.fields: list[list[str]] = []
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
+        self.fields.append([f["question"] for f in fields])
+        first = page.locator("#s1").is_visible()
+        filled = [{"field": f["field"], "shown": [f["answer"]]} for f in fields if first and f["question"] == "Your name"]
+        if first:
+            page.fill("#n", "Test Person")
+        asked = {f["question"] for f in fields}
+        return {"blocked": False, "why": "", "filled": filled, "submit_button": "" if first else "Submit",
+                "next_button": "Save and Continue" if first else "",
+                "unlisted": [{"label": NATIVE, "kind": "select", "required": True, "options": ["English"]}]
+                if first and NATIVE not in asked else []}
+
+
+def test_an_answer_that_comes_after_its_step_went_by_is_left_behind_not_looked_for_on_later_steps():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import MoreQuestions, Question
+    name = Question("read1", "Your name", "text", True)  # as the read pass names it, apart from the fill's own
+    driver = TalStepsDriver()
+    filler = ClaudeFill(FakeClaude(driver=driver))
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(TAL_STEPS)
+        with pytest.raises(MoreQuestions) as more:  # step one: the native language, found there
+            filler.fill(page, [name], {"read1": "Test Person"})
+        [native] = more.value.questions
+        filler.fill(page, [name, native], {"read1": "Test Person"})  # no answer yet: on to the Declaration
+        # Lisul's answer comes now, while the form is on its last step: it is not looked for there.
+        filler.fill(page, [name, native], {"read1": "Test Person", native.name: "English"})
+        browser.close()
+    assert all(NATIVE not in asked for asked in driver.fields)
+    assert filler.left_behind == [(NATIVE, "English")]
+
+
+# Amazon's Job-specific questions (live, KAN-714): a month box whose only word on its format is its placeholder.
+AMAZON_DATES = """<!doctype html><body>
+<div><label id="grad-label">In what month and year did you (or do you expect to) graduate from your highest degree?</label>
+<input type="text" placeholder="YYYY-MM" aria-label="In what month and year did you (or do you expect to) graduate from your highest degree? Date: Year-Month-Day"></div>
+<div><label for="alias">Please provide your Amazon Login ID (alias)</label><input id="alias" type="text" placeholder="Type here"></div>
+</body>"""
+
+
+def test_a_date_boxs_placeholder_format_is_added_to_its_label():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+
+    questions = [
+        Question("q13", "In what month and year did you (or do you expect to) graduate from your highest degree?", "text", True),
+        Question("q14", "Please provide your Amazon Login ID (alias)", "text", True),
+    ]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(AMAZON_DATES)
+        found = claude_fill._with_formats(page, questions)
+        browser.close()
+
+    assert [q.label for q in found] == [
+        "In what month and year did you (or do you expect to) graduate from your highest degree? (YYYY-MM)",
+        "Please provide your Amazon Login ID (alias)",
+    ]

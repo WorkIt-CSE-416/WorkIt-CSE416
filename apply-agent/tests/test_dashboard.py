@@ -181,6 +181,8 @@ CALIBRATION = "Calibration run: Application 4 of 10, held so you can judge Claud
      "needs", "Fix an answer before it's sent"),
     ({"status": rehearsal.READY, "why": "Pre-submit check failed. phone reads 555"},
      "needs", "Fix an answer before it's sent"),
+    ({"status": rehearsal.READY, "why": f"Yours to tick: I certify that all of the above information is true; {CALIBRATION}"},
+     "needs", "Tick or sign what is yours before it's sent"),
     ({"status": rehearsal.SIGN_IN, "why": "jobs.example.com wants a password", "company": "Zipline",
       "job_system": "workday"}, "needs", "Sign in to Zipline's Workday site once"),
     ({"status": "handoff", "why": "Claude fill can't finish this form: a captcha"}, "needs", "Finish this one yourself"),
@@ -469,7 +471,7 @@ def test_clicks_and_keys_in_a_tile_reach_the_workers_page_in_page_coordinates():
             {"type": "up", "x": 320, "y": 10, "w": 640, "h": 500, "button": "left"},  # let go off it: at its edge
         ):
             urllib.request.urlopen(urllib.request.Request(board.url + "/input/1", data=json.dumps(event).encode(),
-                                                          method="POST"))
+                                                          method="POST", headers=_window(board)))
 
     assert frames.inputs == [
         (1, {"type": "down", "x": 640, "y": 400, "button": "left", "clicks": 1}),
@@ -743,7 +745,8 @@ def test_a_file_picked_in_a_tile_for_its_page_is_kept_by_its_name_and_listed_on_
         board.update(0, company="Appian Corporation", application_id="request-17", status="filling")
         event = {"type": "files", "files": [{"name": "Lisul_Elvitigala_Writing_Sample.pdf",
                                              "data": base64.b64encode(b"%PDF sample").decode()}]}
-        urllib.request.urlopen(urllib.request.Request(board.url + "/input/0", data=json.dumps(event).encode(), method="POST"))
+        urllib.request.urlopen(urllib.request.Request(board.url + "/input/0", data=json.dumps(event).encode(), method="POST",
+                                                      headers=_window(board)))
         board.update(0, files=[{"label": "Resume", "name": resume.name, "path": str(resume)}])  # the plan's files, later
         files = board.state()["tiles"][0]["files"]
 
@@ -1589,3 +1592,22 @@ def test_go_to_question_never_raises_a_plain_workers_window(monkeypatch, plain):
         with pytest.raises(dashboard.Refused):  # no held form answers here: only whether it came forward
             board.go_to({"worker": 0, "posting_url": url}, "Email")
     assert shown == ([] if plain else [0])  # a plain Worker's window comes forward only by Lisul's Show
+
+
+def _window(board) -> dict:
+    """The headers the Apply window's own page sends with a tile's input."""
+    return {"X-Apply-Token": board.token, "Origin": board.url}
+
+
+def test_a_tiles_input_comes_only_from_the_window_itself():
+    """A press on /input/k counts as Lisul's, so another page's request, or one with no token, reaches no tab."""
+    board_frames = FakeFrames({0: jpeg(1280, 800)})
+    with Dashboard(1, board_frames, now=lambda: datetime(2026, 11, 2, 9)) as board:
+        board.update(0, company="Acme", application_id="a-1", status="filling")
+        press = json.dumps({"type": "down", "x": 10, "y": 10, "w": 640, "h": 500, "button": "left"}).encode()
+        for headers in ({}, {"Origin": "https://evil.example", "Content-Type": "text/plain"},
+                        {"X-Apply-Token": "guessed", "Origin": board.url},
+                        {"X-Apply-Token": board.token, "Origin": "https://evil.example"}):
+            assert _status(board.url + "/input/0", data=press, headers=headers) == 403
+    assert not board_frames.inputs
+

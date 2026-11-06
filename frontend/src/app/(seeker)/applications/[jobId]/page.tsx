@@ -217,11 +217,7 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
  *  to the tracker from everywhere. */
 function BackToApplications({ className }: { className?: string }) {
   return (
-    <BackLink
-      parent={{ href: "/applications", name: "Applications Tracker" }}
-      named
-      className={className}
-    />
+    <BackLink parent={{ href: "/applications", name: "Tracker" }} named className={className} />
   );
 }
 

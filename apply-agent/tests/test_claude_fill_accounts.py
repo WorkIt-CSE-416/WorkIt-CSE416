@@ -16,7 +16,7 @@ from test_employer_accounts import EMAIL, NOW, World
 from test_matches import feed_record
 from test_rehearse import adapters
 
-from apply import account_pages, rehearsal
+from apply import account_pages, captcha, oracle, rehearsal
 from apply.keychain import InMemoryKeychain
 from apply.profile import ApplicantProfile
 from apply.tracker import EmployerAccount
@@ -33,8 +33,9 @@ class AccountDriver:
     """Plays Haiku on the fake site. `clicks_itself` makes it click the
     account's button itself, though told not to."""
 
-    def __init__(self, clicks_itself: bool = False):
+    def __init__(self, clicks_itself: bool = False, signs_in_itself: bool = False):
         self._clicks_itself = clicks_itself
+        self._signs_in_itself = signs_in_itself
         self.prompts: list[str] = []
 
     def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
@@ -53,6 +54,8 @@ class AccountDriver:
             heading = page.locator("h1").inner_text()
         if heading == "Sign in to apply":
             page.get_by_label("Email").fill(account["email"])
+            if self._signs_in_itself:
+                page.get_by_role("button", name="Sign In").click()
             return self._said(account_page="sign_in", account_button="Sign In", account_error=error)
         if heading == "Create your account":
             page.get_by_label("Email").fill(account["email"])
@@ -168,8 +171,8 @@ def test_a_code_that_never_comes_needs_lisul_and_resend_is_never_clicked():
         [row] = run(world, server, acme())
 
     assert row.status == "handoff"
-    assert "Type the emailed code: no verification code from smartrecruiters.com came within about 2 minutes" in row.reason
-    assert server.resends == 0 and world.clock.now() - NOW >= timedelta(minutes=2)
+    assert "Type the emailed code: no verification code from smartrecruiters.com came within about 10 minutes" in row.reason
+    assert server.resends == 0 and world.clock.now() - NOW >= timedelta(minutes=10)
     assert world.keychain.password(SITE) == server.accounts[EMAIL]["password"]
     assert server.submissions == []
 
@@ -194,6 +197,22 @@ def test_a_captcha_on_the_sign_in_page_is_a_handoff_with_its_bot_signal():
     assert row.status == "handoff" and "reCAPTCHA" in row.reason
     assert row.bot_signals.endswith("captcha")
     assert server.created == []
+
+
+@pytest.mark.parametrize("signs_in_itself", [False, True])
+def test_a_sign_in_page_with_an_invisible_captcha_is_lisuls_and_its_button_is_never_pressed(signs_in_itself):
+    # AMD's iCIMS (KAN-703): an invisible hCaptcha runs on the sign-in's button, so neither plain code nor
+    # Claude presses it; Lisul signs in himself. Without the captcha the same sign-in goes through (above).
+    world = World(InMemoryKeychain({SITE: "Kept-Pa55word!"}))
+
+    with FakeAccountsSite(world.mailbox, world.keychain, accounts={EMAIL: "Kept-Pa55word!"},
+                          invisible_captcha=True) as server:
+        [row] = run(world, server, acme(), driver=AccountDriver(signs_in_itself=signs_in_itself))
+
+    assert row.status == "handoff"
+    assert captcha.SIGN_IN.format(SITE) in row.reason
+    assert server.sign_ins == [] and server.submissions == []
+    assert not row.bot_signals.endswith("captcha")  # nothing ran the captcha
 
 
 def test_account_pages_past_their_cap_are_a_handoff(monkeypatch):
@@ -228,6 +247,8 @@ def test_a_rehearsal_makes_the_account_reads_the_code_and_stops_unsent(tmp_path)
     ("career4.successfactors.com", "from:(successfactors.com OR sap.com)"),
     ("acme.taleo.net", "from:(taleo.net OR oracle.com)"),
     ("careers.acme.co.uk", "from:(acme.co.uk)"),
+    # JPMorgan's code came from workflow.mail.us2.cloud.oracle.com, American Express's from its own domain (live).
+    ("jpmc.fa.oraclecloud.com", oracle.MAIL_SEARCH),
     (SITE, SEARCH),
 ])
 def test_a_sites_code_is_read_only_from_its_own_or_its_job_systems_domain(site, search):

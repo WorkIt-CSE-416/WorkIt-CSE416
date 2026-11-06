@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 
 import { ExternalLinkIcon, TrashIcon } from "@/components/icons";
 import {
@@ -66,8 +66,25 @@ const PICKABLE: PickableStage[] = ["applied", "interviewing", "offer", "rejected
  * Undo puts the stage before it back. A saved job's pick asks first: the
  * API never moves a job back to Saved, so it has no Undo. The menu is off
  * while a write runs.
+ *
+ * The Tracker's list rows and cards carry it too, so a stage changes where
+ * the application is seen; there a saved job's menu reads "Saved"
+ * (`placeholder`), its stage, rather than the page's "Move To…". Its id is
+ * its own (`useId`): the list and the cards are both on the page at once.
  */
-export function StageMenu({ jobId, stage }: { jobId: string; stage: StageKey }) {
+export function StageMenu({
+  jobId,
+  stage,
+  placeholder = "Move To…",
+  className = "w-40",
+}: {
+  jobId: string;
+  stage: StageKey;
+  /** What a saved job's menu reads, since Saved is not a pick. */
+  placeholder?: string;
+  className?: string;
+}) {
+  const id = useId();
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
@@ -104,11 +121,18 @@ export function StageMenu({ jobId, stage }: { jobId: string; stage: StageKey }) 
   return (
     <>
       <SelectField
-        id={`stage-${jobId}`}
+        id={id}
         label="Stage"
         hideLabel
         value={stage === "saved" ? "" : stage}
-        placeholder="Move To…"
+        placeholder={placeholder}
+        // Saved is not a pick, so a saved job's menu draws Saved's own glyph
+        // beside its placeholder, as every picked stage wears its own.
+        placeholderIcon={
+          stage === "saved" && placeholder === STAGE_LABEL.saved
+            ? { Icon: STAGE_ICON.saved, iconClassName: STAGE_COLOR.saved.onTint }
+            : undefined
+        }
         options={PICKABLE.map((value) => ({
           value,
           label: STAGE_LABEL[value],
@@ -121,7 +145,7 @@ export function StageMenu({ jobId, stage }: { jobId: string; stage: StageKey }) 
           if (asksFirst(stage)) setAsking(next as PickableStage);
           else move(next as PickableStage);
         }}
-        className="w-40"
+        className={className}
       />
       <Dialog open={asking != null} onOpenChange={(open) => !open && setAsking(null)}>
         <DialogContent className="sm:max-w-md">

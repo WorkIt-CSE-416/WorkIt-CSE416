@@ -46,6 +46,8 @@ from apply.fill_engine import (
     readback_problems,
     remember,
     shows,
+    ticked,
+    to_tick,
     trap_handoff,
 )
 from apply.fillers import Filler, Handoff, MoreQuestions
@@ -61,6 +63,7 @@ from apply.model import (
     Posting,
     Question,
     Status,
+    host_company,
     is_company,
     one_line,
 )
@@ -134,6 +137,8 @@ class Result:
     verification: "verify.Verification | None" = None  # how verifying the filled form went (apply.verify)
     # each answer Claude wrote for the form, kept so Lisul can have one written again (apply.regenerate)
     regenerable: "regenerate.Form | None" = None
+    # (label, answer) of each answer that came after its step was saved without it (KAN-687): never on the form
+    left_behind: tuple[tuple[str, object], ...] = ()
 
     def drafted_note(self) -> str:
         """The drafts, as the Tracker row and the Record list them."""
@@ -160,6 +165,7 @@ def apply_to(
     on_captcha: Callable[[str, object, str], bool] = lambda why, page, company: False,
     anyway: bool = False,
     fetched: str | None = None,
+    draft: dict | None = None,
 ) -> Result:
     """`before_submit` runs just before the form is submitted. It returns why
     the Orchestrator holds the Application anyway (the Calibration run), or "";
@@ -208,13 +214,16 @@ def apply_to(
     With `anyway` (Lisul pressed Fill it anyway on a rehearsal that ruled him out), neither the Posting's
     text nor a failed Screener ends it: the form is filled as in any rehearsal.
     `fetched` is the Posting's page as a plain fetch read it, when the caller
-    read it already (embedded.form_behind), so it is not fetched again."""
+    read it already (embedded.form_behind), so it is not fetched again.
+    `draft` is what a reopened form held before Apply stopped (`apply reopen`, KAN-720: its Record's answers,
+    by field name, each with its question, kept only where the field asks the same question now): before each fill, it and what the job system's own saved draft shows on the step
+    (the Filler's `resumed`) are kept, as a Resume keeps Lisul's, so the form comes back as it was."""
     planned = _Planned(posting, site, profile, claude, answered or {}, approved, rehearse, bank or AnswerBank(),
                        today or date.today(), on_files, on_missing)
     planned.anyway = anyway
     try:
         result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify, on_pause, on_captcha,
-                        fetched)
+                        fetched, draft)
     except Handoff as handoff:
         result = _handed_off(handoff)
     except Closed as closed:  # skipped before any form is filled
@@ -238,9 +247,37 @@ def apply_to(
     return result
 
 
+def _held(draft: dict, questions: list[Question]) -> dict:
+    """A reopened form's draft (apply.batch.draft), by field name, where the field asks the same question now."""
+    asks = {q.name: one_line(q.label) for q in questions}
+    return {name: value for name, (label, value) in draft.items() if asks.get(name) == label}
+
+
+def _saved_draft(filler, page) -> dict:
+    """What the job system's own saved draft shows on the step open now, by field name (the Filler's `resumed`,
+    Workday's), for a reopened form; {} for a Filler that can't read it."""
+    try:
+        return dict(getattr(filler, "resumed", lambda page: {})(page))
+    except Exception:
+        return {}
+
+
+class ResumeCheck:
+    """A Filler's checks on a paused page: called, why Resume can't go on now ("" when it can; `resume_blocked`);
+    `signed_in(page)`, whether the page is past its sign-in (the check its own sign-in makes, so a Fill again signs
+    in no more), or None when the Filler has none. A rehearsal paused at a sign-in goes on by itself once it is."""
+
+    def __init__(self, filler):
+        self._blocked = getattr(filler, "resume_blocked", None)
+        self.signed_in = getattr(filler, "signed_in", None)
+
+    def __call__(self, page) -> str:
+        return self._blocked(page) if self._blocked else ""
+
+
 def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fill=lambda: None,
            on_verify=lambda verification: None, on_pause=lambda stopped, blocked: False,
-           on_captcha=lambda why, page, company: False, fetched: str | None = None) -> Result:
+           on_captcha=lambda why, page, company: False, fetched: str | None = None, draft: dict | None = None) -> Result:
     posting, profile, claude = planned.posting, planned.profile, planned.claude
     read = description.from_api(posting, site)
     if (why := eligibility.not_eligible(read)) and not planned.anyway:  # before any form opens or Claude is asked
@@ -256,7 +293,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     before_fill()
             before_fill()
             before_fill = lambda: None
-        blocked = getattr(filler, "resume_blocked", lambda page: "")
+        blocked = ResumeCheck(filler)
 
         def go_on(page) -> None:
             """Lisul pressed Resume while Apply filled (apply.stuck): what he put on the page is his answer."""
@@ -284,8 +321,10 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
         planned.text = read or getattr(filler, "posting_text", "") or fetched
         # A Request on a job system with no Filler: its link named no company, but its open page did
         # (Claude fill). Planned with that name, "why <company>?" is the High-stakes essay it is.
+        # Else its link's host, when it is a job site known to be one company's (amazon.jobs: Amazon).
         company, title = getattr(filler, "names", None) or ("", "")
-        planned.posting = posting = replace(posting, company=posting.company or company, title=posting.title or title)
+        planned.posting = posting = replace(posting, company=posting.company or company or host_company(posting.url),
+                                            title=posting.title or title)
         # A rehearsal shows its form while Claude writes its answers; a run opens it only once they're written.
         if not rehearse and (stop := planned.add(questions)):
             return stop
@@ -303,6 +342,8 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                             if stuck.pressed():  # a Resume pressed while Apply was busy, not waiting: taken here
                                 raise stuck.Stopped("you pressed Resume")
                             stuck.doing(f"Filling {_where(filler)}")
+                            if draft is not None:  # a reopened form: what it held, and the site's saved draft (KAN-720)
+                                planned.keep(_held(draft, planned.questions) | _saved_draft(filler, page))
                             readback = filler.fill(page, planned.questions, planned.answers)
                         break
                     except stuck.Stopped:  # Resume, while Apply waited inside the fill
@@ -322,15 +363,18 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         # leave is read from it.
                         shown = dict(getattr(filler, "shown_so_far", {}))
                         stopped = _handed_off(handoff, missing=planned.missing, choices=planned.choices,
+                                              left_behind=_left_behind(filler),
                                               required=planned.required, where=planned.where,
                                               filled=Filled(planned.questions, planned.answers, shown, _screenshot(page),
                                                             html=page_html(page)))
                         if isinstance(handoff, Blocked) or not (rehearse and on_pause(stopped, blocked)):
                             return stopped  # a bot block is never paused: Resume would only try again
                         # Resume: what Lisul put on the step it stopped on stays, as his answers.
-                        planned.keep(getattr(filler, "resumed", lambda page: {})(page))
+                        planned.keep(getattr(filler, "resumed", lambda page: {})(page), getattr(filler, "paused", None))
                 questions, answers, holds = planned.questions, planned.answers, list(planned.holds)
-                holds = [f"Not filled: {e}" for e in planned.unfilled] + holds
+                behind = _left_behind(filler)
+                holds = ([f"Not filled: {e}" for e in planned.unfilled] + holds
+                         + [f"Not filled: {label} ({LEFT_BEHIND})" for label, _ in behind] + planned.to_tick)
                 filled = Filled(questions, answers, readback, _screenshot(page), html=page_html(page))
                 problems = readback_problems(questions, answers, readback, planned.accepted)
                 if problems and not replanned and attempt < 2:
@@ -350,7 +394,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                 planned.use_bank()
                 if planned.handoffs:  # filled but for what only Lisul may answer; no Claude call
                     checked = ["Pre-submit check failed. " + "; ".join(problems)] if problems else []
-                    return Result(Status.HANDOFF, "; ".join(planned.handoffs + checked + [FILLED_BUT]), filled)
+                    return Result(Status.HANDOFF, "; ".join(planned.handoffs + checked + planned.to_tick + [FILLED_BUT]), filled)
                 holds += planned.overused()
                 on_verify(None)  # Verifying: the window shows it while the form is read back and checked
                 found = []
@@ -384,7 +428,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     holds += filter(None, [before_submit()])
                     return Result(Status.HELD, "; ".join(holds), filled, essay=planned.essay_cell, missing=planned.missing,
                                   choices=planned.choices, required=planned.required, where=planned.where, problems=wrong,
-                                  verification=verification)
+                                  verification=verification, left_behind=behind)
                 if holds:
                     return Result(Status.HELD, "; ".join(holds), filled, essay=planned.essay_cell, problems=wrong,
                                   verification=verification)
@@ -437,8 +481,17 @@ def choices(question: Question) -> dict | None:
 
 
 def _company(posting: Posting, filler) -> str:
-    """The company the link names, else the one its open page names (Claude fill)."""
-    return posting.company or (getattr(filler, "names", None) or ("", ""))[0]
+    """The company the link names, else the one its open page names (Claude fill), else its known host's."""
+    return posting.company or (getattr(filler, "names", None) or ("", ""))[0] or host_company(posting.url)
+
+
+# Why a left-behind answer is not on the form (KAN-687).
+LEFT_BEHIND = "its answer came after the form saved its step without it"
+
+
+def _left_behind(filler) -> tuple[tuple[str, object], ...]:
+    """The answers a Filler found no field for, since their step had gone by (ClaudeFill's `left_behind`)."""
+    return tuple(getattr(filler, "left_behind", None) or ())
 
 
 def _handed_off(handoff: Handoff, **more) -> Result:
@@ -481,6 +534,7 @@ class _Planned:
         self._answers: dict = {}
         self.accepted: dict[str, tuple[str, ...]] = {}  # other wordings Lisul accepts for an answer, by Question name
         self.blanks: dict[str, str] = {}  # fields the engine's plan leaves blank on purpose, by name: why
+        self.attestations: dict[str, str] = {}  # attestations and signatures, by name: their wording, Lisul's to tick
         self.filed: dict[str, str | None] = {}  # each bare date's Answer bank wording, by name (fill_engine.Plan.filed)
         self.sections: dict[str, str] = {}  # each bare date's section, by name (fill_engine.Plan.sections)
         self.fixes: dict[str, object] = {}  # the Pre-submit review's fixes, by name: no plan writes over them
@@ -509,15 +563,27 @@ class _Planned:
     def answers(self, answers: dict) -> None:
         # What Apply already held is the answer to a field it would have asked; the review's fix wins over the
         # plan; what Lisul put on the page wins over both.
-        self._answers = answers | self.found | self.fixes | self.lisuls
+        # An attestation is never Apply's to answer, from any of them: only what Lisul ticked himself (KAN-676).
+        self._answers = {n: a for n, a in (answers | self.found | self.fixes).items() if n not in self.attestations} | self.lisuls
         self._keep_files()
 
-    def keep(self, values: dict) -> None:
+    @property
+    def to_tick(self) -> list[str]:
+        """The Check before Submit lines for the attestations Lisul has not ticked on a paused step: "Yours to tick: ..."."""
+        return [to_tick(wording) for name, wording in self.attestations.items() if name not in self.lisuls]
+
+    def keep(self, values: dict, paused: dict | None = None) -> None:
         """Keep what Lisul put on a paused form before Resume (the Filler's
         `resumed`) as his answers: no plan, Claude or Filler writes over them,
-        and a Missing fact he answered there waits on him no more."""
+        and a Missing fact he answered there waits on him no more. An
+        attestation is his only once he ticked it himself: a tick other than
+        what the page showed at the pause (`paused`, the Filler's read of it).
+        Unread at the pause, or untouched, it stays on his list (KAN-676)."""
+        by_name = {q.name: q for q in self.questions}
         values = {name: value for name, value in values.items()  # what Apply had put there itself stays Apply's
-                  if name not in self._answers or not shows(value, self._answers[name], self.accepted.get(name, ()))}
+                  if (name not in self._answers or not shows(value, self._answers[name], self.accepted.get(name, ())))
+                  and (name not in self.attestations or (paused is not None and name in paused and value != paused[name]
+                                                         and ticked(value, by_name.get(name))))}
         if not values:
             return
         self.lisuls |= values
@@ -578,6 +644,7 @@ class _Planned:
         self.banked = planned.banked
         self.accepted = planned.accepted
         self.blanks = planned.blanks
+        self.attestations = planned.attestations
         self.filed, self.sections = planned.filed, planned.sections
         for q in self.questions:  # Lisul's answer to a bare date on this form, as he gave it
             if q.name in planned.filed and (given := self._answered.get(q.label.strip())) is not None:
@@ -733,6 +800,7 @@ class _Planned:
         for q in self.questions:
             answer = fixes.get(one_line(q.label))
             if (answer is None or q.name not in guessed | legal or q.kind in ("file", "multi_select") or q.name in self.lisuls
+                    or q.name in self.attestations
                     or q.name in essays_asked or SECRET.search(q.label) or SECRET.search(q.name)
                     or (q.options and answer not in q.options) or shows(readback.get(q.name, ""), answer)):
                 continue
@@ -860,7 +928,8 @@ def named(posting: Posting, result: Result) -> Posting:
     """The Posting, with the company and role its form's page named where
     its link named neither (a Request on a job system with no Filler)."""
     company, title = result.named
-    return replace(posting, company=posting.company or company, title=posting.title or title)
+    return replace(posting, company=posting.company or company or host_company(posting.url),
+                   title=posting.title or title)
 
 
 def _screenshot(page) -> bytes:

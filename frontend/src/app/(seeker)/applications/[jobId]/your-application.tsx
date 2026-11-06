@@ -168,6 +168,9 @@ export function YourApplication({
                 </>
               )}
               {app.resume ? <>Sent {app.resume}</> : "No resume sent through WorkIt"}
+              {/* The hiring system its posting is on, which the Tracker's
+                  table showed as Source until 2026-11-05. */}
+              {app.source && <> · Posted on {app.source}</>}
             </p>
 
             {/* Before it goes in, the student's own day to apply by

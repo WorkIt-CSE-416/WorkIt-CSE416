@@ -93,6 +93,58 @@ def test_an_answer_typed_on_the_held_form_is_saved_and_leaves_needs_you(monkeypa
     assert fake.submissions == []
 
 
+class AsksClaude(RecordingBoard):
+    """Lisul, in the tile: asks Claude to fix the held form once its fields are watched. Claude's fix changes a
+    field waiting on him; the page closes a few turns later."""
+
+    def __init__(self):
+        super().__init__()
+        self.page, self.ticks, self.sent, self.replies = None, 0, False, []
+
+    def asks(self, worker):
+        if self.ticks < 2 or self.sent:
+            return []
+        self.sent = True
+        return [{"id": "ask-1", "message": "fix my email", "thread": []}]
+
+    def replied(self, worker, ask_id, **reply):
+        self.replies.append(reply)
+
+    def answered(self, worker):
+        if self.sent and self.ticks > 10:
+            self.page.close()
+        return []
+
+
+def test_what_ask_claude_changed_on_the_held_form_is_never_taken_as_his_answer(monkeypatch, tmp_path):
+    # Live (KAN-693): an `apply ask` fix on the held form was read by the Watch as Lisul typing, and its
+    # values were saved to his Applicant profile as his answers to the fields still waiting on him.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(on_page, "IDLE_S", 0.5)
+    profile = profile_with(tmp_path, **{"identity.email": None})
+    board = AsksClaude()
+    ticked = on_page.Watch.tick
+
+    def tick(self, page, questions):
+        board.page = page
+        board.ticks += 1
+        return ticked(self, page, questions)
+    monkeypatch.setattr(on_page.Watch, "tick", tick)
+
+    def claude_fixes(claude, page, message, *args, **kwargs):  # Claude types into the waiting field, and leaves it
+        page.fill("#email", "claude@example.com")
+        page.keyboard.press("Tab")
+        return rehearsal.ask.Reply("Set Email.", changed=[{"field": "Email", "step": "", "shown": "claude@example.com"}])
+    monkeypatch.setattr(rehearsal.ask, "ask", claude_fixes)
+    with FakeJobServer(ARC_FORM) as fake:
+        rehearsal.rehearse([ARC_URL], adapters(fake, board=board, records=FolderRecords(tmp_path / "rehearsals")),
+                           ApplicantProfile.load(profile), 1, keep_open=True, out=lambda line: None)
+
+    assert board.sent and board.ticks > 10
+    assert getattr(board, "typed_in", []) == []  # Claude's value is the page's, never his answer
+    assert fake.submissions == []
+
+
 FORM = """<form>
   <div class="application-question"><div class="application-label">Pronouns<span>*</span></div>
     <input type="text" name="cards[x][field0]"></div>
@@ -123,6 +175,65 @@ def test_a_field_is_found_by_its_label_in_its_own_section_never_in_apply_s_note(
     page.select_option("#term", label="Summer 2027")
     assert read(Question("move", "Willing to relocate?", "radio"))["value"] == "No"
     assert read(Question("term", "Term", "select"))["value"] == "Summer 2027"
+
+
+SECTIONS = """<form>
+  <fieldset><legend>Contact</legend>
+    <label for="first">First name</label><input id="first" value="Ann">
+    <label for="mail">Email</label><input id="mail" value="ann@example.com">
+    <label for="alt">Alternate Phone Number</label><input id="alt">
+  </fieldset>
+  <fieldset><legend>Eligibility</legend>
+    <div>Are you legally authorized to work here?</div>
+    <label><input type="radio" name="auth" value="y" checked> Yes</label><label><input type="radio" name="auth" value="n"> No</label>
+    <div>Will you require sponsorship?</div>
+    <label><input type="radio" name="visa" value="y"> Yes</label><label><input type="radio" name="visa" value="n" checked> No</label>
+  </fieldset>
+  <div class="section">
+    <div><label>School</label><select id="school"><option>Pick</option><option selected>Stony Brook University</option></select></div>
+    <div><label>If your school is not listed, enter it here</label><input id="other-school" style="display:none"></div>
+    <div><label>Degree</label><input id="degree" value="BS"></div>
+  </div>
+</form>"""
+
+
+def test_a_field_in_a_section_reads_only_its_own_value_never_the_section_s(page):
+    # Live (KAN-693): a field whose box was its whole section read every field in it, joined with "; ", and
+    # that string was saved to the Applicant profile as the answer to the one field Lisul had left blank.
+    page.set_content(SECTIONS)
+    read = lambda q: on_page._in_frames(page, q, "read")
+
+    assert read(Question("alt", "Alternate Phone Number", "text"))["value"] == ""
+    assert read(Question("mail", "Email", "text"))["value"] == "ann@example.com"
+    assert read(Question("auth", "Are you legally authorized to work here?", "radio"))["value"] == "Yes"
+    assert read(Question("visa", "Will you require sponsorship?", "radio"))["value"] == "No"
+    # Its own box is hidden: the School list next to it is another field's, never this one's.
+    assert read(Question("other", "If your school is not listed, enter it here", "text")).get("value", "") == ""
+    page.fill("#alt", "555-0100")
+    assert read(Question("alt", "Alternate Phone Number", "text"))["value"] == "555-0100"
+# Microsoft Careers' contact section (live 2026-11-06): a field whose control the page script can't see (a
+# dropdown drawn as a plain div, an input in a shadow root) sits among inputs labelled by divs. Going up from its
+# label reached the whole section: "Alternate Phone Number" read every answer in it joined, then (KAN-693) the
+# first name, another field's.
+CONTACT = """<div class="section">
+  <div class="field"><div class="label">Preferred First Name</div><input id="first" value="Ada"></div>
+  <div class="field"><div class="label">Email</div><input id="email" value="ada@example.com"></div>
+  <div class="field"><div class="label">Alternate Phone Number</div><div class="phone-host"></div></div>
+  <div class="field"><div class="label">Is your legal name the same as your preferred name?</div><div class="dropdown">Select</div></div>
+</div>"""
+
+
+def test_a_field_with_no_control_of_its_own_never_reads_the_sections_other_answers(page):
+    page.set_content(CONTACT)
+    clock = [0.0]
+    watch = on_page.Watch("claude", now=lambda: clock[0])
+    asked = [Question("q9", "Alternate Phone Number", "text"), Question("q5", "Is your legal name the same as your preferred name?", "select")]
+
+    assert [on_page._in_frames(page, q, "read").get("value", "") for q in asked] == ["", ""]
+    assert watch.tick(page, asked) == []
+    page.fill("#email", "ada@example.org")  # another field changed: never an answer to these
+    clock[0] = 1 + on_page.TYPING_S
+    assert watch.tick(page, asked) == []
 
 
 def test_a_field_on_another_workday_step_is_named_and_nothing_moves(page):

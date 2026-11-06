@@ -3,8 +3,9 @@
 captureVisibleTab gives the tile about 2 frames a second (Chrome's quota per browser), and only
 the debugger API, which a plain Worker never uses, gets past it. So Apply films the Worker's
 window itself, by its window ID: `window_capture.swift`, built once with swiftc into
-~/Library/Caches/apply/, streams that window of the Worker's Chrome (found by its PID) cropped
-to the tab's viewport, at the screen's pixel scale, 30 frames a second, only when it changed.
+~/Library/Caches/apply/, streams that window of the Worker's Chrome (found by its PID, and only
+while macOS lists it with the shown tab's title: KAN-717) cropped to the tab's viewport, at the
+screen's pixel scale, 30 frames a second, only when it changed.
 Nothing is focused, raised or moved, and a covered window still streams.
 
 It needs Screen Recording permission for the app Apply runs in (macOS gives it to the app at
@@ -16,6 +17,7 @@ or changes it: without it, `allowed()` is False, the tile keeps the captureVisib
 import hashlib
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -91,12 +93,41 @@ def chrome_of(host_pid: int | None) -> int | None:
     return int(found) if found.isdigit() and int(found) > 1 else None
 
 
+# What Chrome may add after a tab's title in its window's title: " - Google Chrome", then " - <profile>". Only at the end,
+# so a page that puts " - Google Chrome" in the middle of its own title gains nothing.
+CHROME_SUFFIX = re.compile(r" - Google Chrome(?: for Testing)?(?: - [^…]{1,60})?$")
+ENDS = 8  # characters an elided title must keep at each end of the tab's (KAN-717)
+
+
+def title_matches(window: str, tab: str) -> bool:
+    """Whether a Chrome window's title (`window`, as macOS lists it) is the title of `tab`, its shown tab
+    (KAN-717). macOS may add " - Google Chrome…" and cut a long title in the middle with "…". A page sets its own
+    title, so this is no proof on its own: an elided title must keep ENDS characters of each end, and the helper
+    films a window only when exactly one of its Chrome's windows matches."""
+    window, tab = " ".join((window or "").split()), " ".join((tab or "").split())
+    if not window or not tab:
+        return False
+    if window == tab:
+        return True
+    window = CHROME_SUFFIX.sub("", window).strip()
+    if window == tab:
+        return True
+    if window.count("…") != 1:
+        return False
+    head, tail = (part.strip() for part in window.split("…"))
+    return len(head) >= ENDS and len(tail) >= ENDS and len(tab) > len(head) + len(tail) \
+        and tab.startswith(head) and tab.endswith(tail)
+
+
 class WindowStream:
-    """One Worker's window, streamed: `aim` at its shown window and viewport, `on_frame(jpeg)` per frame."""
+    """One Worker's window, streamed: `aim` at its shown window, viewport and tab title, `on_frame(jpeg)` per
+    frame. A frame goes on only while the helper says it films a window of `pid` whose title is the tab's
+    (`verified`, KAN-717): never another Worker's window, nor this one showing another tab."""
 
     def __init__(self, pid: int, on_frame: Callable[[bytes], None], fps: int = FPS, quality: float = QUALITY):
         self.pid = pid
         self.status: dict = {}
+        self.title = ""  # the title of the tab it was last aimed at
         self._on_frame = on_frame
         self._aimed = ""
         self._process = subprocess.Popen([str(helper()), "--pid", str(pid), "--fps", str(fps), "--quality", str(quality)],
@@ -108,13 +139,22 @@ class WindowStream:
     def alive(self) -> bool:
         return self._process.poll() is None
 
-    def aim(self, window: dict, viewport: dict) -> None:
-        """Stream the window at `window` ({left, top, width, height}), cropped to `viewport` ({width, height})."""
+    @property
+    def verified(self) -> bool:
+        """Whether the helper last said it films a window of this Worker's Chrome titled as the tab it was aimed at."""
+        status = self.status
+        return status.get("pid") == self.pid and bool(status.get("window")) and title_matches(status.get("title", ""),
+                                                                                                    self.title)
+
+    def aim(self, window: dict, viewport: dict, title: str = "") -> None:
+        """Stream the window at `window` ({left, top, width, height}) whose title is `title` (its shown tab's),
+        cropped to `viewport` ({width, height}). Without a title it films nothing: it can't tell the window is this tab's."""
+        title = " ".join(str(title or "").split())
         line = " ".join(str(v) for v in (window["left"], window["top"], window["width"], window["height"],
-                                         viewport["width"], viewport["height"])) + "\n"
-        if line == self._aimed or not self.alive:
+                                         viewport["width"], viewport["height"])) + f" {title}\n"
+        if line == self._aimed or not self.alive or not title:
             return
-        self._aimed = line
+        self._aimed, self.title = line, title
         try:
             self._process.stdin.write(line.encode())
             self._process.stdin.flush()
@@ -133,7 +173,7 @@ class WindowStream:
         out = self._process.stdout
         while (head := out.read(4)) and len(head) == 4:
             frame = out.read(struct.unpack(">I", head)[0])
-            if frame.startswith(b"\xff\xd8"):
+            if frame.startswith(b"\xff\xd8") and self.verified:
                 self._on_frame(frame)
 
     def _said(self) -> None:

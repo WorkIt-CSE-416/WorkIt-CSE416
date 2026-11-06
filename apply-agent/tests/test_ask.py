@@ -24,42 +24,127 @@ from apply.records import Filled, FolderRecords, Record
 from apply.repair import RepairRequests
 
 CLICK = "mcp__playwright__browser_click"
+
+
+@pytest.fixture(autouse=True)
+def no_settle_wait(monkeypatch):
+    monkeypatch.setattr(ask, "SETTLE_S", 0)
 POSTING = Posting(id="req-1", company="Acme Robotics", title="Software Intern", url="https://jobs.example.com/acme/1")
 
 
-def call(tool: str, element: str) -> dict:
-    return {"tool_name": f"mcp__playwright__browser_{tool}", "tool_input": {"element": element}}
+def call(tool: str, element: str, target: str = "e1", cwd=".") -> dict:
+    return {"tool_name": f"mcp__playwright__browser_{tool}", "tool_input": {"element": element, "target": target},
+            "cwd": str(cwd)}
 
 
-@pytest.mark.parametrize("asked", [call("click", "Resend code"), call("click", "Send new code button"),
-                                   call("click", "Verify email")])
-def test_ask_mode_refuses_asking_for_a_code_again(asked):
-    said = send_click.refusal(asked, ask=True)
-    assert said["hookSpecificOutput"]["permissionDecision"] == "deny"
-    assert "verification code" in said["hookSpecificOutput"]["permissionDecisionReason"]
+def page_shows(folder, snapshot: str) -> None:
+    """The after-tool hook kept this snapshot (a tool's answer, as Claude Code hands it over)."""
+    send_click.keep({"cwd": str(folder), "tool_response": [{"type": "text", "text": f"### Snapshot\n```yaml\n{snapshot}\n```"}]})
+
+
+def denied(answer) -> str:
+    assert answer["hookSpecificOutput"]["permissionDecision"] == "deny"
+    return answer["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+@pytest.mark.parametrize("real", ['- button "Resend code" [ref=e1]', '- button "Send new code" [ref=e1]',
+                                  '- link "Verify email" [ref=e1] [cursor=pointer]'])
+def test_ask_mode_refuses_asking_for_a_code_again(tmp_path, real):
+    page_shows(tmp_path, real)
+    assert "verification code" in denied(send_click.refusal(call("click", "Next", cwd=tmp_path), ask=True))
     assert send_click.refusal(call("click", "Resend code")) is None  # Claude fill's own hook is as it was
 
 
-@pytest.mark.parametrize("asked", [call("click", "I certify that my answers are true checkbox"),
-                                   call("click", "I acknowledge the privacy notice"),
-                                   call("type", "Electronic signature (type your full name)")])
-def test_ask_mode_refuses_an_attestation_box_unless_his_message_asked_for_a_tick(asked):
-    assert send_click.refusal(asked, ask=True)["hookSpecificOutput"]["permissionDecision"] == "deny"
-    assert send_click.refusal(asked, ask=True, may_tick=True) is None
+@pytest.mark.parametrize(("real", "tool"), [('- checkbox "I certify that my answers are true" [ref=e1]', "click"),
+                                            ('- checkbox "I acknowledge the privacy notice" [ref=e1]', "click"),
+                                            ('- generic [ref=e0]:\n  - checkbox [ref=e1]\n  - text: I certify that my answers are true', "click"),
+                                            ('- textbox "Electronic signature (type your full name)" [ref=e1]', "type")])
+def test_ask_mode_judges_the_real_box_not_claudes_word_for_it(tmp_path, real, tool):
+    page_shows(tmp_path, real)
+    denied(send_click.refusal(call(tool, "the GPA field", cwd=tmp_path), ask=True))  # Claude's wording says otherwise
+    # "Check the box" names no box: refused still.
+    denied(send_click.refusal(call(tool, "the GPA field", cwd=tmp_path), ask=True, message="check the box"))
 
 
-def test_ask_mode_lets_the_fixes_through():
-    for asked in (call("click", "Back button"), call("click", "Next"), call("select_option", "Preferred locations"),
-                  call("type", "GPA"), call("type", "Certifications you hold")):
-        assert send_click.refusal(asked, ask=True) is None
-    assert send_click.refusal(call("click", "Submit application"), ask=True)  # never the one that sends
+def test_ask_mode_lets_a_box_through_only_when_his_message_names_that_box(tmp_path):
+    page_shows(tmp_path, '- checkbox "I certify that my answers are true" [ref=e1]\n- checkbox "I accept the privacy policy" [ref=e2]')
+    message = "tick the box: I certify that my answers are true"
+    assert send_click.refusal(call("click", "a box", "e1", tmp_path), ask=True, message=message) is None
+    denied(send_click.refusal(call("click", "I certify that my answers are true", "e2", tmp_path), ask=True, message=message))
+
+
+@pytest.mark.parametrize(("message", "box", "named"), [
+    ("tick the box that says I certify that my answers are true", "I certify that my answers are true", True),
+    ("check 'answers are true and complete'", "I certify that my answers are true and complete", True),
+    ("tick I agree", "I agree", True),
+    ("check the box", "I certify that my answers are true", False),
+    ("tick the checkbox for me", "I certify that my answers are true", False),
+    ("sign it", "Electronic signature", False),
+    ("tick the certify box", "I certify that my answers are true", False),
+    ("tick the box I certify that my answers are true", "I accept the privacy policy", False),
+    ("don't tick I certify that my answers are true", "I certify that my answers are true", False),
+    ("do not check I agree", "I agree", False),
+    ("check my GPA on page 2", "I certify that my answers are true", False),
+])
+def test_only_his_message_naming_the_box_s_own_text_lets_a_tick_through(message, box, named):
+    assert ask.may_tick(message, box) is named
+
+
+@pytest.mark.parametrize(("real", "tool"), [('- textbox "Password" [ref=e1]', "type"),
+                                            ('- textbox "Verification code" [ref=e1]', "type"),
+                                            ('- textbox "Enter your one-time passcode" [ref=e1]', "fill_form")])
+def test_ask_mode_refuses_typing_in_a_password_or_code_field(tmp_path, real, tool):
+    page_shows(tmp_path, real)
+    asked = (call(tool, "GPA", cwd=tmp_path) if tool == "type" else
+             {"tool_name": f"mcp__playwright__browser_{tool}", "cwd": str(tmp_path),
+              "tool_input": {"fields": [{"name": "GPA", "target": "e1", "type": "textbox", "value": "3.7"}]}})
+    assert "password or verification-code" in denied(send_click.refusal(asked, ask=True))
+
+
+@pytest.mark.parametrize("facts", [{"role": "textbox", "type": "password", "text": "Your secret", "attrs": ""},
+                                   {"role": "textbox", "type": "text", "text": "", "attrs": "otp_input"},
+                                   {"role": "textbox", "type": "text", "text": "", "attrs": "one-time-code"}])
+def test_a_secret_field_is_known_by_its_attributes(facts):
+    denied(send_click.judged("type", facts))
+    denied(send_click.judged("key", facts))
+    assert send_click.judged("click", facts) is None  # focusing one is no typing
+
+
+@pytest.mark.parametrize("label", ["Zip code", "Country code", "Area code", "Postal code", "Code", "Promo code"])
+def test_an_ordinary_code_field_is_no_secret(label):
+    assert send_click.judged("type", {"role": "textbox", "type": "text", "text": label, "attrs": ""}) is None
+
+
+def test_a_tool_on_what_the_page_has_not_shown_or_on_a_selector_is_refused(tmp_path):
+    page_shows(tmp_path, '- button "Next" [ref=e1]')
+    assert "snapshot" in denied(send_click.refusal(call("click", "Next", "e9", tmp_path), ask=True))
+    assert "snapshot" in denied(send_click.refusal(call("click", "Next", "button.next", tmp_path), ask=True))
+
+
+def test_claudes_next_on_the_real_submit_is_refused_and_its_submit_on_the_real_next_goes(tmp_path):
+    page_shows(tmp_path, '- button "Submit application" [ref=e1]\n- button "Next" [ref=e2]')
+    assert "sends the application" in denied(send_click.refusal(call("click", "Next button", "e1", tmp_path), ask=True))
+    assert send_click.refusal(call("click", "Submit", "e2", tmp_path), ask=True) is None
+
+
+def test_ask_mode_lets_the_fixes_through(tmp_path):
+    page_shows(tmp_path, '- button "Back" [ref=e1]\n- button "Next" [ref=e2]\n- combobox "Preferred locations" [ref=e3]\n'
+                         '- textbox "GPA" [ref=e4]\n- textbox "Certifications you hold" [ref=e5]\n- radio "Complete" [ref=f1e6]')
+    for tool, target in (("click", "e1"), ("click", "e2"), ("select_option", "e3"), ("type", "e4"), ("type", "e5"), ("click", "f1e6")):
+        assert send_click.refusal(call(tool, "x", target, tmp_path), ask=True) is None
 
 
 def test_the_hook_runs_with_its_flags(tmp_path):
-    [hook] = json.loads(send_click.settings(sys.executable, ("--ask",)))["hooks"]["PreToolUse"]
-    out = subprocess.run(hook["hooks"][0]["command"], shell=True, cwd=tmp_path, capture_output=True, text=True,
-                         input=json.dumps(call("click", "Resend code")), check=True).stdout
-    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+    hooks = json.loads(send_click.settings(sys.executable, ("--ask", "--message=tick I certify that it's true")))["hooks"]
+    run = lambda command, given: subprocess.run(command, shell=True, cwd=tmp_path, capture_output=True, text=True,
+                                                input=json.dumps(given), check=True).stdout
+    # The after-tool hook keeps what the snapshot showed; the before-tool hook judges by it, with his message.
+    run(hooks["PostToolUse"][0]["hooks"][0]["command"],
+        {"cwd": str(tmp_path), "tool_response": {"content": [{"type": "text", "text":
+            '- button "Resend code" [ref=e1]\n- checkbox "I certify that it\'s true" [ref=e2]'}]}})
+    before = hooks["PreToolUse"][0]["hooks"][0]["command"]
+    assert json.loads(run(before, call("click", "Next", "e1", tmp_path)))["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert run(before, call("click", "Next", "e2", tmp_path)) == ""
 
 
 class Page:
@@ -92,6 +177,9 @@ class Guard:
     def lift(self):
         self.done.append("lift")
 
+    def asking(self, on, may_tick=False):
+        self.done.append(("asking", on, may_tick))
+
     def blocked(self):
         return list(self._blocked) if "arm" in self.done else []
 
@@ -107,7 +195,7 @@ class Claude:
 
 
 def said(**over) -> dict:
-    return {"blocked": False, "why": "", "reply": "Picked New York and Jersey City.", "changed": [], "couldnt": [],
+    return {"blocked": False, "why": "", "press": "", "reply": "Picked New York and Jersey City.", "changed": [], "couldnt": [],
             "waiting": [], "ticked": [], "remember": [], "apply_bug": []} | over
 
 
@@ -128,7 +216,7 @@ def test_claude_acts_under_the_guard_and_apply_reads_its_change_back():
     reply = ask.ask(claude, page, "you left preferred locations blank, pick New York and Jersey City", [],
                     ask.Form(POSTING), "<profile/>", guard=guard)
 
-    assert guard.done == ["arm", "lift"]
+    assert guard.done == ["arm", ("asking", True, False), ("asking", False, False), "lift"]
     given = claude.calls[0]
     assert given["model"] == "opus" and given["hook"] == ("--ask",)  # he asked for no tick
     assert "<message>you left preferred locations blank" in given["prompt"]
@@ -155,17 +243,22 @@ def test_an_attestation_box_claude_ticked_unasked_is_put_back():
     assert "yours to tick" in reply.couldnt[0]
 
 
-def test_only_a_message_that_asks_for_a_tick_lets_one_through():
-    assert ask.may_tick("tick the I certify box for me") and ask.may_tick("please sign the attestation")
-    assert not ask.may_tick("select New York and Jersey City") and not ask.may_tick("check my GPA on page 2")
+def test_a_box_he_named_stays_ticked():
+    page = Page([dict(f) for f in FORM])
+    message = "tick the box: I certify that the information above is true"
+    claude = Claude(lambda p: p.fields[2].update(checked=True), said(ticked=["the box"]))
+    reply = ask.ask(claude, page, message, [], ask.Form(POSTING), "", guard=Guard())
+    assert page.undone == [] and reply.changed[0]["shown"] == "ticked"
+    assert claude.calls[0]["hook"] == ("--ask", f"--message={message}")
 
 
-def test_a_box_he_said_to_tick_stays_ticked():
+def test_check_the_box_is_not_enough_though_claude_says_it_ticked_that_one():
     page = Page([dict(f) for f in FORM])
     reply = ask.ask(Claude(lambda p: p.fields[2].update(checked=True),
                            said(ticked=["I certify that the information above is true"])),
-                    page, "tick the I certify box for me", [], ask.Form(POSTING), "", guard=Guard())
-    assert page.undone == [] and reply.changed[0]["shown"] == "ticked"
+                    page, "check the box", [], ask.Form(POSTING), "", guard=Guard())
+    assert page.undone == [2] and page.fields[2]["checked"] is False
+    assert "yours to tick" in reply.couldnt[0]
 
 
 def test_what_the_guard_blocked_is_said_and_the_cap_fails_the_message():
@@ -289,6 +382,29 @@ class Board:
         self.replies.append((ask_id, reply))
 
 
+def test_an_ask_is_given_the_profile_s_resume_to_attach(tmp_path, monkeypatch):
+    # JPMorgan on Oracle (2026-11-05): Claude removed the old resume Oracle kept, then couldn't attach his own.
+    resume = tmp_path / "Resume.pdf"
+    resume.write_bytes(b"%PDF-1.4")
+    claude = Claude(lambda p: None, said(reply="Attached your resume."))
+    adapters = SimpleNamespace(board=Board(), claude=claude, records=FolderRecords(tmp_path), repairs=RepairRequests(),
+                               answer_bank=AnswerBank(), clock=SimpleNamespace(now=lambda: datetime(2026, 11, 5, 14, 30)))
+    profile = SimpleNamespace(policy=lambda key: None, facts=lambda: {"identity": {}}, policies=dict,
+                              get=lambda key: str(resume) if key == "files.resume_pdf" else None)
+    gpa = Question("gpa", "GPA", "text", True)
+    saved = Record(POSTING, Status.HELD, "", Filled((gpa,), {"gpa": "3.9"}, {"gpa": "3.9"}, b""), date(2026, 11, 5))
+    done = rehearsal.Rehearsed(POSTING, "ready to submit", saved=saved, questions=(gpa,))
+    page = Page([{"i": 0, "type": "file", "label": "Resume", "value": ""}])
+    page.title = lambda: "Documents"
+    asker = rehearsal._Ask(lambda: done, adapters, profile, 0, [].append)
+    asker.open(page)
+
+    monkeypatch.setattr(rehearsal, "DriveGuard", lambda *a, **k: Guard())  # no page code: the fake page has none
+    asker(page, {"id": "ask-1", "message": "attach my resume", "thread": [], "via": "terminal"})
+
+    assert claude.calls[0]["files"] == [resume]
+
+
 def test_the_held_page_s_glue_keeps_his_message_and_the_fix_in_the_record_and_files_a_repair(tmp_path):
     gpa = Question("gpa", "GPA", "text", True)
     filled = Filled((gpa,), {"gpa": "3.9"}, {"gpa": "3.9"}, b"")
@@ -326,7 +442,7 @@ def test_the_held_page_s_glue_keeps_his_message_and_the_fix_in_the_record_and_fi
     assert "## Ask Claude" in (record / "README.md").read_text()
     [request] = repairs.all()
     assert "Lisul said" in request.problems[0]
-    assert lines == ["Acme Robotics | Ask Claude: Changed the GPA to 3.7."]
+    assert lines == ["Acme Robotics | Ask Claude replied: <reply, 23 chars>"]
 
 
 def test_a_group_of_boxes_on_another_step_is_read_back_as_one_change():
@@ -341,3 +457,130 @@ def test_a_group_of_boxes_on_another_step_is_read_back_as_one_change():
                     page, "no, not Jersey City, I meant Boston", [], ask.Form(POSTING), "", guard=Guard())
     assert reply.changed == [{"field": group, "step": "Step 1", "shown": "New York; Boston",
                               "read_back": "Apply read it back"}]
+
+
+# An ask that damages a field it wasn't told to touch (KAN-712): Microsoft's held form, 2026-11-06. Asked to set only
+# U.S. Armed Forces Status and Veteran Status (custom dropdowns), Claude set both, and the earlier-answered non-compete
+# dropdown further down ended up showing "Select a value"; Claude didn't say so, and Apply's read-back covered only
+# what Claude named.
+NON_COMPETE = "Have you signed a non-compete or non-disclosure statement which may become an obstacle to your acceptance at Microsoft?"
+MSFT = [{"i": 0, "type": "text", "combo": True, "label": "U.S. Armed Forces Status", "value": ""},
+        {"i": 1, "type": "text", "combo": True, "label": "Veteran Status", "value": ""},
+        {"i": 2, "type": "text", "combo": True, "label": NON_COMPETE, "value": "No"},
+        {"i": 3, "type": "select", "label": "How did you hear about us?", "value": "University career fair"}]
+TWO_FIELDS = ("Two fields only: 'U.S. Armed Forces Status' set to I have not served, and 'Veteran Status' set to "
+              "I am not a protected veteran. Touch nothing else.")
+
+
+def test_a_dropdown_claude_emptied_unasked_waits_for_him_with_its_earlier_answer():
+    page = Page([dict(f) for f in MSFT])
+
+    def act(p):
+        p.fields[0]["value"], p.fields[1]["value"] = "I have not served", "I am not a protected veteran"
+        p.fields[2]["value"] = ""  # the click landed on, or left open, the non-compete dropdown
+
+    claude = Claude(act, said(reply="I set both fields. I changed nothing else.", changed=[
+        {"field": "U.S. Armed Forces Status", "step": "", "shown": "I have not served"},
+        {"field": "Veteran Status", "step": "", "shown": "I am not a protected veteran"}]))
+    reply = ask.ask(claude, page, TWO_FIELDS, [], ask.Form(POSTING), "", guard=Guard())
+
+    assert page.undone == []  # a dropdown built on a text box: its text alone isn't its pick, so not "put back"
+    assert [(c["field"], c["read_back"]) for c in reply.changed] == [
+        ("U.S. Armed Forces Status", "Apply read it back"), ("Veteran Status", "Apply read it back"),
+        (NON_COMPETE, ask.NOT_PUT_BACK)]
+    [line] = reply.waiting
+    assert line.startswith(f"'{NON_COMPETE}' showed 'No' before this message and shows nothing now")
+    assert line.endswith("set it to 'No' again")
+    assert "Apply found other answers changed that Claude didn't name" in reply.reply
+    assert "Waiting for you: 'Have you signed a non-compete" in ask.told(reply.as_json())
+    assert "Apply reads every answered field" in ask.SYSTEM
+
+
+def test_an_answer_claude_changed_unasked_is_put_back_where_plain_code_can():
+    page = Page([dict(f) for f in MSFT])
+
+    def act(p):
+        p.fields[0]["value"] = "I have not served"
+        p.fields[3]["value"] = ""  # a native select, emptied
+
+    reply = ask.ask(Claude(act, said(changed=[{"field": "U.S. Armed Forces Status", "step": "", "shown": "I have not served"}])),
+                    page, "Set 'U.S. Armed Forces Status' to I have not served.", [], ask.Form(POSTING), "", guard=Guard())
+    assert page.undone == [3] and page.fields[3]["value"] == "University career fair"
+    assert reply.changed[1] == {"field": "How did you hear about us?", "step": "", "shown": "University career fair",
+                                "read_back": ask.PUT_BACK}
+    assert reply.waiting == []
+
+
+def test_a_field_his_message_names_or_a_blank_claude_filled_is_not_put_back():
+    page = Page([dict(f) for f in MSFT])
+
+    def act(p):
+        p.fields[0]["value"] = "I have not served"  # blank before: filled, though Claude didn't list it
+        p.fields[3]["value"] = "LinkedIn"  # his message names it
+
+    reply = ask.ask(Claude(act, said()), page, "set How did you hear about us? to LinkedIn and fill the armed forces one",
+                    [], ask.Form(POSTING), "", guard=Guard())
+    assert page.undone == [] and reply.waiting == []
+    assert {c["read_back"] for c in reply.changed} == {"Apply read it back"}
+
+
+def test_a_drive_cut_short_puts_nothing_back_but_says_what_changed_unasked():
+    page = Page([dict(f) for f in MSFT])
+
+    def drive(**given):
+        given["page"].fields[3]["value"] = ""
+        return Drive(None, 61, 3_100_000, capped=True)
+
+    reply = ask.ask(SimpleNamespace(drive=drive), page, TWO_FIELDS, [], ask.Form(POSTING), "", guard=Guard())
+    assert reply.failed and page.undone == []
+    assert reply.waiting[0].startswith("'How did you hear about us?' showed 'University career fair' before this message")
+
+
+def test_a_dropdown_that_empties_itself_a_moment_after_the_drive_is_still_caught():
+    page = Page([dict(f) for f in MSFT])
+    reads = []
+
+    def act(p):
+        p.fields[1]["value"] = "I am not a protected veteran"
+        p.late = True
+
+    real = page.evaluate
+
+    def evaluate(code, arg=None):
+        if code == ask.FIELDS and getattr(page, "late", False):
+            reads.append(1)
+            if len(reads) == 2:  # the read right after the drive still shows it; the next doesn't
+                page.fields[2]["value"] = ""
+        return real(code, arg)
+
+    page.evaluate = evaluate
+    reply = ask.ask(Claude(act, said(changed=[{"field": "Veteran Status", "step": "", "shown": "I am not a protected veteran"}])),
+                    page, "Set 'Veteran Status' to I am not a protected veteran.", [], ask.Form(POSTING), "", guard=Guard())
+    assert len(reads) >= 3 and any(NON_COMPETE in w for w in reply.waiting)
+
+
+def test_an_answer_found_blank_that_apply_had_read_back_waits_for_him():
+    """An earlier message cut short at its cap emptied it: this message's drive didn't change it, but the
+    Record's read-back had it answered."""
+    fields = [dict(f) for f in MSFT]
+    fields[2]["value"] = ""
+    plan = [{"label": NON_COMPETE, "kind": "select", "planned": "No", "on_page": "No"},
+            {"label": "Veteran Status", "kind": "select", "planned": "I am not a protected veteran", "on_page": None}]
+    form = ask.Form(POSTING, plan=plan)
+    reply = ask.ask(Claude(lambda p: None, said()), Page(fields), TWO_FIELDS, [], form, "", guard=Guard())
+    assert reply.waiting == [f"'{NON_COMPETE}' is blank now, though it showed 'No' when Apply last read it: set it again"]
+
+    # One he asked about in the thread (to leave blank, say) is his to judge.
+    thread = [{"message": f"leave '{NON_COMPETE}' blank", "reply": "Done.", "changed": []}]
+    assert ask.ask(Claude(lambda p: None, said()), Page(fields), "check the form", thread, form, "",
+                   guard=Guard()).waiting == []
+
+
+def test_the_read_back_pairs_fields_by_label_when_a_field_comes_or_goes_before_them():
+    before = [{"frame": 0, "url": POSTING.url, "fields": [dict(f) for f in MSFT]}]
+    shifted = [{"i": 0, "type": "text", "label": "If yes, please provide your alias", "value": ""}] + [
+        dict(f, i=f["i"] + 1) for f in MSFT]
+    shifted[3]["value"] = ""
+    after = [{"frame": 0, "url": POSTING.url, "fields": shifted}]
+    assert [(c["label"], c["was"], c["now"], c["i"]) for c in ask.changes(before, after)] == [(NON_COMPETE, "No", "", 3)]
+

@@ -3,8 +3,9 @@
 S1 (KAN-607) and S2 (KAN-608) own this; S3 to S7 build on it (S3, KAN-609: the tile ops). Spec: KAN-606. This file
 is the source; change it in the PR that changes the protocol.
 
-Hard rule: never evade bot detection. Nothing here hides automation; a plain
-Worker simply has none (no CDP, no automation flags, no headless).
+Hard rule: never evade bot detection and never touch a captcha; hand those to
+the user. A plain Worker is a Chrome with no CDP, no automation flags and no
+headless mode.
 
 ## Pieces
 
@@ -132,7 +133,7 @@ Targets: `tab` is a Chrome tab id; `frame` is a webNavigation frame id (0 = top,
 | `tabs.create` | `url?`, `active?` | that tab's info |
 | `tabs.get` | `tab` | `{"tab", "url", "title", "status"}` |
 | `tabs.close` | `tab` | `null` |
-| `extension.reload` | | `null`; then `chrome.runtime.reload()`: the extension loads its files again from its folder, this port closes, and the new code says hello. Web tabs, their pages and cookies stay; registered guards and scripts go (KAN-643: Apply calls it only before the welcome, or `Bridge.reload`). |
+| `extension.reload` | | `null`; then `chrome.runtime.reload()`: the extension loads its files again from its folder, this port closes, and the new code says hello. Its guards come back first: registered scripts, session rules, lifts, held notes and bindings (`keepAcrossReload`, KAN-657). Web tabs, their pages and cookies stay; registered guards and scripts go (KAN-643: Apply calls it only before the welcome, or `Bridge.reload`). |
 | `tabs.goto` | `tab`, `url`, `waitUntil` (`load`/`domcontentloaded`/`commit`), `timeout` ms | `{"url", "title"}` |
 | `tabs.reload` | `tab`, `waitUntil`, `timeout` | `{"url", "title"}` |
 | `tabs.waitForLoad` | `tab`, `state`, `timeout` | `null` |
@@ -204,8 +205,11 @@ Events (S2 sends these; later slices add their own):
 `{"event": "navigated", "tab", "frame", "url"}` (committed).
 S3: `{"event": "tile.frame", "tab", "url", "data": base64 JPEG, "width", "height"}`, the tab's
 viewport at its CSS size (a Retina capture is scaled down), fitted within `maxWidth` x `maxHeight`.
-KAN-635: `{"event": "tile.shown", "tab", "url", "window": {left, top, width, height, state}, "viewport": {width, height}}`
-(points), with `native`: the window `apply.plain.window_capture` films, and the part of it to crop to.
+KAN-635: `{"event": "tile.shown", "tab", "url", "title", "window": {left, top, width, height, state}, "viewport": {width, height}}`
+(points), with `native`: the window `apply.plain.window_capture` films, and the part of it to crop to. `title` (KAN-717)
+is the tab's: Apply films the window only while macOS lists it, under the Worker Chrome's PID, with that title, and no
+other window of that PID has it (`window_capture.title_matches`). The extension sends it at once on a tab switch, and
+drops a `tile.frame` whose window switched tabs during its capture.
 
 ## Ops (S4: the submit and drive guards)
 
@@ -382,7 +386,7 @@ Auto-wait: actions poll their `dom` op every 100 ms while it answers `{"retry": 
 `NotFound`, until the timeout, then raise `PortTimeoutError` with Playwright's wording
 ("Locator.click: Timeout 30000ms exceeded."). Events are synthetic (`isTrusted: false`):
 `fill` focuses, selects all and uses `execCommand("insertText")`, falling back to the
-native value setter plus `input`/`change`; `press` emulates the default of Enter, Tab,
+native value setter plus `input`/`change`; a focus move (a click, Tab, `focus`, `blur`, `fill`) that the page didn't hear, as in a window without focus, dispatches `blur` and `focusout` on what it left (KAN-709); `press` emulates the default of Enter, Tab,
 Backspace, Delete, Space and (S3) the caret keys ArrowLeft/ArrowRight/Home/End (Shift extends); `click` dispatches pointer and mouse events
 at the element's centre on the hit target, then `click`.
 
@@ -428,8 +432,8 @@ when they end.
 
 `policies.yaml: worker_mode: cdp|plain|protected` (default `cdp`) picks the Worker for each form (S8,
 `apply.plain.site`): `plain` puts every form on a plain Worker (`PlainSite`), `protected` only those on
-`plain_worker_hosts` (Lever, SmartRecruiters, Workable) and on each host a bot block was seen on
-(`APPLY_HOME/plain-hosts.json`, written by `captcha.blocked`), the rest on CDP Workers (`RoutedSite`).
+`plain_worker_hosts` (Lever, SmartRecruiters, Workable) and in `APPLY_HOME/plain-hosts.json` (written
+by `captcha.blocked`), the rest on CDP Workers (`RoutedSite`).
 `PlainSite.open` keeps a Worker's Chrome up across the Applications it carries: on reuse it calls
 `guards.reset(worker)` and closes the last one's tabs; after each it leaves one blank tab, so the window
 stays. `close()` stops every Chrome it started, by PID, when the run or rehearsal ends.
@@ -467,8 +471,9 @@ stays. `close()` stops every Chrome it started, by PID, when the run or rehearsa
 `Dashboard(n, PortFrames(n, workers.bridge.connection))`. Its thread calls `tile.start` on each
 Worker's connection as it appears (again after a reconnect), keeps the newest `tile.frame` per Worker,
 replays the window's input with `tile.input` (the window sends events one at a time, in order),
-answers a file the tile picked with `chooser.set`, and reads the field error (`apply.stuck`) every 2 s
-over `eval`. With Screen Recording permission (KAN-635) it films each Worker's window instead
+answers a file the tile picked with `chooser.set` (only in the tab that asked), and reads the field error
+(`apply.stuck`) every 2 s over `eval`. It reads `tab.created`'s `opener`, `popup.blocked` and `tab.removed` to know
+each form's own pop-ups: a tile shows the one of its form's tabs that showed last (KAN-717). With Screen Recording permission (KAN-635) it films each Worker's window instead
 (`apply.plain.window_capture`: ScreenCaptureKit, by the window's ID, 30 fps at the screen's pixel scale), and
 the extension sends only `tile.shown`. Without it, every capture, the tile's and `tabs.screenshot`'s, goes through one gate in the
 extension (`shared.capture`), spaced 520 ms apart: Chrome allows about two a second per browser, so a

@@ -225,7 +225,7 @@ class Retina:
             self._on_frame(Retina.frame)
             time.sleep(0.1)
 
-    def aim(self, window, viewport):
+    def aim(self, window, viewport, title=""):
         self.status = {"window": 1, "width": viewport["width"] * 2, "height": viewport["height"] * 2, "scale": 2.0}
 
     def close(self):

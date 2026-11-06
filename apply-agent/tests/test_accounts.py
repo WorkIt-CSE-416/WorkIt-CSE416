@@ -1,7 +1,7 @@
 """Accounts: resetting the password of an Employer account Lisul made himself,
 which Keychain has none for. With a fake Keychain and a fake mailbox."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from fakes import FakeClock, FakeMailbox
@@ -49,7 +49,7 @@ def test_without_gmail_no_password_is_reset_and_the_handoff_says_why():
     assert keychain.password(SITE) is None
 
 
-def test_a_code_that_never_comes_is_waited_for_about_2_minutes_once_then_needs_lisul():
+def test_a_code_that_never_comes_is_waited_for_about_10_minutes_once_then_needs_lisul():
     # American Express on Oracle (live): Apply asked for a new code after a wait. It never asks again now.
     mailbox = FakeMailbox()
     clock = FakeClock(NOW)
@@ -59,4 +59,19 @@ def test_a_code_that_never_comes_is_waited_for_about_2_minutes_once_then_needs_l
         accounts.code("from:(icims.com)", NOW)
 
     assert str(handoff.value).startswith("Needs sign-in: Type the emailed code: no verification code from icims.com")
-    assert clock.now() - NOW >= MAIL_WAIT
+    assert clock.now() - NOW >= MAIL_WAIT >= timedelta(minutes=10)
+    assert "came within about 10 minutes" in str(handoff.value)
+
+
+def test_a_code_that_comes_after_minutes_is_still_read():
+    # JPMorgan on Oracle (live): the mail took about 2.5 minutes, past the old 2-minute wait.
+    mailbox = FakeMailbox()
+
+    def mail_comes_late():
+        if clock.now() - NOW >= timedelta(minutes=9, seconds=30):
+            mailbox.deliver("from:(icims.com)", code="482913")
+
+    clock = FakeClock(NOW, on_sleep=mail_comes_late)
+    accounts = Accounts(InMemoryKeychain(), mailbox, clock, EMAIL, "CACI")
+
+    assert accounts.code("from:(icims.com)", NOW) == "482913"

@@ -23,6 +23,7 @@ The tools never send the form themselves; the drive guard on the page and the su
 hook stand where they stood. They never touch a captcha either (KAN-617): a click, entry, pick,
 hover or key on anything in a captcha's frame, or on its frame or widget box in the page, is
 refused before it runs, with word to leave it. Lisul does the captcha himself (apply.captcha).
+On Ask Claude's drive each act is also judged on the real element first (send_click.judged).
 """
 
 import json
@@ -35,7 +36,7 @@ import uuid
 from pathlib import Path
 from typing import Self
 
-from apply import captcha
+from apply import captcha, send_click
 from apply.plain.bridge import PortError
 from apply.plain.page import PortFrame, PortPage
 
@@ -67,9 +68,10 @@ class ToolError(Exception):
 class Tools:
     """Playwright MCP's browser tools on one plain Worker's tabs; `page` is the drive's tab."""
 
-    def __init__(self, page: PortPage, folder: Path):
+    def __init__(self, page: PortPage, folder: Path, hook: tuple[str, ...] = ()):
         self.page = page
         self._folder = folder.resolve()
+        self._ask, self._message = send_click.flags_of(hook)
         page.worker.call("mcp.arm", tab=page.tab)
 
     def call(self, name: str, arguments: dict) -> dict:
@@ -150,12 +152,19 @@ class Tools:
             raise ToolError(f"Ref {target} not found in the current page snapshot. Try capturing new snapshot.")
         return frame, selector
 
-    def _locator(self, target: str):
-        """The element a tool acts on; never one in a captcha."""
+    def _locator(self, target: str, act: str = ""):
+        """The element a tool acts on (`act`: what it does to it); never one in a captcha."""
         frame, selector = self._resolve(target)
         if self._in_captcha(frame, selector):
             raise ToolError(CAPTCHA)
+        if self._ask and act:
+            self._judge(act, frame.eval_on_selector(selector, send_click.ELEMENT))
         return frame.locator(selector)
+
+    def _judge(self, act: str, facts: dict | None) -> None:
+        """On Ask Claude's drive: what the real element is, its text and attributes, decides (send_click.judged)."""
+        if facts and (refused := send_click.judged(act, facts, self._message)):
+            raise ToolError(refused["hookSpecificOutput"]["permissionDecisionReason"])
 
     @staticmethod
     def _in_captcha(frame: PortFrame, selector: str) -> bool:
@@ -204,7 +213,7 @@ class Tools:
                       modifiers=None) -> str:
         if button != "left":
             raise ToolError(f"a {button} click can't be made on this page; use a left click")
-        locator = self._locator(target)
+        locator = self._locator(target, "click")
         if doubleClick:
             locator.dblclick(timeout=ACTION_TIMEOUT)
         else:
@@ -212,20 +221,25 @@ class Tools:
         return self._after(f"await page.locator('{locator._selector}').{'dblclick' if doubleClick else 'click'}();")
 
     def browser_type(self, target: str, text: str, element: str = "", submit: bool = False, slowly: bool = False) -> str:
-        locator = self._locator(target)
+        locator = self._locator(target, "type")
         if slowly:
+            # The box's text is replaced, as a fill's is: typed after what it held, an iCIMS search box
+            # searched "New YorkNew York" and found nothing (AMD's, live: KAN-699).
+            locator.fill("", timeout=ACTION_TIMEOUT)
             locator.press_sequentially(text, timeout=ACTION_TIMEOUT)
+            code = f"await page.locator('{locator._selector}').fill('');\nawait page.locator('{locator._selector}').pressSequentially({json.dumps(text)});"
         else:
             locator.fill(text, timeout=ACTION_TIMEOUT)
+            code = f"await page.locator('{locator._selector}').fill({json.dumps(text)});"
         if submit:
             locator.press("Enter", timeout=ACTION_TIMEOUT)
-        return self._after(f"await page.locator('{locator._selector}').fill({json.dumps(text)});")
+        return self._after(code)
 
     def browser_fill_form(self, fields: list[dict]) -> str:
         code = []
         for field in fields:
-            locator = self._locator(field.get("target", ""))
             kind, value = field.get("type"), str(field.get("value", ""))
+            locator = self._locator(field.get("target", ""), "click" if kind in ("checkbox", "radio") else "fill")
             if kind in ("checkbox", "radio"):
                 locator.set_checked(value.strip().lower() == "true", timeout=ACTION_TIMEOUT)
                 code.append(f"await page.locator('{locator._selector}').setChecked({value.strip().lower()});")
@@ -238,7 +252,7 @@ class Tools:
         return self._after("\n".join(code))
 
     def browser_select_option(self, target: str, values: list[str], element: str = "") -> str:
-        locator = self._locator(target)
+        locator = self._locator(target, "select")
         locator.select_option(list(values), timeout=ACTION_TIMEOUT)
         return self._after(f"await page.locator('{locator._selector}').selectOption({json.dumps(list(values))});")
 
@@ -269,6 +283,8 @@ class Tools:
             focused = False
         if focused:
             raise ToolError(CAPTCHA)
+        if self._ask and len(key) == 1:  # a character: it would go in the focused field
+            self._judge("key", self.page.evaluate(send_click.FOCUSED))
         self.page.keyboard.press(key)
         return self._after(f"// Press {key}\nawait page.keyboard.press('{key}');")
 
@@ -360,8 +376,8 @@ class ToolServer:
     """One drive's tool socket: apply.plain.mcp (started by `claude -p`) connects and passes it
     each tool call, run here on the Worker's page. `mcp_server()` is the `--mcp-config` entry."""
 
-    def __init__(self, page: PortPage, folder: Path, python: str):
-        self.tools = Tools(page, folder)
+    def __init__(self, page: PortPage, folder: Path, python: str, hook: tuple[str, ...] = ()):
+        self.tools = Tools(page, folder, hook)
         self.path = socket_folder() / f"mcp-{uuid.uuid4().hex[:12]}.sock"
         self._python = python
         self._server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

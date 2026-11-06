@@ -13,8 +13,8 @@ def pick_batch(scored: Iterable[ScoredJob], size: int) -> list[ScoredJob]:
     job posting per company and title, the best scored: some roles are
     listed once per office.
 
-    Applied job postings never reach it: the match query leaves them out
-    (JobFilters.applied_by, the Jobs page's own rule).
+    Applied and saved job postings never reach it: the match query leaves
+    out every job with an application (JobFilters.no_application_by).
     """
     batch: list[ScoredJob] = []
     seen: set[tuple[str, str]] = set()

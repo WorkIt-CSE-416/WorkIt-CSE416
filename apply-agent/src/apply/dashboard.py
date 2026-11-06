@@ -51,7 +51,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
-from apply import bot_signals, captcha, dock_app, stuck
+from apply import bot_signals, captcha, dock_app, masked, stuck
 from apply.answers_tab import AnswersTab, Refused
 from apply.asking import IN
 from apply.dashboard_page import (
@@ -175,7 +175,8 @@ SENT = WORDS["submitted"][0]
 IDLE = "Waiting for the next job"
 # Parts of a rehearsal's ready-to-submit reason that Lisul must look at; the
 # rest (Calibration run, Target company...) only say a run would hold it.
-TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ")
+TO_CHECK = ("Not filled", "Pre-submit check failed", "Pre-submit review", "Verify: ", "Yours to tick")
+TICK_YOURS = "Tick or sign what is yours before it's sent"  # an attestation Apply left for Lisul, his alone
 # Each part of a Hold's reason in plain words.
 HOLD_WORDS = [
     (re.compile(r"^Target company: (.+)$"), r"\1 is on your check-first list"),
@@ -264,7 +265,9 @@ def verdict(caption: dict) -> dict[str, str]:
                  + (", then press Submit yourself if you want it sent" if status == "ready to submit"
                     else "; once every one is dismissed, approve it to send it")}
     elif checks:
-        needs = {"kind": "check", "do": "Fix an answer before it's sent", "why": plain("; ".join(checks)),
+        # Only attestations to tick (KAN-676): Lisul ticks or signs each himself; nothing of Apply's is wrong.
+        do = TICK_YOURS if all(part.startswith("Yours to tick") for part in checks) else "Fix an answer before it's sent"
+        needs = {"kind": "check", "do": do, "why": plain("; ".join(checks)),
                  "then": "Nothing has been sent. Fix it on the page, then press Submit yourself if you want it sent"
                  if status == "ready to submit" else "Apply checks every answer again before it sends"}
     elif status == "ready to submit":
@@ -357,6 +360,9 @@ def summary(tiles: list[dict], items: list[dict] | None = None) -> str:
 
 
 class Frames(Protocol):
+    """A Worker's frames, input and file requests. A plain Worker's source (apply.plain.tile.PortFrames) also takes
+    `tab=` on frame, wait, input, chooser and forget_chooser: that one form's tab of the Worker, never another (KAN-717)."""
+
     def frame(self, worker: int) -> bytes | None:
         """Worker `worker`'s page, as a JPEG, the latest taken; None before any."""
         ...
@@ -430,6 +436,11 @@ class Board(Protocol):
         it last asked; each press is given once."""
         ...
 
+    def fill_again_asked(self, worker: int) -> bool:
+        """Whether Fill again was asked for tile `worker`'s held form from outside its page
+        (`POST /fill-again`) since it last asked; each ask is given once."""
+        ...
+
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
         """The answers of Worker `worker`'s held form that Lisul asked in the
         window to have written again since it last asked, (question name, his
@@ -482,6 +493,9 @@ class NoBoard:
         return []
 
     def resumed(self, worker: int) -> bool:
+        return False
+
+    def fill_again_asked(self, worker: int) -> bool:
         return False
 
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
@@ -553,6 +567,7 @@ class Dashboard:
         # Tile k shows Worker _shown[k]: one tile per Worker at first, and one more for each link sent into a
         # Worker already running (`apply rehearse --into`, KAN-645), which shows that Worker's window.
         self._shown = list(range(workers))
+        self._tile_tabs: dict[int, int] = {}  # tile -> the tab its form is on in its plain Worker (showing)
         self._into: Callable[[str, int], dict] | None = None  # takes a new link into a Worker (taking)
         quiet = quiet or (lambda k: False)
         self._quiet = lambda k: quiet(self.worker_of(k))
@@ -591,6 +606,7 @@ class Dashboard:
         self._started = threading.Event()  # Lisul pressed Start
         self._to_fill: dict[int, list[tuple[str, str]]] = {}  # answers to fill on each Worker's open form (answered)
         self._resume: set[int] = set()  # the Workers whose paused form Lisul pressed Resume on (resumed)
+        self._again: set[int] = set()  # the tiles whose held form was asked to fill again (fill_again_asked)
         self._redo: dict[int, list[tuple[str, str]]] = {}  # answers to write again on each Worker's form (regenerations)
         self._goto: dict[int, list[tuple[str, Callable[[str], None]]]] = {}  # Go to question presses, by Worker (wanted)
 
@@ -602,10 +618,35 @@ class Dashboard:
         """The Worker whose window tile `tile` shows."""
         return self._shown[tile] if 0 <= tile < len(self._shown) else tile
 
+    def showing(self, tile: int, tab: int | None) -> None:
+        """Tile `tile`'s form is on tab `tab` of its plain Worker (None: no tab of its own, or a CDP page): the
+        tile shows that tab's frames and sends its input there, never another form's in the same Worker (KAN-717)."""
+        with self._lock:
+            if tab is None:
+                self._tile_tabs.pop(tile, None)
+            else:
+                self._tile_tabs[tile] = tab
+
+    def tab_of(self, tile: int) -> int | None:
+        """The tab of its plain Worker that tile `tile`'s form is on, once `showing` said."""
+        return self._tile_tabs.get(tile)
+
+    def blind(self, tile: int) -> bool:
+        """Whether tile `tile` shares its Worker with another tile (`--into`) and doesn't know its form's tab yet (its
+        page still opening): it shows nothing and takes no input, since the Worker's shown tab may be another form's."""
+        with self._lock:
+            worker = self.worker_of(tile)
+            return tile not in self._tile_tabs and sum(shown == worker for shown in self._shown) > 1
+
     def taking(self, into: Callable[[str, int], dict]) -> None:
         """`into(url, worker)` starts a new link in Worker `worker`'s running browser, with a tile of its own
         (add_tile), and says which: `apply rehearse --into` sends it through POST /rehearse."""
         self._into = into
+
+    def aim(self, workers: list[int]) -> None:
+        """Tile k shows Worker `workers[k]`: a reopened form's, whose profile holds its sign-in (KAN-720)."""
+        with self._lock:
+            self._shown[:len(workers)] = list(workers)
 
     def add_tile(self, worker: int) -> int:
         """One more tile, showing Worker `worker`'s window. Returns its number; the window reloads to show it."""
@@ -738,6 +779,12 @@ class Dashboard:
             self._resume.discard(worker)
             return pressed
 
+    def fill_again_asked(self, worker: int) -> bool:
+        with self._lock:
+            asked = worker in self._again
+            self._again.discard(worker)
+            return asked
+
     def wanted(self, worker: int) -> list[tuple[str, Callable[[str], None]]]:
         with self._lock:
             return self._goto.pop(worker, [])
@@ -779,7 +826,7 @@ class Dashboard:
                 self._answered[f"{item['id']}|{question}"] = answer
                 if item.get("posting_url"):
                     self._answered[f"{item['posting_url']}|{question}"] = answer
-        print(f"Answered on the form, for {item.get('company') or 'an application'}: {asked} → {answer}")
+        print(f"Answered on the form, for {item.get('company') or 'an application'}: {asked} → {masked.sized(answer)}")
         return message
 
     def resume(self, key: str) -> str:
@@ -808,6 +855,19 @@ class Dashboard:
         if resume.get("label"):  # Fill it anyway, on a rehearsal that ruled him out
             return "Filling it anyway: Apply opens the form and fills it. It never presses Submit."
         return "Resuming: Apply reads the page as you left it and goes on. It never presses Submit."
+
+    def fill_again(self, key: str) -> str:
+        """Fill again on a tile's held form ("tile-<k>"), as the page's own button does. Raises Refused, with
+        why, when no form is held for Lisul there: one still filling, one he submitted, or a tile with none."""
+        k = int(key.removeprefix("tile-")) if key.startswith("tile-") and key.removeprefix("tile-").isdigit() else -1
+        with self._lock:
+            if not 0 <= k < self._workers:
+                raise Refused("No such form.", 404)
+            if not self._captions[k].get("askable"):  # a rehearsal's held page, until he presses Submit (rehearsal._Ask)
+                raise Refused("That form isn't held for you now: Fill again works once Apply has stopped on it, "
+                              "before Submit.", 409)
+            self._again.add(k)
+        return "Filling it again: Apply opens the form anew and fills it. It never presses Submit."
 
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
         with self._lock:
@@ -865,7 +925,7 @@ class Dashboard:
             thread.append(entry)
             self._to_ask.setdefault(k, []).append({"id": entry["id"], "message": entry["message"],
                                                    "thread": [dict(t) for t in thread[:-1]]})
-        print(f"Ask Claude ({via}), for {entry['company'] or key}: {entry['message']}")
+        print(f"Ask Claude ({via}), for {entry['company'] or key}: {masked.sized(entry['message'], 'message')}")
         return dict(entry)
 
     def asks(self, worker: int) -> list[dict]:
@@ -1189,6 +1249,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._dismiss()
         if parts.path == "/resume":
             return self._resume()
+        if parts.path == "/fill-again":
+            return self._fill_again()
         if parts.path == "/regenerate":
             return self._regenerate()
         if parts.path == "/goto":
@@ -1212,6 +1274,11 @@ class _Handler(BaseHTTPRequestHandler):
         if parts.path.startswith("/reveal/"):
             return self._reveal(parts.path)
         if parts.path.startswith("/input/"):
+            # A press here counts as Lisul's own, so only the window itself may send one. The custom header also makes
+            # a page's request preflight, which this server never answers.
+            token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+            if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin != self.dashboard.url:
+                return self._send(403, "text/plain", b"forbidden")
             worker = int(parts.path.removeprefix("/input/"))
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             event = self.dashboard.to_page_event(worker, body)
@@ -1369,7 +1436,7 @@ class _Handler(BaseHTTPRequestHandler):
             if _fills_in_place(item, question):
                 self.dashboard._to_fill.setdefault(item["worker"], []).append((question, answer))
                 message += " Claude fills it in on the open form now."
-        print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {answer}")
+        print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {masked.sized(answer)}")
         self._json(200, {"message": message})
 
     def _go_to(self) -> None:
@@ -1453,7 +1520,7 @@ class _Handler(BaseHTTPRequestHandler):
         if item is None:
             return self._json(404, {"error": "That flag no longer needs you."})
         verify.dismiss(item["application_id"], field, why)
-        print(f"Dismissed in the window, for {item.get('company') or 'an application'}: {field}: {why}")
+        print(f"Dismissed in the window, for {item.get('company') or 'an application'}: {field}: {masked.sized(why, 'reason')}")
         self._json(200, {"message": "Dismissed: it holds this application no more."})
 
     def _resume(self) -> None:
@@ -1471,6 +1538,23 @@ class _Handler(BaseHTTPRequestHandler):
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
         print(f"Resume pressed in the window ({key})")
+        self._json(200, {"message": message})
+
+    def _fill_again(self) -> None:
+        """Fill again on a held form, from a process that read the window's token from its 0600 file
+        (`apply fill-again`), or from the page itself. Body {"id": "tile-<k>"}."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only Apply may fill a form again."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key = str(body["id"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a Fill again."})
+        try:
+            message = self.dashboard.fill_again(key)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Fill again asked ({key})")
         self._json(200, {"message": message})
 
     def _rehearse(self) -> None:
@@ -1587,7 +1671,7 @@ class _Handler(BaseHTTPRequestHandler):
                 self.dashboard._answered[f"{item['posting_url']}|{question}"] = str(answer or "")
             if isinstance(item.get("worker"), int) and item["worker"] >= 0:
                 self.dashboard._to_fill.setdefault(item["worker"], []).append((question, answer))
-        print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {answer or 'skipped'}")
+        print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {masked.sized(answer) if answer else 'skipped'}")
         self._json(200, {"message": message})
 
     def _applied(self) -> None:
@@ -1670,24 +1754,48 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 class _Shown:
-    """The window's frame source by tile: tile k is Worker worker_of(k)'s frames and input."""
+    """The window's frame source by tile: tile k is Worker worker_of(k)'s frames and input, and, once the
+    tile's form has a tab of its own in that Worker (tab_of, a plain Worker's), that tab's only (KAN-717).
+    A tile that shares its Worker and has no tab yet (Dashboard.blind) gets nothing and sends nothing."""
 
     def __init__(self, frames: Frames, dashboard: Dashboard):
         self._frames, self._dashboard = frames, dashboard
 
+    def _at(self, tile: int) -> tuple[int, dict]:
+        tab = self._dashboard.tab_of(tile)
+        return self._dashboard.worker_of(tile), ({} if tab is None else {"tab": tab})
+
     def frame(self, tile: int) -> bytes | None:
-        return self._frames.frame(self._dashboard.worker_of(tile))
+        if self._dashboard.blind(tile):
+            return None
+        worker, tab = self._at(tile)
+        return self._frames.frame(worker, **tab)
 
     def wait(self, tile: int, after: int, timeout: float) -> tuple[bytes | None, int]:
-        return self._frames.wait(self._dashboard.worker_of(tile), after, timeout)
+        if self._dashboard.blind(tile):
+            time.sleep(timeout)
+            return None, after
+        worker, tab = self._at(tile)
+        return self._frames.wait(worker, after, timeout, **tab)
 
     def input(self, tile: int, event: dict) -> dict | None:
-        return self._frames.input(self._dashboard.worker_of(tile), event)
+        if self._dashboard.blind(tile):
+            return None
+        worker, tab = self._at(tile)
+        return self._frames.input(worker, event, **tab)
 
     def chooser(self, tile: int) -> str | None:
-        return self._frames.chooser(self._dashboard.worker_of(tile))
+        if self._dashboard.blind(tile):
+            return None
+        worker, tab = self._at(tile)
+        return self._frames.chooser(worker, **tab)
 
-    def __getattr__(self, name: str):  # field_error, notice, forget_chooser: by tile too, where the source has them
+    def forget_chooser(self, tile: int) -> None:
+        if (forget := getattr(self._frames, "forget_chooser", None)) and not self._dashboard.blind(tile):
+            worker, tab = self._at(tile)
+            forget(worker, **tab)
+
+    def __getattr__(self, name: str):  # field_error, notice: by tile too, where the source has them
         found = getattr(self._frames, name)
         return (lambda tile, *rest: found(self._dashboard.worker_of(tile), *rest)) if callable(found) else found
 
