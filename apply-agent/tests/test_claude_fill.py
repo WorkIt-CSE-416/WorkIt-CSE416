@@ -1582,3 +1582,10 @@ def test_the_section_of_a_bare_start_date_is_read_from_the_page(heading, stops):
         browser.close()
     assert sections == {"Start date": heading.lower()}
     assert bool(claude_fill.cant_be_right(shown, 2026, sections)) is stops
+
+
+def test_the_fill_prompt_says_how_to_pick_from_a_type_to_search_dropdown():
+    # AMD's iCIMS (live, KAN-699): Claude typed the whole state, read the list at once, got No Results and
+    # pressed Escape. Ask Claude then typed "New", waited and clicked New York.
+    assert "Type to Search" in FILL and "first word" in FILL and "browser_wait_for" in FILL
+    assert "Don't press Escape" in FILL
