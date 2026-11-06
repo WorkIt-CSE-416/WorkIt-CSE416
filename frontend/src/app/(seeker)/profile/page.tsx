@@ -13,7 +13,7 @@ import {
 import { ProfileScreen } from "./profile-screen";
 
 export const metadata: Metadata = {
-  title: "My Profile",
+  title: "Profile",
   description: "What employers see and what WorkIt fills in for you.",
 };
 

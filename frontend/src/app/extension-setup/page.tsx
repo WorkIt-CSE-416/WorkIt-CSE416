@@ -30,7 +30,7 @@ const STEPS: { title: string; body: ReactNode }[] = [
   },
   {
     title: "Add your experience",
-    body: "Open the Resumes & Experiences page and add your work history and skills, so WorkIt has real detail to write into each application.",
+    body: "Open the Resumes page and add your work history and skills, so WorkIt has real detail to write into each application.",
   },
   {
     title: "Try the practice application, then go live",

@@ -833,18 +833,19 @@ empty year with a line saying the applications aren't loading.
 
 ## Applications (the Applications Tracker)
 
-**Its name on screen is the Applications Tracker** (KAN-342): in the
-sidebar, the browser tab and its heading, and "Back to Applications
-Tracker" on an application's page when the tracker opened it (its Back
-names the page that did, KAN-363). It was "Applications", the word the
-Home also used for a count, so the page and the number read as one
-thing; then "Tracker" in the sidebar with "Application Tracker" as its
-heading, until the user named it Applications Tracker everywhere. The
-marketing site still calls the feature "Application Tracker". The URL, the
-folder and the code keep `applications`: moving the folder would collide
-with every open branch that edits the page. Say "the Applications Tracker"
-in copy; a stage is one of Saved, Applied, Interviewing, Offer and Rejected
-(`GLOSSARY.md`).
+**Its name on screen is Tracker** (2026-11-05): in the panel, the bar's
+title, the browser tab, and "Back to Tracker" on an application's page
+when the tracker opened it (its Back names the page that did, KAN-363). It
+was "Applications", the word the Home also used for a count, so the page
+and the number read as one thing; then "Tracker" in the sidebar with
+"Application Tracker" as its heading; then "Applications Tracker"
+everywhere (KAN-342) but on the rail, which kept "Tracker" for its 72px
+tile. Two names for one page read as inconsistent, so the user chose the
+short one for every place, as with Resumes and Profile. The marketing
+site still calls the feature "Application Tracker". The URL, the folder
+and the code keep `applications`: moving the folder would collide with
+every open branch that edits the page. Say "the Tracker" in copy; a stage
+is one of Saved, Applied, Interviewing, Offer and Rejected (`GLOSSARY.md`).
 
 /applications is the tracker: a list (the default) and a grid over
 `applications/data.ts`, every choice in the URL; a row or card opens the

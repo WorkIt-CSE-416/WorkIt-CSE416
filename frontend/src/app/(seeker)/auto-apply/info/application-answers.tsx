@@ -227,7 +227,7 @@ export function ApplicationAnswers({
                 onChange={(e) => set({ postal_code: e.target.value || null })}
               />
               <Note>
-                Your city and state come from your location in Contact & Links, on My Profile.
+                Your city and state come from your location in Contact & Links, on your Profile.
               </Note>
             </Group>
 

@@ -18,7 +18,7 @@ import { applicationHref, filterApplications, parseQuery } from "./query";
 import { ViewPanes } from "./view-panes";
 
 export const metadata: Metadata = {
-  title: "Applications Tracker",
+  title: "Tracker",
   description: "Track and manage your career progress.",
 };
 

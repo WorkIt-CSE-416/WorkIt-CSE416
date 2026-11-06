@@ -296,7 +296,7 @@ export function TailorScreen({
                   <ResumeLists
                     name="tailor-from"
                     choices={choices}
-                    empty="None yet. Upload one, or generate one on Resumes & Experiences."
+                    empty="None yet. Upload one, or generate one on Resumes."
                     picked={selected}
                     onPick={(key) => {
                       setSelected(key);

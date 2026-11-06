@@ -538,9 +538,11 @@ is real, but its name is still hard-coded in `company/layout.tsx`.
 
 **The seeker panel is a rail that is always open** (2026-10-27): 88px,
 each section an icon over its name, after Jobright's and LinkedIn's
-navigation, so it never covers the page and never moves it. A name too long
-for the 72px tile takes the item's `short` (Tracker, Resumes, Profile),
-with the full name kept as the accessible name; the rail's icons draw a
+navigation, so it never covers the page and never moves it. Each section has
+one name, short enough for the 72px tile (Tracker, Resumes, Profile), and
+the phone's sheet shows the same one: until 2026-11-05 the sheet showed
+longer names ("Applications Tracker"), two sets for one app. Page titles,
+the bar's title and Back links use the same names. The rail's icons draw a
 lighter line than the app's other icons (about 1.7px against 2px), which
 read heavy at 24px. The logo is the mark alone, in a 64px header. The
 profile strength card is a ring tile named Setup there. Below md it is
