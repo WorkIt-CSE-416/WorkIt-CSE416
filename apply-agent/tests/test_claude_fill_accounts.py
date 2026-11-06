@@ -253,3 +253,48 @@ def test_a_rehearsal_makes_the_account_reads_the_code_and_stops_unsent(tmp_path)
 ])
 def test_a_sites_code_is_read_only_from_its_own_or_its_job_systems_domain(site, search):
     assert account_pages.mail_search(site) == search
+
+
+# iCIMS's email step (AMD's, live): its Next runs an invisible hCaptcha, then posts the form from script.
+DELAYED_POST = """<form id="f" method="post" action="/login?step=email"><input type="email" name="email">
+<input type="submit" {button}></form>
+<script>
+const form = document.getElementById('f');
+form.addEventListener('submit', (e) => {{ e.preventDefault(); setTimeout(() => form.submit(), 600); }});
+</script>"""
+
+
+# A button Claude names "Next" whose own value says it sends is never clicked.
+@pytest.mark.parametrize("button, goes", [('value="Next"', True), ('value="Submit application" aria-label="Next"', False)])
+def test_an_account_buttons_post_sent_by_script_after_the_click_goes_through(button, goes):
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Handoff
+    from apply.submit_guard import DriveGuard, guard
+
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+
+        def serve(route):
+            if route.request.method == "POST":
+                posts.append(route.request.url)
+                return route.fulfill(body="<p>Enter your password</p>", content_type="text/html")
+            return route.fulfill(body=DELAYED_POST.format(button=button), content_type="text/html")
+        page.route("https://campus-acme.icims.com/**", serve)
+        page.goto("https://campus-acme.icims.com/login")
+        guard(page)
+        drive = DriveGuard(page)
+        drive.arm()
+        pages = account_pages.AccountPages(None, {})
+        clicked = account_pages._Click("sign_in", "campus-acme.icims.com", NOW)
+        if goes:
+            pages._click(page, "Next", "campus-acme.icims.com", drive, clicked)
+        else:
+            with pytest.raises(Handoff, match="may send the application"):
+                pages._click(page, "Next", "campus-acme.icims.com", drive, clicked)
+            page.wait_for_timeout(900)
+        assert posts == (["https://campus-acme.icims.com/login?step=email"] if goes else [])
+        assert drive.blocked() == []
+        browser.close()

@@ -216,19 +216,24 @@ class AccountPages:
         if not found:
             raise Handoff(f"Claude fill named {button!r} as the button that signs in at {site}, and no such button "
                           "shows. Sign in and fill the form in yourself.")
+        if SENDS.search(_words(found[0])):  # its own text or value, not only the name Claude gave it
+            raise Handoff(f"The button that signs in at {site} says it may send the application. "
+                          "Sign in and fill the form in yourself.")
         before = _shown(page)
+        # The flag stays on until the page answers: iCIMS's Next runs an invisible hCaptcha and then
+        # posts its form from script, after the click has returned (AMD's, live, KAN-640).
         if guard:
             guard.let_account_click()
         try:
             found[0].click()
+            self._clicked = clicked
+            waited = 0
+            while _shown(page) == before and waited < SETTLES_MS:  # the page's answer to the click
+                page.wait_for_timeout(250)
+                waited += 250
         finally:
             if guard:
                 guard.arm()
-        self._clicked = clicked
-        waited = 0
-        while _shown(page) == before and waited < SETTLES_MS:  # the page's answer to the click
-            page.wait_for_timeout(250)
-            waited += 250
         _settle(page)
 
     def _hold(self, search: str) -> None:
@@ -276,6 +281,14 @@ def _type_code(page: Page, code: str) -> bool:
             return False
     boxes[0].fill(code)
     return True
+
+
+def _words(button) -> str:
+    """A button's text and its value (an input's "Next")."""
+    try:
+        return " ".join(filter(None, (button.inner_text(timeout=2_000), button.get_attribute("value", timeout=2_000))))
+    except Exception:
+        return ""
 
 
 def _shown(page: Page) -> str:
