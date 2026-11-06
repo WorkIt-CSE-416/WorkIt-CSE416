@@ -66,7 +66,8 @@ def record_files(record: Record) -> dict[str, bytes]:
     once the form was verified, and page.html when the page's HTML was kept
     (a plain Worker's), and asks.json when Lisul asked Claude to fix the form, with every secret answer cut out."""
     rows = [
-        {"question": q.label.strip(), "field": q.name, "planned": _shown(q, record.filled.answers.get(q.name)), "on_page": _shown(q, record.filled.readback.get(q.name))}
+        {"question": q.label.strip(), "field": q.name, "kind": q.kind, "planned": _shown(q, record.filled.answers.get(q.name)),
+         "on_page": _shown(q, record.filled.readback.get(q.name))}
         for q in record.filled.questions
     ]
     files = {

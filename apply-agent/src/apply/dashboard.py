@@ -643,6 +643,11 @@ class Dashboard:
         (add_tile), and says which: `apply rehearse --into` sends it through POST /rehearse."""
         self._into = into
 
+    def aim(self, workers: list[int]) -> None:
+        """Tile k shows Worker `workers[k]`: a reopened form's, whose profile holds its sign-in (KAN-720)."""
+        with self._lock:
+            self._shown[:len(workers)] = list(workers)
+
     def add_tile(self, worker: int) -> int:
         """One more tile, showing Worker `worker`'s window. Returns its number; the window reloads to show it."""
         with self._lock:

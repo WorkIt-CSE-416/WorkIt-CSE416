@@ -63,7 +63,7 @@ from playwright.sync_api import Locator, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from apply import feed, fill_engine, trace
-from apply.accounts import NEEDS_SIGN_IN, Accounts
+from apply.accounts import HANDS_OFF, NEEDS_SIGN_IN, Accounts
 from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
 from apply.home import HOME
@@ -327,6 +327,8 @@ class WorkdayFiller:
             manual.click()
         _until(page, lambda: _signing_in(page) or _on_step(page))
         if _signing_in(page):  # else the Worker profile is still signed in
+            if getattr(self._accounts, "hands_off", False):  # a reopened form: Lisul signs in himself (KAN-720)
+                raise Handoff(HANDS_OFF)
             self._sign_in(page)
 
     def _sign_in(self, page: Page) -> None:

@@ -137,6 +137,23 @@ NOT_LAST = "Apply stopped before the form's last page ({}): this page isn't read
 
 
 @dataclass
+class Reopening:
+    """`apply reopen` (KAN-720): the forms of the open-forms list, back in the Workers that held them. Link n of
+    the rehearsal goes to Worker `workers[n]`, whose profile holds its sign-in; each of `later[k]` is sent into
+    Worker k, as `apply rehearse --into` sends one, once the form before it there has stopped. `drafts` is what
+    each link's form held (its Record's answers); `since`, when it was opened. Every sign-in is Lisul's."""
+
+    workers: list[int]
+    later: dict[int, list[str]] = field(default_factory=dict)
+    drafts: dict[str, dict] = field(default_factory=dict)
+    since: dict[str, str] = field(default_factory=dict)
+
+
+# The history line of a reopened form, first on its tile.
+REOPENED = "Reopened after Apply stopped (open since {}): Apply types nothing into a sign-in"
+
+
+@dataclass
 class Rehearsed:
     """How one rehearsed link ended, for its summary line."""
 
@@ -212,6 +229,7 @@ def rehearse(
     urls: list[str], adapters: Adapters, profile: ApplicantProfile, workers: int = WORKERS,
     keep_open: bool = True, out: Callable[[str], None] = print, on_done: Callable[[], object] = lambda: None,
     submitted_to: Tracker | None = None, together: bool = False, force: bool = False,
+    reopening: Reopening | None = None,
 ) -> list[Rehearsed]:
     """Rehearse every link, `workers` at a time, printing a summary line as
     each ends. With `keep_open`, each page then stays open where it stopped,
@@ -224,7 +242,10 @@ def rehearse(
     window's Start button; then all start filling at once, a Worker each:
     for filming. A link Lisul already applied to (adapters.applied_before)
     ends at once, its form never opened, unless `force`: then its held page
-    keeps Submit blocked under a red note until he dismisses it. Returns the
+    keeps Submit blocked under a red note until he dismisses it. With
+    `reopening` (`apply reopen`), the links are forms Apply held before it
+    stopped: each opens in its own Worker, keeps what it held, and stops at
+    a sign-in for Lisul (Accounts.hands_off). Returns the
     links' first summaries in the order they ended."""
     adapters.board.run(mode="rehearsal", queued=len(urls))
     if unchecked := adapters.applied_before.problem():  # no silent pass: the window and the terminal say so
@@ -239,7 +260,15 @@ def rehearse(
         release.set()
     finished: queue.Queue[Rehearsed] = queue.Queue()
     calibration = _Calibration(adapters, profile)
-    accounts = _Accounts(adapters, profile, submitted_to or adapters.tracker)
+    accounts = _Accounts(adapters, profile, submitted_to or adapters.tracker, hands_off=reopening is not None)
+    if reopening and (aim := getattr(adapters.board, "aim", None)):
+        aim(reopening.workers)  # tile n shows the Worker that holds link n's sign-in
+    # Each tile's first fill has stopped for something other than a sign-in: a reopened Worker's next link goes in.
+    settled: dict[int, threading.Event] = {}
+
+    def settles(n: int) -> threading.Event:
+        with writing:
+            return settled.setdefault(n, threading.Event())
 
     writing = threading.Lock()
     waiting = [len(urls)]  # links not started yet: the window's "queued"
@@ -348,6 +377,8 @@ def rehearse(
             nonlocal done
             done = stopped
             start.leave(n)
+            if done.outcome != SIGN_IN:  # stopped for him, past any sign-in: a reopened Worker's next link may go in
+                settles(n).set()
             if first:
                 out(done.line())
             else:
@@ -400,18 +431,24 @@ def rehearse(
             if not how:
                 adapters.board.update(n, status=done.outcome, resume={"ok": False, "why": ENDED if release.is_set()
                                                                      else TAB_CLOSED})
+                settles(n).set()  # its tab closed: a reopened Worker's next link waits on it no more
             after.append(how)
             return False
 
+        draft = reopening.drafts.get(url, {}) if reopening else None  # what a reopened form held (KAN-720)
+        reopened = REOPENED.format(reopening.since.get(url) or "before") if reopening else ""
         try:
             with gate:
                 started()
                 done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, held,
-                                 "getting ready" if together else "", pause=paused, force=force)
+                                 "getting ready" if together else "", pause=paused, force=force, draft=draft,
+                                 reopened=reopened)
         except SetupError as error:  # before the form opened (no Fill engine, say): one line, no traceback
             done = Rehearsed(Posting("", "", "", url), FAILED, f"setup: {error}")
         finally:
             start.leave(n)
+            if done is None or done.outcome != SIGN_IN or site.empty():  # never while it still waits at a sign-in
+                settles(n).set()
             done = done or Rehearsed(Posting("", "", "", url), FAILED, "the rehearsal stopped")
             if not first:
                 first.append(True)
@@ -451,21 +488,23 @@ def rehearse(
                     adapters.board.update(n, resume=None)  # nor its offer: each pause offers its own
                     with gate:
                         done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, pause=paused,
-                                         anyway=anyway, force=force)
+                                         anyway=anyway, force=force, draft=draft)
                     if not after:
                         out(done.line())
                     how = after.pop() if after else hold()
             finally:
                 site.close()
 
-    threads = [threading.Thread(target=one, args=(n, url), daemon=True) for n, url in enumerate(urls)]
+    on = reopening.workers if reopening else [None] * len(urls)  # each link's Worker: its own, unless reopened
+    threads = [threading.Thread(target=one, args=(n, url, on[n]), daemon=True) for n, url in enumerate(urls)]
 
-    def into(url: str, worker: int) -> dict:
+    def into(url: str, worker: int, running: bool = True) -> dict:
         """A link sent in while the rehearsal runs: Worker `worker`'s running browser fills it in a tab of its
-        own, so its sign-in holds, with a tile of its own. Refused when that Worker's browser isn't running."""
+        own, so its sign-in holds, with a tile of its own. Refused when that Worker's browser isn't running,
+        unless not `running`: a reopened Worker's next link, whose profile holds its sign-in all the same."""
         if release.is_set():
             raise Refused("This rehearsal is ending.", 409)
-        if not getattr(adapters.site, "running", lambda k: False)(worker):
+        if running and not getattr(adapters.site, "running", lambda k: False)(worker):
             raise Refused(f"Browser {worker + 1} isn't a running plain Worker: start one with `apply rehearse` "
                           "(worker_mode: plain), then send links into it.", 409)
         with writing:
@@ -479,7 +518,23 @@ def rehearse(
         return {"tile": n, "worker": worker}
     if taking := getattr(adapters.board, "taking", None):
         taking(into)
-    for thread in list(threads):
+
+    def feed(worker: int, links: list[str], first: int) -> None:
+        """A reopened Worker's later links, in turn (KAN-720): each goes in once the form before it there has
+        stopped past any sign-in, so it finds the sign-in done. Turns, never a timed wait."""
+        before = first
+        for url in links:
+            while not settles(before).wait(0.5):
+                if release.is_set():
+                    return
+            try:
+                before = into(url, worker, running=False)["tile"]
+            except Refused as refused:
+                out(f"{url} | not reopened: {refused}")
+                return
+    feeders = [threading.Thread(target=feed, args=(worker, links, on.index(worker)), daemon=True)
+               for worker, links in (reopening.later.items() if reopening else ()) if links and worker in on]
+    for thread in list(threads) + feeders:
         thread.start()
     ended: list[Rehearsed] = []
     # The waits sleep rather than block on a lock: Ctrl-C landing inside
@@ -500,7 +555,7 @@ def rehearse(
             out("Apply submitted nothing. Each browser stays open on the page it reached, yours now: check it and "
                 "press Submit yourself to send it (it goes in the Tracker), or Fill again to redo it; "
                 "close the windows, or press Ctrl-C, to end.")
-        while any(thread.is_alive() for thread in list(threads)):
+        while any(thread.is_alive() for thread in list(threads) + feeders):
             while not finished.empty():  # a link sent in since (--into): its summary line as it ends
                 out(finished.get_nowait().line())
             time.sleep(0.5)
@@ -561,18 +616,19 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
               calibration: Callable[[], str], accounts: "_Accounts", n: int,
               before_fill: Callable[[], None] = lambda: None, stage: str = "",
               pause: Callable[[Rehearsed, Callable[[object], str]], bool | str] = lambda stopped, blocked: False,
-              anyway: str = "", force: bool = False) -> Rehearsed:
+              anyway: str = "", force: bool = False, draft: dict | None = None, reopened: str = "") -> Rehearsed:
     """One fill of the link. A stop mid-form for Lisul goes to `pause` with its
     summary and why Resume can't go on (apply_to's `on_pause`): True, he
     pressed Resume, and the fill goes on on the same page. Each pause and
     Resume is kept in the summary's history, its tile and its Record.
     `anyway` is why an earlier fill ruled him out, when he pressed Fill it anyway:
-    the form is filled all the same, and its note says why."""
+    the form is filled all the same, and its note says why. `draft` is what a reopened form held (apply_to's),
+    and `reopened` its first history line."""
     claude, board = adapters.claude, adapters.board
     if fill_engine.fresh():  # a merged engine fix since the last posting: planned with it, no restart (KAN-645)
         trace.event("engine reloaded")
     started, spent = time.monotonic(), claude.spent()
-    history: list[str] = []
+    history: list[str] = [f"{adapters.clock.now().strftime('%H:%M')} {reopened}"] if reopened else []
     shown: list[Rehearsed] = []  # each pause's summary, already handed out: the fill's Record goes on them too
     posting, result = resolve(url, site)
     # Before any page opens (form_behind opens one for an unknown job system): never fill a form sent already.
@@ -677,7 +733,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                                                        on_verify=lambda verification: board.update(
                                                            n, **verifying(verification)),
                                                        on_pause=on_pause, on_captcha=on_captcha,
-                                                       anyway=bool(anyway), fetched=fetched),
+                                                       anyway=bool(anyway), fetched=fetched, draft=draft),
                     signed_in=adapters.signed_in,
                 )
             except SetupError as error:  # the Mac's setup, not Apply's code: its one line says how to fix it
@@ -1088,8 +1144,9 @@ class _Accounts:
     Lisul submits: a live rehearsal's own is a throwaway, but the account is
     real), and a failed password sign-in never tried again by another link."""
 
-    def __init__(self, adapters: Adapters, profile: ApplicantProfile, listed_to: Tracker):
+    def __init__(self, adapters: Adapters, profile: ApplicantProfile, listed_to: Tracker, hands_off: bool = False):
         self._adapters = adapters
+        self._hands_off = hands_off  # a reopened batch's: every sign-in is Lisul's (KAN-720)
         self._listed_to = listed_to
         self._login = profile.get("identity.email")
         self._failed: set[str] = set()
@@ -1098,7 +1155,7 @@ class _Accounts:
     def __call__(self, posting: Posting) -> Accounts:
         a = self._adapters
         return Accounts(a.keychain, a.mailbox, a.clock, self._login, posting.company, self._add, self._failed,
-                        rehearsal=True)
+                        rehearsal=True, hands_off=self._hands_off)
 
     def _add(self, account) -> None:
         with self._writing:

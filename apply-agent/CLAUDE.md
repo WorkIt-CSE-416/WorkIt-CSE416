@@ -43,6 +43,8 @@ has neither.
   yourself. `uv run apply ask --list` lists every open form. Print the reply
   to him. Never press the offer's Save for him: only his click in the window
   saves to his sources.
+- **After a restart of the Mac:** run `uv run apply reopen` (`docs/restart-recovery.md`). It never
+  types into a sign-in: Lisul signs in on each "needs sign-in" tile.
 - **A next posting on a job site a running Worker is signed in to:** send it
   into that Worker with `uv run apply rehearse --into`, never into a new
   rehearsal (`docs/plain-workers/guide.md`).
@@ -67,7 +69,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
 - `docs/sign-in.md`: a sign-in page, an Employer account or its password, the Accounts tab, or `apply preflight`.
 - `docs/apply-window.md`: the window's lifetime, its Dock keeper, or what a Record keeps.
-- `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, and the open-forms list (`batch.py`), and `apply preflight --open`.
+- `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, the open-forms list (`batch.py`), `apply reopen`, and `apply preflight --open`.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
 - `docs/research/`: the research behind plain Workers and Employer account sign-in. Each note's Status line says what was built.

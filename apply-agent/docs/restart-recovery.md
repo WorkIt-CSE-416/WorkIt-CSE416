@@ -74,6 +74,55 @@ changes: as the form starts filling, at each pause, as it goes on, and as each f
 file. `tests/test_rehearse.py -k open_forms_list` (Chromium): a held fake Greenhouse form is on the
 list with its Record, and leaves it once Lisul's Submit went in.
 
+## `apply reopen`: every open form back after a restart (KAN-720)
+
+```
+uv run apply reopen --list   # what it would reopen; opens nothing
+uv run apply reopen          # reopens them; the window shows a tile each
+```
+
+It reads the open-forms list (`batch.plan`) for this profiles folder (`APPLY_PROFILES`, else the
+default) and rehearses each form again (`rehearsal.rehearse(reopening=...)`, `rehearsal.Reopening`),
+with the guards of any rehearsal. It never submits.
+
+- **Its own Worker.** Each plain Worker's forms go back to that Worker (`plain-<k>`), whose profile
+  holds their sign-ins: its first form at once, each later one sent into it as `apply rehearse
+  --into` sends one (the same `into`), once the form before it there has stopped past any sign-in
+  (`settles`; a form that still waits at a sign-in, with its tab open, holds the next back).
+  Turns, never a timed wait. The window aims tile n at that Worker (`Dashboard.aim`), and its frame
+  source follows every Worker up to the highest one reopened.
+  A CDP Worker's form (one browser per form) gets a Worker number of its own, after the plain ones.
+- **What it held.** `batch.draft` reads the form's Record (`answers.json`, which now names each
+  row's `kind`): each answer the page showed, with its question. Never one only planned, a file, a
+  secret, or an attestation, consent or signature (`send_click.ATTEST`: those stay his to tick or
+  sign). `apply_to(draft=...)` keeps one only where the field asks the same question now
+  (`worker._held`: Claude fill numbers its fields, and a number may name another field), before each fill, with what the job system's own saved draft shows on the step
+  (`worker._saved_draft`, the Filler's `resumed`: Workday's steps), as a Resume keeps Lisul's
+  (`_Planned.keep`). So nothing on the form is written over. Claude may still plan the form again;
+  what the form held wins. A job system that keeps no draft (Greenhouse, Lever, Ashby) is filled
+  anew with what its Record held.
+- **Sign-ins are Lisul's** (`Accounts.hands_off`, `accounts.HANDS_OFF`). A reopened form stops at a
+  sign-in before Apply types or clicks anything there: Workday's (`WorkdayFiller._start`, before
+  Google or a password), Oracle's (`oracle.sign_in`, before its Apply button and email), and Claude
+  fill's account pages (`account_pages`: a page with a password box is a Handoff before Claude
+  drives it; Claude is told to type nothing on an account page; any account page it names is a
+  Handoff before plain code types or clicks). The tile says "needs sign-in". Once Lisul has signed
+  in on the page, it goes on by itself (KAN-670: Workday and Oracle); else his Resume does. A
+  captcha stops that, as in KAN-670. Residual: an email-only sign-in step that shows no password
+  box, met in the middle of a Claude fill drive, is kept by Claude's prompt alone.
+- **History.** Each reopened tile's first line is "Reopened after Apply stopped (open since ...)",
+  and it is in the new Record.
+- Forms Lisul pressed Submit on (`sent`) are listed, never reopened. Forms of another profiles folder
+  are listed with the command that reopens them.
+
+**Tests.** `tests/test_restart.py` (in CI): the plan, the draft, an account page's Handoff,
+`--list`, the window's aim. `tests/test_reopen.py`: `-k killed` (Chrome for Testing, about 3
+minutes) runs Apply in a process of its own on two fake Greenhouse forms in one plain Worker, kills
+it, quits the Worker, and runs `apply reopen`: both forms come back held, in one Chrome, the second
+sent into the first's Worker, each guarded, with what Lisul typed before kept, and nothing sent.
+`-k workday` (Chromium): a reopened Workday form at its sign-in types nothing, says "needs
+sign-in", and goes on by itself once Lisul signs in with Google.
+
 ## `apply preflight --open`: which reopened sites wait on a sign-in (KAN-721)
 
 ```
