@@ -1142,8 +1142,9 @@ class _Kept:
             return ""
         pressed, again, hooks, regenerates = [], [], self._hooks, []
 
-        def heard(words: str) -> None:
-            pressed.append(words)
+        def heard(words: str, account: bool = False) -> None:
+            if not account:  # a sign-in, account or code form's press sends no application: Resume still goes on
+                pressed.append(words)
             if code:
                 code.pressed(words)
         dismissed = []
@@ -1154,7 +1155,7 @@ class _Kept:
         dismissing, holding = [], held()
 
         def hand_over() -> None:  # the guard comes off: the page is Lisul's
-            lift(self._page, pressed=lambda words: hooks["pressed"](words), again=lambda: hooks["again"](),
+            lift(self._page, pressed=lambda words, account=False: hooks["pressed"](words, account), again=lambda: hooks["again"](),
                  warning=warning, wrong=wrong, bound=self._bound, held=holding, dismiss=lambda: hooks["dismiss"]())
             self._lifted = self._bound = True
         blocked = bool(self.applied) and not self._dismissed  # he applied already: Submit stays blocked

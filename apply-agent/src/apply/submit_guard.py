@@ -130,6 +130,11 @@ _TEMPLATE = r"""
     const form = el.form || (el.closest && el.closest('form'));
     return !!form && !!form.querySelector('input[type=password]');
   };
+  // A verification code's form: one with a one-time-code box, which no application's final button is in either.
+  const codeForm = (el) => {
+    const form = el.form || (el.closest && el.closest('form'));
+    return !!form && !!form.querySelector('input[autocomplete=one-time-code]');
+  };
   // Plain code's click on the button of a profile step before the application (Microsoft's
   // "Create your profile" pop-up names its button Submit, live: KAN-647).
   const profileClick = () => window.__applyProfileClick === true;
@@ -204,7 +209,10 @@ _TEMPLATE = r"""
       && event.target.closest('button, input[type=submit], input[type=button], [role=button], a');
     if (!target) return;
     if (lifted()) {  // Lisul's page: his click goes through, and Apply hears of one that sends
-      if (sends(target) && window.__applyLisulPressed) window.__applyLisulPressed(wordsOf(target).trim().slice(0, 80));
+      // Saying whether it was a sign-in, account or code form's (Workday's Sign in with email names its button
+      // Submit): that press sends no application, so Resume still goes on after it.
+      if (sends(target) && window.__applyLisulPressed) window.__applyLisulPressed(wordsOf(target).trim().slice(0, 80),
+        accountForm(target) || codeForm(target));
       return;
     }
     if (!sends(target)) return;
@@ -611,7 +619,8 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     """Hand a guarded page to Lisul once Apply is done with it: no Filler or
     Claude drives it any more, so a Submit on it can only be his, and it goes
     through, on this page and every page he loads from it. `pressed` hears
-    the words of each button he clicks that sends; `again`, when he presses
+    the words of each button he clicks that sends, with `account=True` when it is a sign-in, account
+    or verification code form's (it sends no application); `again`, when he presses
     the note's Fill again. Both are called on the page's own thread. A
     `warning` goes on the note, red when an answer is `wrong`, amber when
     it only names fields left blank. `bound`: the page was lifted before
@@ -624,7 +633,7 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     if bound:
         pressed = again = dismiss = None
     if pressed:
-        page.expose_binding("__applyLisulPressed", lambda source, words: pressed(words))
+        page.expose_binding("__applyLisulPressed", lambda source, words, account=False: pressed(words, account=account))
     if again:
         page.expose_binding("__applyFillAgain", lambda source: again())
     if dismiss:
