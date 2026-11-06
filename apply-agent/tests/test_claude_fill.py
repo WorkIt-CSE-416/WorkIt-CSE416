@@ -775,6 +775,14 @@ def test_claude_is_told_to_pick_a_select_even_when_it_seems_to_show_the_answer()
     assert "never leave a select's `shown` empty" in FILL
 
 
+def test_claude_names_a_work_sections_entries_and_leaves_its_add_button_to_plain_code():
+    # Bank of America's TAL.net Employment (live 2026-11-06, KAN-728): one job of three, the rest never added.
+    for prompt in (claude_fill.READ, FILL):
+        assert '"Work Experience <n> / <label>"' in prompt and '"Work Experience (entries)"' in prompt
+    assert "Never press the section's add button yourself" in FILL
+    assert claude_fill._fewer("1", "2") and not claude_fill._fewer("2", "2") and not claude_fill._fewer("", "2")
+
+
 def test_a_resume_with_no_file_input_to_find_is_left_to_claude_as_before(tmp_path):
     driver = JobviteDriver()
 
