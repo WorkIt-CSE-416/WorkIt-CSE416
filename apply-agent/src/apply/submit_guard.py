@@ -1393,6 +1393,11 @@ class DriveGuard:
             return True
         return control(self._page, {"account": "element"}, element=element) != "frame"
 
+    def may_press(self, element) -> bool:
+        """Whether plain code may press `element`: False when it holds a frame (KAN-710), where the press could land
+        on another form (a sandboxed frame runs no guard at all)."""
+        return control(self._page, {}, (), element=element) != "frame"
+
     def let_profile_click(self, let: bool = True) -> None:
         """Let plain code's next click send a profile step's pop-up, one before the application
         (Microsoft's "Create your profile", KAN-647): its button only, never the application request."""

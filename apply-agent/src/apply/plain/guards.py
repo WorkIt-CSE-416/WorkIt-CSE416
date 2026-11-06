@@ -251,6 +251,10 @@ class PlainDriveGuard(DriveGuard):
         submit_guard.control(self._page, {"account": True})
         return True
 
+    def may_press(self, element) -> bool:
+        """A plain Worker presses the element itself (page/dom.js), never a point a frame inside it could take."""
+        return True
+
     def asking(self, on: bool, may_tick: bool = False) -> None:
         """Nothing on the page: every press here comes through plain.tools, which judges it on the real element."""
 

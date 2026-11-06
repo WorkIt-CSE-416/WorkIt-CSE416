@@ -217,8 +217,10 @@ class AccountPages:
             raise Handoff(f"Claude fill named {button!r} as the button that signs in at {site}, and no such button "
                           "shows. Sign in and fill the form in yourself.")
         before = _shown(page)
-        if guard:
-            guard.let_account_click(found[0])
+        if guard and not guard.let_account_click(found[0]):  # a frame inside it, where the press could land (KAN-710)
+            guard.arm()
+            raise Handoff(f"The {button!r} button at {site} holds a frame, where Apply's press could land on another "
+                          "form. Sign in yourself.")
         try:
             found[0].click()
         finally:

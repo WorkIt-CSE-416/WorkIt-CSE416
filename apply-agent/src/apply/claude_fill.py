@@ -501,6 +501,9 @@ class ClaudeFill:
                           "Fill it in yourself.")
         before = _fields_shown(page)
         if self._guard is not None:
+            if not self._guard.may_press(button):  # a frame inside it, where the press could land (KAN-710)
+                raise Handoff(f"The profile step's {name!r} holds a frame, where Apply's press could land on another "
+                              "form. Press it yourself.")
             self._guard.let_profile_click()
         try:
             button.click()
@@ -695,8 +698,12 @@ def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = 
     words = _sends_or_reviews(page, button)
     if words and not (back and words == REVIEW_WORDS):
         raise Handoff(f"Claude fill's Next ({name!r}) is {words}, which may send the form. Fill it in yourself.")
-    if guard:
-        guard.let_account_click(button)
+    # A frame inside the button (KAN-710): the press lands in it, where no guard may run (a sandboxed one runs no
+    # script), and its form could post the application to the top page. Never pressed.
+    if guard and not guard.let_account_click(button):
+        guard.arm()
+        raise Handoff(f"The form's {name!r} holds a frame, where Apply's press could land on another form. "
+                      "Press it yourself.")
     try:
         button.click()
         waited = 0

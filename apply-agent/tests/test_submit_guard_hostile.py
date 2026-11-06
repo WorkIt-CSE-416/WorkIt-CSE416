@@ -219,6 +219,14 @@ PAGES = {
     "a step list clipped to nothing": {START: f"""<title>Apply</title><ul style="height:0;overflow:hidden">
         <li aria-current=step>a</li><li>b</li></ul>
         <form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
+    # A sandboxed frame inside the Next runs no script, so no guard: its form posts the application to the top page.
+    "a sandboxed frame inside the Next": {
+        START: f"""<title>Apply</title><form method=post action="/acme/jobs/123/step2"><input name=first value=Test>
+            <button id=b style="width:320px;height:140px;padding:0">Next<iframe sandbox="allow-forms allow-top-navigation"
+            style="border:0;width:300px;height:120px" srcdoc="<form method=post action='{FINAL}' target=_top
+            style='margin:0'><input type=hidden name=first value=Test><button style='width:300px;height:120px'>Next
+            </button></form>"></iframe></button></form>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
 }
 BUTTON = {"a Submit in another language beside a Submit": "Envoyer ma candidature",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
