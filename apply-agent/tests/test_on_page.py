@@ -93,6 +93,58 @@ def test_an_answer_typed_on_the_held_form_is_saved_and_leaves_needs_you(monkeypa
     assert fake.submissions == []
 
 
+class AsksClaude(RecordingBoard):
+    """Lisul, in the tile: asks Claude to fix the held form once its fields are watched. Claude's fix changes a
+    field waiting on him; the page closes a few turns later."""
+
+    def __init__(self):
+        super().__init__()
+        self.page, self.ticks, self.sent, self.replies = None, 0, False, []
+
+    def asks(self, worker):
+        if self.ticks < 2 or self.sent:
+            return []
+        self.sent = True
+        return [{"id": "ask-1", "message": "fix my email", "thread": []}]
+
+    def replied(self, worker, ask_id, **reply):
+        self.replies.append(reply)
+
+    def answered(self, worker):
+        if self.sent and self.ticks > 10:
+            self.page.close()
+        return []
+
+
+def test_what_ask_claude_changed_on_the_held_form_is_never_taken_as_his_answer(monkeypatch, tmp_path):
+    # Live (KAN-693): an `apply ask` fix on the held form was read by the Watch as Lisul typing, and its
+    # values were saved to his Applicant profile as his answers to the fields still waiting on him.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(on_page, "IDLE_S", 0.5)
+    profile = profile_with(tmp_path, **{"identity.email": None})
+    board = AsksClaude()
+    ticked = on_page.Watch.tick
+
+    def tick(self, page, questions):
+        board.page = page
+        board.ticks += 1
+        return ticked(self, page, questions)
+    monkeypatch.setattr(on_page.Watch, "tick", tick)
+
+    def claude_fixes(claude, page, message, *args, **kwargs):  # Claude types into the waiting field, and leaves it
+        page.fill("#email", "claude@example.com")
+        page.keyboard.press("Tab")
+        return rehearsal.ask.Reply("Set Email.", changed=[{"field": "Email", "step": "", "shown": "claude@example.com"}])
+    monkeypatch.setattr(rehearsal.ask, "ask", claude_fixes)
+    with FakeJobServer(ARC_FORM) as fake:
+        rehearsal.rehearse([ARC_URL], adapters(fake, board=board, records=FolderRecords(tmp_path / "rehearsals")),
+                           ApplicantProfile.load(profile), 1, keep_open=True, out=lambda line: None)
+
+    assert board.sent and board.ticks > 10
+    assert getattr(board, "typed_in", []) == []  # Claude's value is the page's, never his answer
+    assert fake.submissions == []
+
+
 FORM = """<form>
   <div class="application-question"><div class="application-label">Pronouns<span>*</span></div>
     <input type="text" name="cards[x][field0]"></div>
