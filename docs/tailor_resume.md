@@ -252,11 +252,17 @@ weight.
   page until 2026-10-26), the step in the
   middle on one line ("Review Changes · Step 3 of 3"; the flow's name
   over the step, two lines, said more than the row needs), and Finish at
-  the right, which opens **Ready to Apply** (`ready-to-apply.tsx`,
-  KAN-217, 2026-11-05): Download PDF first, Open the Application (the
-  employer's form in a new tab, then "Did You Apply?" on this resume) and
-  Auto Apply where the form can be filled, which attaches this resume.
-  Closing it goes back to the page that opened Tailor, else the job
+  the right, which opens **Your Resume Is Ready** (`ready-to-apply.tsx`,
+  KAN-217, 2026-11-05): a status line, "Saved to your Tracker." with View,
+  then Apply Yourself, two numbered steps, Download PDF and Open
+  <Company>'s Application (the employer's form in a new tab, then "Did You
+  Apply?" on this resume). The primary button is always the next step:
+  Download PDF until the file is saved, then Open, which also takes focus.
+  Or Let Auto Apply Do It is a block of its own, only where the form can be
+  filled; its Auto Apply attaches this resume. The first version, "Ready to
+  Apply", put the three buttons in one row of equals under a paragraph that
+  mixed the status with the instructions, which the user found hard to
+  read. Closing it goes back to the page that opened Tailor, else the job
   posting. Finish left for the job posting's page until then, which showed
   nothing new: the student reached the employer's form with no file. Download sat beside Finish for a day; it is back on the
   toolbar with the page's tools. Every change is saved as it is made, so

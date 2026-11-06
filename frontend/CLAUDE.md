@@ -1685,11 +1685,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the review names the job the same way under the resume's name; the tailored resume's page has the slim
   `TailorReviewBar` instead (Back to Choose Keywords, `TailorBack`, the
   step, and Finish; the job in an sr-only h1), so the resume starts near the top, under its own name
-  renamed in place (`ResumeTitle`). **Finish opens Ready to Apply**
-  (`tailor/ready-to-apply.tsx`, KAN-217): Download PDF first, Open the
+  renamed in place (`ResumeTitle`). **Finish opens Your Resume Is Ready**
+  (`tailor/ready-to-apply.tsx`, KAN-217): the Tracker status line, then
+  Apply Yourself as two numbered steps, Download PDF and Open <Company>'s
   Application (the employer's form in a new tab, then "Did You Apply?",
-  `DidYouApply` from `jobs/apply-button.tsx`, on the tailored resume) and
-  Auto Apply where the form can be filled; closing it goes to the page that
+  `DidYouApply` from `jobs/apply-button.tsx`, on the tailored resume),
+  **whose primary button is always the next step** and takes focus
+  (`useResumeDownload().pick` resolves true once the file is saved), and
+  Auto Apply in a block of its own where the form can be filled. It sets
+  `data-backdrop="strong"` on its `DialogContent` for the darker backdrop
+  (`globals.css`). Closing it goes to the page that
   opened Tailor's route (`useBack`). Finish linked to the job posting's page
   until then, which showed nothing new and left the student with no file.
   `TailorScreen` holds the step in state, so Back keeps the pick, the

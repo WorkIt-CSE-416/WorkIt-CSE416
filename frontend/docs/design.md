@@ -326,7 +326,13 @@ open choices (Settled choices, near the end).
   keeps `scrollbar-gutter: stable`, so its width never jumps when a
   scrollbar shows.
 - **A dialog's backdrop dims and blurs 4px; a panel from the right only
-  dims** ("A panel from the right floats", below).
+  dims** ("A panel from the right floats", below). A dialog that leads the
+  student through steps over a busy page (Tailor's Your Resume Is Ready)
+  sets `data-backdrop="strong"` on its `DialogContent` for a 55% ink dim
+  (`globals.css`), so the page behind stops competing with the steps.
+- **A dialog of steps makes the next step its primary**, and moves the
+  primary and focus on as each step is done (Your Resume Is Ready's
+  Download PDF, then Open the Application).
 - **A dialog's buttons sit right, the primary last**, and its close
   button is `ink`, with a 44px target on touch. Its field errors follow
   the form rule: under the field, with focus on the first bad one.

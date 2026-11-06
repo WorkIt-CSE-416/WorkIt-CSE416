@@ -31,24 +31,37 @@ export function useResumeDownload(resumeId: string) {
   const [held, setHeld] = useState<(ResumeFile & { missing_characters: string[] }) | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function pick(format: Format) {
+  /** Makes the file and saves it; true once the browser has it (false on a
+   *  failure, or a PDF held at the font warning for Download Anyway). Tailor's
+   *  Your Resume Is Ready moves its next step on it. */
+  async function pick(format: Format): Promise<boolean> {
     setBusy(format);
     setError(null);
     setHeld(null);
     if (format !== "pdf") {
       const { data, error } = await downloadResumeFile(resumeId, format);
       setBusy(null);
-      return data ? saveFile(data) : setError(error);
+      if (!data) {
+        setError(error);
+        return false;
+      }
+      saveFile(data);
+      return true;
     }
     const { data, error } = await renderResumePdf(resumeId);
     setBusy(null);
-    if (!data) return setError(error);
+    if (!data) {
+      setError(error);
+      return false;
+    }
     const file = { data: data.pdf, contentType: "application/pdf", fileName: data.file_name };
     // Only a PDF waits at the warning (user story 53).
     if (data.missing_characters.length) {
-      return setHeld({ ...file, missing_characters: data.missing_characters });
+      setHeld({ ...file, missing_characters: data.missing_characters });
+      return false;
     }
     saveFile(file);
+    return true;
   }
 
   function keep() {

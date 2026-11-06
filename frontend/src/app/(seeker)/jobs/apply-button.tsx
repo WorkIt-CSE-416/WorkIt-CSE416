@@ -156,7 +156,7 @@ export function ApplyButton({
 
 /**
  * "Did You Apply?" itself, the content of a dialog the caller draws: Apply
- * Now's above, and Tailor's Ready to Apply once its Open the Application is
+ * Now's above, and Tailor's Your Resume Is Ready once its Open the Application is
  * clicked (./[jobId]/tailor/ready-to-apply.tsx), so the two ask the same way.
  * It reads the resume list on mount. Yes keeps the pick as a sent resume,
  * marks the job applied, tells the shown list, then calls `onApplied`.

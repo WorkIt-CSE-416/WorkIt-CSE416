@@ -11,7 +11,7 @@ import type { Source } from "./resume-picker";
 /**
  * Downloads one resume from a picker's choice (KAN-217): a built resume as the
  * editor's PDF (rendered for the download, kept nowhere, KAN-267), an upload
- * as its own file. Apply Now's "Did You Apply?" and Tailor's Ready to Apply
+ * as its own file. Apply Now's "Did You Apply?" and Tailor's Your Resume Is Ready
  * offer it, so the student has the file in hand for the employer's form,
  * which Apply Now opens in a new tab with no resume step of its own.
  */

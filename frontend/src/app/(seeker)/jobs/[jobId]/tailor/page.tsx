@@ -72,7 +72,7 @@ export default async function TailorPage({
       getBank(resume.id),
       getChoices(resume.id),
       getProfile(),
-      // For Finish's Ready to Apply (./ready-to-apply.tsx, KAN-217).
+      // For Finish's Your Resume Is Ready (./ready-to-apply.tsx, KAN-217).
       getApplicationStage(job.id),
       getApplied(job.id),
     ]);

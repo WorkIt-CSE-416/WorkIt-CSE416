@@ -85,7 +85,7 @@ export function TailorReview({
   name: string;
   /** The job it is tailored for, named under the title (`TailorJobLine`). */
   job: JobListing;
-  /** For Finish's Ready to Apply (./ready-to-apply.tsx). */
+  /** For Finish's Your Resume Is Ready (./ready-to-apply.tsx). */
   apply: ApplyState;
 }) {
   const [record] = useTailorReview(editor.resumeId);

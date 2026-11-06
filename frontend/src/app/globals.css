@@ -1454,6 +1454,15 @@ body:has([data-skyline]) {
     backdrop-filter: none;
   }
 
+  /* A dialog that is a moment of its own, not a tool over the page, dims
+   * the page harder (`data-backdrop="strong"` on its content): Tailor's
+   * "Your Resume Is Ready" (KAN-217), where the resume behind showed through
+   * the light dim and competed with the steps. The backdrop and the popup
+   * are siblings in the dialog's portal. */
+  [data-slot="dialog-overlay"][data-slot]:has(~ [data-backdrop="strong"]) {
+    background-color: color-mix(in srgb, var(--color-ink) 55%, transparent);
+  }
+
   /* What scrolls inside a dialog keeps its scrollbar's room, so the content
    * is one width whether or not it scrolls: Settings' cards were 608px on
    * Personal Details and 600px on Sign-In & Security. */

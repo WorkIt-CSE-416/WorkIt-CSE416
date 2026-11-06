@@ -2539,13 +2539,22 @@ with no proposals to accept and no Done (2026-10-25).
   2026-10-26), so the resume starts near the top: Back (`TailorBack`, to
   Choose Keywords on the run's source, `?step=keywords&source=`),
   "Review Changes · Step 3 of 3" on one line in the middle, and
-  Finish (filled) at the right, which opens **Ready to Apply**
-  (`tailor/ready-to-apply.tsx`, KAN-217): "Your tailored resume is saved,
-  and <title> is on your Tracker", then Auto Apply (where the
-  form can be filled; it attaches this resume), Open the Application (the
-  employer's form in a new tab; the dialog turns into "Did You Apply?",
-  starting on this resume) and Download PDF, the primary. Closing it, Not
-  Yet or Yes goes to the page that opened Tailor, else the job posting.
+  Finish (filled) at the right, which opens **Your Resume Is Ready**
+  (`tailor/ready-to-apply.tsx`, KAN-217) over the strong backdrop: a
+  check disc and the title, then the status line "Saved to your Tracker."
+  with View. Apply Yourself (an h3) is an ordered list of two steps, each
+  with a number disc: 1, Download PDF; 2, Open <Company>'s Application
+  (the employer's form in a new tab; the dialog turns into "Did You
+  Apply?", starting on this resume). The primary is the next step: Download
+  PDF has it and focus first; once the file is saved, Download turns
+  secondary with a "Downloaded" check, and Open turns primary and takes
+  focus. Or Let Auto Apply Do It (an h3, under a rule) holds one line,
+  "Fills <Company>'s form with this resume.", and a secondary Auto Apply,
+  only where the form can be filled. The first version, "Ready to Apply",
+  put Auto Apply, Open and Download in one row of equals under a paragraph
+  that mixed the status with the steps; the user found it hard to read.
+  Closing it, Not Yet or Yes goes to the page that opened Tailor, else the
+  job posting.
   Finish went to the job posting's page until then, which showed nothing
   new and left the student with no file. The page's h1, "Tailor for
   <title> at <company>", is for screen readers only. Under it the
