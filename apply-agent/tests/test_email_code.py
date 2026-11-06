@@ -125,6 +125,10 @@ def test_a_page_that_sends_itself_once_the_code_is_in_sends_nothing(monkeypatch)
     assert clicks == ["Submit application"]
 
 
+def test_a_held_page_looks_for_its_code_for_at_least_10_minutes():
+    assert email_code.WAIT >= timedelta(minutes=10)
+
+
 def test_a_code_mailed_before_lisuls_press_is_not_used_and_he_is_told(monkeypatch):
     lisul_presses(monkeypatch, "Submit application")
     mailbox = FakeMailbox(clock=FakeClock(NOW - timedelta(minutes=10)))

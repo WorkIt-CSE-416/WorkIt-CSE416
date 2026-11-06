@@ -12,6 +12,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # The data folder every test runs on: Apply sets its data paths when it is imported, so
 # APPLY_HOME points here before that, never at ~/.config/apply. data_folder() fills it.
 os.environ["APPLY_HOME"] = tempfile.mkdtemp(prefix="apply-test-home-")
+os.environ["APPLY_TEST_TEMP_OK"] = "1"  # that folder is temp on purpose (home.temp_state, KAN-665)
 atexit.register(shutil.rmtree, os.environ["APPLY_HOME"], True)
 
 # Before anything else can open a connection: no test reaches past loopback (KAN-662).

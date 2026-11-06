@@ -182,6 +182,7 @@ jobs:
             tests/test_gmail.py \
             tests/test_graduate_only.py \
             tests/test_into.py \
+            tests/test_preflight.py \
             tests/test_keychain_contract.py \
             tests/test_mail_command.py \
             tests/test_masked.py \
@@ -209,6 +210,7 @@ jobs:
             tests/test_stock.py \
             tests/test_story_map.py \
             tests/test_tailored_resume.py \
+            tests/test_temp_state.py \
             tests/test_tracker_cleanup.py \
             tests/test_already_applied.py \
             tests/test_tracker_contract.py \

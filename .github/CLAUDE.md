@@ -334,7 +334,8 @@ Chrome Web Store API's **v2** endpoints (`chromewebstore.googleapis.com`)
 never the item id alone, and upload/publish each return a `state`-style
 enum (`uploadState`, `state`) rather than v1.1's `status` array. Two jobs:
 
-- **`check-version-bump`**, every PR touching the extension: fails unless
+- **`check-version-bump`**, every PR touching the extension's own files
+  (`manifest.json`, `icons/`, `fonts/`, `src/`, `store/`; KAN-669): fails unless
   `autofiller_extension/store/store.json`'s `version` is strictly greater
   than `main`'s (`dpkg --compare-versions`) — the Store package's own
   version (`store/build.mjs`, KAN-463, writes it over whatever
@@ -346,14 +347,21 @@ enum (`uploadState`, `state`) rather than v1.1's `status` array. Two jobs:
   one-line, by-hand part of the PR**, on purpose — not something this
   workflow writes and commits itself, which would need write-back
   permissions and risks a loop for little gained.
-- **`publish`**, on push to `main` (or by hand — **main only**: a push
-  trigger is already branch-filtered, but `workflow_dispatch` has no such
+- **`publish`**, on a push to `main` that touches those same files (or by
+  hand — **main only**: a push trigger is already branch-filtered, but `workflow_dispatch` has no such
   filter on GitHub's side, so the job itself checks `github.ref ==
   'refs/heads/main'` or a dispatch from any other branch would submit
   unreviewed code for real Store review). Runs `store/build.mjs` (the
   same Store package `extension-store-build` already builds and checks
   in CI, above — never a second, ad-hoc zip step here) and pushes the
   result through the Chrome Web Store API, then submits it for review.
+
+An engine pointer move alone needs no bump and starts no publish, so Store
+users get that engine with the next bump. To ship an engine fix sooner, bump
+`store.json` in the pointer's PR: that PR then publishes the new pointer too.
+These path filters skip the whole workflow, so GitHub reports no check for a
+skipped PR. Do not make `check-version-bump` a required check, or those PRs
+wait for it forever.
 
 **This does not make an update live by itself.** The extension asks for
 sensitive permissions (`cookies`, several hosts), so Google reviews every

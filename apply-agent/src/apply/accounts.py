@@ -5,7 +5,7 @@ them while it signs in. Plain code, zero tokens.
   the sign-up form is sent, so a crash never leaves an account whose password
   is lost.
 - A verification code or link is read from Gmail: looked for every few
-  seconds for about 2 minutes. Apply never asks the site to send it again
+  seconds for about 10 minutes. Apply never asks the site to send it again
   (no Resend or Send New Code click, anywhere): still nothing goes to Needs
   you ("Type the emailed code"), and Lisul retries himself. Gmail not set
   up goes there too.
@@ -24,8 +24,9 @@ from apply.adapters import Clock, Keychain, Mailbox
 from apply.model import Handoff
 from apply.tracker import EmployerAccount
 
-# How long to look for a mail. It is asked for once per sign-in, never again.
-MAIL_WAIT = timedelta(minutes=2)
+# How long to look for a mail. It is asked for once per sign-in, never again, and
+# some job systems take minutes to send it.
+MAIL_WAIT = timedelta(minutes=10)
 MAIL_POLL = timedelta(seconds=5)
 PASSWORD_LENGTH = 20
 # Every class Workday's password rules can ask for; no quotes or backslashes.
@@ -47,7 +48,7 @@ NO_RESET = (
     "through Gmail, but {why}. " + SAVE_PASSWORD
 )
 NO_MAIL = (
-    NEEDS_SIGN_IN + "Type the emailed code: no {what} from {search} came within about 2 minutes, and Apply "
+    NEEDS_SIGN_IN + "Type the emailed code: no {what} from {search} came within about {minutes} minutes, and Apply "
     "never asks for another. Check Gmail (spam too), then sign in and finish the application yourself."
 )
 
@@ -147,7 +148,7 @@ class Accounts:
             if found := find(search=search, since=since):
                 return found
             if self.clock.now() >= until:
-                raise Handoff(NO_MAIL.format(what=what, search=_senders(search)))
+                raise Handoff(NO_MAIL.format(what=what, search=_senders(search), minutes=MAIL_WAIT // timedelta(minutes=1)))
             self.clock.sleep_until(self.clock.now() + MAIL_POLL)
 
 
