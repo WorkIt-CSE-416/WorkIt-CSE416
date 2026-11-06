@@ -71,6 +71,12 @@ class PortFrames:
         # of several forms in a Worker (`--into`) shows that form's tab only, never the one shown now (KAN-717).
         self._by_tab: dict[tuple[int, int], tuple[list[tuple[float, bytes]], int]] = {}
         self._switched: dict[int, float] = {}  # worker -> when its filmed window last showed another tab
+        self._seq: dict[int, int] = {}  # worker -> the number of its newest frame, of any tab
+        # A form's own pop-ups and the tabs its page opens show on its tile (KAN-717): (worker, tab) -> the tab that
+        # opened it (the extension's tab.created and popup.blocked), when each tab last showed, and the closed ones.
+        self._openers: dict[tuple[int, int], int] = {}
+        self._shown_at: dict[tuple[int, int], float] = {}
+        self._gone: set[tuple[int, int]] = set()
         self._watched: dict[int, Connection] = {}
         # (worker, tab) -> {mode, tab, frame} of the file input that tab's page asked for: a file picked on a tile goes
         # only to its own tab's (KAN-717), newest last
@@ -107,14 +113,33 @@ class PortFrames:
 
     # --- dashboard.Frames
 
+    def _family(self, worker: int, tab: int) -> list[int]:
+        """`tab` and the open tabs its page opened, and theirs: one form's tabs. A tab another form opened isn't one."""
+        def opened_by_tab(other: int) -> bool:
+            for _ in range(20):  # a chain of pop-ups; never a loop
+                other = self._openers.get((worker, other))
+                if other is None:
+                    return False
+                if other == tab:
+                    return True
+            return False
+        return [tab] + [other for (owner, other) in list(self._openers)
+                        if owner == worker and (worker, other) not in self._gone and opened_by_tab(other)]
+
+    def _current(self, worker: int, tab: int) -> int:
+        """The tab of `tab`'s form a tile shows and presses: of the form's tabs with a frame, the one shown last."""
+        framed = [other for other in self._family(worker, tab) if self._by_tab.get((worker, other), ([], 0))[0]]
+        return max(framed, key=lambda other: self._shown_at.get((worker, other), 0.0), default=tab)
+
     def _latest(self, worker: int, tab: int | None) -> tuple[bytes | None, int]:
         if tab is None:
             return self._frames.get(worker, (None, 0))
-        kept, number = self._by_tab.get((worker, tab), ([], 0))
+        kept, number = self._by_tab.get((worker, self._current(worker, tab)), ([], 0))
         return (kept[-1][1] if kept else None), number
 
     def frame(self, worker: int, tab: int | None = None) -> bytes | None:
-        """Worker `worker`'s latest frame; with `tab`, the latest that showed that tab (None before one did)."""
+        """Worker `worker`'s latest frame; with `tab`, the latest that showed that form's tab or one of its pop-ups
+        (None before one did)."""
         return self._latest(worker, tab)[0]
 
     def wait(self, worker: int, after: int, timeout: float, tab: int | None = None) -> tuple[bytes | None, int]:
@@ -127,7 +152,7 @@ class PortFrames:
         connection = self._watched.get(worker)
         if connection is None or connection.closed.is_set() or worker in self._foreign:
             return None
-        own, tab = tab, self._tabs.get(worker) if tab is None else tab
+        own, tab = tab, self._tabs.get(worker) if tab is None else self._current(worker, tab)
         try:
             if event["type"] == "files":
                 return self._give(connection, worker, own, event.get("paths") or [])
@@ -144,10 +169,10 @@ class PortFrames:
         return reply if isinstance(reply, dict) and ("menu" in reply or "text" in reply) else None
 
     def _asked(self, worker: int, tab: int | None) -> tuple[int, int | None] | None:
-        """The key of the file input that `tab` asked for (None: the newest any tab of Worker `worker` asked for)."""
-        if tab is not None:
-            return (worker, tab) if (worker, tab) in self._choosers else None
-        return next((key for key in reversed(self._choosers) if key[0] == worker), None)
+        """The key of the newest file input that `tab`'s form asked for, in its tab or a pop-up (None: that any tab of
+        Worker `worker` asked for)."""
+        own = None if tab is None else self._family(worker, tab)
+        return next((key for key in reversed(list(self._choosers)) if key[0] == worker and (own is None or key[1] in own)), None)
 
     def chooser(self, worker: int, tab: int | None = None) -> str | None:
         """Whether `tab`'s page (None: any of Worker `worker`'s) asked for a file, and how many."""
@@ -183,13 +208,15 @@ class PortFrames:
             return
         now = time.monotonic()
         with self._changed:
-            self._frames[worker] = (frame, self._frames.get(worker, (None, 0))[1] + 1)
+            number = self._seq[worker] = self._seq.get(worker, 0) + 1  # one count for all tabs: a tile may change tab
+            self._frames[worker] = (frame, number)
             if tab is not None:
                 self._tabs[worker] = tab
                 if own:
-                    kept, number = self._by_tab.get((worker, tab), ([], 0))
+                    kept = self._by_tab.get((worker, tab), ([], 0))[0]
                     kept = [(when, old) for when, old in kept if now - when < KEPT][-30:] + [(now, frame)]
-                    self._by_tab[(worker, tab)] = (kept, number + 1)
+                    self._by_tab[(worker, tab)] = (kept, number)
+                    self._shown_at[(worker, tab)] = now
             self._changed.notify_all()
 
     def _aim(self, worker: int, message: dict) -> None:
@@ -211,9 +238,22 @@ class PortFrames:
         with self._changed:
             self._switched[worker] = now
             if before is not None and (worker, before) in self._by_tab:
-                kept, number = self._by_tab[(worker, before)]
+                kept = self._by_tab[(worker, before)][0]
+                number = self._seq[worker] = self._seq.get(worker, 0) + 1
                 self._by_tab[(worker, before)] = ([(when, f) for when, f in kept if when < now - SETTLE] or kept[:0],
-                                                  number + 1)
+                                                  number)
+            self._changed.notify_all()
+
+    def _opened(self, worker: int, tab: int | None, opener: int | None) -> None:
+        """Tab `tab` was opened by tab `opener`'s page (tab.created, popup.blocked): it is that form's."""
+        if tab is not None and opener is not None and tab != opener:
+            with self._changed:
+                self._openers[(worker, tab)] = opener
+                self._changed.notify_all()
+
+    def _closed(self, worker: int, tab: int | None) -> None:
+        with self._changed:
+            self._gone.add((worker, tab))
             self._changed.notify_all()
 
     def _film(self, worker: int, connection: Connection) -> bool:
@@ -289,6 +329,8 @@ class PortFrames:
         self._choosers = {key: asked for key, asked in self._choosers.items() if key[0] != worker}
         self._foreign.discard(worker)
         self._pages = {key: page for key, page in self._pages.items() if key[0] != worker}
+        self._openers = {key: opener for key, opener in self._openers.items() if key[0] != worker}
+        self._gone = {key for key in self._gone if key[0] != worker}
         if connection is None:
             return
         if self._foreign_to(worker, connection):
@@ -298,6 +340,11 @@ class PortFrames:
             self._watched[worker] = connection  # looked at again each turn: its tile shows none of its frames till then
             return
         connection.on("tile.frame", lambda message, worker=worker: self._keep(worker, message))
+        connection.on("tab.created", lambda message, worker=worker: self._opened(worker, message.get("tab"),
+                                                                                 message.get("opener")))
+        connection.on("popup.blocked", lambda message, worker=worker: self._opened(worker, message.get("popup"),
+                                                                                   message.get("tab")))
+        connection.on("tab.removed", lambda message, worker=worker: self._closed(worker, message.get("tab")))
         connection.on("tile.shown", lambda message, worker=worker: self._aim(worker, message))
         native = self._film(worker, connection)
         if getattr(connection, "stale", False):

@@ -283,6 +283,21 @@ def test_a_connection_whose_chrome_cant_be_told_takes_no_input(monkeypatch, chro
     assert worker.started == [] and worker.inputs == []
 
 
+# --- 6. a pop-up of the tile's own form
+
+def test_a_forms_own_popup_shows_on_its_tile():
+    worker = Worker()
+    fresh = JPEG + b" popup"
+    with PortFrames(1, lambda k: worker, capture="extension") as frames, Dashboard(1, frames) as board:
+        started(frames, worker)
+        worker.send("tile.frame", tab=1, data=B64)
+        board.showing(0, 1)
+        worker.send("tab.created", tab=2, opener=1)  # the extension's event: tab 1's page opened it
+        worker.send("tile.frame", tab=2, data=__import__("base64").b64encode(fresh).decode())  # its new tab or pop-up, active
+        shown = board._frames.frame(0)
+    assert shown == fresh  # the tile stays on the old tab's last picture; his clicks go on to the tab he can't see
+
+
 # --- 7. on a real plain Worker: what a page at a PUBLIC address can do (Chrome's Local Network Access applies)
 
 PUBLIC = {"Content-Security-Policy": "treat-as-public-address"}

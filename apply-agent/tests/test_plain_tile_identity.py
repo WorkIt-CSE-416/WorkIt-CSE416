@@ -192,6 +192,29 @@ def test_each_into_tile_shows_and_takes_input_on_its_own_tab_only():
     assert worker.inputs[-1]["tab"] == 1  # tile 0's click went to tile 0's form, though tab 2 is shown
 
 
+def test_a_forms_own_popup_shows_and_takes_input_on_its_tile_but_another_tab_doesnt():
+    forms = {1: b"\xff\xd8 form", 2: b"\xff\xd8 its pop-up", 3: b"\xff\xd8 another form"}
+    worker = Worker(101, "", forms, tab=1)
+
+    def shows(tab: int) -> bytes | None:
+        worker.tab = tab
+        time.sleep(0.35)
+        return frames.frame(0, tab=1)
+
+    with PortFrames(1, lambda k: worker, capture="extension") as frames:
+        time.sleep(0.8)
+        worker.send("tab.created", tab=2, opener=1)
+        shown = [shows(1), shows(2)]
+        frames.input(0, {"type": "down", "x": 1, "y": 1}, tab=1)
+        shown.append(shows(3))  # a tab no page of this form opened: not this tile's
+        frames.input(0, {"type": "down", "x": 1, "y": 1}, tab=1)
+        worker.send("tab.removed", tab=2)
+        shown.append(shows(1))
+
+    assert shown == [forms[1], forms[2], forms[2], forms[1]]
+    assert [i["tab"] for i in worker.inputs] == [2, 2]
+
+
 class Filmed:
     """The helper, faked in place of WindowStream, its frames pushed by the test."""
 
