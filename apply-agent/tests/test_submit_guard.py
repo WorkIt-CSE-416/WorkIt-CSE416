@@ -1179,3 +1179,52 @@ def test_a_sign_in_relay_posts_itself_through_the_drive_guard(post, action, fiel
         browser.close()
     assert posts == ([action] if through else [])
     assert bool(blocked) is not through
+
+
+# LinkedIn's Apply with LinkedIn widget on Microsoft's form (Eightfold, live 2026-11-06, KAN-711): its xdoor SDK
+# makes an iframe named for itself, then posts a form of hidden fields into it with form.submit(), as the form
+# loads and after the page's "Apply now" click.
+WIDGET_FRAME = """<form id="application"><input name="first"><button type="submit">Submit application</button></form>
+<button id="go">Apply now</button><div style="display:none"><iframe name="{frame}" id="{frame}"></iframe></div>
+<script>
+document.getElementById('go').addEventListener('click', () => setTimeout(() => {{
+  const form = document.createElement('form');
+  form.method = 'POST'; form.action = '{action}'; form.target = '{target}';
+  form.innerHTML = '{fields}<input type="hidden" name="api_key" value="k"><input type="hidden" name="xdOrigin" value="o">{button}';
+  document.body.appendChild(form);
+  form.submit();
+}}, 10));
+</script>"""
+
+
+@pytest.mark.parametrize("action, target, fields, button, through", [
+    ("https://www.linkedin.com/talentwidgets/apply-with-linkedin", "li-1", "", "", True),
+    ("https://www.linkedin.com/talentwidgets/apply-with-linkedin", "", "", "", False),  # no frame: the page goes
+    ("https://www.linkedin.com/talentwidgets/apply-with-linkedin", "_blank", "", "", False),
+    ("https://www.linkedin.com/talentwidgets/apply-with-linkedin", "nowhere", "", "", False),  # names no iframe
+    ("https://jobs.example.com/widget", "li-1", "", "", False),  # the page's own site
+    ("https://www.linkedin.com/talentwidgets/apply-with-linkedin", "li-1", '<input name="email">', "", False),
+    ("https://ats.example.net/api/application/v2/submit", "li-1", "", "", False),  # a final URL
+    ("https://www.linkedin.com/talentwidgets/apply-with-linkedin", "li-1", "", "<button>Submit</button>", False),
+])
+def test_a_widget_loading_into_its_own_frame_goes_through_the_drive_guard(action, target, fields, button, through):
+    from playwright.sync_api import sync_playwright
+
+    url = "https://jobs.example.com/careers/apply?pid=1"
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route(url, lambda route: route.fulfill(body=WIDGET_FRAME.format(
+            frame="li-1", action=action, target=target, fields=fields, button=button), content_type="text/html"))
+        _posts_to(page, posts)
+        drive = DriveGuard(page)
+        page.goto(url)
+        page.click("#go")  # a real click first, as Claude's "Apply now": the relay exemption no longer holds
+        page.wait_for_timeout(500)
+        page.click("button[type=submit]")  # the application's own Submit stays blocked
+        page.wait_for_timeout(300)
+        blocked = drive.blocked()
+        browser.close()
+    assert posts == ([action] if through else [])
+    assert ('the "Submit application" click' in blocked) and (("a form submission" in blocked) is not through)
