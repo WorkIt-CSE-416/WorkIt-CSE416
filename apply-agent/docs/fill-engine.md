@@ -63,7 +63,12 @@ A bare date (From, To, Start date, End date: a label that does not say
 what the date is for) is answered for its section (KAN-595). The engine
 finds the section from the field's panel, its help text, the heading or
 intro just before it, or the questions before it. The section is
-education, work experience or availability (`Plan.sections`). The plan
+education, work experience or availability (`Plan.sections`). Claude
+fill's questions carry no heading of their own, so plain code reads the
+heading over each bare date off the page into its `section`
+(`claude_fill._with_sections`, KAN-685), never the form's error notice
+("There is a problem"). The questions listed before it may be an earlier
+step's (TAL.net's "Role preference" read as a job's). The plan
 answers a school's or the internship's dates itself. Claude drafts any
 other bare date and is told its section (`"about"` in the draft call); a
 date that nothing places goes to Lisul. The Answer bank files a bare

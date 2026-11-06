@@ -21,6 +21,7 @@ from conftest import (
     SKYDIO_FORM,
     SKYDIO_URL,
 )
+from fake_accounts_site import EMAIL_STEP as ACCOUNT_EMAIL_STEP
 from fake_accounts_site import LOGIN as ACCOUNT_LOGIN
 from fake_accounts_site import REGISTER as ACCOUNT_REGISTER
 from fake_accounts_site import FakeAccountsSite
@@ -35,6 +36,7 @@ from playwright.sync_api import Error as PlaywrightError
 from test_claude_fill import LUNAR_FORM, LUNAR_URL
 from test_workday_filler import CACI_FORM, CACI_URL, NOW, ONE_PAGER, fill_all
 
+from apply import captcha
 from apply.accounts import Accounts
 from apply.ashby import AshbyFiller
 from apply.claude_fill import OnePage
@@ -423,6 +425,27 @@ def test_a_sign_in_or_new_accounts_button_claude_clicks_does_nothing_on_a_page_i
         page.wait_for_timeout(500)
         assert server.sign_ins == []
         assert drive.blocked() == ['the "Sign In" click', "a sign-in"]
+
+
+@pytest.mark.parametrize("invisible_captcha", [True, False])
+def test_claudes_next_on_an_email_step_with_an_invisible_captcha_is_never_pressed(invisible_captcha):
+    # AMD's iCIMS login (KAN-703): an email box and Next, which runs an invisible hCaptcha. Claude pressed it
+    # itself and a picture challenge opened. Without a captcha, the same Next goes through.
+    server = FakeAccountsSite(FakeMailbox(), invisible_captcha=invisible_captcha)
+    with server.open(ACCOUNT_EMAIL_STEP) as page:
+        drive = DriveGuard(page)
+        drive.arm()  # Claude drives
+        page.get_by_label("Email").fill("test.person@example.com")
+        page.get_by_role("button", name="Next").click()
+        page.get_by_label("Email").press("Enter")
+        page.wait_for_timeout(500)
+        if invisible_captcha:
+            assert server.email_steps == []
+            assert drive.blocked() and all(b.endswith(captcha.SIGN_IN_CLICK) for b in drive.blocked())
+            assert drive.blocked()[0] == 'the "Next" click on a sign-in page with a captcha'
+        else:
+            assert server.email_steps == ["test.person@example.com"] * 2
+            assert drive.blocked() == []
 
 
 def test_while_claude_drives_no_click_or_key_reaches_a_captchas_box_and_lisuls_do_once_it_stops():
@@ -887,6 +910,88 @@ def test_ask_stops_pressing_at_its_cap(monkeypatch):
         assert posts == ["/app/2"]
 
 
+# A TAL.net eform (Bank of America, live 2026-11-06): each Progress Tracker link posts the page to save_page,
+# then opens its step. The last step, Declaration, has the Submit.
+TAL_FORM = "https://bankcampuscareers.tal.net/vx/lang-en-GB/mobile-0/brand-4/user-1/candidate/eform/123"
+TAL_STEPS = ["Languages", "How did you hear about us?", "Inclusion", "Declaration"]
+
+
+def _tal_page(n):
+    tracker = "".join(f'<li><a href="#" onclick="document.getElementById(\'goto\').value={i};'
+                      f'document.getElementById(\'eform\').submit();return false">{name}'
+                      f'<span class="sr-only"> Item {"completed" if i < n else "not completed"}</span></a></li>'
+                      for i, name in enumerate(TAL_STEPS, 1))
+    last = n == len(TAL_STEPS)
+    return (f'<title>{TAL_STEPS[n - 1]}</title><nav aria-label="Progress Tracker"><ul>{tracker}</ul></nav>'
+            f'<form id="eform" method="post" action="{TAL_FORM}/save_page"><input type="hidden" id="goto" name="goto" value="">'
+            f'<input type="hidden" name="page" value="{n}"><label>Field {n} <input name="f{n}"></label>'
+            + ('<label><input type="checkbox" name="agree"> I agree</label><button name="submit">Submit</button>' if last
+               else '<button>Save and Continue</button>') + '</form>')
+
+
+@contextmanager
+def _tal(start):
+    from urllib.parse import parse_qs
+
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import rearm
+    posts = []
+
+    def serve(route):
+        if route.request.method == "POST":
+            form = parse_qs(route.request.post_data or "")
+            posts.append(form)
+            if "submit" in form:
+                return route.fulfill(body="<p>Thank you for applying</p>", content_type="text/html")
+            at = int(form["page"][0])
+            n = int((form.get("goto") or [at + 1])[0])
+            return route.fulfill(body=_tal_page(n), content_type="text/html")
+        return route.fulfill(body=_tal_page(int(route.request.url.rsplit("/", 1)[1])), content_type="text/html")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route(f"{TAL_FORM}/**", serve)
+        page.goto(f"{TAL_FORM}/page/{start}")
+        guard(page)
+        drive = DriveGuard(page)
+        lift(page)  # held for Lisul
+        rearm(page)  # the Ask message: hold() puts both guards back on
+        yield page, drive, posts
+        browser.close()
+
+
+def test_ask_moves_between_tal_net_pages_by_the_progress_tracker():
+    # Bank of America (2026-11-06): Claude's click of a Progress Tracker link posts the page, so the guard blocked
+    # it, and Ask Claude couldn't go back to page 10 or on to the Declaration. Plain code presses the link it names.
+    with _tal(3) as (page, drive, posts):
+        reply = _asked(page, drive, "recheck How did you hear about us?, then open the Declaration", [
+            (lambda p: p.get_by_role("link", name="How did you hear about us?").click(),
+             _said(press="How did you hear about us?")),
+            (lambda p: None, _said(press="Declaration")),
+            (lambda p: None, _said(reply="Rechecked page 2; the Declaration is open.")),
+        ])
+        assert [(f["page"], f["goto"]) for f in posts] == [(["3"], ["2"]), (["2"], ["4"])]
+        assert page.title() == "Declaration" and reply.couldnt == []
+
+
+def test_ask_s_progress_tracker_press_never_posts_the_declaration():
+    # The Declaration's form has the Submit: a tracker link from there posts that form, so the guard blocks it.
+    from apply import claude_fill
+    with _tal(4) as (page, drive, posts), pytest.MonkeyPatch.context() as mp:
+        mp.setattr(claude_fill, "STEP_SHOWS_MS", 800)
+        reply = _asked(page, drive, "open Inclusion", [(lambda p: None, _said(press="Inclusion"))])
+        assert posts == [] and page.title() == "Declaration" and "didn't press 'Inclusion'" in reply.couldnt[0]
+
+
+@pytest.mark.parametrize("named", ["Submit", "Field 3"])
+def test_ask_s_press_of_a_step_needs_a_step_list_entry_that_never_sends(named):
+    with _tal(3) as (page, drive, posts):
+        reply = _asked(page, drive, "go on", [(lambda p: None, _said(press=named))])
+        assert posts == [] and "didn't press" in reply.couldnt[0]
+
+
 # Every step form's URL Apply has met live or saved (KAN-656), and the Next that posts from it. None may be stopped.
 TAL = "https://bankcampuscareers.tal.net/vx/lang-en-GB/mobile-0/brand-4"
 REAL_STEPS = {
@@ -1101,3 +1206,52 @@ def test_a_sign_in_relay_posts_itself_through_the_drive_guard(post, action, fiel
         browser.close()
     assert posts == ([action] if through else [])
     assert bool(blocked) is not through
+
+
+# LinkedIn's Apply with LinkedIn widget on Microsoft's form (Eightfold, live 2026-11-06, KAN-711): its xdoor SDK
+# makes an iframe named for itself, then posts a form of hidden fields into it with form.submit(), as the form
+# loads and after the page's "Apply now" click.
+WIDGET_FRAME = """<form id="application"><input name="first"><button type="submit">Submit application</button></form>
+<button id="go">Apply now</button><div style="display:none"><iframe name="{frame}" id="{frame}"></iframe></div>
+<script>
+document.getElementById('go').addEventListener('click', () => setTimeout(() => {{
+  const form = document.createElement('form');
+  form.method = 'POST'; form.action = '{action}'; form.target = '{target}';
+  form.innerHTML = '{fields}<input type="hidden" name="api_key" value="k"><input type="hidden" name="xdOrigin" value="o">{button}';
+  document.body.appendChild(form);
+  form.submit();
+}}, 10));
+</script>"""
+
+
+@pytest.mark.parametrize("action, target, fields, button, through", [
+    ("https://www.linkedin.com/talentwidgets/apply-with-linkedin", "li-1", "", "", True),
+    ("https://www.linkedin.com/talentwidgets/apply-with-linkedin", "", "", "", False),  # no frame: the page goes
+    ("https://www.linkedin.com/talentwidgets/apply-with-linkedin", "_blank", "", "", False),
+    ("https://www.linkedin.com/talentwidgets/apply-with-linkedin", "nowhere", "", "", False),  # names no iframe
+    ("https://jobs.example.com/widget", "li-1", "", "", False),  # the page's own site
+    ("https://www.linkedin.com/talentwidgets/apply-with-linkedin", "li-1", '<input name="email">', "", False),
+    ("https://ats.example.net/api/application/v2/submit", "li-1", "", "", False),  # a final URL
+    ("https://www.linkedin.com/talentwidgets/apply-with-linkedin", "li-1", "", "<button>Submit</button>", False),
+])
+def test_a_widget_loading_into_its_own_frame_goes_through_the_drive_guard(action, target, fields, button, through):
+    from playwright.sync_api import sync_playwright
+
+    url = "https://jobs.example.com/careers/apply?pid=1"
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route(url, lambda route: route.fulfill(body=WIDGET_FRAME.format(
+            frame="li-1", action=action, target=target, fields=fields, button=button), content_type="text/html"))
+        _posts_to(page, posts)
+        drive = DriveGuard(page)
+        page.goto(url)
+        page.click("#go")  # a real click first, as Claude's "Apply now": the relay exemption no longer holds
+        page.wait_for_timeout(500)
+        page.click("button[type=submit]")  # the application's own Submit stays blocked
+        page.wait_for_timeout(300)
+        blocked = drive.blocked()
+        browser.close()
+    assert posts == ([action] if through else [])
+    assert ('the "Submit application" click' in blocked) and (("a form submission" in blocked) is not through)
