@@ -33,10 +33,13 @@ from apply.plain import window_capture
 from apply.plain.bridge import OUT_OF_DATE, Connection, PortError, PortTimeoutError
 from apply.plain.page import POLL, PortPage, file_payloads
 
+FOREIGN = "This tile's browser connection isn't from this Worker's own Chrome, so the tile shows nothing from it."
 INPUT_WAIT = 5.0  # s a tile event may take on the page before the window gives up on it
 WATCH_EVERY = 0.5  # s between looks for Workers that connected or went away
 FIRST_FRAME = 3.0  # s a filmed tile may wait for its first frame before the extension's frames show
 STALLED = 20.0  # s a filmed tile may go without a frame after a `tile.shown`
+SETTLE = 0.25  # s around a switch of the filmed window's tab whose frames go to neither tab's tile (KAN-717)
+KEPT = 1.0  # s of each tab's filmed frames kept, so a switch can take back the ones that showed the next tab
 
 
 class PortFrames:
@@ -45,11 +48,17 @@ class PortFrames:
     `lambda k: workers.bridge.connection(k)`). Implements dashboard.Frames."""
 
     def __init__(self, workers: int, connection: Callable[[int], Connection | None], capture: str | None = None,
-                 **settings):
+                 chrome: Callable[[int], int | None] | None = None, **settings):
         """`capture`: "native" (ScreenCaptureKit when allowed, else the extension's frames) or
-        "extension" (default: window_capture.mode(), $APPLY_TILE_CAPTURE)."""
+        "extension" (default: window_capture.mode(), $APPLY_TILE_CAPTURE). `chrome(k)` is the PID of the
+        Chrome that has Worker k's profile open (launcher: browsers.chrome_pid): a Connection from any
+        other Chrome, or whose Chrome can't be told (either PID unknown), shows nothing on Worker k's tile and takes
+        none of its input until it can (KAN-717). Without `chrome` (tests), no Connection is checked."""
         self._workers = workers
         self._connection = connection
+        self._chrome = chrome or (lambda worker: None)
+        self._strict = chrome is not None
+        self._foreign: set[int] = set()  # Workers whose Connection is another Chrome's
         self._capture = capture or window_capture.mode()
         self._allowed: bool | None = None  # Screen Recording permission, looked at once
         self._streams: dict[int, window_capture.WindowStream] = {}  # worker -> its window, filmed
@@ -58,8 +67,20 @@ class PortFrames:
         self._settings = settings  # tile.start's: interval ms, quality, maxWidth, maxHeight
         self._frames: dict[int, tuple[bytes, int]] = {}  # worker -> (latest frame, its number)
         self._tabs: dict[int, int] = {}  # worker -> the tab its latest frame shows
+        # (worker, tab) -> that tab's own frames, [(when, frame)], newest last, and its number: a tile showing one
+        # of several forms in a Worker (`--into`) shows that form's tab only, never the one shown now (KAN-717).
+        self._by_tab: dict[tuple[int, int], tuple[list[tuple[float, bytes]], int]] = {}
+        self._switched: dict[int, float] = {}  # worker -> when its filmed window last showed another tab
+        self._seq: dict[int, int] = {}  # worker -> the number of its newest frame, of any tab
+        # A form's own pop-ups and the tabs its page opens show on its tile (KAN-717): (worker, tab) -> the tab that
+        # opened it (the extension's tab.created and popup.blocked), when each tab last showed, and the closed ones.
+        self._openers: dict[tuple[int, int], int] = {}
+        self._shown_at: dict[tuple[int, int], float] = {}
+        self._gone: set[tuple[int, int]] = set()
         self._watched: dict[int, Connection] = {}
-        self._choosers: dict[int, dict] = {}  # worker -> {mode, tab, frame} of the file input its page asked for
+        # (worker, tab) -> {mode, tab, frame} of the file input that tab's page asked for: a file picked on a tile goes
+        # only to its own tab's (KAN-717), newest last
+        self._choosers: dict[tuple[int, int | None], dict] = {}
         self._errors: dict[int, tuple[str, float]] = {}
         self._pages: dict[tuple[int, int], PortPage] = {}
         self._changed = threading.Condition()
@@ -92,46 +113,87 @@ class PortFrames:
 
     # --- dashboard.Frames
 
-    def frame(self, worker: int) -> bytes | None:
-        return self._frames.get(worker, (None, 0))[0]
+    def _family(self, worker: int, tab: int) -> list[int]:
+        """`tab` and the open tabs its page opened, and theirs: one form's tabs. A tab another form opened isn't one."""
+        def opened_by_tab(other: int) -> bool:
+            for _ in range(20):  # a chain of pop-ups; never a loop
+                other = self._openers.get((worker, other))
+                if other is None:
+                    return False
+                if other == tab:
+                    return True
+            return False
+        return [tab] + [other for (owner, other) in list(self._openers)
+                        if owner == worker and (worker, other) not in self._gone and opened_by_tab(other)]
 
-    def wait(self, worker: int, after: int, timeout: float) -> tuple[bytes | None, int]:
-        with self._changed:
-            self._changed.wait_for(lambda: self._frames.get(worker, (None, 0))[1] > after, timeout)
+    def _current(self, worker: int, tab: int) -> int:
+        """The tab of `tab`'s form a tile shows and presses: of the form's tabs with a frame, the one shown last."""
+        framed = [other for other in self._family(worker, tab) if self._by_tab.get((worker, other), ([], 0))[0]]
+        return max(framed, key=lambda other: self._shown_at.get((worker, other), 0.0), default=tab)
+
+    def _latest(self, worker: int, tab: int | None) -> tuple[bytes | None, int]:
+        if tab is None:
             return self._frames.get(worker, (None, 0))
+        kept, number = self._by_tab.get((worker, self._current(worker, tab)), ([], 0))
+        return (kept[-1][1] if kept else None), number
 
-    def input(self, worker: int, event: dict) -> dict | None:
+    def frame(self, worker: int, tab: int | None = None) -> bytes | None:
+        """Worker `worker`'s latest frame; with `tab`, the latest that showed that form's tab or one of its pop-ups
+        (None before one did)."""
+        return self._latest(worker, tab)[0]
+
+    def wait(self, worker: int, after: int, timeout: float, tab: int | None = None) -> tuple[bytes | None, int]:
+        with self._changed:
+            self._changed.wait_for(lambda: self._latest(worker, tab)[1] > after, timeout)
+            return self._latest(worker, tab)
+
+    def input(self, worker: int, event: dict, tab: int | None = None) -> dict | None:
+        """Replay a tile event on `tab` (the tile's own form), else the tab Worker `worker` shows now."""
         connection = self._watched.get(worker)
-        if connection is None or connection.closed.is_set():
+        if connection is None or connection.closed.is_set() or worker in self._foreign:
             return None
+        own, tab = tab, self._tabs.get(worker) if tab is None else self._current(worker, tab)
         try:
             if event["type"] == "files":
-                return self._give(connection, worker, event.get("paths") or [])
-            size = jpeg_size(self.frame(worker) or b"") or (None, None)
-            reply = connection.call("tile.input", timeout=INPUT_WAIT, tab=self._tabs.get(worker), event=event,
+                return self._give(connection, worker, own, event.get("paths") or [])
+            size = jpeg_size(self.frame(worker, tab) or b"") or (None, None)
+            reply = connection.call("tile.input", timeout=INPUT_WAIT, tab=tab, event=event,
                                     width=size[0], height=size[1])
         except (PortError, OSError):
             return None  # the page went away under it
         if isinstance(reply, dict) and reply.get("chooser"):
-            self._choosers[worker] = {"mode": reply["chooser"], "tab": reply.get("tab"), "frame": reply.get("frame", 0)}
+            asked = reply.get("tab", tab)
+            self._choosers.pop((worker, asked), None)
+            self._choosers[(worker, asked)] = {"mode": reply["chooser"], "tab": asked, "frame": reply.get("frame", 0)}
             return None
         return reply if isinstance(reply, dict) and ("menu" in reply or "text" in reply) else None
 
-    def chooser(self, worker: int) -> str | None:
-        return self._choosers.get(worker, {}).get("mode")
+    def _asked(self, worker: int, tab: int | None) -> tuple[int, int | None] | None:
+        """The key of the newest file input that `tab`'s form asked for, in its tab or a pop-up (None: that any tab of
+        Worker `worker` asked for)."""
+        own = None if tab is None else self._family(worker, tab)
+        return next((key for key in reversed(list(self._choosers)) if key[0] == worker and (own is None or key[1] in own)), None)
 
-    def forget_chooser(self, worker: int) -> None:
+    def chooser(self, worker: int, tab: int | None = None) -> str | None:
+        """Whether `tab`'s page (None: any of Worker `worker`'s) asked for a file, and how many."""
+        key = self._asked(worker, tab)
+        return self._choosers[key]["mode"] if key else None
+
+    def forget_chooser(self, worker: int, tab: int | None = None) -> None:
         """The file its page asked for was given another way (Claude set the input itself)."""
-        self._choosers.pop(worker, None)
+        if key := self._asked(worker, tab):
+            self._choosers.pop(key, None)
 
     def field_error(self, worker: int) -> str:
         return self._errors.get(worker, ("", 0.0))[0]
 
     # --- the frames thread
 
-    def _give(self, connection: Connection, worker: int, paths: list[str]) -> None:
-        """Answer the file input Worker `worker`'s page asked for with `paths` (none: let it go)."""
-        chooser = self._choosers.pop(worker, None)
+    def _give(self, connection: Connection, worker: int, tab: int | None, paths: list[str]) -> None:
+        """Answer the file input that `tab` (the tile's own; None: Worker `worker`'s only tile) asked for with
+        `paths` (none: let it go). Never another tab's: his file goes only to the form whose tile he picked it on."""
+        key = self._asked(worker, tab)
+        chooser = self._choosers.pop(key, None) if key else None
         if chooser:
             connection.call("chooser.set", timeout=60, tab=chooser["tab"], frame=chooser["frame"],
                             files=file_payloads([Path(p) for p in paths]))
@@ -140,23 +202,59 @@ class PortFrames:
         if worker not in self._streams:  # a filmed tile's frames come from its window, not the extension
             self._store(worker, base64.b64decode(message.get("data") or ""), message.get("tab"))
 
-    def _store(self, worker: int, frame: bytes, tab: int | None = None) -> None:
+    def _store(self, worker: int, frame: bytes, tab: int | None = None, own: bool = True) -> None:
+        """Keep `frame` as Worker `worker`'s latest, and as `tab`'s own unless `own` is False (it may show another)."""
         if not frame.startswith(b"\xff\xd8"):
             return
+        now = time.monotonic()
         with self._changed:
-            self._frames[worker] = (frame, self._frames.get(worker, (None, 0))[1] + 1)
+            number = self._seq[worker] = self._seq.get(worker, 0) + 1  # one count for all tabs: a tile may change tab
+            self._frames[worker] = (frame, number)
             if tab is not None:
                 self._tabs[worker] = tab
+                if own:
+                    kept = self._by_tab.get((worker, tab), ([], 0))[0]
+                    kept = [(when, old) for when, old in kept if now - when < KEPT][-30:] + [(now, frame)]
+                    self._by_tab[(worker, tab)] = (kept, number)
+                    self._shown_at[(worker, tab)] = now
             self._changed.notify_all()
 
     def _aim(self, worker: int, message: dict) -> None:
-        """The extension's `tile.shown`: film that window, cropped to that tab's viewport."""
-        self._tabs[worker] = message.get("tab", self._tabs.get(worker))
+        """The extension's `tile.shown`: film that window, cropped to that tab's viewport, if its title is the tab's."""
+        tab, before = message.get("tab", self._tabs.get(worker)), self._tabs.get(worker)
+        if before is not None and tab != before and worker in self._streams:
+            self._switch(worker, before)
+        self._tabs[worker] = tab
         if worker in self._filmed:
             self._filmed[worker]["shown"] = time.monotonic()
         stream, window = self._streams.get(worker), message.get("window") or {}
         if stream and window.get("state") != "minimized" and message.get("viewport", {}).get("width"):
-            stream.aim(window, message["viewport"])
+            stream.aim(window, message["viewport"], message.get("title") or "")
+
+    def _switch(self, worker: int, before: int | None) -> None:
+        """The filmed window shows another tab now. Its frames of the last SETTLE s may show the new tab
+        already (`tile.shown` comes a moment after the switch): they leave the old tab's tile."""
+        now = time.monotonic()
+        with self._changed:
+            self._switched[worker] = now
+            if before is not None and (worker, before) in self._by_tab:
+                kept = self._by_tab[(worker, before)][0]
+                number = self._seq[worker] = self._seq.get(worker, 0) + 1
+                self._by_tab[(worker, before)] = ([(when, f) for when, f in kept if when < now - SETTLE] or kept[:0],
+                                                  number)
+            self._changed.notify_all()
+
+    def _opened(self, worker: int, tab: int | None, opener: int | None) -> None:
+        """Tab `tab` was opened by tab `opener`'s page (tab.created, popup.blocked): it is that form's."""
+        if tab is not None and opener is not None and tab != opener:
+            with self._changed:
+                self._openers[(worker, tab)] = opener
+                self._changed.notify_all()
+
+    def _closed(self, worker: int, tab: int | None) -> None:
+        with self._changed:
+            self._gone.add((worker, tab))
+            self._changed.notify_all()
 
     def _film(self, worker: int, connection: Connection) -> bool:
         """Start filming Worker `worker`'s window natively; False when it can't be (then the extension's frames)."""
@@ -168,7 +266,7 @@ class PortFrames:
             self._notes[worker] = window_capture.permission_note()
             return False
         pid = window_capture.chrome_of(connection.relay.get("host_pid"))
-        if pid is None:
+        if pid is None or (self._strict and pid != self._chrome(worker)):
             return False
         self._filmed[worker] = {"began": time.monotonic(), "frame": 0.0, "shown": 0.0}
         self._streams[worker] = window_capture.WindowStream(pid, lambda frame, worker=worker: self._filmed_frame(worker, frame))
@@ -178,12 +276,15 @@ class PortFrames:
     def _filmed_frame(self, worker: int, frame: bytes) -> None:
         if times := self._filmed.get(worker):
             times["frame"] = time.monotonic()
-        self._store(worker, frame)
+        settled = time.monotonic() - self._switched.get(worker, float("-inf")) >= SETTLE
+        self._store(worker, frame, self._tabs.get(worker), own=settled)
 
     def _blank(self, worker: int, stream: window_capture.WindowStream) -> str:
         """Why Worker `worker`'s filmed tile shows nothing and should take the extension's frames, or ""."""
         if not stream.alive:
             return "the helper ended"
+        if "mismatch" in stream.status:  # no window of its Chrome shows its tab: never film another (KAN-717)
+            return f"helper: {stream.status['mismatch']}"
         times, now = self._filmed.get(worker) or {}, time.monotonic()
         if not times.get("frame") and now - times.get("began", now) > FIRST_FRAME:
             return (f"no frame in {FIRST_FRAME:.0f} s (" + ("no tile.shown from the extension" if not times.get("shown")
@@ -212,6 +313,9 @@ class PortFrames:
         connection = self._connection(worker)
         if connection is not None and connection.closed.is_set():
             connection = None
+        if connection is not None and connection is self._watched.get(worker) and worker in self._foreign \
+                and not self._foreign_to(worker, connection):
+            self._watched.pop(worker)  # its Chrome can be told now, and it is this Worker's: set it up below
         if connection is self._watched.get(worker):
             if connection is not None and (stream := self._streams.get(worker)) and (why := self._blank(worker, stream)):
                 self._unfilm(worker)  # the extension's frames from now on
@@ -222,11 +326,25 @@ class PortFrames:
         self._unfilm(worker)
         self._notes.pop(worker, None)
         self._watched.pop(worker, None)
-        self._choosers.pop(worker, None)
+        self._choosers = {key: asked for key, asked in self._choosers.items() if key[0] != worker}
+        self._foreign.discard(worker)
         self._pages = {key: page for key, page in self._pages.items() if key[0] != worker}
+        self._openers = {key: opener for key, opener in self._openers.items() if key[0] != worker}
+        self._gone = {key for key in self._gone if key[0] != worker}
         if connection is None:
             return
+        if self._foreign_to(worker, connection):
+            self._foreign.add(worker)
+            self._notes[worker] = FOREIGN
+            print(f"Plain Worker {worker + 1}'s tile: {FOREIGN}", file=sys.stderr)
+            self._watched[worker] = connection  # looked at again each turn: its tile shows none of its frames till then
+            return
         connection.on("tile.frame", lambda message, worker=worker: self._keep(worker, message))
+        connection.on("tab.created", lambda message, worker=worker: self._opened(worker, message.get("tab"),
+                                                                                 message.get("opener")))
+        connection.on("popup.blocked", lambda message, worker=worker: self._opened(worker, message.get("popup"),
+                                                                                   message.get("tab")))
+        connection.on("tab.removed", lambda message, worker=worker: self._closed(worker, message.get("tab")))
         connection.on("tile.shown", lambda message, worker=worker: self._aim(worker, message))
         native = self._film(worker, connection)
         if getattr(connection, "stale", False):
@@ -234,10 +352,19 @@ class PortFrames:
         connection.call("tile.start", timeout=5, **{**self._settings, "native": native})
         self._watched[worker] = connection
 
+    def _foreign_to(self, worker: int, connection: Connection) -> bool:
+        """Whether `connection` may not be Worker `worker`'s: its Chrome (the host's parent) isn't the one with the
+        Worker's profile open, or either PID can't be told. Fails closed (KAN-717)."""
+        if not self._strict:
+            return False
+        expected = self._chrome(worker)
+        found = window_capture.chrome_of(connection.relay.get("host_pid")) if expected else None
+        return not (expected and found and found == expected)
+
     def _read_errors(self, worker: int) -> None:
         """The field error Worker `worker`'s shown page shows, every ERRORS_EVERY s (apply.stuck)."""
         connection, tab = self._watched.get(worker), self._tabs.get(worker)
-        if connection is None or tab is None:
+        if connection is None or tab is None or worker in self._foreign:
             self._errors.pop(worker, None)
             return
         if time.monotonic() - self._errors.get(worker, ("", -ERRORS_EVERY))[1] < ERRORS_EVERY:
@@ -265,20 +392,20 @@ class EitherFrames:
     def _of(self, worker: int):
         return self._port if self._plain(worker) else self._cdp
 
-    def frame(self, worker: int) -> bytes | None:
-        return self._of(worker).frame(worker)
+    def frame(self, worker: int, tab: int | None = None) -> bytes | None:
+        return self._port.frame(worker, tab) if self._plain(worker) else self._cdp.frame(worker)
 
-    def wait(self, worker: int, after: int, timeout: float) -> tuple[bytes | None, int]:
-        return self._of(worker).wait(worker, after, timeout)
+    def wait(self, worker: int, after: int, timeout: float, tab: int | None = None) -> tuple[bytes | None, int]:
+        return self._port.wait(worker, after, timeout, tab) if self._plain(worker) else self._cdp.wait(worker, after, timeout)
 
-    def input(self, worker: int, event: dict) -> dict | None:
-        return self._of(worker).input(worker, event)
+    def input(self, worker: int, event: dict, tab: int | None = None) -> dict | None:
+        return self._port.input(worker, event, tab) if self._plain(worker) else self._cdp.input(worker, event)
 
-    def chooser(self, worker: int) -> str | None:
-        return self._of(worker).chooser(worker)
+    def chooser(self, worker: int, tab: int | None = None) -> str | None:
+        return self._port.chooser(worker, tab) if self._plain(worker) else self._cdp.chooser(worker)
 
-    def forget_chooser(self, worker: int) -> None:
-        self._of(worker).forget_chooser(worker)
+    def forget_chooser(self, worker: int, tab: int | None = None) -> None:
+        self._port.forget_chooser(worker, tab) if self._plain(worker) else self._cdp.forget_chooser(worker)
 
     def field_error(self, worker: int) -> str:
         return self._of(worker).field_error(worker)

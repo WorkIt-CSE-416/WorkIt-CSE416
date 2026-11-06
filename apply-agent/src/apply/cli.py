@@ -694,6 +694,13 @@ def _remembering(bank: AnswerBank) -> Callable[[str, str], str]:
     return remember
 
 
+def _worker_chrome(workers) -> Callable[[int], int | None]:
+    """The PID of the Chrome that has plain Worker k's profile open: its tile films that Chrome only (KAN-717)."""
+    from apply.browsers import chrome_pid
+
+    return lambda worker: chrome_pid(workers.profile(worker))
+
+
 def _frames(site, tiles: int):
     """The window's frame source for `site`'s Workers (worker_mode): CDP Workers' screencast,
     plain Workers' port (S3), or in `protected` mode whichever Worker k runs now."""
@@ -701,9 +708,10 @@ def _frames(site, tiles: int):
     from apply.plain.tile import EitherFrames, PortFrames
 
     if isinstance(site, PlainSite):
-        return PortFrames(tiles, site.workers.bridge.connection)
+        return PortFrames(tiles, site.workers.bridge.connection, chrome=_worker_chrome(site.workers))
     if isinstance(site, RoutedSite):
-        return EitherFrames(dashboard.CdpFrames(tiles, site.endpoint), PortFrames(tiles, site.connection), site.plain)
+        return EitherFrames(dashboard.CdpFrames(tiles, site.endpoint),
+                            PortFrames(tiles, site.connection, chrome=_worker_chrome(site.plain_site.workers)), site.plain)
     return dashboard.CdpFrames(tiles, site.endpoint)
 
 

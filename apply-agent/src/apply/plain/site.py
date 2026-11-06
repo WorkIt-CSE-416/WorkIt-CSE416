@@ -20,6 +20,7 @@ guards reset and its extension reloaded if its code changed (PlainWorkers.refres
 import json
 import sys
 import threading
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -73,6 +74,21 @@ def protected(url: str, policies: dict | None = None, hosts: list[str] | None = 
         hosts = [*((policies if policies is not None else load_policies()).get("plain_worker_hosts") or []), *learned()]
     host = host_of(url)
     return any(host == h or host.endswith("." + h) for h in (str(h).lower().removeprefix("www.") for h in hosts))
+
+
+_told = threading.local()  # what hears each form's tab as soon as it exists (telling)
+
+
+@contextmanager
+def telling(shown: Callable[[int], None]):
+    """Each page PlainSite.open makes on this thread, inside this, is told to `shown(tab)` as soon as its tab exists,
+    before its first navigation: an `--into` tile knows its own tab while its form still loads (KAN-717)."""
+    before = getattr(_told, "shown", None)
+    _told.shown = shown
+    try:
+        yield
+    finally:
+        _told.shown = before
 
 
 class PlainSite:
@@ -168,6 +184,8 @@ class PlainSite:
                 page = context.page(connection.call("windows.create", left=x, top=y, width=WINDOW[0], height=WINDOW[1])["tab"])
             with self._tabs:
                 self._open.setdefault(worker, set()).add(page.tab)
+            if shown := getattr(_told, "shown", None):
+                shown(page.tab)
             for tab in before:  # the last form's tabs, done with: never a tab another form holds
                 context.page(tab).close()
         try:

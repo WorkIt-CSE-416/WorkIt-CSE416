@@ -205,8 +205,11 @@ Events (S2 sends these; later slices add their own):
 `{"event": "navigated", "tab", "frame", "url"}` (committed).
 S3: `{"event": "tile.frame", "tab", "url", "data": base64 JPEG, "width", "height"}`, the tab's
 viewport at its CSS size (a Retina capture is scaled down), fitted within `maxWidth` x `maxHeight`.
-KAN-635: `{"event": "tile.shown", "tab", "url", "window": {left, top, width, height, state}, "viewport": {width, height}}`
-(points), with `native`: the window `apply.plain.window_capture` films, and the part of it to crop to.
+KAN-635: `{"event": "tile.shown", "tab", "url", "title", "window": {left, top, width, height, state}, "viewport": {width, height}}`
+(points), with `native`: the window `apply.plain.window_capture` films, and the part of it to crop to. `title` (KAN-717)
+is the tab's: Apply films the window only while macOS lists it, under the Worker Chrome's PID, with that title, and no
+other window of that PID has it (`window_capture.title_matches`). The extension sends it at once on a tab switch, and
+drops a `tile.frame` whose window switched tabs during its capture.
 
 ## Ops (S4: the submit and drive guards)
 
@@ -468,8 +471,9 @@ stays. `close()` stops every Chrome it started, by PID, when the run or rehearsa
 `Dashboard(n, PortFrames(n, workers.bridge.connection))`. Its thread calls `tile.start` on each
 Worker's connection as it appears (again after a reconnect), keeps the newest `tile.frame` per Worker,
 replays the window's input with `tile.input` (the window sends events one at a time, in order),
-answers a file the tile picked with `chooser.set`, and reads the field error (`apply.stuck`) every 2 s
-over `eval`. With Screen Recording permission (KAN-635) it films each Worker's window instead
+answers a file the tile picked with `chooser.set` (only in the tab that asked), and reads the field error
+(`apply.stuck`) every 2 s over `eval`. It reads `tab.created`'s `opener`, `popup.blocked` and `tab.removed` to know
+each form's own pop-ups: a tile shows the one of its form's tabs that showed last (KAN-717). With Screen Recording permission (KAN-635) it films each Worker's window instead
 (`apply.plain.window_capture`: ScreenCaptureKit, by the window's ID, 30 fps at the screen's pixel scale), and
 the extension sends only `tile.shown`. Without it, every capture, the tile's and `tabs.screenshot`'s, goes through one gate in the
 extension (`shared.capture`), spaced 520 ms apart: Chrome allows about two a second per browser, so a
