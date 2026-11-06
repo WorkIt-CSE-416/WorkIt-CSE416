@@ -84,6 +84,8 @@ def test_a_reopened_forms_draft_is_its_records_answers_but_no_file_or_secret(tmp
         {"question": "Skills", "field": "q6", "kind": "multi_select", "planned": ["Python"], "on_page": ["Python", "Go"]},
         {"question": "I certify that my answers are true", "field": "q7", "kind": "select", "planned": None,
          "on_page": "Yes"},  # his to tick, always
+        {"question": "Please explain", "field": "q8", "kind": "textarea", "planned": None, "on_page": "One"},
+        {"question": "Please explain", "field": "q9", "kind": "textarea", "planned": None, "on_page": "Two"},  # twice: neither
     ]))
     # Only what the page showed (q2 was only planned), each with its question: a field asks the same one, or none.
     assert batch.draft({"record": str(tmp_path)}) == {"q1": ("Why us?", "His edit"), "q6": ("Skills", ["Python", "Go"])}

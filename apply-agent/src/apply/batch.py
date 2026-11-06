@@ -150,7 +150,8 @@ def draft(form: dict) -> dict[str, tuple[str, object]]:
         if "kind" not in row and isinstance(value, str) and FILE_NAME.search(value):
             continue  # a Record from before rows named their kind: a file is told by its name
         held[row["field"]] = (" ".join(question.split()), value)
-    return held
+    labels = [label for label, _ in held.values()]
+    return {name: (label, value) for name, (label, value) in held.items() if labels.count(label) == 1}
 
 
 def lines(done: Plan) -> list[str]:

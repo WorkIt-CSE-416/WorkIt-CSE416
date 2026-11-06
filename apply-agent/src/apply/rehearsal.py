@@ -430,6 +430,7 @@ def rehearse(
             if not how:
                 adapters.board.update(n, status=done.outcome, resume={"ok": False, "why": ENDED if release.is_set()
                                                                      else TAB_CLOSED})
+                settles(n).set()  # its tab closed: a reopened Worker's next link waits on it no more
             after.append(how)
             return False
 
