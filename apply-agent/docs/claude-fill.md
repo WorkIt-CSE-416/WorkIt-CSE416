@@ -35,8 +35,17 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   `__applyProfileClick` (in `worker-extension/ops/guard.js`'s `FLAGS` too).
 - A POST to a final application URL stays blocked under plain code's Next and profile clicks (KAN-639,
   `postsFinal`). A path ending in `/apply` is final by its name alone, so there a Next goes on only when
-  the page says steps remain ("Step 2 of 5", or a list past its `aria-current=step` item) and the form has
-  no button that sends (KAN-656). A profile pop-up may post to its own page there. A known final URL
+  the page says steps remain ("Step 2 of 5", or a list past its `aria-current=step` item), the form has
+  no button that sends (KAN-656), and the button plain code pressed sends it: never a script's post or a
+  step list's link (KAN-710).
+- Plain code's press (KAN-710): `DriveGuard.let_account_click(element)` arms `__applyAccountClick` with the
+  element, in that element's frame alone (a plain Worker: `true` in every frame, and the press is the click
+  right after the extension's `__apply_touch`). The guard lets a form post only for a press that lands on that
+  element in that frame: the pressed button's own submission, a post the page's handlers make while the click
+  is still dispatched, or the pressed element's own form later. A form with any button that sends (hidden,
+  another language, outside it by `form=`) never posts under it, whatever its submitter says. Another form a
+  script posts meanwhile, and a frame inside the pressed element, stay blocked. A link's `ping` never leaves
+  a guarded page: the guard takes it off as the link is clicked and refuses any script that sets one. A profile pop-up may post to its own page there. A known final URL
   (Lever's, Greenhouse's, a segment with `submit`) never goes, whatever the page says. TAL.net's
   (`/eform/<n>/page/<k>`, `save_page`), Oracle's (`/apply/section/<n>`, `/apply/email`), iCIMS's, Workday's
   (`/apply/applyManually`) and Microsoft's (`/careers/job/<id>`) URLs match no final rule at all
