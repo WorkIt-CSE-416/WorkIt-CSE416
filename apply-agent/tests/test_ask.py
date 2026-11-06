@@ -24,6 +24,11 @@ from apply.records import Filled, FolderRecords, Record
 from apply.repair import RepairRequests
 
 CLICK = "mcp__playwright__browser_click"
+
+
+@pytest.fixture(autouse=True)
+def no_settle_wait(monkeypatch):
+    monkeypatch.setattr(ask, "SETTLE_S", 0)
 POSTING = Posting(id="req-1", company="Acme Robotics", title="Software Intern", url="https://jobs.example.com/acme/1")
 
 
@@ -377,6 +382,29 @@ class Board:
         self.replies.append((ask_id, reply))
 
 
+def test_an_ask_is_given_the_profile_s_resume_to_attach(tmp_path, monkeypatch):
+    # JPMorgan on Oracle (2026-11-05): Claude removed the old resume Oracle kept, then couldn't attach his own.
+    resume = tmp_path / "Resume.pdf"
+    resume.write_bytes(b"%PDF-1.4")
+    claude = Claude(lambda p: None, said(reply="Attached your resume."))
+    adapters = SimpleNamespace(board=Board(), claude=claude, records=FolderRecords(tmp_path), repairs=RepairRequests(),
+                               answer_bank=AnswerBank(), clock=SimpleNamespace(now=lambda: datetime(2026, 11, 5, 14, 30)))
+    profile = SimpleNamespace(policy=lambda key: None, facts=lambda: {"identity": {}}, policies=dict,
+                              get=lambda key: str(resume) if key == "files.resume_pdf" else None)
+    gpa = Question("gpa", "GPA", "text", True)
+    saved = Record(POSTING, Status.HELD, "", Filled((gpa,), {"gpa": "3.9"}, {"gpa": "3.9"}, b""), date(2026, 11, 5))
+    done = rehearsal.Rehearsed(POSTING, "ready to submit", saved=saved, questions=(gpa,))
+    page = Page([{"i": 0, "type": "file", "label": "Resume", "value": ""}])
+    page.title = lambda: "Documents"
+    asker = rehearsal._Ask(lambda: done, adapters, profile, 0, [].append)
+    asker.open(page)
+
+    monkeypatch.setattr(rehearsal, "DriveGuard", lambda *a, **k: Guard())  # no page code: the fake page has none
+    asker(page, {"id": "ask-1", "message": "attach my resume", "thread": [], "via": "terminal"})
+
+    assert claude.calls[0]["files"] == [resume]
+
+
 def test_the_held_page_s_glue_keeps_his_message_and_the_fix_in_the_record_and_files_a_repair(tmp_path):
     gpa = Question("gpa", "GPA", "text", True)
     filled = Filled((gpa,), {"gpa": "3.9"}, {"gpa": "3.9"}, b"")
@@ -429,3 +457,130 @@ def test_a_group_of_boxes_on_another_step_is_read_back_as_one_change():
                     page, "no, not Jersey City, I meant Boston", [], ask.Form(POSTING), "", guard=Guard())
     assert reply.changed == [{"field": group, "step": "Step 1", "shown": "New York; Boston",
                               "read_back": "Apply read it back"}]
+
+
+# An ask that damages a field it wasn't told to touch (KAN-712): Microsoft's held form, 2026-11-06. Asked to set only
+# U.S. Armed Forces Status and Veteran Status (custom dropdowns), Claude set both, and the earlier-answered non-compete
+# dropdown further down ended up showing "Select a value"; Claude didn't say so, and Apply's read-back covered only
+# what Claude named.
+NON_COMPETE = "Have you signed a non-compete or non-disclosure statement which may become an obstacle to your acceptance at Microsoft?"
+MSFT = [{"i": 0, "type": "text", "combo": True, "label": "U.S. Armed Forces Status", "value": ""},
+        {"i": 1, "type": "text", "combo": True, "label": "Veteran Status", "value": ""},
+        {"i": 2, "type": "text", "combo": True, "label": NON_COMPETE, "value": "No"},
+        {"i": 3, "type": "select", "label": "How did you hear about us?", "value": "University career fair"}]
+TWO_FIELDS = ("Two fields only: 'U.S. Armed Forces Status' set to I have not served, and 'Veteran Status' set to "
+              "I am not a protected veteran. Touch nothing else.")
+
+
+def test_a_dropdown_claude_emptied_unasked_waits_for_him_with_its_earlier_answer():
+    page = Page([dict(f) for f in MSFT])
+
+    def act(p):
+        p.fields[0]["value"], p.fields[1]["value"] = "I have not served", "I am not a protected veteran"
+        p.fields[2]["value"] = ""  # the click landed on, or left open, the non-compete dropdown
+
+    claude = Claude(act, said(reply="I set both fields. I changed nothing else.", changed=[
+        {"field": "U.S. Armed Forces Status", "step": "", "shown": "I have not served"},
+        {"field": "Veteran Status", "step": "", "shown": "I am not a protected veteran"}]))
+    reply = ask.ask(claude, page, TWO_FIELDS, [], ask.Form(POSTING), "", guard=Guard())
+
+    assert page.undone == []  # a dropdown built on a text box: its text alone isn't its pick, so not "put back"
+    assert [(c["field"], c["read_back"]) for c in reply.changed] == [
+        ("U.S. Armed Forces Status", "Apply read it back"), ("Veteran Status", "Apply read it back"),
+        (NON_COMPETE, ask.NOT_PUT_BACK)]
+    [line] = reply.waiting
+    assert line.startswith(f"'{NON_COMPETE}' showed 'No' before this message and shows nothing now")
+    assert line.endswith("set it to 'No' again")
+    assert "Apply found other answers changed that Claude didn't name" in reply.reply
+    assert "Waiting for you: 'Have you signed a non-compete" in ask.told(reply.as_json())
+    assert "Apply reads every answered field" in ask.SYSTEM
+
+
+def test_an_answer_claude_changed_unasked_is_put_back_where_plain_code_can():
+    page = Page([dict(f) for f in MSFT])
+
+    def act(p):
+        p.fields[0]["value"] = "I have not served"
+        p.fields[3]["value"] = ""  # a native select, emptied
+
+    reply = ask.ask(Claude(act, said(changed=[{"field": "U.S. Armed Forces Status", "step": "", "shown": "I have not served"}])),
+                    page, "Set 'U.S. Armed Forces Status' to I have not served.", [], ask.Form(POSTING), "", guard=Guard())
+    assert page.undone == [3] and page.fields[3]["value"] == "University career fair"
+    assert reply.changed[1] == {"field": "How did you hear about us?", "step": "", "shown": "University career fair",
+                                "read_back": ask.PUT_BACK}
+    assert reply.waiting == []
+
+
+def test_a_field_his_message_names_or_a_blank_claude_filled_is_not_put_back():
+    page = Page([dict(f) for f in MSFT])
+
+    def act(p):
+        p.fields[0]["value"] = "I have not served"  # blank before: filled, though Claude didn't list it
+        p.fields[3]["value"] = "LinkedIn"  # his message names it
+
+    reply = ask.ask(Claude(act, said()), page, "set How did you hear about us? to LinkedIn and fill the armed forces one",
+                    [], ask.Form(POSTING), "", guard=Guard())
+    assert page.undone == [] and reply.waiting == []
+    assert {c["read_back"] for c in reply.changed} == {"Apply read it back"}
+
+
+def test_a_drive_cut_short_puts_nothing_back_but_says_what_changed_unasked():
+    page = Page([dict(f) for f in MSFT])
+
+    def drive(**given):
+        given["page"].fields[3]["value"] = ""
+        return Drive(None, 61, 3_100_000, capped=True)
+
+    reply = ask.ask(SimpleNamespace(drive=drive), page, TWO_FIELDS, [], ask.Form(POSTING), "", guard=Guard())
+    assert reply.failed and page.undone == []
+    assert reply.waiting[0].startswith("'How did you hear about us?' showed 'University career fair' before this message")
+
+
+def test_a_dropdown_that_empties_itself_a_moment_after_the_drive_is_still_caught():
+    page = Page([dict(f) for f in MSFT])
+    reads = []
+
+    def act(p):
+        p.fields[1]["value"] = "I am not a protected veteran"
+        p.late = True
+
+    real = page.evaluate
+
+    def evaluate(code, arg=None):
+        if code == ask.FIELDS and getattr(page, "late", False):
+            reads.append(1)
+            if len(reads) == 2:  # the read right after the drive still shows it; the next doesn't
+                page.fields[2]["value"] = ""
+        return real(code, arg)
+
+    page.evaluate = evaluate
+    reply = ask.ask(Claude(act, said(changed=[{"field": "Veteran Status", "step": "", "shown": "I am not a protected veteran"}])),
+                    page, "Set 'Veteran Status' to I am not a protected veteran.", [], ask.Form(POSTING), "", guard=Guard())
+    assert len(reads) >= 3 and any(NON_COMPETE in w for w in reply.waiting)
+
+
+def test_an_answer_found_blank_that_apply_had_read_back_waits_for_him():
+    """An earlier message cut short at its cap emptied it: this message's drive didn't change it, but the
+    Record's read-back had it answered."""
+    fields = [dict(f) for f in MSFT]
+    fields[2]["value"] = ""
+    plan = [{"label": NON_COMPETE, "kind": "select", "planned": "No", "on_page": "No"},
+            {"label": "Veteran Status", "kind": "select", "planned": "I am not a protected veteran", "on_page": None}]
+    form = ask.Form(POSTING, plan=plan)
+    reply = ask.ask(Claude(lambda p: None, said()), Page(fields), TWO_FIELDS, [], form, "", guard=Guard())
+    assert reply.waiting == [f"'{NON_COMPETE}' is blank now, though it showed 'No' when Apply last read it: set it again"]
+
+    # One he asked about in the thread (to leave blank, say) is his to judge.
+    thread = [{"message": f"leave '{NON_COMPETE}' blank", "reply": "Done.", "changed": []}]
+    assert ask.ask(Claude(lambda p: None, said()), Page(fields), "check the form", thread, form, "",
+                   guard=Guard()).waiting == []
+
+
+def test_the_read_back_pairs_fields_by_label_when_a_field_comes_or_goes_before_them():
+    before = [{"frame": 0, "url": POSTING.url, "fields": [dict(f) for f in MSFT]}]
+    shifted = [{"i": 0, "type": "text", "label": "If yes, please provide your alias", "value": ""}] + [
+        dict(f, i=f["i"] + 1) for f in MSFT]
+    shifted[3]["value"] = ""
+    after = [{"frame": 0, "url": POSTING.url, "fields": shifted}]
+    assert [(c["label"], c["was"], c["now"], c["i"]) for c in ask.changes(before, after)] == [(NON_COMPETE, "No", "", 3)]
+

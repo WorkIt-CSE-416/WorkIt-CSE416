@@ -949,8 +949,9 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
                 if q.kind == "multi_select" and _shows_choice(combobox, choice):
                     continue  # ticked already: a click would untick it
                 combobox.click(timeout=3_000)
-                option = page.get_by_role("option", name=choice, exact=True)
-                option.first.click(timeout=OPENS_MS)
+                # Its own listbox's option, else one showing: never a same-named option of another list.
+                option = (_owned_listbox(page, combobox) or page).get_by_role("option", name=choice, exact=True)
+                option.filter(visible=True).first.click(timeout=OPENS_MS)
                 if q.kind == "multi_select":
                     page.keyboard.press("Escape")
         except Exception:
@@ -974,11 +975,15 @@ def _shows_choice(combobox, choice: str) -> bool:
 
 
 def _options_of(page: Page, combobox) -> tuple[str, ...]:
+    """The choices the dropdown lists once opened: those of the listbox it names (aria-controls,
+    aria-owns), else the options that showed when it opened and weren't showing before. Never every
+    option on the page: Microsoft's form kept another list's options there, and each dropdown read
+    them as its own, so a Yes/No question offered only "United States, California, Aliso Viejo" and
+    its answer fit none (live, 2026-11-06)."""
     try:
+        before = set(_visible_options(page))
         combobox.click(timeout=3_000)
-        listbox = page.get_by_role("option")
-        listbox.first.wait_for(state="attached", timeout=OPENS_MS)
-        options = tuple(dict.fromkeys(o.strip() for o in listbox.all_inner_texts() if o.strip()))
+        options = _owned_options(page, combobox) or _new_options(page, before)
     except Exception:
         options = ()
     try:
@@ -1007,6 +1012,41 @@ def _on_step(page: Page, shown: dict[str, object]) -> dict[str, object]:
             continue  # a box Apply filled: its own read-back is already in `shown`
         seen[label if counts[label] == 1 else f"#{at}: {label}"] = value
     return seen
+
+
+def _visible_options(page: Page) -> list[str]:
+    return [o.strip() for o in page.get_by_role("option").filter(visible=True).all_inner_texts() if o.strip()]
+
+
+def _owned_listbox(page: Page, combobox) -> Locator | None:
+    """The listbox an opened dropdown names as its own (aria-controls, aria-owns) once it lists options, else None."""
+    ids = combobox.evaluate("el => ((el.getAttribute('aria-controls') || '') + ' ' + (el.getAttribute('aria-owns') || '')).split(/\\s+/).filter(Boolean)")
+    for listbox in ids:
+        owned = page.locator(f'[id="{listbox}"]').first
+        try:
+            owned.get_by_role("option").first.wait_for(state="attached", timeout=OPENS_MS)
+        except Exception:
+            continue
+        return owned
+    return None
+
+
+def _owned_options(page: Page, combobox) -> tuple[str, ...]:
+    """The options of the listbox an opened dropdown names as its own, or () when it names none that lists any."""
+    owned = _owned_listbox(page, combobox)
+    if owned is None:
+        return ()
+    return tuple(dict.fromkeys(o.strip() for o in owned.get_by_role("option").all_inner_texts() if o.strip()))
+
+
+def _new_options(page: Page, before: set[str]) -> tuple[str, ...]:
+    """The options showing once a dropdown opened that weren't showing before it did, as soon as any show."""
+    for _ in range(max(1, OPENS_MS // 100)):
+        found = tuple(dict.fromkeys(o for o in _visible_options(page) if o not in before))
+        if found:
+            return found
+        page.wait_for_timeout(100)
+    return ()
 
 
 def _fields_shown(page: Page) -> str:
