@@ -302,8 +302,9 @@ def rehearse(
         # Each answer Claude wrote has its "Add context and regenerate", on the page and in the window (KAN-599).
         redo = _Redo(lambda: done, adapters, profile, n, site, out)
         # Ask Claude: Lisul's own words, from the tile or `apply ask`, and Claude fixes the held form (KAN-638).
-        asker = _Ask(lambda: done, adapters, profile, n, out)
         watching = {}  # the held page's Watch (apply.on_page), anew for each page held
+        # What Claude changed on the page is never Lisul's answer (KAN-693): the Watch starts again from it.
+        asker = _Ask(lambda: done, adapters, profile, n, out, acted=watching.clear)
 
         def tend(page) -> None:
             """Needs you on the held page: each Go to question pressed, and each answer Lisul typed there."""
@@ -868,8 +869,9 @@ class _Ask:
     kept in the Record. A fact he stated is offered for his Answer bank; a fault of Apply's own is a Repair request."""
 
     def __init__(self, done: Callable[[], "Rehearsed | None"], adapters: Adapters, profile: ApplicantProfile, n: int,
-                 out: Callable[[str], None]):
+                 out: Callable[[str], None], acted: Callable[[], None] = lambda: None):
         self._done, self._adapters, self._profile, self._n, self._out = done, adapters, profile, n, out
+        self._acted = acted  # told once Claude has acted on the page: what it shows now is Claude's, not his
         self._guard: tuple[int, object] | None = None  # (the page's id, its drive guard): one guard a page
         self._open = False
 
@@ -910,6 +912,8 @@ class _Ask:
         except Exception as error:  # Claude or the page failing: nothing more was done, and he is told
             reply = ask.Reply(f"Claude couldn't work on the form: {type(error).__name__}: {one_line(str(error))[:300]}",
                               failed=True)
+        finally:  # even a failed turn may have changed fields
+            self._acted()
         replied(n, item["id"], **reply.as_json())
         for request in ask.repair_requests(done.posting, message, reply):
             adapters.repairs.add(request)
