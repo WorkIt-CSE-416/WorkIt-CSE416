@@ -220,6 +220,7 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
             orchestrator.run(adapters, profile, args.workers, **kinds)
         else:
             _refuse_unless_live_runs_on(profile, args.command)
+            _refuse_temp_state(profile, args.command)
             _refuse_busy_worker_profiles(args.command)
             _refuse_stale_resume(profile, args.command)
             _send_waiting_writes()
@@ -237,6 +238,7 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
         profile = ApplicantProfile.load(args.profile)
         live = adapters is None
         if live:
+            _refuse_temp_state(profile, args.command)
             _refuse_busy_worker_profiles(args.command)
             _refuse_stale_resume(profile, args.command)
             # No Records repo, no notifications: a rehearsal leaves no trace but its local Records,
@@ -501,6 +503,15 @@ def _refuse_unless_live_runs_on(profile: ApplicantProfile, command: str) -> None
         sys.exit(f"Live runs are off, so `apply {command}` submits nothing and has not started. "
                  f"Turn them on by setting `live_runs: true` in {profile.folder / 'policies.yaml'}. "
                  "Until then, `apply rehearse <links>` fills forms without submitting.")
+
+
+def _refuse_temp_state(profile: ApplicantProfile, command: str) -> None:
+    """A reboot wipes a temp folder, and every held form and sign-in in it. Test Person has none to lose."""
+    if profile.get("sample_data") is True:
+        return
+    why = home.temp_state(WorkerBrowsers().profiles)
+    if why:
+        sys.exit(f"apply {command}: {why}")
 
 
 def _refuse_busy_worker_profiles(command: str) -> None:
