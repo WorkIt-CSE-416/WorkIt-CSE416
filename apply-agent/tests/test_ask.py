@@ -377,6 +377,29 @@ class Board:
         self.replies.append((ask_id, reply))
 
 
+def test_an_ask_is_given_the_profile_s_resume_to_attach(tmp_path, monkeypatch):
+    # JPMorgan on Oracle (2026-11-05): Claude removed the old resume Oracle kept, then couldn't attach his own.
+    resume = tmp_path / "Resume.pdf"
+    resume.write_bytes(b"%PDF-1.4")
+    claude = Claude(lambda p: None, said(reply="Attached your resume."))
+    adapters = SimpleNamespace(board=Board(), claude=claude, records=FolderRecords(tmp_path), repairs=RepairRequests(),
+                               answer_bank=AnswerBank(), clock=SimpleNamespace(now=lambda: datetime(2026, 11, 5, 14, 30)))
+    profile = SimpleNamespace(policy=lambda key: None, facts=lambda: {"identity": {}}, policies=dict,
+                              get=lambda key: str(resume) if key == "files.resume_pdf" else None)
+    gpa = Question("gpa", "GPA", "text", True)
+    saved = Record(POSTING, Status.HELD, "", Filled((gpa,), {"gpa": "3.9"}, {"gpa": "3.9"}, b""), date(2026, 11, 5))
+    done = rehearsal.Rehearsed(POSTING, "ready to submit", saved=saved, questions=(gpa,))
+    page = Page([{"i": 0, "type": "file", "label": "Resume", "value": ""}])
+    page.title = lambda: "Documents"
+    asker = rehearsal._Ask(lambda: done, adapters, profile, 0, [].append)
+    asker.open(page)
+
+    monkeypatch.setattr(rehearsal, "DriveGuard", lambda *a, **k: Guard())  # no page code: the fake page has none
+    asker(page, {"id": "ask-1", "message": "attach my resume", "thread": [], "via": "terminal"})
+
+    assert claude.calls[0]["files"] == [resume]
+
+
 def test_the_held_page_s_glue_keeps_his_message_and_the_fix_in_the_record_and_files_a_repair(tmp_path):
     gpa = Question("gpa", "GPA", "text", True)
     filled = Filled((gpa,), {"gpa": "3.9"}, {"gpa": "3.9"}, b"")
