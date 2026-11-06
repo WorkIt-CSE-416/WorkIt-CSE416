@@ -272,6 +272,49 @@ def test_without_the_guard_each_hostile_page_sends(page_name):
     assert site.applications()
 
 
+# Ask Claude's press of a listed step (KAN-692) against a TAL.net-like form, whose final Submit posts to the same
+# save_page as each step's save: only the body (submit=1) tells them apart. The adversarial review's pages: none
+# may send the form's own button.
+SAVE = "/acme/jobs/123/save_page"
+_FORM = f'<form id=f method=post action="{SAVE}"><input name=first value=Test>'
+LISTED_SENDS = {
+    "a Submit in another language": (f"<title>Declaration</title>{_FORM}<ul class=actions><li>"
+                                     "<button name=submit value=1>Envoyer ma candidature</button></li></ul></form>",
+                                     "Envoyer ma candidature"),
+    "a Submit named Done": (f"<title>Declaration</title>{_FORM}<ul><li><button name=submit value=1>Done</button></li>"
+                            "<li><button name=save value=1>Save</button></li></ul></form>", "Done"),
+    "a tracker button beside the Submit": (f"<title>Declaration</title>{_FORM}<nav><ul><li><button name=goto value=2>"
+                                           "Inclusion</button></li><li><a href='#'>Help</a></li></ul></nav>"
+                                           "<button name=submit value=1>Submit</button></form>", "Inclusion"),
+    "a label only CSS shows": ("<style>#b::before{content:'Submit application'}</style><span id=l hidden>Declaration</span>"
+                               f"{_FORM}<ul><li><button id=b aria-labelledby=l name=submit value=1></button></li>"
+                               "<li><a href='#'>Help</a></li></ul></form>", "Declaration"),
+    "a name that starts as a step's": (f"{_FORM}<ul><li><button name=submit value=1>Declaration and lodge</button></li>"
+                                       "<li><a href='#'>Help</a></li></ul></form>", "Declaration"),
+    "a form in a list": (f"<ol><li>{_FORM}<button name=submit value=1>Save my application</button></form></li>"
+                         "<li><a href='#'>Help</a></li></ol>", "Save my application"),
+    "a link in an aria-labelled Submit": (f"<nav><ul><li><a href='#' id=b aria-label='Submit application'>Inclusion</a></li>"
+                                          f"<li><a href='#'>Help</a></li></ul></nav>{_FORM}</form><script>document.getElementById('b')"
+                                          ".addEventListener('click', () => { const i = document.createElement('input'); i.name = 'submit';"
+                                          " i.value = '1'; document.getElementById('f').append(i); document.getElementById('f').submit(); });"
+                                          "</script>", "Inclusion"),
+}
+
+
+@pytest.mark.parametrize("page_name", list(LISTED_SENDS))
+def test_ask_claudes_listed_press_never_sends_a_tal_like_form(page_name):
+    html, name = LISTED_SENDS[page_name]
+    bodies = []
+    with cdp({START: html}) as (page, drive, _):
+        page.on("request", lambda r: r.method == "POST" and bodies.append(r.post_data or ""))
+        try:
+            ask_press_listed(page, drive, name)
+        except Handoff:
+            pass
+        _settle(page, 1500)
+    assert [b for b in bodies if "submit=1" in b] == []
+
+
 HELD = {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}"><input name=first value=Test>
     <button id=b>Submit application</button></form>{SEND_ALL}
     <script>document.getElementById('b').addEventListener('click', () => sendAll());

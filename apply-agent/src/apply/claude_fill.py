@@ -694,27 +694,35 @@ def _the_back(page: Page, name: str):
     return found[0]
 
 
-# A link or button in a list of a form's steps (TAL.net's Progress Tracker: each step's link posts the page to
-# save_page, then opens that step, KAN-692): one inside a nav or a list.
-IN_STEP_LIST = "el => !!el.closest('nav, [role=navigation], ol, ul, [role=list], [role=tablist]')"
+# An entry in a list of a form's steps (TAL.net's Progress Tracker: each step's link posts the page to save_page,
+# then opens that step, KAN-692): in a nav or a list of more than one entry, and never a form's own button (a
+# submit, or any button of a form), which would post that form with no check of its other buttons. A link can
+# post only by script (form.submit(), requestSubmit()), where the guard still blocks a form with a button that sends.
+STEP_ENTRY = """el => {
+  if ((el.tagName === 'BUTTON' || el.tagName === 'INPUT') && (el.type !== 'button' || el.form)) return false;
+  const list = el.closest('nav, [role=navigation], ol, ul, [role=list], [role=tablist]');
+  return !!list && list.querySelectorAll('a[href], [role=link], [role=tab], button[type=button]').length > 1;
+}"""
 
 
 def _the_listed(page: Page, name: str):
-    """The one link or button in the form's list of steps that Claude named: of exactly that name, else the one
-    whose name starts with it (a tracker's "Declaration Item not completed"). A name that sends, none, or two
-    that differ is a Handoff: no click."""
+    """The one entry in the form's list of steps that Claude named: of exactly that name, else the one whose name
+    starts with it (a tracker's "Declaration Item not completed"). A name that sends (Claude's, or the entry's own
+    as the page names it), none, or two that differ is a Handoff: no click."""
     if not name.strip() or SENDS.search(name):
         raise Handoff(f"Claude named {name!r} as a step of the form, which may send it. Fill it in yourself.")
     starts = re.compile(rf"^\s*{re.escape(name.strip())}(?!\w)", re.IGNORECASE)
     for match in ({"name": name, "exact": True}, {"name": starts}):
         found = [el for role in ("link", "button", "tab") for el in page.get_by_role(role, **match).all()
-                 if el.is_visible() and el.evaluate(IN_STEP_LIST) is True]
+                 if el.is_visible() and el.evaluate(STEP_ENTRY) is True]
         if found:
             break
     if not found:
         raise Handoff(f"Claude fill found no step named {name!r} in the form's list of steps. Fill it in yourself.")
     if len({el.aria_snapshot() for el in found}) > 1:
         raise Handoff(f"The form's list of steps shows more than one {name!r}, so Apply didn't press one. Do it yourself.")
+    if SENDS.search(found[0].aria_snapshot()):
+        raise Handoff(f"The form's step {name!r} is named as one that sends, so Apply didn't press it. Do it yourself.")
     return found[0]
 
 
