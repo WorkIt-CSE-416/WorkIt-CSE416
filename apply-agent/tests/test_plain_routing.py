@@ -1,6 +1,6 @@
 """S8 (KAN-614): worker_mode routes forms to plain Workers. The routing needs no browser. The rest runs the fake Greenhouse form in one plain Worker
 (Chrome for Testing, no CDP), reused for a second rehearsal with its guards reset, and skips
-without Chrome for Testing (CI). Nothing is ever submitted."""
+without Chrome for Testing, which CI installs. Nothing is ever submitted."""
 
 import json
 import os

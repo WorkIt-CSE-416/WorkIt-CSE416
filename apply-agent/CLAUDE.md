@@ -1479,9 +1479,11 @@ into it and the window shows "Sample data".
 - CI (the `apply` job in `../.github/workflows/ci.yml`) runs ruff and only
   a fixed list of fast test files: the files that need no browser, no
   network and no `claude` CLI. When you add a test file that needs none of
-  them, add it to that list. CI never runs the Filler tests
-  (`test_*_filler.py`, `test_claude_fill.py` and the other files that open
-  Chromium). Run the ones that your change touches on your Mac, with `-k`.
+  them, add it to that list. CI also installs Chrome for Testing and runs
+  `test_plain_guards.py` and `test_plain_routing.py` on a real plain Worker.
+  CI never runs the Filler tests (`test_*_filler.py`, `test_claude_fill.py`
+  and the other files that open Chromium). Run the ones that your change
+  touches on your Mac, with `-k`.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live

@@ -127,14 +127,16 @@ jobs:
           path: autofiller_extension/test/test-results
           retention-days: 7
 
-  # Apply (apply-agent/, KAN-535): ruff and the fast tests, the files that need
-  # no browser, no network and no `claude` CLI (about 30 s on Linux). The tests
-  # read the engine's saved forms, so the job needs the fill-engine submodule
-  # and is skipped without FILL_ENGINE_TOKEN (the engine job).
+  # Apply (apply-agent/, KAN-535): ruff, the fast tests (the files that need no
+  # browser, no network and no `claude` CLI) and the plain-Worker tests (KAN-667).
+  # The tests read the engine's saved forms, so the job needs the fill-engine
+  # submodule and is skipped without FILL_ENGINE_TOKEN (the engine job).
   apply:
     needs: [changes, engine]
     if: needs.changes.outputs.apply == 'true' && needs.engine.outputs.set == 'true'
-    runs-on: ubuntu-latest
+    # macOS: a plain Worker starts through `open` and Chrome for Testing's .app
+    # (apply/plain/launcher.py), as on the Macs Apply runs on.
+    runs-on: macos-latest
     timeout-minutes: 10
     defaults:
       run:
@@ -212,6 +214,22 @@ jobs:
             tests/test_tracker_record.py \
             tests/test_worker_date.py \
             tests/test_workit_login.py
+      # Chrome for Testing follows the Playwright that uv.lock pins. A miss costs
+      # one download. The plain-Worker tests skip without it, so the check below
+      # makes a failed install fail the job instead.
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ms-playwright
+          key: chrome-for-testing-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apply-agent/uv.lock') }}
+      - run: uv run playwright install chromium --no-shell
+      - name: Chrome for Testing is installed
+        run: uv run python -c "from apply.plain.launcher import chrome_for_testing; print(chrome_for_testing())"
+      # A real plain Worker on a fake job system. A new suite this fast joins the list.
+      - name: Plain-Worker tests
+        run: |
+          uv run pytest -q -rs \
+            tests/test_plain_guards.py \
+            tests/test_plain_routing.py
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.
