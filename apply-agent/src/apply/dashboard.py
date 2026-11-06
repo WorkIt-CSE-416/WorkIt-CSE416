@@ -1256,6 +1256,11 @@ class _Handler(BaseHTTPRequestHandler):
         if parts.path.startswith("/reveal/"):
             return self._reveal(parts.path)
         if parts.path.startswith("/input/"):
+            # A press here counts as Lisul's own, so only the window itself may send one. The custom header also makes
+            # a page's request preflight, which this server never answers.
+            token, origin = self.headers.get("X-Apply-Token") or "", self.headers.get("Origin")
+            if not hmac.compare_digest(token.encode(), self.dashboard.token.encode()) or origin != self.dashboard.url:
+                return self._send(403, "text/plain", b"forbidden")
             worker = int(parts.path.removeprefix("/input/"))
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             event = self.dashboard.to_page_event(worker, body)
