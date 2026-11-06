@@ -1411,6 +1411,24 @@ uv run apply rehearse --into <application id> <link>  # the Worker that fills th
 - Tests: `tests/test_into.py` (in CI). The live check is in the PR: one rehearsal, a second
   posting sent in, one Chrome PID, the job site's session cookie on the second form's requests.
 
+## Fill again from outside the page: `POST /fill-again` and `apply fill-again` (KAN-672)
+
+Agents and Lisul can press Fill again without a click in the Worker's page:
+
+```
+uv run apply fill-again 54321            # the window's port, when it holds one form
+uv run apply fill-again <application id>  # the form on that tile
+```
+
+- `POST /fill-again` takes `X-Apply-Token` and `{"id": "tile-0"}`. `Dashboard.fill_again` accepts it only
+  while the tile's `askable` is on: a rehearsal's held or paused page, before Lisul presses Submit. Else it
+  is a 409 or a 404 with the why.
+- `_Kept.hold` takes it at its next turn (`Board.fill_again_asked`) and returns AGAIN, as the page's button
+  does. The form fills anew under the same guards. It never submits.
+- A port with several held forms is refused, and the error lists their Application IDs. `into.fill_again`
+  never guesses. The command then waits for the new fill to stop and prints how it stopped.
+- Tests: `tests/test_into.py` (in CI), `tests/test_rehearse.py -k fill_again` (Chromium).
+
 ## The worker extension's copy and vendor sets (KAN-645)
 
 Chrome restarts an MV3 service worker from disk. A Worker that loads a shared checkout (the
