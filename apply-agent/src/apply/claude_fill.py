@@ -701,8 +701,8 @@ def _the_back(page: Page, name: str):
 # where the guard still blocks a form with a button that sends.
 STEP_ENTRY = """el => {
   if ((el.tagName === 'BUTTON' || el.tagName === 'INPUT') && (el.type !== 'button' || el.form)) return false;
-  // A click on it must land on it alone: never a control or a label (one that clicks a submit) inside or around it.
-  if (el.querySelector('button, input, select, textarea, label') || el.parentElement?.closest('button, label')) return false;
+  // A click on it must land on it alone: never a control, a label (one that clicks a submit) or a frame inside it, nor a control or label around it.
+  if (el.querySelector('button, input, select, textarea, label, iframe, frame, object, embed') || el.parentElement?.closest('button, label')) return false;
   const list = el.closest('nav, [role=navigation], ol, ul, [role=list], [role=tablist]');
   return !!list && list.querySelectorAll('a[href], [role=link], [role=tab], button[type=button]').length > 1;
 }"""

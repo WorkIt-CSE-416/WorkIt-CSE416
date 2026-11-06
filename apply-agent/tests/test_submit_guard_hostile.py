@@ -298,6 +298,11 @@ LISTED_SENDS = {
     "a link around a Submit's label": (f"{_FORM}<button id=s name=submit value=1 style='position:absolute;left:-9999px'>Go"
                                        "</button></form><nav><ul><li><a href='#o'>Languages</a></li><li><a href='#'>"
                                        "<label for=s>Inclusion</label></a></li></ul></nav>", "Inclusion"),
+    "a link holding a frame's Submit": ("<nav><ul><li><a href='#o'>Languages</a></li><li><a href='#' aria-label='Inclusion'>"
+                                        "<iframe style='border:0' srcdoc=\"<form method=post action='/acme/jobs/123/save_page' "
+                                        "target=_top style='margin:0'><input type=hidden name=first value=Test><button name=submit "
+                                        "value=1 style='width:300px;height:150px'>Inclusion</button></form>\"></iframe></a></li></ul></nav>",
+                                        "Inclusion"),
     "a link in an aria-labelled Submit": (f"<nav><ul><li><a href='#' id=b aria-label='Submit application'>Inclusion</a></li>"
                                           f"<li><a href='#'>Help</a></li></ul></nav>{_FORM}</form><script>document.getElementById('b')"
                                           ".addEventListener('click', () => { const i = document.createElement('input'); i.name = 'submit';"
