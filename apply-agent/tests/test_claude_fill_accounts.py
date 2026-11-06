@@ -168,8 +168,8 @@ def test_a_code_that_never_comes_needs_lisul_and_resend_is_never_clicked():
         [row] = run(world, server, acme())
 
     assert row.status == "handoff"
-    assert "Type the emailed code: no verification code from smartrecruiters.com came within about 2 minutes" in row.reason
-    assert server.resends == 0 and world.clock.now() - NOW >= timedelta(minutes=2)
+    assert "Type the emailed code: no verification code from smartrecruiters.com came within about 10 minutes" in row.reason
+    assert server.resends == 0 and world.clock.now() - NOW >= timedelta(minutes=10)
     assert world.keychain.password(SITE) == server.accounts[EMAIL]["password"]
     assert server.submissions == []
 
