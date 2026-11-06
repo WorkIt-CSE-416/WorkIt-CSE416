@@ -541,10 +541,14 @@ _TEMPLATE = r"""
   // button that sends, and never to a final URL; outside the attach's window it is blocked as ever.
   const uploadPost = (form, by, href) => S.upload && !(isEl(by) && sends(by))
     && any(all(form, 'input[type=file]'), chosen) && !postsFinal(form, by, href);
+  // The form the guard last let post, and whether by plain code's press: the navigation it makes comes a task later
+  // (a script's form.submit()), when the press's dispatch is over, and may name another element its source.
+  let posting = null;
   on('submit', judged((event) => {
     if (lifted()) return;
     const form = targetGet(event), by = submitterGet(event);
     if (!isForm(form)) return;
+    posting = {form, by, press: fromPress(form, by)};
     if (relay(form, by) || frameLoad(form, by) || uploadPost(form, by)) return;
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
@@ -575,6 +579,7 @@ _TEMPLATE = r"""
       go = lifted() || step || relay(this, null) || frameLoad(this, null) || uploadPost(this, null) || !posts(this, null);
     } catch (e) {}  // a form the guard can't read is not posted
     if (!go) return note('a form submission');
+    posting = {form: this, by: null, press: fromPress(this, null)};
     return apply(submit, this, []);
   };
 
@@ -616,7 +621,7 @@ _TEMPLATE = r"""
   const leaves = (form, by, href, data) => {  // the form post of this page, as it leaves: may it go?
     if (!sameEntries(form, by, data)) return false;
     if (relay(form, by, href) || frameLoad(form, by, href) || uploadPost(form, by, href)) return true;
-    const apply_ = fromPress(form, by);
+    const apply_ = fromPress(form, by) || (!!posting && posting.form === form && posting.press && accountClick());
     if (apply_ && password(form) && !postsFinal(form, by, href)) return true;
     if (profileClick() && profileStep(by || form) && (!postsFinal(form, by, href) || profileOwnPage(form, by, href))) return true;
     const final = isEl(by) ? sends(by) : formSends(form);
@@ -630,8 +635,10 @@ _TEMPLATE = r"""
     const href = destURL(navTo(event)), from = navFrom ? navFrom(event) : null;
     let go;
     if (isEl(from) && ownerDoc(from) === D) {
-      const form = isForm(from) ? from : formOf(from);
-      go = !!form && leaves(form, form === from ? null : from, href, data);
+      // A script's form.submit() in a link's click names the link: the form is the one the guard last let post.
+      const own = isForm(from) ? from : formOf(from);
+      const form = own || (posting && posting.form), by = own ? (own === from ? null : from) : posting && posting.by;
+      go = !!form && leaves(form, by, href, data);
     } else if (isEl(from)) {
       const form = isForm(from) ? from : formOf(from);
       go = !isFinal('POST', href) && !!form && !formSends(form) && sameEntries(form, form === from ? null : from, data);
