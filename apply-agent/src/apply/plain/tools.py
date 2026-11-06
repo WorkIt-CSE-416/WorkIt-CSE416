@@ -223,12 +223,17 @@ class Tools:
     def browser_type(self, target: str, text: str, element: str = "", submit: bool = False, slowly: bool = False) -> str:
         locator = self._locator(target, "type")
         if slowly:
+            # The box's text is replaced, as a fill's is: typed after what it held, an iCIMS search box
+            # searched "New YorkNew York" and found nothing (AMD's, live: KAN-699).
+            locator.fill("", timeout=ACTION_TIMEOUT)
             locator.press_sequentially(text, timeout=ACTION_TIMEOUT)
+            code = f"await page.locator('{locator._selector}').fill('');\nawait page.locator('{locator._selector}').pressSequentially({json.dumps(text)});"
         else:
             locator.fill(text, timeout=ACTION_TIMEOUT)
+            code = f"await page.locator('{locator._selector}').fill({json.dumps(text)});"
         if submit:
             locator.press("Enter", timeout=ACTION_TIMEOUT)
-        return self._after(f"await page.locator('{locator._selector}').fill({json.dumps(text)});")
+        return self._after(code)
 
     def browser_fill_form(self, fields: list[dict]) -> str:
         code = []

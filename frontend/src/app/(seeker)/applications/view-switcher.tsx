@@ -3,7 +3,7 @@
 import { useShallowParams } from "@/components/shallow-routing";
 import { SegmentedLinks } from "@/components/ui/segmented-control";
 
-import { GridIcon, ListIcon } from "./icons";
+import { CardsIcon, TableViewIcon } from "./icons";
 import { applicationsHref, parseQuery } from "./query";
 
 /** The page's choices as it is showing them (components/shallow-routing.tsx).
@@ -30,7 +30,7 @@ export function useApplicationsQuery() {
  * one the URL names, so the new layout appears with the thumb instead of a
  * round trip after it.
  *
- * List leads because it is the default (KAN-256), so the row reads in the
+ * Table View leads because it is the default (KAN-256), so the row reads in the
  * order a new user meets them. The board is archived: its option goes back
  * in first if it returns (./query.ts says what else).
  *
@@ -38,8 +38,10 @@ export function useApplicationsQuery() {
  * closes the detail panel, which belongs to the view it was opened from.
  */
 const OPTIONS = [
-  { view: "list", label: "List View", icon: <ListIcon className="size-4" /> },
-  { view: "grid", label: "Grid View", icon: <GridIcon className="size-4" /> },
+  // "list" stays its URL value, so old links still open the table.
+  { view: "list", label: "Table View", icon: <TableViewIcon className="size-4" /> },
+  // "grid" stays its URL value, so old links open the cards (./cards.tsx).
+  { view: "grid", label: "Card View", icon: <CardsIcon className="size-4" /> },
 ] as const;
 
 export function ViewSwitcher() {

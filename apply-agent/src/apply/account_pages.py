@@ -11,13 +11,16 @@ password ever reaches Claude, in a prompt, a schema or a file:
 - it clicks the button Claude named, never one whose words send the
   application, with the drive guard letting that one click through;
 - it reads an emailed code or link from Gmail, only from the site's own
-  domain or its job system's (another Worker may be making an account at the
+  domain or its job system's (on Oracle, by its subject: see mail_search; another Worker may be making an account at the
   same moment, so one Worker at a time waits on each sender's mail), types
   the code or opens the link, and goes back to the Posting.
 
 A refused password is a Handoff no Application tries again, and so is an
 account the site already has that Keychain has no password for, a refused
 code, a captcha, and more than MAX_PAGES account pages in one Application.
+A page that carries a captcha, an invisible one too (captcha.CARRIED), is a
+Handoff before anything is typed or clicked: its button runs the captcha, so
+Lisul signs in himself (AMD's iCIMS email step, KAN-703).
 """
 
 import json
@@ -29,8 +32,10 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import Page
 
+from apply import captcha
 from apply.accounts import NO_PASSWORD, Accounts
 from apply.model import Handoff
+from apply.oracle import MAIL_SEARCH as ORACLE_MAIL_SEARCH
 
 PAGES = ["none", "sign_in", "sign_up", "code", "link_sent"]
 MAX_PAGES = 4  # account pages in one Application, so a sign-in can't loop
@@ -125,6 +130,8 @@ class AccountPages:
         site = urlsplit(page.url).hostname or page.url
         if self._accounts is None:
             raise Handoff(f"Claude fill reached {site}'s sign-in page, and this Application can't sign in. Fill it in yourself.")
+        if kind != "link_sent" and captcha.carried(page):  # its button runs the captcha: before a password or code
+            raise Handoff(captcha.SIGN_IN.format(site))
         since = clicked.since if clicked else began
         if kind == "link_sent":
             self._link(page, site, since, posting)
@@ -248,7 +255,10 @@ def mail_domains(site: str) -> tuple[str, ...]:
 
 
 def mail_search(site: str) -> str:
-    """The Gmail search for a site's account mail: from its domains alone."""
+    """The Gmail search for a site's account mail: from its domains alone, but
+    for Oracle's, which each employer sends from an address of its own."""
+    if registrable(site) == "oraclecloud.com":
+        return ORACLE_MAIL_SEARCH
     return f"from:({' OR '.join(mail_domains(site))})"
 
 

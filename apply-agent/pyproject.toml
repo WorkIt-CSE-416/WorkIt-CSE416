@@ -23,6 +23,7 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ['live_network(*hosts): this test reaches these hosts on purpose; every other test stays on loopback (tests/network_block.py)']
 
 # The backend's ruff config (backend/pyproject.toml), so both Python projects lint alike.
 [tool.ruff.lint]

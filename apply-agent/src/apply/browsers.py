@@ -32,7 +32,7 @@ from pathlib import Path
 
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
-from apply import trace
+from apply import submit_guard, trace
 from apply.focus import KEEPER
 from apply.home import HOME
 from apply.profile import load_policies
@@ -191,6 +191,10 @@ class WorkerBrowsers:
     def _workers(self) -> list[Path]:
         return sorted(p for p in self._profiles.glob(WORKER_PROFILES) if p.is_dir())
 
+    def profiles_made(self) -> list[Path]:
+        """The Worker profiles on disk. Nothing opens them."""
+        return self._workers()
+
     def refuse_in_use(self) -> None:
         """A persistent profile can be open in only one browser at a time."""
         busy = [p.name for p in self._workers() if in_use(p)]
@@ -225,6 +229,7 @@ class WorkerBrowsers:
             try:
                 for tries_left in (2, 1, 0):
                     try:
+                        submit_guard.on_open(page)  # a rehearsal's page: guarded before its first load
                         page.goto(url)
                         break
                     except Exception as error:

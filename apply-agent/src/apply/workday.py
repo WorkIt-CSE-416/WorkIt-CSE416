@@ -60,6 +60,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Locator, Page
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from apply import feed, fill_engine, trace
 from apply.accounts import NEEDS_SIGN_IN, Accounts
@@ -74,6 +75,7 @@ from apply.model import (
     Question,
     QuestionSet,
     Readback,
+    one_line,
 )
 
 if TYPE_CHECKING:
@@ -261,6 +263,11 @@ class WorkdayFiller:
         if not on_step:
             return "The form isn't on an application step yet: sign in on the page, then press Resume"
         return ""
+
+    def signed_in(self, page: Page) -> bool:
+        """Whether the page is past sign-in, on an application step: `_start`'s own check, so a fill from
+        there signs in no more."""
+        return _on_step(page)
 
     def resumed(self, page: Page) -> dict:
         """The values on the step shown, as Lisul left it before pressing
@@ -525,9 +532,15 @@ class WorkdayFiller:
     def _put_or_rescue(self, page: Page, q: Question, box: Locator | None, value) -> None:
         try:
             self._put(page, q, box, value)
-        except FillError as error:
-            if not (self._rescue and self._rescue.field(page, q.label, value, error)):
+        except (FillError, PlaywrightTimeoutError) as error:
+            # An engine call a plain Worker didn't answer in time (PortTimeoutError, NVIDIA's My Information, live,
+            # KAN-702) is this field's failure, not the fill's: rescued, or else a FillError naming the field, which
+            # a rehearsal skips and goes on without.
+            if self._rescue and self._rescue.field(page, q.label, value, error):
+                return
+            if isinstance(error, FillError):
                 raise
+            raise FillError(f"{q.label}: the Fill engine didn't finish it in time ({one_line(str(error))[:200]})") from error
 
     def _put(self, page: Page, q: Question, box: Locator | None, value, fresh: bool = False) -> None:
         """Fill one field through the engine."""

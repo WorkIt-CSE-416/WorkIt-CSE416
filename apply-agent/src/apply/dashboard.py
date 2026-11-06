@@ -51,7 +51,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
-from apply import bot_signals, captcha, dock_app, stuck
+from apply import bot_signals, captcha, dock_app, masked, stuck
 from apply.answers_tab import AnswersTab, Refused
 from apply.asking import IN
 from apply.dashboard_page import (
@@ -433,6 +433,11 @@ class Board(Protocol):
         it last asked; each press is given once."""
         ...
 
+    def fill_again_asked(self, worker: int) -> bool:
+        """Whether Fill again was asked for tile `worker`'s held form from outside its page
+        (`POST /fill-again`) since it last asked; each ask is given once."""
+        ...
+
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
         """The answers of Worker `worker`'s held form that Lisul asked in the
         window to have written again since it last asked, (question name, his
@@ -485,6 +490,9 @@ class NoBoard:
         return []
 
     def resumed(self, worker: int) -> bool:
+        return False
+
+    def fill_again_asked(self, worker: int) -> bool:
         return False
 
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
@@ -594,6 +602,7 @@ class Dashboard:
         self._started = threading.Event()  # Lisul pressed Start
         self._to_fill: dict[int, list[tuple[str, str]]] = {}  # answers to fill on each Worker's open form (answered)
         self._resume: set[int] = set()  # the Workers whose paused form Lisul pressed Resume on (resumed)
+        self._again: set[int] = set()  # the tiles whose held form was asked to fill again (fill_again_asked)
         self._redo: dict[int, list[tuple[str, str]]] = {}  # answers to write again on each Worker's form (regenerations)
         self._goto: dict[int, list[tuple[str, Callable[[str], None]]]] = {}  # Go to question presses, by Worker (wanted)
 
@@ -741,6 +750,12 @@ class Dashboard:
             self._resume.discard(worker)
             return pressed
 
+    def fill_again_asked(self, worker: int) -> bool:
+        with self._lock:
+            asked = worker in self._again
+            self._again.discard(worker)
+            return asked
+
     def wanted(self, worker: int) -> list[tuple[str, Callable[[str], None]]]:
         with self._lock:
             return self._goto.pop(worker, [])
@@ -782,7 +797,7 @@ class Dashboard:
                 self._answered[f"{item['id']}|{question}"] = answer
                 if item.get("posting_url"):
                     self._answered[f"{item['posting_url']}|{question}"] = answer
-        print(f"Answered on the form, for {item.get('company') or 'an application'}: {asked} → {answer}")
+        print(f"Answered on the form, for {item.get('company') or 'an application'}: {asked} → {masked.sized(answer)}")
         return message
 
     def resume(self, key: str) -> str:
@@ -811,6 +826,19 @@ class Dashboard:
         if resume.get("label"):  # Fill it anyway, on a rehearsal that ruled him out
             return "Filling it anyway: Apply opens the form and fills it. It never presses Submit."
         return "Resuming: Apply reads the page as you left it and goes on. It never presses Submit."
+
+    def fill_again(self, key: str) -> str:
+        """Fill again on a tile's held form ("tile-<k>"), as the page's own button does. Raises Refused, with
+        why, when no form is held for Lisul there: one still filling, one he submitted, or a tile with none."""
+        k = int(key.removeprefix("tile-")) if key.startswith("tile-") and key.removeprefix("tile-").isdigit() else -1
+        with self._lock:
+            if not 0 <= k < self._workers:
+                raise Refused("No such form.", 404)
+            if not self._captions[k].get("askable"):  # a rehearsal's held page, until he presses Submit (rehearsal._Ask)
+                raise Refused("That form isn't held for you now: Fill again works once Apply has stopped on it, "
+                              "before Submit.", 409)
+            self._again.add(k)
+        return "Filling it again: Apply opens the form anew and fills it. It never presses Submit."
 
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
         with self._lock:
@@ -868,7 +896,7 @@ class Dashboard:
             thread.append(entry)
             self._to_ask.setdefault(k, []).append({"id": entry["id"], "message": entry["message"],
                                                    "thread": [dict(t) for t in thread[:-1]]})
-        print(f"Ask Claude ({via}), for {entry['company'] or key}: {entry['message']}")
+        print(f"Ask Claude ({via}), for {entry['company'] or key}: {masked.sized(entry['message'], 'message')}")
         return dict(entry)
 
     def asks(self, worker: int) -> list[dict]:
@@ -1192,6 +1220,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._dismiss()
         if parts.path == "/resume":
             return self._resume()
+        if parts.path == "/fill-again":
+            return self._fill_again()
         if parts.path == "/regenerate":
             return self._regenerate()
         if parts.path == "/goto":
@@ -1372,7 +1402,7 @@ class _Handler(BaseHTTPRequestHandler):
             if _fills_in_place(item, question):
                 self.dashboard._to_fill.setdefault(item["worker"], []).append((question, answer))
                 message += " Claude fills it in on the open form now."
-        print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {answer}")
+        print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {masked.sized(answer)}")
         self._json(200, {"message": message})
 
     def _go_to(self) -> None:
@@ -1456,7 +1486,7 @@ class _Handler(BaseHTTPRequestHandler):
         if item is None:
             return self._json(404, {"error": "That flag no longer needs you."})
         verify.dismiss(item["application_id"], field, why)
-        print(f"Dismissed in the window, for {item.get('company') or 'an application'}: {field}: {why}")
+        print(f"Dismissed in the window, for {item.get('company') or 'an application'}: {field}: {masked.sized(why, 'reason')}")
         self._json(200, {"message": "Dismissed: it holds this application no more."})
 
     def _resume(self) -> None:
@@ -1474,6 +1504,23 @@ class _Handler(BaseHTTPRequestHandler):
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
         print(f"Resume pressed in the window ({key})")
+        self._json(200, {"message": message})
+
+    def _fill_again(self) -> None:
+        """Fill again on a held form, from a process that read the window's token from its 0600 file
+        (`apply fill-again`), or from the page itself. Body {"id": "tile-<k>"}."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only Apply may fill a form again."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key = str(body["id"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a Fill again."})
+        try:
+            message = self.dashboard.fill_again(key)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Fill again asked ({key})")
         self._json(200, {"message": message})
 
     def _rehearse(self) -> None:
@@ -1590,7 +1637,7 @@ class _Handler(BaseHTTPRequestHandler):
                 self.dashboard._answered[f"{item['posting_url']}|{question}"] = str(answer or "")
             if isinstance(item.get("worker"), int) and item["worker"] >= 0:
                 self.dashboard._to_fill.setdefault(item["worker"], []).append((question, answer))
-        print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {answer or 'skipped'}")
+        print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {masked.sized(answer) if answer else 'skipped'}")
         self._json(200, {"message": message})
 
     def _applied(self) -> None:

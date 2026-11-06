@@ -60,7 +60,8 @@ export function forgetFeedPages(path: string) {
 type Snapshot = {
   query: string;
   jobs: JobListing[];
-  stages: Record<string, ApplicationStage>;
+  /** As shown: null for a job whose save the seeker took back. */
+  stages: Record<string, ApplicationStage | null>;
   tailored: string[];
   canMarkApplied: boolean;
   source: ListSource;

@@ -194,3 +194,26 @@ class TestClosings:
             "https://a.test",
             "https://b.test",
         ]
+
+
+class TestWithoutDomain:
+    """The flag list: boards whose roles go out with no company_domain, for a
+    person to add to checked_websites.csv."""
+
+    def test_boards_with_no_domain_are_listed_most_roles_first(self) -> None:
+        roles = [
+            role(board_key="workday/cir.wd108/x", company="Cambridge"),
+            role(board_key="workday/cir.wd108/x", company="Cambridge"),
+            role(board_key="greenhouse/arc", company="Arc"),
+            role(board_key="jibe/careers.garmin.com", company="Garmin"),
+        ]
+        addresses = {"workday/cir.wd108/x": None, "jibe/careers.garmin.com": "garmin.com"}
+        assert feed.without_domain(roles, {}, {}, addresses) == [
+            {"board": "workday/cir.wd108/x", "company": "Cambridge", "roles": 2, "tried": True},
+            {"board": "greenhouse/arc", "company": "Arc", "roles": 1, "tried": False},
+        ]
+
+    def test_a_proved_address_reaches_the_row(self) -> None:
+        r = role(board_key="jibe/careers.garmin.com")
+        row = feed.row(r, {}, {}, {"jibe/careers.garmin.com": "garmin.com"})
+        assert row["company_domain"] == "garmin.com"

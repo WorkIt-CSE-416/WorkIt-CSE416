@@ -903,8 +903,9 @@ disagree. Migration `c0467afe819c` added:
 | `created_at` | timestamptz | When the row was made: the queue's order. Queueing a saved row moves it to now, so a job saved last month doesn't jump the queue |
 | `applied_at` | timestamptz **null** now | Set when the student clicks **Submitted** or the Applied button; `NULL` while queued. A CHECK keeps an `applied` row dated |
 
-- **The Jobs page hides `applied` rows only** (`JobFilters.applied_by`). A
-  saved or queued job stays on it; matches leave out every stage, saved too
+- **The Jobs page hides saved and applied rows** (`JobFilters.tracked_by`,
+  KAN-217: both live on the Tracker). A queued, needs-you or
+  skipped job stays on it; matches leave out every stage, saved too
   (`JobFilters.no_application_by`).
 - **The Applied button turns a saved, queued, skipped or needs_you row
   applied** (`mark_applied`, an upsert); an applied row keeps its first date.

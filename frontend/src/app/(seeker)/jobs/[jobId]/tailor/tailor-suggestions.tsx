@@ -40,7 +40,8 @@ import {
 import { OriginalResume } from "./resume-preview";
 import type { JobListing } from "../../listings";
 import { useTailorBack } from "./tailor-back";
-import { TailorFinish, TailorJobLine } from "./tailor-header";
+import { TailorFinish, type ApplyState } from "./ready-to-apply";
+import { TailorJobLine } from "./tailor-header";
 import { TAILOR_STEPS } from "./tailor-steps";
 
 /**
@@ -77,12 +78,15 @@ const POPUP_LIVE = false;
 export function TailorReview({
   name,
   job,
+  apply,
   ...editor
 }: Omit<ComponentProps<typeof Editor>, "heading"> & {
   /** The tailored resume's name, the page's title. */
   name: string;
   /** The job it is tailored for, named under the title (`TailorJobLine`). */
   job: JobListing;
+  /** For Finish's Your Resume Is Ready (./ready-to-apply.tsx). */
+  apply: ApplyState;
 }) {
   const [record] = useTailorReview(editor.resumeId);
   // Storage is read after mount; until then the page shows no line about it.
@@ -110,7 +114,7 @@ export function TailorReview({
             {TAILOR_STEPS[step].label} · Step {step + 1} of {TAILOR_STEPS.length}
           </p>
         </div>
-        <TailorFinish jobId={job.id} />
+        <TailorFinish job={job} resumeId={editor.resumeId} apply={apply} />
       </div>
       {noRecord}
     </>

@@ -104,9 +104,9 @@ def test_a_verification_email_missing_after_about_two_minutes_needs_lisul_and_is
         [row] = world.run(server, caci())
 
     assert row.status == "handoff", row.reason
-    assert "no verification email from myworkday.com or otp.workday.com came within about 2 minutes" in row.reason
+    assert "no verification email from myworkday.com or otp.workday.com came within about 10 minutes" in row.reason
     assert server.resends == 0
-    assert world.clock.now() - NOW >= timedelta(minutes=2)
+    assert world.clock.now() - NOW >= timedelta(minutes=10)
     # The account exists, so it is listed, and its password is in Keychain.
     assert [a.site for a in world.tracker.employer_accounts()] == [CACI]
     assert world.keychain.password(CACI) == server.account(CACI, EMAIL)["password"]

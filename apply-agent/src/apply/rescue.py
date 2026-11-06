@@ -37,6 +37,18 @@ A select answer is the option to pick; a list answer, the options to tick; a fil
 Close any list or pop-up you opened once the answer is in. Then read the field back: `shown` is exactly the text, option or file name it shows now, with nothing added.
 If the field isn't on the page, or won't take the answer after a few tries, stop: set `blocked` and say why in `why`.
 {RULES}"""
+# The field is on an earlier step of a form held on its last (KAN-686): Lisul answered it in the window after
+# the fill went on. Claude goes back with the form's own controls, fills it, saves that step and comes back.
+MAX_TURNS_ELSEWHERE = 30
+SYSTEM_ELSEWHERE = f"""You fill one field of the internship application form open in the browser's current tab: the field in <field>, with the answer in <answer>, exactly as given. Apply's own script tried it and failed with the error in <error>.
+The field is not on the step the form shows now, the one in <held>: it is on an earlier step of the same form.
+Go back to it with the form's own controls: its Back button, or its list of steps (a progress tracker, a step's link). Never use the browser's back, never reload, never open another page or tab.
+On that step, fill only that field: leave every other field as it is. Then save that step with the form's own button that saves it or goes on (Save and Continue, Save, Next). Never click a button that sends the application (Submit, Apply, Send, Finish).
+Then go back the same way to the step in <held>, and stop there.
+A select answer is the option to pick; a list answer, the options to tick; a file answer names a file in your working folder: attach that file.
+Close any list or pop-up you opened once the answer is in. Before you save, read the field back: `shown` is exactly the text, option or file name it shows, with nothing added.
+If the field is on no earlier step, or won't take the answer after a few tries, stop: set `blocked` and say why in `why`, and go back to the step in <held> if you can.
+{RULES}"""
 SCHEMA = {
     "type": "object",
     "properties": {**BLOCKED, "shown": {"type": "array", "items": {"type": "string"}}},
@@ -56,9 +68,11 @@ class Rescue:
         self._tried = 0
         self.notes: list[str] = []  # each field rescued, for its Repair request
 
-    def field(self, page: Page, label: str, value, error: Exception) -> bool:
+    def field(self, page: Page, label: str, value, error: Exception, elsewhere: str = "") -> bool:
         """Whether Claude put `value` in the field labelled `label`, which the
-        Filler failed on with `error`."""
+        Filler failed on with `error`. `elsewhere` names the step a form is
+        held on when the field is on an earlier one (KAN-686): Claude goes
+        back to it with the form's own controls, saves it, and comes back."""
         if self._tried >= self._max_fields:
             return False
         self._tried += 1
@@ -68,11 +82,14 @@ class Rescue:
         answer = value.name if isinstance(value, Path) else value
         prompt = (f"<field>{label}</field>\n<answer>{json.dumps(answer)}</answer>\n"
                   f"<error>{one_line(str(error))[:500]}</error>")
+        if elsewhere:
+            prompt += f"\n<held>{one_line(elsewhere)[:300]}</held>"
         self._guard.arm()
         try:
-            drive = self._claude.drive(page=page, model=MODEL, system=SYSTEM, prompt=prompt, schema=SCHEMA,
-                                       files=[value] if isinstance(value, Path) else [],
-                                       max_turns=self._max_turns, max_tokens=self._max_tokens)
+            drive = self._claude.drive(page=page, model=MODEL, system=SYSTEM_ELSEWHERE if elsewhere else SYSTEM,
+                                       prompt=prompt, schema=SCHEMA, files=[value] if isinstance(value, Path) else [],
+                                       max_turns=max(self._max_turns, MAX_TURNS_ELSEWHERE) if elsewhere else self._max_turns,
+                                       max_tokens=self._max_tokens)
         finally:
             self._guard.lift()  # the Filler's own clicks go through again
         # A click or key Claude tried in a captcha was refused there, untouched: no Handoff of its own.

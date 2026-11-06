@@ -3,10 +3,10 @@ import {
   ArrowBendUpLeftIcon,
   CalendarPlusIcon as CalendarPlus,
   ColumnsIcon as Columns,
-  GridFourIcon,
+  RowsIcon,
   KanbanIcon,
-  ListBulletsIcon,
   RadioButtonIcon,
+  TableIcon,
 } from "@phosphor-icons/react/ssr";
 
 type IconProps = { className?: string };
@@ -25,12 +25,15 @@ export function BoardIcon({ className }: IconProps) {
   return <KanbanIcon aria-hidden className={className} />;
 }
 
-export function GridIcon({ className }: IconProps) {
-  return <GridFourIcon aria-hidden className={className} />;
+/** Card View: cards stacked in rows (./cards.tsx), not a grid of cells. */
+export function CardsIcon({ className }: IconProps) {
+  return <RowsIcon aria-hidden className={className} />;
 }
 
-export function ListIcon({ className }: IconProps) {
-  return <ListBulletsIcon aria-hidden className={className} />;
+/** Table View: the table of columns (./list.tsx), so it draws a table, not
+ *  bullets (2026-11-05). */
+export function TableViewIcon({ className }: IconProps) {
+  return <TableIcon aria-hidden className={className} />;
 }
 
 /* List controls (KAN-282) ------------------------------------------------ */

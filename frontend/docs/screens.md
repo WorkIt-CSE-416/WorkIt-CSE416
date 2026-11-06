@@ -28,6 +28,18 @@ the truth, so Clear All clears rather than bringing the saved ones back. A
 blank panel between; do not bring it back. Load More pages whichever order drew the list (`FeedList`'s
 `source`).
 
+**A saved or applied job is not on the Jobs page** (KAN-217): it is on the
+Tracker. The API leaves out every tracked stage (`GET /jobs`,
+`/search`'s and Best Match's reads), and the browser drops a job the moment
+the seeker saves it, marks it applied or tailors for it (`jobs/feed-stages.ts`,
+in the feed, /search, the fallback snapshot and the rail). A job auto apply
+holds (Queued, Needs You, Skipped) stays. Save's toast, "Saved to your
+Tracker.", has View (the application's page) and Undo, which
+puts the card back where it was; an unsave on the tracker brings the job back
+on the next visit. A card for a job the seeker tailored for carries a
+Tailored chip beside its age; since Tailor saves the job, only one auto apply
+holds shows it.
+
 **Job Type and Experience Level never overlap (KAN-284).** Job Type says
 what kind of job it is (Internship, Full-Time, Part-Time, Contract);
 Experience Level how much experience it asks for (Entry Level / New Grad,
@@ -425,11 +437,12 @@ after Save until KAN-519, when the team removed it. Below md the bar scrolls awa
 The header card below holds who is hiring, the title and facts; its logo never
 shrinks. Its facts use the card's `JobFacts`: two rows of three fixed slots,
 two columns under 448px, with unstated facts leaving their slots empty.
-Ask Scout, an icon beside Save (KAN-519), asks about the role. Save (KAN-261) keeps the job posting in the Saved column on My
-Applications, on the card and the page alike (`jobs/save-job-button.tsx`,
+Ask Scout, an icon beside Save (KAN-519), asks about the role. Save (KAN-261) keeps the job posting on the
+Tracker as Saved and takes it off the Jobs page (KAN-217), on the card and the page alike (`jobs/save-job-button.tsx`,
 over the drawing-only `components/save-button.tsx`): the bookmark fills at
 once and empties again, with a toast, if the API refuses, and a second
-click takes it back out. It reads its first state from the same stage the
+click takes it back out. A save that works says so: "Saved to your
+Tracker." with View and Undo. It reads its first state from the same stage the
 Auto Apply button gets, so it costs no fetch of its own. A job posting
 already queued or applied stays as it is, and a toast says where it is.
 Saving never queues a job: Start Auto Apply's batches skip saved jobs, and
@@ -497,7 +510,11 @@ would change a moment after the page loads.
 **Marking a job applied** (KAN-232) is a question, not a button (KAN-242).
 When a signed-in applicant leaves for the employer's posting from Apply Now's
 dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
-behind the new tab and asks "Did You Apply?". **It shows the resume they
+behind the new tab and asks "Did You Apply?". **Its top row names the pick
+and downloads it** (KAN-217): "Attach <resume> on the employer's form." with
+Download (a built resume as its PDF, an upload as its file;
+`jobs/resume-download.ts`), since Apply Now opens the form with no resume
+step while Pick a Resume is hidden. It follows the pick. **It shows the resume they
 applied with** (KAN-267): the resume list (below), whose row holds
 **Upload Resume** (above), then a full-width **No Resume** button, not
 a section: pressed (the brand fill, `aria-pressed`), it is the pick and
@@ -833,18 +850,19 @@ empty year with a line saying the applications aren't loading.
 
 ## Applications (the Applications Tracker)
 
-**Its name on screen is the Applications Tracker** (KAN-342): in the
-sidebar, the browser tab and its heading, and "Back to Applications
-Tracker" on an application's page when the tracker opened it (its Back
-names the page that did, KAN-363). It was "Applications", the word the
-Home also used for a count, so the page and the number read as one
-thing; then "Tracker" in the sidebar with "Application Tracker" as its
-heading, until the user named it Applications Tracker everywhere. The
-marketing site still calls the feature "Application Tracker". The URL, the
-folder and the code keep `applications`: moving the folder would collide
-with every open branch that edits the page. Say "the Applications Tracker"
-in copy; a stage is one of Saved, Applied, Interviewing, Offer and Rejected
-(`GLOSSARY.md`).
+**Its name on screen is Tracker** (2026-11-05): in the panel, the bar's
+title, the browser tab, and "Back to Tracker" on an application's page
+when the tracker opened it (its Back names the page that did, KAN-363). It
+was "Applications", the word the Home also used for a count, so the page
+and the number read as one thing; then "Tracker" in the sidebar with
+"Application Tracker" as its heading; then "Applications Tracker"
+everywhere (KAN-342) but on the rail, which kept "Tracker" for its 72px
+tile. Two names for one page read as inconsistent, so the user chose the
+short one for every place, as with Resumes and Profile. The marketing
+site still calls the feature "Application Tracker". The URL, the folder
+and the code keep `applications`: moving the folder would collide with
+every open branch that edits the page. Say "the Tracker" in copy; a stage
+is one of Saved, Applied, Interviewing, Offer and Rejected (`GLOSSARY.md`).
 
 /applications is the tracker: a list (the default) and a grid over
 `applications/data.ts`, every choice in the URL; a row or card opens the
@@ -862,7 +880,8 @@ section says what else was cut).
 **The tracker is live, with no fixture** (KAN-261). `applications/tracked.ts`
 reads the seeker's applications from the API (`GET
 /applicants/{id}/applications?stage=saved&stage=applied&stage=interviewing&stage=offer&stage=rejected&scored=true`,
-the list Live Activity reads too), written by a job's Save button and its Applied button
+the list Live Activity reads too), written by a job's Save button, a Tailor run (saved,
+KAN-217), its Applied button
 or auto apply, and the events on them (`GET /applicants/{id}/events`,
 KAN-413), joined by job id; `getTracker` in `data.ts` caches it per
 request. A stage past applied comes from the stage menu or an event on the
@@ -872,10 +891,14 @@ without one), and its panel links to the posting while it is open ("Posting
 Closed" after). The page has three empty
 states: the API failed, nothing tracked yet (Find Jobs), and filters that
 hide everything (Clear Filters). The mock cards and their stand-in company
-glyphs were removed with the fixture.
+glyphs were removed with the fixture. A job the student has a tailored resume
+for wears a Tailored chip (`components/tailored-chip.tsx`, KAN-217) beside its
+company in the table and under its location on a Card View card, from the built resumes read
+beside the applications (`getTailoredJobIds`; Home's unscored read skips it).
 
 **The list is the primary view and the board is archived** (KAN-256).
-A bare `/applications` shows the list, the switcher offers List then Grid,
+A bare `/applications` shows the table, the switcher offers Table View then
+Card View (their URL values stay `list` and `grid`),
 and an old `?view=board` link opens the list. `applications/board.tsx`
 stays, unused. To bring the board back: add `"board"` to `VIEWS` in
 `applications/query.ts`, its option in `view-switcher.tsx`, its pane in
@@ -883,19 +906,51 @@ stays, unused. To bring the board back: add `"board"` to `VIEWS` in
 `view-panes.tsx`. In the list, Match outlasts Applied as the page narrows,
 since the score is what a seeker scans for.
 
-**A card shows four facts and nothing else** (KAN-256): the role, the
-company, the day it was saved or sent, and its match score. The grid adds
-the stage pill, which its ungrouped cards would otherwise lose.
+**Card View is a list of wide cards, one a row** (2026-11-05, after
+Simplify's tracker; `applications/cards.tsx`). It replaced a grid of small
+cards, two to four a row, which the user found harder to scan. A card has
+the company tile, the role (the card's link), the company, where the job is
+and how it is worked; the stages as a line of steps (Saved, Applied,
+Interviewing, then Offer or Rejected, each with the day it was reached,
+`applications/stage-steps.tsx`); the match score, right after the role;
+View Resume where a resume was sent; and the stage menu. Simplify's heart has no WorkIt counterpart.
+By the card's own width: one row from 1152px, with the steps and controls
+in fixed columns so the steps line up from card to card; from 576px the
+role and controls share a line with the steps under them; narrower, it
+stacks.
+
+**The stage changes from the Tracker itself**: Status in the table and the
+card's menu are the application page's stage menu (`StageMenu`), which
+reads "Saved" for a saved job, writes at once with an Undo toast, and asks
+first for a saved job. A click in the table's Status cell, or a pick in its
+popup, never opens the application.
+
+**Table View draws a table** (a table glyph, not bullets; 2026-11-05): the
+user found "List View" with a bulleted glyph wrong for a table of columns.
 
 **The list is a table that scrolls sideways** (KAN-256), as a Notion table
 does, rather than dropping columns as the page narrows. In the order job
 trackers read: what and who (Role, with its company), where it stands (Status, Date
 Applied), how good it is (Match), the job's facts (Job Type, as the Jobs
 page names it, though the code and `?track=` keep the older name Track;
-Location; Work Model; Pay Range), where and what was sent (Source, the
-hiring system the posting is on, named from its apply link in
-`applications/tracked.ts`, "Company Site" for any other host; Resume;
-Posting), and Notes / Next Step last, the widest and least scanned.
+Location; Work Model; Pay Range), and what was sent (Resume). Source (the hiring system the posting is on,
+named from its apply link in `applications/tracked.ts`, "Company Site" for
+any other host) and Notes / Next Step left the table on 2026-11-05 as more
+than a row needs: Source shows on the application's page ("Posted on
+Ashby", under the stage) and stays a filter; Notes stored nothing.
+Posting (Open or Closed) went too, for space and because "Closed" beside
+a job already applied to read as the application being closed.
+
+**A saved job whose posting closed is the only row that says so**
+(`applications/closed-saved.tsx`, 2026-11-05): its logo turns grey and its
+stage menu becomes a muted "Posting closed" and a trash button, in the
+table's Status cell and on its card. The role and company keep their full
+contrast (only the logo greys, WCAG 1.4.3), and the words, not the grey,
+carry the meaning: the button's name is "Remove <role> at <company>,
+posting closed". Remove asks first, since a closed job can't be saved
+again, so there is no Undo. An applied job's row never mentions its posting
+closing: nothing changes for the student, and the application's page says
+it in its status cards.
 **Role is one column holding the company too**: the company's logo, then
 the role (bold, the row's link, cut with the whole title on hover) over the
 company's name in meta grey. KAN-256 split them into two frozen columns,
@@ -929,7 +984,7 @@ open, not download (asked for again on each open, since it lasts 5
 minutes). A rebuilt upload (its upload replaced or deleted since) says so,
 with Show Original Text for the file's own words. A Word file cannot be
 shown in a browser, so it points to Resumes & Experiences instead.
-Nothing downloads here. A grid card with a sent resume carries the same
+Nothing downloads here. A Card View card with a sent resume carries the same
 button above its footer, on a strip that sits over the card's stretched
 link, so the strip's gap is no misclick either. Location and Pay print as the Jobs page's card does
 (`jobs/format.ts`). The cells are drawn as the job cards draw their facts
@@ -961,7 +1016,7 @@ filtered.
   Company 592, Job Type 744, Work Model 896, Source 1048); at
   the right end, Clear Filters as an outlined cross (shown while anything
   is picked or searched; it hands focus to All Filters), All Filters, and
-  Columns in the list view. A phone's row is All Filters and Columns.
+  Columns in Table View. A phone's row is All Filters and Columns.
   Status was a row of stage chips with counts (KAN-256), and an earlier
   draft had one Filter button with every field in its menu; both became
   dropdowns after the Jobs page on the user's ask (2026-10-19). The
@@ -991,7 +1046,7 @@ filtered.
   KAN-577); drag a heading's right edge to resize it (a 24px handle with a
   2px line), double-click the edge to reset it, or focus the edge and use
   the arrow keys; hide and show columns from the same menu, at the filter
-  row's right end, which shows only in the list view and also has Reset
+  row's right end, which shows only in Table View and also has Reset
   Columns. A sort heading's button is 24px high. Role cannot move or hide. Each column has a fixed width
   (a fixed table layout) and cuts what does not fit, with the whole value
   on hover; an empty last column takes the card's spare width, so a resize
@@ -2518,7 +2573,24 @@ with no proposals to accept and no Done (2026-10-25).
   2026-10-26), so the resume starts near the top: Back (`TailorBack`, to
   Choose Keywords on the run's source, `?step=keywords&source=`),
   "Review Changes · Step 3 of 3" on one line in the middle, and
-  Finish (filled, to the job posting's page) at the right. The page's h1, "Tailor for
+  Finish (filled) at the right, which opens **Your Resume Is Ready**
+  (`tailor/ready-to-apply.tsx`, KAN-217) over the strong backdrop: a
+  check disc and the title, then the status line "Saved to your Tracker."
+  with View. Apply Yourself (an h3) is an ordered list of two steps, each
+  with a number disc: 1, Download PDF; 2, Open <Company>'s Application
+  (the employer's form in a new tab; the dialog turns into "Did You
+  Apply?", starting on this resume). The primary is the next step: Download
+  PDF has it and focus first; once the file is saved, Download turns
+  secondary with a "Downloaded" check, and Open turns primary and takes
+  focus. Or Let Auto Apply Do It (an h3, under a rule) holds one line,
+  "Fills <Company>'s form with this resume.", and a secondary Auto Apply,
+  only where the form can be filled. The first version, "Ready to Apply",
+  put Auto Apply, Open and Download in one row of equals under a paragraph
+  that mixed the status with the steps; the user found it hard to read.
+  Closing it, Not Yet or Yes goes to the page that opened Tailor, else the
+  job posting.
+  Finish went to the job posting's page until then, which showed nothing
+  new and left the student with no file. The page's h1, "Tailor for
   <title> at <company>", is for screen readers only. Under it the
   resume's name leads, renamed in place (`ResumeTitle`, below). The step
   had the pick steps' Back, the resume's name as a big title, a line, the
@@ -2591,7 +2663,13 @@ with no proposals to accept and no Done (2026-10-25).
   resume and may be named in its bullets, since picking it lets the truth rule
   pass it, and an interviewer can ask about each one), then the missing
   keywords as large toggle chips (+ when off, a check that pops when on),
-  Required then Preferred (`MissingKeywords`, KAN-408). The right card is a
+  Required then Preferred (`MissingKeywords`, KAN-408), after a first group,
+  **In Your Experiences** (KAN-587, 2026-11-05): the missing keywords the
+  student's Experiences already show, though this resume leaves them out,
+  with one line saying so and a visible "Required" tag on a required one.
+  KAN-587 asked for Add All back; the user chose to show which skills the
+  student has instead, so each still takes its own click. A resume Generate
+  made from the whole bank has no such group: everything is on it. The right card is a
   ring in the match score's colours (`matchColor`) with the share in it, "1 of
   9 keywords", the resume's name, and what is Already on Your Resume as quiet
   tags. **A pick never moves the score, and nothing picks in bulk.** The ring
@@ -3089,10 +3167,12 @@ student who opened a resume from Experiences landed on another view.
   an entry's or bullet's is a choice. It replaced the bar's up and down buttons,
   which moved one line one step and could not move a section. A phone keeps
   those buttons, since a drag there fights the scroll. The bar's Sections
-  and Format Options (`PanelButton`) keep their words down to `@3xl/main`;
-  below it they are glyphs with a tooltip, shown only while the word is
-  hidden, and a 44px hit area (KAN-574). They lost the words below `@5xl`
-  until then, named only by a `title`, which touch cannot read.
+  and Format Options (`PanelButton`) fold to glyphs with a tooltip, shown
+  only while the word is hidden, as the bar narrows, and then move into More
+  (`[resumeId]/bar-fold.tsx`, `frontend/CLAUDE.md`: one row, never two).
+  They lost the words below `@5xl` until KAN-574, named only by a `title`,
+  which touch cannot read, and below `@3xl/main` until the bar folded by
+  its own width.
 - **The toolbar holds what acts on the line clicked; Format Options holds what
   acts on the whole resume** (`page-format.tsx`, KAN-435). With a line open the
   bar shows Undo, Redo, zoom, **that line's kind of text with its size** (Your

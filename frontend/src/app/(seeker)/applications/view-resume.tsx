@@ -33,8 +33,11 @@ type Viewed = { id: string; name: string; format: string };
  * file cannot be shown in a browser, so the dialog sends the student to
  * Resumes & Experiences, where files download. Nothing downloads here.
  *
- * THE BUTTON NAMES THE RESUME and is a full sm button, so it is a big target
+ * THE BUTTON READS "View" (2026-11-05), a full sm button, so it is a target
  * that reads as its own action, not as part of the row or card it sits on.
+ * It named the resume until the user found the cut name ("The Allen
+ * Institut…") read as a label, not a button; the name stays in its tooltip
+ * and its accessible name ("View resume <name>"), so nothing is lost.
  * The callers keep a near miss from opening the application too (the list
  * cell, the card's strip), and a click inside the dialog stops at it.
  */
@@ -51,7 +54,7 @@ export function ViewResumeButton({ resume, className }: { resume: Viewed; classN
         className={cn("max-w-full min-w-0", className)}
       >
         <EyeIcon aria-hidden />
-        <span className="truncate">{resume.name}</span>
+        View
       </Button>
       {viewer.dialog}
     </>
@@ -165,7 +168,7 @@ function useResumeViewer(resume: Viewed) {
         {word ? (
           <div className="flex flex-col items-start gap-3">
             <p className="text-body text-ink-muted">
-              A Word file cannot be shown here. Open it from Resumes &amp; Experiences.
+              A Word file cannot be shown here. Open it from Resumes.
             </p>
             <ButtonLink href="/resumes" variant="secondary">
               Go to Resumes

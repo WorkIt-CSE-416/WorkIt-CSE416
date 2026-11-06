@@ -828,6 +828,107 @@ def test_a_resume_behind_an_uploader_dialog_is_sent_on_to_the_form():
         browser.close()
 
 
+# iCIMS's Candidate Profile (AMD's, live), in its frame as on careers.amd.com: the résumé's input sits in the
+# profile's own form, beside its "Submit Profile". Its change handler shows "Parsing resume, please wait..." and
+# posts the form natively into a hidden frame; the parse's answer shows the file's name.
+ICIMS_OUTER = '<!doctype html><body><iframe id="icims_content_iframe" src="/candidate" width="900" height="600"></iframe>'
+ICIMS_FORM = """<!doctype html><body>
+<form id="profile" method="post" action="/candidate?parse=1" enctype="multipart/form-data" target="parser">
+  <h2>Resume/CV</h2><p>Provide your resume/CV below to pre-fill your profile.</p>
+  <label for="resume">Please upload your resume (max size: 5 MB)</label>
+  <input type="file" id="resume" name="resume">
+  <div id="status"></div>
+  <label>Legal First Name <input name="first"></label>
+  <button type="submit">Submit Profile</button>
+</form>
+<iframe name="parser" hidden></iframe>
+<script>
+document.getElementById('resume').addEventListener('change', () => {
+  document.getElementById('status').textContent = 'Parsing resume, please wait...';
+  document.getElementById('profile').submit();
+});
+window.parsed = (name) => { document.getElementById('status').textContent = name; };
+</script></body>"""
+
+
+def _icims(page, posts: list) -> None:
+    def serve(route):
+        request = route.request
+        if request.method == "POST":
+            posts.append(request.url)
+            name = "one-pager.pdf" if b"one-pager.pdf" in (request.post_data_buffer or b"") else "?"
+            return route.fulfill(body=f"<script>parent.parsed({json.dumps(name)})</script>", content_type="text/html")
+        body = ICIMS_FORM if request.url.endswith("/candidate") else ICIMS_OUTER
+        return route.fulfill(body=body, content_type="text/html")
+    page.route("https://icims.example/**", serve)
+    page.goto("https://icims.example/jobs/90947/candidate-page")
+
+
+def test_icims_posts_the_attached_resume_to_be_parsed_through_the_guards():
+    # Live on AMD: the guards blocked the parse's native POST, so it showed "Parsing resume" for good (KAN-691).
+    from playwright.sync_api import sync_playwright
+
+    from apply.attach import attach_resume
+    from apply.submit_guard import DriveGuard, guard
+
+    posts = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        _icims(page, posts)
+        guard(page)  # a rehearsal's guard, and Claude fill's
+        drive = DriveGuard(page)
+        assert attach_resume(page, FIXTURES / "one-pager.pdf", drive)
+        assert posts == ["https://icims.example/candidate?parse=1"]
+        form = page.frame_locator("#icims_content_iframe")
+        assert form.locator("#status").inner_text() == "one-pager.pdf"
+        # Its Submit Profile, after the attach, is blocked as ever: nothing more is sent.
+        form.get_by_role("button", name="Submit Profile").click()
+        page.wait_for_timeout(500)
+        assert posts == ["https://icims.example/candidate?parse=1"]
+        browser.close()
+
+
+def test_without_the_attach_s_window_the_guards_block_icims_s_parse_post():
+    from playwright.sync_api import sync_playwright
+
+    from apply.attach import attach_resume
+    from apply.submit_guard import DriveGuard, guard
+
+    posts = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        _icims(page, posts)
+        guard(page)
+        DriveGuard(page)
+        attach_resume(page, FIXTURES / "one-pager.pdf")  # no guard given: as before KAN-691
+        assert posts == []  # the input shows its file, but iCIMS never had it
+        assert page.frame_locator("#icims_content_iframe").locator("#status").inner_text() == "Parsing resume, please wait..."
+        browser.close()
+
+
+def test_the_attach_s_window_lets_no_button_that_sends_post_the_form():
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import DriveGuard, guard
+
+    posts = []
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        _icims(page, posts)
+        guard(page)
+        drive = DriveGuard(page)
+        frame = page.frame_locator("#icims_content_iframe")
+        frame.locator("#resume").set_input_files(FIXTURES / "one-pager.pdf")  # blocked: no window yet
+        drive.let_upload_post()
+        frame.get_by_role("button", name="Submit Profile").click()
+        page.wait_for_timeout(500)
+        assert posts == []
+        browser.close()
+
+
 # Airtable's dropdowns, as they went live: a combobox named by its label lists its choices
 # (and a blank "None") only once it is clicked open.
 AIRTABLE_DROPDOWNS = """<!doctype html><body>
@@ -1559,6 +1660,77 @@ def test_a_step_that_shows_a_whole_address_in_a_part_or_a_future_start_year_neve
     assert claude_fill.cant_be_right({"Address line 1": address, "Home address": address}, 2026) == []
 
 
+def test_line_one_with_a_whole_address_is_wrong_only_on_a_step_that_asks_the_parts():
+    # TAL.net (KAN-684): the whole address in Address line 1, beside its own City/Town and Postcode boxes.
+    address = "1 Main Street, Springfield, NY 11111, United States"
+    assert claude_fill.cant_be_right({"Home/permanent address: Address line 1": address, "City/Town": "Springfield",
+                                      "Postcode/Zipcode": "11111"}, 2026) == [
+        "'Home/permanent address: Address line 1' holds a whole address, though the step asks its parts"]
+    assert claude_fill.cant_be_right({"Address line 1": "1 Main Street", "City/Town": "Springfield"}, 2026) == []
+    assert claude_fill.cant_be_right({"Street address": address}, 2026) == []  # one box for it all: right
+
+
+# TAL.net's Personal Details, as it showed live (KAN-684): a home and a campus address, line 1's help text under
+# its label, and line 2 holding the whole address an earlier run saved there, which this fill planned nothing for.
+TWO_ADDRESSES = """<!doctype html><body>
+<h3>Home/permanent address</h3>
+<label for=h1>Address line 1<br><span>Please include floor, apartment/flat number if applicable</span> *</label>
+<input id=h1 value="1 Main Street">
+<label for=h2>Address line 2</label><input id=h2 value="1 Main Street, Springfield, NY 11111, United States">
+<label for=h3>City/Town *</label><input id=h3 value="Springfield">
+<label for=h4>Postcode/Zipcode *</label><input id=h4 value="11111">
+<h3>Campus Address</h3>
+<label for=c1>Address line 1 *</label><input id=c1 value="Dorm Hall, 5 College Road">
+<label for=c2>Address line 2</label><input id=c2 value="Room 4">
+<label for=c3>City/Town *</label><input id=c3 value="College Town">
+<label for=c4>County / State / Province</label><select id=c4><option>Choose one...</option><option selected>New York</option></select>
+<input type=hidden id=x value="1 Main Street, Springfield, NY 11111, United States">
+</body>"""
+
+
+def test_a_box_the_fill_left_alone_is_checked_too():
+    # KAN-684: KAN-652's check read only the boxes Apply filled, so line 2's stale whole address was saved.
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(TWO_ADDRESSES)
+        planned = {"Home/permanent address: Address line 1": "1 Main Street"}
+        seen = claude_fill._on_step(page, planned)
+        browser.close()
+    assert seen["Home/permanent address: Address line 1"] == "1 Main Street"  # its own read-back, not read twice
+    assert seen["#2: Address line 2"].startswith("1 Main Street, Springfield")
+    assert seen["County / State / Province"] == "New York" and "x" not in seen
+    assert claude_fill.cant_be_right(seen, 2026) == ["'#2: Address line 2' holds a whole address"]
+
+
+# TAL.net's education step after a save that found a blank (KAN-685): the form's error notice is a heading too.
+TAL_EDUCATION = """<!doctype html><body>
+<h2>Current / Most Recent University Education</h2>
+<div class="errors"><h2>There is a problem</h2><p>Start date - This field is required</p></div>
+<div><label for=u>Current University / School *</label><input id=u value="Example State University"></div>
+<div><label>Start date *</label><select id=m><option>mm</option><option>August</option></select>
+<select id=y><option>yyyy</option><option>2024</option></select></div>
+</body>"""
+
+
+def test_a_bare_date_takes_the_heading_it_sits_under_never_the_forms_error_notice():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+    asked = [Question("q1", "Current University / School", "text", True),
+             Question("q2", "Start date: Month", "select", True, ("August",)),
+             Question("q3", "Start date: Year", "select", True, ("2024",))]
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(TAL_EDUCATION)
+        found = claude_fill._with_sections(page, asked)
+        browser.close()
+    assert [q.section for q in found] == ["", "current / most recent university education",
+                                          "current / most recent university education"]
+
+
 @pytest.mark.parametrize("label", [
     # Saved forms (the Fill engine's fixtures) that ask a school's fields and the internship's start on one page.
     "What is your earliest preferred start date if hired? (YYYY-MM-DD)",
@@ -1636,3 +1808,40 @@ def test_the_section_of_a_bare_start_date_is_read_from_the_page(heading, stops):
         browser.close()
     assert sections == {"Start date": heading.lower()}
     assert bool(claude_fill.cant_be_right(shown, 2026, sections)) is stops
+
+
+def test_the_fill_prompt_says_how_to_pick_from_a_type_to_search_dropdown():
+    # AMD's iCIMS (live, KAN-699): Claude typed the whole state, read the list at once, got No Results and
+    # pressed Escape. Ask Claude then typed "New", waited and clicked New York.
+    assert "Type to Search" in FILL and "first word" in FILL and "browser_wait_for" in FILL
+    assert "Don't press Escape" in FILL
+
+
+# Amazon's Job-specific questions (live, KAN-714): a month box whose only word on its format is its placeholder.
+AMAZON_DATES = """<!doctype html><body>
+<div><label id="grad-label">In what month and year did you (or do you expect to) graduate from your highest degree?</label>
+<input type="text" placeholder="YYYY-MM" aria-label="In what month and year did you (or do you expect to) graduate from your highest degree? Date: Year-Month-Day"></div>
+<div><label for="alias">Please provide your Amazon Login ID (alias)</label><input id="alias" type="text" placeholder="Type here"></div>
+</body>"""
+
+
+def test_a_date_boxs_placeholder_format_is_added_to_its_label():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+
+    questions = [
+        Question("q13", "In what month and year did you (or do you expect to) graduate from your highest degree?", "text", True),
+        Question("q14", "Please provide your Amazon Login ID (alias)", "text", True),
+    ]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(AMAZON_DATES)
+        found = claude_fill._with_formats(page, questions)
+        browser.close()
+
+    assert [q.label for q in found] == [
+        "In what month and year did you (or do you expect to) graduate from your highest degree? (YYYY-MM)",
+        "Please provide your Amazon Login ID (alias)",
+    ]
