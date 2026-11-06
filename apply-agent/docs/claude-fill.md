@@ -50,6 +50,13 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   or Zip, KAN-684). A bare "Start date" beside school
   fields may be the internship's, so it stops the fill only in a section headed clearly as education
   (`_sections`, `clearly_education`) or at a year past `PLAUSIBLE_YEARS` (KAN-659).
+- A question Claude finds on a step (`unlisted`, then MoreQuestions) belongs to that step
+  (`_found_at`). Once the fill has gone past it, its answer is never sent to a later step: TAL.net's
+  Save and Continue goes on with a required box blank, and Lisul's answer came steps later
+  (KAN-687). It is `left_behind` instead. The Worker holds the form for it ("Not filled: ... its
+  answer came after the form saved its step without it"). A rehearsal lists it as left blank and,
+  once held, fills it on its own step through the window's in-place fill (`docs/held-forms.md`,
+  KAN-686). A question the read pass listed has no step of its own and is carried on as before.
 - Dropdowns that list their choices only once opened are read and picked
   by plain code (`_with_options`, `_pick_in_comboboxes`). Each one's name is
   read off the very element Playwright clicks (`_comboboxes`), never from a

@@ -190,6 +190,7 @@ jobs:
             tests/test_gmail.py \
             tests/test_graduate_only.py \
             tests/test_into.py \
+            tests/test_left_behind.py \
             tests/test_preflight.py \
             tests/test_keychain_contract.py \
             tests/test_mail_command.py \
