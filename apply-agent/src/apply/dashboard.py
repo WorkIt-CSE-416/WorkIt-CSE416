@@ -357,6 +357,9 @@ def summary(tiles: list[dict], items: list[dict] | None = None) -> str:
 
 
 class Frames(Protocol):
+    """A Worker's frames, input and file requests. A plain Worker's source (apply.plain.tile.PortFrames) also takes
+    `tab=` on frame, wait, input, chooser and forget_chooser: that one form's tab of the Worker, never another (KAN-717)."""
+
     def frame(self, worker: int) -> bytes | None:
         """Worker `worker`'s page, as a JPEG, the latest taken; None before any."""
         ...
@@ -1759,9 +1762,15 @@ class _Shown:
         return self._frames.input(worker, event, **tab)
 
     def chooser(self, tile: int) -> str | None:
-        return self._frames.chooser(self._dashboard.worker_of(tile))
+        worker, tab = self._at(tile)
+        return self._frames.chooser(worker, **tab)
 
-    def __getattr__(self, name: str):  # field_error, notice, forget_chooser: by tile too, where the source has them
+    def forget_chooser(self, tile: int) -> None:
+        if forget := getattr(self._frames, "forget_chooser", None):
+            worker, tab = self._at(tile)
+            forget(worker, **tab)
+
+    def __getattr__(self, name: str):  # field_error, notice: by tile too, where the source has them
         found = getattr(self._frames, name)
         return (lambda tile, *rest: found(self._dashboard.worker_of(tile), *rest)) if callable(found) else found
 

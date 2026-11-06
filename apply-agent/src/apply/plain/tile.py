@@ -72,7 +72,9 @@ class PortFrames:
         self._by_tab: dict[tuple[int, int], tuple[list[tuple[float, bytes]], int]] = {}
         self._switched: dict[int, float] = {}  # worker -> when its filmed window last showed another tab
         self._watched: dict[int, Connection] = {}
-        self._choosers: dict[int, dict] = {}  # worker -> {mode, tab, frame} of the file input its page asked for
+        # (worker, tab) -> {mode, tab, frame} of the file input that tab's page asked for: a file picked on a tile goes
+        # only to its own tab's (KAN-717), newest last
+        self._choosers: dict[tuple[int, int | None], dict] = {}
         self._errors: dict[int, tuple[str, float]] = {}
         self._pages: dict[tuple[int, int], PortPage] = {}
         self._changed = threading.Condition()
@@ -125,35 +127,48 @@ class PortFrames:
         connection = self._watched.get(worker)
         if connection is None or connection.closed.is_set() or worker in self._foreign:
             return None
-        tab = self._tabs.get(worker) if tab is None else tab
+        own, tab = tab, self._tabs.get(worker) if tab is None else tab
         try:
             if event["type"] == "files":
-                return self._give(connection, worker, event.get("paths") or [])
+                return self._give(connection, worker, own, event.get("paths") or [])
             size = jpeg_size(self.frame(worker, tab) or b"") or (None, None)
             reply = connection.call("tile.input", timeout=INPUT_WAIT, tab=tab, event=event,
                                     width=size[0], height=size[1])
         except (PortError, OSError):
             return None  # the page went away under it
         if isinstance(reply, dict) and reply.get("chooser"):
-            self._choosers[worker] = {"mode": reply["chooser"], "tab": reply.get("tab"), "frame": reply.get("frame", 0)}
+            asked = reply.get("tab", tab)
+            self._choosers.pop((worker, asked), None)
+            self._choosers[(worker, asked)] = {"mode": reply["chooser"], "tab": asked, "frame": reply.get("frame", 0)}
             return None
         return reply if isinstance(reply, dict) and ("menu" in reply or "text" in reply) else None
 
-    def chooser(self, worker: int) -> str | None:
-        return self._choosers.get(worker, {}).get("mode")
+    def _asked(self, worker: int, tab: int | None) -> tuple[int, int | None] | None:
+        """The key of the file input that `tab` asked for (None: the newest any tab of Worker `worker` asked for)."""
+        if tab is not None:
+            return (worker, tab) if (worker, tab) in self._choosers else None
+        return next((key for key in reversed(self._choosers) if key[0] == worker), None)
 
-    def forget_chooser(self, worker: int) -> None:
+    def chooser(self, worker: int, tab: int | None = None) -> str | None:
+        """Whether `tab`'s page (None: any of Worker `worker`'s) asked for a file, and how many."""
+        key = self._asked(worker, tab)
+        return self._choosers[key]["mode"] if key else None
+
+    def forget_chooser(self, worker: int, tab: int | None = None) -> None:
         """The file its page asked for was given another way (Claude set the input itself)."""
-        self._choosers.pop(worker, None)
+        if key := self._asked(worker, tab):
+            self._choosers.pop(key, None)
 
     def field_error(self, worker: int) -> str:
         return self._errors.get(worker, ("", 0.0))[0]
 
     # --- the frames thread
 
-    def _give(self, connection: Connection, worker: int, paths: list[str]) -> None:
-        """Answer the file input Worker `worker`'s page asked for with `paths` (none: let it go)."""
-        chooser = self._choosers.pop(worker, None)
+    def _give(self, connection: Connection, worker: int, tab: int | None, paths: list[str]) -> None:
+        """Answer the file input that `tab` (the tile's own; None: Worker `worker`'s only tile) asked for with
+        `paths` (none: let it go). Never another tab's: his file goes only to the form whose tile he picked it on."""
+        key = self._asked(worker, tab)
+        chooser = self._choosers.pop(key, None) if key else None
         if chooser:
             connection.call("chooser.set", timeout=60, tab=chooser["tab"], frame=chooser["frame"],
                             files=file_payloads([Path(p) for p in paths]))
@@ -271,7 +286,7 @@ class PortFrames:
         self._unfilm(worker)
         self._notes.pop(worker, None)
         self._watched.pop(worker, None)
-        self._choosers.pop(worker, None)
+        self._choosers = {key: asked for key, asked in self._choosers.items() if key[0] != worker}
         self._foreign.discard(worker)
         self._pages = {key: page for key, page in self._pages.items() if key[0] != worker}
         if connection is None:
@@ -339,11 +354,11 @@ class EitherFrames:
     def input(self, worker: int, event: dict, tab: int | None = None) -> dict | None:
         return self._port.input(worker, event, tab) if self._plain(worker) else self._cdp.input(worker, event)
 
-    def chooser(self, worker: int) -> str | None:
-        return self._of(worker).chooser(worker)
+    def chooser(self, worker: int, tab: int | None = None) -> str | None:
+        return self._port.chooser(worker, tab) if self._plain(worker) else self._cdp.chooser(worker)
 
-    def forget_chooser(self, worker: int) -> None:
-        self._of(worker).forget_chooser(worker)
+    def forget_chooser(self, worker: int, tab: int | None = None) -> None:
+        self._port.forget_chooser(worker, tab) if self._plain(worker) else self._cdp.forget_chooser(worker)
 
     def field_error(self, worker: int) -> str:
         return self._of(worker).field_error(worker)

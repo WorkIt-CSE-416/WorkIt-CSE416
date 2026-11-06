@@ -196,6 +196,32 @@ def test_after_showing_a_press_never_lands_on_the_new_active_tab():
     assert [i["tab"] for i in worker.inputs] == [1, 1]
 
 
+# --- 3. files: the one input that doesn't go by the tile's tab
+
+def test_a_file_picked_on_a_tile_goes_only_to_that_tiles_tab():
+    worker = Worker()
+    original = worker.call
+
+    def call(op, timeout=None, **params):
+        if op == "tile.input" and params["tab"] == 2:  # hostile tab 2: its press asked for a file
+            return {"chooser": "selectSingle", "tab": 2, "frame": 0}
+        return original(op, timeout=timeout, **params)
+
+    worker.call = call
+    with PortFrames(1, lambda k: worker, capture="extension") as frames, Dashboard(1, frames) as board:
+        started(frames, worker)
+        worker.send("tile.frame", tab=1, data=B64)
+        worker.send("tile.frame", tab=2, data=B64)
+        board.add_tile(0)
+        board.showing(0, 1), board.showing(1, 2)
+        post(f"{board.url}/input/1", {"type": "down", **CLICK}, **window(board))
+        asks_on_tile_a = board._frames.chooser(0)  # tile 0, form A's, now offers the file box too
+        post(f"{board.url}/input/0", {"type": "files", "files": [{"name": "resume.pdf", "data": "UERG"}]}, **window(board))
+    set_on = [p["tab"] for op, p in worker.calls if op == "chooser.set"]
+    assert asks_on_tile_a is None
+    assert 2 not in set_on  # his resume, picked on form A's tile, must not reach hostile tab 2
+
+
 # --- 4. the title check
 
 @pytest.mark.parametrize(("window", "tab"), [
