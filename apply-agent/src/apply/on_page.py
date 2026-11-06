@@ -58,7 +58,8 @@ FIELD = """([name, label, act, outlineMs]) => {
   let box = control && (control.closest('[data-automation-id^=formField], .field, .application-question, fieldset, li') || control.parentElement);
   if (!control) {
     const says = (el) => { const t = norm(el.innerText || el.textContent); return t === wanted || (t.startsWith(wanted) && t.length - wanted.length <= 12); };
-    const labels = [...document.querySelectorAll('label, legend, [class*=label], [id*=label], [data-automation-id*=abel]')]
+    const LABELS = 'label, legend, [class*=label], [id*=label], [data-automation-id*=abel]';
+    const labels = [...document.querySelectorAll(LABELS)]
       .filter((el) => ours(el) && shown(el) && says(el));
     const found = [];
     // Another field's label between a label and the control found near it: that control is the other field's.
@@ -67,13 +68,20 @@ FIELD = """([name, label, act, outlineMs]) => {
       return [...document.querySelectorAll('label, legend')].some((o) => o !== l && ours(o) && shown(o) && !o.contains(l)
         && !l.contains(o) && !o.contains(c) && after(first, o) && after(o, last)); };
     const nextTo = (around, l) => [...around.querySelectorAll(CONTROL)].find((c) => ours(c) && shown(c) && after(l, c));
+    // Another field's label: one that names something (not an option's own label, which holds its control).
+    const otherLabel = (el, l) => el !== l && !el.contains(l) && !l.contains(el) && !controlIn(el) && norm(el.innerText || el.textContent);
     for (const l of labels) {
       let c = l.htmlFor ? document.getElementById(l.htmlFor) : null;
       let around = l;
       for (let up = 0; !c && around && up < 6; up++) {
         c = isControl(around) ? around : nextTo(around, l) || controlIn(around);
         if (c && between(l, c)) { c = null; break; }
-        if (!c) around = around.parentElement;
+        if (c) break;
+        // Never up into a box that labels other fields, whatever its labels are (Microsoft's are divs): its
+        // controls are theirs ("Alternate Phone Number" read its contact section's first name, live 2026-11-06).
+        const parent = around.parentElement;
+        if (parent && [...parent.querySelectorAll(LABELS)].some((o) => ours(o) && otherLabel(o, l))) break;
+        around = parent;
       }
       if (c && ours(c)) found.push([l, c, l.htmlFor ? c.closest('.field, fieldset, li') || c.parentElement : around]);
     }

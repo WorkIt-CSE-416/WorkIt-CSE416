@@ -1055,6 +1055,57 @@ def test_each_dropdown_gets_its_own_choices_and_answer_when_a_script_and_playwri
     assert (code, country) == (us_code, "United States")
 
 
+# Microsoft Careers' application (live 2026-11-06): the location picker shows its one choice as an option all
+# along, and a list closed earlier stays in the page, hidden. Each dropdown lists its own a moment after it opens,
+# one in the listbox it names (aria-controls), the others in a shared one. Read page-wide, every dropdown had
+# offered the location's choice alone, so no Yes/No answer fit and they were left Missing facts.
+MICROSOFT_DROPDOWNS = """<!doctype html><body>
+<div><span id="l0">Where would you like to apply for Software Engineer: Internship Opportunities</span>
+<div role="listbox" aria-labelledby="l0"><div role="option" aria-selected="true">United States, California, Aliso Viejo</div></div></div>
+<div role="listbox" style="display:none"><div role="option">I am currently serving (or have served)</div><div role="option">I have not served</div></div>
+<div><span id="l5">Is your legal name the same as your preferred name?</span>
+<div id="same" role="combobox" tabindex="0" style="height:20px" aria-labelledby="l5" onclick="openOwn(this)"><span></span></div>
+<div id="same-list" role="listbox"></div></div>
+<div><span id="l22">Are you currently or have you ever been a member of the military, a civilian employee, or an official of any government, whether national, state, local, or foreign?</span>
+<div role="combobox" tabindex="0" style="height:20px" aria-labelledby="l22" onclick="openList(this, ['Yes', 'No'])"><span></span></div></div>
+<div><span id="l18">Ethnicity/Race</span>
+<div role="combobox" tabindex="0" style="height:20px" aria-labelledby="l18" onclick="openList(this, ['Asian', 'White', 'I prefer not to answer'])"><span></span></div></div>
+<div id="list" role="listbox"></div>
+<script>
+let open = null;
+const later = (f) => setTimeout(f, 200);
+function options(list, names) { list.innerHTML = names.map(o => '<div role="option" onclick="pick(this)">' + o + '</div>').join(''); }
+function openOwn(box) { open = box; box.setAttribute('aria-controls', 'same-list'); later(() => options(document.getElementById('same-list'), ['Yes', 'No'])); }
+function openList(box, names) { open = box; later(() => options(document.getElementById('list'), names)); }
+function close() { document.getElementById('list').innerHTML = ''; document.getElementById('same-list').innerHTML = ''; }
+function pick(option) { open.firstElementChild.textContent = option.textContent; close(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+</script></body>"""
+
+
+def test_each_dropdown_reads_its_own_choices_never_another_lists_options_left_on_the_page():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+
+    questions = [
+        Question("q5", "Is your legal name the same as your preferred name?", "select", True),
+        Question("q22", "Are you currently or have you ever been a member of the military, a civilian employee, or an "
+                        "official of any government, whether national, state, local, or foreign?", "select", True),
+        Question("q18", "Ethnicity/Race", "select", False),
+    ]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(MICROSOFT_DROPDOWNS)
+        found = claude_fill._with_options(page, questions)
+        picked = claude_fill._pick_in_comboboxes(page, found, {"q5": "Yes", "q22": "No"})
+        browser.close()
+
+    assert [q.options for q in found] == [("Yes", "No"), ("Yes", "No"), ("Asian", "White", "I prefer not to answer")]
+    assert picked == {"q5": "Yes", "q22": "No"}
+
+
 def test_jobvites_country_of_residence_and_consent_are_passed_before_claude_reads_the_form(tmp_path):
     driver = JobviteDriver()
 
