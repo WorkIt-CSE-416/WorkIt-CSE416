@@ -15,7 +15,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.models.scraper import Job_Source
-from app.scripts.import_jobs import _MASS_CLOSE_FLOOR, _MASS_CLOSE_SHARE
+from app.scraper.constants import MASS_CLOSE_FLOOR, MASS_CLOSE_SHARE
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ async def detect_and_close(conn: AsyncConnection) -> int:
     row = (
         await conn.execute(
             _DETECT_AND_CLOSE_SQL,
-            {"floor": _MASS_CLOSE_FLOOR, "share": _MASS_CLOSE_SHARE},
+            {"floor": MASS_CLOSE_FLOOR, "share": MASS_CLOSE_SHARE},
         )
     ).first()
 
