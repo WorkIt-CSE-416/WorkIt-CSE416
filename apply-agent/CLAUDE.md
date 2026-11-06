@@ -1475,6 +1475,11 @@ into it and the window shows "Sample data".
 - Never commit a data file. `.gitignore` here lists each data file name.
 - For a test run, set `APPLY_HOME` and `APPLY_PROFILES` to a scratch folder,
   so the run does not write into your real data folder.
+- `apply rehearse`, `apply run` and `approve-pass` refuse an `APPLY_HOME` or
+  profiles folder under a temp path (`/tmp`, `/private/tmp`, `/var/folders`,
+  KAN-665), since a reboot wipes held forms and sign-ins there. Test Person
+  (`sample_data: true`) and tests (`APPLY_TEST_TEMP_OK`, set in `conftest.py`)
+  go on. Use a scratch folder under your home folder for a rehearsal.
 
 ## Testing
 
