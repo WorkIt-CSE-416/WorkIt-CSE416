@@ -1182,7 +1182,10 @@ Find files with a directory listing; these are the rules for where code goes.
 - **Tailor** (KAN-217, `../docs/tailor_resume.md`) is `routers/tailor.py`
   over `services/tailor.py`. `POST .../tailor/match` gives the picked
   source's keyword match (and the posting's tailored resume, if any) for
-  the student to pick the missing keywords to add. A run (`POST
+  the student to pick the missing keywords to add, with `in_experiences`:
+  the missing ones the whole bank already shows (`keywords.in_experiences`
+  over `all_chosen`, the same whole-word rule as the match), which the
+  keyword step groups first (KAN-587). A run (`POST
   .../tailor`) then rewrites, orders and adds those skills and **saves the
   posting's tailored resume itself, with no confirmation**: proposals,
   Accept and Reject, Done (`.../tailor/done`) and "Have you used X?" were

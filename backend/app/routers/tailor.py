@@ -11,7 +11,8 @@ both.
 
 POST /applicants/{id}/tailor/match  TailorMatchRequest {job_posting_id, source} -> TailorMatch
      The source's keyword match, for the student to pick the missing
-     keywords to add, and the posting's tailored resume if it has one. It
+     keywords to add (`in_experiences`: those the whole bank already shows,
+     KAN-587), and the posting's tailored resume if it has one. It
      extracts the posting's keywords once (cached on the posting) and saves
      what reading an upload that owned nothing wrote. Free while KAN-319
      lifts the limit. 404 a posting the Jobs page does not list or a source
@@ -76,7 +77,7 @@ from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound, load_bank
 from app.services.identity import load_identity
 from app.services.models import get_large_llm, get_small_llm
-from app.services.resume_view import Choices, build_view
+from app.services.resume_view import Choices, all_chosen, build_view
 
 # KAN-319: the Tailor limit is lifted for now; restore with the lines in run().
 # from app.services.usage import Feature, count_use, uses_left
@@ -145,6 +146,9 @@ async def match(
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
     matched, missing = keywords.match(build_view(bank, choices), found)
+    # The missing ones the whole bank already shows, which the keyword step
+    # groups first (KAN-587).
+    shown = keywords.in_experiences(build_view(bank, all_chosen(bank)), missing)
     tailored = await built_resumes.tailored_for(session, applicant_id, job.id)
     # One commit: the keyword cache and what reading an uploaded source wrote.
     await session.commit()
@@ -154,6 +158,7 @@ async def match(
         weak_match=tailor.weak_match(job),
         matched=matched,
         missing=missing,
+        in_experiences=shown,
     )
 
 

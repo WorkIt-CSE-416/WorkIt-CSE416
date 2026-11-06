@@ -304,9 +304,25 @@ async def test_the_match_before_a_run_reads_the_source_and_saves_nothing(student
     assert _words(body["matched"]) == ["Python", "Docker"]
     assert _words(body["missing"]) == ["Go", "Kubernetes"]
     assert body["weak_match"] is False and body["tailored_resume_id"] is None
+    assert body["in_experiences"] == []
     # The keywords were cached already: no model call, and nothing saved.
     assert fake.prompts == []
     assert [r["job_posting_id"] for r in await student.resumes()] == [None]
+
+
+async def test_the_match_names_the_missing_keywords_the_experiences_already_show(
+    student, database, use_model
+):
+    # KAN-587: Kubernetes is in the bank but hidden on this resume, and Go is
+    # nowhere. Only Kubernetes is grouped as already shown; both stay missing.
+    await student.skill("Kubernetes")
+    posting = await _seed_posting(database)
+    use_model(reply())
+
+    body = (await student.match(posting)).json()
+
+    assert _words(body["missing"]) == ["Go", "Kubernetes"]
+    assert body["in_experiences"] == ["Kubernetes"]
 
 
 async def test_a_keyword_the_student_does_not_pick_is_never_added(student, database, use_model):

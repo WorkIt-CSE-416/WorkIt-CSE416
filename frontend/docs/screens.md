@@ -2592,7 +2592,13 @@ with no proposals to accept and no Done (2026-10-25).
   resume and may be named in its bullets, since picking it lets the truth rule
   pass it, and an interviewer can ask about each one), then the missing
   keywords as large toggle chips (+ when off, a check that pops when on),
-  Required then Preferred (`MissingKeywords`, KAN-408). The right card is a
+  Required then Preferred (`MissingKeywords`, KAN-408), after a first group,
+  **In Your Experiences** (KAN-587, 2026-11-05): the missing keywords the
+  student's Experiences already show, though this resume leaves them out,
+  with one line saying so and a visible "Required" tag on a required one.
+  KAN-587 asked for Add All back; the user chose to show which skills the
+  student has instead, so each still takes its own click. A resume Generate
+  made from the whole bank has no such group: everything is on it. The right card is a
   ring in the match score's colours (`matchColor`) with the share in it, "1 of
   9 keywords", the resume's name, and what is Already on Your Resume as quiet
   tags. **A pick never moves the score, and nothing picks in bulk.** The ring
