@@ -426,3 +426,63 @@ def test_two_workers_on_one_company_research_it_once():
         t.join()
 
     assert len(claude.researched) == 1
+
+
+# A link that names no company (JPMorgan's Oracle site, amazon.jobs) once read company-briefs/company.md,
+# another company's brief, so its facts could reach an essay.
+
+def test_a_known_job_sites_host_names_its_company():
+    from apply.model import host_company
+
+    assert host_company("https://www.amazon.jobs/en/jobs/2981234/software-dev-engineer-intern") == "Amazon"
+    assert host_company("https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210") \
+        == "JPMorgan Chase"
+    assert host_company("https://careers.amd.com/careers-home/jobs/12345") == "Advanced Micro Devices"
+    assert host_company("https://careers-amd.icims.com/jobs/12345/job") == "Advanced Micro Devices"
+    assert host_company("https://careers-other.icims.com/jobs/1/job") == ""
+    assert host_company("https://apply.careers.microsoft.com/careers/job/1") == "Microsoft"
+    assert host_company("https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/x") == "NVIDIA"
+    assert host_company("https://bankcampuscareers.tal.net/vx/candidate/apply/1") == "Bank of America"
+    assert host_company("https://example.com/jobs/1") == ""
+
+
+def test_a_posting_with_no_company_reads_no_brief_and_essays_get_a_note():
+    brief.BRIEFS.mkdir(exist_ok=True)
+    (brief.BRIEFS / "company.md").write_text("# \n\n## Company\nResearched 2026-10-18\n\n- **Other**: Not theirs. https://x/\n")
+    nameless = Posting("r", "", "Intern", "https://example.com/jobs/1")
+    claude = FakeClaude(brief=[EMDASH])
+
+    assert brief.brief(nameless, PAGES, claude, TODAY) == brief.NO_COMPANY
+    assert claude.researched == [] and "Other" not in brief.NO_COMPANY
+
+
+def test_a_nameless_posting_on_a_known_host_gets_that_companys_brief():
+    brief.BRIEFS.mkdir(exist_ok=True)
+    (brief.BRIEFS / "amazon.md").write_text("# Amazon\n\n## Company\nResearched 2026-10-18\n\n"
+                                           "- **Prime Air**: Amazon delivers by drone. https://amazon.com/air\n")
+    amazon = Posting("r", "", "SDE Intern", "https://www.amazon.jobs/en/jobs/1/sde-intern")
+
+    facts = brief.brief(amazon, PAGES, FakeClaude(), TODAY)
+
+    assert "Prime Air" in facts
+
+
+def test_a_brief_whose_heading_names_another_company_is_never_read_nor_written():
+    brief.BRIEFS.mkdir(exist_ok=True)
+    other = "# Not Cloudflare\n\n## Company\nResearched 2026-10-18\n\n- **Other**: Not theirs. https://x/\n"
+    (brief.BRIEFS / "cloudflare.md").write_text(other)
+
+    facts = brief.brief(CLOUDFLARE, PAGES, FakeClaude(brief=[EMDASH]), TODAY)
+
+    assert "Other" not in facts and "EmDash" in facts
+    assert kept() == other
+
+
+def test_a_brief_is_found_by_its_heading_whatever_its_legal_suffix():
+    brief.BRIEFS.mkdir(exist_ok=True)
+    (brief.BRIEFS / "advanced-micro-devices-inc.md").write_text(
+        "# Advanced Micro Devices, Inc\n\n## Company\nResearched 2026-10-18\n\n- **ROCm**: AMD's GPU stack. https://amd.com/rocm\n")
+    amd = Posting("r", "", "Intern", "https://careers.amd.com/careers-home/jobs/1")
+    claude = FakeClaude()
+
+    assert "ROCm" in brief.brief(amd, PAGES, claude, TODAY) and claude.researched == []

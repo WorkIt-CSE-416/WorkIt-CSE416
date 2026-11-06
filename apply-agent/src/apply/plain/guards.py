@@ -150,7 +150,7 @@ def lift(page, pressed=None, again=None, warning: str = "", wrong: bool = True, 
     if bound:
         pressed = again = dismiss = None
     if pressed:
-        page.expose_binding("__applyLisulPressed", lambda source, words: pressed(words))
+        page.expose_binding("__applyLisulPressed", lambda source, words, account=False: pressed(words, account=account))
     if again:
         page.expose_binding("__applyFillAgain", lambda source: again())
     if dismiss:

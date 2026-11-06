@@ -41,6 +41,31 @@ ELEMENTS = ("iframe[src*='recaptcha'], iframe[src*='hcaptcha.com'], iframe[src*=
             ".g-recaptcha, .h-captcha, .cf-turnstile, [data-testid='TurnstileContainer']")
 
 
+# A captcha a page carries, its invisible kind too: its script, its frame, its widget's box or sitekey, or the
+# field its token goes in. An account step's button on such a page runs it (AMD's iCIMS email step: an invisible
+# hCaptcha on Next opened a picture challenge, KAN-703), so that button is Lisul's to press, never Apply's.
+CARRIED = ("script[src*='hcaptcha.com'], script[src*='recaptcha'], script[src*='challenges.cloudflare.com'], "
+           "script[src*='arkoselabs.com'], script[src*='funcaptcha.com'], "
+           "iframe[src*='hcaptcha.com'], iframe[src*='recaptcha'], iframe[src*='challenges.cloudflare.com'], "
+           "iframe[src*='arkoselabs.com'], iframe[src*='funcaptcha.com'], "
+           "[data-sitekey], [data-hcaptcha-widget-id], .h-captcha, .g-recaptcha, .cf-turnstile, "
+           "[name='h-captcha-response'], [name='g-recaptcha-response'], [name='cf-turnstile-response']")
+# The Handoff for one, named by its site; and how the drive guard notes a click it refused there.
+SIGN_IN = "{}'s sign-in page has a captcha, and Apply never presses a button that runs one: sign in yourself, then press Resume"
+SIGN_IN_CLICK = "on a sign-in page with a captcha"
+
+
+def carried(page: Page) -> bool:
+    """Whether any frame of the page carries a captcha (CARRIED), shown or not. A page that is gone carries none."""
+    for frame in getattr(page, "frames", ()):
+        try:
+            if frame.locator(CARRIED).count():
+                return True
+        except Exception:
+            continue  # a frame loading, or gone
+    return False
+
+
 def in_frame(url: str) -> bool:
     """Whether `url` is a captcha's own frame (its host or, for reCAPTCHA, its path)."""
     parts = urlsplit(url or "")
