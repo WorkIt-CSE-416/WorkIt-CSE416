@@ -11,7 +11,7 @@ password ever reaches Claude, in a prompt, a schema or a file:
 - it clicks the button Claude named, never one whose words send the
   application, with the drive guard letting that one click through;
 - it reads an emailed code or link from Gmail, only from the site's own
-  domain or its job system's (another Worker may be making an account at the
+  domain or its job system's (on Oracle, by its subject: see mail_search; another Worker may be making an account at the
   same moment, so one Worker at a time waits on each sender's mail), types
   the code or opens the link, and goes back to the Posting.
 
@@ -31,6 +31,7 @@ from playwright.sync_api import Page
 
 from apply.accounts import NO_PASSWORD, Accounts
 from apply.model import Handoff
+from apply.oracle import MAIL_SEARCH as ORACLE_MAIL_SEARCH
 
 PAGES = ["none", "sign_in", "sign_up", "code", "link_sent"]
 MAX_PAGES = 4  # account pages in one Application, so a sign-in can't loop
@@ -248,7 +249,10 @@ def mail_domains(site: str) -> tuple[str, ...]:
 
 
 def mail_search(site: str) -> str:
-    """The Gmail search for a site's account mail: from its domains alone."""
+    """The Gmail search for a site's account mail: from its domains alone, but
+    for Oracle's, which each employer sends from an address of its own."""
+    if registrable(site) == "oraclecloud.com":
+        return ORACLE_MAIL_SEARCH
     return f"from:({' OR '.join(mail_domains(site))})"
 
 

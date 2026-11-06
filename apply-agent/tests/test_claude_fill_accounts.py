@@ -16,7 +16,7 @@ from test_employer_accounts import EMAIL, NOW, World
 from test_matches import feed_record
 from test_rehearse import adapters
 
-from apply import account_pages, rehearsal
+from apply import account_pages, oracle, rehearsal
 from apply.keychain import InMemoryKeychain
 from apply.profile import ApplicantProfile
 from apply.tracker import EmployerAccount
@@ -228,6 +228,8 @@ def test_a_rehearsal_makes_the_account_reads_the_code_and_stops_unsent(tmp_path)
     ("career4.successfactors.com", "from:(successfactors.com OR sap.com)"),
     ("acme.taleo.net", "from:(taleo.net OR oracle.com)"),
     ("careers.acme.co.uk", "from:(acme.co.uk)"),
+    # JPMorgan's code came from workflow.mail.us2.cloud.oracle.com, American Express's from its own domain (live).
+    ("jpmc.fa.oraclecloud.com", oracle.MAIL_SEARCH),
     (SITE, SEARCH),
 ])
 def test_a_sites_code_is_read_only_from_its_own_or_its_job_systems_domain(site, search):
