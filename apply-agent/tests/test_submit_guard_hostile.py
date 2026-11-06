@@ -35,6 +35,7 @@ FINAL = "/acme/jobs/123/apply"  # final by its name alone: a path ending in /app
 GREENHOUSE = "https://job-boards.greenhouse.io/acme/jobs/5442881008"  # a known final URL
 START = "/acme/jobs/123/start"
 FORM = "/acme/jobs/123/form"
+SAVE = "/acme/jobs/123/save_page"  # TAL.net's: each step's save and the final Submit post here; submit=1 is the Submit
 
 # What a page's script uses to send the application every way it can, once called.
 SEND_ALL = """<script>
@@ -108,8 +109,36 @@ PAGES = {
         </ul></nav><form id=f method=post action="{FINAL}"><input name=first value=Test></form>{SEND_ALL}
         <script>document.getElementById('b').addEventListener('click', (e) => {{ e.preventDefault(); sendAll();
           document.getElementById('f').submit(); }});</script>"""},
+    # KAN-710: the guard holes plain code's press shared, from the KAN-692 review. The application is the form's
+    # post to SAVE with submit=1 in its body (TAL.net's Submit posts to the same save_page as each step's save).
+    # A Submit in another language, in a form that also has an English Submit: only the account click presses it.
+    "a Submit in another language beside a Submit": {START: f"""<title>Apply</title><form method=post action="{SAVE}">
+        <input name=first value=Test><button name=submit value=1>Envoyer ma candidature</button>
+        <button name=submit value=1>Submit application</button></form>"""},
+    # A Next that sends the form by a hidden button that says nothing that sends, though the form has a Submit.
+    "a Next that sends by a hidden button": {START: f"""<title>Apply</title><form id=f method=post action="{SAVE}">
+        <input name=first value=Test><button id=h name=submit value=1 hidden>Go</button>
+        <button name=submit value=1 style="position:absolute;left:-9999px">Submit application</button></form>
+        <button id=b type=button>Next</button>
+        <script>document.getElementById('b').addEventListener('click', () =>
+          document.getElementById('f').requestSubmit(document.getElementById('h')));</script>"""},
+    # A frame inside the Next: the press lands in the frame, whose own form posts the application to the top page.
+    "a frame inside the Next": {
+        START: f"""<title>Apply</title><form method=post action="/acme/jobs/123/step2"><input name=first value=Test>
+            <button id=b style="width:320px;height:140px;padding:0">Next<iframe style="border:0;width:300px;height:120px"
+            srcdoc="<form method=post action='{SAVE}' target=_top style='margin:0'><input type=hidden name=submit value=1>
+            <button style='width:300px;height:120px'>Next</button></form>"></iframe></button></form>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    # A timer that tries to post the application all the time: it must not get through while a Next is pressed.
+    "a form a timer posts while a Next is pressed": {START: f"""<title>Apply</title><div id=step>
+        <label>First name <input name=first value=Test></label></div><button id=b type=button>Next</button>
+        <form id=f2 method=post action="{SAVE}"><input type=hidden name=submit value=1></form>
+        <script>document.getElementById('b').addEventListener('click', () => setTimeout(() => {{
+          document.getElementById('step').innerHTML = '<label>Last name <input name=last></label>'; }}, 1000));
+        setInterval(() => {{ try {{ HTMLFormElement.prototype.submit.call(document.getElementById('f2')); }} catch (e) {{}} }}, 100);</script>"""},
 }
-BUTTON = {"a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
+BUTTON = {"a Submit in another language beside a Submit": "Envoyer ma candidature",
+          "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
           "a button whose words change after the check": "Continue"}
 
@@ -122,19 +151,23 @@ class Site:
     """The fake job system: each page by path, and every request that isn't a GET."""
 
     def __init__(self, pages: dict[str, str]):
-        self.pages, self.sent = pages, []
+        self.pages, self.sent, self.bodies = pages, [], []
 
     def handle(self, route) -> None:
         request = route.request
         path = request.url.split("example.com", 1)[-1].split("?")[0] if "example.com" in request.url else request.url
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             self.sent.append(path)
+            try:
+                self.bodies.append((path, request.post_data or ""))
+            except Exception:
+                self.bodies.append((path, ""))
         body = self.pages.get(path, "<title>Thanks</title><p>Thank you for applying</p>")
         route.fulfill(body=body, content_type="text/html")
 
     def applications(self) -> list[str]:
-        """The application requests that reached the job system."""
-        return [p for p in self.sent if p in (FINAL, GREENHOUSE)]
+        """The application requests that reached the job system: a final URL's, or SAVE's with its Submit (submit=1)."""
+        return [p for p in self.sent if p in (FINAL, GREENHOUSE)] + [p for p, b in self.bodies if p == SAVE and "submit=1" in b]
 
 
 # --- the click paths, each the real code that presses through the guards
@@ -275,7 +308,6 @@ def test_without_the_guard_each_hostile_page_sends(page_name):
 # Ask Claude's press of a listed step (KAN-692) against a TAL.net-like form, whose final Submit posts to the same
 # save_page as each step's save: only the body (submit=1) tells them apart. The adversarial review's pages: none
 # may send the form's own button.
-SAVE = "/acme/jobs/123/save_page"
 _FORM = f'<form id=f method=post action="{SAVE}"><input name=first value=Test>'
 LISTED_SENDS = {
     "a Submit in another language": (f"<title>Declaration</title>{_FORM}<ul class=actions><li>"

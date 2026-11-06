@@ -233,7 +233,8 @@ class PlainDriveGuard(DriveGuard):
     def lift(self) -> None:
         self._flags(__applyDriveLifted=True)
 
-    def let_account_click(self) -> None:
+    def let_account_click(self, element=None) -> None:
+        """In every frame: the guard there lets only a press the extension makes in that frame (its __apply_touch)."""
         self._flags(__applyAccountClick=True)
 
     def let_profile_click(self, let: bool = True) -> None:
