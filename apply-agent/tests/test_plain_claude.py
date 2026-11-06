@@ -237,6 +237,18 @@ def test_snapshot_refs_drive_the_fields_in_the_page_and_its_frames(page, tmp_pat
 
 
 @needs_chrome
+def test_typing_slowly_replaces_what_the_box_held_as_a_fill_does(page, tmp_path):
+    # AMD's iCIMS search box (live, KAN-699): typed after its earlier text, it searched "New YorkNew York".
+    with tools_on(page, tmp_path) as tools:
+        snapshot, _ = tools.tool("browser_snapshot")
+        box = ref(snapshot, 'textbox "First name"')
+        tools.tool("browser_type", target=box, text="New York")
+        said, error = tools.tool("browser_type", target=box, text="New", slowly=True)
+        assert not error and "pressSequentially(\"New\")" in said
+    assert page.input_value("#first") == "New"
+
+
+@needs_chrome
 def test_no_tool_clicks_types_or_keys_into_a_captcha_and_the_form_s_own_fields_still_take_answers(page, site, tmp_path):
     page.goto(f"{site.url}/captcha")
     with tools_on(page, tmp_path) as tools:
