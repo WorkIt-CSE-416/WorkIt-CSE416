@@ -320,12 +320,13 @@ _TEMPLATE = r"""
   }));
   // Plain code's press is on: armed, and the press came under this same arming.
   const accountClick = () => !!press && !!press.by && press.by === armed();
-  // A form's submission is the press's own: the pressed button sends it (by), or the page's own handlers of the
-  // press do while it is still being dispatched (a Next that calls form.submit() or requestSubmit()), or the
-  // pressed element's own form goes on later (a Next that checks its step by fetch first). Never another form
-  // a script posts meanwhile, nor a form in a frame inside the pressed element.
-  const pressed = (form, by) => !!press && ((isEl(by) && contains(by, press.target))
-    || phaseGet(press.event) !== 0 || (!!form && form === press.form));
+  // A form's submission is the press's own: the pressed button sends it (by), or the pressed element's own form goes
+  // on (a Next whose handler calls form.submit() or requestSubmit(), or checks its step by fetch first). A Next that
+  // is in no form posts, while its press is being dispatched, only a form that shows a field of the step (KAN-710):
+  // never another form a script posts meanwhile (one of hidden fields only), nor a form in a frame inside it.
+  const pressed = (form, by) => !!press && ((isEl(by) && contains(by, press.target)) || (!!form && form === press.form)
+    || (!press.form && phaseGet(press.event) !== 0 && !!form && any(fields(form), (n) =>
+      !test(/^(hidden|submit|button|reset|image)$/i, typeOf(n)) && test(/^(INPUT|SELECT|TEXTAREA)$/, tag(n)) && seen(n))));
   const fromPress = (form, by) => accountClick() && pressed(form, by);
   // The forms that had a button that sends as the press landed (KAN-710): the press's own handlers may rename or take
   // away a form's Submit, then post it, but a form that had one is never a step's.
@@ -389,8 +390,18 @@ _TEMPLATE = r"""
     return any(FINAL_URLS, (r) => test(r, href)) || any(FINAL_BODIES, (r) => test(r, body));
   };
 
+  // A button's words as a person reads them (KAN-710): its text, its value, its labels, its title, an image's alt, or
+  // what the browser writes on a submit or image button with none ("Submit").
   const wordsOf = (el) => {
-    const said = [innerText(el), valueOf(el), text(attr(el, 'aria-label'))];
+    const ids = wordList(text(attr(el, 'aria-labelledby')));
+    let labelled = '';
+    for (let i = 0; i < ids.length; i++) { const n = byId(D, ids[i]); if (n) labelled += ' ' + innerText(n); }
+    const images = all(el, 'img[alt], svg title, [role=img][aria-label]');
+    let pictured = '';
+    for (let i = 0; i < images.length; i++) pictured += ' ' + (text(attr(images[i], 'alt')) || text(attr(images[i], 'aria-label')) || innerText(images[i]));
+    const type = tag(el) === 'INPUT' ? lower(typeOf(el)) : '';
+    const said = [innerText(el), type ? valueOf(el) : '', text(attr(el, 'aria-label')), labelled, text(attr(el, 'title')), pictured,
+                  type === 'image' ? text(attr(el, 'alt')) : '', type === 'submit' || type === 'image' ? 'Submit' : ''];
     return find(said, (w) => !!trim(w)) || '';
   };
   // A button that sends: its words say so, or say apply on a form's button (a job page's Apply link is no form's).
@@ -471,9 +482,10 @@ _TEMPLATE = r"""
 
   // Native submission of a POST form.
   // The form has a button that sends: any of its buttons, a hidden one or one outside it (form=) too (KAN-710).
-  const formSends = (form) => any(all(form, 'button, input[type=submit], input[type=image]'), (n) => buttonSends(n))
-    || any(fields(form), (n) => buttonSends(n));
-  const buttonSends = (n) => (tag(n) === 'BUTTON' || test(/^(submit|image)$/i, typeOf(n))) && sends(n);
+  // Any button: a button, a submit, image or button input, or what a script makes one (role=button) (KAN-710).
+  const BUTTONS = 'button, input[type=submit], input[type=image], input[type=button], [role=button]';
+  const formSends = (form) => any(all(form, BUTTONS), (n) => buttonSends(n)) || any(fields(form), (n) => buttonSends(n));
+  const buttonSends = (n) => (tag(n) === 'BUTTON' || test(/^(submit|image|button)$/i, typeOf(n)) || attr(n, 'role') === 'button') && sends(n);
   const posts = (form, submitter) => {
     const method = (isEl(submitter) && text(attr(submitter, 'formmethod'))) || text(attr(form, 'method')) || 'get';
     return lower(method) === 'post';

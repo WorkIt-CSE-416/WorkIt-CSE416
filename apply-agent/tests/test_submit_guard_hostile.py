@@ -227,6 +227,24 @@ PAGES = {
             style='margin:0'><input type=hidden name=first value=Test><button style='width:300px;height:120px'>Next
             </button></form>"></iframe></button></form>""",
         "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    # Another form, of hidden fields only, posted by the Next's own handler: not the step's.
+    "another form posted in the Next's handler": {START: f"""<title>Apply</title><label>First <input name=first
+        value=Test></label><button id=b type=button>Next</button><form id=f2 method=post action="{SAVE}">
+        <input type=hidden name=submit value=1></form><script>document.getElementById('b').addEventListener('click',
+        () => HTMLFormElement.prototype.submit.call(document.getElementById('f2')));</script>"""},
+    # A Submit whose words the guard didn't read: no value (the browser writes "Submit"), an icon's title, role=button.
+    "an input Submit with no value": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}">
+        <input name=first value=Test><input type=hidden name=submit value=1><input id=s type=submit></form>
+        <button id=b type=button>Next</button><script>document.getElementById('b').addEventListener('click', () =>
+        document.getElementById('s').click());</script>"""},
+    "an icon Submit with a title": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}">
+        <input name=first value=Test><button id=s name=submit value=1 title="Submit application"><img
+        alt="Submit application" src="data:,"></button></form><button id=b type=button>Next</button>
+        <script>document.getElementById('b').addEventListener('click', () => document.getElementById('s').click());</script>"""},
+    "a role=button Submit": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}">
+        <input name=first value=Test><input type=hidden name=submit value=1><div role=button>Submit application</div>
+        </form><button id=b type=button>Next</button><script>document.getElementById('b').addEventListener('click', () =>
+        HTMLFormElement.prototype.submit.call(document.getElementById('app')));</script>"""},
 }
 BUTTON = {"a Submit in another language beside a Submit": "Envoyer ma candidature",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
