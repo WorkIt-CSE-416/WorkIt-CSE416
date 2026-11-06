@@ -191,6 +191,10 @@ class WorkerBrowsers:
     def _workers(self) -> list[Path]:
         return sorted(p for p in self._profiles.glob(WORKER_PROFILES) if p.is_dir())
 
+    def profiles_made(self) -> list[Path]:
+        """The Worker profiles on disk. Nothing opens them."""
+        return self._workers()
+
     def refuse_in_use(self) -> None:
         """A persistent profile can be open in only one browser at a time."""
         busy = [p.name for p in self._workers() if in_use(p)]
