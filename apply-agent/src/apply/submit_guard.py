@@ -253,9 +253,18 @@ _TEMPLATE = r"""
   // A profile pop-up posting to its own page, on a URL final by its name alone: the pop-up is proven no application.
   const profileOwnPage = (form, by) => !(by && by.getAttribute && by.getAttribute('formaction'))
     && !HTMLFormElement.prototype.getAttribute.call(form, 'action') && byNameAlone(form, by);
+  // A sign-in relay's own post (an SSO, OIDC or SAML hand-off: Amazon's idp.federate "Signing you in...", live):
+  // the page's script posts it before any click or key on the page, its fields are all hidden (a token, a
+  // state), no button of it sends, and it is bound for no final URL. Nothing of an application is in it.
+  const fields = (form) => Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get.call(form);
+  const relay = (form, by) => !touched && posts(form, by) && !postsFinal(form, by)
+    && [...fields(form)].some((n) => n.type === 'hidden')
+    && [...fields(form)].every((n) => n.type === 'hidden' || n.tagName === 'FIELDSET'
+      || (/^(submit|button|reset)$/.test(n.type) && !sends(n)));
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
+    if (relay(form, by)) return;
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
     if (accountClick() && form.querySelector('input[type=password]') && !postsFinal(form, by)) return;
@@ -275,7 +284,7 @@ _TEMPLATE = r"""
     // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
     const step = accountClick() && !postsFinal(this) && (!!this.querySelector('input[type=password]')
       || ![...this.querySelectorAll('button, input[type=submit]')].some(sends));
-    if (!lifted() && !step && posts(this)) return note('a form submission');
+    if (!lifted() && !step && !relay(this, null) && posts(this)) return note('a form submission');
     return submit.call(this);
   };
 
