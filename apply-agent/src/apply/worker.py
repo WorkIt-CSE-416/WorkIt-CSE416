@@ -46,6 +46,7 @@ from apply.fill_engine import (
     readback_problems,
     remember,
     shows,
+    ticked,
     to_tick,
     trap_handoff,
 )
@@ -345,7 +346,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         if isinstance(handoff, Blocked) or not (rehearse and on_pause(stopped, blocked)):
                             return stopped  # a bot block is never paused: Resume would only try again
                         # Resume: what Lisul put on the step it stopped on stays, as his answers.
-                        planned.keep(getattr(filler, "resumed", lambda page: {})(page))
+                        planned.keep(getattr(filler, "resumed", lambda page: {})(page), getattr(filler, "paused", None))
                 questions, answers, holds = planned.questions, planned.answers, list(planned.holds)
                 holds = [f"Not filled: {e}" for e in planned.unfilled] + holds + planned.to_tick
                 filled = Filled(questions, answers, readback, _screenshot(page), html=page_html(page))
@@ -536,12 +537,18 @@ class _Planned:
         """The Check before Submit lines for the attestations Lisul has not ticked on a paused step: "Yours to tick: ..."."""
         return [to_tick(wording) for name, wording in self.attestations.items() if name not in self.lisuls]
 
-    def keep(self, values: dict) -> None:
+    def keep(self, values: dict, paused: dict | None = None) -> None:
         """Keep what Lisul put on a paused form before Resume (the Filler's
         `resumed`) as his answers: no plan, Claude or Filler writes over them,
-        and a Missing fact he answered there waits on him no more."""
+        and a Missing fact he answered there waits on him no more. An
+        attestation is his only once he ticked it himself: a tick other than
+        what the page showed at the pause (`paused`, the Filler's read of it).
+        Unread at the pause, or untouched, it stays on his list (KAN-676)."""
+        by_name = {q.name: q for q in self.questions}
         values = {name: value for name, value in values.items()  # what Apply had put there itself stays Apply's
-                  if name not in self._answers or not shows(value, self._answers[name], self.accepted.get(name, ()))}
+                  if (name not in self._answers or not shows(value, self._answers[name], self.accepted.get(name, ())))
+                  and (name not in self.attestations or (paused is not None and name in paused and value != paused[name]
+                                                         and ticked(value, by_name.get(name))))}
         if not values:
             return
         self.lisuls |= values

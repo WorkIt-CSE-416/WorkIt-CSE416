@@ -23,8 +23,9 @@ from test_run_answers import profile_with
 from apply import fill_engine, worker
 from apply.accounts import Accounts
 from apply.answer_bank import AnswerBank
+from apply.claude_fill import OnePage
 from apply.keychain import InMemoryKeychain
-from apply.model import Posting, Question
+from apply.model import Handoff, Posting, Question
 from apply.profile import ApplicantProfile
 from apply.workday import WorkdayFiller
 
@@ -220,6 +221,31 @@ def _workday():
     return FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps), filler
 
 
+def test_resume_with_the_box_still_unticked_is_not_his_answer():
+    server, filler = _workday()
+    with server, OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            with pytest.raises(Handoff):
+                filler.fill(page, questions, {questions[0].name: "Test"})
+            kept = filler.resumed(page)  # he pressed Resume without ticking it
+    assert questions[1].name not in kept, f"read as his: {kept}"
+
+
+def test_resume_with_the_box_still_unticked_stops_again_on_workday():
+    server, filler = _workday()
+    with server, OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            answers = {questions[0].name: "Test"}
+            with pytest.raises(Handoff):
+                filler.fill(page, questions, answers)
+            filler.resumed(page)
+            with pytest.raises(Handoff) as again:
+                filler.fill(page, questions, answers)
+    assert "yourself on this page" in str(again.value), f"not the one-line ask: {again.value}"
+
+
 def _planned(attest: Question) -> "worker._Planned":
     planned = worker._Planned.__new__(worker._Planned)
     planned.questions = [attest]
@@ -230,3 +256,10 @@ def _planned(attest: Question) -> "worker._Planned":
     planned.profile, planned._bank, planned.posting, planned._today = DEFAULTS, AnswerBank(), POSTING, NOW.date()
     return planned
 
+
+@pytest.mark.parametrize("read", ["No", "Yes"])
+def test_a_value_lisul_did_not_put_there_leaves_the_attestation_on_the_list(read):
+    # "No": Workday's read-back of an untouched box. "Yes": a box the page or an earlier draft pre-ticked, read at Resume.
+    planned = _planned(Question("a", CERTIFY, "select", True, ("Yes", "No")))
+    planned.keep({"a": read})
+    assert planned.to_tick == [f"Yours to tick: {CERTIFY}"], f"gone from the list, answers now {planned.answers}"
