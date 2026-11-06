@@ -150,3 +150,11 @@ def test_a_form_lisul_signed_in_to_himself_is_not_signed_in_to_again():
                          '<button>Next</button>')
         oracle.sign_in(page, NoAccounts(), "Elvitigala", agree_to_terms=True)
         browser.close()
+
+
+def test_oracles_code_is_searched_by_its_senders_not_by_any_code_subject():
+    # JPMorgan (live): the code came from workflow.mail.us2.cloud.oracle.com, and an Amazon code
+    # mailed meanwhile matched the old subject-only search.
+    from apply.oracle import MAIL_SEARCH
+    assert "from:(oracle.com OR oraclecloud.com)" in MAIL_SEARCH
+    assert 'subject:"confirm your identity"' in MAIL_SEARCH and "subject:(code" not in MAIL_SEARCH
