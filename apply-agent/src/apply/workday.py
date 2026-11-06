@@ -195,6 +195,7 @@ class WorkdayFiller:
         self._known = list(questions)
         self._back_to_changed(page, questions, answers)
         refilled: set[str] = set()  # the steps Workday refused once, filled again
+        attests = {name for name in fill_engine.attestations(questions) if name not in answers}  # Lisul's to tick
         # The last step is Review, or whichever step's footer button sends (a tenant may name it
         # otherwise): filling stops there, and only submit() clicks that button.
         while not (shown := self._shown(page))["review"] and not (shown["sends"] and not shown["questions"]):
@@ -215,6 +216,10 @@ class WorkdayFiller:
                 continue  # an answer brought up a follow-up question (Snap's H-4 one, live)
             if shown["sends"]:
                 break
+            # A required attestation or signature on this step is Lisul's (KAN-676): Save and Continue would refuse
+            # it blank, so the form stops here for him to tick it. Resume goes on with what he put on the step.
+            if unticked := [q.label for q in fields if q.required and q.name in attests and q.name not in kept]:
+                raise Handoff(fill_engine.tick_ask(unticked))
             try:
                 next_step(page, shown["step"])
             except Handoff as refused:

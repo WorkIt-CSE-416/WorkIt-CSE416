@@ -57,7 +57,7 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import Locator, Page
 
-from apply import captcha, description
+from apply import captcha, description, fill_engine
 from apply.account_pages import FIELDS as ACCOUNT_FIELDS
 from apply.account_pages import PROMPT as ACCOUNT_PROMPT
 from apply.account_pages import SENDS, AccountPages
@@ -368,6 +368,10 @@ class ClaudeFill:
         the page is on, with only the answers not yet on the form."""
         labels = {q.name: q.label for q in questions}
         kinds = {q.name: q.kind for q in questions}
+        # Attestations and signatures (KAN-676): Lisul's own to tick or sign. Claude leaves each as it is and reads it
+        # back, so a required one left unticked on this step stops the form here, before its Next.
+        attests = {name for name in fill_engine.attestations(questions) if name not in answers}
+        required = {q.name for q in questions if q.required}
         if self._waited_for_box and not captcha.shows(page):  # Lisul did the captcha on the filled form
             self._waited_for_box = False
             return dict(self._readback)
@@ -394,6 +398,10 @@ class ClaudeFill:
                       for name, value in todo.items()]
             files = [value for value in todo.values() if isinstance(value, Path)]
             prompt = f"<fields>\n{json.dumps(fields, indent=0)}\n</fields>"
+            if attests:
+                prompt = (f"These are the person's own to tick or sign, never yours: {', '.join(sorted(attests))} "
+                          f"({'; '.join(repr(labels[n]) for n in sorted(attests))}). Never tick, pick, type in or change "
+                          "them. If one is on this step, read it back in `filled` exactly as it shows now.\n" + prompt)
             if self._attached:
                 [(name, resume)] = self._attached.items()
                 prompt = f"The résumé ({resume}) is already attached to {labels[name]!r}: leave that field as it is.\n{prompt}"
@@ -402,9 +410,13 @@ class ClaudeFill:
                 prompt = f"These dropdowns are already picked: {done_already}. Leave them as they are.\n{prompt}"
             step = _step_key(page)
             done = self._session(page, FILL + (GATES if self._page_gates else ""), prompt,
-                                 _fill_schema(list(todo), self._page_gates), files)
+                                 _fill_schema([*todo, *sorted(attests)], self._page_gates), files)
+            on_step: dict[str, list[str]] = {}  # the attestations this step shows, as read back
             for field in done["filled"]:
-                name = _field_named(str(field["field"]), {name: labels[name] for name in todo})
+                name = _field_named(str(field["field"]), {name: labels[name] for name in [*todo, *attests]})
+                if name in attests:
+                    on_step[name] = [NOTED.sub("", str(s)).strip() for s in field["shown"]]
+                    continue
                 if name in kinds and name in todo:
                     shown = [NOTED.sub("", str(s)).strip() for s in field["shown"]]
                     if not any(shown) and self._readback.get(name):
@@ -426,6 +438,12 @@ class ClaudeFill:
             if wrong := cant_be_right(shown, sections=_sections(page, shown)):
                 raise Handoff(f"Page {self._steps + 1} shows what can't be right, so Apply didn't go on: {'; '.join(wrong)}. "
                               "Fix it on the page, then press Resume.")
+            # A required attestation left unticked here would block Next: the form stops on this step for Lisul to
+            # tick it, never ticked by Claude. Resume goes on from the step as he left it.
+            unticked = [labels[name] for name, shown in on_step.items() if name in required and not fill_engine.ticked(shown)]
+            if unticked and step not in self._approved:
+                self._gated = step
+                raise Handoff(f"Page {self._steps + 1}: {fill_engine.tick_ask(unticked)}")
             asks = [one for one in (str(a).strip() for a in done.get("for_lisul") or []) if one]
             if self._page_gates == "note" and asks and step not in self._approved:
                 self._approved.add(step)

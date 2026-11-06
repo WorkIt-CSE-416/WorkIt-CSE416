@@ -236,6 +236,40 @@ class Plan:
     # A follow-up ("If yes, ...") whose question is still to be answered (a draft, a Missing fact), by name: that
     # question's name. Neither asked nor written yet: the worker decides it once that answer is in (not_called_for).
     waiting: dict[str, str] = field(default_factory=dict)
+    # Each attestation, certification or signature question, by name: its exact wording (KAN-676). Never answered,
+    # by the plan, the Answer bank, Claude fill or the essay writer: Lisul ticks or signs it ("Yours to tick").
+    attestations: dict[str, str] = field(default_factory=dict)
+
+
+TO_TICK = "Yours to tick"  # starts each line of the Check before Submit list that names an attestation
+
+
+def to_tick(wording: str) -> str:
+    """The Check before Submit line for an attestation left for Lisul, with its exact wording on one line."""
+    # A reason's parts are split on "; ": one inside the wording is written ", " so the line stays whole.
+    return f"{TO_TICK}: {' '.join(wording.split()).replace('; ', ', ')}"
+
+
+def tick_ask(wordings: list[str]) -> str:
+    """The one-line ask when a required attestation stops the form on its page: Lisul ticks or signs it, then Resume."""
+    named = " and ".join(f"'{' '.join(w.split())}'" for w in wordings)
+    return f"Tick {named} yourself on this page, then press Resume: Apply never attests or signs for you."
+
+
+UNTICKED = re.compile(r"^\s*(no|false|off|unchecked|not checked|unticked|not ticked|empty|blank|none|left for you)?\s*$", re.IGNORECASE)
+
+
+def ticked(shown: object) -> bool:
+    """Whether a field read back shows a tick, a pick or text: not empty, nor a box read as unticked ("No")."""
+    values = shown if isinstance(shown, (list, tuple)) else [shown]
+    return any(not UNTICKED.match(str(value or "")) for value in values)
+
+
+def attestations(questions: QuestionSet) -> set[str]:
+    """The names of `questions` that ask Lisul to attest, certify or sign: the engine's own pattern (asksAttestation)."""
+    listed = list(questions)
+    found = call_without_page("asksAttestation", [{"label": q.label, "options": list(q.options)} for q in listed]) if listed else []
+    return {q.name for q, attests in zip(listed, found) if attests}
 
 
 def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, bank: AnswerBank | None = None,
@@ -274,7 +308,7 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
         high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=result["drafts"], banked=result["banked"],
         accepted=accepted, blanks=dict(result.get("blanks") or {}),
         sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
-        waiting=dict(result.get("waiting") or {}),
+        waiting=dict(result.get("waiting") or {}), attestations=dict(result.get("attestations") or {}),
     )
 
 
