@@ -713,7 +713,7 @@ def _noted(link: str, site: "_Kept", adapters: Adapters, posting: Posting, statu
     worker = site.worker
     fields = {"application_id": posting.id, "posting_url": posting.url, "job_system": posting.job_system,
               "company": posting.company, "role": posting.title, "status": status, "worker": worker,
-              "plain": bool(getattr(adapters.site, "plain", lambda k: False)(worker))}
+              "plain": bool(callable(plain := getattr(adapters.site, "plain", None)) and plain(worker))}
     if profiles := getattr(adapters.site, "profiles", None):
         fields["profiles"] = str(Path(profiles).expanduser().resolve())
     if done is not None:
